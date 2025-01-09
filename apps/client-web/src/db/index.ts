@@ -6,7 +6,8 @@ db.serialize(() => {
 	db.run(`CREATE TABLE IF NOT EXISTS people(
 		id TEXT PRIMARY KEY,
 		given_name TEXT,
-		family_name TEXT
+		family_name TEXT,
+		birth_date TEXT
 	)`);
 });
 

@@ -26,6 +26,11 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
 				<Link href={`/people/${id}/edit`}>{`Edit ${person.given_name}`}</Link>
 				<Link href={`/people/${id}/delete`}>{`Delete ${person.given_name}`}</Link>
 			</header>
+
+			<section>
+				<h2>Born</h2>
+				<div>{person.birth_date}</div>
+			</section>
 		</Fragment>
 	);
 }
