@@ -1,0 +1,10 @@
+.skipNavLink {
+	left: 50%;
+	position: absolute;
+	transform: translateY(-200%);
+	translition: transform 0.3s;
+}
+
+.skipNavLink:focus {
+	transform: translateY(0%);
+}
