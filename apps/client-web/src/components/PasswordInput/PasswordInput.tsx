@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from 'react';
 
-import TextInput from '@/components/TextInput';
+import BaseInput from '@/components/BaseInput';
 import { useJavaScriptIsEnabled } from '@/hooks';
 
 export default function PasswordInput({
@@ -21,7 +21,7 @@ export default function PasswordInput({
 	const javaScriptIsEnabled = useJavaScriptIsEnabled();
 
 	return (
-		<TextInput
+		<BaseInput
 			label={(
 				<Fragment>
 					<div>{label}</div>

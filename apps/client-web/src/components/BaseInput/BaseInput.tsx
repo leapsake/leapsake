@@ -1,6 +1,6 @@
-import styles from './TextInput.module.css';
+import styles from './BaseInput.module.css';
 
-export default function TextInput({
+export default function BaseInput({
 	defaultValue,
 	label,
 	name,
