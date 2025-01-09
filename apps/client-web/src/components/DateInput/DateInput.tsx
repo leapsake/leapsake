@@ -6,13 +6,33 @@ export default function DateInput({
 	name = 'date',
 	value,
 }) {
+	const dateValue = value || defaultValue || '';
+	const [year, month, day] = dateValue.split('-');
+
 	return (
-		<BaseInput
-			defaultValue={defaultValue}
-			label={label}
-			name={name}
-			type="date"
-			value={value}
-		/>
+		<fieldset name={name}>
+			<legend>{label}</legend>
+
+			<BaseInput
+				defaultValue={month}
+				label="Month"
+				name="month"
+				type="text"
+			/>
+
+			<BaseInput
+				defaultValue={day}
+				label="Day"
+				name="day"
+				type="text"
+			/>
+
+			<BaseInput
+				defaultValue={year}
+				label="Year"
+				name="year"
+				type="text"
+			/>
+		</fieldset>
 	)
 }
