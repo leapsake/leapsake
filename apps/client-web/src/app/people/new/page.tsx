@@ -1,5 +1,6 @@
 import BaseInput from '@/components/BaseInput';
 import DateInput from '@/components/DateInput';
+import PersonForm from '@/components/PersonForm';
 import db from '@/db';
 import { Fragment } from 'react';
 import { redirect } from 'next/navigation';
@@ -29,24 +30,11 @@ export default async function NewPersonPage() {
 	return (
 		<Fragment>
 			<h1>Add a Person</h1>
-			<form action={createPerson}>
-				<BaseInput
-					label="First Name"
-					name="given_name"
-				/>
 
-				<BaseInput
-					label="Last Name"
-					name="family_name"
-				/>
-
-				<DateInput
-					label="Birthday"
-					name="birth_date"
-				/>
-
-				<button type="submit">Submit</button>
-			</form>
+			<PersonForm
+				action={createPerson}
+				buttonText="Add"
+			/>
 		</Fragment>
 	);
 }

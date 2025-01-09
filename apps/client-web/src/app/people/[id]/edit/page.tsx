@@ -1,5 +1,4 @@
-import BaseInput from '@/components/BaseInput';
-import DateInput from '@/components/DateInput';
+import PersonForm from '@/components/PersonForm';
 import db from '@/db';
 import { Fragment } from 'react';
 import Link from 'next/link';
@@ -51,27 +50,12 @@ export default async function EditPersonPage({ params }: { params: Promise<{ id:
 				<h1>{`Update ${person.given_name} ${person.family_name}`}</h1>
 				<Link href={`/people/${id}/delete`}>{`Delete ${person.given_name}`}</Link>
 			</header>
-			<form action={editPerson}>
-				<BaseInput
-					defaultValue={person.given_name}
-					label="First Name"
-					name="given_name"
-				/>
 
-				<BaseInput
-					defaultValue={person.family_name}
-					label="Last Name"
-					name="family_name"
-				/>
-
-				<DateInput
-					defaultValue={person.birth_date}
-					label="Birthday"
-					name="birth_date"
-				/>
-
-				<button type="submit">Submit</button>
-			</form>
+			<PersonForm
+				action={editPerson}
+				buttonText="Update"
+				person={person}
+			/>
 		</Fragment>
 	);
 }
