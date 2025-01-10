@@ -1,48 +1,11 @@
 import PersonForm from '@/components/PersonForm';
-import db from '@/db';
+import { editPerson, readPerson } from '@/db/people';
 import { Fragment } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-
-async function getPerson(id) {
-	const person = await new Promise((resolve, reject) => {
-		db.get(`SELECT * FROM People WHERE id = ?`, [ id ], (err, row) => {
-			if (err) {
-				reject(err);
-			} else {
-				resolve(row);
-			}
-		});
-	});
-	return person;
-}
 
 export default async function EditPersonPage({ params }: { params: Promise<{ id: string }> }) {
 	const id = (await params).id;
-	const person = await getPerson(id);
-
-	async function editPerson(formData: FormData) {
-		'use server'
-
-		const givenName = formData.get('given_name');
-		const familyName = formData.get('family_name');
-
-		db.run(`
-			UPDATE People
-			SET updated_at = datetime('now'), given_name = ?, family_name = ?
-			WHERE id = ?
-		`, [
-			givenName,
-			familyName,
-			id
-		], (err) => {
-			if (err) {
-				console.error(err);
-			}
-		});
-
-		redirect(`/people/${id}`);
-	}
+	const person = await readPerson(id);
 
 	return (
 		<Fragment>
@@ -55,7 +18,7 @@ export default async function EditPersonPage({ params }: { params: Promise<{ id:
 			</header>
 
 			<PersonForm
-				action={editPerson}
+				action={editPerson.bind(null, id)}
 				buttonText="Update"
 				person={person}
 			/>

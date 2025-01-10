@@ -1,22 +1,9 @@
 import { Fragment } from 'react';
 import Link from 'next/link';
-import db from '@/db';
-
-async function getPeople() {
-	const people = await new Promise((resolve, reject) => {
-		db.all(`SELECT * FROM People ORDER BY family_name ASC, given_name ASC`, (err, rows) => {
-			if (err) {
-				reject(err);
-			} else {
-				resolve(rows);
-			}
-		});
-	});
-	return people;
-}
+import { browsePeople } from '@/db/people';
 
 export default async function PeoplePage() {
-	const people = await getPeople();
+	const people = await browsePeople();
 
 	return (
 		<Fragment>
