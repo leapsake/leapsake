@@ -7,25 +7,25 @@ db.serialize(() => {
 		id TEXT PRIMARY KEY,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		dateable_id TEXT,
 		family_name TEXT,
 		given_name TEXT,
-		middle_name TEXT
+		middle_name TEXT,
+		milestoneable_id TEXT
 	)`);
 
 
-	db.run(`CREATE TABLE IF NOT EXISTS Dateables(
+	db.run(`CREATE TABLE IF NOT EXISTS Milestoneables(
 		id TEXT PRIMARY KEY,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)`);
 
-	db.run(`CREATE TABLE IF NOT EXISTS SpecialDates(
+	db.run(`CREATE TABLE IF NOT EXISTS Milestones(
 		id TEXT PRIMARY KEY,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		dateable_id TEXT,
 		day TEXT,
+		milestoneable_id TEXT,
 		month TEXT,
 		year TEXT
 	)`);

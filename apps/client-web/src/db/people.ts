@@ -65,23 +65,23 @@ export async function addPerson(formData: FormData) {
 	const middleName = formData.get('middle_name');
 	const familyName = formData.get('family_name');
 	const peopleId = uuidv4();
-	const dateableId = uuidv4();
+	const milestoneableId = uuidv4();
 
 	db.serialize(() => {
-		db.run(`INSERT INTO Dateables(id) VALUES(?)`, [
-			dateableId,
+		db.run(`INSERT INTO Milestoneables(id) VALUES(?)`, [
+			milestoneableId,
 		], (err) => {
 			if (err) {
 				console.error(err);
 			}
 		});
 
-		db.run(`INSERT INTO People(id, given_name, middle_name, family_name, dateable_id) VALUES(?, ?, ?, ?, ?)`, [
+		db.run(`INSERT INTO People(id, given_name, middle_name, family_name, milestoneable_id) VALUES(?, ?, ?, ?, ?)`, [
 			peopleId,
 			givenName,
 			middleName,
 			familyName,
-			dateableId,
+			milestoneableId,
 		], (err) => {
 			if (err) {
 				console.error(err);
