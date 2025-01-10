@@ -1,4 +1,4 @@
-import TextInput from '@/components/TextInput';
+import BaseInput from '@/components/BaseInput';
 
 export default function DateInput({
 	defaultValue,
@@ -7,7 +7,7 @@ export default function DateInput({
 	value,
 }) {
 	return (
-		<TextInput
+		<BaseInput
 			defaultValue={defaultValue}
 			label={label}
 			name={name}

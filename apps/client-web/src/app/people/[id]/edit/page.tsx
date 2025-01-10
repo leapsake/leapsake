@@ -1,4 +1,4 @@
-import TextInput from '@/components/TextInput';
+import BaseInput from '@/components/BaseInput';
 import DateInput from '@/components/DateInput';
 import db from '@/db';
 import { Fragment } from 'react';
@@ -52,13 +52,13 @@ export default async function EditPersonPage({ params }: { params: Promise<{ id:
 				<Link href={`/people/${id}/delete`}>{`Delete ${person.given_name}`}</Link>
 			</header>
 			<form action={editPerson}>
-				<TextInput
+				<BaseInput
 					defaultValue={person.given_name}
 					label="First Name"
 					name="given_name"
 				/>
 
-				<TextInput
+				<BaseInput
 					defaultValue={person.family_name}
 					label="Last Name"
 					name="family_name"

@@ -1,4 +1,4 @@
-import TextInput from '@/components/TextInput';
+import BaseInput from '@/components/BaseInput';
 
 export default function EmailInput({
 	label = 'Email Address',
@@ -6,7 +6,7 @@ export default function EmailInput({
 	value,
 }) {
 	return (
-		<TextInput
+		<BaseInput
 			label={label}
 			name={name}
 			type="email"

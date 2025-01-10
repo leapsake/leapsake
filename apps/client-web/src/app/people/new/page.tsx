@@ -1,4 +1,4 @@
-import TextInput from '@/components/TextInput';
+import BaseInput from '@/components/BaseInput';
 import DateInput from '@/components/DateInput';
 import db from '@/db';
 import { Fragment } from 'react';
@@ -30,12 +30,12 @@ export default async function NewPersonPage() {
 		<Fragment>
 			<h1>Add a Person</h1>
 			<form action={createPerson}>
-				<TextInput
+				<BaseInput
 					label="First Name"
 					name="given_name"
 				/>
 
-				<TextInput
+				<BaseInput
 					label="Last Name"
 					name="family_name"
 				/>
