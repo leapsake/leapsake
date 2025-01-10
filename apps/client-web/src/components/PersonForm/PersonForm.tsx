@@ -27,9 +27,13 @@ export default function PersonForm({
 			/>
 
 			<DateInput
-				defaultValue={person.birth_date}
 				label="Birthday"
 				name="birth_date"
+			/>
+
+			<DateInput
+				label="Anniversary"
+				name="wedding_date"
 			/>
 
 			<button type="submit">{buttonText}</button>

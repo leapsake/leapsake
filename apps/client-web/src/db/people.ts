@@ -35,6 +35,8 @@ export async function editPerson(id: string, formData: FormData) {
 	const middleName = formData.get('middle_name');
 	const familyName = formData.get('family_name');
 
+	// console.log(Object.keys(Object.fromEntries(formData)));
+
 	db.run(`
 		UPDATE People
 		SET updated_at = datetime('now'),
