@@ -13,7 +13,7 @@ export default async function NewPersonPage() {
 		const birthDate = formData.get('birth_date');
 		const id = uuidv4();
 
-		db.run(`INSERT INTO people(id, given_name, family_name, birth_date) VALUES(?, ?, ?, ?)`, [
+		db.run(`INSERT INTO People(id, given_name, family_name, birth_date) VALUES(?, ?, ?, ?)`, [
 			id,
 			givenName,
 			familyName,

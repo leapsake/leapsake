@@ -4,7 +4,7 @@ import db from '@/db';
 
 async function getPerson(id) {
 	const person = await new Promise((resolve, reject) => {
-		db.get(`SELECT * FROM people WHERE id = ?`, [ id ], (err, row) => {
+		db.get(`SELECT * FROM People WHERE id = ?`, [ id ], (err, row) => {
 			if (err) {
 				reject(err);
 			} else {

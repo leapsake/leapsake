@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 
 async function getPerson(id) {
 	const person = await new Promise((resolve, reject) => {
-		db.get(`SELECT * FROM people WHERE id = ?`, [ id ], (err, row) => {
+		db.get(`SELECT * FROM People WHERE id = ?`, [ id ], (err, row) => {
 			if (err) {
 				reject(err);
 			} else {
@@ -29,7 +29,7 @@ export default async function EditPersonPage({ params }: { params: Promise<{ id:
 		const birthDate = formData.get('birth_date');
 
 		db.run(`
-			UPDATE people
+			UPDATE People
 			SET given_name = ?, family_name = ?, birth_date = ?
 			WHERE id = ?
 		`, [
