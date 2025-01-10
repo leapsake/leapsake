@@ -15,6 +15,12 @@ export default function PersonForm({
 			/>
 
 			<BaseInput
+				defaultValue={person.middle_name}
+				label="Middle Name"
+				name="middle_name"
+			/>
+
+			<BaseInput
 				defaultValue={person.family_name}
 				label="Last Name"
 				name="family_name"
