@@ -1,4 +1,5 @@
 import TextInput from '@/components/TextInput';
+import DateInput from '@/components/DateInput';
 import db from '@/db';
 import { Fragment } from 'react';
 import Link from 'next/link';
@@ -26,14 +27,16 @@ export default async function EditPersonPage({ params }: { params: Promise<{ id:
 
 		const givenName = formData.get('given_name');
 		const familyName = formData.get('family_name');
+		const birthDate = formData.get('birth_date');
 
 		db.run(`
 			UPDATE people
-			SET given_name = ?, family_name = ?
+			SET given_name = ?, family_name = ?, birth_date = ?
 			WHERE id = ?
 		`, [
 			givenName,
 			familyName,
+			birthDate,
 			id
 		], (err) => {
 			console.error(err);
@@ -59,6 +62,12 @@ export default async function EditPersonPage({ params }: { params: Promise<{ id:
 					defaultValue={person.family_name}
 					label="Last Name"
 					name="family_name"
+				/>
+
+				<DateInput
+					defaultValue={person.birth_date}
+					label="Birthday"
+					name="birth_date"
 				/>
 
 				<button type="submit">Submit</button>

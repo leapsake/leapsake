@@ -1,4 +1,5 @@
 import TextInput from '@/components/TextInput';
+import DateInput from '@/components/DateInput';
 import db from '@/db';
 import { Fragment } from 'react';
 import { redirect } from 'next/navigation';
@@ -10,12 +11,14 @@ export default async function NewPersonPage() {
 
 		const givenName = formData.get('given_name');
 		const familyName = formData.get('family_name');
+		const birthDate = formData.get('birth_date');
 		const id = uuidv4();
 
-		db.run(`INSERT INTO people(id, given_name, family_name) VALUES(?, ?, ?)`, [
+		db.run(`INSERT INTO people(id, given_name, family_name, birth_date) VALUES(?, ?, ?, ?)`, [
 			id,
 			givenName,
-			familyName
+			familyName,
+			birthDate
 		], (err) => {
 			console.error(err);
 		});
@@ -35,6 +38,11 @@ export default async function NewPersonPage() {
 				<TextInput
 					label="Last Name"
 					name="family_name"
+				/>
+
+				<DateInput
+					label="Birthday"
+					name="birth_date"
 				/>
 
 				<button type="submit">Submit</button>
