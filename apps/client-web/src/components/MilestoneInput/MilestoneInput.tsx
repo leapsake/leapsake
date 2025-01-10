@@ -1,9 +1,9 @@
 import BaseInput from '@/components/BaseInput';
-import styles from './DateInput.module.css';
+import styles from './MilestoneInput.module.css';
 
-export default function DateInput({
+export default function MilestoneInput({
 	label = 'Date',
-	name = 'date',
+	name = 'other',
 	day,
 	month,
 	year,
@@ -17,21 +17,21 @@ export default function DateInput({
 				<BaseInput
 					defaultValue={month}
 					label="MM"
-					name={`date.${name}.month`}
+					name={`milestone.${name}.month`}
 					type="text"
 				/>
 
 				<BaseInput
 					defaultValue={day}
 					label="DD"
-					name={`date.${name}.day`}
+					name={`milestone.${name}.day`}
 					type="text"
 				/>
 
 				<BaseInput
 					defaultValue={year}
 					label="YYYY"
-					name={`date.${name}.year`}
+					name={`milestone.${name}.year`}
 					type="text"
 				/>
 			</div>

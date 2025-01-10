@@ -1,5 +1,5 @@
 import BaseInput from '@/components/BaseInput';
-import DateInput from '@/components/DateInput';
+import MilestoneInput from '@/components/MilestoneInput';
 
 export default function PersonForm({
 	action,
@@ -26,12 +26,12 @@ export default function PersonForm({
 				name="family_name"
 			/>
 
-			<DateInput
+			<MilestoneInput
 				label="Birthday"
 				name="birth_date"
 			/>
 
-			<DateInput
+			<MilestoneInput
 				label="Anniversary"
 				name="wedding_date"
 			/>
