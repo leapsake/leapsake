@@ -22,7 +22,10 @@ export default async function PeoplePage() {
 		<Fragment>
 			<header>
 				<h1>People</h1>
-				<Link href="/people/new">Add a person</Link>
+
+				<ul>
+					<li><Link href="/people/new">Add a person</Link></li>
+				</ul>
 			</header>
 
 			<ul>
