@@ -56,19 +56,31 @@ export async function addPerson(formData: FormData) {
 
 	const givenName = formData.get('given_name');
 	const familyName = formData.get('family_name');
-	const id = uuidv4();
+	const peopleId = uuidv4();
+	const dateableId = uuidv4();
 
-	db.run(`INSERT INTO People(id, given_name, family_name) VALUES(?, ?, ?)`, [
-		id,
-		givenName,
-		familyName,
-	], (err) => {
-		if (err) {
-			console.error(err);
-		}
+	db.serialize(() => {
+		db.run(`INSERT INTO Dateables(id) VALUES(?)`, [
+			dateableId,
+		], (err) => {
+			if (err) {
+				console.error(err);
+			}
+		});
+
+		db.run(`INSERT INTO People(id, given_name, family_name, dateable_id) VALUES(?, ?, ?, ?)`, [
+			peopleId,
+			givenName,
+			familyName,
+			dateableId,
+		], (err) => {
+			if (err) {
+				console.error(err);
+			}
+		});
 	});
 
-	redirect(`/people/${id}`);
+	redirect(`/people/${peopleId}`);
 }
 
 export async function deletePerson(id: string) {
