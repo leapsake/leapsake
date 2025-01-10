@@ -26,19 +26,19 @@ export default async function EditPersonPage({ params }: { params: Promise<{ id:
 
 		const givenName = formData.get('given_name');
 		const familyName = formData.get('family_name');
-		const birthDate = formData.get('birth_date');
 
 		db.run(`
 			UPDATE People
-			SET given_name = ?, family_name = ?, birth_date = ?
+			SET updated_at = datetime('now'), given_name = ?, family_name = ?
 			WHERE id = ?
 		`, [
 			givenName,
 			familyName,
-			birthDate,
 			id
 		], (err) => {
-			console.error(err);
+			if (err) {
+				console.error(err);
+			}
 		});
 
 		redirect(`/people/${id}`);

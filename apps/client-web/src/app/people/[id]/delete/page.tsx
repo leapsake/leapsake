@@ -28,7 +28,9 @@ export default async function EditPersonPage({ params }: { params: Promise<{ id:
 		`, [
 			id
 		], (err) => {
-			console.error(err);
+			if (err) {
+				console.error(err);
+			}
 		});
 
 		redirect('/people');
