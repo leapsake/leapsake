@@ -10,10 +10,10 @@ export default async function EditPersonPage({ params }: { params: Promise<{ id:
 	return (
 		<Fragment>
 			<header>
-				<h1>{`Update ${person.given_name} ${person.family_name}`}</h1>
+				<h1>{`Edit ${person.given_name} ${person.family_name}`}</h1>
 
 				<ul>
-					<li><Link href={`/people/${id}/delete`}>{`Delete ${person.given_name}`}</Link></li>
+					<li><Link href={`/people/${id}/delete`}>🗑️ {`Delete ${person.given_name}`}</Link></li>
 				</ul>
 			</header>
 
