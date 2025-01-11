@@ -32,14 +32,19 @@ export async function editPerson(id: string, formData: FormData) {
 	'use server'
 
 	const givenName = formData.get('given_name');
+	const middleName = formData.get('middle_name');
 	const familyName = formData.get('family_name');
 
 	db.run(`
 		UPDATE People
-		SET updated_at = datetime('now'), given_name = ?, family_name = ?
+		SET updated_at = datetime('now'),
+			given_name = ?,
+			middle_name = ?,
+			family_name = ?
 		WHERE id = ?
 	`, [
 		givenName,
+		middleName,
 		familyName,
 		id
 	], (err) => {
@@ -55,6 +60,7 @@ export async function addPerson(formData: FormData) {
 	'use server'
 
 	const givenName = formData.get('given_name');
+	const middleName = formData.get('middle_name');
 	const familyName = formData.get('family_name');
 	const peopleId = uuidv4();
 	const dateableId = uuidv4();
@@ -68,9 +74,10 @@ export async function addPerson(formData: FormData) {
 			}
 		});
 
-		db.run(`INSERT INTO People(id, given_name, family_name, dateable_id) VALUES(?, ?, ?, ?)`, [
+		db.run(`INSERT INTO People(id, given_name, middle_name, family_name, dateable_id) VALUES(?, ?, ?, ?, ?)`, [
 			peopleId,
 			givenName,
+			middleName,
 			familyName,
 			dateableId,
 		], (err) => {
