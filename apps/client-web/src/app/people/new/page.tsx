@@ -10,16 +10,16 @@ export default async function NewPersonPage() {
 
 		const givenName = formData.get('given_name');
 		const familyName = formData.get('family_name');
-		const birthDate = formData.get('birth_date');
 		const id = uuidv4();
 
-		db.run(`INSERT INTO People(id, given_name, family_name, birth_date) VALUES(?, ?, ?, ?)`, [
+		db.run(`INSERT INTO People(id, given_name, family_name) VALUES(?, ?, ?)`, [
 			id,
 			givenName,
 			familyName,
-			birthDate
 		], (err) => {
-			console.error(err);
+			if (err) {
+				console.error(err);
+			}
 		});
 
 		redirect(`/people/${id}`);
