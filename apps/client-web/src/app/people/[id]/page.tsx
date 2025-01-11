@@ -1,23 +1,10 @@
 import { Fragment } from 'react';
 import Link from 'next/link';
-import db from '@/db';
-
-async function getPerson(id) {
-	const person = await new Promise((resolve, reject) => {
-		db.get(`SELECT * FROM People WHERE id = ?`, [ id ], (err, row) => {
-			if (err) {
-				reject(err);
-			} else {
-				resolve(row);
-			}
-		});
-	});
-	return person;
-}
+import { readPerson } from '@/db/people';
 
 export default async function PersonPage({ params }: { params: Promise<{ id: string }> }) {
 	const id = (await params).id;
-	const person = await getPerson(id);
+	const person = await readPerson(id);
 
 	return (
 		<Fragment>
