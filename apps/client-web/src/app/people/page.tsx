@@ -11,7 +11,7 @@ export default async function PeoplePage() {
 				<h1>People</h1>
 
 				<ul>
-					<li><Link href="/people/new">Add a person</Link></li>
+					<li><Link href="/people/new">➕ Add a person</Link></li>
 				</ul>
 			</header>
 

@@ -11,14 +11,16 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
 			<header>
 				<h1>{person.given_name} {person.family_name}</h1>
 				<ul>
-					<li><Link href={`/people/${id}/edit`}>{`Edit ${person.given_name}`}</Link></li>
-					<li><Link href={`/people/${id}/delete`}>{`Delete ${person.given_name}`}</Link></li>
+					<li><Link href={`/people/${id}/edit`}>📝 {`Edit ${person.given_name}`}</Link></li>
+					<li><Link href={`/people/${id}/delete`}>🗑️ {`Delete ${person.given_name}`}</Link></li>
 				</ul>
 				<div>Created: {person.created_at}, Last Updated: {person.updated_at}</div>
 			</header>
 
 			<section>
-				<h2>Born</h2>
+				<h2>Special Dates</h2>
+
+				<h3>🎂 Born</h3>
 				<div>{person.birth_date}</div>
 			</section>
 		</Fragment>
