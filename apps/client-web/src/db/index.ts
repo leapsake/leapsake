@@ -7,18 +7,26 @@ db.serialize(() => {
 		id TEXT PRIMARY KEY,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		given_name TEXT,
-		family_name TEXT
+		dateable_id TEXT,
+		family_name TEXT,
+		given_name TEXT
 	)`);
 
-	db.run(`CREATE TABLE IF NOT EXISTS PersonDates(
+
+	db.run(`CREATE TABLE IF NOT EXISTS Dateables(
 		id TEXT PRIMARY KEY,
-		people_id TEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`);
+
+	db.run(`CREATE TABLE IF NOT EXISTS SpecialDates(
+		id TEXT PRIMARY KEY,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		year TEXT,
+		dateable_id TEXT,
+		day TEXT,
 		month TEXT,
-		day TEXT
+		year TEXT
 	)`);
 });
 
