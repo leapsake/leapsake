@@ -2,13 +2,12 @@ import BaseInput from '@/components/BaseInput';
 import styles from './DateInput.module.css';
 
 export default function DateInput({
-	defaultValue,
 	label = 'Date',
 	name = 'date',
-	value,
+	day,
+	month,
+	year,
 }) {
-	const dateValue = value || defaultValue || '';
-	const [year, month, day] = dateValue.split('-');
 
 	return (
 		<fieldset name={name}>
@@ -18,21 +17,21 @@ export default function DateInput({
 				<BaseInput
 					defaultValue={month}
 					label="MM"
-					name="month"
+					name={`date.${name}.month`}
 					type="text"
 				/>
 
 				<BaseInput
 					defaultValue={day}
 					label="DD"
-					name="day"
+					name={`date.${name}.day`}
 					type="text"
 				/>
 
 				<BaseInput
 					defaultValue={year}
 					label="YYYY"
-					name="year"
+					name={`date.${name}.year`}
 					type="text"
 				/>
 			</div>
