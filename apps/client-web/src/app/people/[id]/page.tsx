@@ -18,7 +18,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
 			</header>
 
 			<section>
-				<h2>Special Dates</h2>
+				<h2>Milestones</h2>
 
 				<h3>🎂 Born</h3>
 				<div>{person.birth_date}</div>
