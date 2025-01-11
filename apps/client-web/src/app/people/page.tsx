@@ -4,7 +4,7 @@ import db from '@/db';
 
 async function getPeople() {
 	const people = await new Promise((resolve, reject) => {
-		db.all(`SELECT * FROM people ORDER BY family_name ASC, given_name ASC`, (err, rows) => {
+		db.all(`SELECT * FROM People ORDER BY family_name ASC, given_name ASC`, (err, rows) => {
 			if (err) {
 				reject(err);
 			} else {
