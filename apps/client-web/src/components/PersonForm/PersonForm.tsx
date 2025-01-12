@@ -28,12 +28,12 @@ export default function PersonForm({
 
 			<MilestoneInput
 				label="Birthday"
-				name="birth_date"
+				name="birth"
 			/>
 
 			<MilestoneInput
 				label="Anniversary"
-				name="wedding_date"
+				name="wedding"
 			/>
 
 			<button type="submit">{buttonText}</button>
