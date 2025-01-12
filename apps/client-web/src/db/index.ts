@@ -18,6 +18,8 @@ db.serialize(() => {
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		day TEXT,
+		key TEXT CHECK( key IN ('birth','wedding','other') ),
+		label TEXT,
 		month TEXT,
 		person_id TEXT,
 		year TEXT
