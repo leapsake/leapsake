@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { browsePeople } from '@/db/people';
 
-export default async function PeoplePage() {
+export default async function BrowsePeoplePage() {
 	const people = await browsePeople();
 
 	return (
