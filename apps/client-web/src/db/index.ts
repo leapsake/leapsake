@@ -9,24 +9,17 @@ db.serialize(() => {
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		family_name TEXT,
 		given_name TEXT,
-		middle_name TEXT,
-		milestoneable_id TEXT
+		middle_name TEXT
 	)`);
 
 
-	db.run(`CREATE TABLE IF NOT EXISTS Milestoneables(
-		id TEXT PRIMARY KEY,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	)`);
-
-	db.run(`CREATE TABLE IF NOT EXISTS Milestones(
+	db.run(`CREATE TABLE IF NOT EXISTS PersonalMilestones(
 		id TEXT PRIMARY KEY,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		day TEXT,
-		milestoneable_id TEXT,
 		month TEXT,
+		person_id TEXT,
 		year TEXT
 	)`);
 });
