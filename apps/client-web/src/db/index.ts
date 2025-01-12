@@ -1,6 +1,6 @@
 import sqlite3 from 'sqlite3';
 
-const db = new sqlite3.Database('development.db');
+const db = new sqlite3.Database('data/development.db');
 
 db.serialize(() => {
 	db.run(`CREATE TABLE IF NOT EXISTS People(
