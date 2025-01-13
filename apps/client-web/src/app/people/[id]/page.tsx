@@ -25,12 +25,16 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ id:
 					? (
 						<Fragment>
 							<ul>
-								{milestones.map((milestone) => (
-									<li>
-										<h3>{milestone.type}</h3>
-										<time datetime={`${milestone.year}-${milestone.month}-${milestone.day}`}>{`${milestone.year}-${milestone.month}-${milestone.day}`}</time>
-									</li>
-								))}
+								{milestones.map((milestone) => {
+									const isoDate = `${milestone.year}-${milestone.month}-${milestone.day}`;
+
+									return (
+										<li key={`${isoDate}-${milestone.type}`}>
+											<h3>{milestone.type}</h3>
+											<time datetime={isoDate}>{isoDate}</time>
+										</li>
+									)
+								})}
 							</ul>
 							<Link href={`/people/${person_id}/milestones/edit`}>➕ Add another Milestone</Link>
 						</Fragment>
