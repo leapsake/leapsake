@@ -4,7 +4,9 @@ import { redirect } from 'next/navigation';
 
 export async function browsePeople() {
 	const people = await new Promise((resolve, reject) => {
-		db.all(`SELECT * FROM People ORDER BY family_name ASC, given_name ASC`, (err, rows) => {
+		db.all(`SELECT *
+				FROM People
+				ORDER BY family_name ASC, given_name ASC`, (err, rows) => {
 			if (err) {
 				reject(err);
 			} else {
