@@ -15,9 +15,9 @@ export async function browsePeople() {
 	return people;
 }
 
-export async function readPerson(id: string) {
+export async function readPerson(personId: string) {
 	const person = await new Promise((resolve, reject) => {
-		db.get(`SELECT * FROM People WHERE id = ?`, [ id ], (err, row) => {
+		db.get(`SELECT * FROM People WHERE id = ?`, [ personId ], (err, row) => {
 			if (err) {
 				reject(err);
 			} else {
@@ -28,7 +28,7 @@ export async function readPerson(id: string) {
 	return person;
 }
 
-export async function editPerson(id: string, formData: FormData) {
+export async function editPerson(personId: string, formData: FormData) {
 	'use server'
 
 	const givenName = formData.get('given_name');
@@ -48,14 +48,14 @@ export async function editPerson(id: string, formData: FormData) {
 		givenName,
 		middleName,
 		familyName,
-		id
+		personId
 	], (err) => {
 		if (err) {
 			console.error(err);
 		}
 	});
 
-	redirect(`/people/${id}`);
+	redirect(`/people/${personId}`);
 }
 
 export async function addPerson(formData: FormData) {
@@ -64,11 +64,11 @@ export async function addPerson(formData: FormData) {
 	const givenName = formData.get('given_name');
 	const middleName = formData.get('middle_name');
 	const familyName = formData.get('family_name');
-	const peopleId = uuidv4();
+	const personId = uuidv4();
 
 	db.serialize(() => {
 		db.run(`INSERT INTO People(id, given_name, middle_name, family_name) VALUES(?, ?, ?, ?)`, [
-			peopleId,
+			personId,
 			givenName,
 			middleName,
 			familyName,
@@ -79,17 +79,17 @@ export async function addPerson(formData: FormData) {
 		});
 	});
 
-	redirect(`/people/${peopleId}`);
+	redirect(`/people/${personId}`);
 }
 
-export async function deletePerson(id: string) {
+export async function deletePerson(personId: string) {
 	'use server'
 
 	db.run(`
 		DELETE FROM People
 		WHERE id = ?
 	`, [
-		id
+		personId
 	], (err) => {
 		if (err) {
 			console.error(err);

@@ -13,15 +13,15 @@ db.serialize(() => {
 	)`);
 
 
-	db.run(`CREATE TABLE IF NOT EXISTS PersonalMilestones(
+	db.run(`CREATE TABLE IF NOT EXISTS Milestones(
 		id TEXT PRIMARY KEY,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		day TEXT,
-		key TEXT CHECK( key IN ('birth','wedding','other') ),
 		label TEXT,
 		month TEXT,
 		person_id TEXT,
+		type TEXT,
 		year TEXT
 	)`);
 });
