@@ -14,7 +14,7 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ per
 				<h1>{person.given_name} {person.family_name}</h1>
 				<ul>
 					<li><Link href={`/people/${personId}/edit`}>📝 {`Edit ${person.given_name}`}</Link></li>
-					<li><Link href={`/people/${personId}/delete`}>🗑️ {`Delete ${person.given_name}`}</Link></li>
+					<li><Link href={`/people/${personId}/delete`}>❌ {`Delete ${person.given_name}`}</Link></li>
 				</ul>
 			</header>
 
@@ -23,25 +23,28 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ per
 
 				{!!milestones.length
 					? (
-						<Fragment>
-							<ul>
-								{milestones.map((milestone) => {
-									const isoDate = `${milestone.year}-${milestone.month}-${milestone.day}`;
+						<ul>
+							{milestones.map((milestone) => {
+								const isoDate = `${milestone.year}-${milestone.month}-${milestone.day}`;
 
-									return (
-										<li key={`${isoDate}-${milestone.label}`}>
-											<b>{milestone.label}</b>
-											<time datetime={isoDate}>{isoDate}</time>
-											<Link href={`/people/${personId}/milestones/${milestone.id}/edit`}>📝 Edit</Link>
-										</li>
-									)
-								})}
-							</ul>
-							<Link href={`/people/${personId}/milestones/new`}>➕ Add another Milestone</Link>
-						</Fragment>
+								return (
+									<li key={`${isoDate}-${milestone.label}`}>
+										<b>{milestone.label}</b>
+										<time datetime={isoDate}>{isoDate}</time>
+										<Link href={`/people/${personId}/milestones/${milestone.id}/edit`}>📝 Edit</Link>
+										<Link href={`/people/${personId}/milestones/${milestone.id}/delete`}>❌ Delete</Link>
+									</li>
+								)
+							})}
+
+							<li><Link href={`/people/${personId}/milestones/new`}>➕ Add a Milestone</Link></li>
+						</ul>
 					)
 					: (
-						<Link href={`/people/${personId}/milestones/new?label=Birthday`}>➕ Add a Birthday</Link>
+						<ul>
+							<li><Link href={`/people/${personId}/milestones/new?label=Birthday`}>➕ Add a Birthday</Link></li>
+							<li><Link href={`/people/${personId}/milestones/new`}>➕ Add a Milestone</Link></li>
+						</ul>
 					)
 				}
 			</section>
