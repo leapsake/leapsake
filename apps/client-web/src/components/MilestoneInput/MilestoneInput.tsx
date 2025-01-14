@@ -1,40 +1,39 @@
+import { Fragment } from 'react';
 import BaseInput from '@/components/BaseInput';
-import styles from './MilestoneInput.module.css';
+import DateInput from '@/components/DateInput';
+import { getMilestoneLabelFromType } from '@/utils';
 
 export default function MilestoneInput({
-	label = 'Date',
-	name = 'other',
+	label,
 	day,
 	month,
+	type,
 	year,
 }) {
+	const isOther = !getMilestoneLabelFromType(type);
 
 	return (
-		<fieldset name={name}>
-			<legend>{label}</legend>
+		<Fragment>
+			<input type="hidden" name="type" value={type} />
 
-			<div className={styles.body}>
-				<BaseInput
-					defaultValue={month}
-					label="MM"
-					name="month"
-					type="text"
-				/>
+			{isOther
+				? (
+					<BaseInput
+						label="Label"
+						name="label"
+						type="text"
+					/>
+				)
+				: null
+			}
 
-				<BaseInput
-					defaultValue={day}
-					label="DD"
-					name="day"
-					type="text"
-				/>
 
-				<BaseInput
-					defaultValue={year}
-					label="YYYY"
-					name="year"
-					type="text"
-				/>
-			</div>
-		</fieldset>
-	)
+			<DateInput
+				day={day}
+				month={month}
+				name={type}
+				year={year}
+			/>
+		</Fragment>
+	);
 }
