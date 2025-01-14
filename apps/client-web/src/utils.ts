@@ -26,3 +26,15 @@ export function getPrettyDate(day, month, year) {
 		return monthLabel || year;
 	}
 }
+
+export function getMilestoneIcon(label) {
+	return {
+		Adoption: '🧑‍🧑‍🧒',
+		Anniversary: '💒',
+		Birthday: '🎂',
+		Engagement: '💍',
+		'First Date': '💕',
+		Graduation: '🎓',
+		Moved: '🏠',
+	}[label];
+}

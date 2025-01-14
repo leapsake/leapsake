@@ -23,8 +23,13 @@ export default function MilestoneForm({
 						/>
 
 						<datalist id="milestone-labels">
-							<option value="Birthday"></option>
+							<option value="Adoption"></option>
 							<option value="Anniversary"></option>
+							<option value="Birthday"></option>
+							<option value="Engagement"></option>
+							<option value="First Date"></option>
+							<option value="Graduation"></option>
+							<option value="Moved"></option>
 						</datalist>
 					</Fragment>
 				)
