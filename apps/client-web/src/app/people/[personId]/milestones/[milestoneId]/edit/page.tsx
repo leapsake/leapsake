@@ -4,7 +4,7 @@ import { editMilestone, readMilestone } from '@/db/milestones';
 import MilestoneForm from '@/components/MilestoneForm';
 
 export default async function EditMilestonePage({ params }) {
-	const { id: personId, milestoneId } = (await params);
+	const { personId, milestoneId } = (await params);
 
 	const person = await readPerson(personId);
 	const milestone = await readMilestone(milestoneId);

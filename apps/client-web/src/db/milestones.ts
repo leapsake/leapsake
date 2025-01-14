@@ -68,7 +68,8 @@ export async function editMilestone(milestoneId: string, personId: string, formD
 			day,
 			label,
 			month,
-			year
+			year,
+			milestoneId
 		],
 		(err) => {
 			if (err) {
