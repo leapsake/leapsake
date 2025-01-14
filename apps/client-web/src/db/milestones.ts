@@ -2,7 +2,7 @@ import db from '@/db';
 import { v4 as uuidv4 } from 'uuid';
 import { redirect } from 'next/navigation';
 
-export async function browseMilestones(person_id: string) {
+export async function browseMilestones(personId: string) {
 	const query = `
 		SELECT *
 		FROM Milestones
@@ -13,7 +13,7 @@ export async function browseMilestones(person_id: string) {
 
 	const milestones = await new Promise((resolve, reject) => {
 		db.all(query,
-			[ person_id ],
+			[ personId ],
 			(err, rows) => {
 			if (err) {
 				reject(err);
@@ -44,11 +44,62 @@ export async function readMilestone(milestone_id: string) {
 	return person;
 }
 
+export async function editMilestone(milestoneId: string, personId: string, formData: FormData) {
+	'use server'
+
+	const day = formData.get('day');
+	const label = formData.get('label');
+	const month = formData.get('month');
+	const year = formData.get('year');
+
+	console.log(milestoneId);
+	console.log(day);
+
+	const editMilestoneQuery = `
+		UPDATE Milestones
+		SET updated_at = datetime('now'),
+			day = ?,
+			label = ?,
+			month = ?,
+			year = ?
+		WHERE id = ?
+	`;
+
+	db.run(editMilestoneQuery,
+		[
+			day,
+			label,
+			month,
+			year
+		],
+		(err) => {
+			if (err) {
+				console.error(err);
+			}
+		}
+	);
+
+	const updatePersonUpdatedAtQuery = `
+		UPDATE People
+		SET updated_at = datetime('now')
+		WHERE id = ?
+	`;
+
+	db.run(updatePersonUpdatedAtQuery,
+		[ personId ], (err) => {
+		if (err) {
+			console.error(err);
+		}
+	});
+
+	redirect(`/people/${personId}`);
+}
+
 export async function addMilestone(personId: string, formData: FormData) {
 	'use server'
 
 	const day = formData.get('day');
-	const label = formData.get('label') || null;
+	const label = formData.get('label');
 	const month = formData.get('month');
 	const year = formData.get('year');
 	const milestoneId = uuidv4();

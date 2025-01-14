@@ -4,7 +4,10 @@ import DateInput from '@/components/DateInput';
 export default function MilestoneForm({
 	action,
 	buttonText = 'Submit',
+	day,
 	label,
+	month,
+	year,
 }) {
 	return (
 		<form action={action} name="milestone">
@@ -21,7 +24,11 @@ export default function MilestoneForm({
 				)
 			}
 
-			<DateInput />
+			<DateInput
+				day={day}
+				month={month}
+				year={year}
+			/>
 
 			<button type="submit">{buttonText}</button>
 		</form>
