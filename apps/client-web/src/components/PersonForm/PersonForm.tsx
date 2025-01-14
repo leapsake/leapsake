@@ -1,5 +1,4 @@
 import BaseInput from '@/components/BaseInput';
-import MilestoneInput from '@/components/MilestoneInput';
 
 export default function PersonForm({
 	action,
@@ -24,16 +23,6 @@ export default function PersonForm({
 				defaultValue={person.family_name}
 				label="Last Name"
 				name="family_name"
-			/>
-
-			<MilestoneInput
-				label="Birthday"
-				name="birth"
-			/>
-
-			<MilestoneInput
-				label="Anniversary"
-				name="wedding"
 			/>
 
 			<button type="submit">{buttonText}</button>
