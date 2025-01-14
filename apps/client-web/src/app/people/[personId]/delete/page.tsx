@@ -2,7 +2,7 @@ import { deletePerson, readPerson } from '@/db/people';
 import { Fragment } from 'react';
 
 export default async function DeletePersonPage({ params }: { params: Promise<{ personId: string }> }) {
-	const personId = await params;
+	const { personId } = await params;
 	const person = await readPerson(personId);
 
 	return (
