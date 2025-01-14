@@ -17,21 +17,21 @@ export default function MilestoneInput({
 				<BaseInput
 					defaultValue={month}
 					label="MM"
-					name={`milestone.${name}.month`}
+					name="month"
 					type="text"
 				/>
 
 				<BaseInput
 					defaultValue={day}
 					label="DD"
-					name={`milestone.${name}.day`}
+					name="day"
 					type="text"
 				/>
 
 				<BaseInput
 					defaultValue={year}
 					label="YYYY"
-					name={`milestone.${name}.year`}
+					name="year"
 					type="text"
 				/>
 			</div>

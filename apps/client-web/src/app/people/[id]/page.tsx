@@ -19,8 +19,17 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ id:
 			<section>
 				<h2>Milestones</h2>
 
-				<h3>🎂 Born</h3>
-				<div>{person.birth_date}</div>
+				{!!person.birth_date
+					? (
+						<Fragment>
+							<h3>🎂 Born</h3>
+							<div>{person.birth_date}</div>
+						</Fragment>
+					)
+					: (
+						<Link href={`/people/${id}/milestones/edit?type=birth`}>➕ Add a Birthday</Link>
+					)
+				}
 			</section>
 
 			<footer>
