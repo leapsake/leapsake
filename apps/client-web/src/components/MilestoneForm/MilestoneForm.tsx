@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import BaseInput from '@/components/BaseInput';
 import DateInput from '@/components/DateInput';
 
@@ -13,11 +14,19 @@ export default function MilestoneForm({
 		<form action={action} name="milestone">
 			{!label
 				? (
-					<BaseInput
-						label="Label"
-						name="label"
-						type="text"
-					/>
+					<Fragment>
+						<BaseInput
+							label="Label"
+							list="milestone-labels"
+							name="label"
+							type="text"
+						/>
+
+						<datalist id="milestone-labels">
+							<option value="Birthday"></option>
+							<option value="Anniversary"></option>
+						</datalist>
+					</Fragment>
 				)
 				: (
 					<input type="hidden" name="label" value={label} />
