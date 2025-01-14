@@ -21,7 +21,6 @@ db.serialize(() => {
 		label TEXT,
 		month TEXT,
 		person_id TEXT,
-		type TEXT,
 		year TEXT
 	)`);
 });
