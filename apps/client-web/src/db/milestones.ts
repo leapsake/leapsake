@@ -2,13 +2,17 @@ import db from '@/db';
 import { v4 as uuidv4 } from 'uuid';
 import { redirect } from 'next/navigation';
 
-export async function browseMilestones(person_id) {
+export async function browseMilestones(person_id: string) {
+	const query = `
+		SELECT *
+		FROM Milestones
+		WHERE
+			(person_id = ?)
+		ORDER BY year ASC, month ASC, day ASC
+	`;
+
 	const milestones = await new Promise((resolve, reject) => {
-		db.all(`SELECT *
-				FROM Milestones
-				WHERE
-					(person_id = ?)
-				ORDER BY year ASC, month ASC, day ASC`,
+		db.all(query,
 			[ person_id ],
 			(err, rows) => {
 			if (err) {
@@ -22,8 +26,14 @@ export async function browseMilestones(person_id) {
 }
 
 export async function readMilestone(milestone_id: string) {
+	const query = `
+		SELECT *
+		FROM Milestones
+		WHERE id = ?
+	`;
+
 	const person = await new Promise((resolve, reject) => {
-		db.get(`SELECT * FROM Milestones WHERE id = ?`, [ milestone_id ], (err, row) => {
+		db.get(query, [ milestone_id ], (err, row) => {
 			if (err) {
 				reject(err);
 			} else {
@@ -44,7 +54,28 @@ export async function addMilestone(personId: string, formData: FormData) {
 	const year = formData.get('year');
 	const milestoneId = uuidv4();
 
-	db.run(`INSERT INTO Milestones(id, day, label, month, person_id, type, year) VALUES(?, ?, ?, ?, ?, ?, ?)`, [
+	const addMilestoneQuery = `
+		INSERT INTO Milestones(
+			id,
+			day,
+			label,
+			month,
+			person_id,
+			type,
+			year
+		)
+		VALUES(
+			?,
+			?,
+			?,
+			?,
+			?,
+			?,
+			?
+		)
+	`;
+
+	db.run(addMilestoneQuery, [
 		milestoneId,
 		day,
 		label,
@@ -58,11 +89,14 @@ export async function addMilestone(personId: string, formData: FormData) {
 		}
 	});
 
-	db.run(`
+	const updatePersonUpdatedAtQuery = `
 		UPDATE People
 		SET updated_at = datetime('now')
 		WHERE id = ?
-	`, [ personId ], (err) => {
+	`;
+
+	db.run(updatePersonUpdatedAtQuery,
+		[ personId ], (err) => {
 		if (err) {
 			console.error(err);
 		}
