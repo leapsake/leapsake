@@ -50,7 +50,6 @@ export async function addMilestone(personId: string, formData: FormData) {
 	const day = formData.get('day');
 	const label = formData.get('label') || null;
 	const month = formData.get('month');
-	const type = formData.get('type');
 	const year = formData.get('year');
 	const milestoneId = uuidv4();
 
@@ -61,11 +60,9 @@ export async function addMilestone(personId: string, formData: FormData) {
 			label,
 			month,
 			person_id,
-			type,
 			year
 		)
 		VALUES(
-			?,
 			?,
 			?,
 			?,
@@ -81,7 +78,6 @@ export async function addMilestone(personId: string, formData: FormData) {
 		label,
 		month,
 		personId,
-		type,
 		year,
 	], (err) => {
 		if (err) {

@@ -1,7 +1,6 @@
 import { Fragment } from 'react';
 import { readPerson } from '@/db/people';
 import { addMilestone } from '@/db/milestones';
-import { getMilestoneLabelFromType } from '@/utils';
 import BaseInput from '@/components/BaseInput';
 import DateInput from '@/components/DateInput';
 
@@ -15,10 +14,9 @@ function getTitle(label, givenName) {
 
 export default async function AddMilestonePage({ params, searchParams }) {
 	const personId = (await params).id;
-	const type = (await searchParams).type;
+	const label = (await searchParams).label;
 
 	const person = await readPerson(personId);
-	const label = getMilestoneLabelFromType(type);
 
 	const title = getTitle(label, person.given_name);
 
@@ -27,8 +25,6 @@ export default async function AddMilestonePage({ params, searchParams }) {
 			<h1>{ title }</h1>
 
 			<form action={addMilestone.bind(null, personId)} name="milestone">
-				<input type="hidden" name="type" value={type} />
-
 				{!label
 					? (
 						<BaseInput
@@ -37,12 +33,12 @@ export default async function AddMilestonePage({ params, searchParams }) {
 							type="text"
 						/>
 					)
-					: null
+					: (
+						<input type="hidden" name="label" value={label} />
+					)
 				}
 
-				<DateInput
-					name={type}
-				/>
+				<DateInput />
 
 				<button type="submit">Add</button>
 			</form>
