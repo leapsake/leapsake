@@ -30,8 +30,9 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ id:
 
 									return (
 										<li key={`${isoDate}-${milestone.label}`}>
-											<h3>{milestone.label}</h3>
+											<b>{milestone.label}</b>
 											<time datetime={isoDate}>{isoDate}</time>
+											<Link href={`/people/${person_id}/milestones/edit?label=${milestone.label}`}>📝 Edit</Link>
 										</li>
 									)
 								})}
