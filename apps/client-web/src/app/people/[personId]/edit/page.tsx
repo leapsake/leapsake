@@ -3,9 +3,9 @@ import { editPerson, readPerson } from '@/db/people';
 import { Fragment } from 'react';
 import Link from 'next/link';
 
-export default async function EditPersonPage({ params }: { params: Promise<{ id: string }> }) {
-	const person_id = (await params).id;
-	const person = await readPerson(person_id);
+export default async function EditPersonPage({ params }: { params: Promise<{ personId: string }> }) {
+	const { personId } = await params;
+	const person = await readPerson(personId);
 
 	return (
 		<Fragment>
@@ -13,12 +13,12 @@ export default async function EditPersonPage({ params }: { params: Promise<{ id:
 				<h1>{`Edit ${person.given_name} ${person.family_name}`}</h1>
 
 				<ul>
-					<li><Link href={`/people/${person_id}/delete`}>🗑️ {`Delete ${person.given_name}`}</Link></li>
+					<li><Link href={`/people/${personId}/delete`}>🗑️ {`Delete ${person.given_name}`}</Link></li>
 				</ul>
 			</header>
 
 			<PersonForm
-				action={editPerson.bind(null, person_id)}
+				action={editPerson.bind(null, personId)}
 				buttonText="Update"
 				person={person}
 			/>

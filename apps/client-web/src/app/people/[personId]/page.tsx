@@ -3,18 +3,18 @@ import Link from 'next/link';
 import { readPerson } from '@/db/people';
 import { browseMilestones } from '@/db/milestones';
 
-export default async function ReadPersonPage({ params }: { params: Promise<{ id: string }> }) {
-	const person_id = (await params).id;
-	const person = await readPerson(person_id);
-	const milestones = await browseMilestones(person_id);
+export default async function ReadPersonPage({ params }: { params: Promise<{ personId: string }> }) {
+	const { personId } = await params;
+	const person = await readPerson(personId);
+	const milestones = await browseMilestones(personId);
 
 	return (
 		<Fragment>
 			<header>
 				<h1>{person.given_name} {person.family_name}</h1>
 				<ul>
-					<li><Link href={`/people/${person_id}/edit`}>📝 {`Edit ${person.given_name}`}</Link></li>
-					<li><Link href={`/people/${person_id}/delete`}>🗑️ {`Delete ${person.given_name}`}</Link></li>
+					<li><Link href={`/people/${personId}/edit`}>📝 {`Edit ${person.given_name}`}</Link></li>
+					<li><Link href={`/people/${personId}/delete`}>🗑️ {`Delete ${person.given_name}`}</Link></li>
 				</ul>
 			</header>
 
@@ -32,16 +32,16 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ id:
 										<li key={`${isoDate}-${milestone.label}`}>
 											<b>{milestone.label}</b>
 											<time datetime={isoDate}>{isoDate}</time>
-											<Link href={`/people/${person_id}/milestones/${milestone.id}/edit`}>📝 Edit</Link>
+											<Link href={`/people/${personId}/milestones/${milestone.id}/edit`}>📝 Edit</Link>
 										</li>
 									)
 								})}
 							</ul>
-							<Link href={`/people/${person_id}/milestones/new`}>➕ Add another Milestone</Link>
+							<Link href={`/people/${personId}/milestones/new`}>➕ Add another Milestone</Link>
 						</Fragment>
 					)
 					: (
-						<Link href={`/people/${person_id}/milestones/new?label=Birthday`}>➕ Add a Birthday</Link>
+						<Link href={`/people/${personId}/milestones/new?label=Birthday`}>➕ Add a Birthday</Link>
 					)
 				}
 			</section>

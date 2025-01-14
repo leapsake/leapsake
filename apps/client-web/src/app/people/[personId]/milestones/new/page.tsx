@@ -13,7 +13,7 @@ function getTitle(label, givenName) {
 };
 
 export default async function AddMilestonePage({ params, searchParams }) {
-	const personId = (await params).id;
+	const { personId } = await params;
 	const label = (await searchParams).label;
 
 	const person = await readPerson(personId);
