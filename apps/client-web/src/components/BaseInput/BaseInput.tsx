@@ -3,6 +3,7 @@ import styles from './BaseInput.module.css';
 export default function BaseInput({
 	defaultValue,
 	label,
+	list,
 	name,
 	type = 'text',
 	value,
@@ -15,6 +16,7 @@ export default function BaseInput({
 				<input
 					className={styles.input}
 					defaultValue={defaultValue}
+					list={list}
 					name={name}
 					type={type}
 					value={value}
