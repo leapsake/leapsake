@@ -13,7 +13,7 @@ export default async function EditPersonPage({ params }: { params: Promise<{ per
 				<h1>{`Edit ${person.given_name} ${person.family_name}`}</h1>
 
 				<ul>
-					<li><Link href={`/people/${personId}/delete`}>🗑️ {`Delete ${person.given_name}`}</Link></li>
+					<li><Link href={`/people/${personId}/delete`}>❌ {`Delete ${person.given_name}`}</Link></li>
 				</ul>
 			</header>
 

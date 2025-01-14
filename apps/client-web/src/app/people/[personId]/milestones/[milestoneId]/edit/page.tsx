@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
 import { readPerson } from '@/db/people';
+import Link from 'next/link';
 import { editMilestone, readMilestone } from '@/db/milestones';
 import MilestoneForm from '@/components/MilestoneForm';
 
@@ -15,7 +16,13 @@ export default async function EditMilestonePage({ params }) {
 
 	return (
 		<Fragment>
-			<h1>{ title }</h1>
+			<header>
+				<h1>{ title }</h1>
+
+				<ul>
+					<li><Link href={`/people/${personId}/milestones/${milestone.id}/delete`}>❌ {`Delete ${person.given_name}'s ${milestone.label}`}</Link></li>
+				</ul>
+			</header>
 
 			<MilestoneForm
 				action={action}
