@@ -150,3 +150,42 @@ export async function addMilestone(personId: string, formData: FormData) {
 
 	redirect(`/people/${personId}`);
 }
+
+export async function deleteMilestone(milestoneId: string, personId: string) {
+	'use server'
+
+	const query = `
+		DELETE FROM Milestones
+		WHERE id = ?
+	`;
+
+	db.run(query, [
+		milestoneId
+	], (err) => {
+		if (err) {
+			console.error(err);
+		}
+	});
+
+	redirect(`/people/${personId}`);
+}
+
+export async function deletePerson(personId: string) {
+	'use server'
+
+	const query = `
+		DELETE FROM People
+		WHERE id = ?
+	`;
+
+	db.run(query, [
+		personId
+	], (err) => {
+		if (err) {
+			console.error(err);
+		}
+	});
+
+	redirect('/people');
+}
+
