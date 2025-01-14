@@ -25,7 +25,7 @@ export async function browseMilestones(personId: string) {
 	return milestones;
 }
 
-export async function readMilestone(milestone_id: string) {
+export async function readMilestone(milestoneId: string) {
 	const query = `
 		SELECT *
 		FROM Milestones
@@ -33,7 +33,7 @@ export async function readMilestone(milestone_id: string) {
 	`;
 
 	const person = await new Promise((resolve, reject) => {
-		db.get(query, [ milestone_id ], (err, row) => {
+		db.get(query, [ milestoneId ], (err, row) => {
 			if (err) {
 				reject(err);
 			} else {
@@ -52,8 +52,6 @@ export async function editMilestone(milestoneId: string, personId: string, formD
 	const month = formData.get('month');
 	const year = formData.get('year');
 
-	console.log(milestoneId);
-	console.log(day);
 
 	const editMilestoneQuery = `
 		UPDATE Milestones

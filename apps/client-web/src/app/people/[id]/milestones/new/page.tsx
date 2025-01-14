@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { readPerson } from '@/db/people';
 import { addMilestone, browseMilestones, editMilestone } from '@/db/milestones';
+import { redirect } from 'next/navigation';
 import MilestoneForm from '@/components/MilestoneForm';
 
 function getTitle(label, givenName) {
@@ -16,21 +17,17 @@ export default async function AddMilestonePage({ params, searchParams }) {
 	const label = (await searchParams).label;
 
 	const person = await readPerson(personId);
-	let milestone = (await browseMilestones(personId)).find((milestone) => {
+	const milestone = (await browseMilestones(personId)).find((milestone) => {
 		return milestone.label === label;
 	});
 
-	let action, buttonText, title;
 	if (!!milestone) {
-		action = editMilestone.bind(null, milestone.id, personId);
-		buttonText = 'Save Changes';
-		title = `Edit ${person.given_name}'s ${label}`;
-	} else {
-		action = addMilestone.bind(null, personId);
-		buttonText = 'Add Milestone';
-		milestone = { label };
-		title = getTitle(label, person.given_name);
+		return redirect(`/people/${personId}/milestones/${milestone.id}/edit`);
 	}
+
+	const action = addMilestone.bind(null, personId);
+	const buttonText = 'Add Milestone';
+	const title = getTitle(label, person.given_name);
 
 	return (
 		<Fragment>
@@ -39,10 +36,7 @@ export default async function AddMilestonePage({ params, searchParams }) {
 			<MilestoneForm
 				action={action}
 				buttonText={buttonText}
-				day={milestone.day}
-				label={milestone.label}
-				month={milestone.month}
-				year={milestone.year}
+				label={label}
 			/>
 		</Fragment>
 	);

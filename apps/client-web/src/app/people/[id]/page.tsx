@@ -32,16 +32,16 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ id:
 										<li key={`${isoDate}-${milestone.label}`}>
 											<b>{milestone.label}</b>
 											<time datetime={isoDate}>{isoDate}</time>
-											<Link href={`/people/${person_id}/milestones/edit?label=${milestone.label}`}>📝 Edit</Link>
+											<Link href={`/people/${person_id}/milestones/${milestone.id}/edit`}>📝 Edit</Link>
 										</li>
 									)
 								})}
 							</ul>
-							<Link href={`/people/${person_id}/milestones/edit`}>➕ Add another Milestone</Link>
+							<Link href={`/people/${person_id}/milestones/new`}>➕ Add another Milestone</Link>
 						</Fragment>
 					)
 					: (
-						<Link href={`/people/${person_id}/milestones/edit?label=Birthday`}>➕ Add a Birthday</Link>
+						<Link href={`/people/${person_id}/milestones/new?label=Birthday`}>➕ Add a Birthday</Link>
 					)
 				}
 			</section>
