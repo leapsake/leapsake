@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
 import Link from 'next/link';
+import AutoUploadInput from '@/components/AutoUploadInput';
 // import { browsePeople } from '@/db/people';
 
 export default async function BrowsePeoplePage() {
@@ -13,15 +14,13 @@ export default async function BrowsePeoplePage() {
 
 				<ul>
 					<li>
-						<label>
+						<AutoUploadInput
+							accept="image/*"
+							multiple={true}
+							name="photos"
+						>
 							<span>➕ Add photos</span>
-							<input 
-								accept="image/*"
-								multiple style={{visibility:'hidden'}}
-								name="photos" 
-								type="file" 
-							/>
-						</label>
+						</AutoUploadInput>
 					</li>
 				</ul>
 			</header>
