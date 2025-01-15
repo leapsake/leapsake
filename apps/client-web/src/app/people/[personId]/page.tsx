@@ -28,7 +28,7 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ per
 							{milestones.map((milestone) => {
 								const isoDate = `${milestone.year}-${milestone.month}-${milestone.day}`;
 								const prettyDate = getPrettyDate(milestone.day, milestone.month, milestone.year);
-								const milestoneIcon = `${getMilestoneIcon(milestone.label)} `;
+								const milestoneIcon = getMilestoneIcon(milestone.label) || '';
 
 								return (
 									<li key={`${isoDate}-${milestone.label}`}>

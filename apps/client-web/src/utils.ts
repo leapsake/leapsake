@@ -1,3 +1,35 @@
+const defaultMilestones = [
+	{
+		label: 'Adoption',
+		icon: '🧑‍🧑‍🧒',
+		synonyms: [],
+	}, {
+		label: 'Anniversary',
+		icon: '💒',
+		synonyms: [],
+	}, {
+		label: 'Birthday',
+		icon: '🎂',
+		synonyms: [],
+	}, {
+		label: 'Engagement',
+		icon: '💍',
+		synonyms: [],
+	}, {
+		label: 'First Date',
+		icon: '💕',
+		synonyms: [],
+	}, {
+		label: 'Graduation',
+		icon: '🎓',
+		synonyms: [],
+	}, {
+		label: 'Moved',
+		icon: '🏠',
+		synonyms: [],
+	}
+];
+
 export function getPrettyDate(day, month, year) {
 	const monthLabel = [
 		'January',
@@ -28,13 +60,13 @@ export function getPrettyDate(day, month, year) {
 }
 
 export function getMilestoneIcon(label) {
-	return {
-		Adoption: '🧑‍🧑‍🧒',
-		Anniversary: '💒',
-		Birthday: '🎂',
-		Engagement: '💍',
-		'First Date': '💕',
-		Graduation: '🎓',
-		Moved: '🏠',
-	}[label];
+	const defaultMilestone = defaultMilestones.find((milestone) => {
+		return milestone.label === label;
+	});
+
+	if (defaultMilestone) {
+		return defaultMilestone.icon;
+	}
+
+	return null;
 }
