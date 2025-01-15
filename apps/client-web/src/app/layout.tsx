@@ -29,6 +29,9 @@ export default function RootLayout({
 							<li>
 								<Link href="/people">👪 People</Link>
 							</li>
+							<li>
+								<Link href="/photos">📷 Photos</Link>
+							</li>
 						</ul>
 					</nav>
 					<main id="main">
