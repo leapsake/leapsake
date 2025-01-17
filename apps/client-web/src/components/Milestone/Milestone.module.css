@@ -1,0 +1,22 @@
+.action {}
+
+.action + .action {
+	margin-left: 0.5rem;
+}
+
+.actions {
+	display: inline-block;
+}
+
+.date {
+}
+
+.icon {
+	margin-right: 1ch;
+}
+
+.label {
+	font-weight: bold;
+}
+
+.title {}
