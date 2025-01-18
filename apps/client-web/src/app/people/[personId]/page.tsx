@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { readPerson } from '@/db/people';
 import { browseMilestones } from '@/db/milestones';
-import { getMilestoneIcon, getPrettyDate } from '@/utils';
+import Milestone from '@/components/Milestone';
 
 export default async function ReadPersonPage({ params }: { params: Promise<{ personId: string }> }) {
 	const { personId } = await params;
@@ -25,17 +25,13 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ per
 				{!!milestones.length
 					? (
 						<ul>
-							{milestones.map((milestone) => {
-								const isoDate = `${milestone.year}-${milestone.month}-${milestone.day}`;
-								const prettyDate = getPrettyDate(milestone.day, milestone.month, milestone.year);
-								const milestoneIcon = getMilestoneIcon(milestone.label) || '';
-
+							{milestones.map((milestone, milestoneIndex) => {
 								return (
-									<li key={`${isoDate}-${milestone.label}`}>
-										<b>{milestoneIcon + milestone.label}</b>
-										<time datetime={isoDate}>{prettyDate}</time>
-										<Link href={`/people/${personId}/milestones/${milestone.id}/edit`}>📝 Edit</Link>
-										<Link href={`/people/${personId}/milestones/${milestone.id}/delete`}>❌ Delete</Link>
+									<li key={`${milestone.label}-${milestoneIndex}`}>
+										<Milestone
+											milestone={milestone}
+											personId={personId}
+										/>
 									</li>
 								)
 							})}
