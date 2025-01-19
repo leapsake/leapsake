@@ -1,6 +1,11 @@
+import path from 'path';
 import sqlite3 from 'sqlite3';
 
-const db = new sqlite3.Database('data/development.db');
+const dataDir = path.resolve('data');
+
+// TODO check if dataDir exists, make it if it doesn't
+
+const db = new sqlite3.Database(path.resolve(dataDir, 'development.db'));
 
 db.serialize(() => {
 	db.run(`CREATE TABLE IF NOT EXISTS People(

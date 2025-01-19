@@ -9,7 +9,7 @@ export async function addPhotos(formData: FormData) {
 	const uploadDir = path.resolve('data/files/photos');
 
 	try {
-		await fs.access(uploadDir, fs.constants.F_OK)
+		await fs.access(uploadDir, fs.constants.F_OK);
 	} catch {
 		try {
 			await fs.mkdir(uploadDir, { recursive: true });		
