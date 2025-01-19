@@ -1,12 +1,14 @@
 import { Fragment } from 'react';
 import Link from 'next/link';
 import { readPerson } from '@/db/people';
+import { browseEmailAddresses } from '@/db/emails';
 import { browseMilestones } from '@/db/milestones';
 import Milestone from '@/components/Milestone';
 
 export default async function ReadPersonPage({ params }: { params: Promise<{ personId: string }> }) {
 	const { personId } = await params;
 	const person = await readPerson(personId);
+	const emailAddresses = await browseEmailAddresses(personId);
 	const milestones = await browseMilestones(personId);
 
 	return (
@@ -18,6 +20,38 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ per
 					<li><Link href={`/people/${personId}/delete`}>❌ {`Delete ${person.given_name}`}</Link></li>
 				</ul>
 			</header>
+
+			<section>
+				<h2>Contact</h2>
+
+				<section>
+					<h3>Email Addresses</h3>
+
+					{!!emailAddresses.length
+						? (
+							<ul>
+								{emailAddresses.map((emailAddress) => {
+									return (
+										<li key={emailAddress.address}>
+											<b>{emailAddress.label}</b>
+											<a href={`mailto:${emailAddress.address}`}>{emailAddress.address}</a>
+											<Link href={`/people/${personId}/emails/${emailAddress.id}/edit`}>📝 Edit</Link>
+											<Link href={`/people/${personId}/emails/${emailAddress.id}/delete`}>❌ Delete</Link>
+										</li>
+									)
+								})}
+
+								<li><Link href={`/people/${personId}/emails/new`}>➕ Add an Email Address</Link></li>
+							</ul>
+						)
+						: (
+							<ul>
+								<li><Link href={`/people/${personId}/emails/new`}>➕ Add an Email Address</Link></li>
+							</ul>
+						)
+					}
+				</section>
+			</section>
 
 			<section>
 				<h2>Milestones</h2>
