@@ -2,16 +2,15 @@ import db from '@/db';
 import { v4 as uuidv4 } from 'uuid';
 import { redirect } from 'next/navigation';
 
-export async function browseMilestones(personId: string) {
+export async function browseEmailAddresses(personId: string) {
 	const query = `
 		SELECT *
-		FROM Milestones
+		FROM EmailAddresses
 		WHERE
 			(person_id = ?)
-		ORDER BY year ASC, month ASC, day ASC
 	`;
 
-	const milestones = await new Promise((resolve, reject) => {
+	const emailAddresses = await new Promise((resolve, reject) => {
 		db.all(query,
 			[ personId ],
 			(err, rows) => {
@@ -22,18 +21,19 @@ export async function browseMilestones(personId: string) {
 			}
 		});
 	});
-	return milestones;
+
+	return emailAddresses;
 }
 
-export async function readMilestone(milestoneId: string) {
+export async function readEmailAddress(emailAddressId: string) {
 	const query = `
 		SELECT *
-		FROM Milestones
+		FROM EmailAddresses
 		WHERE id = ?
 	`;
 
-	const person = await new Promise((resolve, reject) => {
-		db.get(query, [ milestoneId ], (err, row) => {
+	const emailAddress = await new Promise((resolve, reject) => {
+		db.get(query, [ emailAddressId ], (err, row) => {
 			if (err) {
 				reject(err);
 			} else {
@@ -41,35 +41,30 @@ export async function readMilestone(milestoneId: string) {
 			}
 		});
 	});
-	return person;
+
+	return emailAddress;
 }
 
-export async function editMilestone(milestoneId: string, personId: string, formData: FormData) {
+export async function editEmailAddress(emailAddressId: string, personId: string, formData: FormData) {
 	'use server'
 
-	const day = formData.get('day');
 	const label = formData.get('label');
-	const month = formData.get('month');
-	const year = formData.get('year');
+	const address = formData.get('address');
 
 
-	const editMilestoneQuery = `
-		UPDATE Milestones
+	const editEmailAddressQuery = `
+		UPDATE EmailAddresses
 		SET updated_at = datetime('now'),
-			day = ?,
+			address = ?,
 			label = ?,
-			month = ?,
-			year = ?
 		WHERE id = ?
 	`;
 
-	db.run(editMilestoneQuery,
+	db.run(editEmailAddressQuery,
 		[
-			day,
+			address,
 			label,
-			month,
-			year,
-			milestoneId
+			emailAddressId
 		],
 		(err) => {
 			if (err) {
@@ -94,27 +89,21 @@ export async function editMilestone(milestoneId: string, personId: string, formD
 	redirect(`/people/${personId}`);
 }
 
-export async function addMilestone(personId: string, formData: FormData) {
+export async function addEmailAddress(personId: string, formData: FormData) {
 	'use server'
 
-	const day = formData.get('day');
 	const label = formData.get('label');
-	const month = formData.get('month');
-	const year = formData.get('year');
-	const milestoneId = uuidv4();
+	const address = formData.get('address');
+	const emailAddressId = uuidv4();
 
-	const addMilestoneQuery = `
-		INSERT INTO Milestones(
+	const addEmailAddressQuery = `
+		INSERT INTO EmailAddresses(
 			id,
-			day,
+			address,
 			label,
-			month,
-			person_id,
-			year
+			person_id
 		)
 		VALUES(
-			?,
-			?,
 			?,
 			?,
 			?,
@@ -122,13 +111,11 @@ export async function addMilestone(personId: string, formData: FormData) {
 		)
 	`;
 
-	db.run(addMilestoneQuery, [
-		milestoneId,
-		day,
+	db.run(addEmailAddressQuery, [
+		emailAddressId,
+		address,
 		label,
-		month,
-		personId,
-		year,
+		personId
 	], (err) => {
 		if (err) {
 			console.error(err);
@@ -151,16 +138,16 @@ export async function addMilestone(personId: string, formData: FormData) {
 	redirect(`/people/${personId}`);
 }
 
-export async function deleteMilestone(milestoneId: string, personId: string) {
+export async function deleteEmailAddress(emailAddressId: string, personId: string) {
 	'use server'
 
 	const query = `
-		DELETE FROM Milestones
+		DELETE FROM EmailAddresses
 		WHERE id = ?
 	`;
 
 	db.run(query, [
-		milestoneId
+		emailAddressId
 	], (err) => {
 		if (err) {
 			console.error(err);

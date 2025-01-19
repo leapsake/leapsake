@@ -18,7 +18,6 @@ db.serialize(() => {
 		middle_name TEXT
 	)`);
 
-
 	db.run(`CREATE TABLE IF NOT EXISTS Milestones(
 		id TEXT PRIMARY KEY,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -28,6 +27,15 @@ db.serialize(() => {
 		month TEXT,
 		person_id TEXT,
 		year TEXT
+	)`);
+
+	db.run(`CREATE TABLE IF NOT EXISTS EmailAddresses(
+		id TEXT PRIMARY KEY,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		address TEXT,
+		label TEXT,
+		person_id TEXT
 	)`);
 
 	db.run(`CREATE TABLE IF NOT EXISTS Photos(
