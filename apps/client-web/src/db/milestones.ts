@@ -32,7 +32,7 @@ export async function readMilestone(milestoneId: string) {
 		WHERE id = ?
 	`;
 
-	const person = await new Promise((resolve, reject) => {
+	const milestone = await new Promise((resolve, reject) => {
 		db.get(query, [ milestoneId ], (err, row) => {
 			if (err) {
 				reject(err);
@@ -41,7 +41,7 @@ export async function readMilestone(milestoneId: string) {
 			}
 		});
 	});
-	return person;
+	return milestone;
 }
 
 export async function editMilestone(milestoneId: string, personId: string, formData: FormData) {
