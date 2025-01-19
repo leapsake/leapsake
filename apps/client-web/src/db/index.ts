@@ -2,10 +2,11 @@ import path from 'path';
 import sqlite3 from 'sqlite3';
 
 const dataDir = path.resolve('data');
+const databasePath = path.resolve(dataDir, 'development.db');
 
 // TODO check if dataDir exists, make it if it doesn't
 
-const db = new sqlite3.Database(path.resolve(dataDir, 'development.db'));
+const db = new sqlite3.Database(databasePath);
 
 db.serialize(() => {
 	db.run(`CREATE TABLE IF NOT EXISTS People(
@@ -27,6 +28,13 @@ db.serialize(() => {
 		month TEXT,
 		person_id TEXT,
 		year TEXT
+	)`);
+
+	db.run(`CREATE TABLE IF NOT EXISTS Photos(
+		id TEXT PRIMARY KEY,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		path TEXT
 	)`);
 });
 
