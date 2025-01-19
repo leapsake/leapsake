@@ -1,10 +1,9 @@
 import { Fragment } from 'react';
 import Link from 'next/link';
-// import { browsePhotos } from '@/db/photos';
+import { browsePhotos } from '@/db/photos';
 
 export default async function BrowsePhotosPage() {
-	//const photos = await browsePhotos();
-	const photos = [];
+	const photos = await browsePhotos();
 
 	return (
 		<Fragment>
@@ -21,9 +20,9 @@ export default async function BrowsePhotosPage() {
 			</header>
 
 			<ul>
-				{photos.map((photos) => (
-					<li key={photos.id}>
-						<Link href={`/photos/${photo.id}`}>Photo</Link>
+				{photos.map((photo) => (
+					<li key={photo.id}>
+						<Link href={`/photos/${photo.id}`}>{photo.path}</Link>
 					</li>
 				))}
 			</ul>

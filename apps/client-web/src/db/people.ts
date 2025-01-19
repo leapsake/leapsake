@@ -20,6 +20,7 @@ export async function browsePeople() {
 			}
 		);
 	});
+
 	return people;
 }
 
