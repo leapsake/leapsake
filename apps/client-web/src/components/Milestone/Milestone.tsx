@@ -17,7 +17,7 @@ export default function Milestone({
 				<span className={styles.label}>{ milestone.label }</span>
 			</span>
 
-			<time className={styles.date} datetime={isoDate}>{prettyDate}</time>
+			<time className={styles.date} dateTime={isoDate}>{prettyDate}</time>
 
 			<div className={styles.actions}>
 				<Link className={styles.action} href={`/people/${personId}/milestones/${milestone.id}/edit`}>📝 Edit</Link>

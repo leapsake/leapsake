@@ -49,8 +49,8 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ per
 			</section>
 
 			<footer>
-				<i>Created: <time datetime={person.created_at}>{person.created_at}</time>
-					<br/>Last Updated: <time datetime={person.updated_at}>{person.updated_at}</time></i>
+				<i>Created: <time dateTime={person.created_at}>{person.created_at}</time>
+					<br/>Last Updated: <time dateTime={person.updated_at}>{person.updated_at}</time></i>
 			</footer>
 		</Fragment>
 	);
