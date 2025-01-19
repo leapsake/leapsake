@@ -1,11 +1,12 @@
 import { Fragment } from 'react';
+import { addPhotos } from '@/db/photos';
 
 export default async function NewPhotoPage() {
 	return (
 		<Fragment>
 			<h1 id="label-photos">Add Photos & Videos</h1>
 
-			<form>
+			<form action={addPhotos}>
 				<div>
 					<input
 						accept="image/*,video/*"
