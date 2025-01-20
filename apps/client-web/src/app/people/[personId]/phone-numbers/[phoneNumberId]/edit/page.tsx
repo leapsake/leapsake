@@ -1,8 +1,8 @@
-import BaseInput from '@/components/BaseInput';
-import { Fragment } from 'react';
-import { readPerson } from '@/db/people';
 import Link from 'next/link';
+import PhoneNumberForm from '@/components/PhoneNumberForm';
+import { Fragment } from 'react';
 import { editPhoneNumber, readPhoneNumber } from '@/db/phone-numbers';
+import { readPerson } from '@/db/people';
 
 export default async function EditPhoneNumberPage({ params }) {
 	const { personId, phoneNumberId } = (await params);
@@ -23,28 +23,11 @@ export default async function EditPhoneNumberPage({ params }) {
 				</ul>
 			</header>
 
-			<form action={action}>
-				<BaseInput
-					defaultValue={phoneNumber.label}
-					label="Label"
-					list="number-labels"
-					name="label"
-				/>
-
-				<datalist id="number-labels">
-					<option value="Personal"></option>
-					<option value="Work"></option>
-					<option value="School"></option>
-				</datalist>
-
-				<BaseInput
-					defaultValue={phoneNumber.number}
-					label="Phone Number"
-					name="number"
-				/>
-
-				<button type="submit">Save Changes</button>
-			</form>
+			<PhoneNumberForm
+				action={action}
+				buttonText="Save Changes"
+				phoneNumber={phoneNumber}
+			/>
 		</Fragment>
 	);
 }
