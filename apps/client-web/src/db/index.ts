@@ -38,6 +38,15 @@ db.serialize(() => {
 		person_id TEXT
 	)`);
 
+	db.run(`CREATE TABLE IF NOT EXISTS PhoneNumbers(
+		id TEXT PRIMARY KEY,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		label TEXT,
+		number TEXT,
+		person_id TEXT
+	)`);
+
 	db.run(`CREATE TABLE IF NOT EXISTS Photos(
 		id TEXT PRIMARY KEY,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

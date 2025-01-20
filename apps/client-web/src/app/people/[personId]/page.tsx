@@ -2,12 +2,14 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { readPerson } from '@/db/people';
 import { browseEmailAddresses } from '@/db/emails';
+import { browsePhoneNumbers } from '@/db/phone-numbers';
 import { browseMilestones } from '@/db/milestones';
 import Milestone from '@/components/Milestone';
 
 export default async function ReadPersonPage({ params }: { params: Promise<{ personId: string }> }) {
 	const { personId } = await params;
 	const person = await readPerson(personId);
+	const phoneNumbers = await browsePhoneNumbers(personId);
 	const emailAddresses = await browseEmailAddresses(personId);
 	const milestones = await browseMilestones(personId);
 
@@ -23,6 +25,34 @@ export default async function ReadPersonPage({ params }: { params: Promise<{ per
 
 			<section>
 				<h2>Contact</h2>
+
+				<section>
+					<h3>Phone Numbers</h3>
+
+					{!!phoneNumbers.length
+						? (
+							<ul>
+								{phoneNumbers.map((phoneNumber) => {
+									return (
+										<li key={phoneNumber.number}>
+											<b>{phoneNumber.label}</b>
+											<a href={`tel:${phoneNumber.number}`}>{phoneNumber.number}</a>
+											<Link href={`/people/${personId}/phone-numbers/${phoneNumber.id}/edit`}>📝 Edit</Link>
+											<Link href={`/people/${personId}/phone-numbers/${phoneNumber.id}/delete`}>❌ Delete</Link>
+										</li>
+									)
+								})}
+
+								<li><Link href={`/people/${personId}/phone-numbers/new`}>➕ Add a Phone Number</Link></li>
+							</ul>
+						)
+						: (
+							<ul>
+								<li><Link href={`/people/${personId}/phone-numbers/new`}>➕ Add a Phone Number</Link></li>
+							</ul>
+						)
+					}
+				</section>
 
 				<section>
 					<h3>Email Addresses</h3>
