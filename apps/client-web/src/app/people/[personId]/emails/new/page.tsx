@@ -1,7 +1,7 @@
+import EmailAddressForm from '@/components/EmailAddressForm';
 import { Fragment } from 'react';
 import { readPerson } from '@/db/people';
 import { addEmailAddress } from '@/db/emails';
-import BaseInput from '@/components/BaseInput';
 
 export default async function AddEmailAddressPage({ params }) {
 	const { personId } = await params;
@@ -14,26 +14,10 @@ export default async function AddEmailAddressPage({ params }) {
 		<Fragment>
 			<h1>{ title }</h1>
 
-			<form action={action}>
-				<BaseInput
-					label="Label"
-					list="email-labels"
-					name="label"
-				/>
-
-				<datalist id="email-labels">
-					<option value="Personal"></option>
-					<option value="Work"></option>
-					<option value="School"></option>
-				</datalist>
-
-				<BaseInput
-					label="Email Address"
-					name="address"
-				/>
-
-				<button type="submit">Add Email Address</button>
-			</form>
+			<EmailAddressForm
+				action={action}
+				buttonText="Add Email Address"
+			/>
 		</Fragment>
 	);
 }

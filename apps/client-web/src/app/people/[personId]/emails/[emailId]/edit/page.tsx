@@ -1,8 +1,8 @@
-import BaseInput from '@/components/BaseInput';
-import { Fragment } from 'react';
-import { readPerson } from '@/db/people';
+import EmailAddressForm from '@/components/EmailAddressForm';
 import Link from 'next/link';
+import { Fragment } from 'react';
 import { editEmailAddress, readEmailAddress } from '@/db/emails';
+import { readPerson } from '@/db/people';
 
 export default async function EditEmailAddressPage({ params }) {
 	const { personId, emailId } = (await params);
@@ -23,28 +23,11 @@ export default async function EditEmailAddressPage({ params }) {
 				</ul>
 			</header>
 
-			<form action={action}>
-				<BaseInput
-					defaultValue={emailAddress.label}
-					label="Label"
-					list="email-labels"
-					name="label"
-				/>
-
-				<datalist id="email-labels">
-					<option value="Personal"></option>
-					<option value="Work"></option>
-					<option value="School"></option>
-				</datalist>
-
-				<BaseInput
-					defaultValue={emailAddress.address}
-					label="Email Address"
-					name="address"
-				/>
-
-				<button type="submit">Save Changes</button>
-			</form>
+			<EmailAddressForm
+				action={action}
+				buttonText="Save Changes"
+				emailAddress={emailAddress}
+			/>
 		</Fragment>
 	);
 }
