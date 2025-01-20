@@ -2,15 +2,15 @@ import db from '@/db';
 import { v4 as uuidv4 } from 'uuid';
 import { redirect } from 'next/navigation';
 
-export async function browseEmailAddresses(personId: string) {
+export async function browsePhoneNumbers(personId: string) {
 	const query = `
 		SELECT *
-		FROM EmailAddresses
+		FROM PhoneNumbers
 		WHERE
 			(person_id = ?)
 	`;
 
-	const emailAddresses = await new Promise((resolve, reject) => {
+	const phoneNumbers = await new Promise((resolve, reject) => {
 		db.all(query,
 			[ personId ],
 			(err, rows) => {
@@ -22,18 +22,18 @@ export async function browseEmailAddresses(personId: string) {
 		});
 	});
 
-	return emailAddresses;
+	return phoneNumbers;
 }
 
-export async function readEmailAddress(emailAddressId: string) {
+export async function readPhoneNumber(phoneNumberId: string) {
 	const query = `
 		SELECT *
-		FROM EmailAddresses
+		FROM PhoneNumbers
 		WHERE id = ?
 	`;
 
-	const emailAddress = await new Promise((resolve, reject) => {
-		db.get(query, [ emailAddressId ], (err, row) => {
+	const phoneNumber = await new Promise((resolve, reject) => {
+		db.get(query, [ phoneNumberId ], (err, row) => {
 			if (err) {
 				reject(err);
 			} else {
@@ -42,29 +42,29 @@ export async function readEmailAddress(emailAddressId: string) {
 		});
 	});
 
-	return emailAddress;
+	return phoneNumber;
 }
 
-export async function editEmailAddress(emailAddressId: string, personId: string, formData: FormData) {
+export async function editPhoneNumber(phoneNumberId: string, personId: string, formData: FormData) {
 	'use server'
 
 	const label = formData.get('label');
-	const address = formData.get('address');
+	const number = formData.get('number');
 
 
-	const editEmailAddressQuery = `
-		UPDATE EmailAddresses
+	const editPhoneNumberQuery = `
+		UPDATE PhoneNumbers
 		SET updated_at = datetime('now'),
-			address = ?,
+			number = ?,
 			label = ?
 		WHERE id = ?
 	`;
 
-	db.run(editEmailAddressQuery,
+	db.run(editPhoneNumberQuery,
 		[
-			address,
+			number,
 			label,
-			emailAddressId
+			phoneNumberId
 		],
 		(err) => {
 			if (err) {
@@ -89,17 +89,17 @@ export async function editEmailAddress(emailAddressId: string, personId: string,
 	redirect(`/people/${personId}`);
 }
 
-export async function addEmailAddress(personId: string, formData: FormData) {
+export async function addPhoneNumber(personId: string, formData: FormData) {
 	'use server'
 
 	const label = formData.get('label');
-	const address = formData.get('address');
-	const emailAddressId = uuidv4();
+	const number = formData.get('number');
+	const phoneNumberId = uuidv4();
 
-	const addEmailAddressQuery = `
-		INSERT INTO EmailAddresses(
+	const addPhoneNumberQuery = `
+		INSERT INTO PhoneNumbers(
 			id,
-			address,
+			number,
 			label,
 			person_id
 		)
@@ -111,9 +111,9 @@ export async function addEmailAddress(personId: string, formData: FormData) {
 		)
 	`;
 
-	db.run(addEmailAddressQuery, [
-		emailAddressId,
-		address,
+	db.run(addPhoneNumberQuery, [
+		phoneNumberId,
+		number,
 		label,
 		personId
 	], (err) => {
@@ -138,16 +138,16 @@ export async function addEmailAddress(personId: string, formData: FormData) {
 	redirect(`/people/${personId}`);
 }
 
-export async function deleteEmailAddress(emailAddressId: string, personId: string) {
+export async function deletePhoneNumber(phoneNumberId: string, personId: string) {
 	'use server'
 
 	const query = `
-		DELETE FROM EmailAddresses
+		DELETE FROM PhoneNumbers
 		WHERE id = ?
 	`;
 
 	db.run(query, [
-		emailAddressId
+		phoneNumberId
 	], (err) => {
 		if (err) {
 			console.error(err);
