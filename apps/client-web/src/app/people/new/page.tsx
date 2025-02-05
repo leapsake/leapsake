@@ -1,5 +1,5 @@
 import PersonForm from '@/components/PersonForm';
-import { addPerson } from '@/server/people';
+import { addPerson } from '@/server';
 import { Fragment } from 'react';
 
 export default async function NewPersonPage() {

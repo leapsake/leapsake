@@ -1,5 +1,5 @@
 import PersonForm from '@/components/PersonForm';
-import { editPerson, readPerson } from '@/server/people';
+import { editPerson, readPerson } from '@/server';
 import { Fragment } from 'react';
 import Link from 'next/link';
 
