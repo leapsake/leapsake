@@ -25,6 +25,11 @@ export default function PersonForm({
 				name="family_name"
 			/>
 
+			<BaseInput
+				defaultValue={person.maiden_name}
+				label="Maiden Name"
+				name="maiden_name"
+			/>
 			<button type="submit">{buttonText}</button>
 		</form>
 	);

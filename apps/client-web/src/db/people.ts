@@ -50,24 +50,27 @@ export async function readPerson(personId: string) {
 export async function editPerson(personId: string, formData: FormData) {
 	'use server'
 
-	const givenName = formData.get('given_name');
-	const middleName = formData.get('middle_name');
 	const familyName = formData.get('family_name');
+	const givenName = formData.get('given_name');
+	const maidenName = formData.get('maiden_name');
+	const middleName = formData.get('middle_name');
 
 	const query = `
 		UPDATE People
 		SET updated_at = datetime('now'),
+			family_name = ?,
 			given_name = ?,
-			middle_name = ?,
-			family_name = ?
+			maiden_name = ?,
+			middle_name = ?
 		WHERE id = ?
 	`;
 
 	db.run(query,
 		[
-			givenName,
-			middleName,
 			familyName,
+			givenName,
+			maidenName,
+			middleName,
 			personId
 		],
 		(err) => {
@@ -83,19 +86,22 @@ export async function editPerson(personId: string, formData: FormData) {
 export async function addPerson(formData: FormData) {
 	'use server'
 
-	const givenName = formData.get('given_name');
-	const middleName = formData.get('middle_name');
 	const familyName = formData.get('family_name');
+	const givenName = formData.get('given_name');
+	const maidenName = formData.get('maiden_name');
+	const middleName = formData.get('middle_name');
 	const personId = uuidv4();
 
 	const query = `
 		INSERT INTO People(
 			id,
+			family_name,
 			given_name,
-			middle_name,
-			family_name
+			maiden_name,
+			middle_name
 		)
 		VALUES(
+			?,
 			?,
 			?,
 			?,
@@ -105,9 +111,10 @@ export async function addPerson(formData: FormData) {
 
 	db.run(query, [
 		personId,
-		givenName,
-		middleName,
 		familyName,
+		givenName,
+		maidenName,
+		middleName,
 	], (err) => {
 		if (err) {
 			console.error(err);
