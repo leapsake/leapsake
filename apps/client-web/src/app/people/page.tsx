@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import Link from 'next/link';
-import { browsePeople } from '@/db/people';
+import { browsePeople } from '@/server/people';
 
 export default async function BrowsePeoplePage() {
 	const people = await browsePeople();

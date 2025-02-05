@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { readPerson } from '@/db/people';
+import { readPerson } from '@/server/people';
 import Link from 'next/link';
 import { editMilestone, readMilestone } from '@/db/milestones';
 import MilestoneForm from '@/components/MilestoneForm';

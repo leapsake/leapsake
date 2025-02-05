@@ -1,7 +1,7 @@
 import PhoneNumberForm from '@/components/PhoneNumberForm';
 import { Fragment } from 'react';
 import { addPhoneNumber } from '@/db/phone-numbers';
-import { readPerson } from '@/db/people';
+import { readPerson } from '@/server/people';
 
 export default async function AddPhoneNumberPage({ params }) {
 	const { personId } = await params;

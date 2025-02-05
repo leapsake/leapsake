@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { readPerson } from '@/db/people';
+import { readPerson } from '@/server/people';
 import { addMilestone, browseMilestones, editMilestone } from '@/db/milestones';
 import { redirect } from 'next/navigation';
 import MilestoneForm from '@/components/MilestoneForm';

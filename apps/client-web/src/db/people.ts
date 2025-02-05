@@ -1,6 +1,5 @@
 import db from '@/db';
 import { v4 as uuidv4 } from 'uuid';
-import { redirect } from 'next/navigation';
 
 export async function browsePeople() {
 	const query = `
@@ -47,14 +46,19 @@ export async function readPerson(personId: string) {
 	return person;
 }
 
-export async function editPerson(personId: string, formData: FormData) {
-	'use server'
+type PersonData = {
+	familyName: string,
+	givenName: string,
+	maidenName: string,
+	middleName: string,
+}
 
-	const familyName = formData.get('family_name');
-	const givenName = formData.get('given_name');
-	const maidenName = formData.get('maiden_name');
-	const middleName = formData.get('middle_name');
-
+export async function editPerson(personId: string, {
+	familyName,
+	givenName,
+	maidenName,
+	middleName,
+}: PersonData) {
 	const query = `
 		UPDATE People
 		SET updated_at = datetime('now'),
@@ -80,16 +84,15 @@ export async function editPerson(personId: string, formData: FormData) {
 		}
 	);
 
-	redirect(`/people/${personId}`);
+	return null;
 }
 
-export async function addPerson(formData: FormData) {
-	'use server'
-
-	const familyName = formData.get('family_name');
-	const givenName = formData.get('given_name');
-	const maidenName = formData.get('maiden_name');
-	const middleName = formData.get('middle_name');
+export async function addPerson({
+	familyName,
+	givenName,
+	maidenName,
+	middleName,
+}: PersonData) {
 	const personId = uuidv4();
 
 	const query = `
@@ -121,12 +124,10 @@ export async function addPerson(formData: FormData) {
 		}
 	});
 
-	redirect(`/people/${personId}`);
+	return personId;
 }
 
 export async function deletePerson(personId: string) {
-	'use server'
-
 	const query = `
 		DELETE FROM People
 		WHERE id = ?
@@ -140,6 +141,6 @@ export async function deletePerson(personId: string) {
 		}
 	});
 
-	redirect('/people');
+	return null;
 }
 
