@@ -46,7 +46,7 @@ export async function readPerson(personId: string) {
 	return person;
 }
 
-type PersonData = {
+type Person = {
 	familyName: string,
 	givenName: string,
 	maidenName: string,
@@ -58,7 +58,7 @@ export async function editPerson(personId: string, {
 	givenName,
 	maidenName,
 	middleName,
-}: PersonData) {
+}: Person) {
 	const query = `
 		UPDATE People
 		SET updated_at = datetime('now'),
@@ -92,7 +92,7 @@ export async function addPerson({
 	givenName,
 	maidenName,
 	middleName,
-}: PersonData) {
+}: Person) {
 	const personId = uuidv4();
 
 	const query = `

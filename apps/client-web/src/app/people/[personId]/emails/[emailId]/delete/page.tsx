@@ -1,6 +1,9 @@
-import { readPerson } from '@/server';
-import { deleteEmailAddress, readEmailAddress } from '@/db/emails';
 import { Fragment } from 'react';
+import {
+	deleteEmailAddress,
+	readEmailAddress,
+	readPerson,
+} from '@/server';
 
 export default async function DeleteEmailAddressPage({ params }: { params: Promise<{ emailId: string }> }) {
 	const { emailId, personId } = await params;
