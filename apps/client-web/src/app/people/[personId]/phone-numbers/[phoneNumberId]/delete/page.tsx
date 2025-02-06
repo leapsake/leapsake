@@ -1,5 +1,8 @@
-import { readPerson } from '@/server';
-import { deletePhoneNumber, readPhoneNumber } from '@/db/phone-numbers';
+import {
+	deletePhoneNumber,
+	readPerson,
+	readPhoneNumber,
+} from '@/server';
 import { Fragment } from 'react';
 
 export default async function DeletePhoneNumberPage({ params }: { params: Promise<{ phoneNumberId: string }> }) {

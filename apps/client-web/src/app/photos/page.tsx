@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import Link from 'next/link';
-import { browsePhotos } from '@/db/photos';
+import { browsePhotos } from '@/server';
 
 export default async function BrowsePhotosPage() {
 	const photos = await browsePhotos();

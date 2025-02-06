@@ -1,9 +1,11 @@
 import { Fragment } from 'react';
 import Link from 'next/link';
-import { readPerson } from '@/server';
-import { browseEmailAddresses } from '@/db/emails';
-import { browsePhoneNumbers } from '@/db/phone-numbers';
-import { browseMilestones } from '@/db/milestones';
+import { 
+	browseEmailAddresses,
+	browseMilestones,
+	browsePhoneNumbers,
+	readPerson,
+} from '@/server';
 import Milestone from '@/components/Milestone';
 
 export default async function ReadPersonPage({ params }: { params: Promise<{ personId: string }> }) {
