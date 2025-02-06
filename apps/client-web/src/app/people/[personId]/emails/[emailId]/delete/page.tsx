@@ -1,4 +1,4 @@
-import { readPerson } from '@/server/people';
+import { readPerson } from '@/server';
 import { deleteEmailAddress, readEmailAddress } from '@/db/emails';
 import { Fragment } from 'react';
 

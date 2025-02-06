@@ -2,7 +2,7 @@ import EmailAddressForm from '@/components/EmailAddressForm';
 import Link from 'next/link';
 import { Fragment } from 'react';
 import { editEmailAddress, readEmailAddress } from '@/db/emails';
-import { readPerson } from '@/server/people';
+import { readPerson } from '@/server';
 
 export default async function EditEmailAddressPage({ params }) {
 	const { personId, emailId } = (await params);

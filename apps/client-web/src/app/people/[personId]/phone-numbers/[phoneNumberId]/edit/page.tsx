@@ -2,7 +2,7 @@ import Link from 'next/link';
 import PhoneNumberForm from '@/components/PhoneNumberForm';
 import { Fragment } from 'react';
 import { editPhoneNumber, readPhoneNumber } from '@/db/phone-numbers';
-import { readPerson } from '@/server/people';
+import { readPerson } from '@/server';
 
 export default async function EditPhoneNumberPage({ params }) {
 	const { personId, phoneNumberId } = (await params);
