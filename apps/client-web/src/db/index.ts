@@ -15,6 +15,7 @@ db.serialize(() => {
 		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		family_name TEXT,
 		given_name TEXT,
+		maiden_name TEXT,
 		middle_name TEXT
 	)`);
 
