@@ -1,7 +1,10 @@
 import { Fragment } from 'react';
-import { readPerson } from '@/server';
-import { addMilestone, browseMilestones, editMilestone } from '@/db/milestones';
 import { redirect } from 'next/navigation';
+import {
+	addMilestone,
+	browseMilestones,
+	readPerson,
+} from '@/server';
 import MilestoneForm from '@/components/MilestoneForm';
 
 function getTitle(label, givenName) {
@@ -17,6 +20,9 @@ export default async function AddMilestonePage({ params, searchParams }) {
 	const label = (await searchParams).label;
 
 	const person = await readPerson(personId);
+
+	// Check to ensure milestone at existing label doesn't already exist.
+	// If it does exist, go to edit page instead.
 	const milestone = (await browseMilestones(personId)).find((milestone) => {
 		return milestone.label === label;
 	});

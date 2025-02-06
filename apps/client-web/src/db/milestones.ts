@@ -1,6 +1,5 @@
 import db from '@/db';
 import { v4 as uuidv4 } from 'uuid';
-import { redirect } from 'next/navigation';
 
 export async function browseMilestones(personId: string) {
 	const query = `
@@ -22,6 +21,7 @@ export async function browseMilestones(personId: string) {
 			}
 		});
 	});
+
 	return milestones;
 }
 
@@ -41,18 +41,23 @@ export async function readMilestone(milestoneId: string) {
 			}
 		});
 	});
+
 	return milestone;
 }
 
-export async function editMilestone(milestoneId: string, personId: string, formData: FormData) {
-	'use server'
+type Milestone = {
+	day: string,
+	label: string,
+	month: string,
+	year: string,
+};
 
-	const day = formData.get('day');
-	const label = formData.get('label');
-	const month = formData.get('month');
-	const year = formData.get('year');
-
-
+export async function editMilestone(milestoneId: string, personId: string, {
+	day,
+	label,
+	month,
+	year,
+}: Milestone) {
 	const editMilestoneQuery = `
 		UPDATE Milestones
 		SET updated_at = datetime('now'),
@@ -91,16 +96,15 @@ export async function editMilestone(milestoneId: string, personId: string, formD
 		}
 	});
 
-	redirect(`/people/${personId}`);
+	return null;
 }
 
-export async function addMilestone(personId: string, formData: FormData) {
-	'use server'
-
-	const day = formData.get('day');
-	const label = formData.get('label');
-	const month = formData.get('month');
-	const year = formData.get('year');
+export async function addMilestone(personId: string, {
+	day,
+	label,
+	month,
+	year,
+}: Milestone) {
 	const milestoneId = uuidv4();
 
 	const addMilestoneQuery = `
@@ -148,12 +152,10 @@ export async function addMilestone(personId: string, formData: FormData) {
 		}
 	});
 
-	redirect(`/people/${personId}`);
+	return milestoneId;
 }
 
-export async function deleteMilestone(milestoneId: string, personId: string) {
-	'use server'
-
+export async function deleteMilestone(milestoneId: string) {
 	const query = `
 		DELETE FROM Milestones
 		WHERE id = ?
@@ -167,5 +169,5 @@ export async function deleteMilestone(milestoneId: string, personId: string) {
 		}
 	});
 
-	redirect(`/people/${personId}`);
+	return null;
 }
