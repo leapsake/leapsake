@@ -1,4 +1,4 @@
-import { deletePerson, readPerson } from '@/db/people';
+import { deletePerson, readPerson } from '@/server/people';
 import { Fragment } from 'react';
 
 export default async function DeletePersonPage({ params }: { params: Promise<{ personId: string }> }) {

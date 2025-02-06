@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import Link from 'next/link';
-import { readPerson } from '@/db/people';
+import { readPerson } from '@/server/people';
 import { browseEmailAddresses } from '@/db/emails';
 import { browsePhoneNumbers } from '@/db/phone-numbers';
 import { browseMilestones } from '@/db/milestones';
