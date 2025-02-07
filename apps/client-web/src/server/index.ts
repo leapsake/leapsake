@@ -13,3 +13,11 @@ export {
 	addEmailAddress,
 	deleteEmailAddress,
 } from './emails';
+
+export {
+	browseMilestones,
+	readMilestone,
+	editMilestone,
+	addMilestone,
+	deleteMilestone,
+} from './milestones';

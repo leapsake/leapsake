@@ -1,8 +1,11 @@
-import { readPerson } from '@/server';
-import { deleteMilestone, readMilestone } from '@/db/milestones';
 import { Fragment } from 'react';
+import {
+	deleteMilestone,
+	readMilestone,
+	readPerson,
+} from '@/server';
 
-export default async function DeleteMilestonePage({ params }: { params: Promise<{ milestoneId: string }> }) {
+export default async function DeleteMilestonePage({ params }: { params: Promise<{ milestoneId: string, personId: string }> }) {
 	const { milestoneId, personId } = await params;
 	const person = await readPerson(personId);
 	const milestone = await readMilestone(milestoneId);

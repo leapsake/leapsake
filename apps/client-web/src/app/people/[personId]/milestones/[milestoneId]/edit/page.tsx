@@ -1,7 +1,10 @@
 import { Fragment } from 'react';
-import { readPerson } from '@/server';
 import Link from 'next/link';
-import { editMilestone, readMilestone } from '@/db/milestones';
+import {
+	editMilestone,
+	readMilestone,
+	readPerson,
+} from '@/server';
 import MilestoneForm from '@/components/MilestoneForm';
 
 export default async function EditMilestonePage({ params }) {
