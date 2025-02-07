@@ -32,5 +32,6 @@ export {
 
 export {
 	browsePhotos,
+	readPhoto,
 	addPhotos,
 } from './photos';

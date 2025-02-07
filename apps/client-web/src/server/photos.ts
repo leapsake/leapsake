@@ -8,6 +8,11 @@ export async function browsePhotos() {
 	return photos;
 }
 
+export async function readPhoto(photoId: string) {
+	const photo = await photosDb.readPhoto(photoId);
+	return photo;
+}
+
 export async function addPhotos(formData: FormData) {
 	'use server'
 

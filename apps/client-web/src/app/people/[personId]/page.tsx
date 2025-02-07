@@ -7,6 +7,7 @@ import {
 	browsePhoneNumbers,
 	readPerson,
 } from '@/server';
+import CreatedUpdatedMetadata from '@/components/CreatedUpdatedMetadata';
 import Milestone from '@/components/Milestone';
 
 type Props = {
@@ -131,8 +132,10 @@ export default async function ReadPersonPage({ params }: Props) {
 			</section>
 
 			<footer>
-				<i>Created: <time dateTime={person.created_at}>{person.created_at}</time>
-					<br/>Last Updated: <time dateTime={person.updated_at}>{person.updated_at}</time></i>
+				<CreatedUpdatedMetadata
+					createdAt={person.created_at}
+					updatedAt={person.updated_at}
+				/>
 			</footer>
 		</Fragment>
 	);
