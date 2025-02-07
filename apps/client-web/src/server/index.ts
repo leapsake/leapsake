@@ -5,3 +5,11 @@ export {
 	addPerson,
 	deletePerson,
 } from './people';
+
+export {
+	browseEmailAddresses,
+	readEmailAddress,
+	editEmailAddress,
+	addEmailAddress,
+	deleteEmailAddress,
+} from './emails';

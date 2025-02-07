@@ -1,7 +1,6 @@
 import EmailAddressForm from '@/components/EmailAddressForm';
 import { Fragment } from 'react';
-import { readPerson } from '@/server';
-import { addEmailAddress } from '@/db/emails';
+import { addEmailAddress, readPerson } from '@/server';
 
 export default async function AddEmailAddressPage({ params }) {
 	const { personId } = await params;

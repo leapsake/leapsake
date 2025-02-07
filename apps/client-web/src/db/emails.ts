@@ -1,6 +1,5 @@
 import db from '@/db';
 import { v4 as uuidv4 } from 'uuid';
-import { redirect } from 'next/navigation';
 
 export async function browseEmailAddresses(personId: string) {
 	const query = `
@@ -45,13 +44,15 @@ export async function readEmailAddress(emailAddressId: string) {
 	return emailAddress;
 }
 
-export async function editEmailAddress(emailAddressId: string, personId: string, formData: FormData) {
-	'use server'
+type EmailAddress = {
+	address: string,
+	label: string,
+}
 
-	const label = formData.get('label');
-	const address = formData.get('address');
-
-
+export async function editEmailAddress(emailAddressId: string, personId: string, {
+	address,
+	label,
+}: EmailAddress) {
 	const editEmailAddressQuery = `
 		UPDATE EmailAddresses
 		SET updated_at = datetime('now'),
@@ -86,14 +87,13 @@ export async function editEmailAddress(emailAddressId: string, personId: string,
 		}
 	});
 
-	redirect(`/people/${personId}`);
+	return null;
 }
 
-export async function addEmailAddress(personId: string, formData: FormData) {
-	'use server'
-
-	const label = formData.get('label');
-	const address = formData.get('address');
+export async function addEmailAddress(personId: string, {
+	address,
+	label,
+}: EmailAddress) {
 	const emailAddressId = uuidv4();
 
 	const addEmailAddressQuery = `
@@ -135,10 +135,10 @@ export async function addEmailAddress(personId: string, formData: FormData) {
 		}
 	});
 
-	redirect(`/people/${personId}`);
+	return emailAddressId;
 }
 
-export async function deleteEmailAddress(emailAddressId: string, personId: string) {
+export async function deleteEmailAddress(emailAddressId: string) {
 	'use server'
 
 	const query = `
@@ -154,5 +154,5 @@ export async function deleteEmailAddress(emailAddressId: string, personId: strin
 		}
 	});
 
-	redirect(`/people/${personId}`);
+	return null;
 }
