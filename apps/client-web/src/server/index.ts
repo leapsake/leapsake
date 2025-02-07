@@ -21,3 +21,16 @@ export {
 	addMilestone,
 	deleteMilestone,
 } from './milestones';
+
+export {
+	browsePhoneNumbers,
+	readPhoneNumber,
+	editPhoneNumber,
+	addPhoneNumber,
+	deletePhoneNumber,
+} from './phone-numbers';
+
+export {
+	browsePhotos,
+	addPhotos,
+} from './photos';

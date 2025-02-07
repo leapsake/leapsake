@@ -45,12 +45,16 @@ export async function readPhoneNumber(phoneNumberId: string) {
 	return phoneNumber;
 }
 
-export async function editPhoneNumber(phoneNumberId: string, personId: string, formData: FormData) {
+type PhoneNumber = {
+	label: string,
+	number: string,
+}
+
+export async function editPhoneNumber(phoneNumberId: string, personId: string, {
+	label,
+	number,
+}: PhoneNumber) {
 	'use server'
-
-	const label = formData.get('label');
-	const number = formData.get('number');
-
 
 	const editPhoneNumberQuery = `
 		UPDATE PhoneNumbers
@@ -86,14 +90,13 @@ export async function editPhoneNumber(phoneNumberId: string, personId: string, f
 		}
 	});
 
-	redirect(`/people/${personId}`);
+	return null;
 }
 
-export async function addPhoneNumber(personId: string, formData: FormData) {
-	'use server'
-
-	const label = formData.get('label');
-	const number = formData.get('number');
+export async function addPhoneNumber(personId: string, {
+	label,
+	number,
+}: PhoneNumber) {
 	const phoneNumberId = uuidv4();
 
 	const addPhoneNumberQuery = `
@@ -135,12 +138,10 @@ export async function addPhoneNumber(personId: string, formData: FormData) {
 		}
 	});
 
-	redirect(`/people/${personId}`);
+	return phoneNumberId;
 }
 
-export async function deletePhoneNumber(phoneNumberId: string, personId: string) {
-	'use server'
-
+export async function deletePhoneNumber(phoneNumberId: string) {
 	const query = `
 		DELETE FROM PhoneNumbers
 		WHERE id = ?
@@ -154,5 +155,4 @@ export async function deletePhoneNumber(phoneNumberId: string, personId: string)
 		}
 	});
 
-	redirect(`/people/${personId}`);
 }

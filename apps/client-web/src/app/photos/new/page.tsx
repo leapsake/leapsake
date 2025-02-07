@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { addPhotos } from '@/db/photos';
+import { addPhotos } from '@/server';
 
 export default async function NewPhotoPage() {
 	return (
