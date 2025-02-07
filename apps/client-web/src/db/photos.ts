@@ -30,21 +30,25 @@ export async function addPhoto(photoPath: string) {
 			path
 		)
 		VALUES(
-			?,
-			?
+			$photoId,
+			$photoPath
 		)
 	`;
 
 	const photoId = uuidv4();
 
-	db.run(query, [
-		photoId,
-		photoPath
-	], (err) => {
-		if (err) {
-			console.error(err);
+	db.run(
+		query,
+		{
+			$id: photoId,
+			$photoPath: photoPath,
+		},
+		(err) => {
+			if (err) {
+				console.error(err);
+			}
 		}
-	});
+	);
 
 	return photoId;
 }
