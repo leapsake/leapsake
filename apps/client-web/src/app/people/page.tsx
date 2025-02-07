@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { browsePeople } from '@/server';
 
 export const metadata: Metadata = {
-  title: 'People | Leapsake',
+	title: 'People | Leapsake',
 }
 
 export default async function BrowsePeoplePage() {

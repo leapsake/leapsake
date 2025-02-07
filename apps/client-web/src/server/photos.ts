@@ -30,8 +30,9 @@ export async function addPhotos(formData: FormData) {
 
 		await fs.writeFile(
 			photoPath,
-			buffer,
+			buffer
 		);
+
 		await photosDb.addPhoto(photoPath);
 	}));
 

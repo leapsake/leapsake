@@ -1,6 +1,6 @@
 export interface EmailAddress {
-	address: string,
-	label: string,
+	address: string;
+	label: string;
 };
 
 export interface Milestone {
@@ -20,4 +20,9 @@ export interface Person {
 export interface PhoneNumber {
 	label: string;
 	number: string;
+}
+
+export interface Photo {
+	id: string;
+	path: string;
 }
