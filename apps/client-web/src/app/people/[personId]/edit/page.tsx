@@ -1,9 +1,25 @@
+import { Fragment } from 'react';
+import type { Metadata } from 'next'
+import Link from 'next/link';
 import PersonForm from '@/components/PersonForm';
 import { editPerson, readPerson } from '@/server';
-import { Fragment } from 'react';
-import Link from 'next/link';
 
-export default async function EditPersonPage({ params }: { params: Promise<{ personId: string }> }) {
+type Props = {
+	params: Promise<{ personId: string }>,
+}
+
+export async function generateMetadata(
+	{ params }: Props
+): Promise<Metadata> {
+	const { personId } = await params;
+	const person = await readPerson(personId);
+
+	return {
+		title: `Edit ${person.given_name} ${person.family_name} | Leapsake`,
+	};
+}
+
+export default async function EditPersonPage({ params }: Props) {
 	const { personId } = await params;
 	const person = await readPerson(personId);
 

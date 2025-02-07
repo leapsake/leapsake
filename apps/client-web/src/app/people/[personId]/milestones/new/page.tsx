@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import type { Metadata } from 'next'
 import { redirect } from 'next/navigation';
 import {
 	addMilestone,
@@ -7,17 +8,35 @@ import {
 } from '@/server';
 import MilestoneForm from '@/components/MilestoneForm';
 
-function getTitle(label, givenName) {
+type Props = {
+	params: Promise<{ personId: string }>,
+	searchParams: Promise<{ label: string }>,
+}
+
+function getTitle(label: string, givenName: string) {
 	if(!label) {
 		return `Add a Milestone for ${givenName}`;
 	} else {
-		return `Add ${givenName}'s ${label}`;
+		return `Add ${givenName}’s ${label}`;
 	}
 };
 
-export default async function AddMilestonePage({ params, searchParams }) {
+export async function generateMetadata({
+	params,
+	searchParams,
+}: Props): Promise<Metadata> {
 	const { personId } = await params;
-	const label = (await searchParams).label;
+	const { label } = await searchParams;
+	const person = await readPerson(personId);
+
+	return {
+		title: `${getTitle(label, person.given_name)} | Leapsake`,
+	};
+}
+
+export default async function AddMilestonePage({ params, searchParams }: Props) {
+	const { personId } = await params;
+	const { label } = await searchParams;
 
 	const person = await readPerson(personId);
 

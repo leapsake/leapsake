@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import type { Metadata } from 'next'
 import Link from 'next/link';
 import {
 	editMilestone,
@@ -7,7 +8,26 @@ import {
 } from '@/server';
 import MilestoneForm from '@/components/MilestoneForm';
 
-export default async function EditMilestonePage({ params }) {
+type Props = {
+	params: Promise<{
+		personId: string,
+		milestoneId: string,
+	}>,
+}
+
+export async function generateMetadata({
+	params,
+}: Props): Promise<Metadata> {
+	const { personId, milestoneId } = await params;
+	const person = await readPerson(personId);
+	const milestone = await readMilestone(milestoneId);
+
+	return {
+		title: `Edit ${person.given_name}’s ${milestone.label} | Leapsake`,
+	};
+}
+
+export default async function EditMilestonePage({ params }: Props) {
 	const { personId, milestoneId } = (await params);
 
 	const person = await readPerson(personId);
@@ -15,7 +35,7 @@ export default async function EditMilestonePage({ params }) {
 
 	const action = editMilestone.bind(null, milestoneId, personId);
 	const buttonText = 'Save Changes';
-	const title = `Edit ${person.given_name}'s ${milestone.label}`;
+	const title = `Edit ${person.given_name}’s ${milestone.label}`;
 
 	return (
 		<Fragment>

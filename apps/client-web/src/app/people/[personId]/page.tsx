@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
+import type { Metadata } from 'next'
 import Link from 'next/link';
-import { 
+import {
 	browseEmailAddresses,
 	browseMilestones,
 	browsePhoneNumbers,
@@ -8,7 +9,22 @@ import {
 } from '@/server';
 import Milestone from '@/components/Milestone';
 
-export default async function ReadPersonPage({ params }: { params: Promise<{ personId: string }> }) {
+type Props = {
+	params: Promise<{ personId: string }>
+}
+
+export async function generateMetadata(
+	{ params }: Props
+): Promise<Metadata> {
+	const { personId } = await params;
+	const person = await readPerson(personId);
+
+	return {
+		title: `${person.given_name} ${person.family_name} | Leapsake`,
+	};
+}
+
+export default async function ReadPersonPage({ params }: Props) {
 	const { personId } = await params;
 	const person = await readPerson(personId);
 	const phoneNumbers = await browsePhoneNumbers(personId);
