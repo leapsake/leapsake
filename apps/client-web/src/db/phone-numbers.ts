@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import db from '@/db';
 import { PhoneNumber } from '@/types';
+import { updatePerson } from '@/db/people';
 
 export async function browsePhoneNumbers(personId: string) {
 	const query = `
@@ -81,23 +82,7 @@ export async function editPhoneNumber(phoneNumberId: string, personId: string, {
 		}
 	);
 
-	const updatePersonUpdatedAtQuery = `
-		UPDATE People
-		SET updated_at = datetime('now')
-		WHERE id = $personId
-	`;
-
-	db.run(
-		updatePersonUpdatedAtQuery,
-		{
-			$personId: personId,
-		},
-		(err) => {
-			if (err) {
-				console.error(err);
-			}
-		}
-	);
+	await updatePerson(personId);
 
 	return null;
 }
@@ -138,23 +123,7 @@ export async function addPhoneNumber(personId: string, {
 		}
 	);
 
-	const updatePersonUpdatedAtQuery = `
-		UPDATE People
-		SET updated_at = datetime('now')
-		WHERE id = $personId
-	`;
-
-	db.run(
-		updatePersonUpdatedAtQuery,
-		{
-			$personId: personId,
-		},
-		(err) => {
-			if (err) {
-				console.error(err);
-			}
-		}
-	);
+	await updatePerson(personId);
 
 	return phoneNumberId;
 }

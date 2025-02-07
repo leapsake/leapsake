@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { EmailAddress } from '@/types';
 import db from '@/db';
+import { updatePerson } from '@/db/people';
 
 export async function browseEmailAddresses(personId: string) {
 	const query = `
@@ -81,23 +82,7 @@ export async function editEmailAddress(emailAddressId: string, personId: string,
 		}
 	);
 
-	const updatePersonUpdatedAtQuery = `
-		UPDATE People
-		SET updated_at = datetime('now')
-		WHERE id = $personId
-	`;
-
-	db.run(
-		updatePersonUpdatedAtQuery,
-		{
-			$personId: personId,
-		},
-		(err) => {
-			if (err) {
-				console.error(err);
-			}
-		}
-	);
+	await updatePerson(personId);
 
 	return null;
 }
@@ -138,23 +123,7 @@ export async function addEmailAddress(personId: string, {
 		}
 	);
 
-	const updatePersonUpdatedAtQuery = `
-		UPDATE People
-		SET updated_at = datetime('now')
-		WHERE id = $personId
-	`;
-
-	db.run(
-		updatePersonUpdatedAtQuery,
-		{
-			$personId: personId
-		},
-		(err) => {
-			if (err) {
-				console.error(err);
-			}
-		}
-	);
+	await updatePerson(personId);
 
 	return emailAddressId;
 }

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Milestone } from '@/types';
 import db from '@/db';
+import { updatePerson } from '@/db/people';
 
 export async function browseMilestones(personId: string) {
 	const query = `
@@ -69,12 +70,12 @@ export async function editMilestone(milestoneId: string, personId: string, {
 			label = $label,
 			month = $month,
 			year = $year
-		WHERE id = $milestoneId 
+		WHERE id = $milestoneId
 	`;
 
 	db.run(
 		editMilestoneQuery,
-		{ 
+		{
 			$day: day,
 			$label: label,
 			$month: month,
@@ -88,23 +89,7 @@ export async function editMilestone(milestoneId: string, personId: string, {
 		}
 	);
 
-	const updatePersonUpdatedAtQuery = `
-		UPDATE People
-		SET updated_at = datetime('now')
-		WHERE id = $personId
-	`;
-
-	db.run(
-		updatePersonUpdatedAtQuery,
-		{ 
-			$personId: personId,
-		}, 
-		(err) => {
-			if (err) {
-				console.error(err);
-			}
-		}
-	);
+	await updatePerson(personId);
 
 	return null;
 }
@@ -132,20 +117,20 @@ export async function addMilestone(personId: string, {
 			$label,
 			$month,
 			$personId,
-			$year	
+			$year
 		)
 	`;
 
 	db.run(
-		addMilestoneQuery, 
-		{ 
+		addMilestoneQuery,
+		{
 			$day: day,
 			$label: label,
 			$milestoneId: milestoneId,
 			$month: month,
 			$personId: personId,
 			$year: year,
-		}, 
+		},
 		(err) => {
 			if (err) {
 				console.error(err);
@@ -153,23 +138,7 @@ export async function addMilestone(personId: string, {
 		}
 	);
 
-	const updatePersonUpdatedAtQuery = `
-		UPDATE People
-		SET updated_at = datetime('now')
-		WHERE id = $personId
-	`;
-
-	db.run(
-		updatePersonUpdatedAtQuery,
-		{ 
-			$personId: personId,
-		}, 
-		(err) => {
-			if (err) {
-				console.error(err);
-			}
-		}
-	);
+	await updatePerson(personId);
 
 	return milestoneId;
 }
@@ -181,10 +150,10 @@ export async function deleteMilestone(milestoneId: string) {
 	`;
 
 	db.run(
-		query, 
-		{ 
+		query,
+		{
 			$milestoneId: milestoneId,
-		}, 
+		},
 		(err) => {
 			if (err) {
 				console.error(err);
