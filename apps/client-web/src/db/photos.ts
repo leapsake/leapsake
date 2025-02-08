@@ -24,6 +24,32 @@ export async function browsePhotos() {
 	return photos;
 }
 
+export async function readPhoto(photoId: string) {
+	const query = `
+		SELECT *
+		FROM Photos
+		WHERE id = $photoId
+	`;
+
+	const photo = await new Promise((resolve, reject) => {
+		db.get(
+			query,
+			{
+				$photoId: photoId,
+			},
+			(err, row) => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve(row);
+				}
+			}
+		);
+	});
+
+	return photo;
+}
+
 export async function addPhoto(photoPath: string) {
 	const query = `
 		INSERT INTO Photos(

@@ -43,7 +43,24 @@ export default function initDB(db) {
 			id TEXT PRIMARY KEY,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			alt TEXT,
+			description TEXT,
 			path TEXT
+		)`);
+
+		db.run(`CREATE TABLE IF NOT EXISTS PhotoAlbums(
+			id TEXT PRIMARY KEY,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			description TEXT
+		)`);
+
+		db.run(`CREATE TABLE IF NOT EXISTS PhotoAlbumItems(
+			id TEXT PRIMARY KEY,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			photo_id TEXT,
+			photo_album_id TEXT
 		)`);
 	});
 }
