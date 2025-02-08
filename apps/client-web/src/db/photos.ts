@@ -9,7 +9,8 @@ export async function browsePhotos() {
 	`;
 
 	const photos = await new Promise((resolve, reject) => {
-		db.all(query,
+		db.all(
+			query,
 			(err, rows) => {
 				if (err) {
 					reject(err);
@@ -40,7 +41,7 @@ export async function addPhoto(photoPath: string) {
 	db.run(
 		query,
 		{
-			$id: photoId,
+			$photoId: photoId,
 			$photoPath: photoPath,
 		},
 		(err) => {
