@@ -1,6 +1,11 @@
 import { Fragment } from 'react';
+import type { Metadata } from 'next'
 import Link from 'next/link';
 import { browsePeople } from '@/server';
+
+export const metadata: Metadata = {
+  title: 'People | Leapsake',
+}
 
 export default async function BrowsePeoplePage() {
 	const people = await browsePeople();
