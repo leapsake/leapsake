@@ -1,5 +1,6 @@
-import db from '@/db';
 import { v4 as uuidv4 } from 'uuid';
+import { Person } from '@/types';
+import db from '@/db';
 
 export async function browsePeople() {
 	const query = `
@@ -44,13 +45,6 @@ export async function readPerson(personId: string) {
 	});
 
 	return person;
-}
-
-type Person = {
-	familyName: string,
-	givenName: string,
-	maidenName: string,
-	middleName: string,
 }
 
 export async function editPerson(personId: string, {
