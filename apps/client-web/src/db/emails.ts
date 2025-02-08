@@ -1,24 +1,29 @@
-import db from '@/db';
 import { v4 as uuidv4 } from 'uuid';
+import { EmailAddress } from '@/types';
+import db from '@/db';
 
 export async function browseEmailAddresses(personId: string) {
 	const query = `
 		SELECT *
 		FROM EmailAddresses
 		WHERE
-			(person_id = ?)
+			(person_id = $personId)
 	`;
 
 	const emailAddresses = await new Promise((resolve, reject) => {
-		db.all(query,
-			[ personId ],
+		db.all(
+			query,
+			{
+				$personId: personId,
+			},
 			(err, rows) => {
-			if (err) {
-				reject(err);
-			} else {
-				resolve(rows);
+				if (err) {
+					reject(err);
+				} else {
+					resolve(rows);
+				}
 			}
-		});
+		);
 	});
 
 	return emailAddresses;
@@ -28,25 +33,26 @@ export async function readEmailAddress(emailAddressId: string) {
 	const query = `
 		SELECT *
 		FROM EmailAddresses
-		WHERE id = ?
+		WHERE id = $emailAddressId
 	`;
 
 	const emailAddress = await new Promise((resolve, reject) => {
-		db.get(query, [ emailAddressId ], (err, row) => {
-			if (err) {
-				reject(err);
-			} else {
-				resolve(row);
+		db.get(
+			query,
+			{
+				$emailAddressId: emailAddressId,
+			},
+			(err, row) => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve(row);
+				}
 			}
-		});
+		);
 	});
 
 	return emailAddress;
-}
-
-type EmailAddress = {
-	address: string,
-	label: string,
 }
 
 export async function editEmailAddress(emailAddressId: string, personId: string, {
@@ -56,17 +62,18 @@ export async function editEmailAddress(emailAddressId: string, personId: string,
 	const editEmailAddressQuery = `
 		UPDATE EmailAddresses
 		SET updated_at = datetime('now'),
-			address = ?,
-			label = ?
-		WHERE id = ?
+			address = $address,
+			label = $label
+		WHERE id = $emailAddressId
 	`;
 
-	db.run(editEmailAddressQuery,
-		[
-			address,
-			label,
-			emailAddressId
-		],
+	db.run(
+		editEmailAddressQuery,
+		{
+			$address: address,
+			$label: label,
+			$emailAddressId: emailAddressId,
+		},
 		(err) => {
 			if (err) {
 				console.error(err);
@@ -77,15 +84,20 @@ export async function editEmailAddress(emailAddressId: string, personId: string,
 	const updatePersonUpdatedAtQuery = `
 		UPDATE People
 		SET updated_at = datetime('now')
-		WHERE id = ?
+		WHERE id = $personId
 	`;
 
-	db.run(updatePersonUpdatedAtQuery,
-		[ personId ], (err) => {
-		if (err) {
-			console.error(err);
+	db.run(
+		updatePersonUpdatedAtQuery,
+		{
+			$personId: personId,
+		},
+		(err) => {
+			if (err) {
+				console.error(err);
+			}
 		}
-	});
+	);
 
 	return null;
 }
@@ -98,61 +110,72 @@ export async function addEmailAddress(personId: string, {
 
 	const addEmailAddressQuery = `
 		INSERT INTO EmailAddresses(
-			id,
 			address,
+			id,
 			label,
 			person_id
 		)
 		VALUES(
-			?,
-			?,
-			?,
-			?
+			$address,
+			$emailAddressId,
+			$label,
+			$personId
 		)
 	`;
 
-	db.run(addEmailAddressQuery, [
-		emailAddressId,
-		address,
-		label,
-		personId
-	], (err) => {
-		if (err) {
-			console.error(err);
+	db.run(
+		addEmailAddressQuery,
+		{
+			$emailAddressId: emailAddressId,
+			$address: address,
+			$label: label,
+			$personId: personId,
+		},
+		(err) => {
+			if (err) {
+				console.error(err);
+			}
 		}
-	});
+	);
 
 	const updatePersonUpdatedAtQuery = `
 		UPDATE People
 		SET updated_at = datetime('now')
-		WHERE id = ?
+		WHERE id = $personId
 	`;
 
-	db.run(updatePersonUpdatedAtQuery,
-		[ personId ], (err) => {
-		if (err) {
-			console.error(err);
+	db.run(
+		updatePersonUpdatedAtQuery,
+		{
+			$personId: personId
+		},
+		(err) => {
+			if (err) {
+				console.error(err);
+			}
 		}
-	});
+	);
 
 	return emailAddressId;
 }
 
 export async function deleteEmailAddress(emailAddressId: string) {
-	'use server'
-
 	const query = `
 		DELETE FROM EmailAddresses
-		WHERE id = ?
+		WHERE id = $emailAddressId
 	`;
 
-	db.run(query, [
-		emailAddressId
-	], (err) => {
-		if (err) {
-			console.error(err);
+	db.run(
+		query,
+		{
+			$emailAddressId: emailAddressId,
+		},
+		(err) => {
+			if (err) {
+				console.error(err);
+			}
 		}
-	});
+	);
 
 	return null;
 }

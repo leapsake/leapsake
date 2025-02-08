@@ -28,12 +28,15 @@ export async function readPerson(personId: string) {
 	const query = `
 		SELECT *
 		FROM People
-		WHERE id = ?
+		WHERE id = $personId
 	`;
 
 	const person = await new Promise((resolve, reject) => {
-		db.get(query,
-			[ personId ],
+		db.get(
+			query,
+			{
+				$personId: personId,
+			},
 			(err, row) => {
 				if (err) {
 					reject(err);
@@ -56,21 +59,22 @@ export async function editPerson(personId: string, {
 	const query = `
 		UPDATE People
 		SET updated_at = datetime('now'),
-			family_name = ?,
-			given_name = ?,
-			maiden_name = ?,
-			middle_name = ?
-		WHERE id = ?
+			family_name = $familyName,
+			given_name = $givenName,
+			maiden_name = $maidenName,
+			middle_name = $middleName
+		WHERE id = $personId
 	`;
 
-	db.run(query,
-		[
-			familyName,
-			givenName,
-			maidenName,
-			middleName,
-			personId
-		],
+	db.run(
+		query,
+		{
+			$familyName: familyName,
+			$givenName: givenName,
+			$maidenName: maidenName,
+			$middleName: middleName,
+			$personId: personId,
+		},
 		(err) => {
 			if (err) {
 				console.error(err);
@@ -91,32 +95,36 @@ export async function addPerson({
 
 	const query = `
 		INSERT INTO People(
-			id,
 			family_name,
 			given_name,
 			maiden_name,
-			middle_name
+			middle_name,
+			id
 		)
 		VALUES(
-			?,
-			?,
-			?,
-			?,
-			?
+			$familyName,
+			$givenName,
+			$maidenName,
+			$middleName,
+			$personId
 		)
 	`;
 
-	db.run(query, [
-		personId,
-		familyName,
-		givenName,
-		maidenName,
-		middleName,
-	], (err) => {
-		if (err) {
-			console.error(err);
+	db.run(
+		query,
+		{
+			$familyName: familyName,
+			$givenName: givenName,
+			$maidenName: maidenName,
+			$middleName: middleName,
+			$personId: personId,
+		},
+		(err) => {
+			if (err) {
+				console.error(err);
+			}
 		}
-	});
+	);
 
 	return personId;
 }
@@ -124,16 +132,20 @@ export async function addPerson({
 export async function deletePerson(personId: string) {
 	const query = `
 		DELETE FROM People
-		WHERE id = ?
+		WHERE id = $personId
 	`;
 
-	db.run(query, [
-		personId
-	], (err) => {
-		if (err) {
-			console.error(err);
+	db.run(
+		query,
+		{
+			$personId: personId,
+		},
+		(err) => {
+			if (err) {
+				console.error(err);
+			}
 		}
-	});
+	);
 
 	return null;
 }
