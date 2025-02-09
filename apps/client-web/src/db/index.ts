@@ -6,7 +6,6 @@ const dataDir = path.resolve('data');
 const databasePath = path.resolve(dataDir, 'development.db');
 
 // TODO check if dataDir exists, make it if it doesn't
-
 const db = new sqlite3.Database(databasePath);
 
 initDB(db);

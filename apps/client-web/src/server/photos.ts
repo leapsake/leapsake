@@ -17,7 +17,7 @@ export async function addPhotos(formData: FormData) {
 	'use server'
 
 	const photos = formData.getAll('photos');
-	const uploadDir = path.resolve('data/files/photos');
+	const uploadDir = path.resolve('public/files/photos');
 
 	try {
 		await fs.access(uploadDir, fs.constants.F_OK);
@@ -31,14 +31,15 @@ export async function addPhotos(formData: FormData) {
 
 	await Promise.all(photos.map(async (photo) => {
 		const buffer = Buffer.from(await photo.arrayBuffer());
-		const photoPath = path.resolve(uploadDir, photo.name);
+		const absolutePath = path.resolve(uploadDir, photo.name);
+		const relativePath = path.resolve('/files/photos/', photo.name);
 
 		await fs.writeFile(
-			photoPath,
+			absolutePath,
 			buffer
 		);
 
-		await photosDb.addPhoto(photoPath);
+		await photosDb.addPhoto(relativePath);
 	}));
 
 	redirect(`/photos`);
