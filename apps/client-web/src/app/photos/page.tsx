@@ -15,7 +15,7 @@ export default async function BrowsePhotosPage() {
 	return (
 		<Fragment>
 			<header>
-				<h1>Photos</h1>
+				<h1>Photos & Videos</h1>
 
 				<ul>
 					<li>
@@ -32,8 +32,8 @@ export default async function BrowsePhotosPage() {
 						<Link href={`/photos/${photo.id}`}>
 							<Image
 								alt=""
-								height={50}
-								width={50}
+								height={300}
+								width={300}
 								src={photo.path}
 							/>
 						</Link>
