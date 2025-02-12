@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
+import ThumbnailGallery from '@/components/ThumbnailGallery';
 import { browsePhotos } from '@/server';
 import { Photo } from '@/types';
 
@@ -26,20 +26,9 @@ export default async function BrowsePhotosPage() {
 				</ul>
 			</header>
 
-			<ul>
-				{photos.map((photo) => (
-					<li key={photo.id}>
-						<Link href={`/photos/${photo.id}`}>
-							<Image
-								alt=""
-								height={300}
-								width={300}
-								src={photo.path}
-							/>
-						</Link>
-					</li>
-				))}
-			</ul>
+			<ThumbnailGallery
+				thumbnails={photos}
+			/>
 		</Fragment>
 	);
 }
