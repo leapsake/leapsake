@@ -23,6 +23,7 @@ export default function RootLayout({
 						<Link href="/">🐸 Leapsake</Link>
 					</nav>
 				</header>
+
 				<div className={styles.body}>
 					<nav aria-label="Feature Navigation">
 						<ul>
@@ -34,6 +35,7 @@ export default function RootLayout({
 							</li>
 						</ul>
 					</nav>
+
 					<main id="main">
 						{children}
 					</main>
