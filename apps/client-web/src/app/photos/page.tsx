@@ -4,9 +4,10 @@ import Link from 'next/link';
 import ThumbnailGallery from '@/components/ThumbnailGallery';
 import { browsePhotos } from '@/server';
 import { Photo } from '@/types';
+import { getPageTitle } from '@/utils';
 
 export const metadata: Metadata = {
-	title: 'Photos | Leapsake',
+	title: getPageTitle('Photos'),
 }
 
 export default async function BrowsePhotosPage() {

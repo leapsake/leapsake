@@ -9,6 +9,7 @@ import {
 } from '@/server';
 import CreatedUpdatedMetadata from '@/components/CreatedUpdatedMetadata';
 import Milestone from '@/components/Milestone';
+import { getPageTitle } from '@/utils';
 
 type Props = {
 	params: Promise<{ personId: string }>
@@ -21,7 +22,7 @@ export async function generateMetadata(
 	const person = await readPerson(personId);
 
 	return {
-		title: `${person.given_name} ${person.family_name} | Leapsake`,
+		title: getPageTitle(`${person.given_name} ${person.family_name}`),
 	};
 }
 

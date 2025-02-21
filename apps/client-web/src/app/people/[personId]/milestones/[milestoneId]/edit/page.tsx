@@ -7,6 +7,7 @@ import {
 	readPerson,
 } from '@/server';
 import MilestoneForm from '@/components/MilestoneForm';
+import { getPageTitle } from '@/utils';
 
 type Props = {
 	params: Promise<{
@@ -23,7 +24,7 @@ export async function generateMetadata({
 	const milestone = await readMilestone(milestoneId);
 
 	return {
-		title: `Edit ${person.given_name}’s ${milestone.label} | Leapsake`,
+		title: getPageTitle(`Edit ${person.given_name}’s ${milestone.label}`),
 	};
 }
 

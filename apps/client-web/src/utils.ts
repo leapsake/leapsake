@@ -30,6 +30,26 @@ const defaultMilestones = [
 	}
 ];
 
+export function getMilestoneIcon(label: string) {
+	const defaultMilestone = defaultMilestones.find((milestone) => {
+		return milestone.label === label;
+	});
+
+	if (defaultMilestone) {
+		return defaultMilestone.icon;
+	}
+
+	return null;
+}
+
+export function getPageTitle(pageTitle: string) {
+	if(pageTitle) {
+		return `${pageTitle} - Leapsake`;
+	}
+
+	return 'Leapsake';
+}
+
 export function getPrettyDate(day, month, year) {
 	const monthLabel = [
 		'January',
@@ -57,16 +77,4 @@ export function getPrettyDate(day, month, year) {
 	} else {
 		return monthLabel || year;
 	}
-}
-
-export function getMilestoneIcon(label) {
-	const defaultMilestone = defaultMilestones.find((milestone) => {
-		return milestone.label === label;
-	});
-
-	if (defaultMilestone) {
-		return defaultMilestone.icon;
-	}
-
-	return null;
 }

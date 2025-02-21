@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link';
 import PersonForm from '@/components/PersonForm';
 import { editPerson, readPerson } from '@/server';
+import { getPageTitle } from '@/utils';
 
 type Props = {
 	params: Promise<{ personId: string }>,
@@ -15,7 +16,7 @@ export async function generateMetadata(
 	const person = await readPerson(personId);
 
 	return {
-		title: `Edit ${person.given_name} ${person.family_name} | Leapsake`,
+		title: getPageTitle(`Edit ${person.given_name} ${person.family_name}`),
 	};
 }
 
