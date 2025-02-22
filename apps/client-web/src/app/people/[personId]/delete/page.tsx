@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import type { Metadata } from 'next'
 import { deletePerson, readPerson } from '@/server';
+import { getPageTitle } from '@/utils';
 
 type Props = {
 	params: Promise<{ personId: string }>
@@ -13,7 +14,7 @@ export async function generateMetadata(
 	const person = await readPerson(personId);
 
 	return {
-		title: `Delete ${person.given_name} ${person.family_name} | Leapsake`,
+		title: getPageTitle(`Delete ${person.given_name} ${person.family_name}`),
 	};
 }
 

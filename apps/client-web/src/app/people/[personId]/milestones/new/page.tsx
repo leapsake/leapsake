@@ -7,13 +7,14 @@ import {
 	readPerson,
 } from '@/server';
 import MilestoneForm from '@/components/MilestoneForm';
+import { getPageTitle } from '@/utils';
 
 type Props = {
 	params: Promise<{ personId: string }>,
 	searchParams: Promise<{ label: string }>,
 }
 
-function getTitle(label: string, givenName: string) {
+function getMilestonePageTitle(label: string, givenName: string) {
 	if(!label) {
 		return `Add a Milestone for ${givenName}`;
 	} else {
@@ -28,9 +29,10 @@ export async function generateMetadata({
 	const { personId } = await params;
 	const { label } = await searchParams;
 	const person = await readPerson(personId);
+	const milestonePageTitle = getMilestonePageTitle(label, person.given_name);
 
 	return {
-		title: `${getTitle(label, person.given_name)} | Leapsake`,
+		title: getPageTitle(milestonePageTitle),
 	};
 }
 
@@ -52,7 +54,7 @@ export default async function AddMilestonePage({ params, searchParams }: Props) 
 
 	const action = addMilestone.bind(null, personId);
 	const buttonText = 'Add Milestone';
-	const title = getTitle(label, person.given_name);
+	const title = getMilestonePageTitle(label, person.given_name);
 
 	return (
 		<Fragment>
