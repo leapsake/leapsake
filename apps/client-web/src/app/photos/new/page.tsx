@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import Button from '@/components/Button';
 import { addPhotos } from '@/server';
 
 export default async function NewPhotoPage() {
@@ -17,7 +18,7 @@ export default async function NewPhotoPage() {
 					/>
 				</div>
 
-				<button type="submit">Upload</button>
+				<Button type="submit">Upload</Button>
 			</form>
 		</Fragment>
 	);

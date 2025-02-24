@@ -15,7 +15,7 @@ export default async function DeleteEmailAddressPage({ params }: { params: Promi
 			<h1>{`Delete ${emailAddress.address} from ${person.given_name}?`}</h1>
 
 			<form action={deleteEmailAddress.bind(null, emailId, personId)}>
-				<button type="submit">Delete</button>
+				<Button type="submit">Delete</Button>
 			</form>
 		</Fragment>
 	);

@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-
+import Button from '@/components/Button';
 import EmailInput from '@/components/EmailInput';
 import PasswordInput from '@/components/PasswordInput';
 
@@ -13,7 +13,7 @@ export default function Login() {
 
 				<PasswordInput />
 
-				<button type="submit">Log In</button>
+				<Button type="submit">Log In</Button>
 			</form>
 		</Fragment>
 	);

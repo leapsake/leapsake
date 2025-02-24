@@ -1,4 +1,5 @@
 import BaseInput from '@/components/BaseInput';
+import Button from '@/components/Button';
 
 export default function PhoneNumberForm({
 	action,
@@ -26,7 +27,7 @@ export default function PhoneNumberForm({
 				name="number"
 			/>
 
-			<button type="submit">{buttonText}</button>
+			<Button type="submit">{buttonText}</Button>
 		</form>
 	);
 }

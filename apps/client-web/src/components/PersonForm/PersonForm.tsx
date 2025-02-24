@@ -1,4 +1,5 @@
 import BaseInput from '@/components/BaseInput';
+import Button from '@/components/Button';
 
 export default function PersonForm({
 	action,
@@ -30,7 +31,8 @@ export default function PersonForm({
 				label="Maiden Name"
 				name="maiden_name"
 			/>
-			<button type="submit">{buttonText}</button>
+
+			<Button type="submit">{buttonText}</Button>
 		</form>
 	);
 }
