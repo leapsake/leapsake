@@ -26,7 +26,7 @@ export default function RootLayout({
 
 				<div className={styles.body}>
 					<nav aria-label="Feature Navigation">
-						<ul>
+						<ul className={styles.featureNavList}>
 							<li>
 								<Link href="/people">👪 People</Link>
 							</li>
