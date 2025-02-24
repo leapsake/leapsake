@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import type { Metadata } from 'next';
-import Link from '@/components/Link';
+import Button from '@/components/Button';
 import ThumbnailGallery from '@/components/ThumbnailGallery';
 import { browsePhotos } from '@/server';
 import { Photo } from '@/types';
@@ -20,9 +20,9 @@ export default async function BrowsePhotosPage() {
 
 				<ul>
 					<li>
-						<Link href="/photos/new">
+						<Button href="/photos/new">
 							<span>➕ Add photos</span>
-						</Link>
+						</Button>
 					</li>
 				</ul>
 			</header>

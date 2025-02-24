@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import Image from 'next/image'
+import Image from '@/components/Image'
 import CreatedUpdatedMetadata from '@/components/CreatedUpdatedMetadata';
 import { Photo } from '@/types';
 import {
