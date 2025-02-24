@@ -28,8 +28,8 @@ export default async function EditPhoneNumberPage({ params }) {
 
 			<PhoneNumberForm
 				action={action}
-				buttonText="Save Changes"
 				phoneNumber={phoneNumber}
+				submitButtonContent="Save Changes"
 			/>
 		</Fragment>
 	);

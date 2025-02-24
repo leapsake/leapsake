@@ -53,7 +53,7 @@ export default async function AddMilestonePage({ params, searchParams }: Props) 
 	}
 
 	const action = addMilestone.bind(null, personId);
-	const buttonText = 'Add Milestone';
+	const submitButtonContent = 'Add Milestone';
 	const title = getMilestonePageTitle(label, person.given_name);
 
 	return (
@@ -62,7 +62,7 @@ export default async function AddMilestonePage({ params, searchParams }: Props) 
 
 			<MilestoneForm
 				action={action}
-				buttonText={buttonText}
+				submitButtonContent={submitButtonContent}
 				label={label}
 			/>
 		</Fragment>

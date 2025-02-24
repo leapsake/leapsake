@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import Button from '@/components/Button';
+import Form from '@/components/Form';
 import {
 	deletePhoneNumber,
 	readPerson,
@@ -15,9 +15,10 @@ export default async function DeletePhoneNumberPage({ params }: { params: Promis
 		<Fragment>
 			<h1>{`Delete ${phoneNumber.number} from ${person.given_name}?`}</h1>
 
-			<form action={deletePhoneNumber.bind(null, phoneNumberId, personId)}>
-				<Button type="submit">Delete</Button>
-			</form>
+			<Form
+				action={deletePhoneNumber.bind(null, phoneNumberId, personId)}
+				submitButtonContent="Delete"
+			/>
 		</Fragment>
 	);
 }

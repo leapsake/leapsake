@@ -1,13 +1,17 @@
 import BaseInput from '@/components/BaseInput';
-import Button from '@/components/Button';
+import Form from '@/components/Form';
 
 export default function EmailAddressForm({
 	action,
-	buttonText = 'Submit',
+	submitButtonContent,
 	emailAddress = {},
 }) {
 	return (
-		<form action={action} name="email">
+		<Form
+			action={action}
+			submitButtonContent={submitButtonContent}
+			name="email"
+		>
 			<BaseInput
 				defaultValue={emailAddress.label}
 				label="Label"
@@ -26,8 +30,6 @@ export default function EmailAddressForm({
 				label="Email Address"
 				name="address"
 			/>
-
-			<Button type="submit">{buttonText}</Button>
-		</form>
+		</Form>
 	);
 }

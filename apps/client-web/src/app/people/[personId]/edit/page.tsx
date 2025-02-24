@@ -36,7 +36,7 @@ export default async function EditPersonPage({ params }: Props) {
 
 			<PersonForm
 				action={editPerson.bind(null, personId)}
-				buttonText="Update"
+				submitButtonContent="Update"
 				person={person}
 			/>
 		</Fragment>

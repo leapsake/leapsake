@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
-import Button from '@/components/Button';
 import EmailInput from '@/components/EmailInput';
+import Form from '@/components/Form';
 import PasswordInput from '@/components/PasswordInput';
 
 export default function Login() {
@@ -8,13 +8,13 @@ export default function Login() {
 		<Fragment>
 			<h1>Log In to Leapsake</h1>
 
-			<form>
+			<Form
+				submitButtonContent="Log In"
+			>
 				<EmailInput />
 
 				<PasswordInput />
-
-				<Button type="submit">Log In</Button>
-			</form>
+			</Form>
 		</Fragment>
 	);
 }

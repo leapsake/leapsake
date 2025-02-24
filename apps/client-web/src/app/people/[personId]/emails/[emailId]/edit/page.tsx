@@ -28,7 +28,7 @@ export default async function EditEmailAddressPage({ params }) {
 
 			<EmailAddressForm
 				action={action}
-				buttonText="Save Changes"
+				submitButtonContent="Save Changes"
 				emailAddress={emailAddress}
 			/>
 		</Fragment>
