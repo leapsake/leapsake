@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import type { Metadata } from 'next'
-import Link from 'next/link';
+import Button from '@/components/Button';
 import {
 	editMilestone,
 	readMilestone,
@@ -44,7 +44,7 @@ export default async function EditMilestonePage({ params }: Props) {
 				<h1>{ title }</h1>
 
 				<ul>
-					<li><Link href={`/people/${personId}/milestones/${milestone.id}/delete`}>❌ {`Delete ${person.given_name}'s ${milestone.label}`}</Link></li>
+					<li><Button href={`/people/${personId}/milestones/${milestone.id}/delete`}>❌ {`Delete ${person.given_name}'s ${milestone.label}`}</Button></li>
 				</ul>
 			</header>
 

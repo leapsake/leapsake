@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import type { Metadata } from 'next'
-import Link from 'next/link';
+import Button from '@/components/Button';
 import {
 	browseEmailAddresses,
 	browseMilestones,
@@ -38,8 +38,8 @@ export default async function ReadPersonPage({ params }: Props) {
 			<header>
 				<h1>{person.given_name} {person.family_name}</h1>
 				<ul>
-					<li><Link href={`/people/${personId}/edit`}>📝 {`Edit ${person.given_name}`}</Link></li>
-					<li><Link href={`/people/${personId}/delete`}>❌ {`Delete ${person.given_name}`}</Link></li>
+					<li><Button href={`/people/${personId}/edit`}>📝 {`Edit ${person.given_name}`}</Button></li>
+					<li><Button href={`/people/${personId}/delete`}>❌ {`Delete ${person.given_name}`}</Button></li>
 				</ul>
 			</header>
 
@@ -57,18 +57,18 @@ export default async function ReadPersonPage({ params }: Props) {
 										<li key={phoneNumber.number}>
 											<b>{phoneNumber.label}</b>
 											<a href={`tel:${phoneNumber.number}`}>{phoneNumber.number}</a>
-											<Link href={`/people/${personId}/phone-numbers/${phoneNumber.id}/edit`}>📝 Edit</Link>
-											<Link href={`/people/${personId}/phone-numbers/${phoneNumber.id}/delete`}>❌ Delete</Link>
+											<Button href={`/people/${personId}/phone-numbers/${phoneNumber.id}/edit`}>📝 Edit</Button>
+											<Button href={`/people/${personId}/phone-numbers/${phoneNumber.id}/delete`}>❌ Delete</Button>
 										</li>
 									)
 								})}
 
-								<li><Link href={`/people/${personId}/phone-numbers/new`}>➕ Add a Phone Number</Link></li>
+								<li><Button href={`/people/${personId}/phone-numbers/new`}>➕ Add a Phone Number</Button></li>
 							</ul>
 						)
 						: (
 							<ul>
-								<li><Link href={`/people/${personId}/phone-numbers/new`}>➕ Add a Phone Number</Link></li>
+								<li><Button href={`/people/${personId}/phone-numbers/new`}>➕ Add a Phone Number</Button></li>
 							</ul>
 						)
 					}
@@ -85,18 +85,18 @@ export default async function ReadPersonPage({ params }: Props) {
 										<li key={emailAddress.address}>
 											<b>{emailAddress.label}</b>
 											<a href={`mailto:${emailAddress.address}`}>{emailAddress.address}</a>
-											<Link href={`/people/${personId}/emails/${emailAddress.id}/edit`}>📝 Edit</Link>
-											<Link href={`/people/${personId}/emails/${emailAddress.id}/delete`}>❌ Delete</Link>
+											<Button href={`/people/${personId}/emails/${emailAddress.id}/edit`}>📝 Edit</Button>
+											<Button href={`/people/${personId}/emails/${emailAddress.id}/delete`}>❌ Delete</Button>
 										</li>
 									)
 								})}
 
-								<li><Link href={`/people/${personId}/emails/new`}>➕ Add an Email Address</Link></li>
+								<li><Button href={`/people/${personId}/emails/new`}>➕ Add an Email Address</Button></li>
 							</ul>
 						)
 						: (
 							<ul>
-								<li><Link href={`/people/${personId}/emails/new`}>➕ Add an Email Address</Link></li>
+								<li><Button href={`/people/${personId}/emails/new`}>➕ Add an Email Address</Button></li>
 							</ul>
 						)
 					}
@@ -120,13 +120,13 @@ export default async function ReadPersonPage({ params }: Props) {
 								)
 							})}
 
-							<li><Link href={`/people/${personId}/milestones/new`}>➕ Add a Milestone</Link></li>
+							<li><Button href={`/people/${personId}/milestones/new`}>➕ Add a Milestone</Button></li>
 						</ul>
 					)
 					: (
 						<ul>
-							<li><Link href={`/people/${personId}/milestones/new?label=Birthday`}>➕ Add a Birthday</Link></li>
-							<li><Link href={`/people/${personId}/milestones/new`}>➕ Add a Milestone</Link></li>
+							<li><Button href={`/people/${personId}/milestones/new?label=Birthday`}>➕ Add a Birthday</Button></li>
+							<li><Button href={`/people/${personId}/milestones/new`}>➕ Add a Milestone</Button></li>
 						</ul>
 					)
 				}

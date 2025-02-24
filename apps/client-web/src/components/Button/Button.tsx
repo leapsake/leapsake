@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import Link from 'next/link';
+import Link from '@/components/Link';
 
 interface Props {
 	children: ReactNode;
@@ -10,6 +10,7 @@ export default function Button({ children, href, ...rest }: Props) {
 	if (href) {
 		return (
 			<Link
+				{...rest}
 				href={href}
 			>
 				{children}
