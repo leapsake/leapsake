@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import type { Metadata } from 'next'
 import Button from '@/components/Button';
+import { Options, Option } from '@/components/Options';
 import {
 	browseEmailAddresses,
 	browseMilestones,
@@ -37,10 +38,19 @@ export default async function ReadPersonPage({ params }: Props) {
 		<Fragment>
 			<header>
 				<h1>{person.given_name} {person.family_name}</h1>
-				<ul>
-					<li><Button href={`/people/${personId}/edit`}>📝 {`Edit ${person.given_name}`}</Button></li>
-					<li><Button href={`/people/${personId}/delete`}>❌ {`Delete ${person.given_name}`}</Button></li>
-				</ul>
+
+				<Options>
+					<Option
+						href={`/people/${personId}/edit`}
+					>
+						{`📝 Edit ${person.given_name}`}
+					</Option>
+					<Option
+						href={`/people/${personId}/delete`}
+					>
+						{`❌ Delete ${person.given_name}`}
+					</Option>
+				</Options>
 			</header>
 
 			<section>
@@ -56,9 +66,13 @@ export default async function ReadPersonPage({ params }: Props) {
 									return (
 										<li key={phoneNumber.number}>
 											<b>{phoneNumber.label}</b>
+
 											<a href={`tel:${phoneNumber.number}`}>{phoneNumber.number}</a>
-											<Button href={`/people/${personId}/phone-numbers/${phoneNumber.id}/edit`}>📝 Edit</Button>
-											<Button href={`/people/${personId}/phone-numbers/${phoneNumber.id}/delete`}>❌ Delete</Button>
+
+											<Options>
+												<Option href={`/people/${personId}/phone-numbers/${phoneNumber.id}/edit`}>📝 Edit</Option>
+												<Option href={`/people/${personId}/phone-numbers/${phoneNumber.id}/delete`}>❌ Delete</Option>
+											</Options>
 										</li>
 									)
 								})}
@@ -85,8 +99,11 @@ export default async function ReadPersonPage({ params }: Props) {
 										<li key={emailAddress.address}>
 											<b>{emailAddress.label}</b>
 											<a href={`mailto:${emailAddress.address}`}>{emailAddress.address}</a>
-											<Button href={`/people/${personId}/emails/${emailAddress.id}/edit`}>📝 Edit</Button>
-											<Button href={`/people/${personId}/emails/${emailAddress.id}/delete`}>❌ Delete</Button>
+
+											<Options>
+												<Option href={`/people/${personId}/emails/${emailAddress.id}/edit`}>📝 Edit</Option>
+												<Option href={`/people/${personId}/emails/${emailAddress.id}/delete`}>❌ Delete</Option>
+											</Options>
 										</li>
 									)
 								})}

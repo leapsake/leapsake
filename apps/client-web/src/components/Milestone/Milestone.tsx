@@ -1,5 +1,5 @@
 import styles from './Milestone.module.css';
-import Button from '@/components/Button';
+import { Options, Option } from '@/components/Options';
 import { getMilestoneIcon, getPrettyDate } from '@/utils';
 
 export default function Milestone({
@@ -19,10 +19,10 @@ export default function Milestone({
 
 			<time className={styles.date} dateTime={isoDate}>{prettyDate}</time>
 
-			<div className={styles.actions}>
-				<Button className={styles.action} href={`/people/${personId}/milestones/${milestone.id}/edit`}>📝 Edit</Button>
-				<Button className={styles.action} href={`/people/${personId}/milestones/${milestone.id}/delete`}>❌ Delete</Button>
-			</div>
+			<Options>
+				<Option href={`/people/${personId}/milestones/${milestone.id}/edit`}>📝 Edit</Option>
+				<Option href={`/people/${personId}/milestones/${milestone.id}/delete`}>❌ Delete</Option>
+			</Options>
 		</div>
 	);
 }

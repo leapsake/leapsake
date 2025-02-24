@@ -1,13 +1,3 @@
-.action {}
-
-.action + .action {
-	margin-left: 0.5rem;
-}
-
-.actions {
-	display: inline-block;
-}
-
 .date {
 }
 
