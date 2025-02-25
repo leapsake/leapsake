@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import type { Metadata } from 'next'
-import Button from '@/components/Button';
+import { Actions, Action } from '@/components/Actions';
 import PersonForm from '@/components/PersonForm';
 import { editPerson, readPerson } from '@/server';
 import { getPageTitle } from '@/utils';
@@ -29,9 +29,9 @@ export default async function EditPersonPage({ params }: Props) {
 			<header>
 				<h1>{`Edit ${person.given_name} ${person.family_name}`}</h1>
 
-				<ul>
-					<li><Button href={`/people/${personId}/delete`}>❌ {`Delete ${person.given_name}`}</Button></li>
-				</ul>
+				<Actions>
+					<Action href={`/people/${personId}/delete`}>❌ {`Delete ${person.given_name}`}</Action>
+				</Actions>
 			</header>
 
 			<PersonForm
