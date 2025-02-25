@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import Button from '@/components/Button';
+import { Actions, Action } from '@/components/Actions';
 import {
 	editPhoneNumber,
 	readPerson,
@@ -21,9 +21,14 @@ export default async function EditPhoneNumberPage({ params }) {
 			<header>
 				<h1>{ title }</h1>
 
-				<ul>
-					<li><Button href={`/people/${personId}/phone-numbers/${phoneNumber.id}/delete`}>❌ {`Delete ${person.given_name}'s Phone Number`}</Button></li>
-				</ul>
+				<Actions>
+					<Action
+						href={`/people/${personId}/phone-numbers/${phoneNumber.id}/delete`}
+						variant="danger"
+					>
+						<span>❌ {`Delete ${person.given_name}'s Phone Number`}</span>
+					</Action>
+				</Actions>
 			</header>
 
 			<PhoneNumberForm

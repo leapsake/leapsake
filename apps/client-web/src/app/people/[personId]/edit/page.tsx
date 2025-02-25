@@ -30,7 +30,12 @@ export default async function EditPersonPage({ params }: Props) {
 				<h1>{`Edit ${person.given_name} ${person.family_name}`}</h1>
 
 				<Actions>
-					<Action href={`/people/${personId}/delete`}>❌ {`Delete ${person.given_name}`}</Action>
+					<Action
+						href={`/people/${personId}/delete`}
+						variant="danger"
+					>
+						<span>❌ {`Delete ${person.given_name}`}</span>
+					</Action>
 				</Actions>
 			</header>
 

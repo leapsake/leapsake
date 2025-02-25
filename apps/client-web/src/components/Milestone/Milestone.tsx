@@ -21,7 +21,12 @@ export default function Milestone({
 
 			<Actions>
 				<Action href={`/people/${personId}/milestones/${milestone.id}/edit`}>📝 Edit</Action>
-				<Action href={`/people/${personId}/milestones/${milestone.id}/delete`}>❌ Delete</Action>
+				<Action
+					href={`/people/${personId}/milestones/${milestone.id}/delete`}
+					variant="danger"
+				>
+					❌ Delete
+				</Action>
 			</Actions>
 		</div>
 	);

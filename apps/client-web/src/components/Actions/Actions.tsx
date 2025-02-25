@@ -11,9 +11,8 @@ export function Actions({ children }) {
 
 export function Action({ ...rest }) {
 	return (
-		<li>
+		<li className={styles.action}>
 			<Button
-				className={styles.action}
 				{...rest}
 			/>
 		</li>

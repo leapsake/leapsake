@@ -30,6 +30,7 @@ export default async function DeletePersonPage({ params }: Props) {
 			<Form
 				action={deletePerson.bind(null, personId)}
 				submitButtonContent="Delete"
+				submitButtonVariant="danger"
 			/>
 		</Fragment>
 	);

@@ -39,6 +39,7 @@ export default async function DeleteMilestonePage({ params }: Props) {
 			<Form
 				action={deleteMilestone.bind(null, milestoneId, personId)}
 				submitButtonContent="Delete"
+				submitButtonVariant="danger"
 			/>
 		</Fragment>
 	);

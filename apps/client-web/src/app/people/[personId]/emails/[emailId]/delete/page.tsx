@@ -18,6 +18,7 @@ export default async function DeleteEmailAddressPage({ params }: { params: Promi
 			<Form
 				action={deleteEmailAddress.bind(null, emailId, personId)}
 				submitButtonContent="Delete"
+				submitButtonVariant="danger"
 			/>
 		</Fragment>
 	);

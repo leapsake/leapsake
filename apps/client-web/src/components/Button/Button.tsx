@@ -7,11 +7,29 @@ interface Props {
 	href: string;
 };
 
-export default function Button({ children, href, ...rest }: Props) {
+export default function Button({
+	children,
+	href,
+	variant,
+	...rest
+}: Props) {
+	const classArray = [ styles.button ];
+
+	switch (variant) {
+		case "danger":
+			classArray.push(styles['button--danger']);
+			break;
+		default:
+			break;
+	}
+
+	const classNames = classArray.join(' ');
+
 	if (href) {
 		return (
 			<Link
 				{...rest}
+				className={classNames}
 				href={href}
 			>
 				{children}
@@ -22,6 +40,7 @@ export default function Button({ children, href, ...rest }: Props) {
 	return (
 		<button
 			{...rest}
+			className={classNames}
 		>
 			{children}
 		</button>
