@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Actions, Action } from '@/components/Actions';
 import Page from '@/components/Page';
+import List from '@/components/List';
 import {
 	browseEmailAddresses,
 	browseMilestones,
@@ -61,7 +62,7 @@ export default async function ReadPersonPage({ params }: Props) {
 
 					{!!phoneNumbers.length &&
 						(
-							<ul>
+							<List>
 								{phoneNumbers.map((phoneNumber) => {
 									return (
 										<li key={phoneNumber.number}>
@@ -81,7 +82,7 @@ export default async function ReadPersonPage({ params }: Props) {
 										</li>
 									)
 								})}
-							</ul>
+							</List>
 						)
 					}
 
@@ -95,7 +96,7 @@ export default async function ReadPersonPage({ params }: Props) {
 
 					{!!emailAddresses.length &&
 						(
-							<ul>
+							<List>
 								{emailAddresses.map((emailAddress) => {
 									return (
 										<li key={emailAddress.address}>
@@ -114,7 +115,7 @@ export default async function ReadPersonPage({ params }: Props) {
 										</li>
 									)
 								})}
-							</ul>
+							</List>
 						)
 					}
 
@@ -129,7 +130,7 @@ export default async function ReadPersonPage({ params }: Props) {
 
 				{!!milestones.length &&
 					(
-						<ul>
+						<List>
 							{milestones.map((milestone, milestoneIndex) => {
 								return (
 									<li key={`${milestone.label}-${milestoneIndex}`}>
@@ -140,7 +141,7 @@ export default async function ReadPersonPage({ params }: Props) {
 									</li>
 								)
 							})}
-						</ul>
+						</List>
 					)
 				}
 
@@ -150,6 +151,7 @@ export default async function ReadPersonPage({ params }: Props) {
 							<Action href={`/people/${personId}/milestones/new?label=Birthday`}>➕ Add a Birthday</Action>
 						)
 					}
+
 					<Action href={`/people/${personId}/milestones/new`}>➕ Add a Milestone</Action>
 				</Actions>
 			</section>

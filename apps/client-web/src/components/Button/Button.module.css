@@ -1,10 +1,10 @@
 .button {
 	background-color: royalblue;
-	border-radius: 0.5rem;
+	border-radius: 0.4rem;
 	border-width: 0;
 	color: white;
 	cursor: pointer;
-	padding: 0.5rem;
+	padding: 0.4rem;
 	text-decoration: none;
 
 	&:hover {
