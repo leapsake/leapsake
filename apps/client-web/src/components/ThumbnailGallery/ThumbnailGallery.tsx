@@ -1,6 +1,6 @@
-import Image from 'next/image';
-import Link from '@/components/Link';
 import styles from './ThumbnailGallery.module.css';
+import Image from '@/components/Image';
+import Link from '@/components/Link';
 
 interface Thumbnail {
 	id: string;

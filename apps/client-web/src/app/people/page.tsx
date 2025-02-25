@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import type { Metadata } from 'next'
-import Link from '@/components/Link';
+import Button from '@/components/Button';
 import { browsePeople } from '@/server';
 import { getPageTitle } from '@/utils';
 
@@ -17,7 +17,7 @@ export default async function BrowsePeoplePage() {
 				<h1>People</h1>
 
 				<ul>
-					<li><Link href="/people/new">➕ Add a person</Link></li>
+					<li><Button href="/people/new">➕ Add a person</Button></li>
 				</ul>
 			</header>
 
