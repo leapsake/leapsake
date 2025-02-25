@@ -18,14 +18,15 @@ export default function RootLayout({
 		<html lang="en-US">
 			<body>
 				<SkipNavLink />
-				<header>
+
+				<header className={styles.header}>
 					<nav aria-label="Home Navigation">
 						<Link href="/">🐸 Leapsake</Link>
 					</nav>
 				</header>
 
 				<div className={styles.body}>
-					<nav aria-label="Feature Navigation">
+					<nav aria-label="Feature Navigation" className={styles.nav}>
 						<ul className={styles.featureNavList}>
 							<li>
 								<Link href="/people">👪 People</Link>

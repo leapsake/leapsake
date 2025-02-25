@@ -1,13 +1,28 @@
 .body {
 	display: flex;
+	min-height: 100vh;
 }
 
 .featureNavList {
 	list-style: none;
 	margin: 0;
 	padding: 0;
+	width: 10rem;
+}
+
+.header {
+	background-color: lightgreen;
+	padding: 1rem;
+
+	& a {
+		text-decoration: none;
+	}
 }
 
 .main {
 	width: 100%;
+}
+
+.nav {
+	background-color: lightyellow;
 }
