@@ -1,8 +1,8 @@
 "use client"
 
 import { Fragment, useState } from 'react';
-
 import BaseInput from '@/components/BaseInput';
+import Button from '@/components/Button';
 import { useJavaScriptIsEnabled } from '@/hooks';
 
 export default function PasswordInput({
@@ -27,9 +27,9 @@ export default function PasswordInput({
 					<div>{label}</div>
 
 					{javaScriptIsEnabled && (
-						<button onClick={onClick} type="button">
+						<Button onClick={onClick} type="button">
 							{buttonText}
-						</button>
+						</Button>
 					)}
 				</Fragment>
 			)}

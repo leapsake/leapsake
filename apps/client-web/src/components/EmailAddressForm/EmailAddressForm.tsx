@@ -1,4 +1,5 @@
 import BaseInput from '@/components/BaseInput';
+import Button from '@/components/Button';
 
 export default function EmailAddressForm({
 	action,
@@ -26,7 +27,7 @@ export default function EmailAddressForm({
 				name="address"
 			/>
 
-			<button type="submit">{buttonText}</button>
+			<Button type="submit">{buttonText}</Button>
 		</form>
 	);
 }

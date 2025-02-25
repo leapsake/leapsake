@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
 import type { Metadata } from 'next'
+import Button from '@/components/Button';
 import {
 	deleteMilestone,
 	readMilestone,
@@ -36,7 +37,7 @@ export default async function DeleteMilestonePage({ params }: Props) {
 			<h1>{`Delete ${person.given_name}’s ${milestone.label}?`}</h1>
 
 			<form action={deleteMilestone.bind(null, milestoneId, personId)}>
-				<button type="submit">Delete</button>
+				<Button type="submit">Delete</Button>
 			</form>
 		</Fragment>
 	);

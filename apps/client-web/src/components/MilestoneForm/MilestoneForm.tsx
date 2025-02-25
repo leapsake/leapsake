@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
 import BaseInput from '@/components/BaseInput';
+import Button from '@/components/Button';
 import DateInput from '@/components/DateInput';
 
 export default function MilestoneForm({
@@ -44,7 +45,7 @@ export default function MilestoneForm({
 				year={year}
 			/>
 
-			<button type="submit">{buttonText}</button>
+			<Button type="submit">{buttonText}</Button>
 		</form>
 	);
 }
