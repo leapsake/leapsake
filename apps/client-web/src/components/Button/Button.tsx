@@ -7,12 +7,7 @@ interface Props {
 	href: string;
 };
 
-export default function Button({
-	children,
-	href,
-	variant,
-	...rest
-}: Props) {
+function getClassNames(variant) {
 	const classArray = [ styles.button ];
 
 	switch (variant) {
@@ -24,6 +19,16 @@ export default function Button({
 	}
 
 	const classNames = classArray.join(' ');
+	return classNames;
+}
+
+export default function Button({
+	children,
+	href,
+	variant,
+	...rest
+}: Props) {
+	const classNames = getClassNames(variant);
 
 	if (href) {
 		return (
