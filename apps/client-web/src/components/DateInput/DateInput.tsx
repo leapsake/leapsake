@@ -1,5 +1,5 @@
-import BaseInput from '@/components/BaseInput';
 import styles from './DateInput.module.css';
+import BaseInput from '@/components/BaseInput';
 
 export default function DateInput({
 	day,
