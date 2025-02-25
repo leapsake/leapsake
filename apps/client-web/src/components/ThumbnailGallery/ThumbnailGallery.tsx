@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import Image from 'next/image';
+import Link from '@/components/Link';
 import styles from './ThumbnailGallery.module.css';
 
 interface Thumbnail {

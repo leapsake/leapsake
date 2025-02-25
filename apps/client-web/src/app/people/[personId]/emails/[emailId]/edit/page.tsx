@@ -1,6 +1,6 @@
-import EmailAddressForm from '@/components/EmailAddressForm';
-import Link from 'next/link';
 import { Fragment } from 'react';
+import EmailAddressForm from '@/components/EmailAddressForm';
+import Button from '@/components/Button';
 import {
 	editEmailAddress,
 	readEmailAddress,
@@ -22,7 +22,7 @@ export default async function EditEmailAddressPage({ params }) {
 				<h1>{ title }</h1>
 
 				<ul>
-					<li><Link href={`/people/${personId}/emails/${emailAddress.id}/delete`}>❌ {`Delete ${person.given_name}'s Email Address`}</Link></li>
+					<li><Button href={`/people/${personId}/emails/${emailAddress.id}/delete`}>❌ {`Delete ${person.given_name}'s Email Address`}</Button></li>
 				</ul>
 			</header>
 
