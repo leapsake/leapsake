@@ -43,7 +43,11 @@ export default function MilestoneForm({
 					</Fragment>
 				)
 				: (
-					<input type="hidden" name="label" value={label} />
+					<input
+						name="label"
+						type="hidden"
+						value={label}
+					/>
 				)
 			}
 

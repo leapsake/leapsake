@@ -36,7 +36,7 @@ export default function RootLayout({
 						</ul>
 					</nav>
 
-					<main id="main">
+					<main className={styles.main} id="main">
 						{children}
 					</main>
 				</div>

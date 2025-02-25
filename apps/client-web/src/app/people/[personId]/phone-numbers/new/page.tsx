@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import Page from '@/components/Page';
 import {
 	addPhoneNumber,
 	readPerson,
@@ -13,13 +13,13 @@ export default async function AddPhoneNumberPage({ params }) {
 	const title = `Add a Phone Number for ${person.given_name}`;
 
 	return (
-		<Fragment>
-			<h1>{ title }</h1>
-
+		<Page
+			title={title}
+		>
 			<PhoneNumberForm
 				action={action}
 				submitButtonContent="Add Phone Number"
 			/>
-		</Fragment>
+		</Page>
 	);
 }

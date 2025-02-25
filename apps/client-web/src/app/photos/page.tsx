@@ -1,6 +1,6 @@
-import { Fragment } from 'react';
 import type { Metadata } from 'next';
 import { Actions, Action } from '@/components/Actions';
+import Page from '@/components/Page';
 import ThumbnailGallery from '@/components/ThumbnailGallery';
 import { browsePhotos } from '@/server';
 import { Photo } from '@/types';
@@ -14,20 +14,19 @@ export default async function BrowsePhotosPage() {
 	const photos = await browsePhotos() as Photo[];
 
 	return (
-		<Fragment>
-			<header>
-				<h1>Photos & Videos</h1>
-
+		<Page
+			actions={(
 				<Actions>
 					<Action href="/photos/new">
 						<span>➕ Add photos</span>
 					</Action>
 				</Actions>
-			</header>
-
+			)}
+			title="Photos & Videos"
+		>
 			<ThumbnailGallery
 				thumbnails={photos}
 			/>
-		</Fragment>
+		</Page>
 	);
 }

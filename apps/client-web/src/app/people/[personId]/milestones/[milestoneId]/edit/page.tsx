@@ -1,6 +1,6 @@
-import { Fragment } from 'react';
 import type { Metadata } from 'next'
 import { Actions, Action } from '@/components/Actions';
+import Page from '@/components/Page';
 import {
 	editMilestone,
 	readMilestone,
@@ -39,10 +39,8 @@ export default async function EditMilestonePage({ params }: Props) {
 	const title = `Edit ${person.given_name}’s ${milestone.label}`;
 
 	return (
-		<Fragment>
-			<header>
-				<h1>{ title }</h1>
-
+		<Page
+			actions={(
 				<Actions>
 					<Action
 						href={`/people/${personId}/milestones/${milestone.id}/delete`}
@@ -51,8 +49,9 @@ export default async function EditMilestonePage({ params }: Props) {
 						<span>❌ {`Delete ${person.given_name}'s ${milestone.label}`}</span>
 					</Action>
 				</Actions>
-			</header>
-
+			)}
+			title={title}
+		>
 			<MilestoneForm
 				action={action}
 				submitButtonContent={submitButtonContent}
@@ -61,6 +60,6 @@ export default async function EditMilestonePage({ params }: Props) {
 				month={milestone.month}
 				year={milestone.year}
 			/>
-		</Fragment>
+		</Page>
 	);
 }

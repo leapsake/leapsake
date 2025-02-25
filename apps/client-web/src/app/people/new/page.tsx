@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Fragment } from 'react';
+import Page from '@/components/Page';
 import PersonForm from '@/components/PersonForm';
 import { addPerson } from '@/server';
 import { getPageTitle } from '@/utils';
@@ -10,13 +10,13 @@ export const metadata: Metadata = {
 
 export default async function NewPersonPage() {
 	return (
-		<Fragment>
-			<h1>Add a Person</h1>
-
+		<Page
+			title="Add a Person"
+		>
 			<PersonForm
 				action={addPerson}
 				submitButtonContent="Add"
 			/>
-		</Fragment>
+		</Page>
 	);
 }
