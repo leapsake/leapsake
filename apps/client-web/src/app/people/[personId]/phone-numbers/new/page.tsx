@@ -18,7 +18,7 @@ export default async function AddPhoneNumberPage({ params }) {
 
 			<PhoneNumberForm
 				action={action}
-				buttonText="Add Phone Number"
+				submitButtonContent="Add Phone Number"
 			/>
 		</Fragment>
 	);

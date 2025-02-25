@@ -1,18 +1,26 @@
 import { Fragment } from 'react';
 import BaseInput from '@/components/BaseInput';
-import Button from '@/components/Button';
 import DateInput from '@/components/DateInput';
+import Form from '@/components/Form';
+
+interface Props {
+
+};
 
 export default function MilestoneForm({
 	action,
-	buttonText = 'Submit',
+	submitButtonContent,
 	day,
 	label,
 	month,
 	year,
 }) {
 	return (
-		<form action={action} name="milestone">
+		<Form
+			action={action}
+			name="milestone"
+			submitButtonContent={submitButtonContent}
+		>
 			{!label
 				? (
 					<Fragment>
@@ -44,8 +52,6 @@ export default function MilestoneForm({
 				month={month}
 				year={year}
 			/>
-
-			<Button type="submit">{buttonText}</Button>
-		</form>
+		</Form>
 	);
 }

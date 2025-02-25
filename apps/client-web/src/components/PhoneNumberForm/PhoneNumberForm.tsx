@@ -1,13 +1,16 @@
 import BaseInput from '@/components/BaseInput';
-import Button from '@/components/Button';
+import Form from '@/components/Form';
 
 export default function PhoneNumberForm({
 	action,
-	buttonText = 'Submit',
 	phoneNumber = {},
+	submitButtonContent,
 }) {
 	return (
-		<form action={action} name="phone-number">
+		<Form
+			action={action} name="phone-number"
+			submitButtonContent={submitButtonContent}
+		>
 			<BaseInput
 				defaultValue={phoneNumber.label}
 				label="Label"
@@ -26,8 +29,6 @@ export default function PhoneNumberForm({
 				label="Phone Number"
 				name="number"
 			/>
-
-			<Button type="submit">{buttonText}</Button>
-		</form>
+		</Form>
 	);
 }

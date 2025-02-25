@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import Form from '@/components/Form';
 import {
 	deleteEmailAddress,
 	readEmailAddress,
@@ -14,9 +15,10 @@ export default async function DeleteEmailAddressPage({ params }: { params: Promi
 		<Fragment>
 			<h1>{`Delete ${emailAddress.address} from ${person.given_name}?`}</h1>
 
-			<form action={deleteEmailAddress.bind(null, emailId, personId)}>
-				<Button type="submit">Delete</Button>
-			</form>
+			<Form
+				action={deleteEmailAddress.bind(null, emailId, personId)}
+				submitButtonContent="Delete"
+			/>
 		</Fragment>
 	);
 }

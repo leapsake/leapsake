@@ -15,7 +15,7 @@ export default async function AddEmailAddressPage({ params }) {
 
 			<EmailAddressForm
 				action={action}
-				buttonText="Add Email Address"
+				submitButtonContent="Add Email Address"
 			/>
 		</Fragment>
 	);

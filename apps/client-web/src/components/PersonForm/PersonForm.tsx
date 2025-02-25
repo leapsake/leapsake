@@ -1,13 +1,24 @@
+import { ReactNode } from 'react';
 import BaseInput from '@/components/BaseInput';
-import Button from '@/components/Button';
+import Form from '@/components/Form';
+import { Person } from '@/types';
+
+interface Props {
+	action: any;
+	submitButtonContent: ReactNode;
+	person?: Person;
+}
 
 export default function PersonForm({
 	action,
-	buttonText = 'Submit',
+	submitButtonContent = 'Submit',
 	person = {},
-}) {
+}: Props) {
 	return (
-		<form action={action}>
+		<Form
+			action={action}
+			submitButtonContent={submitButtonContent}
+		>
 			<BaseInput
 				defaultValue={person.given_name}
 				label="First Name"
@@ -31,8 +42,6 @@ export default function PersonForm({
 				label="Maiden Name"
 				name="maiden_name"
 			/>
-
-			<Button type="submit">{buttonText}</Button>
-		</form>
+		</Form>
 	);
 }

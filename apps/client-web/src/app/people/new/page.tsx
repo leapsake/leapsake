@@ -15,7 +15,7 @@ export default async function NewPersonPage() {
 
 			<PersonForm
 				action={addPerson}
-				buttonText="Add"
+				submitButtonContent="Add"
 			/>
 		</Fragment>
 	);

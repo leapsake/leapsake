@@ -35,7 +35,7 @@ export default async function EditMilestonePage({ params }: Props) {
 	const milestone = await readMilestone(milestoneId);
 
 	const action = editMilestone.bind(null, milestoneId, personId);
-	const buttonText = 'Save Changes';
+	const submitButtonContent = 'Save Changes';
 	const title = `Edit ${person.given_name}’s ${milestone.label}`;
 
 	return (
@@ -50,7 +50,7 @@ export default async function EditMilestonePage({ params }: Props) {
 
 			<MilestoneForm
 				action={action}
-				buttonText={buttonText}
+				submitButtonContent={submitButtonContent}
 				day={milestone.day}
 				label={milestone.label}
 				month={milestone.month}
