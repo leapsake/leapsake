@@ -1,0 +1,23 @@
+.button {
+	background-color: royalblue;
+	border-radius: 0.5rem;
+	border-width: 0;
+	color: white;
+	cursor: pointer;
+	padding: 0.5rem;
+	text-decoration: none;
+
+	&:hover {
+		background-color: skyblue;
+		color: royalblue;
+	}
+}
+
+.button--danger {
+	background-color: sienna;
+
+	&:hover {
+		background-color: red;
+		color: white;
+	}
+}

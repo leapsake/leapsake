@@ -18,6 +18,7 @@ export default async function DeletePhoneNumberPage({ params }: { params: Promis
 			<Form
 				action={deletePhoneNumber.bind(null, phoneNumberId, personId)}
 				submitButtonContent="Delete"
+				submitButtonVariant="danger"
 			/>
 		</Fragment>
 	);

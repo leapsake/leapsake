@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import EmailAddressForm from '@/components/EmailAddressForm';
-import Button from '@/components/Button';
+import { Actions, Action } from '@/components/Actions';
 import {
 	editEmailAddress,
 	readEmailAddress,
@@ -21,9 +21,14 @@ export default async function EditEmailAddressPage({ params }) {
 			<header>
 				<h1>{ title }</h1>
 
-				<ul>
-					<li><Button href={`/people/${personId}/emails/${emailAddress.id}/delete`}>❌ {`Delete ${person.given_name}'s Email Address`}</Button></li>
-				</ul>
+				<Actions>
+					<Action
+						href={`/people/${personId}/emails/${emailAddress.id}/delete`}
+						variant="danger"
+					>
+						<span>❌ {`Delete ${person.given_name}'s Email Address`}</span>
+					</Action>
+				</Actions>
 			</header>
 
 			<EmailAddressForm

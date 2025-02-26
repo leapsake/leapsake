@@ -47,6 +47,7 @@ export default async function ReadPersonPage({ params }: Props) {
 					</Action>
 					<Action
 						href={`/people/${personId}/delete`}
+						variant="danger"
 					>
 						{`❌ Delete ${person.given_name}`}
 					</Action>
@@ -59,8 +60,8 @@ export default async function ReadPersonPage({ params }: Props) {
 				<section>
 					<h3>Phone Numbers</h3>
 
-					{!!phoneNumbers.length
-						? (
+					{!!phoneNumbers.length &&
+						(
 							<ul>
 								{phoneNumbers.map((phoneNumber) => {
 									return (
@@ -71,28 +72,30 @@ export default async function ReadPersonPage({ params }: Props) {
 
 											<Actions>
 												<Action href={`/people/${personId}/phone-numbers/${phoneNumber.id}/edit`}>📝 Edit</Action>
-												<Action href={`/people/${personId}/phone-numbers/${phoneNumber.id}/delete`}>❌ Delete</Action>
+												<Action
+													href={`/people/${personId}/phone-numbers/${phoneNumber.id}/delete`}
+													variant="danger"
+												>
+													❌ Delete
+												</Action>
 											</Actions>
 										</li>
 									)
 								})}
-
-								<li><Button href={`/people/${personId}/phone-numbers/new`}>➕ Add a Phone Number</Button></li>
-							</ul>
-						)
-						: (
-							<ul>
-								<li><Button href={`/people/${personId}/phone-numbers/new`}>➕ Add a Phone Number</Button></li>
 							</ul>
 						)
 					}
+
+					<Actions>
+						<Action href={`/people/${personId}/phone-numbers/new`}>➕ Add a Phone Number</Action>
+					</Actions>
 				</section>
 
 				<section>
 					<h3>Email Addresses</h3>
 
-					{!!emailAddresses.length
-						? (
+					{!!emailAddresses.length &&
+						(
 							<ul>
 								{emailAddresses.map((emailAddress) => {
 									return (
@@ -102,29 +105,31 @@ export default async function ReadPersonPage({ params }: Props) {
 
 											<Actions>
 												<Action href={`/people/${personId}/emails/${emailAddress.id}/edit`}>📝 Edit</Action>
-												<Action href={`/people/${personId}/emails/${emailAddress.id}/delete`}>❌ Delete</Action>
+												<Action
+													href={`/people/${personId}/emails/${emailAddress.id}/delete`}
+													variant="danger"
+												>
+													❌ Delete
+												</Action>
 											</Actions>
 										</li>
 									)
 								})}
-
-								<li><Button href={`/people/${personId}/emails/new`}>➕ Add an Email Address</Button></li>
-							</ul>
-						)
-						: (
-							<ul>
-								<li><Button href={`/people/${personId}/emails/new`}>➕ Add an Email Address</Button></li>
 							</ul>
 						)
 					}
+
+					<Actions>
+						<Action href={`/people/${personId}/emails/new`}>➕ Add an Email Address</Action>
+					</Actions>
 				</section>
 			</section>
 
 			<section>
 				<h2>Milestones</h2>
 
-				{!!milestones.length
-					? (
+				{!!milestones.length &&
+					(
 						<ul>
 							{milestones.map((milestone, milestoneIndex) => {
 								return (
@@ -136,17 +141,18 @@ export default async function ReadPersonPage({ params }: Props) {
 									</li>
 								)
 							})}
-
-							<li><Button href={`/people/${personId}/milestones/new`}>➕ Add a Milestone</Button></li>
-						</ul>
-					)
-					: (
-						<ul>
-							<li><Button href={`/people/${personId}/milestones/new?label=Birthday`}>➕ Add a Birthday</Button></li>
-							<li><Button href={`/people/${personId}/milestones/new`}>➕ Add a Milestone</Button></li>
 						</ul>
 					)
 				}
+
+				<Actions>
+					{!milestones.length &&
+						(
+							<Action href={`/people/${personId}/milestones/new?label=Birthday`}>➕ Add a Birthday</Action>
+						)
+					}
+					<Action href={`/people/${personId}/milestones/new`}>➕ Add a Milestone</Action>
+				</Actions>
 			</section>
 
 			<footer>

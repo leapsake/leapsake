@@ -13,6 +13,7 @@ export default function Form({
 	children,
 	name,
 	submitButtonContent = 'Submit',
+	submitButtonVariant,
 	...rest
 }: Props) {
 	return (
@@ -23,7 +24,12 @@ export default function Form({
 		>
 			{children}
 
-			<Button type="submit">{submitButtonContent}</Button>
+			<Button
+				type="submit"
+				variant={submitButtonVariant}
+			>
+				{submitButtonContent}
+			</Button>
 		</form>
 	);
 }
