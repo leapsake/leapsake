@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Actions, Action } from '@/components/Actions';
 import Link from '@/components/Link';
+import List from '@/components/List';
 import Page from '@/components/Page';
 import { browsePeople } from '@/server';
 import { getPageTitle } from '@/utils';
@@ -22,13 +23,13 @@ export default async function BrowsePeoplePage() {
 			)}
 			title="People"
 		>
-			<ul>
+			<List>
 				{people.map((person) => (
 					<li key={person.id}>
 						<Link href={`/people/${person.id}`}>{person.given_name} {person.family_name}</Link>
 					</li>
 				))}
-			</ul>
+			</List>
 		</Page>
 	);
 }

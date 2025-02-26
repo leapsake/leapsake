@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import styles from './Milestone.module.css';
 import { Actions, Action } from '@/components/Actions';
 import { getMilestoneIcon, getPrettyDate } from '@/utils';
@@ -11,7 +12,7 @@ export default function Milestone({
 	const milestoneIcon = getMilestoneIcon(milestone.label) || '';
 
 	return (
-		<div>
+		<Fragment>
 			<span className={styles.title}>
 				<span className={styles.icon}>{ milestoneIcon }</span>
 				<span className={styles.label}>{ milestone.label }</span>
@@ -28,6 +29,6 @@ export default function Milestone({
 					❌ Delete
 				</Action>
 			</Actions>
-		</div>
+		</Fragment>
 	);
 }
