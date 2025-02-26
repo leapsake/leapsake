@@ -1,7 +1,6 @@
-import { Fragment } from 'react';
 import type { Metadata } from 'next'
-import Button from '@/components/Button';
 import { Actions, Action } from '@/components/Actions';
+import Page from '@/components/Page';
 import {
 	browseEmailAddresses,
 	browseMilestones,
@@ -35,16 +34,15 @@ export default async function ReadPersonPage({ params }: Props) {
 	const milestones = await browseMilestones(personId);
 
 	return (
-		<Fragment>
-			<header>
-				<h1>{person.given_name} {person.family_name}</h1>
-
+		<Page
+			actions={(
 				<Actions>
 					<Action
 						href={`/people/${personId}/edit`}
 					>
 						{`📝 Edit ${person.given_name}`}
 					</Action>
+
 					<Action
 						href={`/people/${personId}/delete`}
 						variant="danger"
@@ -52,8 +50,9 @@ export default async function ReadPersonPage({ params }: Props) {
 						{`❌ Delete ${person.given_name}`}
 					</Action>
 				</Actions>
-			</header>
-
+			)}
+			title={`${person.given_name} ${person.family_name}`}
+		>
 			<section>
 				<h2>Contact</h2>
 
@@ -161,6 +160,6 @@ export default async function ReadPersonPage({ params }: Props) {
 					updatedAt={person.updated_at}
 				/>
 			</footer>
-		</Fragment>
+		</Page>
 	);
 }

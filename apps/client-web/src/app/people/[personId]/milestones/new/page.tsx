@@ -1,4 +1,3 @@
-import { Fragment } from 'react';
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation';
 import {
@@ -7,6 +6,7 @@ import {
 	readPerson,
 } from '@/server';
 import MilestoneForm from '@/components/MilestoneForm';
+import Page from '@/components/Page';
 import { getPageTitle } from '@/utils';
 
 type Props = {
@@ -57,14 +57,14 @@ export default async function AddMilestonePage({ params, searchParams }: Props) 
 	const title = getMilestonePageTitle(label, person.given_name);
 
 	return (
-		<Fragment>
-			<h1>{ title }</h1>
-
+		<Page
+			title={title}
+		>
 			<MilestoneForm
 				action={action}
 				submitButtonContent={submitButtonContent}
 				label={label}
 			/>
-		</Fragment>
+		</Page>
 	);
 }

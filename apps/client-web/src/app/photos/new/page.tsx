@@ -1,12 +1,12 @@
-import { Fragment } from 'react';
 import Form from '@/components/Form';
+import Page from '@/components/Page';
 import { addPhotos } from '@/server';
 
 export default async function NewPhotoPage() {
 	return (
-		<Fragment>
-			<h1 id="label-photos">Add Photos & Videos</h1>
-
+		<Page
+			title="Add Photos & Videos"
+		>
 			<Form
 				action={addPhotos}
 				submitButtonContent="Upload"
@@ -14,13 +14,12 @@ export default async function NewPhotoPage() {
 				<div>
 					<input
 						accept="image/*,video/*"
-						aria-labelledby="label-photos"
 						multiple
 						name="photos"
 						type="file"
 					/>
 				</div>
 			</Form>
-		</Fragment>
+		</Page>
 	);
 }

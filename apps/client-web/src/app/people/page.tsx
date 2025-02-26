@@ -1,7 +1,7 @@
-import { Fragment } from 'react';
 import type { Metadata } from 'next'
 import { Actions, Action } from '@/components/Actions';
 import Link from '@/components/Link';
+import Page from '@/components/Page';
 import { browsePeople } from '@/server';
 import { getPageTitle } from '@/utils';
 
@@ -13,15 +13,15 @@ export default async function BrowsePeoplePage() {
 	const people = await browsePeople();
 
 	return (
-		<Fragment>
-			<header>
-				<h1>People</h1>
-
+		<Page
+			actions={(
 				<Actions>
 					<Action href="/people/new">➕ Add a person</Action>
 				</Actions>
-			</header>
 
+			)}
+			title="People"
+		>
 			<ul>
 				{people.map((person) => (
 					<li key={person.id}>
@@ -29,6 +29,6 @@ export default async function BrowsePeoplePage() {
 					</li>
 				))}
 			</ul>
-		</Fragment>
+		</Page>
 	);
 }

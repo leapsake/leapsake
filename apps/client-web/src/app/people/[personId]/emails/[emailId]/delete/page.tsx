@@ -1,5 +1,5 @@
-import { Fragment } from 'react';
 import Form from '@/components/Form';
+import Page from '@/components/Page';
 import {
 	deleteEmailAddress,
 	readEmailAddress,
@@ -12,14 +12,14 @@ export default async function DeleteEmailAddressPage({ params }: { params: Promi
 	const emailAddress = await readEmailAddress(emailId);
 
 	return (
-		<Fragment>
-			<h1>{`Delete ${emailAddress.address} from ${person.given_name}?`}</h1>
-
+		<Page
+			title={`Delete ${emailAddress.address} from ${person.given_name}?`}
+		>
 			<Form
 				action={deleteEmailAddress.bind(null, emailId, personId)}
 				submitButtonContent="Delete"
 				submitButtonVariant="danger"
 			/>
-		</Fragment>
+		</Page>
 	);
 }

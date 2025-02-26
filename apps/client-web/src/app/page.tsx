@@ -1,3 +1,5 @@
+import Page from '@/components/Page';
+
 const staticGreetingList = [
 	'Hello there! 👋',
 	'Hello there! 😊',
@@ -49,6 +51,8 @@ export default function HomePage() {
 	const greeting = getGreeting();
 
 	return (
-		<h1>{`${greeting} It’s ${date}`}</h1>
+		<Page
+			title={`${greeting} It’s ${date}`}
+		/>
 	);
 }

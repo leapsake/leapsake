@@ -1,5 +1,5 @@
 import EmailAddressForm from '@/components/EmailAddressForm';
-import { Fragment } from 'react';
+import Page from '@/components/Page';
 import { addEmailAddress, readPerson } from '@/server';
 
 export default async function AddEmailAddressPage({ params }) {
@@ -10,13 +10,13 @@ export default async function AddEmailAddressPage({ params }) {
 	const title = `Add an Email Address for ${person.given_name}`;
 
 	return (
-		<Fragment>
-			<h1>{ title }</h1>
-
+		<Page
+			title={title}
+		>
 			<EmailAddressForm
 				action={action}
 				submitButtonContent="Add Email Address"
 			/>
-		</Fragment>
+		</Page>
 	);
 }

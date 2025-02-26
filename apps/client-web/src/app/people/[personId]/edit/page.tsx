@@ -1,6 +1,6 @@
-import { Fragment } from 'react';
 import type { Metadata } from 'next'
 import { Actions, Action } from '@/components/Actions';
+import Page from '@/components/Page';
 import PersonForm from '@/components/PersonForm';
 import { editPerson, readPerson } from '@/server';
 import { getPageTitle } from '@/utils';
@@ -25,10 +25,8 @@ export default async function EditPersonPage({ params }: Props) {
 	const person = await readPerson(personId);
 
 	return (
-		<Fragment>
-			<header>
-				<h1>{`Edit ${person.given_name} ${person.family_name}`}</h1>
-
+		<Page
+			actions={(
 				<Actions>
 					<Action
 						href={`/people/${personId}/delete`}
@@ -37,13 +35,14 @@ export default async function EditPersonPage({ params }: Props) {
 						<span>❌ {`Delete ${person.given_name}`}</span>
 					</Action>
 				</Actions>
-			</header>
-
+			)}
+			title={`Edit ${person.given_name} ${person.family_name}`}
+		>
 			<PersonForm
 				action={editPerson.bind(null, personId)}
 				submitButtonContent="Update"
 				person={person}
 			/>
-		</Fragment>
+		</Page>
 	);
 }

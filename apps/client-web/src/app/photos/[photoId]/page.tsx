@@ -1,6 +1,6 @@
-import { Fragment } from 'react';
 import Image from '@/components/Image'
 import CreatedUpdatedMetadata from '@/components/CreatedUpdatedMetadata';
+import Page from '@/components/Page';
 import { Photo } from '@/types';
 import {
 	readPhoto,
@@ -15,7 +15,7 @@ export default async function ReadPhotoPage({ params }: Props) {
 	const photo = await readPhoto(photoId) as Photo;
 
 	return (
-		<Fragment>
+		<Page>
 			<div>
 				<Image
 					alt=""
@@ -31,6 +31,6 @@ export default async function ReadPhotoPage({ params }: Props) {
 					updatedAt={photo.updated_at}
 				/>
 			</footer>
-		</Fragment>
+		</Page>
 	);
 }
