@@ -13,12 +13,14 @@ export default function Milestone({
 
 	return (
 		<Fragment>
-			<span className={styles.title}>
-				<span className={styles.icon}>{ milestoneIcon }</span>
-				<span className={styles.label}>{ milestone.label }</span>
-			</span>
+			<span>
+				<span className={styles.title}>
+					<span className={styles.icon}>{ milestoneIcon }</span>
+					<span className={styles.label}>{ milestone.label }</span>
+				</span>
 
-			<time className={styles.date} dateTime={isoDate}>{prettyDate}</time>
+				<time className={styles.date} dateTime={isoDate}>{prettyDate}</time>
+			</span>
 
 			<Actions>
 				<Action href={`/people/${personId}/milestones/${milestone.id}/edit`}>📝 Edit</Action>
