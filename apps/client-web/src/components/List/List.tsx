@@ -1,9 +1,13 @@
 import styles from './List.module.css';
 
-export default function List({ children }) {
+export default function List({ header, children, footer }) {
 	return (
-		<ul className={styles.list}>
-			{children}
-		</ul>
+		<section className={styles.section}>
+			{header}
+			<ul className={styles.list}>
+				{children}
+			</ul>
+			{footer}
+		</section>
 	);
 }

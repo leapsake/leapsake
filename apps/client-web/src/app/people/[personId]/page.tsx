@@ -54,97 +54,99 @@ export default async function ReadPersonPage({ params }: Props) {
 			)}
 			title={`${person.given_name} ${person.family_name}`}
 		>
-			<section>
-				<h2>Contact</h2>
+			<ContactSection
+				emailAddresses={emailAddresses}
+				personId={personId}
+				phoneNumbers={phoneNumbers}
+			/>
 
-				<section>
-					<h3>Phone Numbers</h3>
+			<MilestonesSection
+				milestones={milestones}
+				personId={personId}
+			/>
 
-					{!!phoneNumbers.length &&
-						(
-							<List>
-								{phoneNumbers.map((phoneNumber) => {
-									return (
-										<li key={phoneNumber.number}>
-											<b>{phoneNumber.label}</b>
+			<footer>
+				<CreatedUpdatedMetadata
+					createdAt={person.created_at}
+					updatedAt={person.updated_at}
+				/>
+			</footer>
+		</Page>
+	);
+}
 
-											<a href={`tel:${phoneNumber.number}`}>{phoneNumber.number}</a>
+function ContactSection({
+	emailAddresses,
+	personId,
+	phoneNumbers,
+}) {
+	return (
+		<section>
+			<h2>Contact</h2>
 
-											<Actions>
-												<Action href={`/people/${personId}/phone-numbers/${phoneNumber.id}/edit`}>📝 Edit</Action>
-												<Action
-													href={`/people/${personId}/phone-numbers/${phoneNumber.id}/delete`}
-													variant="danger"
-												>
-													❌ Delete
-												</Action>
-											</Actions>
-										</li>
-									)
-								})}
-							</List>
-						)
-					}
+			<PhoneSection
+				personId={personId}
+				phoneNumbers={phoneNumbers}
+			/>
 
-					<Actions>
-						<Action href={`/people/${personId}/phone-numbers/new`}>➕ Add a Phone Number</Action>
-					</Actions>
-				</section>
+			<EmailSection
+				emailAddresses={emailAddresses}
+				personId={personId}
+			/>
+		</section>
+	)
+}
 
-				<section>
-					<h3>Email Addresses</h3>
+function EmailSection({
+	emailAddresses,
+	personId,
+}) {
+	return (
+		<List
+			header={(
+				<h3>📧 Email Addresses</h3>
+			)}
+			footer={(
+				<Actions>
+					<Action href={`/people/${personId}/emails/new`}>➕ Add an Email Address</Action>
+				</Actions>
+			)}
+		>
+			{emailAddresses.map((emailAddress) => {
+				return (
+					<li key={emailAddress.address}>
+						<span>
+							<b>{emailAddress.label}</b>
 
-					{!!emailAddresses.length &&
-						(
-							<List>
-								{emailAddresses.map((emailAddress) => {
-									return (
-										<li key={emailAddress.address}>
-											<b>{emailAddress.label}</b>
-											<a href={`mailto:${emailAddress.address}`}>{emailAddress.address}</a>
+							<a href={`mailto:${emailAddress.address}`}>{emailAddress.address}</a>
+						</span>
 
-											<Actions>
-												<Action href={`/people/${personId}/emails/${emailAddress.id}/edit`}>📝 Edit</Action>
-												<Action
-													href={`/people/${personId}/emails/${emailAddress.id}/delete`}
-													variant="danger"
-												>
-													❌ Delete
-												</Action>
-											</Actions>
-										</li>
-									)
-								})}
-							</List>
-						)
-					}
+						<Actions>
+							<Action href={`/people/${personId}/emails/${emailAddress.id}/edit`}>📝 Edit</Action>
+							<Action
+								href={`/people/${personId}/emails/${emailAddress.id}/delete`}
+								variant="danger"
+							>
+								❌ Delete
+							</Action>
+						</Actions>
+					</li>
+				)
+			})}
+		</List>
+	);
+}
 
-					<Actions>
-						<Action href={`/people/${personId}/emails/new`}>➕ Add an Email Address</Action>
-					</Actions>
-				</section>
-			</section>
-
-			<section>
-				<h2>Milestones</h2>
-
-				{!!milestones.length &&
-					(
-						<List>
-							{milestones.map((milestone, milestoneIndex) => {
-								return (
-									<li key={`${milestone.label}-${milestoneIndex}`}>
-										<Milestone
-											milestone={milestone}
-											personId={personId}
-										/>
-									</li>
-								)
-							})}
-						</List>
-					)
-				}
-
+function MilestonesSection({
+	milestones,
+	personId,
+}) {
+	return (
+		<List
+			header={(
+				<h2>🗓️ Milestones</h2>
+			)}
+			footer={(
 				<Actions>
 					{!milestones.length &&
 						(
@@ -154,14 +156,58 @@ export default async function ReadPersonPage({ params }: Props) {
 
 					<Action href={`/people/${personId}/milestones/new`}>➕ Add a Milestone</Action>
 				</Actions>
-			</section>
+			)}
+		>
+			{milestones.map((milestone, milestoneIndex) => {
+				return (
+					<li key={`${milestone.label}-${milestoneIndex}`}>
+						<Milestone
+							milestone={milestone}
+							personId={personId}
+						/>
+					</li>
+				)
+			})}
+		</List>
+	);
+}
 
-			<footer>
-				<CreatedUpdatedMetadata
-					createdAt={person.created_at}
-					updatedAt={person.updated_at}
-				/>
-			</footer>
-		</Page>
+function PhoneSection({
+	personId,
+	phoneNumbers,
+}) {
+	return (
+		<List
+			header={(
+				<h3>📞 Phone Numbers</h3>
+			)}
+			footer={(
+				<Actions>
+					<Action href={`/people/${personId}/phone-numbers/new`}>➕ Add a Phone Number</Action>
+				</Actions>
+			)}
+		>
+			{phoneNumbers.map((phoneNumber) => {
+				return (
+					<li key={phoneNumber.number}>
+						<span>
+							<b>{phoneNumber.label}</b>
+
+							<a href={`tel:${phoneNumber.number}`}>{phoneNumber.number}</a>
+						</span>
+
+						<Actions>
+							<Action href={`/people/${personId}/phone-numbers/${phoneNumber.id}/edit`}>📝 Edit</Action>
+							<Action
+								href={`/people/${personId}/phone-numbers/${phoneNumber.id}/delete`}
+								variant="danger"
+							>
+								❌ Delete
+							</Action>
+						</Actions>
+					</li>
+				)
+			})}
+		</List>
 	);
 }
