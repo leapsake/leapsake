@@ -25,4 +25,9 @@
 
 .nav {
 	background-color: lightyellow;
+	display: none;
+
+	@media (600px <= width) {
+		display: inline;
+	}
 }
