@@ -1,11 +1,16 @@
 .header {
-	align-items: center;
-	display: flex;
-	justify-content: space-between;
-	max-width: 80rem;
+	border-bottom: 1px solid black;
 	padding: 1rem;
 }
 
+.headerContent {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	max-width: 80rem;
+}
+
 .body {
-	padding: 1rem;
+
 }

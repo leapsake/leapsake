@@ -20,8 +20,15 @@ export default function RootLayout({
 				<SkipNavLink />
 
 				<header className={styles.header}>
-					<nav aria-label="Home Navigation">
+					<nav 
+						aria-label="Home Navigation"
+						className={styles.homeNav}
+					>
 						<Link href="/">🐸 Leapsake</Link>
+
+						<span>
+							<Link href="/account">Account</Link>
+						</span>
 					</nav>
 				</header>
 

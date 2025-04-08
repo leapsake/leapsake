@@ -9,9 +9,11 @@ export default function Page({
 	return (
 		<Fragment>
 			<header className={styles.header}>
-				<h1>{title}</h1>
+				<div className={styles.headerContent}>
+					<h1>{title}</h1>
 
-				{actions}
+					{actions}
+				</div>
 			</header>
 
 			<div className={styles.body}>
