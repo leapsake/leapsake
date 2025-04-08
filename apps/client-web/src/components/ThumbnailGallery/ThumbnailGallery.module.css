@@ -1,16 +1,50 @@
 .list {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 1px;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, 1fr);
+	grid-template-rows: repeat(auto-fill, 1fr);
+	grid-gap: 3px;
+	justify-content: center;
 	list-style-type: none;
 	margin: 0;
+	max-width: 80rem;
 	padding: 0;
 }
 
 .item {
-	position: relative;
 }
 
 .link {
 	display: block;
+	position: relative;
+}
+
+.figure {
+	height: 240px;
+	margin: 0;
+	padding: 0;
+	position: relative;
+}
+
+.figure img {
+	object-fit: cover;
+	vertical-align: top;
+	width: 100%;
+}
+
+.overlay {
+	align-items: center;
+	background: rgba(0,0,0, .4);
+	bottom: 0;
+	color: white;
+	display: none;
+	justify-content: center;
+	left: 0;
+	position: absolute;
+	right: 0;
+	text-align: center;
+	top: 0;
+
+	.item:hover & {
+		display: flex;
+	}
 }

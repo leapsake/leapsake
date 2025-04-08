@@ -14,7 +14,9 @@ export default function Page({
 				{actions}
 			</header>
 
-			{children}
+			<div className={styles.body}>
+				{children}
+			</div>
 		</Fragment>
 	);
 }
