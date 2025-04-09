@@ -15,23 +15,34 @@ export default async function ThumbnailGallery({ thumbnails }: Props) {
 	return (
 		<ul className={styles.list}>
 			{thumbnails.map((thumbnail) => (
-				<li
-					className={styles.item}
-					key={thumbnail.id}
-				>
-					<Link
-						className={styles.link}
-						href={`/photos/${thumbnail.id}`}
-					>
-						<Image
-							alt=""
-							height={300}
-							width={300}
-							src={thumbnail.path}
-						/>
-					</Link>
-				</li>
+				<Thumbnail
+					thumbnail={thumbnail} />
 			))}
 		</ul>
+	);
+}
+
+function Thumbnail({ thumbnail }: { thumbnail: Thumbnail }) {
+	return (
+		<li
+			className={styles.item}
+			key={thumbnail.id}
+		>
+			<Link
+				className={styles.link}
+				href={`/photos/${thumbnail.id}`}
+			>
+				<figure className={styles.figure}>
+					<Image
+						alt=""
+						fill={true}
+						src={thumbnail.path}
+					/>
+				</figure>
+				<div className={styles.overlay}>
+				</div>
+			</Link>
+		</li>
+
 	);
 }

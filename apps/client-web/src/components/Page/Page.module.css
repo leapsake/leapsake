@@ -2,6 +2,10 @@
 	align-items: center;
 	display: flex;
 	justify-content: space-between;
-	max-width: 60rem;
-	padding: 1rem 0;
+	max-width: 80rem;
+	padding: 1rem;
+}
+
+.body {
+	padding: 1rem;
 }

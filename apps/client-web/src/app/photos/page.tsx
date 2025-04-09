@@ -22,7 +22,7 @@ export default async function BrowsePhotosPage() {
 					</Action>
 				</Actions>
 			)}
-			title="Photos & Videos"
+			title="Photos"
 		>
 			<ThumbnailGallery
 				thumbnails={photos}
