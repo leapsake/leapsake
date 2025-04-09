@@ -1,24 +1,20 @@
 .button {
-	background-color: royalblue;
+	border: 1px solid black;
 	border-radius: 0.4rem;
-	border-width: 0;
-	color: white;
 	cursor: pointer;
 	padding: 0.4rem;
 	text-decoration: none;
 	text-wrap: nowrap;
 
 	&:hover {
-		background-color: skyblue;
-		color: royalblue;
+		background-color: royalblue;
+		color: white;
 	}
 }
 
 .button--danger {
-	background-color: sienna;
-
 	&:hover {
-		background-color: red;
+		background-color: sienna;
 		color: white;
 	}
 }
