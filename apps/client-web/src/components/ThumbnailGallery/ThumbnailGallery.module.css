@@ -1,25 +1,33 @@
 .list {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, 1fr);
-	grid-template-rows: repeat(auto-fill, 1fr);
-	grid-gap: 3px;
+	grid-gap: 1px;
+	grid-template-columns: repeat(3, 1fr);
 	justify-content: center;
 	list-style-type: none;
 	margin: 0;
 	max-width: 80rem;
 	padding: 0;
+
+	@media (800px <= width) {
+		grid-template-columns: repeat(4, 1fr);
+	}
+
+	@media (1024px <= width) {
+		grid-template-columns: repeat(5, 1fr);
+	}
 }
 
 .item {
 }
 
 .link {
+	aspect-ratio: 1;
 	display: block;
 	position: relative;
 }
 
 .figure {
-	height: 240px;
+	height: 100%;
 	margin: 0;
 	padding: 0;
 	position: relative;
