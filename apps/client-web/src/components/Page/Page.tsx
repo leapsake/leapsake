@@ -6,15 +6,19 @@ export default function Page({
 	children,
 	title,
 }) {
+	const headerIsVisible = !!title || !!actions;
+
 	return (
 		<Fragment>
-			<header className={styles.header}>
-				<div className={styles.headerContent}>
-					<h1>{title}</h1>
+			{headerIsVisible ?? (
+				<header className={styles.header}>
+					<div className={styles.headerContent}>
+						<h1>{title}</h1>
 
-					{actions}
-				</div>
-			</header>
+						{actions}
+					</div>
+				</header>
+			)}
 
 			<div className={styles.body}>
 				{children}
