@@ -7,7 +7,7 @@ import {
 	browseMilestones,
 	browsePhoneNumbers,
 	readPerson,
-} from '@/server';
+} from '@/actions';
 import CreatedUpdatedMetadata from '@/components/CreatedUpdatedMetadata';
 import Milestone from '@/components/Milestone';
 import { getPageTitle } from '@/utils';

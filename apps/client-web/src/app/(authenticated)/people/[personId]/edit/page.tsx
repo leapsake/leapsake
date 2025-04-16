@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Actions, Action } from '@/components/Actions';
 import Page from '@/components/Page';
 import PersonForm from '@/components/PersonForm';
-import { editPerson, readPerson } from '@/server';
+import { editPerson, readPerson } from '@/actions';
 import { getPageTitle } from '@/utils';
 
 type Props = {

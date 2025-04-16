@@ -1,6 +1,6 @@
 import Form from '@/components/Form';
 import Page from '@/components/Page';
-import { addPhotos } from '@/server';
+import { addPhotos } from '@/actions';
 
 export default async function NewPhotoPage() {
 	return (

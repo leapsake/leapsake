@@ -4,7 +4,7 @@ import {
 	editPhoneNumber,
 	readPerson,
 	readPhoneNumber,
-} from '@/server';
+} from '@/actions';
 import PhoneNumberForm from '@/components/PhoneNumberForm';
 
 export default async function EditPhoneNumberPage({ params }) {

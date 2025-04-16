@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { deletePerson, readPerson } from '@/server';
+import { deletePerson, readPerson } from '@/actions';
 import { getPageTitle } from '@/utils';
 import Form from '@/components/Form';
 import Page from '@/components/Page';

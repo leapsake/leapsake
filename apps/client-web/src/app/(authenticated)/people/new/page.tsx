@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Page from '@/components/Page';
 import PersonForm from '@/components/PersonForm';
-import { addPerson } from '@/server';
+import { addPerson } from '@/actions';
 import { getPageTitle } from '@/utils';
 
 export const metadata: Metadata = {

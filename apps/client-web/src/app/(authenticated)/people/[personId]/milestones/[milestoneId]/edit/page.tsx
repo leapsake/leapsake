@@ -5,7 +5,7 @@ import {
 	editMilestone,
 	readMilestone,
 	readPerson,
-} from '@/server';
+} from '@/actions';
 import MilestoneForm from '@/components/MilestoneForm';
 import { getPageTitle } from '@/utils';
 

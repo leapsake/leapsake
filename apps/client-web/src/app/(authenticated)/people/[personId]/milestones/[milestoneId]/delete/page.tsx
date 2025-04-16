@@ -5,7 +5,7 @@ import {
 	deleteMilestone,
 	readMilestone,
 	readPerson,
-} from '@/server';
+} from '@/actions';
 import { getPageTitle } from '@/utils';
 
 type Props = {
