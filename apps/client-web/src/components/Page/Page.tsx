@@ -10,7 +10,7 @@ export default function Page({
 
 	return (
 		<Fragment>
-			{headerIsVisible ?? (
+			{headerIsVisible && (
 				<header className={styles.header}>
 					<div className={styles.headerContent}>
 						<h1>{title}</h1>
