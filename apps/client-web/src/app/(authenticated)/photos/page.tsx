@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Actions, Action } from '@/components/Actions';
 import Page from '@/components/Page';
 import ThumbnailGallery from '@/components/ThumbnailGallery';
-import { browsePhotos } from '@/server';
+import { browsePhotos } from '@/actions';
 import { Photo } from '@/types';
 import { getPageTitle } from '@/utils';
 

@@ -1,6 +1,6 @@
 import EmailAddressForm from '@/components/EmailAddressForm';
 import Page from '@/components/Page';
-import { addEmailAddress, readPerson } from '@/server';
+import { addEmailAddress, readPerson } from '@/actions';
 
 export default async function AddEmailAddressPage({ params }) {
 	const { personId } = await params;

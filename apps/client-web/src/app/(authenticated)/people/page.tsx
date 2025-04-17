@@ -3,7 +3,7 @@ import { Actions, Action } from '@/components/Actions';
 import Link from '@/components/Link';
 import List from '@/components/List';
 import Page from '@/components/Page';
-import { browsePeople } from '@/server';
+import { browsePeople } from '@/actions';
 import { getPageTitle } from '@/utils';
 
 export const metadata: Metadata = {

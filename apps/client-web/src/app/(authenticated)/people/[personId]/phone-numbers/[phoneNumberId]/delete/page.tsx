@@ -4,7 +4,7 @@ import {
 	deletePhoneNumber,
 	readPerson,
 	readPhoneNumber,
-} from '@/server';
+} from '@/actions';
 
 export default async function DeletePhoneNumberPage({ params }: { params: Promise<{ phoneNumberId: string }> }) {
 	const { phoneNumberId, personId } = await params;

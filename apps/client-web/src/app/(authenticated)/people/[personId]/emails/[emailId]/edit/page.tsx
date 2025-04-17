@@ -5,7 +5,7 @@ import {
 	editEmailAddress,
 	readEmailAddress,
 	readPerson
-} from '@/server';
+} from '@/actions';
 
 export default async function EditEmailAddressPage({ params }) {
 	const { personId, emailId } = (await params);

@@ -4,7 +4,7 @@ import Page from '@/components/Page';
 import { Photo } from '@/types';
 import {
 	readPhoto,
-} from '@/server';
+} from '@/actions';
 
 type Props = {
 	params: Promise<{ photoId: string }>

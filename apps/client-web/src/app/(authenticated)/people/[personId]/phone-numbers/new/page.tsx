@@ -2,7 +2,7 @@ import Page from '@/components/Page';
 import {
 	addPhoneNumber,
 	readPerson,
-} from '@/server';
+} from '@/actions';
 import PhoneNumberForm from '@/components/PhoneNumberForm';
 
 export default async function AddPhoneNumberPage({ params }) {
