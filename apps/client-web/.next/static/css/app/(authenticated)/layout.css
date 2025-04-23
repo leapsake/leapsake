@@ -1,0 +1,56 @@
+/*!*************************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[13].oneOf[5].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[13].oneOf[5].use[3]!./src/app/(authenticated)/layout.module.css ***!
+  \*************************************************************************************************************************************************************************************************************************************************************************************/
+.layout_body__QsjDS {
+	display: flex;
+	min-height: 100vh;
+}
+
+.layout_featureNavList__tIjJA {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	width: 10rem;
+}
+
+.layout_header__IbR5n {
+	background-color: white;
+	border-top: 1px solid black;
+	bottom: 0;
+	left: 0;
+	padding: 1rem;
+	position: fixed;
+	right: 0;
+	z-index: 1;
+
+	& a {
+		text-decoration: none;
+	}
+
+	@media (600px <= width) {
+		position: relative;
+		border-top: 0;
+		border-bottom: 1px solid black;
+	}
+}
+
+.layout_homeNav__wUx1X {
+	align-items: center;
+	display: flex;
+	justify-content: space-between;
+}
+
+.layout_main__sNdzI {
+	width: 100%;
+}
+
+.layout_nav__I_l_5 {
+	display: none;
+	padding: 1rem;
+
+	@media (600px <= width) {
+		display: inline;
+		border-right: 1px solid black;
+	}
+}
+
