@@ -1,0 +1,29 @@
+{
+  "name": "@leapsake/server",
+  "version": "0.0.0",
+  "license": "AGPL-3.0",
+  "private": true,
+  "nx": {
+    "targets": {
+      "serve": {
+        "executor": "@nx/js:node",
+        "defaultConfiguration": "development",
+        "dependsOn": [
+          "build"
+        ],
+        "options": {
+          "buildTarget": "@leapsake/server:build",
+          "runBuildTargetDependencies": false
+        },
+        "configurations": {
+          "development": {
+            "buildTarget": "@leapsake/server:build:development"
+          },
+          "production": {
+            "buildTarget": "@leapsake/server:build:production"
+          }
+        }
+      }
+    }
+  }
+}
