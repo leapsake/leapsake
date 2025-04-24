@@ -41,9 +41,7 @@ Thumbs.db
 .nx/cache
 .nx/workspace-data
 
-.next/
-out/
+**/.next/
+**/dist/
 
-# Next.js
-.next
-out
+apps/client-web/data/
