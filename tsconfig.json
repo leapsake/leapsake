@@ -7,9 +7,6 @@
       "path": "./apps/client-web"
     },
     {
-      "path": "./apps/server-e2e"
-    },
-    {
       "path": "./apps/server"
     }
   ]
