@@ -1,28 +1,10 @@
 {
   "name": "@leapsake/client-web",
   "version": "0.0.0",
-  "license": "AGPL-3.0",
-  "private": true,
   "scripts": {
     "dev": "nx next:dev",
     "build": "nx next:build",
     "start": "nx next:start",
     "lint": "next lint"
-  },
-  "dependencies": {
-    "next": "^15.3.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "sqlite3": "^5.1.7",
-    "uuid": "^11.0.4"
-  },
-  "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.1.4",
-    "typescript": "^5"
   }
 }
