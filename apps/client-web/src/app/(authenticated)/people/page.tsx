@@ -17,7 +17,7 @@ export default async function BrowsePeoplePage() {
 		<Page
 			actions={(
 				<Actions>
-					<Action href="/people/new">➕ Add a person</Action>
+					<Action href="/people/new">➕<span className="util--show-on-desktop">Add a person</span></Action>
 				</Actions>
 
 			)}
