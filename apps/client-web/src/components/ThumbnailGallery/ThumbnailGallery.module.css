@@ -8,11 +8,11 @@
 	max-width: 80rem;
 	padding: 0;
 
-	@media (800px <= width) {
+	@media (width >= 800px) {
 		grid-template-columns: repeat(4, 1fr);
 	}
 
-	@media (1024px <= width) {
+	@media (width >= 1024px) {
 		grid-template-columns: repeat(5, 1fr);
 	}
 }
