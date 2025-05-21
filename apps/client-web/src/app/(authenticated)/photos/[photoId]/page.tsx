@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Image from '@/components/Image'
 import CreatedUpdatedMetadata from '@/components/CreatedUpdatedMetadata';
 import Page from '@/components/Page';
@@ -5,9 +6,14 @@ import { Photo } from '@/types';
 import {
 	readPhoto,
 } from '@/actions';
+import { getPageTitle } from '@/utils';
 
 type Props = {
 	params: Promise<{ photoId: string }>
+}
+
+export const metadata: Metadata = {
+	title: getPageTitle('Photos'),
 }
 
 export default async function ReadPhotoPage({ params }: Props) {
