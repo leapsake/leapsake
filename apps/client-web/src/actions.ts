@@ -3,18 +3,21 @@ import path from 'path';
 import { redirect } from 'next/navigation';
 
 import * as emailDb from '@/db/emails';
-import * as peopleDb from '@/db/people';
 import * as photosDb from '@/db/photos';
 import * as milestonesDb from '@/db/milestones';
 import * as phoneDb from '@/db/phone-numbers';
 
+const baseURL = 'http://localhost:3333';
+
 export async function browsePeople() {
-	const people = await peopleDb.browsePeople();
+	const response = await fetch(`${baseURL}/people`);
+	const people = await response.json();	
 	return people;
 }
 
 export async function readPerson(personId: string) {
-	const person = await peopleDb.readPerson(personId);
+	const response = await fetch (`${baseURL}/people/${personId}`);
+	const person = await response.json();
 	return person;
 }
 
@@ -26,11 +29,17 @@ export async function editPerson(personId: string, formData: FormData) {
 	const maidenName = formData.get('maiden_name') as string;
 	const middleName = formData.get('middle_name') as string;
 
-	await peopleDb.editPerson(personId, {
-		familyName,
-		givenName,
-		maidenName,
-		middleName,
+	await fetch(`${baseURL}/people/${personId}`, {
+		method: 'PUT',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			familyName,
+			givenName,
+			maidenName,
+			middleName,
+		}),
 	});
 
 	redirect(`/people/${personId}`);
@@ -44,12 +53,19 @@ export async function addPerson(formData: FormData) {
 	const maidenName = formData.get('maiden_name') as string;
 	const middleName = formData.get('middle_name') as string;
 
-	const personId = await peopleDb.addPerson({
-		familyName,
-		givenName,
-		maidenName,
-		middleName,
+	const response = await fetch(`${baseURL}/people/`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			familyName,
+			givenName,
+			maidenName,
+			middleName,
+		}),
 	});
+	const personId = await response.json();
 
 	redirect(`/people/${personId}`);
 }
@@ -57,7 +73,9 @@ export async function addPerson(formData: FormData) {
 export async function deletePerson(personId: string) {
 	'use server'
 
-	await peopleDb.deletePerson(personId);
+	await fetch(`${baseURL}/people/${personId}`, {
+		method: 'DELETE',
+	});
 
 	redirect('/people');
 }
