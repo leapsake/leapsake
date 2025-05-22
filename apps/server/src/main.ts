@@ -1,25 +1,18 @@
-import fs from 'fs';
 import express from 'express';
 import * as path from 'path';
-import sqlite3 from 'sqlite3';
 import * as handlers from './handlers';
 
-const dataDir = path.resolve('data');
-const databasePath = path.resolve(dataDir, 'development.db');
-const db = new sqlite3.Database(databasePath);
-if (!fs.existsSync(dataDir)) {
-	fs.mkdirSync(dataDir);
-}
-
 const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
-app.get('/api', (req, res) => {
-	res.send({ message: 'Welcome to server!' });
-});
-
-app.get('/people', handlers.peopleHandler);
+app.delete('/people/:personId', handlers.deletePerson);
+app.get('/people/:personId', handlers.getPerson);
+app.put('/people/:personId', handlers.updatePerson);
+app.get('/people', handlers.getPeople);
+app.post('/people', handlers.createPerson);
 
 const port = process.env.PORT || 3333;
 const server = app.listen(port, () => {
