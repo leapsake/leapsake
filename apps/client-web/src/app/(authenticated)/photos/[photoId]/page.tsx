@@ -19,8 +19,6 @@ export default async function ReadPhotoPage({ params }: Props) {
 			<div>
 				<Image
 					alt=""
-					height={50}
-					width={50}
 					src={photo.path}
 				/>
 			</div>
