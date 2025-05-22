@@ -45,3 +45,4 @@ Thumbs.db
 
 .next/
 apps/client-web/data/
+apps/client-web/public/
