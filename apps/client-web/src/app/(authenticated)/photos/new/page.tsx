@@ -5,7 +5,7 @@ import { addPhotos } from '@/actions';
 export default async function NewPhotoPage() {
 	return (
 		<Page
-			title="Add Photos & Videos"
+			title="Add Photos"
 		>
 			<Form
 				action={addPhotos}
