@@ -3,6 +3,7 @@ import styles from './Image.module.css';
 
 interface Props {
 	alt: string;
+	fill?: boolean;
 	height?: number;
 	width?: number;
 	src: string;
@@ -10,29 +11,30 @@ interface Props {
 
 export default function Image({
 	alt,
+	fill,
 	height,
 	width,
 	src,
 	...rest
 }: Props) {
-	if (!height || !width) {
+	if (height || width || fill) {
 		return (
-			<img
+			<NextImage
 				{...rest}
 				alt={alt}
-				className={styles.image}
+				fill={fill}
 				height={height}
 				src={src}
 				width={width}
 			/>
 		);
-
 	}
 
 	return (
-		<NextImage
+		<img
 			{...rest}
 			alt={alt}
+			className={styles.image}
 			height={height}
 			src={src}
 			width={width}

@@ -1,8 +1,8 @@
 .image {
 	display: block;
 	height: auto;
-	max-height: 50%;
-	max-width: 90%;
+	max-height: 60vh;
+	max-width: 75vw;
 	width: auto;
 }
 

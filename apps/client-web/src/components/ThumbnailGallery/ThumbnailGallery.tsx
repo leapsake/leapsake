@@ -16,6 +16,7 @@ export default async function ThumbnailGallery({ thumbnails }: Props) {
 		<ul className={styles.list}>
 			{thumbnails.map((thumbnail) => (
 				<Thumbnail
+					key={thumbnail.id}
 					thumbnail={thumbnail} />
 			))}
 		</ul>
