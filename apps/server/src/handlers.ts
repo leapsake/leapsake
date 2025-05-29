@@ -254,9 +254,11 @@ export async function createPhotos(req, res) {
 	`;
 
 
+	const serverURL = process.env.SERVER_URL;
+
 	await Promise.all(photos.map(async (photo) => {
 		const photoId = photo.filename.split('.')[0];
-		const photoPath = photo.path.replace('data/', 'http://localhost:3333/');
+		const photoPath = photo.path.replace('data/', serverURL + '/');
 
 		db.run(
 			query,
