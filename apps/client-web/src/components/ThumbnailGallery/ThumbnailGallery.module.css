@@ -34,6 +34,7 @@
 }
 
 .figure img {
+	height: 100%;
 	object-fit: cover;
 	vertical-align: top;
 	width: 100%;
@@ -41,7 +42,7 @@
 
 .overlay {
 	align-items: center;
-	background: rgba(0,0,0, .4);
+	background: rgba(0,0,0, .3);
 	bottom: 0;
 	color: white;
 	display: none;

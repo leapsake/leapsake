@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { unlink } from 'node:fs';
 import db from './db';
 
 export async function getPeople(req, res) {
@@ -52,6 +53,10 @@ export async function getPerson(req, res) {
 				}
 			);
 		});
+
+		if (!person) {
+			res.status(404).json({ error: 'Person not found' });
+		}
 
 		res.json(person);
 	} catch (err) {
@@ -177,4 +182,124 @@ export async function deletePerson(req, res) {
 	} catch (error) {
 		console.log(error);
 	}
+}
+
+export async function getPhotos(req, res) {
+	const query = `
+		SELECT *
+		FROM Photos
+		ORDER BY created_at DESC
+	`;
+
+	const photos = await new Promise((resolve, reject) => {
+		db.all(
+			query,
+			(err, rows) => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve(rows);
+				}
+			}
+		);
+	});
+
+	res.json(photos);
+}
+
+export async function getPhoto(req, res) {
+	const { photoId } = req.params;
+
+	const query = `
+		SELECT *
+		FROM Photos
+		WHERE id = $photoId
+	`;
+
+	const photo = await new Promise((resolve, reject) => {
+		db.get(
+			query,
+			{
+				$photoId: photoId,
+			},
+			(err, row) => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve(row);
+				}
+			}
+		);
+	});
+
+	if(!photo) {
+		res.status(404).json({ error: 'Photo not found' });
+	}
+
+	res.json(photo);
+}
+
+export async function createPhotos(req, res) {
+	const photos = req.files;
+
+	const query = `
+		INSERT INTO Photos(
+			id,
+			path
+		)
+		VALUES(
+			$photoId,
+			$photoPath
+		)
+	`;
+
+
+	await Promise.all(photos.map(async (photo) => {
+		const photoId = photo.filename.split('.')[0];
+		const photoPath = photo.path.replace('data/', 'http://localhost:3333/');
+
+		db.run(
+			query,
+			{
+				$photoId: photoId,
+				$photoPath: photoPath,
+			},
+			(err) => {
+				if (err) {
+					console.error(err);
+				}
+			}
+		);
+	}));
+
+	res.json();
+}
+
+export async function deletePhoto(req, res) {
+	const { photoId } = req.params;
+
+	const query = `
+		DELETE FROM Photos
+		WHERE id = $photoId
+	`;
+
+	try {
+		db.run(
+			query,
+			{
+				$photoId: photoId,
+			},
+			(err) => {
+				if (err) {
+					console.error(err);
+				}
+			}
+		);
+
+		res.json(true);
+	} catch (error) {
+		console.log(error);
+	}
+
+	// TODO: delete photo files
 }

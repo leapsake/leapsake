@@ -44,5 +44,4 @@ Thumbs.db
 .nx/workspace-data
 
 .next/
-apps/client-web/data/
-apps/client-web/public/
+data/

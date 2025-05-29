@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Actions, Action } from '@/components/Actions';
 import Image from '@/components/Image'
 import CreatedUpdatedMetadata from '@/components/CreatedUpdatedMetadata';
 import Page from '@/components/Page';
@@ -34,6 +35,15 @@ export default async function ReadPhotoPage({ params }: Props) {
 					createdAt={photo.created_at}
 					updatedAt={photo.updated_at}
 				/>
+
+				<Actions>
+					<Action
+						href={`/photos/${photoId}/delete`}
+						variant="danger"
+					>
+						{`❌ Delete photo`}
+					</Action>
+				</Actions>
 			</footer>
 		</Page>
 	);

@@ -1,9 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import * as emailDb from '@/db/emails';
-import * as photosDb from '@/db/photos';
 import * as milestonesDb from '@/db/milestones';
 import * as phoneDb from '@/db/phone-numbers';
 
@@ -17,6 +16,11 @@ export async function browsePeople() {
 
 export async function readPerson(personId: string) {
 	const response = await fetch (`${baseURL}/people/${personId}`);
+
+	if (response.status === 404) {
+		return notFound();
+	}
+
 	const person = await response.json();
 	return person;
 }
@@ -127,45 +131,41 @@ export async function deleteEmailAddress(emailAddressId: string, personId: strin
 }
 
 export async function browsePhotos() {
-	const photos = await photosDb.browsePhotos();
+	const response = await fetch(`${baseURL}/photos`);
+	const photos = await response.json();
 	return photos;
 }
 
 export async function readPhoto(photoId: string) {
-	const photo = await photosDb.readPhoto(photoId);
+	const response = await fetch(`${baseURL}/photos/${photoId}`);
+
+	if (response.status === 404) {
+		return notFound();
+	}
+
+	const photo = await response.json();
 	return photo;
 }
 
 export async function addPhotos(formData: FormData) {
 	'use server'
 
-	const photos = formData.getAll('photos');
-	const uploadDir = path.resolve('public/files/photos');
-
-	try {
-		await fs.access(uploadDir, fs.constants.F_OK);
-	} catch {
-		try {
-			await fs.mkdir(uploadDir, { recursive: true });
-		} catch (err) {
-			console.error(err);
-		}
-	}
-
-	await Promise.all(photos.map(async (photo) => {
-		const buffer = Buffer.from(await photo.arrayBuffer());
-		const absolutePath = path.resolve(uploadDir, photo.name);
-		const relativePath = path.resolve('/files/photos/', photo.name);
-
-		await fs.writeFile(
-			absolutePath,
-			buffer
-		);
-
-		await photosDb.addPhoto(relativePath);
-	}));
+	await fetch(`${baseURL}/photos`, {
+		method: 'POST',
+		body: formData,
+	});
 
 	redirect(`/photos`);
+}
+
+export async function deletePhoto(photoId: string) {
+	'use server'
+
+	await fetch(`${baseURL}/photos/${photoId}`, {
+		method: 'DELETE',
+	});
+
+	redirect('/photos');
 }
 
 export async function browseMilestones(personId: string) {
