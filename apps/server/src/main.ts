@@ -33,7 +33,7 @@ app.get('/photos/:photoId', handlers.getPhoto);
 app.get('/photos', handlers.getPhotos);
 app.post('/photos', upload.array('photos'), handlers.createPhotos);
 
-const port = process.env.PORT || 3333;
+const port = process.env.SERVER_PORT;
 const server = app.listen(port, () => {
 	console.log(`Listening at http://localhost:${port}`);
 });

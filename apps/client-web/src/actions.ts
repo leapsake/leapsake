@@ -6,16 +6,16 @@ import * as emailDb from '@/db/emails';
 import * as milestonesDb from '@/db/milestones';
 import * as phoneDb from '@/db/phone-numbers';
 
-const baseURL = 'http://localhost:3333';
+const serverURL = process.env.SERVER_URL;
 
 export async function browsePeople() {
-	const response = await fetch(`${baseURL}/people`);
+	const response = await fetch(`${serverURL}/people`);
 	const people = await response.json();	
 	return people;
 }
 
 export async function readPerson(personId: string) {
-	const response = await fetch (`${baseURL}/people/${personId}`);
+	const response = await fetch (`${serverURL}/people/${personId}`);
 
 	if (response.status === 404) {
 		return notFound();
@@ -33,7 +33,7 @@ export async function editPerson(personId: string, formData: FormData) {
 	const maidenName = formData.get('maiden_name') as string;
 	const middleName = formData.get('middle_name') as string;
 
-	await fetch(`${baseURL}/people/${personId}`, {
+	await fetch(`${serverURL}/people/${personId}`, {
 		method: 'PUT',
 		headers: {
 			'Content-Type': 'application/json',
@@ -57,7 +57,7 @@ export async function addPerson(formData: FormData) {
 	const maidenName = formData.get('maiden_name') as string;
 	const middleName = formData.get('middle_name') as string;
 
-	const response = await fetch(`${baseURL}/people/`, {
+	const response = await fetch(`${serverURL}/people/`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -77,7 +77,7 @@ export async function addPerson(formData: FormData) {
 export async function deletePerson(personId: string) {
 	'use server'
 
-	await fetch(`${baseURL}/people/${personId}`, {
+	await fetch(`${serverURL}/people/${personId}`, {
 		method: 'DELETE',
 	});
 
@@ -131,13 +131,13 @@ export async function deleteEmailAddress(emailAddressId: string, personId: strin
 }
 
 export async function browsePhotos() {
-	const response = await fetch(`${baseURL}/photos`);
+	const response = await fetch(`${serverURL}/photos`);
 	const photos = await response.json();
 	return photos;
 }
 
 export async function readPhoto(photoId: string) {
-	const response = await fetch(`${baseURL}/photos/${photoId}`);
+	const response = await fetch(`${serverURL}/photos/${photoId}`);
 
 	if (response.status === 404) {
 		return notFound();
@@ -150,7 +150,7 @@ export async function readPhoto(photoId: string) {
 export async function addPhotos(formData: FormData) {
 	'use server'
 
-	await fetch(`${baseURL}/photos`, {
+	await fetch(`${serverURL}/photos`, {
 		method: 'POST',
 		body: formData,
 	});
@@ -161,7 +161,7 @@ export async function addPhotos(formData: FormData) {
 export async function deletePhoto(photoId: string) {
 	'use server'
 
-	await fetch(`${baseURL}/photos/${photoId}`, {
+	await fetch(`${serverURL}/photos/${photoId}`, {
 		method: 'DELETE',
 	});
 
