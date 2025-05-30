@@ -276,6 +276,40 @@ export async function createPhotos(req, res) {
 	res.json();
 }
 
+export async function updatePhoto(req, res) {
+	const { photoId } = req.params;
+
+	const {
+		description,
+	} = req.body;
+
+	const query = `
+		UPDATE Photos
+		SET updated_at = datetime('now'),
+			description = $description
+		WHERE id = $photoId
+	`;
+
+	try {
+		db.run(
+			query,
+			{
+				$description: description,
+				$photoId: photoId,
+			},
+			(err) => {
+				if (err) {
+					console.error(err);
+				}
+			}
+		);
+
+		res.json(photoId);
+	} catch (error) {
+		console.log(error);
+	}
+}
+
 export async function deletePhoto(req, res) {
 	const { photoId } = req.params;
 

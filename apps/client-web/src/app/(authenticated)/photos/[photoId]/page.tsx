@@ -28,6 +28,8 @@ export default async function ReadPhotoPage({ params }: Props) {
 					alt=""
 					src={photo.path}
 				/>
+			
+				<p>{photo.description}</p>
 			</div>
 
 			<footer>
