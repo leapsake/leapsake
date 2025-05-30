@@ -36,7 +36,6 @@ function Thumbnail({ thumbnail }: { thumbnail: Thumbnail }) {
 				<figure className={styles.figure}>
 					<Image
 						alt=""
-						fill={true}
 						src={thumbnail.path}
 					/>
 				</figure>
