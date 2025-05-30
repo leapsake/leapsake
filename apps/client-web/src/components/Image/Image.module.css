@@ -2,7 +2,10 @@
 	display: block;
 	height: auto;
 	max-height: 60vh;
-	max-width: 75vw;
 	width: auto;
+
+	@media (width >= 1024px) {
+		max-width: 75vw;
+	}
 }
 

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Image from '@/components/Image'
-import { deletePhoto, readPhoto } from '@/actions';
+import { editPhoto, readPhoto } from '@/actions';
 import { getPageTitle } from '@/utils';
 import Form from '@/components/Form';
 import Page from '@/components/Page';
@@ -12,17 +12,17 @@ type Props = {
 
 export async function generateMetadata(): Promise<Metadata> {
 	return {
-		title: getPageTitle(`Delete photo`),
+		title: getPageTitle('Edit photo'),
 	};
 }
 
-export default async function DeletePhotoPage({ params }: Props) {
+export default async function EditPhotoPage({ params }: Props) {
 	const { photoId } = await params;
 	const photo = await readPhoto(photoId) as Photo;
 
 	return (
 		<Page
-			title="Delete photo?"
+			title="Edit photo"
 		>
 			<div>
 				<Image
@@ -39,9 +39,8 @@ export default async function DeletePhotoPage({ params }: Props) {
 			</footer>
 
 			<Form
-				action={deletePhoto.bind(null, photoId)}
-				submitButtonContent="Delete"
-				submitButtonVariant="danger"
+				action={editPhoto.bind(null, photoId)}
+				submitButtonContent="Save changes"
 			/>
 		</Page>
 	);

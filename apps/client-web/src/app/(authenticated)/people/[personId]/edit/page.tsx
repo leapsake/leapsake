@@ -40,7 +40,7 @@ export default async function EditPersonPage({ params }: Props) {
 		>
 			<PersonForm
 				action={editPerson.bind(null, personId)}
-				submitButtonContent="Update"
+				submitButtonContent="Save changes"
 				person={person}
 			/>
 		</Page>

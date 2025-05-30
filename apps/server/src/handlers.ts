@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from 'uuid';
-import { unlink } from 'node:fs';
 import db from './db';
 
 export async function getPeople(req, res) {
