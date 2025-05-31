@@ -30,6 +30,7 @@ app.post('/people', handlers.createPerson);
 
 app.delete('/photos/:photoId', handlers.deletePhoto);
 app.get('/photos/:photoId', handlers.getPhoto);
+app.put('/photos/:photoId', handlers.updatePhoto);
 app.get('/photos', handlers.getPhotos);
 app.post('/photos', upload.array('photos'), handlers.createPhotos);
 

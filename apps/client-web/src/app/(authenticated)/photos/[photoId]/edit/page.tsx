@@ -1,5 +1,6 @@
-import type { Metadata } from 'next'
-import Image from '@/components/Image'
+import type { Metadata } from 'next';
+import Image from '@/components/Image';
+import TextArea from '@/components/TextArea';
 import { editPhoto, readPhoto } from '@/actions';
 import { getPageTitle } from '@/utils';
 import Form from '@/components/Form';
@@ -41,7 +42,13 @@ export default async function EditPhotoPage({ params }: Props) {
 			<Form
 				action={editPhoto.bind(null, photoId)}
 				submitButtonContent="Save changes"
-			/>
+			>
+				<TextArea 
+					defaultValue={photo.description} 
+					label="Description"
+					name="description" 
+				/>
+			</Form>
 		</Page>
 	);
 }

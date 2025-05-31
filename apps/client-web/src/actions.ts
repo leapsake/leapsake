@@ -150,13 +150,15 @@ export async function readPhoto(photoId: string) {
 export async function editPhoto(photoId: string, formData: FormData) {
 	'use server'
 
+	const description = formData.get('description') as string;
+
 	await fetch(`${serverURL}/photos/${photoId}`, {
 		method: 'PUT',
 		headers: {
 			'Content-Type': 'application/json',
 		},
 		body: JSON.stringify({
-			// TODO: Add fields
+			description,
 		}),
 	});
 
