@@ -147,6 +147,22 @@ export async function readPhoto(photoId: string) {
 	return photo;
 }
 
+export async function editPhoto(photoId: string, formData: FormData) {
+	'use server'
+
+	await fetch(`${serverURL}/photos/${photoId}`, {
+		method: 'PUT',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			// TODO: Add fields
+		}),
+	});
+
+	redirect(`/photos/${photoId}`);
+}
+
 export async function addPhotos(formData: FormData) {
 	'use server'
 

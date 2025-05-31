@@ -38,6 +38,18 @@ export default async function ReadPhotoPage({ params }: Props) {
 
 				<Actions>
 					<Action
+						href={`/photos/${photoId}/edit`}
+					>
+						{`📝 Edit photo`}
+					</Action>
+
+					<Action
+						href={`/photos/${photoId}/edit`}
+					>
+						{`🏷️ Tag photo`}
+					</Action>
+
+					<Action
 						href={`/photos/${photoId}/delete`}
 						variant="danger"
 					>
