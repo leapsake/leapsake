@@ -6,7 +6,7 @@ import {
 	readPerson,
 } from '@/actions';
 
-export default async function DeleteEmailAddressPage({ params }: { params: Promise<{ emailId: string }> }) {
+export default async function DeleteEmailAddressPage({ params }: { params: Promise<{ emailId: string, personId: string }> }) {
 	const { emailId, personId } = await params;
 	const person = await readPerson(personId);
 	const emailAddress = await readEmailAddress(emailId);
