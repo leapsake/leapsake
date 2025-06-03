@@ -1,9 +1,14 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Milestone } from '@/types';
-import db from '@/db';
-import { updatePerson } from '@/db/people';
+import db from './init.ts';
 
-export async function browseMilestones(personId: string) {
+// TODO Implement
+async function updatePerson() {
+	return Promise.resolve(true);
+}
+
+export async function getMilestones(req, res) {
+	const { personId } = req.query;
+
 	const query = `
 		SELECT *
 		FROM Milestones
@@ -28,10 +33,12 @@ export async function browseMilestones(personId: string) {
 		);
 	});
 
-	return milestones;
+	res.json(milestones);
 }
 
-export async function readMilestone(milestoneId: string) {
+export async function getMilestone(req, res) {
+	const { milestoneId } = req.params;
+
 	const query = `
 		SELECT *
 		FROM Milestones
@@ -54,15 +61,19 @@ export async function readMilestone(milestoneId: string) {
 		);
 	});
 
-	return milestone;
+	res.json(milestone);
 }
 
-export async function editMilestone(milestoneId: string, personId: string, {
-	day,
-	label,
-	month,
-	year,
-}: Milestone) {
+export async function updateMilestone(req, res) {
+	const {
+		day,
+		label,
+		month,
+		year,
+	} = req.body;
+
+	const { milestoneId } = req.params;
+
 	const editMilestoneQuery = `
 		UPDATE Milestones
 		SET updated_at = datetime('now'),
@@ -89,17 +100,22 @@ export async function editMilestone(milestoneId: string, personId: string, {
 		}
 	);
 
+	// TODO: Update person "last updated"
+	const personId = null;
 	await updatePerson(personId);
 
-	return null;
+	res.json(true);
 }
 
-export async function addMilestone(personId: string, {
-	day,
-	label,
-	month,
-	year,
-}: Milestone) {
+export async function createMilestone(req, res) {
+	const {
+		day,
+		label,
+		month,
+		year,
+		personId,
+	} = req.body;
+
 	const milestoneId = uuidv4();
 
 	const addMilestoneQuery = `
@@ -138,12 +154,15 @@ export async function addMilestone(personId: string, {
 		}
 	);
 
+	// TODO: Update person "last updated"
 	await updatePerson(personId);
 
-	return milestoneId;
+	res.json(milestoneId);
 }
 
-export async function deleteMilestone(milestoneId: string) {
+export async function deleteMilestone(req, res) {
+	const { milestoneId } = req.params;
+
 	const query = `
 		DELETE FROM Milestones
 		WHERE id = $milestoneId
@@ -161,5 +180,5 @@ export async function deleteMilestone(milestoneId: string) {
 		}
 	);
 
-	return null;
+	res.json(true);
 }

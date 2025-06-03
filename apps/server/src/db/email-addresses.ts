@@ -102,6 +102,7 @@ export async function updateEmailAddress(req, res) {
 			}
 		);
 
+		// TODO: Update person "last updated"
 		const personId = null;
 		await updatePerson(personId);
 		
