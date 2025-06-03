@@ -2,7 +2,6 @@ import fs from 'fs/promises';
 import path from 'path';
 import { notFound, redirect } from 'next/navigation';
 
-import * as emailDb from '@/db/emails';
 import * as milestonesDb from '@/db/milestones';
 import * as phoneDb from '@/db/phone-numbers';
 
@@ -57,7 +56,7 @@ export async function addPerson(formData: FormData) {
 	const maidenName = formData.get('maiden_name') as string;
 	const middleName = formData.get('middle_name') as string;
 
-	const response = await fetch(`${serverURL}/people/`, {
+	const response = await fetch(`${serverURL}/people`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -85,12 +84,21 @@ export async function deletePerson(personId: string) {
 }
 
 export async function browseEmailAddresses(personId: string) {
-	const emailAddresses = await emailDb.browseEmailAddresses(personId);
+	const params = new URLSearchParams();
+	params.append('personId', personId);
+	const response = await fetch(`${serverURL}/email-addresses?${params}`);
+	const emailAddresses = await response.json();	
 	return emailAddresses;
 }
 
 export async function readEmailAddress(emailAddressId: string) {
-	const emailAddress = await emailDb.readEmailAddress(emailAddressId);
+	const response = await fetch (`${serverURL}/email-addresses/${emailAddressId}`);
+
+	if (response.status === 404) {
+		return notFound();
+	}
+
+	const emailAddress = await response.json();
 	return emailAddress;
 }
 
@@ -100,9 +108,15 @@ export async function editEmailAddress(emailAddressId: string, personId: string,
 	const address = formData.get('address') as string;
 	const label = formData.get('label') as string;
 
-	await emailDb.editEmailAddress(emailAddressId, personId, {
-		address,
-		label,
+	await fetch(`${serverURL}/email-addresses/${emailAddressId}`, {
+		method: 'PUT',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			address,
+			label,
+		}),
 	});
 
 	redirect(`/people/${personId}`);
@@ -114,9 +128,16 @@ export async function addEmailAddress(personId: string, formData: FormData) {
 	const address = formData.get('address') as string;
 	const label = formData.get('label') as string;
 
-	await emailDb.addEmailAddress(personId, {
-		address,
-		label,
+	await fetch(`${serverURL}/email-addresses`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			address,
+			label,
+			personId,
+		}),
 	});
 
 	redirect(`/people/${personId}`);
@@ -125,7 +146,9 @@ export async function addEmailAddress(personId: string, formData: FormData) {
 export async function deleteEmailAddress(emailAddressId: string, personId: string) {
 	'use server'
 
-	await emailDb.deleteEmailAddress(emailAddressId);
+	await fetch(`${serverURL}/email-addresses/${emailAddressId}`, {
+		method: 'DELETE',
+	});
 
 	redirect(`/people/${personId}`);
 }
