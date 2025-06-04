@@ -1,19 +1,20 @@
-import fs from 'fs/promises';
-import path from 'path';
 import { notFound, redirect } from 'next/navigation';
-
-import * as milestonesDb from '@/db/milestones';
 
 const serverURL = process.env.SERVER_URL;
 
 export async function browsePeople() {
-	const response = await fetch(`${serverURL}/people`);
+	const url = `${serverURL}/people`;
+
+	const response = await fetch(url);
 	const people = await response.json();	
+
 	return people;
 }
 
 export async function readPerson(personId: string) {
-	const response = await fetch (`${serverURL}/people/${personId}`);
+	const url = `${serverURL}/people/${personId}`;
+
+	const response = await fetch (url);
 
 	if (response.status === 404) {
 		return notFound();
@@ -31,7 +32,9 @@ export async function editPerson(personId: string, formData: FormData) {
 	const maidenName = formData.get('maiden_name') as string;
 	const middleName = formData.get('middle_name') as string;
 
-	await fetch(`${serverURL}/people/${personId}`, {
+	const url = `${serverURL}/people/${personId}`;
+
+	await fetch(url, {
 		method: 'PUT',
 		headers: {
 			'Content-Type': 'application/json',
@@ -55,7 +58,9 @@ export async function addPerson(formData: FormData) {
 	const maidenName = formData.get('maiden_name') as string;
 	const middleName = formData.get('middle_name') as string;
 
-	const response = await fetch(`${serverURL}/people`, {
+	const url = `${serverURL}/people`;
+
+	const response = await fetch(url, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -75,7 +80,9 @@ export async function addPerson(formData: FormData) {
 export async function deletePerson(personId: string) {
 	'use server'
 
-	await fetch(`${serverURL}/people/${personId}`, {
+	const url = `${serverURL}/people/${personId}`;
+
+	await fetch(url, {
 		method: 'DELETE',
 	});
 
@@ -85,13 +92,17 @@ export async function deletePerson(personId: string) {
 export async function browseEmailAddresses(personId: string) {
 	const params = new URLSearchParams();
 	params.append('personId', personId);
-	const response = await fetch(`${serverURL}/email-addresses?${params}`);
+
+	const url = `${serverURL}/email-addresses?${params}`;
+	const response = await fetch(url);
 	const emailAddresses = await response.json();	
+
 	return emailAddresses;
 }
 
 export async function readEmailAddress(emailAddressId: string) {
-	const response = await fetch (`${serverURL}/email-addresses/${emailAddressId}`);
+	const url = `${serverURL}/email-addresses/${emailAddressId}`;
+	const response = await fetch (url);
 
 	if (response.status === 404) {
 		return notFound();
@@ -107,7 +118,9 @@ export async function editEmailAddress(emailAddressId: string, personId: string,
 	const address = formData.get('address') as string;
 	const label = formData.get('label') as string;
 
-	await fetch(`${serverURL}/email-addresses/${emailAddressId}`, {
+	const url = `${serverURL}/email-addresses/${emailAddressId}`;
+
+	await fetch(url, {
 		method: 'PUT',
 		headers: {
 			'Content-Type': 'application/json',
@@ -127,7 +140,9 @@ export async function addEmailAddress(personId: string, formData: FormData) {
 	const address = formData.get('address') as string;
 	const label = formData.get('label') as string;
 
-	await fetch(`${serverURL}/email-addresses`, {
+	const url = `${serverURL}/email-addresses`;
+
+	await fetch(url, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -145,7 +160,9 @@ export async function addEmailAddress(personId: string, formData: FormData) {
 export async function deleteEmailAddress(emailAddressId: string, personId: string) {
 	'use server'
 
-	await fetch(`${serverURL}/email-addresses/${emailAddressId}`, {
+	const url = `${serverURL}/email-addresses/${emailAddressId}`;
+
+	await fetch(url, {
 		method: 'DELETE',
 	});
 
@@ -153,13 +170,15 @@ export async function deleteEmailAddress(emailAddressId: string, personId: strin
 }
 
 export async function browsePhotos() {
-	const response = await fetch(`${serverURL}/photos`);
+	const url = `${serverURL}/photos`;
+	const response = await fetch(url);
 	const photos = await response.json();
 	return photos;
 }
 
 export async function readPhoto(photoId: string) {
-	const response = await fetch(`${serverURL}/photos/${photoId}`);
+	const url = `${serverURL}/photos/${photoId}`;
+	const response = await fetch(url);
 
 	if (response.status === 404) {
 		return notFound();
@@ -174,7 +193,9 @@ export async function editPhoto(photoId: string, formData: FormData) {
 
 	const description = formData.get('description') as string;
 
-	await fetch(`${serverURL}/photos/${photoId}`, {
+	const url = `${serverURL}/photos/${photoId}`;
+
+	await fetch(url, {
 		method: 'PUT',
 		headers: {
 			'Content-Type': 'application/json',
@@ -190,7 +211,9 @@ export async function editPhoto(photoId: string, formData: FormData) {
 export async function addPhotos(formData: FormData) {
 	'use server'
 
-	await fetch(`${serverURL}/photos`, {
+	const url = `${serverURL}/photos`;
+
+	await fetch(url, {
 		method: 'POST',
 		body: formData,
 	});
@@ -201,7 +224,9 @@ export async function addPhotos(formData: FormData) {
 export async function deletePhoto(photoId: string) {
 	'use server'
 
-	await fetch(`${serverURL}/photos/${photoId}`, {
+	const url = `${serverURL}/photos/${photoId}`;
+
+	await fetch(url, {
 		method: 'DELETE',
 	});
 
@@ -209,12 +234,25 @@ export async function deletePhoto(photoId: string) {
 }
 
 export async function browseMilestones(personId: string) {
-	const milestones = await milestonesDb.browseMilestones(personId);
+	const params = new URLSearchParams();
+	params.append('personId', personId);
+
+	const url = `${serverURL}/milestones?${params}`;
+	const response = await fetch(url);
+	const milestones = await response.json();	
+
 	return milestones;
 }
 
 export async function readMilestone(milestoneId: string) {
-	const milestone = await milestonesDb.readMilestone(milestoneId);
+	const url = `${serverURL}/milestones/${milestoneId}`;
+	const response = await fetch (url);
+
+	if (response.status === 404) {
+		return notFound();
+	}
+
+	const milestone = await response.json();
 	return milestone;
 }
 
@@ -226,11 +264,19 @@ export async function editMilestone(milestoneId: string, personId: string, formD
 	const month = formData.get('month') as string;
 	const year = formData.get('year') as string;
 
-	await milestonesDb.editMilestone(milestoneId, personId, {
-		day,
-		label,
-		month,
-		year,
+	const url = `${serverURL}/milestones/${milestoneId}`;
+
+	await fetch(url, {
+		method: 'PUT',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			day,
+			label,
+			month,
+			year,
+		}),
 	});
 
 	redirect(`/people/${personId}`);
@@ -244,11 +290,20 @@ export async function addMilestone(personId: string, formData: FormData) {
 	const month = formData.get('month') as string;
 	const year = formData.get('year') as string;
 
-	await milestonesDb.addMilestone(personId, {
-		day,
-		label,
-		month,
-		year,
+	const url = `${serverURL}/milestones`;
+
+	await fetch(url, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			day,
+			label,
+			month,
+			year,
+			personId,
+		}),
 	});
 
 	redirect(`/people/${personId}`);
@@ -257,7 +312,11 @@ export async function addMilestone(personId: string, formData: FormData) {
 export async function deleteMilestone(milestoneId: string, personId: string) {
 	'use server'
 
-	await milestonesDb.deleteMilestone(milestoneId);
+	const url = `${serverURL}/milestones/${milestoneId}`;
+
+	await fetch(url, {
+		method: 'DELETE',
+	});
 
 	redirect(`/people/${personId}`);
 }
@@ -265,20 +324,25 @@ export async function deleteMilestone(milestoneId: string, personId: string) {
 export async function browsePhoneNumbers(personId: string) {
 	const params = new URLSearchParams();
 	params.append('personId', personId);
+
 	const url = `${serverURL}/phone-numbers?${params}`;
+
 	const response = await fetch(url);
 	const phoneNumbers = await response.json();	
+
 	return phoneNumbers;
 }
 
 export async function readPhoneNumber(phoneNumberId: string) {
-	const response = await fetch (`${serverURL}/phone-numbers/${phoneNumberId}`);
+	const url = `${serverURL}/phone-numbers/${phoneNumberId}`;
+	const response = await fetch (url);
 
 	if (response.status === 404) {
 		return notFound();
 	}
 
 	const phoneNumber = await response.json();
+
 	return phoneNumber;
 }
 
@@ -288,7 +352,9 @@ export async function editPhoneNumber(phoneNumberId: string, personId: string, f
 	const label = formData.get('label') as string;
 	const number = formData.get('number') as string;
 
-	await fetch(`${serverURL}/phone-numbers/${phoneNumberId}`, {
+	const url = `${serverURL}/phone-numbers/${phoneNumberId}`;
+
+	await fetch(url, {
 		method: 'PUT',
 		headers: {
 			'Content-Type': 'application/json',
@@ -308,7 +374,9 @@ export async function addPhoneNumber(personId: string, formData: FormData) {
 	const label = formData.get('label') as string;
 	const number = formData.get('number') as string;
 
-	await fetch(`${serverURL}/phone-numbers`, {
+	const url = `${serverURL}/phone-numbers`;
+
+	await fetch(url, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -326,7 +394,9 @@ export async function addPhoneNumber(personId: string, formData: FormData) {
 export async function deletePhoneNumber(phoneNumberId: string, personId: string) {
 	'use server'
 
-	await fetch(`${serverURL}/phone-numbers/${phoneNumberId}`, {
+	const url = `${serverURL}/phone-numbers/${phoneNumberId}`;
+
+	await fetch(url, {
 		method: 'DELETE',
 	});
 

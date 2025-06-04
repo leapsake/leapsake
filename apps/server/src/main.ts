@@ -40,6 +40,12 @@ app.put('/email-addresses/:emailAddressId', db.updateEmailAddress);
 app.get('/email-addresses', db.getEmailAddresses);
 app.post('/email-addresses', db.createEmailAddress);
 
+app.delete('/milestones/:milestoneId', db.deleteMilestone);
+app.get('/milestones/:milestoneId', db.getMilestone);
+app.put('/milestones/:milestoneId', db.updateMilestone);
+app.get('/milestones', db.getMilestones);
+app.post('/milestones', db.createMilestone);
+
 app.delete('/phone-numbers/:phoneNumberId', db.deletePhoneNumber);
 app.get('/phone-numbers/:phoneNumberId', db.getPhoneNumber);
 app.put('/phone-numbers/:phoneNumberId', db.updatePhoneNumber);
