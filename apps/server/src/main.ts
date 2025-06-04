@@ -40,6 +40,12 @@ app.put('/email-addresses/:emailAddressId', db.updateEmailAddress);
 app.get('/email-addresses', db.getEmailAddresses);
 app.post('/email-addresses', db.createEmailAddress);
 
+app.delete('/phone-numbers/:phoneNumberId', db.deletePhoneNumber);
+app.get('/phone-numbers/:phoneNumberId', db.getPhoneNumber);
+app.put('/phone-numbers/:phoneNumberId', db.updatePhoneNumber);
+app.get('/phone-numbers', db.getPhoneNumbers);
+app.post('/phone-numbers', db.createPhoneNumber);
+
 const port = process.env.SERVER_PORT;
 const server = app.listen(port, () => {
 	console.log(`Listening at http://localhost:${port}`);

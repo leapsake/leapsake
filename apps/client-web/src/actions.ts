@@ -3,7 +3,6 @@ import path from 'path';
 import { notFound, redirect } from 'next/navigation';
 
 import * as milestonesDb from '@/db/milestones';
-import * as phoneDb from '@/db/phone-numbers';
 
 const serverURL = process.env.SERVER_URL;
 
@@ -264,12 +263,22 @@ export async function deleteMilestone(milestoneId: string, personId: string) {
 }
 
 export async function browsePhoneNumbers(personId: string) {
-	const phoneNumbers = await phoneDb.browsePhoneNumbers(personId);
+	const params = new URLSearchParams();
+	params.append('personId', personId);
+	const url = `${serverURL}/phone-numbers?${params}`;
+	const response = await fetch(url);
+	const phoneNumbers = await response.json();	
 	return phoneNumbers;
 }
 
 export async function readPhoneNumber(phoneNumberId: string) {
-	const phoneNumber = await phoneDb.readPhoneNumber(phoneNumberId);
+	const response = await fetch (`${serverURL}/phone-numbers/${phoneNumberId}`);
+
+	if (response.status === 404) {
+		return notFound();
+	}
+
+	const phoneNumber = await response.json();
 	return phoneNumber;
 }
 
@@ -279,9 +288,15 @@ export async function editPhoneNumber(phoneNumberId: string, personId: string, f
 	const label = formData.get('label') as string;
 	const number = formData.get('number') as string;
 
-	await phoneDb.editPhoneNumber(phoneNumberId, personId, {
-		label,
-		number,
+	await fetch(`${serverURL}/phone-numbers/${phoneNumberId}`, {
+		method: 'PUT',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			label,
+			number,
+		}),
 	});
 
 	redirect(`/people/${personId}`);
@@ -293,9 +308,16 @@ export async function addPhoneNumber(personId: string, formData: FormData) {
 	const label = formData.get('label') as string;
 	const number = formData.get('number') as string;
 
-	await phoneDb.addPhoneNumber(personId, {
-		label,
-		number,
+	await fetch(`${serverURL}/phone-numbers`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			label,
+			number,
+			personId,
+		}),
 	});
 
 	redirect(`/people/${personId}`);
@@ -304,7 +326,9 @@ export async function addPhoneNumber(personId: string, formData: FormData) {
 export async function deletePhoneNumber(phoneNumberId: string, personId: string) {
 	'use server'
 
-	await phoneDb.deletePhoneNumber(phoneNumberId);
+	await fetch(`${serverURL}/phone-numbers/${phoneNumberId}`, {
+		method: 'DELETE',
+	});
 
 	redirect(`/people/${personId}`);
 }
