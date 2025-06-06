@@ -1,13 +1,19 @@
 # Leapsake
 
-Run client-web
+Run full development environment
 ```sh
-nx dev client-web
+docker-compose -f docker-compose.dev.yml up 
 ```
 
-Run server
+
+Run `client-web` (currently depends on `server`)
 ```sh
-nx serve server
+docker-compose -f docker-compose.dev.yml up client-web
+```
+
+Run `server`
+```sh
+docker-compose -f docker-compose.dev.yml up server
 ```
 
 

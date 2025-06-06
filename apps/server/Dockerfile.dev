@@ -1,0 +1,14 @@
+FROM node:18-alpine
+WORKDIR /workspace
+
+COPY package*.json ./
+COPY nx.json ./
+COPY tsconfig*.json ./
+COPY apps/server ./apps/server
+# COPY libs ./libs
+
+RUN npm ci
+RUN mkdir -p /workspace/data
+
+EXPOSE 3333
+CMD ["npx", "nx", "serve", "server"]
