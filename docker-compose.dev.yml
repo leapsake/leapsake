@@ -13,6 +13,14 @@ services:
     env_file: ".env.local"
     command: npx nx serve server
 
+  postgres:
+    image: postgres:15
+    env_file: ".env.local"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
   client-web:
     build:
       context: .
@@ -30,3 +38,4 @@ services:
 
 volumes:
   nx-cache:
+  postgres_data:
