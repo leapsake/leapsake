@@ -1,10 +1,11 @@
 # Leapsake
 
+## Development Steps
+
 Run full development environment
 ```sh
 docker-compose -f docker-compose.dev.yml up 
 ```
-
 
 Run `client-web` (currently depends on `server`)
 ```sh
@@ -15,6 +16,14 @@ Run `server`
 ```sh
 docker-compose -f docker-compose.dev.yml up server
 ```
+
+## Production Steps
+
+Run full production environment
+```sh
+docker-compose -f docker-compose.prod.yml up --build
+```
+
 
 
 [Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/js?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
