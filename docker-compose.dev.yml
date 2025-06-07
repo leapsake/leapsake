@@ -1,0 +1,32 @@
+version: '3.8'
+services:
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile.dev
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+      - nx-cache:/workspace/.nx
+    ports:
+      - "3333:3333"
+    env_file: ".env.local"
+    command: npx nx serve server
+
+  client-web:
+    build:
+      context: .
+      dockerfile: apps/client-web/Dockerfile.dev
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+      - nx-cache:/workspace/.nx
+    ports:
+      - "3000:3000"
+    env_file: ".env.local"
+    depends_on:
+      - server
+    command: npx nx dev client-web
+
+volumes:
+  nx-cache:
