@@ -1,10 +1,5 @@
 import Pool from './init.ts';
 
-// TODO Implement
-async function updatePerson() {
-	return Promise.resolve(true);
-}
-
 export async function getEmailAddresses(req, res) {
 	const { personId } = req.query;
 
@@ -73,7 +68,7 @@ export async function updateEmailAddress(req, res) {
 
 	const editEmailAddressQuery = `
 		UPDATE EmailAddresses
-		SET updated_at = datetime('now'),
+		SET updated_at = NOW(),
 			address = $1,
 			label = $2
 		WHERE id = $3
@@ -87,10 +82,6 @@ export async function updateEmailAddress(req, res) {
 		]);
 		pool.end();
 
-		// TODO: Update person "last updated"
-		const personId = null;
-		await updatePerson(personId);
-		
 		res.json(true);
 	} catch (error) {
 		console.log(error);
@@ -127,9 +118,6 @@ export async function createEmailAddress(req, res) {
 			personId,
 		]);
 		pool.end();
-
-		// TODO: Update person "last updated"
-		await updatePerson(personId);
 
 		const emailAddressId = result.rows[0].id;
 		res.json(emailAddressId);

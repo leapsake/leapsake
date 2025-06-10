@@ -1,10 +1,5 @@
 import Pool from './init.ts';
 
-// TODO Implement
-async function updatePerson() {
-	return Promise.resolve(true);
-}
-
 export async function getPhoneNumbers(req, res) {
 	const { personId } = req.query;
 
@@ -74,7 +69,7 @@ export async function updatePhoneNumber(req, res) {
 
 	const editPhoneNumberQuery = `
 		UPDATE PhoneNumbers
-		SET updated_at = datetime('now'),
+		SET updated_at = NOW(),
 			label = $1,
 			number = $2
 		WHERE id = $3
@@ -88,10 +83,6 @@ export async function updatePhoneNumber(req, res) {
 		]);
 		pool.end();
 
-		// TODO: Update person "last updated"
-		const personId = null;
-		await updatePerson(personId);
-		
 		res.json(true);
 	} catch (error) {
 		console.log(error);
@@ -128,9 +119,6 @@ export async function createPhoneNumber(req, res) {
 			personId,
 		]);
 		pool.end();
-
-		// TODO: Update person "last updated"
-		await updatePerson(personId);
 
 		const phoneNumberId = result.rows[0].id;
 		res.json(phoneNumberId);
