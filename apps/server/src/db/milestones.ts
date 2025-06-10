@@ -1,5 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
-import db from './init.ts';
+import Pool from './init.ts';
 
 // TODO Implement
 async function updatePerson() {
@@ -9,59 +8,57 @@ async function updatePerson() {
 export async function getMilestones(req, res) {
 	const { personId } = req.query;
 
+	const pool = new Pool();
+
 	const query = `
 		SELECT *
 		FROM Milestones
 		WHERE
-			(person_id = $personId)
+			(person_id = $1)
 		ORDER BY year ASC, month ASC, day ASC
 	`;
 
-	const milestones = await new Promise((resolve, reject) => {
-		db.all(
-			query,
-			{
-				$personId: personId,
-			},
-			(err, rows) => {
-				if (err) {
-					reject(err);
-				} else {
-					resolve(rows);
-				}
-			}
-		);
-	});
+	try {
+		const result = await pool.query(query, [
+			personId,
+		]);
+		pool.end();
 
-	res.json(milestones);
+		const milestones = result.rows;
+
+		res.json(milestones);
+	} catch (error) {
+		console.log(error);
+	}
 }
 
 export async function getMilestone(req, res) {
 	const { milestoneId } = req.params;
 
+	const pool = new Pool();
+
 	const query = `
 		SELECT *
 		FROM Milestones
-		WHERE id = $milestoneId
+		WHERE id = $1
 	`;
 
-	const milestone = await new Promise((resolve, reject) => {
-		db.get(
-			query,
-			{
-				$milestoneId: milestoneId,
-			},
-			(err, row) => {
-				if (err) {
-					reject(err);
-				} else {
-					resolve(row);
-				}
-			}
-		);
-	});
+	try {
+		const result = await pool.query(query, [
+			milestoneId,
+		]);
+		pool.end();
 
-	res.json(milestone);
+		const milestone = result.rows[0];
+
+		if (!milestone) {
+			res.status(404).json({ error: 'Milestone not found' });
+		}
+
+		res.json(milestone);
+	} catch (error) {
+		console.log(error);
+	}
 }
 
 export async function updateMilestone(req, res) {
@@ -74,37 +71,36 @@ export async function updateMilestone(req, res) {
 
 	const { milestoneId } = req.params;
 
+	const pool = new Pool();
+
 	const editMilestoneQuery = `
 		UPDATE Milestones
 		SET updated_at = datetime('now'),
-			day = $day,
-			label = $label,
-			month = $month,
-			year = $year
-		WHERE id = $milestoneId
+			day = $1,
+			label = $2,
+			month = $3,
+			year = $4
+		WHERE id = $5
 	`;
 
-	db.run(
-		editMilestoneQuery,
-		{
-			$day: day,
-			$label: label,
-			$month: month,
-			$year: year,
-			$milestoneId: milestoneId,
-		},
-		(err) => {
-			if (err) {
-				console.error(err);
-			}
-		}
-	);
+	try {
+		await pool.query(editMilestoneQuery, [
+			day,
+			label,
+			month,
+			year,
+			milestoneId,
+		]);
+		pool.end();
 
-	// TODO: Update person "last updated"
-	const personId = null;
-	await updatePerson(personId);
+		// TODO: Update person "last updated"
+		const personId = null;
+		await updatePerson(personId);
 
-	res.json(true);
+		res.json(true);
+	} catch (error) {
+		console.log(error);
+	}
 }
 
 export async function createMilestone(req, res) {
@@ -116,69 +112,64 @@ export async function createMilestone(req, res) {
 		personId,
 	} = req.body;
 
-	const milestoneId = uuidv4();
+	const pool = new Pool();
 
 	const addMilestoneQuery = `
 		INSERT INTO Milestones(
 			day,
-			id,
 			label,
 			month,
 			person_id,
 			year
 		)
 		VALUES(
-			$day,
-			$milestoneId,
-			$label,
-			$month,
-			$personId,
-			$year
+			$1,
+			$2,
+			$3,
+			$4,
+			$5
 		)
+		RETURNING id
 	`;
 
-	db.run(
-		addMilestoneQuery,
-		{
-			$day: day,
-			$label: label,
-			$milestoneId: milestoneId,
-			$month: month,
-			$personId: personId,
-			$year: year,
-		},
-		(err) => {
-			if (err) {
-				console.error(err);
-			}
-		}
-	);
+	try {
+		const result = await pool.query(addMilestoneQuery, [
+			day,
+			label,
+			month,
+			personId,
+			year,
+		]);
+		pool.end();
 
-	// TODO: Update person "last updated"
-	await updatePerson(personId);
+		// TODO: Update person "last updated"
+		await updatePerson(personId);
 
-	res.json(milestoneId);
+		const milestoneId = result.rows[0].id;
+		res.json(milestoneId);
+	} catch (error) {
+		console.log(error);
+	}
 }
 
 export async function deleteMilestone(req, res) {
 	const { milestoneId } = req.params;
 
+	const pool = new Pool();
+
 	const query = `
 		DELETE FROM Milestones
-		WHERE id = $milestoneId
+		WHERE id = $1
 	`;
 
-	db.run(
-		query,
-		{
-			$milestoneId: milestoneId,
-		},
-		(err) => {
-			if (err) {
-				console.error(err);
-			}
-		}
-	);
+	try {
+		await pool.query(query, [
+			milestoneId,
+		]);
+		pool.end();
 
-	res.json(true);
+		res.json(true);
+	} catch (error) {
+		console.log(error);
+	}
 }

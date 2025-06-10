@@ -1,5 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
-import db from './init.ts';
+import Pool from './init.ts';
 
 // TODO Implement
 async function updatePerson() {
@@ -9,29 +8,22 @@ async function updatePerson() {
 export async function getEmailAddresses(req, res) {
 	const { personId } = req.query;
 
+	const pool = new Pool();
+
 	const query = `
 		SELECT *
 		FROM EmailAddresses
 		WHERE
-			(person_id = $personId)
+			(person_id = $1)
 	`;
 
 	try {
-		const emailAddresses = await new Promise((resolve, reject) => {
-			db.all(
-				query,
-				{
-					$personId: personId,
-				},
-				(err, rows) => {
-					if (err) {
-						reject(err);
-					} else {
-						resolve(rows);
-					}
-				}
-			);
-		});
+		const result = await pool.query(query, [
+			personId,
+		]);
+		pool.end();
+		
+		const emailAddresses = result.rows;
 
 		res.json(emailAddresses);
 	} catch (error) {
@@ -42,28 +34,26 @@ export async function getEmailAddresses(req, res) {
 export async function getEmailAddress(req, res) {
 	const { emailAddressId } = req.params;
 
+	const pool = new Pool();
+
 	const query = `
 		SELECT *
 		FROM EmailAddresses
-		WHERE id = $emailAddressId
+		WHERE id = $1
 	`;
 
 	try {
-		const emailAddress = await new Promise((resolve, reject) => {
-			db.get(
-				query,
-				{
-					$emailAddressId: emailAddressId,
-				},
-				(err, row) => {
-					if (err) {
-						reject(err);
-					} else {
-						resolve(row);
-					}
-				}
-			);
-		});
+		const result = await pool.query(query, [
+			emailAddressId,
+		]);
+
+		pool.end();
+
+		const emailAddress = result.rows[0];
+
+		if (!emailAddress) {
+			res.status(404).json({ error: 'Email address not found' });
+		}
 
 		res.json(emailAddress);
 	} catch (error) {
@@ -79,28 +69,23 @@ export async function updateEmailAddress(req, res) {
 
 	const { emailAddressId } = req.params;
 
+	const pool = new Pool();
+
 	const editEmailAddressQuery = `
 		UPDATE EmailAddresses
 		SET updated_at = datetime('now'),
-			address = $address,
-			label = $label
-		WHERE id = $emailAddressId
+			address = $1,
+			label = $2
+		WHERE id = $3
 	`;
 
 	try {
-		db.run(
-			editEmailAddressQuery,
-			{
-				$address: address,
-				$label: label,
-				$emailAddressId: emailAddressId,
-			},
-			(err) => {
-				if (err) {
-					console.error(err);
-				}
-			}
-		);
+		await pool.query(editEmailAddressQuery, [
+			address,
+			label,
+			emailAddressId,
+		]);
+		pool.end();
 
 		// TODO: Update person "last updated"
 		const personId = null;
@@ -119,62 +104,58 @@ export async function createEmailAddress(req, res) {
 		personId,
 	} = req.body;
 
-	const emailAddressId = uuidv4();
+	const pool = new Pool();
 
 	const addEmailAddressQuery = `
 		INSERT INTO EmailAddresses(
 			address,
-			id,
 			label,
 			person_id
 		)
 		VALUES(
-			$address,
-			$emailAddressId,
-			$label,
-			$personId
+			$1,
+			$2,
+			$3
 		)
+		RETURNING id
 	`;
+	
+	try {
+		const result = await pool.query(addEmailAddressQuery, [
+			address,
+			label,
+			personId,
+		]);
+		pool.end();
 
-	db.run(
-		addEmailAddressQuery,
-		{
-			$emailAddressId: emailAddressId,
-			$address: address,
-			$label: label,
-			$personId: personId,
-		},
-		(err) => {
-			if (err) {
-				console.error(err);
-			}
-		}
-	);
+		// TODO: Update person "last updated"
+		await updatePerson(personId);
 
-	await updatePerson(personId);
-
-	res.json(emailAddressId);
+		const emailAddressId = result.rows[0].id;
+		res.json(emailAddressId);
+	} catch (error) {
+		console.log(error);
+	}
 }
 
 export async function deleteEmailAddress(req, res) {
 	const { emailAddressId } = req.params;
 
+	const pool = new Pool();
+
 	const query = `
 		DELETE FROM EmailAddresses
-		WHERE id = $emailAddressId
+		WHERE id = $1
 	`;
 
-	db.run(
-		query,
-		{
-			$emailAddressId: emailAddressId,
-		},
-		(err) => {
-			if (err) {
-				console.error(err);
-			}
-		}
-	);
+	try {
+		await pool.query(query, [
+			emailAddressId,
+		]);
+		pool.end();
 
-	res.json(true);
+		res.json(true);
+	} catch (error) {
+		console.log(error);
+	}
 }
