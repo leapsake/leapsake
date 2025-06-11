@@ -1,4 +1,4 @@
-import Pool from './init.ts';
+import Pool from '../pool';
 
 export async function getMilestones(req, res) {
 	const { personId } = req.query;
