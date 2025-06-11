@@ -105,7 +105,7 @@ export async function updatePerson(req, res) {
 
 	const query = `
 		UPDATE People
-		SET updated_at = datetime('now'),
+		SET updated_at = NOW(),
 			family_name = $1,
 			given_name = $2,
 			maiden_name = $3,

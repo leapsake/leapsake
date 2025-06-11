@@ -99,7 +99,7 @@ export async function updatePhoto(req, res) {
 
 	const query = `
 		UPDATE Photos
-		SET updated_at = datetime('now'),
+		SET updated_at = NOW(),
 			description = $1
 		WHERE id = $2
 	`;

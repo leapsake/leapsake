@@ -1,10 +1,5 @@
 import Pool from './init.ts';
 
-// TODO Implement
-async function updatePerson() {
-	return Promise.resolve(true);
-}
-
 export async function getMilestones(req, res) {
 	const { personId } = req.query;
 
@@ -75,7 +70,7 @@ export async function updateMilestone(req, res) {
 
 	const editMilestoneQuery = `
 		UPDATE Milestones
-		SET updated_at = datetime('now'),
+		SET updated_at = NOW(),
 			day = $1,
 			label = $2,
 			month = $3,
@@ -92,10 +87,6 @@ export async function updateMilestone(req, res) {
 			milestoneId,
 		]);
 		pool.end();
-
-		// TODO: Update person "last updated"
-		const personId = null;
-		await updatePerson(personId);
 
 		res.json(true);
 	} catch (error) {
@@ -141,9 +132,6 @@ export async function createMilestone(req, res) {
 			year,
 		]);
 		pool.end();
-
-		// TODO: Update person "last updated"
-		await updatePerson(personId);
 
 		const milestoneId = result.rows[0].id;
 		res.json(milestoneId);
