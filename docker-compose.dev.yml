@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   server:
     build:
@@ -8,6 +7,7 @@ services:
       - .:/workspace
       - /workspace/node_modules
       - nx-cache:/workspace/.nx
+      - assets_data:/assets
     ports:
       - "3333:3333"
     env_file: ".env.local"
@@ -39,3 +39,4 @@ services:
 volumes:
   nx-cache:
   postgres_data:
+  assets_data:

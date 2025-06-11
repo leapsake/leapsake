@@ -1,7 +1,8 @@
-import { v4 as uuidv4 } from 'uuid';
-import db from './init.ts';
+import Pool from './init.ts';
 
 export async function getPeople(req, res) {
+	const pool = new Pool();
+
 	const query = `
 		SELECT *
 		FROM People
@@ -9,56 +10,39 @@ export async function getPeople(req, res) {
 	`;
 
 	try {
-		const people = await new Promise((resolve, reject) => {
-			db.all(query,
-				(err, rows) => {
-					if (err) {
-						reject(err);
-					} else {
-						resolve(rows);
-					}
-				}
-			);
-		});
+		const result = await pool.query(query);
+		pool.end();
+
+		const people = result.rows;
 
 		res.json(people);
-	} catch (err) {
-		console.log(err);
+	} catch (error) {
+		console.log(error);
 	}
 }
 
 export async function getPerson(req, res) {
 	const { personId } = req.params;
+	const pool = new Pool();
 
 	const query = `
 		SELECT *
 		FROM People
-		WHERE id = $personId
+		WHERE id = $1
 	`;
 
 	try {
-		const person = await new Promise((resolve, reject) => {
-			db.get(
-				query,
-				{
-					$personId: personId,
-				},
-				(err, row) => {
-					if (err) {
-						reject(err);
-					} else {
-						resolve(row);
-					}
-				}
-			);
-		});
+		const result = await pool.query(query, [personId]);
+		pool.end();
+
+		const person = result.rows[0];
 
 		if (!person) {
 			res.status(404).json({ error: 'Person not found' });
 		}
 
 		res.json(person);
-	} catch (err) {
+	} catch (error) {
 		console.log(error);
 	}
 }
@@ -71,41 +55,35 @@ export async function createPerson(req, res) {
 		middleName,
 	} = req.body;
 
-	const personId = uuidv4();
+	const pool = new Pool();
 
 	const query = `
 		INSERT INTO People(
 			family_name,
 			given_name,
 			maiden_name,
-			middle_name,
-			id
+			middle_name
 		)
 		VALUES(
-			$familyName,
-			$givenName,
-			$maidenName,
-			$middleName,
-			$personId
+			$1,
+			$2,
+			$3,
+			$4
 		)
+		RETURNING id
 	`;
 
 	try {
-		db.run(
-			query,
-			{
-				$familyName: familyName,
-				$givenName: givenName,
-				$maidenName: maidenName,
-				$middleName: middleName,
-				$personId: personId,
-			},
-			(err) => {
-				if (err) {
-					console.error(err);
-				}
-			}
-		);
+	  	const result = await pool.query(query, [
+			familyName,
+			givenName,
+			maidenName,
+			middleName,
+		]);
+		pool.end();
+
+		const person = result.rows[0];
+		const personId = person.id;
 
 		res.json(personId);
 	} catch (error) {
@@ -123,34 +101,29 @@ export async function updatePerson(req, res) {
 		middleName,
 	} = req.body;
 
+	const pool = new Pool();
+
 	const query = `
 		UPDATE People
 		SET updated_at = datetime('now'),
-			family_name = $familyName,
-			given_name = $givenName,
-			maiden_name = $maidenName,
-			middle_name = $middleName
-		WHERE id = $personId
+			family_name = $1,
+			given_name = $2,
+			maiden_name = $3,
+			middle_name = $4
+		WHERE id = $5
 	`;
 
 	try {
-		db.run(
-			query,
-			{
-				$familyName: familyName,
-				$givenName: givenName,
-				$maidenName: maidenName,
-				$middleName: middleName,
-				$personId: personId,
-			},
-			(err) => {
-				if (err) {
-					console.error(err);
-				}
-			}
-		);
+		await pool.query(query, [
+			familyName,
+			givenName,
+			maidenName,
+			middleName,
+			personId,
+		]);
+		pool.end();
 
-		res.json(personId);
+		res.json(true);
 	} catch (error) {
 		console.log(error);
 	}
@@ -159,23 +132,18 @@ export async function updatePerson(req, res) {
 export async function deletePerson(req, res) {
 	const { personId } = req.params;
 
+	const pool = new Pool();
+
 	const query = `
 		DELETE FROM People
-		WHERE id = $personId
+		WHERE id = $1
 	`;
 
 	try {
-		db.run(
-			query,
-			{
-				$personId: personId,
-			},
-			(err) => {
-				if (err) {
-					console.error(err);
-				}
-			}
-		);
+		await pool.query(query, [
+			personId,
+		]);
+		pool.end();
 
 		res.json(true);
 	} catch (error) {

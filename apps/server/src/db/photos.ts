@@ -1,63 +1,59 @@
-import { v4 as uuidv4 } from 'uuid';
-import db from './init.ts';
+import fs from 'fs';
+import Pool from './init.ts';
 
 export async function getPhotos(req, res) {
+	const pool = new Pool();
+
 	const query = `
 		SELECT *
 		FROM Photos
 		ORDER BY created_at DESC
 	`;
 
-	const photos = await new Promise((resolve, reject) => {
-		db.all(
-			query,
-			(err, rows) => {
-				if (err) {
-					reject(err);
-				} else {
-					resolve(rows);
-				}
-			}
-		);
-	});
+	try {
+		const result = await pool.query(query);
+		pool.end();
 
-	res.json(photos);
+		const photos = result.rows;
+
+		res.json(photos);
+	} catch (error) {
+		console.log(error);
+	}
 }
 
 export async function getPhoto(req, res) {
 	const { photoId } = req.params;
+	const pool = new Pool();
 
 	const query = `
 		SELECT *
 		FROM Photos
-		WHERE id = $photoId
+		WHERE id = $1
 	`;
 
-	const photo = await new Promise((resolve, reject) => {
-		db.get(
-			query,
-			{
-				$photoId: photoId,
-			},
-			(err, row) => {
-				if (err) {
-					reject(err);
-				} else {
-					resolve(row);
-				}
-			}
-		);
-	});
+	try {
+		const result = await pool.query(query, [
+			photoId,
+		]);
+		pool.end();
 
-	if(!photo) {
-		res.status(404).json({ error: 'Photo not found' });
+		const photo = result.rows[0];
+
+		if (!photo) {
+			res.status(404).json({ error: 'Photo not found' });
+		}
+
+		res.json(photo);
+	} catch (error) {
+		console.log(error);
 	}
-
-	res.json(photo);
 }
 
 export async function createPhotos(req, res) {
 	const photos = req.files;
+	const pool = new Pool();
+	const serverURL = process.env.NEXT_PUBLIC_API_URL;
 
 	const query = `
 		INSERT INTO Photos(
@@ -65,37 +61,37 @@ export async function createPhotos(req, res) {
 			path
 		)
 		VALUES(
-			$photoId,
-			$photoPath
+			$1,
+			$2
 		)
 	`;
 
-
-	const serverURL = process.env.SERVER_URL;
-
-	await Promise.all(photos.map(async (photo) => {
-		const photoId = photo.filename.split('.')[0];
-		const photoPath = photo.path.replace('data/', serverURL + '/');
-
-		db.run(
-			query,
-			{
-				$photoId: photoId,
-				$photoPath: photoPath,
-			},
-			(err) => {
-				if (err) {
-					console.error(err);
+	try {
+		await Promise.all(photos.map(async (photo) => {
+			fs.chmod(photo.path, 0o644, (error) => {
+				if (error) {
+					console.log('chmod error:', err);
 				}
-			}
-		);
-	}));
+			});
+			const photoId = photo.filename.split('.')[0];
+			const photoPath = serverURL + photo.path;
 
-	res.json();
+			return pool.query(query, [
+				photoId,
+				photoPath,
+			]);
+		}));
+		pool.end();
+
+		res.json(true);
+	} catch (error) {
+		console.log(error);
+	}
 }
 
 export async function updatePhoto(req, res) {
 	const { photoId } = req.params;
+	const pool = new Pool();
 
 	const {
 		description,
@@ -104,23 +100,16 @@ export async function updatePhoto(req, res) {
 	const query = `
 		UPDATE Photos
 		SET updated_at = datetime('now'),
-			description = $description
-		WHERE id = $photoId
+			description = $1
+		WHERE id = $2
 	`;
 
 	try {
-		db.run(
-			query,
-			{
-				$description: description,
-				$photoId: photoId,
-			},
-			(err) => {
-				if (err) {
-					console.error(err);
-				}
-			}
-		);
+		await pool.query(query, [
+			description,
+			photoId,
+		]);
+		pool.end();
 
 		res.json(photoId);
 	} catch (error) {
@@ -130,24 +119,18 @@ export async function updatePhoto(req, res) {
 
 export async function deletePhoto(req, res) {
 	const { photoId } = req.params;
+	const pool = new Pool();
 
 	const query = `
 		DELETE FROM Photos
-		WHERE id = $photoId
+		WHERE id = $1
 	`;
 
 	try {
-		db.run(
-			query,
-			{
-				$photoId: photoId,
-			},
-			(err) => {
-				if (err) {
-					console.error(err);
-				}
-			}
-		);
+		await pool.query(query, [
+			photoId,
+		]);
+		pool.end();
 
 		res.json(true);
 	} catch (error) {
