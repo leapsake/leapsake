@@ -1,5 +1,4 @@
-//import * as path from 'path';
-import * as db from './db';
+import * as db from './db/queries';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -21,7 +20,6 @@ const mimeTypes = {
 	'.tiff': 'image/tiff',
 	'.webp': 'image/webp',
 };
-
 
 const storage = multer.diskStorage({
 	destination: function(req, file, callback) {
