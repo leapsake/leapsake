@@ -1,22 +1,25 @@
 import * as db from './db/queries';
 import express from 'express';
+import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
-import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { getMimeTypeFromExtension } from './utils';
-import { umzug } from './db/migrate';
 
-try {
-	umzug.up().then((executed) => {
-		if (executed.length > 0) {
-			console.log(`Database migrations complete, executed ${executed.length}`);
-		}
-	});
-} catch (error) {
-	console.log('Migration failed on startup:', error);
-	process.exit(1);
-}
+// https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/MIME_types/Common_types
+const mimeTypes = {
+	'.apng': 'image/apng',
+	'.avif': 'image/avif',
+	'.bmp': 'image/bmp',
+	'.gif': 'image/gif',
+	'.ico': 'image/vnd.microsoft.icon',
+	'.jpeg': 'image/jpeg',
+	'.jpg': 'image/jpeg',
+	'.png': 'image/png',
+	'.svg': 'image/svg+xml',
+	'.tif': 'image/tiff',
+	'.tiff': 'image/tiff',
+	'.webp': 'image/webp',
+};
 
 const storage = multer.diskStorage({
 	destination: function(req, file, callback) {
@@ -39,9 +42,9 @@ app.use((req, res, next) => {
 
 app.use('/assets', express.static('/assets', {
 	setHeaders: (res, filePath) => {
-		const extension = path.extname(filePath.toLowerCase());
+		const ext = path.extname(filePath.toLowerCase());
 
-		res.setHeader('Content-Type', getMimeTypeFromExtension(extension) || 'application/octect-stream');
+		res.setHeader('Content-Type', mimeTypes[ext] || 'application/octect-stream');
 	},
 }));
 
@@ -78,11 +81,8 @@ app.put('/phone-numbers/:phoneNumberId', db.updatePhoneNumber);
 app.get('/phone-numbers', db.getPhoneNumbers);
 app.post('/phone-numbers', db.createPhoneNumber);
 
-
 const port = process.env.SERVER_PORT;
-
 const server = app.listen(port, () => {
 	console.log(`Listening at http://localhost:${port}`);
 });
-
 server.on('error', console.error);
