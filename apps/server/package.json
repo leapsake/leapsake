@@ -1,6 +1,13 @@
 {
   "name": "@leapsake/server",
   "version": "0.0.0",
+  "scripts": {
+	"migrate": "node db/migrate.ts up",
+	"migrate:up": "node db/migrate.ts up",
+	"migrate:down": "node db/migrate.ts down",
+	"migrate:status": "node db/migrate.ts status",
+	"migrate:create": "node db/migrate.ts create"
+  },
   "nx": {
     "targets": {
       "serve": {
