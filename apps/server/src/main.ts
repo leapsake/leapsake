@@ -4,6 +4,11 @@ import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
+import { initDB } from './db/init';
+
+// TODO: This could become a race condition, 
+// make this a preqreq for starting the server
+initDB();
 
 // https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/MIME_types/Common_types
 const mimeTypes = {
