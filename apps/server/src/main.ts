@@ -5,26 +5,11 @@ import fs from 'fs';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { initDB } from './db/init';
+import { getMimeTypeFromExtension } from './utils';
 
 // TODO: This could become a race condition, 
 // make this a preqreq for starting the server
 initDB();
-
-// https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/MIME_types/Common_types
-const mimeTypes = {
-	'.apng': 'image/apng',
-	'.avif': 'image/avif',
-	'.bmp': 'image/bmp',
-	'.gif': 'image/gif',
-	'.ico': 'image/vnd.microsoft.icon',
-	'.jpeg': 'image/jpeg',
-	'.jpg': 'image/jpeg',
-	'.png': 'image/png',
-	'.svg': 'image/svg+xml',
-	'.tif': 'image/tiff',
-	'.tiff': 'image/tiff',
-	'.webp': 'image/webp',
-};
 
 const storage = multer.diskStorage({
 	destination: function(req, file, callback) {
@@ -47,9 +32,9 @@ app.use((req, res, next) => {
 
 app.use('/assets', express.static('/assets', {
 	setHeaders: (res, filePath) => {
-		const ext = path.extname(filePath.toLowerCase());
+		const extension = path.extname(filePath.toLowerCase());
 
-		res.setHeader('Content-Type', mimeTypes[ext] || 'application/octect-stream');
+		res.setHeader('Content-Type', getMimeTypeFromExtension(extension) || 'application/octect-stream');
 	},
 }));
 
