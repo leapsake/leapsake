@@ -70,9 +70,9 @@ export async function initDB() {
 		);
 
 		-- Indexes
-		CREATE INDEX idx_emailaddress_person_id ON EmailAddresses(person_id);
-		CREATE INDEX idx_milestones_person_id ON Milestones(person_id);
-		CREATE INDEX idx_phonenumbers_person_id ON PhoneNumbers(person_id);
+		CREATE INDEX IF NOT EXISTS idx_emailaddress_person_id ON EmailAddresses(person_id);
+		CREATE INDEX IF NOT EXISTS idx_milestones_person_id ON Milestones(person_id);
+		CREATE INDEX IF NOT EXISTS idx_phonenumbers_person_id ON PhoneNumbers(person_id);
 
 		-- Triggers
 		CREATE OR REPLACE FUNCTION update_person_timestamp()
@@ -86,17 +86,17 @@ export async function initDB() {
 		END;
 		$$ LANGUAGE plpgsql;
 
-		CREATE TRIGGER update_person_on_email_change
+		CREATE OR REPLACE TRIGGER update_person_on_email_change
 			AFTER INSERT OR UPDATE OR DELETE ON EmailAddresses
 			FOR EACH ROW
 			EXECUTE FUNCTION update_person_timestamp();
 
-		CREATE TRIGGER update_person_on_phone_change
+		CREATE OR REPLACE TRIGGER update_person_on_phone_change
 			AFTER INSERT OR UPDATE OR DELETE ON PhoneNumbers
 			FOR EACH ROW
 			EXECUTE FUNCTION update_person_timestamp();
 
-		CREATE TRIGGER update_person_on_milestone_change
+		CREATE OR REPLACE TRIGGER update_person_on_milestone_change
 			AFTER INSERT OR UPDATE OR DELETE ON Milestones
 			FOR EACH ROW
 			EXECUTE FUNCTION update_person_timestamp();
