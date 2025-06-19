@@ -8,8 +8,8 @@ export async function initDB() {
 
 		CREATE TABLE IF NOT EXISTS People(
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW(),
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			family_name TEXT,
 			given_name TEXT,
 			maiden_name TEXT,
@@ -18,8 +18,8 @@ export async function initDB() {
 
 		CREATE TABLE IF NOT EXISTS Milestones(
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW(),
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			day TEXT,
 			label TEXT,
 			month TEXT,
@@ -29,8 +29,8 @@ export async function initDB() {
 
 		CREATE TABLE IF NOT EXISTS EmailAddresses(
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW(),
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			address TEXT,
 			label TEXT,
 			person_id UUID NOT NULL REFERENCES People(id) ON DELETE CASCADE
@@ -38,8 +38,8 @@ export async function initDB() {
 
 		CREATE TABLE IF NOT EXISTS PhoneNumbers(
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW(),
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			label TEXT,
 			number TEXT,
 			person_id UUID NOT NULL REFERENCES People(id) ON DELETE CASCADE
@@ -47,8 +47,8 @@ export async function initDB() {
 
 		CREATE TABLE IF NOT EXISTS Photos(
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW(),
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			alt TEXT,
 			description TEXT,
 			path TEXT
@@ -56,15 +56,15 @@ export async function initDB() {
 
 		CREATE TABLE IF NOT EXISTS PhotoAlbums(
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW(),
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			description TEXT
 		);
 
 		CREATE TABLE IF NOT EXISTS PhotoAlbumItems(
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			updated_at TIMESTAMPTZ DEFAULT NOW(),
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			photo_id UUID NOT NULL REFERENCES Photos(id) ON DELETE CASCADE,
 			photo_album_id UUID NOT NULL REFERENCES PhotoAlbums(id) ON DELETE CASCADE
 		);
