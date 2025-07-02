@@ -6,12 +6,11 @@ services:
     volumes:
       - .:/workspace
       - /workspace/node_modules
-      - nx-cache:/workspace/.nx
       - assets_data:/assets
     ports:
       - "3333:3333"
     env_file: ".env.local"
-    command: npx nx serve server
+    command: npm run dev:server
 
   postgres:
     image: postgres:15
@@ -28,15 +27,13 @@ services:
     volumes:
       - .:/workspace
       - /workspace/node_modules
-      - nx-cache:/workspace/.nx
     ports:
       - "3000:3000"
     env_file: ".env.local"
     depends_on:
       - server
-    command: npx nx dev client-web
+    command: npm run dev:client-web
 
 volumes:
-  nx-cache:
   postgres_data:
   assets_data:

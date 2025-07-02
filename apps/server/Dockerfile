@@ -1,17 +1,16 @@
 FROM node:22-alpine AS base
 WORKDIR /app
 
-COPY package*.json nx.json tsconfig*.json ./
-COPY apps/server ./apps/server
-# COPY libs ./libs
+COPY apps/server/package*.json ./
+COPY apps/server ./
 
 RUN npm ci
-RUN npx nx build server --prod
+RUN npm run build
 
 FROM node:18-alpine AS runtime
 WORKDIR /app
 
-COPY --from=base /app/dist/apps/server ./
+COPY --from=base /app/dist ./
 COPY --from=base /app/node_modules ./node_modules
 
 RUN mkdir -p /app/data && chown -R 1001:1001 /app/data

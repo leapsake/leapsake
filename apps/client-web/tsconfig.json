@@ -34,6 +34,7 @@
     "skipLibCheck": true,
     "sourceMap": false,
     "strict": true,
+    "noImplicitAny": false,
     "target": "es2022"
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
