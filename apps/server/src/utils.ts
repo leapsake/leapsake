@@ -1,4 +1,4 @@
-export async function getMimeTypeFromExtension(extension) {
+export function getMimeTypeFromExtension(extension: string) {
 	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/MIME_types/Common_types
 	const mimeTypes = {
 		'.apng': 'image/apng',

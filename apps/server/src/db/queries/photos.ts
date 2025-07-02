@@ -70,7 +70,7 @@ export async function createPhotos(req, res) {
 		await Promise.all(photos.map(async (photo) => {
 			fs.chmod(photo.path, 0o644, (error) => {
 				if (error) {
-					console.log('chmod error:', err);
+					console.log('chmod error:', error);
 				}
 			});
 			const photoId = photo.filename.split('.')[0];

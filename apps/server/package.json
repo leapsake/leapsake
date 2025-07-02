@@ -1,27 +1,25 @@
 {
   "name": "@leapsake/server",
   "version": "0.0.0",
-  "nx": {
-    "targets": {
-      "serve": {
-        "executor": "@nx/js:node",
-        "defaultConfiguration": "development",
-        "dependsOn": [
-          "build"
-        ],
-        "options": {
-          "buildTarget": "@leapsake/server:build",
-          "runBuildTargetDependencies": false
-        },
-        "configurations": {
-          "development": {
-            "buildTarget": "@leapsake/server:build:development"
-          },
-          "production": {
-            "buildTarget": "@leapsake/server:build:production"
-          }
-        }
-      }
-    }
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.app.json",
+    "dev": "tsc -p tsconfig.app.json && node dist/main.js",
+    "start": "node dist/main.js",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "multer": "^2.0.0",
+    "pg": "^8.16.0",
+    "uuid": "^11.0.4"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "~18.16.9",
+    "@types/pg": "^8.15.4",
+    "eslint": "^9.8.0",
+    "typescript": "^5.7.2"
   }
 }
