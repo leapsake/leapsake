@@ -1,5 +1,5 @@
-import fs from 'fs';
-import Pool from '../pool';
+import fs from 'node:fs';
+import Pool from '../pool.js';
 
 export async function getPhotos(req, res) {
 	const pool = new Pool();

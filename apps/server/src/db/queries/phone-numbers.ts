@@ -1,4 +1,4 @@
-import Pool from '../pool';
+import Pool from '../pool.js';
 
 export async function getPhoneNumbers(req, res) {
 	const { personId } = req.query;
