@@ -12,6 +12,7 @@
   "dependencies": {
     "express": "^4.21.2",
     "multer": "^2.0.0",
+    "node-pg-migrate": "^8.0.3",
     "pg": "^8.16.0",
     "uuid": "^11.0.4"
   },
