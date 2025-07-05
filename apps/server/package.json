@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.app.json",
     "dev": "tsc -p tsconfig.app.json && node dist/main.js",
     "start": "node dist/main.js",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "migration:create": "node-pg-migrate create -j sql"
   },
   "dependencies": {
     "express": "^4.21.2",
