@@ -54,19 +54,19 @@ export async function initDB() {
 			path TEXT
 		);
 
-		CREATE TABLE IF NOT EXISTS PhotoAlbums(
+		CREATE TABLE IF NOT EXISTS Albums(
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			description TEXT
 		);
 
-		CREATE TABLE IF NOT EXISTS PhotoAlbumItems(
+		CREATE TABLE IF NOT EXISTS AlbumItems(
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			photo_id UUID NOT NULL REFERENCES Photos(id) ON DELETE CASCADE,
-			photo_album_id UUID NOT NULL REFERENCES PhotoAlbums(id) ON DELETE CASCADE
+			album_id UUID NOT NULL REFERENCES Albums(id) ON DELETE CASCADE
 		);
 
 		-- Indexes
