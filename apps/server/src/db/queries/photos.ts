@@ -69,7 +69,7 @@ export async function createPhotos(req, res) {
 	try {
 		await Promise.all(photos.map(async (photo) => {
 			try {
-				await fs.chmod(photo.path, 0o644)
+				await fs.chmod(photo.path, 0o644);
 			} catch (error) {
 				console.log('chmod error:', error);
 			}
