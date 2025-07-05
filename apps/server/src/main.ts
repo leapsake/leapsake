@@ -9,10 +9,6 @@ import { initDB } from './db/init.js';
 import * as db from './db/queries/index.js';
 import { getMimeTypeFromExtension } from './utils.js';
 
-// TODO: This could become a race condition, 
-// make this a preqreq for starting the server
-initDB();
-
 const storage = multer.diskStorage({
 	destination: async function(req, file, callback) {
 		await fs.mkdir('/assets', { recursive: true });
@@ -72,6 +68,8 @@ app.get('/phone-numbers/:phoneNumberId', db.getPhoneNumber);
 app.put('/phone-numbers/:phoneNumberId', db.updatePhoneNumber);
 app.get('/phone-numbers', db.getPhoneNumbers);
 app.post('/phone-numbers', db.createPhoneNumber);
+
+await initDB();
 
 const port = process.env.SERVER_PORT;
 const server = app.listen(port, () => {
