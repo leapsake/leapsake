@@ -1,5 +1,5 @@
 import path from 'node:path';
-import fs from 'node:fs';
+import fs from 'node:fs/promises';
 
 import express from 'express';
 import multer from 'multer';
@@ -14,8 +14,8 @@ import { getMimeTypeFromExtension } from './utils.js';
 initDB();
 
 const storage = multer.diskStorage({
-	destination: function(req, file, callback) {
-		fs.mkdirSync('/assets', { recursive: true });
+	destination: async function(req, file, callback) {
+		await fs.mkdir('/assets', { recursive: true });
 		callback(null, '/assets');
 	},
 	filename: function (req, file, callback) {
