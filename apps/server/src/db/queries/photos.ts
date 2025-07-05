@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+import fs from 'node:fs/promises';
 import Pool from '../pool.js';
 
 export async function getPhotos(req, res) {
@@ -68,11 +68,12 @@ export async function createPhotos(req, res) {
 
 	try {
 		await Promise.all(photos.map(async (photo) => {
-			fs.chmod(photo.path, 0o644, (error) => {
-				if (error) {
-					console.log('chmod error:', error);
-				}
-			});
+			try {
+				await fs.chmod(photo.path, 0o644)
+			} catch (error) {
+				console.log('chmod error:', error);
+			}
+
 			const photoId = photo.filename.split('.')[0];
 			const photoPath = serverURL + photo.path;
 
