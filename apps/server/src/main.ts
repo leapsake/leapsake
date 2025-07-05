@@ -1,11 +1,13 @@
-import * as db from './db/queries';
+import path from 'node:path';
+import fs from 'node:fs';
+
 import express from 'express';
-import path from 'path';
-import fs from 'fs';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
-import { initDB } from './db/init';
-import { getMimeTypeFromExtension } from './utils';
+
+import { initDB } from './db/init.js';
+import * as db from './db/queries/index.js';
+import { getMimeTypeFromExtension } from './utils.js';
 
 // TODO: This could become a race condition, 
 // make this a preqreq for starting the server

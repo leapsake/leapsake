@@ -1,4 +1,4 @@
-import Pool from '../pool';
+import Pool from '../pool.js';
 
 export async function getPeople(req, res) {
 	const pool = new Pool();

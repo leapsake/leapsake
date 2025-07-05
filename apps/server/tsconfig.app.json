@@ -1,17 +1,18 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "commonjs",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "NodeNext",
+	"moduleResolution": "NodeNext",
+    "noImplicitAny": false,
     "outDir": "dist",
     "rootDir": "src",
-    "strict": true,
-    "noImplicitAny": false,
-    "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "types": ["node", "express"],
-    "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo"
+    "strict": true,
+    "target": "ES2022",
+    "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo",
+    "types": ["node", "express"]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["eslint.config.js", "eslint.config.cjs", "eslint.config.mjs"]
+  "exclude": ["eslint.config.js", "eslint.config.cjs", "eslint.config.mjs"],
+  "include": ["src/**/*.ts"]
 }
