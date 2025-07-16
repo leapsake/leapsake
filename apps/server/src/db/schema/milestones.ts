@@ -1,4 +1,4 @@
-import { pgTable, uuid, timestamp, text } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, timestamp, text, index } from 'drizzle-orm/pg-core';
 import { people } from './people';
 
 export const milestones = pgTable('Milestones', {
@@ -10,4 +10,6 @@ export const milestones = pgTable('Milestones', {
   month: text('month'),
   personId: uuid('person_id').notNull().references(() => people.id, { onDelete: 'cascade' }),
   year: text('year'),
-});
+}, (table) => ({
+  personIdIdx: index('idx_milestones_person_id').on(table.personId),
+}));

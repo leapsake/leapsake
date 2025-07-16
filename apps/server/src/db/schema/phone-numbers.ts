@@ -1,4 +1,4 @@
-import { pgTable, uuid, timestamp, text } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, timestamp, text, index } from 'drizzle-orm/pg-core';
 import { people } from './people';
 
 export const phoneNumbers = pgTable('PhoneNumbers', {
@@ -8,4 +8,6 @@ export const phoneNumbers = pgTable('PhoneNumbers', {
   label: text('label'),
   number: text('number'),
   personId: uuid('person_id').notNull().references(() => people.id, { onDelete: 'cascade' }),
-});
+}, (table) => ({
+  personIdIdx: index('idx_phonenumbers_person_id').on(table.personId),
+}));
