@@ -1,27 +1,17 @@
-import Pool from '../pool.js';
+import { eq } from 'drizzle-orm';
+import { db } from '../connection.js';
+import { phoneNumbers } from '../schema/phone-numbers.js';
 
 export async function getPhoneNumbers(req, res) {
 	const { personId } = req.query;
 
-	const pool = new Pool();
-
-	const query = `
-		SELECT *
-		FROM PhoneNumbers
-		WHERE
-			(person_id = $1)
-	`;
-
 	try {
-		const result = await pool.query(query, [
-			personId,
-		]);
+		const result = await db
+			.select()
+			.from(phoneNumbers)
+			.where(eq(phoneNumbers.personId, personId));
 
-		pool.end();
-
-		const phoneNumbers = result.rows;
-
-		res.json(phoneNumbers);
+		res.json(result);
 	} catch (error) {
 		console.log(error);
 	}
@@ -30,22 +20,13 @@ export async function getPhoneNumbers(req, res) {
 export async function getPhoneNumber(req, res) {
 	const { phoneNumberId } = req.params;
 
-	const pool = new Pool();
-
-	const query = `
-		SELECT *
-		FROM PhoneNumbers
-		WHERE id = $1
-	`;
-
 	try {
-		const result = await pool.query(query, [
-			phoneNumberId,
-		]);
+		const result = await db
+			.select()
+			.from(phoneNumbers)
+			.where(eq(phoneNumbers.id, phoneNumberId));
 
-		pool.end();
-
-		const phoneNumber = result.rows[0];
+		const phoneNumber = result[0];
 
 		if (!phoneNumber) {
 			res.status(404).json({ error: 'Phone number not found' });
@@ -65,23 +46,15 @@ export async function updatePhoneNumber(req, res) {
 
 	const { phoneNumberId } = req.params;
 
-	const pool = new Pool();
-
-	const editPhoneNumberQuery = `
-		UPDATE PhoneNumbers
-		SET updated_at = NOW(),
-			label = $1,
-			number = $2
-		WHERE id = $3
-	`;
-
 	try {
-		await pool.query(editPhoneNumberQuery, [
-			label,
-			number,
-			phoneNumberId,
-		]);
-		pool.end();
+		await db
+			.update(phoneNumbers)
+			.set({
+				updatedAt: new Date(),
+				label,
+				number,
+			})
+			.where(eq(phoneNumbers.id, phoneNumberId));
 
 		res.json(true);
 	} catch (error) {
@@ -96,31 +69,17 @@ export async function createPhoneNumber(req, res) {
 		personId,
 	} = req.body;
 
-	const pool = new Pool();
-
-	const addPhoneNumberQuery = `
-		INSERT INTO PhoneNumbers(
-			label,
-			number,
-			person_id
-		)
-		VALUES(
-			$1,
-			$2,
-			$3
-		)
-		RETURNING id
-	`;
-
 	try {
-		const result = await pool.query(addPhoneNumberQuery, [
-			label,
-			number,
-			personId,
-		]);
-		pool.end();
+		const result = await db
+			.insert(phoneNumbers)
+			.values({
+				label,
+				number,
+				personId,
+			})
+			.returning({ id: phoneNumbers.id });
 
-		const phoneNumberId = result.rows[0].id;
+		const phoneNumberId = result[0].id;
 		res.json(phoneNumberId);
 	} catch (error) {
 		console.log(error);
@@ -130,18 +89,10 @@ export async function createPhoneNumber(req, res) {
 export async function deletePhoneNumber(req, res) {
 	const { phoneNumberId } = req.params;
 
-	const pool = new Pool();
-
-	const query = `
-		DELETE FROM PhoneNumbers
-		WHERE id = $1
-	`;
-
 	try {
-		await pool.query(query, [
-			phoneNumberId,
-		]);
-		pool.end();
+		await db
+			.delete(phoneNumbers)
+			.where(eq(phoneNumbers.id, phoneNumberId));
 
 		res.json(true);
 	} catch (error) {
