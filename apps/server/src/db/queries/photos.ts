@@ -1,22 +1,16 @@
 import fs from 'node:fs/promises';
-import Pool from '../pool.js';
+import { desc, eq } from 'drizzle-orm';
+import { db } from '../connection.js';
+import { photos } from '../schema/photos.js';
 
 export async function getPhotos(req, res) {
-	const pool = new Pool();
-
-	const query = `
-		SELECT *
-		FROM Photos
-		ORDER BY created_at DESC
-	`;
-
 	try {
-		const result = await pool.query(query);
-		pool.end();
+		const result = await db
+			.select()
+			.from(photos)
+			.orderBy(desc(photos.createdAt));
 
-		const photos = result.rows;
-
-		res.json(photos);
+		res.json(result);
 	} catch (error) {
 		console.log(error);
 	}
@@ -24,21 +18,14 @@ export async function getPhotos(req, res) {
 
 export async function getPhoto(req, res) {
 	const { photoId } = req.params;
-	const pool = new Pool();
-
-	const query = `
-		SELECT *
-		FROM Photos
-		WHERE id = $1
-	`;
 
 	try {
-		const result = await pool.query(query, [
-			photoId,
-		]);
-		pool.end();
+		const result = await db
+			.select()
+			.from(photos)
+			.where(eq(photos.id, photoId));
 
-		const photo = result.rows[0];
+		const photo = result[0];
 
 		if (!photo) {
 			res.status(404).json({ error: 'Photo not found' });
@@ -51,23 +38,11 @@ export async function getPhoto(req, res) {
 }
 
 export async function createPhotos(req, res) {
-	const photos = req.files;
-	const pool = new Pool();
+	const photoFiles = req.files;
 	const serverURL = process.env.NEXT_PUBLIC_API_URL;
 
-	const query = `
-		INSERT INTO Photos(
-			id,
-			path
-		)
-		VALUES(
-			$1,
-			$2
-		)
-	`;
-
 	try {
-		await Promise.all(photos.map(async (photo) => {
+		await Promise.all(photoFiles.map(async (photo) => {
 			try {
 				await fs.chmod(photo.path, 0o644);
 			} catch (error) {
@@ -77,12 +52,11 @@ export async function createPhotos(req, res) {
 			const photoId = photo.filename.split('.')[0];
 			const photoPath = serverURL + photo.path;
 
-			return pool.query(query, [
-				photoId,
-				photoPath,
-			]);
+			return db.insert(photos).values({
+				id: photoId,
+				path: photoPath,
+			});
 		}));
-		pool.end();
 
 		res.json(true);
 	} catch (error) {
@@ -92,25 +66,19 @@ export async function createPhotos(req, res) {
 
 export async function updatePhoto(req, res) {
 	const { photoId } = req.params;
-	const pool = new Pool();
 
 	const {
 		description,
 	} = req.body;
 
-	const query = `
-		UPDATE Photos
-		SET updated_at = NOW(),
-			description = $1
-		WHERE id = $2
-	`;
-
 	try {
-		await pool.query(query, [
-			description,
-			photoId,
-		]);
-		pool.end();
+		await db
+			.update(photos)
+			.set({
+				updatedAt: new Date(),
+				description,
+			})
+			.where(eq(photos.id, photoId));
 
 		res.json(photoId);
 	} catch (error) {
@@ -120,18 +88,11 @@ export async function updatePhoto(req, res) {
 
 export async function deletePhoto(req, res) {
 	const { photoId } = req.params;
-	const pool = new Pool();
-
-	const query = `
-		DELETE FROM Photos
-		WHERE id = $1
-	`;
 
 	try {
-		await pool.query(query, [
-			photoId,
-		]);
-		pool.end();
+		await db
+			.delete(photos)
+			.where(eq(photos.id, photoId));
 
 		res.json(true);
 	} catch (error) {
