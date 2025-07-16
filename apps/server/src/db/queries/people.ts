@@ -1,21 +1,15 @@
-import Pool from '../pool.js';
+import { asc, eq } from 'drizzle-orm';
+import { db } from '../connection.js';
+import { people } from '../schema/people.js';
 
 export async function getPeople(req, res) {
-	const pool = new Pool();
-
-	const query = `
-		SELECT *
-		FROM People
-		ORDER BY family_name ASC, given_name ASC
-	`;
-
 	try {
-		const result = await pool.query(query);
-		pool.end();
+		const result = await db
+			.select()
+			.from(people)
+			.orderBy(asc(people.familyName), asc(people.givenName));
 
-		const people = result.rows;
-
-		res.json(people);
+		res.json(result);
 	} catch (error) {
 		console.log(error);
 	}
@@ -23,19 +17,14 @@ export async function getPeople(req, res) {
 
 export async function getPerson(req, res) {
 	const { personId } = req.params;
-	const pool = new Pool();
-
-	const query = `
-		SELECT *
-		FROM People
-		WHERE id = $1
-	`;
 
 	try {
-		const result = await pool.query(query, [personId]);
-		pool.end();
+		const result = await db
+			.select()
+			.from(people)
+			.where(eq(people.id, personId));
 
-		const person = result.rows[0];
+		const person = result[0];
 
 		if (!person) {
 			res.status(404).json({ error: 'Person not found' });
@@ -55,35 +44,18 @@ export async function createPerson(req, res) {
 		middleName,
 	} = req.body;
 
-	const pool = new Pool();
-
-	const query = `
-		INSERT INTO People(
-			family_name,
-			given_name,
-			maiden_name,
-			middle_name
-		)
-		VALUES(
-			$1,
-			$2,
-			$3,
-			$4
-		)
-		RETURNING id
-	`;
-
 	try {
-	  	const result = await pool.query(query, [
-			familyName,
-			givenName,
-			maidenName,
-			middleName,
-		]);
-		pool.end();
+		const result = await db
+			.insert(people)
+			.values({
+				familyName,
+				givenName,
+				maidenName,
+				middleName,
+			})
+			.returning({ id: people.id });
 
-		const person = result.rows[0];
-		const personId = person.id;
+		const personId = result[0].id;
 
 		res.json(personId);
 	} catch (error) {
@@ -101,27 +73,17 @@ export async function updatePerson(req, res) {
 		middleName,
 	} = req.body;
 
-	const pool = new Pool();
-
-	const query = `
-		UPDATE People
-		SET updated_at = NOW(),
-			family_name = $1,
-			given_name = $2,
-			maiden_name = $3,
-			middle_name = $4
-		WHERE id = $5
-	`;
-
 	try {
-		await pool.query(query, [
-			familyName,
-			givenName,
-			maidenName,
-			middleName,
-			personId,
-		]);
-		pool.end();
+		await db
+			.update(people)
+			.set({
+				updatedAt: new Date(),
+				familyName,
+				givenName,
+				maidenName,
+				middleName,
+			})
+			.where(eq(people.id, personId));
 
 		res.json(true);
 	} catch (error) {
@@ -132,18 +94,10 @@ export async function updatePerson(req, res) {
 export async function deletePerson(req, res) {
 	const { personId } = req.params;
 
-	const pool = new Pool();
-
-	const query = `
-		DELETE FROM People
-		WHERE id = $1
-	`;
-
 	try {
-		await pool.query(query, [
-			personId,
-		]);
-		pool.end();
+		await db
+			.delete(people)
+			.where(eq(people.id, personId));
 
 		res.json(true);
 	} catch (error) {
