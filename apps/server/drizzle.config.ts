@@ -11,4 +11,7 @@ export default defineConfig({
     password: process.env.POSTGRES_PASSWORD || '',
     database: process.env.POSTGRES_DB || 'leapsake',
   },
+  migrations: {
+    prefix: 'timestamp',
+  },
 });
