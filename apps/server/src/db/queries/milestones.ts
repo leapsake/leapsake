@@ -1,27 +1,18 @@
-import Pool from '../pool.js';
+import { asc, eq } from 'drizzle-orm';
+import { db } from '../connection.js';
+import { milestones } from '../schema/milestones.js';
 
 export async function getMilestones(req, res) {
 	const { personId } = req.query;
 
-	const pool = new Pool();
-
-	const query = `
-		SELECT *
-		FROM Milestones
-		WHERE
-			(person_id = $1)
-		ORDER BY year ASC, month ASC, day ASC
-	`;
-
 	try {
-		const result = await pool.query(query, [
-			personId,
-		]);
-		pool.end();
+		const result = await db
+			.select()
+			.from(milestones)
+			.where(eq(milestones.personId, personId))
+			.orderBy(asc(milestones.year), asc(milestones.month), asc(milestones.day));
 
-		const milestones = result.rows;
-
-		res.json(milestones);
+		res.json(result);
 	} catch (error) {
 		console.log(error);
 	}
@@ -30,21 +21,13 @@ export async function getMilestones(req, res) {
 export async function getMilestone(req, res) {
 	const { milestoneId } = req.params;
 
-	const pool = new Pool();
-
-	const query = `
-		SELECT *
-		FROM Milestones
-		WHERE id = $1
-	`;
-
 	try {
-		const result = await pool.query(query, [
-			milestoneId,
-		]);
-		pool.end();
+		const result = await db
+			.select()
+			.from(milestones)
+			.where(eq(milestones.id, milestoneId));
 
-		const milestone = result.rows[0];
+		const milestone = result[0];
 
 		if (!milestone) {
 			res.status(404).json({ error: 'Milestone not found' });
@@ -66,27 +49,17 @@ export async function updateMilestone(req, res) {
 
 	const { milestoneId } = req.params;
 
-	const pool = new Pool();
-
-	const editMilestoneQuery = `
-		UPDATE Milestones
-		SET updated_at = NOW(),
-			day = $1,
-			label = $2,
-			month = $3,
-			year = $4
-		WHERE id = $5
-	`;
-
 	try {
-		await pool.query(editMilestoneQuery, [
-			day,
-			label,
-			month,
-			year,
-			milestoneId,
-		]);
-		pool.end();
+		await db
+			.update(milestones)
+			.set({
+				updatedAt: new Date(),
+				day,
+				label,
+				month,
+				year,
+			})
+			.where(eq(milestones.id, milestoneId));
 
 		res.json(true);
 	} catch (error) {
@@ -103,37 +76,19 @@ export async function createMilestone(req, res) {
 		personId,
 	} = req.body;
 
-	const pool = new Pool();
-
-	const addMilestoneQuery = `
-		INSERT INTO Milestones(
-			day,
-			label,
-			month,
-			person_id,
-			year
-		)
-		VALUES(
-			$1,
-			$2,
-			$3,
-			$4,
-			$5
-		)
-		RETURNING id
-	`;
-
 	try {
-		const result = await pool.query(addMilestoneQuery, [
-			day,
-			label,
-			month,
-			personId,
-			year,
-		]);
-		pool.end();
+		const result = await db
+			.insert(milestones)
+			.values({
+				day,
+				label,
+				month,
+				personId,
+				year,
+			})
+			.returning({ id: milestones.id });
 
-		const milestoneId = result.rows[0].id;
+		const milestoneId = result[0].id;
 		res.json(milestoneId);
 	} catch (error) {
 		console.log(error);
@@ -143,18 +98,10 @@ export async function createMilestone(req, res) {
 export async function deleteMilestone(req, res) {
 	const { milestoneId } = req.params;
 
-	const pool = new Pool();
-
-	const query = `
-		DELETE FROM Milestones
-		WHERE id = $1
-	`;
-
 	try {
-		await pool.query(query, [
-			milestoneId,
-		]);
-		pool.end();
+		await db
+			.delete(milestones)
+			.where(eq(milestones.id, milestoneId));
 
 		res.json(true);
 	} catch (error) {
