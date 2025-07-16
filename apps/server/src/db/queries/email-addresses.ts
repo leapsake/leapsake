@@ -1,26 +1,17 @@
-import Pool from '../pool.js';
+import { eq } from 'drizzle-orm';
+import { db } from '../connection.js';
+import { emailAddresses } from '../schema/email-addresses.js';
 
 export async function getEmailAddresses(req, res) {
 	const { personId } = req.query;
 
-	const pool = new Pool();
-
-	const query = `
-		SELECT *
-		FROM EmailAddresses
-		WHERE
-			(person_id = $1)
-	`;
-
 	try {
-		const result = await pool.query(query, [
-			personId,
-		]);
-		pool.end();
-		
-		const emailAddresses = result.rows;
+		const result = await db
+			.select()
+			.from(emailAddresses)
+			.where(eq(emailAddresses.personId, personId));
 
-		res.json(emailAddresses);
+		res.json(result);
 	} catch (error) {
 		console.log(error);
 	}
@@ -29,22 +20,13 @@ export async function getEmailAddresses(req, res) {
 export async function getEmailAddress(req, res) {
 	const { emailAddressId } = req.params;
 
-	const pool = new Pool();
-
-	const query = `
-		SELECT *
-		FROM EmailAddresses
-		WHERE id = $1
-	`;
-
 	try {
-		const result = await pool.query(query, [
-			emailAddressId,
-		]);
+		const result = await db
+			.select()
+			.from(emailAddresses)
+			.where(eq(emailAddresses.id, emailAddressId));
 
-		pool.end();
-
-		const emailAddress = result.rows[0];
+		const emailAddress = result[0];
 
 		if (!emailAddress) {
 			res.status(404).json({ error: 'Email address not found' });
@@ -64,23 +46,15 @@ export async function updateEmailAddress(req, res) {
 
 	const { emailAddressId } = req.params;
 
-	const pool = new Pool();
-
-	const editEmailAddressQuery = `
-		UPDATE EmailAddresses
-		SET updated_at = NOW(),
-			address = $1,
-			label = $2
-		WHERE id = $3
-	`;
-
 	try {
-		await pool.query(editEmailAddressQuery, [
-			address,
-			label,
-			emailAddressId,
-		]);
-		pool.end();
+		await db
+			.update(emailAddresses)
+			.set({
+				updatedAt: new Date(),
+				address,
+				label,
+			})
+			.where(eq(emailAddresses.id, emailAddressId));
 
 		res.json(true);
 	} catch (error) {
@@ -94,32 +68,18 @@ export async function createEmailAddress(req, res) {
 		label,
 		personId,
 	} = req.body;
-
-	const pool = new Pool();
-
-	const addEmailAddressQuery = `
-		INSERT INTO EmailAddresses(
-			address,
-			label,
-			person_id
-		)
-		VALUES(
-			$1,
-			$2,
-			$3
-		)
-		RETURNING id
-	`;
 	
 	try {
-		const result = await pool.query(addEmailAddressQuery, [
-			address,
-			label,
-			personId,
-		]);
-		pool.end();
+		const result = await db
+			.insert(emailAddresses)
+			.values({
+				address,
+				label,
+				personId,
+			})
+			.returning({ id: emailAddresses.id });
 
-		const emailAddressId = result.rows[0].id;
+		const emailAddressId = result[0].id;
 		res.json(emailAddressId);
 	} catch (error) {
 		console.log(error);
@@ -129,18 +89,10 @@ export async function createEmailAddress(req, res) {
 export async function deleteEmailAddress(req, res) {
 	const { emailAddressId } = req.params;
 
-	const pool = new Pool();
-
-	const query = `
-		DELETE FROM EmailAddresses
-		WHERE id = $1
-	`;
-
 	try {
-		await pool.query(query, [
-			emailAddressId,
-		]);
-		pool.end();
+		await db
+			.delete(emailAddresses)
+			.where(eq(emailAddresses.id, emailAddressId));
 
 		res.json(true);
 	} catch (error) {
