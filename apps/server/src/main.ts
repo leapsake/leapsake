@@ -5,7 +5,7 @@ import express from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 
-import { initDB } from './db/init.js';
+import { runMigrations } from './db/migrate.js';
 import * as db from './db/queries/index.js';
 import { getMimeTypeFromExtension } from './utils.js';
 
@@ -69,7 +69,7 @@ app.put('/phone-numbers/:phoneNumberId', db.updatePhoneNumber);
 app.get('/phone-numbers', db.getPhoneNumbers);
 app.post('/phone-numbers', db.createPhoneNumber);
 
-await initDB();
+await runMigrations();
 
 const port = process.env.SERVER_PORT;
 const server = app.listen(port, () => {
