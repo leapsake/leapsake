@@ -7,7 +7,10 @@
     "build": "tsc -p tsconfig.app.json",
     "dev": "tsc -p tsconfig.app.json && node dist/main.js",
     "start": "node dist/main.js",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "db:generate": "drizzle-kit generate --name",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "drizzle-kit": "^0.31.4",
