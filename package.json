@@ -2,24 +2,5 @@
   "name": "@leapsake/source",
   "version": "0.0.0",
   "license": "AGPL-3.0",
-  "scripts": {
-    "dev:server": "npm run dev --workspace=@leapsake/server",
-    "dev:client-web": "npm run dev --workspace=@leapsake/client-web",
-    "build:server": "npm run build --workspace=@leapsake/server",
-    "build:client-web": "npm run build --workspace=@leapsake/client-web",
-    "start:server": "npm run start --workspace=@leapsake/server",
-    "start:client-web": "npm run start --workspace=@leapsake/client-web",
-    "lint": "npm run lint --workspaces",
-    "install:all": "npm install && npm install --workspaces"
-  },
-  "private": true,
-  "workspaces": [
-    "apps/*"
-  ],
-  "devDependencies": {
-    "@eslint/js": "^9.8.0",
-    "eslint": "^9.8.0",
-    "prettier": "^2.6.2",
-    "typescript-eslint": "^8.19.0"
-  }
+  "private": true
 }
