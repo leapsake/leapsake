@@ -1,0 +1,19 @@
+[workspace]
+members = [
+    "packages/file-core",
+    "apps/client-desktop/src-tauri"
+]
+resolver = "2"
+
+# Shared dependencies across all Rust crates
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"] }
+uuid = { version = "1.0", features = ["v4"] }
+anyhow = "1.0"
+
+# Workspace-level metadata
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+license = "AGPL-3.0"

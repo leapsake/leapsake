@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "leapsake",
+  "productName": "Leapsake",
   "version": "0.1.0",
   "identifier": "com.leapsake.app",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "leapsake",
+        "title": "Leapsake",
         "width": 800,
         "height": 600
       }

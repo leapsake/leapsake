@@ -1,4 +1,4 @@
-# Tauri + Preact + Typescript
+# leapsake/client-desktop
 
 This template should help get you started developing with Tauri, Preact and Typescript in Vite.
 

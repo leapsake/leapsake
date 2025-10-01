@@ -1,7 +1,9 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use file_core::FileManager;
+
 #[tauri::command]
 fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+    let _manager = FileManager::new();
+    format!("Hello, {}! File manager initialized.", name)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
