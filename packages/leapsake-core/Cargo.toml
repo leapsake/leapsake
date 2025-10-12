@@ -1,5 +1,5 @@
 [package]
-name = "file-core"
+name = "leapsake-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
