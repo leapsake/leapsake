@@ -1,5 +1,5 @@
-import { LocationProvider, ErrorBoundary, Router, Route } from "preact-iso";
-import { BrowsePeopleAndPets, NewPersonOrPet } from './screens/people-and-pets';
+import { LocationProvider, ErrorBoundary, Router, Route } from 'preact-iso';
+import { BrowseContacts, NewContact } from './screens/contacts';
 
 function AppRouter() {
 	return (
@@ -21,8 +21,8 @@ function App() {
 	return (
 		<main id="main-content">
 			<Router>
-				<Route path="/" component={BrowsePeopleAndPets} />
-				<Route path="/people-and-pets/new" component={NewPersonOrPet} />
+				<Route path="/" component={BrowseContacts} />
+				<Route path="/contacts/new" component={NewContact} />
 				<Route default component={NotFound} />
 			</Router>
 		</main>
