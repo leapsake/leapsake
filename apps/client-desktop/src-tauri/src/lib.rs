@@ -1,5 +1,5 @@
 use tauri::{command, AppHandle, Manager};
-use leapsake_core::{get_vcards_from_directory, VCardData};
+use leapsake_core::{get_contacts, VCardData};
 
 #[command]
 async fn get_vcards(app: AppHandle) -> Result<Vec<VCardData>, String> {
@@ -9,7 +9,7 @@ async fn get_vcards(app: AppHandle) -> Result<Vec<VCardData>, String> {
 
     let contacts_dir = app_data.join("contacts");
 
-    get_vcards_from_directory(&contacts_dir)
+    get_contacts(&[contacts_dir])
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
