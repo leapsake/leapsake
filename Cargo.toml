@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "packages/file-core",
+    "packages/leapsake-core",
     "apps/client-desktop/src-tauri"
 ]
 resolver = "2"
