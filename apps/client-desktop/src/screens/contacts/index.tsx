@@ -1,59 +1,23 @@
-import { useEffect, useState } from 'preact/hooks';
 import { PersonForm } from '../../components/PersonForm';
 import { invoke } from '@tauri-apps/api/core';
 import { Contacts } from '../../components/Contacts';
-
-interface Contact {
-	content: string;
-	file_name: string;
-	path: string;
-};
-
-interface ContactsListProps {
-	contacts: Array<Contact>;
-};
-
-export function ContactsList({ contacts }: ContactsListProps) {
-	return (
-		<ol class={styles.list}>
-			{contacts.map((contact) => (
-				<li>
-					<a href={contact.path}>
-						{contact.file_name}
-					</a>
-				</li>
-			))}
-		</ol>
-	);
-}
+import { ContactsList } from '../../components/ContactsList';
+import { ScreenHeader } from '../../components/ScreenHeader';
+import { useData } from '../../hooks';
 
 function useContacts() {
 	return useData(() => invoke('get_vcards'));
 }
 
-function useData(dataPromise) {
-	const [data, setData] = useState(null);
-	const [isLoading, setIsLoading] = useState(true);
-
-	
-	useEffect(() => {
-		const getData = async () => {
-			const data = await dataPromise();
-			setData(data);
-			setIsLoading(false);
-		}
-		
-		getData();
-	}, []);
-
-	return [data, isLoading];
-}
-
 export function NewContact() {
 	return (
-		<Contacts contacts={[]}>
-			<h1>New</h1>
-			<a href="/">Go back</a>
+		<Contacts>
+			<ScreenHeader
+				title="New"
+			>
+				<a href="/">Go back</a>
+			</ScreenHeader>
+
 			<PersonForm 
 				onSubmit={(e) => {
 					e.preventDefault();
@@ -70,14 +34,14 @@ export function ViewContact() {
 
 	if (isLoading) {
 		return (
-			<Contacts contacts={[]}>
+			<Contacts>
 				<h1>Loading</h1>
 			</Contacts>
 		);
 	}
 
 	return (
-		<Contacts contacts={[]}>
+		<Contacts>
 			<h1></h1>
 		</Contacts>
 	);
@@ -88,19 +52,29 @@ export function BrowseContacts() {
 
 	if (isLoading) {
 		return (
-			<Contacts contacts={[]}>
+			<Contacts>
 				<h1>Loading</h1>
 			</Contacts>
 		);
 	}
 
+	const noContacts = !(!!data && Array.isArray(data) && data.length > 0);
+
 	return (
-		<Contacts contacts={data}>
-			<header>
-				<h1>Browse</h1>
+		<Contacts>
+			<ScreenHeader
+				title="Browse"
+			>
 				<a href="/contacts/new">+ New</a>
-			</header>
-			<ContactsList contacts={data} />
+			</ScreenHeader>
+			{noContacts
+				? (
+					<span>No contacts</span>
+				)
+				: (
+					<ContactsList contacts={data} />
+				)
+			}
 		</Contacts>
 	);
 }

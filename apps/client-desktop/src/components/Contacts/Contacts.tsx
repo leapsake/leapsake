@@ -1,4 +1,4 @@
-import type { ComponentChildren } from 'preact';
+import { type ComponentChildren } from 'preact';
 import styles from './Contacts.module.css';
 
 interface ContactsProps {
