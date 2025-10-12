@@ -21,23 +21,27 @@ export function PersonForm({
 }: PersonFormProps) {
 	return (
 		<Form onSubmit={onSubmit}>
-			<TextInput
-				defaultValue={givenName}
-				label="First Name"
-				name="givenName"
-			/>
+			<fieldset>
+				<legend>Name</legend>
 
-			<TextInput
-				defaultValue={middleName}
-				label="Middle Name"
-				name="middleName"
-			/>
+				<TextInput
+					defaultValue={givenName}
+					label="First Name"
+					name="givenName"
+				/>
 
-			<TextInput
-				defaultValue={familyName}
-				label="Last Name"
-				name="familyName"
-			/>
+				<TextInput
+					defaultValue={middleName}
+					label="Middle Name"
+					name="middleName"
+				/>
+
+				<TextInput
+					defaultValue={familyName}
+					label="Last Name"
+					name="familyName"
+				/>
+			</fieldset>
 
 			<DateInput
 				defaultValue={birthday}
