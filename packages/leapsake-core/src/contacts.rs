@@ -2,13 +2,13 @@ use std::fs;
 use std::path::Path;
 
 #[derive(serde::Serialize, Clone, Debug)]
-pub struct VCardData {
+pub struct JSContactData {
     pub content: String,
     pub file_name: String,
     pub path: String,
 }
 
-pub fn get_contacts<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<VCardData>, String> {
+pub fn get_contacts<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<JSContactData>, String> {
     contact_dirs
         .iter()
         .map(|dir| {
@@ -19,13 +19,13 @@ pub fn get_contacts<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<VCardData>
                     .map_err(|e| format!("Failed to create contacts directory: {}", e))?;
             }
 
-            collect_vcards_recursive(dir)
+            collect_jscontacts_recursive(dir)
         })
         .collect::<Result<Vec<_>, _>>()
         .map(|nested| nested.into_iter().flatten().collect())
 }
 
-fn collect_vcards_recursive(dir: &Path) -> Result<Vec<VCardData>, String> {
+fn collect_jscontacts_recursive(dir: &Path) -> Result<Vec<JSContactData>, String> {
     let entries = fs::read_dir(dir)
         .map_err(|e| format!("Failed to read directory: {}", e))?;
 
@@ -36,12 +36,12 @@ fn collect_vcards_recursive(dir: &Path) -> Result<Vec<VCardData>, String> {
 
             if path.is_dir() {
                 // Recursively process subdirectories
-                collect_vcards_recursive(&path)
-            } else if path.extension().and_then(|s| s.to_str()) == Some("vcf") {
+                collect_jscontacts_recursive(&path)
+            } else if path.extension().and_then(|s| s.to_str()) == Some("jscontact") {
                 let content = fs::read_to_string(&path)
                     .map_err(|e| e.to_string())?;
 
-                Ok(vec![VCardData {
+                Ok(vec![JSContactData {
                     content,
                     file_name: path
                         .file_name()
