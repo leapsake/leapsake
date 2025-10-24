@@ -6,7 +6,7 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { useData } from '../../hooks';
 
 function useContacts() {
-	return useData(() => invoke('get_vcards'));
+	return useData(() => invoke('get_contacts'));
 }
 
 export function NewContact() {
