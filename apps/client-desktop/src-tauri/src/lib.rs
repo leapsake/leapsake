@@ -2,12 +2,17 @@ use tauri::{command, AppHandle, Manager};
 use leapsake_core::{JSContactData};
 
 #[command]
-async fn get_contacts(app: AppHandle) -> Result<Vec<JSContactData>, String> {
-    let app_data = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-
-    let contacts_dir = app_data.join("contacts");
+async fn get_contacts(app: AppHandle, path: Option<String>) -> Result<Vec<JSContactData>, String> {
+    let contacts_dir = if let Some(custom_path) = path {
+        // Use custom path if provided
+        std::path::PathBuf::from(custom_path)
+    } else {
+        // Default to app_data/contacts if no path provided
+        let app_data = app.path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+        app_data.join("contacts")
+    };
 
     leapsake_core::get_contacts(&[contacts_dir])
 }

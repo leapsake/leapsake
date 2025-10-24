@@ -1,12 +1,18 @@
 import { PersonForm } from '../../components/PersonForm';
 import { invoke } from '@tauri-apps/api/core';
+import { appDataDir } from '@tauri-apps/api/path';
+import { join } from '@tauri-apps/api/path';
 import { Contacts } from '../../components/Contacts';
 import { ContactsList } from '../../components/ContactsList';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useData } from '../../hooks';
 
 function useContacts() {
-	return useData(() => invoke('get_contacts'));
+	return useData(async () => {
+		const appData = await appDataDir();
+		const contactsPath = await join(appData, 'contacts');
+		return invoke('get_contacts', { path: contactsPath });
+	});
 }
 
 export function NewContact() {
