@@ -65,57 +65,51 @@ pub struct Contact {
     pub file_path: String,
 }
 
-/// Adds a new contact as a .jscontact file
+/// Helper function to build filename from contact data and UUID
 ///
 /// # Arguments
-/// * `contact_dir` - Directory where the contact file will be created
-/// * `data` - Contact data to save
+/// * `family_name` - Optional family name
+/// * `given_name` - Optional given name
+/// * `uuid` - UUID for the contact
 ///
 /// # Returns
-/// * `Result<String, String>` - Path to the created file, or error message
-///
-/// # Behavior
-/// * Creates the directory if it doesn't exist
-/// * Generates filename as FamilyName-GivenName-UUID.jscontact (omitting missing parts)
-/// * Creates JSContact v1.0 compliant JSON file
-pub fn add_contact<P: AsRef<Path>>(
-    contact_dir: P,
-    data: NewContactData,
-) -> Result<String, String> {
-    let dir = contact_dir.as_ref();
-
-    // Create directory if it doesn't exist
-    if !dir.exists() {
-        fs::create_dir_all(dir)
-            .map_err(|e| format!("Failed to create contacts directory: {}", e))?;
-    }
-
-    // Generate UUID for the contact
-    let contact_uuid = Uuid::new_v4();
-
-    // Build filename: FamilyName-GivenName-UUID.jscontact (omit missing parts)
+/// * Filename in format: FamilyName-GivenName-UUID.jscontact (omitting missing parts)
+fn build_contact_filename(
+    family_name: Option<&str>,
+    given_name: Option<&str>,
+    uuid: &str,
+) -> String {
     let mut filename_parts = Vec::new();
 
-    if let Some(ref family_name) = data.family_name {
+    if let Some(family_name) = family_name {
         if !family_name.is_empty() {
             filename_parts.push(family_name.replace(' ', "-"));
         }
     }
 
-    if let Some(ref given_name) = data.given_name {
+    if let Some(given_name) = given_name {
         if !given_name.is_empty() {
             filename_parts.push(given_name.replace(' ', "-"));
         }
     }
 
-    filename_parts.push(contact_uuid.to_string());
-    let filename = format!("{}.jscontact", filename_parts.join("-"));
+    filename_parts.push(uuid.to_string());
+    format!("{}.jscontact", filename_parts.join("-"))
+}
 
-    // Build JSContact JSON structure (RFC 9553)
+/// Helper function to build JSContact JSON structure from contact data
+///
+/// # Arguments
+/// * `uid` - Full UID in format "urn:uuid:..."
+/// * `data` - Contact data
+///
+/// # Returns
+/// * JSContact JSON Value
+fn build_jscontact_json(uid: &str, data: &NewContactData) -> Value {
     let mut jscontact = json!({
         "@type": "Card",
         "version": "1.0",
-        "uid": format!("urn:uuid:{}", contact_uuid),
+        "uid": uid,
     });
 
     // Add name components if any name fields are present
@@ -188,6 +182,49 @@ pub fn add_contact<P: AsRef<Path>>(
         jscontact["anniversaries"] = Value::Object(anniversaries);
     }
 
+    jscontact
+}
+
+/// Adds a new contact as a .jscontact file
+///
+/// # Arguments
+/// * `contact_dir` - Directory where the contact file will be created
+/// * `data` - Contact data to save
+///
+/// # Returns
+/// * `Result<String, String>` - Path to the created file, or error message
+///
+/// # Behavior
+/// * Creates the directory if it doesn't exist
+/// * Generates filename as FamilyName-GivenName-UUID.jscontact (omitting missing parts)
+/// * Creates JSContact v1.0 compliant JSON file
+pub fn add_contact<P: AsRef<Path>>(
+    contact_dir: P,
+    data: NewContactData,
+) -> Result<String, String> {
+    let dir = contact_dir.as_ref();
+
+    // Create directory if it doesn't exist
+    if !dir.exists() {
+        fs::create_dir_all(dir)
+            .map_err(|e| format!("Failed to create contacts directory: {}", e))?;
+    }
+
+    // Generate UUID for the contact
+    let contact_uuid = Uuid::new_v4();
+    let uuid_str = contact_uuid.to_string();
+    let uid = format!("urn:uuid:{}", uuid_str);
+
+    // Build filename using helper
+    let filename = build_contact_filename(
+        data.family_name.as_deref(),
+        data.given_name.as_deref(),
+        &uuid_str,
+    );
+
+    // Build JSContact JSON structure using helper
+    let jscontact = build_jscontact_json(&uid, &data);
+
     // Convert to pretty-printed JSON string
     let json_content = serde_json::to_string_pretty(&jscontact)
         .map_err(|e| format!("Failed to serialize JSContact: {}", e))?;
@@ -199,6 +236,128 @@ pub fn add_contact<P: AsRef<Path>>(
 
     // Return the path as a string
     Ok(file_path.to_string_lossy().to_string())
+}
+
+/// Updates an existing contact
+///
+/// # Arguments
+/// * `contact_dir` - Directory where contact files are stored
+/// * `uuid` - UUID of the contact to update (without urn:uuid: prefix)
+/// * `data` - New contact data
+///
+/// # Returns
+/// * `Result<String, String>` - Path to the updated file, or error message
+///
+/// # Behavior
+/// * Finds the existing contact file by UUID
+/// * Preserves the UUID from the existing contact
+/// * Renames file if family_name or given_name changes
+/// * Updates the contact data while preserving other fields from original file
+/// * Returns error if contact is not found or update fails, maintaining original file
+pub fn edit_contact<P: AsRef<Path>>(
+    contact_dir: P,
+    uuid: &str,
+    data: NewContactData,
+) -> Result<String, String> {
+    let dir = contact_dir.as_ref();
+
+    if !dir.exists() {
+        return Err(format!("Contacts directory does not exist: {}", dir.display()));
+    }
+
+    // Find the existing contact file
+    let files = get_files_with(&[dir], Some(&["jscontact"]), |path: &PathBuf| path.clone())?;
+
+    let uuid_lower = uuid.to_lowercase();
+    let existing_file = files.iter().find(|path| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name.to_lowercase().contains(&uuid_lower))
+            .unwrap_or(false)
+    });
+
+    let old_file_path = if let Some(file_path) = existing_file {
+        file_path.clone()
+    } else {
+        // Try slow path - parse all files
+        let mut found_path = None;
+        for file_path in &files {
+            if let Ok(contact) = parse_contact_file(file_path) {
+                let contact_uuid = contact.uid
+                    .strip_prefix("urn:uuid:")
+                    .unwrap_or(&contact.uid)
+                    .to_lowercase();
+
+                if contact_uuid == uuid_lower {
+                    found_path = Some(file_path.clone());
+                    break;
+                }
+            }
+        }
+        found_path.ok_or_else(|| format!("Contact not found with UUID: {}", uuid))?
+    };
+
+    // Read and parse the existing file to get the UID and other preserved fields
+    let existing_content = fs::read_to_string(&old_file_path)
+        .map_err(|e| format!("Failed to read existing contact file: {}", e))?;
+
+    let existing_json: Value = serde_json::from_str(&existing_content)
+        .map_err(|e| format!("Failed to parse existing contact JSON: {}", e))?;
+
+    // Extract the UID (must preserve the exact UID)
+    let uid = existing_json["uid"]
+        .as_str()
+        .ok_or("Existing contact missing uid field")?
+        .to_string();
+
+    // Build new JSContact JSON structure using the existing UID
+    let mut new_jscontact = build_jscontact_json(&uid, &data);
+
+    // Preserve any other fields from the original file that we're not managing
+    // (like @context, created, updated, etc.)
+    if let Some(obj) = existing_json.as_object() {
+        let new_obj = new_jscontact.as_object_mut().unwrap();
+        for (key, value) in obj {
+            // Only preserve fields we don't explicitly manage
+            if !matches!(key.as_str(), "@type" | "version" | "uid" | "name" | "anniversaries") {
+                new_obj.insert(key.clone(), value.clone());
+            }
+        }
+    }
+
+    // Convert to pretty-printed JSON string
+    let json_content = serde_json::to_string_pretty(&new_jscontact)
+        .map_err(|e| format!("Failed to serialize updated JSContact: {}", e))?;
+
+    // Build new filename
+    let uuid_only = uid.strip_prefix("urn:uuid:").unwrap_or(&uid);
+    let new_filename = build_contact_filename(
+        data.family_name.as_deref(),
+        data.given_name.as_deref(),
+        uuid_only,
+    );
+    let new_file_path = dir.join(&new_filename);
+
+    // If filename changed, we need to rename; otherwise just update in place
+    if old_file_path != new_file_path {
+        // Write to new file first
+        fs::write(&new_file_path, &json_content)
+            .map_err(|e| format!("Failed to write updated contact file: {}", e))?;
+
+        // Only delete old file if new file was written successfully
+        fs::remove_file(&old_file_path)
+            .map_err(|e| {
+                // If deletion fails, try to clean up the new file
+                let _ = fs::remove_file(&new_file_path);
+                format!("Failed to remove old contact file: {}", e)
+            })?;
+    } else {
+        // Same filename, just overwrite
+        fs::write(&new_file_path, json_content)
+            .map_err(|e| format!("Failed to update contact file: {}", e))?;
+    }
+
+    Ok(new_file_path.to_string_lossy().to_string())
 }
 
 /// Gets a single contact by UUID

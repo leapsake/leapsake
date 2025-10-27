@@ -63,6 +63,112 @@ export function AddContact() {
 	);
 }
 
+export function EditContact({ uuid }: { uuid: string }) {
+	const [contact, setContact] = useState<any>(null);
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		async function fetchContact() {
+			try {
+				setIsLoading(true);
+				const appData = await appDataDir();
+				const contactsPath = await join(appData, 'contacts');
+				const contactData = await invoke('read_contact', {
+					path: contactsPath,
+					uuid: uuid
+				});
+				setContact(contactData);
+			} catch (err) {
+				setError(String(err));
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchContact();
+	}, [uuid]);
+
+	const handleSubmit = async (e: Event) => {
+		e.preventDefault();
+		const formData = new FormData(e.currentTarget as HTMLFormElement);
+
+		// Get the contacts path
+		const appData = await appDataDir();
+		const contactsPath = await join(appData, 'contacts');
+
+		// Prepare contact data matching NewContactData structure in Rust
+		const contactData = {
+			given_name: formData.get('givenName') as string | null,
+			middle_name: formData.get('middleName') as string | null,
+			family_name: formData.get('familyName') as string | null,
+			birthday: formData.get('birthday') as string | null,
+			anniversary: formData.get('anniversary') as string | null,
+		};
+
+		try {
+			const filePath = await invoke('edit_contact', {
+				path: contactsPath,
+				uuid: uuid,
+				data: contactData
+			});
+			console.log('Contact updated at:', filePath);
+			// Redirect to the contact view page
+			window.location.href = `/contacts/${uuid}`;
+		} catch (error) {
+			console.error('Failed to update contact:', error);
+			alert('Failed to update contact: ' + error);
+		}
+	};
+
+	if (isLoading) {
+		return (
+			<Contacts>
+				<ScreenHeader title="Edit Contact">
+					<a href={`/contacts/${uuid}`}>Cancel</a>
+				</ScreenHeader>
+				<p>Loading...</p>
+			</Contacts>
+		);
+	}
+
+	if (error || !contact) {
+		return (
+			<Contacts>
+				<ScreenHeader title="Error">
+					<a href="/">Go back</a>
+				</ScreenHeader>
+				<p>Error: {error || 'Contact not found'}</p>
+			</Contacts>
+		);
+	}
+
+	// Build display name
+	const nameParts = [];
+	if (contact.given_name) nameParts.push(contact.given_name);
+	if (contact.middle_name) nameParts.push(contact.middle_name);
+	if (contact.family_name) nameParts.push(contact.family_name);
+	const displayName = nameParts.length > 0 ? nameParts.join(' ') : 'Unnamed Contact';
+
+	return (
+		<Contacts>
+			<ScreenHeader
+				title={`Edit ${displayName}`}
+			>
+				<a href={`/contacts/${uuid}`}>Cancel</a>
+			</ScreenHeader>
+
+			<PersonForm
+				givenName={contact.given_name || ''}
+				middleName={contact.middle_name || ''}
+				familyName={contact.family_name || ''}
+				birthday={contact.birthday || ''}
+				anniversary={contact.anniversary || ''}
+				onSubmit={handleSubmit}
+			/>
+		</Contacts>
+	);
+}
+
 export function ReadContact({ uuid }: { uuid: string }) {
 	const [contact, setContact] = useState<any>(null);
 	const [isLoading, setIsLoading] = useState(true);
@@ -121,6 +227,8 @@ export function ReadContact({ uuid }: { uuid: string }) {
 		<Contacts>
 			<ScreenHeader title={displayName}>
 				<a href="/">Go back</a>
+				{' | '}
+				<a href={`/contacts/${uuid}/edit`}>Edit</a>
 			</ScreenHeader>
 
 			<div>
