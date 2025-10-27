@@ -6,6 +6,7 @@ import { Contacts } from '../../components/Contacts';
 import { ContactsList } from '../../components/ContactsList';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useData } from '../../hooks';
+import { useState, useEffect } from 'preact/hooks';
 
 function useContacts() {
 	return useData(async () => {
@@ -62,20 +63,84 @@ export function NewContact() {
 	);
 }
 
-export function ViewContact() {
-	const [, isLoading] = useContacts();
+export function ViewContact({ uuid }: { uuid: string }) {
+	const [contact, setContact] = useState<any>(null);
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		async function fetchContact() {
+			try {
+				setIsLoading(true);
+				const appData = await appDataDir();
+				const contactsPath = await join(appData, 'contacts');
+				const contactData = await invoke('get_contact_by_uuid', {
+					path: contactsPath,
+					uuid: uuid
+				});
+				setContact(contactData);
+			} catch (err) {
+				setError(String(err));
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchContact();
+	}, [uuid]);
 
 	if (isLoading) {
 		return (
 			<Contacts>
-				<h1>Loading</h1>
+				<ScreenHeader title="View Contact">
+					<a href="/">Go back</a>
+				</ScreenHeader>
+				<p>Loading...</p>
 			</Contacts>
 		);
 	}
 
+	if (error || !contact) {
+		return (
+			<Contacts>
+				<ScreenHeader title="Error">
+					<a href="/">Go back</a>
+				</ScreenHeader>
+				<p>Error: {error || 'Contact not found'}</p>
+			</Contacts>
+		);
+	}
+
+	// Build display name
+	const nameParts = [];
+	if (contact.given_name) nameParts.push(contact.given_name);
+	if (contact.middle_name) nameParts.push(contact.middle_name);
+	if (contact.family_name) nameParts.push(contact.family_name);
+	const displayName = nameParts.length > 0 ? nameParts.join(' ') : 'Unnamed Contact';
+
 	return (
 		<Contacts>
-			<h1></h1>
+			<ScreenHeader title={displayName}>
+				<a href="/">Go back</a>
+			</ScreenHeader>
+
+			<div>
+				<h2>Name</h2>
+				{contact.given_name && <p><strong>First Name:</strong> {contact.given_name}</p>}
+				{contact.middle_name && <p><strong>Middle Name:</strong> {contact.middle_name}</p>}
+				{contact.family_name && <p><strong>Last Name:</strong> {contact.family_name}</p>}
+
+				{(contact.birthday || contact.anniversary) && (
+					<>
+						<h2>Dates</h2>
+						{contact.birthday && <p><strong>Birthday:</strong> {contact.birthday}</p>}
+						{contact.anniversary && <p><strong>Anniversary:</strong> {contact.anniversary}</p>}
+					</>
+				)}
+
+				<h2>Metadata</h2>
+				<p><strong>UID:</strong> {contact.uid}</p>
+				<p><strong>File:</strong> {contact.file_path}</p>
+			</div>
 		</Contacts>
 	);
 }
