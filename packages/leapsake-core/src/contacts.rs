@@ -35,7 +35,7 @@ pub fn get_contacts<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<JSContactD
     };
 
     let contact_results: Vec<Result<JSContactData, String>> =
-        get_files_with(contact_dirs, Some(&["jscontact"]), None, callback)?;
+        get_files_with(contact_dirs, Some(&["jscontact"]), callback)?;
 
     // Collect results, propagating any errors
     contact_results.into_iter().collect()
