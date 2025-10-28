@@ -145,7 +145,6 @@ export function EditContact({ uuid }: { uuid: string }) {
 	// Build display name
 	const nameParts = [];
 	if (contact.given_name) nameParts.push(contact.given_name);
-	if (contact.middle_name) nameParts.push(contact.middle_name);
 	if (contact.family_name) nameParts.push(contact.family_name);
 	const displayName = nameParts.length > 0 ? nameParts.join(' ') : 'Unnamed Contact';
 
@@ -155,6 +154,8 @@ export function EditContact({ uuid }: { uuid: string }) {
 				title={`Edit ${displayName}`}
 			>
 				<a href={`/contacts/${uuid}`}>Cancel</a>
+				{' | '}
+				<a href={`/contacts/${uuid}/delete`}>Delete</a>
 			</ScreenHeader>
 
 			<PersonForm
@@ -165,6 +166,87 @@ export function EditContact({ uuid }: { uuid: string }) {
 				anniversary={contact.anniversary || ''}
 				onSubmit={handleSubmit}
 			/>
+		</Contacts>
+	);
+}
+
+export function DeleteContact({ uuid }: { uuid: string }) {
+	const [contact, setContact] = useState<any>(null);
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		async function fetchContact() {
+			try {
+				setIsLoading(true);
+				const appData = await appDataDir();
+				const contactsPath = await join(appData, 'contacts');
+				const contactData = await invoke('read_contact', {
+					path: contactsPath,
+					uuid: uuid
+				});
+				setContact(contactData);
+			} catch (err) {
+				setError(String(err));
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchContact();
+	}, [uuid]);
+
+	const handleDelete = async () => {
+		try {
+			const appData = await appDataDir();
+			const contactsPath = await join(appData, 'contacts');
+			await invoke('delete_contact', {
+				path: contactsPath,
+				uuid: uuid
+			});
+			console.log('Contact deleted');
+			// Redirect to browse page
+			window.location.href = '/';
+		} catch (error) {
+			console.error('Failed to delete contact:', error);
+			// Stay on page if deletion fails
+		}
+	};
+
+	if (isLoading) {
+		return (
+			<Contacts>
+				<ScreenHeader title="Delete Contact">
+					<a href={`/contacts/${uuid}`}>Cancel</a>
+				</ScreenHeader>
+				<p>Loading...</p>
+			</Contacts>
+		);
+	}
+
+	if (error || !contact) {
+		// Redirect to browse page if contact not found
+		window.location.href = '/';
+		return null;
+	}
+
+	// Build display name
+	const nameParts = [];
+	if (contact.given_name) nameParts.push(contact.given_name);
+	if (contact.family_name) nameParts.push(contact.family_name);
+	const displayName = nameParts.length > 0 ? nameParts.join(' ') : 'this contact';
+
+	return (
+		<Contacts>
+			<ScreenHeader
+				title="Delete Contact"
+			>
+				<a href={`/contacts/${uuid}`}>Cancel</a>
+			</ScreenHeader>
+
+			<div>
+				<p>Are you sure you want to delete {displayName}?</p>
+				<button onClick={handleDelete}>Delete</button>
+			</div>
 		</Contacts>
 	);
 }
@@ -219,7 +301,6 @@ export function ReadContact({ uuid }: { uuid: string }) {
 	// Build display name
 	const nameParts = [];
 	if (contact.given_name) nameParts.push(contact.given_name);
-	if (contact.middle_name) nameParts.push(contact.middle_name);
 	if (contact.family_name) nameParts.push(contact.family_name);
 	const displayName = nameParts.length > 0 ? nameParts.join(' ') : 'Unnamed Contact';
 
@@ -229,6 +310,8 @@ export function ReadContact({ uuid }: { uuid: string }) {
 				<a href="/">Go back</a>
 				{' | '}
 				<a href={`/contacts/${uuid}/edit`}>Edit</a>
+				{' | '}
+				<a href={`/contacts/${uuid}/delete`}>Delete</a>
 			</ScreenHeader>
 
 			<div>

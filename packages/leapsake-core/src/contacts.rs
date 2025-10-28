@@ -360,6 +360,74 @@ pub fn edit_contact<P: AsRef<Path>>(
     Ok(new_file_path.to_string_lossy().to_string())
 }
 
+/// Deletes an existing contact
+///
+/// # Arguments
+/// * `contact_dir` - Directory where contact files are stored
+/// * `uuid` - UUID of the contact to delete (without urn:uuid: prefix)
+///
+/// # Returns
+/// * `Result<(), String>` - Success or error message
+///
+/// # Behavior
+/// * Finds the existing contact file by UUID
+/// * Checks if file exists before attempting deletion
+/// * Deletes the .jscontact file
+/// * Returns error if contact is not found or deletion fails
+pub fn delete_contact<P: AsRef<Path>>(
+    contact_dir: P,
+    uuid: &str,
+) -> Result<(), String> {
+    let dir = contact_dir.as_ref();
+
+    if !dir.exists() {
+        return Err(format!("Contacts directory does not exist: {}", dir.display()));
+    }
+
+    // Find the existing contact file
+    let files = get_files_with(&[dir], Some(&["jscontact"]), |path: &PathBuf| path.clone())?;
+
+    let uuid_lower = uuid.to_lowercase();
+    let existing_file = files.iter().find(|path| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name.to_lowercase().contains(&uuid_lower))
+            .unwrap_or(false)
+    });
+
+    let file_path = if let Some(file_path) = existing_file {
+        file_path.clone()
+    } else {
+        // Try slow path - parse all files
+        let mut found_path = None;
+        for file_path in &files {
+            if let Ok(contact) = parse_contact_file(file_path) {
+                let contact_uuid = contact.uid
+                    .strip_prefix("urn:uuid:")
+                    .unwrap_or(&contact.uid)
+                    .to_lowercase();
+
+                if contact_uuid == uuid_lower {
+                    found_path = Some(file_path.clone());
+                    break;
+                }
+            }
+        }
+        found_path.ok_or_else(|| format!("Contact not found with UUID: {}", uuid))?
+    };
+
+    // Check if file exists before attempting deletion
+    if !file_path.exists() {
+        return Err(format!("Contact file does not exist: {}", file_path.display()));
+    }
+
+    // Delete the file
+    fs::remove_file(&file_path)
+        .map_err(|e| format!("Failed to delete contact file: {}", e))?;
+
+    Ok(())
+}
+
 /// Gets a single contact by UUID
 ///
 /// # Arguments
