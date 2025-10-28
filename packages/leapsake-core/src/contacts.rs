@@ -11,7 +11,7 @@ pub struct JSContactData {
     pub path: String,
 }
 
-pub fn get_contacts<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<JSContactData>, String> {
+pub fn browse_contacts<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<JSContactData>, String> {
     // Create directories if they don't exist
     for dir in contact_dirs {
         let dir = dir.as_ref();
@@ -213,7 +213,7 @@ pub fn add_contact<P: AsRef<Path>>(
 /// # Behavior
 /// * Fast path: Searches filenames for UUID match (regex pattern)
 /// * Slow path: If not found in filename, parses all JSContact files and matches by UID
-pub fn get_contact_by_uuid<P: AsRef<Path>>(
+pub fn read_contact<P: AsRef<Path>>(
     contact_dir: P,
     uuid: &str,
 ) -> Result<Contact, String> {

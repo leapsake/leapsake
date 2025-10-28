@@ -8,15 +8,15 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { useData } from '../../hooks';
 import { useState, useEffect } from 'preact/hooks';
 
-function useContacts() {
+function useBrowseContacts() {
 	return useData(async () => {
 		const appData = await appDataDir();
 		const contactsPath = await join(appData, 'contacts');
-		return invoke('get_contacts', { path: contactsPath });
+		return invoke('browse_contacts', { path: contactsPath });
 	});
 }
 
-export function NewContact() {
+export function AddContact() {
 	const handleSubmit = async (e: Event) => {
 		e.preventDefault();
 		const formData = new FormData(e.currentTarget as HTMLFormElement);
@@ -63,7 +63,7 @@ export function NewContact() {
 	);
 }
 
-export function ViewContact({ uuid }: { uuid: string }) {
+export function ReadContact({ uuid }: { uuid: string }) {
 	const [contact, setContact] = useState<any>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -74,7 +74,7 @@ export function ViewContact({ uuid }: { uuid: string }) {
 				setIsLoading(true);
 				const appData = await appDataDir();
 				const contactsPath = await join(appData, 'contacts');
-				const contactData = await invoke('get_contact_by_uuid', {
+				const contactData = await invoke('read_contact', {
 					path: contactsPath,
 					uuid: uuid
 				});
@@ -146,7 +146,7 @@ export function ViewContact({ uuid }: { uuid: string }) {
 }
 
 export function BrowseContacts() {
-	const [data, isLoading] = useContacts();
+	const [data, isLoading] = useBrowseContacts();
 
 	if (isLoading) {
 		return (
