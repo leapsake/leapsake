@@ -43,14 +43,41 @@ pub fn browse_contacts<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<JSConta
     contact_results.into_iter().collect()
 }
 
+/// Represents a partial date according to JSContact RFC 9553 section 2.8.1
+///
+/// A PartialDate represents calendar dates in the Gregorian calendar system.
+/// All fields are optional, allowing representation of:
+/// - Complete dates (year, month, day)
+/// - Year only
+/// - Month in year (year + month)
+/// - Day in month (month + day)
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct PartialDate {
+    /// Must be "PartialDate" if specified
+    #[serde(rename = "@type", skip_serializing_if = "Option::is_none")]
+    pub type_: Option<String>,
+
+    /// The calendar year value
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub year: Option<u32>,
+
+    /// The calendar month (1-12). If set, either year or day must also be present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub month: Option<u32>,
+
+    /// The calendar day (1-31, depending on month/year validity). Requires month to be set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub day: Option<u32>,
+}
+
 /// Data for creating a new contact
 #[derive(serde::Deserialize, Debug)]
 pub struct NewContactData {
     pub given_name: Option<String>,
     pub middle_name: Option<String>,
     pub family_name: Option<String>,
-    pub birthday: Option<String>,
-    pub anniversary: Option<String>,
+    pub birthday: Option<PartialDate>,
+    pub anniversary: Option<PartialDate>,
 }
 
 /// Parsed contact data ready for display
@@ -60,8 +87,8 @@ pub struct Contact {
     pub given_name: Option<String>,
     pub middle_name: Option<String>,
     pub family_name: Option<String>,
-    pub birthday: Option<String>,
-    pub anniversary: Option<String>,
+    pub birthday: Option<PartialDate>,
+    pub anniversary: Option<PartialDate>,
     pub file_path: String,
 }
 
@@ -153,26 +180,34 @@ fn build_jscontact_json(uid: &str, data: &NewContactData) -> Value {
     let mut anniversaries = serde_json::Map::new();
 
     if let Some(ref birthday) = data.birthday {
-        if !birthday.is_empty() {
+        // Only include if at least one date component is present
+        if birthday.year.is_some() || birthday.month.is_some() || birthday.day.is_some() {
+            let birthday_value = serde_json::to_value(birthday)
+                .expect("Failed to serialize PartialDate");
+
             anniversaries.insert(
                 "birthday".to_string(),
                 json!({
                     "@type": "Anniversary",
                     "kind": "birth",
-                    "date": birthday
+                    "date": birthday_value
                 })
             );
         }
     }
 
     if let Some(ref anniversary) = data.anniversary {
-        if !anniversary.is_empty() {
+        // Only include if at least one date component is present
+        if anniversary.year.is_some() || anniversary.month.is_some() || anniversary.day.is_some() {
+            let anniversary_value = serde_json::to_value(anniversary)
+                .expect("Failed to serialize PartialDate");
+
             anniversaries.insert(
                 "anniversary".to_string(),
                 json!({
                     "@type": "Anniversary",
                     "kind": "wedding",
-                    "date": anniversary
+                    "date": anniversary_value
                 })
             );
         }
@@ -557,10 +592,13 @@ fn parse_contact_file(file_path: &Path) -> Result<Contact, String> {
     if let Some(anniversaries_obj) = json.get("anniversaries").and_then(|a| a.as_object()) {
         for (_key, value) in anniversaries_obj {
             if let Some(kind) = value.get("kind").and_then(|k| k.as_str()) {
-                if let Some(date) = value.get("date").and_then(|d| d.as_str()) {
+                if let Some(date_value) = value.get("date") {
+                    // Parse as PartialDate object (RFC 9553 compliant)
+                    let partial_date = serde_json::from_value::<PartialDate>(date_value.clone()).ok();
+
                     match kind {
-                        "birth" => birthday = Some(date.to_string()),
-                        "wedding" => anniversary = Some(date.to_string()),
+                        "birth" => birthday = partial_date,
+                        "wedding" => anniversary = partial_date,
                         _ => {}
                     }
                 }
