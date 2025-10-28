@@ -7,3 +7,13 @@ export async function getContactsPath() {
 
 	return contactsPath;
 }
+
+export function getContactData(formData) {
+	return {
+		given_name: formData.get('givenName') as string | null,
+		middle_name: formData.get('middleName') as string | null,
+		family_name: formData.get('familyName') as string | null,
+		birthday: formData.get('birthday') as string | null,
+		anniversary: formData.get('anniversary') as string | null,
+	};
+}
