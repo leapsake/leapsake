@@ -16,6 +16,37 @@ function useContacts() {
 }
 
 export function NewContact() {
+	const handleSubmit = async (e: Event) => {
+		e.preventDefault();
+		const formData = new FormData(e.currentTarget as HTMLFormElement);
+
+		// Get the contacts path
+		const appData = await appDataDir();
+		const contactsPath = await join(appData, 'contacts');
+
+		// Prepare contact data matching NewContactData structure in Rust
+		const contactData = {
+			given_name: formData.get('givenName') as string | null,
+			middle_name: formData.get('middleName') as string | null,
+			family_name: formData.get('familyName') as string | null,
+			birthday: formData.get('birthday') as string | null,
+			anniversary: formData.get('anniversary') as string | null,
+		};
+
+		try {
+			const filePath = await invoke('add_contact', {
+				path: contactsPath,
+				data: contactData
+			});
+			console.log('Contact created at:', filePath);
+			// Redirect to contacts list
+			window.location.href = '/';
+		} catch (error) {
+			console.error('Failed to create contact:', error);
+			alert('Failed to create contact: ' + error);
+		}
+	};
+
 	return (
 		<Contacts>
 			<ScreenHeader
@@ -24,12 +55,8 @@ export function NewContact() {
 				<a href="/">Go back</a>
 			</ScreenHeader>
 
-			<PersonForm 
-				onSubmit={(e) => {
-					e.preventDefault();
-					const formData = new FormData(e.currentTarget);
-					console.log(formData);
-				}}
+			<PersonForm
+				onSubmit={handleSubmit}
 			/>
 		</Contacts>
 	);
