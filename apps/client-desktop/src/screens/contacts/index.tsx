@@ -7,6 +7,31 @@ import { useData } from '../../hooks';
 import { useState, useEffect } from 'preact/hooks';
 import { getContactData, getContactsPath } from '../../utils';
 
+interface PartialDate {
+	'@type'?: string;
+	year?: number;
+	month?: number;
+	day?: number;
+}
+
+function formatPartialDate(date: PartialDate): string {
+	const parts: string[] = [];
+
+	if (date.month !== undefined) {
+		parts.push(String(date.month));
+	}
+
+	if (date.day !== undefined) {
+		parts.push(String(date.day));
+	}
+
+	if (date.year !== undefined) {
+		parts.push(String(date.year));
+	}
+
+	return parts.length > 0 ? parts.join('/') : '';
+}
+
 function useBrowseContacts() {
 	return useData(async () => {
 		const contactsPath = await getContactsPath();
@@ -297,8 +322,8 @@ export function ReadContact({ uuid }: { uuid: string }) {
 				{(contact.birthday || contact.anniversary) && (
 					<>
 						<h2>Dates</h2>
-						{contact.birthday && <p><strong>Birthday:</strong> {contact.birthday}</p>}
-						{contact.anniversary && <p><strong>Anniversary:</strong> {contact.anniversary}</p>}
+						{contact.birthday && <p><strong>Birthday:</strong> {formatPartialDate(contact.birthday)}</p>}
+						{contact.anniversary && <p><strong>Anniversary:</strong> {formatPartialDate(contact.anniversary)}</p>}
 					</>
 				)}
 

@@ -8,12 +8,54 @@ export async function getContactsPath() {
 	return contactsPath;
 }
 
+interface PartialDate {
+	'@type'?: string;
+	year?: number;
+	month?: number;
+	day?: number;
+}
+
+function combineDateFields(formData: FormData, fieldName: string): PartialDate | null {
+	const monthStr = formData.get(`${fieldName}-month}`) as string | null;
+	const dayStr = formData.get(`${fieldName}-day}`) as string | null;
+	const yearStr = formData.get(`${fieldName}-year}`) as string | null;
+
+	// Parse to numbers, filtering out empty strings and invalid numbers
+	const month = monthStr && monthStr.trim() ? parseInt(monthStr, 10) : undefined;
+	const day = dayStr && dayStr.trim() ? parseInt(dayStr, 10) : undefined;
+	const year = yearStr && yearStr.trim() ? parseInt(yearStr, 10) : undefined;
+
+	// Only create a PartialDate if at least one field has a value
+	if (month === undefined && day === undefined && year === undefined) {
+		return null;
+	}
+
+	// Return PartialDate object per JSContact RFC 9553 section 2.8.1
+	const partialDate: PartialDate = {
+		'@type': 'PartialDate',
+	};
+
+	if (year !== undefined && !isNaN(year)) {
+		partialDate.year = year;
+	}
+
+	if (month !== undefined && !isNaN(month)) {
+		partialDate.month = month;
+	}
+
+	if (day !== undefined && !isNaN(day)) {
+		partialDate.day = day;
+	}
+
+	return partialDate;
+}
+
 export function getContactData(formData) {
 	return {
 		given_name: formData.get('givenName') as string | null,
 		middle_name: formData.get('middleName') as string | null,
 		family_name: formData.get('familyName') as string | null,
-		birthday: formData.get('birthday') as string | null,
-		anniversary: formData.get('anniversary') as string | null,
+		birthday: combineDateFields(formData, 'birthday'),
+		anniversary: combineDateFields(formData, 'anniversary'),
 	};
 }
