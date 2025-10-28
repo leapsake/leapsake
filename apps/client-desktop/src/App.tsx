@@ -1,5 +1,5 @@
 import { LocationProvider, ErrorBoundary, Router, Route } from 'preact-iso';
-import { BrowseContacts, AddContact, ReadContact } from './screens/contacts';
+import { BrowseContacts, AddContact, EditContact, ReadContact } from './screens/contacts';
 
 function AppRouter() {
 	return (
@@ -23,6 +23,7 @@ function App() {
 			<Router>
 				<Route path="/" component={BrowseContacts} />
 				<Route path="/contacts/new" component={AddContact} />
+				<Route path="/contacts/:uuid/edit" component={EditContact} />
 				<Route path="/contacts/:uuid" component={ReadContact} />
 				<Route default component={NotFound} />
 			</Router>
