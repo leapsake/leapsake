@@ -5,7 +5,7 @@ import { ContactsList } from '../../components/ContactsList';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useData } from '../../hooks';
 import { useState, useEffect } from 'preact/hooks';
-import { getContactsPath } from '../../utils';
+import { getContactData, getContactsPath } from '../../utils';
 
 function useBrowseContacts() {
 	return useData(async () => {
@@ -20,15 +20,7 @@ export function AddContact() {
 		const formData = new FormData(e.currentTarget as HTMLFormElement);
 
 		const contactsPath = await getContactsPath();
-
-		// Prepare contact data matching NewContactData structure in Rust
-		const contactData = {
-			given_name: formData.get('givenName') as string | null,
-			middle_name: formData.get('middleName') as string | null,
-			family_name: formData.get('familyName') as string | null,
-			birthday: formData.get('birthday') as string | null,
-			anniversary: formData.get('anniversary') as string | null,
-		};
+		const contactData = getContactData(formData);
 
 		try {
 			const filePath = await invoke('add_contact', {
@@ -88,15 +80,7 @@ export function EditContact({ uuid }: { uuid: string }) {
 		const formData = new FormData(e.currentTarget as HTMLFormElement);
 
 		const contactsPath = await getContactsPath();
-
-		// Prepare contact data matching NewContactData structure in Rust
-		const contactData = {
-			given_name: formData.get('givenName') as string | null,
-			middle_name: formData.get('middleName') as string | null,
-			family_name: formData.get('familyName') as string | null,
-			birthday: formData.get('birthday') as string | null,
-			anniversary: formData.get('anniversary') as string | null,
-		};
+		const contactData = getContactData(formData);
 
 		try {
 			const filePath = await invoke('edit_contact', {
