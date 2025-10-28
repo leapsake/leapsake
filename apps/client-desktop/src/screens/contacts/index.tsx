@@ -1,17 +1,15 @@
 import { PersonForm } from '../../components/PersonForm';
 import { invoke } from '@tauri-apps/api/core';
-import { appDataDir } from '@tauri-apps/api/path';
-import { join } from '@tauri-apps/api/path';
 import { Contacts } from '../../components/Contacts';
 import { ContactsList } from '../../components/ContactsList';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useData } from '../../hooks';
 import { useState, useEffect } from 'preact/hooks';
+import { getContactsPath } from '../../utils';
 
 function useBrowseContacts() {
 	return useData(async () => {
-		const appData = await appDataDir();
-		const contactsPath = await join(appData, 'contacts');
+		const contactsPath = await getContactsPath();
 		return invoke('browse_contacts', { path: contactsPath });
 	});
 }
@@ -21,9 +19,7 @@ export function AddContact() {
 		e.preventDefault();
 		const formData = new FormData(e.currentTarget as HTMLFormElement);
 
-		// Get the contacts path
-		const appData = await appDataDir();
-		const contactsPath = await join(appData, 'contacts');
+		const contactsPath = await getContactsPath();
 
 		// Prepare contact data matching NewContactData structure in Rust
 		const contactData = {
@@ -72,8 +68,7 @@ export function EditContact({ uuid }: { uuid: string }) {
 		async function fetchContact() {
 			try {
 				setIsLoading(true);
-				const appData = await appDataDir();
-				const contactsPath = await join(appData, 'contacts');
+				const contactsPath = await getContactsPath();
 				const contactData = await invoke('read_contact', {
 					path: contactsPath,
 					uuid: uuid
@@ -92,9 +87,7 @@ export function EditContact({ uuid }: { uuid: string }) {
 		e.preventDefault();
 		const formData = new FormData(e.currentTarget as HTMLFormElement);
 
-		// Get the contacts path
-		const appData = await appDataDir();
-		const contactsPath = await join(appData, 'contacts');
+		const contactsPath = await getContactsPath();
 
 		// Prepare contact data matching NewContactData structure in Rust
 		const contactData = {
@@ -179,8 +172,7 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 		async function fetchContact() {
 			try {
 				setIsLoading(true);
-				const appData = await appDataDir();
-				const contactsPath = await join(appData, 'contacts');
+				const contactsPath = await getContactsPath();
 				const contactData = await invoke('read_contact', {
 					path: contactsPath,
 					uuid: uuid
@@ -197,8 +189,7 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 
 	const handleDelete = async () => {
 		try {
-			const appData = await appDataDir();
-			const contactsPath = await join(appData, 'contacts');
+			const contactsPath = await getContactsPath();
 			await invoke('delete_contact', {
 				path: contactsPath,
 				uuid: uuid
@@ -260,8 +251,7 @@ export function ReadContact({ uuid }: { uuid: string }) {
 		async function fetchContact() {
 			try {
 				setIsLoading(true);
-				const appData = await appDataDir();
-				const contactsPath = await join(appData, 'contacts');
+				const contactsPath = await getContactsPath();
 				const contactData = await invoke('read_contact', {
 					path: contactsPath,
 					uuid: uuid
