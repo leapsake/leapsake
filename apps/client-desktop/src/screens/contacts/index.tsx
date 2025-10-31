@@ -5,32 +5,7 @@ import { ContactsList } from '../../components/ContactsList';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useData } from '../../hooks';
 import { useState, useEffect } from 'preact/hooks';
-import { getContactData, getContactsPath } from '../../utils';
-
-interface PartialDate {
-	'@type'?: string;
-	year?: number;
-	month?: number;
-	day?: number;
-}
-
-function formatPartialDate(date: PartialDate): string {
-	const parts: string[] = [];
-
-	if (date.month !== undefined) {
-		parts.push(String(date.month));
-	}
-
-	if (date.day !== undefined) {
-		parts.push(String(date.day));
-	}
-
-	if (date.year !== undefined) {
-		parts.push(String(date.year));
-	}
-
-	return parts.length > 0 ? parts.join('/') : '';
-}
+import { formatPartialDate, getContactData, getContactsPath } from '../../utils';
 
 function useBrowseContacts() {
 	return useData(async () => {

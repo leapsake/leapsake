@@ -1,5 +1,5 @@
-import { appDataDir } from '@tauri-apps/api/path';
-import { join } from '@tauri-apps/api/path';
+import { appDataDir, join } from '@tauri-apps/api/path';
+import { PartialDate } from './types';
 
 export async function getContactsPath() {
 	const appData = await appDataDir();
@@ -8,14 +8,7 @@ export async function getContactsPath() {
 	return contactsPath;
 }
 
-interface PartialDate {
-	'@type'?: string;
-	year?: number;
-	month?: number;
-	day?: number;
-}
-
-function combineDateFields(formData: FormData, fieldName: string): PartialDate | null {
+function getPartialDate(formData: FormData, fieldName: string): PartialDate | null {
 	const monthStr = formData.get(`${fieldName}-month}`) as string | null;
 	const dayStr = formData.get(`${fieldName}-day}`) as string | null;
 	const yearStr = formData.get(`${fieldName}-year}`) as string | null;
@@ -50,12 +43,30 @@ function combineDateFields(formData: FormData, fieldName: string): PartialDate |
 	return partialDate;
 }
 
-export function getContactData(formData) {
+export function getContactData(formData: FormData) {
 	return {
 		given_name: formData.get('givenName') as string | null,
 		middle_name: formData.get('middleName') as string | null,
 		family_name: formData.get('familyName') as string | null,
-		birthday: combineDateFields(formData, 'birthday'),
-		anniversary: combineDateFields(formData, 'anniversary'),
+		birthday: getPartialDate(formData, 'birthday'),
+		anniversary: getPartialDate(formData, 'anniversary'),
 	};
+}
+
+export function formatPartialDate(date: PartialDate): string {
+	const parts: string[] = [];
+
+	if (date.month !== undefined) {
+		parts.push(String(date.month));
+	}
+
+	if (date.day !== undefined) {
+		parts.push(String(date.day));
+	}
+
+	if (date.year !== undefined) {
+		parts.push(String(date.year));
+	}
+
+	return parts.length > 0 ? parts.join('/') : '';
 }
