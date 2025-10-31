@@ -1,7 +1,7 @@
-import { DateInput } from '../DateInput';
-import { Form } from '../Form';
-import { TextInput } from '../TextInput';
-import { PartialDate } from '../../types';
+import { DateInput } from '@/components/DateInput';
+import { Form } from '@/components/Form';
+import { TextInput } from '@/components/TextInput';
+import { PartialDate } from '@/types';
 
 interface PersonFormProps {
 	anniversary?: PartialDate;

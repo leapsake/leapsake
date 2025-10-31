@@ -1,11 +1,11 @@
-import { PersonForm } from '../../components/PersonForm';
 import { invoke } from '@tauri-apps/api/core';
-import { Contacts } from '../../components/Contacts';
-import { ContactsList } from '../../components/ContactsList';
-import { ScreenHeader } from '../../components/ScreenHeader';
-import { useData } from '../../hooks';
-import { formatPartialDate, getContactData } from '../../utils';
-import { ContactName } from '../../components/ContactName';
+import { ContactName } from '@/components/ContactName';
+import { Contacts } from '@/components/Contacts';
+import { ContactsList } from '@/components/ContactsList';
+import { PersonForm } from '@/components/PersonForm';
+import { ScreenHeader } from '@/components/ScreenHeader';
+import { getContactData, getDisplayDate } from '@/utils';
+import { useData } from '@/hooks';
 
 function useBrowseContacts() {
 	return useData(async () => {
@@ -266,8 +266,8 @@ export function ReadContact({ uuid }: { uuid: string }) {
 				{(contact.birthday || contact.anniversary) && (
 					<>
 						<h2>Dates</h2>
-						{contact.birthday && <p><strong>🎂 Birthday:</strong> {formatPartialDate(contact.birthday)}</p>}
-						{contact.anniversary && <p><strong>💒 Anniversary:</strong> {formatPartialDate(contact.anniversary)}</p>}
+						{contact.birthday && <p><strong>🎂 Birthday:</strong> {getDisplayDate(contact.birthday)}</p>}
+						{contact.anniversary && <p><strong>💒 Anniversary:</strong> {getDisplayDate(contact.anniversary)}</p>}
 					</>
 				)}
 
@@ -310,7 +310,7 @@ export function BrowseContacts() {
 			<ScreenHeader
 				title="Contacts"
 			>
-				<a href="/contacts/new">+ New</a>
+				<a href="/contacts/new">➕ New</a>
 			</ScreenHeader>
 			{noContacts
 				? (
