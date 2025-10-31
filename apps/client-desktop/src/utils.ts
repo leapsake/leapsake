@@ -1,12 +1,4 @@
-import { appDataDir, join } from '@tauri-apps/api/path';
 import { PartialDate } from './types';
-
-export async function getContactsPath() {
-	const appData = await appDataDir();
-	const contactsPath = await join(appData, 'contacts');
-
-	return contactsPath;
-}
 
 function getPartialDate(formData: FormData, fieldName: string): PartialDate | null {
 	const monthStr = formData.get(`${fieldName}-month}`) as string | null;
