@@ -21,6 +21,15 @@ function useReadContact({ uuid }: { uuid: string }) {
 	}, [ uuid ]);
 }
 
+function getDisplayName(contact, fallback = 'this contact') {
+	const nameParts = [];
+	if (contact.given_name) nameParts.push(contact.given_name);
+	if (contact.family_name) nameParts.push(contact.family_name);
+	const displayName = nameParts.length > 0 ? nameParts.join(' ') : fallback;
+
+	return displayName;
+}
+
 export function AddContact() {
 	const handleSubmit = async (e: Event) => {
 		e.preventDefault();
@@ -101,11 +110,7 @@ export function EditContact({ uuid }: { uuid: string }) {
 		);
 	}
 
-	// Build display name
-	const nameParts = [];
-	if (contact.given_name) nameParts.push(contact.given_name);
-	if (contact.family_name) nameParts.push(contact.family_name);
-	const displayName = nameParts.length > 0 ? nameParts.join(' ') : 'Unnamed Contact';
+	const displayName = getDisplayName(contact);
 
 	return (
 		<Contacts>
@@ -165,11 +170,7 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 		return null;
 	}
 
-	// Build display name
-	const nameParts = [];
-	if (contact.given_name) nameParts.push(contact.given_name);
-	if (contact.family_name) nameParts.push(contact.family_name);
-	const displayName = nameParts.length > 0 ? nameParts.join(' ') : 'this contact';
+	const displayName = getDisplayName(contact);
 
 	return (
 		<Contacts>
@@ -212,11 +213,7 @@ export function ReadContact({ uuid }: { uuid: string }) {
 		);
 	}
 
-	// Build display name
-	const nameParts = [];
-	if (contact.given_name) nameParts.push(contact.given_name);
-	if (contact.family_name) nameParts.push(contact.family_name);
-	const displayName = nameParts.length > 0 ? nameParts.join(' ') : 'Unnamed Contact';
+	const displayName = getDisplayName(contact);
 
 	return (
 		<Contacts>
