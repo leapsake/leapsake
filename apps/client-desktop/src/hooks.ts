@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'preact/hooks';
 
-export function useData(dataPromise) {
+export function useData(dataPromise, dependencies: any[] = []) {
 	const [data, setData] = useState(null);
 	const [isLoading, setIsLoading] = useState(true);
-
+	const [error, setError] = useState(null);
 	
 	useEffect(() => {
 		const getData = async () => {
-			const data = await dataPromise();
-			setData(data);
-			setIsLoading(false);
+			try {
+				const data = await dataPromise();
+				setData(data);
+			} catch (err) {
+				setError(String(err));
+			} finally {
+				setIsLoading(false);
+			}
 		}
 		
 		getData();
-	}, []);
+	}, dependencies);
 
-	return [data, isLoading];
+	return [data, isLoading, error];
 }

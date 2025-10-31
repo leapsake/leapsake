@@ -4,7 +4,6 @@ import { Contacts } from '../../components/Contacts';
 import { ContactsList } from '../../components/ContactsList';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useData } from '../../hooks';
-import { useState, useEffect } from 'preact/hooks';
 import { formatPartialDate, getContactData } from '../../utils';
 import { Name } from '../../components/Name';
 
@@ -12,6 +11,14 @@ function useBrowseContacts() {
 	return useData(async () => {
 		return invoke('browse_contacts');
 	});
+}
+
+function useReadContact({ uuid }: { uuid: string }) {
+	return useData(async () => {
+		return invoke('read_contact', {
+			uuid,
+		});
+	}, [ uuid ]);
 }
 
 export function AddContact() {
@@ -50,26 +57,7 @@ export function AddContact() {
 }
 
 export function EditContact({ uuid }: { uuid: string }) {
-	const [contact, setContact] = useState<any>(null);
-	const [isLoading, setIsLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-
-	useEffect(() => {
-		async function fetchContact() {
-			try {
-				setIsLoading(true);
-				const contactData = await invoke('read_contact', {
-					uuid,
-				});
-				setContact(contactData);
-			} catch (err) {
-				setError(String(err));
-			} finally {
-				setIsLoading(false);
-			}
-		}
-		fetchContact();
-	}, [uuid]);
+	const [contact, isLoading, error]  = useReadContact({ uuid });
 
 	const handleSubmit = async (e: Event) => {
 		e.preventDefault();
@@ -144,26 +132,7 @@ export function EditContact({ uuid }: { uuid: string }) {
 }
 
 export function DeleteContact({ uuid }: { uuid: string }) {
-	const [contact, setContact] = useState<any>(null);
-	const [isLoading, setIsLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-
-	useEffect(() => {
-		async function fetchContact() {
-			try {
-				setIsLoading(true);
-				const contactData = await invoke('read_contact', {
-					uuid,
-				});
-				setContact(contactData);
-			} catch (err) {
-				setError(String(err));
-			} finally {
-				setIsLoading(false);
-			}
-		}
-		fetchContact();
-	}, [uuid]);
+	const [contact, isLoading, error] = useReadContact({ uuid });
 
 	const handleDelete = async () => {
 		try {
@@ -219,26 +188,7 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 }
 
 export function ReadContact({ uuid }: { uuid: string }) {
-	const [contact, setContact] = useState<any>(null);
-	const [isLoading, setIsLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-
-	useEffect(() => {
-		async function fetchContact() {
-			try {
-				setIsLoading(true);
-				const contactData = await invoke('read_contact', {
-					uuid,
-				});
-				setContact(contactData);
-			} catch (err) {
-				setError(String(err));
-			} finally {
-				setIsLoading(false);
-			}
-		}
-		fetchContact();
-	}, [uuid]);
+	const [contact, isLoading, error] = useReadContact({ uuid });
 
 	if (isLoading) {
 		return (
@@ -309,7 +259,7 @@ export function ReadContact({ uuid }: { uuid: string }) {
 }
 
 export function BrowseContacts() {
-	const [data, isLoading] = useBrowseContacts();
+	const [contacts, isLoading, error] = useBrowseContacts();
 
 	if (isLoading) {
 		return (
@@ -319,12 +269,21 @@ export function BrowseContacts() {
 		);
 	}
 
-	const noContacts = !(!!data && Array.isArray(data) && data.length > 0);
+	if (error) {
+		<Contacts>
+			<ScreenHeader title="Error">
+				<a href="/">Go back</a>
+			</ScreenHeader>
+			<p>Error: {error || 'Contacts not found'}</p>
+		</Contacts>
+	}
+
+	const noContacts = !(!!contacts && Array.isArray(contacts) && contacts.length > 0);
 
 	return (
 		<Contacts>
 			<ScreenHeader
-				title="Browse"
+				title="Contacts"
 			>
 				<a href="/contacts/new">+ New</a>
 			</ScreenHeader>
@@ -333,7 +292,7 @@ export function BrowseContacts() {
 					<span>No contacts</span>
 				)
 				: (
-					<ContactsList contacts={data} />
+					<ContactsList contacts={contacts} />
 				)
 			}
 		</Contacts>
