@@ -45,20 +45,41 @@ export function getContactData(formData: FormData) {
 	};
 }
 
-export function formatPartialDate(date: PartialDate): string {
-	const parts: string[] = [];
+const months = [
+	'January',
+	'February',
+	'March',
+	'April',
+	'May',
+	'June',
+	'July',
+	'August',
+	'September',
+	'October',
+	'November',
+	'December',
+];
 
-	if (date.month !== undefined) {
-		parts.push(String(date.month));
+export function getDisplayDate(date: PartialDate): string {
+	if (date.month === undefined && date.day !== undefined) {
+		throw new Error('Invalid date provided');
 	}
 
-	if (date.day !== undefined) {
-		parts.push(String(date.day));
+	if (date.month !== undefined && date.day !== undefined && date.year !== undefined) {
+		return `${months[date.month - 1]} ${date.day}, ${date.year}`;
+	}
+
+	if (date.month !== undefined && date.year !== undefined) {
+		return `${months[date.month - 1]} ${date.year}`;
+	}
+	
+	if (date.month !== undefined && date.day !== undefined) {
+		return `${months[date.month -1]} ${date.day}`;
 	}
 
 	if (date.year !== undefined) {
-		parts.push(String(date.year));
+		return String(date.year);
 	}
 
-	return parts.length > 0 ? parts.join('/') : '';
+	return '';
 }

@@ -1,5 +1,5 @@
-import { TextInput } from '../TextInput';
-import { PartialDate } from '../../types';
+import { TextInput } from '@/components/TextInput';
+import { PartialDate } from '@/types';
 import styles from './DateInput.module.css';
 
 interface DateInputProps {
