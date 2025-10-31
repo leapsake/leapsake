@@ -81,5 +81,9 @@ export function getDisplayDate(date: PartialDate): string {
 		return String(date.year);
 	}
 
+	if (date.month !== undefined) {
+		return months[date.month - 1];
+	}
+
 	return '';
 }

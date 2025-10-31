@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { ContactName } from '@/components/ContactName';
 import { Contacts } from '@/components/Contacts';
 import { ContactsList } from '@/components/ContactsList';
+import { Details } from '@/components/Details';
 import { PersonForm } from '@/components/PersonForm';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { getContactData, getDisplayDate } from '@/utils';
@@ -271,13 +272,18 @@ export function ReadContact({ uuid }: { uuid: string }) {
 					</>
 				)}
 
-				<details>
-					<summary><h2>Metadata</h2></summary>
+				<Details
+					summary={<h2>Metadata</h2>}
+				>
 					<div>
-						<p><strong>UID:</strong> {contact.uid}</p>
-						<p><strong>File:</strong> {contact.file_path}</p>
+						<b>UUID: </b>
+						<span>{contact.uid}</span>
 					</div>
-				</details>
+					<div>
+						<b>File: </b>
+						<span>{contact.file_path}</span>
+					</div>
+				</Details>
 			</div>
 		</Contacts>
 	);

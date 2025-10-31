@@ -38,7 +38,7 @@ export function ContactName({
 export function ContactNamePart({ label, name }: { label: string; name?: string; }) {
 	return (
 		<div>
-			<div>{label}</div>
+			<b>{label}</b>
 			<div class={styles.namePartValue}>{name}</div>
 		</div>
 	);
