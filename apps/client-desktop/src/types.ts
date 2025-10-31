@@ -13,3 +13,10 @@ export interface ParsedContact {
 	anniversary?: string;
 	file_path: string;
 }
+
+export interface PartialDate {
+	'@type'?: string;
+	year?: number;
+	month?: number;
+	day?: number;
+}
