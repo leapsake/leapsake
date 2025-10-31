@@ -6,6 +6,7 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { useData } from '../../hooks';
 import { useState, useEffect } from 'preact/hooks';
 import { formatPartialDate, getContactData, getContactsPath } from '../../utils';
+import { Name } from '../../components/Name';
 
 function useBrowseContacts() {
 	return useData(async () => {
@@ -130,9 +131,11 @@ export function EditContact({ uuid }: { uuid: string }) {
 			<ScreenHeader
 				title={`Edit ${displayName}`}
 			>
-				<a href={`/contacts/${uuid}`}>Cancel</a>
-				{' | '}
-				<a href={`/contacts/${uuid}/delete`}>Delete</a>
+				<div>
+					<a href={`/contacts/${uuid}`}>Cancel</a>
+					{' | '}
+					<a href={`/contacts/${uuid}/delete`}>Delete</a>
+				</div>
 			</ScreenHeader>
 
 			<PersonForm
@@ -281,30 +284,38 @@ export function ReadContact({ uuid }: { uuid: string }) {
 	return (
 		<Contacts>
 			<ScreenHeader title={displayName}>
-				<a href="/">Go back</a>
-				{' | '}
-				<a href={`/contacts/${uuid}/edit`}>Edit</a>
-				{' | '}
-				<a href={`/contacts/${uuid}/delete`}>Delete</a>
+				<div>
+					<a href="/">Go back</a>
+					{' | '}
+					<a href={`/contacts/${uuid}/edit`}>Edit</a>
+					{' | '}
+					<a href={`/contacts/${uuid}/delete`}>Delete</a>
+				</div>
 			</ScreenHeader>
 
 			<div>
-				<h2>Name</h2>
-				{contact.given_name && <p><strong>First Name:</strong> {contact.given_name}</p>}
-				{contact.middle_name && <p><strong>Middle Name:</strong> {contact.middle_name}</p>}
-				{contact.family_name && <p><strong>Last Name:</strong> {contact.family_name}</p>}
+				<Name
+					title={<h2>Name</h2>}
+					givenName={contact.given_name}
+					middleName={contact.middle_name}
+					familyName={contact.family_name}
+				/>
 
 				{(contact.birthday || contact.anniversary) && (
 					<>
 						<h2>Dates</h2>
-						{contact.birthday && <p><strong>Birthday:</strong> {formatPartialDate(contact.birthday)}</p>}
-						{contact.anniversary && <p><strong>Anniversary:</strong> {formatPartialDate(contact.anniversary)}</p>}
+						{contact.birthday && <p><strong>🎂 Birthday:</strong> {formatPartialDate(contact.birthday)}</p>}
+						{contact.anniversary && <p><strong>💒 Anniversary:</strong> {formatPartialDate(contact.anniversary)}</p>}
 					</>
 				)}
 
-				<h2>Metadata</h2>
-				<p><strong>UID:</strong> {contact.uid}</p>
-				<p><strong>File:</strong> {contact.file_path}</p>
+				<details>
+					<summary><h2>Metadata</h2></summary>
+					<div>
+						<p><strong>UID:</strong> {contact.uid}</p>
+						<p><strong>File:</strong> {contact.file_path}</p>
+					</div>
+				</details>
 			</div>
 		</Contacts>
 	);

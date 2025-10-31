@@ -1,12 +1,6 @@
-import { TextInput } from "../TextInput";
+import { TextInput } from '../TextInput';
+import { PartialDate } from '../../types';
 import styles from './DateInput.module.css';
-
-interface PartialDate {
-	'@type'?: string;
-	year?: number;
-	month?: number;
-	day?: number;
-}
 
 interface DateInputProps {
 	defaultValue?: PartialDate;

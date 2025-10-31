@@ -1,13 +1,7 @@
 import { DateInput } from '../DateInput';
 import { Form } from '../Form';
 import { TextInput } from '../TextInput';
-
-interface PartialDate {
-	'@type'?: string;
-	year?: number;
-	month?: number;
-	day?: number;
-}
+import { PartialDate } from '../../types';
 
 interface PersonFormProps {
 	anniversary?: PartialDate;
@@ -52,13 +46,13 @@ export function PersonForm({
 
 			<DateInput
 				defaultValue={birthday}
-				label="Birthday"
+				label="🎂 Birthday"
 				name="birthday"
 			/>
 
 			<DateInput
 				defaultValue={anniversary}
-				label="Anniversary"
+				label="💒 Anniversary"
 				name="anniversary"
 			/>
 

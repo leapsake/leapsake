@@ -1,0 +1,7 @@
+.name {
+	display: flex;
+}
+
+.name > * + * {
+	margin-left: 1rem;
+}
