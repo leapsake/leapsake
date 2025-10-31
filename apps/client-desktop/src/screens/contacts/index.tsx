@@ -5,7 +5,7 @@ import { ContactsList } from '../../components/ContactsList';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useData } from '../../hooks';
 import { formatPartialDate, getContactData } from '../../utils';
-import { Name } from '../../components/Name';
+import { ContactName } from '../../components/ContactName';
 
 function useBrowseContacts() {
 	return useData(async () => {
@@ -115,6 +115,16 @@ export function EditContact({ uuid }: { uuid: string }) {
 	return (
 		<Contacts>
 			<ScreenHeader
+				breadcrumbs={[
+					{
+						label: 'Contacts',
+						url: '/',
+					},
+					{
+						label: displayName,
+						url: `/contacts/${uuid}`,
+					},
+				]}
 				title={`Edit ${displayName}`}
 			>
 				<div>
@@ -175,7 +185,17 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 	return (
 		<Contacts>
 			<ScreenHeader
-				title="Delete Contact"
+				breadcrumbs={[
+					{
+						label: 'Contacts',
+						url: '/',
+					},
+					{
+						label: displayName,
+						url: `/contacts/${uuid}`,
+					},
+				]}
+				title={`Delete ${displayName}`}
 			>
 				<a href={`/contacts/${uuid}`}>Cancel</a>
 			</ScreenHeader>
@@ -197,6 +217,7 @@ export function ReadContact({ uuid }: { uuid: string }) {
 				<ScreenHeader title="View Contact">
 					<a href="/">Go back</a>
 				</ScreenHeader>
+
 				<p>Loading...</p>
 			</Contacts>
 		);
@@ -208,6 +229,7 @@ export function ReadContact({ uuid }: { uuid: string }) {
 				<ScreenHeader title="Error">
 					<a href="/">Go back</a>
 				</ScreenHeader>
+
 				<p>Error: {error || 'Contact not found'}</p>
 			</Contacts>
 		);
@@ -217,10 +239,16 @@ export function ReadContact({ uuid }: { uuid: string }) {
 
 	return (
 		<Contacts>
-			<ScreenHeader title={displayName}>
+			<ScreenHeader 
+				breadcrumbs={[
+					{
+						label: 'Contacts',
+						url: '/',
+					},
+				]}
+				title={displayName}
+			>
 				<div>
-					<a href="/">Go back</a>
-					{' | '}
 					<a href={`/contacts/${uuid}/edit`}>Edit</a>
 					{' | '}
 					<a href={`/contacts/${uuid}/delete`}>Delete</a>
@@ -228,7 +256,7 @@ export function ReadContact({ uuid }: { uuid: string }) {
 			</ScreenHeader>
 
 			<div>
-				<Name
+				<ContactName
 					title={<h2>Name</h2>}
 					givenName={contact.given_name}
 					middleName={contact.middle_name}
