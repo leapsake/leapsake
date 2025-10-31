@@ -5,13 +5,12 @@ import { ContactsList } from '../../components/ContactsList';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { useData } from '../../hooks';
 import { useState, useEffect } from 'preact/hooks';
-import { formatPartialDate, getContactData, getContactsPath } from '../../utils';
+import { formatPartialDate, getContactData } from '../../utils';
 import { Name } from '../../components/Name';
 
 function useBrowseContacts() {
 	return useData(async () => {
-		const contactsPath = await getContactsPath();
-		return invoke('browse_contacts', { path: contactsPath });
+		return invoke('browse_contacts');
 	});
 }
 
@@ -20,12 +19,10 @@ export function AddContact() {
 		e.preventDefault();
 		const formData = new FormData(e.currentTarget as HTMLFormElement);
 
-		const contactsPath = await getContactsPath();
 		const contactData = getContactData(formData);
 
 		try {
 			const filePath = await invoke('add_contact', {
-				path: contactsPath,
 				data: contactData
 			});
 			console.log('Contact created at:', filePath);
@@ -61,10 +58,8 @@ export function EditContact({ uuid }: { uuid: string }) {
 		async function fetchContact() {
 			try {
 				setIsLoading(true);
-				const contactsPath = await getContactsPath();
 				const contactData = await invoke('read_contact', {
-					path: contactsPath,
-					uuid: uuid
+					uuid,
 				});
 				setContact(contactData);
 			} catch (err) {
@@ -80,13 +75,11 @@ export function EditContact({ uuid }: { uuid: string }) {
 		e.preventDefault();
 		const formData = new FormData(e.currentTarget as HTMLFormElement);
 
-		const contactsPath = await getContactsPath();
 		const contactData = getContactData(formData);
 
 		try {
 			const filePath = await invoke('edit_contact', {
-				path: contactsPath,
-				uuid: uuid,
+				uuid,
 				data: contactData
 			});
 			console.log('Contact updated at:', filePath);
@@ -159,10 +152,8 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 		async function fetchContact() {
 			try {
 				setIsLoading(true);
-				const contactsPath = await getContactsPath();
 				const contactData = await invoke('read_contact', {
-					path: contactsPath,
-					uuid: uuid
+					uuid,
 				});
 				setContact(contactData);
 			} catch (err) {
@@ -176,10 +167,8 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 
 	const handleDelete = async () => {
 		try {
-			const contactsPath = await getContactsPath();
 			await invoke('delete_contact', {
-				path: contactsPath,
-				uuid: uuid
+				uuid,
 			});
 			console.log('Contact deleted');
 			// Redirect to browse page
@@ -238,10 +227,8 @@ export function ReadContact({ uuid }: { uuid: string }) {
 		async function fetchContact() {
 			try {
 				setIsLoading(true);
-				const contactsPath = await getContactsPath();
 				const contactData = await invoke('read_contact', {
-					path: contactsPath,
-					uuid: uuid
+					uuid,
 				});
 				setContact(contactData);
 			} catch (err) {

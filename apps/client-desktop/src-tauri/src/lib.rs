@@ -1,82 +1,47 @@
 use tauri::{command, AppHandle, Manager};
 use leapsake_core::{JSContactData, NewContactData, Contact};
 
+fn get_contacts_dir(app: AppHandle) {
+    let app_data = app.path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    
+    let contacts_dir = app_data.join("contacts");
+
+    contacts_dir
+}
+
 #[command]
-async fn browse_contacts(app: AppHandle, path: Option<String>) -> Result<Vec<JSContactData>, String> {
-    let contacts_dir = if let Some(custom_path) = path {
-        // Use custom path if provided
-        std::path::PathBuf::from(custom_path)
-    } else {
-        // Default to app_data/contacts if no path provided
-        let app_data = app.path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-        app_data.join("contacts")
-    };
+async fn browse_contacts(app: AppHandle) -> Result<Vec<JSContactData>, String> {
+    let contacts_dir = get_contacts_dir(app);
 
     leapsake_core::browse_contacts(&[contacts_dir])
 }
 
 #[command]
-async fn add_contact(app: AppHandle, path: Option<String>, data: NewContactData) -> Result<String, String> {
-    let contacts_dir = if let Some(custom_path) = path {
-        // Use custom path if provided
-        std::path::PathBuf::from(custom_path)
-    } else {
-        // Default to app_data/contacts if no path provided
-        let app_data = app.path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-        app_data.join("contacts")
-    };
+async fn add_contact(app: AppHandle, data: NewContactData) -> Result<String, String> {
+    let contacts_dir = get_contacts_dir(app);
 
     leapsake_core::add_contact(contacts_dir, data)
 }
 
 #[command]
-async fn read_contact(app: AppHandle, path: Option<String>, uuid: String) -> Result<Contact, String> {
-    let contacts_dir = if let Some(custom_path) = path {
-        // Use custom path if provided
-        std::path::PathBuf::from(custom_path)
-    } else {
-        // Default to app_data/contacts if no path provided
-        let app_data = app.path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-        app_data.join("contacts")
-    };
+async fn read_contact(app: AppHandle, uuid: String) -> Result<Contact, String> {
+    let contacts_dir = get_contacts_dir(app);
 
     leapsake_core::read_contact(contacts_dir, &uuid)
 }
 
 #[command]
-async fn edit_contact(app: AppHandle, path: Option<String>, uuid: String, data: NewContactData) -> Result<String, String> {
-    let contacts_dir = if let Some(custom_path) = path {
-        // Use custom path if provided
-        std::path::PathBuf::from(custom_path)
-    } else {
-        // Default to app_data/contacts if no path provided
-        let app_data = app.path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-        app_data.join("contacts")
-    };
+async fn edit_contact(app: AppHandle, uuid: String, data: NewContactData) -> Result<String, String> {
+    let contacts_dir = get_contacts_dir(app);
 
     leapsake_core::edit_contact(contacts_dir, &uuid, data)
 }
 
 #[command]
-async fn delete_contact(app: AppHandle, path: Option<String>, uuid: String) -> Result<(), String> {
-    let contacts_dir = if let Some(custom_path) = path {
-        // Use custom path if provided
-        std::path::PathBuf::from(custom_path)
-    } else {
-        // Default to app_data/contacts if no path provided
-        let app_data = app.path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-        app_data.join("contacts")
-    };
+async fn delete_contact(app: AppHandle, uuid: String) -> Result<(), String> {
+    let contacts_dir = get_contacts_dir(app);
 
     leapsake_core::delete_contact(contacts_dir, &uuid)
 }
