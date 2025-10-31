@@ -1,47 +1,40 @@
-use tauri::{command, AppHandle, Manager};
+mod utils;
+
+use tauri::{command, AppHandle};
 use leapsake_core::{JSContactData, NewContactData, Contact};
-
-fn get_contacts_dir(app: AppHandle) {
-    let app_data = app.path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-    
-    let contacts_dir = app_data.join("contacts");
-
-    contacts_dir
-}
+use utils::get_contacts_dir;
 
 #[command]
 async fn browse_contacts(app: AppHandle) -> Result<Vec<JSContactData>, String> {
-    let contacts_dir = get_contacts_dir(app);
+    let contacts_dir = get_contacts_dir(app)?;
 
     leapsake_core::browse_contacts(&[contacts_dir])
 }
 
 #[command]
 async fn add_contact(app: AppHandle, data: NewContactData) -> Result<String, String> {
-    let contacts_dir = get_contacts_dir(app);
+    let contacts_dir = get_contacts_dir(app)?;
 
     leapsake_core::add_contact(contacts_dir, data)
 }
 
 #[command]
 async fn read_contact(app: AppHandle, uuid: String) -> Result<Contact, String> {
-    let contacts_dir = get_contacts_dir(app);
+    let contacts_dir = get_contacts_dir(app)?;
 
     leapsake_core::read_contact(contacts_dir, &uuid)
 }
 
 #[command]
 async fn edit_contact(app: AppHandle, uuid: String, data: NewContactData) -> Result<String, String> {
-    let contacts_dir = get_contacts_dir(app);
+    let contacts_dir = get_contacts_dir(app)?;
 
     leapsake_core::edit_contact(contacts_dir, &uuid, data)
 }
 
 #[command]
 async fn delete_contact(app: AppHandle, uuid: String) -> Result<(), String> {
-    let contacts_dir = get_contacts_dir(app);
+    let contacts_dir = get_contacts_dir(app)?;
 
     leapsake_core::delete_contact(contacts_dir, &uuid)
 }
