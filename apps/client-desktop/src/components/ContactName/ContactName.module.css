@@ -5,3 +5,7 @@
 .name > * + * {
 	margin-left: 1rem;
 }
+
+.namePartValue {
+	font-size: 1.2rem;
+}
