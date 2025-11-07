@@ -6,6 +6,10 @@
 	display: flex;
 	list-style: none;
 	margin: 0;
+
+	& > * + * {
+		margin-left: 1rem;
+	}
 }
 
 .logo {
@@ -15,6 +19,8 @@
 .nav {
 	align-items: center;
 	display: flex;
+	justify-content: space-between;
+	padding: 1rem;
 
 	& a {
 		text-decoration: none;
