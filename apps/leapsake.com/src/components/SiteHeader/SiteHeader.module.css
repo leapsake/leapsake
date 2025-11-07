@@ -1,0 +1,23 @@
+.header {
+	width: 100%;
+}
+
+.list {
+	display: flex;
+	list-style: none;
+	margin: 0;
+}
+
+.logo {
+	font-size: 2rem;
+}
+
+.nav {
+	align-items: center;
+	display: flex;
+
+	& a {
+		text-decoration: none;
+	}
+}
+
