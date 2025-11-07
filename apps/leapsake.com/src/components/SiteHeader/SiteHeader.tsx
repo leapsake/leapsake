@@ -1,4 +1,4 @@
-import { SkipLink } from '../SkipLink';
+import { SkipLink } from '@/components/SkipLink';
 import styles from './SiteHeader.module.css';
 
 export function SiteHeader() {

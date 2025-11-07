@@ -1,4 +1,4 @@
-import { SiteHeader } from '../SiteHeader';
+import { SiteHeader } from '@/components/SiteHeader';
 
 export function Welcome({
 	children,
