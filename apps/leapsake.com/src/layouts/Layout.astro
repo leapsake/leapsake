@@ -1,0 +1,32 @@
+---
+interface Props {
+	lang?: string;
+	title?: string;
+}
+
+const {
+	lang = 'en-US',
+	title = 'Leapsake - Keep your people close'
+} = Astro.props
+---
+
+<!doctype html>
+<html lang={lang}>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<title>{title}</title>
+		<style>
+			html,
+			body {
+				margin: 0;
+				width: 100%;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<slot />
+	</body>
+</html>
