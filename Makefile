@@ -15,19 +15,31 @@ install:
 	cargo fetch
 
 # Development mode
-dev:
+dev-desktop:
 	cd apps/client-desktop && pnpm tauri dev
+dev-leapsakecom:
+	cd apps/leapsake.com && pnpm dev
+dev:
+	@make dev-desktop &
+	@make dev-leapsakecom &
+	@wait
 
 # Build everything
-build:
+build-desktop:
 	cargo build --workspace --release
 	pnpm -r build
 
+build:
+	@make build-desktop
+
 # Run all tests
-test:
+test-desktop:
 	cargo test --workspace
 	cargo clippy --workspace -- -D warnings
 	pnpm -r test
+
+test:
+	@make test-desktop
 
 # Clean build artifacts
 clean:
