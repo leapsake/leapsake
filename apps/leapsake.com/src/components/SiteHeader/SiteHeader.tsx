@@ -7,7 +7,7 @@ export function SiteHeader() {
 			<SkipLink />
 			<header class={styles.header}>
 				<nav class={styles.nav}>
-					<a class={styles.logo} href="/">Leapsake</a>
+					<a class={styles.logo} href="/">🐸 Leapsake</a>
 
 					<ul class={styles.list}>
 						<li><a href="/about">About</a></li>
