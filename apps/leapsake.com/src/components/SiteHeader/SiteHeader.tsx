@@ -10,9 +10,7 @@ export function SiteHeader() {
 					<a class={styles.logo} href="/">🐸 Leapsake</a>
 
 					<ul class={styles.list}>
-						<li><a href="/about">About</a></li>
 						<li><a href="/download">Download</a></li>
-						<li><a href="/pricing">Pricing</a></li>
 					</ul>
 				</nav>
 			</header>
