@@ -18,7 +18,7 @@ install:
 dev-desktop:
 	cd apps/client-desktop && pnpm tauri dev
 dev-leapsakecom:
-	cd apps/leapsake.com && pnpm dev
+	cd apps/site-leapsake.com && pnpm dev
 dev-mobile:
 	cd apps/client-mobile && pnpm expo start --dev-client
 dev-mobile-android:
