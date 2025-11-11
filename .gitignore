@@ -4,6 +4,7 @@ node_modules/
 target/
 dist/
 build/
+.expo/
 
 *.swp
 *.swo
