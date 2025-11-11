@@ -19,8 +19,15 @@ dev-desktop:
 	cd apps/client-desktop && pnpm tauri dev
 dev-leapsakecom:
 	cd apps/leapsake.com && pnpm dev
+dev-mobile:
+	cd apps/client-mobile && pnpm expo start --dev-client
+dev-mobile-android:
+	cd apps/client-mobile && pnpm run android
+dev-mobile-ios:
+	cd apps/client-mobile && pnpm run ios
 dev:
 	@make dev-desktop &
+	@make dev-mobile &
 	@make dev-leapsakecom &
 	@wait
 
@@ -28,6 +35,12 @@ dev:
 build-desktop:
 	cargo build --workspace --release
 	pnpm -r build
+
+build-mobile-android:
+	cd apps/client-mobile && pnpm run android --variant=release
+
+build-mobile-ios:
+	cd apps/client-mobile && pnpm run ios --configuration Release
 
 build:
 	@make build-desktop

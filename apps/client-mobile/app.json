@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "client-mobile",
+    "name": "Leapsake",
     "slug": "client-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,9 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.client-mobile"
+      "bundleIdentifier": "com.leapsake.mobile"
     },
     "android": {
+      "package": "com.leapsake.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
