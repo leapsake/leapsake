@@ -1,5 +1,10 @@
 .header {
+	background-color: #50c877;
 	width: 100%;
+
+	& a {
+		color: #ffffff;
+	}
 }
 
 .list {
