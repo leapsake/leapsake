@@ -1,9 +1,9 @@
-import { SocialMediaLinks } from '../SocialMediaLinks';
+// import { SocialMediaLinks } from '../SocialMediaLinks';
 
 export function SiteFooter() {
 	return (
 		<footer>
-			<SocialMediaLinks />
+			{/* <SocialMediaLinks /> */}
 		</footer>
 	);
 }
