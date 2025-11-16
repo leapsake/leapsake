@@ -1,6 +1,8 @@
+import styles from './SocialMediaLinks.module.css';
+
 export function SocialMediaLinks() {
 	return (
-		<ul>
+		<ul class={styles.list}>
 			{/* 
 				<li><a href="https://bsky.app/profile/leapsake.bsky.social">Bluesky</a></li>
 				<li><a href="https://www.facebook.com/leapsake">Facebook</a></li>
