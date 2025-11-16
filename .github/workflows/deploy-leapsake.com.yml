@@ -2,7 +2,7 @@
 #
 # To get started with Astro see: https://docs.astro.build/en/getting-started/
 #
-name: Deploy Astro site to Pages
+name: Deploy leapsake.com to GitHub Pages
 
 on:
   # Runs on pushes targeting the default branch
@@ -10,7 +10,7 @@ on:
     branches: ["main"]
     paths:
       - "apps/site-leapsake.com/**"
-      - ".github/workflows/astro.yml"
+      - ".github/workflows/deploy-leapsake.com.yml"
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
