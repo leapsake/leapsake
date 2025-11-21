@@ -2,6 +2,7 @@ import { DateInput } from '@/components/DateInput';
 import { Form } from '@/components/Form';
 import { TextInput } from '@/components/TextInput';
 import { PartialDate } from '@/types';
+import { Button } from '@/components/Button';
 
 interface PersonFormProps {
 	anniversary?: PartialDate;
@@ -56,7 +57,7 @@ export function PersonForm({
 				name="anniversary"
 			/>
 
-			<button type="submit">Save</button>
+			<Button type="submit">Save</Button>
 		</Form>
 	);
 }
