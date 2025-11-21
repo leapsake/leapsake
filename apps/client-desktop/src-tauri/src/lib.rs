@@ -1,7 +1,7 @@
 mod utils;
 
-use tauri::{command, AppHandle};
-use leapsake_core::{JSContactData, NewContactData, Contact};
+use leapsake_core::{Contact, JSContactData, NewContactData};
+use tauri::{AppHandle, command};
 use utils::get_contacts_dir;
 
 #[command]
@@ -26,7 +26,11 @@ async fn read_contact(app: AppHandle, uuid: String) -> Result<Contact, String> {
 }
 
 #[command]
-async fn edit_contact(app: AppHandle, uuid: String, data: NewContactData) -> Result<String, String> {
+async fn edit_contact(
+    app: AppHandle,
+    uuid: String,
+    data: NewContactData,
+) -> Result<String, String> {
     let contacts_dir = get_contacts_dir(app)?;
 
     leapsake_core::edit_contact(contacts_dir, &uuid, data)
@@ -42,8 +46,15 @@ async fn delete_contact(app: AppHandle, uuid: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![browse_contacts, add_contact, read_contact, edit_contact, delete_contact])
+        .invoke_handler(tauri::generate_handler![
+            browse_contacts,
+            add_contact,
+            read_contact,
+            edit_contact,
+            delete_contact
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
