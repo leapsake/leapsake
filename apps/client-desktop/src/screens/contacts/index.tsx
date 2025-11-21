@@ -6,7 +6,7 @@ import { Details } from '@/components/Details';
 import { PersonForm } from '@/components/PersonForm';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { getContactData, getDisplayDate } from '@/utils';
-import { Button } from '@/components/Button';
+import { Button } from '@leapsake/components';
 import { useData } from '@/hooks';
 
 function useBrowseContacts() {
