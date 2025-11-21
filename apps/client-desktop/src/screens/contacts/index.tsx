@@ -6,6 +6,7 @@ import { Details } from '@/components/Details';
 import { PersonForm } from '@/components/PersonForm';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { getContactData, getDisplayDate } from '@/utils';
+import { Button } from '@/components/Button';
 import { useData } from '@/hooks';
 
 function useBrowseContacts() {
@@ -316,7 +317,7 @@ export function BrowseContacts() {
 			<ScreenHeader
 				title="Contacts"
 			>
-				<a href="/contacts/new">➕ New</a>
+				<Button href="/contacts/new">➕ New</Button>
 			</ScreenHeader>
 			{noContacts
 				? (
