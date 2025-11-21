@@ -131,8 +131,7 @@ export function EditContact({ uuid }: { uuid: string }) {
 			>
 				<div>
 					<a href={`/contacts/${uuid}`}>Cancel</a>
-					{' | '}
-					<a href={`/contacts/${uuid}/delete`}>Delete</a>
+					<Button href={`/contacts/${uuid}/delete`}>Delete</Button>
 				</div>
 			</ScreenHeader>
 
@@ -204,7 +203,7 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 
 			<div>
 				<p>Are you sure you want to delete {displayName}?</p>
-				<button onClick={handleDelete}>Delete</button>
+				<Button onClick={handleDelete}>Delete</Button>
 			</div>
 		</Contacts>
 	);
@@ -251,9 +250,8 @@ export function ReadContact({ uuid }: { uuid: string }) {
 				title={displayName}
 			>
 				<div>
-					<a href={`/contacts/${uuid}/edit`}>Edit</a>
-					{' | '}
-					<a href={`/contacts/${uuid}/delete`}>Delete</a>
+					<Button href={`/contacts/${uuid}/edit`}>Edit</Button>
+					<Button href={`/contacts/${uuid}/delete`}>Delete</Button>
 				</div>
 			</ScreenHeader>
 
@@ -267,7 +265,7 @@ export function ReadContact({ uuid }: { uuid: string }) {
 
 				{(contact.birthday || contact.anniversary) && (
 					<>
-						<h2>Dates</h2>
+						<h2>Milestones</h2>
 						{contact.birthday && <p><strong>🎂 Birthday:</strong> {getDisplayDate(contact.birthday)}</p>}
 						{contact.anniversary && <p><strong>💒 Anniversary:</strong> {getDisplayDate(contact.anniversary)}</p>}
 					</>
