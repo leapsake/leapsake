@@ -1,0 +1,11 @@
+.titlebar {
+	height: 30px;
+	display: grid;
+	grid-template-columns: auto max-content;
+}
+
+.titlebarContent {
+	align-items: center;
+	display: flex;
+	justify-content: center;
+}
