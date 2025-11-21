@@ -3,6 +3,9 @@ import { Form } from '@/components/Form';
 import { TextInput } from '@/components/TextInput';
 import { PartialDate } from '@/types';
 import { Button } from '@/components/Button';
+import { PhoneNumberInput } from '@/components/PhoneNumberInput';
+import { EmailAddressInput } from '@/components/EmailAddressInput';
+import { PhysicalAddressInput } from '@/components/PhysicalAddressInput';
 
 interface PersonFormProps {
 	anniversary?: PartialDate;
@@ -55,6 +58,21 @@ export function PersonForm({
 				defaultValue={anniversary}
 				label="💒 Anniversary"
 				name="anniversary"
+			/>
+
+			<PhoneNumberInput
+				label="Phone"
+				name="phone"
+			/>
+
+			<EmailAddressInput
+				label="Email"
+				name="email"
+			/>
+
+			<PhysicalAddressInput
+				label="Address"
+				name="address"
 			/>
 
 			<Button type="submit">Save</Button>
