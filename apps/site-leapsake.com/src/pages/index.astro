@@ -19,7 +19,19 @@ import { HTMLPage } from '@/components/HTMLPage';
 
 			<p>Your data isn’t locked behind far-off servers or in proprietary formats. Leapsake keeps things offline and local-first, using open standards.</p>
 
-			<h2 class="coming-soon">Coming soon</h2>
+			<div class="coming-soon">
+				<h2>Coming soon</h2>
+
+				<p>Stay informed about our progress and launch.</p>
+
+				<form action="https://usebasin.com/f/affbc7c79e8e" method="post">
+					<label class="field">
+						<div class="label">Email Address</div>
+						<input type="email" name="email" />
+					</label>
+					<button type="submit">Keep me posted</button>
+				</form>
+			</div>
 		</div>
 	</div>
 	<style>
@@ -30,6 +42,11 @@ import { HTMLPage } from '@/components/HTMLPage';
 		.content {
 			max-width: 1000px;
 			padding: 0 2rem;
+		}
+
+		.field {
+			display: inline-block;
+			text-align: left;
 		}
 
 		.wrapper {
