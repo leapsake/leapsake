@@ -1,5 +1,5 @@
 import styles from './Omnibox.module.css';
-import { Form } from '@/components/Form';
+import { Form } from '@leapsake/components';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { useRef, useEffect } from 'preact/hooks';
 

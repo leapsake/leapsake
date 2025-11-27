@@ -14,12 +14,11 @@ export function TextInput({
 	return (
 		<label>
 			<div>{label}</div>
-			<input 
-				{...rest} 
+			<input
+				{...rest}
 				inputMode={inputMode}
-				type={type} 
+				type={type}
 			/>
 		</label>
 	);
 }
-

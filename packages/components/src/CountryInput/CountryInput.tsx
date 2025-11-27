@@ -11,7 +11,7 @@ export function CountryInput({
 			<option disabled>-------</option>
 			{COUNTRIES.map((country) => {
 				return (
-					<option 
+					<option
 						value={country.name}
 					>
 						{`${country.flag} ${country.name}`}
