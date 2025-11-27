@@ -1,5 +1,5 @@
-import { TextInput } from '@/components/TextInput';
-import { CheckboxInput } from '@/components/CheckboxInput';
+import { TextInput } from '../TextInput';
+import { CheckboxInput } from '../CheckboxInput';
 
 interface PhoneNumberInputProps {
 	defaultValue?: string;

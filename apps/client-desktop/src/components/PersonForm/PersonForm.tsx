@@ -1,11 +1,13 @@
-import { DateInput } from '@/components/DateInput';
-import { Form } from '@/components/Form';
-import { TextInput } from '@/components/TextInput';
 import { PartialDate } from '@/types';
-import { Button } from '@leapsake/components';
-import { PhoneNumberInput } from '@/components/PhoneNumberInput';
-import { EmailAddressInput } from '@/components/EmailAddressInput';
-import { PhysicalAddressInput } from '@/components/PhysicalAddressInput';
+import {
+	Button,
+	DateInput,
+	EmailAddressInput,
+	Form,
+	PhoneNumberInput,
+	PhysicalAddressInput,
+	TextInput,
+} from '@leapsake/components';
 
 interface PersonFormProps {
 	anniversary?: PartialDate;

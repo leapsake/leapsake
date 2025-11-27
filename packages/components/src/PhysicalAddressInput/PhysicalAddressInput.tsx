@@ -1,5 +1,5 @@
-import { TextInput } from '@/components/TextInput';
-import { CountryInput } from '@/components/CountryInput';
+import { TextInput } from '../TextInput';
+import { CountryInput } from '../CountryInput';
 
 interface PhysicalAddressInputProps {
 	address1?: string;
@@ -30,23 +30,23 @@ export function PhysicalAddressInput({
 		>
 			<legend>{label}</legend>
 
-			<CountryInput 
+			<CountryInput
 				defaultValue={country}
 			/>
 
-			<TextInput 
+			<TextInput
 				defaultValue={address1}
 				label="Address"
 				name="address1"
 			/>
 
-			<TextInput 
+			<TextInput
 				defaultValue={address2}
 				label="Apartment, suite, etc. (optional)"
 				name="address2"
 			/>
 
-			<TextInput 
+			<TextInput
 				defaultValue={city}
 				label="City"
 				name="city"
