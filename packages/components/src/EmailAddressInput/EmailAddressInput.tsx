@@ -16,9 +16,10 @@ export function EmailAddressInput({
 		<TextInput
 			{...rest}
 			defaultValue={defaultValue}
+			inputMode="email"
 			label={label}
-			type="email"
 			name={name}
+			type="email"
 		/>
 	);
 }

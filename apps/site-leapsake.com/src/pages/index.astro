@@ -1,5 +1,7 @@
 ---
 import { HTMLPage } from '@/components/HTMLPage';
+import { Button } from '@leapsake/components';
+import { EmailAddressInput } from '@leapsake/components';
 ---
 
 <HTMLPage
@@ -25,11 +27,10 @@ import { HTMLPage } from '@/components/HTMLPage';
 				<p>Stay informed about our progress and launch.</p>
 
 				<form action="https://usebasin.com/f/affbc7c79e8e" method="post">
-					<label class="field">
-						<div class="label">Email Address</div>
-						<input type="email" name="email" />
-					</label>
-					<button type="submit">Keep me posted</button>
+					<EmailAddressInput
+						label="Email Address"
+					/>
+					<Button type="submit">Keep me posted</Button>
 				</form>
 			</div>
 		</div>

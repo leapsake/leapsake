@@ -1,4 +1,5 @@
 import { JSX } from 'preact';
+import styles from './TextInput.module.css';
 
 type TextInputProps = JSX.IntrinsicElements['input'] & {
 	label: string;
@@ -12,7 +13,7 @@ export function TextInput({
 	...rest
 }: TextInputProps) {
 	return (
-		<label>
+		<label class={styles.wrapper}>
 			<div>{label}</div>
 			<input
 				{...rest}

@@ -19,9 +19,10 @@ export function PhoneNumberInput({
 			<TextInput
 				{...rest}
 				defaultValue={defaultValue}
+				inputMode="tel"
 				label={label}
-				type="tel"
 				name={name}
+				type="tel"
 			/>
 			<CheckboxInput label="Call" name="call" />
 			<CheckboxInput label="Text" name="text" />

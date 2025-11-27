@@ -9,6 +9,7 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@leapsake/components": "workspace:*",
     "@astrojs/preact": "^4.1.2",
     "astro": "^5.15.3",
     "preact": "^10.27.2"
