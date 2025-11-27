@@ -34,17 +34,21 @@ export function PhysicalAddressInput({
 				defaultValue={country}
 			/>
 
-			<TextInput
-				defaultValue={address1}
-				label="Address"
-				name="address1"
-			/>
+			<div>
+				<TextInput
+					defaultValue={address1}
+					label="Address"
+					name="address1"
+				/>
+			</div>
 
-			<TextInput
-				defaultValue={address2}
-				label="Apartment, suite, etc. (optional)"
-				name="address2"
-			/>
+			<div>
+				<TextInput
+					defaultValue={address2}
+					label="Apartment, suite, etc. (optional)"
+					name="address2"
+				/>
+			</div>
 
 			<TextInput
 				defaultValue={city}
