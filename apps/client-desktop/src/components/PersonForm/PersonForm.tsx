@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { PartialDate } from '@/types';
 import {
 	Button,
@@ -33,8 +34,20 @@ export function PersonForm({
 	middleName,
 	onSubmit,
 }: PersonFormProps) {
-	// Always show at least one email input
-	const emailsToRender = emails.length > 0 ? emails : [{ email: '', label: '' }];
+	// Initialize with at least one email input
+	const [emailFields, setEmailFields] = useState<EmailAddress[]>(
+		emails.length > 0 ? emails : [{ email: '', label: '' }]
+	);
+
+	const handleAddEmail = () => {
+		setEmailFields([...emailFields, { email: '', label: '' }]);
+	};
+
+	const handleRemoveEmail = (index: number) => {
+		if (emailFields.length > 1) {
+			setEmailFields(emailFields.filter((_, i) => i !== index));
+		}
+	};
 
 	return (
 		<Form onSubmit={onSubmit}>
@@ -79,15 +92,29 @@ export function PersonForm({
 
 			<fieldset>
 				<legend>Email Addresses</legend>
-				{emailsToRender.map((emailData, index) => (
-					<EmailAddressInput
-						key={index}
-						defaultValue={emailData.email}
-						defaultLabel={emailData.label}
-						label="Email"
-						name={`emails[${index}]`}
-					/>
+				{emailFields.map((emailData, index) => (
+					<div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+						<div style={{ flex: 1 }}>
+							<EmailAddressInput
+								defaultValue={emailData.email}
+								defaultLabel={emailData.label}
+								label="Email"
+								name={`emails[${index}]`}
+							/>
+						</div>
+						{emailFields.length > 1 && (
+							<Button
+								type="button"
+								onClick={() => handleRemoveEmail(index)}
+							>
+								Remove
+							</Button>
+						)}
+					</div>
 				))}
+				<Button type="button" onClick={handleAddEmail}>
+					Add Email
+				</Button>
 			</fieldset>
 
 			<PhysicalAddressInput

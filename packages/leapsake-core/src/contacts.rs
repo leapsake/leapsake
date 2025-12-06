@@ -394,7 +394,7 @@ pub fn edit_contact<P: AsRef<Path>>(
         let new_obj = new_jscontact.as_object_mut().unwrap();
         for (key, value) in obj {
             // Only preserve fields we don't explicitly manage
-            if !matches!(key.as_str(), "@type" | "version" | "uid" | "name" | "anniversaries") {
+            if !matches!(key.as_str(), "@type" | "version" | "uid" | "name" | "anniversaries" | "emails") {
                 new_obj.insert(key.clone(), value.clone());
             }
         }
