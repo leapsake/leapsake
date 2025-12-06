@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { PartialDate } from '@/types';
+import { useFieldArray } from '@/hooks';
 import {
 	Button,
 	DateInput,
@@ -60,58 +60,30 @@ export function ContactForm({
 	middleName,
 	onSubmit,
 }: ContactFormProps) {
-	// Initialize with at least one email input
-	const [emailFields, setEmailFields] = useState<EmailAddress[]>(
-		emails.length > 0 ? emails : [{ email: '', label: '' }]
-	);
-
-	// Initialize with at least one phone input
 	// Transform phones from features array to canCall/canText booleans
-	const [phoneFields, setPhoneFields] = useState<PhoneNumber[]>(
-		phones.length > 0
-			? phones.map(phone => ({
-				number: phone.number,
-				label: phone.label,
-				canCall: phone.features?.includes('voice') ?? true,
-				canText: phone.features?.includes('text') ?? true,
-			}))
-			: [{ number: '', label: '', canCall: true, canText: true }]
+	const transformedPhones = phones.length > 0
+		? phones.map(phone => ({
+			number: phone.number,
+			label: phone.label,
+			canCall: phone.features?.includes('voice') ?? true,
+			canText: phone.features?.includes('text') ?? true,
+		}))
+		: [];
+
+	const [emailFields, handleAddEmail, handleRemoveEmail] = useFieldArray<EmailAddress>(
+		emails,
+		{ email: '', label: '' }
 	);
 
-	// Initialize with at least one address input
-	const [addressFields, setAddressFields] = useState<Address[]>(
-		addresses.length > 0 ? addresses : [{ street: '', locality: '', region: '', postcode: '', country: '', label: '' }]
+	const [phoneFields, handleAddPhone, handleRemovePhone] = useFieldArray<PhoneNumber>(
+		transformedPhones,
+		{ number: '', label: '', canCall: true, canText: true }
 	);
 
-	const handleAddEmail = () => {
-		setEmailFields([...emailFields, { email: '', label: '' }]);
-	};
-
-	const handleRemoveEmail = (index: number) => {
-		if (emailFields.length > 1) {
-			setEmailFields(emailFields.filter((_, i) => i !== index));
-		}
-	};
-
-	const handleAddPhone = () => {
-		setPhoneFields([...phoneFields, { number: '', label: '', canCall: true, canText: true }]);
-	};
-
-	const handleRemovePhone = (index: number) => {
-		if (phoneFields.length > 1) {
-			setPhoneFields(phoneFields.filter((_, i) => i !== index));
-		}
-	};
-
-	const handleAddAddress = () => {
-		setAddressFields([...addressFields, { street: '', locality: '', region: '', postcode: '', country: '', label: '' }]);
-	};
-
-	const handleRemoveAddress = (index: number) => {
-		if (addressFields.length > 1) {
-			setAddressFields(addressFields.filter((_, i) => i !== index));
-		}
-	};
+	const [addressFields, handleAddAddress, handleRemoveAddress] = useFieldArray<Address>(
+		addresses,
+		{ street: '', locality: '', region: '', postcode: '', country: '', label: '' }
+	);
 
 	return (
 		<Form onSubmit={onSubmit}>
