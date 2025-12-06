@@ -35,6 +35,30 @@ function getPartialDate(formData: FormData, fieldName: string): PartialDate | nu
 	return partialDate;
 }
 
+function getEmails(formData: FormData) {
+	const emails = Array.from(formData.entries()).reduce((acc, [key, value]) => {
+		// Only process email fields
+		const match = key.match(/^emails\[(\d+)\]\.email$/);
+		if (!match) return acc;
+
+		const email = (value as string).trim();
+		// Skip empty emails
+		if (!email) return acc;
+
+		const index = match[1];
+		const label = formData.get(`emails[${index}].label`) as string | null;
+
+		acc.push({
+			email,
+			label: label?.trim() || undefined,
+		});
+
+		return acc;
+	}, [] as Array<{ email: string; label?: string }>);
+
+	return emails.length > 0 ? emails : null;
+}
+
 export function getContactData(formData: FormData) {
 	return {
 		given_name: formData.get('givenName') as string | null,
@@ -42,6 +66,7 @@ export function getContactData(formData: FormData) {
 		family_name: formData.get('familyName') as string | null,
 		birthday: getPartialDate(formData, 'birthday'),
 		anniversary: getPartialDate(formData, 'anniversary'),
+		emails: getEmails(formData),
 	};
 }
 

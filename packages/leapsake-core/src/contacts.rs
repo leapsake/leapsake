@@ -70,6 +70,14 @@ pub struct PartialDate {
     pub day: Option<u32>,
 }
 
+/// Email address data
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct EmailAddress {
+    pub email: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
 /// Data for creating a new contact
 #[derive(serde::Deserialize, Debug)]
 pub struct NewContactData {
@@ -78,6 +86,7 @@ pub struct NewContactData {
     pub family_name: Option<String>,
     pub birthday: Option<PartialDate>,
     pub anniversary: Option<PartialDate>,
+    pub emails: Option<Vec<EmailAddress>>,
 }
 
 /// Parsed contact data ready for display
@@ -89,6 +98,7 @@ pub struct Contact {
     pub family_name: Option<String>,
     pub birthday: Option<PartialDate>,
     pub anniversary: Option<PartialDate>,
+    pub emails: Option<Vec<EmailAddress>>,
     pub file_path: String,
 }
 
@@ -216,6 +226,36 @@ fn build_jscontact_json(uid: &str, data: &NewContactData) -> Value {
     if !anniversaries.is_empty() {
         jscontact["anniversaries"] = Value::Object(anniversaries);
     }
+
+    // Add emails if present
+    let Some(ref emails) = data.emails else {
+        return jscontact;
+    };
+
+    if emails.is_empty() {
+        return jscontact;
+    }
+
+    let mut emails_map = serde_json::Map::new();
+
+    for (index, email_data) in emails.iter().enumerate() {
+        let key = format!("email{}", index + 1);
+        let mut email_obj = json!({
+            "@type": "EmailAddress",
+            "email": email_data.email
+        });
+
+        // Add label if present and non-empty
+        if let Some(ref label) = email_data.label {
+            if !label.is_empty() {
+                email_obj["label"] = json!(label);
+            }
+        }
+
+        emails_map.insert(key, email_obj);
+    }
+
+    jscontact["emails"] = Value::Object(emails_map);
 
     jscontact
 }
@@ -606,6 +646,38 @@ fn parse_contact_file(file_path: &Path) -> Result<Contact, String> {
         }
     }
 
+    // Extract emails
+    let Some(emails_obj) = json.get("emails").and_then(|e| e.as_object()) else {
+        return Ok(Contact {
+            uid,
+            given_name,
+            middle_name,
+            family_name,
+            birthday,
+            anniversary,
+            emails: None,
+            file_path: file_path.to_string_lossy().to_string(),
+        });
+    };
+
+    let email_vec: Vec<EmailAddress> = emails_obj.iter()
+        .filter_map(|(_key, value)| {
+            let email_str = value.get("email").and_then(|e| e.as_str())?;
+
+            // Extract label if present
+            let label = value.get("label")
+                .and_then(|l| l.as_str())
+                .map(|s| s.to_string());
+
+            Some(EmailAddress {
+                email: email_str.to_string(),
+                label,
+            })
+        })
+        .collect();
+
+    let emails = if email_vec.is_empty() { None } else { Some(email_vec) };
+
     Ok(Contact {
         uid,
         given_name,
@@ -613,6 +685,7 @@ fn parse_contact_file(file_path: &Path) -> Result<Contact, String> {
         family_name,
         birthday,
         anniversary,
+        emails,
         file_path: file_path.to_string_lossy().to_string(),
     })
 }
