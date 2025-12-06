@@ -2,71 +2,64 @@ import { TextInput } from '../TextInput';
 import { CountryInput } from '../CountryInput';
 
 interface PhysicalAddressInputProps {
-	address1?: string;
-	address2?: string;
-	city?: string;
-	country?: string;
-	label: string;
-	name: string;
-	postalCode?: string;
-	zone?: string;
+	defaultStreet?: string;
+	defaultLocality?: string;
+	defaultRegion?: string;
+	defaultPostcode?: string;
+	defaultCountry?: string;
+	defaultLabel?: string;
+	label?: string;
+	name?: string;
 }
 
 export function PhysicalAddressInput({
-	address1,
-	address2,
-	city,
-	country,
-	label,
-	name,
-	postalCode,
-	zone,
+	defaultStreet,
+	defaultLocality,
+	defaultRegion,
+	defaultPostcode,
+	defaultCountry,
+	defaultLabel,
+	label = 'Address',
+	name = 'address',
 	...rest
 }: PhysicalAddressInputProps) {
 	return (
-		<fieldset
-			{...rest}
-			name={name}
-		>
-			<legend>{label}</legend>
+		<div {...rest}>
+			<TextInput
+				defaultValue={defaultLabel}
+				label="Label"
+				name={`${name}.label`}
+				placeholder="e.g., home, work, billing"
+			/>
+
+			<TextInput
+				defaultValue={defaultStreet}
+				label="Street Address"
+				name={`${name}.street`}
+			/>
+
+			<TextInput
+				defaultValue={defaultLocality}
+				label="City"
+				name={`${name}.locality`}
+			/>
+
+			<TextInput
+				defaultValue={defaultRegion}
+				label="State/Region"
+				name={`${name}.region`}
+			/>
+
+			<TextInput
+				defaultValue={defaultPostcode}
+				label="ZIP/Postal Code"
+				name={`${name}.postcode`}
+			/>
 
 			<CountryInput
-				defaultValue={country}
+				defaultValue={defaultCountry}
+				name={`${name}.country`}
 			/>
-
-			<div>
-				<TextInput
-					defaultValue={address1}
-					label="Address"
-					name="address1"
-				/>
-			</div>
-
-			<div>
-				<TextInput
-					defaultValue={address2}
-					label="Apartment, suite, etc. (optional)"
-					name="address2"
-				/>
-			</div>
-
-			<TextInput
-				defaultValue={city}
-				label="City"
-				name="city"
-			/>
-
-			<TextInput
-				defaultValue={zone}
-				label="State"
-				name="zone"
-			/>
-
-			<TextInput
-				defaultValue={postalCode}
-				label="ZIP Code"
-				name="postalCode"
-			/>
-		</fieldset>
+		</div>
 	);
 }

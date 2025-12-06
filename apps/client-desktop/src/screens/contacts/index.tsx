@@ -143,6 +143,7 @@ export function EditContact({ uuid }: { uuid: string }) {
 				anniversary={contact.anniversary || ''}
 				emails={contact.emails || []}
 				phones={contact.phones || []}
+				addresses={contact.addresses || []}
 				onSubmit={handleSubmit}
 			/>
 		</Contacts>
@@ -288,6 +289,29 @@ export function ReadContact({ uuid }: { uuid: string }) {
 									<span> ({phoneData.features.join(', ')})</span>
 								)}
 							</p>
+						))}
+					</>
+				)}
+
+				{contact.addresses && contact.addresses.length > 0 && (
+					<>
+						<h2>Addresses</h2>
+						{contact.addresses.map((addressData, index) => (
+							<div key={index}>
+								{addressData.label && <strong>{addressData.label}:</strong>}
+								<p>
+									{addressData.street}
+									{addressData.locality && <><br/>{addressData.locality}</>}
+									{(addressData.region || addressData.postcode) && (
+										<>
+											<span>, </span>
+											{addressData.region && `${addressData.region} `}
+											{addressData.postcode}
+										</>
+									)}
+									{addressData.country && <><br/>{addressData.country}</>}
+								</p>
+							</div>
 						))}
 					</>
 				)}

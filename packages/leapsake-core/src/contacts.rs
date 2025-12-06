@@ -88,6 +88,22 @@ pub struct PhoneNumber {
     pub features: Option<Vec<String>>,
 }
 
+/// Address data
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+pub struct Address {
+    pub street: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locality: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub region: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub postcode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub country: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
 /// Data for creating a new contact
 #[derive(serde::Deserialize, Debug)]
 pub struct NewContactData {
@@ -98,6 +114,7 @@ pub struct NewContactData {
     pub anniversary: Option<PartialDate>,
     pub emails: Option<Vec<EmailAddress>>,
     pub phones: Option<Vec<PhoneNumber>>,
+    pub addresses: Option<Vec<Address>>,
 }
 
 /// Parsed contact data ready for display
@@ -111,6 +128,7 @@ pub struct Contact {
     pub anniversary: Option<PartialDate>,
     pub emails: Option<Vec<EmailAddress>>,
     pub phones: Option<Vec<PhoneNumber>>,
+    pub addresses: Option<Vec<Address>>,
     pub file_path: String,
 }
 
@@ -295,6 +313,45 @@ fn build_jscontact_json(uid: &str, data: &NewContactData) -> Value {
         }
     }
 
+    // Add addresses if present
+    if let Some(addresses) = &data.addresses {
+        if !addresses.is_empty() {
+            let mut addresses_map = serde_json::Map::new();
+
+            for (index, address_data) in addresses.iter().enumerate() {
+                let key = format!("address{}", index + 1);
+                let mut address_obj = json!({
+                    "@type": "Address",
+                    "street": address_data.street
+                });
+
+                if let Some(locality) = &address_data.locality.as_ref().filter(|s| !s.is_empty()) {
+                    address_obj["locality"] = json!(locality);
+                }
+
+                if let Some(region) = &address_data.region.as_ref().filter(|s| !s.is_empty()) {
+                    address_obj["region"] = json!(region);
+                }
+
+                if let Some(postcode) = &address_data.postcode.as_ref().filter(|s| !s.is_empty()) {
+                    address_obj["postcode"] = json!(postcode);
+                }
+
+                if let Some(country) = &address_data.country.as_ref().filter(|s| !s.is_empty()) {
+                    address_obj["country"] = json!(country);
+                }
+
+                if let Some(label) = &address_data.label.as_ref().filter(|s| !s.is_empty()) {
+                    address_obj["label"] = json!(label);
+                }
+
+                addresses_map.insert(key, address_obj);
+            }
+
+            jscontact["addresses"] = Value::Object(addresses_map);
+        }
+    }
+
     jscontact
 }
 
@@ -432,7 +489,7 @@ pub fn edit_contact<P: AsRef<Path>>(
         let new_obj = new_jscontact.as_object_mut().unwrap();
         for (key, value) in obj {
             // Only preserve fields we don't explicitly manage
-            if !matches!(key.as_str(), "@type" | "version" | "uid" | "name" | "anniversaries" | "emails" | "phones") {
+            if !matches!(key.as_str(), "@type" | "version" | "uid" | "name" | "anniversaries" | "emails" | "phones" | "addresses") {
                 new_obj.insert(key.clone(), value.clone());
             }
         }
@@ -739,6 +796,49 @@ fn parse_contact_file(file_path: &Path) -> Result<Contact, String> {
         })
         .flatten();
 
+    // Extract addresses
+    let addresses = json.get("addresses")
+        .and_then(|a| a.as_object())
+        .map(|addresses_obj| {
+            let address_vec: Vec<Address> = addresses_obj.iter()
+                .filter_map(|(_key, value)| {
+                    let street = value.get("street").and_then(|s| s.as_str())?;
+
+                    let locality = value.get("locality")
+                        .and_then(|l| l.as_str())
+                        .map(|s| s.to_string());
+
+                    let region = value.get("region")
+                        .and_then(|r| r.as_str())
+                        .map(|s| s.to_string());
+
+                    let postcode = value.get("postcode")
+                        .and_then(|p| p.as_str())
+                        .map(|s| s.to_string());
+
+                    let country = value.get("country")
+                        .and_then(|c| c.as_str())
+                        .map(|s| s.to_string());
+
+                    let label = value.get("label")
+                        .and_then(|l| l.as_str())
+                        .map(|s| s.to_string());
+
+                    Some(Address {
+                        street: street.to_string(),
+                        locality,
+                        region,
+                        postcode,
+                        country,
+                        label,
+                    })
+                })
+                .collect();
+
+            if address_vec.is_empty() { None } else { Some(address_vec) }
+        })
+        .flatten();
+
     Ok(Contact {
         uid,
         given_name,
@@ -748,6 +848,7 @@ fn parse_contact_file(file_path: &Path) -> Result<Contact, String> {
         anniversary,
         emails,
         phones,
+        addresses,
         file_path: file_path.to_string_lossy().to_string(),
     })
 }
