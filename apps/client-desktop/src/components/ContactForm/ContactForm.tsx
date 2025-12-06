@@ -37,7 +37,7 @@ interface Address {
 	label?: string;
 }
 
-interface PersonFormProps {
+interface ContactFormProps {
 	anniversary?: PartialDate;
 	birthday?: PartialDate;
 	emails?: EmailAddress[];
@@ -49,7 +49,7 @@ interface PersonFormProps {
 	onSubmit?: (e: any) => void;
 }
 
-export function PersonForm({
+export function ContactForm({
 	anniversary,
 	birthday,
 	emails = [],
@@ -59,7 +59,7 @@ export function PersonForm({
 	givenName,
 	middleName,
 	onSubmit,
-}: PersonFormProps) {
+}: ContactFormProps) {
 	// Initialize with at least one email input
 	const [emailFields, setEmailFields] = useState<EmailAddress[]>(
 		emails.length > 0 ? emails : [{ email: '', label: '' }]
