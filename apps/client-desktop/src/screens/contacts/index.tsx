@@ -142,6 +142,7 @@ export function EditContact({ uuid }: { uuid: string }) {
 				birthday={contact.birthday || ''}
 				anniversary={contact.anniversary || ''}
 				emails={contact.emails || []}
+				phones={contact.phones || []}
 				onSubmit={handleSubmit}
 			/>
 		</Contacts>
@@ -271,6 +272,21 @@ export function ReadContact({ uuid }: { uuid: string }) {
 							<p key={index}>
 								<strong>{emailData.label ? `${emailData.label}: ` : ''}</strong>
 								<a href={`mailto:${emailData.email}`}>{emailData.email}</a>
+							</p>
+						))}
+					</>
+				)}
+
+				{contact.phones && contact.phones.length > 0 && (
+					<>
+						<h2>Phone Numbers</h2>
+						{contact.phones.map((phoneData, index) => (
+							<p key={index}>
+								<strong>{phoneData.label ? `${phoneData.label}: ` : ''}</strong>
+								<a href={`tel:${phoneData.number}`}>{phoneData.number}</a>
+								{phoneData.features && phoneData.features.length > 0 && (
+									<span> ({phoneData.features.join(', ')})</span>
+								)}
 							</p>
 						))}
 					</>

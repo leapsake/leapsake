@@ -59,6 +59,38 @@ function getEmails(formData: FormData) {
 	return emails.length > 0 ? emails : null;
 }
 
+function getPhones(formData: FormData) {
+	const phones = Array.from(formData.entries()).reduce((acc, [key, value]) => {
+		// Only process phone number fields
+		const match = key.match(/^phones\[(\d+)\]\.number$/);
+		if (!match) return acc;
+
+		const number = (value as string).trim();
+		// Skip empty phone numbers
+		if (!number) return acc;
+
+		const index = match[1];
+		const label = formData.get(`phones[${index}].label`) as string | null;
+		const canCall = formData.get(`phones[${index}].call`) === 'on';
+		const canText = formData.get(`phones[${index}].text`) === 'on';
+
+		// Build features array based on checkboxes
+		const features = [];
+		if (canCall) features.push('voice');
+		if (canText) features.push('text');
+
+		acc.push({
+			number,
+			label: label?.trim() || undefined,
+			features: features.length > 0 ? features : undefined,
+		});
+
+		return acc;
+	}, [] as Array<{ number: string; label?: string; features?: string[] }>);
+
+	return phones.length > 0 ? phones : null;
+}
+
 export function getContactData(formData: FormData) {
 	return {
 		given_name: formData.get('givenName') as string | null,
@@ -67,6 +99,7 @@ export function getContactData(formData: FormData) {
 		birthday: getPartialDate(formData, 'birthday'),
 		anniversary: getPartialDate(formData, 'anniversary'),
 		emails: getEmails(formData),
+		phones: getPhones(formData),
 	};
 }
 
