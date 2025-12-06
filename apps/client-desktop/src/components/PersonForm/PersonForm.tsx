@@ -9,9 +9,15 @@ import {
 	TextInput,
 } from '@leapsake/components';
 
+interface EmailAddress {
+	email: string;
+	label?: string;
+}
+
 interface PersonFormProps {
 	anniversary?: PartialDate;
 	birthday?: PartialDate;
+	emails?: EmailAddress[];
 	familyName?: string;
 	givenName?: string;
 	middleName?: string;
@@ -21,11 +27,15 @@ interface PersonFormProps {
 export function PersonForm({
 	anniversary,
 	birthday,
+	emails = [],
 	familyName,
 	givenName,
 	middleName,
 	onSubmit,
 }: PersonFormProps) {
+	// Always show at least one email input
+	const emailsToRender = emails.length > 0 ? emails : [{ email: '', label: '' }];
+
 	return (
 		<Form onSubmit={onSubmit}>
 			<fieldset>
@@ -67,10 +77,18 @@ export function PersonForm({
 				name="phone"
 			/>
 
-			<EmailAddressInput
-				label="Email"
-				name="email"
-			/>
+			<fieldset>
+				<legend>Email Addresses</legend>
+				{emailsToRender.map((emailData, index) => (
+					<EmailAddressInput
+						key={index}
+						defaultValue={emailData.email}
+						defaultLabel={emailData.label}
+						label="Email"
+						name={`emails[${index}]`}
+					/>
+				))}
+			</fieldset>
 
 			<PhysicalAddressInput
 				label="Address"
