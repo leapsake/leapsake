@@ -91,6 +91,38 @@ function getPhones(formData: FormData) {
 	return phones.length > 0 ? phones : null;
 }
 
+function getAddresses(formData: FormData) {
+	const addresses = Array.from(formData.entries()).reduce((acc, [key, value]) => {
+		// Only process address street fields (we use street as the primary field)
+		const match = key.match(/^addresses\[(\d+)\]\.street$/);
+		if (!match) return acc;
+
+		const street = (value as string).trim();
+		// Skip addresses without a street
+		if (!street) return acc;
+
+		const index = match[1];
+		const label = formData.get(`addresses[${index}].label`) as string | null;
+		const locality = formData.get(`addresses[${index}].locality`) as string | null;
+		const region = formData.get(`addresses[${index}].region`) as string | null;
+		const postcode = formData.get(`addresses[${index}].postcode`) as string | null;
+		const country = formData.get(`addresses[${index}].country`) as string | null;
+
+		acc.push({
+			street,
+			locality: locality?.trim() || undefined,
+			region: region?.trim() || undefined,
+			postcode: postcode?.trim() || undefined,
+			country: country?.trim() || undefined,
+			label: label?.trim() || undefined,
+		});
+
+		return acc;
+	}, [] as Array<{ street: string; locality?: string; region?: string; postcode?: string; country?: string; label?: string }>);
+
+	return addresses.length > 0 ? addresses : null;
+}
+
 export function getContactData(formData: FormData) {
 	return {
 		given_name: formData.get('givenName') as string | null,
@@ -100,6 +132,7 @@ export function getContactData(formData: FormData) {
 		anniversary: getPartialDate(formData, 'anniversary'),
 		emails: getEmails(formData),
 		phones: getPhones(formData),
+		addresses: getAddresses(formData),
 	};
 }
 

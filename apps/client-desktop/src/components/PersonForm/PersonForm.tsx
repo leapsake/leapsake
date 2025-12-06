@@ -28,11 +28,21 @@ interface PhoneNumberFromBackend {
 	features?: string[];
 }
 
+interface Address {
+	street?: string;
+	locality?: string;
+	region?: string;
+	postcode?: string;
+	country?: string;
+	label?: string;
+}
+
 interface PersonFormProps {
 	anniversary?: PartialDate;
 	birthday?: PartialDate;
 	emails?: EmailAddress[];
 	phones?: PhoneNumberFromBackend[];
+	addresses?: Address[];
 	familyName?: string;
 	givenName?: string;
 	middleName?: string;
@@ -44,6 +54,7 @@ export function PersonForm({
 	birthday,
 	emails = [],
 	phones = [],
+	addresses = [],
 	familyName,
 	givenName,
 	middleName,
@@ -67,6 +78,11 @@ export function PersonForm({
 			: [{ number: '', label: '', canCall: true, canText: true }]
 	);
 
+	// Initialize with at least one address input
+	const [addressFields, setAddressFields] = useState<Address[]>(
+		addresses.length > 0 ? addresses : [{ street: '', locality: '', region: '', postcode: '', country: '', label: '' }]
+	);
+
 	const handleAddEmail = () => {
 		setEmailFields([...emailFields, { email: '', label: '' }]);
 	};
@@ -84,6 +100,16 @@ export function PersonForm({
 	const handleRemovePhone = (index: number) => {
 		if (phoneFields.length > 1) {
 			setPhoneFields(phoneFields.filter((_, i) => i !== index));
+		}
+	};
+
+	const handleAddAddress = () => {
+		setAddressFields([...addressFields, { street: '', locality: '', region: '', postcode: '', country: '', label: '' }]);
+	};
+
+	const handleRemoveAddress = (index: number) => {
+		if (addressFields.length > 1) {
+			setAddressFields(addressFields.filter((_, i) => i !== index));
 		}
 	};
 
@@ -179,10 +205,36 @@ export function PersonForm({
 				</Button>
 			</fieldset>
 
-			<PhysicalAddressInput
-				label="Address"
-				name="address"
-			/>
+			<fieldset>
+				<legend>Addresses</legend>
+				{addressFields.map((addressData, index) => (
+					<div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+						<div style={{ flex: 1 }}>
+							<PhysicalAddressInput
+								defaultStreet={addressData.street}
+								defaultLocality={addressData.locality}
+								defaultRegion={addressData.region}
+								defaultPostcode={addressData.postcode}
+								defaultCountry={addressData.country}
+								defaultLabel={addressData.label}
+								label="Address"
+								name={`addresses[${index}]`}
+							/>
+						</div>
+						{addressFields.length > 1 && (
+							<Button
+								type="button"
+								onClick={() => handleRemoveAddress(index)}
+							>
+								Remove
+							</Button>
+						)}
+					</div>
+				))}
+				<Button type="button" onClick={handleAddAddress}>
+					Add Address
+				</Button>
+			</fieldset>
 
 			<Button type="submit">Save</Button>
 		</Form>
