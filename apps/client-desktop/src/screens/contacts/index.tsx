@@ -3,7 +3,7 @@ import { ContactName } from '@/components/ContactName';
 import { Contacts } from '@/components/Contacts';
 import { ContactsList } from '@/components/ContactsList';
 import { Details } from '@/components/Details';
-import { PersonForm } from '@/components/PersonForm';
+import { ContactForm } from '@/components/ContactForm';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { getContactData, getDisplayDate } from '@/utils';
 import { Button } from '@leapsake/components';
@@ -60,7 +60,7 @@ export function AddContact() {
 				<a href="/">Go back</a>
 			</ScreenHeader>
 
-			<PersonForm
+			<ContactForm
 				onSubmit={handleSubmit}
 			/>
 		</Contacts>
@@ -135,7 +135,7 @@ export function EditContact({ uuid }: { uuid: string }) {
 				</div>
 			</ScreenHeader>
 
-			<PersonForm
+			<ContactForm
 				givenName={contact.given_name || ''}
 				middleName={contact.middle_name || ''}
 				familyName={contact.family_name || ''}
