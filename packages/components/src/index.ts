@@ -7,6 +7,7 @@ export { DateInput } from './DateInput';
 export { Details } from './Details';
 export { EmailAddressInput } from './EmailAddressInput';
 export { Form } from './Form';
+export { Omnibox } from './Omnibox';
 export { PhoneNumberInput } from './PhoneNumberInput';
 export { PhysicalAddressInput } from './PhysicalAddressInput';
 export { ScreenContainer } from './ScreenContainer';
