@@ -1,5 +1,5 @@
-import { PartialDate } from '@/types';
-import { useFieldArray } from '@/hooks';
+import { PartialDate } from '../types';
+import { useFieldArray } from '../hooks';
 import {
 	Button,
 	DateInput,

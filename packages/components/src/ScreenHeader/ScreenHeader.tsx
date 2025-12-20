@@ -31,7 +31,7 @@ function Breadcrumbs({ children }: { children?: Breadcrumb[] }) {
 	if (!children || children.length < 1) {
 		return null;
 	}
-	
+
 	return (
 		<ol class={styles.breadcrumbs}>
 			{children.map((breadcrumb) => (
