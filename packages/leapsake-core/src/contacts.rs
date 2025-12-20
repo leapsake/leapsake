@@ -11,6 +11,19 @@ pub struct JSContactData {
     pub path: String,
 }
 
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct VCardData {
+    pub content: String,
+    pub file_name: String,
+    pub path: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Copy, PartialEq)]
+pub enum ContactFormat {
+    JSContact,
+    VCard,
+}
+
 pub fn browse_contacts<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<JSContactData>, String> {
     // Create directories if they don't exist
     for dir in contact_dirs {
@@ -115,6 +128,11 @@ pub struct NewContactData {
     pub emails: Option<Vec<EmailAddress>>,
     pub phones: Option<Vec<PhoneNumber>>,
     pub addresses: Option<Vec<Address>>,
+    pub photo: Option<String>,
+    pub organization: Option<String>,
+    pub title: Option<String>,
+    pub url: Option<String>,
+    pub note: Option<String>,
 }
 
 /// Parsed contact data ready for display
@@ -129,6 +147,16 @@ pub struct Contact {
     pub emails: Option<Vec<EmailAddress>>,
     pub phones: Option<Vec<PhoneNumber>>,
     pub addresses: Option<Vec<Address>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub photo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
     pub file_path: String,
 }
 
@@ -138,13 +166,15 @@ pub struct Contact {
 /// * `family_name` - Optional family name
 /// * `given_name` - Optional given name
 /// * `uuid` - UUID for the contact
+/// * `extension` - File extension (e.g., "jscontact" or "vcf")
 ///
 /// # Returns
-/// * Filename in format: FamilyName-GivenName-UUID.jscontact (omitting missing parts)
+/// * Filename in format: FamilyName-GivenName-UUID.{extension} (omitting missing name parts)
 fn build_contact_filename(
     family_name: Option<&str>,
     given_name: Option<&str>,
     uuid: &str,
+    extension: &str,
 ) -> String {
     let mut filename_parts = Vec::new();
 
@@ -161,7 +191,7 @@ fn build_contact_filename(
     }
 
     filename_parts.push(uuid.to_string());
-    format!("{}.jscontact", filename_parts.join("-"))
+    format!("{}.{}", filename_parts.join("-"), extension)
 }
 
 /// Helper function to build JSContact JSON structure from contact data
@@ -352,6 +382,66 @@ fn build_jscontact_json(uid: &str, data: &NewContactData) -> Value {
         }
     }
 
+    // Add photo if present
+    if let Some(ref photo) = data.photo {
+        if !photo.is_empty() {
+            jscontact["photos"] = json!({
+                "photo1": {
+                    "@type": "File",
+                    "href": photo
+                }
+            });
+        }
+    }
+
+    // Add organization if present
+    if let Some(ref org) = data.organization {
+        if !org.is_empty() {
+            jscontact["organizations"] = json!({
+                "org1": {
+                    "@type": "Organization",
+                    "name": org
+                }
+            });
+        }
+    }
+
+    // Add job title if present
+    if let Some(ref title) = data.title {
+        if !title.is_empty() {
+            jscontact["jobTitles"] = json!({
+                "title1": {
+                    "@type": "JobTitle",
+                    "name": title
+                }
+            });
+        }
+    }
+
+    // Add URL if present
+    if let Some(ref url) = data.url {
+        if !url.is_empty() {
+            jscontact["onlineServices"] = json!({
+                "url1": {
+                    "@type": "OnlineService",
+                    "uri": url
+                }
+            });
+        }
+    }
+
+    // Add note if present
+    if let Some(ref note) = data.note {
+        if !note.is_empty() {
+            jscontact["notes"] = json!({
+                "note1": {
+                    "@type": "Note",
+                    "note": note
+                }
+            });
+        }
+    }
+
     jscontact
 }
 
@@ -390,6 +480,7 @@ pub fn add_contact<P: AsRef<Path>>(
         data.family_name.as_deref(),
         data.given_name.as_deref(),
         &uuid_str,
+        "jscontact",
     );
 
     // Build JSContact JSON structure using helper
@@ -489,7 +580,7 @@ pub fn edit_contact<P: AsRef<Path>>(
         let new_obj = new_jscontact.as_object_mut().unwrap();
         for (key, value) in obj {
             // Only preserve fields we don't explicitly manage
-            if !matches!(key.as_str(), "@type" | "version" | "uid" | "name" | "anniversaries" | "emails" | "phones" | "addresses") {
+            if !matches!(key.as_str(), "@type" | "version" | "uid" | "name" | "anniversaries" | "emails" | "phones" | "addresses" | "photos" | "organizations" | "jobTitles" | "onlineServices" | "notes") {
                 new_obj.insert(key.clone(), value.clone());
             }
         }
@@ -505,6 +596,7 @@ pub fn edit_contact<P: AsRef<Path>>(
         data.family_name.as_deref(),
         data.given_name.as_deref(),
         uuid_only,
+        "jscontact",
     );
     let new_file_path = dir.join(&new_filename);
 
@@ -652,6 +744,859 @@ pub fn read_contact<P: AsRef<Path>>(
     }
 
     Err(format!("Contact not found with UUID: {}", uuid))
+}
+
+/// Adds a new contact as a .vcf file
+///
+/// # Arguments
+/// * `contact_dir` - Directory where the vCard file will be created
+/// * `data` - Contact data to save
+///
+/// # Returns
+/// * `Result<String, String>` - Path to the created file, or error message
+///
+/// # Behavior
+/// * Creates the directory if it doesn't exist
+/// * Generates filename as FamilyName-GivenName-UUID.vcf (omitting missing parts)
+/// * Creates vCard 4.0 compliant file
+pub fn add_vcard<P: AsRef<Path>>(
+    contact_dir: P,
+    data: NewContactData,
+) -> Result<String, String> {
+    let dir = contact_dir.as_ref();
+
+    // Create directory if it doesn't exist
+    if !dir.exists() {
+        fs::create_dir_all(dir)
+            .map_err(|e| format!("Failed to create contacts directory: {}", e))?;
+    }
+
+    // Generate UUID for the contact
+    let contact_uuid = Uuid::new_v4();
+    let uuid_str = contact_uuid.to_string();
+    let uid = format!("urn:uuid:{}", uuid_str);
+
+    // Build filename using helper
+    let filename = build_contact_filename(
+        data.family_name.as_deref(),
+        data.given_name.as_deref(),
+        &uuid_str,
+        "vcf",
+    );
+
+    // Build vCard string using helper
+    let vcard_content = build_vcard(&uid, &data)?;
+
+    // Write file
+    let file_path = dir.join(&filename);
+    fs::write(&file_path, vcard_content)
+        .map_err(|e| format!("Failed to write vCard file: {}", e))?;
+
+    // Return the path as a string
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+/// Updates an existing vCard contact
+///
+/// # Arguments
+/// * `contact_dir` - Directory where vCard files are stored
+/// * `uuid` - UUID of the contact to update (without urn:uuid: prefix)
+/// * `data` - New contact data
+///
+/// # Returns
+/// * `Result<String, String>` - Path to the updated file, or error message
+///
+/// # Behavior
+/// * Finds the existing vCard file by UUID
+/// * Preserves the UUID from the existing contact
+/// * Renames file if family_name or given_name changes
+/// * Updates the contact data
+/// * Returns error if contact is not found or update fails, maintaining original file
+pub fn edit_vcard<P: AsRef<Path>>(
+    contact_dir: P,
+    uuid: &str,
+    data: NewContactData,
+) -> Result<String, String> {
+    let dir = contact_dir.as_ref();
+
+    if !dir.exists() {
+        return Err(format!("Contacts directory does not exist: {}", dir.display()));
+    }
+
+    // Find the existing vCard file
+    let files = get_files_with(&[dir], Some(&["vcf"]), |path: &PathBuf| path.clone())?;
+
+    let uuid_lower = uuid.to_lowercase();
+    let existing_file = files.iter().find(|path| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name.to_lowercase().contains(&uuid_lower))
+            .unwrap_or(false)
+    });
+
+    let old_file_path = if let Some(file_path) = existing_file {
+        file_path.clone()
+    } else {
+        // Try slow path - parse all vCard files
+        let mut found_path = None;
+        for file_path in &files {
+            if let Ok(contact) = parse_vcard_file(file_path) {
+                let contact_uuid = contact.uid
+                    .strip_prefix("urn:uuid:")
+                    .unwrap_or(&contact.uid)
+                    .to_lowercase();
+
+                if contact_uuid == uuid_lower {
+                    found_path = Some(file_path.clone());
+                    break;
+                }
+            }
+        }
+        found_path.ok_or_else(|| format!("vCard contact not found with UUID: {}", uuid))?
+    };
+
+    // Read the existing file to get the UID
+    let existing_contact = parse_vcard_file(&old_file_path)?;
+    let uid = existing_contact.uid;
+
+    // Build new vCard content
+    let vcard_content = build_vcard(&uid, &data)?;
+
+    // Build new filename
+    let uuid_only = uid.strip_prefix("urn:uuid:").unwrap_or(&uid);
+    let new_filename = build_contact_filename(
+        data.family_name.as_deref(),
+        data.given_name.as_deref(),
+        uuid_only,
+        "vcf",
+    );
+    let new_file_path = dir.join(&new_filename);
+
+    // If filename changed, we need to rename; otherwise just update in place
+    if old_file_path != new_file_path {
+        // Write to new file first
+        fs::write(&new_file_path, &vcard_content)
+            .map_err(|e| format!("Failed to write updated vCard file: {}", e))?;
+
+        // Only delete old file if new file was written successfully
+        fs::remove_file(&old_file_path)
+            .map_err(|e| {
+                // If deletion fails, try to clean up the new file
+                let _ = fs::remove_file(&new_file_path);
+                format!("Failed to remove old vCard file: {}", e)
+            })?;
+    } else {
+        // Same filename, just overwrite
+        fs::write(&new_file_path, vcard_content)
+            .map_err(|e| format!("Failed to update vCard file: {}", e))?;
+    }
+
+    Ok(new_file_path.to_string_lossy().to_string())
+}
+
+/// Browse vCard contacts (returns raw vCard file content)
+pub fn browse_vcards<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<VCardData>, String> {
+    // Create directories if they don't exist
+    for dir in contact_dirs {
+        let dir = dir.as_ref();
+        if !dir.exists() {
+            fs::create_dir_all(dir)
+                .map_err(|e| format!("Failed to create contacts directory: {}", e))?;
+        }
+    }
+
+    // Get all .vcf files and transform them into VCardData
+    let callback = |path: &PathBuf| -> Result<VCardData, String> {
+        let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+
+        Ok(VCardData {
+            content,
+            file_name: path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string(),
+            path: path.to_string_lossy().to_string(),
+        })
+    };
+
+    let vcard_results: Vec<Result<VCardData, String>> =
+        get_files_with(contact_dirs, Some(&["vcf"]), callback)?;
+
+    // Collect results, propagating any errors
+    vcard_results.into_iter().collect()
+}
+
+/// Browse all contacts (both JSContact and vCard formats)
+///
+/// Returns parsed Contact structs from both .jscontact and .vcf files
+pub fn browse_contacts_all<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<Contact>, String> {
+    // Create directories if they don't exist
+    for dir in contact_dirs {
+        let dir = dir.as_ref();
+        if !dir.exists() {
+            fs::create_dir_all(dir)
+                .map_err(|e| format!("Failed to create contacts directory: {}", e))?;
+        }
+    }
+
+    let mut contacts = Vec::new();
+
+    // Parse .jscontact files
+    let jscontact_callback = |path: &PathBuf| -> Result<Contact, String> {
+        parse_contact_file(path)
+    };
+    let jscontact_results: Vec<Result<Contact, String>> =
+        get_files_with(contact_dirs, Some(&["jscontact"]), jscontact_callback)?;
+    contacts.extend(jscontact_results.into_iter().collect::<Result<Vec<_>, _>>()?);
+
+    // Parse .vcf files
+    let vcard_callback = |path: &PathBuf| -> Result<Contact, String> {
+        parse_vcard_file(path)
+    };
+    let vcard_results: Vec<Result<Contact, String>> =
+        get_files_with(contact_dirs, Some(&["vcf"]), vcard_callback)?;
+    contacts.extend(vcard_results.into_iter().collect::<Result<Vec<_>, _>>()?);
+
+    Ok(contacts)
+}
+
+/// Add a contact with the specified format
+///
+/// # Arguments
+/// * `contact_dir` - Directory where the contact file will be created
+/// * `data` - Contact data to save
+/// * `format` - Format to use (JSContact or VCard)
+///
+/// # Returns
+/// * `Result<String, String>` - Path to the created file, or error message
+pub fn add_contact_with_format<P: AsRef<Path>>(
+    contact_dir: P,
+    data: NewContactData,
+    format: ContactFormat,
+) -> Result<String, String> {
+    match format {
+        ContactFormat::JSContact => add_contact(contact_dir, data),
+        ContactFormat::VCard => add_vcard(contact_dir, data),
+    }
+}
+
+/// Detect contact format by file extension
+fn detect_format(path: &Path) -> Result<ContactFormat, String> {
+    match path.extension().and_then(|s| s.to_str()) {
+        Some("jscontact") => Ok(ContactFormat::JSContact),
+        Some("vcf") | Some("vcard") => Ok(ContactFormat::VCard),
+        Some(ext) => Err(format!("Unknown contact format: {}", ext)),
+        None => Err("No file extension".to_string()),
+    }
+}
+
+/// Read a contact and determine its format
+///
+/// # Returns
+/// * `Result<(Contact, ContactFormat), String>` - Contact and its format, or error
+pub fn read_contact_with_format<P: AsRef<Path>>(
+    contact_dir: P,
+    uuid: &str,
+) -> Result<(Contact, ContactFormat), String> {
+    let dir = contact_dir.as_ref();
+
+    if !dir.exists() {
+        return Err(format!("Contacts directory does not exist: {}", dir.display()));
+    }
+
+    // Try JSContact first
+    let jscontact_files = get_files_with(&[dir], Some(&["jscontact"]), |path: &PathBuf| path.clone())?;
+    let uuid_lower = uuid.to_lowercase();
+
+    for file_path in &jscontact_files {
+        if file_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name.to_lowercase().contains(&uuid_lower))
+            .unwrap_or(false)
+        {
+            let contact = parse_contact_file(file_path)?;
+            return Ok((contact, ContactFormat::JSContact));
+        }
+    }
+
+    // Slow path for JSContact: parse all and match by UID
+    for file_path in &jscontact_files {
+        if let Ok(contact) = parse_contact_file(file_path) {
+            let contact_uuid = contact.uid
+                .strip_prefix("urn:uuid:")
+                .unwrap_or(&contact.uid)
+                .to_lowercase();
+
+            if contact_uuid == uuid_lower {
+                return Ok((contact, ContactFormat::JSContact));
+            }
+        }
+    }
+
+    // Try vCard
+    let vcard_files = get_files_with(&[dir], Some(&["vcf"]), |path: &PathBuf| path.clone())?;
+
+    for file_path in &vcard_files {
+        if file_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name.to_lowercase().contains(&uuid_lower))
+            .unwrap_or(false)
+        {
+            let contact = parse_vcard_file(file_path)?;
+            return Ok((contact, ContactFormat::VCard));
+        }
+    }
+
+    // Slow path for vCard: parse all and match by UID
+    for file_path in &vcard_files {
+        if let Ok(contact) = parse_vcard_file(file_path) {
+            let contact_uuid = contact.uid
+                .strip_prefix("urn:uuid:")
+                .unwrap_or(&contact.uid)
+                .to_lowercase();
+
+            if contact_uuid == uuid_lower {
+                return Ok((contact, ContactFormat::VCard));
+            }
+        }
+    }
+
+    Err(format!("Contact not found with UUID: {}", uuid))
+}
+
+/// Edit a contact while preserving its original format
+///
+/// # Arguments
+/// * `contact_dir` - Directory where contact files are stored
+/// * `uuid` - UUID of the contact to update
+/// * `data` - New contact data
+///
+/// # Returns
+/// * `Result<String, String>` - Path to the updated file, or error message
+pub fn edit_contact_preserve_format<P: AsRef<Path>>(
+    contact_dir: P,
+    uuid: &str,
+    data: NewContactData,
+) -> Result<String, String> {
+    let (_, format) = read_contact_with_format(&contact_dir, uuid)?;
+
+    match format {
+        ContactFormat::JSContact => edit_contact(contact_dir, uuid, data),
+        ContactFormat::VCard => edit_vcard(contact_dir, uuid, data),
+    }
+}
+
+/// Convert a contact from one format to another
+///
+/// # Arguments
+/// * `contact_dir` - Directory where contact files are stored
+/// * `uuid` - UUID of the contact to convert
+/// * `target_format` - Format to convert to (JSContact or VCard)
+///
+/// # Returns
+/// * `Result<String, String>` - Path to the new file, or error message
+///
+/// # Behavior
+/// * Reads the existing contact and detects its format
+/// * If already in target format, returns success without changes
+/// * Converts to target format, writes new file, and deletes old file
+pub fn convert_contact_format<P: AsRef<Path>>(
+    contact_dir: P,
+    uuid: &str,
+    target_format: ContactFormat,
+) -> Result<String, String> {
+    let dir = contact_dir.as_ref();
+    let (contact, current_format) = read_contact_with_format(&contact_dir, uuid)?;
+
+    // If already in target format, return success
+    if current_format == target_format {
+        return Ok(format!("Contact already in {} format", match target_format {
+            ContactFormat::JSContact => "JSContact",
+            ContactFormat::VCard => "vCard",
+        }));
+    }
+
+    // Convert contact struct to NewContactData
+    let data = NewContactData {
+        given_name: contact.given_name,
+        middle_name: contact.middle_name,
+        family_name: contact.family_name,
+        birthday: contact.birthday,
+        anniversary: contact.anniversary,
+        emails: contact.emails,
+        phones: contact.phones,
+        addresses: contact.addresses,
+        photo: contact.photo,
+        organization: contact.organization,
+        title: contact.title,
+        url: contact.url,
+        note: contact.note,
+    };
+
+    // Find and delete the old file
+    let old_file_path = PathBuf::from(&contact.file_path);
+
+    // Create new file in target format with same UID
+    let new_file_path = match target_format {
+        ContactFormat::JSContact => {
+            let jscontact_json = build_jscontact_json(&contact.uid, &data);
+            let json_content = serde_json::to_string_pretty(&jscontact_json)
+                .map_err(|e| format!("Failed to serialize JSContact: {}", e))?;
+
+            let uuid_str = contact.uid.strip_prefix("urn:uuid:").unwrap_or(&contact.uid);
+            let filename = build_contact_filename(
+                data.family_name.as_deref(),
+                data.given_name.as_deref(),
+                uuid_str,
+                "jscontact",
+            );
+
+            let new_path = dir.join(&filename);
+            fs::write(&new_path, json_content)
+                .map_err(|e| format!("Failed to write JSContact file: {}", e))?;
+
+            new_path
+        }
+        ContactFormat::VCard => {
+            let vcard_content = build_vcard(&contact.uid, &data)?;
+
+            let uuid_str = contact.uid.strip_prefix("urn:uuid:").unwrap_or(&contact.uid);
+            let filename = build_contact_filename(
+                data.family_name.as_deref(),
+                data.given_name.as_deref(),
+                uuid_str,
+                "vcf",
+            );
+
+            let new_path = dir.join(&filename);
+            fs::write(&new_path, vcard_content)
+                .map_err(|e| format!("Failed to write vCard file: {}", e))?;
+
+            new_path
+        }
+    };
+
+    // Delete old file only after successfully creating new file
+    fs::remove_file(&old_file_path)
+        .map_err(|e| {
+            // If deletion fails, try to clean up the new file
+            let _ = fs::remove_file(&new_file_path);
+            format!("Failed to remove old file: {}", e)
+        })?;
+
+    Ok(new_file_path.to_string_lossy().to_string())
+}
+
+/// Helper function to convert PartialDate to ISO 8601 string
+fn partial_date_to_iso(pd: &PartialDate) -> String {
+    match (pd.year, pd.month, pd.day) {
+        (Some(y), Some(m), Some(d)) => format!("{:04}{:02}{:02}", y, m, d),
+        (Some(y), Some(m), None) => format!("{:04}{:02}", y, m),
+        (Some(y), None, None) => format!("{:04}", y),
+        (None, Some(m), Some(d)) => format!("--{:02}{:02}", m, d),
+        _ => String::new(),
+    }
+}
+
+/// Helper function to convert ISO 8601 string to PartialDate
+fn iso_to_partial_date(iso: &str) -> Result<PartialDate, String> {
+    let iso = iso.trim();
+
+    // Handle different ISO 8601 date formats
+    let (year, month, day) = if iso.starts_with("--") {
+        // Format: --MMDD (no year)
+        let rest = &iso[2..];
+        if rest.len() == 4 {
+            let m = rest[0..2].parse::<u32>().ok();
+            let d = rest[2..4].parse::<u32>().ok();
+            (None, m, d)
+        } else {
+            return Err(format!("Invalid partial date format: {}", iso));
+        }
+    } else if iso.len() == 8 {
+        // Format: YYYYMMDD
+        (
+            iso[0..4].parse::<u32>().ok(),
+            iso[4..6].parse::<u32>().ok(),
+            iso[6..8].parse::<u32>().ok(),
+        )
+    } else if iso.len() == 6 {
+        // Format: YYYYMM
+        (
+            iso[0..4].parse::<u32>().ok(),
+            iso[4..6].parse::<u32>().ok(),
+            None,
+        )
+    } else if iso.len() == 4 {
+        // Format: YYYY
+        (iso.parse::<u32>().ok(), None, None)
+    } else if iso.contains('-') && !iso.starts_with("--") {
+        // Format: YYYY-MM-DD or similar with hyphens
+        let parts: Vec<&str> = iso.split('-').collect();
+        match parts.len() {
+            3 => (
+                parts[0].parse::<u32>().ok(),
+                parts[1].parse::<u32>().ok(),
+                parts[2].parse::<u32>().ok(),
+            ),
+            2 => (
+                parts[0].parse::<u32>().ok(),
+                parts[1].parse::<u32>().ok(),
+                None,
+            ),
+            _ => return Err(format!("Invalid date format: {}", iso)),
+        }
+    } else {
+        return Err(format!("Unsupported date format: {}", iso));
+    };
+
+    Ok(PartialDate {
+        type_: Some("PartialDate".to_string()),
+        year,
+        month,
+        day,
+    })
+}
+
+/// Helper function to build a vCard string from contact data
+fn build_vcard(uid: &str, data: &NewContactData) -> Result<String, String> {
+    let mut vcard_lines = vec!["BEGIN:VCARD".to_string(), "VERSION:4.0".to_string()];
+
+    // Add UID (strip urn:uuid: prefix if present)
+    let uid_value = uid.strip_prefix("urn:uuid:").unwrap_or(uid);
+    vcard_lines.push(format!("UID:{}", uid_value));
+
+    // Build N (structured name) and FN (formatted name)
+    let n_components = vec![
+        data.family_name.as_deref().unwrap_or(""),
+        data.given_name.as_deref().unwrap_or(""),
+        data.middle_name.as_deref().unwrap_or(""),
+        "", // prefix
+        "", // suffix
+    ];
+    vcard_lines.push(format!("N:{}", n_components.join(";")));
+
+    // Build FN (formatted name)
+    let fn_parts: Vec<&str> = vec![
+        data.given_name.as_deref().unwrap_or(""),
+        data.middle_name.as_deref().unwrap_or(""),
+        data.family_name.as_deref().unwrap_or(""),
+    ].into_iter().filter(|s| !s.is_empty()).collect();
+
+    let fn_value = if fn_parts.is_empty() {
+        "Unnamed Contact".to_string()
+    } else {
+        fn_parts.join(" ")
+    };
+    vcard_lines.push(format!("FN:{}", fn_value));
+
+    // Add BDAY if present
+    if let Some(ref birthday) = data.birthday {
+        if birthday.year.is_some() || birthday.month.is_some() || birthday.day.is_some() {
+            let iso_date = partial_date_to_iso(birthday);
+            if !iso_date.is_empty() {
+                vcard_lines.push(format!("BDAY:{}", iso_date));
+            }
+        }
+    }
+
+    // Add ANNIVERSARY if present
+    if let Some(ref anniversary) = data.anniversary {
+        if anniversary.year.is_some() || anniversary.month.is_some() || anniversary.day.is_some() {
+            let iso_date = partial_date_to_iso(anniversary);
+            if !iso_date.is_empty() {
+                vcard_lines.push(format!("ANNIVERSARY:{}", iso_date));
+            }
+        }
+    }
+
+    // Add emails
+    if let Some(ref emails) = data.emails {
+        for email in emails {
+            if !email.email.is_empty() {
+                if let Some(ref label) = email.label {
+                    if !label.is_empty() {
+                        vcard_lines.push(format!("EMAIL;TYPE={}:{}", label, email.email));
+                    } else {
+                        vcard_lines.push(format!("EMAIL:{}", email.email));
+                    }
+                } else {
+                    vcard_lines.push(format!("EMAIL:{}", email.email));
+                }
+            }
+        }
+    }
+
+    // Add phones
+    if let Some(ref phones) = data.phones {
+        for phone in phones {
+            if !phone.number.is_empty() {
+                let type_str = if let Some(ref label) = phone.label {
+                    if !label.is_empty() {
+                        format!("TYPE={}", label)
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                };
+
+                if type_str.is_empty() {
+                    vcard_lines.push(format!("TEL:{}", phone.number));
+                } else {
+                    vcard_lines.push(format!("TEL;{}:{}", type_str, phone.number));
+                }
+            }
+        }
+    }
+
+    // Add addresses
+    if let Some(ref addresses) = data.addresses {
+        for address in addresses {
+            // ADR format: ;;street;locality;region;postcode;country
+            let adr_components = vec![
+                "", // PO Box
+                "", // Extended address
+                &address.street,
+                address.locality.as_deref().unwrap_or(""),
+                address.region.as_deref().unwrap_or(""),
+                address.postcode.as_deref().unwrap_or(""),
+                address.country.as_deref().unwrap_or(""),
+            ];
+
+            let adr_value = adr_components.join(";");
+
+            if let Some(ref label) = address.label {
+                if !label.is_empty() {
+                    vcard_lines.push(format!("ADR;TYPE={}:{}", label, adr_value));
+                } else {
+                    vcard_lines.push(format!("ADR:{}", adr_value));
+                }
+            } else {
+                vcard_lines.push(format!("ADR:{}", adr_value));
+            }
+        }
+    }
+
+    // Add PHOTO if present
+    if let Some(ref photo) = data.photo {
+        if !photo.is_empty() {
+            vcard_lines.push(format!("PHOTO:{}", photo));
+        }
+    }
+
+    // Add ORG if present
+    if let Some(ref org) = data.organization {
+        if !org.is_empty() {
+            vcard_lines.push(format!("ORG:{}", org));
+        }
+    }
+
+    // Add TITLE if present
+    if let Some(ref title) = data.title {
+        if !title.is_empty() {
+            vcard_lines.push(format!("TITLE:{}", title));
+        }
+    }
+
+    // Add URL if present
+    if let Some(ref url) = data.url {
+        if !url.is_empty() {
+            vcard_lines.push(format!("URL:{}", url));
+        }
+    }
+
+    // Add NOTE if present
+    if let Some(ref note) = data.note {
+        if !note.is_empty() {
+            // Escape newlines in notes
+            let escaped_note = note.replace('\n', "\\n");
+            vcard_lines.push(format!("NOTE:{}", escaped_note));
+        }
+    }
+
+    vcard_lines.push("END:VCARD".to_string());
+
+    Ok(vcard_lines.join("\r\n"))
+}
+
+/// Helper function to parse a vCard file into a Contact struct
+fn parse_vcard_file(file_path: &Path) -> Result<Contact, String> {
+    let content = fs::read_to_string(file_path)
+        .map_err(|e| format!("Failed to read vCard file: {}", e))?;
+
+    // Simple vCard parser (line-based)
+    let mut uid = None;
+    let mut given_name = None;
+    let mut middle_name = None;
+    let mut family_name = None;
+    let mut birthday = None;
+    let mut anniversary = None;
+    let mut emails = Vec::new();
+    let mut phones = Vec::new();
+    let mut addresses = Vec::new();
+    let mut photo = None;
+    let mut organization = None;
+    let mut title = None;
+    let mut url = None;
+    let mut note = None;
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line == "BEGIN:VCARD" || line == "END:VCARD" || line.starts_with("VERSION:") {
+            continue;
+        }
+
+        // Split on first colon
+        if let Some(colon_pos) = line.find(':') {
+            let (prop_part, value_part) = line.split_at(colon_pos);
+            let value = &value_part[1..]; // Skip the colon
+
+            // Parse property name and parameters
+            let (prop_name, params) = if let Some(semi_pos) = prop_part.find(';') {
+                let (name, param_str) = prop_part.split_at(semi_pos);
+                (name, Some(&param_str[1..])) // Skip the semicolon
+            } else {
+                (prop_part, None)
+            };
+
+            match prop_name {
+                "UID" => {
+                    uid = Some(format!("urn:uuid:{}", value));
+                }
+                "N" => {
+                    // N format: Family;Given;Middle;Prefix;Suffix
+                    let parts: Vec<&str> = value.split(';').collect();
+                    if !parts.is_empty() && !parts[0].is_empty() {
+                        family_name = Some(parts[0].to_string());
+                    }
+                    if parts.len() > 1 && !parts[1].is_empty() {
+                        given_name = Some(parts[1].to_string());
+                    }
+                    if parts.len() > 2 && !parts[2].is_empty() {
+                        middle_name = Some(parts[2].to_string());
+                    }
+                }
+                "BDAY" => {
+                    if let Ok(pd) = iso_to_partial_date(value) {
+                        birthday = Some(pd);
+                    }
+                }
+                "ANNIVERSARY" => {
+                    if let Ok(pd) = iso_to_partial_date(value) {
+                        anniversary = Some(pd);
+                    }
+                }
+                "EMAIL" => {
+                    let label = params.and_then(|p| {
+                        if p.starts_with("TYPE=") {
+                            Some(p[5..].to_string())
+                        } else {
+                            None
+                        }
+                    });
+                    emails.push(EmailAddress {
+                        email: value.to_string(),
+                        label,
+                    });
+                }
+                "TEL" => {
+                    let label = params.and_then(|p| {
+                        if p.starts_with("TYPE=") {
+                            Some(p[5..].to_string())
+                        } else {
+                            None
+                        }
+                    });
+                    phones.push(PhoneNumber {
+                        number: value.to_string(),
+                        label,
+                        features: None,
+                    });
+                }
+                "ADR" => {
+                    // ADR format: POBox;ExtAddr;Street;Locality;Region;Postcode;Country
+                    let parts: Vec<&str> = value.split(';').collect();
+                    if parts.len() >= 3 {
+                        let label = params.and_then(|p| {
+                            if p.starts_with("TYPE=") {
+                                Some(p[5..].to_string())
+                            } else {
+                                None
+                            }
+                        });
+
+                        addresses.push(Address {
+                            street: parts[2].to_string(),
+                            locality: if parts.len() > 3 && !parts[3].is_empty() {
+                                Some(parts[3].to_string())
+                            } else {
+                                None
+                            },
+                            region: if parts.len() > 4 && !parts[4].is_empty() {
+                                Some(parts[4].to_string())
+                            } else {
+                                None
+                            },
+                            postcode: if parts.len() > 5 && !parts[5].is_empty() {
+                                Some(parts[5].to_string())
+                            } else {
+                                None
+                            },
+                            country: if parts.len() > 6 && !parts[6].is_empty() {
+                                Some(parts[6].to_string())
+                            } else {
+                                None
+                            },
+                            label,
+                        });
+                    }
+                }
+                "PHOTO" => {
+                    photo = Some(value.to_string());
+                }
+                "ORG" => {
+                    organization = Some(value.to_string());
+                }
+                "TITLE" => {
+                    title = Some(value.to_string());
+                }
+                "URL" => {
+                    url = Some(value.to_string());
+                }
+                "NOTE" => {
+                    // Unescape newlines
+                    let unescaped_note = value.replace("\\n", "\n");
+                    note = Some(unescaped_note);
+                }
+                _ => {} // Ignore unknown properties
+            }
+        }
+    }
+
+    // Generate a UID if not present
+    let uid = uid.unwrap_or_else(|| format!("urn:uuid:{}", Uuid::new_v4()));
+
+    Ok(Contact {
+        uid,
+        given_name,
+        middle_name,
+        family_name,
+        birthday,
+        anniversary,
+        emails: if emails.is_empty() { None } else { Some(emails) },
+        phones: if phones.is_empty() { None } else { Some(phones) },
+        addresses: if addresses.is_empty() { None } else { Some(addresses) },
+        photo,
+        organization,
+        title,
+        url,
+        note,
+        file_path: file_path.to_string_lossy().to_string(),
+    })
 }
 
 /// Helper function to parse a JSContact file into a Contact struct
@@ -839,6 +1784,56 @@ fn parse_contact_file(file_path: &Path) -> Result<Contact, String> {
         })
         .flatten();
 
+    // Extract photo
+    let photo = json.get("photos")
+        .and_then(|p| p.as_object())
+        .and_then(|photos_obj| {
+            photos_obj.values().next()
+                .and_then(|photo_obj| photo_obj.get("href"))
+                .and_then(|h| h.as_str())
+                .map(|s| s.to_string())
+        });
+
+    // Extract organization
+    let organization = json.get("organizations")
+        .and_then(|o| o.as_object())
+        .and_then(|orgs_obj| {
+            orgs_obj.values().next()
+                .and_then(|org_obj| org_obj.get("name"))
+                .and_then(|n| n.as_str())
+                .map(|s| s.to_string())
+        });
+
+    // Extract job title
+    let title = json.get("jobTitles")
+        .and_then(|j| j.as_object())
+        .and_then(|titles_obj| {
+            titles_obj.values().next()
+                .and_then(|title_obj| title_obj.get("name"))
+                .and_then(|n| n.as_str())
+                .map(|s| s.to_string())
+        });
+
+    // Extract URL
+    let url = json.get("onlineServices")
+        .and_then(|o| o.as_object())
+        .and_then(|services_obj| {
+            services_obj.values().next()
+                .and_then(|service_obj| service_obj.get("uri"))
+                .and_then(|u| u.as_str())
+                .map(|s| s.to_string())
+        });
+
+    // Extract note
+    let note = json.get("notes")
+        .and_then(|n| n.as_object())
+        .and_then(|notes_obj| {
+            notes_obj.values().next()
+                .and_then(|note_obj| note_obj.get("note"))
+                .and_then(|n| n.as_str())
+                .map(|s| s.to_string())
+        });
+
     Ok(Contact {
         uid,
         given_name,
@@ -849,6 +1844,11 @@ fn parse_contact_file(file_path: &Path) -> Result<Contact, String> {
         emails,
         phones,
         addresses,
+        photo,
+        organization,
+        title,
+        url,
+        note,
         file_path: file_path.to_string_lossy().to_string(),
     })
 }
