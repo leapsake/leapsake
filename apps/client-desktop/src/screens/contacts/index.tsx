@@ -1,11 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
-import { ContactName } from '@/components/ContactName';
-import { Contacts } from '@/components/Contacts';
 import { ContactsList } from '@/components/ContactsList';
-import { ContactForm } from '@/components/ContactForm';
-import { ScreenHeader } from '@/components/ScreenHeader';
 import { getContactData, getDisplayDate } from '@/utils';
-import { Button, Details } from '@leapsake/components';
+import { Button, ContactForm, ContactName, Details, ScreenContainer, ScreenHeader } from '@leapsake/components';
 import { useData } from '@/hooks';
 
 function useBrowseContacts() {
@@ -52,7 +48,7 @@ export function AddContact() {
 	};
 
 	return (
-		<Contacts>
+		<ScreenContainer>
 			<ScreenHeader
 				title="New"
 			>
@@ -62,7 +58,7 @@ export function AddContact() {
 			<ContactForm
 				onSubmit={handleSubmit}
 			/>
-		</Contacts>
+		</ScreenContainer>
 	);
 }
 
@@ -91,30 +87,30 @@ export function EditContact({ uuid }: { uuid: string }) {
 
 	if (isLoading) {
 		return (
-			<Contacts>
+			<ScreenContainer>
 				<ScreenHeader title="Edit Contact">
 					<a href={`/contacts/${uuid}`}>Cancel</a>
 				</ScreenHeader>
 				<p>Loading...</p>
-			</Contacts>
+			</ScreenContainer>
 		);
 	}
 
 	if (error || !contact) {
 		return (
-			<Contacts>
+			<ScreenContainer>
 				<ScreenHeader title="Error">
 					<a href="/">Go back</a>
 				</ScreenHeader>
 				<p>Error: {error || 'Contact not found'}</p>
-			</Contacts>
+			</ScreenContainer>
 		);
 	}
 
 	const displayName = getDisplayName(contact);
 
 	return (
-		<Contacts>
+		<ScreenContainer>
 			<ScreenHeader
 				breadcrumbs={[
 					{
@@ -145,7 +141,7 @@ export function EditContact({ uuid }: { uuid: string }) {
 				addresses={contact.addresses || []}
 				onSubmit={handleSubmit}
 			/>
-		</Contacts>
+		</ScreenContainer>
 	);
 }
 
@@ -168,12 +164,12 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 
 	if (isLoading) {
 		return (
-			<Contacts>
+			<ScreenContainer>
 				<ScreenHeader title="Delete Contact">
 					<a href={`/contacts/${uuid}`}>Cancel</a>
 				</ScreenHeader>
 				<p>Loading...</p>
-			</Contacts>
+			</ScreenContainer>
 		);
 	}
 
@@ -186,7 +182,7 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 	const displayName = getDisplayName(contact);
 
 	return (
-		<Contacts>
+		<ScreenContainer>
 			<ScreenHeader
 				breadcrumbs={[
 					{
@@ -207,7 +203,7 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 				<p>Are you sure you want to delete {displayName}?</p>
 				<Button onClick={handleDelete}>Delete</Button>
 			</div>
-		</Contacts>
+		</ScreenContainer>
 	);
 }
 
@@ -216,33 +212,33 @@ export function ReadContact({ uuid }: { uuid: string }) {
 
 	if (isLoading) {
 		return (
-			<Contacts>
+			<ScreenContainer>
 				<ScreenHeader title="View Contact">
 					<a href="/">Go back</a>
 				</ScreenHeader>
 
 				<p>Loading...</p>
-			</Contacts>
+			</ScreenContainer>
 		);
 	}
 
 	if (error || !contact) {
 		return (
-			<Contacts>
+			<ScreenContainer>
 				<ScreenHeader title="Error">
 					<a href="/">Go back</a>
 				</ScreenHeader>
 
 				<p>Error: {error || 'Contact not found'}</p>
-			</Contacts>
+			</ScreenContainer>
 		);
 	}
 
 	const displayName = getDisplayName(contact);
 
 	return (
-		<Contacts>
-			<ScreenHeader 
+		<ScreenContainer>
+			<ScreenHeader
 				breadcrumbs={[
 					{
 						label: 'Contacts',
@@ -336,7 +332,7 @@ export function ReadContact({ uuid }: { uuid: string }) {
 					</div>
 				</Details>
 			</div>
-		</Contacts>
+		</ScreenContainer>
 	);
 }
 
@@ -345,25 +341,25 @@ export function BrowseContacts() {
 
 	if (isLoading) {
 		return (
-			<Contacts>
+			<ScreenContainer>
 				<h1>Loading</h1>
-			</Contacts>
+			</ScreenContainer>
 		);
 	}
 
 	if (error) {
-		<Contacts>
+		<ScreenContainer>
 			<ScreenHeader title="Error">
 				<a href="/">Go back</a>
 			</ScreenHeader>
 			<p>Error: {error || 'Contacts not found'}</p>
-		</Contacts>
+		</ScreenContainer>
 	}
 
 	const noContacts = !(!!contacts && Array.isArray(contacts) && contacts.length > 0);
 
 	return (
-		<Contacts>
+		<ScreenContainer>
 			<ScreenHeader
 				title="Contacts"
 			>
@@ -377,7 +373,7 @@ export function BrowseContacts() {
 					<ContactsList contacts={contacts} />
 				)
 			}
-		</Contacts>
+		</ScreenContainer>
 	);
 }
 
