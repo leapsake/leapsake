@@ -2,6 +2,7 @@ export { Button } from './Button';
 export { CheckboxInput } from './CheckboxInput';
 export { CountryInput } from './CountryInput';
 export { DateInput } from './DateInput';
+export { Details } from './Details';
 export { EmailAddressInput } from './EmailAddressInput';
 export { Form } from './Form';
 export { PhoneNumberInput } from './PhoneNumberInput';

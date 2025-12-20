@@ -2,11 +2,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { ContactName } from '@/components/ContactName';
 import { Contacts } from '@/components/Contacts';
 import { ContactsList } from '@/components/ContactsList';
-import { Details } from '@/components/Details';
 import { ContactForm } from '@/components/ContactForm';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { getContactData, getDisplayDate } from '@/utils';
-import { Button } from '@leapsake/components';
+import { Button, Details } from '@leapsake/components';
 import { useData } from '@/hooks';
 
 function useBrowseContacts() {
