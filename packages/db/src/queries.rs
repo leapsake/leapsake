@@ -235,7 +235,7 @@ pub fn search_people(conn: &Connection, query: &str) -> Result<Vec<Person>> {
     let mut stmt = conn.prepare(
         "SELECT p.id, p.given_name, p.middle_name, p.family_name, p.birthday, p.anniversary, p.photo, p.organization, p.title, p.url, p.note, p.created_at, p.updated_at
          FROM people p
-         INNER JOIN people_fts ON p.rowid = people_fts.rowid
+         INNER JOIN people_fts ON p.id = people_fts.id
          WHERE people_fts MATCH ?1
          ORDER BY rank",
     )?;

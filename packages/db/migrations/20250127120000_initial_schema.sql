@@ -65,30 +65,33 @@ CREATE TABLE addresses (
 CREATE INDEX idx_addresses_person_id ON addresses(person_id);
 
 -- Full-text search virtual table for people
+-- Note: FTS5 requires integer rowids, but we use TEXT UUIDs as primary keys
+-- So we create FTS without content table and manually sync
 CREATE VIRTUAL TABLE people_fts USING fts5(
+    id UNINDEXED,
     given_name,
     middle_name,
     family_name,
     organization,
-    note,
-    content=people,
-    content_rowid=id
+    note
 );
 
 -- Triggers to keep FTS index in sync with people table
 CREATE TRIGGER people_fts_insert AFTER INSERT ON people BEGIN
-    INSERT INTO people_fts(rowid, given_name, middle_name, family_name, organization, note)
-    VALUES (new.rowid, new.given_name, new.middle_name, new.family_name, new.organization, new.note);
+    INSERT INTO people_fts(id, given_name, middle_name, family_name, organization, note)
+    VALUES (new.id, new.given_name, new.middle_name, new.family_name, new.organization, new.note);
 END;
 
 CREATE TRIGGER people_fts_delete AFTER DELETE ON people BEGIN
-    INSERT INTO people_fts(people_fts, rowid, given_name, middle_name, family_name, organization, note)
-    VALUES ('delete', old.rowid, old.given_name, old.middle_name, old.family_name, old.organization, old.note);
+    DELETE FROM people_fts WHERE id = old.id;
 END;
 
 CREATE TRIGGER people_fts_update AFTER UPDATE ON people BEGIN
-    INSERT INTO people_fts(people_fts, rowid, given_name, middle_name, family_name, organization, note)
-    VALUES ('delete', old.rowid, old.given_name, old.middle_name, old.family_name, old.organization, old.note);
-    INSERT INTO people_fts(rowid, given_name, middle_name, family_name, organization, note)
-    VALUES (new.rowid, new.given_name, new.middle_name, new.family_name, new.organization, new.note);
+    UPDATE people_fts
+    SET given_name = new.given_name,
+        middle_name = new.middle_name,
+        family_name = new.family_name,
+        organization = new.organization,
+        note = new.note
+    WHERE id = new.id;
 END;
