@@ -1,17 +1,22 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useData } from '@/hooks';
-import type { ParsedContact } from '@/types';
+import type { Person, PersonWithDetails } from '@/types';
 
-export function useBrowseContacts() {
-	return useData<ParsedContact[]>(async () => {
-		return invoke('browse_contacts_all');
+// Use new database-backed commands
+export function useBrowsePeople() {
+	return useData<Person[]>(async () => {
+		return invoke('db_list_people');
 	});
 }
 
-export function useReadContact({ uuid }: { uuid: string }) {
-	return useData<ParsedContact>(async () => {
-		return invoke('read_contact', {
-			uuid,
+export function useReadPerson({ personId }: { personId: string }) {
+	return useData<PersonWithDetails>(async () => {
+		const result = await invoke<PersonWithDetails | null>('db_read_person', {
+			personId,
 		});
-	}, [ uuid ]);
+		if (!result) {
+			throw new Error('Person not found');
+		}
+		return result;
+	}, [ personId ]);
 }

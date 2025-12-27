@@ -1,11 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getContactData } from '@/utils';
 import { Button, ContactForm, ScreenContainer, ScreenHeader } from '@leapsake/components';
-import { useReadContact } from '../_hooks';
+import { useReadPerson } from '../_hooks';
 import { getDisplayName } from '../_utils';
+import type { NewPerson } from '@/types';
 
 export function EditContact({ uuid }: { uuid: string }) {
-	const [contact, isLoading, error]  = useReadContact({ uuid });
+	const [personWithDetails, isLoading, error]  = useReadPerson({ personId: uuid });
 
 	const handleSubmit = async (e: Event) => {
 		e.preventDefault();
@@ -13,17 +14,31 @@ export function EditContact({ uuid }: { uuid: string }) {
 
 		const contactData = getContactData(formData);
 
+		// Prepare person data for update
+		const person: NewPerson = {
+			given_name: contactData.given_name || undefined,
+			middle_name: contactData.middle_name || undefined,
+			family_name: contactData.family_name || undefined,
+			birthday: contactData.birthday || undefined,
+			anniversary: contactData.anniversary || undefined,
+			photo: contactData.photo || undefined,
+			organization: contactData.organization || undefined,
+			title: contactData.title || undefined,
+			url: contactData.url || undefined,
+			note: contactData.note || undefined,
+		};
+
 		try {
-			const filePath = await invoke('edit_contact', {
-				uuid,
-				data: contactData
+			await invoke('db_update_person', {
+				personId: uuid,
+				person,
 			});
-			console.log('Contact updated at:', filePath);
+			console.log('Person updated');
 			// Redirect to the contact view page
 			window.location.href = `/contacts/${uuid}`;
 		} catch (error) {
-			console.error('Failed to update contact:', error);
-			alert('Failed to update contact: ' + error);
+			console.error('Failed to update person:', error);
+			alert('Failed to update person: ' + error);
 		}
 	};
 
@@ -38,18 +53,19 @@ export function EditContact({ uuid }: { uuid: string }) {
 		);
 	}
 
-	if (error || !contact) {
+	if (error || !personWithDetails) {
 		return (
 			<ScreenContainer>
 				<ScreenHeader title="Error">
 					<a href="/">Go back</a>
 				</ScreenHeader>
-				<p>Error: {error || 'Contact not found'}</p>
+				<p>Error: {error || 'Person not found'}</p>
 			</ScreenContainer>
 		);
 	}
 
-	const displayName = getDisplayName(contact);
+	const { person, emails, phones, addresses } = personWithDetails;
+	const displayName = getDisplayName(person);
 
 	return (
 		<ScreenContainer>
@@ -73,19 +89,26 @@ export function EditContact({ uuid }: { uuid: string }) {
 			</ScreenHeader>
 
 			<ContactForm
-				givenName={contact.given_name || ''}
-				middleName={contact.middle_name || ''}
-				familyName={contact.family_name || ''}
-				birthday={contact.birthday}
-				anniversary={contact.anniversary}
-				emails={contact.emails || []}
-				phones={contact.phones || []}
-				addresses={contact.addresses || []}
-				photo={contact.photo || ''}
-				organization={contact.organization || ''}
-				title={contact.title || ''}
-				url={contact.url || ''}
-				note={contact.note || ''}
+				givenName={person.given_name || ''}
+				middleName={person.middle_name || ''}
+				familyName={person.family_name || ''}
+				birthday={person.birthday}
+				anniversary={person.anniversary}
+				emails={emails.map(e => ({ email: e.email, label: e.label }))}
+				phones={phones.map(p => ({ number: p.number, label: p.label, features: p.features }))}
+				addresses={addresses.map(a => ({
+					street: a.street,
+					locality: a.locality,
+					region: a.region,
+					postcode: a.postcode,
+					country: a.country,
+					label: a.label
+				}))}
+				photo={person.photo || ''}
+				organization={person.organization || ''}
+				title={person.title || ''}
+				url={person.url || ''}
+				note={person.note || ''}
 				onSubmit={handleSubmit}
 			/>
 		</ScreenContainer>
