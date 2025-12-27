@@ -1,10 +1,10 @@
 import { Button, ContactName, Details, ScreenContainer, ScreenHeader } from '@leapsake/components';
 import { getDisplayDate } from '@/utils';
-import { useReadContact } from '../_hooks';
+import { useReadPerson } from '../_hooks';
 import { getDisplayName } from '../_utils';
 
 export function ReadContact({ uuid }: { uuid: string }) {
-	const [contact, isLoading, error] = useReadContact({ uuid });
+	const [personWithDetails, isLoading, error] = useReadPerson({ personId: uuid });
 
 	if (isLoading) {
 		return (
@@ -18,19 +18,20 @@ export function ReadContact({ uuid }: { uuid: string }) {
 		);
 	}
 
-	if (error || !contact) {
+	if (error || !personWithDetails) {
 		return (
 			<ScreenContainer>
 				<ScreenHeader title="Error">
 					<a href="/">Go back</a>
 				</ScreenHeader>
 
-				<p>Error: {error || 'Contact not found'}</p>
+				<p>Error: {error || 'Person not found'}</p>
 			</ScreenContainer>
 		);
 	}
 
-	const displayName = getDisplayName(contact);
+	const { person, emails, phones, addresses } = personWithDetails;
+	const displayName = getDisplayName(person);
 
 	return (
 		<ScreenContainer>
@@ -52,15 +53,15 @@ export function ReadContact({ uuid }: { uuid: string }) {
 			<div>
 				<ContactName
 					title={<h2>Name</h2>}
-					givenName={contact.given_name}
-					middleName={contact.middle_name}
-					familyName={contact.family_name}
+					givenName={person.given_name}
+					middleName={person.middle_name}
+					familyName={person.family_name}
 				/>
 
-				{contact.emails && contact.emails.length > 0 && (
+				{emails && emails.length > 0 && (
 					<>
 						<h2>Email Addresses</h2>
-						{contact.emails.map((emailData, index) => (
+						{emails.map((emailData, index) => (
 							<p key={index}>
 								<strong>{emailData.label ? `${emailData.label}: ` : ''}</strong>
 								<a href={`mailto:${emailData.email}`}>{emailData.email}</a>
@@ -69,10 +70,10 @@ export function ReadContact({ uuid }: { uuid: string }) {
 					</>
 				)}
 
-				{contact.phones && contact.phones.length > 0 && (
+				{phones && phones.length > 0 && (
 					<>
 						<h2>Phone Numbers</h2>
-						{contact.phones.map((phoneData, index) => (
+						{phones.map((phoneData, index) => (
 							<p key={index}>
 								<strong>{phoneData.label ? `${phoneData.label}: ` : ''}</strong>
 								<a href={`tel:${phoneData.number}`}>{phoneData.number}</a>
@@ -84,10 +85,10 @@ export function ReadContact({ uuid }: { uuid: string }) {
 					</>
 				)}
 
-				{contact.addresses && contact.addresses.length > 0 && (
+				{addresses && addresses.length > 0 && (
 					<>
 						<h2>Addresses</h2>
-						{contact.addresses.map((addressData, index) => (
+						{addresses.map((addressData, index) => (
 							<div key={index}>
 								{addressData.label && <strong>{addressData.label}:</strong>}
 								<p>
@@ -107,33 +108,33 @@ export function ReadContact({ uuid }: { uuid: string }) {
 					</>
 				)}
 
-				{(contact.birthday || contact.anniversary) && (
+				{(person.birthday || person.anniversary) && (
 					<>
 						<h2>Milestones</h2>
-						{contact.birthday && <p><strong>🎂 Birthday:</strong> {getDisplayDate(contact.birthday)}</p>}
-						{contact.anniversary && <p><strong>💒 Anniversary:</strong> {getDisplayDate(contact.anniversary)}</p>}
+						{person.birthday && <p><strong>🎂 Birthday:</strong> {getDisplayDate(person.birthday)}</p>}
+						{person.anniversary && <p><strong>💒 Anniversary:</strong> {getDisplayDate(person.anniversary)}</p>}
 					</>
 				)}
 
-				{(contact.organization || contact.title || contact.url || contact.photo) && (
+				{(person.organization || person.title || person.url || person.photo) && (
 					<>
 						<h2>Additional Information</h2>
-						{contact.organization && <p><strong>Organization:</strong> {contact.organization}</p>}
-						{contact.title && <p><strong>Job Title:</strong> {contact.title}</p>}
-						{contact.url && (
+						{person.organization && <p><strong>Organization:</strong> {person.organization}</p>}
+						{person.title && <p><strong>Job Title:</strong> {person.title}</p>}
+						{person.url && (
 							<p>
 								<strong>Website:</strong>{' '}
-								<a href={contact.url} target="_blank" rel="noopener noreferrer">
-									{contact.url}
+								<a href={person.url} target="_blank" rel="noopener noreferrer">
+									{person.url}
 								</a>
 							</p>
 						)}
-						{contact.photo && (
+						{person.photo && (
 							<div>
 								<strong>Photo:</strong>
 								<br />
 								<img
-									src={contact.photo}
+									src={person.photo}
 									alt="Contact"
 									style={{ maxWidth: '200px', maxHeight: '200px', marginTop: '8px' }}
 									onError={(e) => {
@@ -146,10 +147,10 @@ export function ReadContact({ uuid }: { uuid: string }) {
 					</>
 				)}
 
-				{contact.note && (
+				{person.note && (
 					<>
 						<h2>Notes</h2>
-						<p style={{ whiteSpace: 'pre-wrap' }}>{contact.note}</p>
+						<p style={{ whiteSpace: 'pre-wrap' }}>{person.note}</p>
 					</>
 				)}
 
@@ -157,12 +158,16 @@ export function ReadContact({ uuid }: { uuid: string }) {
 					summary="Metadata"
 				>
 					<div>
-						<b>UUID: </b>
-						<span>{contact.uid}</span>
+						<b>ID: </b>
+						<span>{person.id}</span>
 					</div>
 					<div>
-						<b>File: </b>
-						<span>{contact.file_path}</span>
+						<b>Created: </b>
+						<span>{new Date(person.created_at).toLocaleString()}</span>
+					</div>
+					<div>
+						<b>Updated: </b>
+						<span>{new Date(person.updated_at).toLocaleString()}</span>
 					</div>
 				</Details>
 			</div>
