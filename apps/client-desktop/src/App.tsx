@@ -1,5 +1,5 @@
 import { LocationProvider, ErrorBoundary, Router, Route } from 'preact-iso';
-import { BrowseContacts, AddContact, EditContact, DeleteContact, ReadContact } from './screens/contacts';
+import { BrowsePeople, AddPerson, EditPerson, DeletePerson, ReadPerson } from './screens/people';
 import { Titlebar } from './components/Titlebar';
 
 function AppRouter() {
@@ -23,11 +23,11 @@ function App() {
 		<main id="main-content">
 			<Titlebar />
 			<Router>
-				<Route path="/" component={BrowseContacts} />
-				<Route path="/contacts/new" component={AddContact} />
-				<Route path="/contacts/:uuid/edit" component={EditContact} />
-				<Route path="/contacts/:uuid/delete" component={DeleteContact} />
-				<Route path="/contacts/:uuid" component={ReadContact} />
+				<Route path="/" component={BrowsePeople} />
+				<Route path="/people/new" component={AddPerson} />
+				<Route path="/people/:uuid/edit" component={EditPerson} />
+				<Route path="/people/:uuid/delete" component={DeletePerson} />
+				<Route path="/people/:uuid" component={ReadPerson} />
 				<Route default component={NotFound} />
 			</Router>
 		</main>

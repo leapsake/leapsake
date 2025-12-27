@@ -1,8 +1,8 @@
-import { ContactsList } from '@/components/ContactsList';
+import { PeopleList } from '@/components/PeopleList';
 import { Button, ScreenContainer, ScreenHeader } from '@leapsake/components';
 import { useBrowsePeople } from './_hooks';
 
-export function BrowseContacts() {
+export function BrowsePeople() {
 	const [people, isLoading, error] = useBrowsePeople();
 
 	if (isLoading) {
@@ -24,7 +24,7 @@ export function BrowseContacts() {
 
 	const noPeople = !(!!people && Array.isArray(people) && people.length > 0);
 
-	// Convert Person to format ContactsList expects (similar to ParsedContact)
+	// Convert Person to format PeopleList expects (similar to ParsedContact)
 	const contacts = people?.map(person => ({
 		uid: person.id,
 		given_name: person.given_name,
@@ -42,16 +42,16 @@ export function BrowseContacts() {
 	return (
 		<ScreenContainer>
 			<ScreenHeader
-				title="Contacts"
+				title="People"
 			>
-				<Button href="/contacts/new">➕ New</Button>
+				<Button href="/people/new">➕ New</Button>
 			</ScreenHeader>
 			{noPeople
 				? (
-					<span>No contacts</span>
+					<span>No people</span>
 				)
 				: (
-					<ContactsList contacts={contacts} />
+					<PeopleList contacts={contacts} />
 				)
 			}
 		</ScreenContainer>

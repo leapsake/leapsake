@@ -1,7 +1,7 @@
 import { type ParsedContact } from '@/types';
-import styles from './ContactsList.module.css';
+import styles from './PeopleList.module.css';
 
-interface ContactsListProps {
+interface PeopleListProps {
 	contacts: ParsedContact[];
 };
 
@@ -25,16 +25,16 @@ function getDisplayName(contact: ParsedContact): string {
 		return parts.join(' ');
 	}
 
-	// Fallback to filename if available, or "Unnamed Contact"
+	// Fallback to filename if available, or "Unnamed Person"
 	if (contact.file_path) {
 		const filename = contact.file_path.split('/').pop() || '';
-		return filename.replace(/\.(jscontact|vcf)$/, '') || 'Unnamed Contact';
+		return filename.replace(/\.(jscontact|vcf)$/, '') || 'Unnamed Person';
 	}
 
-	return 'Unnamed Contact';
+	return 'Unnamed Person';
 }
 
-export function ContactsList({ contacts }: ContactsListProps) {
+export function PeopleList({ contacts }: PeopleListProps) {
 	return (
 		<ol class={styles.list}>
 			{contacts.map((contact) => {
@@ -44,7 +44,7 @@ export function ContactsList({ contacts }: ContactsListProps) {
 				return (
 					<li key={uuid || contact.file_path}>
 						{uuid ? (
-							<a href={`/contacts/${uuid}`}>
+							<a href={`/people/${uuid}`}>
 								{name}
 							</a>
 						) : (
