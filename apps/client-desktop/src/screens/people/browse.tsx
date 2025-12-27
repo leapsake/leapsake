@@ -25,7 +25,7 @@ export function BrowsePeople() {
 	const noPeople = !(!!people && Array.isArray(people) && people.length > 0);
 
 	// Convert Person to format PeopleList expects (similar to ParsedContact)
-	const contacts = people?.map(person => ({
+	const peopleList = people?.map(person => ({
 		uid: person.id,
 		given_name: person.given_name,
 		middle_name: person.middle_name,
@@ -51,7 +51,7 @@ export function BrowsePeople() {
 					<span>No people</span>
 				)
 				: (
-					<PeopleList contacts={contacts} />
+					<PeopleList people={peopleList} />
 				)
 			}
 		</ScreenContainer>
