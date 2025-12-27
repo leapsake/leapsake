@@ -3,7 +3,7 @@ import { getContactData } from '@/utils';
 import { ContactForm, ScreenContainer, ScreenHeader } from '@leapsake/components';
 import type { NewPerson } from '@/types';
 
-export function AddContact() {
+export function AddPerson() {
 	const handleSubmit = async (e: Event) => {
 		e.preventDefault();
 		const formData = new FormData(e.currentTarget as HTMLFormElement);

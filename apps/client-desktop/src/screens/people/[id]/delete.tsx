@@ -3,7 +3,7 @@ import { Button, ScreenContainer, ScreenHeader } from '@leapsake/components';
 import { useReadPerson } from '../_hooks';
 import { getDisplayName } from '../_utils';
 
-export function DeleteContact({ uuid }: { uuid: string }) {
+export function DeletePerson({ uuid }: { uuid: string }) {
 	const [personWithDetails, isLoading, error] = useReadPerson({ personId: uuid });
 
 	const handleDelete = async () => {
@@ -23,8 +23,8 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 	if (isLoading) {
 		return (
 			<ScreenContainer>
-				<ScreenHeader title="Delete Contact">
-					<a href={`/contacts/${uuid}`}>Cancel</a>
+				<ScreenHeader title="Delete Person">
+					<a href={`/people/${uuid}`}>Cancel</a>
 				</ScreenHeader>
 				<p>Loading...</p>
 			</ScreenContainer>
@@ -44,17 +44,17 @@ export function DeleteContact({ uuid }: { uuid: string }) {
 			<ScreenHeader
 				breadcrumbs={[
 					{
-						label: 'Contacts',
+						label: 'People',
 						url: '/',
 					},
 					{
 						label: displayName,
-						url: `/contacts/${uuid}`,
+						url: `/people/${uuid}`,
 					},
 				]}
 				title={`Delete ${displayName}`}
 			>
-				<a href={`/contacts/${uuid}`}>Cancel</a>
+				<a href={`/people/${uuid}`}>Cancel</a>
 			</ScreenHeader>
 
 			<div>

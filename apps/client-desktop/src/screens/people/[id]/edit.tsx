@@ -5,7 +5,7 @@ import { useReadPerson } from '../_hooks';
 import { getDisplayName } from '../_utils';
 import type { NewPerson } from '@/types';
 
-export function EditContact({ uuid }: { uuid: string }) {
+export function EditPerson({ uuid }: { uuid: string }) {
 	const [personWithDetails, isLoading, error]  = useReadPerson({ personId: uuid });
 
 	const handleSubmit = async (e: Event) => {
@@ -57,8 +57,8 @@ export function EditContact({ uuid }: { uuid: string }) {
 				addresses,
 			});
 			console.log('Person updated');
-			// Redirect to the contact view page
-			window.location.href = `/contacts/${uuid}`;
+			// Redirect to the person view page
+			window.location.href = `/people/${uuid}`;
 		} catch (error) {
 			console.error('Failed to update person:', error);
 			alert('Failed to update person: ' + error);
@@ -68,8 +68,8 @@ export function EditContact({ uuid }: { uuid: string }) {
 	if (isLoading) {
 		return (
 			<ScreenContainer>
-				<ScreenHeader title="Edit Contact">
-					<a href={`/contacts/${uuid}`}>Cancel</a>
+				<ScreenHeader title="Edit Person">
+					<a href={`/people/${uuid}`}>Cancel</a>
 				</ScreenHeader>
 				<p>Loading...</p>
 			</ScreenContainer>
@@ -95,19 +95,19 @@ export function EditContact({ uuid }: { uuid: string }) {
 			<ScreenHeader
 				breadcrumbs={[
 					{
-						label: 'Contacts',
+						label: 'People',
 						url: '/',
 					},
 					{
 						label: displayName,
-						url: `/contacts/${uuid}`,
+						url: `/people/${uuid}`,
 					},
 				]}
 				title={`Edit ${displayName}`}
 			>
 				<div>
-					<a href={`/contacts/${uuid}`}>Cancel</a>
-					<Button href={`/contacts/${uuid}/delete`}>Delete</Button>
+					<a href={`/people/${uuid}`}>Cancel</a>
+					<Button href={`/people/${uuid}/delete`}>Delete</Button>
 				</div>
 			</ScreenHeader>
 

@@ -3,13 +3,13 @@ import { getDisplayDate } from '@/utils';
 import { useReadPerson } from '../_hooks';
 import { getDisplayName } from '../_utils';
 
-export function ReadContact({ uuid }: { uuid: string }) {
+export function ReadPerson({ uuid }: { uuid: string }) {
 	const [personWithDetails, isLoading, error] = useReadPerson({ personId: uuid });
 
 	if (isLoading) {
 		return (
 			<ScreenContainer>
-				<ScreenHeader title="View Contact">
+				<ScreenHeader title="View Person">
 					<a href="/">Go back</a>
 				</ScreenHeader>
 
@@ -38,15 +38,15 @@ export function ReadContact({ uuid }: { uuid: string }) {
 			<ScreenHeader
 				breadcrumbs={[
 					{
-						label: 'Contacts',
+						label: 'People',
 						url: '/',
 					},
 				]}
 				title={displayName}
 			>
 				<div>
-					<Button href={`/contacts/${uuid}/edit`}>Edit</Button>
-					<Button href={`/contacts/${uuid}/delete`}>Delete</Button>
+					<Button href={`/people/${uuid}/edit`}>Edit</Button>
+					<Button href={`/people/${uuid}/delete`}>Delete</Button>
 				</div>
 			</ScreenHeader>
 
@@ -135,7 +135,7 @@ export function ReadContact({ uuid }: { uuid: string }) {
 								<br />
 								<img
 									src={person.photo}
-									alt="Contact"
+									alt="Person"
 									style={{ maxWidth: '200px', maxHeight: '200px', marginTop: '8px' }}
 									onError={(e) => {
 										e.currentTarget.style.display = 'none';
