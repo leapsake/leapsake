@@ -2,14 +2,13 @@
 
 ## Project Overview
 
-Leapsake is a privacy-first contact management app that stores your contacts as JSContact files you own and control. Sync across devices peer-to-peer with no vendor lock-in. Building contact management first, with plans to expand to general file sync later.
+Leapsake is a privacy-first people management app. Sync across devices peer-to-peer with no vendor lock-in. Building people management first, with plans to expand to tasks, photos, documents, and general file sync later.
 
 ## Core Philosophy
 
 - **Offline-first**: Each client operates completely standalone
-- **Privacy-respecting**: No vendor lock-in, user controls data location
-- **Open standards**: JSContact for contacts, with plans to support other open formats
-- **File-as-database**: Filesystem is source of truth, database is just a search index
+- **Privacy-respecting**: No vendor lock-in, user controls their data
+- **Portable data**: Full import/export support via open standards (JSContact, vCard)
 - **Cross-platform**: Currently desktop, with plans to extend to mobile, Progressive Web App, and hosted web
 - **P2P sync**: Direct device-to-device sync with optional server backup (future)
 
@@ -35,26 +34,86 @@ Leapsake is a privacy-first contact management app that stores your contacts as 
 ### Shared Packages
 
 #### Current
-- **`packages/leapsake-core/`**: Core contact management logic (Rust)
+- **`packages/db/`**: Database schema, migrations, and queries (Rust)
+- **`packages/leapsake-core/`**: Core business logic (Rust) — may be refocused or split in the future
+- **`packages/components/`**: Platform-specific UI components
 
 #### Coming Soon
-- **`packages/components/`**: Platform-specific UI components
-- **`packages/design-tokens/`**: Design system tokens with Rust generator (Future)
+- **`packages/file-io/`**: Import/export logic for JSContact, vCard, and other formats (Rust)
+- **`packages/design-tokens/`**: Design system tokens with Rust generator
 
 ## Architecture Decisions
 
-### File-as-Database Approach
+### SQLite as Source of Truth
 
-Contacts (JSContact files) are the source of truth. Metadata is stored using:
-1. **Extended attributes** (preferred) - metadata travels with files
-2. **Sidecar files** (fallback) - `.filename.metadata.json` files
-3. **Directory metadata** (optional) - `.file-metadata.json` in directories
+SQLite is the canonical data store. This decision evolved from an earlier "file-as-database" approach where JSContact/vCard files were the source of truth with SQLite as a rebuildable index. We moved to SQLite-first because:
 
-The "database" is a rebuildable search index for performance, not functionality.
+- **Query performance**: Direct SQL queries without parsing files
+- **Field-level operations**: Essential for CRDT-based sync
+- **Storage efficiency**: No duplication between files and index
+- **Conflict resolution**: Field-level merging instead of whole-file replacement
 
-### Event-Driven Architecture
+Open standards (JSContact, vCard) remain important for **import/export and interoperability**, not as the storage format. The data model maintains compatibility with JSContact/vCard fields to ensure lossless round-trips.
 
-Operations are structured around events from the start to enable future sync capabilities. Events capture state changes (contact added/modified/deleted, tags changed) and can be applied to reconstruct state.
+Binary files (photos, documents) are stored on disk with references in SQLite.
+
+### Database Architecture
+
+#### Schema Conventions
+- Table names: plural `snake_case` (e.g., `people`, `email_addresses`, `tags`)
+- Primary keys: UUIDs stored as TEXT
+- Machine timestamps: INTEGER (Unix epoch, milliseconds for events)
+- User-facing dates: TEXT (ISO 8601, e.g., `1990-05-15`)
+
+#### Migrations
+Hand-rolled migrations using embedded SQL files:
+```
+packages/db/
+├── src/
+│   └── ...
+└── migrations/
+    ├── 001_initial_schema.sql
+    ├── 002_add_tags.sql
+    └── ...
+```
+
+Migrations are tracked in a `migrations` table and applied automatically on startup.
+
+#### Crate Structure
+- **`packages/db/`**: Schema definitions, migrations, and query functions
+- Used by all client apps (desktop, mobile, web via wasm)
+- Uses `rusqlite` with the `bundled` feature for consistent cross-platform behavior
+
+### Event Sourcing (Day 2)
+
+The current architecture uses direct SQLite mutations. The next phase introduces event sourcing to enable P2P sync:
+
+#### How It Works
+1. **Event log**: Append-only table recording every state change
+2. **State tables**: Materialized views derived from events (the current SQLite tables)
+3. **Sync**: Devices exchange events they're missing, merge via CRDT rules
+
+#### Why Event Sourcing?
+- **Field-level sync**: Events like "set phone to X" merge cleanly
+- **Conflict resolution**: Timestamp + device ID determines winner
+- **History**: Full audit trail of changes
+- **Rebuild**: State can be reconstructed by replaying events
+
+#### Performance
+- SQLite state persists between sessions (no replay on startup)
+- Only new events since last session are applied
+- Full replay only on new device setup or corruption recovery
+
+#### Event Types (Planned)
+```rust
+enum PersonEvent {
+    Created { person_id: Uuid },
+    Deleted { person_id: Uuid },
+    FieldSet { person_id: Uuid, field: String, value: Option<String> },
+    TagAdded { person_id: Uuid, tag: String },
+    TagRemoved { person_id: Uuid, tag: String },
+}
+```
 
 ### Storage Approach
 
@@ -62,27 +121,39 @@ Storage operations are designed as pure functions where possible, with side effe
 
 ## Development Strategy
 
-### Current Phase: Contact Management MVP
+### Phase 1: People Management MVP (Current)
 
-Focus entirely on local contact management experience using JSContact files that work everywhere). Build:
-- JSContact import/export
-- vCard import/export
-- Contact organization with tags
+Focus on local people management experience. Build:
+- Add/edit/delete people with full contact information
+- Organization with tags
 - Search and filtering
-- Birthday and special day reminders
-- App-managed storage location (e.g., `~/Library/Application Support/Leapsake/contacts/`)
+- Birthday and anniversary reminders
+- JSContact and vCard import/export
 
-This proves the file-as-database architecture with structured text files before expanding to other content types.
+### Phase 2: Event Sourcing
+
+Add the event log infrastructure:
+- Event table and types
+- Migrate mutations to event creation
+- Backfill events for existing data
+
+### Phase 3: P2P Sync
+
+Device-to-device sync:
+- Sync protocol (exchange missing events)
+- CRDT merge rules
+- Conflict resolution UI (if needed)
+- Optional server backup
 
 ### Future Phases
 
-1. **P2P sync** - Device-to-device contact sync with CRDTs, optional server backup
-2. **User-managed locations** - Allow users to choose where contacts are stored
-3. **Mobile adaptation** - Adapt core experience to mobile constraints
-4. **Web app** - Progressive enhancement with PWA capabilities
-5. **Photos content type** - Add photo management using same architecture
-6. **Documents content type** - Add document management
-7. **General file sync** - Arbitrary files in arbitrary user-specified locations
+- **Tasks**: To-do functionality for custom tasks and auto-generated reminders (e.g., birthdays)
+- **User-managed locations**: Allow users to choose where data is stored
+- **Mobile adaptation**: Adapt core experience to mobile constraints
+- **Web app**: Progressive enhancement with PWA capabilities
+- **Photos**: Binary file support with metadata
+- **Documents**: More complex file types, richer metadata
+- **General file sync**: Arbitrary files in user-specified locations
 
 ## Repository Structure
 
@@ -93,7 +164,9 @@ leapsake/
 │   ├── client-mobile/            # React Native + Expo (future)
 │   └── client-web/               # Astro + Preact (future)
 ├── packages/
+│   ├── db/                       # SQLite schema, migrations, queries
 │   ├── leapsake-core/            # Core Rust business logic
+│   ├── file-io/                  # Import/export (JSContact, vCard) (future)
 │   ├── components/               # Cross-platform UI (future)
 │   ├── design-tokens/            # Design system (future)
 │   └── build-tools/              # Rust utilities (future)
@@ -102,8 +175,8 @@ leapsake/
 │   └── config/
 ├── Makefile                      # Unified build commands
 ├── package.json                  # PNPM workspace root
-├── pnpm-workspace.yaml          # PNPM configuration
-└── Cargo.toml                   # Rust workspace root
+├── pnpm-workspace.yaml           # PNPM configuration
+└── Cargo.toml                    # Rust workspace root
 ```
 
 ## Build System
@@ -122,6 +195,10 @@ make clean      # Clean build artifacts
 ```
 
 ## Testing Strategy
+
+### Database (`packages/db/`)
+- **Unit tests**: Query functions with in-memory SQLite
+- **Migration tests**: Verify migrations apply cleanly
 
 ### Rust Core (`packages/leapsake-core/`)
 - **Unit tests**: Cargo's built-in test framework
@@ -146,9 +223,8 @@ make clean      # Clean build artifacts
 - **Tauri**: Performance, small bundle size, native capabilities
 - **Preact**: Minimal bundle, React compatibility, progressive enhancement friendly
 - **Rust**: Performance for file operations, memory safety, cross-platform, excellent functional programming support
+- **SQLite**: Reliable, embedded, excellent cross-platform support, single-file database
 - **CSS Modules**: Scoped styling, no runtime overhead
-- **Extended Attributes**: Metadata travels with files, no external dependencies
-- **vCard Standard**: Open format, widely supported, human-readable
 
 ### Why Functional-First?
 - **Testability**: Pure functions need no mocks, easier to test
@@ -159,23 +235,29 @@ make clean      # Clean build artifacts
 
 OOP is used sparingly for platform integration (trait implementations), resource management (RAII patterns), and builder patterns.
 
-### Storage Architecture
+### Import/Export Compatibility
 
-Built with future sync in mind using pure functions and clear data flow. Pure business logic handles state transformations and event generation, effect handlers manage I/O at the boundaries, and minimal OOP handles platform integration (Tauri commands, React Native bridges, OS-specific APIs).
+The data model is designed for lossless round-trips with JSContact and vCard:
+- All standard fields are supported
+- Custom/extended fields are preserved
+- Import detects format automatically
+- Export to either format on demand
 
 ## Current Status
 
-**Completed**: Basic monorepo structure with Tauri desktop app that imports shared Rust business logic from `leapsake-core` package.
+**Completed**: Basic monorepo structure with Tauri desktop app.
 
-**Next Steps**: Implement core contact management features (JSContact import/export, vCard import/export, tagging, search, reminders) in the desktop app.
+**In Progress**: Database schema and migration infrastructure (`packages/db/`).
+
+**Next Steps**: Implement core people management features (CRUD, tagging, search, reminders) in the desktop app.
 
 ## Development Guidelines
 
 ### Code Organization
-- Keep business logic as pure functions in Rust (`leapsake-core`)
+- Keep business logic as pure functions in Rust
 - UI components should be primarily presentational and composable
 - Isolate side effects (I/O, mutations) at the boundaries
-- Design for rebuild-ability - database should be recreatable from filesystem
+- Database queries live in `packages/db/`, business logic in `packages/leapsake-core/`
 
 ### Functional Programming Practices
 - Prefer pure functions with explicit inputs and outputs
@@ -186,22 +268,20 @@ Built with future sync in mind using pure functions and clear data flow. Pure bu
 
 ### Sync Preparation
 Even though sync isn't implemented yet:
-- Use global IDs (UUIDs), not filesystem paths
-- Structure around events
-- Design storage operations as pure functions where possible
-- Event sourcing enables future sync capabilities
+- Use UUIDs as primary keys, not auto-increment integers
+- Design with event sourcing in mind (mutations will become events)
+- Keep state derivable from events
 
 ### Progressive Enhancement
 Web components should work without JavaScript, enhanced with JavaScript when available.
 
 ## Expansion Path
 
-The contact management focus is deliberate and strategic:
+1. **People** (current) — Core data model and local management
+2. **Events** (next) — Event sourcing infrastructure for sync
+3. **Tasks** — To-do functionality, reminders
+4. **Photos** — Binary file support
+5. **Documents** — Richer file types and metadata
+6. **General files** — Arbitrary files in user-specified locations
 
-1. **Contacts** (current) - Prove architecture with structured text files
-2. **Tasks** (next) - Create "To Do" functionality for custom tasks and automatically generated reminders (e.g. birthdays).
-3. **Photos** - Add binary file support, similar metadata needs
-4. **Documents** - More complex file types, richer metadata
-5. **General files** - Arbitrary files in user-specified locations
-
-Each phase builds on the previous, expanding capabilities while maintaining the core file-as-database, privacy-first, functional architecture.
+Each phase builds on the previous, expanding capabilities while maintaining the privacy-first, functional architecture.
