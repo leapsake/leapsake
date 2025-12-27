@@ -8,10 +8,12 @@ export function AddContact() {
 		const formData = new FormData(e.currentTarget as HTMLFormElement);
 
 		const contactData = getContactData(formData);
+		const format = formData.get('format') as string | null;
 
 		try {
 			const filePath = await invoke('add_contact', {
-				data: contactData
+				data: contactData,
+				format: format || undefined,
 			});
 			console.log('Contact created at:', filePath);
 			// Redirect to contacts list
@@ -31,6 +33,7 @@ export function AddContact() {
 			</ScreenHeader>
 
 			<ContactForm
+				showFormatSelector={true}
 				onSubmit={handleSubmit}
 			/>
 		</ScreenContainer>

@@ -1,52 +1,37 @@
-import { type Contact } from '@/types';
+import { type ParsedContact } from '@/types';
 import styles from './ContactsList.module.css';
 
 interface ContactsListProps {
-	contacts: Contact[];
+	contacts: ParsedContact[];
 };
 
-function extractUuidFromContact(contact: Contact): string | null {
-	try {
-		const data = JSON.parse(contact.content);
-		const uid = data.uid as string;
-		if (!uid) return null;
+function extractUuidFromContact(contact: ParsedContact): string | null {
+	const uid = contact.uid;
+	if (!uid) return null;
 
-		// Extract UUID from "urn:uuid:..." format or use as-is if already just UUID
-		const extracted = uid.replace('urn:uuid:', '');
-		return extracted || null;
-	} catch {
-		return null;
-	}
+	// Extract UUID from "urn:uuid:..." format or use as-is if already just UUID
+	const extracted = uid.replace('urn:uuid:', '');
+	return extracted || null;
 }
 
-function extractNameFromContact(contact: Contact): string {
-	try {
-		const data = JSON.parse(contact.content);
-		const name = data.name;
+function getDisplayName(contact: ParsedContact): string {
+	const parts = [
+		contact.given_name,
+		contact.middle_name,
+		contact.family_name,
+	].filter(Boolean);
 
-		if (!name) return contact.file_name;
-
-		// Try "full" name format first
-		if (name.full) {
-			return name.full;
-		}
-
-		// Try structured components format
-		const nameComponents = name.components || [];
-		const given = nameComponents.find((c: any) => c.kind === 'given')?.value || '';
-		const surname = nameComponents.find((c: any) => c.kind === 'surname')?.value || '';
-
-		if (given && surname) {
-			return `${given} ${surname}`;
-		}
-		if (given) return given;
-		if (surname) return surname;
-
-		// Fallback to filename
-		return contact.file_name;
-	} catch {
-		return contact.file_name;
+	if (parts.length > 0) {
+		return parts.join(' ');
 	}
+
+	// Fallback to filename if available, or "Unnamed Contact"
+	if (contact.file_path) {
+		const filename = contact.file_path.split('/').pop() || '';
+		return filename.replace(/\.(jscontact|vcf)$/, '') || 'Unnamed Contact';
+	}
+
+	return 'Unnamed Contact';
 }
 
 export function ContactsList({ contacts }: ContactsListProps) {
@@ -54,10 +39,10 @@ export function ContactsList({ contacts }: ContactsListProps) {
 		<ol class={styles.list}>
 			{contacts.map((contact) => {
 				const uuid = extractUuidFromContact(contact);
-				const name = extractNameFromContact(contact);
+				const name = getDisplayName(contact);
 
 				return (
-					<li>
+					<li key={uuid || contact.file_path}>
 						{uuid ? (
 							<a href={`/contacts/${uuid}`}>
 								{name}

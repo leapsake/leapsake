@@ -46,7 +46,13 @@ interface ContactFormProps {
 	familyName?: string;
 	givenName?: string;
 	middleName?: string;
-	onSubmit?: (e: any) => void;
+	photo?: string;
+	organization?: string;
+	title?: string;
+	url?: string;
+	note?: string;
+	showFormatSelector?: boolean;
+	onSubmit: (e: any) => void;
 }
 
 export function ContactForm({
@@ -58,6 +64,12 @@ export function ContactForm({
 	familyName,
 	givenName,
 	middleName,
+	photo,
+	organization,
+	title,
+	url,
+	note,
+	showFormatSelector = false,
 	onSubmit,
 }: ContactFormProps) {
 	// Transform phones from features array to canCall/canText booleans
@@ -120,6 +132,46 @@ export function ContactForm({
 				label="💒 Anniversary"
 				name="anniversary"
 			/>
+
+			<fieldset>
+				<legend>Additional Information</legend>
+
+				<TextInput
+					defaultValue={organization}
+					label="Organization"
+					name="organization"
+				/>
+
+				<TextInput
+					defaultValue={title}
+					label="Job Title"
+					name="title"
+				/>
+
+				<TextInput
+					defaultValue={url}
+					label="Website URL"
+					name="url"
+					type="url"
+				/>
+
+				<TextInput
+					defaultValue={photo}
+					label="Photo URL"
+					name="photo"
+					type="url"
+				/>
+
+				<label>
+					Notes
+					<textarea
+						name="note"
+						defaultValue={note}
+						rows={4}
+						style={{ width: '100%', fontFamily: 'inherit', fontSize: 'inherit', padding: '8px' }}
+					/>
+				</label>
+			</fieldset>
 
 			<fieldset>
 				<legend>Phone Numbers</legend>
@@ -207,6 +259,21 @@ export function ContactForm({
 					Add Address
 				</Button>
 			</fieldset>
+
+			{showFormatSelector && (
+				<fieldset>
+					<legend>File Format</legend>
+					<label>
+						<input type="radio" name="format" value="jscontact" defaultChecked />
+						{' '}JSContact (.jscontact)
+					</label>
+					<br />
+					<label>
+						<input type="radio" name="format" value="vcard" />
+						{' '}vCard (.vcf)
+					</label>
+				</fieldset>
+			)}
 
 			<Button type="submit">Save</Button>
 		</Form>

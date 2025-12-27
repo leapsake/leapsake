@@ -9,8 +9,16 @@ export interface ParsedContact {
 	given_name?: string;
 	middle_name?: string;
 	family_name?: string;
-	birthday?: string;
-	anniversary?: string;
+	birthday?: PartialDate;
+	anniversary?: PartialDate;
+	emails?: Array<{ email: string; label?: string }>;
+	phones?: Array<{ number: string; label?: string; features?: string[] }>;
+	addresses?: Array<{ street: string; locality?: string; region?: string; postcode?: string; country?: string; label?: string }>;
+	photo?: string;
+	organization?: string;
+	title?: string;
+	url?: string;
+	note?: string;
 	file_path: string;
 }
 

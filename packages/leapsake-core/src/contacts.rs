@@ -701,7 +701,7 @@ pub fn delete_contact<P: AsRef<Path>>(
 ///
 /// # Behavior
 /// * Fast path: Searches filenames for UUID match (regex pattern)
-/// * Slow path: If not found in filename, parses all JSContact files and matches by UID
+/// * Slow path: If not found in filename, parses all contact files (both JSContact and vCard) and matches by UID
 pub fn read_contact<P: AsRef<Path>>(
     contact_dir: P,
     uuid: &str,
@@ -712,12 +712,13 @@ pub fn read_contact<P: AsRef<Path>>(
         return Err(format!("Contacts directory does not exist: {}", dir.display()));
     }
 
-    // Get all .jscontact files
-    let files = get_files_with(&[dir], Some(&["jscontact"]), |path: &PathBuf| path.clone())?;
-
-    // Fast path: Find file with UUID in filename
     let uuid_lower = uuid.to_lowercase();
-    let matching_file = files.iter().find(|path| {
+
+    // Try JSContact files first
+    let jscontact_files = get_files_with(&[dir], Some(&["jscontact"]), |path: &PathBuf| path.clone())?;
+
+    // Fast path: Find JSContact file with UUID in filename
+    let matching_file = jscontact_files.iter().find(|path| {
         path.file_name()
             .and_then(|name| name.to_str())
             .map(|name| name.to_lowercase().contains(&uuid_lower))
@@ -728,9 +729,39 @@ pub fn read_contact<P: AsRef<Path>>(
         return parse_contact_file(file_path);
     }
 
-    // Slow path: Parse all files and match by UID
-    for file_path in &files {
+    // Slow path: Parse all JSContact files and match by UID
+    for file_path in &jscontact_files {
         if let Ok(contact) = parse_contact_file(file_path) {
+            // Extract UUID from UID (handle both "urn:uuid:..." and plain UUID formats)
+            let contact_uuid = contact.uid
+                .strip_prefix("urn:uuid:")
+                .unwrap_or(&contact.uid)
+                .to_lowercase();
+
+            if contact_uuid == uuid_lower {
+                return Ok(contact);
+            }
+        }
+    }
+
+    // Try vCard files
+    let vcard_files = get_files_with(&[dir], Some(&["vcf"]), |path: &PathBuf| path.clone())?;
+
+    // Fast path: Find vCard file with UUID in filename
+    let matching_file = vcard_files.iter().find(|path| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name.to_lowercase().contains(&uuid_lower))
+            .unwrap_or(false)
+    });
+
+    if let Some(file_path) = matching_file {
+        return parse_vcard_file(file_path);
+    }
+
+    // Slow path: Parse all vCard files and match by UID
+    for file_path in &vcard_files {
+        if let Ok(contact) = parse_vcard_file(file_path) {
             // Extract UUID from UID (handle both "urn:uuid:..." and plain UUID formats)
             let contact_uuid = contact.uid
                 .strip_prefix("urn:uuid:")

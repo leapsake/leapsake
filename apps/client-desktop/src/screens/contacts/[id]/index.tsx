@@ -115,8 +115,46 @@ export function ReadContact({ uuid }: { uuid: string }) {
 					</>
 				)}
 
+				{(contact.organization || contact.title || contact.url || contact.photo) && (
+					<>
+						<h2>Additional Information</h2>
+						{contact.organization && <p><strong>Organization:</strong> {contact.organization}</p>}
+						{contact.title && <p><strong>Job Title:</strong> {contact.title}</p>}
+						{contact.url && (
+							<p>
+								<strong>Website:</strong>{' '}
+								<a href={contact.url} target="_blank" rel="noopener noreferrer">
+									{contact.url}
+								</a>
+							</p>
+						)}
+						{contact.photo && (
+							<div>
+								<strong>Photo:</strong>
+								<br />
+								<img
+									src={contact.photo}
+									alt="Contact"
+									style={{ maxWidth: '200px', maxHeight: '200px', marginTop: '8px' }}
+									onError={(e) => {
+										e.currentTarget.style.display = 'none';
+										e.currentTarget.insertAdjacentHTML('afterend', '<p style="color: #666;">(Photo not available)</p>');
+									}}
+								/>
+							</div>
+						)}
+					</>
+				)}
+
+				{contact.note && (
+					<>
+						<h2>Notes</h2>
+						<p style={{ whiteSpace: 'pre-wrap' }}>{contact.note}</p>
+					</>
+				)}
+
 				<Details
-					summary={<h2>Metadata</h2>}
+					summary="Metadata"
 				>
 					<div>
 						<b>UUID: </b>
