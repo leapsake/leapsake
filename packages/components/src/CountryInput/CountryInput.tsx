@@ -1,12 +1,14 @@
 interface CountryInputProps {
 	defaultValue: string;
+	name?: string;
 }
 
 export function CountryInput({
 	defaultValue,
+	name,
 }: CountryInputProps) {
 	return (
-		<select defaultValue={defaultValue}>
+		<select defaultValue={defaultValue} name={name}>
 			<option value="United States">🇺🇸 United States</option>
 			<option disabled>-------</option>
 			{COUNTRIES.map((country) => {

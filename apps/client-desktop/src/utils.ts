@@ -124,6 +124,12 @@ function getAddresses(formData: FormData) {
 }
 
 export function getContactData(formData: FormData) {
+	const photo = formData.get('photo') as string | null;
+	const organization = formData.get('organization') as string | null;
+	const title = formData.get('title') as string | null;
+	const url = formData.get('url') as string | null;
+	const note = formData.get('note') as string | null;
+
 	return {
 		given_name: formData.get('givenName') as string | null,
 		middle_name: formData.get('middleName') as string | null,
@@ -133,6 +139,11 @@ export function getContactData(formData: FormData) {
 		emails: getEmails(formData),
 		phones: getPhones(formData),
 		addresses: getAddresses(formData),
+		photo: photo?.trim() || null,
+		organization: organization?.trim() || null,
+		title: title?.trim() || null,
+		url: url?.trim() || null,
+		note: note?.trim() || null,
 	};
 }
 

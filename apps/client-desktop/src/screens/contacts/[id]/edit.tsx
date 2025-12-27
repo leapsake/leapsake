@@ -76,11 +76,16 @@ export function EditContact({ uuid }: { uuid: string }) {
 				givenName={contact.given_name || ''}
 				middleName={contact.middle_name || ''}
 				familyName={contact.family_name || ''}
-				birthday={contact.birthday || ''}
-				anniversary={contact.anniversary || ''}
+				birthday={contact.birthday}
+				anniversary={contact.anniversary}
 				emails={contact.emails || []}
 				phones={contact.phones || []}
 				addresses={contact.addresses || []}
+				photo={contact.photo || ''}
+				organization={contact.organization || ''}
+				title={contact.title || ''}
+				url={contact.url || ''}
+				note={contact.note || ''}
 				onSubmit={handleSubmit}
 			/>
 		</ScreenContainer>

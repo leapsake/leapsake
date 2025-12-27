@@ -57,7 +57,7 @@ export function PhysicalAddressInput({
 			/>
 
 			<CountryInput
-				defaultValue={defaultCountry}
+				defaultValue={defaultCountry || ''}
 				name={`${name}.country`}
 			/>
 		</div>

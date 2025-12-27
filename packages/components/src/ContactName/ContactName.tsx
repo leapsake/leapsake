@@ -1,7 +1,8 @@
 import styles from './ContactName.module.css';
+import type { JSX } from 'preact';
 
 interface ContactNameProps {
-	title?: Element | string;
+	title?: JSX.Element | string;
 	givenName?: string;
 	middleName?: string;
 	familyName?: string;

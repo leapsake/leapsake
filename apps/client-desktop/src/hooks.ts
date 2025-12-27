@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
 
-export function useData(dataPromise, dependencies: any[] = []) {
-	const [data, setData] = useState(null);
+export function useData<T>(dataPromise: () => Promise<T>, dependencies: any[] = []) {
+	const [data, setData] = useState<T | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
-	const [error, setError] = useState(null);
+	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
 		const getData = async () => {
@@ -20,7 +20,7 @@ export function useData(dataPromise, dependencies: any[] = []) {
 		getData();
 	}, dependencies);
 
-	return [data, isLoading, error];
+	return [data, isLoading, error] as const;
 }
 
 /**
