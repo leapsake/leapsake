@@ -28,66 +28,34 @@ export function EditContact({ uuid }: { uuid: string }) {
 			note: contactData.note || undefined,
 		};
 
+		// Prepare emails as tuples: (email, label)
+		const emails = (contactData.emails || []).map(e => [e.email, e.label || null] as [string, string | null]);
+
+		// Prepare phones as tuples: (number, label, features)
+		const phones = (contactData.phones || []).map(p => [
+			p.number,
+			p.label || null,
+			p.features || null
+		] as [string, string | null, string[] | null]);
+
+		// Prepare addresses as tuples: (street, locality, region, postcode, country, label)
+		const addresses = (contactData.addresses || []).map(a => [
+			a.street,
+			a.locality || null,
+			a.region || null,
+			a.postcode || null,
+			a.country || null,
+			a.label || null
+		] as [string, string | null, string | null, string | null, string | null, string | null]);
+
 		try {
-			// Update person core fields
-			await invoke('db_update_person', {
+			await invoke('db_update_person_with_details', {
 				personId: uuid,
 				person,
+				emails,
+				phones,
+				addresses,
 			});
-
-			// Delete all existing emails and add new ones
-			if (personWithDetails?.emails) {
-				for (const email of personWithDetails.emails) {
-					await invoke('db_delete_email', { emailId: email.id });
-				}
-			}
-			if (contactData.emails) {
-				for (const emailData of contactData.emails) {
-					await invoke('db_add_email', {
-						personId: uuid,
-						email: emailData.email,
-						label: emailData.label || null,
-					});
-				}
-			}
-
-			// Delete all existing phones and add new ones
-			if (personWithDetails?.phones) {
-				for (const phone of personWithDetails.phones) {
-					await invoke('db_delete_phone', { phoneId: phone.id });
-				}
-			}
-			if (contactData.phones) {
-				for (const phoneData of contactData.phones) {
-					await invoke('db_add_phone', {
-						personId: uuid,
-						number: phoneData.number,
-						label: phoneData.label || null,
-						features: phoneData.features || null,
-					});
-				}
-			}
-
-			// Delete all existing addresses and add new ones
-			if (personWithDetails?.addresses) {
-				for (const address of personWithDetails.addresses) {
-					await invoke('db_delete_address', { addressId: address.id });
-				}
-			}
-			if (contactData.addresses) {
-				for (const addressData of contactData.addresses) {
-					await invoke('db_add_address', {
-						personId: uuid,
-						street: addressData.street,
-						locality: addressData.locality || null,
-						region: addressData.region || null,
-						postcode: addressData.postcode || null,
-						country: addressData.country || null,
-						label: addressData.label || null,
-					});
-				}
-			}
-
 			console.log('Person updated');
 			// Redirect to the contact view page
 			window.location.href = `/contacts/${uuid}`;

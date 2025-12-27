@@ -117,6 +117,19 @@ async fn db_update_person(db: State<'_, Database>, person_id: String, person: Ne
 }
 
 #[command]
+async fn db_update_person_with_details(
+    db: State<'_, Database>,
+    person_id: String,
+    person: NewPerson,
+    emails: Vec<(String, Option<String>)>,
+    phones: Vec<(String, Option<String>, Option<Vec<String>>)>,
+    addresses: Vec<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)>,
+) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| format!("Database lock error: {}", e))?;
+    db::update_person_with_details(&conn, &person_id, person, emails, phones, addresses).map_err(|e| e.to_string())
+}
+
+#[command]
 async fn db_delete_person(db: State<'_, Database>, person_id: String) -> Result<(), String> {
     let conn = db.0.lock().map_err(|e| format!("Database lock error: {}", e))?;
     db::delete_person(&conn, &person_id).map_err(|e| e.to_string())
@@ -241,6 +254,7 @@ pub fn run() {
             db_create_person,
             db_read_person,
             db_update_person,
+            db_update_person_with_details,
             db_delete_person,
             db_list_people,
             db_search_people,
