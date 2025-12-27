@@ -1,7 +1,8 @@
 [workspace]
 members = [
-    "packages/leapsake-core",
-    "apps/client-desktop/src-tauri"
+    "apps/client-desktop/src-tauri",
+	"packages/db",
+    "packages/leapsake-core"
 ]
 resolver = "2"
 
