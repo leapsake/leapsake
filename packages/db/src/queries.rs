@@ -194,6 +194,74 @@ pub fn update_person(
     Ok(())
 }
 
+/// Update a person with all associated data (emails, phones, addresses)
+/// This replaces all related data - existing items are deleted and new ones are inserted
+pub fn update_person_with_details(
+    conn: &Connection,
+    person_id: &str,
+    new_person: NewPerson,
+    emails: Vec<(String, Option<String>)>, // (email, label)
+    phones: Vec<(String, Option<String>, Option<Vec<String>>)>, // (number, label, features)
+    addresses: Vec<(String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)>, // (street, locality, region, postcode, country, label)
+) -> Result<()> {
+    let now = now_millis();
+
+    // Update person core fields
+    conn.execute(
+        "UPDATE people SET given_name = ?1, middle_name = ?2, family_name = ?3, birthday = ?4, anniversary = ?5, photo = ?6, organization = ?7, title = ?8, url = ?9, note = ?10, updated_at = ?11
+         WHERE id = ?12",
+        params![
+            new_person.given_name,
+            new_person.middle_name,
+            new_person.family_name,
+            new_person.birthday.and_then(|d| d.to_iso_string()),
+            new_person.anniversary.and_then(|d| d.to_iso_string()),
+            new_person.photo,
+            new_person.organization,
+            new_person.title,
+            new_person.url,
+            new_person.note,
+            now,
+            person_id,
+        ],
+    )?;
+
+    // Delete all existing emails, phones, and addresses
+    conn.execute("DELETE FROM email_addresses WHERE person_id = ?1", params![person_id])?;
+    conn.execute("DELETE FROM phone_numbers WHERE person_id = ?1", params![person_id])?;
+    conn.execute("DELETE FROM addresses WHERE person_id = ?1", params![person_id])?;
+
+    // Insert new emails
+    for (position, (email, label)) in emails.iter().enumerate() {
+        let email_id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO email_addresses (id, person_id, email, label, position) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![email_id, person_id, email, label, position as i32],
+        )?;
+    }
+
+    // Insert new phones
+    for (position, (number, label, features)) in phones.iter().enumerate() {
+        let phone_id = Uuid::new_v4().to_string();
+        let features_json = features.as_ref().map(|f| serde_json::to_string(f).unwrap());
+        conn.execute(
+            "INSERT INTO phone_numbers (id, person_id, number, label, features_json, position) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![phone_id, person_id, number, label, features_json, position as i32],
+        )?;
+    }
+
+    // Insert new addresses
+    for (position, (street, locality, region, postcode, country, label)) in addresses.iter().enumerate() {
+        let address_id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO addresses (id, person_id, street, locality, region, postcode, country, label, position) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![address_id, person_id, street, locality, region, postcode, country, label, position as i32],
+        )?;
+    }
+
+    Ok(())
+}
+
 /// Delete a person (cascades to emails, phones, addresses)
 pub fn delete_person(conn: &Connection, person_id: &str) -> Result<()> {
     conn.execute("DELETE FROM people WHERE id = ?1", params![person_id])?;
