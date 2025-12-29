@@ -8,7 +8,7 @@
     ".": "./bindings/index.ts"
   },
   "scripts": {
-    "generate": "cargo test --quiet --package leapsake-types",
+    "generate": "cargo test --quiet --package leapsake-types && node generate-index.js",
     "prepare": "pnpm generate"
   }
 }
