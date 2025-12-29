@@ -53,9 +53,9 @@ export function ReadPerson({ uuid }: { uuid: string }) {
 			<div>
 				<ContactName
 					title={<h2>Name</h2>}
-					givenName={person.given_name}
-					middleName={person.middle_name}
-					familyName={person.family_name}
+					givenName={person.given_name ?? undefined}
+					middleName={person.middle_name ?? undefined}
+					familyName={person.family_name ?? undefined}
 				/>
 
 				{emails && emails.length > 0 && (
