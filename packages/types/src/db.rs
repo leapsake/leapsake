@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-/// Represents a partial date according to JSContact RFC 9553 section 2.8.1
+/// Represents a partial date for database storage
 ///
 /// A PartialDate represents calendar dates in the Gregorian calendar system.
 /// All fields are optional, allowing representation of:
@@ -8,7 +9,10 @@ use serde::{Deserialize, Serialize};
 /// - Year only
 /// - Month in year (year + month)
 /// - Day in month (month + day)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+///
+/// This type is optimized for database persistence and converts to/from ISO 8601 strings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
+#[ts(export, export_to = "bindings/", rename = "DbPartialDate")]
 pub struct PartialDate {
     /// The calendar year value
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -81,8 +85,9 @@ impl PartialDate {
     }
 }
 
-/// Email address data
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Email address record from database
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "bindings/", rename = "DbEmailAddress")]
 pub struct EmailAddress {
     pub id: String,
     pub person_id: String,
@@ -91,8 +96,9 @@ pub struct EmailAddress {
     pub position: i32,
 }
 
-/// Phone number data
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Phone number record from database
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "bindings/", rename = "DbPhoneNumber")]
 pub struct PhoneNumber {
     pub id: String,
     pub person_id: String,
@@ -102,8 +108,9 @@ pub struct PhoneNumber {
     pub position: i32,
 }
 
-/// Address data
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Address record from database
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "bindings/", rename = "DbAddress")]
 pub struct Address {
     pub id: String,
     pub person_id: String,
@@ -117,7 +124,8 @@ pub struct Address {
 }
 
 /// Person record from database
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "bindings/")]
 pub struct Person {
     pub id: String,
     pub given_name: Option<String>,
@@ -135,7 +143,8 @@ pub struct Person {
 }
 
 /// Data for creating a new person
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export, export_to = "bindings/")]
 pub struct NewPerson {
     pub given_name: Option<String>,
     pub middle_name: Option<String>,
@@ -150,7 +159,8 @@ pub struct NewPerson {
 }
 
 /// Complete person with all related data (emails, phones, addresses)
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export, export_to = "bindings/")]
 pub struct PersonWithDetails {
     pub person: Person,
     pub emails: Vec<EmailAddress>,

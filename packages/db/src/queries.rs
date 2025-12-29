@@ -1,4 +1,4 @@
-use crate::types::*;
+use leapsake_types::db::*;
 use rusqlite::{params, Connection, OptionalExtension, Result};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;

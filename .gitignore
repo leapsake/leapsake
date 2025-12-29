@@ -22,3 +22,7 @@ apps/client-desktop/src-tauri/Cargo.lock
 
 package-lock.json
 yarn.lock
+
+# TypeScript type bindings generated from Rust
+packages/types/bindings/
+bindings/

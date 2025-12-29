@@ -1,10 +1,11 @@
 pub mod migrations;
 pub mod queries;
-pub mod types;
 
 pub use migrations::run_migrations;
 pub use queries::*;
-pub use types::*;
+
+// Re-export types from leapsake-types for backward compatibility
+pub use leapsake_types::db::*;
 
 #[cfg(test)]
 mod tests {

@@ -2,7 +2,8 @@
 members = [
     "apps/client-desktop/src-tauri",
 	"packages/db",
-    "packages/leapsake-core"
+    "packages/leapsake-core",
+    "packages/types"
 ]
 resolver = "2"
 

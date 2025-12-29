@@ -13,6 +13,7 @@ help:
 install:
 	pnpm install
 	cargo fetch
+	cd packages/types && pnpm generate
 
 # Development mode
 dev-desktop:
@@ -31,8 +32,13 @@ dev:
 	@make dev-leapsakecom &
 	@wait
 
+# Generate TypeScript types from Rust
+generate-types:
+	cd packages/types && pnpm generate
+
 # Build everything
 build-desktop:
+	cd packages/types && pnpm generate
 	cargo build --workspace --release
 	pnpm -r build
 
@@ -47,6 +53,7 @@ build:
 
 # Run all tests
 test-desktop:
+	cd packages/types && pnpm generate
 	cargo test --workspace
 	cargo clippy --workspace -- -D warnings
 	pnpm -r test
