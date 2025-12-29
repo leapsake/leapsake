@@ -2,7 +2,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { useData } from '@/hooks';
 import type { Person, PersonWithDetails } from '@/types';
 
-// Use new database-backed commands
 export function useBrowsePeople() {
 	return useData<Person[]>(async () => {
 		return invoke('db_list_people');
