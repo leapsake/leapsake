@@ -163,28 +163,32 @@ const months = [
 ];
 
 export function getDisplayDate(date: PartialDate): string {
-	if (date.month === undefined && date.day !== undefined) {
+	const month = date.month ?? undefined;
+	const day = date.day ?? undefined;
+	const year = date.year ?? undefined;
+
+	if (month === undefined && day !== undefined) {
 		throw new Error('Invalid date provided');
 	}
 
-	if (date.month !== undefined && date.day !== undefined && date.year !== undefined) {
-		return `${months[date.month - 1]} ${date.day}, ${date.year}`;
+	if (month !== undefined && day !== undefined && year !== undefined) {
+		return `${months[month - 1]} ${day}, ${year}`;
 	}
 
-	if (date.month !== undefined && date.year !== undefined) {
-		return `${months[date.month - 1]} ${date.year}`;
-	}
-	
-	if (date.month !== undefined && date.day !== undefined) {
-		return `${months[date.month -1]} ${date.day}`;
+	if (month !== undefined && year !== undefined) {
+		return `${months[month - 1]} ${year}`;
 	}
 
-	if (date.year !== undefined) {
-		return String(date.year);
+	if (month !== undefined && day !== undefined) {
+		return `${months[month - 1]} ${day}`;
 	}
 
-	if (date.month !== undefined) {
-		return months[date.month - 1];
+	if (year !== undefined) {
+		return String(year);
+	}
+
+	if (month !== undefined) {
+		return months[month - 1];
 	}
 
 	return '';

@@ -13,6 +13,9 @@ importers:
       '@leapsake/components':
         specifier: workspace:*
         version: link:../../packages/components
+      '@leapsake/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@tauri-apps/api':
         specifier: ^2
         version: 2.8.0
@@ -162,6 +165,8 @@ importers:
       typescript:
         specifier: ~5.6.2
         version: 5.6.3
+
+  packages/types: {}
 
 packages:
 

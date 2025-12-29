@@ -115,17 +115,27 @@ export function EditPerson({ uuid }: { uuid: string }) {
 				givenName={person.given_name || ''}
 				middleName={person.middle_name || ''}
 				familyName={person.family_name || ''}
-				birthday={person.birthday}
-				anniversary={person.anniversary}
-				emails={emails.map(e => ({ email: e.email, label: e.label }))}
-				phones={phones.map(p => ({ number: p.number, label: p.label, features: p.features }))}
+				birthday={person.birthday ? {
+					'@type': person.birthday['@type'],
+					year: person.birthday.year ?? undefined,
+					month: person.birthday.month ?? undefined,
+					day: person.birthday.day ?? undefined,
+				} : undefined}
+				anniversary={person.anniversary ? {
+					'@type': person.anniversary['@type'],
+					year: person.anniversary.year ?? undefined,
+					month: person.anniversary.month ?? undefined,
+					day: person.anniversary.day ?? undefined,
+				} : undefined}
+				emails={emails.map(e => ({ email: e.email, label: e.label ?? undefined }))}
+				phones={phones.map(p => ({ number: p.number, label: p.label ?? undefined, features: p.features ?? undefined }))}
 				addresses={addresses.map(a => ({
 					street: a.street,
-					locality: a.locality,
-					region: a.region,
-					postcode: a.postcode,
-					country: a.country,
-					label: a.label
+					locality: a.locality ?? undefined,
+					region: a.region ?? undefined,
+					postcode: a.postcode ?? undefined,
+					country: a.country ?? undefined,
+					label: a.label ?? undefined
 				}))}
 				photo={person.photo || ''}
 				organization={person.organization || ''}
