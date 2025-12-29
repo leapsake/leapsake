@@ -4,25 +4,8 @@ use crate::utils::get_files_with;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-#[derive(serde::Serialize, Clone, Debug)]
-pub struct JSContactData {
-    pub content: String,
-    pub file_name: String,
-    pub path: String,
-}
-
-#[derive(serde::Serialize, Clone, Debug)]
-pub struct VCardData {
-    pub content: String,
-    pub file_name: String,
-    pub path: String,
-}
-
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Copy, PartialEq)]
-pub enum ContactFormat {
-    JSContact,
-    VCard,
-}
+// Import types from leapsake-types
+use leapsake_types::contacts::*;
 
 pub fn browse_contacts<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<JSContactData>, String> {
     // Create directories if they don't exist
@@ -54,110 +37,6 @@ pub fn browse_contacts<P: AsRef<Path>>(contact_dirs: &[P]) -> Result<Vec<JSConta
 
     // Collect results, propagating any errors
     contact_results.into_iter().collect()
-}
-
-/// Represents a partial date according to JSContact RFC 9553 section 2.8.1
-///
-/// A PartialDate represents calendar dates in the Gregorian calendar system.
-/// All fields are optional, allowing representation of:
-/// - Complete dates (year, month, day)
-/// - Year only
-/// - Month in year (year + month)
-/// - Day in month (month + day)
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
-pub struct PartialDate {
-    /// Must be "PartialDate" if specified
-    #[serde(rename = "@type", skip_serializing_if = "Option::is_none")]
-    pub type_: Option<String>,
-
-    /// The calendar year value
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub year: Option<u32>,
-
-    /// The calendar month (1-12). If set, either year or day must also be present.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub month: Option<u32>,
-
-    /// The calendar day (1-31, depending on month/year validity). Requires month to be set.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub day: Option<u32>,
-}
-
-/// Email address data
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
-pub struct EmailAddress {
-    pub email: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
-}
-
-/// Phone number data
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
-pub struct PhoneNumber {
-    pub number: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub features: Option<Vec<String>>,
-}
-
-/// Address data
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
-pub struct Address {
-    pub street: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub locality: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub region: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub postcode: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub country: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub label: Option<String>,
-}
-
-/// Data for creating a new contact
-#[derive(serde::Deserialize, Debug)]
-pub struct NewContactData {
-    pub given_name: Option<String>,
-    pub middle_name: Option<String>,
-    pub family_name: Option<String>,
-    pub birthday: Option<PartialDate>,
-    pub anniversary: Option<PartialDate>,
-    pub emails: Option<Vec<EmailAddress>>,
-    pub phones: Option<Vec<PhoneNumber>>,
-    pub addresses: Option<Vec<Address>>,
-    pub photo: Option<String>,
-    pub organization: Option<String>,
-    pub title: Option<String>,
-    pub url: Option<String>,
-    pub note: Option<String>,
-}
-
-/// Parsed contact data ready for display
-#[derive(serde::Serialize, Clone, Debug)]
-pub struct Contact {
-    pub uid: String,
-    pub given_name: Option<String>,
-    pub middle_name: Option<String>,
-    pub family_name: Option<String>,
-    pub birthday: Option<PartialDate>,
-    pub anniversary: Option<PartialDate>,
-    pub emails: Option<Vec<EmailAddress>>,
-    pub phones: Option<Vec<PhoneNumber>>,
-    pub addresses: Option<Vec<Address>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub photo: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub organization: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub note: Option<String>,
-    pub file_path: String,
 }
 
 /// Helper function to build filename from contact data and UUID
