@@ -1,7 +1,11 @@
 # Leapsake Reboot — Architecture & Delivery Plan
 
-> Status: planning. No reboot code written yet. This document is the source of
-> truth for the restart; it is **not** agent guidance (that lives in `AGENTS.md`).
+> **Status: Phase 0 complete. V1 in progress — the data foundation has shipped.**
+> The shared data layer (`packages/schema` + `packages/data`) is built, fully
+> tested, and green; the remaining V1 work is the Electron desktop app (shell,
+> typed IPC, People CRUD UI). See §11 for the detailed checklist of done vs.
+> remaining. This document is the source of truth for the restart; it is **not**
+> agent guidance (that lives in `AGENTS.md`).
 
 ## 1. Context
 
@@ -27,6 +31,7 @@ usable on its own and provides real end-user value.
 | Concern | Choice |
 |---|---|
 | Package manager | pnpm + pnpm workspaces |
+| Runtime | **Node 24 LTS** (pinned via `.tool-versions`; `engines.node >= 24`) |
 | Languages/formats | TypeScript, React, CSS Modules, HTML |
 | Desktop shell | Electron via **electron-vite** (Vite for main + renderer) |
 | Database | **better-sqlite3** in the Electron main process |
@@ -200,22 +205,45 @@ Dev: `electron-vite`, `vite`, `@vitejs/plugin-react`, `typescript`, `vitest`,
 
 That's the whole list. Anything beyond it needs a reason.
 
+**Installed so far (foundation):** runtime `zod`; dev `vitest`, `oxlint`,
+`oxfmt`, `typescript`, `@types/node`, plus `better-sqlite3` +
+`@types/better-sqlite3` as **dev-only** deps of `packages/data` (used by its
+integration test; the production driver wires better-sqlite3 in at the desktop
+layer). `electron`, `react`, `react-dom`, `electron-vite`, `vite`,
+`@vitejs/plugin-react`, and `@electron/rebuild` land with the desktop app.
+`pnpm.onlyBuiltDependencies` allowlists better-sqlite3 so pnpm runs its
+prebuilt-binary install script under Node 24.
+
 ## 11. Phased delivery
 
-### Phase 0 — Clean slate
-Remove the Rust/Tauri reboot-irrelevant artifacts (`Cargo.*`, `target/`, old
+### ~~Phase 0 — Clean slate~~
+~~Remove the Rust/Tauri reboot-irrelevant artifacts (`Cargo.*`, `target/`, old
 `apps/*`) and stand up the bare pnpm-workspace skeleton + `packages/schema`,
-`packages/data`. *Planned, not yet executed.*
+`packages/data`.~~ **Done.**
 
 ### V1 — Desktop skeleton + People CRUD
-**Done when:**
-- `pnpm dev` runs the Electron app.
-- Create / edit / soft-delete two-field people (first + last name).
-- Data persists in SQLite with UUID PKs + timestamps + soft delete.
-- Migration runner in place and exercised.
-- Vitest green: schema unit tests + repository integration test.
-- oxlint + oxfmt + `tsc --strict` clean.
-- Ship bar: **runs locally** (no signing/notarization/auto-update yet).
+**Status: in progress — data foundation complete, desktop app remaining.**
+
+**Done so far (foundation):**
+- ✅ `packages/schema` — `personSchema` plus `createPersonInput` /
+  `updatePersonInput` schemas, types inferred (Zod 4, `z.uuid()`).
+- ✅ `packages/data` — async `SqliteDriver` port, hand-rolled migration runner
+  (migration 001 = `people`), and the People repository
+  (`create` / `list` / `get` / `update` / `softDelete`) with snake_case⇄camelCase
+  mapping and soft-deletes excluded from reads. No runtime DB-driver import.
+- ✅ Vitest green — schema unit tests + repository integration test against a
+  **real** better-sqlite3 `:memory:` database (19 tests).
+- ✅ oxlint + oxfmt + `tsc --strict` clean; Node pinned to 24 LTS.
+
+**Remaining (desktop app):**
+- ⬜ `apps/desktop` via electron-vite (main + preload + renderer).
+- ⬜ Typed `window.api` IPC with Zod validation at the boundary.
+- ⬜ People CRUD React UI — create / edit / soft-delete two-field people.
+- ⬜ Production better-sqlite3 driver wired into the main process against a real
+  on-disk DB file (with `@electron/rebuild` for the native ABI).
+- ⬜ `pnpm dev` runs the Electron app.
+
+**Ship bar:** **runs locally** (no signing/notarization/auto-update yet).
 
 ### V2 — Mobile (Expo / React Native)
 - Replicate the People app on mobile.
