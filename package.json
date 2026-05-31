@@ -1,11 +1,30 @@
 {
   "name": "leapsake",
   "version": "0.0.0",
-  "license": "AGPL-3.0",
-  "packageManager": "pnpm@10.17.0",
   "private": true,
+  "license": "AGPL-3.0",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "oxlint",
+    "format": "oxfmt . '!**/*.md'",
+    "format:check": "oxfmt --check . '!**/*.md'"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "oxfmt": "^0.52.0",
+    "oxlint": "^1.67.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  },
   "engines": {
-	"node": ">= 23.0.0",
+    "node": ">= 24.0.0",
     "pnpm": ">= 10.0.0"
+  },
+  "packageManager": "pnpm@10.17.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
   }
 }
