@@ -1,11 +1,11 @@
 # Leapsake Reboot — Architecture & Delivery Plan
 
-> **Status: Phase 0 complete. V1 in progress — the data foundation has shipped.**
-> The shared data layer (`packages/schema` + `packages/data`) is built, fully
-> tested, and green; the remaining V1 work is the Electron desktop app (shell,
-> typed IPC, People CRUD UI). See §11 for the detailed checklist of done vs.
-> remaining. This document is the source of truth for the restart; it is **not**
-> agent guidance (that lives in `AGENTS.md`).
+> **Status: Phase 0 complete. V1 complete — desktop app runs locally.**
+> The shared data layer (`packages/schema` + `packages/data`) and the Electron
+> desktop app (shell, typed IPC, People CRUD UI, on-disk SQLite) are built,
+> tested, and green; the app launches and renders. See §11 for the detailed
+> checklist. Next up is V2 (mobile). This document is the source of truth for
+> the restart; it is **not** agent guidance (that lives in `AGENTS.md`).
 
 ## 1. Context
 
@@ -222,9 +222,9 @@ prebuilt-binary install script under Node 24.
 `packages/data`.~~ **Done.**
 
 ### V1 — Desktop skeleton + People CRUD
-**Status: in progress — data foundation complete, desktop app remaining.**
+**Status: complete — runs locally.**
 
-**Done so far (foundation):**
+**Data foundation:**
 - ✅ `packages/schema` — `personSchema` plus `createPersonInput` /
   `updatePersonInput` schemas, types inferred (Zod 4, `z.uuid()`).
 - ✅ `packages/data` — async `SqliteDriver` port, hand-rolled migration runner
@@ -233,17 +233,30 @@ prebuilt-binary install script under Node 24.
   mapping and soft-deletes excluded from reads. No runtime DB-driver import.
 - ✅ Vitest green — schema unit tests + repository integration test against a
   **real** better-sqlite3 `:memory:` database (19 tests).
-- ✅ oxlint + oxfmt + `tsc --strict` clean; Node pinned to 24 LTS.
 
-**Remaining (desktop app):**
-- ⬜ `apps/desktop` via electron-vite (main + preload + renderer).
-- ⬜ Typed `window.api` IPC with Zod validation at the boundary.
-- ⬜ People CRUD React UI — create / edit / soft-delete two-field people.
-- ⬜ Production better-sqlite3 driver wired into the main process against a real
-  on-disk DB file (with `@electron/rebuild` for the native ABI).
-- ⬜ `pnpm dev` runs the Electron app.
+**Desktop app (`apps/desktop`):**
+- ✅ electron-vite scaffold (`src/main` + `src/preload` + `src/renderer`),
+  workspace TS packages bundled (better-sqlite3 kept external in main).
+- ✅ Typed `window.api` IPC with Zod validation at the boundary; the `Api` type
+  is exported from preload and consumed by the renderer (one source of truth).
+- ✅ People CRUD React UI — semantic-HTML create / edit (native `<dialog>`) /
+  soft-delete, minimal CSS.
+- ✅ Production better-sqlite3 driver in the main process against an on-disk DB
+  at the `userData` path; `@electron/rebuild` handles the native ABI.
+- ✅ `pnpm --filter @leapsake/desktop dev` runs the app; verified booting +
+  rendering. oxlint + oxfmt + `tsc --strict` clean; Node pinned to 24 LTS.
 
-**Ship bar:** **runs locally** (no signing/notarization/auto-update yet).
+**Key decisions during build:**
+- **Electron pinned to 41.x** — better-sqlite3 12.x ships prebuilt binaries only
+  through Electron 41's ABI; Electron 42 has no prebuilt and won't compile
+  against its newer V8.
+- **Toolchain on Vite 7** (stable electron-vite 5 + `@vitejs/plugin-react` 5.2);
+  Vitest keeps its own Vite 8. Avoided the electron-vite 6 beta.
+- **Native-module ABI dance** documented in `apps/desktop/README.md` + `AGENTS.md`:
+  tests need the Node build, the app needs the Electron build; `dev`/`start`
+  auto-rebuild for Electron, `rebuild:node` restores the Node build for tests.
+
+**Ship bar:** **runs locally** (no signing/notarization/auto-update yet). ✅
 
 ### V2 — Mobile (Expo / React Native)
 - Replicate the People app on mobile.

@@ -104,10 +104,32 @@ promises. Mobile (V2) will supply an expo-sqlite adapter.
   database — run migrations, then exercise full CRUD + soft-delete.
 - **E2E** (deferred): Playwright + Electron, once UI surface justifies it.
 
+## Desktop app (`apps/desktop`)
+
+Electron app built with electron-vite (`src/main`, `src/preload`,
+`src/renderer`). The main process opens better-sqlite3, runs migrations, and
+exposes the People repo over typed IPC; the renderer is React. See
+`apps/desktop/README.md` for the full dev workflow.
+
+**Native-module ABI caveat (important):** better-sqlite3 is a native module and
+its compiled binary targets exactly one ABI — Node's (for `pnpm test`) or
+Electron's (for the app). They cannot coexist. So:
+
+- Default / after `pnpm install`: built for **Node** → `pnpm test` passes.
+- `pnpm --filter @leapsake/desktop dev` (and `start`) auto-rebuild for **Electron**
+  via a `predev`/`prestart` hook — the app runs, but `pnpm test` will then fail
+  to load better-sqlite3.
+- To run tests again, restore the Node build:
+  `pnpm --filter @leapsake/desktop run rebuild:node` (or re-run `pnpm install`).
+
+Electron is pinned to **41.x**: better-sqlite3 12.x ships prebuilt binaries only
+up to Electron 41's ABI; Electron 42 has no prebuilt and won't compile against
+its newer V8. Bump Electron only when better-sqlite3 publishes a matching prebuild.
+
 ## Dependency Budget (V1)
 
 Runtime: `electron`, `better-sqlite3`, `react`, `react-dom`, `zod`.  
-Dev: `electron-vite`, `vite`, `@vitejs/plugin-react`, `typescript`, `vitest`,
-`oxlint`.
+Dev: `electron-vite`, `vite`, `@vitejs/plugin-react`, `@electron/rebuild`,
+`typescript`, `vitest`, `oxlint`.
 
 Anything beyond this list needs a clear reason.
