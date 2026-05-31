@@ -5,6 +5,12 @@ dist/
 build/
 out/
 
+# SQLite databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
 *.swp
 *.swo
 
