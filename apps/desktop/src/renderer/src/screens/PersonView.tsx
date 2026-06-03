@@ -1,4 +1,5 @@
-import type { Person } from "@leapsake/schema";
+import type { Person, Tag } from "@leapsake/schema";
+import { Fragment } from "react";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { fullName } from "../lib/fullName";
@@ -9,7 +10,7 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PersonView() {
-  const person = useLoaderData() as Person;
+  const { person, tags } = useLoaderData() as { person: Person; tags: Tag[] };
 
   return (
     <main>
@@ -28,6 +29,17 @@ export function PersonView() {
         <dd>{person.middleName ?? "—"}</dd>
         <dt>Last name</dt>
         <dd>{person.lastName}</dd>
+        <dt>Tags</dt>
+        <dd>
+          {tags.length === 0
+            ? "—"
+            : tags.map((tag, index) => (
+                <Fragment key={tag.id}>
+                  {index > 0 && ", "}
+                  <Link to={`/tags/${tag.id}`}>{tag.name}</Link>
+                </Fragment>
+              ))}
+        </dd>
         <dt>Created</dt>
         <dd>{formatTimestamp(person.createdAt)}</dd>
         <dt>Updated</dt>

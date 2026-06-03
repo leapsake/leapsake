@@ -33,6 +33,44 @@ export const migrations: Migration[] = [
       await driver.exec(`ALTER TABLE people ADD COLUMN middle_name TEXT;`);
     },
   },
+  {
+    version: 3,
+    async up(driver) {
+      // Tags and a polymorphic join. `taggings.entity_type`/`entity_id` point at
+      // any entity (just 'person' today), so new entity types tag in without a
+      // schema change. Partial unique indexes scoped to `deleted_at IS NULL`
+      // enforce "one active row per key" while letting soft-deleted history
+      // coexist (reboot-plan.md §4.2 soft-delete + sync).
+      await driver.exec(`
+        CREATE TABLE tags (
+          id         TEXT    PRIMARY KEY,
+          name       TEXT    NOT NULL,
+          normalized TEXT    NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          deleted_at INTEGER
+        );
+        CREATE UNIQUE INDEX ux_tags_active_normalized
+          ON tags(normalized) WHERE deleted_at IS NULL;
+
+        CREATE TABLE taggings (
+          id          TEXT    PRIMARY KEY,
+          tag_id      TEXT    NOT NULL,
+          entity_type TEXT    NOT NULL,
+          entity_id   TEXT    NOT NULL,
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL,
+          deleted_at  INTEGER
+        );
+        CREATE UNIQUE INDEX ux_taggings_active
+          ON taggings(tag_id, entity_type, entity_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_taggings_entity
+          ON taggings(entity_type, entity_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_taggings_tag
+          ON taggings(tag_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**

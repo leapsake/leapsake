@@ -1,4 +1,4 @@
-import type { CreatePersonInput } from "@leapsake/schema";
+import { type CreatePersonInput, parseTagNames } from "@leapsake/schema";
 import {
   type LoaderFunctionArgs,
   createHashRouter,
@@ -11,6 +11,7 @@ import { PersonCreate } from "./screens/PersonCreate";
 import { PersonDelete } from "./screens/PersonDelete";
 import { PersonEdit } from "./screens/PersonEdit";
 import { PersonView } from "./screens/PersonView";
+import { TagView } from "./screens/TagView";
 
 /** Pull the editable Person fields out of a submitted form. */
 function readPersonInput(formData: FormData): CreatePersonInput {
@@ -22,11 +23,18 @@ function readPersonInput(formData: FormData): CreatePersonInput {
   };
 }
 
-/** Load a single Person by route id, 404ing if it doesn't exist. */
+/** Pull the desired tag names out of the comma-separated form field. */
+function readTags(formData: FormData): string[] {
+  return parseTagNames(String(formData.get("tags") ?? ""));
+}
+
+/** A Person plus its tags, loaded together for the view/edit/delete screens. */
 async function personLoader({ params }: LoaderFunctionArgs) {
-  const person = await window.api.people.get(params.id as string);
+  const id = params.id as string;
+  const person = await window.api.people.get(id);
   if (!person) throw new Response("Person not found", { status: 404 });
-  return person;
+  const tags = await window.api.tags.listForPerson(id);
+  return { person, tags };
 }
 
 /**
@@ -51,8 +59,10 @@ export const router = createHashRouter([
         path: "people/new",
         element: <PersonCreate />,
         action: async ({ request }) => {
+          const formData = await request.formData();
           await window.api.people.create(
-            readPersonInput(await request.formData()),
+            readPersonInput(formData),
+            readTags(formData),
           );
           return redirect("/");
         },
@@ -67,9 +77,11 @@ export const router = createHashRouter([
         loader: personLoader,
         element: <PersonEdit />,
         action: async ({ request, params }) => {
+          const formData = await request.formData();
           await window.api.people.update(
             params.id as string,
-            readPersonInput(await request.formData()),
+            readPersonInput(formData),
+            readTags(formData),
           );
           return redirect("/");
         },
@@ -82,6 +94,17 @@ export const router = createHashRouter([
           await window.api.people.softDelete(params.id as string);
           return redirect("/");
         },
+      },
+      {
+        path: "tags/:id",
+        loader: async ({ params }: LoaderFunctionArgs) => {
+          const id = params.id as string;
+          const tag = await window.api.tags.get(id);
+          if (!tag) throw new Response("Tag not found", { status: 404 });
+          const people = await window.api.tags.peopleForTag(id);
+          return { tag, people };
+        },
+        element: <TagView />,
       },
     ],
   },
