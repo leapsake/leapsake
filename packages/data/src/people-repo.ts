@@ -12,6 +12,7 @@ import type { SqliteDriver } from "./driver.js";
 interface PersonRow {
   id: string;
   first_name: string;
+  middle_name: string | null;
   last_name: string;
   created_at: number;
   updated_at: number;
@@ -23,6 +24,7 @@ function toPerson(row: PersonRow): Person {
   return personSchema.parse({
     id: row.id,
     firstName: row.first_name,
+    middleName: row.middle_name,
     lastName: row.last_name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -46,11 +48,16 @@ export interface PeopleRepo {
 export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
   return {
     async create(input) {
-      const { firstName, lastName } = createPersonInputSchema.parse(input);
+      const {
+        firstName,
+        middleName = null,
+        lastName,
+      } = createPersonInputSchema.parse(input);
       const now = Date.now();
       const person: Person = {
         id: crypto.randomUUID(),
         firstName,
+        middleName,
         lastName,
         createdAt: now,
         updatedAt: now,
@@ -58,11 +65,12 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
       };
       await driver.run(
         `INSERT INTO people
-           (id, first_name, last_name, created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+           (id, first_name, middle_name, last_name, created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           person.id,
           person.firstName,
+          person.middleName,
           person.lastName,
           person.createdAt,
           person.updatedAt,
@@ -101,9 +109,15 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
       };
       await driver.run(
         `UPDATE people
-         SET first_name = ?, last_name = ?, updated_at = ?
+         SET first_name = ?, middle_name = ?, last_name = ?, updated_at = ?
          WHERE id = ? AND deleted_at IS NULL`,
-        [updated.firstName, updated.lastName, updated.updatedAt, id],
+        [
+          updated.firstName,
+          updated.middleName,
+          updated.lastName,
+          updated.updatedAt,
+          id,
+        ],
       );
       return updated;
     },
