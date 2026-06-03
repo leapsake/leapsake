@@ -8,6 +8,7 @@ import {
 const validPerson = {
   id: crypto.randomUUID(),
   firstName: "Ada",
+  middleName: null,
   lastName: "Lovelace",
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -22,6 +23,17 @@ describe("personSchema", () => {
   it("accepts a non-null deletedAt", () => {
     const deleted = { ...validPerson, deletedAt: Date.now() };
     expect(personSchema.parse(deleted)).toEqual(deleted);
+  });
+
+  it("accepts a non-null middleName", () => {
+    const withMiddle = { ...validPerson, middleName: "Byron" };
+    expect(personSchema.parse(withMiddle)).toEqual(withMiddle);
+  });
+
+  it("rejects an empty middleName", () => {
+    expect(() =>
+      personSchema.parse({ ...validPerson, middleName: "" }),
+    ).toThrow();
   });
 
   it("rejects an empty firstName", () => {
@@ -48,6 +60,16 @@ describe("createPersonInputSchema", () => {
     expect(
       createPersonInputSchema.parse({ firstName: "Ada", lastName: "Lovelace" }),
     ).toEqual({ firstName: "Ada", lastName: "Lovelace" });
+  });
+
+  it("accepts an optional middleName", () => {
+    expect(
+      createPersonInputSchema.parse({
+        firstName: "Ada",
+        middleName: "Byron",
+        lastName: "Lovelace",
+      }),
+    ).toEqual({ firstName: "Ada", middleName: "Byron", lastName: "Lovelace" });
   });
 
   it("rejects a missing lastName", () => {

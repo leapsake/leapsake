@@ -27,6 +27,12 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 2,
+    async up(driver) {
+      await driver.exec(`ALTER TABLE people ADD COLUMN middle_name TEXT;`);
+    },
+  },
 ];
 
 /**

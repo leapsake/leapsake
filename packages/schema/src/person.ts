@@ -11,6 +11,7 @@ import { z } from "zod";
 export const personSchema = z.object({
   id: z.uuid(),
   firstName: z.string().min(1),
+  middleName: z.string().min(1).nullable(), // optional; null when absent
   lastName: z.string().min(1),
   createdAt: z.number().int(), // epoch ms, UTC
   updatedAt: z.number().int(), // epoch ms, UTC
@@ -22,6 +23,7 @@ export type Person = z.infer<typeof personSchema>;
 /** Input accepted when creating a Person; the repository fills the rest. */
 export const createPersonInputSchema = z.object({
   firstName: z.string().min(1),
+  middleName: z.string().min(1).nullable().optional(),
   lastName: z.string().min(1),
 });
 

@@ -25,7 +25,7 @@ describe("runMigrations", () => {
     const version = await driver.get<{ user_version: number }>(
       "PRAGMA user_version",
     );
-    expect(version?.user_version).toBe(1);
+    expect(version?.user_version).toBe(2);
   });
 
   it("is idempotent on a second run", async () => {
@@ -33,7 +33,7 @@ describe("runMigrations", () => {
     const version = await driver.get<{ user_version: number }>(
       "PRAGMA user_version",
     );
-    expect(version?.user_version).toBe(1);
+    expect(version?.user_version).toBe(2);
   });
 });
 
@@ -49,6 +49,22 @@ describe("peopleRepo", () => {
     expect(person.createdAt).toBeGreaterThan(0);
     expect(person.updatedAt).toBe(person.createdAt);
     expect(person.deletedAt).toBeNull();
+  });
+
+  it("defaults middleName to null and persists a provided one", async () => {
+    const noMiddle = await repo.create({
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+    expect(noMiddle.middleName).toBeNull();
+
+    const withMiddle = await repo.create({
+      firstName: "Ada",
+      middleName: "Byron",
+      lastName: "Lovelace",
+    });
+    expect(withMiddle.middleName).toBe("Byron");
+    expect((await repo.get(withMiddle.id))?.middleName).toBe("Byron");
   });
 
   it("persists and retrieves a created person", async () => {
