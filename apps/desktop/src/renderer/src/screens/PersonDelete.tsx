@@ -1,10 +1,10 @@
-import type { Person } from "@leapsake/schema";
+import type { Person, Tag } from "@leapsake/schema";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { fullName } from "../lib/fullName";
 
 export function PersonDelete() {
-  const person = useLoaderData() as Person;
+  const { person } = useLoaderData() as { person: Person; tags: Tag[] };
   const name = fullName(person);
   const navigation = useNavigation();
   const deleting = navigation.state === "submitting";

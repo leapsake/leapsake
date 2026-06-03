@@ -1,10 +1,14 @@
 import { join } from "node:path";
 import {
   type PeopleRepo,
+  type SqliteDriver,
+  type TagsRepo,
   createPeopleRepo,
+  createTagsRepo,
   runMigrations,
 } from "@leapsake/data";
 import {
+  type Person,
   createPersonInputSchema,
   updatePersonInputSchema,
 } from "@leapsake/schema";
@@ -12,23 +16,62 @@ import Database from "better-sqlite3";
 import { BrowserWindow, app, ipcMain } from "electron";
 import { betterSqlite3Driver } from "./db/better-sqlite3-driver.js";
 
+/** Coerce IPC-supplied tag names to a clean `string[]` before the repo dedupes. */
+function asTagNames(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
 /**
  * Register the typed IPC surface. Inputs cross a trust boundary, so they are
  * validated with the Zod schemas before reaching the repository (which also
- * validates internally — cheap belt-and-suspenders at the boundary).
+ * validates internally — cheap belt-and-suspenders at the boundary). Person
+ * writes and their tag changes are composed in a single `driver.transaction` so
+ * a partial failure rolls back both.
  */
-function registerIpc(people: PeopleRepo): void {
+function registerIpc(
+  driver: SqliteDriver,
+  people: PeopleRepo,
+  tags: TagsRepo,
+): void {
   ipcMain.handle("people:list", () => people.list());
   ipcMain.handle("people:get", (_event, id: string) => people.get(id));
-  ipcMain.handle("people:create", (_event, input: unknown) =>
-    people.create(createPersonInputSchema.parse(input)),
+  ipcMain.handle("people:create", (_event, input: unknown, tagNames: unknown) =>
+    driver.transaction(async () => {
+      const person = await people.create(createPersonInputSchema.parse(input));
+      await tags.setEntityTags("person", person.id, asTagNames(tagNames));
+      return person;
+    }),
   );
-  ipcMain.handle("people:update", (_event, id: string, input: unknown) =>
-    people.update(id, updatePersonInputSchema.parse(input)),
+  ipcMain.handle(
+    "people:update",
+    (_event, id: string, input: unknown, tagNames: unknown) =>
+      driver.transaction(async () => {
+        const person = await people.update(
+          id,
+          updatePersonInputSchema.parse(input),
+        );
+        if (person) {
+          await tags.setEntityTags("person", id, asTagNames(tagNames));
+        }
+        return person;
+      }),
   );
   ipcMain.handle("people:softDelete", (_event, id: string) =>
-    people.softDelete(id),
+    driver.transaction(async () => {
+      await people.softDelete(id);
+      await tags.removeAllForEntity("person", id);
+    }),
   );
+
+  ipcMain.handle("tags:get", (_event, id: string) => tags.get(id));
+  ipcMain.handle("tags:listForPerson", (_event, personId: string) =>
+    tags.listForEntity("person", personId),
+  );
+  ipcMain.handle("tags:peopleForTag", async (_event, tagId: string) => {
+    const ids = await tags.entityIdsForTag(tagId, "person");
+    const found = await Promise.all(ids.map((id) => people.get(id)));
+    return found.filter((p): p is Person => p !== undefined);
+  });
 }
 
 function createWindow(): void {
@@ -56,7 +99,7 @@ void app.whenReady().then(async () => {
   const db = new Database(join(app.getPath("userData"), "leapsake.db"));
   const driver = betterSqlite3Driver(db);
   await runMigrations(driver);
-  registerIpc(createPeopleRepo(driver));
+  registerIpc(driver, createPeopleRepo(driver), createTagsRepo(driver));
 
   createWindow();
 
