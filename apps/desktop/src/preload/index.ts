@@ -1,12 +1,15 @@
 import type {
   CreatePersonInput,
+  CreatePetInput,
   CreateRelationshipInput,
   EntityType,
   Person,
+  Pet,
   Relationship,
   RelationshipNeighbor,
   Tag,
   UpdatePersonInput,
+  UpdatePetInput,
   UpdateRelationshipInput,
 } from "@leapsake/schema";
 import { contextBridge, ipcRenderer } from "electron";
@@ -34,6 +37,17 @@ const api = {
       ipcRenderer.invoke("people:update", id, input, tagNames),
     softDelete: (id: string): Promise<void> =>
       ipcRenderer.invoke("people:softDelete", id),
+  },
+  pets: {
+    list: (): Promise<Pet[]> => ipcRenderer.invoke("pets:list"),
+    get: (id: string): Promise<Pet | undefined> =>
+      ipcRenderer.invoke("pets:get", id),
+    create: (input: CreatePetInput): Promise<Pet> =>
+      ipcRenderer.invoke("pets:create", input),
+    update: (id: string, input: UpdatePetInput): Promise<Pet | undefined> =>
+      ipcRenderer.invoke("pets:update", id, input),
+    softDelete: (id: string): Promise<void> =>
+      ipcRenderer.invoke("pets:softDelete", id),
   },
   tags: {
     get: (id: string): Promise<Tag | undefined> =>

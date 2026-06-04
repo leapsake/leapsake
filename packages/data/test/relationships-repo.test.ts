@@ -147,5 +147,52 @@ describe("relationshipsRepo", () => {
         bRole: "pet",
       }),
     ).rejects.toThrow();
+
+    // …and the mirror: a person can't hold the `pet` role.
+    await expect(
+      repo.create({
+        aType: "person",
+        aId: crypto.randomUUID(),
+        aRole: "pet", // pet must be a pet
+        bType: "person",
+        bId: crypto.randomUUID(),
+        bRole: "owner",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("round-trips a person↔pet owner/pet relationship", async () => {
+    const person = crypto.randomUUID();
+    const pet = crypto.randomUUID();
+    const created = await repo.create({
+      aType: "person",
+      aId: person,
+      aRole: "owner",
+      bType: "pet",
+      bId: pet,
+      bRole: "pet",
+    });
+
+    expect(await repo.get(created.id)).toEqual(created);
+    // Visible from both the person side and the pet side.
+    expect(await repo.listForEntity("person", person)).toHaveLength(1);
+    expect(await repo.listForEntity("pet", pet)).toHaveLength(1);
+  });
+
+  it("allows a pet↔pet sibling relationship", async () => {
+    const a = crypto.randomUUID();
+    const b = crypto.randomUUID();
+    const created = await repo.create({
+      aType: "pet",
+      aId: a,
+      aRole: "sibling",
+      bType: "pet",
+      bId: b,
+      bRole: "sibling",
+    });
+
+    expect(await repo.get(created.id)).toEqual(created);
+    expect(await repo.listForEntity("pet", a)).toHaveLength(1);
+    expect(await repo.listForEntity("pet", b)).toHaveLength(1);
   });
 });

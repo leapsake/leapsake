@@ -1,10 +1,12 @@
 import { join } from "node:path";
 import {
   type PeopleRepo,
+  type PetsRepo,
   type RelationshipsRepo,
   type SqliteDriver,
   type TagsRepo,
   createPeopleRepo,
+  createPetsRepo,
   createRelationshipsRepo,
   createTagsRepo,
   runMigrations,
@@ -14,9 +16,11 @@ import {
   type Person,
   type RelationshipNeighbor,
   createPersonInputSchema,
+  createPetInputSchema,
   createRelationshipInputSchema,
   roleDefs,
   updatePersonInputSchema,
+  updatePetInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
 import Database from "better-sqlite3";
@@ -38,11 +42,12 @@ function asTagNames(value: unknown): string[] {
 function registerIpc(
   driver: SqliteDriver,
   people: PeopleRepo,
+  pets: PetsRepo,
   tags: TagsRepo,
   relationships: RelationshipsRepo,
 ): void {
-  // Resolve an entity to its display label for relationship rows. Only people
-  // exist today; the pet branch lands with the Pet entity (reboot follow-up).
+  // Resolve an entity to its display label for relationship rows. The label is
+  // composed inline here because the main process can't import renderer helpers.
   async function resolveLabel(
     type: EntityType,
     id: string,
@@ -51,7 +56,8 @@ function registerIpc(
       const person = await people.get(id);
       return person ? `${person.firstName} ${person.lastName}` : undefined;
     }
-    return undefined;
+    const pet = await pets.get(id);
+    return pet ? pet.name : undefined;
   }
 
   ipcMain.handle("people:list", () => people.list());
@@ -82,6 +88,21 @@ function registerIpc(
       await people.softDelete(id);
       await tags.removeAllForEntity("person", id);
       await relationships.removeAllForEntity("person", id);
+    }),
+  );
+
+  ipcMain.handle("pets:list", () => pets.list());
+  ipcMain.handle("pets:get", (_event, id: string) => pets.get(id));
+  ipcMain.handle("pets:create", (_event, input: unknown) =>
+    pets.create(createPetInputSchema.parse(input)),
+  );
+  ipcMain.handle("pets:update", (_event, id: string, input: unknown) =>
+    pets.update(id, updatePetInputSchema.parse(input)),
+  );
+  ipcMain.handle("pets:softDelete", (_event, id: string) =>
+    driver.transaction(async () => {
+      await pets.softDelete(id);
+      await relationships.removeAllForEntity("pet", id);
     }),
   );
 
@@ -169,6 +190,7 @@ void app.whenReady().then(async () => {
   registerIpc(
     driver,
     createPeopleRepo(driver),
+    createPetsRepo(driver),
     createTagsRepo(driver),
     createRelationshipsRepo(driver),
   );

@@ -1,21 +1,30 @@
 import {
   type CreatePersonInput,
+  type CreatePetInput,
+  type EntityType,
   createRelationshipInputSchema,
   parseTagNames,
 } from "@leapsake/schema";
 import {
+  type ActionFunctionArgs,
   type LoaderFunctionArgs,
   createHashRouter,
   redirect,
 } from "react-router-dom";
 import { App } from "./App";
+import type { RelationshipCandidate } from "./components/RelationshipForm";
+import { entityBasePath, entityLabel } from "./lib/entityLabel";
 import { fullName } from "./lib/fullName";
+import { type EntityRow, EntityList } from "./screens/EntityList";
 import { ErrorPage } from "./screens/ErrorPage";
-import { PeopleList } from "./screens/PeopleList";
 import { PersonCreate } from "./screens/PersonCreate";
 import { PersonDelete } from "./screens/PersonDelete";
 import { PersonEdit } from "./screens/PersonEdit";
 import { PersonView } from "./screens/PersonView";
+import { PetCreate } from "./screens/PetCreate";
+import { PetDelete } from "./screens/PetDelete";
+import { PetEdit } from "./screens/PetEdit";
+import { PetView } from "./screens/PetView";
 import { RelationshipCreate } from "./screens/RelationshipCreate";
 import { RelationshipDelete } from "./screens/RelationshipDelete";
 import { TagView } from "./screens/TagView";
@@ -28,6 +37,11 @@ function readPersonInput(formData: FormData): CreatePersonInput {
     middleName: middleName.length > 0 ? middleName : null,
     lastName: String(formData.get("lastName")),
   };
+}
+
+/** Pull the editable Pet fields out of a submitted form. */
+function readPetInput(formData: FormData): CreatePetInput {
+  return { name: String(formData.get("name")) };
 }
 
 /** Pull the desired tag names out of the comma-separated form field. */
@@ -43,6 +57,30 @@ function readNote(formData: FormData, key: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+/** Fetch a subject entity (person or pet) by id, or undefined if missing. */
+function getEntity(type: EntityType, id: string) {
+  return type === "person"
+    ? window.api.people.get(id)
+    : window.api.pets.get(id);
+}
+
+/** The combined People & Pets home list, merged and sorted by display name. */
+async function entityListLoader(): Promise<EntityRow[]> {
+  const [people, pets] = await Promise.all([
+    window.api.people.list(),
+    window.api.pets.list(),
+  ]);
+  const rows: EntityRow[] = [
+    ...people.map((p) => ({
+      type: "person" as const,
+      id: p.id,
+      label: fullName(p),
+    })),
+    ...pets.map((p) => ({ type: "pet" as const, id: p.id, label: p.name })),
+  ];
+  return rows.toSorted((a, b) => a.label.localeCompare(b.label));
+}
+
 /** A Person plus its tags and relationships, for the view/edit/delete screens. */
 async function personLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
@@ -54,6 +92,108 @@ async function personLoader({ params }: LoaderFunctionArgs) {
     id,
   );
   return { person, tags, relationships };
+}
+
+/** A Pet plus its relationships, for the view/edit/delete screens. */
+async function petLoader({ params }: LoaderFunctionArgs) {
+  const id = params.id as string;
+  const pet = await window.api.pets.get(id);
+  if (!pet) throw new Response("Pet not found", { status: 404 });
+  const relationships = await window.api.relationships.listForEntity("pet", id);
+  return { pet, relationships };
+}
+
+/**
+ * Loader for the "add relationship" screen of either entity type. Resolves the
+ * subject and builds the candidate list from *both* people and pets (the subject
+ * itself excluded), so any entity can relate to any other; the role pickers then
+ * constrain owner/pet by holder type.
+ */
+function relationshipNewLoader(subjectType: EntityType) {
+  return async ({ params }: LoaderFunctionArgs) => {
+    const id = params.id as string;
+    const subject = await getEntity(subjectType, id);
+    if (!subject) throw new Response("Not found", { status: 404 });
+
+    const [people, pets] = await Promise.all([
+      window.api.people.list(),
+      window.api.pets.list(),
+    ]);
+    const candidates: RelationshipCandidate[] = [
+      ...people
+        .filter((p) => !(subjectType === "person" && p.id === id))
+        .map((p) => ({
+          type: "person" as const,
+          id: p.id,
+          label: fullName(p),
+        })),
+      ...pets
+        .filter((p) => !(subjectType === "pet" && p.id === id))
+        .map((p) => ({ type: "pet" as const, id: p.id, label: p.name })),
+    ];
+
+    return {
+      subject: {
+        type: subjectType,
+        id,
+        label: entityLabel(subjectType, subject),
+      },
+      candidates,
+    };
+  };
+}
+
+/** Action for the "add relationship" screen: the subject endpoint comes from the route. */
+function relationshipCreateAction(subjectType: EntityType) {
+  return async ({ request, params }: ActionFunctionArgs) => {
+    const id = params.id as string;
+    const formData = await request.formData();
+    const input = createRelationshipInputSchema.parse({
+      aType: subjectType,
+      aId: id,
+      aRole: String(formData.get("aRole")),
+      aRoleNote: readNote(formData, "aRoleNote"),
+      bType: String(formData.get("bType")),
+      bId: String(formData.get("bId")),
+      bRole: String(formData.get("bRole")),
+      bRoleNote: readNote(formData, "bRoleNote"),
+    });
+    await window.api.relationships.create(input);
+    return redirect(`${entityBasePath(subjectType)}/${id}`);
+  };
+}
+
+/** Loader for the "remove relationship" screen, oriented to the subject. */
+function relationshipDeleteLoader(subjectType: EntityType) {
+  return async ({ params }: LoaderFunctionArgs) => {
+    const id = params.id as string;
+    const relId = params.relId as string;
+    const subject = await getEntity(subjectType, id);
+    if (!subject) throw new Response("Not found", { status: 404 });
+    const neighbors = await window.api.relationships.listForEntity(
+      subjectType,
+      id,
+    );
+    const neighbor = neighbors.find((n) => n.relationshipId === relId);
+    if (!neighbor)
+      throw new Response("Relationship not found", { status: 404 });
+    return {
+      subject: {
+        type: subjectType,
+        id,
+        label: entityLabel(subjectType, subject),
+      },
+      neighbor,
+    };
+  };
+}
+
+/** Action for the "remove relationship" screen. */
+function relationshipDeleteAction(subjectType: EntityType) {
+  return async ({ params }: ActionFunctionArgs) => {
+    await window.api.relationships.softDelete(params.relId as string);
+    return redirect(`${entityBasePath(subjectType)}/${params.id}`);
+  };
 }
 
 /**
@@ -71,8 +211,8 @@ export const router = createHashRouter([
     children: [
       {
         index: true,
-        loader: () => window.api.people.list(),
-        element: <PeopleList />,
+        loader: entityListLoader,
+        element: <EntityList />,
       },
       {
         path: "people/new",
@@ -116,62 +256,63 @@ export const router = createHashRouter([
       },
       {
         path: "people/:id/relationships/new",
-        loader: async ({ params }: LoaderFunctionArgs) => {
-          const id = params.id as string;
-          const subject = await window.api.people.get(id);
-          if (!subject) throw new Response("Person not found", { status: 404 });
-          const people = await window.api.people.list();
-          const candidates = people
-            .filter((person) => person.id !== id)
-            .map((person) => ({
-              type: "person" as const,
-              id: person.id,
-              label: fullName(person),
-            }));
-          return {
-            subject: { type: "person" as const, id, label: fullName(subject) },
-            candidates,
-          };
-        },
+        loader: relationshipNewLoader("person"),
         element: <RelationshipCreate />,
-        action: async ({ request, params }) => {
-          const id = params.id as string;
-          const formData = await request.formData();
-          const input = createRelationshipInputSchema.parse({
-            aType: "person",
-            aId: id,
-            aRole: String(formData.get("aRole")),
-            aRoleNote: readNote(formData, "aRoleNote"),
-            bType: String(formData.get("bType")),
-            bId: String(formData.get("bId")),
-            bRole: String(formData.get("bRole")),
-            bRoleNote: readNote(formData, "bRoleNote"),
-          });
-          await window.api.relationships.create(input);
-          return redirect(`/people/${id}`);
-        },
+        action: relationshipCreateAction("person"),
       },
       {
         path: "people/:id/relationships/:relId/delete",
-        loader: async ({ params }: LoaderFunctionArgs) => {
-          const id = params.id as string;
-          const relId = params.relId as string;
-          const person = await window.api.people.get(id);
-          if (!person) throw new Response("Person not found", { status: 404 });
-          const neighbors = await window.api.relationships.listForEntity(
-            "person",
-            id,
-          );
-          const neighbor = neighbors.find((n) => n.relationshipId === relId);
-          if (!neighbor)
-            throw new Response("Relationship not found", { status: 404 });
-          return { person, neighbor };
-        },
+        loader: relationshipDeleteLoader("person"),
         element: <RelationshipDelete />,
-        action: async ({ params }) => {
-          await window.api.relationships.softDelete(params.relId as string);
-          return redirect(`/people/${params.id}`);
+        action: relationshipDeleteAction("person"),
+      },
+      {
+        path: "pets/new",
+        element: <PetCreate />,
+        action: async ({ request }) => {
+          const formData = await request.formData();
+          await window.api.pets.create(readPetInput(formData));
+          return redirect("/");
         },
+      },
+      {
+        path: "pets/:id",
+        loader: petLoader,
+        element: <PetView />,
+      },
+      {
+        path: "pets/:id/edit",
+        loader: petLoader,
+        element: <PetEdit />,
+        action: async ({ request, params }) => {
+          const formData = await request.formData();
+          await window.api.pets.update(
+            params.id as string,
+            readPetInput(formData),
+          );
+          return redirect(`/pets/${params.id}`);
+        },
+      },
+      {
+        path: "pets/:id/delete",
+        loader: petLoader,
+        element: <PetDelete />,
+        action: async ({ params }) => {
+          await window.api.pets.softDelete(params.id as string);
+          return redirect("/");
+        },
+      },
+      {
+        path: "pets/:id/relationships/new",
+        loader: relationshipNewLoader("pet"),
+        element: <RelationshipCreate />,
+        action: relationshipCreateAction("pet"),
+      },
+      {
+        path: "pets/:id/relationships/:relId/delete",
+        loader: relationshipDeleteLoader("pet"),
+        element: <RelationshipDelete />,
+        action: relationshipDeleteAction("pet"),
       },
       {
         path: "tags/:id",

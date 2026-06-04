@@ -1,10 +1,11 @@
 import type { EntityType } from "@leapsake/schema";
 import { useLoaderData } from "react-router-dom";
-import { Breadcrumbs } from "../components/Breadcrumbs";
+import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import {
   type RelationshipCandidate,
   RelationshipForm,
 } from "../components/RelationshipForm";
+import { entityBasePath } from "../lib/entityLabel";
 
 /** The subject entity a new relationship hangs off of. */
 interface Subject {
@@ -18,13 +19,14 @@ export function RelationshipCreate() {
     subject: Subject;
     candidates: RelationshipCandidate[];
   };
+  const subjectPath = `${entityBasePath(subject.type)}/${subject.id}`;
 
   return (
     <main>
       <Breadcrumbs
         trail={[
-          { label: "People", to: "/" },
-          { label: subject.label, to: `/people/${subject.id}` },
+          homeCrumb,
+          { label: subject.label, to: subjectPath },
           { label: "Add relationship" },
         ]}
       />
@@ -32,7 +34,7 @@ export function RelationshipCreate() {
         subjectLabel={subject.label}
         subjectType={subject.type}
         candidates={candidates}
-        cancelTo={`/people/${subject.id}`}
+        cancelTo={subjectPath}
       />
     </main>
   );

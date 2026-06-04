@@ -102,6 +102,23 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 5,
+    async up(driver) {
+      // Pet entity. A minimal row (just a name today) that plugs into the
+      // existing polymorphic taggings and relationships tables — no schema
+      // change needed there. Same sync-safe conventions as people.
+      await driver.exec(`
+        CREATE TABLE pets (
+          id         TEXT    PRIMARY KEY,
+          name       TEXT    NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          deleted_at INTEGER
+        );
+      `);
+    },
+  },
 ];
 
 /**
