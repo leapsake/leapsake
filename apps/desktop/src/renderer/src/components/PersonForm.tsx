@@ -1,17 +1,22 @@
 import type { Person } from "@leapsake/schema";
 import type { ReactNode } from "react";
 import { Form, Link, useNavigation } from "react-router-dom";
+import { RelationshipFields } from "./RelationshipFields";
+import type { RelationshipCandidate } from "./RelationshipForm";
 
 /**
  * The shared create/edit form. The title and Save/Cancel actions live in the
  * header inside the `<Form>` so the submit button stays natively associated;
  * the fields below are shared between the `people/new` and `people/:id/edit`
- * routes — add a field here and both screens gain it.
+ * routes — add a field here and both screens gain it. Passing `candidates`
+ * enables the create-only Relationships section (edit manages those on the view
+ * page, so it omits the prop).
  */
 export function PersonForm({
   title,
   person,
   tagNames = "",
+  candidates,
   submitLabel,
   cancelTo,
 }: {
@@ -19,6 +24,8 @@ export function PersonForm({
   person?: Person;
   /** Comma-separated existing tag names; empty on create. */
   tagNames?: string;
+  /** Relationship candidates; when present, the create-mode Relationships section shows. */
+  candidates?: RelationshipCandidate[];
   submitLabel: string;
   /** Where Cancel returns to (the list for create, the person view for edit). */
   cancelTo: string;
@@ -57,6 +64,9 @@ export function PersonForm({
           />
         </label>
       </fieldset>
+      {candidates && (
+        <RelationshipFields subjectType="person" candidates={candidates} />
+      )}
     </Form>
   );
 }

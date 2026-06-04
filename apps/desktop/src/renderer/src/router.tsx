@@ -2,7 +2,9 @@ import {
   type CreatePersonInput,
   type CreatePetInput,
   type EntityType,
+  type RelationshipRole,
   createRelationshipInputSchema,
+  inverseRole,
   parseTagNames,
 } from "@leapsake/schema";
 import {
@@ -64,6 +66,67 @@ function getEntity(type: EntityType, id: string) {
     : window.api.pets.get(id);
 }
 
+/**
+ * All people and pets as relationship candidates, optionally excluding one
+ * entity (the subject, when adding from its own page). Shared by the standalone
+ * add-relationship loader and the create-form loaders.
+ */
+async function listCandidates(exclude?: {
+  type: EntityType;
+  id: string;
+}): Promise<RelationshipCandidate[]> {
+  const [people, pets] = await Promise.all([
+    window.api.people.list(),
+    window.api.pets.list(),
+  ]);
+  return [
+    ...people
+      .filter((p) => !(exclude?.type === "person" && p.id === exclude.id))
+      .map((p) => ({ type: "person" as const, id: p.id, label: fullName(p) })),
+    ...pets
+      .filter((p) => !(exclude?.type === "pet" && p.id === exclude.id))
+      .map((p) => ({ type: "pet" as const, id: p.id, label: p.name })),
+  ];
+}
+
+/** The resolved b-side of one relationship row submitted by a create form. */
+interface RelationshipDraft {
+  bType: EntityType;
+  bId: string;
+  bRole: RelationshipRole;
+  bRoleNote: string | null;
+}
+
+/** Parse the create form's relationship rows — each row is one JSON blob. */
+function readRelationships(formData: FormData): RelationshipDraft[] {
+  return formData
+    .getAll("relationships")
+    .map((value) => JSON.parse(String(value)) as RelationshipDraft);
+}
+
+/**
+ * Persist the relationship rows for a just-created subject. The subject is the
+ * `a` endpoint; its own role is the implied inverse of the picked b-side role.
+ */
+async function createRelationships(
+  subjectType: EntityType,
+  subjectId: string,
+  drafts: RelationshipDraft[],
+) {
+  for (const draft of drafts) {
+    const input = createRelationshipInputSchema.parse({
+      aType: subjectType,
+      aId: subjectId,
+      aRole: inverseRole(draft.bRole),
+      bType: draft.bType,
+      bId: draft.bId,
+      bRole: draft.bRole,
+      bRoleNote: draft.bRoleNote,
+    });
+    await window.api.relationships.create(input);
+  }
+}
+
 /** The combined People & Pets home list, merged and sorted by display name. */
 async function entityListLoader(): Promise<EntityRow[]> {
   const [people, pets] = await Promise.all([
@@ -115,22 +178,7 @@ function relationshipNewLoader(subjectType: EntityType) {
     const subject = await getEntity(subjectType, id);
     if (!subject) throw new Response("Not found", { status: 404 });
 
-    const [people, pets] = await Promise.all([
-      window.api.people.list(),
-      window.api.pets.list(),
-    ]);
-    const candidates: RelationshipCandidate[] = [
-      ...people
-        .filter((p) => !(subjectType === "person" && p.id === id))
-        .map((p) => ({
-          type: "person" as const,
-          id: p.id,
-          label: fullName(p),
-        })),
-      ...pets
-        .filter((p) => !(subjectType === "pet" && p.id === id))
-        .map((p) => ({ type: "pet" as const, id: p.id, label: p.name })),
-    ];
+    const candidates = await listCandidates({ type: subjectType, id });
 
     return {
       subject: {
@@ -216,12 +264,18 @@ export const router = createHashRouter([
       },
       {
         path: "people/new",
+        loader: () => listCandidates(),
         element: <PersonCreate />,
         action: async ({ request }) => {
           const formData = await request.formData();
-          await window.api.people.create(
+          const person = await window.api.people.create(
             readPersonInput(formData),
             readTags(formData),
+          );
+          await createRelationships(
+            "person",
+            person.id,
+            readRelationships(formData),
           );
           return redirect("/");
         },
@@ -268,10 +322,12 @@ export const router = createHashRouter([
       },
       {
         path: "pets/new",
+        loader: () => listCandidates(),
         element: <PetCreate />,
         action: async ({ request }) => {
           const formData = await request.formData();
-          await window.api.pets.create(readPetInput(formData));
+          const pet = await window.api.pets.create(readPetInput(formData));
+          await createRelationships("pet", pet.id, readRelationships(formData));
           return redirect("/");
         },
       },

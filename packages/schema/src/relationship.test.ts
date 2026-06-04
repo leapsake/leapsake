@@ -5,6 +5,7 @@ import {
   inverseRole,
   relationshipSchema,
   rolesForHolder,
+  rolesForPair,
 } from "./relationship.js";
 
 const validRelationship = {
@@ -136,5 +137,19 @@ describe("role registry", () => {
     const petRoles = rolesForHolder("pet").map((r) => r.role);
     expect(petRoles).toContain("pet");
     expect(petRoles).not.toContain("owner");
+  });
+
+  it("restricts pair roles so the implied inverse is valid for the subject", () => {
+    // On a pet, a person candidate can be the Owner (inverse "pet" fits a pet)…
+    const personRolesForPet = rolesForPair("person", "pet").map((r) => r.role);
+    expect(personRolesForPet).toContain("owner");
+
+    // …but on a person, another person can't be an Owner (inverse "pet" can't
+    // be held by a person), while ordinary social roles still apply.
+    const personRolesForPerson = rolesForPair("person", "person").map(
+      (r) => r.role,
+    );
+    expect(personRolesForPerson).not.toContain("owner");
+    expect(personRolesForPerson).toContain("friend");
   });
 });
