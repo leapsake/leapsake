@@ -71,6 +71,37 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 4,
+    async up(driver) {
+      // A relationship is one directed edge stored as a single row holding both
+      // endpoints and both roles (schema/relationship.ts). Endpoints are
+      // polymorphic `(type, id)` pairs like taggings, so Pets join later without
+      // touching this table. Two partial indexes (one per side) cover the
+      // "relationships touching entity X" reads. There is deliberately NO unique
+      // index on the pair: the same two entities may relate in more than one way.
+      await driver.exec(`
+        CREATE TABLE relationships (
+          id          TEXT    PRIMARY KEY,
+          a_type      TEXT    NOT NULL,
+          a_id        TEXT    NOT NULL,
+          a_role      TEXT    NOT NULL,
+          a_role_note TEXT,
+          b_type      TEXT    NOT NULL,
+          b_id        TEXT    NOT NULL,
+          b_role      TEXT    NOT NULL,
+          b_role_note TEXT,
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL,
+          deleted_at  INTEGER
+        );
+        CREATE INDEX ix_relationships_a
+          ON relationships(a_type, a_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_relationships_b
+          ON relationships(b_type, b_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**

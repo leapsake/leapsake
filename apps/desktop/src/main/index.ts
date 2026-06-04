@@ -1,16 +1,23 @@
 import { join } from "node:path";
 import {
   type PeopleRepo,
+  type RelationshipsRepo,
   type SqliteDriver,
   type TagsRepo,
   createPeopleRepo,
+  createRelationshipsRepo,
   createTagsRepo,
   runMigrations,
 } from "@leapsake/data";
 import {
+  type EntityType,
   type Person,
+  type RelationshipNeighbor,
   createPersonInputSchema,
+  createRelationshipInputSchema,
+  roleDefs,
   updatePersonInputSchema,
+  updateRelationshipInputSchema,
 } from "@leapsake/schema";
 import Database from "better-sqlite3";
 import { BrowserWindow, app, ipcMain } from "electron";
@@ -32,7 +39,21 @@ function registerIpc(
   driver: SqliteDriver,
   people: PeopleRepo,
   tags: TagsRepo,
+  relationships: RelationshipsRepo,
 ): void {
+  // Resolve an entity to its display label for relationship rows. Only people
+  // exist today; the pet branch lands with the Pet entity (reboot follow-up).
+  async function resolveLabel(
+    type: EntityType,
+    id: string,
+  ): Promise<string | undefined> {
+    if (type === "person") {
+      const person = await people.get(id);
+      return person ? `${person.firstName} ${person.lastName}` : undefined;
+    }
+    return undefined;
+  }
+
   ipcMain.handle("people:list", () => people.list());
   ipcMain.handle("people:get", (_event, id: string) => people.get(id));
   ipcMain.handle("people:create", (_event, input: unknown, tagNames: unknown) =>
@@ -60,7 +81,53 @@ function registerIpc(
     driver.transaction(async () => {
       await people.softDelete(id);
       await tags.removeAllForEntity("person", id);
+      await relationships.removeAllForEntity("person", id);
     }),
+  );
+
+  ipcMain.handle("relationships:get", (_event, id: string) =>
+    relationships.get(id),
+  );
+  ipcMain.handle("relationships:create", (_event, input: unknown) =>
+    driver.transaction(() =>
+      relationships.create(createRelationshipInputSchema.parse(input)),
+    ),
+  );
+  ipcMain.handle("relationships:update", (_event, id: string, input: unknown) =>
+    driver.transaction(() =>
+      relationships.update(id, updateRelationshipInputSchema.parse(input)),
+    ),
+  );
+  ipcMain.handle("relationships:softDelete", (_event, id: string) =>
+    driver.transaction(() => relationships.softDelete(id)),
+  );
+  // Compose the per-entity view: orient each stored row to the subject and
+  // resolve the *other* end's label + role so the renderer never sees a/b.
+  ipcMain.handle(
+    "relationships:listForEntity",
+    async (_event, type: EntityType, id: string) => {
+      const rows = await relationships.listForEntity(type, id);
+      const neighbors: RelationshipNeighbor[] = [];
+      for (const rel of rows) {
+        const subjectIsA = rel.aType === type && rel.aId === id;
+        const otherType = subjectIsA ? rel.bType : rel.aType;
+        const otherId = subjectIsA ? rel.bId : rel.aId;
+        const otherRole = subjectIsA ? rel.bRole : rel.aRole;
+        const otherRoleNote = subjectIsA ? rel.bRoleNote : rel.aRoleNote;
+        const otherLabel = await resolveLabel(otherType, otherId);
+        if (otherLabel === undefined) continue; // other end gone — skip
+        neighbors.push({
+          relationshipId: rel.id,
+          otherType,
+          otherId,
+          otherLabel,
+          otherRole,
+          otherRoleLabel: roleDefs[otherRole].label,
+          otherRoleNote,
+        });
+      }
+      return neighbors;
+    },
   );
 
   ipcMain.handle("tags:get", (_event, id: string) => tags.get(id));
@@ -99,7 +166,12 @@ void app.whenReady().then(async () => {
   const db = new Database(join(app.getPath("userData"), "leapsake.db"));
   const driver = betterSqlite3Driver(db);
   await runMigrations(driver);
-  registerIpc(driver, createPeopleRepo(driver), createTagsRepo(driver));
+  registerIpc(
+    driver,
+    createPeopleRepo(driver),
+    createTagsRepo(driver),
+    createRelationshipsRepo(driver),
+  );
 
   createWindow();
 
