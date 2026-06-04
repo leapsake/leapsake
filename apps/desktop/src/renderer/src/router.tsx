@@ -279,7 +279,7 @@ export const router = createHashRouter([
             person.id,
             readRelationships(formData),
           );
-          return redirect("/");
+          return redirect(`/people/${person.id}`);
         },
       },
       {
@@ -298,7 +298,7 @@ export const router = createHashRouter([
             readPersonInput(formData),
             readTags(formData),
           );
-          return redirect("/");
+          return redirect(`/people/${params.id}`);
         },
       },
       {
@@ -333,7 +333,7 @@ export const router = createHashRouter([
             readTags(formData),
           );
           await createRelationships("pet", pet.id, readRelationships(formData));
-          return redirect("/");
+          return redirect(`/pets/${pet.id}`);
         },
       },
       {
