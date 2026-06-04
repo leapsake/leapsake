@@ -7,6 +7,9 @@ export interface Crumb {
   to?: string;
 }
 
+/** The shared root crumb: the combined People & Pets list at `/`. */
+export const homeCrumb: Crumb = { label: "People & Pets", to: "/" };
+
 /** A breadcrumb trail; the final crumb is the current page and is not linked. */
 export function Breadcrumbs({ trail }: { trail: Crumb[] }) {
   return (
