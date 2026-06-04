@@ -4,7 +4,6 @@ import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
 // `@leapsake/*` are workspace packages published as raw TypeScript source (no
 // build step), so they must be bundled/transpiled rather than externalized.
-// `better-sqlite3` is a native module and stays external in the main process.
 const bundleWorkspacePackages = externalizeDepsPlugin({
   exclude: ["@leapsake/schema", "@leapsake/data"],
 });

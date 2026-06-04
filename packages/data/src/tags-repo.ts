@@ -63,7 +63,7 @@ export interface TagsRepo {
  *
  * Write methods are transaction-free building blocks: a single user action
  * (saving a Person) composes a person write with tag writes, and the caller
- * wraps the whole thing in one `driver.transaction` — the better-sqlite3 driver's
+ * wraps the whole thing in one `driver.transaction` — the node:sqlite driver's
  * BEGIN/COMMIT does not nest, so these methods must not open their own.
  */
 export function createTagsRepo(driver: SqliteDriver): TagsRepo {

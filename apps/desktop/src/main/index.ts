@@ -23,9 +23,9 @@ import {
   updatePetInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import { BrowserWindow, app, ipcMain } from "electron";
-import { betterSqlite3Driver } from "./db/better-sqlite3-driver.js";
+import { nodeSqliteDriver } from "./db/node-sqlite-driver.js";
 
 /** Coerce IPC-supplied tag names to a clean `string[]` before the repo dedupes. */
 function asTagNames(value: unknown): string[] {
@@ -184,8 +184,8 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(async () => {
-  const db = new Database(join(app.getPath("userData"), "leapsake.db"));
-  const driver = betterSqlite3Driver(db);
+  const db = new DatabaseSync(join(app.getPath("userData"), "leapsake.db"));
+  const driver = nodeSqliteDriver(db);
   await runMigrations(driver);
   registerIpc(
     driver,

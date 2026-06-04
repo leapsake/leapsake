@@ -9,7 +9,7 @@ export interface Migration {
 /**
  * The ordered migration list. Append new migrations with the next integer
  * version; never edit or reorder existing ones. Portable SQL only, so the same
- * migrations run on better-sqlite3 (desktop) and expo-sqlite (mobile).
+ * migrations run on node:sqlite (desktop) and expo-sqlite (mobile).
  */
 export const migrations: Migration[] = [
   {
