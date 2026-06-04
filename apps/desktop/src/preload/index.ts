@@ -19,8 +19,9 @@ import { contextBridge, ipcRenderer } from "electron";
  * is a thin `ipcRenderer.invoke` wrapper; the renderer never touches SQLite or
  * Node directly. `Api` is exported so the renderer derives its types from here.
  *
- * A Person's tags are saved alongside it (the create/update calls carry the full
- * desired tag-name list), so they commit in the same transaction as the person.
+ * A Person's or Pet's tags are saved alongside it (the create/update calls carry
+ * the full desired tag-name list), so they commit in the same transaction as the
+ * entity itself.
  */
 const api = {
   people: {
@@ -42,20 +43,30 @@ const api = {
     list: (): Promise<Pet[]> => ipcRenderer.invoke("pets:list"),
     get: (id: string): Promise<Pet | undefined> =>
       ipcRenderer.invoke("pets:get", id),
-    create: (input: CreatePetInput): Promise<Pet> =>
-      ipcRenderer.invoke("pets:create", input),
-    update: (id: string, input: UpdatePetInput): Promise<Pet | undefined> =>
-      ipcRenderer.invoke("pets:update", id, input),
+    create: (input: CreatePetInput, tagNames: string[]): Promise<Pet> =>
+      ipcRenderer.invoke("pets:create", input, tagNames),
+    update: (
+      id: string,
+      input: UpdatePetInput,
+      tagNames: string[],
+    ): Promise<Pet | undefined> =>
+      ipcRenderer.invoke("pets:update", id, input, tagNames),
     softDelete: (id: string): Promise<void> =>
       ipcRenderer.invoke("pets:softDelete", id),
   },
   tags: {
     get: (id: string): Promise<Tag | undefined> =>
       ipcRenderer.invoke("tags:get", id),
+    softDelete: (id: string): Promise<void> =>
+      ipcRenderer.invoke("tags:softDelete", id),
     listForPerson: (personId: string): Promise<Tag[]> =>
       ipcRenderer.invoke("tags:listForPerson", personId),
+    listForPet: (petId: string): Promise<Tag[]> =>
+      ipcRenderer.invoke("tags:listForPet", petId),
     peopleForTag: (tagId: string): Promise<Person[]> =>
       ipcRenderer.invoke("tags:peopleForTag", tagId),
+    petsForTag: (tagId: string): Promise<Pet[]> =>
+      ipcRenderer.invoke("tags:petsForTag", tagId),
   },
   relationships: {
     get: (id: string): Promise<Relationship | undefined> =>

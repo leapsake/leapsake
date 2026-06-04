@@ -129,6 +129,21 @@ describe("tagsRepo", () => {
     expect(await repo.entityIdsForTag(tagId, "person")).toEqual(["p2"]);
   });
 
+  it("softDelete removes the tag from every tagged entity", async () => {
+    await repo.setEntityTags("person", "p1", ["Friend"]);
+    await repo.setEntityTags("person", "p2", ["Friend"]);
+    await repo.setEntityTags("pet", "x1", ["Friend"]);
+    const tagId = (await repo.listForEntity("person", "p1"))[0]?.id as string;
+
+    await repo.softDelete(tagId);
+
+    expect(await repo.get(tagId)).toBeUndefined();
+    expect(await repo.listForEntity("person", "p1")).toHaveLength(0);
+    expect(await repo.listForEntity("person", "p2")).toHaveLength(0);
+    expect(await repo.listForEntity("pet", "x1")).toHaveLength(0);
+    expect(await repo.entityIdsForTag(tagId, "person")).toEqual([]);
+  });
+
   it("excludes soft-deleted taggings from listForEntity", async () => {
     await repo.setEntityTags("person", "p1", ["Friend"]);
     await repo.setEntityTags("person", "p1", []);

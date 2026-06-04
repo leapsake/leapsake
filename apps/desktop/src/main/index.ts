@@ -14,6 +14,7 @@ import {
 import {
   type EntityType,
   type Person,
+  type Pet,
   type RelationshipNeighbor,
   createPersonInputSchema,
   createPetInputSchema,
@@ -35,9 +36,9 @@ function asTagNames(value: unknown): string[] {
 /**
  * Register the typed IPC surface. Inputs cross a trust boundary, so they are
  * validated with the Zod schemas before reaching the repository (which also
- * validates internally — cheap belt-and-suspenders at the boundary). Person
- * writes and their tag changes are composed in a single `driver.transaction` so
- * a partial failure rolls back both.
+ * validates internally — cheap belt-and-suspenders at the boundary). A Person's
+ * or Pet's write and its tag changes are composed in a single `driver.transaction`
+ * so a partial failure rolls back both.
  */
 function registerIpc(
   driver: SqliteDriver,
@@ -93,15 +94,28 @@ function registerIpc(
 
   ipcMain.handle("pets:list", () => pets.list());
   ipcMain.handle("pets:get", (_event, id: string) => pets.get(id));
-  ipcMain.handle("pets:create", (_event, input: unknown) =>
-    pets.create(createPetInputSchema.parse(input)),
+  ipcMain.handle("pets:create", (_event, input: unknown, tagNames: unknown) =>
+    driver.transaction(async () => {
+      const pet = await pets.create(createPetInputSchema.parse(input));
+      await tags.setEntityTags("pet", pet.id, asTagNames(tagNames));
+      return pet;
+    }),
   );
-  ipcMain.handle("pets:update", (_event, id: string, input: unknown) =>
-    pets.update(id, updatePetInputSchema.parse(input)),
+  ipcMain.handle(
+    "pets:update",
+    (_event, id: string, input: unknown, tagNames: unknown) =>
+      driver.transaction(async () => {
+        const pet = await pets.update(id, updatePetInputSchema.parse(input));
+        if (pet) {
+          await tags.setEntityTags("pet", id, asTagNames(tagNames));
+        }
+        return pet;
+      }),
   );
   ipcMain.handle("pets:softDelete", (_event, id: string) =>
     driver.transaction(async () => {
       await pets.softDelete(id);
+      await tags.removeAllForEntity("pet", id);
       await relationships.removeAllForEntity("pet", id);
     }),
   );
@@ -152,13 +166,24 @@ function registerIpc(
   );
 
   ipcMain.handle("tags:get", (_event, id: string) => tags.get(id));
+  ipcMain.handle("tags:softDelete", (_event, id: string) =>
+    driver.transaction(() => tags.softDelete(id)),
+  );
   ipcMain.handle("tags:listForPerson", (_event, personId: string) =>
     tags.listForEntity("person", personId),
+  );
+  ipcMain.handle("tags:listForPet", (_event, petId: string) =>
+    tags.listForEntity("pet", petId),
   );
   ipcMain.handle("tags:peopleForTag", async (_event, tagId: string) => {
     const ids = await tags.entityIdsForTag(tagId, "person");
     const found = await Promise.all(ids.map((id) => people.get(id)));
     return found.filter((p): p is Person => p !== undefined);
+  });
+  ipcMain.handle("tags:petsForTag", async (_event, tagId: string) => {
+    const ids = await tags.entityIdsForTag(tagId, "pet");
+    const found = await Promise.all(ids.map((id) => pets.get(id)));
+    return found.filter((p): p is Pet => p !== undefined);
   });
 }
 
