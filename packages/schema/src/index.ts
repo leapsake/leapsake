@@ -23,6 +23,7 @@ export {
   inverseRole,
   holderAllows,
   rolesForHolder,
+  rolesForPair,
 } from "./relationship.js";
 export type {
   EntityType,

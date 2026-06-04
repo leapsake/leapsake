@@ -2,8 +2,7 @@ import {
   type EntityType,
   type RelationshipRole,
   inverseRole,
-  roleDefs,
-  rolesForHolder,
+  rolesForPair,
 } from "@leapsake/schema";
 import { useMemo, useState } from "react";
 import { Form, Link, useNavigation } from "react-router-dom";
@@ -15,26 +14,29 @@ export interface RelationshipCandidate {
   label: string;
 }
 
-/** Map each allowed role's display label back to its slug for a holder type. */
-function roleMap(type: EntityType): Map<string, RelationshipRole> {
-  return new Map(rolesForHolder(type).map((r) => [r.label, r.role]));
+/** Map each pickable role's display label back to its slug for the chosen pair. */
+function roleMap(
+  otherType: EntityType,
+  subjectType: EntityType,
+): Map<string, RelationshipRole> {
+  return new Map(
+    rolesForPair(otherType, subjectType).map((r) => [r.label, r.role]),
+  );
 }
 
 /**
  * Add-relationship form, rendered on a subject entity's page. The user picks the
- * *other* entity and the *other* end's role (what shows next to them here); the
- * subject's own role auto-fills with the gender-neutral inverse and stays
- * editable. Visible inputs hold display labels; hidden inputs carry the resolved
- * machine values (`bType`/`bId`/`bRole`/`aRole`) the action consumes — the action
- * supplies the subject endpoint from the route.
+ * *other* entity and that entity's role relative to the subject; the subject's
+ * own role is the gender-neutral inverse and is submitted as a hidden value
+ * rather than shown. Visible inputs hold display labels; hidden inputs carry the
+ * resolved machine values (`bType`/`bId`/`bRole`/`aRole`) the action consumes —
+ * the action supplies the subject endpoint from the route.
  */
 export function RelationshipForm({
-  subjectLabel,
   subjectType,
   candidates,
   cancelTo,
 }: {
-  subjectLabel: string;
   subjectType: EntityType;
   candidates: RelationshipCandidate[];
   cancelTo: string;
@@ -43,10 +45,8 @@ export function RelationshipForm({
   const submitting = navigation.state === "submitting";
 
   const [entityText, setEntityText] = useState("");
-  const [bRoleText, setBRoleText] = useState("");
-  const [aRoleText, setARoleText] = useState("");
-  const [bNote, setBNote] = useState("");
-  const [aNote, setANote] = useState("");
+  const [roleText, setRoleText] = useState("");
+  const [note, setNote] = useState("");
 
   const selected = useMemo(
     () => candidates.find((c) => c.label === entityText),
@@ -54,19 +54,14 @@ export function RelationshipForm({
   );
   const otherType: EntityType = selected?.type ?? "person";
 
-  const bRoleByLabel = useMemo(() => roleMap(otherType), [otherType]);
-  const aRoleByLabel = useMemo(() => roleMap(subjectType), [subjectType]);
-  const bRole = bRoleByLabel.get(bRoleText);
-  const aRole = aRoleByLabel.get(aRoleText);
+  const roleByLabel = useMemo(
+    () => roleMap(otherType, subjectType),
+    [otherType, subjectType],
+  );
+  const bRole = roleByLabel.get(roleText);
+  const aRole = bRole ? inverseRole(bRole) : undefined;
 
-  function onBRoleChange(value: string) {
-    setBRoleText(value);
-    const role = bRoleByLabel.get(value);
-    if (role) setARoleText(roleDefs[inverseRole(role)].label);
-  }
-
-  const ready =
-    selected !== undefined && bRole !== undefined && aRole !== undefined;
+  const ready = selected !== undefined && bRole !== undefined;
 
   return (
     <Form method="post">
@@ -86,7 +81,7 @@ export function RelationshipForm({
 
       <fieldset disabled={submitting}>
         <label>
-          Who?{" "}
+          Name{" "}
           <input
             list="relationship-entities"
             value={entityText}
@@ -104,17 +99,17 @@ export function RelationshipForm({
           ))}
         </datalist>{" "}
         <label>
-          They are {subjectLabel}'s{" "}
+          Role{" "}
           <input
-            list="relationship-brole"
-            value={bRoleText}
-            onChange={(event) => onBRoleChange(event.target.value)}
+            list="relationship-role"
+            value={roleText}
+            onChange={(event) => setRoleText(event.target.value)}
             placeholder="role"
             required
           />
         </label>
-        <datalist id="relationship-brole">
-          {rolesForHolder(otherType).map((role) => (
+        <datalist id="relationship-role">
+          {rolesForPair(otherType, subjectType).map((role) => (
             <option key={role.role} value={role.label} />
           ))}
         </datalist>
@@ -123,33 +118,8 @@ export function RelationshipForm({
             Note{" "}
             <input
               name="bRoleNote"
-              value={bNote}
-              onChange={(event) => setBNote(event.target.value)}
-            />
-          </label>
-        )}{" "}
-        <label>
-          {subjectLabel} is their{" "}
-          <input
-            list="relationship-arole"
-            value={aRoleText}
-            onChange={(event) => setARoleText(event.target.value)}
-            placeholder="role"
-            required
-          />
-        </label>
-        <datalist id="relationship-arole">
-          {rolesForHolder(subjectType).map((role) => (
-            <option key={role.role} value={role.label} />
-          ))}
-        </datalist>
-        {aRole === "other" && (
-          <label>
-            Note{" "}
-            <input
-              name="aRoleNote"
-              value={aNote}
-              onChange={(event) => setANote(event.target.value)}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
             />
           </label>
         )}

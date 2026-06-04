@@ -31,7 +31,6 @@ export function RelationshipCreate() {
         ]}
       />
       <RelationshipForm
-        subjectLabel={subject.label}
         subjectType={subject.type}
         candidates={candidates}
         cancelTo={subjectPath}

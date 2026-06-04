@@ -116,6 +116,23 @@ export function rolesForHolder(
 }
 
 /**
+ * Roles the *other* end may hold given the *subject*'s type, restricted so the
+ * auto-derived inverse (the subject's own role) is also valid for the subject.
+ * Drives the single-role pickers where the subject's role is implied rather than
+ * entered: on a Pet, a person candidate may be "Owner" (inverse "pet" is a valid
+ * pet role) but not "Pet"; on a Person, another person can't be an "Owner" since
+ * the implied "pet" role can't be held by a person.
+ */
+export function rolesForPair(
+  otherType: EntityType,
+  subjectType: EntityType,
+): { role: RelationshipRole; label: string }[] {
+  return rolesForHolder(otherType).filter((r) =>
+    holderAllows(inverseRole(r.role), subjectType),
+  );
+}
+
+/**
  * A Relationship — one directed edge stored as a single row holding *both*
  * endpoints and *both* roles, e.g. {a: Alice/parent, b: Bob/child}. One row per
  * relationship keeps it a single fact to create, soft-delete, and (V3) sync,
