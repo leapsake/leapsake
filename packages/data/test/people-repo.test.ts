@@ -1,17 +1,17 @@
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type SqliteDriver } from "../src/driver.js";
 import { runMigrations } from "../src/migrations.js";
 import { type PeopleRepo, createPeopleRepo } from "../src/people-repo.js";
-import { betterSqlite3Driver } from "./better-sqlite3-driver.js";
+import { nodeSqliteDriver } from "./node-sqlite-driver.js";
 
-let db: Database.Database;
+let db: DatabaseSync;
 let driver: SqliteDriver;
 let repo: PeopleRepo;
 
 beforeEach(async () => {
-  db = new Database(":memory:");
-  driver = betterSqlite3Driver(db);
+  db = new DatabaseSync(":memory:");
+  driver = nodeSqliteDriver(db);
   await runMigrations(driver);
   repo = createPeopleRepo(driver);
 });
