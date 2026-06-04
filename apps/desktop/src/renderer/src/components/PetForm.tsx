@@ -14,12 +14,15 @@ import type { RelationshipCandidate } from "./RelationshipForm";
 export function PetForm({
   title,
   pet,
+  tagNames = "",
   candidates,
   submitLabel,
   cancelTo,
 }: {
   title: ReactNode;
   pet?: Pet;
+  /** Comma-separated existing tag names; empty on create. */
+  tagNames?: string;
   /** Relationship candidates; when present, the create-mode Relationships section shows. */
   candidates?: RelationshipCandidate[];
   submitLabel: string;
@@ -41,6 +44,14 @@ export function PetForm({
       <fieldset disabled={submitting}>
         <label>
           Name <input name="name" defaultValue={pet?.name} required />
+        </label>{" "}
+        <label>
+          Tags{" "}
+          <input
+            name="tags"
+            defaultValue={tagNames}
+            placeholder="Friend, Neighbor"
+          />
         </label>
       </fieldset>
       {candidates && (

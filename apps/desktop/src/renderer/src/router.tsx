@@ -29,6 +29,7 @@ import { PetEdit } from "./screens/PetEdit";
 import { PetView } from "./screens/PetView";
 import { RelationshipCreate } from "./screens/RelationshipCreate";
 import { RelationshipDelete } from "./screens/RelationshipDelete";
+import { TagDelete } from "./screens/TagDelete";
 import { TagView } from "./screens/TagView";
 
 /** Pull the editable Person fields out of a submitted form. */
@@ -157,13 +158,14 @@ async function personLoader({ params }: LoaderFunctionArgs) {
   return { person, tags, relationships };
 }
 
-/** A Pet plus its relationships, for the view/edit/delete screens. */
+/** A Pet plus its tags and relationships, for the view/edit/delete screens. */
 async function petLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const pet = await window.api.pets.get(id);
   if (!pet) throw new Response("Pet not found", { status: 404 });
+  const tags = await window.api.tags.listForPet(id);
   const relationships = await window.api.relationships.listForEntity("pet", id);
-  return { pet, relationships };
+  return { pet, tags, relationships };
 }
 
 /**
@@ -326,7 +328,10 @@ export const router = createHashRouter([
         element: <PetCreate />,
         action: async ({ request }) => {
           const formData = await request.formData();
-          const pet = await window.api.pets.create(readPetInput(formData));
+          const pet = await window.api.pets.create(
+            readPetInput(formData),
+            readTags(formData),
+          );
           await createRelationships("pet", pet.id, readRelationships(formData));
           return redirect("/");
         },
@@ -345,6 +350,7 @@ export const router = createHashRouter([
           await window.api.pets.update(
             params.id as string,
             readPetInput(formData),
+            readTags(formData),
           );
           return redirect(`/pets/${params.id}`);
         },
@@ -376,10 +382,31 @@ export const router = createHashRouter([
           const id = params.id as string;
           const tag = await window.api.tags.get(id);
           if (!tag) throw new Response("Tag not found", { status: 404 });
-          const people = await window.api.tags.peopleForTag(id);
-          return { tag, people };
+          const [people, pets] = await Promise.all([
+            window.api.tags.peopleForTag(id),
+            window.api.tags.petsForTag(id),
+          ]);
+          return { tag, people, pets };
         },
         element: <TagView />,
+      },
+      {
+        path: "tags/:id/delete",
+        loader: async ({ params }: LoaderFunctionArgs) => {
+          const id = params.id as string;
+          const tag = await window.api.tags.get(id);
+          if (!tag) throw new Response("Tag not found", { status: 404 });
+          const [people, pets] = await Promise.all([
+            window.api.tags.peopleForTag(id),
+            window.api.tags.petsForTag(id),
+          ]);
+          return { tag, count: people.length + pets.length };
+        },
+        element: <TagDelete />,
+        action: async ({ params }) => {
+          await window.api.tags.softDelete(params.id as string);
+          return redirect("/");
+        },
       },
     ],
   },

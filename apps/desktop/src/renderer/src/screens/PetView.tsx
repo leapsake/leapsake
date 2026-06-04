@@ -1,4 +1,5 @@
-import type { Pet, RelationshipNeighbor } from "@leapsake/schema";
+import type { Pet, RelationshipNeighbor, Tag } from "@leapsake/schema";
+import { Fragment } from "react";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { RelationshipsSection } from "../components/RelationshipsSection";
@@ -9,8 +10,9 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PetView() {
-  const { pet, relationships } = useLoaderData() as {
+  const { pet, tags, relationships } = useLoaderData() as {
     pet: Pet;
+    tags: Tag[];
     relationships: RelationshipNeighbor[];
   };
 
@@ -27,6 +29,17 @@ export function PetView() {
       <dl>
         <dt>Name</dt>
         <dd>{pet.name}</dd>
+        <dt>Tags</dt>
+        <dd>
+          {tags.length === 0
+            ? "—"
+            : tags.map((tag, index) => (
+                <Fragment key={tag.id}>
+                  {index > 0 && ", "}
+                  <Link to={`/tags/${tag.id}`}>{tag.name}</Link>
+                </Fragment>
+              ))}
+        </dd>
         <dt>Created</dt>
         <dd>{formatTimestamp(pet.createdAt)}</dd>
         <dt>Updated</dt>

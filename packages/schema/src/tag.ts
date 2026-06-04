@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * A Tag — a free-form label shared across entities to group like and unlike
- * things together (People today; more entity types later). Tags are deduplicated
+ * things together (People and Pets today; more entity types later). Tags are deduplicated
  * by their {@link normalized} form, so "Friend", "friend", and " Friend " all map
  * to a single tag; the {@link name} preserves the first-seen spelling for display.
  *

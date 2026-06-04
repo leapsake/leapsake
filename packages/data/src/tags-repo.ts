@@ -50,6 +50,13 @@ export interface TagsRepo {
    */
   removeAllForEntity(entityType: string, entityId: string): Promise<void>;
 
+  /**
+   * Soft-delete a tag and every active tagging that applies it, removing the tag
+   * from all entities at once. Transaction-free building block — the caller wraps
+   * the deletion in one `driver.transaction`.
+   */
+  softDelete(tagId: string): Promise<void>;
+
   get(id: string): Promise<Tag | undefined>;
 
   /** Active entity ids of `entityType` bearing this tag — powers the tag page. */
@@ -173,6 +180,18 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
         );
         await gcTagIfOrphaned(tag_id);
       }
+    },
+
+    async softDelete(tagId) {
+      const now = Date.now();
+      await driver.run(
+        "UPDATE taggings SET deleted_at = ?, updated_at = ? WHERE tag_id = ? AND deleted_at IS NULL",
+        [now, now, tagId],
+      );
+      await driver.run(
+        "UPDATE tags SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+        [now, now, tagId],
+      );
     },
 
     async get(id) {
