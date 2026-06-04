@@ -1,16 +1,23 @@
-import { type CreatePersonInput, parseTagNames } from "@leapsake/schema";
+import {
+  type CreatePersonInput,
+  createRelationshipInputSchema,
+  parseTagNames,
+} from "@leapsake/schema";
 import {
   type LoaderFunctionArgs,
   createHashRouter,
   redirect,
 } from "react-router-dom";
 import { App } from "./App";
+import { fullName } from "./lib/fullName";
 import { ErrorPage } from "./screens/ErrorPage";
 import { PeopleList } from "./screens/PeopleList";
 import { PersonCreate } from "./screens/PersonCreate";
 import { PersonDelete } from "./screens/PersonDelete";
 import { PersonEdit } from "./screens/PersonEdit";
 import { PersonView } from "./screens/PersonView";
+import { RelationshipCreate } from "./screens/RelationshipCreate";
+import { RelationshipDelete } from "./screens/RelationshipDelete";
 import { TagView } from "./screens/TagView";
 
 /** Pull the editable Person fields out of a submitted form. */
@@ -28,13 +35,25 @@ function readTags(formData: FormData): string[] {
   return parseTagNames(String(formData.get("tags") ?? ""));
 }
 
-/** A Person plus its tags, loaded together for the view/edit/delete screens. */
+/** A role note is meaningful only when non-empty; blank fields become null. */
+function readNote(formData: FormData, key: string): string | null {
+  const value = formData.get(key);
+  if (value === null) return null;
+  const trimmed = String(value).trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/** A Person plus its tags and relationships, for the view/edit/delete screens. */
 async function personLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const person = await window.api.people.get(id);
   if (!person) throw new Response("Person not found", { status: 404 });
   const tags = await window.api.tags.listForPerson(id);
-  return { person, tags };
+  const relationships = await window.api.relationships.listForEntity(
+    "person",
+    id,
+  );
+  return { person, tags, relationships };
 }
 
 /**
@@ -93,6 +112,65 @@ export const router = createHashRouter([
         action: async ({ params }) => {
           await window.api.people.softDelete(params.id as string);
           return redirect("/");
+        },
+      },
+      {
+        path: "people/:id/relationships/new",
+        loader: async ({ params }: LoaderFunctionArgs) => {
+          const id = params.id as string;
+          const subject = await window.api.people.get(id);
+          if (!subject) throw new Response("Person not found", { status: 404 });
+          const people = await window.api.people.list();
+          const candidates = people
+            .filter((person) => person.id !== id)
+            .map((person) => ({
+              type: "person" as const,
+              id: person.id,
+              label: fullName(person),
+            }));
+          return {
+            subject: { type: "person" as const, id, label: fullName(subject) },
+            candidates,
+          };
+        },
+        element: <RelationshipCreate />,
+        action: async ({ request, params }) => {
+          const id = params.id as string;
+          const formData = await request.formData();
+          const input = createRelationshipInputSchema.parse({
+            aType: "person",
+            aId: id,
+            aRole: String(formData.get("aRole")),
+            aRoleNote: readNote(formData, "aRoleNote"),
+            bType: String(formData.get("bType")),
+            bId: String(formData.get("bId")),
+            bRole: String(formData.get("bRole")),
+            bRoleNote: readNote(formData, "bRoleNote"),
+          });
+          await window.api.relationships.create(input);
+          return redirect(`/people/${id}`);
+        },
+      },
+      {
+        path: "people/:id/relationships/:relId/delete",
+        loader: async ({ params }: LoaderFunctionArgs) => {
+          const id = params.id as string;
+          const relId = params.relId as string;
+          const person = await window.api.people.get(id);
+          if (!person) throw new Response("Person not found", { status: 404 });
+          const neighbors = await window.api.relationships.listForEntity(
+            "person",
+            id,
+          );
+          const neighbor = neighbors.find((n) => n.relationshipId === relId);
+          if (!neighbor)
+            throw new Response("Relationship not found", { status: 404 });
+          return { person, neighbor };
+        },
+        element: <RelationshipDelete />,
+        action: async ({ params }) => {
+          await window.api.relationships.softDelete(params.relId as string);
+          return redirect(`/people/${params.id}`);
         },
       },
       {

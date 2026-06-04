@@ -1,0 +1,151 @@
+import type { CreateRelationshipInput } from "@leapsake/schema";
+import Database from "better-sqlite3";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { type SqliteDriver } from "../src/driver.js";
+import { runMigrations } from "../src/migrations.js";
+import {
+  type RelationshipsRepo,
+  createRelationshipsRepo,
+} from "../src/relationships-repo.js";
+import { betterSqlite3Driver } from "./better-sqlite3-driver.js";
+
+let db: Database.Database;
+let driver: SqliteDriver;
+let repo: RelationshipsRepo;
+
+beforeEach(async () => {
+  db = new Database(":memory:");
+  driver = betterSqlite3Driver(db);
+  await runMigrations(driver);
+  repo = createRelationshipsRepo(driver);
+});
+
+afterEach(() => {
+  db.close();
+});
+
+/** A person↔person parent/child relationship input between two ids. */
+function parentChild(
+  aId: string,
+  bId: string,
+  over: Partial<CreateRelationshipInput> = {},
+): CreateRelationshipInput {
+  return {
+    aType: "person",
+    aId,
+    aRole: "parent",
+    bType: "person",
+    bId,
+    bRole: "child",
+    ...over,
+  };
+}
+
+describe("relationshipsRepo", () => {
+  it("creates a relationship with a uuid, timestamps, and null deletedAt", async () => {
+    const a = crypto.randomUUID();
+    const b = crypto.randomUUID();
+    const rel = await repo.create(parentChild(a, b));
+
+    expect(rel.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(rel.aId).toBe(a);
+    expect(rel.aRole).toBe("parent");
+    expect(rel.bRole).toBe("child");
+    expect(rel.createdAt).toBeGreaterThan(0);
+    expect(rel.updatedAt).toBe(rel.createdAt);
+    expect(rel.deletedAt).toBeNull();
+  });
+
+  it("persists and retrieves a created relationship", async () => {
+    const created = await repo.create(
+      parentChild(crypto.randomUUID(), crypto.randomUUID()),
+    );
+    expect(await repo.get(created.id)).toEqual(created);
+  });
+
+  it("lists relationships for an entity on either side", async () => {
+    const a = crypto.randomUUID();
+    const b = crypto.randomUUID();
+    await repo.create(parentChild(a, b));
+
+    // `a` is the a-side, `b` is the b-side; both see the relationship.
+    expect(await repo.listForEntity("person", a)).toHaveLength(1);
+    expect(await repo.listForEntity("person", b)).toHaveLength(1);
+  });
+
+  it("allows multiple relationships between the same pair", async () => {
+    const a = crypto.randomUUID();
+    const b = crypto.randomUUID();
+    await repo.create(parentChild(a, b));
+    await repo.create(
+      parentChild(a, b, { aRole: "coworker", bRole: "coworker" }),
+    );
+
+    expect(await repo.listForEntity("person", a)).toHaveLength(2);
+  });
+
+  it("removeAllForEntity soft-deletes only relationships touching that entity", async () => {
+    const a = crypto.randomUUID();
+    const b = crypto.randomUUID();
+    const c = crypto.randomUUID();
+    await repo.create(parentChild(a, b));
+    await repo.create(parentChild(a, c));
+    const unrelated = await repo.create(parentChild(b, c));
+
+    await repo.removeAllForEntity("person", a);
+
+    expect(await repo.listForEntity("person", a)).toHaveLength(0);
+    // The b↔c relationship, which never involved `a`, survives.
+    expect(await repo.get(unrelated.id)).toBeDefined();
+    expect(await repo.listForEntity("person", b)).toHaveLength(1);
+  });
+
+  it("excludes soft-deleted relationships from get and listForEntity", async () => {
+    const a = crypto.randomUUID();
+    const rel = await repo.create(parentChild(a, crypto.randomUUID()));
+
+    await repo.softDelete(rel.id);
+
+    expect(await repo.get(rel.id)).toBeUndefined();
+    expect(await repo.listForEntity("person", a)).toHaveLength(0);
+  });
+
+  it("updates roles and a note, bumping updatedAt", async () => {
+    const created = await repo.create(
+      parentChild(crypto.randomUUID(), crypto.randomUUID()),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 2));
+
+    const updated = await repo.update(created.id, {
+      aRole: "other",
+      aRoleNote: "mentor",
+      bRole: "other",
+      bRoleNote: "mentee",
+    });
+
+    expect(updated?.aRole).toBe("other");
+    expect(updated?.aRoleNote).toBe("mentor");
+    expect(updated?.bRoleNote).toBe("mentee");
+    expect(updated?.updatedAt).toBeGreaterThan(created.updatedAt);
+    expect(updated?.createdAt).toBe(created.createdAt);
+  });
+
+  it("returns undefined when updating a missing relationship", async () => {
+    expect(
+      await repo.update(crypto.randomUUID(), { aRole: "friend" }),
+    ).toBeUndefined();
+  });
+
+  it("rejects a role its holder type cannot hold", async () => {
+    await expect(
+      repo.create({
+        aType: "pet",
+        aId: crypto.randomUUID(),
+        aRole: "owner", // owner must be a person
+        bType: "pet",
+        bId: crypto.randomUUID(),
+        bRole: "pet",
+      }),
+    ).rejects.toThrow();
+  });
+});
