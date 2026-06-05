@@ -1,15 +1,19 @@
 import type {
+  CreateMilestoneInput,
   CreatePersonInput,
   CreatePetInput,
   CreateRelationshipInput,
   EntityType,
   Gender,
+  Milestone,
+  MilestoneSubjectType,
   Person,
   Pet,
   Relationship,
   RelationshipNeighbor,
   RelationshipRole,
   Tag,
+  UpdateMilestoneInput,
   UpdatePersonInput,
   UpdatePetInput,
   UpdateRelationshipInput,
@@ -93,6 +97,22 @@ const api = {
       id: string,
     ): Promise<RelationshipNeighbor[]> =>
       ipcRenderer.invoke("relationships:listForEntity", type, id),
+  },
+  milestones: {
+    listForSubject: (
+      type: MilestoneSubjectType,
+      id: string,
+    ): Promise<Milestone[]> =>
+      ipcRenderer.invoke("milestones:listForSubject", type, id),
+    create: (input: CreateMilestoneInput): Promise<Milestone> =>
+      ipcRenderer.invoke("milestones:create", input),
+    update: (
+      id: string,
+      input: UpdateMilestoneInput,
+    ): Promise<Milestone | undefined> =>
+      ipcRenderer.invoke("milestones:update", id, input),
+    softDelete: (id: string): Promise<void> =>
+      ipcRenderer.invoke("milestones:softDelete", id),
   },
   kinship: {
     neighborsFor: (

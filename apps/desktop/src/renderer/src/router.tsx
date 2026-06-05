@@ -1,13 +1,18 @@
 import {
+  type CreateMilestoneInput,
   type CreatePersonInput,
   type CreatePetInput,
   type EntityType,
   type Gender,
+  type MilestoneKind,
   type RelationshipRole,
+  type UpdateMilestoneInput,
   baseRole,
+  createMilestoneInputSchema,
   createRelationshipInputSchema,
   inverseRole,
   parseTagNames,
+  updateMilestoneInputSchema,
 } from "@leapsake/schema";
 import {
   type ActionFunctionArgs,
@@ -24,6 +29,9 @@ import { ErrorPage } from "./screens/ErrorPage";
 import { PersonCreate } from "./screens/PersonCreate";
 import { PersonDelete } from "./screens/PersonDelete";
 import { PersonEdit } from "./screens/PersonEdit";
+import { MilestoneCreate } from "./screens/MilestoneCreate";
+import { MilestoneDelete } from "./screens/MilestoneDelete";
+import { MilestoneEdit } from "./screens/MilestoneEdit";
 import { PersonView } from "./screens/PersonView";
 import { PetCreate } from "./screens/PetCreate";
 import { PetDelete } from "./screens/PetDelete";
@@ -68,6 +76,23 @@ function readNote(formData: FormData, key: string): string | null {
   if (value === null) return null;
   const trimmed = String(value).trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+/** Parse one milestone date part from the form: blank means absent (null). */
+function readDatePart(formData: FormData, key: string): number | null {
+  const value = String(formData.get(key) ?? "").trim();
+  return value === "" ? null : Number(value);
+}
+
+/** Pull the editable milestone fields (kind + partial date + note) out of a form. */
+function readMilestoneFields(formData: FormData) {
+  return {
+    kind: String(formData.get("kind")) as MilestoneKind,
+    year: readDatePart(formData, "year"),
+    month: readDatePart(formData, "month"),
+    day: readDatePart(formData, "day"),
+    note: readNote(formData, "note"),
+  };
 }
 
 /** Fetch a subject entity (person or pet) by id, or undefined if missing. */
@@ -160,12 +185,13 @@ async function personLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const person = await window.api.people.get(id);
   if (!person) throw new Response("Person not found", { status: 404 });
-  const [tags, relationships, gender] = await Promise.all([
+  const [tags, relationships, gender, milestones] = await Promise.all([
     window.api.tags.listForPerson(id),
     window.api.kinship.neighborsFor("person", id),
     window.api.kinship.genderFor("person", id),
+    window.api.milestones.listForSubject("person", id),
   ]);
-  return { person, tags, relationships, gender };
+  return { person, tags, relationships, gender, milestones };
 }
 
 /** A Pet plus its tags, derived gender, and neighbors (explicit + derived). */
@@ -173,12 +199,13 @@ async function petLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const pet = await window.api.pets.get(id);
   if (!pet) throw new Response("Pet not found", { status: 404 });
-  const [tags, relationships, gender] = await Promise.all([
+  const [tags, relationships, gender, milestones] = await Promise.all([
     window.api.tags.listForPet(id),
     window.api.kinship.neighborsFor("pet", id),
     window.api.kinship.genderFor("pet", id),
+    window.api.milestones.listForSubject("pet", id),
   ]);
-  return { pet, tags, relationships, gender };
+  return { pet, tags, relationships, gender, milestones };
 }
 
 /**
@@ -317,6 +344,86 @@ function relationshipDismissAction(subjectType: EntityType) {
   };
 }
 
+/** Loader for the "add milestone" screen: just resolves the subject entity. */
+function milestoneNewLoader(subjectType: EntityType) {
+  return async ({ params }: LoaderFunctionArgs) => {
+    const id = params.id as string;
+    const subject = await getEntity(subjectType, id);
+    if (!subject) throw new Response("Not found", { status: 404 });
+    return {
+      subject: {
+        type: subjectType,
+        id,
+        label: entityLabel(subjectType, subject),
+      },
+    };
+  };
+}
+
+/** Action for the "add milestone" screen: the subject endpoint comes from the route. */
+function milestoneCreateAction(subjectType: EntityType) {
+  return async ({ request, params }: ActionFunctionArgs) => {
+    const id = params.id as string;
+    const formData = await request.formData();
+    const input: CreateMilestoneInput = createMilestoneInputSchema.parse({
+      subjectType,
+      subjectId: id,
+      ...readMilestoneFields(formData),
+    });
+    await window.api.milestones.create(input);
+    return redirect(`${entityBasePath(subjectType)}/${id}`);
+  };
+}
+
+/**
+ * Loader for the milestone edit/delete screens: resolves the subject and finds
+ * the milestone among the subject's list (there is no get-by-id IPC; the list
+ * is already scoped + soft-delete-aware, mirroring the relationship screens).
+ */
+function milestoneForSubjectLoader(subjectType: EntityType) {
+  return async ({ params }: LoaderFunctionArgs) => {
+    const id = params.id as string;
+    const milestoneId = params.milestoneId as string;
+    const subject = await getEntity(subjectType, id);
+    if (!subject) throw new Response("Not found", { status: 404 });
+    const milestones = await window.api.milestones.listForSubject(
+      subjectType,
+      id,
+    );
+    const milestone = milestones.find((m) => m.id === milestoneId);
+    if (!milestone) throw new Response("Milestone not found", { status: 404 });
+    return {
+      subject: {
+        type: subjectType,
+        id,
+        label: entityLabel(subjectType, subject),
+      },
+      milestone,
+    };
+  };
+}
+
+/** Action for the milestone edit screen: updates the editable fields. */
+function milestoneEditAction(subjectType: EntityType) {
+  return async ({ request, params }: ActionFunctionArgs) => {
+    const id = params.id as string;
+    const formData = await request.formData();
+    const input: UpdateMilestoneInput = updateMilestoneInputSchema.parse(
+      readMilestoneFields(formData),
+    );
+    await window.api.milestones.update(params.milestoneId as string, input);
+    return redirect(`${entityBasePath(subjectType)}/${id}`);
+  };
+}
+
+/** Action for the "remove milestone" screen. */
+function milestoneDeleteAction(subjectType: EntityType) {
+  return async ({ params }: ActionFunctionArgs) => {
+    await window.api.milestones.softDelete(params.milestoneId as string);
+    return redirect(`${entityBasePath(subjectType)}/${params.id}`);
+  };
+}
+
 /**
  * The renderer's route tree. We use the data-router pattern (loaders for reads,
  * actions + `<Form>` for writes) so navigation, data, and mutations are modeled
@@ -400,6 +507,24 @@ export const router = createHashRouter([
         action: relationshipDismissAction("person"),
       },
       {
+        path: "people/:id/milestones/new",
+        loader: milestoneNewLoader("person"),
+        element: <MilestoneCreate />,
+        action: milestoneCreateAction("person"),
+      },
+      {
+        path: "people/:id/milestones/:milestoneId/edit",
+        loader: milestoneForSubjectLoader("person"),
+        element: <MilestoneEdit />,
+        action: milestoneEditAction("person"),
+      },
+      {
+        path: "people/:id/milestones/:milestoneId/delete",
+        loader: milestoneForSubjectLoader("person"),
+        element: <MilestoneDelete />,
+        action: milestoneDeleteAction("person"),
+      },
+      {
         path: "pets/new",
         loader: () => listCandidates(),
         element: <PetCreate />,
@@ -458,6 +583,24 @@ export const router = createHashRouter([
         loader: relationshipDismissLoader("pet"),
         element: <RelationshipDismiss />,
         action: relationshipDismissAction("pet"),
+      },
+      {
+        path: "pets/:id/milestones/new",
+        loader: milestoneNewLoader("pet"),
+        element: <MilestoneCreate />,
+        action: milestoneCreateAction("pet"),
+      },
+      {
+        path: "pets/:id/milestones/:milestoneId/edit",
+        loader: milestoneForSubjectLoader("pet"),
+        element: <MilestoneEdit />,
+        action: milestoneEditAction("pet"),
+      },
+      {
+        path: "pets/:id/milestones/:milestoneId/delete",
+        loader: milestoneForSubjectLoader("pet"),
+        element: <MilestoneDelete />,
+        action: milestoneDeleteAction("pet"),
       },
       {
         path: "tags/:id",

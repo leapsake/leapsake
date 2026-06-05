@@ -1,8 +1,14 @@
-import type { Pet, RelationshipNeighbor, Tag } from "@leapsake/schema";
+import type {
+  Milestone,
+  Pet,
+  RelationshipNeighbor,
+  Tag,
+} from "@leapsake/schema";
 import { Fragment } from "react";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
+import { MilestonesSection } from "../components/MilestonesSection";
 import { RelationshipsSection } from "../components/RelationshipsSection";
 
 /** Render an epoch-ms timestamp in the user's locale. */
@@ -11,11 +17,12 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PetView() {
-  const { pet, tags, relationships, gender } = useLoaderData() as {
+  const { pet, tags, relationships, gender, milestones } = useLoaderData() as {
     pet: Pet;
     tags: Tag[];
     relationships: RelationshipNeighbor[];
     gender: GenderResult;
+    milestones: Milestone[];
   };
 
   return (
@@ -56,6 +63,12 @@ export function PetView() {
         subjectType="pet"
         subjectId={pet.id}
         relationships={relationships}
+      />
+
+      <MilestonesSection
+        subjectType="pet"
+        subjectId={pet.id}
+        milestones={milestones}
       />
     </main>
   );

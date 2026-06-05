@@ -2,6 +2,7 @@ import { join } from "node:path";
 import {
   type DismissalsRepo,
   type KinshipService,
+  type MilestonesRepo,
   type PeopleRepo,
   type PetsRepo,
   type RelationshipsRepo,
@@ -9,6 +10,7 @@ import {
   type TagsRepo,
   createDismissalsRepo,
   createKinshipService,
+  createMilestonesRepo,
   createPeopleRepo,
   createPetsRepo,
   createRelationshipsRepo,
@@ -17,14 +19,17 @@ import {
 } from "@leapsake/data";
 import {
   type EntityType,
+  type MilestoneSubjectType,
   type Person,
   type Pet,
   type RelationshipNeighbor,
   type RelationshipRole,
+  createMilestoneInputSchema,
   createPersonInputSchema,
   createPetInputSchema,
   createRelationshipInputSchema,
   roleDefs,
+  updateMilestoneInputSchema,
   updatePersonInputSchema,
   updatePetInputSchema,
   updateRelationshipInputSchema,
@@ -53,6 +58,7 @@ function registerIpc(
   relationships: RelationshipsRepo,
   dismissals: DismissalsRepo,
   kinship: KinshipService,
+  milestones: MilestonesRepo,
 ): void {
   // Resolve an entity to its display label for relationship rows. The label is
   // composed inline here because the main process can't import renderer helpers.
@@ -97,6 +103,7 @@ function registerIpc(
       await tags.removeAllForEntity("person", id);
       await relationships.removeAllForEntity("person", id);
       await dismissals.removeAllForEntity("person", id);
+      await milestones.removeAllForEntity("person", id);
     }),
   );
 
@@ -126,6 +133,7 @@ function registerIpc(
       await tags.removeAllForEntity("pet", id);
       await relationships.removeAllForEntity("pet", id);
       await dismissals.removeAllForEntity("pet", id);
+      await milestones.removeAllForEntity("pet", id);
     }),
   );
 
@@ -173,6 +181,25 @@ function registerIpc(
       }
       return neighbors;
     },
+  );
+
+  ipcMain.handle(
+    "milestones:listForSubject",
+    (_event, type: MilestoneSubjectType, id: string) =>
+      milestones.listForSubject(type, id),
+  );
+  ipcMain.handle("milestones:create", (_event, input: unknown) =>
+    driver.transaction(() =>
+      milestones.create(createMilestoneInputSchema.parse(input)),
+    ),
+  );
+  ipcMain.handle("milestones:update", (_event, id: string, input: unknown) =>
+    driver.transaction(() =>
+      milestones.update(id, updateMilestoneInputSchema.parse(input)),
+    ),
+  );
+  ipcMain.handle("milestones:softDelete", (_event, id: string) =>
+    driver.transaction(() => milestones.softDelete(id)),
   );
 
   // Kinship inference: compute-on-read derived gender + neighbors, and the
@@ -257,6 +284,7 @@ void app.whenReady().then(async () => {
   const pets = createPetsRepo(driver);
   const relationships = createRelationshipsRepo(driver);
   const dismissals = createDismissalsRepo(driver);
+  const milestones = createMilestonesRepo(driver);
   const kinship = createKinshipService(driver, {
     people,
     pets,
@@ -271,6 +299,7 @@ void app.whenReady().then(async () => {
     relationships,
     dismissals,
     kinship,
+    milestones,
   );
 
   createWindow();
