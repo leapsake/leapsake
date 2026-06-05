@@ -2,8 +2,8 @@ import { z } from "zod";
 
 /**
  * The kinds of subject a milestone can hang off. A *separate* enum from
- * `entityTypeSchema`: a `relationship` can be a milestone subject (an
- * anniversary belongs to the relationship, not to either partner) but is not a
+ * `entityTypeSchema`: a `relationship` can be a milestone subject (a
+ * wedding belongs to the relationship, not to either partner) but is not a
  * relationship-role holder, so we don't widen `entityTypeSchema` to include it.
  * Like taggings/relationships, the subject is a polymorphic `(type, id)` pair,
  * so a new subject type joins without a schema change.
@@ -26,7 +26,7 @@ export type MilestoneSubjectType = z.infer<typeof milestoneSubjectTypeSchema>;
 export const milestoneKindSchema = z.enum([
   "birthday",
   "death",
-  "anniversary",
+  "first-date",
   "wedding",
   "met",
   "graduation",
@@ -43,7 +43,7 @@ export interface MilestoneKindDef {
   /** Optional emoji shown beside the label. */
   icon?: string;
   /**
-   * Which subject types may hold this kind, in preference order. An anniversary
+   * Which subject types may hold this kind, in preference order. A wedding
    * prefers a `relationship` subject but can sit on a `person` until the
    * relationship exists (the unbound/pending case); a birthday is a `person` or
    * `pet`. The first entry is the {@link MilestoneKindDef.preferredSubjectType}.
@@ -75,8 +75,8 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedSubjectTypes: ["person", "pet"],
     recursAnnually: true,
   },
-  anniversary: {
-    label: "Anniversary",
+  "first-date": {
+    label: "First Date",
     icon: "💞",
     allowedSubjectTypes: ["relationship", "person"],
     recursAnnually: true,
@@ -147,8 +147,8 @@ export function kindsForSubjectType(
  * {@link datePrecisionOf}), not stored. The nullable parts stay individually
  * queryable so the future inbox can scan `month`/`day` ignoring `year`.
  *
- * The subject is a polymorphic, *mutable* `(subjectType, subjectId)` pair: an
- * anniversary added before its relationship exists lives on the person and is
+ * The subject is a polymorphic, *mutable* `(subjectType, subjectId)` pair: a
+ * wedding added before its relationship exists lives on the person and is
  * later re-pointed to the relationship via a single-row subject update.
  *
  * Same sync-safe conventions as the other tables (reboot-plan.md §4.2): client

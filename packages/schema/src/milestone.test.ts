@@ -78,11 +78,11 @@ describe("milestoneSchema", () => {
         subjectType: "pet",
       }),
     ).toThrow();
-    // An anniversary may sit on a relationship.
+    // A first date may sit on a relationship.
     expect(
       milestoneSchema.parse({
         ...validMilestone,
-        kind: "anniversary",
+        kind: "first-date",
         subjectType: "relationship",
       }).subjectType,
     ).toBe("relationship");
@@ -142,13 +142,13 @@ describe("kind registry", () => {
     expect(petKinds).not.toContain("graduation");
 
     const relKinds = kindsForSubjectType("relationship").map((k) => k.kind);
-    expect(relKinds).toContain("anniversary");
+    expect(relKinds).toContain("first-date");
     expect(relKinds).not.toContain("birthday");
   });
 
   it("reports the preferred subject type per kind", () => {
     expect(preferredSubjectType("birthday")).toBe("person");
-    expect(preferredSubjectType("anniversary")).toBe("relationship");
+    expect(preferredSubjectType("first-date")).toBe("relationship");
   });
 });
 
