@@ -14,6 +14,7 @@ interface PersonRow {
   first_name: string;
   middle_name: string | null;
   last_name: string;
+  gender: string | null;
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
@@ -26,6 +27,7 @@ function toPerson(row: PersonRow): Person {
     firstName: row.first_name,
     middleName: row.middle_name,
     lastName: row.last_name,
+    gender: row.gender,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -52,6 +54,7 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
         firstName,
         middleName = null,
         lastName,
+        gender = null,
       } = createPersonInputSchema.parse(input);
       const now = Date.now();
       const person: Person = {
@@ -59,19 +62,21 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
         firstName,
         middleName,
         lastName,
+        gender,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
       };
       await driver.run(
         `INSERT INTO people
-           (id, first_name, middle_name, last_name, created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (id, first_name, middle_name, last_name, gender, created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           person.id,
           person.firstName,
           person.middleName,
           person.lastName,
+          person.gender,
           person.createdAt,
           person.updatedAt,
           person.deletedAt,
@@ -109,12 +114,13 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
       };
       await driver.run(
         `UPDATE people
-         SET first_name = ?, middle_name = ?, last_name = ?, updated_at = ?
+         SET first_name = ?, middle_name = ?, last_name = ?, gender = ?, updated_at = ?
          WHERE id = ? AND deleted_at IS NULL`,
         [
           updated.firstName,
           updated.middleName,
           updated.lastName,
+          updated.gender,
           updated.updatedAt,
           id,
         ],

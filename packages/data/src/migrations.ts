@@ -119,6 +119,42 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 6,
+    async up(driver) {
+      // Optional explicit gender on both relationship-graph entities. Nullable
+      // (null = unset); values are constrained to male|female|nonbinary by the
+      // Zod schema, not the DB, to stay portable. An unset gender may still be
+      // *derived* at read time from explicitly-gendered roles (kinship-service).
+      await driver.exec(`ALTER TABLE people ADD COLUMN gender TEXT;`);
+      await driver.exec(`ALTER TABLE pets ADD COLUMN gender TEXT;`);
+    },
+  },
+  {
+    version: 7,
+    async up(driver) {
+      // Suppression table for *derived* relationships the user has rejected. A
+      // dismissal keeps a computed-on-read edge gone without writing a competing
+      // explicit fact. `role` is the dismissed base role; NULL dismisses any
+      // derived edge to that pair. Soft-delete + partial index follow the same
+      // conventions as the other tables (reboot-plan.md §4.2).
+      await driver.exec(`
+        CREATE TABLE relationship_dismissals (
+          id           TEXT    PRIMARY KEY,
+          subject_type TEXT    NOT NULL,
+          subject_id   TEXT    NOT NULL,
+          other_type   TEXT    NOT NULL,
+          other_id     TEXT    NOT NULL,
+          role         TEXT,
+          created_at   INTEGER NOT NULL,
+          updated_at   INTEGER NOT NULL,
+          deleted_at   INTEGER
+        );
+        CREATE INDEX ix_dismissals_subject
+          ON relationship_dismissals(subject_type, subject_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**

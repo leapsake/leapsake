@@ -2,7 +2,9 @@ import {
   type CreatePersonInput,
   type CreatePetInput,
   type EntityType,
+  type Gender,
   type RelationshipRole,
+  baseRole,
   createRelationshipInputSchema,
   inverseRole,
   parseTagNames,
@@ -29,8 +31,15 @@ import { PetEdit } from "./screens/PetEdit";
 import { PetView } from "./screens/PetView";
 import { RelationshipCreate } from "./screens/RelationshipCreate";
 import { RelationshipDelete } from "./screens/RelationshipDelete";
+import { RelationshipDismiss } from "./screens/RelationshipDismiss";
 import { TagDelete } from "./screens/TagDelete";
 import { TagView } from "./screens/TagView";
+
+/** Parse the Gender select: the empty option means "unset" (null). */
+function readGender(formData: FormData): Gender | null {
+  const value = String(formData.get("gender") ?? "");
+  return value === "" ? null : (value as Gender);
+}
 
 /** Pull the editable Person fields out of a submitted form. */
 function readPersonInput(formData: FormData): CreatePersonInput {
@@ -39,12 +48,13 @@ function readPersonInput(formData: FormData): CreatePersonInput {
     firstName: String(formData.get("firstName")),
     middleName: middleName.length > 0 ? middleName : null,
     lastName: String(formData.get("lastName")),
+    gender: readGender(formData),
   };
 }
 
 /** Pull the editable Pet fields out of a submitted form. */
 function readPetInput(formData: FormData): CreatePetInput {
-  return { name: String(formData.get("name")) };
+  return { name: String(formData.get("name")), gender: readGender(formData) };
 }
 
 /** Pull the desired tag names out of the comma-separated form field. */
@@ -145,27 +155,30 @@ async function entityListLoader(): Promise<EntityRow[]> {
   return rows.toSorted((a, b) => a.label.localeCompare(b.label));
 }
 
-/** A Person plus its tags and relationships, for the view/edit/delete screens. */
+/** A Person plus its tags, derived gender, and neighbors (explicit + derived). */
 async function personLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const person = await window.api.people.get(id);
   if (!person) throw new Response("Person not found", { status: 404 });
-  const tags = await window.api.tags.listForPerson(id);
-  const relationships = await window.api.relationships.listForEntity(
-    "person",
-    id,
-  );
-  return { person, tags, relationships };
+  const [tags, relationships, gender] = await Promise.all([
+    window.api.tags.listForPerson(id),
+    window.api.kinship.neighborsFor("person", id),
+    window.api.kinship.genderFor("person", id),
+  ]);
+  return { person, tags, relationships, gender };
 }
 
-/** A Pet plus its tags and relationships, for the view/edit/delete screens. */
+/** A Pet plus its tags, derived gender, and neighbors (explicit + derived). */
 async function petLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const pet = await window.api.pets.get(id);
   if (!pet) throw new Response("Pet not found", { status: 404 });
-  const tags = await window.api.tags.listForPet(id);
-  const relationships = await window.api.relationships.listForEntity("pet", id);
-  return { pet, tags, relationships };
+  const [tags, relationships, gender] = await Promise.all([
+    window.api.tags.listForPet(id),
+    window.api.kinship.neighborsFor("pet", id),
+    window.api.kinship.genderFor("pet", id),
+  ]);
+  return { pet, tags, relationships, gender };
 }
 
 /**
@@ -247,6 +260,64 @@ function relationshipDeleteAction(subjectType: EntityType) {
 }
 
 /**
+ * Loader for the "dismiss derived relationship" screen. A derived edge has no
+ * stored row, so its identity travels in the query string (other endpoint + base
+ * role); we recompute the subject's neighbors and find the matching derived one
+ * to show its details on the confirm page.
+ */
+function relationshipDismissLoader(subjectType: EntityType) {
+  return async ({ params, request }: LoaderFunctionArgs) => {
+    const id = params.id as string;
+    const subject = await getEntity(subjectType, id);
+    if (!subject) throw new Response("Not found", { status: 404 });
+
+    const url = new URL(request.url);
+    const otherType = url.searchParams.get("otherType") as EntityType | null;
+    const otherId = url.searchParams.get("otherId");
+    const role = url.searchParams.get("role") as RelationshipRole | null;
+    if (!otherType || !otherId || !role)
+      throw new Response("Bad dismiss request", { status: 400 });
+
+    const neighbors = await window.api.kinship.neighborsFor(subjectType, id);
+    const neighbor = neighbors.find(
+      (n) =>
+        n.origin === "derived" &&
+        n.otherType === otherType &&
+        n.otherId === otherId &&
+        baseRole(n.otherRole) === role,
+    );
+    if (!neighbor)
+      throw new Response("Derived relationship not found", { status: 404 });
+
+    return {
+      subject: {
+        type: subjectType,
+        id,
+        label: entityLabel(subjectType, subject),
+      },
+      neighbor,
+      role,
+    };
+  };
+}
+
+/** Action for the "dismiss derived relationship" screen. */
+function relationshipDismissAction(subjectType: EntityType) {
+  return async ({ request, params }: ActionFunctionArgs) => {
+    const id = params.id as string;
+    const formData = await request.formData();
+    await window.api.kinship.dismiss(
+      subjectType,
+      id,
+      String(formData.get("otherType")) as EntityType,
+      String(formData.get("otherId")),
+      String(formData.get("role")) as RelationshipRole,
+    );
+    return redirect(`${entityBasePath(subjectType)}/${id}`);
+  };
+}
+
+/**
  * The renderer's route tree. We use the data-router pattern (loaders for reads,
  * actions + `<Form>` for writes) so navigation, data, and mutations are modeled
  * the same way the eventual server-rendered web app will model them in
@@ -323,6 +394,12 @@ export const router = createHashRouter([
         action: relationshipDeleteAction("person"),
       },
       {
+        path: "people/:id/relationships/dismiss",
+        loader: relationshipDismissLoader("person"),
+        element: <RelationshipDismiss />,
+        action: relationshipDismissAction("person"),
+      },
+      {
         path: "pets/new",
         loader: () => listCandidates(),
         element: <PetCreate />,
@@ -375,6 +452,12 @@ export const router = createHashRouter([
         loader: relationshipDeleteLoader("pet"),
         element: <RelationshipDelete />,
         action: relationshipDeleteAction("pet"),
+      },
+      {
+        path: "pets/:id/relationships/dismiss",
+        loader: relationshipDismissLoader("pet"),
+        element: <RelationshipDismiss />,
+        action: relationshipDismissAction("pet"),
       },
       {
         path: "tags/:id",

@@ -1,4 +1,8 @@
-import type { EntityType, RelationshipNeighbor } from "@leapsake/schema";
+import {
+  type EntityType,
+  type RelationshipNeighbor,
+  baseRole,
+} from "@leapsake/schema";
 import { Link } from "react-router-dom";
 import { entityBasePath } from "../lib/entityLabel";
 
@@ -7,11 +11,21 @@ function neighborPath(neighbor: RelationshipNeighbor): string {
   return `${entityBasePath(neighbor.otherType)}/${neighbor.otherId}`;
 }
 
+/** A stable key for a neighbor row: the stored id, or the derived edge identity. */
+function neighborKey(neighbor: RelationshipNeighbor): string {
+  return neighbor.origin === "explicit"
+    ? neighbor.relationshipId
+    : `derived:${neighbor.otherType}:${neighbor.otherId}:${baseRole(neighbor.otherRole)}`;
+}
+
 /**
  * The Relationships section shared by the Person and Pet view screens. It lists
- * the subject's neighbors (already oriented + labelled by the IPC layer) and
- * links to add/remove, all rooted at the subject's own base path so the same
- * markup serves both entity types.
+ * the subject's neighbors — both stored edges and the ones the inference engine
+ * computes — already oriented + labelled by the IPC layer, and presented
+ * uniformly: the explicit/derived distinction is a backend detail and never
+ * surfaces in the UI. Every row offers "Remove"; under the hood an explicit edge
+ * is soft-deleted by id, while a derived edge is suppressed by its identity
+ * (other endpoint + base role, carried in the query string since it has no id).
  */
 export function RelationshipsSection({
   subjectType,
@@ -23,6 +37,15 @@ export function RelationshipsSection({
   relationships: RelationshipNeighbor[];
 }) {
   const basePath = `${entityBasePath(subjectType)}/${subjectId}`;
+
+  function dismissPath(neighbor: RelationshipNeighbor): string {
+    const params = new URLSearchParams({
+      otherType: neighbor.otherType,
+      otherId: neighbor.otherId,
+      role: baseRole(neighbor.otherRole),
+    });
+    return `${basePath}/relationships/dismiss?${params.toString()}`;
+  }
 
   return (
     <section>
@@ -43,7 +66,7 @@ export function RelationshipsSection({
           </thead>
           <tbody>
             {relationships.map((neighbor) => (
-              <tr key={neighbor.relationshipId}>
+              <tr key={neighborKey(neighbor)}>
                 <td>
                   <Link to={neighborPath(neighbor)}>{neighbor.otherLabel}</Link>
                 </td>
@@ -53,11 +76,15 @@ export function RelationshipsSection({
                     : neighbor.otherRoleLabel}
                 </td>
                 <td>
-                  <Link
-                    to={`${basePath}/relationships/${neighbor.relationshipId}/delete`}
-                  >
-                    Remove
-                  </Link>
+                  {neighbor.origin === "explicit" ? (
+                    <Link
+                      to={`${basePath}/relationships/${neighbor.relationshipId}/delete`}
+                    >
+                      Remove
+                    </Link>
+                  ) : (
+                    <Link to={dismissPath(neighbor)}>Remove</Link>
+                  )}
                 </td>
               </tr>
             ))}

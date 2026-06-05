@@ -12,6 +12,8 @@ export {
 export type { Pet, CreatePetInput, UpdatePetInput } from "./pet.js";
 export { tagSchema, normalizeTagName, parseTagNames } from "./tag.js";
 export type { Tag } from "./tag.js";
+export { genderSchema, genderLabel } from "./gender.js";
+export type { Gender } from "./gender.js";
 export {
   entityTypeSchema,
   relationshipRoleSchema,
@@ -20,6 +22,11 @@ export {
   updateRelationshipInputSchema,
   roleDefs,
   getRoleDef,
+  baseRole,
+  impliedGender,
+  genderedVariant,
+  labelForRole,
+  composeRoles,
   inverseRole,
   holderAllows,
   rolesForHolder,

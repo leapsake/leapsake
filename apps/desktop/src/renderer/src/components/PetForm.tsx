@@ -1,6 +1,7 @@
 import type { Pet } from "@leapsake/schema";
 import type { ReactNode } from "react";
 import { Form, Link, useNavigation } from "react-router-dom";
+import { GenderField } from "./GenderField";
 import { RelationshipFields } from "./RelationshipFields";
 import type { RelationshipCandidate } from "./RelationshipForm";
 
@@ -45,6 +46,7 @@ export function PetForm({
         <label>
           Name <input name="name" defaultValue={pet?.name} required />
         </label>{" "}
+        <GenderField value={pet?.gender} />{" "}
         <label>
           Tags{" "}
           <input

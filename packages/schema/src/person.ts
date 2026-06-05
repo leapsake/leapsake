@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { genderSchema } from "./gender.js";
 
 /**
  * A Person — the core entity. The full database row shape.
@@ -13,6 +14,7 @@ export const personSchema = z.object({
   firstName: z.string().min(1),
   middleName: z.string().min(1).nullable(), // optional; null when absent
   lastName: z.string().min(1),
+  gender: genderSchema.nullable(), // explicit gender; null when unset
   createdAt: z.number().int(), // epoch ms, UTC
   updatedAt: z.number().int(), // epoch ms, UTC
   deletedAt: z.number().int().nullable(),
@@ -25,6 +27,7 @@ export const createPersonInputSchema = z.object({
   firstName: z.string().min(1),
   middleName: z.string().min(1).nullable().optional(),
   lastName: z.string().min(1),
+  gender: genderSchema.nullable().optional(),
 });
 
 export type CreatePersonInput = z.infer<typeof createPersonInputSchema>;

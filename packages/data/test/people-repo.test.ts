@@ -25,7 +25,7 @@ describe("runMigrations", () => {
     const version = await driver.get<{ user_version: number }>(
       "PRAGMA user_version",
     );
-    expect(version?.user_version).toBe(5);
+    expect(version?.user_version).toBe(7);
   });
 
   it("is idempotent on a second run", async () => {
@@ -33,7 +33,7 @@ describe("runMigrations", () => {
     const version = await driver.get<{ user_version: number }>(
       "PRAGMA user_version",
     );
-    expect(version?.user_version).toBe(5);
+    expect(version?.user_version).toBe(7);
   });
 });
 
@@ -74,6 +74,25 @@ describe("peopleRepo", () => {
     });
     const fetched = await repo.get(created.id);
     expect(fetched).toEqual(created);
+  });
+
+  it("defaults gender to null and persists a provided one", async () => {
+    const ungendered = await repo.create({
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+    expect(ungendered.gender).toBeNull();
+
+    const gendered = await repo.create({
+      firstName: "Grace",
+      lastName: "Hopper",
+      gender: "female",
+    });
+    expect(gendered.gender).toBe("female");
+    expect((await repo.get(gendered.id))?.gender).toBe("female");
+
+    const updated = await repo.update(gendered.id, { gender: null });
+    expect(updated?.gender).toBeNull();
   });
 
   it("lists people excluding soft-deleted ones, ordered by name", async () => {

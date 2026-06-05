@@ -36,6 +36,15 @@ describe("petsRepo", () => {
     expect(fetched).toEqual(created);
   });
 
+  it("defaults gender to null and persists a provided one", async () => {
+    const ungendered = await repo.create({ name: "Rex" });
+    expect(ungendered.gender).toBeNull();
+
+    const gendered = await repo.create({ name: "Bella", gender: "female" });
+    expect(gendered.gender).toBe("female");
+    expect((await repo.get(gendered.id))?.gender).toBe("female");
+  });
+
   it("lists pets excluding soft-deleted ones, ordered by name", async () => {
     await repo.create({ name: "Apollo" });
     const zeus = await repo.create({ name: "Zeus" });

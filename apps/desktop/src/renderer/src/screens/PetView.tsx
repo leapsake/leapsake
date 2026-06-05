@@ -2,6 +2,7 @@ import type { Pet, RelationshipNeighbor, Tag } from "@leapsake/schema";
 import { Fragment } from "react";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
+import { GenderValue, type GenderResult } from "../components/GenderValue";
 import { RelationshipsSection } from "../components/RelationshipsSection";
 
 /** Render an epoch-ms timestamp in the user's locale. */
@@ -10,10 +11,11 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PetView() {
-  const { pet, tags, relationships } = useLoaderData() as {
+  const { pet, tags, relationships, gender } = useLoaderData() as {
     pet: Pet;
     tags: Tag[];
     relationships: RelationshipNeighbor[];
+    gender: GenderResult;
   };
 
   return (
@@ -29,6 +31,10 @@ export function PetView() {
       <dl>
         <dt>Name</dt>
         <dd>{pet.name}</dd>
+        <dt>Gender</dt>
+        <dd>
+          <GenderValue gender={gender} />
+        </dd>
         <dt>Tags</dt>
         <dd>
           {tags.length === 0
