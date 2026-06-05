@@ -1,0 +1,208 @@
+import { describe, expect, it } from "vitest";
+import {
+  createMilestoneInputSchema,
+  datePrecisionOf,
+  formatMilestoneDate,
+  kindsForSubjectType,
+  milestoneLabel,
+  milestoneSchema,
+  preferredSubjectType,
+} from "./milestone.js";
+
+const validMilestone = {
+  id: crypto.randomUUID(),
+  kind: "birthday" as const,
+  subjectType: "person" as const,
+  subjectId: crypto.randomUUID(),
+  year: 1992,
+  month: 3,
+  day: 9,
+  note: null,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  deletedAt: null,
+};
+
+describe("milestoneSchema", () => {
+  it("accepts a valid full-date milestone", () => {
+    expect(milestoneSchema.parse(validMilestone)).toEqual(validMilestone);
+  });
+
+  it("accepts partial dates: year only, month+day, and nothing", () => {
+    expect(
+      milestoneSchema.parse({ ...validMilestone, month: null, day: null }).year,
+    ).toBe(1992);
+    expect(milestoneSchema.parse({ ...validMilestone, year: null }).day).toBe(
+      9,
+    );
+    expect(
+      milestoneSchema.parse({
+        ...validMilestone,
+        year: null,
+        month: null,
+        day: null,
+      }).month,
+    ).toBeNull();
+  });
+
+  it("rejects a day without a month (day ⇒ month)", () => {
+    expect(() =>
+      milestoneSchema.parse({ ...validMilestone, month: null }),
+    ).toThrow();
+    // year + day but no month is the same violation.
+    expect(() =>
+      milestoneSchema.parse({ ...validMilestone, month: null, year: 1992 }),
+    ).toThrow();
+  });
+
+  it("rejects an out-of-range month or day", () => {
+    expect(() =>
+      milestoneSchema.parse({ ...validMilestone, month: 13 }),
+    ).toThrow();
+    expect(() =>
+      milestoneSchema.parse({ ...validMilestone, day: 0 }),
+    ).toThrow();
+  });
+
+  it("enforces allowed subject types per kind", () => {
+    // A pet can have a birthday…
+    expect(
+      milestoneSchema.parse({ ...validMilestone, subjectType: "pet" })
+        .subjectType,
+    ).toBe("pet");
+    // …but graduation is a person-only kind.
+    expect(() =>
+      milestoneSchema.parse({
+        ...validMilestone,
+        kind: "graduation",
+        subjectType: "pet",
+      }),
+    ).toThrow();
+    // An anniversary may sit on a relationship.
+    expect(
+      milestoneSchema.parse({
+        ...validMilestone,
+        kind: "anniversary",
+        subjectType: "relationship",
+      }).subjectType,
+    ).toBe("relationship");
+  });
+
+  it("rejects an unknown kind and a non-uuid id", () => {
+    expect(() =>
+      milestoneSchema.parse({ ...validMilestone, kind: "promotion" }),
+    ).toThrow();
+    expect(() =>
+      milestoneSchema.parse({ ...validMilestone, id: "not-a-uuid" }),
+    ).toThrow();
+  });
+});
+
+describe("createMilestoneInputSchema", () => {
+  it("accepts a subject + kind with no date parts", () => {
+    const input = {
+      kind: "birthday" as const,
+      subjectType: "person" as const,
+      subjectId: crypto.randomUUID(),
+    };
+    expect(createMilestoneInputSchema.parse(input)).toEqual(input);
+  });
+
+  it("rejects a day without a month", () => {
+    expect(() =>
+      createMilestoneInputSchema.parse({
+        kind: "birthday",
+        subjectType: "person",
+        subjectId: crypto.randomUUID(),
+        day: 9,
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a kind its subject type can't hold", () => {
+    expect(() =>
+      createMilestoneInputSchema.parse({
+        kind: "graduation",
+        subjectType: "pet",
+        subjectId: crypto.randomUUID(),
+      }),
+    ).toThrow();
+  });
+});
+
+describe("kind registry", () => {
+  it("lists the kinds a subject type may hold, in registry order", () => {
+    const personKinds = kindsForSubjectType("person").map((k) => k.kind);
+    expect(personKinds).toContain("birthday");
+    expect(personKinds).toContain("graduation");
+    expect(personKinds[0]).toBe("birthday");
+
+    const petKinds = kindsForSubjectType("pet").map((k) => k.kind);
+    expect(petKinds).toContain("birthday");
+    expect(petKinds).not.toContain("graduation");
+
+    const relKinds = kindsForSubjectType("relationship").map((k) => k.kind);
+    expect(relKinds).toContain("anniversary");
+    expect(relKinds).not.toContain("birthday");
+  });
+
+  it("reports the preferred subject type per kind", () => {
+    expect(preferredSubjectType("birthday")).toBe("person");
+    expect(preferredSubjectType("anniversary")).toBe("relationship");
+  });
+});
+
+describe("datePrecisionOf", () => {
+  it("derives precision from the present parts", () => {
+    expect(datePrecisionOf({ year: 1992, month: 3, day: 9 })).toBe("full");
+    expect(datePrecisionOf({ year: 1992, month: null, day: null })).toBe(
+      "year",
+    );
+    expect(datePrecisionOf({ year: 1992, month: 3, day: null })).toBe(
+      "year-month",
+    );
+    expect(datePrecisionOf({ year: null, month: 3, day: 9 })).toBe("recurring");
+    expect(datePrecisionOf({ year: null, month: 3, day: null })).toBe(
+      "year-month",
+    );
+    expect(datePrecisionOf({ year: null, month: null, day: null })).toBe(
+      "none",
+    );
+  });
+});
+
+describe("formatMilestoneDate", () => {
+  it("renders each precision with the right parts", () => {
+    expect(formatMilestoneDate({ year: 1992, month: 3, day: 9 })).toBe(
+      "March 9, 1992",
+    );
+    expect(formatMilestoneDate({ year: 1992, month: 3, day: null })).toBe(
+      "March 1992",
+    );
+    expect(formatMilestoneDate({ year: 1992, month: null, day: null })).toBe(
+      "1992",
+    );
+    expect(formatMilestoneDate({ year: null, month: 3, day: 9 })).toBe(
+      "March 9",
+    );
+    expect(formatMilestoneDate({ year: null, month: 3, day: null })).toBe(
+      "March",
+    );
+    expect(formatMilestoneDate({ year: null, month: null, day: null })).toBe(
+      "",
+    );
+  });
+});
+
+describe("milestoneLabel", () => {
+  it("uses the kind label for known kinds", () => {
+    expect(milestoneLabel({ kind: "birthday", note: null })).toBe("Birthday");
+  });
+
+  it("uses the note for the 'other' kind, falling back to 'Other'", () => {
+    expect(milestoneLabel({ kind: "other", note: "Adoption day" })).toBe(
+      "Adoption day",
+    );
+    expect(milestoneLabel({ kind: "other", note: null })).toBe("Other");
+  });
+});

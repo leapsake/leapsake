@@ -1,8 +1,14 @@
-import type { Person, RelationshipNeighbor, Tag } from "@leapsake/schema";
+import type {
+  Milestone,
+  Person,
+  RelationshipNeighbor,
+  Tag,
+} from "@leapsake/schema";
 import { Fragment } from "react";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
+import { MilestonesSection } from "../components/MilestonesSection";
 import { RelationshipsSection } from "../components/RelationshipsSection";
 import { fullName } from "../lib/fullName";
 
@@ -12,12 +18,14 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PersonView() {
-  const { person, tags, relationships, gender } = useLoaderData() as {
-    person: Person;
-    tags: Tag[];
-    relationships: RelationshipNeighbor[];
-    gender: GenderResult;
-  };
+  const { person, tags, relationships, gender, milestones } =
+    useLoaderData() as {
+      person: Person;
+      tags: Tag[];
+      relationships: RelationshipNeighbor[];
+      gender: GenderResult;
+      milestones: Milestone[];
+    };
 
   return (
     <main>
@@ -61,6 +69,12 @@ export function PersonView() {
         subjectType="person"
         subjectId={person.id}
         relationships={relationships}
+      />
+
+      <MilestonesSection
+        subjectType="person"
+        subjectId={person.id}
+        milestones={milestones}
       />
     </main>
   );

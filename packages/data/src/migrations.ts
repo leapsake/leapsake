@@ -155,6 +155,43 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 8,
+    async up(driver) {
+      // Milestones: the dated facts of a subject's life (birthdays today; the
+      // big dates generally). One generic table rather than a `people.birthday`
+      // column so "all the dates in someone's life" and the future reminders
+      // inbox never special-case it. The subject is a polymorphic, mutable
+      // `(type, id)` pair like taggings/relationships, so relationship-subject
+      // anniversaries (and later places/orgs) join without a schema change.
+      //
+      // The date is partial: year/month/day are individually nullable, with the
+      // only rule — day ⇒ month — enforced in Zod (schema/milestone.ts), not the
+      // DB, to stay portable. Precision is derived from which parts are present,
+      // never stored. The nullable parts stay individually queryable so the
+      // ix_milestones_recurring index can serve the future month/day inbox scan.
+      await driver.exec(`
+        CREATE TABLE milestones (
+          id           TEXT    PRIMARY KEY,
+          kind         TEXT    NOT NULL,
+          subject_type TEXT    NOT NULL,
+          subject_id   TEXT    NOT NULL,
+          year         INTEGER,
+          month        INTEGER,
+          day          INTEGER,
+          note         TEXT,
+          created_at   INTEGER NOT NULL,
+          updated_at   INTEGER NOT NULL,
+          deleted_at   INTEGER
+        );
+        CREATE INDEX ix_milestones_subject
+          ON milestones(subject_type, subject_id) WHERE deleted_at IS NULL;
+        -- Reserves the recurrence/inbox scan; cheap to add now.
+        CREATE INDEX ix_milestones_recurring
+          ON milestones(month, day) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**

@@ -41,3 +41,26 @@ export type {
   UpdateRelationshipInput,
   RelationshipNeighbor,
 } from "./relationship.js";
+export {
+  milestoneSubjectTypeSchema,
+  milestoneKindSchema,
+  milestoneSchema,
+  createMilestoneInputSchema,
+  updateMilestoneInputSchema,
+  kindDefs,
+  preferredSubjectType,
+  kindAllowsSubject,
+  kindsForSubjectType,
+  datePrecisionOf,
+  formatMilestoneDate,
+  milestoneLabel,
+} from "./milestone.js";
+export type {
+  MilestoneSubjectType,
+  MilestoneKind,
+  MilestoneKindDef,
+  Milestone,
+  CreateMilestoneInput,
+  UpdateMilestoneInput,
+  DatePrecision,
+} from "./milestone.js";
