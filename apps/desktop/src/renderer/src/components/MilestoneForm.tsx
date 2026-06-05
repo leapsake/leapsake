@@ -2,11 +2,15 @@ import {
   type Milestone,
   type MilestoneKind,
   type MilestoneSubjectType,
+  type RelationshipNeighbor,
   kindDefs,
   kindsForSubjectType,
+  preferredSubjectType,
 } from "@leapsake/schema";
 import { useMemo, useState } from "react";
 import { Form, Link, useNavigation } from "react-router-dom";
+import type { RelationshipCandidate } from "./RelationshipForm";
+import { WithWhomFields } from "./WithWhomFields";
 
 /** Month options for the picker: value 1–12 with the locale's long names. */
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({
@@ -30,14 +34,22 @@ const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
  * `other`, the day-needs-month guard) can react live; their `name`s carry the
  * machine values the route action consumes. When `milestone` is provided the
  * form is in edit mode and pre-fills from it.
+ *
+ * Adding a relationship kind (Met / First Date / Wedding) from a **Person**
+ * reveals a {@link WithWhomFields} step: `candidates`/`neighbors` (loaded only
+ * for a Person create) drive binding/inference of the other party.
  */
 export function MilestoneForm({
   subjectType,
   milestone,
+  candidates = [],
+  neighbors = [],
   cancelTo,
 }: {
   subjectType: MilestoneSubjectType;
   milestone?: Milestone;
+  candidates?: RelationshipCandidate[];
+  neighbors?: RelationshipNeighbor[];
   cancelTo: string;
 }) {
   const navigation = useNavigation();
@@ -52,11 +64,19 @@ export function MilestoneForm({
   const [day, setDay] = useState(milestone?.day?.toString() ?? "");
   const [year, setYear] = useState(milestone?.year?.toString() ?? "");
   const [note, setNote] = useState(milestone?.note ?? "");
+  const [withWhomReady, setWithWhomReady] = useState(false);
+
+  const editing = milestone !== undefined;
+  // A relationship kind added from a Person needs the "with whom?" step; for
+  // every other case the subject is fixed and the picker stays hidden.
+  const needsWithWhom =
+    !editing &&
+    subjectType === "person" &&
+    preferredSubjectType(kind) === "relationship";
 
   // Mirror the schema rule: a day is only meaningful alongside a month.
   const dayWithoutMonth = day !== "" && month === "";
-  const ready = !dayWithoutMonth;
-  const editing = milestone !== undefined;
+  const ready = !dayWithoutMonth && (!needsWithWhom || withWhomReady);
 
   return (
     <Form method="post">
@@ -83,6 +103,15 @@ export function MilestoneForm({
             ))}
           </select>
         </label>{" "}
+        {needsWithWhom && (
+          <WithWhomFields
+            kind={kind}
+            candidates={candidates}
+            neighbors={neighbors}
+            allowUnbound={kind === "wedding"}
+            onReadyChange={setWithWhomReady}
+          />
+        )}{" "}
         <label>
           Month{" "}
           <select

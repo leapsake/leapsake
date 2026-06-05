@@ -1,4 +1,9 @@
-import type { EntityType, Person, Pet } from "@leapsake/schema";
+import type {
+  EntityType,
+  MilestoneSubjectType,
+  Person,
+  Pet,
+} from "@leapsake/schema";
 import { fullName } from "./fullName";
 
 /**
@@ -10,7 +15,13 @@ export function entityLabel(type: EntityType, entity: Person | Pet): string {
   return type === "person" ? fullName(entity as Person) : (entity as Pet).name;
 }
 
-/** Base route path for an entity type's view/edit/delete pages. */
-export function entityBasePath(type: EntityType): string {
-  return type === "pet" ? "/pets" : "/people";
+/**
+ * Base route path for a milestone subject's view/edit/delete pages. Accepts the
+ * wider {@link MilestoneSubjectType} so the milestone routes can target a
+ * relationship's detail page too; existing person/pet callers are unaffected.
+ */
+export function entityBasePath(type: MilestoneSubjectType): string {
+  if (type === "pet") return "/pets";
+  if (type === "relationship") return "/relationships";
+  return "/people";
 }

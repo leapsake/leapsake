@@ -15,6 +15,7 @@ import {
   createPetsRepo,
   createRelationshipsRepo,
   createTagsRepo,
+  listTimelineForEntity,
   runMigrations,
 } from "@leapsake/data";
 import {
@@ -187,6 +188,15 @@ function registerIpc(
     "milestones:listForSubject",
     (_event, type: MilestoneSubjectType, id: string) =>
       milestones.listForSubject(type, id),
+  );
+  // The merged timeline for a Person/Pet: own milestones plus the milestones of
+  // each explicit relationship it's in, resolved read-only via a 1-hop join. The
+  // composition lives in @leapsake/data; we pass our label resolver so it can
+  // annotate each relationship entry with the other partner's name.
+  ipcMain.handle(
+    "milestones:timelineFor",
+    (_event, type: EntityType, id: string) =>
+      listTimelineForEntity(milestones, relationships, resolveLabel, type, id),
   );
   ipcMain.handle("milestones:create", (_event, input: unknown) =>
     driver.transaction(() =>

@@ -5,6 +5,8 @@ import {
   type EntityType,
   type Gender,
   type MilestoneKind,
+  type MilestoneSubjectType,
+  type Relationship,
   type RelationshipRole,
   type UpdateMilestoneInput,
   baseRole,
@@ -12,6 +14,8 @@ import {
   createRelationshipInputSchema,
   inverseRole,
   parseTagNames,
+  preferredSubjectType,
+  roleDefs,
   updateMilestoneInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
@@ -33,6 +37,7 @@ import { PersonEdit } from "./screens/PersonEdit";
 import { MilestoneCreate } from "./screens/MilestoneCreate";
 import { MilestoneDelete } from "./screens/MilestoneDelete";
 import { MilestoneEdit } from "./screens/MilestoneEdit";
+import { MilestoneRebind } from "./screens/MilestoneRebind";
 import { PersonView } from "./screens/PersonView";
 import { PetCreate } from "./screens/PetCreate";
 import { PetDelete } from "./screens/PetDelete";
@@ -42,6 +47,7 @@ import { RelationshipCreate } from "./screens/RelationshipCreate";
 import { RelationshipDelete } from "./screens/RelationshipDelete";
 import { RelationshipDismiss } from "./screens/RelationshipDismiss";
 import { RelationshipEdit } from "./screens/RelationshipEdit";
+import { RelationshipView } from "./screens/RelationshipView";
 import { TagDelete } from "./screens/TagDelete";
 import { TagView } from "./screens/TagView";
 
@@ -102,6 +108,52 @@ function getEntity(type: EntityType, id: string) {
   return type === "person"
     ? window.api.people.get(id)
     : window.api.pets.get(id);
+}
+
+/** A milestone subject (person, pet, or relationship) resolved for display. */
+interface MilestoneSubject {
+  type: MilestoneSubjectType;
+  id: string;
+  label: string;
+}
+
+/** Resolve a person/pet to its display label, or a placeholder when it's gone. */
+async function resolveEntityLabel(
+  type: EntityType,
+  id: string,
+): Promise<string> {
+  const entity = await getEntity(type, id);
+  return entity ? entityLabel(type, entity) : "(unknown)";
+}
+
+/** A relationship's two-sided label from its endpoints, e.g. "Jane Doe & John Doe". */
+async function relationshipLabel(rel: Relationship): Promise<string> {
+  const [a, b] = await Promise.all([
+    resolveEntityLabel(rel.aType, rel.aId),
+    resolveEntityLabel(rel.bType, rel.bId),
+  ]);
+  return `${a} & ${b}`;
+}
+
+/**
+ * Resolve a milestone subject (person, pet, or relationship) to a `{type, id,
+ * label}` for the milestone screens' breadcrumbs/headers, or undefined when it
+ * is missing. A relationship is labelled from its two endpoints.
+ */
+async function getMilestoneSubject(
+  subjectType: MilestoneSubjectType,
+  id: string,
+): Promise<MilestoneSubject | undefined> {
+  if (subjectType === "relationship") {
+    const rel = await window.api.relationships.get(id);
+    return rel
+      ? { type: subjectType, id, label: await relationshipLabel(rel) }
+      : undefined;
+  }
+  const entity = await getEntity(subjectType, id);
+  return entity
+    ? { type: subjectType, id, label: entityLabel(subjectType, entity) }
+    : undefined;
 }
 
 /**
@@ -187,13 +239,13 @@ async function personLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const person = await window.api.people.get(id);
   if (!person) throw new Response("Person not found", { status: 404 });
-  const [tags, relationships, gender, milestones] = await Promise.all([
+  const [tags, relationships, gender, timeline] = await Promise.all([
     window.api.tags.listForPerson(id),
     window.api.kinship.neighborsFor("person", id),
     window.api.kinship.genderFor("person", id),
-    window.api.milestones.listForSubject("person", id),
+    window.api.milestones.timelineFor("person", id),
   ]);
-  return { person, tags, relationships, gender, milestones };
+  return { person, tags, relationships, gender, timeline };
 }
 
 /** A Pet plus its tags, derived gender, and neighbors (explicit + derived). */
@@ -201,13 +253,13 @@ async function petLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const pet = await window.api.pets.get(id);
   if (!pet) throw new Response("Pet not found", { status: 404 });
-  const [tags, relationships, gender, milestones] = await Promise.all([
+  const [tags, relationships, gender, timeline] = await Promise.all([
     window.api.tags.listForPet(id),
     window.api.kinship.neighborsFor("pet", id),
     window.api.kinship.genderFor("pet", id),
-    window.api.milestones.listForSubject("pet", id),
+    window.api.milestones.timelineFor("pet", id),
   ]);
-  return { pet, tags, relationships, gender, milestones };
+  return { pet, tags, relationships, gender, timeline };
 }
 
 /**
@@ -424,31 +476,95 @@ function relationshipDismissAction(subjectType: EntityType) {
   };
 }
 
-/** Loader for the "add milestone" screen: just resolves the subject entity. */
-function milestoneNewLoader(subjectType: EntityType) {
+/**
+ * Loader for the "add milestone" screen. Resolves the subject (person, pet, or
+ * relationship). From a **Person**, the relationship kinds (Met / First Date /
+ * Wedding) need a "with whom?" step, so we also load the candidate list and the
+ * person's existing explicit edges — used to bind to an existing relationship or
+ * infer the spouse. Other subject types never offer those kinds.
+ */
+function milestoneNewLoader(subjectType: MilestoneSubjectType) {
   return async ({ params }: LoaderFunctionArgs) => {
     const id = params.id as string;
-    const subject = await getEntity(subjectType, id);
+    const subject = await getMilestoneSubject(subjectType, id);
     if (!subject) throw new Response("Not found", { status: 404 });
-    return {
-      subject: {
-        type: subjectType,
-        id,
-        label: entityLabel(subjectType, subject),
-      },
-    };
+    if (subjectType !== "person") return { subject };
+    const [candidates, neighbors] = await Promise.all([
+      listCandidates({ type: "person", id }),
+      window.api.relationships.listForEntity("person", id),
+    ]);
+    return { subject, candidates, neighbors };
   };
 }
 
-/** Action for the "add milestone" screen: the subject endpoint comes from the route. */
-function milestoneCreateAction(subjectType: EntityType) {
+/**
+ * Resolve the "with whom?" submission of a relationship-kind milestone added
+ * from a Person into the subject the milestone hangs off: an existing
+ * relationship (`bind`), a freshly created one (`create`), or the person itself
+ * when the spouse is left unknown (`unbound`). Returns null when nothing was
+ * chosen — the caller treats that as "cancel" for the kinds that require a
+ * partner. Mirrors how {@link RelationshipForm} submits resolved machine values.
+ */
+async function resolveWithWhom(
+  personId: string,
+  formData: FormData,
+): Promise<{ subjectType: MilestoneSubjectType; subjectId: string } | null> {
+  const mode = String(formData.get("relMode") ?? "");
+  if (mode === "bind") {
+    return {
+      subjectType: "relationship",
+      subjectId: String(formData.get("relId")),
+    };
+  }
+  if (mode === "create") {
+    const bRole = String(formData.get("relRole")) as RelationshipRole;
+    const rel = await window.api.relationships.create(
+      createRelationshipInputSchema.parse({
+        aType: "person",
+        aId: personId,
+        aRole: inverseRole(bRole),
+        bType: String(formData.get("withType")),
+        bId: String(formData.get("withId")),
+        bRole,
+      }),
+    );
+    return { subjectType: "relationship", subjectId: rel.id };
+  }
+  if (mode === "unbound") {
+    return { subjectType: "person", subjectId: personId };
+  }
+  return null;
+}
+
+/**
+ * Action for the "add milestone" screen. The subject endpoint comes from the
+ * route, except a relationship-kind (Met / First Date / Wedding) added from a
+ * **Person**, which binds to / creates / (for Wedding) deliberately leaves
+ * unbound a relationship per the form's resolved hidden fields. Met / First Date
+ * require a partner: an empty resolution cancels the add (no row written).
+ */
+function milestoneCreateAction(subjectType: MilestoneSubjectType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
     const formData = await request.formData();
-    const input: CreateMilestoneInput = createMilestoneInputSchema.parse({
+    const fields = readMilestoneFields(formData);
+
+    let subject: { subjectType: MilestoneSubjectType; subjectId: string } = {
       subjectType,
       subjectId: id,
-      ...readMilestoneFields(formData),
+    };
+    if (
+      subjectType === "person" &&
+      preferredSubjectType(fields.kind) === "relationship"
+    ) {
+      const resolved = await resolveWithWhom(id, formData);
+      if (!resolved) return redirect(`${entityBasePath(subjectType)}/${id}`);
+      subject = resolved;
+    }
+
+    const input: CreateMilestoneInput = createMilestoneInputSchema.parse({
+      ...subject,
+      ...fields,
     });
     await window.api.milestones.create(input);
     return redirect(`${entityBasePath(subjectType)}/${id}`);
@@ -460,11 +576,11 @@ function milestoneCreateAction(subjectType: EntityType) {
  * the milestone among the subject's list (there is no get-by-id IPC; the list
  * is already scoped + soft-delete-aware, mirroring the relationship screens).
  */
-function milestoneForSubjectLoader(subjectType: EntityType) {
+function milestoneForSubjectLoader(subjectType: MilestoneSubjectType) {
   return async ({ params }: LoaderFunctionArgs) => {
     const id = params.id as string;
     const milestoneId = params.milestoneId as string;
-    const subject = await getEntity(subjectType, id);
+    const subject = await getMilestoneSubject(subjectType, id);
     if (!subject) throw new Response("Not found", { status: 404 });
     const milestones = await window.api.milestones.listForSubject(
       subjectType,
@@ -472,19 +588,12 @@ function milestoneForSubjectLoader(subjectType: EntityType) {
     );
     const milestone = milestones.find((m) => m.id === milestoneId);
     if (!milestone) throw new Response("Milestone not found", { status: 404 });
-    return {
-      subject: {
-        type: subjectType,
-        id,
-        label: entityLabel(subjectType, subject),
-      },
-      milestone,
-    };
+    return { subject, milestone };
   };
 }
 
 /** Action for the milestone edit screen: updates the editable fields. */
-function milestoneEditAction(subjectType: EntityType) {
+function milestoneEditAction(subjectType: MilestoneSubjectType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
     const formData = await request.formData();
@@ -497,11 +606,84 @@ function milestoneEditAction(subjectType: EntityType) {
 }
 
 /** Action for the "remove milestone" screen. */
-function milestoneDeleteAction(subjectType: EntityType) {
+function milestoneDeleteAction(subjectType: MilestoneSubjectType) {
   return async ({ params }: ActionFunctionArgs) => {
     await window.api.milestones.softDelete(params.milestoneId as string);
     return redirect(`${entityBasePath(subjectType)}/${params.id}`);
   };
+}
+
+/**
+ * Loader for the "set spouse / link to relationship" screen — rebinding an
+ * unbound relationship-kind milestone (a Wedding stored on a Person while its
+ * spouse was unknown) to a relationship. Resolves the person + milestone and the
+ * same with-whom inputs the add flow uses.
+ */
+async function milestoneRebindLoader({ params }: LoaderFunctionArgs) {
+  const id = params.id as string;
+  const milestoneId = params.milestoneId as string;
+  const subject = await getMilestoneSubject("person", id);
+  if (!subject) throw new Response("Not found", { status: 404 });
+  const milestones = await window.api.milestones.listForSubject("person", id);
+  const milestone = milestones.find((m) => m.id === milestoneId);
+  if (!milestone) throw new Response("Milestone not found", { status: 404 });
+  const [candidates, neighbors] = await Promise.all([
+    listCandidates({ type: "person", id }),
+    window.api.relationships.listForEntity("person", id),
+  ]);
+  return { subject, milestone, candidates, neighbors };
+}
+
+/**
+ * Action for the rebind screen: re-point an unbound milestone at a relationship
+ * (existing or freshly created) via a normal `milestones.update` that changes
+ * the subject. Rebind only ever targets a relationship; an empty/unbound
+ * resolution is a no-op.
+ */
+async function milestoneRebindAction({ request, params }: ActionFunctionArgs) {
+  const id = params.id as string;
+  const milestoneId = params.milestoneId as string;
+  const formData = await request.formData();
+  const resolved = await resolveWithWhom(id, formData);
+  if (resolved && resolved.subjectType === "relationship") {
+    await window.api.milestones.update(milestoneId, {
+      subjectType: resolved.subjectType,
+      subjectId: resolved.subjectId,
+    });
+  }
+  return redirect(`/people/${id}`);
+}
+
+/**
+ * Loader for the relationship detail page — the canonical home for a
+ * relationship's milestones. Resolves the stored edge, both endpoint labels, and
+ * the relationship-subject milestones.
+ */
+async function relationshipViewLoader({ params }: LoaderFunctionArgs) {
+  const id = params.id as string;
+  const relationship = await window.api.relationships.get(id);
+  if (!relationship)
+    throw new Response("Relationship not found", { status: 404 });
+  const [aLabel, bLabel, milestones] = await Promise.all([
+    resolveEntityLabel(relationship.aType, relationship.aId),
+    resolveEntityLabel(relationship.bType, relationship.bId),
+    window.api.milestones.listForSubject("relationship", id),
+  ]);
+  const partners = [
+    {
+      type: relationship.aType,
+      id: relationship.aId,
+      label: aLabel,
+      roleLabel: roleDefs[relationship.aRole].label,
+    },
+    {
+      type: relationship.bType,
+      id: relationship.bId,
+      label: bLabel,
+      roleLabel: roleDefs[relationship.bRole].label,
+    },
+  ];
+  return { relationship, partners, title: `${aLabel} & ${bLabel}`, milestones };
 }
 
 /**
@@ -617,6 +799,12 @@ export const router = createHashRouter([
         action: milestoneDeleteAction("person"),
       },
       {
+        path: "people/:id/milestones/:milestoneId/rebind",
+        loader: milestoneRebindLoader,
+        element: <MilestoneRebind />,
+        action: milestoneRebindAction,
+      },
+      {
         path: "pets/new",
         loader: () => listCandidates(),
         element: <PetCreate />,
@@ -705,6 +893,29 @@ export const router = createHashRouter([
         loader: milestoneForSubjectLoader("pet"),
         element: <MilestoneDelete />,
         action: milestoneDeleteAction("pet"),
+      },
+      {
+        path: "relationships/:id",
+        loader: relationshipViewLoader,
+        element: <RelationshipView />,
+      },
+      {
+        path: "relationships/:id/milestones/new",
+        loader: milestoneNewLoader("relationship"),
+        element: <MilestoneCreate />,
+        action: milestoneCreateAction("relationship"),
+      },
+      {
+        path: "relationships/:id/milestones/:milestoneId/edit",
+        loader: milestoneForSubjectLoader("relationship"),
+        element: <MilestoneEdit />,
+        action: milestoneEditAction("relationship"),
+      },
+      {
+        path: "relationships/:id/milestones/:milestoneId/delete",
+        loader: milestoneForSubjectLoader("relationship"),
+        element: <MilestoneDelete />,
+        action: milestoneDeleteAction("relationship"),
       },
       {
         path: "tags/:id",

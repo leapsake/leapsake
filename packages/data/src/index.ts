@@ -5,6 +5,7 @@ export {
   type MilestonesRepo,
   createMilestonesRepo,
 } from "./milestones-repo.js";
+export { listTimelineForEntity } from "./milestone-timeline.js";
 export { type PetsRepo, createPetsRepo } from "./pets-repo.js";
 export {
   type RelationshipsRepo,

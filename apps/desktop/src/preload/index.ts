@@ -7,6 +7,7 @@ import type {
   Gender,
   Milestone,
   MilestoneSubjectType,
+  MilestoneTimelineEntry,
   Person,
   Pet,
   Relationship,
@@ -104,6 +105,11 @@ const api = {
       id: string,
     ): Promise<Milestone[]> =>
       ipcRenderer.invoke("milestones:listForSubject", type, id),
+    timelineFor: (
+      type: EntityType,
+      id: string,
+    ): Promise<MilestoneTimelineEntry[]> =>
+      ipcRenderer.invoke("milestones:timelineFor", type, id),
     create: (input: CreateMilestoneInput): Promise<Milestone> =>
       ipcRenderer.invoke("milestones:create", input),
     update: (
