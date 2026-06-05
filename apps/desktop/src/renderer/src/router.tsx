@@ -13,6 +13,7 @@ import {
   inverseRole,
   parseTagNames,
   updateMilestoneInputSchema,
+  updateRelationshipInputSchema,
 } from "@leapsake/schema";
 import {
   type ActionFunctionArgs,
@@ -40,6 +41,7 @@ import { PetView } from "./screens/PetView";
 import { RelationshipCreate } from "./screens/RelationshipCreate";
 import { RelationshipDelete } from "./screens/RelationshipDelete";
 import { RelationshipDismiss } from "./screens/RelationshipDismiss";
+import { RelationshipEdit } from "./screens/RelationshipEdit";
 import { TagDelete } from "./screens/TagDelete";
 import { TagView } from "./screens/TagView";
 
@@ -253,8 +255,13 @@ function relationshipCreateAction(subjectType: EntityType) {
   };
 }
 
-/** Loader for the "remove relationship" screen, oriented to the subject. */
-function relationshipDeleteLoader(subjectType: EntityType) {
+/**
+ * Loader for the relationship edit/remove screens, oriented to the subject. The
+ * stored (explicit) edge is found among the subject's neighbors by id — there is
+ * no get-oriented-by-id IPC, so we reuse the already subject-scoped list, the
+ * same shape the milestone edit/delete loader uses.
+ */
+function relationshipForSubjectLoader(subjectType: EntityType) {
   return async ({ params }: LoaderFunctionArgs) => {
     const id = params.id as string;
     const relId = params.relId as string;
@@ -278,6 +285,45 @@ function relationshipDeleteLoader(subjectType: EntityType) {
   };
 }
 
+/**
+ * Action for the "edit relationship" screen. Only the other end's role changes;
+ * the subject's own role is re-derived as the neutral inverse (mirroring the add
+ * flow). The stored row may hold the subject as either endpoint, so we fetch it
+ * to learn the orientation before mapping the new roles onto a/b.
+ */
+function relationshipEditAction(subjectType: EntityType) {
+  return async ({ request, params }: ActionFunctionArgs) => {
+    const id = params.id as string;
+    const relId = params.relId as string;
+    const formData = await request.formData();
+    const otherRole = String(formData.get("otherRole")) as RelationshipRole;
+    const otherRoleNote = readNote(formData, "otherRoleNote");
+    const subjectRole = inverseRole(otherRole);
+
+    const rel = await window.api.relationships.get(relId);
+    if (!rel) throw new Response("Relationship not found", { status: 404 });
+    const subjectIsA = rel.aType === subjectType && rel.aId === id;
+
+    const input = updateRelationshipInputSchema.parse(
+      subjectIsA
+        ? {
+            aRole: subjectRole,
+            aRoleNote: null,
+            bRole: otherRole,
+            bRoleNote: otherRoleNote,
+          }
+        : {
+            aRole: otherRole,
+            aRoleNote: otherRoleNote,
+            bRole: subjectRole,
+            bRoleNote: null,
+          },
+    );
+    await window.api.relationships.update(relId, input);
+    return redirect(`${entityBasePath(subjectType)}/${id}`);
+  };
+}
+
 /** Action for the "remove relationship" screen. */
 function relationshipDeleteAction(subjectType: EntityType) {
   return async ({ params }: ActionFunctionArgs) => {
@@ -287,12 +333,13 @@ function relationshipDeleteAction(subjectType: EntityType) {
 }
 
 /**
- * Loader for the "dismiss derived relationship" screen. A derived edge has no
+ * Loader for the derived-relationship edit/dismiss screens. A derived edge has no
  * stored row, so its identity travels in the query string (other endpoint + base
  * role); we recompute the subject's neighbors and find the matching derived one
- * to show its details on the confirm page.
+ * to show its details. Shared by Edit and Remove so a derived edge presents the
+ * same way an explicit one does.
  */
-function relationshipDismissLoader(subjectType: EntityType) {
+function relationshipDerivedLoader(subjectType: EntityType) {
   return async ({ params, request }: LoaderFunctionArgs) => {
     const id = params.id as string;
     const subject = await getEntity(subjectType, id);
@@ -303,7 +350,7 @@ function relationshipDismissLoader(subjectType: EntityType) {
     const otherId = url.searchParams.get("otherId");
     const role = url.searchParams.get("role") as RelationshipRole | null;
     if (!otherType || !otherId || !role)
-      throw new Response("Bad dismiss request", { status: 400 });
+      throw new Response("Bad derived-relationship request", { status: 400 });
 
     const neighbors = await window.api.kinship.neighborsFor(subjectType, id);
     const neighbor = neighbors.find(
@@ -325,6 +372,39 @@ function relationshipDismissLoader(subjectType: EntityType) {
       neighbor,
       role,
     };
+  };
+}
+
+/**
+ * Action for the "edit derived relationship" screen. A derived edge has no stored
+ * row, so editing it *materialises* it: we create an explicit relationship with
+ * the chosen role (the subject's own end is the implied neutral inverse, as in
+ * the add flow). The new explicit edge then suppresses the derived one, so to the
+ * user the relationship simply now carries the corrected role — indistinguishable
+ * from any other stored edge.
+ */
+function relationshipDerivedEditAction(subjectType: EntityType) {
+  return async ({ request, params }: ActionFunctionArgs) => {
+    const id = params.id as string;
+    const url = new URL(request.url);
+    const otherType = url.searchParams.get("otherType") as EntityType | null;
+    const otherId = url.searchParams.get("otherId");
+    if (!otherType || !otherId)
+      throw new Response("Bad derived-relationship request", { status: 400 });
+
+    const formData = await request.formData();
+    const otherRole = String(formData.get("otherRole")) as RelationshipRole;
+    const input = createRelationshipInputSchema.parse({
+      aType: subjectType,
+      aId: id,
+      aRole: inverseRole(otherRole),
+      bType: otherType,
+      bId: otherId,
+      bRole: otherRole,
+      bRoleNote: readNote(formData, "otherRoleNote"),
+    });
+    await window.api.relationships.create(input);
+    return redirect(`${entityBasePath(subjectType)}/${id}`);
   };
 }
 
@@ -495,14 +575,26 @@ export const router = createHashRouter([
         action: relationshipCreateAction("person"),
       },
       {
+        path: "people/:id/relationships/:relId/edit",
+        loader: relationshipForSubjectLoader("person"),
+        element: <RelationshipEdit />,
+        action: relationshipEditAction("person"),
+      },
+      {
         path: "people/:id/relationships/:relId/delete",
-        loader: relationshipDeleteLoader("person"),
+        loader: relationshipForSubjectLoader("person"),
         element: <RelationshipDelete />,
         action: relationshipDeleteAction("person"),
       },
       {
+        path: "people/:id/relationships/edit",
+        loader: relationshipDerivedLoader("person"),
+        element: <RelationshipEdit />,
+        action: relationshipDerivedEditAction("person"),
+      },
+      {
         path: "people/:id/relationships/dismiss",
-        loader: relationshipDismissLoader("person"),
+        loader: relationshipDerivedLoader("person"),
         element: <RelationshipDismiss />,
         action: relationshipDismissAction("person"),
       },
@@ -573,14 +665,26 @@ export const router = createHashRouter([
         action: relationshipCreateAction("pet"),
       },
       {
+        path: "pets/:id/relationships/:relId/edit",
+        loader: relationshipForSubjectLoader("pet"),
+        element: <RelationshipEdit />,
+        action: relationshipEditAction("pet"),
+      },
+      {
         path: "pets/:id/relationships/:relId/delete",
-        loader: relationshipDeleteLoader("pet"),
+        loader: relationshipForSubjectLoader("pet"),
         element: <RelationshipDelete />,
         action: relationshipDeleteAction("pet"),
       },
       {
+        path: "pets/:id/relationships/edit",
+        loader: relationshipDerivedLoader("pet"),
+        element: <RelationshipEdit />,
+        action: relationshipDerivedEditAction("pet"),
+      },
+      {
         path: "pets/:id/relationships/dismiss",
-        loader: relationshipDismissLoader("pet"),
+        loader: relationshipDerivedLoader("pet"),
         element: <RelationshipDismiss />,
         action: relationshipDismissAction("pet"),
       },

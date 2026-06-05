@@ -18,14 +18,26 @@ function neighborKey(neighbor: RelationshipNeighbor): string {
     : `derived:${neighbor.otherType}:${neighbor.otherId}:${baseRole(neighbor.otherRole)}`;
 }
 
+// A derived edge has no stored id, so its identity (other endpoint + base role)
+// travels in the query string the same way for both Edit and Remove.
+function derivedQuery(neighbor: RelationshipNeighbor): string {
+  return new URLSearchParams({
+    otherType: neighbor.otherType,
+    otherId: neighbor.otherId,
+    role: baseRole(neighbor.otherRole),
+  }).toString();
+}
+
 /**
  * The Relationships section shared by the Person and Pet view screens. It lists
  * the subject's neighbors — both stored edges and the ones the inference engine
  * computes — already oriented + labelled by the IPC layer, and presented
  * uniformly: the explicit/derived distinction is a backend detail and never
- * surfaces in the UI. Every row offers "Remove"; under the hood an explicit edge
- * is soft-deleted by id, while a derived edge is suppressed by its identity
- * (other endpoint + base role, carried in the query string since it has no id).
+ * surfaces in the UI. Every row offers "Edit" and "Remove"; under the hood an
+ * explicit edge is updated/soft-deleted by id, while a derived edge is addressed
+ * by its identity (other endpoint + base role, carried in the query string since
+ * it has no id) — editing it materialises a stored edge, removing it records a
+ * suppression.
  */
 export function RelationshipsSection({
   subjectType,
@@ -38,13 +50,20 @@ export function RelationshipsSection({
 }) {
   const basePath = `${entityBasePath(subjectType)}/${subjectId}`;
 
-  function dismissPath(neighbor: RelationshipNeighbor): string {
-    const params = new URLSearchParams({
-      otherType: neighbor.otherType,
-      otherId: neighbor.otherId,
-      role: baseRole(neighbor.otherRole),
-    });
-    return `${basePath}/relationships/dismiss?${params.toString()}`;
+  // Edit/Remove targets, branching on origin internally so the rendered row looks
+  // identical whether the edge is stored (explicit) or inferred (derived): an
+  // explicit edge is addressed by id; a derived one by its query-string identity.
+  // Editing a derived edge materialises it; removing it records a suppression.
+  function editPath(neighbor: RelationshipNeighbor): string {
+    return neighbor.origin === "explicit"
+      ? `${basePath}/relationships/${neighbor.relationshipId}/edit`
+      : `${basePath}/relationships/edit?${derivedQuery(neighbor)}`;
+  }
+
+  function removePath(neighbor: RelationshipNeighbor): string {
+    return neighbor.origin === "explicit"
+      ? `${basePath}/relationships/${neighbor.relationshipId}/delete`
+      : `${basePath}/relationships/dismiss?${derivedQuery(neighbor)}`;
   }
 
   return (
@@ -76,15 +95,8 @@ export function RelationshipsSection({
                     : neighbor.otherRoleLabel}
                 </td>
                 <td>
-                  {neighbor.origin === "explicit" ? (
-                    <Link
-                      to={`${basePath}/relationships/${neighbor.relationshipId}/delete`}
-                    >
-                      Remove
-                    </Link>
-                  ) : (
-                    <Link to={dismissPath(neighbor)}>Remove</Link>
-                  )}
+                  <Link to={editPath(neighbor)}>Edit</Link>{" "}
+                  <Link to={removePath(neighbor)}>Remove</Link>
                 </td>
               </tr>
             ))}
