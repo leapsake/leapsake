@@ -3,16 +3,24 @@ import type {
   CreatePetInput,
   CreateRelationshipInput,
   EntityType,
+  Gender,
   Person,
   Pet,
   Relationship,
   RelationshipNeighbor,
+  RelationshipRole,
   Tag,
   UpdatePersonInput,
   UpdatePetInput,
   UpdateRelationshipInput,
 } from "@leapsake/schema";
 import { contextBridge, ipcRenderer } from "electron";
+
+/** A gender read returned by the kinship engine: value + whether it was inferred. */
+export interface GenderResult {
+  value: Gender | null;
+  origin: "explicit" | "derived";
+}
 
 /**
  * The single typed surface exposed to the renderer as `window.api`. Each method
@@ -85,6 +93,32 @@ const api = {
       id: string,
     ): Promise<RelationshipNeighbor[]> =>
       ipcRenderer.invoke("relationships:listForEntity", type, id),
+  },
+  kinship: {
+    neighborsFor: (
+      type: EntityType,
+      id: string,
+    ): Promise<RelationshipNeighbor[]> =>
+      ipcRenderer.invoke("kinship:neighborsFor", type, id),
+    genderFor: (type: EntityType, id: string): Promise<GenderResult> =>
+      ipcRenderer.invoke("kinship:genderFor", type, id),
+    dismiss: (
+      subjectType: EntityType,
+      subjectId: string,
+      otherType: EntityType,
+      otherId: string,
+      role: RelationshipRole | null,
+    ): Promise<void> =>
+      ipcRenderer.invoke(
+        "kinship:dismiss",
+        subjectType,
+        subjectId,
+        otherType,
+        otherId,
+        role,
+      ),
+    undismiss: (id: string): Promise<void> =>
+      ipcRenderer.invoke("kinship:undismiss", id),
   },
 };
 

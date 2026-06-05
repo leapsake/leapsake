@@ -1,6 +1,7 @@
 import type { Person } from "@leapsake/schema";
 import type { ReactNode } from "react";
 import { Form, Link, useNavigation } from "react-router-dom";
+import { GenderField } from "./GenderField";
 import { RelationshipFields } from "./RelationshipFields";
 import type { RelationshipCandidate } from "./RelationshipForm";
 
@@ -55,6 +56,7 @@ export function PersonForm({
           Last name{" "}
           <input name="lastName" defaultValue={person?.lastName} required />
         </label>{" "}
+        <GenderField value={person?.gender} />{" "}
         <label>
           Tags{" "}
           <input

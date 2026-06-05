@@ -12,6 +12,7 @@ import type { SqliteDriver } from "./driver.js";
 interface PetRow {
   id: string;
   name: string;
+  gender: string | null;
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
@@ -22,6 +23,7 @@ function toPet(row: PetRow): Pet {
   return petSchema.parse({
     id: row.id,
     name: row.name,
+    gender: row.gender,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -44,20 +46,28 @@ export interface PetsRepo {
 export function createPetsRepo(driver: SqliteDriver): PetsRepo {
   return {
     async create(input) {
-      const { name } = createPetInputSchema.parse(input);
+      const { name, gender = null } = createPetInputSchema.parse(input);
       const now = Date.now();
       const pet: Pet = {
         id: crypto.randomUUID(),
         name,
+        gender,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
       };
       await driver.run(
         `INSERT INTO pets
-           (id, name, created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?)`,
-        [pet.id, pet.name, pet.createdAt, pet.updatedAt, pet.deletedAt],
+           (id, name, gender, created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          pet.id,
+          pet.name,
+          pet.gender,
+          pet.createdAt,
+          pet.updatedAt,
+          pet.deletedAt,
+        ],
       );
       return pet;
     },
@@ -91,9 +101,9 @@ export function createPetsRepo(driver: SqliteDriver): PetsRepo {
       };
       await driver.run(
         `UPDATE pets
-         SET name = ?, updated_at = ?
+         SET name = ?, gender = ?, updated_at = ?
          WHERE id = ? AND deleted_at IS NULL`,
-        [updated.name, updated.updatedAt, id],
+        [updated.name, updated.gender, updated.updatedAt, id],
       );
       return updated;
     },

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { genderSchema } from "./gender.js";
 
 /**
  * A Pet — an entity that joins the relationship graph alongside Person. The
@@ -12,6 +13,7 @@ import { z } from "zod";
 export const petSchema = z.object({
   id: z.uuid(),
   name: z.string().min(1),
+  gender: genderSchema.nullable(), // explicit gender; null when unset
   createdAt: z.number().int(), // epoch ms, UTC
   updatedAt: z.number().int(), // epoch ms, UTC
   deletedAt: z.number().int().nullable(),
@@ -22,6 +24,7 @@ export type Pet = z.infer<typeof petSchema>;
 /** Input accepted when creating a Pet; the repository fills the rest. */
 export const createPetInputSchema = z.object({
   name: z.string().min(1),
+  gender: genderSchema.nullable().optional(),
 });
 
 export type CreatePetInput = z.infer<typeof createPetInputSchema>;

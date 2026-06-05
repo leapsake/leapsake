@@ -1,10 +1,14 @@
 import { join } from "node:path";
 import {
+  type DismissalsRepo,
+  type KinshipService,
   type PeopleRepo,
   type PetsRepo,
   type RelationshipsRepo,
   type SqliteDriver,
   type TagsRepo,
+  createDismissalsRepo,
+  createKinshipService,
   createPeopleRepo,
   createPetsRepo,
   createRelationshipsRepo,
@@ -16,6 +20,7 @@ import {
   type Person,
   type Pet,
   type RelationshipNeighbor,
+  type RelationshipRole,
   createPersonInputSchema,
   createPetInputSchema,
   createRelationshipInputSchema,
@@ -46,6 +51,8 @@ function registerIpc(
   pets: PetsRepo,
   tags: TagsRepo,
   relationships: RelationshipsRepo,
+  dismissals: DismissalsRepo,
+  kinship: KinshipService,
 ): void {
   // Resolve an entity to its display label for relationship rows. The label is
   // composed inline here because the main process can't import renderer helpers.
@@ -89,6 +96,7 @@ function registerIpc(
       await people.softDelete(id);
       await tags.removeAllForEntity("person", id);
       await relationships.removeAllForEntity("person", id);
+      await dismissals.removeAllForEntity("person", id);
     }),
   );
 
@@ -117,6 +125,7 @@ function registerIpc(
       await pets.softDelete(id);
       await tags.removeAllForEntity("pet", id);
       await relationships.removeAllForEntity("pet", id);
+      await dismissals.removeAllForEntity("pet", id);
     }),
   );
 
@@ -159,10 +168,42 @@ function registerIpc(
           otherRole,
           otherRoleLabel: roleDefs[otherRole].label,
           otherRoleNote,
+          origin: "explicit",
         });
       }
       return neighbors;
     },
+  );
+
+  // Kinship inference: compute-on-read derived gender + neighbors, and the
+  // dismiss/undismiss mutations that suppress a rejected derived edge.
+  ipcMain.handle(
+    "kinship:neighborsFor",
+    (_event, type: EntityType, id: string) => kinship.neighborsFor(type, id),
+  );
+  ipcMain.handle("kinship:genderFor", (_event, type: EntityType, id: string) =>
+    kinship.genderFor(type, id),
+  );
+  ipcMain.handle(
+    "kinship:dismiss",
+    (
+      _event,
+      subjectType: EntityType,
+      subjectId: string,
+      otherType: EntityType,
+      otherId: string,
+      role: RelationshipRole | null,
+    ) =>
+      driver.transaction(() =>
+        dismissals.create(
+          { type: subjectType, id: subjectId },
+          { type: otherType, id: otherId },
+          role,
+        ),
+      ),
+  );
+  ipcMain.handle("kinship:undismiss", (_event, id: string) =>
+    driver.transaction(() => dismissals.softDelete(id)),
   );
 
   ipcMain.handle("tags:get", (_event, id: string) => tags.get(id));
@@ -212,12 +253,24 @@ void app.whenReady().then(async () => {
   const db = new DatabaseSync(join(app.getPath("userData"), "leapsake.db"));
   const driver = nodeSqliteDriver(db);
   await runMigrations(driver);
+  const people = createPeopleRepo(driver);
+  const pets = createPetsRepo(driver);
+  const relationships = createRelationshipsRepo(driver);
+  const dismissals = createDismissalsRepo(driver);
+  const kinship = createKinshipService(driver, {
+    people,
+    pets,
+    relationships,
+    dismissals,
+  });
   registerIpc(
     driver,
-    createPeopleRepo(driver),
-    createPetsRepo(driver),
+    people,
+    pets,
     createTagsRepo(driver),
-    createRelationshipsRepo(driver),
+    relationships,
+    dismissals,
+    kinship,
   );
 
   createWindow();

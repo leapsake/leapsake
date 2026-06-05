@@ -7,3 +7,14 @@ export {
   createRelationshipsRepo,
 } from "./relationships-repo.js";
 export { type TagsRepo, createTagsRepo } from "./tags-repo.js";
+export {
+  type Dismissal,
+  type DismissalEndpoint,
+  type DismissalsRepo,
+  createDismissalsRepo,
+} from "./dismissals-repo.js";
+export {
+  type GenderResult,
+  type KinshipService,
+  createKinshipService,
+} from "./kinship-service.js";

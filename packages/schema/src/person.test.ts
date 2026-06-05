@@ -10,6 +10,7 @@ const validPerson = {
   firstName: "Ada",
   middleName: null,
   lastName: "Lovelace",
+  gender: null,
   createdAt: Date.now(),
   updatedAt: Date.now(),
   deletedAt: null,
@@ -33,6 +34,17 @@ describe("personSchema", () => {
   it("rejects an empty middleName", () => {
     expect(() =>
       personSchema.parse({ ...validPerson, middleName: "" }),
+    ).toThrow();
+  });
+
+  it("accepts an explicit gender", () => {
+    const gendered = { ...validPerson, gender: "female" as const };
+    expect(personSchema.parse(gendered)).toEqual(gendered);
+  });
+
+  it("rejects an unknown gender", () => {
+    expect(() =>
+      personSchema.parse({ ...validPerson, gender: "unknown" }),
     ).toThrow();
   });
 
