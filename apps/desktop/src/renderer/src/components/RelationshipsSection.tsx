@@ -95,6 +95,15 @@ export function RelationshipsSection({
                     : neighbor.otherRoleLabel}
                 </td>
                 <td>
+                  {/* Only a stored edge has a relationship page to open; a
+                      derived edge has no id and must be materialised first. */}
+                  {neighbor.origin === "explicit" && (
+                    <>
+                      <Link to={`/relationships/${neighbor.relationshipId}`}>
+                        Details
+                      </Link>{" "}
+                    </>
+                  )}
                   <Link to={editPath(neighbor)}>Edit</Link>{" "}
                   <Link to={removePath(neighbor)}>Remove</Link>
                 </td>

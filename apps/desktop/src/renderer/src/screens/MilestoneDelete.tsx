@@ -1,6 +1,6 @@
 import {
-  type EntityType,
   type Milestone,
+  type MilestoneSubjectType,
   formatMilestoneDate,
   milestoneLabel,
 } from "@leapsake/schema";
@@ -10,7 +10,7 @@ import { entityBasePath } from "../lib/entityLabel";
 
 /** The subject entity the milestone being removed hangs off of. */
 interface Subject {
-  type: EntityType;
+  type: MilestoneSubjectType;
   id: string;
   label: string;
 }

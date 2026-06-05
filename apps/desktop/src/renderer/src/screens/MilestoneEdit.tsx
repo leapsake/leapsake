@@ -1,4 +1,4 @@
-import type { EntityType, Milestone } from "@leapsake/schema";
+import type { Milestone, MilestoneSubjectType } from "@leapsake/schema";
 import { useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { MilestoneForm } from "../components/MilestoneForm";
@@ -6,7 +6,7 @@ import { entityBasePath } from "../lib/entityLabel";
 
 /** The subject entity the edited milestone hangs off of. */
 interface Subject {
-  type: EntityType;
+  type: MilestoneSubjectType;
   id: string;
   label: string;
 }

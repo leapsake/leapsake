@@ -179,6 +179,24 @@ export const milestoneSchema = z
 
 export type Milestone = z.infer<typeof milestoneSchema>;
 
+/**
+ * One entry on an entity's milestone timeline: either a milestone stored
+ * directly on the entity (`own`, editable in place) or one stored on a
+ * relationship the entity participates in (`relationship`, shown read-only with
+ * the other partner's label and a link out to the relationship's page). The
+ * composition that builds these — own milestones plus a 1-hop join over the
+ * entity's explicit relationships — lives in `@leapsake/data`'s
+ * `listTimelineForEntity`; nothing is materialised.
+ */
+export interface MilestoneTimelineEntry {
+  milestone: Milestone;
+  origin: "own" | "relationship";
+  /** The relationship the milestone is stored on; null for `own` entries. */
+  relationshipId: string | null;
+  /** The other partner's display label; null for `own` entries. */
+  otherLabel: string | null;
+}
+
 /** The date parts shared by create/update inputs; the day⇒month rule re-applies on each. */
 const datePartsShape = {
   year: z.number().int().nullable().optional(),

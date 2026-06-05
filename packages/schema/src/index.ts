@@ -31,6 +31,7 @@ export {
   holderAllows,
   rolesForHolder,
   rolesForPair,
+  spouseNeighbors,
 } from "./relationship.js";
 export type {
   EntityType,
@@ -60,6 +61,7 @@ export type {
   MilestoneKind,
   MilestoneKindDef,
   Milestone,
+  MilestoneTimelineEntry,
   CreateMilestoneInput,
   UpdateMilestoneInput,
   DatePrecision,

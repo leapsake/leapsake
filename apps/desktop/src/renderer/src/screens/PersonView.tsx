@@ -1,5 +1,5 @@
 import type {
-  Milestone,
+  MilestoneTimelineEntry,
   Person,
   RelationshipNeighbor,
   Tag,
@@ -18,14 +18,13 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PersonView() {
-  const { person, tags, relationships, gender, milestones } =
-    useLoaderData() as {
-      person: Person;
-      tags: Tag[];
-      relationships: RelationshipNeighbor[];
-      gender: GenderResult;
-      milestones: Milestone[];
-    };
+  const { person, tags, relationships, gender, timeline } = useLoaderData() as {
+    person: Person;
+    tags: Tag[];
+    relationships: RelationshipNeighbor[];
+    gender: GenderResult;
+    timeline: MilestoneTimelineEntry[];
+  };
 
   return (
     <main>
@@ -74,7 +73,7 @@ export function PersonView() {
       <MilestonesSection
         subjectType="person"
         subjectId={person.id}
-        milestones={milestones}
+        entries={timeline}
       />
     </main>
   );

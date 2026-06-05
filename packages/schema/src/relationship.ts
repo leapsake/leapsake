@@ -624,3 +624,18 @@ export interface RelationshipNeighbor {
   origin: "explicit" | "derived";
   derivedVia?: { type: EntityType; id: string; label: string };
 }
+
+/**
+ * Among an entity's oriented neighbors, the **explicit** edges whose role bases
+ * to `spouse` — the seed for inferring a wedding's other party from a Person.
+ * Derived edges are excluded: only a stored marriage edge can hold a wedding
+ * milestone, so inference must bind to one that exists. When exactly one is
+ * returned the add-from-Person flow can auto-bind without prompting.
+ */
+export function spouseNeighbors(
+  neighbors: RelationshipNeighbor[],
+): RelationshipNeighbor[] {
+  return neighbors.filter(
+    (n) => n.origin === "explicit" && baseRole(n.otherRole) === "spouse",
+  );
+}

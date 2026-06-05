@@ -1,5 +1,5 @@
 import type {
-  Milestone,
+  MilestoneTimelineEntry,
   Pet,
   RelationshipNeighbor,
   Tag,
@@ -17,12 +17,12 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PetView() {
-  const { pet, tags, relationships, gender, milestones } = useLoaderData() as {
+  const { pet, tags, relationships, gender, timeline } = useLoaderData() as {
     pet: Pet;
     tags: Tag[];
     relationships: RelationshipNeighbor[];
     gender: GenderResult;
-    milestones: Milestone[];
+    timeline: MilestoneTimelineEntry[];
   };
 
   return (
@@ -68,7 +68,7 @@ export function PetView() {
       <MilestonesSection
         subjectType="pet"
         subjectId={pet.id}
-        milestones={milestones}
+        entries={timeline}
       />
     </main>
   );
