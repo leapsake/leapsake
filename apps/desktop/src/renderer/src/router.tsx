@@ -12,6 +12,8 @@ import {
   baseRole,
   createMilestoneInputSchema,
   createRelationshipInputSchema,
+  genderedVariant,
+  impliedGender,
   inverseRole,
   parseTagNames,
   preferredSubjectType,
@@ -47,6 +49,8 @@ import { RelationshipCreate } from "./screens/RelationshipCreate";
 import { RelationshipDelete } from "./screens/RelationshipDelete";
 import { RelationshipDismiss } from "./screens/RelationshipDismiss";
 import { RelationshipEdit } from "./screens/RelationshipEdit";
+import { RelationshipRolesEdit } from "./screens/RelationshipRolesEdit";
+import { RelationshipRowDelete } from "./screens/RelationshipRowDelete";
 import { RelationshipView } from "./screens/RelationshipView";
 import { TagDelete } from "./screens/TagDelete";
 import { TagView } from "./screens/TagView";
@@ -350,11 +354,18 @@ function relationshipEditAction(subjectType: EntityType) {
     const formData = await request.formData();
     const otherRole = String(formData.get("otherRole")) as RelationshipRole;
     const otherRoleNote = readNote(formData, "otherRoleNote");
-    const subjectRole = inverseRole(otherRole);
 
     const rel = await window.api.relationships.get(relId);
     if (!rel) throw new Response("Relationship not found", { status: 404 });
     const subjectIsA = rel.aType === subjectType && rel.aId === id;
+
+    // Only the other end's role is edited; the subject's own role re-derives as
+    // the neutral inverse, but keeps the gendering it already had (so editing a
+    // wife→husband couple doesn't flatten the unedited "husband" back to "spouse").
+    const subjectRole = genderedVariant(
+      inverseRole(otherRole),
+      impliedGender(subjectIsA ? rel.aRole : rel.bRole),
+    );
 
     const input = updateRelationshipInputSchema.parse(
       subjectIsA
@@ -686,6 +697,87 @@ async function relationshipViewLoader({ params }: LoaderFunctionArgs) {
   return { relationship, partners, title: `${aLabel} & ${bLabel}`, milestones };
 }
 
+/** One endpoint of a relationship, resolved for the relationship-scoped edit/delete screens. */
+interface RelationshipPartner {
+  type: EntityType;
+  id: string;
+  label: string;
+  role: RelationshipRole;
+  roleLabel: string;
+  roleNote: string | null;
+}
+
+/**
+ * Loader for the relationship-scoped edit/delete screens. Unlike the
+ * subject-scoped relationship screens (reached from a Person/Pet, which edit only
+ * the *other* end), these operate on the relationship as a whole — both endpoints
+ * resolved with their own role — so the user can set each side's role explicitly
+ * and a delete plainly removes the single shared row.
+ */
+async function relationshipPartnersLoader({ params }: LoaderFunctionArgs) {
+  const id = params.id as string;
+  const relationship = await window.api.relationships.get(id);
+  if (!relationship)
+    throw new Response("Relationship not found", { status: 404 });
+  const [aLabel, bLabel] = await Promise.all([
+    resolveEntityLabel(relationship.aType, relationship.aId),
+    resolveEntityLabel(relationship.bType, relationship.bId),
+  ]);
+  const partners: [RelationshipPartner, RelationshipPartner] = [
+    {
+      type: relationship.aType,
+      id: relationship.aId,
+      label: aLabel,
+      role: relationship.aRole,
+      roleLabel: roleDefs[relationship.aRole].label,
+      roleNote: relationship.aRoleNote,
+    },
+    {
+      type: relationship.bType,
+      id: relationship.bId,
+      label: bLabel,
+      role: relationship.bRole,
+      roleLabel: roleDefs[relationship.bRole].label,
+      roleNote: relationship.bRoleNote,
+    },
+  ];
+  return { relationshipId: id, title: `${aLabel} & ${bLabel}`, partners };
+}
+
+/**
+ * Action for the relationship-scoped "edit roles" screen: writes both endpoints'
+ * roles exactly as picked. Unlike the subject-scoped edit, the two ends are
+ * independent here — neither is auto-derived from the other — so the user can
+ * make both explicit (e.g. Husband / Wife rather than Spouse / Husband).
+ */
+async function relationshipRolesEditAction({
+  request,
+  params,
+}: ActionFunctionArgs) {
+  const id = params.id as string;
+  const formData = await request.formData();
+  const input = updateRelationshipInputSchema.parse({
+    aRole: String(formData.get("aRole")) as RelationshipRole,
+    aRoleNote: readNote(formData, "aRoleNote"),
+    bRole: String(formData.get("bRole")) as RelationshipRole,
+    bRoleNote: readNote(formData, "bRoleNote"),
+  });
+  await window.api.relationships.update(id, input);
+  return redirect(`/relationships/${id}`);
+}
+
+/**
+ * Action for the relationship-scoped delete: soft-deletes the single shared row,
+ * removing the relationship for both partners. The relationship page is now gone,
+ * so we land on the first partner's entity page.
+ */
+async function relationshipRowDeleteAction({ params }: ActionFunctionArgs) {
+  const id = params.id as string;
+  const rel = await window.api.relationships.get(id);
+  await window.api.relationships.softDelete(id);
+  return redirect(rel ? `${entityBasePath(rel.aType)}/${rel.aId}` : "/");
+}
+
 /**
  * The renderer's route tree. We use the data-router pattern (loaders for reads,
  * actions + `<Form>` for writes) so navigation, data, and mutations are modeled
@@ -898,6 +990,18 @@ export const router = createHashRouter([
         path: "relationships/:id",
         loader: relationshipViewLoader,
         element: <RelationshipView />,
+      },
+      {
+        path: "relationships/:id/edit",
+        loader: relationshipPartnersLoader,
+        element: <RelationshipRolesEdit />,
+        action: relationshipRolesEditAction,
+      },
+      {
+        path: "relationships/:id/delete",
+        loader: relationshipPartnersLoader,
+        element: <RelationshipRowDelete />,
+        action: relationshipRowDeleteAction,
       },
       {
         path: "relationships/:id/milestones/new",

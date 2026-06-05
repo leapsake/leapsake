@@ -130,7 +130,7 @@ export function WithWhomFields({
       <input type="hidden" name="relRole" value={createRole} />
 
       <label>
-        With whom?{" "}
+        Person{" "}
         <input
           list="with-whom-candidates"
           value={otherText}
