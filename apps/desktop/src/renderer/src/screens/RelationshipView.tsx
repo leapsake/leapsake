@@ -43,8 +43,7 @@ export function RelationshipView() {
     otherLabel: null,
   }));
 
-  const a = partners[0];
-  const relPath = `${entityBasePath(a.type)}/${a.id}/relationships/${relationship.id}`;
+  const relPath = `/relationships/${relationship.id}`;
 
   return (
     <main>
