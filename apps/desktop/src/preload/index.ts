@@ -1,8 +1,14 @@
 import type {
+  ContactMethod,
+  ContactOwnerType,
+  CreateEmailInput,
   CreateMilestoneInput,
   CreatePersonInput,
   CreatePetInput,
+  CreatePhoneInput,
+  CreatePostalInput,
   CreateRelationshipInput,
+  EmailAddress,
   EntityType,
   Gender,
   Milestone,
@@ -10,13 +16,18 @@ import type {
   MilestoneTimelineEntry,
   Person,
   Pet,
+  PhoneNumber,
+  PostalAddress,
   Relationship,
   RelationshipNeighbor,
   RelationshipRole,
   Tag,
+  UpdateEmailInput,
   UpdateMilestoneInput,
   UpdatePersonInput,
   UpdatePetInput,
+  UpdatePhoneInput,
+  UpdatePostalInput,
   UpdateRelationshipInput,
 } from "@leapsake/schema";
 import { contextBridge, ipcRenderer } from "electron";
@@ -119,6 +130,46 @@ const api = {
       ipcRenderer.invoke("milestones:update", id, input),
     softDelete: (id: string): Promise<void> =>
       ipcRenderer.invoke("milestones:softDelete", id),
+  },
+  contactMethods: {
+    listForOwner: (
+      type: ContactOwnerType,
+      id: string,
+    ): Promise<ContactMethod[]> =>
+      ipcRenderer.invoke("contactMethods:listForOwner", type, id),
+    emails: {
+      create: (input: CreateEmailInput): Promise<EmailAddress> =>
+        ipcRenderer.invoke("contactMethods:emails:create", input),
+      update: (
+        id: string,
+        input: UpdateEmailInput,
+      ): Promise<EmailAddress | undefined> =>
+        ipcRenderer.invoke("contactMethods:emails:update", id, input),
+      softDelete: (id: string): Promise<void> =>
+        ipcRenderer.invoke("contactMethods:emails:softDelete", id),
+    },
+    phones: {
+      create: (input: CreatePhoneInput): Promise<PhoneNumber> =>
+        ipcRenderer.invoke("contactMethods:phones:create", input),
+      update: (
+        id: string,
+        input: UpdatePhoneInput,
+      ): Promise<PhoneNumber | undefined> =>
+        ipcRenderer.invoke("contactMethods:phones:update", id, input),
+      softDelete: (id: string): Promise<void> =>
+        ipcRenderer.invoke("contactMethods:phones:softDelete", id),
+    },
+    postals: {
+      create: (input: CreatePostalInput): Promise<PostalAddress> =>
+        ipcRenderer.invoke("contactMethods:postals:create", input),
+      update: (
+        id: string,
+        input: UpdatePostalInput,
+      ): Promise<PostalAddress | undefined> =>
+        ipcRenderer.invoke("contactMethods:postals:update", id, input),
+      softDelete: (id: string): Promise<void> =>
+        ipcRenderer.invoke("contactMethods:postals:softDelete", id),
+    },
   },
   kinship: {
     neighborsFor: (

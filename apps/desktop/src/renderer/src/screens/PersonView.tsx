@@ -1,4 +1,5 @@
 import type {
+  ContactMethod,
   MilestoneTimelineEntry,
   Person,
   RelationshipNeighbor,
@@ -7,6 +8,7 @@ import type {
 import { Fragment } from "react";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
+import { ContactMethodsSection } from "../components/ContactMethodsSection";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
 import { MilestonesSection } from "../components/MilestonesSection";
 import { RelationshipsSection } from "../components/RelationshipsSection";
@@ -18,13 +20,15 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PersonView() {
-  const { person, tags, relationships, gender, timeline } = useLoaderData() as {
-    person: Person;
-    tags: Tag[];
-    relationships: RelationshipNeighbor[];
-    gender: GenderResult;
-    timeline: MilestoneTimelineEntry[];
-  };
+  const { person, tags, relationships, gender, timeline, contactMethods } =
+    useLoaderData() as {
+      person: Person;
+      tags: Tag[];
+      relationships: RelationshipNeighbor[];
+      gender: GenderResult;
+      timeline: MilestoneTimelineEntry[];
+      contactMethods: ContactMethod[];
+    };
 
   return (
     <main>
@@ -63,6 +67,8 @@ export function PersonView() {
         <dt>Updated</dt>
         <dd>{formatTimestamp(person.updatedAt)}</dd>
       </dl>
+
+      <ContactMethodsSection personId={person.id} methods={contactMethods} />
 
       <RelationshipsSection
         subjectType="person"

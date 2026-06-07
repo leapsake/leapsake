@@ -66,3 +66,39 @@ export type {
   UpdateMilestoneInput,
   DatePrecision,
 } from "./milestone.js";
+export {
+  contactOwnerTypeSchema,
+  emailLabelSuggestions,
+  phoneLabelSuggestions,
+  postalLabelSuggestions,
+  countryCodeSchema,
+  emailAddressSchema,
+  createEmailInputSchema,
+  updateEmailInputSchema,
+  phoneNumberSchema,
+  createPhoneInputSchema,
+  updatePhoneInputSchema,
+  postalAddressSchema,
+  createPostalInputSchema,
+  updatePostalInputSchema,
+  normalizeEmail,
+  normalizePhone,
+  formatPostalAddress,
+} from "./contact-method.js";
+export { contactCountryOptions, countryFlag } from "./countries.js";
+export type { CountryOption } from "./countries.js";
+export type {
+  ContactOwnerType,
+  ContactOwner,
+  EmailAddress,
+  CreateEmailInput,
+  UpdateEmailInput,
+  PhoneNumber,
+  CreatePhoneInput,
+  UpdatePhoneInput,
+  PostalAddress,
+  CreatePostalInput,
+  UpdatePostalInput,
+  ContactMethod,
+  ContactMethodKind,
+} from "./contact-method.js";

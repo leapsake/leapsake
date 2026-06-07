@@ -1,4 +1,5 @@
 import {
+  type ContactMethodKind,
   type CreateMilestoneInput,
   type CreatePersonInput,
   type CreatePetInput,
@@ -29,6 +30,9 @@ import {
 } from "react-router-dom";
 import { App } from "./App";
 import type { RelationshipCandidate } from "./components/RelationshipForm";
+import { ContactMethodCreate } from "./screens/ContactMethodCreate";
+import { ContactMethodDelete } from "./screens/ContactMethodDelete";
+import { ContactMethodEdit } from "./screens/ContactMethodEdit";
 import { entityBasePath, entityLabel } from "./lib/entityLabel";
 import { fullName } from "./lib/fullName";
 import { type EntityRow, EntityList } from "./screens/EntityList";
@@ -243,13 +247,15 @@ async function personLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const person = await window.api.people.get(id);
   if (!person) throw new Response("Person not found", { status: 404 });
-  const [tags, relationships, gender, timeline] = await Promise.all([
-    window.api.tags.listForPerson(id),
-    window.api.kinship.neighborsFor("person", id),
-    window.api.kinship.genderFor("person", id),
-    window.api.milestones.timelineFor("person", id),
-  ]);
-  return { person, tags, relationships, gender, timeline };
+  const [tags, relationships, gender, timeline, contactMethods] =
+    await Promise.all([
+      window.api.tags.listForPerson(id),
+      window.api.kinship.neighborsFor("person", id),
+      window.api.kinship.genderFor("person", id),
+      window.api.milestones.timelineFor("person", id),
+      window.api.contactMethods.listForOwner("person", id),
+    ]);
+  return { person, tags, relationships, gender, timeline, contactMethods };
 }
 
 /** A Pet plus its tags, derived gender, and neighbors (explicit + derived). */
@@ -665,6 +671,141 @@ async function milestoneRebindAction({ request, params }: ActionFunctionArgs) {
   return redirect(`/people/${id}`);
 }
 
+/** Read the free-text contact-method label from the form, trimmed. */
+function readContactLabel(formData: FormData): string {
+  return String(formData.get("label") ?? "").trim();
+}
+
+/** Read an ISO alpha-2 country from the form: uppercased, blank → null. */
+function readContactCountry(formData: FormData): string | null {
+  const value = String(formData.get("country") ?? "")
+    .trim()
+    .toUpperCase();
+  return value === "" ? null : value;
+}
+
+/** Resolve the owning Person for the contact-method screens, or 404. */
+async function contactPersonSubject(id: string) {
+  const person = await window.api.people.get(id);
+  if (!person) throw new Response("Person not found", { status: 404 });
+  return { id, label: fullName(person) };
+}
+
+/** Loader for the "add contact" screen: resolves the owner and the kind to add. */
+async function contactNewLoader({ params }: LoaderFunctionArgs) {
+  const subject = await contactPersonSubject(params.id as string);
+  return { subject, kind: params.kind as ContactMethodKind };
+}
+
+/**
+ * Loader for the contact edit/delete screens: resolves the owner and finds the
+ * method among the owner's merged list (there is no get-by-id IPC; the list is
+ * already owner-scoped and soft-delete-aware, mirroring the milestone screens).
+ */
+async function contactMethodLoader({ params }: LoaderFunctionArgs) {
+  const id = params.id as string;
+  const kind = params.kind as ContactMethodKind;
+  const methodId = params.methodId as string;
+  const subject = await contactPersonSubject(id);
+  const methods = await window.api.contactMethods.listForOwner("person", id);
+  const entry = methods.find(
+    (m) => m.kind === kind && m.method.id === methodId,
+  );
+  if (!entry) throw new Response("Contact method not found", { status: 404 });
+  return { subject, kind, method: entry.method, entry };
+}
+
+/**
+ * Action for the "add contact" screen. The owner is the route's Person; the kind
+ * (email / phone / postal) selects the typed sub-repo and which fields are read.
+ * Blank optional fields become null; the country is uppercased to ISO shape.
+ */
+async function contactCreateAction({ request, params }: ActionFunctionArgs) {
+  const id = params.id as string;
+  const kind = params.kind as ContactMethodKind;
+  const formData = await request.formData();
+  const owner = { ownerType: "person" as const, ownerId: id };
+  const label = readContactLabel(formData);
+
+  if (kind === "email") {
+    await window.api.contactMethods.emails.create({
+      ...owner,
+      label,
+      address: String(formData.get("address")),
+    });
+  } else if (kind === "phone") {
+    await window.api.contactMethods.phones.create({
+      ...owner,
+      label,
+      number: String(formData.get("number")),
+      extension: readNote(formData, "extension"),
+      country: readContactCountry(formData),
+      smsCapable: formData.has("smsCapable"),
+    });
+  } else {
+    await window.api.contactMethods.postals.create({
+      ...owner,
+      label,
+      line1: String(formData.get("line1")),
+      line2: readNote(formData, "line2"),
+      locality: readNote(formData, "locality"),
+      region: readNote(formData, "region"),
+      postalCode: readNote(formData, "postalCode"),
+      country: readContactCountry(formData),
+    });
+  }
+  return redirect(`/people/${id}`);
+}
+
+/** Action for the "edit contact" screen: updates the editable fields of one method. */
+async function contactEditAction({ request, params }: ActionFunctionArgs) {
+  const id = params.id as string;
+  const kind = params.kind as ContactMethodKind;
+  const methodId = params.methodId as string;
+  const formData = await request.formData();
+  const label = readContactLabel(formData);
+
+  if (kind === "email") {
+    await window.api.contactMethods.emails.update(methodId, {
+      label,
+      address: String(formData.get("address")),
+    });
+  } else if (kind === "phone") {
+    await window.api.contactMethods.phones.update(methodId, {
+      label,
+      number: String(formData.get("number")),
+      extension: readNote(formData, "extension"),
+      country: readContactCountry(formData),
+      smsCapable: formData.has("smsCapable"),
+    });
+  } else {
+    await window.api.contactMethods.postals.update(methodId, {
+      label,
+      line1: String(formData.get("line1")),
+      line2: readNote(formData, "line2"),
+      locality: readNote(formData, "locality"),
+      region: readNote(formData, "region"),
+      postalCode: readNote(formData, "postalCode"),
+      country: readContactCountry(formData),
+    });
+  }
+  return redirect(`/people/${id}`);
+}
+
+/** Action for the "remove contact" screen: soft-deletes one method by kind + id. */
+async function contactDeleteAction({ params }: ActionFunctionArgs) {
+  const kind = params.kind as ContactMethodKind;
+  const methodId = params.methodId as string;
+  if (kind === "email") {
+    await window.api.contactMethods.emails.softDelete(methodId);
+  } else if (kind === "phone") {
+    await window.api.contactMethods.phones.softDelete(methodId);
+  } else {
+    await window.api.contactMethods.postals.softDelete(methodId);
+  }
+  return redirect(`/people/${params.id}`);
+}
+
 /**
  * Loader for the relationship detail page — the canonical home for a
  * relationship's milestones. Resolves the stored edge, both endpoint labels, and
@@ -895,6 +1036,24 @@ export const router = createHashRouter([
         loader: milestoneRebindLoader,
         element: <MilestoneRebind />,
         action: milestoneRebindAction,
+      },
+      {
+        path: "people/:id/contact/:kind/new",
+        loader: contactNewLoader,
+        element: <ContactMethodCreate />,
+        action: contactCreateAction,
+      },
+      {
+        path: "people/:id/contact/:kind/:methodId/edit",
+        loader: contactMethodLoader,
+        element: <ContactMethodEdit />,
+        action: contactEditAction,
+      },
+      {
+        path: "people/:id/contact/:kind/:methodId/delete",
+        loader: contactMethodLoader,
+        element: <ContactMethodDelete />,
+        action: contactDeleteAction,
       },
       {
         path: "pets/new",

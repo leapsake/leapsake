@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import {
+  type ContactMethodsRepo,
   type DismissalsRepo,
   type KinshipService,
   type MilestonesRepo,
@@ -8,6 +9,7 @@ import {
   type RelationshipsRepo,
   type SqliteDriver,
   type TagsRepo,
+  createContactMethodsRepo,
   createDismissalsRepo,
   createKinshipService,
   createMilestonesRepo,
@@ -15,24 +17,32 @@ import {
   createPetsRepo,
   createRelationshipsRepo,
   createTagsRepo,
+  listContactMethods,
   listTimelineForEntity,
   runMigrations,
 } from "@leapsake/data";
 import {
+  type ContactOwnerType,
   type EntityType,
   type MilestoneSubjectType,
   type Person,
   type Pet,
   type RelationshipNeighbor,
   type RelationshipRole,
+  createEmailInputSchema,
   createMilestoneInputSchema,
   createPersonInputSchema,
   createPetInputSchema,
+  createPhoneInputSchema,
+  createPostalInputSchema,
   createRelationshipInputSchema,
   roleDefs,
+  updateEmailInputSchema,
   updateMilestoneInputSchema,
   updatePersonInputSchema,
   updatePetInputSchema,
+  updatePhoneInputSchema,
+  updatePostalInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
 import { DatabaseSync } from "node:sqlite";
@@ -60,6 +70,7 @@ function registerIpc(
   dismissals: DismissalsRepo,
   kinship: KinshipService,
   milestones: MilestonesRepo,
+  contactMethods: ContactMethodsRepo,
 ): void {
   // Resolve an entity to its display label for relationship rows. The label is
   // composed inline here because the main process can't import renderer helpers.
@@ -105,6 +116,7 @@ function registerIpc(
       await relationships.removeAllForEntity("person", id);
       await dismissals.removeAllForEntity("person", id);
       await milestones.removeAllForEntity("person", id);
+      await contactMethods.removeAllForOwner("person", id);
     }),
   );
 
@@ -212,6 +224,60 @@ function registerIpc(
     driver.transaction(() => milestones.softDelete(id)),
   );
 
+  // Contact methods: the merged read fans out across the three typed tables in
+  // @leapsake/data; writes target one typed sub-repo each. Inputs are
+  // Zod-validated at this trust boundary (the repo validates again internally).
+  ipcMain.handle(
+    "contactMethods:listForOwner",
+    (_event, type: ContactOwnerType, id: string) =>
+      listContactMethods(contactMethods, { type, id }),
+  );
+  ipcMain.handle("contactMethods:emails:create", (_event, input: unknown) =>
+    driver.transaction(() =>
+      contactMethods.emails.create(createEmailInputSchema.parse(input)),
+    ),
+  );
+  ipcMain.handle(
+    "contactMethods:emails:update",
+    (_event, id: string, input: unknown) =>
+      driver.transaction(() =>
+        contactMethods.emails.update(id, updateEmailInputSchema.parse(input)),
+      ),
+  );
+  ipcMain.handle("contactMethods:emails:softDelete", (_event, id: string) =>
+    driver.transaction(() => contactMethods.emails.softDelete(id)),
+  );
+  ipcMain.handle("contactMethods:phones:create", (_event, input: unknown) =>
+    driver.transaction(() =>
+      contactMethods.phones.create(createPhoneInputSchema.parse(input)),
+    ),
+  );
+  ipcMain.handle(
+    "contactMethods:phones:update",
+    (_event, id: string, input: unknown) =>
+      driver.transaction(() =>
+        contactMethods.phones.update(id, updatePhoneInputSchema.parse(input)),
+      ),
+  );
+  ipcMain.handle("contactMethods:phones:softDelete", (_event, id: string) =>
+    driver.transaction(() => contactMethods.phones.softDelete(id)),
+  );
+  ipcMain.handle("contactMethods:postals:create", (_event, input: unknown) =>
+    driver.transaction(() =>
+      contactMethods.postals.create(createPostalInputSchema.parse(input)),
+    ),
+  );
+  ipcMain.handle(
+    "contactMethods:postals:update",
+    (_event, id: string, input: unknown) =>
+      driver.transaction(() =>
+        contactMethods.postals.update(id, updatePostalInputSchema.parse(input)),
+      ),
+  );
+  ipcMain.handle("contactMethods:postals:softDelete", (_event, id: string) =>
+    driver.transaction(() => contactMethods.postals.softDelete(id)),
+  );
+
   // Kinship inference: compute-on-read derived gender + neighbors, and the
   // dismiss/undismiss mutations that suppress a rejected derived edge.
   ipcMain.handle(
@@ -295,6 +361,7 @@ void app.whenReady().then(async () => {
   const relationships = createRelationshipsRepo(driver);
   const dismissals = createDismissalsRepo(driver);
   const milestones = createMilestonesRepo(driver);
+  const contactMethods = createContactMethodsRepo(driver);
   const kinship = createKinshipService(driver, {
     people,
     pets,
@@ -310,6 +377,7 @@ void app.whenReady().then(async () => {
     dismissals,
     kinship,
     milestones,
+    contactMethods,
   );
 
   createWindow();
