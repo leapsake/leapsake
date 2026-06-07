@@ -23,3 +23,8 @@ export {
   type KinshipService,
   createKinshipService,
 } from "./kinship-service.js";
+export {
+  type ContactMethodsRepo,
+  createContactMethodsRepo,
+  listContactMethods,
+} from "./contact-methods-repo.js";

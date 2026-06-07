@@ -192,6 +192,98 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 9,
+    async up(driver) {
+      // Contact methods: three typed tables (email/phone/postal) rather than one
+      // generic table, since each fits its own shape (contact-methods-plan.md).
+      // Every row shares a spine — a polymorphic `(owner_type, owner_id)` pair, a
+      // per-table label + free-text `label_note` for the `other` escape hatch,
+      // and the usual sync-safe id/timestamps/soft-delete (reboot-plan.md §4.2).
+      // `owner_type` is 'person' today; the Zod enum reserves 'household' so a
+      // future household entity owns a shared method with no migration.
+      //
+      // Each table gets a per-owner partial index for the by-owner read, plus a
+      // **non-unique** `normalized` index (email/phone) for lookup and the
+      // optional duplicate warning — dedupe is permissive, no hard uniqueness.
+      // All value-field constraints live in Zod, not the DB, to stay portable
+      // across node:sqlite and expo-sqlite.
+      await driver.exec(`
+        CREATE TABLE email_addresses (
+          id         TEXT    PRIMARY KEY,
+          owner_type TEXT    NOT NULL,
+          owner_id   TEXT    NOT NULL,
+          label      TEXT    NOT NULL,
+          label_note TEXT,
+          address    TEXT    NOT NULL,
+          normalized TEXT    NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          deleted_at INTEGER
+        );
+        CREATE INDEX ix_email_addresses_owner
+          ON email_addresses(owner_type, owner_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_email_addresses_normalized
+          ON email_addresses(normalized) WHERE deleted_at IS NULL;
+
+        CREATE TABLE phone_numbers (
+          id         TEXT    PRIMARY KEY,
+          owner_type TEXT    NOT NULL,
+          owner_id   TEXT    NOT NULL,
+          label      TEXT    NOT NULL,
+          label_note TEXT,
+          number     TEXT    NOT NULL,
+          normalized TEXT    NOT NULL,
+          extension  TEXT,
+          country    TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          deleted_at INTEGER
+        );
+        CREATE INDEX ix_phone_numbers_owner
+          ON phone_numbers(owner_type, owner_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_phone_numbers_normalized
+          ON phone_numbers(normalized) WHERE deleted_at IS NULL;
+
+        CREATE TABLE postal_addresses (
+          id          TEXT    PRIMARY KEY,
+          owner_type  TEXT    NOT NULL,
+          owner_id    TEXT    NOT NULL,
+          label       TEXT    NOT NULL,
+          label_note  TEXT,
+          line1       TEXT    NOT NULL,
+          line2       TEXT,
+          locality    TEXT,
+          region      TEXT,
+          postal_code TEXT,
+          country     TEXT,
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL,
+          deleted_at  INTEGER
+        );
+        CREATE INDEX ix_postal_addresses_owner
+          ON postal_addresses(owner_type, owner_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
+  {
+    version: 10,
+    async up(driver) {
+      // Two contact-method tweaks. (1) The label became free text — the user
+      // types anything, with per-kind suggestions that constrain nothing — so the
+      // `other`-escape-hatch `label_note` column is dead weight and is dropped.
+      // (2) Phones gained `sms_capable`: whether the number can receive texts,
+      // the one thing the UI asks. It defaults to 1 (textable) — the common case,
+      // so existing rows are assumed textable — and is set to 0 only for a
+      // landline/fax. Still portable SQL across node:sqlite and expo-sqlite.
+      await driver.exec(`
+        ALTER TABLE phone_numbers ADD COLUMN sms_capable INTEGER NOT NULL DEFAULT 1;
+        ALTER TABLE email_addresses DROP COLUMN label_note;
+        ALTER TABLE phone_numbers DROP COLUMN label_note;
+        ALTER TABLE postal_addresses DROP COLUMN label_note;
+      `);
+    },
+  },
 ];
 
 /**
