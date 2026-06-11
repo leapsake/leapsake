@@ -86,6 +86,18 @@ export {
   formatPostalAddress,
 } from "./contact-method.js";
 export type { SearchHit, SearchResultType } from "./search.js";
+export {
+  foldTextChar,
+  foldPhoneChar,
+  foldAddressChar,
+  foldCharFor,
+  fold,
+  digits,
+  foldAddress,
+} from "./search-fold.js";
+export type { HighlightMode } from "./search-fold.js";
+export { parseBirthdayQuery } from "./birthday-query.js";
+export type { PartialDate } from "./birthday-query.js";
 export { contactCountryOptions, countryFlag } from "./countries.js";
 export type { CountryOption } from "./countries.js";
 export type {

@@ -29,6 +29,9 @@ importers:
       '@leapsake/data':
         specifier: workspace:*
         version: link:../../packages/data
+      '@leapsake/highlight':
+        specifier: workspace:*
+        version: link:../../packages/highlight
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -62,6 +65,12 @@ importers:
         version: 7.3.3(@types/node@25.9.1)(lightningcss@1.32.0)
 
   packages/data:
+    dependencies:
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
+
+  packages/highlight:
     dependencies:
       '@leapsake/schema':
         specifier: workspace:*

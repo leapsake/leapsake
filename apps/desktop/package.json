@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@leapsake/data": "workspace:*",
+    "@leapsake/highlight": "workspace:*",
     "@leapsake/schema": "workspace:*",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
