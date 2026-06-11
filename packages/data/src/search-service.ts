@@ -2,6 +2,7 @@ import {
   type EntityType,
   type SearchHit,
   type SearchResultType,
+  formatMilestoneDate,
   formatPostalAddress,
   normalizeEmail,
   normalizePhone,
@@ -56,6 +57,111 @@ const digits = (s: string): string => s.replace(/\D/g, "");
  */
 const foldAddress = (s: string): string =>
   fold(s).replace(/,/g, " ").replace(/\s+/g, " ").trim();
+
+/** A partial date parsed from a query: any subset of `(year, month, day)`. */
+interface PartialDate {
+  year?: number;
+  month?: number;
+  day?: number;
+}
+
+/** English month full names + 3-letter abbreviations → 1–12, for query parsing. */
+const MONTH_LOOKUP: Map<string, number> = (() => {
+  const names = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+  ];
+  const m = new Map<string, number>();
+  names.forEach((name, i) => {
+    m.set(name, i + 1);
+    m.set(name.slice(0, 3), i + 1);
+  });
+  return m;
+})();
+
+const isMonth = (n: number): boolean => n >= 1 && n <= 12;
+const isDay = (n: number): boolean => n >= 1 && n <= 31;
+const isYear = (n: number): boolean => n >= 1000 && n <= 9999;
+
+/**
+ * Parse a query into the partial date(s) it could mean, for the birthday facet.
+ * Returns `[]` when the term isn't a recognizable date, so the facet block can
+ * skip rather than match everyone. Accepted forms (English, false-positive
+ * friendly):
+ *   "march" / "mar"          → {month}
+ *   "mar 4" / "march 4"      → {month, day}
+ *   "march 4 1990"           → {month, day, year}   (also "mar 4, 1990")
+ *   "march 1990"             → {month, year}
+ *   "3/4" / "3-4"            → BOTH {month:3,day:4} AND {month:4,day:3}
+ *   "3/4/1990"               → both orderings, each with {year:1990}
+ *   "1990"                   → {year}
+ * A bare 1–2 digit number ("4") is too ambiguous and parses to nothing.
+ *
+ * Numeric `M/D` is returned as *both* orderings as equal candidates — the seam
+ * where a future locale-preferred ordering becomes a ranking choice (which one
+ * sorts first), without changing *what* matches.
+ */
+export function parseBirthdayQuery(term: string): PartialDate[] {
+  const t = fold(term).trim();
+  if (t === "") return [];
+
+  // Month name (optionally followed by a day and/or a year), e.g. "march",
+  // "mar 4", "march 4 1990", "march 1990". Day/year order after the name is
+  // flexible; we read whichever numbers follow.
+  const named = /^([a-z]+)\b[\s,]*(\d{1,2})?[\s,]*(\d{4})?$/.exec(t);
+  if (named) {
+    const month = MONTH_LOOKUP.get(named[1]);
+    if (month !== undefined) {
+      const date: PartialDate = { month };
+      if (named[2] !== undefined) {
+        const day = Number(named[2]);
+        if (!isDay(day)) return [];
+        date.day = day;
+      }
+      if (named[3] !== undefined) date.year = Number(named[3]);
+      return [date];
+    }
+    return []; // an unrecognized word is not a date
+  }
+
+  // Numeric M/D[/Y] separated by "/" or "-". Emit both orderings.
+  const numeric = /^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{4}))?$/.exec(t);
+  if (numeric) {
+    const a = Number(numeric[1]);
+    const b = Number(numeric[2]);
+    const year = numeric[3] !== undefined ? Number(numeric[3]) : undefined;
+    const candidates: PartialDate[] = [];
+    const add = (month: number, day: number) => {
+      if (isMonth(month) && isDay(day)) {
+        candidates.push(
+          year !== undefined ? { month, day, year } : { month, day },
+        );
+      }
+    };
+    add(a, b); // M/D
+    if (a !== b) add(b, a); // D/M (skip when identical, e.g. "4/4")
+    return candidates;
+  }
+
+  // A lone 4-digit year.
+  const yearOnly = /^(\d{4})$/.exec(t);
+  if (yearOnly) {
+    const year = Number(yearOnly[1]);
+    return isYear(year) ? [{ year }] : [];
+  }
+
+  return [];
+}
 
 export interface SearchService {
   /**
@@ -116,6 +222,14 @@ interface TagRow {
   name: string;
   normalized: string;
 }
+/** A birthday milestone: matched on its partial date, resolved to its subject. */
+interface BirthdayMatchRow {
+  subject_type: string;
+  subject_id: string;
+  year: number | null;
+  month: number | null;
+  day: number | null;
+}
 
 /** An accumulating result row plus the keys we sort on. */
 interface Accumulator {
@@ -140,33 +254,44 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     const addressQuery = foldAddress(term); // comma/whitespace-insensitive
     const tagQuery = folded.replace(/^#+/, ""); // the "#" sigil is optional here
 
-    const [people, pets, emails, phones, postals, taggings, tagList] =
-      await Promise.all([
-        driver.all<PersonRow>(
-          "SELECT id, first_name, middle_name, last_name FROM people WHERE deleted_at IS NULL",
-        ),
-        driver.all<PetRow>(
-          "SELECT id, name FROM pets WHERE deleted_at IS NULL",
-        ),
-        driver.all<EmailMatchRow>(
-          "SELECT owner_type, owner_id, address, normalized FROM email_addresses WHERE deleted_at IS NULL",
-        ),
-        driver.all<PhoneMatchRow>(
-          "SELECT owner_type, owner_id, number, normalized FROM phone_numbers WHERE deleted_at IS NULL",
-        ),
-        driver.all<PostalMatchRow>(
-          `SELECT owner_type, owner_id, line1, line2, locality, region, postal_code, country
+    const [
+      people,
+      pets,
+      emails,
+      phones,
+      postals,
+      taggings,
+      tagList,
+      birthdays,
+    ] = await Promise.all([
+      driver.all<PersonRow>(
+        "SELECT id, first_name, middle_name, last_name FROM people WHERE deleted_at IS NULL",
+      ),
+      driver.all<PetRow>("SELECT id, name FROM pets WHERE deleted_at IS NULL"),
+      driver.all<EmailMatchRow>(
+        "SELECT owner_type, owner_id, address, normalized FROM email_addresses WHERE deleted_at IS NULL",
+      ),
+      driver.all<PhoneMatchRow>(
+        "SELECT owner_type, owner_id, number, normalized FROM phone_numbers WHERE deleted_at IS NULL",
+      ),
+      driver.all<PostalMatchRow>(
+        `SELECT owner_type, owner_id, line1, line2, locality, region, postal_code, country
            FROM postal_addresses WHERE deleted_at IS NULL`,
-        ),
-        driver.all<TagMatchRow>(
-          `SELECT g.entity_type, g.entity_id, t.name, t.normalized
+      ),
+      driver.all<TagMatchRow>(
+        `SELECT g.entity_type, g.entity_id, t.name, t.normalized
            FROM taggings g JOIN tags t ON t.id = g.tag_id
           WHERE g.deleted_at IS NULL AND t.deleted_at IS NULL`,
-        ),
-        driver.all<TagRow>(
-          "SELECT id, name, normalized FROM tags WHERE deleted_at IS NULL",
-        ),
-      ]);
+      ),
+      driver.all<TagRow>(
+        "SELECT id, name, normalized FROM tags WHERE deleted_at IS NULL",
+      ),
+      driver.all<BirthdayMatchRow>(
+        `SELECT subject_type, subject_id, year, month, day
+             FROM milestones
+            WHERE kind = 'birthday' AND deleted_at IS NULL`,
+      ),
+    ]);
 
     const acc = new Map<string, Accumulator>();
     /**
@@ -382,6 +507,35 @@ export function createSearchService(driver: SqliteDriver): SearchService {
             quality(tg.normalized, tagQuery),
           );
         }
+      }
+    }
+
+    // Birthday: parse the term into the partial date(s) it could mean, then
+    // surface every birthday consistent with a candidate (resolving to its
+    // person/pet subject). A candidate matches only when every part it
+    // *specifies* equals the milestone's part, so a "march" query never lights
+    // up a year-only birthday, and a milestone missing a specified part drops.
+    // parseBirthdayQuery returns [] for a non-date term, so the block is skipped
+    // rather than matching everyone (the same empty-query guard the other facets
+    // use). Birthdays only ever sit on person/pet subjects (the kind's
+    // allowedSubjectTypes), so addOwnerHit resolves them all.
+    const birthdayCandidates = parseBirthdayQuery(term);
+    if (birthdayCandidates.length > 0) {
+      for (const m of birthdays) {
+        const matched = birthdayCandidates.some(
+          (c) =>
+            (c.month === undefined || c.month === m.month) &&
+            (c.day === undefined || c.day === m.day) &&
+            (c.year === undefined || c.year === m.year),
+        );
+        if (!matched) continue;
+        addOwnerHit(
+          m.subject_type,
+          m.subject_id,
+          "birthday",
+          formatMilestoneDate(m),
+          QUALITY_SUBSTRING,
+        );
       }
     }
 
