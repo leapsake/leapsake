@@ -46,9 +46,7 @@ export function TagView() {
 
   return (
     <main>
-      <Breadcrumbs
-		  trail={[{ label: "Tags" }, { label: tagLabel(tag.name) }]}
-      />
+      <Breadcrumbs trail={[{ label: "Tags" }, { label: tagLabel(tag.name) }]} />
 
       <header>
         <h1>{tagLabel(tag.name)}</h1>
