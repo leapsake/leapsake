@@ -140,7 +140,11 @@ export function SearchBar() {
                         {highlightMatch(
                           r.matchedText,
                           term,
-                          r.facet === "phone" ? "phone" : "text",
+                          r.facet === "phone"
+                            ? "phone"
+                            : r.facet === "address"
+                              ? "address"
+                              : "text",
                         )}
                       </Fragment>
                     ))}
