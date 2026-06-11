@@ -211,6 +211,38 @@ describe("searchService", () => {
     }
   });
 
+  it("matches a postal address ignoring commas and extra spacing", async () => {
+    const person = await people.create({
+      firstName: "Comma",
+      lastName: "Less",
+    });
+    await contactMethods.postals.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Home",
+      line1: "123 Any Street",
+      locality: "Pittsburgh",
+    });
+    // Formatted as "123 Any Street, Pittsburgh"; matches with or without the
+    // comma, and across collapsed extra whitespace.
+    for (const term of [
+      "123 any street pittsburgh",
+      "123 any street, pittsburgh",
+      "123  any   street  pittsburgh",
+    ]) {
+      const hits = await search.query(term);
+      expect(hits).toHaveLength(1);
+      expect(hits[0]).toMatchObject({
+        entityType: "person",
+        title: "Comma Less",
+      });
+      expect(hits[0]?.reasons).toContainEqual({
+        facet: "address",
+        matchedText: "123 Any Street, Pittsburgh",
+      });
+    }
+  });
+
   it("drops a postal hit whose owner is soft-deleted", async () => {
     const person = await people.create({ firstName: "Gone", lastName: "Away" });
     await contactMethods.postals.create({
