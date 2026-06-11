@@ -5,15 +5,14 @@ import type {
   RelationshipNeighbor,
   Tag,
 } from "@leapsake/schema";
-import { Fragment } from "react";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { ContactMethodsSection } from "../components/ContactMethodsSection";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
 import { MilestonesSection } from "../components/MilestonesSection";
 import { RelationshipsSection } from "../components/RelationshipsSection";
+import { TagsSection } from "../components/TagsSection";
 import { fullName } from "../lib/fullName";
-import { tagLabel } from "../lib/tagLabel";
 
 /** Render an epoch-ms timestamp in the user's locale. */
 function formatTimestamp(ms: number): string {
@@ -52,21 +51,6 @@ export function PersonView() {
         <dd>
           <GenderValue gender={gender} />
         </dd>
-        <dt>Tags</dt>
-        <dd>
-          {tags.length === 0
-            ? "—"
-            : tags.map((tag, index) => (
-                <Fragment key={tag.id}>
-                  {index > 0 && ", "}
-                  <Link to={`/tags/${tag.id}`}>{tagLabel(tag.name)}</Link>
-                </Fragment>
-              ))}
-        </dd>
-        <dt>Created</dt>
-        <dd>{formatTimestamp(person.createdAt)}</dd>
-        <dt>Updated</dt>
-        <dd>{formatTimestamp(person.updatedAt)}</dd>
       </dl>
 
       <ContactMethodsSection personId={person.id} methods={contactMethods} />
@@ -82,6 +66,15 @@ export function PersonView() {
         subjectId={person.id}
         entries={timeline}
       />
+
+      <TagsSection subjectType="person" subjectId={person.id} tags={tags} />
+
+      <dl>
+        <dt>Created</dt>
+        <dd>{formatTimestamp(person.createdAt)}</dd>
+        <dt>Updated</dt>
+        <dd>{formatTimestamp(person.updatedAt)}</dd>
+      </dl>
     </main>
   );
 }

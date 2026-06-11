@@ -56,7 +56,10 @@ export function PersonForm({
           Last name{" "}
           <input name="lastName" defaultValue={person?.lastName} required />
         </label>{" "}
-        <GenderField value={person?.gender} />{" "}
+        <GenderField value={person?.gender} />
+      </fieldset>
+      <fieldset disabled={submitting}>
+        <legend>Tags</legend>
         <label>
           Tags{" "}
           <input

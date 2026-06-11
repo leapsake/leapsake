@@ -46,7 +46,10 @@ export function PetForm({
         <label>
           Name <input name="name" defaultValue={pet?.name} required />
         </label>{" "}
-        <GenderField value={pet?.gender} />{" "}
+        <GenderField value={pet?.gender} />
+      </fieldset>
+      <fieldset disabled={submitting}>
+        <legend>Tags</legend>
         <label>
           Tags{" "}
           <input
