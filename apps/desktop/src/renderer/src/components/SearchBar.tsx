@@ -69,7 +69,12 @@ export function SearchBar() {
     setResults([]);
     setTerm("");
     inputRef.current?.blur(); // drop focus so the result screen takes over
-    navigate(`${entityBasePath(hit.entityType)}/${hit.entityId}`);
+    // A tag result targets its own screen; entities use their type's base path.
+    const path =
+      hit.entityType === "tag"
+        ? `/tags/${hit.entityId}`
+        : `${entityBasePath(hit.entityType)}/${hit.entityId}`;
+    navigate(path);
   }
 
   function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -102,7 +107,7 @@ export function SearchBar() {
         ref={inputRef}
         type="text"
         role="combobox"
-        aria-label="Search people and pets"
+        aria-label="Search people, pets, and tags"
         aria-expanded={open}
         aria-controls={listboxId}
         aria-activedescendant={open ? optionId(activeIndex) : undefined}
@@ -131,6 +136,9 @@ export function SearchBar() {
                 }}
               >
                 {highlightMatch(hit.title, term)}
+                {hit.entityType === "tag" && (
+                  <span className={styles.kind}>Tag</span>
+                )}
                 {reasons.length > 0 && (
                   <span className={styles.reason}>
                     matched on{" "}

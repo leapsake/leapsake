@@ -1,6 +1,7 @@
 import {
   type EntityType,
   type SearchHit,
+  type SearchResultType,
   formatPostalAddress,
   normalizeEmail,
   normalizePhone,
@@ -41,8 +42,9 @@ function quality(field: string, term: string): number {
   return QUALITY_NONE;
 }
 
-/** A `(type, id)` accumulator-map key. */
-const key = (type: EntityType, id: string) => `${type}:${id}`;
+/** A `(type, id)` accumulator-map key. The `"tag"` namespace can't collide with
+ * a person/pet id, so tag results group separately from the entities they tag. */
+const key = (type: SearchResultType, id: string) => `${type}:${id}`;
 
 /** Strip everything but digits — drops formatting *and* the leading `+`. */
 const digits = (s: string): string => s.replace(/\D/g, "");
@@ -101,6 +103,19 @@ interface PostalMatchRow {
   postal_code: string | null;
   country: string | null;
 }
+/** A tagging joined to its tag: matched on `normalized`, displayed as `name`. */
+interface TagMatchRow {
+  entity_type: string;
+  entity_id: string;
+  name: string;
+  normalized: string;
+}
+/** A tag itself, surfaced as its own navigable result (matched on `normalized`). */
+interface TagRow {
+  id: string;
+  name: string;
+  normalized: string;
+}
 
 /** An accumulating result row plus the keys we sort on. */
 interface Accumulator {
@@ -124,22 +139,33 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     const phoneQuery = normalizePhone(term); // leading "+" + digits only
     const addressQuery = foldAddress(term); // comma/whitespace-insensitive
 
-    const [people, pets, emails, phones, postals] = await Promise.all([
-      driver.all<PersonRow>(
-        "SELECT id, first_name, middle_name, last_name FROM people WHERE deleted_at IS NULL",
-      ),
-      driver.all<PetRow>("SELECT id, name FROM pets WHERE deleted_at IS NULL"),
-      driver.all<EmailMatchRow>(
-        "SELECT owner_type, owner_id, address, normalized FROM email_addresses WHERE deleted_at IS NULL",
-      ),
-      driver.all<PhoneMatchRow>(
-        "SELECT owner_type, owner_id, number, normalized FROM phone_numbers WHERE deleted_at IS NULL",
-      ),
-      driver.all<PostalMatchRow>(
-        `SELECT owner_type, owner_id, line1, line2, locality, region, postal_code, country
+    const [people, pets, emails, phones, postals, taggings, tagList] =
+      await Promise.all([
+        driver.all<PersonRow>(
+          "SELECT id, first_name, middle_name, last_name FROM people WHERE deleted_at IS NULL",
+        ),
+        driver.all<PetRow>(
+          "SELECT id, name FROM pets WHERE deleted_at IS NULL",
+        ),
+        driver.all<EmailMatchRow>(
+          "SELECT owner_type, owner_id, address, normalized FROM email_addresses WHERE deleted_at IS NULL",
+        ),
+        driver.all<PhoneMatchRow>(
+          "SELECT owner_type, owner_id, number, normalized FROM phone_numbers WHERE deleted_at IS NULL",
+        ),
+        driver.all<PostalMatchRow>(
+          `SELECT owner_type, owner_id, line1, line2, locality, region, postal_code, country
            FROM postal_addresses WHERE deleted_at IS NULL`,
-      ),
-    ]);
+        ),
+        driver.all<TagMatchRow>(
+          `SELECT g.entity_type, g.entity_id, t.name, t.normalized
+           FROM taggings g JOIN tags t ON t.id = g.tag_id
+          WHERE g.deleted_at IS NULL AND t.deleted_at IS NULL`,
+        ),
+        driver.all<TagRow>(
+          "SELECT id, name, normalized FROM tags WHERE deleted_at IS NULL",
+        ),
+      ]);
 
     const acc = new Map<string, Accumulator>();
     /**
@@ -158,7 +184,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
      * `bestQuality` only ever improves.
      */
     const record = (
-      type: EntityType,
+      type: SearchResultType,
       id: string,
       title: string,
       isName: boolean,
@@ -317,6 +343,45 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         }
       }
     }
+    // Tag-as-result: a tag has its own screen, so a matching tag surfaces as its
+    // own navigable row. It's recorded as a name hit on the tag itself (facet
+    // "name", so no "matched on …" line), and the sort floats it above the
+    // entities that merely carry the tag (see the tag tiebreak below). This is
+    // the one facet that surfaces as itself rather than only resolving to owners.
+    // tagList holds only active tags (orphans are GC-soft-deleted), so a match
+    // here always has at least one bearer below it.
+    if (folded !== "") {
+      for (const t of tagList) {
+        if (t.normalized.includes(folded)) {
+          record(
+            "tag",
+            t.id,
+            t.name,
+            true,
+            "name",
+            t.name,
+            quality(t.normalized, folded),
+          );
+        }
+      }
+    }
+    // Tag-as-reason: substring of the tag's normalized (lowercased) name, matched
+    // against the accent+case-folded query. One entity carrying several matching
+    // tags — or matching a tag *and* its own name — merges into one row via
+    // record(). The guard keeps a query that folds to "" from matching every tag.
+    if (folded !== "") {
+      for (const tg of taggings) {
+        if (tg.normalized.includes(folded)) {
+          addOwnerHit(
+            tg.entity_type,
+            tg.entity_id,
+            "tag",
+            tg.name,
+            quality(tg.normalized, folded),
+          );
+        }
+      }
+    }
 
     const rows = [...acc.values()];
     rows.sort((a, b) => {
@@ -324,7 +389,12 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       if (a.isName !== b.isName) return a.isName ? -1 : 1;
       // 2. match-quality bucket: exact > starts-with > substring.
       if (a.bestQuality !== b.bestQuality) return a.bestQuality - b.bestQuality;
-      // 3. alphabetical by title.
+      // 3. a tag result floats above an equally-matching entity, so when the
+      //    query best matches a tag the tag leads, followed by its bearers.
+      const aTag = a.hit.entityType === "tag";
+      const bTag = b.hit.entityType === "tag";
+      if (aTag !== bTag) return aTag ? -1 : 1;
+      // 4. alphabetical by title.
       return a.hit.title.localeCompare(b.hit.title);
     });
 

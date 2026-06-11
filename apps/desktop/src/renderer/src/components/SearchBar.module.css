@@ -36,6 +36,17 @@
   color: #555;
 }
 
+/* Small chip distinguishing a tag result from a same-named person/pet. */
+.kind {
+  margin-left: 0.4em;
+  padding: 0 0.3em;
+  font-size: 0.7em;
+  vertical-align: middle;
+  color: #555;
+  border: 1px solid #ccc;
+  border-radius: 0.25em;
+}
+
 /* Highlight the matched substring as bold rather than the browser default
    (yellow background), keeping the <mark> semantics without the heavy styling. */
 .option mark {

@@ -85,7 +85,7 @@ export {
   normalizePhone,
   formatPostalAddress,
 } from "./contact-method.js";
-export type { SearchHit } from "./search.js";
+export type { SearchHit, SearchResultType } from "./search.js";
 export { contactCountryOptions, countryFlag } from "./countries.js";
 export type { CountryOption } from "./countries.js";
 export type {
