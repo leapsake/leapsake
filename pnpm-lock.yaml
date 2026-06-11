@@ -64,6 +64,15 @@ importers:
         specifier: ^7.3.3
         version: 7.3.3(@types/node@25.9.1)(lightningcss@1.32.0)
 
+  packages/core:
+    dependencies:
+      '@leapsake/data':
+        specifier: workspace:*
+        version: link:../data
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
+
   packages/data:
     dependencies:
       '@leapsake/schema':
