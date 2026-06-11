@@ -47,11 +47,11 @@ export function TagView() {
   return (
     <main>
       <Breadcrumbs
-        trail={[{ label: "Home", to: "/" }, { label: tagLabel(tag.name) }]}
+		  trail={[{ label: "Tags" }, { label: tagLabel(tag.name) }]}
       />
 
       <header>
-        <h1>Tagged {tagLabel(tag.name)}</h1>
+        <h1>{tagLabel(tag.name)}</h1>
         <Link to={`/tags/${tag.id}/delete`}>Delete tag</Link>
       </header>
 
