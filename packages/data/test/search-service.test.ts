@@ -55,6 +55,37 @@ describe("searchService", () => {
     expect(await titles("armi")).toEqual(["José Armisen"]);
   });
 
+  it("shows the middle name in the title only when the term matched it", async () => {
+    await people.create({
+      firstName: "Joseph",
+      middleName: "Abraham",
+      lastName: "Lampe",
+    });
+    // Matched via the middle name → the title surfaces it so the hit is explained.
+    expect(await titles("br")).toEqual(["Joseph Abraham Lampe"]);
+    // Matched via first or last → the middle name stays hidden.
+    expect(await titles("jose")).toEqual(["Joseph Lampe"]);
+    expect(await titles("lampe")).toEqual(["Joseph Lampe"]);
+  });
+
+  it("resolves a contact-only hit to the plain title, never the middle name", async () => {
+    const person = await people.create({
+      firstName: "Joseph",
+      middleName: "Abraham",
+      lastName: "Lampe",
+    });
+    await contactMethods.emails.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Home",
+      address: "joe@example.com",
+    });
+    // The match is on the email, not the name, so the middle name is irrelevant.
+    const hits = await search.query("example");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.title).toBe("Joseph Lampe");
+  });
+
   it("matches pets by name like people", async () => {
     await pets.create({ name: "Rex" });
     const hits = await search.query("rex");
