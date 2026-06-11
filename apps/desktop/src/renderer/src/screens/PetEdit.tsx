@@ -2,6 +2,7 @@ import type { Pet, Tag } from "@leapsake/schema";
 import { useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { PetForm } from "../components/PetForm";
+import { tagLabel } from "../lib/tagLabel";
 
 export function PetEdit() {
   const { pet, tags } = useLoaderData() as { pet: Pet; tags: Tag[] };
@@ -14,7 +15,7 @@ export function PetEdit() {
       <PetForm
         title={`Edit ${pet.name}`}
         pet={pet}
-        tagNames={tags.map((tag) => tag.name).join(", ")}
+        tagNames={tags.map((tag) => tagLabel(tag.name)).join(" ")}
         submitLabel="Save"
         cancelTo={`/pets/${pet.id}`}
       />

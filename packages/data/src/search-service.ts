@@ -138,6 +138,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     const emailQuery = normalizeEmail(term); // trimmed + lowercased
     const phoneQuery = normalizePhone(term); // leading "+" + digits only
     const addressQuery = foldAddress(term); // comma/whitespace-insensitive
+    const tagQuery = folded.replace(/^#+/, ""); // the "#" sigil is optional here
 
     const [people, pets, emails, phones, postals, taggings, tagList] =
       await Promise.all([
@@ -349,10 +350,11 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     // entities that merely carry the tag (see the tag tiebreak below). This is
     // the one facet that surfaces as itself rather than only resolving to owners.
     // tagList holds only active tags (orphans are GC-soft-deleted), so a match
-    // here always has at least one bearer below it.
-    if (folded !== "") {
+    // here always has at least one bearer below it. Matched on tagQuery (a "#"
+    // sigil is optional), since a stored tag name never contains the "#".
+    if (tagQuery !== "") {
       for (const t of tagList) {
-        if (t.normalized.includes(folded)) {
+        if (t.normalized.includes(tagQuery)) {
           record(
             "tag",
             t.id,
@@ -360,24 +362,24 @@ export function createSearchService(driver: SqliteDriver): SearchService {
             true,
             "name",
             t.name,
-            quality(t.normalized, folded),
+            quality(t.normalized, tagQuery),
           );
         }
       }
     }
     // Tag-as-reason: substring of the tag's normalized (lowercased) name, matched
-    // against the accent+case-folded query. One entity carrying several matching
-    // tags — or matching a tag *and* its own name — merges into one row via
-    // record(). The guard keeps a query that folds to "" from matching every tag.
-    if (folded !== "") {
+    // against the folded query (leading "#" stripped). One entity carrying several
+    // matching tags — or matching a tag *and* its own name — merges into one row
+    // via record(). The guard keeps an empty query from matching every tag.
+    if (tagQuery !== "") {
       for (const tg of taggings) {
-        if (tg.normalized.includes(folded)) {
+        if (tg.normalized.includes(tagQuery)) {
           addOwnerHit(
             tg.entity_type,
             tg.entity_id,
             "tag",
             tg.name,
-            quality(tg.normalized, folded),
+            quality(tg.normalized, tagQuery),
           );
         }
       }

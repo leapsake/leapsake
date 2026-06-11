@@ -2,6 +2,7 @@ import type { Person, Pet, Tag } from "@leapsake/schema";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { fullName } from "../lib/fullName";
+import { tagLabel } from "../lib/tagLabel";
 
 /** One row in a tag's grouped listing: a labelled link to an entity's page. */
 function EntityRows({
@@ -45,10 +46,12 @@ export function TagView() {
 
   return (
     <main>
-      <Breadcrumbs trail={[{ label: "Home", to: "/" }, { label: tag.name }]} />
+      <Breadcrumbs
+        trail={[{ label: "Home", to: "/" }, { label: tagLabel(tag.name) }]}
+      />
 
       <header>
-        <h1>Tagged "{tag.name}"</h1>
+        <h1>Tagged {tagLabel(tag.name)}</h1>
         <Link to={`/tags/${tag.id}/delete`}>Delete tag</Link>
       </header>
 

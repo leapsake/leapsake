@@ -62,7 +62,7 @@ export function PersonForm({
           <input
             name="tags"
             defaultValue={tagNames}
-            placeholder="Friend, Colleague"
+            placeholder="#Friend #Colleague"
           />
         </label>
       </fieldset>
