@@ -7,6 +7,7 @@ import {
   type PeopleRepo,
   type PetsRepo,
   type RelationshipsRepo,
+  type SearchService,
   type SqliteDriver,
   type TagsRepo,
   createContactMethodsRepo,
@@ -16,6 +17,7 @@ import {
   createPeopleRepo,
   createPetsRepo,
   createRelationshipsRepo,
+  createSearchService,
   createTagsRepo,
   listContactMethods,
   listTimelineForEntity,
@@ -71,6 +73,7 @@ function registerIpc(
   kinship: KinshipService,
   milestones: MilestonesRepo,
   contactMethods: ContactMethodsRepo,
+  search: SearchService,
 ): void {
   // Resolve an entity to its display label for relationship rows. The label is
   // composed inline here because the main process can't import renderer helpers.
@@ -329,6 +332,12 @@ function registerIpc(
     const found = await Promise.all(ids.map((id) => pets.get(id)));
     return found.filter((p): p is Pet => p !== undefined);
   });
+
+  // Read-only global search. Non-string input from the boundary is coerced to an
+  // empty query, which the service short-circuits to no results.
+  ipcMain.handle("search:query", (_event, term: unknown) =>
+    search.query(typeof term === "string" ? term : ""),
+  );
 }
 
 function createWindow(): void {
@@ -368,6 +377,7 @@ void app.whenReady().then(async () => {
     relationships,
     dismissals,
   });
+  const search = createSearchService(driver);
   registerIpc(
     driver,
     people,
@@ -378,6 +388,7 @@ void app.whenReady().then(async () => {
     kinship,
     milestones,
     contactMethods,
+    search,
   );
 
   createWindow();

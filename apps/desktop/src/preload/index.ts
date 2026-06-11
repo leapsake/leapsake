@@ -21,6 +21,7 @@ import type {
   Relationship,
   RelationshipNeighbor,
   RelationshipRole,
+  SearchHit,
   Tag,
   UpdateEmailInput,
   UpdateMilestoneInput,
@@ -196,6 +197,10 @@ const api = {
       ),
     undismiss: (id: string): Promise<void> =>
       ipcRenderer.invoke("kinship:undismiss", id),
+  },
+  search: {
+    query: (term: string): Promise<SearchHit[]> =>
+      ipcRenderer.invoke("search:query", term),
   },
 };
 

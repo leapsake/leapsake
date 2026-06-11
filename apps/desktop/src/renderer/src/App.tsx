@@ -1,11 +1,19 @@
 import { Outlet } from "react-router-dom";
+import { SearchBar } from "./components/SearchBar";
 
 /**
- * Root layout. Renders the active route via `<Outlet />`; shared app chrome
- * (global nav, etc.) can live here as the app grows. People and pets share a
- * single home screen, so navigation is handled by that list and breadcrumbs
- * rather than a top-level switcher.
+ * Root layout. A persistent global search bar sits at the top as shared app
+ * chrome; the active route renders below it via `<Outlet />`. People and pets
+ * share a single home screen, so navigation is handled by that list and
+ * breadcrumbs rather than a top-level switcher.
  */
 export function App() {
-  return <Outlet />;
+  return (
+    <>
+      <header>
+        <SearchBar />
+      </header>
+      <Outlet />
+    </>
+  );
 }

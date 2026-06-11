@@ -28,3 +28,4 @@ export {
   createContactMethodsRepo,
   listContactMethods,
 } from "./contact-methods-repo.js";
+export { type SearchService, createSearchService } from "./search-service.js";

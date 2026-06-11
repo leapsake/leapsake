@@ -1,0 +1,48 @@
+/* The only styling the search bar needs for now: position the results listbox
+   as an overlay under the input so page content doesn't jump while typing.
+   Everything else stays unstyled semantic HTML until broader styling lands. */
+
+.container {
+  position: relative;
+}
+
+.listbox {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 20rem;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ccc;
+}
+
+.option {
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+.option[aria-selected="true"] {
+  background: #e0e0e0;
+}
+
+.reason {
+  display: block;
+  font-size: 0.8em;
+  color: #555;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
