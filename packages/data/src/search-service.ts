@@ -47,6 +47,14 @@ const key = (type: EntityType, id: string) => `${type}:${id}`;
 /** Strip everything but digits — drops formatting *and* the leading `+`. */
 const digits = (s: string): string => s.replace(/\D/g, "");
 
+/**
+ * Address fold: {@link fold} plus comma- and whitespace-insensitivity, so a
+ * run-together "123 any street pittsburgh" matches the formatted "123 Any
+ * Street, Pittsburgh". Applied to both the query and the candidate address.
+ */
+const foldAddress = (s: string): string =>
+  fold(s).replace(/,/g, " ").replace(/\s+/g, " ").trim();
+
 export interface SearchService {
   /**
    * Find people and pets matching `term`, by name or by an owned phone/email.
@@ -114,6 +122,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     const folded = fold(term);
     const emailQuery = normalizeEmail(term); // trimmed + lowercased
     const phoneQuery = normalizePhone(term); // leading "+" + digits only
+    const addressQuery = foldAddress(term); // comma/whitespace-insensitive
 
     const [people, pets, emails, phones, postals] = await Promise.all([
       driver.all<PersonRow>(
@@ -281,26 +290,31 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       }
     }
     // Postal: no normalized column, so fold the formatted one-line address and
-    // substring it (concatenate-all field scope, §10.4). Type a street number or
-    // a city and the owning entity surfaces; the reason shows the full address.
-    for (const pa of postals) {
-      const display = formatPostalAddress({
-        line1: pa.line1,
-        line2: pa.line2,
-        locality: pa.locality,
-        region: pa.region,
-        postalCode: pa.postal_code,
-        country: pa.country,
-      });
-      const haystack = fold(display);
-      if (haystack.includes(folded)) {
-        addOwnerHit(
-          pa.owner_type,
-          pa.owner_id,
-          "address",
-          display,
-          quality(haystack, folded),
-        );
+    // substring it (concatenate-all field scope, §10.4). The address fold ignores
+    // commas/spacing, so "123 any street pittsburgh" matches "123 Any Street,
+    // Pittsburgh". The guard keeps a comma/space-only query from matching every
+    // address (it folds to ""). Type a street number or a city and the owning
+    // entity surfaces; the reason shows the full address.
+    if (addressQuery !== "") {
+      for (const pa of postals) {
+        const display = formatPostalAddress({
+          line1: pa.line1,
+          line2: pa.line2,
+          locality: pa.locality,
+          region: pa.region,
+          postalCode: pa.postal_code,
+          country: pa.country,
+        });
+        const haystack = foldAddress(display);
+        if (haystack.includes(addressQuery)) {
+          addOwnerHit(
+            pa.owner_type,
+            pa.owner_id,
+            "address",
+            display,
+            quality(haystack, addressQuery),
+          );
+        }
       }
     }
 
