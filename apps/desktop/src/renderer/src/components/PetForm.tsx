@@ -52,7 +52,7 @@ export function PetForm({
           <input
             name="tags"
             defaultValue={tagNames}
-            placeholder="Friend, Neighbor"
+            placeholder="#Friend #Neighbor"
           />
         </label>
       </fieldset>

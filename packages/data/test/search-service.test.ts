@@ -363,15 +363,25 @@ describe("searchService", () => {
 
   it("resolves a tag bearer on a pet the same way", async () => {
     const pet = await pets.create({ name: "Rex" });
-    await tags.setEntityTags("pet", pet.id, ["Service Animal"]);
+    await tags.setEntityTags("pet", pet.id, ["ServiceAnimal"]);
     const hits = await search.query("service");
     expect(hits).toHaveLength(2); // tag result + the pet bearer
     const bearer = hits.find((h) => h.entityType === "pet");
     expect(bearer).toMatchObject({ entityType: "pet", title: "Rex" });
     expect(bearer?.reasons).toContainEqual({
       facet: "tag",
-      matchedText: "Service Animal",
+      matchedText: "ServiceAnimal",
     });
+  });
+
+  it("matches a tag when the query carries the optional '#' sigil", async () => {
+    const person = await people.create({
+      firstName: "Sam",
+      lastName: "Carter",
+    });
+    await tags.setEntityTags("person", person.id, ["Friend"]);
+    // The stored name is bare ("Friend"); a typed "#" is stripped before matching.
+    expect(await titles("#frien")).toEqual(["Friend", "Sam Carter"]);
   });
 
   it("groups a name + tag match into one bearer row, with the tag result separate", async () => {

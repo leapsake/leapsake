@@ -6,12 +6,16 @@ import { z } from "zod";
  * by their {@link normalized} form, so "Friend", "friend", and " Friend " all map
  * to a single tag; the {@link name} preserves the first-seen spelling for display.
  *
+ * A tag's content is a single run of letters/numbers — no spaces or punctuation
+ * (see {@link parseTagNames}). The leading "#" sigil shown in the UI is
+ * presentation only and is never stored in {@link name}.
+ *
  * Same sync-safe conventions as Person (see reboot-plan.md §4.2): client-generated
  * UUID primary key, epoch-ms UTC timestamps, nullable `deletedAt` for soft deletes.
  */
 export const tagSchema = z.object({
   id: z.uuid(),
-  name: z.string().min(1), // display form, first spelling seen
+  name: z.string().min(1), // display form, first spelling seen (no "#" sigil)
   normalized: z.string().min(1), // trimmed + lowercased dedup key
   createdAt: z.number().int(), // epoch ms, UTC
   updatedAt: z.number().int(), // epoch ms, UTC
@@ -26,16 +30,19 @@ export function normalizeTagName(raw: string): string {
 }
 
 /**
- * Parse the comma-separated tags form field into unique, non-empty display
- * names. Whitespace is trimmed, empties dropped, and duplicates removed by
- * normalized form — the first spelling wins (e.g. "Friend, friend" -> ["Friend"]).
+ * Split a raw tags field into unique display names. A tag is a maximal run of
+ * letters and numbers; **every other character — whitespace, commas, other
+ * punctuation, and the "#" sigil — is a separator**. So "Friend, Colleague",
+ * "Friend Colleague", and "#Friend #Colleague" all yield ["Friend",
+ * "Colleague"], and an inline "my #friend." contributes just "friend". This is
+ * the single chokepoint that keeps spaces/punctuation out of stored tag names
+ * (so a tag is freely embeddable in prose later) and strips the optional "#".
+ * Duplicates are removed by {@link normalizeTagName}; the first spelling wins.
  */
 export function parseTagNames(raw: string): string[] {
   const seen = new Set<string>();
   const names: string[] = [];
-  for (const part of raw.split(",")) {
-    const name = part.trim();
-    if (name.length === 0) continue;
+  for (const name of raw.match(/[\p{L}\p{N}]+/gu) ?? []) {
     const key = normalizeTagName(name);
     if (seen.has(key)) continue;
     seen.add(key);

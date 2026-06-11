@@ -135,16 +135,17 @@ export function SearchBar() {
                   go(hit);
                 }}
               >
+                {/* Tag results render with the "#" sigil; the sigil sits outside
+                    the highlighted span since it's never part of the match. */}
+                {hit.entityType === "tag" && "#"}
                 {highlightMatch(hit.title, term)}
-                {hit.entityType === "tag" && (
-                  <span className={styles.kind}>Tag</span>
-                )}
                 {reasons.length > 0 && (
                   <span className={styles.reason}>
                     matched on{" "}
                     {reasons.map((r, ri) => (
                       <Fragment key={`${r.facet}:${r.matchedText}`}>
                         {ri > 0 && ", "}
+                        {r.facet === "tag" && "#"}
                         {highlightMatch(
                           r.matchedText,
                           term,

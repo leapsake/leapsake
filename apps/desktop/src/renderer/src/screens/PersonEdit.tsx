@@ -3,6 +3,7 @@ import { useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { PersonForm } from "../components/PersonForm";
 import { fullName } from "../lib/fullName";
+import { tagLabel } from "../lib/tagLabel";
 
 export function PersonEdit() {
   const { person, tags } = useLoaderData() as { person: Person; tags: Tag[] };
@@ -16,7 +17,7 @@ export function PersonEdit() {
       <PersonForm
         title={`Edit ${name}`}
         person={person}
-        tagNames={tags.map((tag) => tag.name).join(", ")}
+        tagNames={tags.map((tag) => tagLabel(tag.name)).join(" ")}
         submitLabel="Save"
         cancelTo={`/people/${person.id}`}
       />

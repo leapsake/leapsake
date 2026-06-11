@@ -10,6 +10,7 @@ import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
 import { MilestonesSection } from "../components/MilestonesSection";
 import { RelationshipsSection } from "../components/RelationshipsSection";
+import { tagLabel } from "../lib/tagLabel";
 
 /** Render an epoch-ms timestamp in the user's locale. */
 function formatTimestamp(ms: number): string {
@@ -49,7 +50,7 @@ export function PetView() {
             : tags.map((tag, index) => (
                 <Fragment key={tag.id}>
                   {index > 0 && ", "}
-                  <Link to={`/tags/${tag.id}`}>{tag.name}</Link>
+                  <Link to={`/tags/${tag.id}`}>{tagLabel(tag.name)}</Link>
                 </Fragment>
               ))}
         </dd>
