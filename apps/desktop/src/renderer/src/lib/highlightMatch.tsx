@@ -20,42 +20,84 @@ const foldTextChar = (c: string): string =>
 const foldPhoneChar = (c: string): string => (/\d/.test(c) ? c : "");
 
 /**
+ * Per-character fold for addresses: as text, but commas and any whitespace
+ * become a single space (runs are collapsed in {@link foldWithMap}), mirroring
+ * the service's `foldAddress` so "123 any street pittsburgh" highlights inside
+ * the formatted "123 Any Street, Pittsburgh".
+ */
+const foldAddressChar = (c: string): string =>
+  c === "," || /\s/.test(c) ? " " : foldTextChar(c);
+
+/** How `text` is highlighted, picked from the matched facet by the caller. */
+export type HighlightMode = "text" | "phone" | "address";
+
+const foldCharFor: Record<HighlightMode, (c: string) => string> = {
+  text: foldTextChar,
+  phone: foldPhoneChar,
+  address: foldAddressChar,
+};
+
+/**
+ * Fold `text` character-by-character, recording the source code-point index
+ * behind each folded code unit so a match found in the folded string maps back
+ * to a span in the original (which may differ in length — accents, formatting,
+ * the "+"). In address mode, runs of whitespace collapse to one space.
+ */
+function foldWithMap(
+  text: string,
+  mode: HighlightMode,
+): { folded: string; sourceIndex: number[] } {
+  const foldChar = foldCharFor[mode];
+  const collapse = mode === "address";
+  const chars = Array.from(text);
+  let folded = "";
+  const sourceIndex: number[] = [];
+  let prevSpace = false;
+  chars.forEach((c, i) => {
+    const f = foldChar(c);
+    for (let j = 0; j < f.length; j++) {
+      const ch = f[j];
+      const isSpace = collapse && ch === " ";
+      if (isSpace && prevSpace) continue; // collapse a run of whitespace
+      folded += ch;
+      sourceIndex.push(i);
+      prevSpace = isSpace;
+    }
+  });
+  return { folded, sourceIndex };
+}
+
+/**
  * Wrap the portion of `text` that the user's `term` matched in a `<mark>` — the
  * semantic element for text highlighted because it is relevant to the user's
  * current activity (here, the search query). The fold mirrors the search service
- * so the highlight aligns with how the result was matched: accent- and
- * case-insensitive for `"text"`, digits-only for `"phone"`. Returns the plain
- * string when nothing aligns (e.g. a contact-only hit whose name doesn't contain
- * the term), so callers can use it unconditionally.
+ * so the highlight aligns with how the result was matched: accent/case-folded
+ * for `"text"`, digits-only for `"phone"`, comma/whitespace-insensitive for
+ * `"address"`.
+ *
+ * Falls back from an exact folded substring to two looser strategies so a shown
+ * result never renders *un*-highlighted: if the query instead fully contains the
+ * value, the whole value is marked; otherwise the span between the first and
+ * last matched token is marked. Returns the plain string only when nothing
+ * aligns at all.
  */
 export function highlightMatch(
   text: string,
   term: string,
-  mode: "text" | "phone" = "text",
+  mode: HighlightMode = "text",
 ): ReactNode {
-  const foldChar = mode === "phone" ? foldPhoneChar : foldTextChar;
-  const foldedTerm = Array.from(term).map(foldChar).join("");
+  const foldedTermRaw = foldWithMap(term, mode).folded;
+  const foldedTerm = mode === "address" ? foldedTermRaw.trim() : foldedTermRaw;
   if (foldedTerm === "") return text;
 
-  // Fold char-by-char, recording the source code-point index behind each folded
-  // code unit, so a match located in the folded string maps back to a span in
-  // the original (which may differ in length — accents, formatting, the "+").
   const chars = Array.from(text);
-  let folded = "";
-  const sourceIndex: number[] = [];
-  chars.forEach((c, i) => {
-    const f = foldChar(c);
-    for (let j = 0; j < f.length; j++) {
-      folded += f[j];
-      sourceIndex.push(i);
-    }
-  });
+  const { folded, sourceIndex } = foldWithMap(text, mode);
+  if (folded === "") return text;
 
-  const at = folded.indexOf(foldedTerm);
-  if (at === -1) return text;
-
-  const start = sourceIndex[at];
-  const end = sourceIndex[at + foldedTerm.length - 1]; // inclusive
+  const span = matchSpan(folded, foldedTerm);
+  if (!span) return text;
+  const start = sourceIndex[span.from];
+  const end = sourceIndex[span.to]; // inclusive
   return (
     <>
       {chars.slice(0, start).join("")}
@@ -63,4 +105,32 @@ export function highlightMatch(
       {chars.slice(end + 1).join("")}
     </>
   );
+}
+
+/**
+ * The `[from, to]` folded-index span (inclusive) to highlight, or null if the
+ * term doesn't align at all. Tries, in order: the exact substring; the whole
+ * value when the term contains it (e.g. a phone typed with an extra country
+ * code); else the stretch from the first to the last matched whitespace token,
+ * so a reordered or partly-matching multi-word query still surrounds the
+ * relevant text.
+ */
+function matchSpan(
+  folded: string,
+  foldedTerm: string,
+): { from: number; to: number } | null {
+  const exact = folded.indexOf(foldedTerm);
+  if (exact !== -1) return { from: exact, to: exact + foldedTerm.length - 1 };
+  if (foldedTerm.includes(folded)) return { from: 0, to: folded.length - 1 };
+
+  const tokens = foldedTerm.split(" ").filter((t) => t !== "");
+  let from = Number.POSITIVE_INFINITY;
+  let to = -1;
+  for (const token of tokens) {
+    const at = folded.indexOf(token);
+    if (at === -1) continue;
+    from = Math.min(from, at);
+    to = Math.max(to, folded.lastIndexOf(token) + token.length - 1);
+  }
+  return to === -1 ? null : { from, to };
 }
