@@ -1,4 +1,10 @@
-import type { EntityType, SearchHit } from "@leapsake/schema";
+import {
+  type EntityType,
+  type SearchHit,
+  formatPostalAddress,
+  normalizeEmail,
+  normalizePhone,
+} from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
 
 /**
@@ -38,12 +44,16 @@ function quality(field: string, term: string): number {
 /** A `(type, id)` accumulator-map key. */
 const key = (type: EntityType, id: string) => `${type}:${id}`;
 
+/** Strip everything but digits — drops formatting *and* the leading `+`. */
+const digits = (s: string): string => s.replace(/\D/g, "");
+
 export interface SearchService {
   /**
-   * Find people and pets matching `term`. Loads the active rows and matches
-   * them in memory (no SQL `LIKE`, no index), resolves every hit to its owning
-   * entity, groups by `(entityType, entityId)`, and returns one `SearchHit` per
-   * entity. Returns `[]` for queries shorter than {@link MIN_QUERY_LENGTH}.
+   * Find people and pets matching `term`, by name or by an owned phone/email.
+   * Loads the active rows and matches them in memory (no SQL `LIKE`, no index),
+   * resolves every hit to its owning entity, groups by `(entityType, entityId)`,
+   * and returns one `SearchHit` per entity with its match reasons merged.
+   * Returns `[]` for queries shorter than {@link MIN_QUERY_LENGTH}.
    */
   query(term: string): Promise<SearchHit[]>;
 }
@@ -58,11 +68,36 @@ interface PetRow {
   id: string;
   name: string;
 }
+/** The contact-method columns search matches (`normalized`) and displays (`address`). */
+interface EmailMatchRow {
+  owner_type: string;
+  owner_id: string;
+  address: string;
+  normalized: string;
+}
+/** As {@link EmailMatchRow}, displaying the raw `number`. */
+interface PhoneMatchRow {
+  owner_type: string;
+  owner_id: string;
+  number: string;
+  normalized: string;
+}
+/** Postal columns: matched as one folded blob, displayed via `formatPostalAddress`. */
+interface PostalMatchRow {
+  owner_type: string;
+  owner_id: string;
+  line1: string;
+  line2: string | null;
+  locality: string | null;
+  region: string | null;
+  postal_code: string | null;
+  country: string | null;
+}
 
 /** An accumulating result row plus the keys we sort on. */
 interface Accumulator {
   hit: SearchHit;
-  /** True for a name match; contact matches (Phase 2) sort after these. */
+  /** True for a name match; contact-only matches (phone/email) sort after these. */
   isName: boolean;
   /** Best (lowest) match-quality bucket across all matched fields. */
   bestQuality: number;
@@ -77,17 +112,72 @@ export function createSearchService(driver: SqliteDriver): SearchService {
   async function query(term: string): Promise<SearchHit[]> {
     if (term.trim().length < MIN_QUERY_LENGTH) return [];
     const folded = fold(term);
+    const emailQuery = normalizeEmail(term); // trimmed + lowercased
+    const phoneQuery = normalizePhone(term); // leading "+" + digits only
 
-    const [people, pets] = await Promise.all([
+    const [people, pets, emails, phones, postals] = await Promise.all([
       driver.all<PersonRow>(
         "SELECT id, first_name, middle_name, last_name FROM people WHERE deleted_at IS NULL",
       ),
       driver.all<PetRow>("SELECT id, name FROM pets WHERE deleted_at IS NULL"),
+      driver.all<EmailMatchRow>(
+        "SELECT owner_type, owner_id, address, normalized FROM email_addresses WHERE deleted_at IS NULL",
+      ),
+      driver.all<PhoneMatchRow>(
+        "SELECT owner_type, owner_id, number, normalized FROM phone_numbers WHERE deleted_at IS NULL",
+      ),
+      driver.all<PostalMatchRow>(
+        `SELECT owner_type, owner_id, line1, line2, locality, region, postal_code, country
+           FROM postal_addresses WHERE deleted_at IS NULL`,
+      ),
     ]);
 
     const acc = new Map<string, Accumulator>();
+    /**
+     * `(type, id) → display title` for every active entity. A contact hit
+     * resolves its owner's title here (the §4 "free title lookup"); an owner not
+     * in this map is soft-deleted/unresolvable, so its contact rows drop (§2.4).
+     */
+    const titleByEntity = new Map<
+      string,
+      { type: EntityType; title: string }
+    >();
 
-    /** Record (or merge) a name match against an entity's grouped row. */
+    /**
+     * Record (or merge) a match against an entity's grouped row, keeping the
+     * grouping/merge logic in one place (§2.2). `isName` only ever flips on, and
+     * `bestQuality` only ever improves.
+     */
+    const record = (
+      type: EntityType,
+      id: string,
+      title: string,
+      isName: boolean,
+      facet: string,
+      matchedText: string,
+      matchQuality: number,
+    ) => {
+      const k = key(type, id);
+      const existing = acc.get(k);
+      if (existing) {
+        existing.isName ||= isName;
+        existing.bestQuality = Math.min(existing.bestQuality, matchQuality);
+        existing.hit.reasons.push({ facet, matchedText });
+        return;
+      }
+      acc.set(k, {
+        hit: {
+          entityType: type,
+          entityId: id,
+          title,
+          reasons: [{ facet, matchedText }],
+        },
+        isName,
+        bestQuality: matchQuality,
+      });
+    };
+
+    /** Record a name match if any of `fields` matches the folded term. */
     const addNameHit = (
       type: EntityType,
       id: string,
@@ -99,28 +189,12 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         best = Math.min(best, quality(fold(field), folded));
       }
       if (best === QUALITY_NONE) return; // no field matched
-      const k = key(type, id);
-      const existing = acc.get(k);
-      if (existing) {
-        existing.isName = true;
-        existing.bestQuality = Math.min(existing.bestQuality, best);
-        existing.hit.reasons.push({ facet: "name", matchedText: title });
-        return;
-      }
-      acc.set(k, {
-        hit: {
-          entityType: type,
-          entityId: id,
-          title,
-          reasons: [{ facet: "name", matchedText: title }],
-        },
-        isName: true,
-        bestQuality: best,
-      });
+      record(type, id, title, true, "name", title, best);
     };
 
     for (const p of people) {
       const title = `${p.first_name} ${p.last_name}`;
+      titleByEntity.set(key("person", p.id), { type: "person", title });
       addNameHit("person", p.id, title, [
         p.first_name,
         p.middle_name ?? "",
@@ -128,12 +202,104 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       ]);
     }
     for (const pet of pets) {
+      titleByEntity.set(key("pet", pet.id), { type: "pet", title: pet.name });
       addNameHit("pet", pet.id, pet.name, [pet.name]);
+    }
+
+    /**
+     * Resolve a matched contact method to its owning entity (drop unresolvable
+     * owners, §2.4) and merge the human-readable `matchedText` as the reason
+     * (§2.1, §2.3). The caller has already decided this row matched and with what
+     * quality — keeping per-facet match logic in its own block (§4).
+     */
+    const addOwnerHit = (
+      ownerType: string,
+      ownerId: string,
+      facet: string,
+      matchedText: string,
+      matchQuality: number,
+    ) => {
+      const owner = titleByEntity.get(key(ownerType as EntityType, ownerId));
+      if (!owner) return; // soft-deleted / household owner, not searchable in v1
+      record(
+        owner.type,
+        ownerId,
+        owner.title,
+        false,
+        facet,
+        matchedText,
+        matchQuality,
+      );
+    };
+
+    // Email: forward substring of the normalized address. Any query of sufficient
+    // length can match (typing "jane" lighting up jane@… and merging with the
+    // name hit is the intended §2.2 behavior).
+    for (const e of emails) {
+      if (e.normalized.includes(emailQuery)) {
+        addOwnerHit(
+          e.owner_type,
+          e.owner_id,
+          "email",
+          e.address,
+          quality(e.normalized, emailQuery),
+        );
+      }
+    }
+    // Phone: compare on digits only — this both ignores formatting and, crucially,
+    // matches *either direction*, so a stored number and a typed number whose only
+    // difference is a country code / leading "+" still match (e.g. stored
+    // "5551234567" vs typed "+1 555 123 4567"). Run only when the query carries
+    // digits, so a pure-letter query doesn't match every number. Robust
+    // cross-format matching (trunk-prefix locales) is still libphonenumber
+    // territory (§8).
+    const phoneDigits = digits(phoneQuery);
+    if (phoneDigits.length > 0) {
+      for (const ph of phones) {
+        const stored = digits(ph.normalized);
+        if (stored.length === 0) continue; // a digitless number matches nothing
+        if (!(stored.includes(phoneDigits) || phoneDigits.includes(stored))) {
+          continue;
+        }
+        // Quality is only meaningful in the forward direction; a reverse-only
+        // match (typed longer than stored) falls back to the substring bucket.
+        const q = quality(stored, phoneDigits);
+        addOwnerHit(
+          ph.owner_type,
+          ph.owner_id,
+          "phone",
+          ph.number,
+          q === QUALITY_NONE ? QUALITY_SUBSTRING : q,
+        );
+      }
+    }
+    // Postal: no normalized column, so fold the formatted one-line address and
+    // substring it (concatenate-all field scope, §10.4). Type a street number or
+    // a city and the owning entity surfaces; the reason shows the full address.
+    for (const pa of postals) {
+      const display = formatPostalAddress({
+        line1: pa.line1,
+        line2: pa.line2,
+        locality: pa.locality,
+        region: pa.region,
+        postalCode: pa.postal_code,
+        country: pa.country,
+      });
+      const haystack = fold(display);
+      if (haystack.includes(folded)) {
+        addOwnerHit(
+          pa.owner_type,
+          pa.owner_id,
+          "address",
+          display,
+          quality(haystack, folded),
+        );
+      }
     }
 
     const rows = [...acc.values()];
     rows.sort((a, b) => {
-      // 1. name hits before contact hits (all name in Phase 1).
+      // 1. name hits before contact-only hits.
       if (a.isName !== b.isName) return a.isName ? -1 : 1;
       // 2. match-quality bucket: exact > starts-with > substring.
       if (a.bestQuality !== b.bestQuality) return a.bestQuality - b.bestQuality;

@@ -1,5 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  type ContactMethodsRepo,
+  createContactMethodsRepo,
+} from "../src/contact-methods-repo.js";
 import { type SqliteDriver } from "../src/driver.js";
 import { runMigrations } from "../src/migrations.js";
 import { type PeopleRepo, createPeopleRepo } from "../src/people-repo.js";
@@ -14,6 +18,7 @@ let db: DatabaseSync;
 let driver: SqliteDriver;
 let people: PeopleRepo;
 let pets: PetsRepo;
+let contactMethods: ContactMethodsRepo;
 let search: SearchService;
 
 beforeEach(async () => {
@@ -22,6 +27,7 @@ beforeEach(async () => {
   await runMigrations(driver);
   people = createPeopleRepo(driver);
   pets = createPetsRepo(driver);
+  contactMethods = createContactMethodsRepo(driver);
   search = createSearchService(driver);
 });
 
@@ -90,5 +96,155 @@ describe("searchService", () => {
     await people.softDelete(person.id);
     await pets.softDelete(pet.id);
     expect(await search.query("ghost")).toEqual([]);
+  });
+
+  it("matches by phone fragment, ignoring formatting on both sides", async () => {
+    const person = await people.create({ firstName: "Pat", lastName: "Ng" });
+    await contactMethods.phones.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Mobile",
+      number: "+1 (555) 123-4567",
+    });
+    // Stored normalized is "+15551234567"; both query spellings normalize into it.
+    for (const term of ["5551234567", "555-123-4567"]) {
+      const hits = await search.query(term);
+      expect(hits).toHaveLength(1);
+      expect(hits[0]).toMatchObject({ entityType: "person", title: "Pat Ng" });
+      expect(hits[0]?.reasons).toContainEqual({
+        facet: "phone",
+        matchedText: "+1 (555) 123-4567",
+      });
+    }
+  });
+
+  it("matches a phone across a country-code / leading-+ difference, either direction", async () => {
+    // Stored WITHOUT a country code; typed WITH one (and vice versa). A
+    // forward-only substring would miss these — matching is digits-only and
+    // bidirectional, so the shared national number still connects.
+    const a = await people.create({ firstName: "No", lastName: "Code" });
+    await contactMethods.phones.create({
+      ownerType: "person",
+      ownerId: a.id,
+      label: "Mobile",
+      number: "(555) 123-4567", // normalized "5551234567"
+    });
+    const b = await people.create({ firstName: "Has", lastName: "Code" });
+    await contactMethods.phones.create({
+      ownerType: "person",
+      ownerId: b.id,
+      label: "Mobile",
+      number: "+1 (555) 765-4321", // normalized "+15557654321"
+    });
+    // Typed with +1 against a stored national number.
+    expect(await titles("+1 555 123 4567")).toEqual(["No Code"]);
+    // Typed national against a stored +1 number.
+    expect(await titles("5557654321")).toEqual(["Has Code"]);
+  });
+
+  it("matches by the last few digits of a phone number", async () => {
+    const person = await people.create({ firstName: "Tail", lastName: "End" });
+    await contactMethods.phones.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Mobile",
+      number: "+1 (555) 123-4567",
+    });
+    expect(await titles("4567")).toEqual(["Tail End"]);
+  });
+
+  it("matches a postal address by street number or by city", async () => {
+    const person = await people.create({
+      firstName: "Maple",
+      lastName: "Resident",
+    });
+    await contactMethods.postals.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Home",
+      line1: "123 Maple Street",
+      locality: "Springfield",
+    });
+    for (const term of ["123 Maple", "springfield", "maple st"]) {
+      const hits = await search.query(term);
+      expect(hits).toHaveLength(1);
+      expect(hits[0]).toMatchObject({
+        entityType: "person",
+        title: "Maple Resident",
+      });
+      // The reason shows the full formatted address, not the typed fragment.
+      expect(hits[0]?.reasons).toContainEqual({
+        facet: "address",
+        matchedText: "123 Maple Street, Springfield",
+      });
+    }
+  });
+
+  it("drops a postal hit whose owner is soft-deleted", async () => {
+    const person = await people.create({ firstName: "Gone", lastName: "Away" });
+    await contactMethods.postals.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Home",
+      line1: "9 Vanished Lane",
+      locality: "Nowhere",
+    });
+    await people.softDelete(person.id); // postal row stays active; owner does not
+    expect(await search.query("vanished")).toEqual([]);
+  });
+
+  it("matches by an email/domain fragment, showing the raw address as the reason", async () => {
+    const person = await people.create({ firstName: "Jane", lastName: "Doe" });
+    await contactMethods.emails.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Home",
+      address: "jane@example.com",
+    });
+    const hits = await search.query("example");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ entityType: "person", title: "Jane Doe" });
+    expect(hits[0]?.reasons).toEqual([
+      { facet: "email", matchedText: "jane@example.com" },
+    ]);
+  });
+
+  it("groups a name + email match into one row with merged reasons", async () => {
+    const person = await people.create({ firstName: "Jane", lastName: "Doe" });
+    await contactMethods.emails.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Home",
+      address: "jane@x.com",
+    });
+    const hits = await search.query("jane");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.reasons.map((r) => r.facet)).toEqual(["name", "email"]);
+  });
+
+  it("drops a contact hit whose owner is soft-deleted", async () => {
+    const person = await people.create({ firstName: "Jane", lastName: "Doe" });
+    await contactMethods.emails.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Home",
+      address: "jane@example.com",
+    });
+    // Soft-delete the person only; the email row stays active but its owner is
+    // no longer in the searchable set, so the hit must drop (§2.4).
+    await people.softDelete(person.id);
+    expect(await search.query("example")).toEqual([]);
+  });
+
+  it("sorts a name hit before a contact-only hit", async () => {
+    await people.create({ firstName: "Jane", lastName: "Smith" });
+    const bob = await people.create({ firstName: "Bob", lastName: "Jones" });
+    await contactMethods.emails.create({
+      ownerType: "person",
+      ownerId: bob.id,
+      label: "Home",
+      address: "jane@x.com",
+    });
+    expect(await titles("jane")).toEqual(["Jane Smith", "Bob Jones"]);
   });
 });
