@@ -1,0 +1,315 @@
+import { DatabaseSync } from "node:sqlite";
+import {
+  type CoreApi,
+  type SqliteDriver,
+  createCore,
+  runMigrations,
+} from "@leapsake/core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+
+let db: DatabaseSync;
+let driver: SqliteDriver;
+let core: CoreApi;
+
+beforeEach(async () => {
+  db = new DatabaseSync(":memory:");
+  driver = nodeSqliteDriver(db);
+  await runMigrations(driver);
+  core = createCore(driver);
+});
+
+afterEach(() => {
+  db.close();
+});
+
+/**
+ * Decorate a driver so any `run` whose SQL matches `pattern` throws, letting a
+ * test force a mid-transaction failure. `transaction` is inherited unchanged, so
+ * BEGIN/ROLLBACK still run against the same underlying db.
+ */
+function failOnSql(base: SqliteDriver, pattern: RegExp): SqliteDriver {
+  return {
+    ...base,
+    run(sql, params) {
+      if (pattern.test(sql)) throw new Error("injected failure");
+      return base.run(sql, params);
+    },
+  };
+}
+
+/** Count not-soft-deleted rows for white-box cascade assertions. */
+function activeRows(table: string): number {
+  return (
+    db
+      .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE deleted_at IS NULL`)
+      .get() as { n: number }
+  ).n;
+}
+
+describe("createCore — transactional writes", () => {
+  it("commits a person and its tags together", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      ["Friend", "Colleague"],
+    );
+
+    expect(await core.people.get(jane.id)).toBeDefined();
+    const tags = await core.tags.listForPerson(jane.id);
+    expect(tags.map((t) => t.name).toSorted()).toEqual(["Colleague", "Friend"]);
+  });
+
+  it("commits a pet and its tags together", async () => {
+    const rex = await core.pets.create({ name: "Rex" }, ["GoodBoy"]);
+
+    expect(await core.pets.get(rex.id)).toBeDefined();
+    expect((await core.tags.listForPet(rex.id)).map((t) => t.name)).toEqual([
+      "GoodBoy",
+    ]);
+  });
+
+  it("rolls back both the person and its tags when the tag write fails", async () => {
+    const failing = createCore(failOnSql(driver, /taggings/i));
+
+    await expect(
+      failing.people.create({ firstName: "Jane", lastName: "Doe" }, ["Friend"]),
+    ).rejects.toThrow();
+
+    // Neither the person nor any tag survived — the whole transaction unwound.
+    expect(await core.people.list()).toHaveLength(0);
+    expect(activeRows("tags")).toBe(0);
+    expect(activeRows("taggings")).toBe(0);
+  });
+
+  it("rolls back an update and its tag changes when the tag write fails", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      ["Friend"],
+    );
+    const failing = createCore(failOnSql(driver, /taggings/i));
+
+    await expect(
+      failing.people.update(jane.id, { firstName: "Janet" }, ["Family"]),
+    ).rejects.toThrow();
+
+    // The name change and the tag swap both unwound.
+    expect((await core.people.get(jane.id))?.firstName).toBe("Jane");
+    expect((await core.tags.listForPerson(jane.id)).map((t) => t.name)).toEqual(
+      ["Friend"],
+    );
+  });
+});
+
+describe("createCore — cascade soft-delete", () => {
+  it("cascades a person delete across every fact that references it", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      ["Friend"],
+    );
+    const bob = await core.people.create(
+      { firstName: "Bob", lastName: "Roe" },
+      [],
+    );
+    await core.relationships.create({
+      aType: "person",
+      aId: jane.id,
+      aRole: "parent",
+      bType: "person",
+      bId: bob.id,
+      bRole: "child",
+    });
+    await core.milestones.create({
+      kind: "birthday",
+      subjectType: "person",
+      subjectId: jane.id,
+      year: 1990,
+      month: 1,
+      day: 1,
+    });
+    await core.contactMethods.emails.create({
+      ownerType: "person",
+      ownerId: jane.id,
+      label: "home",
+      address: "jane@example.com",
+    });
+    await core.kinship.dismiss("person", jane.id, "person", bob.id, "child");
+
+    await core.people.softDelete(jane.id);
+
+    expect(await core.people.get(jane.id)).toBeUndefined();
+    expect(await core.tags.listForPerson(jane.id)).toHaveLength(0);
+    expect(
+      await core.relationships.listForEntity("person", jane.id),
+    ).toHaveLength(0);
+    expect(
+      await core.milestones.listForSubject("person", jane.id),
+    ).toHaveLength(0);
+    expect(
+      await core.contactMethods.listForOwner("person", jane.id),
+    ).toHaveLength(0);
+    expect(activeRows("relationship_dismissals")).toBe(0);
+  });
+
+  it("cascades a pet delete across tags, relationships, and milestones", async () => {
+    const owner = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      [],
+    );
+    const rex = await core.pets.create({ name: "Rex" }, ["GoodBoy"]);
+    await core.relationships.create({
+      aType: "person",
+      aId: owner.id,
+      aRole: "owner",
+      bType: "pet",
+      bId: rex.id,
+      bRole: "pet",
+    });
+    await core.milestones.create({
+      kind: "birthday",
+      subjectType: "pet",
+      subjectId: rex.id,
+      year: 2018,
+      month: 5,
+      day: 4,
+    });
+
+    await core.pets.softDelete(rex.id);
+
+    expect(await core.pets.get(rex.id)).toBeUndefined();
+    expect(await core.tags.listForPet(rex.id)).toHaveLength(0);
+    expect(await core.relationships.listForEntity("pet", rex.id)).toHaveLength(
+      0,
+    );
+    expect(await core.milestones.listForSubject("pet", rex.id)).toHaveLength(0);
+  });
+});
+
+describe("createCore — relationships.listForEntity", () => {
+  it("orients each row to the subject and resolves the other end", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      [],
+    );
+    const john = await core.people.create(
+      { firstName: "John", lastName: "Doe" },
+      [],
+    );
+    await core.relationships.create({
+      aType: "person",
+      aId: jane.id,
+      aRole: "parent",
+      bType: "person",
+      bId: john.id,
+      bRole: "child",
+    });
+
+    const [fromJane] = await core.relationships.listForEntity(
+      "person",
+      jane.id,
+    );
+    expect(fromJane.otherId).toBe(john.id);
+    expect(fromJane.otherLabel).toBe("John Doe");
+    expect(fromJane.otherRole).toBe("child");
+
+    // The same row, oriented to the other subject, flips to the parent end.
+    const [fromJohn] = await core.relationships.listForEntity(
+      "person",
+      john.id,
+    );
+    expect(fromJohn.otherId).toBe(jane.id);
+    expect(fromJohn.otherLabel).toBe("Jane Doe");
+    expect(fromJohn.otherRole).toBe("parent");
+  });
+
+  it("skips a neighbor whose other end no longer exists", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      [],
+    );
+    // The b-side id was never a real person, so resolveLabel returns undefined.
+    await core.relationships.create({
+      aType: "person",
+      aId: jane.id,
+      aRole: "parent",
+      bType: "person",
+      bId: crypto.randomUUID(),
+      bRole: "child",
+    });
+
+    expect(
+      await core.relationships.listForEntity("person", jane.id),
+    ).toHaveLength(0);
+  });
+});
+
+describe("createCore — tag fan-out", () => {
+  it("returns the people and pets sharing a tag, and drops deleted ones", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      ["Household"],
+    );
+    const bob = await core.people.create(
+      { firstName: "Bob", lastName: "Roe" },
+      ["Household"],
+    );
+    const rex = await core.pets.create({ name: "Rex" }, ["Household"]);
+    const tagId = (await core.tags.listForPerson(jane.id))[0].id;
+
+    expect(
+      (await core.tags.peopleForTag(tagId)).map((p) => p.id).toSorted(),
+    ).toEqual([jane.id, bob.id].toSorted());
+    expect((await core.tags.petsForTag(tagId)).map((p) => p.id)).toEqual([
+      rex.id,
+    ]);
+
+    // Deleting Bob removes his tagging, so the fan-out no longer returns him.
+    await core.people.softDelete(bob.id);
+    expect((await core.tags.peopleForTag(tagId)).map((p) => p.id)).toEqual([
+      jane.id,
+    ]);
+  });
+});
+
+describe("createCore — milestones.timelineFor", () => {
+  it("merges own milestones with a relationship's, annotated with the partner", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      [],
+    );
+    const john = await core.people.create(
+      { firstName: "John", lastName: "Doe" },
+      [],
+    );
+    const rel = await core.relationships.create({
+      aType: "person",
+      aId: jane.id,
+      aRole: "spouse",
+      bType: "person",
+      bId: john.id,
+      bRole: "spouse",
+    });
+    await core.milestones.create({
+      kind: "birthday",
+      subjectType: "person",
+      subjectId: jane.id,
+      year: 1990,
+      month: 3,
+      day: 9,
+    });
+    const wedding = await core.milestones.create({
+      kind: "wedding",
+      subjectType: "relationship",
+      subjectId: rel.id,
+      year: 2020,
+      month: 6,
+      day: 1,
+    });
+
+    const timeline = await core.milestones.timelineFor("person", jane.id);
+    expect(timeline).toHaveLength(2);
+    const relEntry = timeline.find((e) => e.origin === "relationship");
+    expect(relEntry?.milestone.id).toBe(wedding.id);
+    expect(relEntry?.relationshipId).toBe(rel.id);
+    expect(relEntry?.otherLabel).toBe("John Doe");
+  });
+});

@@ -26,6 +26,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@leapsake/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@leapsake/data':
         specifier: workspace:*
         version: link:../../packages/data

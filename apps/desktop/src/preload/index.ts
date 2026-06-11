@@ -1,3 +1,4 @@
+import type { CoreApi, GenderResult } from "@leapsake/core";
 import type {
   ContactMethod,
   ContactOwnerType,
@@ -10,7 +11,6 @@ import type {
   CreateRelationshipInput,
   EmailAddress,
   EntityType,
-  Gender,
   Milestone,
   MilestoneSubjectType,
   MilestoneTimelineEntry,
@@ -32,12 +32,6 @@ import type {
   UpdateRelationshipInput,
 } from "@leapsake/schema";
 import { contextBridge, ipcRenderer } from "electron";
-
-/** A gender read returned by the kinship engine: value + whether it was inferred. */
-export interface GenderResult {
-  value: Gender | null;
-  origin: "explicit" | "derived";
-}
 
 /**
  * The single typed surface exposed to the renderer as `window.api`. Each method
@@ -206,4 +200,10 @@ const api = {
 
 contextBridge.exposeInMainWorld("api", api);
 
-export type Api = typeof api;
+export type { GenderResult };
+
+// The renderer derives its `window.api` contract from the client-agnostic core
+// surface, so the IPC bridge and core can never drift. `api` above is the
+// runtime `ipcRenderer.invoke` implementation of this same shape; typecheck
+// confirms it satisfies `CoreApi`.
+export type Api = CoreApi;
