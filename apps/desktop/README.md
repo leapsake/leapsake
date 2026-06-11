@@ -1,25 +1,27 @@
 # @leapsake/desktop
 
 The Leapsake desktop app (Electron + React, built with electron-vite). The main
-process owns better-sqlite3, runs migrations, and exposes the People repository
-over a typed IPC surface; the renderer is a minimal React People CRUD UI that
-talks only to `window.api`.
+process opens `node:sqlite`, runs migrations, builds the `@leapsake/core`
+application surface, and forwards it over a typed IPC surface; the renderer is a
+React + react-router UI that talks only to `window.api`.
 
 ## Layout
 
 ```
 src/
   main/
-    index.ts                    # app lifecycle, window, DB init, IPC handlers
-    db/better-sqlite3-driver.ts # production SqliteDriver (mirrors the test adapter)
+    index.ts                 # app lifecycle, window, DB init, core wiring, IPC handlers
+    db/node-sqlite-driver.ts # production SqliteDriver over node:sqlite (mirrors the test adapter)
   preload/
-    index.ts                    # contextBridge → window.api; exports the `Api` type
+    index.ts                 # contextBridge → window.api; `Api` type is CoreApi
   renderer/
     index.html
     src/
-      main.tsx                  # React root
-      App.tsx                   # People CRUD UI (semantic HTML, minimal CSS)
-      env.d.ts                  # augments Window with `api: Api`
+      main.tsx               # React root
+      router.tsx             # react-router routes
+      App.tsx                # app shell
+      screens/ components/   # per-entity views, create/edit/delete, search
+      env.d.ts               # augments Window with `api: Api`
 ```
 
 Data lives in a single SQLite file at Electron's `userData` path
@@ -35,29 +37,19 @@ pnpm --filter @leapsake/desktop build   # production bundle into out/
 pnpm --filter @leapsake/desktop start   # preview the built app
 ```
 
-## Native-module ABI workflow (read this)
+## Database: `node:sqlite` (no native-module dance)
 
-better-sqlite3 is a native addon; its compiled binary targets **one** ABI at a
-time — Node's (for the Vitest integration tests) or Electron's (for this app).
-They can't coexist in the shared `node_modules`.
+The database is Node's built-in `node:sqlite` (`DatabaseSync`), not a native
+addon. It ships inside the Node runtime that both Vitest and Electron already
+bundle, so there is **no compiled binary to rebuild**, no ABI mismatch between
+`pnpm test` and the app, and no Electron version pin tied to a prebuilt binary.
+`pnpm test` and `dev` just work after `pnpm install`.
 
-- After `pnpm install`, better-sqlite3 is built for **Node**, so `pnpm test`
-  passes.
-- `dev` and `start` run a `predev`/`prestart` hook that rebuilds it for
-  **Electron** (`@electron/rebuild`). After running the app, `pnpm test` will
-  fail to load better-sqlite3.
-- To run the tests again, restore the Node build:
-
-  ```sh
-  pnpm --filter @leapsake/desktop run rebuild:node   # or: pnpm install
-  ```
-
-`rebuild:native` force-rebuilds for Electron if you ever need it explicitly.
-
-**Electron is pinned to 41.x** because better-sqlite3 12.x publishes prebuilt
-binaries only through Electron 41's ABI. Electron 42 has no prebuilt and fails to
-compile against its newer V8 — bump Electron only when a matching better-sqlite3
-prebuild exists.
+The production driver (`src/main/db/node-sqlite-driver.ts`) implements the async
+`SqliteDriver` port over `DatabaseSync` — wrapping its synchronous calls in
+resolved promises and `transaction` in manual `BEGIN`/`COMMIT`/`ROLLBACK`. It
+mirrors the test adapter in `packages/data/test`, so `packages/data` itself
+stays driver-free and reusable on mobile with an expo-sqlite adapter.
 
 ## Notes
 
