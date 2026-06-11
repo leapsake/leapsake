@@ -96,6 +96,22 @@ function registerIpc(core: CoreApi): void {
     (_event, type: EntityType, id: string) =>
       core.relationships.listForEntity(type, id),
   );
+  // Orientation writes: core implies/derives the roles and the repo validates the
+  // assembled input, so the boundary forwards the loosely-typed args as-is.
+  ipcMain.handle(
+    "relationships:createFromSubject",
+    (
+      _event,
+      input: Parameters<CoreApi["relationships"]["createFromSubject"]>[0],
+    ) => core.relationships.createFromSubject(input),
+  );
+  ipcMain.handle(
+    "relationships:editFromSubject",
+    (
+      _event,
+      input: Parameters<CoreApi["relationships"]["editFromSubject"]>[0],
+    ) => core.relationships.editFromSubject(input),
+  );
 
   ipcMain.handle(
     "milestones:listForSubject",
@@ -209,6 +225,55 @@ function registerIpc(core: CoreApi): void {
   // empty query, which the service short-circuits to no results.
   ipcMain.handle("search:query", (_event, term: unknown) =>
     core.search.query(typeof term === "string" ? term : ""),
+  );
+
+  // Read-only view-model builders. Each forwards to the matching core view; the
+  // builders only read, so there is nothing to parse at the boundary.
+  ipcMain.handle("views:entityList", () => core.views.entityList());
+  ipcMain.handle(
+    "views:candidates",
+    (_event, exclude?: { type: EntityType; id: string }) =>
+      core.views.candidates(exclude),
+  );
+  ipcMain.handle(
+    "views:relationshipNew",
+    (_event, subjectType: EntityType, id: string) =>
+      core.views.relationshipNew(subjectType, id),
+  );
+  ipcMain.handle("views:person", (_event, id: string) => core.views.person(id));
+  ipcMain.handle("views:pet", (_event, id: string) => core.views.pet(id));
+  ipcMain.handle("views:relationship", (_event, id: string) =>
+    core.views.relationship(id),
+  );
+  ipcMain.handle("views:relationshipPartners", (_event, id: string) =>
+    core.views.relationshipPartners(id),
+  );
+  ipcMain.handle(
+    "views:relationshipForSubject",
+    (_event, subjectType: EntityType, id: string, relId: string) =>
+      core.views.relationshipForSubject(subjectType, id, relId),
+  );
+  ipcMain.handle(
+    "views:derivedRelationship",
+    (
+      _event,
+      subjectType: EntityType,
+      id: string,
+      otherType: EntityType,
+      otherId: string,
+      role: RelationshipRole,
+    ) =>
+      core.views.derivedRelationship(subjectType, id, otherType, otherId, role),
+  );
+  ipcMain.handle(
+    "views:milestoneSubject",
+    (_event, subjectType: MilestoneSubjectType, id: string) =>
+      core.views.milestoneSubject(subjectType, id),
+  );
+  ipcMain.handle(
+    "views:milestoneNew",
+    (_event, subjectType: MilestoneSubjectType, id: string) =>
+      core.views.milestoneNew(subjectType, id),
   );
 }
 

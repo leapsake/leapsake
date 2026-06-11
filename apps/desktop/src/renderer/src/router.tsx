@@ -7,20 +7,13 @@ import {
   type Gender,
   type MilestoneKind,
   type MilestoneSubjectType,
-  type Relationship,
   type RelationshipRole,
   type UpdateMilestoneInput,
-  baseRole,
   createMilestoneInputSchema,
   createRelationshipInputSchema,
-  entityLabel,
   fullName,
-  genderedVariant,
-  impliedGender,
-  inverseRole,
   parseTagNames,
   preferredSubjectType,
-  roleDefs,
   updateMilestoneInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
@@ -31,12 +24,11 @@ import {
   redirect,
 } from "react-router-dom";
 import { App } from "./App";
-import type { RelationshipCandidate } from "./components/RelationshipForm";
 import { ContactMethodCreate } from "./screens/ContactMethodCreate";
 import { ContactMethodDelete } from "./screens/ContactMethodDelete";
 import { ContactMethodEdit } from "./screens/ContactMethodEdit";
 import { entityBasePath } from "./lib/entityLabel";
-import { type EntityRow, EntityList } from "./screens/EntityList";
+import { EntityList } from "./screens/EntityList";
 import { ErrorPage } from "./screens/ErrorPage";
 import { PersonCreate } from "./screens/PersonCreate";
 import { PersonDelete } from "./screens/PersonDelete";
@@ -112,82 +104,6 @@ function readMilestoneFields(formData: FormData) {
   };
 }
 
-/** Fetch a subject entity (person or pet) by id, or undefined if missing. */
-function getEntity(type: EntityType, id: string) {
-  return type === "person"
-    ? window.api.people.get(id)
-    : window.api.pets.get(id);
-}
-
-/** A milestone subject (person, pet, or relationship) resolved for display. */
-interface MilestoneSubject {
-  type: MilestoneSubjectType;
-  id: string;
-  label: string;
-}
-
-/** Resolve a person/pet to its display label, or a placeholder when it's gone. */
-async function resolveEntityLabel(
-  type: EntityType,
-  id: string,
-): Promise<string> {
-  const entity = await getEntity(type, id);
-  return entity ? entityLabel(type, entity) : "(unknown)";
-}
-
-/** A relationship's two-sided label from its endpoints, e.g. "Jane Doe & John Doe". */
-async function relationshipLabel(rel: Relationship): Promise<string> {
-  const [a, b] = await Promise.all([
-    resolveEntityLabel(rel.aType, rel.aId),
-    resolveEntityLabel(rel.bType, rel.bId),
-  ]);
-  return `${a} & ${b}`;
-}
-
-/**
- * Resolve a milestone subject (person, pet, or relationship) to a `{type, id,
- * label}` for the milestone screens' breadcrumbs/headers, or undefined when it
- * is missing. A relationship is labelled from its two endpoints.
- */
-async function getMilestoneSubject(
-  subjectType: MilestoneSubjectType,
-  id: string,
-): Promise<MilestoneSubject | undefined> {
-  if (subjectType === "relationship") {
-    const rel = await window.api.relationships.get(id);
-    return rel
-      ? { type: subjectType, id, label: await relationshipLabel(rel) }
-      : undefined;
-  }
-  const entity = await getEntity(subjectType, id);
-  return entity
-    ? { type: subjectType, id, label: entityLabel(subjectType, entity) }
-    : undefined;
-}
-
-/**
- * All people and pets as relationship candidates, optionally excluding one
- * entity (the subject, when adding from its own page). Shared by the standalone
- * add-relationship loader and the create-form loaders.
- */
-async function listCandidates(exclude?: {
-  type: EntityType;
-  id: string;
-}): Promise<RelationshipCandidate[]> {
-  const [people, pets] = await Promise.all([
-    window.api.people.list(),
-    window.api.pets.list(),
-  ]);
-  return [
-    ...people
-      .filter((p) => !(exclude?.type === "person" && p.id === exclude.id))
-      .map((p) => ({ type: "person" as const, id: p.id, label: fullName(p) })),
-    ...pets
-      .filter((p) => !(exclude?.type === "pet" && p.id === exclude.id))
-      .map((p) => ({ type: "pet" as const, id: p.id, label: p.name })),
-  ];
-}
-
 /** The resolved b-side of one relationship row submitted by a create form. */
 interface RelationshipDraft {
   bType: EntityType;
@@ -204,8 +120,9 @@ function readRelationships(formData: FormData): RelationshipDraft[] {
 }
 
 /**
- * Persist the relationship rows for a just-created subject. The subject is the
- * `a` endpoint; its own role is the implied inverse of the picked b-side role.
+ * Persist the relationship rows for a just-created subject. Core implies the
+ * subject's own role from each picked b-side role, so the action only forwards
+ * the parsed draft.
  */
 async function createRelationships(
   subjectType: EntityType,
@@ -213,64 +130,34 @@ async function createRelationships(
   drafts: RelationshipDraft[],
 ) {
   for (const draft of drafts) {
-    const input = createRelationshipInputSchema.parse({
-      aType: subjectType,
-      aId: subjectId,
-      aRole: inverseRole(draft.bRole),
-      bType: draft.bType,
-      bId: draft.bId,
-      bRole: draft.bRole,
-      bRoleNote: draft.bRoleNote,
+    await window.api.relationships.createFromSubject({
+      subjectType,
+      subjectId,
+      otherType: draft.bType,
+      otherId: draft.bId,
+      otherRole: draft.bRole,
+      otherRoleNote: draft.bRoleNote,
     });
-    await window.api.relationships.create(input);
   }
 }
 
 /** The combined People & Pets home list, merged and sorted by display name. */
-async function entityListLoader(): Promise<EntityRow[]> {
-  const [people, pets] = await Promise.all([
-    window.api.people.list(),
-    window.api.pets.list(),
-  ]);
-  const rows: EntityRow[] = [
-    ...people.map((p) => ({
-      type: "person" as const,
-      id: p.id,
-      label: fullName(p),
-    })),
-    ...pets.map((p) => ({ type: "pet" as const, id: p.id, label: p.name })),
-  ];
-  return rows.toSorted((a, b) => a.label.localeCompare(b.label));
+function entityListLoader() {
+  return window.api.views.entityList();
 }
 
 /** A Person plus its tags, derived gender, and neighbors (explicit + derived). */
 async function personLoader({ params }: LoaderFunctionArgs) {
-  const id = params.id as string;
-  const person = await window.api.people.get(id);
-  if (!person) throw new Response("Person not found", { status: 404 });
-  const [tags, relationships, gender, timeline, contactMethods] =
-    await Promise.all([
-      window.api.tags.listForPerson(id),
-      window.api.kinship.neighborsFor("person", id),
-      window.api.kinship.genderFor("person", id),
-      window.api.milestones.timelineFor("person", id),
-      window.api.contactMethods.listForOwner("person", id),
-    ]);
-  return { person, tags, relationships, gender, timeline, contactMethods };
+  const view = await window.api.views.person(params.id as string);
+  if (!view) throw new Response("Person not found", { status: 404 });
+  return view;
 }
 
 /** A Pet plus its tags, derived gender, and neighbors (explicit + derived). */
 async function petLoader({ params }: LoaderFunctionArgs) {
-  const id = params.id as string;
-  const pet = await window.api.pets.get(id);
-  if (!pet) throw new Response("Pet not found", { status: 404 });
-  const [tags, relationships, gender, timeline] = await Promise.all([
-    window.api.tags.listForPet(id),
-    window.api.kinship.neighborsFor("pet", id),
-    window.api.kinship.genderFor("pet", id),
-    window.api.milestones.timelineFor("pet", id),
-  ]);
-  return { pet, tags, relationships, gender, timeline };
+  const view = await window.api.views.pet(params.id as string);
+  if (!view) throw new Response("Pet not found", { status: 404 });
+  return view;
 }
 
 /**
@@ -281,20 +168,12 @@ async function petLoader({ params }: LoaderFunctionArgs) {
  */
 function relationshipNewLoader(subjectType: EntityType) {
   return async ({ params }: LoaderFunctionArgs) => {
-    const id = params.id as string;
-    const subject = await getEntity(subjectType, id);
-    if (!subject) throw new Response("Not found", { status: 404 });
-
-    const candidates = await listCandidates({ type: subjectType, id });
-
-    return {
-      subject: {
-        type: subjectType,
-        id,
-        label: entityLabel(subjectType, subject),
-      },
-      candidates,
-    };
+    const view = await window.api.views.relationshipNew(
+      subjectType,
+      params.id as string,
+    );
+    if (!view) throw new Response("Not found", { status: 404 });
+    return view;
   };
 }
 
@@ -326,25 +205,13 @@ function relationshipCreateAction(subjectType: EntityType) {
  */
 function relationshipForSubjectLoader(subjectType: EntityType) {
   return async ({ params }: LoaderFunctionArgs) => {
-    const id = params.id as string;
-    const relId = params.relId as string;
-    const subject = await getEntity(subjectType, id);
-    if (!subject) throw new Response("Not found", { status: 404 });
-    const neighbors = await window.api.relationships.listForEntity(
+    const view = await window.api.views.relationshipForSubject(
       subjectType,
-      id,
+      params.id as string,
+      params.relId as string,
     );
-    const neighbor = neighbors.find((n) => n.relationshipId === relId);
-    if (!neighbor)
-      throw new Response("Relationship not found", { status: 404 });
-    return {
-      subject: {
-        type: subjectType,
-        id,
-        label: entityLabel(subjectType, subject),
-      },
-      neighbor,
-    };
+    if (!view) throw new Response("Relationship not found", { status: 404 });
+    return view;
   };
 }
 
@@ -357,39 +224,16 @@ function relationshipForSubjectLoader(subjectType: EntityType) {
 function relationshipEditAction(subjectType: EntityType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
-    const relId = params.relId as string;
     const formData = await request.formData();
-    const otherRole = String(formData.get("otherRole")) as RelationshipRole;
-    const otherRoleNote = readNote(formData, "otherRoleNote");
-
-    const rel = await window.api.relationships.get(relId);
-    if (!rel) throw new Response("Relationship not found", { status: 404 });
-    const subjectIsA = rel.aType === subjectType && rel.aId === id;
-
-    // Only the other end's role is edited; the subject's own role re-derives as
-    // the neutral inverse, but keeps the gendering it already had (so editing a
-    // wife→husband couple doesn't flatten the unedited "husband" back to "spouse").
-    const subjectRole = genderedVariant(
-      inverseRole(otherRole),
-      impliedGender(subjectIsA ? rel.aRole : rel.bRole),
-    );
-
-    const input = updateRelationshipInputSchema.parse(
-      subjectIsA
-        ? {
-            aRole: subjectRole,
-            aRoleNote: null,
-            bRole: otherRole,
-            bRoleNote: otherRoleNote,
-          }
-        : {
-            aRole: otherRole,
-            aRoleNote: otherRoleNote,
-            bRole: subjectRole,
-            bRoleNote: null,
-          },
-    );
-    await window.api.relationships.update(relId, input);
+    // Core re-derives the subject's own role (neutral inverse, gendering kept)
+    // from the edited other-end role; the app only forwards the parsed fields.
+    await window.api.relationships.editFromSubject({
+      subjectType,
+      subjectId: id,
+      relId: params.relId as string,
+      otherRole: String(formData.get("otherRole")) as RelationshipRole,
+      otherRoleNote: readNote(formData, "otherRoleNote"),
+    });
     return redirect(`${entityBasePath(subjectType)}/${id}`);
   };
 }
@@ -411,10 +255,6 @@ function relationshipDeleteAction(subjectType: EntityType) {
  */
 function relationshipDerivedLoader(subjectType: EntityType) {
   return async ({ params, request }: LoaderFunctionArgs) => {
-    const id = params.id as string;
-    const subject = await getEntity(subjectType, id);
-    if (!subject) throw new Response("Not found", { status: 404 });
-
     const url = new URL(request.url);
     const otherType = url.searchParams.get("otherType") as EntityType | null;
     const otherId = url.searchParams.get("otherId");
@@ -422,26 +262,16 @@ function relationshipDerivedLoader(subjectType: EntityType) {
     if (!otherType || !otherId || !role)
       throw new Response("Bad derived-relationship request", { status: 400 });
 
-    const neighbors = await window.api.kinship.neighborsFor(subjectType, id);
-    const neighbor = neighbors.find(
-      (n) =>
-        n.origin === "derived" &&
-        n.otherType === otherType &&
-        n.otherId === otherId &&
-        baseRole(n.otherRole) === role,
-    );
-    if (!neighbor)
-      throw new Response("Derived relationship not found", { status: 404 });
-
-    return {
-      subject: {
-        type: subjectType,
-        id,
-        label: entityLabel(subjectType, subject),
-      },
-      neighbor,
+    const view = await window.api.views.derivedRelationship(
+      subjectType,
+      params.id as string,
+      otherType,
+      otherId,
       role,
-    };
+    );
+    if (!view)
+      throw new Response("Derived relationship not found", { status: 404 });
+    return view;
   };
 }
 
@@ -463,17 +293,16 @@ function relationshipDerivedEditAction(subjectType: EntityType) {
       throw new Response("Bad derived-relationship request", { status: 400 });
 
     const formData = await request.formData();
-    const otherRole = String(formData.get("otherRole")) as RelationshipRole;
-    const input = createRelationshipInputSchema.parse({
-      aType: subjectType,
-      aId: id,
-      aRole: inverseRole(otherRole),
-      bType: otherType,
-      bId: otherId,
-      bRole: otherRole,
-      bRoleNote: readNote(formData, "otherRoleNote"),
+    // Materialise the derived edge into an explicit one: core implies the
+    // subject's own role from the chosen other role.
+    await window.api.relationships.createFromSubject({
+      subjectType,
+      subjectId: id,
+      otherType,
+      otherId,
+      otherRole: String(formData.get("otherRole")) as RelationshipRole,
+      otherRoleNote: readNote(formData, "otherRoleNote"),
     });
-    await window.api.relationships.create(input);
     return redirect(`${entityBasePath(subjectType)}/${id}`);
   };
 }
@@ -503,15 +332,12 @@ function relationshipDismissAction(subjectType: EntityType) {
  */
 function milestoneNewLoader(subjectType: MilestoneSubjectType) {
   return async ({ params }: LoaderFunctionArgs) => {
-    const id = params.id as string;
-    const subject = await getMilestoneSubject(subjectType, id);
-    if (!subject) throw new Response("Not found", { status: 404 });
-    if (subjectType !== "person") return { subject };
-    const [candidates, neighbors] = await Promise.all([
-      listCandidates({ type: "person", id }),
-      window.api.relationships.listForEntity("person", id),
-    ]);
-    return { subject, candidates, neighbors };
+    const view = await window.api.views.milestoneNew(
+      subjectType,
+      params.id as string,
+    );
+    if (!view) throw new Response("Not found", { status: 404 });
+    return view;
   };
 }
 
@@ -535,17 +361,13 @@ async function resolveWithWhom(
     };
   }
   if (mode === "create") {
-    const bRole = String(formData.get("relRole")) as RelationshipRole;
-    const rel = await window.api.relationships.create(
-      createRelationshipInputSchema.parse({
-        aType: "person",
-        aId: personId,
-        aRole: inverseRole(bRole),
-        bType: String(formData.get("withType")),
-        bId: String(formData.get("withId")),
-        bRole,
-      }),
-    );
+    const rel = await window.api.relationships.createFromSubject({
+      subjectType: "person",
+      subjectId: personId,
+      otherType: String(formData.get("withType")) as EntityType,
+      otherId: String(formData.get("withId")),
+      otherRole: String(formData.get("relRole")) as RelationshipRole,
+    });
     return { subjectType: "relationship", subjectId: rel.id };
   }
   if (mode === "unbound") {
@@ -598,7 +420,7 @@ function milestoneForSubjectLoader(subjectType: MilestoneSubjectType) {
   return async ({ params }: LoaderFunctionArgs) => {
     const id = params.id as string;
     const milestoneId = params.milestoneId as string;
-    const subject = await getMilestoneSubject(subjectType, id);
+    const subject = await window.api.views.milestoneSubject(subjectType, id);
     if (!subject) throw new Response("Not found", { status: 404 });
     const milestones = await window.api.milestones.listForSubject(
       subjectType,
@@ -640,13 +462,13 @@ function milestoneDeleteAction(subjectType: MilestoneSubjectType) {
 async function milestoneRebindLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const milestoneId = params.milestoneId as string;
-  const subject = await getMilestoneSubject("person", id);
+  const subject = await window.api.views.milestoneSubject("person", id);
   if (!subject) throw new Response("Not found", { status: 404 });
   const milestones = await window.api.milestones.listForSubject("person", id);
   const milestone = milestones.find((m) => m.id === milestoneId);
   if (!milestone) throw new Response("Milestone not found", { status: 404 });
   const [candidates, neighbors] = await Promise.all([
-    listCandidates({ type: "person", id }),
+    window.api.views.candidates({ type: "person", id }),
     window.api.relationships.listForEntity("person", id),
   ]);
   return { subject, milestone, candidates, neighbors };
@@ -813,40 +635,9 @@ async function contactDeleteAction({ params }: ActionFunctionArgs) {
  * the relationship-subject milestones.
  */
 async function relationshipViewLoader({ params }: LoaderFunctionArgs) {
-  const id = params.id as string;
-  const relationship = await window.api.relationships.get(id);
-  if (!relationship)
-    throw new Response("Relationship not found", { status: 404 });
-  const [aLabel, bLabel, milestones] = await Promise.all([
-    resolveEntityLabel(relationship.aType, relationship.aId),
-    resolveEntityLabel(relationship.bType, relationship.bId),
-    window.api.milestones.listForSubject("relationship", id),
-  ]);
-  const partners = [
-    {
-      type: relationship.aType,
-      id: relationship.aId,
-      label: aLabel,
-      roleLabel: roleDefs[relationship.aRole].label,
-    },
-    {
-      type: relationship.bType,
-      id: relationship.bId,
-      label: bLabel,
-      roleLabel: roleDefs[relationship.bRole].label,
-    },
-  ];
-  return { relationship, partners, title: `${aLabel} & ${bLabel}`, milestones };
-}
-
-/** One endpoint of a relationship, resolved for the relationship-scoped edit/delete screens. */
-interface RelationshipPartner {
-  type: EntityType;
-  id: string;
-  label: string;
-  role: RelationshipRole;
-  roleLabel: string;
-  roleNote: string | null;
+  const view = await window.api.views.relationship(params.id as string);
+  if (!view) throw new Response("Relationship not found", { status: 404 });
+  return view;
 }
 
 /**
@@ -857,33 +648,9 @@ interface RelationshipPartner {
  * and a delete plainly removes the single shared row.
  */
 async function relationshipPartnersLoader({ params }: LoaderFunctionArgs) {
-  const id = params.id as string;
-  const relationship = await window.api.relationships.get(id);
-  if (!relationship)
-    throw new Response("Relationship not found", { status: 404 });
-  const [aLabel, bLabel] = await Promise.all([
-    resolveEntityLabel(relationship.aType, relationship.aId),
-    resolveEntityLabel(relationship.bType, relationship.bId),
-  ]);
-  const partners: [RelationshipPartner, RelationshipPartner] = [
-    {
-      type: relationship.aType,
-      id: relationship.aId,
-      label: aLabel,
-      role: relationship.aRole,
-      roleLabel: roleDefs[relationship.aRole].label,
-      roleNote: relationship.aRoleNote,
-    },
-    {
-      type: relationship.bType,
-      id: relationship.bId,
-      label: bLabel,
-      role: relationship.bRole,
-      roleLabel: roleDefs[relationship.bRole].label,
-      roleNote: relationship.bRoleNote,
-    },
-  ];
-  return { relationshipId: id, title: `${aLabel} & ${bLabel}`, partners };
+  const view = await window.api.views.relationshipPartners(params.id as string);
+  if (!view) throw new Response("Relationship not found", { status: 404 });
+  return view;
 }
 
 /**
@@ -940,7 +707,7 @@ export const router = createHashRouter([
       },
       {
         path: "people/new",
-        loader: () => listCandidates(),
+        loader: () => window.api.views.candidates(),
         element: <PersonCreate />,
         action: async ({ request }) => {
           const formData = await request.formData();
@@ -1058,7 +825,7 @@ export const router = createHashRouter([
       },
       {
         path: "pets/new",
-        loader: () => listCandidates(),
+        loader: () => window.api.views.candidates(),
         element: <PetCreate />,
         action: async ({ request }) => {
           const formData = await request.formData();
