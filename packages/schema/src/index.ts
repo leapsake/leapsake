@@ -12,6 +12,7 @@ export {
 export type { Pet, CreatePetInput, UpdatePetInput } from "./pet.js";
 export { tagSchema, normalizeTagName, parseTagNames } from "./tag.js";
 export type { Tag } from "./tag.js";
+export { fullName, entityLabel, tagLabel } from "./labels.js";
 export { genderSchema, genderLabel } from "./gender.js";
 export type { Gender } from "./gender.js";
 export {

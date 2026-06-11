@@ -1,8 +1,8 @@
 import type { Pet, Tag } from "@leapsake/schema";
+import { tagLabel } from "@leapsake/schema";
 import { useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { PetForm } from "../components/PetForm";
-import { tagLabel } from "../lib/tagLabel";
 
 export function PetEdit() {
   const { pet, tags } = useLoaderData() as { pet: Pet; tags: Tag[] };

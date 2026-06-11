@@ -5,6 +5,7 @@ import type {
   RelationshipNeighbor,
   Tag,
 } from "@leapsake/schema";
+import { fullName } from "@leapsake/schema";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { ContactMethodsSection } from "../components/ContactMethodsSection";
@@ -12,7 +13,6 @@ import { GenderValue, type GenderResult } from "../components/GenderValue";
 import { MilestonesSection } from "../components/MilestonesSection";
 import { RelationshipsSection } from "../components/RelationshipsSection";
 import { TagsSection } from "../components/TagsSection";
-import { fullName } from "../lib/fullName";
 
 /** Render an epoch-ms timestamp in the user's locale. */
 function formatTimestamp(ms: number): string {

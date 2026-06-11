@@ -13,6 +13,8 @@ import {
   baseRole,
   createMilestoneInputSchema,
   createRelationshipInputSchema,
+  entityLabel,
+  fullName,
   genderedVariant,
   impliedGender,
   inverseRole,
@@ -33,8 +35,7 @@ import type { RelationshipCandidate } from "./components/RelationshipForm";
 import { ContactMethodCreate } from "./screens/ContactMethodCreate";
 import { ContactMethodDelete } from "./screens/ContactMethodDelete";
 import { ContactMethodEdit } from "./screens/ContactMethodEdit";
-import { entityBasePath, entityLabel } from "./lib/entityLabel";
-import { fullName } from "./lib/fullName";
+import { entityBasePath } from "./lib/entityLabel";
 import { type EntityRow, EntityList } from "./screens/EntityList";
 import { ErrorPage } from "./screens/ErrorPage";
 import { PersonCreate } from "./screens/PersonCreate";

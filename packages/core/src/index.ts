@@ -46,7 +46,7 @@ import type {
   UpdatePostalInput,
   UpdateRelationshipInput,
 } from "@leapsake/schema";
-import { roleDefs } from "@leapsake/schema";
+import { entityLabel, roleDefs } from "@leapsake/schema";
 
 // Re-exported so apps can wire everything from one entry point: construct a
 // concrete SqliteDriver, run migrations, then build the core.
@@ -94,19 +94,19 @@ export function createCore(driver: SqliteDriver) {
   const search = createSearchService(driver);
 
   // Resolve an entity to its display label for relationship rows and timeline
-  // annotations. Kept inline (rather than importing a client helper) so the core
-  // owns label resolution for every client; the pure label formatters can later
-  // move into `@leapsake/schema` and be reused here.
+  // annotations, using the shared `@leapsake/schema` formatters so every client
+  // labels entities identically. Returns undefined when the entity is gone so
+  // callers can skip a missing neighbor.
   async function resolveLabel(
     type: EntityType,
     id: string,
   ): Promise<string | undefined> {
     if (type === "person") {
       const person = await people.get(id);
-      return person ? `${person.firstName} ${person.lastName}` : undefined;
+      return person ? entityLabel("person", person) : undefined;
     }
     const pet = await pets.get(id);
-    return pet ? pet.name : undefined;
+    return pet ? entityLabel("pet", pet) : undefined;
   }
 
   return {
