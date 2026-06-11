@@ -2,7 +2,7 @@ import type { SearchHit } from "@leapsake/schema";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { entityBasePath } from "../lib/entityLabel";
-import { highlightMatch } from "../lib/highlightMatch";
+import { highlightBirthday, highlightMatch } from "../lib/highlightMatch";
 import styles from "./SearchBar.module.css";
 
 /**
@@ -146,15 +146,17 @@ export function SearchBar() {
                       <Fragment key={`${r.facet}:${r.matchedText}`}>
                         {ri > 0 && ", "}
                         {r.facet === "tag" && "#"}
-                        {highlightMatch(
-                          r.matchedText,
-                          term,
-                          r.facet === "phone"
-                            ? "phone"
-                            : r.facet === "address"
-                              ? "address"
-                              : "text",
-                        )}
+                        {r.facet === "birthday"
+                          ? highlightBirthday(r.matchedText, term)
+                          : highlightMatch(
+                              r.matchedText,
+                              term,
+                              r.facet === "phone"
+                                ? "phone"
+                                : r.facet === "address"
+                                  ? "address"
+                                  : "text",
+                            )}
                       </Fragment>
                     ))}
                   </span>

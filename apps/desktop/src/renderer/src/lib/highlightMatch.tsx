@@ -108,6 +108,59 @@ export function highlightMatch(
 }
 
 /**
+ * Highlight a birthday reason (a formatted date like "October 31, 1990") against
+ * the user's query. A month-name query ("oct", "october 31") folds and aligns
+ * like any text, so it defers to {@link highlightMatch}. A *numeric* query
+ * ("10/31", "10/31/1990", "1990") can't fold into a month *name*, so instead we
+ * mark the structural pieces the query addresses: a month part marks the month
+ * word, a day part marks the day number, a year part marks the 4-digit year.
+ *
+ * The reason is only shown because the service already matched it, so the date's
+ * parts are known-consistent with the query — we needn't re-check the values,
+ * only mark the pieces the query named. Returns the plain string when nothing
+ * numeric aligns.
+ */
+export function highlightBirthday(text: string, term: string): ReactNode {
+  const t = term.trim().toLowerCase();
+  // A query carrying letters is a month-name query; text folding highlights it
+  // (typing "oct" marks "Oct", "october 31" marks "October 31").
+  if (/\p{L}/u.test(t)) return highlightMatch(text, term, "text");
+
+  // Numeric query: which date parts did the user type? "M/D" → month + day;
+  // "M/D/Y" → + year; a lone 4-digit number → year only. Mirrors the service's
+  // parseBirthdayQuery so the highlight matches what was searched.
+  const numeric = /^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{4}))?$/.exec(t);
+  const yearOnly = /^\d{4}$/.test(t);
+  const wantMonth = numeric !== null;
+  const wantDay = numeric !== null;
+  const wantYear = numeric !== null ? numeric[3] !== undefined : yearOnly;
+  if (!wantMonth && !wantDay && !wantYear) return text;
+
+  // Locate the structural pieces of the formatted date. The month name is the
+  // leading letter run (Unicode-aware for localized names like "août"); the year
+  // is the 4-digit number; the day is the remaining 1–2 digit number.
+  const ranges: [number, number][] = [];
+  const push = (m: RegExpExecArray | null) => {
+    if (m) ranges.push([m.index, m.index + m[0].length]);
+  };
+  if (wantMonth) push(/\p{L}+/u.exec(text));
+  if (wantYear) push(/\d{4}/.exec(text));
+  if (wantDay) push(/\b\d{1,2}\b/.exec(text)); // 1–2 digits, never inside a year
+  if (ranges.length === 0) return text;
+
+  ranges.sort((a, b) => a[0] - b[0]);
+  const out: ReactNode[] = [];
+  let cursor = 0;
+  ranges.forEach(([from, to], i) => {
+    if (from > cursor) out.push(text.slice(cursor, from));
+    out.push(<mark key={i}>{text.slice(from, to)}</mark>);
+    cursor = to;
+  });
+  if (cursor < text.length) out.push(text.slice(cursor));
+  return <>{out}</>;
+}
+
+/**
  * The `[from, to]` folded-index span (inclusive) to highlight, or null if the
  * term doesn't align at all. Tries, in order: the exact substring; the whole
  * value when the term contains it (e.g. a phone typed with an extra country
