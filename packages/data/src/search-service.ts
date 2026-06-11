@@ -193,13 +193,20 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     };
 
     for (const p of people) {
-      const title = `${p.first_name} ${p.last_name}`;
-      titleByEntity.set(key("person", p.id), { type: "person", title });
-      addNameHit("person", p.id, title, [
-        p.first_name,
-        p.middle_name ?? "",
-        p.last_name,
-      ]);
+      // The middle name is normally hidden, but surfaced in the title when the
+      // term matched *it* specifically — so a hit explained only by the middle
+      // name ("br" → "Joseph Abraham Lampe") shows why it's there, while an
+      // ordinary first/last hit stays "Joseph Lampe".
+      const plain = `${p.first_name} ${p.last_name}`;
+      // The owner-resolution title (for contact-only hits) is always the plain
+      // form — the middle name is only relevant when the *name* matched it.
+      titleByEntity.set(key("person", p.id), { type: "person", title: plain });
+      const middle = p.middle_name ?? "";
+      const showMiddle = middle !== "" && fold(middle).includes(folded);
+      const title = showMiddle
+        ? `${p.first_name} ${middle} ${p.last_name}`
+        : plain;
+      addNameHit("person", p.id, title, [p.first_name, middle, p.last_name]);
     }
     for (const pet of pets) {
       titleByEntity.set(key("pet", pet.id), { type: "pet", title: pet.name });
