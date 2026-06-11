@@ -1,7 +1,8 @@
 import type { SearchHit } from "@leapsake/schema";
-import { useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { entityBasePath } from "../lib/entityLabel";
+import { highlightMatch } from "../lib/highlightMatch";
 import styles from "./SearchBar.module.css";
 
 /**
@@ -129,10 +130,20 @@ export function SearchBar() {
                   go(hit);
                 }}
               >
-                {hit.title}
+                {highlightMatch(hit.title, term)}
                 {reasons.length > 0 && (
                   <span className={styles.reason}>
-                    matched on {reasons.map((r) => r.matchedText).join(", ")}
+                    matched on{" "}
+                    {reasons.map((r, ri) => (
+                      <Fragment key={`${r.facet}:${r.matchedText}`}>
+                        {ri > 0 && ", "}
+                        {highlightMatch(
+                          r.matchedText,
+                          term,
+                          r.facet === "phone" ? "phone" : "text",
+                        )}
+                      </Fragment>
+                    ))}
                   </span>
                 )}
               </li>
