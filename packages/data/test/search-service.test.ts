@@ -12,6 +12,7 @@ import {
   type SearchService,
   createSearchService,
 } from "../src/search-service.js";
+import { type TagsRepo, createTagsRepo } from "../src/tags-repo.js";
 import { nodeSqliteDriver } from "./node-sqlite-driver.js";
 
 let db: DatabaseSync;
@@ -19,6 +20,7 @@ let driver: SqliteDriver;
 let people: PeopleRepo;
 let pets: PetsRepo;
 let contactMethods: ContactMethodsRepo;
+let tags: TagsRepo;
 let search: SearchService;
 
 beforeEach(async () => {
@@ -28,6 +30,7 @@ beforeEach(async () => {
   people = createPeopleRepo(driver);
   pets = createPetsRepo(driver);
   contactMethods = createContactMethodsRepo(driver);
+  tags = createTagsRepo(driver);
   search = createSearchService(driver);
 });
 
@@ -309,5 +312,97 @@ describe("searchService", () => {
       address: "jane@x.com",
     });
     expect(await titles("jane")).toEqual(["Jane Smith", "Bob Jones"]);
+  });
+
+  it("surfaces a matching tag as its own navigable result", async () => {
+    const person = await people.create({
+      firstName: "Sam",
+      lastName: "Carter",
+    });
+    await tags.setEntityTags("person", person.id, ["Friend"]);
+    const [tag] = await tags.listForEntity("person", person.id);
+
+    const tagHit = (await search.query("friend")).find(
+      (h) => h.entityType === "tag",
+    );
+    // Navigates to the tag's own screen, and shows just its name (the "name"
+    // facet is rendered as the title, so there's no "matched on …" line).
+    expect(tagHit).toMatchObject({
+      entityType: "tag",
+      entityId: tag?.id,
+      title: "Friend",
+    });
+    expect(tagHit?.reasons).toEqual([{ facet: "name", matchedText: "Friend" }]);
+  });
+
+  it("ranks a matching tag above the entities that carry it", async () => {
+    const person = await people.create({
+      firstName: "Sam",
+      lastName: "Carter",
+    });
+    await tags.setEntityTags("person", person.id, ["Friend"]);
+    // The tag leads; its bearer (whose name doesn't match) follows.
+    expect(await titles("friend")).toEqual(["Friend", "Sam Carter"]);
+  });
+
+  it("still surfaces the bearer with a tag reason alongside the tag result", async () => {
+    const person = await people.create({
+      firstName: "Tagged",
+      lastName: "Person",
+    });
+    await tags.setEntityTags("person", person.id, ["Friend", "Colleague"]);
+    const hits = await search.query("frien");
+    expect(hits).toHaveLength(2); // the tag result + its bearer
+    const bearer = hits.find((h) => h.entityType === "person");
+    expect(bearer).toMatchObject({ title: "Tagged Person" });
+    expect(bearer?.reasons).toContainEqual({
+      facet: "tag",
+      matchedText: "Friend",
+    });
+  });
+
+  it("resolves a tag bearer on a pet the same way", async () => {
+    const pet = await pets.create({ name: "Rex" });
+    await tags.setEntityTags("pet", pet.id, ["Service Animal"]);
+    const hits = await search.query("service");
+    expect(hits).toHaveLength(2); // tag result + the pet bearer
+    const bearer = hits.find((h) => h.entityType === "pet");
+    expect(bearer).toMatchObject({ entityType: "pet", title: "Rex" });
+    expect(bearer?.reasons).toContainEqual({
+      facet: "tag",
+      matchedText: "Service Animal",
+    });
+  });
+
+  it("groups a name + tag match into one bearer row, with the tag result separate", async () => {
+    const person = await people.create({ firstName: "Mason", lastName: "Lee" });
+    await tags.setEntityTags("person", person.id, ["Mason"]);
+    const hits = await search.query("mason");
+    expect(hits).toHaveLength(2);
+    // The tag result leads; the bearer is one row with both reasons merged.
+    expect(hits[0]).toMatchObject({ entityType: "tag", title: "Mason" });
+    const bearer = hits.find((h) => h.entityType === "person");
+    expect(bearer?.reasons.map((r) => r.facet)).toEqual(["name", "tag"]);
+  });
+
+  it("drops the bearer whose owner is soft-deleted but keeps the tag result", async () => {
+    const person = await people.create({ firstName: "Gone", lastName: "Away" });
+    await tags.setEntityTags("person", person.id, ["Vanishing"]);
+    await people.softDelete(person.id); // tagging stays active; owner does not
+    const hits = await search.query("vanishing");
+    // The bearer drops (§2.4), but the tag itself is still active and navigable.
+    expect(hits).toEqual([
+      expect.objectContaining({ entityType: "tag", title: "Vanishing" }),
+    ]);
+  });
+
+  it("drops everything once the tag is removed (and thereby orphan-deleted)", async () => {
+    const person = await people.create({
+      firstName: "Still",
+      lastName: "Here",
+    });
+    await tags.setEntityTags("person", person.id, ["Temporary"]);
+    await tags.setEntityTags("person", person.id, []); // untag → tag is GC'd
+    expect(await search.query("temporary")).toEqual([]);
   });
 });
