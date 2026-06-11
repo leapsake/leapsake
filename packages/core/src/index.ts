@@ -46,11 +46,37 @@ import type {
   UpdatePostalInput,
   UpdateRelationshipInput,
 } from "@leapsake/schema";
-import { entityLabel, roleDefs } from "@leapsake/schema";
+import {
+  entityLabel,
+  genderedVariant,
+  impliedGender,
+  inverseRole,
+  roleDefs,
+} from "@leapsake/schema";
+import { createViews } from "./views.js";
 
 // Re-exported so apps can wire everything from one entry point: construct a
 // concrete SqliteDriver, run migrations, then build the core.
 export { runMigrations, type SqliteDriver, type GenderResult };
+
+// The view-model contracts the `views` builders return, re-exported so every
+// client renders against the same shapes carried out via `CoreApi`.
+export type {
+  EntityRow,
+  EntityRef,
+  RelationshipCandidate,
+  MilestoneSubject,
+  RelationshipViewPartner,
+  RelationshipPartner,
+  PersonView,
+  PetView,
+  RelationshipNewView,
+  RelationshipView,
+  RelationshipPartnersView,
+  RelationshipForSubjectView,
+  DerivedRelationshipView,
+  MilestoneNewView,
+} from "./views.js";
 
 /**
  * The client-agnostic application surface. Every operation is a composition over
@@ -108,6 +134,119 @@ export function createCore(driver: SqliteDriver) {
     const pet = await pets.get(id);
     return pet ? entityLabel("pet", pet) : undefined;
   }
+
+  // Orient each stored row touching the subject and resolve the *other* end's
+  // label + role, so callers never see the raw a/b endpoints. Shared by the
+  // `relationships.listForEntity` surface and the view builders.
+  async function orientedNeighbors(
+    type: EntityType,
+    id: string,
+  ): Promise<RelationshipNeighbor[]> {
+    const rows = await relationships.listForEntity(type, id);
+    const neighbors: RelationshipNeighbor[] = [];
+    for (const rel of rows) {
+      const subjectIsA = rel.aType === type && rel.aId === id;
+      const otherType = subjectIsA ? rel.bType : rel.aType;
+      const otherId = subjectIsA ? rel.bId : rel.aId;
+      const otherRole = subjectIsA ? rel.bRole : rel.aRole;
+      const otherRoleNote = subjectIsA ? rel.bRoleNote : rel.aRoleNote;
+      const otherLabel = await resolveLabel(otherType, otherId);
+      if (otherLabel === undefined) continue; // other end gone — skip
+      neighbors.push({
+        relationshipId: rel.id,
+        otherType,
+        otherId,
+        otherLabel,
+        otherRole,
+        otherRoleLabel: roleDefs[otherRole].label,
+        otherRoleNote,
+        origin: "explicit",
+      });
+    }
+    return neighbors;
+  }
+
+  // A relationship written from a subject's perspective: the subject is the `a`
+  // endpoint, and its own role is the gender-neutral inverse of the chosen other
+  // role. This is the single home for the "imply my role from the other end"
+  // rule, shared by the add-from-subject, create-form, and derived-materialise
+  // paths so no client re-derives it.
+  function createFromSubject(input: {
+    subjectType: EntityType;
+    subjectId: string;
+    otherType: EntityType;
+    otherId: string;
+    otherRole: RelationshipRole;
+    otherRoleNote?: string | null;
+  }): Promise<Relationship> {
+    return driver.transaction(() =>
+      relationships.create({
+        aType: input.subjectType,
+        aId: input.subjectId,
+        aRole: inverseRole(input.otherRole),
+        bType: input.otherType,
+        bId: input.otherId,
+        bRole: input.otherRole,
+        bRoleNote: input.otherRoleNote ?? null,
+      }),
+    );
+  }
+
+  // Edit a subject-scoped relationship: only the *other* end's role changes; the
+  // subject's own role re-derives as the neutral inverse but keeps the gendering
+  // it already had (so editing a wife→husband couple doesn't flatten the unedited
+  // "husband" back to "spouse"). The stored row may hold the subject on either
+  // end, so we fetch it to learn the orientation before mapping roles onto a/b.
+  function editFromSubject(input: {
+    subjectType: EntityType;
+    subjectId: string;
+    relId: string;
+    otherRole: RelationshipRole;
+    otherRoleNote: string | null;
+  }): Promise<Relationship | undefined> {
+    return driver.transaction(async () => {
+      const rel = await relationships.get(input.relId);
+      if (!rel) return undefined;
+      const subjectIsA =
+        rel.aType === input.subjectType && rel.aId === input.subjectId;
+      const subjectRole = genderedVariant(
+        inverseRole(input.otherRole),
+        impliedGender(subjectIsA ? rel.aRole : rel.bRole),
+      );
+      return relationships.update(
+        input.relId,
+        subjectIsA
+          ? {
+              aRole: subjectRole,
+              aRoleNote: null,
+              bRole: input.otherRole,
+              bRoleNote: input.otherRoleNote,
+            }
+          : {
+              aRole: input.otherRole,
+              aRoleNote: input.otherRoleNote,
+              bRole: subjectRole,
+              bRoleNote: null,
+            },
+      );
+    });
+  }
+
+  const views = createViews({
+    people: { list: () => people.list(), get: (id) => people.get(id) },
+    pets: { list: () => pets.list(), get: (id) => pets.get(id) },
+    listTags: (type, id) => tags.listForEntity(type, id),
+    getRelationship: (id) => relationships.get(id),
+    listMilestones: (type, id) => milestones.listForSubject(type, id),
+    orientedNeighbors,
+    neighborsFor: (type, id) => kinship.neighborsFor(type, id),
+    genderFor: (type, id) => kinship.genderFor(type, id),
+    timelineFor: (type, id) =>
+      listTimelineForEntity(milestones, relationships, resolveLabel, type, id),
+    listContactMethods: (type, id) =>
+      listContactMethods(contactMethods, { type, id }),
+    resolveLabel,
+  });
 
   return {
     people: {
@@ -210,33 +349,16 @@ export function createCore(driver: SqliteDriver) {
         driver.transaction(() => relationships.softDelete(id)),
       // Orient each stored row to the subject and resolve the *other* end's
       // label + role, so the caller never sees the raw a/b endpoints.
-      listForEntity: async (
+      listForEntity: (
         type: EntityType,
         id: string,
-      ): Promise<RelationshipNeighbor[]> => {
-        const rows = await relationships.listForEntity(type, id);
-        const neighbors: RelationshipNeighbor[] = [];
-        for (const rel of rows) {
-          const subjectIsA = rel.aType === type && rel.aId === id;
-          const otherType = subjectIsA ? rel.bType : rel.aType;
-          const otherId = subjectIsA ? rel.bId : rel.aId;
-          const otherRole = subjectIsA ? rel.bRole : rel.aRole;
-          const otherRoleNote = subjectIsA ? rel.bRoleNote : rel.aRoleNote;
-          const otherLabel = await resolveLabel(otherType, otherId);
-          if (otherLabel === undefined) continue; // other end gone — skip
-          neighbors.push({
-            relationshipId: rel.id,
-            otherType,
-            otherId,
-            otherLabel,
-            otherRole,
-            otherRoleLabel: roleDefs[otherRole].label,
-            otherRoleNote,
-            origin: "explicit",
-          });
-        }
-        return neighbors;
-      },
+      ): Promise<RelationshipNeighbor[]> => orientedNeighbors(type, id),
+      // Write a relationship from a subject's perspective, implying the subject's
+      // own role from the chosen other role. See {@link createFromSubject}.
+      createFromSubject,
+      // Edit a subject-scoped relationship, re-deriving the subject's own role.
+      // See {@link editFromSubject}.
+      editFromSubject,
     },
 
     milestones: {
@@ -339,5 +461,9 @@ export function createCore(driver: SqliteDriver) {
     search: {
       query: (term: string): Promise<SearchHit[]> => search.query(term),
     },
+
+    // Read-and-compose view-model builders: portable fan-outs, label resolution,
+    // candidate lists, and relationship-orientation reads that return plain data.
+    views,
   };
 }

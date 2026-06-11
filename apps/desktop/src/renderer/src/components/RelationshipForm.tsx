@@ -1,3 +1,4 @@
+import type { RelationshipCandidate } from "@leapsake/core";
 import {
   type EntityType,
   type RelationshipRole,
@@ -7,12 +8,7 @@ import {
 import { useMemo, useState } from "react";
 import { Form, Link, useNavigation } from "react-router-dom";
 
-/** A pickable other end for the relationship typeahead. */
-export interface RelationshipCandidate {
-  type: EntityType;
-  id: string;
-  label: string;
-}
+export type { RelationshipCandidate };
 
 /** Map each pickable role's display label back to its slug for the chosen pair. */
 function roleMap(

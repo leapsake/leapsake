@@ -1,4 +1,18 @@
-import type { CoreApi, GenderResult } from "@leapsake/core";
+import type {
+  CoreApi,
+  DerivedRelationshipView,
+  EntityRow,
+  GenderResult,
+  MilestoneNewView,
+  MilestoneSubject,
+  PersonView,
+  PetView,
+  RelationshipCandidate,
+  RelationshipForSubjectView,
+  RelationshipNewView,
+  RelationshipPartnersView,
+  RelationshipView,
+} from "@leapsake/core";
 import type {
   ContactMethod,
   ContactOwnerType,
@@ -104,6 +118,14 @@ const api = {
       id: string,
     ): Promise<RelationshipNeighbor[]> =>
       ipcRenderer.invoke("relationships:listForEntity", type, id),
+    createFromSubject: (
+      input: Parameters<CoreApi["relationships"]["createFromSubject"]>[0],
+    ): Promise<Relationship> =>
+      ipcRenderer.invoke("relationships:createFromSubject", input),
+    editFromSubject: (
+      input: Parameters<CoreApi["relationships"]["editFromSubject"]>[0],
+    ): Promise<Relationship | undefined> =>
+      ipcRenderer.invoke("relationships:editFromSubject", input),
   },
   milestones: {
     listForSubject: (
@@ -196,7 +218,67 @@ const api = {
     query: (term: string): Promise<SearchHit[]> =>
       ipcRenderer.invoke("search:query", term),
   },
-};
+  views: {
+    entityList: (): Promise<EntityRow[]> =>
+      ipcRenderer.invoke("views:entityList"),
+    candidates: (exclude?: {
+      type: EntityType;
+      id: string;
+    }): Promise<RelationshipCandidate[]> =>
+      ipcRenderer.invoke("views:candidates", exclude),
+    relationshipNew: (
+      subjectType: EntityType,
+      id: string,
+    ): Promise<RelationshipNewView | null> =>
+      ipcRenderer.invoke("views:relationshipNew", subjectType, id),
+    person: (id: string): Promise<PersonView | null> =>
+      ipcRenderer.invoke("views:person", id),
+    pet: (id: string): Promise<PetView | null> =>
+      ipcRenderer.invoke("views:pet", id),
+    relationship: (id: string): Promise<RelationshipView | null> =>
+      ipcRenderer.invoke("views:relationship", id),
+    relationshipPartners: (
+      id: string,
+    ): Promise<RelationshipPartnersView | null> =>
+      ipcRenderer.invoke("views:relationshipPartners", id),
+    relationshipForSubject: (
+      subjectType: EntityType,
+      id: string,
+      relId: string,
+    ): Promise<RelationshipForSubjectView | null> =>
+      ipcRenderer.invoke(
+        "views:relationshipForSubject",
+        subjectType,
+        id,
+        relId,
+      ),
+    derivedRelationship: (
+      subjectType: EntityType,
+      id: string,
+      otherType: EntityType,
+      otherId: string,
+      role: RelationshipRole,
+    ): Promise<DerivedRelationshipView | null> =>
+      ipcRenderer.invoke(
+        "views:derivedRelationship",
+        subjectType,
+        id,
+        otherType,
+        otherId,
+        role,
+      ),
+    milestoneSubject: (
+      subjectType: MilestoneSubjectType,
+      id: string,
+    ): Promise<MilestoneSubject | undefined> =>
+      ipcRenderer.invoke("views:milestoneSubject", subjectType, id),
+    milestoneNew: (
+      subjectType: MilestoneSubjectType,
+      id: string,
+    ): Promise<MilestoneNewView | null> =>
+      ipcRenderer.invoke("views:milestoneNew", subjectType, id),
+  },
+} satisfies CoreApi;
 
 contextBridge.exposeInMainWorld("api", api);
 

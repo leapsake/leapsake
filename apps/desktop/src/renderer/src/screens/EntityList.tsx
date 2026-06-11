@@ -1,13 +1,8 @@
-import type { EntityType } from "@leapsake/schema";
+import type { EntityRow } from "@leapsake/core";
 import { Link, useLoaderData } from "react-router-dom";
 import { entityBasePath } from "../lib/entityLabel";
 
-/** A single combined-list entry: a person or pet reduced to its display label. */
-export interface EntityRow {
-  type: EntityType;
-  id: string;
-  label: string;
-}
+export type { EntityRow };
 
 /**
  * The combined "People & Pets" home screen. People and pets are minor variations
