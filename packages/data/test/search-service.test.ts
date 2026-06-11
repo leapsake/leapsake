@@ -6,11 +6,16 @@ import {
 } from "../src/contact-methods-repo.js";
 import { type SqliteDriver } from "../src/driver.js";
 import { runMigrations } from "../src/migrations.js";
+import {
+  type MilestonesRepo,
+  createMilestonesRepo,
+} from "../src/milestones-repo.js";
 import { type PeopleRepo, createPeopleRepo } from "../src/people-repo.js";
 import { type PetsRepo, createPetsRepo } from "../src/pets-repo.js";
 import {
   type SearchService,
   createSearchService,
+  parseBirthdayQuery,
 } from "../src/search-service.js";
 import { type TagsRepo, createTagsRepo } from "../src/tags-repo.js";
 import { nodeSqliteDriver } from "./node-sqlite-driver.js";
@@ -21,6 +26,7 @@ let people: PeopleRepo;
 let pets: PetsRepo;
 let contactMethods: ContactMethodsRepo;
 let tags: TagsRepo;
+let milestones: MilestonesRepo;
 let search: SearchService;
 
 beforeEach(async () => {
@@ -31,6 +37,7 @@ beforeEach(async () => {
   pets = createPetsRepo(driver);
   contactMethods = createContactMethodsRepo(driver);
   tags = createTagsRepo(driver);
+  milestones = createMilestonesRepo(driver);
   search = createSearchService(driver);
 });
 
@@ -414,5 +421,131 @@ describe("searchService", () => {
     await tags.setEntityTags("person", person.id, ["Temporary"]);
     await tags.setEntityTags("person", person.id, []); // untag → tag is GC'd
     expect(await search.query("temporary")).toEqual([]);
+  });
+
+  describe("birthday facet", () => {
+    /** Create a person with a birthday milestone of the given partial date. */
+    async function personWithBirthday(
+      firstName: string,
+      lastName: string,
+      date: { year?: number; month?: number; day?: number },
+    ) {
+      const person = await people.create({ firstName, lastName });
+      await milestones.create({
+        kind: "birthday",
+        subjectType: "person",
+        subjectId: person.id,
+        ...date,
+      });
+      return person;
+    }
+
+    it("matches the accepted date formats, with the formatted date as the reason", async () => {
+      await personWithBirthday("Ada", "Lovelace", {
+        year: 1990,
+        month: 3,
+        day: 4,
+      });
+      // Every form that names March 4, 1990 (or a consistent partial) surfaces Ada.
+      for (const term of [
+        "march",
+        "mar 4",
+        "march 4 1990",
+        "mar 4, 1990",
+        "march 1990",
+        "1990",
+      ]) {
+        const hits = await search.query(term);
+        expect(hits).toHaveLength(1);
+        expect(hits[0]).toMatchObject({
+          entityType: "person",
+          title: "Ada Lovelace",
+        });
+        expect(hits[0]?.reasons).toContainEqual({
+          facet: "birthday",
+          matchedText: "March 4, 1990",
+        });
+      }
+    });
+
+    it("renders a year-less recurring birthday's reason without a year", async () => {
+      await personWithBirthday("Grace", "Hopper", { month: 12, day: 9 });
+      const hits = await search.query("dec 9");
+      expect(hits).toHaveLength(1);
+      expect(hits[0]?.reasons).toEqual([
+        { facet: "birthday", matchedText: "December 9" },
+      ]);
+    });
+
+    it("matches both orderings of a numeric date (3/4 → March 4 and April 3)", async () => {
+      await personWithBirthday("March", "Fourth", { month: 3, day: 4 });
+      await personWithBirthday("April", "Third", { month: 4, day: 3 });
+      const hits = await search.query("3/4");
+      expect(hits.map((h) => h.title).toSorted()).toEqual([
+        "April Third",
+        "March Fourth",
+      ]);
+    });
+
+    it("does not match a year-only birthday against a month-name query", async () => {
+      await personWithBirthday("Year", "Only", { year: 1990 });
+      // The query specifies a month the milestone lacks → no match (no over-reach).
+      expect(await search.query("march")).toEqual([]);
+    });
+
+    it("ignores a bare ambiguous number and an unrecognized date word", async () => {
+      await personWithBirthday("Some", "One", { month: 4, day: 4 });
+      expect(await search.query("44")).toEqual([]); // not a date
+      expect(parseBirthdayQuery("4")).toEqual([]); // too ambiguous
+      expect(parseBirthdayQuery("notamonth")).toEqual([]);
+    });
+
+    it("groups a simultaneous name and birthday hit into one row", async () => {
+      const person = await people.create({
+        firstName: "March",
+        lastName: "Hare",
+      });
+      await milestones.create({
+        kind: "birthday",
+        subjectType: "person",
+        subjectId: person.id,
+        month: 3,
+        day: 14,
+      });
+      // "march" matches the first name *and* the birthday month → one merged row.
+      const hits = await search.query("march");
+      expect(hits).toHaveLength(1);
+      expect(hits[0]?.reasons.map((r) => r.facet)).toEqual([
+        "name",
+        "birthday",
+      ]);
+    });
+
+    it("drops a birthday hit whose owner is soft-deleted", async () => {
+      const person = await personWithBirthday("Gone", "Away", {
+        month: 7,
+        day: 1,
+      });
+      await people.softDelete(person.id); // milestone stays active; owner does not
+      expect(await search.query("july 1")).toEqual([]);
+    });
+
+    it("resolves a pet's birthday to the pet entity", async () => {
+      const pet = await pets.create({ name: "Rex" });
+      await milestones.create({
+        kind: "birthday",
+        subjectType: "pet",
+        subjectId: pet.id,
+        month: 8,
+        day: 20,
+      });
+      const hits = await search.query("aug 20");
+      expect(hits).toHaveLength(1);
+      expect(hits[0]).toMatchObject({ entityType: "pet", title: "Rex" });
+      expect(hits[0]?.reasons).toContainEqual({
+        facet: "birthday",
+        matchedText: "August 20",
+      });
+    });
   });
 });
