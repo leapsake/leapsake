@@ -36,6 +36,14 @@
   color: #555;
 }
 
+/* Highlight the matched substring as bold rather than the browser default
+   (yellow background), keeping the <mark> semantics without the heavy styling. */
+.option mark {
+  background: transparent;
+  color: inherit;
+  font-weight: 600;
+}
+
 .visuallyHidden {
   position: absolute;
   width: 1px;
