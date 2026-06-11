@@ -1,7 +1,7 @@
 import type { Person, Tag } from "@leapsake/schema";
+import { fullName } from "@leapsake/schema";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
-import { fullName } from "../lib/fullName";
 
 export function PersonDelete() {
   const { person } = useLoaderData() as { person: Person; tags: Tag[] };

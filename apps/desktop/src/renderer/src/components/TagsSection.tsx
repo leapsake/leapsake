@@ -1,8 +1,8 @@
 import type { EntityType, Tag } from "@leapsake/schema";
+import { tagLabel } from "@leapsake/schema";
 import { Fragment } from "react";
 import { Link } from "react-router-dom";
 import { entityBasePath } from "../lib/entityLabel";
-import { tagLabel } from "../lib/tagLabel";
 
 /**
  * The Tags section shared by the Person and Pet view screens — a first-class
