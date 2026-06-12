@@ -4,6 +4,7 @@
     "slug": "leapsake",
     "version": "0.0.0",
     "orientation": "portrait",
+    "scheme": "leapsake",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -14,6 +15,6 @@
       "package": "net.leapsake.mobile"
     },
     "web": {},
-    "plugins": ["expo-status-bar", "expo-sqlite"]
+    "plugins": ["expo-status-bar", "expo-sqlite", "expo-router"]
   }
 }
