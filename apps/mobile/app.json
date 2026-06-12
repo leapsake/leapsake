@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Leapsake",
+    "slug": "leapsake",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "net.leapsake.mobile"
+    },
+    "android": {
+      "package": "net.leapsake.mobile"
+    },
+    "web": {},
+    "plugins": ["expo-status-bar"]
+  }
+}
