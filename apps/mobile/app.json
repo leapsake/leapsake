@@ -14,6 +14,6 @@
       "package": "net.leapsake.mobile"
     },
     "web": {},
-    "plugins": ["expo-status-bar"]
+    "plugins": ["expo-status-bar", "expo-sqlite"]
   }
 }

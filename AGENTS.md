@@ -106,8 +106,19 @@ interface SqliteDriver {
 ```
 
 Desktop supplies a `node:sqlite` adapter that wraps its synchronous calls in
-resolved promises (`apps/desktop/src/main/db/node-sqlite-driver.ts`). Mobile (V2)
-will supply an expo-sqlite adapter.
+resolved promises (`apps/desktop/src/main/db/node-sqlite-driver.ts`). Mobile
+supplies an expo-sqlite adapter (`apps/mobile/db/expo-sqlite-driver.ts`).
+
+**Shared packages run on the Hermes floor.** `packages/*` execute on mobile's
+Hermes engine, which lags on newer JS. Two consequences proven in V2 step 1b:
+(1) avoid ES2023-only methods like `Array#toSorted` — use `[...arr].sort(...)`
+(the `unicorn/no-array-sort` lint rule is disabled for this reason); (2) host
+capabilities the shared code assumes (the `crypto.randomUUID` Web Standard) are
+established at each app's entry, not wrapped in the shared code. Hermes ships *no*
+global `crypto`, so `apps/mobile/index.ts` builds it from `expo-crypto` (native v4,
+canonical lowercase — format-identical to Node/desktop and browser/web, so PKs are
+platform-indistinguishable for sync). Keep new shared code to features Hermes
+supports. Note: adding/removing a native module needs a Metro `--clear` restart.
 
 ## Application Surface (`packages/core`)
 
