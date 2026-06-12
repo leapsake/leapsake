@@ -1,0 +1,24 @@
+{
+  "name": "@leapsake/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "dev": "expo start --go",
+    "ios": "expo start --ios --go",
+    "android": "expo start --android --go",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@leapsake/schema": "workspace:*",
+    "expo": "^56.0.11",
+    "expo-status-bar": "~56.0.4",
+    "react": "19.2.3",
+    "react-native": "0.85.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.15",
+    "typescript": "^6.0.3"
+  }
+}
