@@ -7,9 +7,9 @@ import { useFocusedData } from "../lib/useFocusedData";
 import { colors, styles } from "../lib/styles";
 
 // The combined "People & Pets" home, ported from desktop's EntityList. People
-// and pets share one alphabetical list. Person rows navigate to their detail
-// page; pet rows are plain text for now — pet screens land in a later increment,
-// so this avoids dead links while keeping the home honest.
+// and pets share one alphabetical list, and both row types navigate to their
+// own detail page. The muted "(pet)" suffix keeps the two entity types visually
+// distinguishable in the shared list.
 export default function HomeScreen() {
   const core = useCore();
   const load = useCallback(() => core.views.entityList(), [core]);
@@ -21,9 +21,14 @@ export default function HomeScreen() {
         options={{
           title: "People & Pets",
           headerRight: () => (
-            <Link href="/people/new" style={styles.link}>
-              Add person
-            </Link>
+            <View style={styles.headerActions}>
+              <Link href="/people/new" style={styles.link}>
+                Add person
+              </Link>
+              <Link href="/pets/new" style={styles.link}>
+                Add pet
+              </Link>
+            </View>
           ),
         }}
       />
@@ -57,10 +62,10 @@ function EntityListRow({ entity }: { entity: EntityRow }) {
     );
   }
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowText}>
+    <Link href={`/pets/${entity.id}`} style={styles.row}>
+      <Text style={[styles.rowText, { color: colors.accent }]}>
         {entity.label} <Text style={styles.muted}>(pet)</Text>
       </Text>
-    </View>
+    </Link>
   );
 }
