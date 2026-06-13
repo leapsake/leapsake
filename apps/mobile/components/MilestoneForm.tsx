@@ -7,7 +7,7 @@ import {
   kindDefs,
   kindsForSubjectType,
 } from "@leapsake/schema";
-import { OptionPills } from "./OptionPills";
+import { SelectField } from "./SelectField";
 import { colors, styles } from "../lib/styles";
 
 /** The structured value the form hands back; the screen supplies subject + call. */
@@ -124,14 +124,14 @@ export function MilestoneForm({
         </Pressable>
       </View>
 
-      <OptionPills
+      <SelectField
         label="Kind"
         value={kind}
         options={kinds.map((k) => ({ value: k.kind, label: k.label }))}
         onChange={(value) => setKind(value)}
       />
 
-      <OptionPills
+      <SelectField
         label="Month"
         value={month}
         options={MONTH_OPTIONS}

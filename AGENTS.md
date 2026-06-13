@@ -159,6 +159,35 @@ See `apps/desktop/README.md` for the dev workflow.
 > there is no rebuild step and no Electron version pin tied to a prebuilt binary
 > (unlike the original better-sqlite3 plan). `pnpm test` and `dev` just work.
 
+## Mobile app (`apps/mobile`)
+
+Expo app (V2). Builds the `core` in-process over an expo-sqlite driver; screens
+are React Native + expo-router. Forms are ports of the desktop forms — keep them
+behaviorally faithful (same fields, same validation), adapting only the input
+controls to native idioms.
+
+### Form input controls
+
+React Native has no `<select>`/`<datalist>`, so each desktop control maps to one
+of three native-feeling patterns. **Pick by the option list, mirroring how the
+desktop form already chose `<select>` vs `<datalist>`:**
+
+- **`SelectField`** (native `@react-native-picker/picker`) — for a *short,
+  fully-known* enum the user can scan: milestone Kind/Month, Gender. This is the
+  mobile `<select>`. iOS shows a value row that opens the wheel in a Done-
+  dismissable bottom sheet; Android renders the inline native dropdown dialog.
+- **Typeahead** (filter `TextInput` + pressable list; chosen value shows with a
+  *Change* affordance) — for a *long or possibly-unfamiliar* list: relationship
+  Role (~40 once gendered variants are included), Country (183), the
+  relationship-candidate name picker. This is the mobile `<datalist>`. See
+  `CountryField` and `RelationshipForm` for the canonical shape.
+- **Pills / segmented control** — reserved for a genuinely small, glanceable,
+  mutually-exclusive choice. **Not currently used** (the old `OptionPills` was
+  retired because it scaled badly past ~4 options); reintroduce only if a true
+  segmented-control case appears.
+
+Prefer native elements over novel custom UI for these common cases.
+
 ## Dependency Budget (V1)
 
 Runtime: `electron`, `react`, `react-dom`, `react-router-dom`, `zod`.

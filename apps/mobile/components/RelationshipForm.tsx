@@ -6,7 +6,6 @@ import {
   type RelationshipRole,
   rolesForPair,
 } from "@leapsake/schema";
-import { OptionPills } from "./OptionPills";
 import { colors, styles } from "../lib/styles";
 
 /** The structured value the form hands back; the screen supplies subject + call. */
@@ -66,6 +65,7 @@ export function RelationshipForm({
   const [role, setRole] = useState<RelationshipRole | null>(
     initialRole ?? null,
   );
+  const [roleQuery, setRoleQuery] = useState("");
   const [note, setNote] = useState(initialNote ?? "");
   const [submitting, setSubmitting] = useState(false);
 
@@ -86,6 +86,21 @@ export function RelationshipForm({
       q === "" ? all : all.filter((c) => c.label.toLowerCase().includes(q))
     ).slice(0, 20);
   }, [candidates, query]);
+
+  // The role list is long once gendered variants are included (Father, Mother,
+  // … alongside Parent), so — like the name picker above — it's a typeahead
+  // rather than pills. Empty query shows the whole list to browse.
+  const roleMatches = useMemo(() => {
+    const q = roleQuery.trim().toLowerCase();
+    return (
+      q === ""
+        ? roleOptions
+        : roleOptions.filter((r) => r.label.toLowerCase().includes(q))
+    ).slice(0, 20);
+  }, [roleOptions, roleQuery]);
+
+  const roleLabel =
+    roleOptions.find((r) => r.role === role)?.label ?? role ?? "";
 
   const noteRequired = role === "other";
   const noteOk = !noteRequired || note.trim().length > 0;
@@ -144,6 +159,7 @@ export function RelationshipForm({
               onPress={() => {
                 setSelected(null);
                 setRole(null);
+                setRoleQuery("");
               }}
             >
               <Text style={styles.link}>Change</Text>
@@ -173,6 +189,7 @@ export function RelationshipForm({
                   setSelected(candidate);
                   setRole(null);
                   setQuery("");
+                  setRoleQuery("");
                 }}
               >
                 <Text style={styles.rowText}>{candidate.label}</Text>
@@ -183,12 +200,52 @@ export function RelationshipForm({
       )}
 
       {selected !== null ? (
-        <OptionPills
-          label="Role"
-          value={role}
-          options={roleOptions.map((r) => ({ value: r.role, label: r.label }))}
-          onChange={(value) => setRole(value)}
-        />
+        role !== null ? (
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Role</Text>
+            <View style={styles.rowMeta}>
+              <Text style={styles.fieldValue}>{roleLabel}</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setRole(null);
+                  setRoleQuery("");
+                }}
+              >
+                <Text style={styles.link}>Change</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Role</Text>
+            <TextInput
+              style={styles.input}
+              value={roleQuery}
+              onChangeText={setRoleQuery}
+              placeholder="Start typing a role"
+              placeholderTextColor={colors.muted}
+              autoCorrect={false}
+            />
+            {roleMatches.length === 0 ? (
+              <Text style={styles.muted}>No matches.</Text>
+            ) : (
+              roleMatches.map((r) => (
+                <Pressable
+                  key={r.role}
+                  accessibilityRole="button"
+                  style={styles.row}
+                  onPress={() => {
+                    setRole(r.role);
+                    setRoleQuery("");
+                  }}
+                >
+                  <Text style={styles.rowText}>{r.label}</Text>
+                </Pressable>
+              ))
+            )}
+          </View>
+        )
       ) : null}
 
       {noteRequired ? (
