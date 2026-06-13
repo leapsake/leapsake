@@ -15,6 +15,7 @@
     "@leapsake/data": "workspace:*",
     "@leapsake/highlight": "workspace:*",
     "@leapsake/schema": "workspace:*",
+    "@react-native-picker/picker": "2.11.4",
     "expo": "^56.0.11",
     "expo-constants": "~56.0.18",
     "expo-crypto": "~56.0.4",

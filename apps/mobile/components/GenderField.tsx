@@ -1,5 +1,5 @@
 import { type Gender, genderLabel } from "@leapsake/schema";
-import { OptionPills } from "./OptionPills";
+import { SelectField } from "./SelectField";
 
 // The gender values in the same order the desktop <select> shows them, with a
 // leading "unset" (null) option.
@@ -18,7 +18,7 @@ export function GenderField({
   onChange: (value: Gender | null) => void;
 }) {
   return (
-    <OptionPills
+    <SelectField
       label="Gender"
       value={value}
       options={options}
