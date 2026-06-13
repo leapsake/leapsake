@@ -10,6 +10,7 @@ import {
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { genderLabel, tagLabel } from "@leapsake/schema";
 import { MilestonesSection } from "../../../components/MilestonesSection";
+import { RelationshipsSection } from "../../../components/RelationshipsSection";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
@@ -29,8 +30,7 @@ function DetailField({ label, value }: { label: string; value: string }) {
 }
 
 // Pet detail, ported from desktop's PetView (name, gender, tags, timestamps,
-// milestones). The relationships section is deferred to a later increment, in
-// step with the Person detail.
+// relationships, milestones).
 export default function PetDetailScreen() {
   const core = useCore();
   const router = useRouter();
@@ -54,7 +54,7 @@ export default function PetDetailScreen() {
     );
   }
 
-  const { pet, gender, tags, timeline } = view;
+  const { pet, gender, tags, timeline, relationships } = view;
   const genderText = gender.value === null ? "—" : genderLabel[gender.value];
   const tagsText =
     tags.length === 0 ? "—" : tags.map((tag) => tagLabel(tag.name)).join(" ");
@@ -93,6 +93,13 @@ export default function PetDetailScreen() {
       <DetailField label="Tags" value={tagsText} />
       <DetailField label="Created" value={formatTimestamp(pet.createdAt)} />
       <DetailField label="Updated" value={formatTimestamp(pet.updatedAt)} />
+
+      <RelationshipsSection
+        subjectType="pet"
+        subjectId={pet.id}
+        relationships={relationships}
+        onChanged={reload}
+      />
 
       <MilestonesSection
         subjectType="pet"
