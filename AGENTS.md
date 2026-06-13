@@ -176,11 +176,16 @@ desktop form already chose `<select>` vs `<datalist>`:**
   fully-known* enum the user can scan: milestone Kind/Month, Gender. This is the
   mobile `<select>`. iOS shows a value row that opens the wheel in a Done-
   dismissable bottom sheet; Android renders the inline native dropdown dialog.
-- **Typeahead** (filter `TextInput` + pressable list; chosen value shows with a
-  *Change* affordance) — for a *long or possibly-unfamiliar* list: relationship
-  Role (~40 once gendered variants are included), Country (183), the
-  relationship-candidate name picker. This is the mobile `<datalist>`. See
-  `CountryField` and `RelationshipForm` for the canonical shape.
+- **`Typeahead`** (filter `TextInput` + pressable list; chosen value shows with a
+  *Change*, and optional *Clear*, affordance) — for a *long or possibly-unfamiliar*
+  list: relationship Role (~40 once gendered variants are included), Country (183),
+  the relationship-candidate name picker. This is the mobile `<datalist>`. It is
+  autocomplete-style: nothing lists until `minChars` are typed (default 2,
+  matching the search tab's floor) rather than dumping the full list. The shared
+  generic component is `components/Typeahead.tsx`; `CountryField` and
+  `RelationshipForm` are the callers — map your value to/from an option via
+  `getKey`/`getLabel`, and give the element a React `key` to reset its live query
+  when a parent selection moves (e.g. Role after the Name changes).
 - **Pills / segmented control** — reserved for a genuinely small, glanceable,
   mutually-exclusive choice. **Not currently used** (the old `OptionPills` was
   retired because it scaled badly past ~4 options); reintroduce only if a true

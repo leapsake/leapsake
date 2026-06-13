@@ -6,7 +6,11 @@ import {
   type RelationshipRole,
   rolesForPair,
 } from "@leapsake/schema";
+import { Typeahead } from "./Typeahead";
 import { colors, styles } from "../lib/styles";
+
+/** A role option as the shared {@link Typeahead} carries it. */
+type RoleOption = { role: RelationshipRole; label: string };
 
 /** The structured value the form hands back; the screen supplies subject + call. */
 export interface RelationshipFormValue {
@@ -27,9 +31,9 @@ export interface LockedOther {
  * Add/edit form for a relationship, ported from the desktop `RelationshipForm`.
  * The user picks the *other* entity and that entity's role relative to the
  * subject; the subject's own role is the gender-neutral inverse and is derived by
- * core, never entered here. RN has no `<datalist>`, so the typeahead is a filter
- * `TextInput` over the candidate list rendering a pressable list — the mobile
- * stand-in for the desktop datalist.
+ * core, never entered here. Both pickers are the shared {@link Typeahead} (the
+ * mobile `<datalist>`); the Role one is keyed by the selected entity so its query
+ * resets whenever the Name changes.
  *
  * `lockedOther` fixes the other end and hides the picker: it serves both the
  * materialise-a-derived-edge path (other endpoint known, role chosen) and the
@@ -56,7 +60,6 @@ export function RelationshipForm({
   onSubmit: (value: RelationshipFormValue) => Promise<void>;
   onCancel: () => void;
 }) {
-  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<RelationshipCandidate | null>(
     lockedOther
       ? { type: lockedOther.type, id: lockedOther.id, label: lockedOther.label }
@@ -65,7 +68,6 @@ export function RelationshipForm({
   const [role, setRole] = useState<RelationshipRole | null>(
     initialRole ?? null,
   );
-  const [roleQuery, setRoleQuery] = useState("");
   const [note, setNote] = useState(initialNote ?? "");
   const [submitting, setSubmitting] = useState(false);
 
@@ -78,29 +80,13 @@ export function RelationshipForm({
     [otherType, subjectType],
   );
 
-  // Filter the candidate typeahead; only meaningful when the picker is shown.
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const all = candidates ?? [];
-    return (
-      q === "" ? all : all.filter((c) => c.label.toLowerCase().includes(q))
-    ).slice(0, 20);
-  }, [candidates, query]);
-
-  // The role list is long once gendered variants are included (Father, Mother,
-  // … alongside Parent), so — like the name picker above — it's a typeahead
-  // rather than pills. Empty query shows the whole list to browse.
-  const roleMatches = useMemo(() => {
-    const q = roleQuery.trim().toLowerCase();
-    return (
-      q === ""
-        ? roleOptions
-        : roleOptions.filter((r) => r.label.toLowerCase().includes(q))
-    ).slice(0, 20);
-  }, [roleOptions, roleQuery]);
-
-  const roleLabel =
-    roleOptions.find((r) => r.role === role)?.label ?? role ?? "";
+  // The chosen role as a Typeahead option; falls back to the raw role when it
+  // isn't in the current pair's list (defensive — an edited edge whose role the
+  // pair no longer offers), so it still displays rather than reverting to search.
+  const selectedRole: RoleOption | null =
+    role === null
+      ? null
+      : (roleOptions.find((r) => r.role === role) ?? { role, label: role });
 
   const noteRequired = role === "other";
   const noteOk = !noteRequired || note.trim().length > 0;
@@ -149,103 +135,34 @@ export function RelationshipForm({
           <Text style={styles.fieldLabel}>Name</Text>
           <Text style={styles.fieldValue}>{lockedOther.label}</Text>
         </View>
-      ) : selected !== null ? (
-        <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Name</Text>
-          <View style={styles.rowMeta}>
-            <Text style={styles.fieldValue}>{selected.label}</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setSelected(null);
-                setRole(null);
-                setRoleQuery("");
-              }}
-            >
-              <Text style={styles.link}>Change</Text>
-            </Pressable>
-          </View>
-        </View>
       ) : (
-        <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Name</Text>
-          <TextInput
-            style={styles.input}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Start typing a name"
-            placeholderTextColor={colors.muted}
-            autoCorrect={false}
-          />
-          {matches.length === 0 ? (
-            <Text style={styles.muted}>No matches.</Text>
-          ) : (
-            matches.map((candidate) => (
-              <Pressable
-                key={`${candidate.type}:${candidate.id}`}
-                accessibilityRole="button"
-                style={styles.row}
-                onPress={() => {
-                  setSelected(candidate);
-                  setRole(null);
-                  setQuery("");
-                  setRoleQuery("");
-                }}
-              >
-                <Text style={styles.rowText}>{candidate.label}</Text>
-              </Pressable>
-            ))
-          )}
-        </View>
+        <Typeahead<RelationshipCandidate>
+          label="Name"
+          value={selected}
+          options={candidates ?? []}
+          // Re-picking the name invalidates the role (it's pair-dependent).
+          onChange={(candidate) => {
+            setSelected(candidate);
+            setRole(null);
+          }}
+          getKey={(c) => `${c.type}:${c.id}`}
+          getLabel={(c) => c.label}
+          placeholder="Start typing a name"
+        />
       )}
 
       {selected !== null ? (
-        role !== null ? (
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Role</Text>
-            <View style={styles.rowMeta}>
-              <Text style={styles.fieldValue}>{roleLabel}</Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setRole(null);
-                  setRoleQuery("");
-                }}
-              >
-                <Text style={styles.link}>Change</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Role</Text>
-            <TextInput
-              style={styles.input}
-              value={roleQuery}
-              onChangeText={setRoleQuery}
-              placeholder="Start typing a role"
-              placeholderTextColor={colors.muted}
-              autoCorrect={false}
-            />
-            {roleMatches.length === 0 ? (
-              <Text style={styles.muted}>No matches.</Text>
-            ) : (
-              roleMatches.map((r) => (
-                <Pressable
-                  key={r.role}
-                  accessibilityRole="button"
-                  style={styles.row}
-                  onPress={() => {
-                    setRole(r.role);
-                    setRoleQuery("");
-                  }}
-                >
-                  <Text style={styles.rowText}>{r.label}</Text>
-                </Pressable>
-              ))
-            )}
-          </View>
-        )
+        <Typeahead<RoleOption>
+          // Remount on a name change so the role's live query resets.
+          key={selected.id}
+          label="Role"
+          value={selectedRole}
+          options={roleOptions}
+          onChange={(option) => setRole(option?.role ?? null)}
+          getKey={(r) => r.role}
+          getLabel={(r) => r.label}
+          placeholder="Start typing a role"
+        />
       ) : null}
 
       {noteRequired ? (
