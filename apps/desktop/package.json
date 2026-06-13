@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "check:bundle": "node scripts/check-single-react.mjs",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit --composite false -p tsconfig.node.json && tsc --noEmit --composite false -p tsconfig.web.json"
   },
@@ -14,8 +15,8 @@
     "@leapsake/data": "workspace:*",
     "@leapsake/highlight": "workspace:*",
     "@leapsake/schema": "workspace:*",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
     "react-router-dom": "^7.16.0"
   },
   "devDependencies": {
