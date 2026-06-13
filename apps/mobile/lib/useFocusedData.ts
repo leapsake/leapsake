@@ -10,13 +10,28 @@ import { useFocusEffect } from "expo-router";
  * `load` must be stable across renders (wrap it in `useCallback`), since the
  * fetch re-subscribes whenever its identity changes. A stale in-flight result is
  * dropped if the screen blurs before it resolves.
+ *
+ * `reload` re-runs `load` on demand for an in-place mutation (e.g. deleting a
+ * milestone while staying on the detail screen, where no navigation re-focuses
+ * the screen). Unlike the focus fetch it has no blur guard — the caller awaits it
+ * directly — but it shares the same data/error update path.
  */
 export function useFocusedData<T>(load: () => Promise<T>): {
   data: T | null;
   error: string | null;
+  reload: () => Promise<void>;
 } {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    try {
+      setData(await load());
+      setError(null);
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [load]);
 
   useFocusEffect(
     useCallback(() => {
@@ -37,5 +52,5 @@ export function useFocusedData<T>(load: () => Promise<T>): {
     }, [load]),
   );
 
-  return { data, error };
+  return { data, error, reload };
 }

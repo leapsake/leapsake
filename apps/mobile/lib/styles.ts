@@ -53,6 +53,33 @@ export const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.text,
   },
+  // A detail-screen section: a header (title + "Add" action) over a list.
+  section: {
+    gap: 8,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  // The second line of a list row: a muted detail on the left, actions on the right.
+  rowMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 4,
+  },
+  rowActions: {
+    flexDirection: "row",
+    gap: 16,
+  },
   // Detail "definition list": a label above its value.
   field: {
     gap: 2,
