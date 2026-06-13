@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName, genderLabel, tagLabel } from "@leapsake/schema";
+import { MilestonesSection } from "../../../components/MilestonesSection";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
@@ -28,14 +29,14 @@ function DetailField({ label, value }: { label: string; value: string }) {
 }
 
 // Person detail, ported from desktop's PersonView (core fields, gender, tags,
-// timestamps). The contacts / relationships / milestones sections are deferred
-// to a later increment.
+// timestamps, milestones). The contacts / relationships sections are deferred to
+// a later increment.
 export default function PersonDetailScreen() {
   const core = useCore();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const load = useCallback(() => core.views.person(id), [core, id]);
-  const { data: view, error } = useFocusedData(load);
+  const { data: view, error, reload } = useFocusedData(load);
 
   if (error !== null) {
     return (
@@ -53,7 +54,7 @@ export default function PersonDetailScreen() {
     );
   }
 
-  const { person, gender, tags } = view;
+  const { person, gender, tags, timeline } = view;
   const genderText = gender.value === null ? "—" : genderLabel[gender.value];
   const tagsText =
     tags.length === 0 ? "—" : tags.map((tag) => tagLabel(tag.name)).join(" ");
@@ -94,6 +95,13 @@ export default function PersonDetailScreen() {
       <DetailField label="Tags" value={tagsText} />
       <DetailField label="Created" value={formatTimestamp(person.createdAt)} />
       <DetailField label="Updated" value={formatTimestamp(person.updatedAt)} />
+
+      <MilestonesSection
+        subjectType="person"
+        subjectId={person.id}
+        entries={timeline}
+        onChanged={reload}
+      />
 
       <Pressable accessibilityRole="button" onPress={confirmDelete}>
         <Text style={[styles.link, styles.danger]}>Delete person</Text>

@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { genderLabel, tagLabel } from "@leapsake/schema";
+import { MilestonesSection } from "../../../components/MilestonesSection";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
@@ -27,15 +28,15 @@ function DetailField({ label, value }: { label: string; value: string }) {
   );
 }
 
-// Pet detail, ported from desktop's PetView (name, gender, tags, timestamps).
-// The relationships / milestones sections are deferred to a later increment, in
+// Pet detail, ported from desktop's PetView (name, gender, tags, timestamps,
+// milestones). The relationships section is deferred to a later increment, in
 // step with the Person detail.
 export default function PetDetailScreen() {
   const core = useCore();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const load = useCallback(() => core.views.pet(id), [core, id]);
-  const { data: view, error } = useFocusedData(load);
+  const { data: view, error, reload } = useFocusedData(load);
 
   if (error !== null) {
     return (
@@ -53,7 +54,7 @@ export default function PetDetailScreen() {
     );
   }
 
-  const { pet, gender, tags } = view;
+  const { pet, gender, tags, timeline } = view;
   const genderText = gender.value === null ? "—" : genderLabel[gender.value];
   const tagsText =
     tags.length === 0 ? "—" : tags.map((tag) => tagLabel(tag.name)).join(" ");
@@ -92,6 +93,13 @@ export default function PetDetailScreen() {
       <DetailField label="Tags" value={tagsText} />
       <DetailField label="Created" value={formatTimestamp(pet.createdAt)} />
       <DetailField label="Updated" value={formatTimestamp(pet.updatedAt)} />
+
+      <MilestonesSection
+        subjectType="pet"
+        subjectId={pet.id}
+        entries={timeline}
+        onChanged={reload}
+      />
 
       <Pressable accessibilityRole="button" onPress={confirmDelete}>
         <Text style={[styles.link, styles.danger]}>Delete pet</Text>
