@@ -1,15 +1,16 @@
 import { useCallback } from "react";
 import { ActivityIndicator, FlatList, Text, View } from "react-native";
-import { Link, Stack } from "expo-router";
+import { Link } from "expo-router";
 import type { EntityRow } from "@leapsake/core";
-import { useCore } from "../lib/core-context";
-import { useFocusedData } from "../lib/useFocusedData";
-import { colors, styles } from "../lib/styles";
+import { useCore } from "../../lib/core-context";
+import { useFocusedData } from "../../lib/useFocusedData";
+import { colors, styles } from "../../lib/styles";
 
 // The combined "People & Pets" home, ported from desktop's EntityList. People
 // and pets share one alphabetical list, and both row types navigate to their
 // own detail page. The muted "(pet)" suffix keeps the two entity types visually
-// distinguishable in the shared list.
+// distinguishable in the shared list. This screen's title and "Add" actions live
+// on the tab navigator (app/(tabs)/_layout.tsx), which owns this tab's header.
 export default function HomeScreen() {
   const core = useCore();
   const load = useCallback(() => core.views.entityList(), [core]);
@@ -17,22 +18,6 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen
-        options={{
-          title: "People & Pets",
-          headerRight: () => (
-            <View style={styles.headerActions}>
-              <Link href="/people/new" style={styles.link}>
-                Add person
-              </Link>
-              <Link href="/pets/new" style={styles.link}>
-                Add pet
-              </Link>
-            </View>
-          ),
-        }}
-      />
-
       {error !== null ? (
         <Text style={styles.danger}>{error}</Text>
       ) : entities === null ? (

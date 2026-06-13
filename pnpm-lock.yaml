@@ -75,6 +75,9 @@ importers:
       '@leapsake/data':
         specifier: workspace:*
         version: link:../../packages/data
+      '@leapsake/highlight':
+        specifier: workspace:*
+        version: link:../../packages/highlight
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../../packages/schema
