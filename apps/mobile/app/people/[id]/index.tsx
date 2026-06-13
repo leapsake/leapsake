@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName, genderLabel, tagLabel } from "@leapsake/schema";
+import { ContactsSection } from "../../../components/ContactsSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
 import { useCore } from "../../../lib/core-context";
@@ -30,8 +31,7 @@ function DetailField({ label, value }: { label: string; value: string }) {
 }
 
 // Person detail, ported from desktop's PersonView (core fields, gender, tags,
-// timestamps, relationships, milestones). The contacts section is deferred to a
-// later increment.
+// timestamps, relationships, milestones, contacts).
 export default function PersonDetailScreen() {
   const core = useCore();
   const router = useRouter();
@@ -55,7 +55,8 @@ export default function PersonDetailScreen() {
     );
   }
 
-  const { person, gender, tags, timeline, relationships } = view;
+  const { person, gender, tags, timeline, relationships, contactMethods } =
+    view;
   const genderText = gender.value === null ? "—" : genderLabel[gender.value];
   const tagsText =
     tags.length === 0 ? "—" : tags.map((tag) => tagLabel(tag.name)).join(" ");
@@ -108,6 +109,12 @@ export default function PersonDetailScreen() {
         subjectType="person"
         subjectId={person.id}
         entries={timeline}
+        onChanged={reload}
+      />
+
+      <ContactsSection
+        ownerId={person.id}
+        methods={contactMethods}
         onChanged={reload}
       />
 
