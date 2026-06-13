@@ -4,11 +4,15 @@
   "private": true,
   "license": "AGPL-3.0",
   "scripts": {
-    "test": "vitest run",
-    "typecheck": "pnpm -r typecheck",
-    "lint": "oxlint",
+	"android": "pnpm --filter @leapsake/mobile android",
+	"desktop": "pnpm --filter @leapsake/desktop dev",
+	"ios": "pnpm --filter @leapsake/mobile ios",
+	"mobile": "pnpm --filter @leapsake/mobile dev",
     "format": "oxfmt . '!**/*.md'",
-    "format:check": "oxfmt --check . '!**/*.md'"
+    "format:check": "oxfmt --check . '!**/*.md'",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
