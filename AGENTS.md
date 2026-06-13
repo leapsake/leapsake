@@ -193,6 +193,52 @@ desktop form already chose `<select>` vs `<datalist>`:**
 
 Prefer native elements over novel custom UI for these common cases.
 
+## React version policy (monorepo)
+
+**Each app owns its React version; we do not lock React across the workspace.**
+Mobile's React is hard-pinned by its Expo SDK (exact `react@19.2.x`); desktop is
+free to track a newer `react`/`react-dom` on its own schedule. This is safe
+because the apps are separate bundles/processes that share **no** React-consuming
+runtime code (mobile uses `expo-router`, desktop uses `react-router-dom`), so
+there is no cross-app React instance to keep aligned.
+
+React's "single copy" rule is **per-bundle, not per-monorepo**: within one app,
+everything that calls hooks — app code, `react-router-dom`, any component lib —
+must import the *same physical* React, because the hook dispatcher is a
+module-level singleton. Two instances in one bundle produce "Invalid hook call" /
+`useContext` is null crashes.
+
+We enforce that **at the bundler**, not with a workspace-wide version lock:
+`apps/desktop/electron.vite.config.ts` sets `renderer.resolve.dedupe:
+["react", "react-dom"]`, collapsing every React import in the desktop bundle
+(including transitive ones) to desktop's own copy. Desktop also pins `react` and
+`react-dom` to the **same exact** version (React requires the pair to match).
+
+**The rule that triggers a dedupe:** the workspace uses `nodeLinker: hoisted`
+(see `pnpm-workspace.yaml`), so pnpm hoists exactly one React version to the root
+`node_modules`. An app that runs that *same* version needs nothing — its whole
+tree shares the hoisted copy. An app that runs a **different** version than the
+hoisted root forces a second, nested copy that a React library (e.g.
+`react-router-dom`) can latch onto — so **that** app must dedupe at its bundler.
+
+- **Desktop** runs a newer React than the hoisted root, so it dedupes (above).
+- **Mobile** *is* the hoisted root version (Expo hard-pins `react@19.2.x` and the
+  entire mobile tree agrees on it), so there is no second copy and Metro needs no
+  equivalent today. If mobile ever diverges its React version, add the Metro
+  equivalent (force `react`/`react-dom` to one path via
+  `config.resolver.resolveRequest` or `extraNodeModules` in `metro.config.js`).
+- **Do not** add a global `pnpm.overrides` forcing one `react`/`react-dom`
+  version across the repo — that recouples desktop to Expo's pinned version,
+  which is the opposite of what we want.
+
+**Regression guard:** `pnpm --filter @leapsake/desktop check:bundle` builds the
+renderer and asserts the bundle contains exactly one `react` and one `react-dom`
+(it inspects the sourcemap's source list — the only faithful signal, since
+on-disk/Node resolution legitimately sees two copies that the bundler dedupes).
+It fails loudly if the dedupe is dropped or the React pair drifts. Run it in CI
+when CI lands; until then run it after touching React deps or the renderer
+bundler config.
+
 ## Dependency Budget (V1)
 
 Runtime: `electron`, `react`, `react-dom`, `react-router-dom`, `zod`.
