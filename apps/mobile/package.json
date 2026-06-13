@@ -11,8 +11,12 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@leapsake/core": "workspace:*",
+    "@leapsake/data": "workspace:*",
     "@leapsake/schema": "workspace:*",
     "expo": "^56.0.11",
+    "expo-crypto": "~56.0.4",
+    "expo-sqlite": "~56.0.5",
     "expo-status-bar": "~56.0.4",
     "react": "19.2.3",
     "react-native": "0.85.3"

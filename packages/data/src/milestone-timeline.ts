@@ -87,5 +87,5 @@ export async function listTimelineForEntity(
     }
   }
 
-  return entries.toSorted((a, b) => byDate(a.milestone, b.milestone));
+  return [...entries].sort((a, b) => byDate(a.milestone, b.milestone));
 }

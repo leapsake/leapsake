@@ -265,7 +265,7 @@ export function createViews(deps: ViewsDeps) {
           label: entityLabel("pet", p),
         })),
       ];
-      return rows.toSorted((a, b) => a.label.localeCompare(b.label));
+      return [...rows].sort((a, b) => a.label.localeCompare(b.label));
     },
 
     /**

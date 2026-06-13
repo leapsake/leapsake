@@ -298,9 +298,9 @@ export async function runMigrations(
   const row = await driver.get<{ user_version: number }>("PRAGMA user_version");
   const current = row?.user_version ?? 0;
 
-  const pending = steps
+  const pending = [...steps]
     .filter((step) => step.version > current)
-    .toSorted((a, b) => a.version - b.version);
+    .sort((a, b) => a.version - b.version);
 
   for (const step of pending) {
     await driver.transaction(async () => {

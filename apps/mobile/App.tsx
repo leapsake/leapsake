@@ -1,29 +1,58 @@
+import { useEffect, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { StyleSheet, Text, View } from "react-native";
-import { entityLabel, fullName, type Person } from "@leapsake/schema";
+import * as SQLite from "expo-sqlite";
+import { createCore, runMigrations } from "@leapsake/core";
+import { fullName, type Person } from "@leapsake/schema";
+import { expoSqliteDriver } from "./db/expo-sqlite-driver";
 
-// Throwaway proof-of-bundle screen (reboot-plan V2 step 1a): render values
-// computed by the shared @leapsake/schema package. If these strings appear on
-// the simulator, Metro bundled our raw-TS workspace package and Hermes ran it.
-const samplePerson: Person = {
-  id: "00000000-0000-4000-8000-000000000000",
-  firstName: "Ada",
-  middleName: null,
-  lastName: "Lovelace",
-  gender: null,
-  createdAt: 0,
-  updatedAt: 0,
-  deletedAt: null,
-};
-
+// Proof-of-data-layer screen (reboot-plan V2 step 1b): open an on-device SQLite
+// file, run the shared migrations on expo-sqlite, build `@leapsake/core`, and
+// perform one real CoreApi round-trip — mirroring the desktop bootstrap in
+// apps/desktop/src/main/index.ts. If the seeded person renders, the shared
+// data/core packages run on Hermes against expo-sqlite with no source changes.
 export default function App() {
+  const [people, setPeople] = useState<Person[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const db = await SQLite.openDatabaseAsync("leapsake.db");
+      const driver = expoSqliteDriver(db);
+      await runMigrations(driver);
+      const core = createCore(driver);
+
+      // Seed once when empty: proves writes AND that data survives a relaunch,
+      // without unbounded row growth across launches.
+      if ((await core.people.list()).length === 0) {
+        await core.people.create(
+          {
+            firstName: "Ada",
+            middleName: null,
+            lastName: "Lovelace",
+            gender: null,
+          },
+          [],
+        );
+      }
+      setPeople(await core.people.list());
+    })().catch((e) => setError(String(e)));
+  }, []);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>@leapsake/schema runs on mobile</Text>
-      <Text style={styles.value}>fullName → {fullName(samplePerson)}</Text>
-      <Text style={styles.value}>
-        entityLabel → {entityLabel("person", samplePerson)}
-      </Text>
+      <Text style={styles.heading}>@leapsake/core on expo-sqlite</Text>
+      {error ? (
+        <Text style={styles.error}>{error}</Text>
+      ) : people === null ? (
+        <ActivityIndicator />
+      ) : (
+        people.map((person) => (
+          <Text key={person.id} style={styles.value}>
+            {fullName(person)}
+          </Text>
+        ))
+      )}
       <StatusBar style="auto" />
     </View>
   );
@@ -43,5 +72,9 @@ const styles = StyleSheet.create({
   },
   value: {
     fontSize: 16,
+  },
+  error: {
+    fontSize: 14,
+    color: "#b00020",
   },
 });
