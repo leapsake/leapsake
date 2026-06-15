@@ -1,5 +1,5 @@
 {
-  "name": "@leapsake/data",
+  "name": "@leapsake/crypto",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,9 +10,6 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@leapsake/schema": "workspace:*"
-  },
-  "devDependencies": {
-    "@leapsake/crypto": "workspace:*"
+    "@noble/ciphers": "^2.2.0"
   }
 }

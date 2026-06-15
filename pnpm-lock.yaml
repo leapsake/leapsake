@@ -134,11 +134,21 @@ importers:
         specifier: workspace:*
         version: link:../schema
 
+  packages/crypto:
+    dependencies:
+      '@noble/ciphers':
+        specifier: ^2.2.0
+        version: 2.2.0
+
   packages/data:
     dependencies:
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema
+    devDependencies:
+      '@leapsake/crypto':
+        specifier: workspace:*
+        version: link:../crypto
 
   packages/highlight:
     dependencies:
@@ -1094,6 +1104,10 @@ packages:
     peerDependencies:
       '@emnapi/core': ^1.7.1
       '@emnapi/runtime': ^1.7.1
+
+  '@noble/ciphers@2.2.0':
+    resolution: {integrity: sha512-Z6pjIZ/8IJcCGzb2S/0Px5J81yij85xASuk1teLNeg75bfT07MV3a/O2Mtn1I2se43k3lkVEcFaR10N4cgQcZA==}
+    engines: {node: '>= 20.19.0'}
 
   '@oxc-project/types@0.132.0':
     resolution: {integrity: sha512-FESMOxil5Se014ui/Eq8fT5uHJo6nIRwH0PfJrZJXs6Gek3ZVFOrpUv3YIZT20m+extU98Hg1Ym72U58rlsxUQ==}
@@ -5246,6 +5260,8 @@ snapshots:
       '@emnapi/runtime': 1.10.0
       '@tybys/wasm-util': 0.10.2
     optional: true
+
+  '@noble/ciphers@2.2.0': {}
 
   '@oxc-project/types@0.132.0': {}
 

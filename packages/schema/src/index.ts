@@ -10,6 +10,23 @@ export {
   updatePetInputSchema,
 } from "./pet.js";
 export type { Pet, CreatePetInput, UpdatePetInput } from "./pet.js";
+export {
+  contentKeySchema,
+  createContentKeyInputSchema,
+} from "./content-key.js";
+export type { ContentKey, CreateContentKeyInput } from "./content-key.js";
+export {
+  wrappedKindSchema,
+  principalKindSchema,
+  keyWrapSchema,
+  addKeyWrapInputSchema,
+} from "./key-wrap.js";
+export type {
+  WrappedKind,
+  PrincipalKind,
+  KeyWrap,
+  AddKeyWrapInput,
+} from "./key-wrap.js";
 export { tagSchema, normalizeTagName, parseTagNames } from "./tag.js";
 export type { Tag } from "./tag.js";
 export { fullName, entityLabel, tagLabel } from "./labels.js";
