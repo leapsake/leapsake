@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@leapsake/core": "workspace:*",
+    "@leapsake/crypto": "workspace:*",
     "@leapsake/data": "workspace:*",
     "@leapsake/highlight": "workspace:*",
     "@leapsake/schema": "workspace:*",
