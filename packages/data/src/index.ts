@@ -8,6 +8,15 @@ export {
 export { listTimelineForEntity } from "./milestone-timeline.js";
 export { type PetsRepo, createPetsRepo } from "./pets-repo.js";
 export {
+  type ContentKeyRepo,
+  createContentKeyRepo,
+} from "./content-key-repo.js";
+export {
+  type ActiveKeyWrapQuery,
+  type KeyWrapRepo,
+  createKeyWrapRepo,
+} from "./key-wrap-repo.js";
+export {
   type RelationshipsRepo,
   createRelationshipsRepo,
 } from "./relationships-repo.js";

@@ -284,6 +284,55 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 11,
+    async up(driver) {
+      // Encryption Stage 1, the two key-custody tables (encryption-schema.md
+      // §2.3–§2.4). Plaintext keys are NEVER stored: a key exists in the DB only
+      // as the set of its wrappings. `content_key` registers that an entity has
+      // a content key (not its bytes); `key_wrap` is the universal envelope —
+      // "wrap this key for that principal" as immutable, append/revoke-only rows
+      // (the §1 property), used identically for the master key, the account
+      // private key, and every per-item content key.
+      //
+      // Value constraints (the wrapped_kind/principal_kind enums) live in Zod
+      // (packages/schema), not the DB, to stay portable across node:sqlite and
+      // expo-sqlite. The wrapping algorithm is recorded per-row in `alg` so the
+      // crypto primitive can change later (§15.3 review) without reshaping data.
+      // Partial unique indexes scoped to `deleted_at IS NULL` enforce "one
+      // active row per key" while letting soft-deleted history coexist
+      // (reboot-plan.md §4.2).
+      await driver.exec(`
+        CREATE TABLE content_key (
+          id          TEXT    PRIMARY KEY,
+          entity_type TEXT    NOT NULL,
+          entity_id   TEXT    NOT NULL,
+          blob_ref    TEXT,
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL,
+          deleted_at  INTEGER
+        );
+        CREATE UNIQUE INDEX content_key_entity_active
+          ON content_key(entity_type, entity_id) WHERE deleted_at IS NULL;
+
+        CREATE TABLE key_wrap (
+          id             TEXT    PRIMARY KEY,
+          wrapped_kind   TEXT    NOT NULL,
+          content_key_id TEXT    REFERENCES content_key(id),
+          principal_kind TEXT    NOT NULL,
+          principal_ref  TEXT,
+          ciphertext     BLOB    NOT NULL,
+          alg            TEXT    NOT NULL,
+          created_at     INTEGER NOT NULL,
+          updated_at     INTEGER NOT NULL,
+          deleted_at     INTEGER
+        );
+        CREATE UNIQUE INDEX key_wrap_active
+          ON key_wrap(wrapped_kind, content_key_id, principal_kind, principal_ref)
+          WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**
