@@ -12,6 +12,10 @@ export {
   createContentKeyRepo,
 } from "./content-key-repo.js";
 export {
+  type ContentCipher,
+  createContentCipher,
+} from "./content-cipher.js";
+export {
   type ActiveKeyWrapQuery,
   type KeyWrapRepo,
   createKeyWrapRepo,

@@ -31,8 +31,8 @@ import { BrowserWindow, app, ipcMain } from "electron";
 import { nodeSqliteDriver } from "./db/node-sqlite-driver.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
-// The unlocked device key material (custody Phase 0), held for the slice that
-// wires per-item content keys + sync. Not yet consumed by the IPC surface.
+// The unlocked device key material (custody Phase 0), passed into createCore so
+// it can encrypt sensitive fields at rest under per-item content keys.
 let keySession: KeySession | undefined;
 export function getKeySession(): KeySession | undefined {
   return keySession;
@@ -320,7 +320,7 @@ void app.whenReady().then(async () => {
     join(app.getPath("userData"), "keystore.json"),
   );
   keySession = await ensureDeviceMasterKey({ keyStore, driver });
-  const core = createCore(driver);
+  const core = createCore(driver, keySession);
   registerIpc(core);
 
   createWindow();

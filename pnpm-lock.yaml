@@ -154,13 +154,12 @@ importers:
 
   packages/data:
     dependencies:
-      '@leapsake/schema':
-        specifier: workspace:*
-        version: link:../schema
-    devDependencies:
       '@leapsake/crypto':
         specifier: workspace:*
         version: link:../crypto
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
 
   packages/highlight:
     dependencies:
