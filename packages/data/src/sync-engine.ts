@@ -1,5 +1,6 @@
 import { bytesToUtf8, open, seal, utf8ToBytes } from "@leapsake/crypto";
 import type { SyncRow } from "@leapsake/schema";
+import type { SyncStateRepo } from "./sync-state-repo.js";
 import type { SyncableRepo } from "./syncable.js";
 import type {
   Cursor,
@@ -19,9 +20,13 @@ import type {
  * an entity to sync is one more entry in the list — no engine change. Every row
  * is sealed **whole, under the master key directly** (`seal(json(row), MK)`); the
  * per-record content-key escalation stays an additive future (the unused
- * `EncryptedRecord.wrappedKey` slot). Sync-state watermarks are passed in and
- * returned — the caller (a test here, persistence later) holds them, so this
- * still needs no `sync_state` table and no migration.
+ * `EncryptedRecord.wrappedKey` slot).
+ *
+ * The two watermarks (the push high-water mark and the pull cursor) can either
+ * be threaded by the caller through {@link SyncEngine.push}/{@link
+ * SyncEngine.pull} — or, when a {@link SyncStateRepo} is supplied, persisted by
+ * the engine itself via {@link SyncEngine.sync}, so a fresh engine on the same
+ * database resumes where it left off.
  */
 export interface SyncEngine {
   /**
@@ -36,14 +41,28 @@ export interface SyncEngine {
    * returning the advanced cursor to pass next time.
    */
   pull(cursor: Cursor): Promise<Cursor>;
+  /**
+   * The self-driving loop: read both watermarks from the {@link SyncStateRepo},
+   * {@link push} local changes then {@link pull} peers', and persist the
+   * advanced marks. Push-first is conventional; correctness does not depend on
+   * order (the merge is order-independent). Requires the engine to have been
+   * built with a `syncState` repo — throws otherwise.
+   */
+  sync(): Promise<void>;
 }
 
 export function createSyncEngine(opts: {
   transport: SyncTransport;
   masterKey: Uint8Array;
   repos: SyncableRepo<SyncRow>[];
+  /**
+   * Durable watermark store. Optional: omit it to thread marks manually via
+   * `push`/`pull` (tests, back-compat); supply it to enable {@link
+   * SyncEngine.sync}.
+   */
+  syncState?: SyncStateRepo;
 }): SyncEngine {
-  const { transport, masterKey, repos } = opts;
+  const { transport, masterKey, repos, syncState } = opts;
   const byTable = new Map(repos.map((repo) => [repo.table, repo]));
 
   function toRecord(table: string, row: SyncRow): EncryptedRecord {
@@ -56,35 +75,51 @@ export function createSyncEngine(opts: {
     };
   }
 
-  return {
-    async push(lastPushedUpdatedAt) {
-      const records: EncryptedRecord[] = [];
-      let hwm = lastPushedUpdatedAt;
-      for (const repo of repos) {
-        const changed = await repo.listChangedSince(lastPushedUpdatedAt);
-        for (const row of changed) {
-          records.push(toRecord(repo.table, row));
-          hwm = Math.max(hwm, row.updatedAt);
-        }
+  async function push(lastPushedUpdatedAt: number): Promise<number> {
+    const records: EncryptedRecord[] = [];
+    let hwm = lastPushedUpdatedAt;
+    for (const repo of repos) {
+      const changed = await repo.listChangedSince(lastPushedUpdatedAt);
+      for (const row of changed) {
+        records.push(toRecord(repo.table, row));
+        hwm = Math.max(hwm, row.updatedAt);
       }
-      if (records.length > 0) await transport.push(records);
-      return hwm;
-    },
+    }
+    if (records.length > 0) await transport.push(records);
+    return hwm;
+  }
 
-    async pull(cursor) {
-      const { records, cursor: next } = await transport.pull(cursor);
-      // Apply order within a batch does not affect the converged state:
-      // foreign-key enforcement is off and `upsertFromRemote` is LWW-idempotent,
-      // so an edge that arrives before its endpoint still reconciles correctly.
-      for (const record of records) {
-        const repo = byTable.get(record.table);
-        if (repo === undefined) continue; // unknown table — forward-compatible
-        const row = repo.decode(
-          JSON.parse(bytesToUtf8(open(record.ciphertext, masterKey))),
+  async function pull(cursor: Cursor): Promise<Cursor> {
+    const { records, cursor: next } = await transport.pull(cursor);
+    // Apply order within a batch does not affect the converged state:
+    // foreign-key enforcement is off and `upsertFromRemote` is LWW-idempotent,
+    // so an edge that arrives before its endpoint still reconciles correctly.
+    for (const record of records) {
+      const repo = byTable.get(record.table);
+      if (repo === undefined) continue; // unknown table — forward-compatible
+      const row = repo.decode(
+        JSON.parse(bytesToUtf8(open(record.ciphertext, masterKey))),
+      );
+      await repo.upsertFromRemote(row);
+    }
+    return next;
+  }
+
+  return {
+    push,
+    pull,
+
+    async sync() {
+      if (syncState === undefined) {
+        throw new Error(
+          "SyncEngine.sync() requires a `syncState` repo; build the engine " +
+            "with one, or thread marks manually via push()/pull().",
         );
-        await repo.upsertFromRemote(row);
       }
-      return next;
+      await syncState.setPushHwm(await push(await syncState.getPushHwm()));
+      await syncState.setPullCursor(
+        await pull(await syncState.getPullCursor()),
+      );
     },
   };
 }

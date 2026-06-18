@@ -47,6 +47,10 @@ export {
 } from "./sync-transport.js";
 export { type SyncEngine, createSyncEngine } from "./sync-engine.js";
 export {
+  type SyncStateRepo,
+  createSyncStateRepo,
+} from "./sync-state-repo.js";
+export {
   type RowCodec,
   type SyncableRepo,
   defineSyncable,

@@ -348,6 +348,26 @@ export const migrations: Migration[] = [
       );
     },
   },
+  {
+    version: 13,
+    async up(driver) {
+      // Sync watermark persistence (plans/encryption/sync.md). A device-local
+      // key/value store for the sync engine's marks: 'push_hwm' (the epoch-ms
+      // high-water of rows already pushed) and 'pull_cursor' (the transport's
+      // opaque delivery cursor already consumed). It deliberately carries NONE of
+      // the sync substrate (no id/created_at/updated_at/deleted_at): like
+      // content_key/key_wrap, this table is device-local and must NEVER replicate
+      // (model.md §3) — so it is not a SyncableRepo and never enters the engine's
+      // opt-in allowlist. Key/value rather than fixed columns so a future
+      // per-transport cursor is one more row, not a schema change.
+      await driver.exec(`
+        CREATE TABLE sync_state (
+          key   TEXT    PRIMARY KEY,
+          value INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 /**
