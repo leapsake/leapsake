@@ -42,3 +42,10 @@ export {
   listContactMethods,
 } from "./contact-methods-repo.js";
 export { type SearchService, createSearchService } from "./search-service.js";
+export {
+  type Cursor,
+  type EncryptedRecord,
+  type SyncTransport,
+  createInMemoryTransport,
+} from "./sync-transport.js";
+export { type SyncEngine, createSyncEngine } from "./sync-engine.js";
