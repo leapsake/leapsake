@@ -333,6 +333,21 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 12,
+    async up(driver) {
+      // Encryption Stage 1, first real-entity field: `milestone.note` is the
+      // first domain field encrypted at rest under a per-item content key. The
+      // sealed bytes live in `note_ciphertext` (BLOB) and the plaintext `note`
+      // column is nulled when encrypted; the milestones repo decrypts on read
+      // (the public Milestone type is unchanged). Migrations run before the key
+      // exists, so legacy plaintext rows are left as-is and upgrade to ciphertext
+      // on their next write.
+      await driver.exec(
+        `ALTER TABLE milestones ADD COLUMN note_ciphertext BLOB;`,
+      );
+    },
+  },
 ];
 
 /**

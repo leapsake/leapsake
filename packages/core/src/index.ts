@@ -2,6 +2,7 @@ import {
   type GenderResult,
   type SqliteDriver,
   createContactMethodsRepo,
+  createContentCipher,
   createDismissalsRepo,
   createKinshipService,
   createMilestonesRepo,
@@ -53,6 +54,7 @@ import {
   inverseRole,
   roleDefs,
 } from "@leapsake/schema";
+import type { KeySession } from "./key-session.js";
 import { createViews } from "./views.js";
 
 // Re-exported so apps can wire everything from one entry point: construct a
@@ -106,14 +108,26 @@ export type CoreApi = ReturnType<typeof createCore>;
  * Inputs are passed straight to the repositories, which validate them with their
  * Zod schemas internally. A client that accepts untrusted input (e.g. the desktop
  * IPC boundary) should additionally parse at its trust boundary before calling in.
+ *
+ * Pass the {@link KeySession} minted by {@link ensureDeviceMasterKey} to encrypt
+ * sensitive fields at rest under per-item content keys (today: `milestone.note`).
+ * Omit it and those fields are stored and read as plaintext, unchanged — so tests
+ * and any not-yet-keyed path keep working.
  */
-export function createCore(driver: SqliteDriver) {
+export function createCore(driver: SqliteDriver, keySession?: KeySession) {
+  // The first consumer of the unlocked master key: a content cipher that the
+  // repositories with encrypted fields use to seal/open under per-item keys.
+  const cipher =
+    keySession === undefined
+      ? undefined
+      : createContentCipher({ driver, masterKey: keySession.masterKey });
+
   const people = createPeopleRepo(driver);
   const pets = createPetsRepo(driver);
   const tags = createTagsRepo(driver);
   const relationships = createRelationshipsRepo(driver);
   const dismissals = createDismissalsRepo(driver);
-  const milestones = createMilestonesRepo(driver);
+  const milestones = createMilestonesRepo(driver, cipher);
   const contactMethods = createContactMethodsRepo(driver);
   const kinship = createKinshipService(driver, {
     people,

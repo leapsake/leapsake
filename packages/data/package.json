@@ -10,9 +10,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@leapsake/crypto": "workspace:*",
     "@leapsake/schema": "workspace:*"
-  },
-  "devDependencies": {
-    "@leapsake/crypto": "workspace:*"
   }
 }

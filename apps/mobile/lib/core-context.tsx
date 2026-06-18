@@ -37,8 +37,8 @@ export function useCore(): CoreApi {
 export function CoreProvider({ children }: { children: ReactNode }) {
   const [core, setCore] = useState<CoreApi | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // The unlocked device key material (custody Phase 0), held for the slice that
-  // wires per-item content keys + sync. Not yet consumed by any screen.
+  // The unlocked device key material (custody Phase 0), passed into createCore so
+  // it can encrypt sensitive fields at rest under per-item content keys.
   const keySession = useRef<KeySession | null>(null);
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         keyStore: secureStoreKeyStore(),
         driver,
       });
-      setCore(createCore(driver));
+      setCore(createCore(driver, keySession.current));
     })().catch((e) => setError(String(e)));
   }, []);
 

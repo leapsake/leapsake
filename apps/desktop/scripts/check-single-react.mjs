@@ -11,7 +11,7 @@
 // electron.vite.config.ts); what matters is that the BUNDLE collapses to one,
 // which is the job of `renderer.resolve.dedupe`.
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
 const appRoot = resolve(import.meta.dirname, "..");
