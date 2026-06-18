@@ -33,7 +33,7 @@ describe("principalKindSchema", () => {
     for (const kind of [
       "enclave",
       "recovery",
-      "passphrase",
+      "password",
       "master",
       "recipient",
       "server_principal",

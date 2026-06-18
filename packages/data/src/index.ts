@@ -18,6 +18,12 @@ export {
   createKeyWrapRepo,
 } from "./key-wrap-repo.js";
 export {
+  type AccountRepo,
+  type DeviceRepo,
+  createAccountRepo,
+  createDeviceRepo,
+} from "./account-repo.js";
+export {
   type RelationshipsRepo,
   createRelationshipsRepo,
 } from "./relationships-repo.js";
