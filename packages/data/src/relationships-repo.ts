@@ -5,11 +5,10 @@ import {
   type UpdateRelationshipInput,
   createRelationshipInputSchema,
   relationshipSchema,
-  resolveMerge,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
-import type { SyncableRepo } from "./syncable.js";
+import { type SyncableRepo, defineSyncable } from "./syncable.js";
 
 /** The `relationships` table row, exactly as stored (snake_case columns). */
 interface RelationshipRow {
@@ -77,23 +76,12 @@ export interface RelationshipsRepo extends SyncableRepo<Relationship> {
 export function createRelationshipsRepo(
   driver: SqliteDriver,
 ): RelationshipsRepo {
-  /** Like {@link RelationshipsRepo.get} but returns soft-deleted rows too. */
-  async function getIncludingDeleted(
-    id: string,
-  ): Promise<Relationship | undefined> {
-    const row = await driver.get<RelationshipRow>(
-      "SELECT * FROM relationships WHERE id = ?",
-      [id],
-    );
-    return row ? toRelationship(row) : undefined;
-  }
-
   return {
-    table: "relationships",
-
-    decode(payload) {
-      return relationshipSchema.parse(payload);
-    },
+    ...defineSyncable<Relationship>({
+      driver,
+      table: "relationships",
+      schema: relationshipSchema,
+    }),
 
     async create(input) {
       const parsed = createRelationshipInputSchema.parse(input);
@@ -199,64 +187,6 @@ export function createRelationshipsRepo(
          WHERE deleted_at IS NULL
            AND ((a_type = ? AND a_id = ?) OR (b_type = ? AND b_id = ?))`,
         [now, now, type, id, type, id],
-      );
-    },
-
-    async listChangedSince(since) {
-      const rows = await driver.all<RelationshipRow>(
-        "SELECT * FROM relationships WHERE updated_at > ? ORDER BY updated_at",
-        [since],
-      );
-      return rows.map(toRelationship);
-    },
-
-    async upsertFromRemote(remote) {
-      const local = await getIncludingDeleted(remote.id);
-      if (local) {
-        if (resolveMerge(local, remote) === local) return;
-        await driver.run(
-          `UPDATE relationships
-             SET a_type = ?, a_id = ?, a_role = ?, a_role_note = ?,
-                 b_type = ?, b_id = ?, b_role = ?, b_role_note = ?,
-                 created_at = ?, updated_at = ?, deleted_at = ?
-           WHERE id = ?`,
-          [
-            remote.aType,
-            remote.aId,
-            remote.aRole,
-            remote.aRoleNote,
-            remote.bType,
-            remote.bId,
-            remote.bRole,
-            remote.bRoleNote,
-            remote.createdAt,
-            remote.updatedAt,
-            remote.deletedAt,
-            remote.id,
-          ],
-        );
-        return;
-      }
-      await driver.run(
-        `INSERT INTO relationships
-           (id, a_type, a_id, a_role, a_role_note,
-            b_type, b_id, b_role, b_role_note,
-            created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          remote.id,
-          remote.aType,
-          remote.aId,
-          remote.aRole,
-          remote.aRoleNote,
-          remote.bType,
-          remote.bId,
-          remote.bRole,
-          remote.bRoleNote,
-          remote.createdAt,
-          remote.updatedAt,
-          remote.deletedAt,
-        ],
       );
     },
   };

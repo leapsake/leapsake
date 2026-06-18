@@ -3,12 +3,11 @@ import {
   type Tagging,
   normalizeTagName,
   parseTagNames,
-  resolveMerge,
   tagSchema,
   taggingSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
-import type { SyncableRepo } from "./syncable.js";
+import { type SyncableRepo, defineSyncable } from "./syncable.js";
 
 /** The `tags` table row, exactly as stored (snake_case columns). */
 interface TagRow {
@@ -26,30 +25,6 @@ function toTag(row: TagRow): Tag {
     id: row.id,
     name: row.name,
     normalized: row.normalized,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    deletedAt: row.deleted_at,
-  });
-}
-
-/** The `taggings` join-table row, exactly as stored (snake_case columns). */
-interface TaggingRow {
-  id: string;
-  tag_id: string;
-  entity_type: string;
-  entity_id: string;
-  created_at: number;
-  updated_at: number;
-  deleted_at: number | null;
-}
-
-/** Map a raw DB row to a validated `Tagging`. */
-function toTagging(row: TaggingRow): Tagging {
-  return taggingSchema.parse({
-    id: row.id,
-    tagId: row.tag_id,
-    entityType: row.entity_type,
-    entityId: row.entity_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -151,115 +126,15 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
   }
 
   /** The `taggings` join table as a standalone {@link SyncableRepo}. */
-  const taggings: SyncableRepo<Tagging> = {
+  const taggings: SyncableRepo<Tagging> = defineSyncable<Tagging>({
+    driver,
     table: "taggings",
-
-    decode(payload) {
-      return taggingSchema.parse(payload);
-    },
-
-    async listChangedSince(since) {
-      const rows = await driver.all<TaggingRow>(
-        "SELECT * FROM taggings WHERE updated_at > ? ORDER BY updated_at",
-        [since],
-      );
-      return rows.map(toTagging);
-    },
-
-    async upsertFromRemote(remote) {
-      const row = await driver.get<TaggingRow>(
-        "SELECT * FROM taggings WHERE id = ?",
-        [remote.id],
-      );
-      const local = row ? toTagging(row) : undefined;
-      if (local) {
-        if (resolveMerge(local, remote) === local) return;
-        await driver.run(
-          `UPDATE taggings
-             SET tag_id = ?, entity_type = ?, entity_id = ?,
-                 created_at = ?, updated_at = ?, deleted_at = ?
-           WHERE id = ?`,
-          [
-            remote.tagId,
-            remote.entityType,
-            remote.entityId,
-            remote.createdAt,
-            remote.updatedAt,
-            remote.deletedAt,
-            remote.id,
-          ],
-        );
-        return;
-      }
-      await driver.run(
-        `INSERT INTO taggings
-           (id, tag_id, entity_type, entity_id, created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          remote.id,
-          remote.tagId,
-          remote.entityType,
-          remote.entityId,
-          remote.createdAt,
-          remote.updatedAt,
-          remote.deletedAt,
-        ],
-      );
-    },
-  };
+    schema: taggingSchema,
+  });
 
   return {
-    table: "tags",
+    ...defineSyncable<Tag>({ driver, table: "tags", schema: tagSchema }),
     taggings,
-
-    decode(payload) {
-      return tagSchema.parse(payload);
-    },
-
-    async listChangedSince(since) {
-      const rows = await driver.all<TagRow>(
-        "SELECT * FROM tags WHERE updated_at > ? ORDER BY updated_at",
-        [since],
-      );
-      return rows.map(toTag);
-    },
-
-    async upsertFromRemote(remote) {
-      const row = await driver.get<TagRow>("SELECT * FROM tags WHERE id = ?", [
-        remote.id,
-      ]);
-      const local = row ? toTag(row) : undefined;
-      if (local) {
-        if (resolveMerge(local, remote) === local) return;
-        await driver.run(
-          `UPDATE tags
-             SET name = ?, normalized = ?, created_at = ?, updated_at = ?, deleted_at = ?
-           WHERE id = ?`,
-          [
-            remote.name,
-            remote.normalized,
-            remote.createdAt,
-            remote.updatedAt,
-            remote.deletedAt,
-            remote.id,
-          ],
-        );
-        return;
-      }
-      await driver.run(
-        `INSERT INTO tags
-           (id, name, normalized, created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          remote.id,
-          remote.name,
-          remote.normalized,
-          remote.createdAt,
-          remote.updatedAt,
-          remote.deletedAt,
-        ],
-      );
-    },
 
     async listForEntity(entityType, entityId) {
       const rows = await driver.all<TagRow>(

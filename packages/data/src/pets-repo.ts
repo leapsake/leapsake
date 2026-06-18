@@ -4,11 +4,10 @@ import {
   type UpdatePetInput,
   createPetInputSchema,
   petSchema,
-  resolveMerge,
   updatePetInputSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
-import type { SyncableRepo } from "./syncable.js";
+import { type SyncableRepo, defineSyncable } from "./syncable.js";
 
 /** The `pets` table row, exactly as stored (snake_case columns). */
 interface PetRow {
@@ -46,20 +45,8 @@ export interface PetsRepo extends SyncableRepo<Pet> {
  * reads and never hard-deletes (mirrors the People repository).
  */
 export function createPetsRepo(driver: SqliteDriver): PetsRepo {
-  /** Like {@link PetsRepo.get} but returns soft-deleted rows too; merge needs them. */
-  async function getIncludingDeleted(id: string): Promise<Pet | undefined> {
-    const row = await driver.get<PetRow>("SELECT * FROM pets WHERE id = ?", [
-      id,
-    ]);
-    return row ? toPet(row) : undefined;
-  }
-
   return {
-    table: "pets",
-
-    decode(payload) {
-      return petSchema.parse(payload);
-    },
+    ...defineSyncable<Pet>({ driver, table: "pets", schema: petSchema }),
 
     async create(input) {
       const { name, gender = null } = createPetInputSchema.parse(input);
@@ -128,48 +115,6 @@ export function createPetsRepo(driver: SqliteDriver): PetsRepo {
       await driver.run(
         "UPDATE pets SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
         [Date.now(), Date.now(), id],
-      );
-    },
-
-    async listChangedSince(since) {
-      const rows = await driver.all<PetRow>(
-        "SELECT * FROM pets WHERE updated_at > ? ORDER BY updated_at",
-        [since],
-      );
-      return rows.map(toPet);
-    },
-
-    async upsertFromRemote(remote) {
-      const local = await getIncludingDeleted(remote.id);
-      if (local) {
-        if (resolveMerge(local, remote) === local) return;
-        await driver.run(
-          `UPDATE pets
-             SET name = ?, gender = ?, created_at = ?, updated_at = ?, deleted_at = ?
-           WHERE id = ?`,
-          [
-            remote.name,
-            remote.gender,
-            remote.createdAt,
-            remote.updatedAt,
-            remote.deletedAt,
-            remote.id,
-          ],
-        );
-        return;
-      }
-      await driver.run(
-        `INSERT INTO pets
-           (id, name, gender, created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          remote.id,
-          remote.name,
-          remote.gender,
-          remote.createdAt,
-          remote.updatedAt,
-          remote.deletedAt,
-        ],
       );
     },
   };

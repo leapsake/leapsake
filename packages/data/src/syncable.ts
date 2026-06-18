@@ -1,4 +1,5 @@
-import type { SyncRow } from "@leapsake/schema";
+import { type SyncRow, resolveMerge } from "@leapsake/schema";
+import type { SqliteDriver } from "./driver.js";
 
 /**
  * A repository the {@link SyncEngine} can drive. It is the *generic* contract
@@ -7,9 +8,9 @@ import type { SyncRow } from "@leapsake/schema";
  * stays schema-agnostic and one more synced entity is just one more entry in the
  * registry (plans/encryption/status.md, the "extend beyond `people`" step).
  *
- * Most domain repositories implement this directly on their repo object; a repo
- * that owns more than one table (tags + taggings, the three contact-method
- * tables) exposes one {@link SyncableRepo} per table instead.
+ * Most domain repositories implement this via {@link defineSyncable} (see the
+ * recipe below); a repo that owns more than one table (tags + taggings, the
+ * three contact-method tables) defines one {@link SyncableRepo} per table.
  *
  * `getIncludingDeleted` is deliberately *not* here: it is the repo's own
  * internal merge-fetch detail, used inside {@link upsertFromRemote}.
@@ -35,4 +36,195 @@ export interface SyncableRepo<T extends SyncRow> {
    * converges if the clock stays the writer's).
    */
   upsertFromRemote(remote: T): Promise<void>;
+}
+
+/** The value types SQLite (node + expo) round-trips for a bound parameter. */
+type SqlValue = string | number | Uint8Array | null;
+
+/**
+ * The one part of sync that is genuinely entity-specific: how a *domain* row
+ * (camelCase, the shape that travels and merges) converts to and from the *table*
+ * row (snake_case columns, the shape on disk).
+ *
+ * {@link defineSyncable} supplies a default codec that is a pure camelCase↔
+ * snake_case rename, so a plain entity needs **no codec at all**. Pass an
+ * explicit one only when the two shapes genuinely differ — today only
+ * `milestones`, whose `note` is decrypted on the way out (so it rides as
+ * plaintext *inside* the master-key seal) and re-sealed under this device's own
+ * content key on the way in (so `content_key`/`key_wrap` rows never sync). See
+ * `milestones-repo.ts` for the worked example.
+ */
+export interface RowCodec<T extends SyncRow> {
+  /** Domain row → table row (snake_case columns ready to bind). */
+  toRow(row: T): Record<string, SqlValue> | Promise<Record<string, SqlValue>>;
+  /** Table row (snake_case, as `SELECT *` returns it) → validated domain row. */
+  fromRow(raw: Record<string, unknown>): T | Promise<T>;
+}
+
+/** `firstName` → `first_name`; digits and existing underscores are untouched. */
+function toSnakeCase(camel: string): string {
+  return camel.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+}
+
+/**
+ * Build the default {@link RowCodec} from a Zod object schema: column names are
+ * the snake_case of the schema's field names, values pass through unchanged
+ * except booleans, which SQLite has no type for and so store as 0/1.
+ */
+function defaultCodec<T extends SyncRow>(
+  schema: ParsableSchema<T>,
+  fields: readonly string[] | undefined,
+  booleans: readonly string[] | undefined,
+): RowCodec<T> {
+  const names = fields ?? Object.keys(schema.shape ?? {});
+  if (names.length === 0) {
+    throw new Error(
+      "defineSyncable: cannot derive columns — pass a Zod object `schema` " +
+        "(so its `.shape` is readable) or an explicit `fields` list, or a `codec`.",
+    );
+  }
+  const bool = new Set(booleans ?? []);
+  return {
+    toRow(row) {
+      const out: Record<string, SqlValue> = {};
+      for (const field of names) {
+        const value = (row as Record<string, unknown>)[field];
+        out[toSnakeCase(field)] = bool.has(field)
+          ? value == null
+            ? null
+            : value
+              ? 1
+              : 0
+          : (value as SqlValue);
+      }
+      return out;
+    },
+    fromRow(raw) {
+      const obj: Record<string, unknown> = {};
+      for (const field of names) {
+        const value = raw[toSnakeCase(field)];
+        obj[field] = bool.has(field)
+          ? value == null
+            ? null
+            : value !== 0
+          : value;
+      }
+      return schema.parse(obj);
+    },
+  };
+}
+
+/** The slice of a Zod object schema this helper relies on. */
+interface ParsableSchema<T> {
+  parse(value: unknown): T;
+  /** Present on `z.object(...)`; absent on a refined schema (then pass a `codec`). */
+  shape?: Record<string, unknown>;
+}
+
+/**
+ * ============================================================================
+ *  HOW TO MAKE AN ENTITY SYNC-ELIGIBLE — the canonical recipe
+ * ============================================================================
+ *
+ * Sync is **opt-in**: an entity replicates only once its repo is registered
+ * (step 4). That is deliberate — the device-local key tables (`content_key`,
+ * `key_wrap`) and any future local-only table (search index, `sync_state`) must
+ * *never* leave the device (plans/encryption/model.md §3), so "sync-eligible by
+ * default" is exactly the wrong default. The `repos` array passed to
+ * {@link createSyncEngine} is the allowlist; a guard test pins it.
+ *
+ * To add one more synced entity:
+ *
+ *   1. **Migration** — the table carries the sync substrate: a UUID `id`, and
+ *      epoch-ms `created_at` / `updated_at` / nullable `deleted_at`
+ *      (reboot-plan.md §4.2). Every domain table already does.
+ *   2. **Schema** — a `z.object({...})` raw-row schema in `packages/schema`
+ *      whose camelCase fields are the snake_case columns (`createdAt` ⇄
+ *      `created_at`). This both validates a peer's payload and supplies the
+ *      column list, so it is the *only* place the fields are spelled out.
+ *   3. **Repo** — alongside the entity's normal CRUD, spread one call:
+ *
+ *        return {
+ *          ...defineSyncable<Place>({ driver, table: "places", schema: placeSchema }),
+ *          create, list, get, update, softDelete,  // the repo's own methods
+ *        };
+ *
+ *      That spread supplies `table` / `decode` / `listChangedSince` /
+ *      `upsertFromRemote` — no per-entity SQL. Extra options for the two cases
+ *      the default can't infer:
+ *        - `booleans: ["smsCapable"]` — fields SQLite stores as 0/1 (it has no
+ *          boolean type). Forgetting one fails loudly on the first synced read.
+ *        - `codec` — only when the on-wire shape differs from the on-disk shape
+ *          (encrypted fields). See `milestones-repo.ts`.
+ *   4. **Register** — add the repo to the `repos` array handed to
+ *      {@link createSyncEngine}, and to the allowlist guard test. This is the
+ *      conscious "yes, this table may leave the device" step.
+ *
+ * Steps 1–2 are work any entity needs regardless of sync; steps 3–4 are the
+ * whole sync cost. A round-trip is covered by the shared harness in
+ * `test/sync.test.ts` — no per-entity sync test to hand-write.
+ */
+export function defineSyncable<T extends SyncRow>(opts: {
+  driver: SqliteDriver;
+  /** The transport table tag and the SQL table name (they are the same). */
+  table: string;
+  /** The `z.object` raw-row schema — validates payloads and names the columns. */
+  schema: ParsableSchema<T>;
+  /** Override the column list (default: the schema's field names). Rarely needed. */
+  fields?: readonly string[];
+  /** Fields stored as 0/1 because SQLite has no boolean type. */
+  booleans?: readonly string[];
+  /** A bespoke domain↔table mapping; only for shapes that differ (encryption). */
+  codec?: RowCodec<T>;
+}): SyncableRepo<T> {
+  const { driver, table, schema } = opts;
+  const codec =
+    opts.codec ?? defaultCodec<T>(schema, opts.fields, opts.booleans);
+
+  return {
+    table,
+
+    decode(payload) {
+      return schema.parse(payload);
+    },
+
+    async listChangedSince(since) {
+      const rows = await driver.all<Record<string, unknown>>(
+        `SELECT * FROM ${table} WHERE updated_at > ? ORDER BY updated_at`,
+        [since],
+      );
+      return Promise.all(rows.map((row) => codec.fromRow(row)));
+    },
+
+    async upsertFromRemote(remote) {
+      // Fetch the local row *including* tombstones — the merge must see a delete.
+      const existing = await driver.get<Record<string, unknown>>(
+        `SELECT * FROM ${table} WHERE id = ?`,
+        [remote.id],
+      );
+      if (existing !== undefined) {
+        const local = await codec.fromRow(existing);
+        // Local wins (or the rows are identical) → nothing to write.
+        if (resolveMerge(local, remote) === local) return;
+      }
+
+      const cols = await codec.toRow(remote);
+      const names = Object.keys(cols);
+      if (existing !== undefined) {
+        const assignable = names.filter((name) => name !== "id");
+        await driver.run(
+          `UPDATE ${table}
+             SET ${assignable.map((name) => `${name} = ?`).join(", ")}
+           WHERE id = ?`,
+          [...assignable.map((name) => cols[name]), remote.id],
+        );
+        return;
+      }
+      await driver.run(
+        `INSERT INTO ${table} (${names.join(", ")})
+         VALUES (${names.map(() => "?").join(", ")})`,
+        names.map((name) => cols[name]),
+      );
+    },
+  };
 }

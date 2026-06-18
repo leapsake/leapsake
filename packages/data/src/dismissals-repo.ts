@@ -2,10 +2,9 @@ import {
   type EntityType,
   type RelationshipRole,
   dismissalSchema,
-  resolveMerge,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
-import type { SyncableRepo } from "./syncable.js";
+import { type SyncableRepo, defineSyncable } from "./syncable.js";
 
 /** An endpoint of a dismissal: an entity `(type, id)` pair. */
 export interface DismissalEndpoint {
@@ -88,23 +87,12 @@ export interface DismissalsRepo extends SyncableRepo<Dismissal> {
  * repositories).
  */
 export function createDismissalsRepo(driver: SqliteDriver): DismissalsRepo {
-  /** Like {@link DismissalsRepo.listForEntity} reads but by id and incl. tombstones. */
-  async function getIncludingDeleted(
-    id: string,
-  ): Promise<Dismissal | undefined> {
-    const row = await driver.get<DismissalRow>(
-      "SELECT * FROM relationship_dismissals WHERE id = ?",
-      [id],
-    );
-    return row ? toDismissal(row) : undefined;
-  }
-
   return {
-    table: "relationship_dismissals",
-
-    decode(payload) {
-      return dismissalSchema.parse(payload);
-    },
+    ...defineSyncable<Dismissal>({
+      driver,
+      table: "relationship_dismissals",
+      schema: dismissalSchema,
+    }),
 
     async create(subject, other, role) {
       const now = Date.now();
@@ -166,56 +154,6 @@ export function createDismissalsRepo(driver: SqliteDriver): DismissalsRepo {
            AND ((subject_type = ? AND subject_id = ?)
              OR (other_type = ? AND other_id = ?))`,
         [now, now, type, id, type, id],
-      );
-    },
-
-    async listChangedSince(since) {
-      const rows = await driver.all<DismissalRow>(
-        "SELECT * FROM relationship_dismissals WHERE updated_at > ? ORDER BY updated_at",
-        [since],
-      );
-      return rows.map(toDismissal);
-    },
-
-    async upsertFromRemote(remote) {
-      const local = await getIncludingDeleted(remote.id);
-      if (local) {
-        if (resolveMerge(local, remote) === local) return;
-        await driver.run(
-          `UPDATE relationship_dismissals
-             SET subject_type = ?, subject_id = ?, other_type = ?, other_id = ?,
-                 role = ?, created_at = ?, updated_at = ?, deleted_at = ?
-           WHERE id = ?`,
-          [
-            remote.subjectType,
-            remote.subjectId,
-            remote.otherType,
-            remote.otherId,
-            remote.role,
-            remote.createdAt,
-            remote.updatedAt,
-            remote.deletedAt,
-            remote.id,
-          ],
-        );
-        return;
-      }
-      await driver.run(
-        `INSERT INTO relationship_dismissals
-           (id, subject_type, subject_id, other_type, other_id, role,
-            created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          remote.id,
-          remote.subjectType,
-          remote.subjectId,
-          remote.otherType,
-          remote.otherId,
-          remote.role,
-          remote.createdAt,
-          remote.updatedAt,
-          remote.deletedAt,
-        ],
       );
     },
   };
