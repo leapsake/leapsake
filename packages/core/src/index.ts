@@ -59,6 +59,10 @@ import { createViews } from "./views.js";
 // concrete SqliteDriver, run migrations, then build the core.
 export { runMigrations, type SqliteDriver, type GenderResult };
 
+// The custody Phase 0 bootstrap: the first KeyStore consumer, run between
+// migrations and createCore to make the device's master key available.
+export { ensureDeviceMasterKey, type KeySession } from "./key-session.js";
+
 // The view-model contracts the `views` builders return, re-exported so every
 // client renders against the same shapes carried out via `CoreApi`.
 export type {

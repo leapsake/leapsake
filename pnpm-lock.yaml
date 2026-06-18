@@ -136,6 +136,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@leapsake/crypto':
+        specifier: workspace:*
+        version: link:../crypto
       '@leapsake/data':
         specifier: workspace:*
         version: link:../data

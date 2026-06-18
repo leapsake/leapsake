@@ -2,13 +2,21 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import * as SQLite from "expo-sqlite";
-import { type CoreApi, createCore, runMigrations } from "@leapsake/core";
+import {
+  type CoreApi,
+  type KeySession,
+  createCore,
+  ensureDeviceMasterKey,
+  runMigrations,
+} from "@leapsake/core";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
+import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 
 // Build the core exactly once for the whole app and share it through context.
 // This is the multi-screen successor to the proof screen's per-effect bootstrap
@@ -29,12 +37,19 @@ export function useCore(): CoreApi {
 export function CoreProvider({ children }: { children: ReactNode }) {
   const [core, setCore] = useState<CoreApi | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The unlocked device key material (custody Phase 0), held for the slice that
+  // wires per-item content keys + sync. Not yet consumed by any screen.
+  const keySession = useRef<KeySession | null>(null);
 
   useEffect(() => {
     (async () => {
       const db = await SQLite.openDatabaseAsync("leapsake.db");
       const driver = expoSqliteDriver(db);
       await runMigrations(driver);
+      keySession.current = await ensureDeviceMasterKey({
+        keyStore: secureStoreKeyStore(),
+        driver,
+      });
       setCore(createCore(driver));
     })().catch((e) => setError(String(e)));
   }, []);
