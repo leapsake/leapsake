@@ -13,16 +13,19 @@ import {
   createEmailInputSchema,
   createPhoneInputSchema,
   createPostalInputSchema,
+  type SyncRow,
   emailAddressSchema,
   normalizeEmail,
   normalizePhone,
   phoneNumberSchema,
   postalAddressSchema,
+  resolveMerge,
   updateEmailInputSchema,
   updatePhoneInputSchema,
   updatePostalInputSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
+import type { SyncableRepo } from "./syncable.js";
 
 /** The `email_addresses` table row, exactly as stored (snake_case columns). */
 interface EmailRow {
@@ -120,7 +123,7 @@ function toPostal(row: PostalRow): PostalAddress {
 }
 
 /** CRUD for one contact-method kind, scoped to an owner for reads. */
-interface KindRepo<T, C, U> {
+interface KindRepo<T extends SyncRow, C, U> extends SyncableRepo<T> {
   create(input: C): Promise<T>;
   get(id: string): Promise<T | undefined>;
   update(id: string, input: U): Promise<T | undefined>;
@@ -165,6 +168,23 @@ function listRowsForOwner<R>(
   );
 }
 
+/** Shared changed-since read (incl. tombstones) for any contact-method table. */
+function listChangedRowsSince<R>(
+  driver: SqliteDriver,
+  table: string,
+  since: number,
+) {
+  return driver.all<R>(
+    `SELECT * FROM ${table} WHERE updated_at > ? ORDER BY updated_at`,
+    [since],
+  );
+}
+
+/** Shared by-id read (incl. tombstones) — the merge-fetch for any table. */
+function getRowById<R>(driver: SqliteDriver, table: string, id: string) {
+  return driver.get<R>(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+}
+
 /**
  * The Contact Methods repository, written against the async {@link SqliteDriver}
  * port so it runs unchanged on desktop and mobile. Three typed sub-repos
@@ -176,6 +196,12 @@ export function createContactMethodsRepo(
   driver: SqliteDriver,
 ): ContactMethodsRepo {
   const emails: ContactMethodsRepo["emails"] = {
+    table: "email_addresses",
+
+    decode(payload) {
+      return emailAddressSchema.parse(payload);
+    },
+
     async create(input) {
       const parsed = createEmailInputSchema.parse(input);
       const now = Date.now();
@@ -255,9 +281,71 @@ export function createContactMethodsRepo(
       );
       return rows.map(toEmail);
     },
+
+    async listChangedSince(since) {
+      const rows = await listChangedRowsSince<EmailRow>(
+        driver,
+        "email_addresses",
+        since,
+      );
+      return rows.map(toEmail);
+    },
+
+    async upsertFromRemote(remote) {
+      const row = await getRowById<EmailRow>(
+        driver,
+        "email_addresses",
+        remote.id,
+      );
+      const local = row ? toEmail(row) : undefined;
+      if (local) {
+        if (resolveMerge(local, remote) === local) return;
+        await driver.run(
+          `UPDATE email_addresses
+             SET owner_type = ?, owner_id = ?, label = ?, address = ?, normalized = ?,
+                 created_at = ?, updated_at = ?, deleted_at = ?
+           WHERE id = ?`,
+          [
+            remote.ownerType,
+            remote.ownerId,
+            remote.label,
+            remote.address,
+            remote.normalized,
+            remote.createdAt,
+            remote.updatedAt,
+            remote.deletedAt,
+            remote.id,
+          ],
+        );
+        return;
+      }
+      await driver.run(
+        `INSERT INTO email_addresses
+           (id, owner_type, owner_id, label, address, normalized,
+            created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          remote.id,
+          remote.ownerType,
+          remote.ownerId,
+          remote.label,
+          remote.address,
+          remote.normalized,
+          remote.createdAt,
+          remote.updatedAt,
+          remote.deletedAt,
+        ],
+      );
+    },
   };
 
   const phones: ContactMethodsRepo["phones"] = {
+    table: "phone_numbers",
+
+    decode(payload) {
+      return phoneNumberSchema.parse(payload);
+    },
+
     async create(input) {
       const parsed = createPhoneInputSchema.parse(input);
       const now = Date.now();
@@ -347,9 +435,78 @@ export function createContactMethodsRepo(
       );
       return rows.map(toPhone);
     },
+
+    async listChangedSince(since) {
+      const rows = await listChangedRowsSince<PhoneRow>(
+        driver,
+        "phone_numbers",
+        since,
+      );
+      return rows.map(toPhone);
+    },
+
+    async upsertFromRemote(remote) {
+      const row = await getRowById<PhoneRow>(
+        driver,
+        "phone_numbers",
+        remote.id,
+      );
+      const local = row ? toPhone(row) : undefined;
+      if (local) {
+        if (resolveMerge(local, remote) === local) return;
+        await driver.run(
+          `UPDATE phone_numbers
+             SET owner_type = ?, owner_id = ?, label = ?, number = ?, normalized = ?,
+                 extension = ?, country = ?, sms_capable = ?,
+                 created_at = ?, updated_at = ?, deleted_at = ?
+           WHERE id = ?`,
+          [
+            remote.ownerType,
+            remote.ownerId,
+            remote.label,
+            remote.number,
+            remote.normalized,
+            remote.extension,
+            remote.country,
+            remote.smsCapable ? 1 : 0,
+            remote.createdAt,
+            remote.updatedAt,
+            remote.deletedAt,
+            remote.id,
+          ],
+        );
+        return;
+      }
+      await driver.run(
+        `INSERT INTO phone_numbers
+           (id, owner_type, owner_id, label, number, normalized,
+            extension, country, sms_capable, created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          remote.id,
+          remote.ownerType,
+          remote.ownerId,
+          remote.label,
+          remote.number,
+          remote.normalized,
+          remote.extension,
+          remote.country,
+          remote.smsCapable ? 1 : 0,
+          remote.createdAt,
+          remote.updatedAt,
+          remote.deletedAt,
+        ],
+      );
+    },
   };
 
   const postals: ContactMethodsRepo["postals"] = {
+    table: "postal_addresses",
+
+    decode(payload) {
+      return postalAddressSchema.parse(payload);
+    },
+
     async create(input) {
       const parsed = createPostalInputSchema.parse(input);
       const now = Date.now();
@@ -440,6 +597,72 @@ export function createContactMethodsRepo(
         id,
       );
       return rows.map(toPostal);
+    },
+
+    async listChangedSince(since) {
+      const rows = await listChangedRowsSince<PostalRow>(
+        driver,
+        "postal_addresses",
+        since,
+      );
+      return rows.map(toPostal);
+    },
+
+    async upsertFromRemote(remote) {
+      const row = await getRowById<PostalRow>(
+        driver,
+        "postal_addresses",
+        remote.id,
+      );
+      const local = row ? toPostal(row) : undefined;
+      if (local) {
+        if (resolveMerge(local, remote) === local) return;
+        await driver.run(
+          `UPDATE postal_addresses
+             SET owner_type = ?, owner_id = ?, label = ?, line1 = ?, line2 = ?,
+                 locality = ?, region = ?, postal_code = ?, country = ?,
+                 created_at = ?, updated_at = ?, deleted_at = ?
+           WHERE id = ?`,
+          [
+            remote.ownerType,
+            remote.ownerId,
+            remote.label,
+            remote.line1,
+            remote.line2,
+            remote.locality,
+            remote.region,
+            remote.postalCode,
+            remote.country,
+            remote.createdAt,
+            remote.updatedAt,
+            remote.deletedAt,
+            remote.id,
+          ],
+        );
+        return;
+      }
+      await driver.run(
+        `INSERT INTO postal_addresses
+           (id, owner_type, owner_id, label, line1, line2,
+            locality, region, postal_code, country,
+            created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          remote.id,
+          remote.ownerType,
+          remote.ownerId,
+          remote.label,
+          remote.line1,
+          remote.line2,
+          remote.locality,
+          remote.region,
+          remote.postalCode,
+          remote.country,
+          remote.createdAt,
+          remote.updatedAt,
+          remote.deletedAt,
+        ],
+      );
     },
   };
 

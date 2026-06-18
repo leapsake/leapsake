@@ -11,10 +11,7 @@ export {
   type ContentKeyRepo,
   createContentKeyRepo,
 } from "./content-key-repo.js";
-export {
-  type ContentCipher,
-  createContentCipher,
-} from "./content-cipher.js";
+export { type ContentCipher, createContentCipher } from "./content-cipher.js";
 export {
   type ActiveKeyWrapQuery,
   type KeyWrapRepo,
@@ -49,3 +46,4 @@ export {
   createInMemoryTransport,
 } from "./sync-transport.js";
 export { type SyncEngine, createSyncEngine } from "./sync-engine.js";
+export type { SyncableRepo } from "./syncable.js";

@@ -29,6 +29,9 @@ export type {
 } from "./key-wrap.js";
 export { tagSchema, normalizeTagName, parseTagNames } from "./tag.js";
 export type { Tag } from "./tag.js";
+export { taggingSchema } from "./tagging.js";
+export type { Tagging } from "./tagging.js";
+export { dismissalSchema } from "./dismissal.js";
 export { fullName, entityLabel, tagLabel } from "./labels.js";
 export { genderSchema, genderLabel } from "./gender.js";
 export type { Gender } from "./gender.js";
