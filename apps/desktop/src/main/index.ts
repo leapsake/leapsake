@@ -1,5 +1,11 @@
 import { join } from "node:path";
-import { type CoreApi, createCore, runMigrations } from "@leapsake/core";
+import {
+  type CoreApi,
+  type KeySession,
+  createCore,
+  ensureDeviceMasterKey,
+  runMigrations,
+} from "@leapsake/core";
 import {
   type ContactOwnerType,
   type EntityType,
@@ -23,6 +29,14 @@ import {
 import { DatabaseSync } from "node:sqlite";
 import { BrowserWindow, app, ipcMain } from "electron";
 import { nodeSqliteDriver } from "./db/node-sqlite-driver.js";
+import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
+
+// The unlocked device key material (custody Phase 0), held for the slice that
+// wires per-item content keys + sync. Not yet consumed by the IPC surface.
+let keySession: KeySession | undefined;
+export function getKeySession(): KeySession | undefined {
+  return keySession;
+}
 
 /** Coerce IPC-supplied tag names to a clean `string[]` before the repo dedupes. */
 function asTagNames(value: unknown): string[] {
@@ -302,6 +316,10 @@ void app.whenReady().then(async () => {
   const db = new DatabaseSync(join(app.getPath("userData"), "leapsake.db"));
   const driver = nodeSqliteDriver(db);
   await runMigrations(driver);
+  const keyStore = safeStorageKeyStore(
+    join(app.getPath("userData"), "keystore.json"),
+  );
+  keySession = await ensureDeviceMasterKey({ keyStore, driver });
   const core = createCore(driver);
   registerIpc(core);
 
