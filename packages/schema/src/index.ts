@@ -114,6 +114,8 @@ export {
   foldAddress,
 } from "./search-fold.js";
 export type { HighlightMode } from "./search-fold.js";
+export { resolveMerge } from "./merge.js";
+export type { SyncRow } from "./merge.js";
 export { parseBirthdayQuery } from "./birthday-query.js";
 export type { PartialDate } from "./birthday-query.js";
 export { contactCountryOptions, countryFlag } from "./countries.js";
