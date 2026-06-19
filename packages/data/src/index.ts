@@ -46,4 +46,8 @@ export {
   createInMemoryTransport,
 } from "./sync-transport.js";
 export { type SyncEngine, createSyncEngine } from "./sync-engine.js";
-export type { SyncableRepo } from "./syncable.js";
+export {
+  type RowCodec,
+  type SyncableRepo,
+  defineSyncable,
+} from "./syncable.js";

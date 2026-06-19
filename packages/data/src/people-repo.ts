@@ -4,11 +4,10 @@ import {
   type UpdatePersonInput,
   createPersonInputSchema,
   personSchema,
-  resolveMerge,
   updatePersonInputSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
-import type { SyncableRepo } from "./syncable.js";
+import { type SyncableRepo, defineSyncable } from "./syncable.js";
 
 /** The `people` table row, exactly as stored (snake_case columns). */
 interface PersonRow {
@@ -53,11 +52,11 @@ export interface PeopleRepo extends SyncableRepo<Person> {
  */
 export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
   return {
-    table: "people",
-
-    decode(payload) {
-      return personSchema.parse(payload);
-    },
+    ...defineSyncable<Person>({
+      driver,
+      table: "people",
+      schema: personSchema,
+    }),
 
     async create(input) {
       const {
@@ -145,60 +144,12 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
       );
     },
 
-    async listChangedSince(since) {
-      const rows = await driver.all<PersonRow>(
-        "SELECT * FROM people WHERE updated_at > ? ORDER BY updated_at",
-        [since],
-      );
-      return rows.map(toPerson);
-    },
-
     async getIncludingDeleted(id) {
       const row = await driver.get<PersonRow>(
         "SELECT * FROM people WHERE id = ?",
         [id],
       );
       return row ? toPerson(row) : undefined;
-    },
-
-    async upsertFromRemote(remote) {
-      const local = await this.getIncludingDeleted(remote.id);
-      if (local) {
-        // Local wins (or rows are identical) → nothing to write.
-        if (resolveMerge(local, remote) === local) return;
-        await driver.run(
-          `UPDATE people
-           SET first_name = ?, middle_name = ?, last_name = ?, gender = ?,
-               created_at = ?, updated_at = ?, deleted_at = ?
-           WHERE id = ?`,
-          [
-            remote.firstName,
-            remote.middleName,
-            remote.lastName,
-            remote.gender,
-            remote.createdAt,
-            remote.updatedAt,
-            remote.deletedAt,
-            remote.id,
-          ],
-        );
-        return;
-      }
-      await driver.run(
-        `INSERT INTO people
-           (id, first_name, middle_name, last_name, gender, created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          remote.id,
-          remote.firstName,
-          remote.middleName,
-          remote.lastName,
-          remote.gender,
-          remote.createdAt,
-          remote.updatedAt,
-          remote.deletedAt,
-        ],
-      );
     },
   };
 }

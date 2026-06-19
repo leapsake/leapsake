@@ -136,6 +136,33 @@ describe("sync engine (all entities, in-memory transport)", () => {
     B.db.close();
   });
 
+  // --- The allowlist guard: sync is opt-in, key tables must never leave. -----
+
+  it("syncs exactly the opted-in tables — and never a device-local key table", () => {
+    // This list is the allowlist. Adding a table here is the conscious "yes, this
+    // may leave the device" step (syncable.ts recipe, step 4); a new entity that
+    // is not registered simply does not sync. The device-local key tables
+    // (content_key, key_wrap) must *never* appear — that is what keeps sync
+    // zero-knowledge (model.md §3).
+    const tables = syncables(A)
+      .map((repo) => repo.table)
+      .sort();
+    expect(tables).toEqual([
+      "email_addresses",
+      "milestones",
+      "people",
+      "pets",
+      "phone_numbers",
+      "postal_addresses",
+      "relationship_dismissals",
+      "relationships",
+      "taggings",
+      "tags",
+    ]);
+    expect(tables).not.toContain("content_key");
+    expect(tables).not.toContain("key_wrap");
+  });
+
   // --- People: the original core, now over the registry-driven engine. ------
 
   it("propagates a created row from one device to the other", async () => {
