@@ -1,0 +1,19 @@
+{
+  "name": "@leapsake/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@leapsake/crypto": "workspace:*",
+    "@leapsake/data": "workspace:*",
+    "@leapsake/schema": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
