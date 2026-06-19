@@ -12,6 +12,7 @@ import type {
   RelationshipNewView,
   RelationshipPartnersView,
   RelationshipView,
+  SyncStatus,
 } from "@leapsake/core";
 import type {
   ContactMethod,
@@ -281,6 +282,26 @@ const api = {
 } satisfies CoreApi;
 
 contextBridge.exposeInMainWorld("api", api);
+
+/**
+ * The sync/account custody surface, exposed as a **separate** `window.sync`
+ * bridge rather than folded into `window.api`. Enabling sync is not a
+ * {@link CoreApi} operation — it derives a KEK in the main process and touches
+ * the OS keystore — so keeping it off the `satisfies CoreApi` surface above
+ * stops the IPC contract and core from drifting. `enable` returns the one-time
+ * recovery key already base64-encoded for display; the renderer shows it once.
+ */
+const sync = {
+  status: (): Promise<SyncStatus> => ipcRenderer.invoke("sync:status"),
+  enable: (
+    password: string,
+  ): Promise<{ accountId: string; recoveryKey: string }> =>
+    ipcRenderer.invoke("sync:enable", password),
+};
+
+contextBridge.exposeInMainWorld("sync", sync);
+
+export type Sync = typeof sync;
 
 export type { GenderResult };
 

@@ -71,8 +71,10 @@ export {
   enableSync,
   unlockWithPassword,
   unlockWithRecoveryKey,
+  getSyncStatus,
   type KeySession,
   type UnlockedMasterKey,
+  type SyncStatus,
 } from "./key-session.js";
 
 // The view-model contracts the `views` builders return, re-exported so every
