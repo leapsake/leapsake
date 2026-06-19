@@ -5,10 +5,12 @@ import {
   type UpdateMilestoneInput,
   createMilestoneInputSchema,
   milestoneSchema,
+  resolveMerge,
   updateMilestoneInputSchema,
 } from "@leapsake/schema";
 import type { ContentCipher } from "./content-cipher.js";
 import type { SqliteDriver } from "./driver.js";
+import type { SyncableRepo } from "./syncable.js";
 
 /** The entity type under which a milestone's content key is registered. */
 const MILESTONE_ENTITY = "milestone";
@@ -69,7 +71,7 @@ async function toMilestone(
   });
 }
 
-export interface MilestonesRepo {
+export interface MilestonesRepo extends SyncableRepo<Milestone> {
   create(input: CreateMilestoneInput): Promise<Milestone>;
   get(id: string): Promise<Milestone | undefined>;
   update(
@@ -130,7 +132,24 @@ export function createMilestonesRepo(
     return [note, null];
   }
 
+  /** Like {@link MilestonesRepo.get} but returns soft-deleted rows too (decrypting). */
+  async function getIncludingDeleted(
+    id: string,
+  ): Promise<Milestone | undefined> {
+    const row = await driver.get<MilestoneRow>(
+      "SELECT * FROM milestones WHERE id = ?",
+      [id],
+    );
+    return row ? toMilestone(row, cipher) : undefined;
+  }
+
   return {
+    table: "milestones",
+
+    decode(payload) {
+      return milestoneSchema.parse(payload);
+    },
+
     async create(input) {
       const parsed = createMilestoneInputSchema.parse(input);
       const now = Date.now();
@@ -244,6 +263,68 @@ export function createMilestonesRepo(
            SET deleted_at = ?, updated_at = ?
          WHERE subject_type = ? AND subject_id = ? AND deleted_at IS NULL`,
         [now, now, type, id],
+      );
+    },
+
+    async listChangedSince(since) {
+      const rows = await driver.all<MilestoneRow>(
+        "SELECT * FROM milestones WHERE updated_at > ? ORDER BY updated_at",
+        [since],
+      );
+      // Decrypt each note so the engine seals the plaintext row under the MK; the
+      // note never leaves this device unencrypted (it rides inside the MK seal).
+      return Promise.all(rows.map((row) => toMilestone(row, cipher)));
+    },
+
+    async upsertFromRemote(remote) {
+      const local = await getIncludingDeleted(remote.id);
+      if (local && resolveMerge(local, remote) === local) return;
+      // Re-seal the incoming note at rest under *this* device's own content key —
+      // content_key/key_wrap rows are device-local and never sync (model.md §3).
+      const [note, noteCiphertext] = await noteColumns(remote.id, remote.note);
+      if (local) {
+        await driver.run(
+          `UPDATE milestones
+             SET kind = ?, subject_type = ?, subject_id = ?,
+                 year = ?, month = ?, day = ?, note = ?, note_ciphertext = ?,
+                 created_at = ?, updated_at = ?, deleted_at = ?
+           WHERE id = ?`,
+          [
+            remote.kind,
+            remote.subjectType,
+            remote.subjectId,
+            remote.year,
+            remote.month,
+            remote.day,
+            note,
+            noteCiphertext,
+            remote.createdAt,
+            remote.updatedAt,
+            remote.deletedAt,
+            remote.id,
+          ],
+        );
+        return;
+      }
+      await driver.run(
+        `INSERT INTO milestones
+           (id, kind, subject_type, subject_id, year, month, day, note,
+            note_ciphertext, created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          remote.id,
+          remote.kind,
+          remote.subjectType,
+          remote.subjectId,
+          remote.year,
+          remote.month,
+          remote.day,
+          note,
+          noteCiphertext,
+          remote.createdAt,
+          remote.updatedAt,
+          remote.deletedAt,
+        ],
       );
     },
   };

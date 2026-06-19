@@ -8,6 +8,7 @@ import {
   updatePersonInputSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
+import type { SyncableRepo } from "./syncable.js";
 
 /** The `people` table row, exactly as stored (snake_case columns). */
 interface PersonRow {
@@ -35,26 +36,14 @@ function toPerson(row: PersonRow): Person {
   });
 }
 
-export interface PeopleRepo {
+export interface PeopleRepo extends SyncableRepo<Person> {
   create(input: CreatePersonInput): Promise<Person>;
   list(): Promise<Person[]>;
   get(id: string): Promise<Person | undefined>;
   update(id: string, input: UpdatePersonInput): Promise<Person | undefined>;
   softDelete(id: string): Promise<void>;
-  /**
-   * All rows with `updated_at > since`, **including tombstones** — the sync
-   * collector's source of locally-changed records (so deletes propagate).
-   */
-  listChangedSince(since: number): Promise<Person[]>;
   /** Like {@link get} but returns soft-deleted rows too; merge must see them. */
   getIncludingDeleted(id: string): Promise<Person | undefined>;
-  /**
-   * Apply a record pulled from a peer. Reconciles against the local row (if any)
-   * via whole-row LWW ({@link resolveMerge}) and writes the winner **verbatim** —
-   * preserving the incoming `createdAt`/`updatedAt`/`deletedAt`, never
-   * re-stamping, because LWW only converges if the clock is the writer's.
-   */
-  upsertFromRemote(remote: Person): Promise<void>;
 }
 
 /**
@@ -64,6 +53,12 @@ export interface PeopleRepo {
  */
 export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
   return {
+    table: "people",
+
+    decode(payload) {
+      return personSchema.parse(payload);
+    },
+
     async create(input) {
       const {
         firstName,

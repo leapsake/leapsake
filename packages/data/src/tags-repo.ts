@@ -1,10 +1,14 @@
 import {
   type Tag,
+  type Tagging,
   normalizeTagName,
   parseTagNames,
+  resolveMerge,
   tagSchema,
+  taggingSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
+import type { SyncableRepo } from "./syncable.js";
 
 /** The `tags` table row, exactly as stored (snake_case columns). */
 interface TagRow {
@@ -28,7 +32,38 @@ function toTag(row: TagRow): Tag {
   });
 }
 
-export interface TagsRepo {
+/** The `taggings` join-table row, exactly as stored (snake_case columns). */
+interface TaggingRow {
+  id: string;
+  tag_id: string;
+  entity_type: string;
+  entity_id: string;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+}
+
+/** Map a raw DB row to a validated `Tagging`. */
+function toTagging(row: TaggingRow): Tagging {
+  return taggingSchema.parse({
+    id: row.id,
+    tagId: row.tag_id,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    deletedAt: row.deleted_at,
+  });
+}
+
+export interface TagsRepo extends SyncableRepo<Tag> {
+  /**
+   * The `taggings` join table as its own synced unit (a tag is meaningless
+   * without the taggings that apply it, so both replicate). Same per-table
+   * pattern as every other repo, exposed alongside the tags one.
+   */
+  taggings: SyncableRepo<Tagging>;
+
   /** Tags currently applied to an entity, via its active taggings. */
   listForEntity(entityType: string, entityId: string): Promise<Tag[]>;
 
@@ -115,7 +150,117 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
     }
   }
 
+  /** The `taggings` join table as a standalone {@link SyncableRepo}. */
+  const taggings: SyncableRepo<Tagging> = {
+    table: "taggings",
+
+    decode(payload) {
+      return taggingSchema.parse(payload);
+    },
+
+    async listChangedSince(since) {
+      const rows = await driver.all<TaggingRow>(
+        "SELECT * FROM taggings WHERE updated_at > ? ORDER BY updated_at",
+        [since],
+      );
+      return rows.map(toTagging);
+    },
+
+    async upsertFromRemote(remote) {
+      const row = await driver.get<TaggingRow>(
+        "SELECT * FROM taggings WHERE id = ?",
+        [remote.id],
+      );
+      const local = row ? toTagging(row) : undefined;
+      if (local) {
+        if (resolveMerge(local, remote) === local) return;
+        await driver.run(
+          `UPDATE taggings
+             SET tag_id = ?, entity_type = ?, entity_id = ?,
+                 created_at = ?, updated_at = ?, deleted_at = ?
+           WHERE id = ?`,
+          [
+            remote.tagId,
+            remote.entityType,
+            remote.entityId,
+            remote.createdAt,
+            remote.updatedAt,
+            remote.deletedAt,
+            remote.id,
+          ],
+        );
+        return;
+      }
+      await driver.run(
+        `INSERT INTO taggings
+           (id, tag_id, entity_type, entity_id, created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          remote.id,
+          remote.tagId,
+          remote.entityType,
+          remote.entityId,
+          remote.createdAt,
+          remote.updatedAt,
+          remote.deletedAt,
+        ],
+      );
+    },
+  };
+
   return {
+    table: "tags",
+    taggings,
+
+    decode(payload) {
+      return tagSchema.parse(payload);
+    },
+
+    async listChangedSince(since) {
+      const rows = await driver.all<TagRow>(
+        "SELECT * FROM tags WHERE updated_at > ? ORDER BY updated_at",
+        [since],
+      );
+      return rows.map(toTag);
+    },
+
+    async upsertFromRemote(remote) {
+      const row = await driver.get<TagRow>("SELECT * FROM tags WHERE id = ?", [
+        remote.id,
+      ]);
+      const local = row ? toTag(row) : undefined;
+      if (local) {
+        if (resolveMerge(local, remote) === local) return;
+        await driver.run(
+          `UPDATE tags
+             SET name = ?, normalized = ?, created_at = ?, updated_at = ?, deleted_at = ?
+           WHERE id = ?`,
+          [
+            remote.name,
+            remote.normalized,
+            remote.createdAt,
+            remote.updatedAt,
+            remote.deletedAt,
+            remote.id,
+          ],
+        );
+        return;
+      }
+      await driver.run(
+        `INSERT INTO tags
+           (id, name, normalized, created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          remote.id,
+          remote.name,
+          remote.normalized,
+          remote.createdAt,
+          remote.updatedAt,
+          remote.deletedAt,
+        ],
+      );
+    },
+
     async listForEntity(entityType, entityId) {
       const rows = await driver.all<TagRow>(
         `SELECT t.* FROM tags t
@@ -168,12 +313,12 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
     },
 
     async removeAllForEntity(entityType, entityId) {
-      const taggings = await driver.all<{ id: string; tag_id: string }>(
+      const rows = await driver.all<{ id: string; tag_id: string }>(
         `SELECT id, tag_id FROM taggings
           WHERE entity_type = ? AND entity_id = ? AND deleted_at IS NULL`,
         [entityType, entityId],
       );
-      for (const { id, tag_id } of taggings) {
+      for (const { id, tag_id } of rows) {
         await driver.run(
           "UPDATE taggings SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
           [Date.now(), Date.now(), id],
