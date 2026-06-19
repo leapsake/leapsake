@@ -23,7 +23,11 @@ import {
   createRelationshipsRepo,
 } from "../src/relationships-repo.js";
 import { type SyncEngine, createSyncEngine } from "../src/sync-engine.js";
-import { createInMemoryTransport } from "../src/sync-transport.js";
+import { createSyncStateRepo } from "../src/sync-state-repo.js";
+import {
+  type SyncTransport,
+  createInMemoryTransport,
+} from "../src/sync-transport.js";
 import type { SyncableRepo } from "../src/syncable.js";
 import { type TagsRepo, createTagsRepo } from "../src/tags-repo.js";
 import { nodeSqliteDriver } from "./node-sqlite-driver.js";
@@ -161,6 +165,7 @@ describe("sync engine (all entities, in-memory transport)", () => {
     ]);
     expect(tables).not.toContain("content_key");
     expect(tables).not.toContain("key_wrap");
+    expect(tables).not.toContain("sync_state"); // device-local watermarks
   });
 
   // --- People: the original core, now over the registry-driven engine. ------
@@ -180,6 +185,63 @@ describe("sync engine (all entities, in-memory transport)", () => {
 
     const onB = await B.people.get(ada.id);
     expect(onB).toEqual(ada); // identical fields and timestamps
+  });
+
+  it("persists watermarks so a fresh engine resumes instead of re-pulling from zero", async () => {
+    // Record the `since` cursor each pull is invoked with, so we can observe
+    // *where* a fresh engine resumes — the property caller-held marks can't give.
+    const pulledSince: number[] = [];
+    const base = createInMemoryTransport();
+    const recording: SyncTransport = {
+      push: (records) => base.push(records),
+      pull: (since) => {
+        pulledSince.push(since);
+        return base.pull(since);
+      },
+    };
+    const engine = (
+      d: Device,
+      syncState: ReturnType<typeof createSyncStateRepo>,
+    ) =>
+      createSyncEngine({
+        transport: recording,
+        masterKey: MK,
+        repos: syncables(d),
+        syncState,
+      });
+
+    const stateA = createSyncStateRepo(A.driver);
+    const stateB = createSyncStateRepo(B.driver);
+
+    const ada = await A.people.create({
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+    await engine(A, stateA).sync(); // pushes Ada, persists A's push HWM
+    await engine(B, stateB).sync(); // pulls Ada, persists B's pull cursor
+    expect(await B.people.get(ada.id)).toEqual(ada);
+
+    const resumedCursor = await stateB.getPullCursor();
+    expect(resumedCursor).toBeGreaterThan(0);
+
+    // A *fresh* state repo + engine on the SAME driver — nothing kept in memory.
+    const freshState = createSyncStateRepo(B.driver);
+    expect(await freshState.getPullCursor()).toBe(resumedCursor); // durable
+    const freshEngineB = engine(B, freshState);
+
+    pulledSince.length = 0;
+    await freshEngineB.sync();
+    // It pulled from the persisted cursor, not from 0.
+    expect(pulledSince).toEqual([resumedCursor]);
+
+    // And a genuinely new row still flows to the resumed engine.
+    const grace = await A.people.create({
+      firstName: "Grace",
+      lastName: "Hopper",
+    });
+    await engine(A, stateA).sync();
+    await freshEngineB.sync();
+    expect(await B.people.get(grace.id)).toEqual(grace);
   });
 
   it("never exposes domain fields to the transport (only ciphertext + metadata)", async () => {
