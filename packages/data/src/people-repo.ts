@@ -4,6 +4,7 @@ import {
   type UpdatePersonInput,
   createPersonInputSchema,
   personSchema,
+  resolveMerge,
   updatePersonInputSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
@@ -40,6 +41,20 @@ export interface PeopleRepo {
   get(id: string): Promise<Person | undefined>;
   update(id: string, input: UpdatePersonInput): Promise<Person | undefined>;
   softDelete(id: string): Promise<void>;
+  /**
+   * All rows with `updated_at > since`, **including tombstones** — the sync
+   * collector's source of locally-changed records (so deletes propagate).
+   */
+  listChangedSince(since: number): Promise<Person[]>;
+  /** Like {@link get} but returns soft-deleted rows too; merge must see them. */
+  getIncludingDeleted(id: string): Promise<Person | undefined>;
+  /**
+   * Apply a record pulled from a peer. Reconciles against the local row (if any)
+   * via whole-row LWW ({@link resolveMerge}) and writes the winner **verbatim** —
+   * preserving the incoming `createdAt`/`updatedAt`/`deletedAt`, never
+   * re-stamping, because LWW only converges if the clock is the writer's.
+   */
+  upsertFromRemote(remote: Person): Promise<void>;
 }
 
 /**
@@ -132,6 +147,62 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
       await driver.run(
         "UPDATE people SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
         [Date.now(), Date.now(), id],
+      );
+    },
+
+    async listChangedSince(since) {
+      const rows = await driver.all<PersonRow>(
+        "SELECT * FROM people WHERE updated_at > ? ORDER BY updated_at",
+        [since],
+      );
+      return rows.map(toPerson);
+    },
+
+    async getIncludingDeleted(id) {
+      const row = await driver.get<PersonRow>(
+        "SELECT * FROM people WHERE id = ?",
+        [id],
+      );
+      return row ? toPerson(row) : undefined;
+    },
+
+    async upsertFromRemote(remote) {
+      const local = await this.getIncludingDeleted(remote.id);
+      if (local) {
+        // Local wins (or rows are identical) → nothing to write.
+        if (resolveMerge(local, remote) === local) return;
+        await driver.run(
+          `UPDATE people
+           SET first_name = ?, middle_name = ?, last_name = ?, gender = ?,
+               created_at = ?, updated_at = ?, deleted_at = ?
+           WHERE id = ?`,
+          [
+            remote.firstName,
+            remote.middleName,
+            remote.lastName,
+            remote.gender,
+            remote.createdAt,
+            remote.updatedAt,
+            remote.deletedAt,
+            remote.id,
+          ],
+        );
+        return;
+      }
+      await driver.run(
+        `INSERT INTO people
+           (id, first_name, middle_name, last_name, gender, created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          remote.id,
+          remote.firstName,
+          remote.middleName,
+          remote.lastName,
+          remote.gender,
+          remote.createdAt,
+          remote.updatedAt,
+          remote.deletedAt,
+        ],
       );
     },
   };
