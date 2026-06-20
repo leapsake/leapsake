@@ -16,6 +16,18 @@ export {
 } from "./content-key.js";
 export type { ContentKey, CreateContentKeyInput } from "./content-key.js";
 export {
+  accountSchema,
+  createAccountInputSchema,
+  deviceSchema,
+  registerDeviceInputSchema,
+} from "./account.js";
+export type {
+  Account,
+  CreateAccountInput,
+  Device,
+  RegisterDeviceInput,
+} from "./account.js";
+export {
   wrappedKindSchema,
   principalKindSchema,
   keyWrapSchema,

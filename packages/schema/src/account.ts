@@ -1,0 +1,73 @@
+import { z } from "zod";
+
+/**
+ * The `account` row (encryption-schema.md §2.1) — the identity established when
+ * the user enables sync (custody Phase 1). It holds only *public* or
+ * *derivable-but-blind* material: the Argon2id `kdfSalt` (public) and the
+ * `authVerifier` the server stores to authenticate login (§9.3 — it reveals
+ * nothing about the KEK). The account private key is **not** a column; it lives
+ * as a `key_wrap` row, keeping the envelope uniform.
+ *
+ * `publicKey` is nullable and stays NULL through the Stage-1 sync core — the
+ * account keypair serves sharing *to other people* and lands in Stage 3
+ * (status.md). `kdfAlg` records which derivation this account was created under,
+ * so the primitive can change later without locking out existing accounts (the
+ * same per-record-`alg` posture as `key_wrap`).
+ *
+ * Same sync-safe conventions as every table (reboot-plan.md §4.2): UUID PK,
+ * epoch-ms UTC timestamps, nullable `deletedAt` soft delete.
+ */
+export const accountSchema = z.object({
+  id: z.uuid(),
+  publicKey: z.instanceof(Uint8Array).nullable(), // account public key, published in Stage 3; NULL until then
+  kdfSalt: z.instanceof(Uint8Array), // Argon2id salt (public)
+  authVerifier: z.instanceof(Uint8Array), // §9.3 — authenticates login; blind to the KEK
+  kdfAlg: z.string().min(1), // derivation id, e.g. crypto's KDF_ALG
+  createdAt: z.number().int(), // epoch ms, UTC
+  updatedAt: z.number().int(), // epoch ms, UTC
+  deletedAt: z.number().int().nullable(),
+});
+
+export type Account = z.infer<typeof accountSchema>;
+
+/** Input accepted when creating the account; the repository fills id/timestamps. */
+export const createAccountInputSchema = z.object({
+  kdfSalt: z.instanceof(Uint8Array),
+  authVerifier: z.instanceof(Uint8Array),
+  kdfAlg: z.string().min(1),
+  publicKey: z.instanceof(Uint8Array).nullable().optional(),
+});
+
+export type CreateAccountInput = z.infer<typeof createAccountInputSchema>;
+
+/**
+ * The `device` row (encryption-schema.md §2.2) — one registration per device on
+ * an account (custody Phase 2). Each device's enclave wrapping of the master key
+ * is a `key_wrap` row keyed by this `id` (`principalKind = 'enclave'`); revoking
+ * a device is a soft-delete here plus a revoke of that wrap. `publicKey` (the
+ * device keypair for QR/device-linking, §13) is nullable and unused in the
+ * Stage-1 core.
+ */
+export const deviceSchema = z.object({
+  id: z.uuid(),
+  accountId: z.uuid(),
+  label: z.string().nullable(), // "Josh's iPhone"
+  platform: z.string().nullable(), // 'desktop' | 'mobile' | ...
+  publicKey: z.instanceof(Uint8Array).nullable(),
+  createdAt: z.number().int(), // epoch ms, UTC
+  updatedAt: z.number().int(), // epoch ms, UTC — doubles as last-seen
+  deletedAt: z.number().int().nullable(), // soft-delete = revoke the device
+});
+
+export type Device = z.infer<typeof deviceSchema>;
+
+/** Input accepted when registering a device; the repository fills id/timestamps. */
+export const registerDeviceInputSchema = z.object({
+  id: z.uuid(), // the stable device id minted in custody Phase 0
+  accountId: z.uuid(),
+  label: z.string().nullable().optional(),
+  platform: z.string().nullable().optional(),
+  publicKey: z.instanceof(Uint8Array).nullable().optional(),
+});
+
+export type RegisterDeviceInput = z.infer<typeof registerDeviceInputSchema>;

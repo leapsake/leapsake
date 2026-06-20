@@ -368,6 +368,50 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 14,
+    async up(driver) {
+      // Encryption Stage 1, the password unlock door (custody Phases 1–2,
+      // encryption-schema.md §2.1–§2.2). `account` is the identity established
+      // when the user enables sync: it stores only public/blind material — the
+      // Argon2id `kdf_salt` (public) and the `auth_verifier` the server uses to
+      // authenticate login (§9.3, which reveals nothing about the KEK). The
+      // account private key and every wrapped master key are NOT columns here —
+      // they are `key_wrap` rows, keeping the envelope uniform. `public_key`
+      // stays NULL until Stage 3 (the account keypair serves sharing to other
+      // people, not sync). `device` registers each device on the account; its
+      // enclave wrapping of MK is a `key_wrap` row keyed by `device.id`.
+      //
+      // Both tables carry the §4.2 sync-safe substrate, but — like
+      // content_key/key_wrap/sync_state — they are device/account-identity, not
+      // domain rows, and are NOT in the sync engine's opt-in allowlist (their
+      // replication is designed with the relay later). Value constraints live in
+      // Zod, not the DB, to stay portable across node:sqlite and expo-sqlite.
+      await driver.exec(`
+        CREATE TABLE account (
+          id            TEXT    PRIMARY KEY,
+          public_key    BLOB,
+          kdf_salt      BLOB    NOT NULL,
+          auth_verifier BLOB    NOT NULL,
+          kdf_alg       TEXT    NOT NULL,
+          created_at    INTEGER NOT NULL,
+          updated_at    INTEGER NOT NULL,
+          deleted_at    INTEGER
+        );
+
+        CREATE TABLE device (
+          id         TEXT    PRIMARY KEY,
+          account_id TEXT    NOT NULL REFERENCES account(id),
+          label      TEXT,
+          platform   TEXT,
+          public_key BLOB,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          deleted_at INTEGER
+        );
+      `);
+    },
+  },
 ];
 
 /**

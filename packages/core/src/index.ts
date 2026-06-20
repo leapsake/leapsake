@@ -62,8 +62,18 @@ import { createViews } from "./views.js";
 export { runMigrations, type SqliteDriver, type GenderResult };
 
 // The custody Phase 0 bootstrap: the first KeyStore consumer, run between
-// migrations and createCore to make the device's master key available.
-export { ensureDeviceMasterKey, type KeySession } from "./key-session.js";
+// migrations and createCore to make the device's master key available. Plus the
+// Phase-1/2 password unlock door: enable sync (add the password + recovery
+// wrappings of MK) and unlock the master key from the password / recovery key
+// alone, with no enclave involved.
+export {
+  ensureDeviceMasterKey,
+  enableSync,
+  unlockWithPassword,
+  unlockWithRecoveryKey,
+  type KeySession,
+  type UnlockedMasterKey,
+} from "./key-session.js";
 
 // The view-model contracts the `views` builders return, re-exported so every
 // client renders against the same shapes carried out via `CoreApi`.

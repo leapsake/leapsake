@@ -166,6 +166,8 @@ describe("sync engine (all entities, in-memory transport)", () => {
     expect(tables).not.toContain("content_key");
     expect(tables).not.toContain("key_wrap");
     expect(tables).not.toContain("sync_state"); // device-local watermarks
+    expect(tables).not.toContain("account"); // account identity (kdf salt + verifier)
+    expect(tables).not.toContain("device"); // device registration
   });
 
   // --- People: the original core, now over the registry-driven engine. ------
