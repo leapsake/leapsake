@@ -49,6 +49,7 @@ import { RelationshipEdit } from "./screens/RelationshipEdit";
 import { RelationshipRolesEdit } from "./screens/RelationshipRolesEdit";
 import { RelationshipRowDelete } from "./screens/RelationshipRowDelete";
 import { RelationshipView } from "./screens/RelationshipView";
+import { Settings } from "./screens/Settings";
 import { TagDelete } from "./screens/TagDelete";
 import { TagView } from "./screens/TagView";
 
@@ -704,6 +705,12 @@ export const router = createHashRouter([
         index: true,
         loader: entityListLoader,
         element: <EntityList />,
+      },
+      {
+        // Account & sync setup owns its own state (the one-time recovery-key
+        // reveal must not survive a loader re-run), so no loader/action here.
+        path: "settings",
+        element: <Settings />,
       },
       {
         path: "people/new",

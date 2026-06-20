@@ -102,6 +102,31 @@ export async function ensureDeviceMasterKey(opts: {
 }
 
 /**
+ * Whether this store has been promoted to a synced account (custody Phase 1),
+ * for a client to branch its onboarding UI: offer "enable sync" when not yet
+ * enabled, or show the account once it is. Carries only non-secret identity
+ * (the account id + when it was created) — never key material.
+ */
+export interface SyncStatus {
+  enabled: boolean;
+  accountId?: string;
+  createdAt?: number;
+}
+
+/**
+ * Read whether sync has been enabled on this store. A thin read over the account
+ * singleton ({@link enableSync} creates exactly one), so a client need not reach
+ * into `@leapsake/data` for the account repo.
+ */
+export async function getSyncStatus(opts: {
+  driver: SqliteDriver;
+}): Promise<SyncStatus> {
+  const account = await createAccountRepo(opts.driver).getSingleton();
+  if (account === undefined) return { enabled: false };
+  return { enabled: true, accountId: account.id, createdAt: account.createdAt };
+}
+
+/**
  * The master key unwrapped by a non-enclave door (password or recovery key). It
  * is intentionally *not* a {@link KeySession}: unlocking by password yields the
  * account's master key without any device involvement, so binding it to a

@@ -2,10 +2,14 @@ import { join } from "node:path";
 import {
   type CoreApi,
   type KeySession,
+  type SqliteDriver,
   createCore,
+  enableSync,
   ensureDeviceMasterKey,
+  getSyncStatus,
   runMigrations,
 } from "@leapsake/core";
+import { type KeyStore, bytesToBase64 } from "@leapsake/crypto";
 import {
   type ContactOwnerType,
   type EntityType,
@@ -291,6 +295,44 @@ function registerIpc(core: CoreApi): void {
   );
 }
 
+/** Shortest password we'll let enable an account (kept in step with the UI). */
+const MIN_PASSWORD_LENGTH = 8;
+
+/**
+ * The sync/account custody surface, separate from {@link registerIpc} because it
+ * is *not* part of {@link CoreApi}: enabling sync wraps the device master key
+ * under a password-derived KEK, so it needs the {@link KeyStore} + driver
+ * directly rather than the transactional core. Exposed to the renderer as
+ * `window.sync` (a distinct bridge from `window.api`).
+ *
+ * `sync:enable` is the renderer's trust boundary for the password, so it checks
+ * the length here before deriving anything, and returns the one-time recovery
+ * key **base64-encoded for display** — the raw key bytes never cross IPC.
+ */
+function registerSyncIpc(opts: {
+  driver: SqliteDriver;
+  keyStore: KeyStore;
+}): void {
+  const { driver, keyStore } = opts;
+
+  ipcMain.handle("sync:status", () => getSyncStatus({ driver }));
+
+  ipcMain.handle("sync:enable", async (_event, password: unknown) => {
+    if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+      throw new Error(
+        `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+      );
+    }
+    const { account, recoveryKey } = await enableSync({
+      keyStore,
+      driver,
+      password,
+      platform: "desktop",
+    });
+    return { accountId: account.id, recoveryKey: bytesToBase64(recoveryKey) };
+  });
+}
+
 function createWindow(): void {
   const window = new BrowserWindow({
     width: 900,
@@ -322,6 +364,7 @@ void app.whenReady().then(async () => {
   keySession = await ensureDeviceMasterKey({ keyStore, driver });
   const core = createCore(driver, keySession);
   registerIpc(core);
+  registerSyncIpc({ driver, keyStore });
 
   createWindow();
 
