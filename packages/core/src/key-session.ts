@@ -135,6 +135,45 @@ export async function getSyncStatus(opts: {
 }
 
 /**
+ * Disconnect this device's account: remove the account identity (account +
+ * device rows) and revoke the **password** and **recovery** wrappings of the
+ * master key, while **leaving the enclave wrapping — and all data — untouched.**
+ * After this, {@link getSyncStatus} reports `enabled: false`, so the user can
+ * {@link enableSync} again (e.g. to add the username + relay a pre-relay account
+ * never had) or {@link joinAccount} a different account.
+ *
+ * The master key is *not* regenerated: it survives in its enclave wrapping, so
+ * every per-item content key (wrapped under MK) still unwraps and encrypted
+ * fields stay readable. Only the portable doors are revoked — the old password
+ * and recovery key no longer unlock anything once a new {@link enableSync} mints
+ * fresh ones. A no-op (does not throw) if no account is set up.
+ *
+ * Local only: it never contacts a relay, so an account already registered
+ * elsewhere keeps existing on the relay and on other devices — this just detaches
+ * *this* device. Re-keying/forgetting on the relay is a future concern.
+ */
+export async function clearLocalAccount(opts: {
+  driver: SqliteDriver;
+}): Promise<void> {
+  const { driver } = opts;
+  const accountRepo = createAccountRepo(driver);
+  if ((await accountRepo.getSingleton()) === undefined) return;
+
+  await driver.transaction(async () => {
+    const keyWrapRepo = createKeyWrapRepo(driver);
+    for (const door of ["password", "recovery"] as const) {
+      const wrap = await keyWrapRepo.getActive({
+        wrappedKind: "master",
+        principalKind: door,
+      });
+      if (wrap !== undefined) await keyWrapRepo.revoke(wrap.id);
+    }
+    await createDeviceRepo(driver).clear();
+    await accountRepo.clear();
+  });
+}
+
+/**
  * The master key unwrapped by a non-enclave door (password or recovery key). It
  * is intentionally *not* a {@link KeySession}: unlocking by password yields the
  * account's master key without any device involvement, so binding it to a

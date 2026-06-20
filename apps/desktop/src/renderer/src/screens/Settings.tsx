@@ -2,11 +2,32 @@ import type { SyncStatus } from "@leapsake/core";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-/** Mirror of the main process's `MIN_PASSWORD_LENGTH` boundary check. */
-const MIN_PASSWORD_LENGTH = 8;
+/**
+ * Mirror of the main process's `MIN_PASSWORD_LENGTH` boundary check — keep the
+ * two in step. This password derives the encryption key for a zero-knowledge
+ * store with no server-side reset, so the floor is deliberately higher than a
+ * typical login (see security-review.md).
+ */
+const MIN_PASSWORD_LENGTH = 12;
 
 /** Prefilled relay origin for local development (apps/server defaults to :4000). */
 const DEFAULT_RELAY_URL = "http://localhost:4000";
+
+/**
+ * A humble, dependency-free password hint. It does not pretend to score entropy
+ * (no zxcvbn) — it enforces the length floor and steers toward a passphrase,
+ * which is the guidance that actually helps for a key-deriving secret.
+ */
+function passwordHint(password: string): string {
+  if (password === "") return "";
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `Too short — use at least ${MIN_PASSWORD_LENGTH} characters.`;
+  }
+  if (!password.includes(" ") && password.length < 16) {
+    return "A passphrase of 3–4 random words is stronger than a short complex password.";
+  }
+  return "Looks reasonable. Longer is stronger.";
+}
 
 /**
  * Account & sync setup (custody Phase 1/2). Deliberately a *stateful* screen, not
@@ -52,20 +73,22 @@ export function Settings() {
       {status === null ? (
         <p>Loading…</p>
       ) : status.enabled ? (
-        <AccountEnabled status={status} />
+        <AccountEnabled status={status} onCleared={refreshStatus} />
       ) : (
-        <>
-          <EnableSyncForm onEnabled={setRecoveryKey} />
-          <hr />
-          <JoinAccountForm onJoined={refreshStatus} />
-        </>
+        <SyncSetup onEnabled={setRecoveryKey} onJoined={refreshStatus} />
       )}
     </main>
   );
 }
 
 /** Shown once sync is enabled: the account exists; sync runs on demand. */
-function AccountEnabled({ status }: { status: SyncStatus }) {
+function AccountEnabled({
+  status,
+  onCleared,
+}: {
+  status: SyncStatus;
+  onCleared: () => void;
+}) {
   const [lastSynced, setLastSynced] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -106,66 +129,141 @@ function AccountEnabled({ status }: { status: SyncStatus }) {
         <p>Last synced {new Date(lastSynced).toLocaleTimeString()}.</p>
       )}
       {error !== null && <p role="alert">{error}</p>}
+      <hr />
+      <DisconnectAccount onCleared={onCleared} />
     </>
   );
 }
 
 /**
- * Collect a username, password, and relay URL, and enable sync. On success it
- * hands the one-time recovery key back to the parent (which switches to the
- * reveal view); it never renders the key itself.
+ * Disconnect the account from this device. Two-step (a confirm) because it
+ * revokes the password + recovery key for this account — though the local data
+ * stays readable (the master key survives in the device enclave) and sync can be
+ * set up again afterward.
  */
-function EnableSyncForm({
+function DisconnectAccount({ onCleared }: { onCleared: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  async function disconnect() {
+    setError(null);
+    setWorking(true);
+    try {
+      await window.sync.clear();
+      onCleared();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't disconnect.");
+      setWorking(false);
+    }
+  }
+
+  if (!confirming) {
+    return (
+      <p>
+        <button type="button" onClick={() => setConfirming(true)}>
+          Disconnect account from this device
+        </button>
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <p>
+        Remove this account from this device? Your data stays on this device and
+        you can set up sync again, but the current password and recovery key for
+        this account will no longer work.
+      </p>
+      <p>
+        <button type="button" onClick={disconnect} disabled={working}>
+          {working ? "Disconnecting…" : "Yes, disconnect"}
+        </button>{" "}
+        <button
+          type="button"
+          onClick={() => setConfirming(false)}
+          disabled={working}
+        >
+          Cancel
+        </button>
+      </p>
+      {error !== null && <p role="alert">{error}</p>}
+    </>
+  );
+}
+
+/**
+ * The combined sign-up / log-in flow (identity-first, like "continue with
+ * email"). Step 1 takes a relay + username and asks the relay whether that
+ * account exists (`window.sync.lookup`) — a miss routes to **create an account**,
+ * a hit routes to **log in**. The existence probe is the same unauthenticated
+ * prelogin a join already does, so it exposes nothing new; both branches then
+ * require an explicit confirmation before the dangerous action runs.
+ */
+function SyncSetup({
   onEnabled,
+  onJoined,
 }: {
   onEnabled: (recoveryKey: string) => void;
+  onJoined: () => void;
 }) {
   const [username, setUsername] = useState("");
   const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_URL);
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
+  const [resolved, setResolved] = useState<{ exists: boolean } | null>(null);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  async function onSubmit(event: React.FormEvent) {
+  async function onContinue(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
     if (username.trim() === "" || relayUrl.trim() === "") {
       setError("Username and relay URL are required.");
       return;
     }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
-      return;
-    }
-    if (password !== confirm) {
-      setError("Passwords don't match.");
-      return;
-    }
-    setSubmitting(true);
+    setChecking(true);
     try {
-      const { recoveryKey } = await window.sync.enable({
-        username,
-        password,
-        relayUrl,
-      });
-      onEnabled(recoveryKey);
+      setResolved(await window.sync.lookup({ username, relayUrl }));
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Couldn't enable sync.",
+        cause instanceof Error ? cause.message : "Couldn't reach the relay.",
       );
-      setSubmitting(false);
+    } finally {
+      setChecking(false);
     }
   }
 
+  // Step 2: branch on whether the account already exists.
+  if (resolved !== null) {
+    const back = () => {
+      setResolved(null);
+      setError(null);
+    };
+    return resolved.exists ? (
+      <LoginStep
+        username={username}
+        relayUrl={relayUrl}
+        onBack={back}
+        onJoined={onJoined}
+      />
+    ) : (
+      <SignupStep
+        username={username}
+        relayUrl={relayUrl}
+        onBack={back}
+        onEnabled={onEnabled}
+      />
+    );
+  }
+
+  // Step 1: identity.
   return (
     <>
-      <h3>Set up a new account</h3>
+      <h3>Set up or log in to sync</h3>
       <p>
-        Choose a username, password, and relay to protect your account and sync
-        across devices. You'll be shown a one-time recovery key.
+        Enter a username and relay. We'll check whether that account exists,
+        then help you create it or log in.
       </p>
-      <form onSubmit={onSubmit}>
+      <form onSubmit={onContinue}>
         <p>
           <label>
             Username
@@ -189,6 +287,111 @@ function EnableSyncForm({
             />
           </label>
         </p>
+        {error !== null && <p role="alert">{error}</p>}
+        <button type="submit" disabled={checking}>
+          {checking ? "Checking…" : "Continue"}
+        </button>
+      </form>
+    </>
+  );
+}
+
+/**
+ * Create-account branch: the username is free on the relay. Collect a password
+ * (with confirmation), then require an explicit confirm before creating the
+ * account — after which the parent reveals the one-time recovery key.
+ */
+function SignupStep({
+  username,
+  relayUrl,
+  onBack,
+  onEnabled,
+}: {
+  username: string;
+  relayUrl: string;
+  onBack: () => void;
+  onEnabled: (recoveryKey: string) => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
+    setConfirming(true);
+  }
+
+  async function create() {
+    setError(null);
+    setWorking(true);
+    try {
+      const { recoveryKey } = await window.sync.enable({
+        username,
+        password,
+        relayUrl,
+      });
+      onEnabled(recoveryKey);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Couldn't create the account.",
+      );
+      setWorking(false);
+      setConfirming(false);
+    }
+  }
+
+  if (confirming) {
+    return (
+      <>
+        <h3>Create this account?</h3>
+        <p>
+          This creates a new account <strong>{username}</strong> on {relayUrl}.
+          You'll be shown a one-time recovery key to save.
+        </p>
+        <p>
+          <button type="button" onClick={create} disabled={working}>
+            {working ? "Creating…" : "Create account"}
+          </button>{" "}
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            disabled={working}
+          >
+            Cancel
+          </button>
+        </p>
+        {error !== null && <p role="alert">{error}</p>}
+      </>
+    );
+  }
+
+  const hint = passwordHint(password);
+
+  return (
+    <>
+      <h3>Create account “{username}”</h3>
+      <p>
+        No account named <strong>{username}</strong> exists on {relayUrl}.
+        Choose a password to create one and sync across devices.
+      </p>
+      <p>
+        <strong>There is no password reset.</strong> Leapsake can't see your
+        password, so if you forget it and have no other signed-in device, only
+        your recovery key can recover your data. You'll be shown that key next —
+        save it.
+      </p>
+      <form onSubmit={onSubmit}>
         <p>
           <label>
             Password
@@ -200,6 +403,12 @@ function EnableSyncForm({
               onChange={(e) => setPassword(e.target.value)}
             />
           </label>
+          {hint !== "" && (
+            <>
+              <br />
+              <small>{hint}</small>
+            </>
+          )}
         </p>
         <p>
           <label>
@@ -214,8 +423,9 @@ function EnableSyncForm({
           </label>
         </p>
         {error !== null && <p role="alert">{error}</p>}
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Setting up…" : "Set up account"}
+        <button type="submit">Continue</button>{" "}
+        <button type="button" onClick={onBack}>
+          Back
         </button>
       </form>
     </>
@@ -223,66 +433,110 @@ function EnableSyncForm({
 }
 
 /**
- * Log in to an existing account from this (fresh) device. On success the parent
- * refreshes status, which flips the screen to the enabled view. This device's
- * prior local data is abandoned (overwrite is the accepted first-cut stance;
- * reconciliation is a documented future phase).
+ * Log-in branch: the account exists. Collect the password, then require an
+ * explicit confirm before joining. Because joining **replaces** this device's
+ * data with the account's (the overwrite stance, multi-device-login.md), the
+ * confirmation checks whether this device actually has local data and warns in
+ * the strongest terms only when there is something to lose.
  */
-function JoinAccountForm({ onJoined }: { onJoined: () => void }) {
-  const [username, setUsername] = useState("");
-  const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_URL);
+function LoginStep({
+  username,
+  relayUrl,
+  onBack,
+  onJoined,
+}: {
+  username: string;
+  relayUrl: string;
+  onBack: () => void;
+  onJoined: () => void;
+}) {
   const [password, setPassword] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [hasLocalData, setHasLocalData] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [working, setWorking] = useState(false);
 
-  async function onSubmit(event: React.FormEvent) {
+  function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
-    if (username.trim() === "" || relayUrl.trim() === "" || password === "") {
-      setError("Username, relay URL, and password are required.");
+    if (password === "") {
+      setError("Password is required.");
       return;
     }
-    setSubmitting(true);
+    // Find out whether logging in would discard anything on this device, so the
+    // confirmation can be honest. Treat a read failure as "might have data".
+    setHasLocalData(null);
+    void window.api.views
+      .entityList()
+      .then((rows) => setHasLocalData(rows.length > 0))
+      .catch(() => setHasLocalData(true));
+    setConfirming(true);
+  }
+
+  async function login() {
+    setError(null);
+    setWorking(true);
     try {
       await window.sync.join({ username, password, relayUrl });
       onJoined();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't log in.");
-      setSubmitting(false);
+      setWorking(false);
+      setConfirming(false);
     }
+  }
+
+  if (confirming) {
+    return (
+      <>
+        <h3>Log in as “{username}”?</h3>
+        {hasLocalData === null ? (
+          <p>Checking this device…</p>
+        ) : hasLocalData ? (
+          <p role="alert">
+            <strong>This device already has data.</strong> Logging in to{" "}
+            <strong>{username}</strong> will replace it with the account's data.
+            This can't be undone.
+          </p>
+        ) : (
+          <p>
+            Log in to <strong>{username}</strong> on {relayUrl} and sync this
+            device.
+          </p>
+        )}
+        <p>
+          <button
+            type="button"
+            onClick={login}
+            disabled={working || hasLocalData === null}
+          >
+            {working
+              ? "Logging in…"
+              : hasLocalData
+                ? "Log in and replace data"
+                : "Log in"}
+          </button>{" "}
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            disabled={working}
+          >
+            Cancel
+          </button>
+        </p>
+        {error !== null && <p role="alert">{error}</p>}
+      </>
+    );
   }
 
   return (
     <>
-      <h3>Log in to an existing account</h3>
+      <h3>Log in as “{username}”</h3>
       <p>
-        Already using Leapsake on another device? Log in to sync this device.
-        Anything currently on this device will be replaced.
+        Account <strong>{username}</strong> exists on {relayUrl}. Enter its
+        password to log in and sync this device.
       </p>
       <form onSubmit={onSubmit}>
-        <p>
-          <label>
-            Username
-            <br />
-            <input
-              type="text"
-              value={username}
-              autoComplete="username"
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </label>
-        </p>
-        <p>
-          <label>
-            Relay URL
-            <br />
-            <input
-              type="text"
-              value={relayUrl}
-              onChange={(e) => setRelayUrl(e.target.value)}
-            />
-          </label>
-        </p>
         <p>
           <label>
             Password
@@ -296,8 +550,9 @@ function JoinAccountForm({ onJoined }: { onJoined: () => void }) {
           </label>
         </p>
         {error !== null && <p role="alert">{error}</p>}
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Logging in…" : "Log in"}
+        <button type="submit">Continue</button>{" "}
+        <button type="button" onClick={onBack}>
+          Back
         </button>
       </form>
     </>

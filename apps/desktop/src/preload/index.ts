@@ -293,6 +293,10 @@ contextBridge.exposeInMainWorld("api", api);
  */
 const sync = {
   status: (): Promise<SyncStatus> => ipcRenderer.invoke("sync:status"),
+  lookup: (args: {
+    username: string;
+    relayUrl: string;
+  }): Promise<{ exists: boolean }> => ipcRenderer.invoke("sync:lookup", args),
   enable: (args: {
     username: string;
     password: string;
@@ -305,6 +309,7 @@ const sync = {
     relayUrl: string;
   }): Promise<void> => ipcRenderer.invoke("sync:join", args),
   syncNow: (): Promise<{ at: number }> => ipcRenderer.invoke("sync:now"),
+  clear: (): Promise<void> => ipcRenderer.invoke("sync:clear"),
 };
 
 contextBridge.exposeInMainWorld("sync", sync);

@@ -34,6 +34,11 @@ import type { RelayStore } from "./store.js";
  * compares it on `POST /accounts`; unset ⇒ the relay is public (the default).
  * This is the host-auth / paid-relay hook — additive, never a one-way door
  * (multi-device-login.md).
+ *
+ * The two **unauthenticated** routes (`POST /accounts`, `GET /accounts/lookup`)
+ * are per-IP **rate-limited** ({@link RateLimit}) — the pragmatic mitigation for
+ * the username-existence oracle that the username/password join scheme inherently
+ * exposes (security-review.md §3).
  */
 
 // --- Trust-boundary validation (AGENTS.md: Zod at every boundary). ----------
@@ -79,6 +84,46 @@ function registrationTokenOk(req: IncomingMessage): boolean {
   const a = Buffer.from(presented);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * A minimal fixed-window, per-IP rate limiter for the **unauthenticated**
+ * enumeration vectors (`GET /accounts/lookup` and `POST /accounts`). The launch
+ * join scheme is username + password (multi-device-login.md), so a username
+ * existence oracle is an *accepted, deliberate* property — it can't be removed
+ * without dropping usernames — but it **can be throttled**, which is the
+ * pragmatic enumeration mitigation (security-review.md §3). The authenticated
+ * routes (`bootstrap`/`push`/`pull`) are not enumeration oracles, so they are not
+ * throttled here.
+ *
+ * In-memory and per-process: right for a single-node relay. A multi-node or
+ * reverse-proxied deployment needs a shared counter and `X-Forwarded-For`
+ * awareness (the client IP is otherwise the proxy's) — named follow-ups in the
+ * security review.
+ */
+export interface RateLimit {
+  /** Max requests allowed per client IP within the window. */
+  max: number;
+  /** Window length in milliseconds. */
+  windowMs: number;
+}
+
+/** The default throttle when none is supplied — generous; tune per deployment. */
+const DEFAULT_RATE_LIMIT: RateLimit = { max: 60, windowMs: 60_000 };
+
+function createRateLimiter(limit: RateLimit): (ip: string) => boolean {
+  const hits = new Map<string, { count: number; resetAt: number }>();
+  return function allow(ip: string): boolean {
+    const now = Date.now();
+    const entry = hits.get(ip);
+    if (entry === undefined || now >= entry.resetAt) {
+      hits.set(ip, { count: 1, resetAt: now + limit.windowMs });
+      return true;
+    }
+    if (entry.count >= limit.max) return false;
+    entry.count += 1;
+    return true;
+  };
 }
 
 function readBody(req: IncomingMessage): Promise<string> {
@@ -132,8 +177,20 @@ function authenticate(req: IncomingMessage, store: RelayStore): string | null {
 
 // --- The server. ------------------------------------------------------------
 
-export function createRelayServer(opts: { store: RelayStore }): Server {
+export function createRelayServer(opts: {
+  store: RelayStore;
+  /** Per-IP throttle on the unauthenticated endpoints. Defaults generous. */
+  rateLimit?: RateLimit;
+}): Server {
   const { store } = opts;
+  const allow = createRateLimiter(opts.rateLimit ?? DEFAULT_RATE_LIMIT);
+
+  /** Throttle a request by client IP; answers 429 and returns true if over. */
+  function throttled(req: IncomingMessage, res: ServerResponse): boolean {
+    if (allow(req.socket.remoteAddress ?? "unknown")) return false;
+    sendJson(res, 429, { error: "rate limited" });
+    return true;
+  }
 
   return createServer((req, res) => {
     void handle(req, res).catch(() => {
@@ -149,6 +206,7 @@ export function createRelayServer(opts: { store: RelayStore }): Server {
     const { method } = req;
 
     if (method === "POST" && url.pathname === "/accounts") {
+      if (throttled(req, res)) return;
       // Access-control seam (content-blind) — checked before anything is stored.
       if (!registrationTokenOk(req)) {
         sendJson(res, 401, { error: "registration token required" });
@@ -179,6 +237,7 @@ export function createRelayServer(opts: { store: RelayStore }): Server {
     }
 
     if (method === "GET" && url.pathname === "/accounts/lookup") {
+      if (throttled(req, res)) return;
       // Unauthed prelogin: a joining device knows only the username, and needs
       // the account id + public salt to derive its KEK and authenticate.
       const username = (url.searchParams.get("username") ?? "")
