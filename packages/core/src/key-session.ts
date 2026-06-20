@@ -111,6 +111,8 @@ export interface SyncStatus {
   enabled: boolean;
   accountId?: string;
   createdAt?: number;
+  username?: string;
+  relayUrl?: string;
 }
 
 /**
@@ -123,7 +125,13 @@ export async function getSyncStatus(opts: {
 }): Promise<SyncStatus> {
   const account = await createAccountRepo(opts.driver).getSingleton();
   if (account === undefined) return { enabled: false };
-  return { enabled: true, accountId: account.id, createdAt: account.createdAt };
+  return {
+    enabled: true,
+    accountId: account.id,
+    createdAt: account.createdAt,
+    username: account.username ?? undefined,
+    relayUrl: account.relayUrl ?? undefined,
+  };
 }
 
 /**
@@ -140,6 +148,44 @@ export interface UnlockedMasterKey {
 }
 
 /**
+ * Everything the relay needs to let a *second* device join this account by
+ * username + password (multi-device-login.md). {@link enableSync} returns it so
+ * the caller can hand it to `HttpSyncTransport.register`. It is all
+ * public-or-blind: the `authVerifier` authenticates login without revealing the
+ * KEK (model.md §9.3), and `wrappedMasterKey` = `wrap(MK, password-KEK)` is
+ * ciphertext the relay stores but can never read (the "protected symmetric key").
+ */
+export interface AccountBootstrap {
+  accountId: string;
+  /** The chosen login handle, or `null` if the account is not yet relay-bound. */
+  username: string | null;
+  kdfSalt: Uint8Array;
+  authVerifier: Uint8Array;
+  wrappedMasterKey: Uint8Array;
+}
+
+/** Normalize a username to its canonical form (matches the relay's normalization). */
+function normalizeUsername(username: string): string {
+  return username.trim().toLowerCase();
+}
+
+/**
+ * The relay's account-bootstrap channel, as {@link joinAccount} needs it — the
+ * minimal slice of `HttpSyncTransport` that the join uses (a real transport
+ * satisfies it structurally). It is *not* part of the `SyncTransport` port: these
+ * are account-adoption concerns, not the per-record sync the engine drives.
+ */
+export interface AccountBootstrapChannel {
+  /** Prelogin: resolve a username → account id + public salt (unauthed). */
+  lookup(username: string): Promise<{ accountId: string; kdfSalt: Uint8Array }>;
+  /** Bearer-authed (with the derived creds): fetch `wrap(MK, KEK)` ciphertext. */
+  fetchBootstrap(creds: {
+    accountId: string;
+    authVerifier: Uint8Array;
+  }): Promise<Uint8Array>;
+}
+
+/**
  * Custody Phase 1 (encryption/custody-sequence.md): **enable sync** — promote a
  * single, enclave-only device to an account with a portable **password** unlock
  * door, plus a one-time **recovery key**. This is the first crypto that leaves
@@ -152,19 +198,36 @@ export interface UnlockedMasterKey {
  * HKDF branch of the password seed, so it authenticates login while revealing
  * nothing about the KEK (`model.md` §9.3).
  *
- * Returns the created {@link Account} and the recovery key to show the user
- * **once** (the caller/UI owns display + encoding; we never store it). Refuses
- * if sync is already enabled — the recovery key cannot be re-derived, so
- * re-enabling must be an explicit reset, not a silent overwrite.
+ * Takes an optional unique `username` (and the `relayUrl` this account will sync
+ * through) so a second device can later log in: both are persisted on the
+ * account row, and the returned {@link AccountBootstrap} carries what the relay
+ * must hold for that login (`HttpSyncTransport.register`). They are optional
+ * because a device can establish an account *locally* before any relay is
+ * chosen; a username is required only to actually register with a relay (the
+ * apps collect it when they wire sync — see multi-device-login.md Phases B/C).
+ *
+ * Returns the created {@link Account}, the recovery key to show the user
+ * **once** (the caller/UI owns display + encoding; we never store it), and the
+ * bootstrap (its `username` is `null` until one is chosen). Refuses if sync is
+ * already enabled — the recovery key cannot be re-derived, so re-enabling must
+ * be an explicit reset, not a silent overwrite.
  */
 export async function enableSync(opts: {
   keyStore: KeyStore;
   driver: SqliteDriver;
   password: string;
+  username?: string;
+  relayUrl?: string;
   label?: string;
   platform?: string;
-}): Promise<{ account: Account; recoveryKey: Uint8Array }> {
-  const { keyStore, driver, password, label, platform } = opts;
+}): Promise<{
+  account: Account;
+  recoveryKey: Uint8Array;
+  bootstrap: AccountBootstrap;
+}> {
+  const { keyStore, driver, password, relayUrl, label, platform } = opts;
+  const username =
+    opts.username !== undefined ? normalizeUsername(opts.username) : null;
   const accountRepo = createAccountRepo(driver);
 
   if ((await accountRepo.getSingleton()) !== undefined) {
@@ -180,11 +243,16 @@ export async function enableSync(opts: {
   const salt = generateSalt();
   const { kek, authVerifier } = deriveKeyMaterial(password, salt);
   const recoveryKey = generateRecoveryKey();
+  // The protected symmetric key: wrap(MK, password-KEK). Persisted locally as the
+  // `password` door *and* handed to the relay so a second device can recover MK.
+  const wrappedMasterKey = wrapKey(masterKey, kek);
 
   const account = await accountRepo.create({
     kdfSalt: salt,
     authVerifier,
     kdfAlg: KDF_ALG,
+    username,
+    relayUrl: relayUrl ?? null,
   });
   await createDeviceRepo(driver).register({
     id: deviceId,
@@ -197,7 +265,7 @@ export async function enableSync(opts: {
   await keyWrapRepo.add({
     wrappedKind: "master",
     principalKind: "password",
-    ciphertext: wrapKey(masterKey, kek),
+    ciphertext: wrappedMasterKey,
     alg: ALG,
   });
   await keyWrapRepo.add({
@@ -207,7 +275,17 @@ export async function enableSync(opts: {
     alg: ALG,
   });
 
-  return { account, recoveryKey };
+  return {
+    account,
+    recoveryKey,
+    bootstrap: {
+      accountId: account.id,
+      username,
+      kdfSalt: salt,
+      authVerifier,
+      wrappedMasterKey,
+    },
+  };
 }
 
 /**
@@ -264,6 +342,109 @@ export async function unlockWithRecoveryKey(opts: {
     accountId: account.id,
     masterKey: await unwrapMasterKeyUnder(driver, "recovery", recoveryKey),
   };
+}
+
+/**
+ * Custody Phase 2 / multi-device login (encryption/multi-device-login.md): join
+ * an **existing** account on a fresh device, so it converges over the relay. This
+ * is the one capability that completes Stage-1 sync — `account`/`key_wrap` are
+ * device-local and never replicate, so a second device needs this separate
+ * account-bootstrap channel to obtain the master key.
+ *
+ * Given the relay's bootstrap channel (an {@link HttpSyncTransport} built with no
+ * credentials — the joining device has none yet), it: looks the account up by
+ * username (prelogin → account id + public salt); derives the KEK + verifier from
+ * the password; authenticates with the verifier and fetches `wrap(MK, KEK)`;
+ * unwraps MK locally; persists the local `account` row **under the looked-up id**
+ * (the relay namespace, shared across devices); and **adopts MK under this
+ * device's enclave** (replacing the throwaway first-launch wrap) so MK survives a
+ * restart without a re-login. A wrong password fails at the relay's verifier
+ * check (401), before any unwrap.
+ *
+ * Returns the unlocked {@link KeySession} for the caller to rebuild `core` with.
+ * Refuses if this device is already part of an account — joining is for a fresh
+ * device; reconciling pre-existing local data is a documented future phase
+ * (overwrite is the accepted first-cut stance).
+ */
+export async function joinAccount(opts: {
+  keyStore: KeyStore;
+  driver: SqliteDriver;
+  transport: AccountBootstrapChannel;
+  relayUrl: string;
+  username: string;
+  password: string;
+  label?: string;
+  platform?: string;
+}): Promise<KeySession> {
+  const { keyStore, driver, transport, relayUrl, password, label, platform } =
+    opts;
+  const username = normalizeUsername(opts.username);
+  const accountRepo = createAccountRepo(driver);
+
+  if ((await accountRepo.getSingleton()) !== undefined) {
+    throw new Error("This device is already part of an account.");
+  }
+
+  // 1. Prelogin → account id + public salt (unauthed). Copy the salt into a
+  //    fresh array so it is ArrayBuffer-backed for the account-row write.
+  const lookup = await transport.lookup(username);
+  const { accountId } = lookup;
+  const kdfSalt = Uint8Array.from(lookup.kdfSalt);
+
+  // 2. Derive the KEK + verifier from the password and the public salt.
+  const { kek, authVerifier } = deriveKeyMaterial(password, kdfSalt);
+
+  // 3. Authenticate with the verifier and fetch wrap(MK, KEK), then unwrap MK
+  //    locally. A wrong password → wrong verifier → 401 here, before any unwrap.
+  const wrappedMasterKey = await transport.fetchBootstrap({
+    accountId,
+    authVerifier,
+  });
+  const masterKey = unwrapKey(wrappedMasterKey, kek);
+
+  // 4. Persist the local account row under the looked-up id, so this device
+  //    pushes/pulls into the same relay namespace as device 1.
+  await accountRepo.create({
+    id: accountId,
+    kdfSalt,
+    authVerifier,
+    kdfAlg: KDF_ALG,
+    username,
+    relayUrl,
+  });
+
+  // 5. Adopt MK under this device's enclave (custody Phase 2): revoke the
+  //    throwaway first-launch wrap and re-wrap the *account* MK, so later
+  //    launches recover the account MK from the enclave alone (no re-login).
+  const { deviceId } = await ensureDeviceMasterKey({ keyStore, driver });
+  const enclaveKey = await keyStore.getSecret(ENCLAVE_KEY);
+  if (enclaveKey === undefined) {
+    throw new Error("Device enclave secret is missing.");
+  }
+  const keyWrapRepo = createKeyWrapRepo(driver);
+  const throwaway = await keyWrapRepo.getActive({
+    wrappedKind: "master",
+    principalKind: "enclave",
+    principalRef: deviceId,
+  });
+  if (throwaway !== undefined) await keyWrapRepo.revoke(throwaway.id);
+  await keyWrapRepo.add({
+    wrappedKind: "master",
+    principalKind: "enclave",
+    principalRef: deviceId,
+    ciphertext: wrapKey(masterKey, enclaveKey),
+    alg: ALG,
+  });
+
+  // 6. Register this device on the account.
+  await createDeviceRepo(driver).register({
+    id: deviceId,
+    accountId,
+    label: label ?? null,
+    platform: platform ?? null,
+  });
+
+  return { deviceId, masterKey };
 }
 
 /** Fetch the active `wrap(MK, <door>)` row and unwrap it under `key`. */

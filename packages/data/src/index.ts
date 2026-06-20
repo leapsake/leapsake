@@ -53,6 +53,7 @@ export {
 } from "./sync-transport.js";
 export { type SyncEngine, createSyncEngine } from "./sync-engine.js";
 export {
+  type AccountRegistration,
   type HttpSyncTransport,
   type WireRecord,
   createHttpSyncTransport,

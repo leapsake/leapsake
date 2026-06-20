@@ -17,6 +17,8 @@ interface AccountRow {
   kdf_salt: Uint8Array;
   auth_verifier: Uint8Array;
   kdf_alg: string;
+  username: string | null;
+  relay_url: string | null;
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
@@ -37,6 +39,8 @@ function toAccount(row: AccountRow): Account {
     kdfSalt: Uint8Array.from(row.kdf_salt),
     authVerifier: Uint8Array.from(row.auth_verifier),
     kdfAlg: row.kdf_alg,
+    username: row.username,
+    relayUrl: row.relay_url,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
@@ -60,33 +64,40 @@ export function createAccountRepo(driver: SqliteDriver): AccountRepo {
   return {
     async create(input) {
       const {
+        id = crypto.randomUUID(),
         kdfSalt,
         authVerifier,
         kdfAlg,
+        username = null,
+        relayUrl = null,
         publicKey = null,
       } = createAccountInputSchema.parse(input);
       const now = Date.now();
       const account: Account = {
-        id: crypto.randomUUID(),
+        id,
         publicKey,
         kdfSalt,
         authVerifier,
         kdfAlg,
+        username,
+        relayUrl,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
       };
       await driver.run(
         `INSERT INTO account
-           (id, public_key, kdf_salt, auth_verifier, kdf_alg,
+           (id, public_key, kdf_salt, auth_verifier, kdf_alg, username, relay_url,
             created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           account.id,
           account.publicKey,
           account.kdfSalt,
           account.authVerifier,
           account.kdfAlg,
+          account.username,
+          account.relayUrl,
           account.createdAt,
           account.updatedAt,
           account.deletedAt,

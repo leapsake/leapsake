@@ -1,12 +1,18 @@
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { DatabaseSync } from "node:sqlite";
-import { generateKey, generateSalt } from "@leapsake/crypto";
+import {
+  createInMemoryKeyStore,
+  generateKey,
+  generateSalt,
+} from "@leapsake/crypto";
+import { enableSync, ensureDeviceMasterKey, joinAccount } from "@leapsake/core";
 import {
   type MilestonesRepo,
   type PeopleRepo,
   type SqliteDriver,
   type SyncableRepo,
+  createAccountRepo,
   createContentCipher,
   createHttpSyncTransport,
   createMilestonesRepo,
@@ -36,6 +42,10 @@ const ACCOUNT_ID = crypto.randomUUID();
 const AUTH_VERIFIER = generateKey();
 const KDF_SALT = generateSalt();
 const MK = new Uint8Array(32).fill(7);
+const USERNAME = "ada";
+// Opaque wrap(MK, KEK) ciphertext from the relay's point of view; the pre-join
+// sync cases never unwrap it, so any bytes do.
+const WRAPPED_MK = new Uint8Array(48).fill(9);
 
 interface Device {
   db: DatabaseSync;
@@ -75,6 +85,25 @@ function close(server: Server): Promise<void> {
   );
 }
 
+/** A fresh, migrated device with its own keystore — MK not yet established. */
+function blankDevice() {
+  const db = new DatabaseSync(":memory:");
+  return {
+    db,
+    driver: nodeSqliteDriver(db),
+    keyStore: createInMemoryKeyStore(),
+  };
+}
+
+/** The domain repos for a device once its master key is known. */
+function reposFor(driver: SqliteDriver, masterKey: Uint8Array) {
+  const cipher = createContentCipher({ driver, masterKey });
+  return {
+    people: createPeopleRepo(driver),
+    milestones: createMilestonesRepo(driver, cipher),
+  };
+}
+
 describe("blind HTTPS relay (server + adapter)", () => {
   let server: Server;
   let relayDb: DatabaseSync;
@@ -103,7 +132,11 @@ describe("blind HTTPS relay (server + adapter)", () => {
     relayDb = new DatabaseSync(":memory:");
     server = createRelayServer({ store: createRelayStore(relayDb) });
     baseUrl = `http://127.0.0.1:${await listen(server)}`;
-    await transportFor().register(KDF_SALT);
+    await transportFor().register({
+      username: USERNAME,
+      kdfSalt: KDF_SALT,
+      wrappedMasterKey: WRAPPED_MK,
+    });
     A = await makeDevice();
     B = await makeDevice();
   });
@@ -199,6 +232,44 @@ describe("blind HTTPS relay (server + adapter)", () => {
     await expect(forged.push([])).rejects.toThrow(/401/);
   });
 
+  it("rejects a duplicate username with 409", async () => {
+    // A *different* account claiming the already-registered username conflicts.
+    const res = await fetch(`${baseUrl}/accounts`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        accountId: crypto.randomUUID(),
+        username: USERNAME,
+        authVerifier: Buffer.from(generateKey()).toString("base64"),
+        kdfSalt: Buffer.from(generateSalt()).toString("base64"),
+        wrappedMasterKey: Buffer.from(WRAPPED_MK).toString("base64"),
+      }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it("resolves a username to its account id + salt (prelogin), 404 otherwise", async () => {
+    const found = await transportFor().lookup(USERNAME);
+    expect(found.accountId).toBe(ACCOUNT_ID);
+    expect(found.kdfSalt).toEqual(KDF_SALT);
+
+    const missing = await fetch(`${baseUrl}/accounts/lookup?username=nobody`);
+    expect(missing.status).toBe(404);
+  });
+
+  it("serves the wrapped master key only to an authenticated device", async () => {
+    // Authenticated → the opaque wrap(MK, KEK) the relay can't read.
+    const wrapped = await transportFor().fetchBootstrap({
+      accountId: ACCOUNT_ID,
+      authVerifier: AUTH_VERIFIER,
+    });
+    expect(wrapped).toEqual(WRAPPED_MK);
+
+    // Unauthenticated bootstrap → 401.
+    const anon = await fetch(`${baseUrl}/accounts/bootstrap`);
+    expect(anon.status).toBe(401);
+  });
+
   it("persists the pull cursor so a fresh engine resumes, not from zero", async () => {
     const ada = await A.people.create({
       firstName: "Ada",
@@ -223,5 +294,159 @@ describe("blind HTTPS relay (server + adapter)", () => {
     expect(await createSyncStateRepo(B.driver).getPullCursor()).toBeGreaterThan(
       cursor,
     );
+  });
+});
+
+/**
+ * The Stage-1 completion: multi-device account login over the real relay
+ * (plans/encryption/multi-device-login.md). Unlike the block above — where both
+ * devices were handed a shared master key — here device 2 starts knowing *only*
+ * the relay URL, username, and password, and obtains the master key through the
+ * relay's blind account-bootstrap channel, then converges.
+ */
+describe("multi-device login over the relay (enable → join → converge)", () => {
+  const PASSWORD = "correct horse battery staple";
+  let server: Server;
+  let relayDb: DatabaseSync;
+  let baseUrl: string;
+
+  beforeEach(async () => {
+    relayDb = new DatabaseSync(":memory:");
+    server = createRelayServer({ store: createRelayStore(relayDb) });
+    baseUrl = `http://127.0.0.1:${await listen(server)}`;
+  });
+
+  afterEach(async () => {
+    relayDb.close();
+    await close(server);
+  });
+
+  async function enableAndRegister(device: ReturnType<typeof blankDevice>) {
+    await runMigrations(device.driver);
+    const mk = await ensureDeviceMasterKey({
+      keyStore: device.keyStore,
+      driver: device.driver,
+    });
+    const { bootstrap } = await enableSync({
+      keyStore: device.keyStore,
+      driver: device.driver,
+      username: "Ada", // mixed case → normalized to "ada"
+      password: PASSWORD,
+      relayUrl: baseUrl,
+      platform: "desktop",
+    });
+    await createHttpSyncTransport({
+      baseUrl,
+      accountId: bootstrap.accountId,
+      authVerifier: bootstrap.authVerifier,
+    }).register({
+      username: bootstrap.username ?? "",
+      kdfSalt: bootstrap.kdfSalt,
+      wrappedMasterKey: bootstrap.wrappedMasterKey,
+    });
+    return { masterKey: mk.masterKey };
+  }
+
+  it("a fresh device logs in by username+password and reads the first device's encrypted data", async () => {
+    // --- Device 1: enable, register, create a person + sealed note, push. ---
+    const d1 = blankDevice();
+    const { masterKey: mk1 } = await enableAndRegister(d1);
+    const d1Repos = reposFor(d1.driver, mk1);
+    const ada = await d1Repos.people.create({
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+    const milestone = await d1Repos.milestones.create({
+      kind: "birthday",
+      subjectType: "person",
+      subjectId: ada.id,
+      month: 6,
+      day: 18,
+      note: "secret picnic",
+    });
+    const d1Account = await createAccountRepo(d1.driver).getSingleton();
+    await createSyncEngine({
+      transport: createHttpSyncTransport({
+        baseUrl,
+        accountId: d1Account!.id,
+        authVerifier: d1Account!.authVerifier,
+      }),
+      masterKey: mk1,
+      repos: [d1Repos.people, d1Repos.milestones],
+      syncState: createSyncStateRepo(d1.driver),
+    }).sync();
+
+    // --- Device 2: fresh, knows only relay URL + username + password. ---
+    const d2 = blankDevice();
+    await runMigrations(d2.driver);
+    await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+    const session = await joinAccount({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      transport: createHttpSyncTransport({ baseUrl }), // credential-less bootstrap
+      relayUrl: baseUrl,
+      username: "ada",
+      password: PASSWORD,
+      platform: "mobile",
+    });
+    // It recovered the *account* master key over the blind relay.
+    expect(session.masterKey).toEqual(mk1);
+
+    // --- Device 2 syncs and reads device 1's data, decrypted. ---
+    const d2Account = await createAccountRepo(d2.driver).getSingleton();
+    const d2Repos = reposFor(d2.driver, session.masterKey);
+    await createSyncEngine({
+      transport: createHttpSyncTransport({
+        baseUrl,
+        accountId: d2Account!.id,
+        authVerifier: d2Account!.authVerifier,
+      }),
+      masterKey: session.masterKey,
+      repos: [d2Repos.people, d2Repos.milestones],
+      syncState: createSyncStateRepo(d2.driver),
+    }).sync();
+
+    expect(await d2Repos.people.get(ada.id)).toEqual(ada);
+    expect((await d2Repos.milestones.get(milestone.id))?.note).toBe(
+      "secret picnic",
+    );
+
+    // The account-identity / key tables never replicate: the relay log carries
+    // only domain tables, never account/device/key_wrap/content_key.
+    const names = (
+      relayDb.prepare("SELECT DISTINCT table_name FROM relay_record").all() as {
+        table_name: string;
+      }[]
+    ).map((t) => t.table_name);
+    expect(names).not.toContain("account");
+    expect(names).not.toContain("key_wrap");
+    expect(names).not.toContain("content_key");
+
+    d1.db.close();
+    d2.db.close();
+  });
+
+  it("rejects a join with the wrong password (relay 401, before any unwrap)", async () => {
+    const d1 = blankDevice();
+    await enableAndRegister(d1);
+
+    const d2 = blankDevice();
+    await runMigrations(d2.driver);
+    await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+    await expect(
+      joinAccount({
+        keyStore: d2.keyStore,
+        driver: d2.driver,
+        transport: createHttpSyncTransport({ baseUrl }),
+        relayUrl: baseUrl,
+        username: "ada",
+        password: "wrong password",
+      }),
+    ).rejects.toThrow(/401/);
+    // No account row was written on the failed join.
+    expect(await createAccountRepo(d2.driver).getSingleton()).toBeUndefined();
+
+    d1.db.close();
+    d2.db.close();
   });
 });

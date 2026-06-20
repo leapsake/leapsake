@@ -5,7 +5,7 @@ import {
   type Server,
   type ServerResponse,
 } from "node:http";
-import { base64ToBytes } from "@leapsake/crypto";
+import { base64ToBytes, bytesToBase64 } from "@leapsake/crypto";
 import { decodeRecord, encodeRecord } from "@leapsake/data";
 import { z } from "zod";
 import type { RelayStore } from "./store.js";
@@ -16,14 +16,24 @@ import type { RelayStore } from "./store.js";
  * opaque cursor. It can read, merge, and order *nothing* about content; it only
  * orders *delivery*. Three routes:
  *
- * - `POST /accounts`  — register `{ accountId, authVerifier, kdfSalt }` (b64).
- * - `POST /sync/push` — auth required; append `{ records }` to the account log.
- * - `GET  /sync/pull` — auth required; `?since=<cursor>` → `{ records, cursor }`.
+ * - `POST /accounts`           — register `{ accountId, username, authVerifier,
+ *                                kdfSalt, wrappedMasterKey }` (b64); dup username → 409.
+ * - `GET  /accounts/lookup`    — unauthed prelogin; `?username=` → `{ accountId, kdfSalt }`.
+ * - `GET  /accounts/bootstrap` — auth required; → `{ wrappedMasterKey }` for a joining device.
+ * - `POST /sync/push`          — auth required; append `{ records }` to the account log.
+ * - `GET  /sync/pull`          — auth required; `?since=<cursor>` → `{ records, cursor }`.
  *
  * Auth is `Authorization: Bearer <accountId>.<base64(authVerifier)>`. The relay
  * stores only `sha256(verifier)` and constant-time-compares (model.md §9.3); a
  * device may only ever touch its own namespace, taken from the authenticated
  * identity — never from the request body.
+ *
+ * Account creation reserves an env-gated **registration-token** seam: access
+ * control (who may store bytes) is orthogonal to zero-knowledge (who may read
+ * them). If `RELAY_REGISTRATION_TOKEN` is set the relay requires + constant-time-
+ * compares it on `POST /accounts`; unset ⇒ the relay is public (the default).
+ * This is the host-auth / paid-relay hook — additive, never a one-way door
+ * (multi-device-login.md).
  */
 
 // --- Trust-boundary validation (AGENTS.md: Zod at every boundary). ----------
@@ -32,8 +42,10 @@ const base64 = z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/, "expected base64");
 
 const registerBodySchema = z.object({
   accountId: z.uuid(),
+  username: z.string().min(1),
   authVerifier: base64,
   kdfSalt: base64,
+  wrappedMasterKey: base64,
 });
 
 const wireRecordSchema = z.object({
@@ -51,6 +63,22 @@ const pushBodySchema = z.object({ records: z.array(wireRecordSchema) });
 
 function sha256(input: Uint8Array): Uint8Array {
   return Uint8Array.from(createHash("sha256").update(input).digest());
+}
+
+/**
+ * The registration-token gate on `POST /accounts`. If `RELAY_REGISTRATION_TOKEN`
+ * is unset the relay is public (returns true). If set, the request must carry the
+ * matching token in `X-Registration-Token`, compared in constant time. This is
+ * the host-auth / paid-relay seam — content-blind, orthogonal to zero-knowledge.
+ */
+function registrationTokenOk(req: IncomingMessage): boolean {
+  const expected = process.env.RELAY_REGISTRATION_TOKEN;
+  if (expected === undefined || expected === "") return true;
+  const presented = req.headers["x-registration-token"];
+  if (typeof presented !== "string") return false;
+  const a = Buffer.from(presented);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function readBody(req: IncomingMessage): Promise<string> {
@@ -121,6 +149,11 @@ export function createRelayServer(opts: { store: RelayStore }): Server {
     const { method } = req;
 
     if (method === "POST" && url.pathname === "/accounts") {
+      // Access-control seam (content-blind) — checked before anything is stored.
+      if (!registrationTokenOk(req)) {
+        sendJson(res, 401, { error: "registration token required" });
+        return;
+      }
       const parsed = registerBodySchema.safeParse(
         JSON.parse((await readBody(req)) || "{}"),
       );
@@ -128,13 +161,58 @@ export function createRelayServer(opts: { store: RelayStore }): Server {
         sendJson(res, 400, { error: "invalid request" });
         return;
       }
-      const { accountId, authVerifier, kdfSalt } = parsed.data;
-      store.registerAccount(
+      const { accountId, username, authVerifier, kdfSalt, wrappedMasterKey } =
+        parsed.data;
+      const result = store.registerAccount(
         accountId,
+        username.trim().toLowerCase(),
         sha256(base64ToBytes(authVerifier)),
         base64ToBytes(kdfSalt),
+        base64ToBytes(wrappedMasterKey),
       );
+      if (result === "username-taken") {
+        sendJson(res, 409, { error: "username taken" });
+        return;
+      }
       sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/accounts/lookup") {
+      // Unauthed prelogin: a joining device knows only the username, and needs
+      // the account id + public salt to derive its KEK and authenticate.
+      const username = (url.searchParams.get("username") ?? "")
+        .trim()
+        .toLowerCase();
+      const account =
+        username === "" ? undefined : store.getAccountByUsername(username);
+      if (account === undefined) {
+        sendJson(res, 404, { error: "not found" });
+        return;
+      }
+      sendJson(res, 200, {
+        accountId: account.accountId,
+        kdfSalt: bytesToBase64(account.kdfSalt),
+      });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/accounts/bootstrap") {
+      const accountId = authenticate(req, store);
+      if (accountId === null) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return;
+      }
+      // Authenticated: hand back this account's opaque wrap(MK, KEK) so the
+      // joining device can unwrap the master key locally. The relay never reads it.
+      const account = store.getAccount(accountId);
+      if (account === undefined) {
+        sendJson(res, 404, { error: "not found" });
+        return;
+      }
+      sendJson(res, 200, {
+        wrappedMasterKey: bytesToBase64(account.wrappedMasterKey),
+      });
       return;
     }
 
