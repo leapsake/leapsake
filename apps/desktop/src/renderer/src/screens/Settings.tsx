@@ -5,24 +5,28 @@ import { Link } from "react-router-dom";
 /** Mirror of the main process's `MIN_PASSWORD_LENGTH` boundary check. */
 const MIN_PASSWORD_LENGTH = 8;
 
+/** Prefilled relay origin for local development (apps/server defaults to :4000). */
+const DEFAULT_RELAY_URL = "http://localhost:4000";
+
 /**
- * Account & sync setup (custody Phase 1). Deliberately a *stateful* screen, not
+ * Account & sync setup (custody Phase 1/2). Deliberately a *stateful* screen, not
  * a router loader/action: the recovery key is shown exactly once and must not
  * survive a navigation or a loader re-run, so it lives in local state and is
  * dropped the moment the user confirms they've saved it.
  *
- * There is no sync relay yet, so this only establishes the account — a portable
- * password unlock door plus the one-time recovery key. Actual device-to-device
- * sync arrives in a later slice; the copy says so rather than implying data
- * moves now.
+ * Device-to-device sync is real now (multi-device-login.md Phase B): a first
+ * device sets a password + username and registers with a relay; a second device
+ * logs in to the same account; "Sync now" pushes/pulls the encrypted records.
  */
 export function Settings() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
 
-  useEffect(() => {
+  function refreshStatus() {
     void window.sync.status().then(setStatus);
-  }, []);
+  }
+
+  useEffect(refreshStatus, []);
 
   // One-time reveal takes over the screen until acknowledged.
   if (recoveryKey !== null) {
@@ -31,7 +35,7 @@ export function Settings() {
         recoveryKey={recoveryKey}
         onDone={() => {
           setRecoveryKey(null);
-          void window.sync.status().then(setStatus);
+          refreshStatus();
         }}
       />
     );
@@ -50,36 +54,74 @@ export function Settings() {
       ) : status.enabled ? (
         <AccountEnabled status={status} />
       ) : (
-        <EnableSyncForm onEnabled={setRecoveryKey} />
+        <>
+          <EnableSyncForm onEnabled={setRecoveryKey} />
+          <hr />
+          <JoinAccountForm onJoined={refreshStatus} />
+        </>
       )}
     </main>
   );
 }
 
-/** Shown once sync is enabled: the account exists; no re-enable is possible. */
+/** Shown once sync is enabled: the account exists; sync runs on demand. */
 function AccountEnabled({ status }: { status: SyncStatus }) {
+  const [lastSynced, setLastSynced] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  async function syncNow() {
+    setError(null);
+    setSyncing(true);
+    try {
+      const { at } = await window.sync.syncNow();
+      setLastSynced(at);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't sync.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <>
-      <p>Your account is set up.</p>
       <p>
-        This device is protected by your password and recovery key. Account
-        created {new Date(status.createdAt ?? 0).toLocaleString()}.
+        Your account is set up and protected by your password and recovery key.
       </p>
-      <p>Device-to-device sync will arrive in a future update.</p>
+      <p>
+        {status.username !== undefined && (
+          <>
+            Username <strong>{status.username}</strong>.{" "}
+          </>
+        )}
+        {status.relayUrl !== undefined && <>Relay {status.relayUrl}. </>}
+        Account created {new Date(status.createdAt ?? 0).toLocaleString()}.
+      </p>
+      <p>
+        <button type="button" onClick={syncNow} disabled={syncing}>
+          {syncing ? "Syncing…" : "Sync now"}
+        </button>
+      </p>
+      {lastSynced !== null && (
+        <p>Last synced {new Date(lastSynced).toLocaleTimeString()}.</p>
+      )}
+      {error !== null && <p role="alert">{error}</p>}
     </>
   );
 }
 
 /**
- * Collect a password and enable sync. On success it hands the one-time recovery
- * key back to the parent (which switches to the reveal view); it never renders
- * the key itself.
+ * Collect a username, password, and relay URL, and enable sync. On success it
+ * hands the one-time recovery key back to the parent (which switches to the
+ * reveal view); it never renders the key itself.
  */
 function EnableSyncForm({
   onEnabled,
 }: {
   onEnabled: (recoveryKey: string) => void;
 }) {
+  const [username, setUsername] = useState("");
+  const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_URL);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +130,10 @@ function EnableSyncForm({
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    if (username.trim() === "" || relayUrl.trim() === "") {
+      setError("Username and relay URL are required.");
+      return;
+    }
     if (password.length < MIN_PASSWORD_LENGTH) {
       setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
@@ -98,7 +144,11 @@ function EnableSyncForm({
     }
     setSubmitting(true);
     try {
-      const { recoveryKey } = await window.sync.enable(password);
+      const { recoveryKey } = await window.sync.enable({
+        username,
+        password,
+        relayUrl,
+      });
       onEnabled(recoveryKey);
     } catch (cause) {
       setError(
@@ -110,11 +160,35 @@ function EnableSyncForm({
 
   return (
     <>
+      <h3>Set up a new account</h3>
       <p>
-        Set a password to protect your account and prepare this device for sync.
-        You'll be shown a one-time recovery key.
+        Choose a username, password, and relay to protect your account and sync
+        across devices. You'll be shown a one-time recovery key.
       </p>
       <form onSubmit={onSubmit}>
+        <p>
+          <label>
+            Username
+            <br />
+            <input
+              type="text"
+              value={username}
+              autoComplete="username"
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </label>
+        </p>
+        <p>
+          <label>
+            Relay URL
+            <br />
+            <input
+              type="text"
+              value={relayUrl}
+              onChange={(e) => setRelayUrl(e.target.value)}
+            />
+          </label>
+        </p>
         <p>
           <label>
             Password
@@ -142,6 +216,88 @@ function EnableSyncForm({
         {error !== null && <p role="alert">{error}</p>}
         <button type="submit" disabled={submitting}>
           {submitting ? "Setting up…" : "Set up account"}
+        </button>
+      </form>
+    </>
+  );
+}
+
+/**
+ * Log in to an existing account from this (fresh) device. On success the parent
+ * refreshes status, which flips the screen to the enabled view. This device's
+ * prior local data is abandoned (overwrite is the accepted first-cut stance;
+ * reconciliation is a documented future phase).
+ */
+function JoinAccountForm({ onJoined }: { onJoined: () => void }) {
+  const [username, setUsername] = useState("");
+  const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_URL);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    if (username.trim() === "" || relayUrl.trim() === "" || password === "") {
+      setError("Username, relay URL, and password are required.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await window.sync.join({ username, password, relayUrl });
+      onJoined();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't log in.");
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <h3>Log in to an existing account</h3>
+      <p>
+        Already using Leapsake on another device? Log in to sync this device.
+        Anything currently on this device will be replaced.
+      </p>
+      <form onSubmit={onSubmit}>
+        <p>
+          <label>
+            Username
+            <br />
+            <input
+              type="text"
+              value={username}
+              autoComplete="username"
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </label>
+        </p>
+        <p>
+          <label>
+            Relay URL
+            <br />
+            <input
+              type="text"
+              value={relayUrl}
+              onChange={(e) => setRelayUrl(e.target.value)}
+            />
+          </label>
+        </p>
+        <p>
+          <label>
+            Password
+            <br />
+            <input
+              type="password"
+              value={password}
+              autoComplete="current-password"
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+        </p>
+        {error !== null && <p role="alert">{error}</p>}
+        <button type="submit" disabled={submitting}>
+          {submitting ? "Logging in…" : "Log in"}
         </button>
       </form>
     </>
