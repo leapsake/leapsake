@@ -85,6 +85,40 @@ export function createAccountSyncEngine(opts: {
 }
 
 /**
+ * Prelogin existence probe for the combined sign-up / log-in flow: does this
+ * username already have an account on the relay? Drives the identity-first UI —
+ * a miss offers "create an account", a hit routes to log in. Uses the same
+ * unauthenticated `lookup` a joining device runs (it must fetch the public salt
+ * before it can derive anything, model.md §9.3), so this exposes nothing the
+ * relay didn't already answer; enumeration defense stays a relay concern
+ * (rate-limiting / the registration-token seam, security-review.md).
+ *
+ * Returns `true` on a hit, `false` on the relay's 404 miss. A connection failure
+ * (relay unreachable) or any other status propagates, so the caller can tell
+ * "no such account" apart from "couldn't reach the relay".
+ */
+export async function lookupAccount(opts: {
+  relayUrl: string;
+  username: string;
+  fetch?: typeof fetch;
+}): Promise<boolean> {
+  const transport = createHttpSyncTransport({
+    baseUrl: opts.relayUrl,
+    fetch: opts.fetch,
+  });
+  try {
+    await transport.lookup(opts.username);
+    return true;
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    // The relay answers an unknown username with 404; anything else (a
+    // connection failure, an unexpected status) is a real error to surface.
+    if (message.includes("404")) return false;
+    throw cause;
+  }
+}
+
+/**
  * Register a freshly-enabled account with its relay so a second device can later
  * log in: upload the public salt, unique username, and the *ciphertext*
  * `wrap(MK, KEK)` (the relay reads none of it, multi-device-login.md). Builds the

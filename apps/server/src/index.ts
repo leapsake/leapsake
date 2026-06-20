@@ -4,17 +4,27 @@ import { createRelayStore } from "./store.js";
 
 /**
  * Runnable entry for the blind relay (plans/encryption/sync.md §2). Defaults are
- * dev-friendly; override with `PORT` and `RELAY_DB` (a file path, or `:memory:`).
+ * dev-friendly; override with `PORT` and `RELAY_DB` (a file path, or `:memory:`),
+ * and tune the unauthenticated-endpoint throttle with `RELAY_RATE_LIMIT_MAX` /
+ * `RELAY_RATE_LIMIT_WINDOW_MS` (the enumeration mitigation, security-review.md §3).
  *
- * This slice ships the relay and its client adapter; the apps that *drive* it (a
- * sync trigger, wiring `register()` into enable-sync) are the next slice. There
- * is no TLS termination, rate limiting, or replay defense here yet — see
- * plans/encryption/security-review.md for the deferred hardening.
+ * Still deferred (see plans/encryption/security-review.md): TLS termination,
+ * replay defense, device-scoped tokens, and proxy-aware client-IP handling.
  */
 const port = Number(process.env.PORT ?? 4000);
 const dbPath = process.env.RELAY_DB ?? "relay.db";
 
+const rateLimitMax = process.env.RELAY_RATE_LIMIT_MAX;
+const rateLimitWindowMs = process.env.RELAY_RATE_LIMIT_WINDOW_MS;
+const rateLimit =
+  rateLimitMax !== undefined
+    ? {
+        max: Number(rateLimitMax),
+        windowMs: Number(rateLimitWindowMs ?? 60_000),
+      }
+    : undefined;
+
 const store = createRelayStore(new DatabaseSync(dbPath));
-createRelayServer({ store }).listen(port, () => {
+createRelayServer({ store, rateLimit }).listen(port, () => {
   console.log(`Leapsake relay listening on http://localhost:${port}`);
 });

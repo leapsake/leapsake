@@ -450,3 +450,39 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     d2.db.close();
   });
 });
+
+/**
+ * The enumeration mitigation: the unauthenticated endpoints are per-IP
+ * rate-limited (security-review.md §3). The username/password scheme can't remove
+ * the existence oracle, but it throttles it.
+ */
+describe("relay rate limiting (unauthenticated endpoints)", () => {
+  let server: Server;
+  let db: DatabaseSync;
+  let baseUrl: string;
+
+  beforeEach(async () => {
+    db = new DatabaseSync(":memory:");
+    // A deliberately tiny window so the third probe trips the limit.
+    server = createRelayServer({
+      store: createRelayStore(db),
+      rateLimit: { max: 2, windowMs: 60_000 },
+    });
+    baseUrl = `http://127.0.0.1:${await listen(server)}`;
+  });
+
+  afterEach(async () => {
+    await close(server);
+    db.close();
+  });
+
+  it("answers 429 once a client exceeds the lookup throttle", async () => {
+    const probe = () =>
+      fetch(`${baseUrl}/accounts/lookup?username=nobody`).then((r) => r.status);
+    // First two unknown-username probes pass the throttle (and 404 on the miss).
+    expect(await probe()).toBe(404);
+    expect(await probe()).toBe(404);
+    // The third within the window is throttled before the lookup runs.
+    expect(await probe()).toBe(429);
+  });
+});

@@ -52,6 +52,13 @@ export interface AccountRepo {
   create(input: CreateAccountInput): Promise<Account>;
   /** The single active account for this local store, or undefined before sync. */
   getSingleton(): Promise<Account | undefined>;
+  /**
+   * Remove the account identity from this device entirely — a hard delete, not a
+   * soft delete, so re-enabling sync starts clean (the account row is
+   * device-local identity and never syncs). The master key is unaffected; it
+   * survives in its enclave wrapping. See `clearLocalAccount` in core.
+   */
+  clear(): Promise<void>;
 }
 
 /**
@@ -112,6 +119,10 @@ export function createAccountRepo(driver: SqliteDriver): AccountRepo {
       );
       return row ? toAccount(row) : undefined;
     },
+
+    async clear() {
+      await driver.run("DELETE FROM account");
+    },
   };
 }
 
@@ -149,6 +160,12 @@ export interface DeviceRepo {
   register(input: RegisterDeviceInput): Promise<Device>;
   get(id: string): Promise<Device | undefined>;
   list(): Promise<Device[]>;
+  /**
+   * Remove every device registration on this store — a hard delete, since
+   * `device.id` is the stable Phase-0 PK and a soft-deleted row would collide
+   * when {@link DeviceRepo.register} re-registers the same device after a reset.
+   */
+  clear(): Promise<void>;
 }
 
 /**
@@ -214,6 +231,10 @@ export function createDeviceRepo(driver: SqliteDriver): DeviceRepo {
         "SELECT * FROM device WHERE deleted_at IS NULL ORDER BY created_at",
       );
       return rows.map(toDevice);
+    },
+
+    async clear() {
+      await driver.run("DELETE FROM device");
     },
   };
 }

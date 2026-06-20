@@ -3,11 +3,13 @@ import {
   type CoreApi,
   type KeySession,
   type SqliteDriver,
+  clearLocalAccount,
   createCore,
   enableSync,
   ensureDeviceMasterKey,
   getSyncStatus,
   joinAccountViaRelay,
+  lookupAccount,
   registerAccountWithRelay,
   runAccountSync,
   runMigrations,
@@ -312,8 +314,15 @@ function registerIpc(getCore: () => CoreApi): void {
   );
 }
 
-/** Shortest password we'll let enable an account (kept in step with the UI). */
-const MIN_PASSWORD_LENGTH = 8;
+/**
+ * Shortest password we'll let enable an account (kept in step with the UI's
+ * `MIN_PASSWORD_LENGTH`). This password derives the KEK that protects the master
+ * key in a *zero-knowledge* store, so its strength is the encryption strength —
+ * and there is no server-side reset to fall back on. We enforce a 12-character
+ * floor (length over complexity, per NIST) and the UI nudges toward a passphrase;
+ * the recovery key is the real backstop (see security-review.md).
+ */
+const MIN_PASSWORD_LENGTH = 12;
 
 /** Reject a missing/blank string field from the renderer trust boundary. */
 function requireText(value: unknown, field: string): string {
@@ -321,6 +330,29 @@ function requireText(value: unknown, field: string): string {
     throw new Error(`${field} is required.`);
   }
   return value.trim();
+}
+
+/**
+ * Turn a relay request failure into a message the user can act on. `fetch`
+ * rejects with `TypeError: fetch failed` when the relay is unreachable (e.g. the
+ * server isn't running); the transport throws `relay … failed: <status>` for an
+ * HTTP error, so a 409 means the username is taken.
+ */
+function relayErrorMessage(cause: unknown, relayUrl: string): string {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  if (message.includes("fetch failed")) {
+    return `Couldn't reach the relay at ${relayUrl}. Make sure the sync server is running, then try again.`;
+  }
+  if (message.includes("409")) {
+    return "That username is already taken on this relay. Pick another.";
+  }
+  if (message.includes("401")) {
+    return "Incorrect username or password for this account.";
+  }
+  if (message.includes("404")) {
+    return "No account found for that username on this relay.";
+  }
+  return `Relay request failed: ${message}`;
 }
 
 /**
@@ -341,6 +373,22 @@ function registerSyncIpc(opts: {
   const { driver, keyStore } = opts;
 
   ipcMain.handle("sync:status", () => getSyncStatus({ driver }));
+
+  // Prelogin existence probe for the combined sign-up / log-in flow: does this
+  // username already have an account on the relay? A connection failure surfaces
+  // as the friendly "couldn't reach the relay" message.
+  ipcMain.handle(
+    "sync:lookup",
+    async (_event, args: { username?: unknown; relayUrl?: unknown }) => {
+      const username = requireText(args?.username, "Username");
+      const relayUrl = requireText(args?.relayUrl, "Relay URL");
+      try {
+        return { exists: await lookupAccount({ relayUrl, username }) };
+      } catch (cause) {
+        throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+      }
+    },
+  );
 
   // Enable sync on this (first) device: establish the account + password door,
   // then register the bootstrap ciphertext with the relay so a second device can
@@ -370,7 +418,15 @@ function registerSyncIpc(opts: {
         relayUrl,
         platform: "desktop",
       });
-      await registerAccountWithRelay({ relayUrl, bootstrap });
+      // Registering with the relay is the second half of enabling; if it fails
+      // (server down, username taken) roll the local account back so the user
+      // can retry cleanly instead of being stuck half-enabled.
+      try {
+        await registerAccountWithRelay({ relayUrl, bootstrap });
+      } catch (cause) {
+        await clearLocalAccount({ driver });
+        throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+      }
       return { accountId: account.id, recoveryKey: bytesToBase64(recoveryKey) };
     },
   );
@@ -387,14 +443,18 @@ function registerSyncIpc(opts: {
       const username = requireText(args?.username, "Username");
       const relayUrl = requireText(args?.relayUrl, "Relay URL");
       const password = requireText(args?.password, "Password");
-      keySession = await joinAccountViaRelay({
-        keyStore,
-        driver,
-        relayUrl,
-        username,
-        password,
-        platform: "desktop",
-      });
+      try {
+        keySession = await joinAccountViaRelay({
+          keyStore,
+          driver,
+          relayUrl,
+          username,
+          password,
+          platform: "desktop",
+        });
+      } catch (cause) {
+        throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+      }
       activeCore = createCore(driver, keySession);
     },
   );
@@ -407,6 +467,12 @@ function registerSyncIpc(opts: {
     }
     return runAccountSync({ driver, masterKey: keySession.masterKey });
   });
+
+  // Disconnect the account from this device: drop the account identity + the
+  // password/recovery doors, keeping the enclave-held master key and all data so
+  // the user can enable sync afresh. The held keySession (the enclave MK) is
+  // unchanged, so the core needs no rebuild.
+  ipcMain.handle("sync:clear", () => clearLocalAccount({ driver }));
 }
 
 function createWindow(): void {

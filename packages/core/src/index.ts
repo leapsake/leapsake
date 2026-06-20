@@ -73,6 +73,7 @@ export {
   unlockWithPassword,
   unlockWithRecoveryKey,
   getSyncStatus,
+  clearLocalAccount,
   type KeySession,
   type UnlockedMasterKey,
   type SyncStatus,
@@ -86,6 +87,7 @@ export {
 export {
   syncableRepos,
   createAccountSyncEngine,
+  lookupAccount,
   registerAccountWithRelay,
   joinAccountViaRelay,
   runAccountSync,
