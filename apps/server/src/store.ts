@@ -6,8 +6,12 @@ import type { EncryptedRecord } from "@leapsake/data";
  * sync.md §2). It holds two things and nothing more:
  *
  * - `relay_account` — per account: a *hash* of the auth verifier (never the
- *   verifier itself) plus the public KDF salt. The hash is all the relay needs
- *   to authenticate; a leak of it does not expose the KEK (model.md §9.3).
+ *   verifier itself), the public KDF salt, a unique `username`, and the
+ *   *ciphertext* `wrap(MK, password-KEK)` (the "protected symmetric key").
+ *   The hash is all the relay needs to authenticate; a leak of it does not
+ *   expose the KEK (model.md §9.3), and the wrapped master key is opaque
+ *   ciphertext — the relay stores it for a second device to fetch and unwrap,
+ *   but can never read it (multi-device-login.md).
  * - `relay_record` — the append log of opaque {@link EncryptedRecord}s. The
  *   autoincrement `seq` *is* the delivery cursor — the relay's own ordering,
  *   never a content clock (the P2P invariant, sync.md §3 #2).
@@ -20,16 +24,32 @@ import type { EncryptedRecord } from "@leapsake/data";
 export interface RelayAccount {
   authVerifierHash: Uint8Array;
   kdfSalt: Uint8Array;
+  /** Ciphertext `wrap(MK, KEK)` — opaque to the relay (multi-device-login.md). */
+  wrappedMasterKey: Uint8Array;
 }
 
+/** Outcome of {@link RelayStore.registerAccount}, mapped to an HTTP status. */
+export type RegisterResult = "created" | "exists" | "username-taken";
+
 export interface RelayStore {
-  /** Idempotent: registering an existing account is a no-op (keeps the first). */
+  /**
+   * Register an account. Idempotent on `accountId` (re-registering the same id is
+   * a no-op that keeps the first → `"exists"`). A `username` already held by a
+   * *different* account is rejected (`"username-taken"` → 409). Otherwise inserts
+   * and returns `"created"`.
+   */
   registerAccount(
     accountId: string,
+    username: string,
     authVerifierHash: Uint8Array,
     kdfSalt: Uint8Array,
-  ): void;
+    wrappedMasterKey: Uint8Array,
+  ): RegisterResult;
   getAccount(accountId: string): RelayAccount | undefined;
+  /** Prelogin: resolve a username to its account id + public salt, or undefined. */
+  getAccountByUsername(
+    username: string,
+  ): { accountId: string; kdfSalt: Uint8Array } | undefined;
   /** Append records to one account's blind log, each taking the next `seq`. */
   append(accountId: string, records: EncryptedRecord[]): void;
   /** Records for this account with `seq > since`, plus the advanced cursor. */
@@ -58,8 +78,10 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
   db.exec(`
     CREATE TABLE IF NOT EXISTS relay_account (
       account_id         TEXT PRIMARY KEY,
+      username           TEXT NOT NULL UNIQUE,
       auth_verifier_hash BLOB NOT NULL,
       kdf_salt           BLOB NOT NULL,
+      wrapped_master_key BLOB NOT NULL,
       created_at         INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS relay_record (
@@ -76,35 +98,72 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
       ON relay_record (account_id, seq);
   `);
 
+  const getAccount = (accountId: string): RelayAccount | undefined => {
+    const row = db
+      .prepare(
+        "SELECT auth_verifier_hash, kdf_salt, wrapped_master_key FROM relay_account WHERE account_id = ?",
+      )
+      .get(accountId) as
+      | {
+          auth_verifier_hash: Uint8Array;
+          kdf_salt: Uint8Array;
+          wrapped_master_key: Uint8Array;
+        }
+      | undefined;
+    if (row === undefined) return undefined;
+    return {
+      authVerifierHash: bytes(row.auth_verifier_hash),
+      kdfSalt: bytes(row.kdf_salt),
+      wrappedMasterKey: bytes(row.wrapped_master_key),
+    };
+  };
+
+  const getAccountByUsername = (
+    username: string,
+  ): { accountId: string; kdfSalt: Uint8Array } | undefined => {
+    const row = db
+      .prepare(
+        "SELECT account_id, kdf_salt FROM relay_account WHERE username = ?",
+      )
+      .get(username) as
+      | { account_id: string; kdf_salt: Uint8Array }
+      | undefined;
+    if (row === undefined) return undefined;
+    return { accountId: row.account_id, kdfSalt: bytes(row.kdf_salt) };
+  };
+
   return {
-    registerAccount(accountId, authVerifierHash, kdfSalt) {
+    registerAccount(
+      accountId,
+      username,
+      authVerifierHash,
+      kdfSalt,
+      wrappedMasterKey,
+    ) {
+      // Idempotent on the account id — re-registering the same device's account
+      // keeps the first registration untouched.
+      if (getAccount(accountId) !== undefined) return "exists";
+      // A username is one account's forever; a different account claiming it is
+      // a conflict, not an overwrite (the UNIQUE index is the backstop).
+      if (getAccountByUsername(username) !== undefined) return "username-taken";
+
       db.prepare(
         `INSERT INTO relay_account
-           (account_id, auth_verifier_hash, kdf_salt, created_at)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(account_id) DO NOTHING`,
+           (account_id, username, auth_verifier_hash, kdf_salt, wrapped_master_key, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       ).run(
         accountId,
+        username,
         authVerifierHash as SQLInputValue,
         kdfSalt as SQLInputValue,
+        wrappedMasterKey as SQLInputValue,
         Date.now(),
       );
+      return "created";
     },
 
-    getAccount(accountId) {
-      const row = db
-        .prepare(
-          "SELECT auth_verifier_hash, kdf_salt FROM relay_account WHERE account_id = ?",
-        )
-        .get(accountId) as
-        | { auth_verifier_hash: Uint8Array; kdf_salt: Uint8Array }
-        | undefined;
-      if (row === undefined) return undefined;
-      return {
-        authVerifierHash: bytes(row.auth_verifier_hash),
-        kdfSalt: bytes(row.kdf_salt),
-      };
-    },
+    getAccount,
+    getAccountByUsername,
 
     append(accountId, records) {
       const insert = db.prepare(

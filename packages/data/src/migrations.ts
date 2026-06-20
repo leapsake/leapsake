@@ -412,6 +412,26 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 15,
+    async up(driver) {
+      // Multi-device login coordinates (custody Phases 1–2,
+      // plans/encryption/multi-device-login.md). `username` is the unique handle
+      // a second device looks the account up by (prelogin → salt → fetch the
+      // relay-stored wrap(MK, KEK)); `relay_url` is the relay this account syncs
+      // through. Both are NULL for a local-only store and populated at
+      // enable-sync (device 1) or after login (a joining device). They stay
+      // device/account-identity — like the rest of `account`, NOT in the sync
+      // allowlist. The partial unique index pins username uniqueness only when
+      // present, so the many local-only NULLs never collide.
+      await driver.exec(`
+        ALTER TABLE account ADD COLUMN username TEXT;
+        ALTER TABLE account ADD COLUMN relay_url TEXT;
+        CREATE UNIQUE INDEX account_username
+          ON account (username) WHERE username IS NOT NULL;
+      `);
+    },
+  },
 ];
 
 /**

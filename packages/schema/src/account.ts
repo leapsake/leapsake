@@ -14,6 +14,12 @@ import { z } from "zod";
  * so the primitive can change later without locking out existing accounts (the
  * same per-record-`alg` posture as `key_wrap`).
  *
+ * `username`/`relayUrl` are the multi-device login coordinates (custody Phase
+ * 1/2, multi-device-login.md): the unique handle a second device looks the
+ * account up by, and the relay it lives on. Both are NULL for a local-only
+ * store (sync never enabled) — they are populated at enable-sync, and on a
+ * joining device after login.
+ *
  * Same sync-safe conventions as every table (reboot-plan.md §4.2): UUID PK,
  * epoch-ms UTC timestamps, nullable `deletedAt` soft delete.
  */
@@ -23,6 +29,8 @@ export const accountSchema = z.object({
   kdfSalt: z.instanceof(Uint8Array), // Argon2id salt (public)
   authVerifier: z.instanceof(Uint8Array), // §9.3 — authenticates login; blind to the KEK
   kdfAlg: z.string().min(1), // derivation id, e.g. crypto's KDF_ALG
+  username: z.string().nullable(), // unique login handle; NULL until sync is enabled
+  relayUrl: z.string().nullable(), // the relay this account syncs through; NULL until sync is enabled
   createdAt: z.number().int(), // epoch ms, UTC
   updatedAt: z.number().int(), // epoch ms, UTC
   deletedAt: z.number().int().nullable(),
@@ -30,11 +38,20 @@ export const accountSchema = z.object({
 
 export type Account = z.infer<typeof accountSchema>;
 
-/** Input accepted when creating the account; the repository fills id/timestamps. */
+/**
+ * Input accepted when creating the account; the repository fills timestamps and,
+ * by default, the id. `id` is accepted explicitly so a **joining** device can
+ * persist the account id it looked up by username — that id is the relay's
+ * per-account namespace and must match across devices (multi-device-login.md).
+ * `username`/`relayUrl` default to NULL for an enable-sync that omits them.
+ */
 export const createAccountInputSchema = z.object({
+  id: z.uuid().optional(),
   kdfSalt: z.instanceof(Uint8Array),
   authVerifier: z.instanceof(Uint8Array),
   kdfAlg: z.string().min(1),
+  username: z.string().nullable().optional(),
+  relayUrl: z.string().nullable().optional(),
   publicKey: z.instanceof(Uint8Array).nullable().optional(),
 });
 

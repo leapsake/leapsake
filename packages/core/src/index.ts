@@ -69,12 +69,15 @@ export { runMigrations, type SqliteDriver, type GenderResult };
 export {
   ensureDeviceMasterKey,
   enableSync,
+  joinAccount,
   unlockWithPassword,
   unlockWithRecoveryKey,
   getSyncStatus,
   type KeySession,
   type UnlockedMasterKey,
   type SyncStatus,
+  type AccountBootstrap,
+  type AccountBootstrapChannel,
 } from "./key-session.js";
 
 // The view-model contracts the `views` builders return, re-exported so every

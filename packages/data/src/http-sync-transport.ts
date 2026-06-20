@@ -64,28 +64,73 @@ export function decodeRecord(wire: WireRecord): EncryptedRecord {
 }
 
 /**
- * A {@link SyncTransport} plus the one extra setup call the engine never needs:
- * {@link HttpSyncTransport.register}, which announces the account to the relay
- * so its later push/pull are authorized. Registration is a transport concern,
- * not a core one — the enable-sync flow calls it once (a later apps slice); the
- * engine only ever touches `push`/`pull`.
+ * The account-registration payload a device-1 hands the relay at enable-sync,
+ * minus the credentials the transport already holds (`accountId`/`authVerifier`,
+ * supplied at construction). It carries the public salt and the *ciphertext*
+ * `wrap(MK, password-KEK)` so a future second device can log in and recover the
+ * master key — the relay stores both but can read neither (multi-device-login.md).
+ */
+export interface AccountRegistration {
+  /** Unique login handle the second device looks the account up by. */
+  username: string;
+  /** Public Argon2id salt (model.md §9.3). */
+  kdfSalt: Uint8Array;
+  /** Ciphertext `wrap(MK, KEK)` — the protected symmetric key. */
+  wrappedMasterKey: Uint8Array;
+}
+
+/**
+ * A {@link SyncTransport} plus the extra calls the engine never needs — the
+ * account-bootstrap channel that lets a *second* device obtain the master key
+ * (multi-device-login.md). These are adoption concerns, not sync concerns, so
+ * they live outside the port; the engine only ever touches `push`/`pull`.
+ *
+ * `accountId`/`authVerifier` are optional at construction: a *joining* device
+ * does not know them until after {@link HttpSyncTransport.lookup}, so a
+ * credential-less transport drives the whole bootstrap (lookup → fetchBootstrap).
+ * The sync calls (`register`/`push`/`pull`) throw if built without them.
  */
 export interface HttpSyncTransport extends SyncTransport {
   /**
-   * Register this account with the relay (idempotent). Sends the auth verifier —
-   * the relay stores only a hash of it (model.md §9.3) — and the public KDF salt
-   * so a future second device can fetch it to log in.
+   * Register this account with the relay. Sends the construction-time auth
+   * verifier (the relay stores only its hash, model.md §9.3) plus the public
+   * salt, unique username, and wrapped master key. Duplicate username → the
+   * relay answers 409, surfaced here as a throw.
    */
-  register(kdfSalt: Uint8Array): Promise<void>;
+  register(registration: AccountRegistration): Promise<void>;
+  /**
+   * Unauthed prelogin: resolve a username to its account id + public salt, so a
+   * joining device can derive the KEK and authenticate. Throws if the username
+   * is unknown (relay 404).
+   */
+  lookup(username: string): Promise<{ accountId: string; kdfSalt: Uint8Array }>;
+  /**
+   * Bearer-authed: fetch this account's `wrap(MK, KEK)` ciphertext so the
+   * joining device can unwrap the master key locally. Takes the freshly-derived
+   * credentials as an argument — the joining device computes them from the
+   * password + the salt that {@link HttpSyncTransport.lookup} returned, so they
+   * are not known at construction. A wrong password yields a wrong verifier →
+   * the relay answers 401, surfaced here as a throw (before any unwrap).
+   */
+  fetchBootstrap(creds: {
+    accountId: string;
+    authVerifier: Uint8Array;
+  }): Promise<Uint8Array>;
 }
 
 export function createHttpSyncTransport(opts: {
   /** Relay origin, e.g. `https://relay.leapsake.app` (no trailing slash needed). */
   baseUrl: string;
-  /** The account UUID — the relay's per-account namespace. */
-  accountId: string;
-  /** The §9.3 auth verifier; the bearer credential proving account ownership. */
-  authVerifier: Uint8Array;
+  /**
+   * The account UUID — the relay's per-account namespace. Optional: a joining
+   * device omits it until {@link HttpSyncTransport.lookup} resolves it.
+   */
+  accountId?: string;
+  /**
+   * The §9.3 auth verifier; the bearer credential proving account ownership.
+   * Optional alongside `accountId` (both or neither).
+   */
+  authVerifier?: Uint8Array;
   /** Injectable for tests; defaults to the platform `fetch`. */
   fetch?: typeof fetch;
 }): HttpSyncTransport {
@@ -95,9 +140,18 @@ export function createHttpSyncTransport(opts: {
 
   // `<accountId>.<base64(verifier)>` — the account UUID never contains a `.` and
   // base64 never produces one, so the relay splits on the first `.` unambiguously.
-  const bearer = `${accountId}.${bytesToBase64(authVerifier)}`;
+  // Built only when credentials were supplied (sync / post-join usage).
+  const bearer =
+    accountId !== undefined && authVerifier !== undefined
+      ? `${accountId}.${bytesToBase64(authVerifier)}`
+      : undefined;
 
   async function authed(path: string, init: RequestInit): Promise<Response> {
+    if (bearer === undefined) {
+      throw new Error(
+        "this transport has no credentials — construct it with accountId + authVerifier",
+      );
+    }
     const res = await doFetch(`${base}/${path}`, {
       ...init,
       headers: { ...init.headers, authorization: `Bearer ${bearer}` },
@@ -111,17 +165,53 @@ export function createHttpSyncTransport(opts: {
   }
 
   return {
-    async register(kdfSalt) {
+    async register(registration) {
+      if (accountId === undefined || authVerifier === undefined) {
+        throw new Error("register requires accountId + authVerifier");
+      }
       const res = await doFetch(`${base}/accounts`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           accountId,
+          username: registration.username,
           authVerifier: bytesToBase64(authVerifier),
-          kdfSalt: bytesToBase64(kdfSalt),
+          kdfSalt: bytesToBase64(registration.kdfSalt),
+          wrappedMasterKey: bytesToBase64(registration.wrappedMasterKey),
         }),
       });
       if (!res.ok) throw new Error(`relay register failed: ${res.status}`);
+    },
+
+    async lookup(username) {
+      const res = await doFetch(
+        `${base}/accounts/lookup?username=${encodeURIComponent(username)}`,
+        { method: "GET" },
+      );
+      if (!res.ok) throw new Error(`relay lookup failed: ${res.status}`);
+      const body = (await res.json()) as {
+        accountId: string;
+        kdfSalt: string;
+      };
+      return {
+        accountId: body.accountId,
+        kdfSalt: base64ToBytes(body.kdfSalt),
+      };
+    },
+
+    async fetchBootstrap(creds) {
+      // Build the bearer from the *passed* credentials, not construction ones —
+      // a joining device derives these only after `lookup`.
+      const bootstrapBearer = `${creds.accountId}.${bytesToBase64(creds.authVerifier)}`;
+      const res = await doFetch(`${base}/accounts/bootstrap`, {
+        method: "GET",
+        headers: { authorization: `Bearer ${bootstrapBearer}` },
+      });
+      if (!res.ok) {
+        throw new Error(`relay GET /accounts/bootstrap failed: ${res.status}`);
+      }
+      const body = (await res.json()) as { wrappedMasterKey: string };
+      return base64ToBytes(body.wrappedMasterKey);
     },
 
     async push(records) {
