@@ -18,18 +18,49 @@ import {
   type CoreApi,
   type KeySession,
   type SyncStatus,
+  clearLocalAccount,
   createCore,
   enableSync,
   ensureDeviceMasterKey,
   getSyncStatus,
+  joinAccountViaRelay,
+  lookupAccount,
+  registerAccountWithRelay,
+  runAccountSync,
   runMigrations,
 } from "@leapsake/core";
 import { bytesToBase64 } from "@leapsake/crypto";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 
-/** Mirror of the desktop main process's `MIN_PASSWORD_LENGTH` boundary check. */
-const MIN_PASSWORD_LENGTH = 8;
+/**
+ * Mirror of the desktop main process's `MIN_PASSWORD_LENGTH` boundary check.
+ * This password derives the encryption key for a zero-knowledge store with no
+ * server-side reset, so the floor is deliberately higher than a typical login
+ * (see security-review.md).
+ */
+const MIN_PASSWORD_LENGTH = 12;
+
+/**
+ * Translate a relay/transport failure into copy a user can act on — the mobile
+ * mirror of desktop's `relayErrorMessage` (`apps/desktop/src/main/index.ts`).
+ */
+function relayErrorMessage(cause: unknown, relayUrl: string): string {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  if (message.includes("fetch failed") || message.includes("Network request")) {
+    return `Couldn't reach the relay at ${relayUrl}. Make sure the sync server is running, then try again.`;
+  }
+  if (message.includes("409")) {
+    return "That username is already taken on this relay. Pick another.";
+  }
+  if (message.includes("401")) {
+    return "Incorrect username or password for this account.";
+  }
+  if (message.includes("404")) {
+    return "No account found for that username on this relay.";
+  }
+  return `Relay request failed: ${message}`;
+}
 
 /**
  * The account / enable-sync surface (custody Phase 1). Kept deliberately separate
@@ -40,11 +71,41 @@ const MIN_PASSWORD_LENGTH = 8;
 export interface SyncApi {
   status(): Promise<SyncStatus>;
   /**
-   * Establish the account + portable password door, returning the one-time
-   * recovery key **base64-encoded** so raw key bytes never leave this layer
-   * (mirrors desktop's IPC encoding).
+   * Pre-login existence probe: ask the relay whether `username` already names an
+   * account, so the UI can route to create-vs-login. Unauthenticated — the same
+   * prelogin a join already does, exposing nothing new.
    */
-  enable(password: string): Promise<{ accountId: string; recoveryKey: string }>;
+  lookup(username: string, relayUrl: string): Promise<boolean>;
+  /**
+   * Establish a new account + portable password door **and register its
+   * bootstrap ciphertext with the relay**, returning the one-time recovery key
+   * **base64-encoded** so raw key bytes never leave this layer (mirrors
+   * desktop's IPC encoding). Rolls the local account back if relay registration
+   * fails.
+   */
+  enable(args: {
+    username: string;
+    password: string;
+    relayUrl: string;
+  }): Promise<{ accountId: string; recoveryKey: string }>;
+  /**
+   * Log in to an existing account on a second device: fetch + unwrap the master
+   * key, adopt it under this device's enclave, and **swap the live core in
+   * place** so every screen reads the adopted-MK core (the in-process analogue
+   * of desktop's getter/`Proxy` core swap).
+   */
+  join(args: {
+    username: string;
+    password: string;
+    relayUrl: string;
+  }): Promise<void>;
+  /** Run one push→pull cycle against the configured relay. */
+  syncNow(): Promise<{ at: number }>;
+  /**
+   * Disconnect the account from this device: revoke the password + recovery
+   * doors but keep the master key in the enclave, so local data stays readable.
+   */
+  clear(): Promise<void>;
 }
 
 // Build the core exactly once for the whole app and share it through context.
@@ -94,23 +155,69 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // never re-opens the DB or re-creates the keystore (custody Phase 1).
       setSync({
         status: () => getSyncStatus({ driver }),
-        async enable(password) {
+        async lookup(username, relayUrl) {
+          try {
+            return await lookupAccount({ relayUrl, username });
+          } catch (cause) {
+            throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+          }
+        },
+        async enable({ username, password, relayUrl }) {
           if (password.length < MIN_PASSWORD_LENGTH) {
             throw new Error(
               `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
             );
           }
-          const { account, recoveryKey } = await enableSync({
+          const { account, recoveryKey, bootstrap } = await enableSync({
             keyStore,
             driver,
             password,
+            username,
+            relayUrl,
             platform: Platform.OS,
           });
+          try {
+            await registerAccountWithRelay({ relayUrl, bootstrap });
+          } catch (cause) {
+            // Don't leave a half-enabled account behind if the relay rejects it.
+            await clearLocalAccount({ driver });
+            throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+          }
           return {
             accountId: account.id,
             recoveryKey: bytesToBase64(recoveryKey),
           };
         },
+        async join({ username, password, relayUrl }) {
+          let session: KeySession;
+          try {
+            session = await joinAccountViaRelay({
+              keyStore,
+              driver,
+              relayUrl,
+              username,
+              password,
+              platform: Platform.OS,
+            });
+          } catch (cause) {
+            throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+          }
+          // Adopt the account's master key everywhere: rebuild the core on the
+          // adopted session and swap it in place (desktop does this via its IPC
+          // Proxy; here `setCore` re-renders consumers with the new core).
+          keySession.current = session;
+          setCore(createCore(driver, session));
+        },
+        syncNow() {
+          if (keySession.current === null) {
+            throw new Error("Sync is not enabled for this store.");
+          }
+          return runAccountSync({
+            driver,
+            masterKey: keySession.current.masterKey,
+          });
+        },
+        clear: () => clearLocalAccount({ driver }),
       });
     })().catch((e) => setError(String(e)));
   }, []);
