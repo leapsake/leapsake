@@ -80,6 +80,17 @@ export {
   type AccountBootstrapChannel,
 } from "./key-session.js";
 
+// The production sync-engine assembly: the canonical syncable allowlist plus a
+// one-call cycle for an enabled account, so each client drives sync the same way
+// (desktop now; mobile in Phase C) instead of hand-rolling the repo registry.
+export {
+  syncableRepos,
+  createAccountSyncEngine,
+  registerAccountWithRelay,
+  joinAccountViaRelay,
+  runAccountSync,
+} from "./sync.js";
+
 // The view-model contracts the `views` builders return, re-exported so every
 // client renders against the same shapes carried out via `CoreApi`.
 export type {

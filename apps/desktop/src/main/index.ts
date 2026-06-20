@@ -7,6 +7,9 @@ import {
   enableSync,
   ensureDeviceMasterKey,
   getSyncStatus,
+  joinAccountViaRelay,
+  registerAccountWithRelay,
+  runAccountSync,
   runMigrations,
 } from "@leapsake/core";
 import { type KeyStore, bytesToBase64 } from "@leapsake/crypto";
@@ -36,11 +39,18 @@ import { nodeSqliteDriver } from "./db/node-sqlite-driver.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
 // The unlocked device key material (custody Phase 0), passed into createCore so
-// it can encrypt sensitive fields at rest under per-item content keys.
+// it can encrypt sensitive fields at rest under per-item content keys. Mutable
+// because joining an existing account (sync:join) adopts a *different* master key
+// and rebuilds the core around it (see registerSyncIpc).
 let keySession: KeySession | undefined;
 export function getKeySession(): KeySession | undefined {
   return keySession;
 }
+
+// The live core the IPC handlers forward to. Reassigned when sync:join adopts the
+// account master key; registerIpc reads it through a getter so the handlers never
+// need re-registering (ipcMain.handle throws on a second registration).
+let activeCore: CoreApi | undefined;
 
 /** Coerce IPC-supplied tag names to a clean `string[]` before the repo dedupes. */
 function asTagNames(value: unknown): string[] {
@@ -57,7 +67,14 @@ function asTagNames(value: unknown): string[] {
  * args (tag-name lists, the search term). It must **not** wrap calls in its own
  * `driver.transaction`: core already owns atomicity.
  */
-function registerIpc(core: CoreApi): void {
+function registerIpc(getCore: () => CoreApi): void {
+  // A per-call indirection: each handler reads `core.<group>` through this proxy,
+  // which resolves to the *current* core, so sync:join can swap the underlying
+  // session without re-registering any handler.
+  const core = new Proxy({} as CoreApi, {
+    get: (_target, prop) => getCore()[prop as keyof CoreApi],
+  });
+
   ipcMain.handle("people:list", () => core.people.list());
   ipcMain.handle("people:get", (_event, id: string) => core.people.get(id));
   ipcMain.handle("people:create", (_event, input: unknown, tagNames: unknown) =>
@@ -298,6 +315,14 @@ function registerIpc(core: CoreApi): void {
 /** Shortest password we'll let enable an account (kept in step with the UI). */
 const MIN_PASSWORD_LENGTH = 8;
 
+/** Reject a missing/blank string field from the renderer trust boundary. */
+function requireText(value: unknown, field: string): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`${field} is required.`);
+  }
+  return value.trim();
+}
+
 /**
  * The sync/account custody surface, separate from {@link registerIpc} because it
  * is *not* part of {@link CoreApi}: enabling sync wraps the device master key
@@ -317,19 +342,70 @@ function registerSyncIpc(opts: {
 
   ipcMain.handle("sync:status", () => getSyncStatus({ driver }));
 
-  ipcMain.handle("sync:enable", async (_event, password: unknown) => {
-    if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
-      throw new Error(
-        `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-      );
+  // Enable sync on this (first) device: establish the account + password door,
+  // then register the bootstrap ciphertext with the relay so a second device can
+  // log in. Returns the one-time recovery key base64-encoded for display.
+  ipcMain.handle(
+    "sync:enable",
+    async (
+      _event,
+      args: { username?: unknown; password?: unknown; relayUrl?: unknown },
+    ) => {
+      const username = requireText(args?.username, "Username");
+      const relayUrl = requireText(args?.relayUrl, "Relay URL");
+      const password = args?.password;
+      if (
+        typeof password !== "string" ||
+        password.length < MIN_PASSWORD_LENGTH
+      ) {
+        throw new Error(
+          `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        );
+      }
+      const { account, recoveryKey, bootstrap } = await enableSync({
+        keyStore,
+        driver,
+        password,
+        username,
+        relayUrl,
+        platform: "desktop",
+      });
+      await registerAccountWithRelay({ relayUrl, bootstrap });
+      return { accountId: account.id, recoveryKey: bytesToBase64(recoveryKey) };
+    },
+  );
+
+  // Join an existing account from this fresh device: log in over the relay,
+  // adopt the account master key under this device's enclave, and rebuild the
+  // core around it so encrypted fields use the adopted key.
+  ipcMain.handle(
+    "sync:join",
+    async (
+      _event,
+      args: { username?: unknown; password?: unknown; relayUrl?: unknown },
+    ) => {
+      const username = requireText(args?.username, "Username");
+      const relayUrl = requireText(args?.relayUrl, "Relay URL");
+      const password = requireText(args?.password, "Password");
+      keySession = await joinAccountViaRelay({
+        keyStore,
+        driver,
+        relayUrl,
+        username,
+        password,
+        platform: "desktop",
+      });
+      activeCore = createCore(driver, keySession);
+    },
+  );
+
+  // Run one push→pull cycle for the enabled account. Returns the completion time
+  // for a "last synced" indicator.
+  ipcMain.handle("sync:now", () => {
+    if (keySession === undefined) {
+      throw new Error("Sync is not enabled for this store.");
     }
-    const { account, recoveryKey } = await enableSync({
-      keyStore,
-      driver,
-      password,
-      platform: "desktop",
-    });
-    return { accountId: account.id, recoveryKey: bytesToBase64(recoveryKey) };
+    return runAccountSync({ driver, masterKey: keySession.masterKey });
   });
 }
 
@@ -362,8 +438,11 @@ void app.whenReady().then(async () => {
     join(app.getPath("userData"), "keystore.json"),
   );
   keySession = await ensureDeviceMasterKey({ keyStore, driver });
-  const core = createCore(driver, keySession);
-  registerIpc(core);
+  activeCore = createCore(driver, keySession);
+  registerIpc(() => {
+    if (activeCore === undefined) throw new Error("Core is not initialized.");
+    return activeCore;
+  });
   registerSyncIpc({ driver, keyStore });
 
   createWindow();
