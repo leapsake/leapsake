@@ -33,6 +33,9 @@ export default function TabsLayout() {
               <Link href="/pets/new" style={styles.link}>
                 Add pet
               </Link>
+              <Link href="/settings" style={styles.link}>
+                Settings
+              </Link>
             </View>
           ),
         }}
