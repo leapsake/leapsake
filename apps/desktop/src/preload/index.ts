@@ -310,6 +310,11 @@ const sync = {
   }): Promise<void> => ipcRenderer.invoke("sync:join", args),
   syncNow: (): Promise<{ at: number }> => ipcRenderer.invoke("sync:now"),
   clear: (): Promise<void> => ipcRenderer.invoke("sync:clear"),
+  /** Read this install's "Sync automatically" preference (default true). */
+  getAutoSync: (): Promise<boolean> => ipcRenderer.invoke("sync:getAutoSync"),
+  /** Persist + apply the "Sync automatically" preference for this install. */
+  setAutoSync: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke("sync:setAutoSync", enabled),
   /**
    * Subscribe to background-sync activity (interval / focus / write-kicked runs,
    * not just the manual button), so the renderer can keep its "last synced" line

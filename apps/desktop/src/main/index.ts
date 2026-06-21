@@ -9,12 +9,14 @@ import {
   createSyncScheduler,
   enableSync,
   ensureDeviceMasterKey,
+  getAutoSync,
   getSyncStatus,
   joinAccountViaRelay,
   lookupAccount,
   registerAccountWithRelay,
   runAccountSync,
   runMigrations,
+  setAutoSync,
   withSyncKick,
 } from "@leapsake/core";
 import { type KeyStore, bytesToBase64 } from "@leapsake/crypto";
@@ -463,7 +465,7 @@ function registerSyncIpc(opts: { keyStore: KeyStore }): void {
         await clearLocalAccount({ driver });
         throw new Error(relayErrorMessage(cause, relayUrl), { cause });
       }
-      void scheduler?.trigger(); // push the first device's data right away
+      void scheduler?.autoTrigger(); // push the first device's data right away
       return { accountId: account.id, recoveryKey: bytesToBase64(recoveryKey) };
     },
   );
@@ -493,7 +495,7 @@ function registerSyncIpc(opts: { keyStore: KeyStore }): void {
         throw new Error(relayErrorMessage(cause, relayUrl), { cause });
       }
       setActiveCore(keySession);
-      void scheduler?.trigger(); // pull the account's data onto this fresh device
+      void scheduler?.autoTrigger(); // pull the account's data onto this fresh device
     },
   );
 
@@ -514,6 +516,16 @@ function registerSyncIpc(opts: { keyStore: KeyStore }): void {
   // the user can enable sync afresh. The held keySession (the enclave MK) is
   // unchanged, so the core needs no rebuild.
   ipcMain.handle("sync:clear", () => clearLocalAccount({ driver }));
+
+  // The per-client "Sync automatically" preference (default on). Read at render
+  // time for the Settings toggle; the setter persists it *and* flips the live
+  // scheduler so the change takes effect immediately (and survives a restart).
+  ipcMain.handle("sync:getAutoSync", () => getAutoSync({ driver }));
+  ipcMain.handle("sync:setAutoSync", async (_event, enabled: unknown) => {
+    const next = enabled === true;
+    await setAutoSync({ driver, enabled: next });
+    scheduler?.setAutoEnabled(next);
+  });
 }
 
 function createWindow(): void {
@@ -551,6 +563,7 @@ void app.whenReady().then(async () => {
   // current keySession so a later sync:join is picked up. Results/errors are
   // pushed to the renderer for the Settings "last synced" line.
   scheduler = createSyncScheduler({
+    autoEnabled: await getAutoSync({ driver }),
     run: async () => {
       if (keySession === undefined) return undefined;
       const status = await getSyncStatus({ driver });
@@ -576,12 +589,12 @@ void app.whenReady().then(async () => {
   registerSyncIpc({ keyStore });
 
   scheduler.start(); // backstop interval
-  void scheduler.trigger(); // initial on-launch sync
+  void scheduler.autoTrigger(); // initial on-launch sync (skipped if auto off)
 
   // Pull the peer's edits in the moment the user returns to the app — the cheap,
   // event-driven companion to write-kicked pushes.
   app.on("browser-window-focus", () => {
-    void scheduler?.trigger();
+    void scheduler?.autoTrigger();
   });
 
   createWindow();

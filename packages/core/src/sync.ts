@@ -198,3 +198,25 @@ export async function runAccountSync(opts: {
   const { applied } = await engine.sync();
   return { at: Date.now(), applied };
 }
+
+/**
+ * Read this install's "Sync automatically" preference (default `true`). It is a
+ * per-client/per-device setting held in the device-local `sync_state` table — it
+ * never replicates — so a client reads it at bootstrap to initialize the
+ * scheduler and again when rendering the Settings toggle.
+ */
+export function getAutoSync(opts: { driver: SqliteDriver }): Promise<boolean> {
+  return createSyncStateRepo(opts.driver).getAutoSyncEnabled();
+}
+
+/**
+ * Persist this install's "Sync automatically" preference. The caller is also
+ * responsible for telling the live scheduler (`setAutoEnabled`) so the change
+ * takes effect immediately; this only makes it durable across restarts.
+ */
+export function setAutoSync(opts: {
+  driver: SqliteDriver;
+  enabled: boolean;
+}): Promise<void> {
+  return createSyncStateRepo(opts.driver).setAutoSyncEnabled(opts.enabled);
+}

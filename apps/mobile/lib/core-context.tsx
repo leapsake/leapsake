@@ -25,12 +25,14 @@ import {
   createSyncScheduler,
   enableSync,
   ensureDeviceMasterKey,
+  getAutoSync,
   getSyncStatus,
   joinAccountViaRelay,
   lookupAccount,
   registerAccountWithRelay,
   runAccountSync,
   runMigrations,
+  setAutoSync,
   withSyncKick,
 } from "@leapsake/core";
 import { bytesToBase64 } from "@leapsake/crypto";
@@ -110,6 +112,13 @@ export interface SyncApi {
    * doors but keep the master key in the enclave, so local data stays readable.
    */
   clear(): Promise<void>;
+  /** Read this install's "Sync automatically" preference (default true). */
+  getAutoSync(): Promise<boolean>;
+  /**
+   * Persist + apply the "Sync automatically" preference for this install: store
+   * it durably and flip the live scheduler so it takes effect immediately.
+   */
+  setAutoSync(enabled: boolean): Promise<void>;
   /**
    * Subscribe to background-sync activity (interval / foreground / write-kicked
    * runs, not just the manual button), so a screen can keep its "last synced"
@@ -194,7 +203,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     // event-driven companion to write-kicked pushes. (RN JS timers are suspended
     // in the background, so the interval is a foreground-only backstop anyway.)
     const appStateSub = AppState.addEventListener("change", (state) => {
-      if (state === "active") void scheduler.current?.trigger();
+      if (state === "active") void scheduler.current?.autoTrigger();
     });
 
     (async () => {
@@ -218,6 +227,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // an account is set up and relay-bound), reading the current keySession so a
       // later join is picked up. A local write kicks it via withSyncKick below.
       scheduler.current = createSyncScheduler({
+        autoEnabled: await getAutoSync({ driver }),
         run: async () => {
           const session = keySession.current;
           if (session === null) return undefined;
@@ -240,7 +250,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         ),
       );
       scheduler.current.start(); // backstop interval
-      void scheduler.current.trigger(); // initial sync
+      void scheduler.current.autoTrigger(); // initial sync (skipped if auto off)
       // The enable-sync surface closes over the *booted* driver + keystore, so it
       // never re-opens the DB or re-creates the keystore (custody Phase 1).
       setSync({
@@ -273,7 +283,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             await clearLocalAccount({ driver });
             throw new Error(relayErrorMessage(cause, relayUrl), { cause });
           }
-          void scheduler.current?.trigger(); // push this device's data right away
+          void scheduler.current?.autoTrigger(); // push this device's data right away
           return {
             accountId: account.id,
             recoveryKey: bytesToBase64(recoveryKey),
@@ -303,7 +313,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
               scheduler.current?.kick(),
             ),
           );
-          void scheduler.current?.trigger(); // pull the account onto this device
+          void scheduler.current?.autoTrigger(); // pull the account onto this device
         },
         // Route through the scheduler so the button and background syncs share
         // single-flight; a guarded skip (not enabled) surfaces as the same error.
@@ -315,6 +325,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           return result;
         },
         clear: () => clearLocalAccount({ driver }),
+        getAutoSync: () => getAutoSync({ driver }),
+        async setAutoSync(enabled) {
+          await setAutoSync({ driver, enabled });
+          scheduler.current?.setAutoEnabled(enabled);
+        },
         onActivity(listener) {
           activityListeners.current.add(listener);
           return () => activityListeners.current.delete(listener);

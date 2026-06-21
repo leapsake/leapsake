@@ -32,16 +32,33 @@ export interface SyncScheduler {
   /**
    * Run a sync now unless one is already in flight (single-flight). Resolves to
    * the run's result, or `undefined` if it was coalesced into the in-flight run
-   * or the injected `run` guard skipped it (sync not enabled). Used for
-   * foreground/focus, launch, post-enable/join, and the manual "Sync now" button.
+   * or the injected `run` guard skipped it (sync not enabled). This is the
+   * **manual** path (the "Sync now" button): it always runs, ignoring the
+   * automatic-sync preference. Automatic callers use {@link autoTrigger}.
    */
   trigger(): Promise<{ at: number; applied?: number } | undefined>;
   /**
+   * The **automatic** counterpart to {@link trigger}: runs a sync only when
+   * automatic sync is enabled (see {@link setAutoEnabled}), else resolves
+   * `undefined` without doing anything. Every event-driven caller (launch,
+   * window focus / app foreground, post-enable/join) uses this so the user's
+   * "Sync automatically" toggle gates them while the manual button keeps working.
+   */
+  autoTrigger(): Promise<{ at: number; applied?: number } | undefined>;
+  /**
    * Debounced trigger for high-frequency events (local writes): (re)schedule a
    * {@link trigger} after {@link SYNC_KICK_DEBOUNCE_MS}, resetting the timer on
-   * each call. Fire-and-forget.
+   * each call. A no-op while automatic sync is disabled. Fire-and-forget.
    */
   kick(): void;
+  /**
+   * Enable or disable *automatic* sync (the per-client "Sync automatically"
+   * preference). While disabled, {@link autoTrigger}, {@link kick}, and the
+   * backstop interval are inert, but {@link trigger} (manual) still works.
+   * Re-enabling fires one catch-up sync; disabling cancels any pending kick.
+   * Only changes in-memory behaviour — the caller persists the preference.
+   */
+  setAutoEnabled(enabled: boolean): void;
   /** Start the periodic backstop interval. Idempotent. */
   start(): void;
   /** Stop the interval and cancel any pending kick. In-flight runs still resolve. */
@@ -53,6 +70,8 @@ export function createSyncScheduler(opts: {
   run: () => Promise<{ at: number; applied?: number } | undefined>;
   intervalMs?: number;
   debounceMs?: number;
+  /** Whether *automatic* sync starts enabled (the persisted preference). Default `true`. */
+  autoEnabled?: boolean;
   onResult?: (result: { at: number; applied?: number }) => void;
   onError?: (error: unknown) => void;
 }): SyncScheduler {
@@ -60,11 +79,15 @@ export function createSyncScheduler(opts: {
     run,
     intervalMs = SYNC_INTERVAL_MS,
     debounceMs = SYNC_KICK_DEBOUNCE_MS,
+    autoEnabled: autoEnabledInit = true,
     onResult,
     onError,
   } = opts;
 
-  let inFlight: Promise<{ at: number; applied?: number } | undefined> | undefined;
+  let autoEnabled = autoEnabledInit;
+  let inFlight:
+    | Promise<{ at: number; applied?: number } | undefined>
+    | undefined;
   let interval: ReturnType<typeof setInterval> | undefined;
   let kickTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -91,9 +114,20 @@ export function createSyncScheduler(opts: {
     return started;
   }
 
+  // The automatic path: identical to trigger() but gated on the preference, so a
+  // disabled "Sync automatically" silently no-ops every event-driven sync.
+  function autoTrigger(): Promise<
+    { at: number; applied?: number } | undefined
+  > {
+    if (!autoEnabled) return Promise.resolve(undefined);
+    return trigger();
+  }
+
   return {
     trigger,
+    autoTrigger,
     kick() {
+      if (!autoEnabled) return; // automatic sync off → don't push on writes
       if (kickTimer !== undefined) clearTimeout(kickTimer);
       kickTimer = setTimeout(() => {
         kickTimer = undefined;
@@ -101,10 +135,25 @@ export function createSyncScheduler(opts: {
         void trigger().catch(() => {});
       }, debounceMs);
     },
+    setAutoEnabled(enabled: boolean) {
+      if (enabled === autoEnabled) return;
+      autoEnabled = enabled;
+      if (enabled) {
+        // The user just re-enabled automatic sync: catch up now rather than
+        // waiting for the next focus/write/interval.
+        void autoTrigger().catch(() => {});
+      } else if (kickTimer !== undefined) {
+        // Cancel a write-debounced push that was queued before the user opted out.
+        clearTimeout(kickTimer);
+        kickTimer = undefined;
+      }
+    },
     start() {
       if (interval !== undefined) return; // idempotent
+      // The timer keeps running even while automatic sync is off (so toggling
+      // back on resumes without a restart); the tick itself is gated.
       interval = setInterval(() => {
-        void trigger().catch(() => {});
+        void autoTrigger().catch(() => {});
       }, intervalMs);
     },
     stop() {
