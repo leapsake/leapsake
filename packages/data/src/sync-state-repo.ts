@@ -12,6 +12,10 @@ import type { SqliteDriver } from "./driver.js";
  *
  * - `push_hwm` — the epoch-ms high-water mark of rows already sealed and pushed.
  * - `pull_cursor` — the transport's opaque delivery cursor already consumed.
+ * - `auto_sync_disabled` — the per-client "Sync automatically" preference, stored
+ *   *inverted* so that a missing row (= `0`) reads as **enabled**, giving the
+ *   default-ON behaviour for free. `1` = the user turned automatic sync off on
+ *   this install. Like the watermarks it is device-local and never replicates.
  *
  * A missing row reads as `0`, which is the documented floor for both:
  * `push(0)` collects every local row and `pull(0)` returns the whole log (see
@@ -22,10 +26,14 @@ export interface SyncStateRepo {
   setPushHwm(value: number): Promise<void>;
   getPullCursor(): Promise<number>;
   setPullCursor(value: number): Promise<void>;
+  /** Whether automatic background sync is enabled on this install (default true). */
+  getAutoSyncEnabled(): Promise<boolean>;
+  setAutoSyncEnabled(enabled: boolean): Promise<void>;
 }
 
 const PUSH_HWM = "push_hwm";
 const PULL_CURSOR = "pull_cursor";
+const AUTO_SYNC_DISABLED = "auto_sync_disabled";
 
 export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
   async function read(key: string): Promise<number> {
@@ -51,5 +59,8 @@ export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
     setPushHwm: (value) => write(PUSH_HWM, value),
     getPullCursor: () => read(PULL_CURSOR),
     setPullCursor: (value) => write(PULL_CURSOR, value),
+    // Stored inverted (see the interface doc): absent/0 ⇒ enabled, 1 ⇒ disabled.
+    getAutoSyncEnabled: async () => (await read(AUTO_SYNC_DISABLED)) !== 1,
+    setAutoSyncEnabled: (enabled) => write(AUTO_SYNC_DISABLED, enabled ? 0 : 1),
   };
 }

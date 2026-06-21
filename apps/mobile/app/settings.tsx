@@ -101,6 +101,8 @@ function AccountEnabled({
   const [lastSynced, setLastSynced] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  // The per-client "Sync automatically" preference (default on). Null until loaded.
+  const [autoSync, setAutoSync] = useState<boolean | null>(null);
 
   // Background syncs (interval / foreground / after a local write) finish out of
   // band, so subscribe to keep the "last synced" line and error current even when
@@ -116,6 +118,16 @@ function AccountEnabled({
       }),
     [sync],
   );
+
+  // Load the current "Sync automatically" preference once.
+  useEffect(() => {
+    void sync.getAutoSync().then(setAutoSync);
+  }, [sync]);
+
+  async function toggleAutoSync(next: boolean) {
+    setAutoSync(next); // optimistic; the SyncApi call is the source of truth
+    await sync.setAutoSync(next);
+  }
 
   async function syncNow() {
     setError(null);
@@ -139,6 +151,22 @@ function AccountEnabled({
         {status.relayUrl !== undefined && ` Relay ${status.relayUrl}.`} Account
         created {new Date(status.createdAt ?? 0).toLocaleString()}.
       </Text>
+      {status.relayUrl !== undefined && autoSync !== null && (
+        <>
+          <View style={styles.rowMeta}>
+            <Text style={styles.fieldValue}>Sync automatically</Text>
+            <Switch
+              value={autoSync}
+              onValueChange={(next) => void toggleAutoSync(next)}
+            />
+          </View>
+          {!autoSync && (
+            <Text style={styles.muted}>
+              Changes sync only when you tap “Sync now” on this device.
+            </Text>
+          )}
+        </>
+      )}
       <Pressable style={styles.button} disabled={syncing} onPress={syncNow}>
         <Text style={styles.buttonText}>
           {syncing ? "Syncing…" : "Sync now"}

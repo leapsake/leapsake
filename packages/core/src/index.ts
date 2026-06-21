@@ -91,6 +91,8 @@ export {
   registerAccountWithRelay,
   joinAccountViaRelay,
   runAccountSync,
+  getAutoSync,
+  setAutoSync,
 } from "./sync.js";
 
 // The scheduling layer that turns the manual one-shot sync into seamless

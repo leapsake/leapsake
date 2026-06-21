@@ -92,6 +92,8 @@ function AccountEnabled({
   const [lastSynced, setLastSynced] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  // The per-client "Sync automatically" preference (default on). Null until loaded.
+  const [autoSync, setAutoSync] = useState<boolean | null>(null);
 
   // Background syncs (interval / window focus / after a local write) complete out
   // of band, so subscribe to keep the "last synced" line and error current even
@@ -107,6 +109,16 @@ function AccountEnabled({
       }),
     [],
   );
+
+  // Load the current "Sync automatically" preference once.
+  useEffect(() => {
+    void window.sync.getAutoSync().then(setAutoSync);
+  }, []);
+
+  async function toggleAutoSync(next: boolean) {
+    setAutoSync(next); // optimistic; the IPC call is the source of truth
+    await window.sync.setAutoSync(next);
+  }
 
   async function syncNow() {
     setError(null);
@@ -135,6 +147,26 @@ function AccountEnabled({
         {status.relayUrl !== undefined && <>Relay {status.relayUrl}. </>}
         Account created {new Date(status.createdAt ?? 0).toLocaleString()}.
       </p>
+      {status.relayUrl !== undefined && autoSync !== null && (
+        <p>
+          <label>
+            <input
+              type="checkbox"
+              checked={autoSync}
+              onChange={(event) => void toggleAutoSync(event.target.checked)}
+            />{" "}
+            Sync automatically
+          </label>
+          {!autoSync && (
+            <>
+              {" "}
+              <small>
+                Changes sync only when you press “Sync now” on this device.
+              </small>
+            </>
+          )}
+        </p>
+      )}
       <p>
         <button type="button" onClick={syncNow} disabled={syncing}>
           {syncing ? "Syncing…" : "Sync now"}

@@ -130,4 +130,57 @@ describe("createSyncScheduler", () => {
     await vi.advanceTimersByTimeAsync(1_000);
     expect(run).toHaveBeenCalledTimes(1);
   });
+
+  it("gates automatic sync but never the manual trigger when autoEnabled is false", async () => {
+    vi.useFakeTimers();
+    const run = vi.fn(async () => ({ at: 1 }));
+    const scheduler = createSyncScheduler({
+      run,
+      autoEnabled: false,
+      intervalMs: 1_000,
+      debounceMs: 2_000,
+    });
+
+    // The automatic paths are inert: kick (writes), interval, and autoTrigger.
+    scheduler.start();
+    scheduler.kick();
+    expect(await scheduler.autoTrigger()).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(run).not.toHaveBeenCalled();
+
+    // The manual "Sync now" path still runs regardless of the preference.
+    expect(await scheduler.trigger()).toEqual({ at: 1 });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("setAutoEnabled(true) fires a catch-up sync and resumes automatic triggers", async () => {
+    vi.useFakeTimers();
+    const run = vi.fn(async () => ({ at: 1 }));
+    const scheduler = createSyncScheduler({
+      run,
+      autoEnabled: false,
+      debounceMs: 2_000,
+    });
+
+    // Re-enabling syncs immediately rather than waiting for the next event.
+    scheduler.setAutoEnabled(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(run).toHaveBeenCalledTimes(1);
+
+    // ...and automatic triggers (here a write kick) work again afterward.
+    scheduler.kick();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it("setAutoEnabled(false) cancels a pending write kick", async () => {
+    vi.useFakeTimers();
+    const run = vi.fn(async () => ({ at: 1 }));
+    const scheduler = createSyncScheduler({ run, debounceMs: 2_000 });
+
+    scheduler.kick();
+    scheduler.setAutoEnabled(false);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(run).not.toHaveBeenCalled();
+  });
 });
