@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Platform,
   StyleSheet,
   Text,
@@ -17,9 +18,11 @@ import * as SQLite from "expo-sqlite";
 import {
   type CoreApi,
   type KeySession,
+  type SyncScheduler,
   type SyncStatus,
   clearLocalAccount,
   createCore,
+  createSyncScheduler,
   enableSync,
   ensureDeviceMasterKey,
   getSyncStatus,
@@ -28,6 +31,7 @@ import {
   registerAccountWithRelay,
   runAccountSync,
   runMigrations,
+  withSyncKick,
 } from "@leapsake/core";
 import { bytesToBase64 } from "@leapsake/crypto";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
@@ -106,6 +110,15 @@ export interface SyncApi {
    * doors but keep the master key in the enclave, so local data stays readable.
    */
   clear(): Promise<void>;
+  /**
+   * Subscribe to background-sync activity (interval / foreground / write-kicked
+   * runs, not just the manual button), so a screen can keep its "last synced"
+   * line fresh. Returns an unsubscribe function. Mirrors desktop's
+   * `window.sync.onActivity`.
+   */
+  onActivity(
+    listener: (payload: { at?: number; error?: string }) => void,
+  ): () => void;
 }
 
 // Build the core exactly once for the whole app and share it through context.
@@ -141,8 +154,24 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   // The unlocked device key material (custody Phase 0), passed into createCore so
   // it can encrypt sensitive fields at rest under per-item content keys.
   const keySession = useRef<KeySession | null>(null);
+  // The background-sync scheduler (seamless sync): writes kick it, foregrounding
+  // and the interval trigger it, the manual button routes through it. Held in a
+  // ref so the AppState listener and SyncApi methods reach the live instance.
+  const scheduler = useRef<SyncScheduler | null>(null);
+  // Activity listeners (e.g. the Settings "last synced" line), notified on every
+  // background-sync result/error — the in-process analogue of desktop's IPC event.
+  const activityListeners = useRef(
+    new Set<(payload: { at?: number; error?: string }) => void>(),
+  );
 
   useEffect(() => {
+    // Pull the peer's edits when the app returns to the foreground — the
+    // event-driven companion to write-kicked pushes. (RN JS timers are suspended
+    // in the background, so the interval is a foreground-only backstop anyway.)
+    const appStateSub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void scheduler.current?.trigger();
+    });
+
     (async () => {
       const db = await SQLite.openDatabaseAsync("leapsake.db");
       const driver = expoSqliteDriver(db);
@@ -150,7 +179,36 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // The same keystore instance that backs the enable-sync door below.
       const keyStore = secureStoreKeyStore();
       keySession.current = await ensureDeviceMasterKey({ keyStore, driver });
-      setCore(createCore(driver, keySession.current));
+
+      const notifyActivity = (payload: { at?: number; error?: string }) => {
+        for (const listener of activityListeners.current) listener(payload);
+      };
+      // The run thunk doubles as the "is sync enabled" guard (a quiet no-op until
+      // an account is set up and relay-bound), reading the current keySession so a
+      // later join is picked up. A local write kicks it via withSyncKick below.
+      scheduler.current = createSyncScheduler({
+        run: async () => {
+          const session = keySession.current;
+          if (session === null) return undefined;
+          const status = await getSyncStatus({ driver });
+          if (!status.enabled || status.relayUrl === undefined)
+            return undefined;
+          return runAccountSync({ driver, masterKey: session.masterKey });
+        },
+        onResult: ({ at }) => notifyActivity({ at }),
+        onError: (cause) =>
+          notifyActivity({
+            error: cause instanceof Error ? cause.message : String(cause),
+          }),
+      });
+
+      setCore(
+        withSyncKick(createCore(driver, keySession.current), () =>
+          scheduler.current?.kick(),
+        ),
+      );
+      scheduler.current.start(); // backstop interval
+      void scheduler.current.trigger(); // initial sync
       // The enable-sync surface closes over the *booted* driver + keystore, so it
       // never re-opens the DB or re-creates the keystore (custody Phase 1).
       setSync({
@@ -183,6 +241,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             await clearLocalAccount({ driver });
             throw new Error(relayErrorMessage(cause, relayUrl), { cause });
           }
+          void scheduler.current?.trigger(); // push this device's data right away
           return {
             accountId: account.id,
             recoveryKey: bytesToBase64(recoveryKey),
@@ -202,24 +261,39 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           } catch (cause) {
             throw new Error(relayErrorMessage(cause, relayUrl), { cause });
           }
-          // Adopt the account's master key everywhere: rebuild the core on the
-          // adopted session and swap it in place (desktop does this via its IPC
-          // Proxy; here `setCore` re-renders consumers with the new core).
+          // Adopt the account's master key everywhere: rebuild the core (wrapped
+          // so writes keep kicking) on the adopted session and swap it in place
+          // (desktop does this via its IPC Proxy; here `setCore` re-renders
+          // consumers with the new core).
           keySession.current = session;
-          setCore(createCore(driver, session));
+          setCore(
+            withSyncKick(createCore(driver, session), () =>
+              scheduler.current?.kick(),
+            ),
+          );
+          void scheduler.current?.trigger(); // pull the account onto this device
         },
-        syncNow() {
-          if (keySession.current === null) {
+        // Route through the scheduler so the button and background syncs share
+        // single-flight; a guarded skip (not enabled) surfaces as the same error.
+        async syncNow() {
+          const result = await scheduler.current?.trigger();
+          if (result === undefined) {
             throw new Error("Sync is not enabled for this store.");
           }
-          return runAccountSync({
-            driver,
-            masterKey: keySession.current.masterKey,
-          });
+          return result;
         },
         clear: () => clearLocalAccount({ driver }),
+        onActivity(listener) {
+          activityListeners.current.add(listener);
+          return () => activityListeners.current.delete(listener);
+        },
       });
     })().catch((e) => setError(String(e)));
+
+    return () => {
+      appStateSub.remove();
+      scheduler.current?.stop();
+    };
   }, []);
 
   if (error !== null) {

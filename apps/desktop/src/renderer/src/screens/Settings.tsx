@@ -93,6 +93,21 @@ function AccountEnabled({
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
+  // Background syncs (interval / window focus / after a local write) complete out
+  // of band, so subscribe to keep the "last synced" line and error current even
+  // when the user didn't press the button.
+  useEffect(
+    () =>
+      window.sync.onActivity((payload) => {
+        if (payload.at !== undefined) {
+          setLastSynced(payload.at);
+          setError(null);
+        }
+        if (payload.error !== undefined) setError(payload.error);
+      }),
+    [],
+  );
+
   async function syncNow() {
     setError(null);
     setSyncing(true);
