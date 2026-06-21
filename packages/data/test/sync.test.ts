@@ -246,6 +246,36 @@ describe("sync engine (all entities, in-memory transport)", () => {
     expect(await B.people.get(grace.id)).toEqual(grace);
   });
 
+  it("sync() reports the pull's applied count (the reactive-invalidation signal)", async () => {
+    const engine = (
+      d: Device,
+      syncState: ReturnType<typeof createSyncStateRepo>,
+    ) =>
+      createSyncEngine({
+        transport,
+        masterKey: MK,
+        repos: syncables(d),
+        syncState,
+      });
+    const stateA = createSyncStateRepo(A.driver);
+    const stateB = createSyncStateRepo(B.driver);
+
+    await A.people.create({ firstName: "Ada", lastName: "Lovelace" });
+    await engine(A, stateA).sync(); // push Ada to the shared transport
+
+    // B's first sync pulls Ada — `applied > 0` is what tells a client to
+    // revalidate the visible screen.
+    const onB = await engine(B, stateB).sync();
+    expect(onB.applied).toBeGreaterThan(0);
+
+    // A second sync on the *converged author* is a genuine no-op pull (it already
+    // pushed Ada, so its push HWM is past her) — `applied` is 0, so no pointless
+    // revalidation fires. (A device that pulled a row it never pushed re-pushes it
+    // once and pulls the echo back — the accepted imprecision, harmless.)
+    const again = await engine(A, stateA).sync();
+    expect(again.applied).toBe(0);
+  });
+
   it("never exposes domain fields to the transport (only ciphertext + metadata)", async () => {
     const engineA = engineFor(A);
     const ada = await A.people.create({
@@ -280,7 +310,7 @@ describe("sync engine (all entities, in-memory transport)", () => {
     });
     await stamp(A, "people", ada.id, 1000, { createdAt: 1000 });
     await engineA.push(0);
-    let cursorB = await engineB.pull(0);
+    let { cursor: cursorB } = await engineB.pull(0);
 
     // Concurrent edits: A is newer (3000), B is older (2000).
     await A.people.update(ada.id, { gender: "female" });
@@ -292,7 +322,7 @@ describe("sync engine (all entities, in-memory transport)", () => {
     await engineB.push(1000); // push B's 2000 edit
 
     await engineA.pull(0);
-    cursorB = await engineB.pull(cursorB);
+    ({ cursor: cursorB } = await engineB.pull(cursorB));
 
     const expected = {
       id: ada.id,
@@ -355,12 +385,14 @@ describe("sync engine (all entities, in-memory transport)", () => {
     });
     await engineA.push(0);
 
-    const cursor1 = await engineB.pull(0);
+    const { cursor: cursor1, applied: applied1 } = await engineB.pull(0);
+    expect(applied1).toBe(1); // Ada delivered — the "changed" signal
     const before = await B.people.get(ada.id);
-    const cursor2 = await engineB.pull(cursor1);
+    const { cursor: cursor2, applied: applied2 } = await engineB.pull(cursor1);
     const after = await B.people.get(ada.id);
 
     expect(cursor2).toBe(cursor1); // nothing new delivered
+    expect(applied2).toBe(0); // no-op pull reports nothing applied
     expect(after).toEqual(before);
     await engineB.pull(0);
     expect(await B.people.get(ada.id)).toEqual(before);
@@ -375,7 +407,7 @@ describe("sync engine (all entities, in-memory transport)", () => {
     });
     await stamp(A, "people", ada.id, 1000, { createdAt: 1000 });
     await engineA.push(0);
-    const cursorB = await engineB.pull(0);
+    const { cursor: cursorB } = await engineB.pull(0);
 
     await A.people.update(ada.id, { gender: "female" }); // A: gender, ts 3000
     await stamp(A, "people", ada.id, 3000, { createdAt: 1000 });

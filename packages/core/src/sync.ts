@@ -171,13 +171,15 @@ export function joinAccountViaRelay(opts: {
  * Run one push→pull cycle for the enabled account on this store. Reads the
  * account singleton and its relay coordinates (`relayUrl`/`authVerifier`)
  * internally so an IPC handler stays one line. Returns the completion time for a
- * "last synced" indicator. Throws if sync is not enabled, or the account is not
- * relay-bound (no `relayUrl`) — enable-sync with a relay must precede a sync.
+ * "last synced" indicator, plus `applied` — the number of records the pull
+ * delivered, so a caller can revalidate the UI only when a pull changed
+ * something. Throws if sync is not enabled, or the account is not relay-bound
+ * (no `relayUrl`) — enable-sync with a relay must precede a sync.
  */
 export async function runAccountSync(opts: {
   driver: SqliteDriver;
   masterKey: Uint8Array;
-}): Promise<{ at: number }> {
+}): Promise<{ at: number; applied: number }> {
   const { driver, masterKey } = opts;
   const account = await createAccountRepo(driver).getSingleton();
   if (account === undefined) {
@@ -193,6 +195,6 @@ export async function runAccountSync(opts: {
     accountId: account.id,
     authVerifier: account.authVerifier,
   });
-  await engine.sync();
-  return { at: Date.now() };
+  const { applied } = await engine.sync();
+  return { at: Date.now(), applied };
 }
