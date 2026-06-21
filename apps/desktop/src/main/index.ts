@@ -80,8 +80,14 @@ function setActiveCore(session: KeySession | undefined): void {
 }
 
 /** Push a background-sync activity update to every renderer (so Settings can show
- *  "last synced" / a non-fatal error even when the sync wasn't button-initiated). */
-function broadcastSyncActivity(payload: { at?: number; error?: string }): void {
+ *  "last synced" / a non-fatal error even when the sync wasn't button-initiated).
+ *  `changed` signals a pull that applied records, so the renderer can revalidate
+ *  the active route in place (reactive invalidation). */
+function broadcastSyncActivity(payload: {
+  at?: number;
+  error?: string;
+  changed?: boolean;
+}): void {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send("sync:activity", payload);
   }
@@ -551,7 +557,11 @@ void app.whenReady().then(async () => {
       if (!status.enabled || status.relayUrl === undefined) return undefined;
       return runAccountSync({ driver, masterKey: keySession.masterKey });
     },
-    onResult: ({ at }) => broadcastSyncActivity({ at }),
+    onResult: ({ at, applied }) =>
+      broadcastSyncActivity({
+        at,
+        changed: applied !== undefined && applied > 0,
+      }),
     onError: (error) =>
       broadcastSyncActivity({
         error: error instanceof Error ? error.message : String(error),

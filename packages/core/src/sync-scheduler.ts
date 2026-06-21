@@ -35,7 +35,7 @@ export interface SyncScheduler {
    * or the injected `run` guard skipped it (sync not enabled). Used for
    * foreground/focus, launch, post-enable/join, and the manual "Sync now" button.
    */
-  trigger(): Promise<{ at: number } | undefined>;
+  trigger(): Promise<{ at: number; applied?: number } | undefined>;
   /**
    * Debounced trigger for high-frequency events (local writes): (re)schedule a
    * {@link trigger} after {@link SYNC_KICK_DEBOUNCE_MS}, resetting the timer on
@@ -50,10 +50,10 @@ export interface SyncScheduler {
 
 export function createSyncScheduler(opts: {
   /** The work + guard. Return `undefined` to signal "skipped" (e.g. not enabled). */
-  run: () => Promise<{ at: number } | undefined>;
+  run: () => Promise<{ at: number; applied?: number } | undefined>;
   intervalMs?: number;
   debounceMs?: number;
-  onResult?: (result: { at: number }) => void;
+  onResult?: (result: { at: number; applied?: number }) => void;
   onError?: (error: unknown) => void;
 }): SyncScheduler {
   const {
@@ -64,11 +64,11 @@ export function createSyncScheduler(opts: {
     onError,
   } = opts;
 
-  let inFlight: Promise<{ at: number } | undefined> | undefined;
+  let inFlight: Promise<{ at: number; applied?: number } | undefined> | undefined;
   let interval: ReturnType<typeof setInterval> | undefined;
   let kickTimer: ReturnType<typeof setTimeout> | undefined;
 
-  function trigger(): Promise<{ at: number } | undefined> {
+  function trigger(): Promise<{ at: number; applied?: number } | undefined> {
     // Single-flight: a focus during an interval run, or a kick during a manual
     // sync, all share the one outstanding run rather than stacking up.
     if (inFlight !== undefined) return inFlight;

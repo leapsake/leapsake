@@ -114,10 +114,15 @@ export interface SyncApi {
    * Subscribe to background-sync activity (interval / foreground / write-kicked
    * runs, not just the manual button), so a screen can keep its "last synced"
    * line fresh. Returns an unsubscribe function. Mirrors desktop's
-   * `window.sync.onActivity`.
+   * `window.sync.onActivity`. The payload's `changed` (a pull applied records)
+   * also drives reactive invalidation via {@link useDataVersion}.
    */
   onActivity(
-    listener: (payload: { at?: number; error?: string }) => void,
+    listener: (payload: {
+      at?: number;
+      error?: string;
+      changed?: boolean;
+    }) => void,
   ): () => void;
 }
 
@@ -128,6 +133,12 @@ export interface SyncApi {
 // `useCore()` and calls it in-process — no IPC, unlike desktop.
 const CoreContext = createContext<CoreApi | null>(null);
 const SyncContext = createContext<SyncApi | null>(null);
+// A monotonically-increasing counter bumped whenever a background-sync pull
+// applies remote changes. `useFocusedData` depends on it, so a bump re-runs the
+// focused screen's load — the in-process analogue of desktop's
+// `router.revalidate()` (reactive invalidation). Defaults to 0 (no provider →
+// never invalidates, so a screen used outside CoreProvider still renders).
+const DataVersionContext = createContext(0);
 
 /** Access the ready CoreApi. Throws if used outside a (loaded) CoreProvider. */
 export function useCore(): CoreApi {
@@ -147,10 +158,22 @@ export function useSync(): SyncApi {
   return sync;
 }
 
+/**
+ * The reactive-invalidation signal: a counter that bumps when a background-sync
+ * pull applied remote changes. Add it to a `useFocusedData` load's deps so the
+ * focused screen re-reads when sync lands a peer's edits.
+ */
+export function useDataVersion(): number {
+  return useContext(DataVersionContext);
+}
+
 export function CoreProvider({ children }: { children: ReactNode }) {
   const [core, setCore] = useState<CoreApi | null>(null);
   const [sync, setSync] = useState<SyncApi | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Reactive invalidation: bumped whenever a sync pull applied changes, so the
+  // focused screen (via `useFocusedData` → `useDataVersion`) re-reads in place.
+  const [dataVersion, setDataVersion] = useState(0);
   // The unlocked device key material (custody Phase 0), passed into createCore so
   // it can encrypt sensitive fields at rest under per-item content keys.
   const keySession = useRef<KeySession | null>(null);
@@ -161,7 +184,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   // Activity listeners (e.g. the Settings "last synced" line), notified on every
   // background-sync result/error — the in-process analogue of desktop's IPC event.
   const activityListeners = useRef(
-    new Set<(payload: { at?: number; error?: string }) => void>(),
+    new Set<
+      (payload: { at?: number; error?: string; changed?: boolean }) => void
+    >(),
   );
 
   useEffect(() => {
@@ -180,7 +205,13 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       const keyStore = secureStoreKeyStore();
       keySession.current = await ensureDeviceMasterKey({ keyStore, driver });
 
-      const notifyActivity = (payload: { at?: number; error?: string }) => {
+      const notifyActivity = (payload: {
+        at?: number;
+        error?: string;
+        changed?: boolean;
+      }) => {
+        // A changed pull bumps the data version so focused screens re-read.
+        if (payload.changed) setDataVersion((v) => v + 1);
         for (const listener of activityListeners.current) listener(payload);
       };
       // The run thunk doubles as the "is sync enabled" guard (a quiet no-op until
@@ -195,7 +226,8 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             return undefined;
           return runAccountSync({ driver, masterKey: session.masterKey });
         },
-        onResult: ({ at }) => notifyActivity({ at }),
+        onResult: ({ at, applied }) =>
+          notifyActivity({ at, changed: applied !== undefined && applied > 0 }),
         onError: (cause) =>
           notifyActivity({
             error: cause instanceof Error ? cause.message : String(cause),
@@ -314,7 +346,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <CoreContext.Provider value={core}>
-      <SyncContext.Provider value={sync}>{children}</SyncContext.Provider>
+      <SyncContext.Provider value={sync}>
+        <DataVersionContext.Provider value={dataVersion}>
+          {children}
+        </DataVersionContext.Provider>
+      </SyncContext.Provider>
     </CoreContext.Provider>
   );
 }

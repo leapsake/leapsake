@@ -38,17 +38,23 @@ export interface SyncEngine {
   push(lastPushedUpdatedAt: number): Promise<number>;
   /**
    * Pull records since `cursor`, decrypt, and apply each via its repo's merge,
-   * returning the advanced cursor to pass next time.
+   * returning the advanced `cursor` to pass next time and `applied` — the number
+   * of records the relay delivered this batch. `applied > 0` is the "something
+   * may have changed locally" signal reactive invalidation gates on; it is an
+   * upper bound (the relay echoes the device's own pushed rows, which LWW-merge
+   * to a no-op), so a redundant revalidate after your own push is possible but
+   * harmless (loaders are idempotent).
    */
-  pull(cursor: Cursor): Promise<Cursor>;
+  pull(cursor: Cursor): Promise<{ cursor: Cursor; applied: number }>;
   /**
    * The self-driving loop: read both watermarks from the {@link SyncStateRepo},
    * {@link push} local changes then {@link pull} peers', and persist the
    * advanced marks. Push-first is conventional; correctness does not depend on
    * order (the merge is order-independent). Requires the engine to have been
-   * built with a `syncState` repo — throws otherwise.
+   * built with a `syncState` repo — throws otherwise. Returns the pull's
+   * `applied` count so a caller can gate UI revalidation on a changed pull.
    */
-  sync(): Promise<void>;
+  sync(): Promise<{ applied: number }>;
 }
 
 export function createSyncEngine(opts: {
@@ -89,7 +95,9 @@ export function createSyncEngine(opts: {
     return hwm;
   }
 
-  async function pull(cursor: Cursor): Promise<Cursor> {
+  async function pull(
+    cursor: Cursor,
+  ): Promise<{ cursor: Cursor; applied: number }> {
     const { records, cursor: next } = await transport.pull(cursor);
     // Apply order within a batch does not affect the converged state:
     // foreign-key enforcement is off and `upsertFromRemote` is LWW-idempotent,
@@ -102,7 +110,7 @@ export function createSyncEngine(opts: {
       );
       await repo.upsertFromRemote(row);
     }
-    return next;
+    return { cursor: next, applied: records.length };
   }
 
   return {
@@ -117,9 +125,9 @@ export function createSyncEngine(opts: {
         );
       }
       await syncState.setPushHwm(await push(await syncState.getPushHwm()));
-      await syncState.setPullCursor(
-        await pull(await syncState.getPullCursor()),
-      );
+      const { cursor, applied } = await pull(await syncState.getPullCursor());
+      await syncState.setPullCursor(cursor);
+      return { applied };
     },
   };
 }

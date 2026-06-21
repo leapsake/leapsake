@@ -314,14 +314,19 @@ const sync = {
    * Subscribe to background-sync activity (interval / focus / write-kicked runs,
    * not just the manual button), so the renderer can keep its "last synced" line
    * fresh. Returns an unsubscribe function. The payload carries either a
-   * completion time or a non-fatal error message.
+   * completion time or a non-fatal error message, plus `changed` (a pull applied
+   * records) so the renderer can revalidate the active route.
    */
   onActivity: (
-    listener: (payload: { at?: number; error?: string }) => void,
+    listener: (payload: {
+      at?: number;
+      error?: string;
+      changed?: boolean;
+    }) => void,
   ): (() => void) => {
     const handler = (
       _event: unknown,
-      payload: { at?: number; error?: string },
+      payload: { at?: number; error?: string; changed?: boolean },
     ) => listener(payload);
     ipcRenderer.on("sync:activity", handler);
     return () => ipcRenderer.removeListener("sync:activity", handler);
