@@ -93,6 +93,18 @@ export {
   runAccountSync,
 } from "./sync.js";
 
+// The scheduling layer that turns the manual one-shot sync into seamless
+// background sync: a debounced, single-flight scheduler plus a CoreApi wrapper
+// that kicks a sync after every local write. Each client wires the platform
+// triggers (focus/foreground) to it.
+export {
+  createSyncScheduler,
+  withSyncKick,
+  SYNC_INTERVAL_MS,
+  SYNC_KICK_DEBOUNCE_MS,
+  type SyncScheduler,
+} from "./sync-scheduler.js";
+
 // The view-model contracts the `views` builders return, re-exported so every
 // client renders against the same shapes carried out via `CoreApi`.
 export type {

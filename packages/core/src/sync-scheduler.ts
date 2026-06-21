@@ -1,0 +1,166 @@
+/**
+ * Seamless background sync: the *scheduling* layer over {@link runAccountSync}.
+ *
+ * Convergence has two halves, and a single trigger can't cover both, so this
+ * module supplies the primitives clients use to drive sync from real events
+ * rather than a poll:
+ *
+ * - **push** (your edits go out) is best triggered by the local write itself —
+ *   the debounced {@link SyncScheduler.kick} below, wired through
+ *   {@link withSyncKick}, so a burst of edits collapses to one push;
+ * - **pull** (the peer's edits come in) has no local event, so clients call
+ *   {@link SyncScheduler.trigger} on app foreground / window focus;
+ * - a long {@link SYNC_INTERVAL_MS} interval is only a backstop for the "both
+ *   apps open and focused while the peer edits" gap. It is the *only* part with
+ *   idle cost, which is why it is long and event-driven triggers do the work.
+ *
+ * The scheduler owns scheduling only — the actual work (and the "is sync even
+ * enabled" guard) is the injected `run` thunk — so it is pure and unit-testable
+ * with fake timers, and platform-agnostic (`setInterval`/`setTimeout` exist on
+ * both Node and Hermes).
+ */
+
+/** The backstop interval. Long on purpose: events drive the common case, and on
+ *  mobile a JS interval only fires while foregrounded anyway. */
+export const SYNC_INTERVAL_MS = 15 * 60_000;
+
+/** How long {@link SyncScheduler.kick} waits before syncing, so a burst of local
+ *  edits coalesces into a single push. */
+export const SYNC_KICK_DEBOUNCE_MS = 2_000;
+
+export interface SyncScheduler {
+  /**
+   * Run a sync now unless one is already in flight (single-flight). Resolves to
+   * the run's result, or `undefined` if it was coalesced into the in-flight run
+   * or the injected `run` guard skipped it (sync not enabled). Used for
+   * foreground/focus, launch, post-enable/join, and the manual "Sync now" button.
+   */
+  trigger(): Promise<{ at: number } | undefined>;
+  /**
+   * Debounced trigger for high-frequency events (local writes): (re)schedule a
+   * {@link trigger} after {@link SYNC_KICK_DEBOUNCE_MS}, resetting the timer on
+   * each call. Fire-and-forget.
+   */
+  kick(): void;
+  /** Start the periodic backstop interval. Idempotent. */
+  start(): void;
+  /** Stop the interval and cancel any pending kick. In-flight runs still resolve. */
+  stop(): void;
+}
+
+export function createSyncScheduler(opts: {
+  /** The work + guard. Return `undefined` to signal "skipped" (e.g. not enabled). */
+  run: () => Promise<{ at: number } | undefined>;
+  intervalMs?: number;
+  debounceMs?: number;
+  onResult?: (result: { at: number }) => void;
+  onError?: (error: unknown) => void;
+}): SyncScheduler {
+  const {
+    run,
+    intervalMs = SYNC_INTERVAL_MS,
+    debounceMs = SYNC_KICK_DEBOUNCE_MS,
+    onResult,
+    onError,
+  } = opts;
+
+  let inFlight: Promise<{ at: number } | undefined> | undefined;
+  let interval: ReturnType<typeof setInterval> | undefined;
+  let kickTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function trigger(): Promise<{ at: number } | undefined> {
+    // Single-flight: a focus during an interval run, or a kick during a manual
+    // sync, all share the one outstanding run rather than stacking up.
+    if (inFlight !== undefined) return inFlight;
+    const started = (async () => {
+      try {
+        const result = await run();
+        if (result !== undefined) onResult?.(result);
+        return result;
+      } catch (error) {
+        // Never let a background failure (relay down) escape into a timer/
+        // interval callback and crash the host. Manual callers still see the
+        // rejection because trigger() returns this promise to them.
+        onError?.(error);
+        throw error;
+      } finally {
+        inFlight = undefined;
+      }
+    })();
+    inFlight = started;
+    return started;
+  }
+
+  return {
+    trigger,
+    kick() {
+      if (kickTimer !== undefined) clearTimeout(kickTimer);
+      kickTimer = setTimeout(() => {
+        kickTimer = undefined;
+        // Swallow rejections: kick() is fire-and-forget and onError already saw it.
+        void trigger().catch(() => {});
+      }, debounceMs);
+    },
+    start() {
+      if (interval !== undefined) return; // idempotent
+      interval = setInterval(() => {
+        void trigger().catch(() => {});
+      }, intervalMs);
+    },
+    stop() {
+      if (interval !== undefined) {
+        clearInterval(interval);
+        interval = undefined;
+      }
+      if (kickTimer !== undefined) {
+        clearTimeout(kickTimer);
+        kickTimer = undefined;
+      }
+    },
+  };
+}
+
+/**
+ * Names of {@link CoreApi} methods that *mutate* state and so should trigger a
+ * sync. Everything else (`list`/`get`/`*For*`/`query`/the view builders) is a
+ * read and passes through untouched. Pinned by `with-sync-kick.test.ts` so a new
+ * write method can't silently bypass background sync.
+ */
+const MUTATING_METHOD = /^(create|update|edit|softDelete|dismiss|undismiss)/;
+
+/**
+ * Wrap a {@link CoreApi}-shaped object so that every mutating method calls `kick`
+ * after it resolves, at a single seam — clients don't have to remember to kick
+ * after each write. Recurses into nested groups (e.g. `contactMethods.emails`).
+ * Reads pass through; rejections propagate without a kick (nothing landed).
+ *
+ * Typed generically over the input shape so it returns the same type it was
+ * given (the client keeps its `CoreApi`), and so this stays decoupled from the
+ * `CoreApi` type defined in the index module.
+ */
+export function withSyncKick<T extends object>(core: T, kick: () => void): T {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(core as Record<string, unknown>)) {
+    if (typeof value === "function") {
+      const fn = value as (...args: unknown[]) => unknown;
+      out[key] = MUTATING_METHOD.test(key)
+        ? (...args: unknown[]) => {
+            const result = fn(...args);
+            if (result instanceof Promise) {
+              return result.then((resolved) => {
+                kick();
+                return resolved;
+              });
+            }
+            kick();
+            return result;
+          }
+        : fn;
+    } else if (value !== null && typeof value === "object") {
+      out[key] = withSyncKick(value, kick);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out as T;
+}

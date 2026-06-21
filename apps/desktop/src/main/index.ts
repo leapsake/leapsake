@@ -3,8 +3,10 @@ import {
   type CoreApi,
   type KeySession,
   type SqliteDriver,
+  type SyncScheduler,
   clearLocalAccount,
   createCore,
+  createSyncScheduler,
   enableSync,
   ensureDeviceMasterKey,
   getSyncStatus,
@@ -13,6 +15,7 @@ import {
   registerAccountWithRelay,
   runAccountSync,
   runMigrations,
+  withSyncKick,
 } from "@leapsake/core";
 import { type KeyStore, bytesToBase64 } from "@leapsake/crypto";
 import {
@@ -40,6 +43,10 @@ import { BrowserWindow, app, ipcMain } from "electron";
 import { nodeSqliteDriver } from "./db/node-sqlite-driver.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
+// The shared SQLite driver, assigned once in whenReady. Module-scoped so the
+// core-rebuild and background-sync helpers below can reach it without threading.
+let driver: SqliteDriver;
+
 // The unlocked device key material (custody Phase 0), passed into createCore so
 // it can encrypt sensitive fields at rest under per-item content keys. Mutable
 // because joining an existing account (sync:join) adopts a *different* master key
@@ -51,8 +58,34 @@ export function getKeySession(): KeySession | undefined {
 
 // The live core the IPC handlers forward to. Reassigned when sync:join adopts the
 // account master key; registerIpc reads it through a getter so the handlers never
-// need re-registering (ipcMain.handle throws on a second registration).
+// need re-registering (ipcMain.handle throws on a second registration). It is
+// wrapped with withSyncKick so a renderer write debounce-kicks a background sync.
 let activeCore: CoreApi | undefined;
+
+// The background-sync scheduler (seamless sync): writes kick it, window focus and
+// the interval trigger it, and the manual "Sync now" button routes through it so
+// they share single-flight. Built in whenReady once the driver/keystore exist.
+let scheduler: SyncScheduler | undefined;
+
+/**
+ * Build the live core around `session` and wrap it so each local write kicks a
+ * (debounced) background sync. Used at bootstrap and again after sync:join adopts
+ * a different master key. The kick reads `scheduler` lazily, so it is safe even
+ * before the scheduler is built.
+ */
+function setActiveCore(session: KeySession | undefined): void {
+  activeCore = withSyncKick(createCore(driver, session), () =>
+    scheduler?.kick(),
+  );
+}
+
+/** Push a background-sync activity update to every renderer (so Settings can show
+ *  "last synced" / a non-fatal error even when the sync wasn't button-initiated). */
+function broadcastSyncActivity(payload: { at?: number; error?: string }): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send("sync:activity", payload);
+  }
+}
 
 /** Coerce IPC-supplied tag names to a clean `string[]` before the repo dedupes. */
 function asTagNames(value: unknown): string[] {
@@ -366,11 +399,8 @@ function relayErrorMessage(cause: unknown, relayUrl: string): string {
  * the length here before deriving anything, and returns the one-time recovery
  * key **base64-encoded for display** — the raw key bytes never cross IPC.
  */
-function registerSyncIpc(opts: {
-  driver: SqliteDriver;
-  keyStore: KeyStore;
-}): void {
-  const { driver, keyStore } = opts;
+function registerSyncIpc(opts: { keyStore: KeyStore }): void {
+  const { keyStore } = opts;
 
   ipcMain.handle("sync:status", () => getSyncStatus({ driver }));
 
@@ -427,6 +457,7 @@ function registerSyncIpc(opts: {
         await clearLocalAccount({ driver });
         throw new Error(relayErrorMessage(cause, relayUrl), { cause });
       }
+      void scheduler?.trigger(); // push the first device's data right away
       return { accountId: account.id, recoveryKey: bytesToBase64(recoveryKey) };
     },
   );
@@ -455,17 +486,21 @@ function registerSyncIpc(opts: {
       } catch (cause) {
         throw new Error(relayErrorMessage(cause, relayUrl), { cause });
       }
-      activeCore = createCore(driver, keySession);
+      setActiveCore(keySession);
+      void scheduler?.trigger(); // pull the account's data onto this fresh device
     },
   );
 
-  // Run one push→pull cycle for the enabled account. Returns the completion time
-  // for a "last synced" indicator.
-  ipcMain.handle("sync:now", () => {
-    if (keySession === undefined) {
+  // Run one push→pull cycle for the enabled account, routed through the scheduler
+  // so the manual button and background syncs share single-flight. Returns the
+  // completion time for a "last synced" indicator; a guarded skip (sync not
+  // enabled) surfaces as the same error the direct call used to throw.
+  ipcMain.handle("sync:now", async () => {
+    const result = await scheduler?.trigger();
+    if (result === undefined) {
       throw new Error("Sync is not enabled for this store.");
     }
-    return runAccountSync({ driver, masterKey: keySession.masterKey });
+    return result;
   });
 
   // Disconnect the account from this device: drop the account identity + the
@@ -498,18 +533,46 @@ function createWindow(): void {
 
 void app.whenReady().then(async () => {
   const db = new DatabaseSync(join(app.getPath("userData"), "leapsake.db"));
-  const driver = nodeSqliteDriver(db);
+  driver = nodeSqliteDriver(db);
   await runMigrations(driver);
   const keyStore = safeStorageKeyStore(
     join(app.getPath("userData"), "keystore.json"),
   );
   keySession = await ensureDeviceMasterKey({ keyStore, driver });
-  activeCore = createCore(driver, keySession);
+
+  // Seamless background sync: the run thunk is the "is sync even enabled" guard
+  // (a quiet no-op until an account is set up and relay-bound), reading the
+  // current keySession so a later sync:join is picked up. Results/errors are
+  // pushed to the renderer for the Settings "last synced" line.
+  scheduler = createSyncScheduler({
+    run: async () => {
+      if (keySession === undefined) return undefined;
+      const status = await getSyncStatus({ driver });
+      if (!status.enabled || status.relayUrl === undefined) return undefined;
+      return runAccountSync({ driver, masterKey: keySession.masterKey });
+    },
+    onResult: ({ at }) => broadcastSyncActivity({ at }),
+    onError: (error) =>
+      broadcastSyncActivity({
+        error: error instanceof Error ? error.message : String(error),
+      }),
+  });
+
+  setActiveCore(keySession);
   registerIpc(() => {
     if (activeCore === undefined) throw new Error("Core is not initialized.");
     return activeCore;
   });
-  registerSyncIpc({ driver, keyStore });
+  registerSyncIpc({ keyStore });
+
+  scheduler.start(); // backstop interval
+  void scheduler.trigger(); // initial on-launch sync
+
+  // Pull the peer's edits in the moment the user returns to the app — the cheap,
+  // event-driven companion to write-kicked pushes.
+  app.on("browser-window-focus", () => {
+    void scheduler?.trigger();
+  });
 
   createWindow();
 
