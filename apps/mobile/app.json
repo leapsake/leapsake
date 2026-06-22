@@ -15,6 +15,10 @@
       "package": "net.leapsake.mobile"
     },
     "web": {},
-    "plugins": ["expo-status-bar", "expo-sqlite", "expo-router"]
+    "plugins": [
+      "expo-status-bar",
+      ["expo-sqlite", { "useSQLCipher": true }],
+      "expo-router"
+    ]
   }
 }

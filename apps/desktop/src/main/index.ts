@@ -20,7 +20,11 @@ import {
   setAutoSync,
   withSyncKick,
 } from "@leapsake/core";
-import { type KeyStore, bytesToBase64 } from "@leapsake/crypto";
+import {
+  type KeyStore,
+  bytesToBase64,
+  ensureDatabaseKey,
+} from "@leapsake/crypto";
 import {
   type ContactOwnerType,
   type EntityType,
@@ -42,7 +46,6 @@ import {
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
 import { BrowserWindow, app, ipcMain } from "electron";
-import { ensureDatabaseKey } from "./db/database-key.js";
 import {
   encryptedSqliteDriver,
   openEncryptedDatabase,

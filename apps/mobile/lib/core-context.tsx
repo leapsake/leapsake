@@ -36,7 +36,11 @@ import {
   setAutoSync,
   withSyncKick,
 } from "@leapsake/core";
-import { bytesToBase64 } from "@leapsake/crypto";
+import {
+  bytesToBase64,
+  ensureDatabaseKey,
+  rawKeyLiteral,
+} from "@leapsake/crypto";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 
@@ -212,9 +216,17 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     (async () => {
       const db = await SQLite.openDatabaseAsync("leapsake.db");
       const driver = expoSqliteDriver(db);
-      await runMigrations(driver);
       // The same keystore instance that backs the enable-sync door below.
       const keyStore = secureStoreKeyStore();
+      // At-rest encryption (Stage 2): supply the whole-DB key as the very first
+      // statement on the fresh connection, before migrations or any other read —
+      // SQLCipher requires `PRAGMA key` to precede all DB access. The key is minted
+      // once and held only in the OS enclave (expo-secure-store); the on-disk file
+      // is ciphertext, decrypted into memory page-by-page while we hold it. This is
+      // orthogonal to the in-DB master-key hierarchy below.
+      const dbKey = await ensureDatabaseKey(keyStore);
+      await driver.exec(`PRAGMA key = "${rawKeyLiteral(dbKey)}"`);
+      await runMigrations(driver);
       keySession.current = await ensureDeviceMasterKey({ keyStore, driver });
 
       const notifyActivity = (payload: {

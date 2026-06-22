@@ -1,4 +1,5 @@
 import Database from "better-sqlite3-multiple-ciphers";
+import { rawKeyLiteral } from "@leapsake/crypto";
 import type { SqliteDriver } from "@leapsake/data";
 
 /**
@@ -25,13 +26,6 @@ import type { SqliteDriver } from "@leapsake/data";
 
 /** The opened, keyed handle — shared with the one-time plaintext→encrypted migration. */
 export type EncryptedDatabase = Database.Database;
-
-/** SQLCipher's raw-key form: a 32-byte key as `x'<64 hex>'` is used directly, with
- *  no KDF iteration — exactly right for our already-random 256-bit enclave key.
- *  Shared with the one-time plaintext→encrypted migration's `rekey` pragma. */
-export function rawKeyLiteral(key: Uint8Array): string {
-  return `x'${Buffer.from(key).toString("hex")}'`;
-}
 
 /** Apply the cipher + raw key to a freshly opened handle, before any other
  *  statement. Pinned to `sqlcipher` so reopening always uses the same scheme. */

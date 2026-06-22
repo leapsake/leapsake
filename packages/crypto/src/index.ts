@@ -11,6 +11,11 @@ export {
 } from "./kdf.js";
 export { type KeyStore, createInMemoryKeyStore } from "./keystore.js";
 export {
+  DATABASE_KEY,
+  ensureDatabaseKey,
+  rawKeyLiteral,
+} from "./database-key.js";
+export {
   bytesToBase64,
   base64ToBytes,
   bytesToHex,
