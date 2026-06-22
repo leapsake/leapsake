@@ -7,6 +7,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "check:bundle": "node scripts/check-single-react.mjs",
+    "rebuild": "electron-rebuild -f -w better-sqlite3-multiple-ciphers",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit --composite false -p tsconfig.node.json && tsc --noEmit --composite false -p tsconfig.web.json"
   },
@@ -16,11 +17,13 @@
     "@leapsake/data": "workspace:*",
     "@leapsake/highlight": "workspace:*",
     "@leapsake/schema": "workspace:*",
+    "better-sqlite3-multiple-ciphers": "^12.11.1",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-router-dom": "^7.16.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.2.0",

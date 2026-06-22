@@ -14,8 +14,9 @@ layer underneath all clients.
   verified on iOS + Android.
 - **V3 — sync + distribution + web** — 🚧 in progress, two workstreams (full state in
   **[`status.md`](./status.md)**, the single cross-workstream oracle):
-  - **Encryption + sync foundations** — **Stage 1 (zero-knowledge sync) is code-complete**
-    on both clients; Stages 2–4 (at-rest, sharing, SSR) are ahead. Design:
+  - **Encryption + sync foundations** — **Stage 1 (zero-knowledge sync) is done** on both
+    clients (verified desktop ↔ mobile over the wire); Stages 2–4 (at-rest, sharing, SSR)
+    are ahead. Design:
     [`encryption/`](./encryption/).
   - **Entity reconciliation (dedup & merge)** — Increments A, B, and C's merge-on-join are
     built; only C's bulk-import dedup remains (deferred until the importer exists). A

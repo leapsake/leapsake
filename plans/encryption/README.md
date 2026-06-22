@@ -37,7 +37,7 @@ status edit.
   nothing*. That is what lets the work ship as small additive **stages** (`status.md`).
 - **Sync** rides on top: the server is a **blind relay** (`sync.md`), all merge is
   client-side, and **true P2P stays possible** as a future transport adapter.
-- **State** (`status.md`): **Stage 1 (zero-knowledge sync) is code-complete** on both
-  clients — envelope + key hierarchy, the password/KEK door, the blind HTTPS relay,
-  registry-driven sync, background sync, and multi-device login. The one gate left is a
-  desktop ↔ mobile over-the-wire demo; Stages 2–4 (at-rest, sharing, SSR) are ahead.
+- **State** (`status.md`): **Stage 1 (zero-knowledge sync) is done** on both clients —
+  envelope + key hierarchy, the password/KEK door, the blind HTTPS relay, registry-driven
+  sync, background sync, and multi-device login — verified desktop ↔ mobile over the wire.
+  Stages 2–4 (at-rest, sharing, SSR) are ahead.

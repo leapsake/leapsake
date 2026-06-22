@@ -41,9 +41,13 @@ import {
   updatePostalInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
-import { DatabaseSync } from "node:sqlite";
 import { BrowserWindow, app, ipcMain } from "electron";
-import { nodeSqliteDriver } from "./db/node-sqlite-driver.js";
+import { ensureDatabaseKey } from "./db/database-key.js";
+import {
+  encryptedSqliteDriver,
+  openEncryptedDatabase,
+} from "./db/encrypted-sqlite-driver.js";
+import { migratePlaintextDatabase } from "./db/plaintext-migration.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
 // The shared SQLite driver, assigned once in whenReady. Module-scoped so the
@@ -582,12 +586,17 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(async () => {
-  const db = new DatabaseSync(join(app.getPath("userData"), "leapsake.db"));
-  driver = nodeSqliteDriver(db);
+  const userData = app.getPath("userData");
+  const dbPath = join(userData, "leapsake.db");
+
+  // The enclave-held whole-DB key opens the encrypted file (Stage 2, model.md §8).
+  // KeyStore first, so the key is in hand before the DB is touched: mint/read the
+  // db-key, upgrade any pre-Stage-2 plaintext file in place, then open encrypted.
+  const keyStore = safeStorageKeyStore(join(userData, "keystore.json"));
+  const dbKey = await ensureDatabaseKey(keyStore);
+  migratePlaintextDatabase(dbPath, dbKey);
+  driver = encryptedSqliteDriver(openEncryptedDatabase(dbPath, dbKey));
   await runMigrations(driver);
-  const keyStore = safeStorageKeyStore(
-    join(app.getPath("userData"), "keystore.json"),
-  );
   keySession = await ensureDeviceMasterKey({ keyStore, driver });
 
   // Seamless background sync: the run thunk is the "is sync even enabled" guard

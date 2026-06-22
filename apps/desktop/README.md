@@ -1,9 +1,9 @@
 # @leapsake/desktop
 
 The Leapsake desktop app (Electron + React, built with electron-vite). The main
-process opens `node:sqlite`, runs migrations, builds the `@leapsake/core`
-application surface, and forwards it over a typed IPC surface; the renderer is a
-React + react-router UI that talks only to `window.api`.
+process opens the encrypted SQLite database, runs migrations, builds the
+`@leapsake/core` application surface, and forwards it over a typed IPC surface;
+the renderer is a React + react-router UI that talks only to `window.api`.
 
 ## Layout
 
@@ -11,7 +11,10 @@ React + react-router UI that talks only to `window.api`.
 src/
   main/
     index.ts                 # app lifecycle, window, DB init, core wiring, IPC handlers
-    db/node-sqlite-driver.ts # production SqliteDriver over node:sqlite (mirrors the test adapter)
+    db/
+      encrypted-sqlite-driver.ts # production SqliteDriver over the encrypted engine
+      database-key.ts            # whole-DB key custody in the OS enclave (KeyStore)
+      plaintext-migration.ts     # one-time upgrade of a pre-Stage-2 plaintext DB
   preload/
     index.ts                 # contextBridge → window.api; `Api` type is CoreApi
   renderer/
@@ -24,8 +27,9 @@ src/
       env.d.ts               # augments Window with `api: Api`
 ```
 
-Data lives in a single SQLite file at Electron's `userData` path
+Data lives in a single **encrypted** SQLite file at Electron's `userData` path
 (`leapsake.db`), e.g. `~/Library/Application Support/@leapsake/desktop/` on macOS.
+The file is unreadable without the device's whole-DB key, held in the OS enclave.
 
 ## Running
 
@@ -37,19 +41,35 @@ pnpm --filter @leapsake/desktop build   # production bundle into out/
 pnpm --filter @leapsake/desktop start   # preview the built app
 ```
 
-## Database: `node:sqlite` (no native-module dance)
+## Database: encrypted SQLite (at-rest, Stage 2)
 
-The database is Node's built-in `node:sqlite` (`DatabaseSync`), not a native
-addon. It ships inside the Node runtime that both Vitest and Electron already
-bundle, so there is **no compiled binary to rebuild**, no ABI mismatch between
-`pnpm test` and the app, and no Electron version pin tied to a prebuilt binary.
-`pnpm test` and `dev` just work after `pnpm install`.
+The database is **encrypted at rest** (`plans/encryption/model.md` §8): the file on
+disk is ciphertext, decrypted into memory page-by-page only while the process holds
+the whole-DB key. The backend is `better-sqlite3-multiple-ciphers`
+(SQLite3-Multiple-Ciphers, SQLCipher-compatible), chosen over a WASM build because
+it is the only maintained, batteries-included encrypted SQLite for Node/Electron,
+ships **prebuilt binaries** for both Node and Electron (no node-gyp compile), and is
+synchronous — a near drop-in for the previous `node:sqlite` driver.
 
-The production driver (`src/main/db/node-sqlite-driver.ts`) implements the async
-`SqliteDriver` port over `DatabaseSync` — wrapping its synchronous calls in
-resolved promises and `transaction` in manual `BEGIN`/`COMMIT`/`ROLLBACK`. It
-mirrors the test adapter in `packages/data/test`, so `packages/data` itself
-stays driver-free and reusable on mobile with an expo-sqlite adapter.
+This reintroduces a native addon (the cost `node:sqlite` had let us avoid — accepted
+for at-rest encryption). Two consequences:
+
+- **Electron ABI rebuild.** `pnpm install` fetches the Node-ABI prebuild (used by
+  Vitest); the app needs the Electron-ABI build. Run `pnpm --filter @leapsake/desktop
+  rebuild` (`@electron/rebuild`, fetches the matching prebuild — no compile) before
+  `dev`/`build` when the Electron version changes.
+- The native module is externalized by `electron-vite` automatically (it is a real
+  dependency, not a `@leapsake/*` workspace package), so its `.node` loads from
+  `node_modules` at runtime.
+
+The production driver (`src/main/db/encrypted-sqlite-driver.ts`) implements the async
+`SqliteDriver` port over the engine — applying the key pragma at open time, wrapping
+the synchronous calls in resolved promises, and `transaction` in manual
+`BEGIN`/`COMMIT`/`ROLLBACK`. `packages/data` itself stays driver-free, so the
+integration tests still run on `node:sqlite` `:memory:` and mobile keeps its
+expo-sqlite adapter. The whole-DB key is minted/held in the OS enclave
+(`database-key.ts`); a pre-Stage-2 plaintext file is re-keyed in place on first
+launch (`plaintext-migration.ts`).
 
 ## Notes
 
