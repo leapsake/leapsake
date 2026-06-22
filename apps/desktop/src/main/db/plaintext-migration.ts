@@ -1,9 +1,7 @@
 import { copyFileSync, existsSync, readFileSync } from "node:fs";
 import Database from "better-sqlite3-multiple-ciphers";
-import {
-  openEncryptedDatabase,
-  rawKeyLiteral,
-} from "./encrypted-sqlite-driver.js";
+import { rawKeyLiteral } from "@leapsake/crypto";
+import { openEncryptedDatabase } from "./encrypted-sqlite-driver.js";
 
 /**
  * One-time upgrade of a pre-Stage-2 **plaintext** `leapsake.db` to at-rest

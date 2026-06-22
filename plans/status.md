@@ -15,8 +15,8 @@
   iOS + Android) — ✅ done. (Delivery history is in git; durable lessons are in
   [`../AGENTS.md`](../AGENTS.md) and the package READMEs.)
 - **V3 · Encryption + sync** — **Stage 1 (zero-knowledge sync) is done** on both clients,
-  verified desktop ↔ mobile over the wire. **Stage 2 (at-rest) is now done on desktop**
-  (the local file is encrypted; mobile at-rest is the follow-on increment). Stages 3–4
+  verified desktop ↔ mobile over the wire. **Stage 2 (at-rest) is now done on both clients**
+  (the local file is encrypted on desktop *and* mobile). Stages 3–4
   (sharing, SSR) remain post-launch. Design: [`encryption/`](./encryption/).
 - **V3 · Reconciliation (dedup & merge)** — Increments A, B, and C's merge-on-join are
   built; only C's bulk-import dedup remains (deferred until the importer exists). Design:
@@ -82,10 +82,51 @@ existing `SqliteDriver` port, with **zero edits above the driver**.
 - **Existing-data upgrade:** a pre-Stage-2 plaintext file is detected by its `SQLite format 3`
   header and re-keyed in place on first launch, keeping the original as `leapsake.db.plaintext.bak`.
   Idempotent; a no-op for fresh installs and already-encrypted files.
-- Code: `apps/desktop/src/main/db/{encrypted-sqlite-driver,database-key,plaintext-migration}.ts`;
+- Code: `apps/desktop/src/main/db/{encrypted-sqlite-driver,plaintext-migration}.ts`;
   the old plaintext `node-sqlite-driver.ts` is removed. Tests run under Vitest's Node ABI and prove
   ciphertext-at-rest, wrong-key rejection, BLOB round-trip, and the plaintext→encrypted migration.
   `packages/data` integration tests stay on `node:sqlite` `:memory:` (encryption is a driver concern).
+- The whole-DB key custody helper (`ensureDatabaseKey`, `DATABASE_KEY`, the SQLCipher
+  `rawKeyLiteral`) now lives in **`packages/crypto/src/database-key.ts`** — shared by both clients
+  rather than desktop-local (its doc always anticipated this lift). Its unit test moved to
+  `packages/crypto/test/`.
+
+### Encryption + sync — Stage 2 (at-rest encryption, mobile)
+
+The same whole-DB at-rest property on mobile, mirroring desktop's pattern: the on-disk
+`leapsake.db` is now ciphertext, decrypted into memory only while the app holds the device's
+whole-DB key. Search/kinship/timelines untouched (in-memory plaintext, as on desktop).
+
+- **Backend decision (verified, not spiked):** **expo-sqlite's own native SQLCipher** —
+  v56 ships the `useSQLCipher` config-plugin build flag, which vendors the SQLCipher amalgamation
+  (`-DSQLITE_HAS_CODEC=1 -DSQLCIPHER_CRYPTO_CC`, Apple CommonCrypto on iOS). So this is a
+  **key-supply change on the engine already in use** — `expoSqliteDriver` is reused **unchanged**
+  — not a new driver or a `@op-engineering/op-sqlite` dependency.
+- **Whole-DB key custody:** identical pattern to desktop — `ensureDatabaseKey` (now shared, from
+  `@leapsake/crypto`) mints a random 256-bit key once and holds it **only** in `expo-secure-store`
+  (the OS enclave), supplied at open time via `PRAGMA key` as the **first** statement on the fresh
+  connection, before migrations (SQLCipher requires it precede all DB access). Orthogonal to the
+  in-DB master-key hierarchy.
+- **No plaintext→encrypted migration** (deliberate): v0.1 is pre-launch, so mobile installs are
+  dev/test only — fresh installs get a fresh encrypted DB; dev devices reinstall. (Desktop's
+  `plaintext-migration.ts` is intentionally **not** ported; if ever needed, SQLCipher wants the
+  `sqlcipher_export()`/ATTACH idiom, not desktop's `PRAGMA rekey`.)
+- **Dev runtime moved off Expo Go to a local custom dev client** — SQLCipher is a native build
+  flag, so Expo Go (which bundles only stock modules) can't host it; *any* at-rest backend forces
+  this. Built locally with `expo prebuild` + `expo run:ios`/`run:android` (stock Xcode/Gradle),
+  **no EAS / no cloud** — `prebuild` emits standard, fully-regenerable `ios/`/`android/` projects
+  (gitignored; `app.json` + plugins stay the source of truth). Added `expo-dev-client`; dev scripts
+  now use `--dev-client` / `run:ios` / `run:android`.
+- Code: `apps/mobile/lib/core-context.tsx` (key supply in bootstrap), `apps/mobile/app.json`
+  (`useSQLCipher` plugin), `apps/mobile/package.json` + `.gitignore`. No Node-runnable test is
+  possible (mobile SQLCipher is a native iOS/Android module, unlike desktop's Node-ABI binary);
+  **verified on an Android emulator** — the dev client built with the SQLCipher amalgamation,
+  booted, keyed the DB, ran all migrations, and the on-disk `leapsake.db` is ciphertext (first
+  bytes random, not the `SQLite format 3` magic). iOS verification is **pending a local Xcode
+  upgrade**: the prebuild + SQLCipher integration are correct (amalgamation vendored, pods
+  resolved, compiles), but RN 0.85 / Expo 56's prebuilt `ExpoModulesJSI` requires Swift tools 6.2
+  (Xcode 16.4+) and the local Xcode is 16.2 (Swift 6.0) — an environment gate unrelated to this
+  change. The shared code path is platform-identical, so Android's pass exercises it fully.
 
 ### Reconciliation (dedup & merge)
 
