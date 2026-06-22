@@ -236,6 +236,38 @@ describe("createCore — mergePeople", () => {
     expect((await core.people.get(jane.id))!.updatedAt).toBeGreaterThan(before);
   });
 
+  it("carries a 'not a duplicate' memory across, dropping the new self-pair", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      [],
+    );
+    const bob = await core.people.create(
+      { firstName: "Bob", lastName: "Roe" },
+      [],
+    );
+    const carol = await core.people.create(
+      { firstName: "Carol", lastName: "Lee" },
+      [],
+    );
+    // The loser was marked "not a duplicate" of both the survivor and Carol.
+    await core.duplicates.reject(bob.id, jane.id);
+    await core.duplicates.reject(bob.id, carol.id);
+
+    await core.people.merge(jane.id, bob.id);
+
+    // The bob↔jane rejection becomes survivor↔itself and is dropped; the
+    // bob↔carol rejection survives, re-pointed onto the survivor.
+    expect(activeRows(db, "not_a_duplicate")).toBe(1);
+    const [lo, hi] =
+      jane.id < carol.id ? [jane.id, carol.id] : [carol.id, jane.id];
+    const remaining = db
+      .prepare(
+        "SELECT lower_id, higher_id FROM not_a_duplicate WHERE deleted_at IS NULL",
+      )
+      .get() as { lower_id: string; higher_id: string };
+    expect(remaining).toEqual({ lower_id: lo, higher_id: hi });
+  });
+
   it("refuses to merge a person into itself", async () => {
     const jane = await core.people.create(
       { firstName: "Jane", lastName: "Doe" },

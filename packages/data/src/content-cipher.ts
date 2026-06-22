@@ -8,7 +8,10 @@ import {
   utf8ToBytes,
   wrapKey,
 } from "@leapsake/crypto";
-import { type ContentKeyRepo, createContentKeyRepo } from "./content-key-repo.js";
+import {
+  type ContentKeyRepo,
+  createContentKeyRepo,
+} from "./content-key-repo.js";
 import { type KeyWrapRepo, createKeyWrapRepo } from "./key-wrap-repo.js";
 import type { SqliteDriver } from "./driver.js";
 

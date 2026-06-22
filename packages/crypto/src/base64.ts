@@ -34,7 +34,9 @@ export function bytesToBase64(bytes: Uint8Array): string {
   if (rem === 1) {
     const n = bytes[i]! << 16;
     out +=
-      BASE64_ALPHABET[(n >> 18) & 63]! + BASE64_ALPHABET[(n >> 12) & 63]! + "==";
+      BASE64_ALPHABET[(n >> 18) & 63]! +
+      BASE64_ALPHABET[(n >> 12) & 63]! +
+      "==";
   } else if (rem === 2) {
     const n = (bytes[i]! << 16) | (bytes[i + 1]! << 8);
     out +=
@@ -49,7 +51,8 @@ export function bytesToBase64(bytes: Uint8Array): string {
 /** Decode standard base64 back to bytes. Throws on a malformed string. */
 export function base64ToBytes(text: string): Uint8Array {
   let len = text.length;
-  if (len % 4 !== 0) throw new Error("Invalid base64: length not a multiple of 4");
+  if (len % 4 !== 0)
+    throw new Error("Invalid base64: length not a multiple of 4");
   if (len === 0) return new Uint8Array(0);
 
   let pad = 0;

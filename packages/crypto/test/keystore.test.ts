@@ -36,6 +36,8 @@ describe("createInMemoryKeyStore", () => {
     const fetched = await store.getSecret("device-1");
     expect(fetched).toEqual(new Uint8Array([1, 2, 3]));
     fetched![0] = 42; // mutate the returned copy
-    expect(await store.getSecret("device-1")).toEqual(new Uint8Array([1, 2, 3]));
+    expect(await store.getSecret("device-1")).toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
   });
 });

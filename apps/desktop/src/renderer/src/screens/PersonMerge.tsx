@@ -14,9 +14,10 @@ import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
  * tombstoned, not archived.
  */
 export function PersonMerge() {
-  const { person, others } = useLoaderData() as {
+  const { person, others, defaultLoserId } = useLoaderData() as {
     person: Person;
     others: Person[];
+    defaultLoserId?: string;
   };
   const name = fullName(person);
   const navigation = useNavigation();
@@ -46,7 +47,11 @@ export function PersonMerge() {
             <fieldset disabled={merging}>
               <label>
                 Duplicate to merge in{" "}
-                <select name="loserId" required defaultValue="">
+                <select
+                  name="loserId"
+                  required
+                  defaultValue={defaultLoserId ?? ""}
+                >
                   <option value="" disabled>
                     Choose a person…
                   </option>

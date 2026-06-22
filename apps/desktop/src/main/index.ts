@@ -310,6 +310,15 @@ function registerIpc(getCore: () => CoreApi): void {
     core.search.query(typeof term === "string" ? term : ""),
   );
 
+  // Duplicate detection (reconciliation Increment B): propose candidate pairs and
+  // remember rejected ones. The merge itself routes through `people:merge`.
+  ipcMain.handle("duplicates:findCandidates", () =>
+    core.duplicates.findCandidates(),
+  );
+  ipcMain.handle("duplicates:reject", (_event, idA: string, idB: string) =>
+    core.duplicates.reject(idA, idB),
+  );
+
   // Read-only view-model builders. Each forwards to the matching core view; the
   // builders only read, so there is nothing to parse at the boundary.
   ipcMain.handle("views:entityList", () => core.views.entityList());

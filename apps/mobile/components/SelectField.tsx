@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { colors, styles } from "../lib/styles";
 

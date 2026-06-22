@@ -49,8 +49,11 @@ export interface ContentKeyRepo {
 export function createContentKeyRepo(driver: SqliteDriver): ContentKeyRepo {
   return {
     async create(input) {
-      const { entityType, entityId, blobRef = null } =
-        createContentKeyInputSchema.parse(input);
+      const {
+        entityType,
+        entityId,
+        blobRef = null,
+      } = createContentKeyInputSchema.parse(input);
       const now = Date.now();
       const contentKey: ContentKey = {
         id: crypto.randomUUID(),

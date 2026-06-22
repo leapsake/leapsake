@@ -35,6 +35,12 @@ export {
   createDismissalsRepo,
 } from "./dismissals-repo.js";
 export {
+  type NotADuplicate,
+  type NotADuplicateRepo,
+  type PairKey,
+  createNotADuplicateRepo,
+} from "./not-a-duplicate-repo.js";
+export {
   type GenderResult,
   type KinshipService,
   createKinshipService,
@@ -45,6 +51,12 @@ export {
   listContactMethods,
 } from "./contact-methods-repo.js";
 export { type SearchService, createSearchService } from "./search-service.js";
+export {
+  type DuplicateService,
+  type DuplicateCandidate,
+  type DuplicateCandidatePerson,
+  createDuplicateService,
+} from "./duplicate-service.js";
 export {
   type Cursor,
   type EncryptedRecord,

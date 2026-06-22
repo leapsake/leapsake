@@ -16,6 +16,10 @@ import {
   type MilestonesRepo,
   createMilestonesRepo,
 } from "../src/milestones-repo.js";
+import {
+  type NotADuplicateRepo,
+  createNotADuplicateRepo,
+} from "../src/not-a-duplicate-repo.js";
 import { type PeopleRepo, createPeopleRepo } from "../src/people-repo.js";
 import { type PetsRepo, createPetsRepo } from "../src/pets-repo.js";
 import {
@@ -56,6 +60,7 @@ interface Device {
   milestones: MilestonesRepo;
   relationships: RelationshipsRepo;
   dismissals: DismissalsRepo;
+  notADuplicate: NotADuplicateRepo;
   tags: TagsRepo;
   contactMethods: ContactMethodsRepo;
 }
@@ -73,6 +78,7 @@ async function makeDevice(): Promise<Device> {
     milestones: createMilestonesRepo(driver, cipher),
     relationships: createRelationshipsRepo(driver),
     dismissals: createDismissalsRepo(driver),
+    notADuplicate: createNotADuplicateRepo(driver),
     tags: createTagsRepo(driver),
     contactMethods: createContactMethodsRepo(driver),
   };
@@ -86,6 +92,7 @@ function syncables(d: Device): SyncableRepo<SyncRow>[] {
     d.milestones,
     d.relationships,
     d.dismissals,
+    d.notADuplicate,
     d.tags,
     d.tags.taggings,
     d.contactMethods.emails,
@@ -154,6 +161,7 @@ describe("sync engine (all entities, in-memory transport)", () => {
     expect(tables).toEqual([
       "email_addresses",
       "milestones",
+      "not_a_duplicate",
       "people",
       "pets",
       "phone_numbers",
@@ -564,6 +572,22 @@ describe("sync engine (all entities, in-memory transport)", () => {
 
     const onB = await B.dismissals.listForEntity("person", p1);
     expect(onB).toEqual([dismissal]);
+  });
+
+  it("propagates a 'not a duplicate' rejection so the peer stops re-nagging", async () => {
+    const engineA = engineFor(A);
+    const engineB = engineFor(B);
+
+    const p1 = crypto.randomUUID();
+    const p2 = crypto.randomUUID();
+    await A.notADuplicate.record(p1, p2);
+    await engineA.push(0);
+    await engineB.pull(0);
+
+    const [lower, higher] = p1 < p2 ? [p1, p2] : [p2, p1];
+    expect(await B.notADuplicate.listPairs()).toEqual(
+      new Set([`${lower}:${higher}`]),
+    );
   });
 
   it("propagates a contact method (email)", async () => {

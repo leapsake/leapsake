@@ -432,6 +432,31 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 16,
+    async up(driver) {
+      // Reconciliation "not a duplicate" memory (plans/reconciliation/increment-b.md).
+      // When the user reviews a proposed merge and says "these are not the same",
+      // we remember the rejected pair so no device re-nags. The pair is stored
+      // **canonicalized** — `lower_id` < `higher_id` — so (A,B) and (B,A) are one
+      // row; people-only for v1 (no entity_type column yet). It carries the full
+      // §4.2 sync-safe substrate and IS in the sync allowlist (a per-device memory
+      // would re-nag on every other device — decided in status.md). The partial
+      // unique index keeps a pair to a single active row.
+      await driver.exec(`
+        CREATE TABLE not_a_duplicate (
+          id         TEXT    PRIMARY KEY,
+          lower_id   TEXT    NOT NULL,
+          higher_id  TEXT    NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          deleted_at INTEGER
+        );
+        CREATE UNIQUE INDEX ix_not_a_duplicate_pair
+          ON not_a_duplicate(lower_id, higher_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**
