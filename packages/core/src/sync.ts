@@ -1,6 +1,7 @@
 import type { SyncRow } from "@leapsake/schema";
 import type { KeyStore } from "@leapsake/crypto";
 import {
+  type DuplicateCandidate,
   type SqliteDriver,
   type SyncEngine,
   type SyncableRepo,
@@ -199,6 +200,77 @@ export async function runAccountSync(opts: {
   });
   const { applied } = await engine.sync();
   return { at: Date.now(), applied };
+}
+
+export interface JoinReconcileResult {
+  /**
+   * How many possible duplicates the join surfaced between this device's
+   * pre-existing people and the account's — what the client prompts the user to
+   * review. `0` means nothing to review (a fresh device, or no overlap).
+   */
+  duplicateCount: number;
+}
+
+/**
+ * Pure: the candidate pairs the join *introduced* — exactly one side is a
+ * pre-existing **local** person (the other came from the account). Pre-existing
+ * local↔local and account↔account pairs are excluded, so the count reflects only
+ * what joining surfaced, not duplicates the user already lived with.
+ */
+export function selectJoinDuplicates(
+  candidates: DuplicateCandidate[],
+  localIds: ReadonlySet<string>,
+): DuplicateCandidate[] {
+  return candidates.filter(
+    (c) => localIds.has(c.a.id) !== localIds.has(c.b.id),
+  );
+}
+
+/**
+ * Reconcile a device's pre-existing local data against the account it just
+ * joined. Pulls the account's records first so its people/contacts are local,
+ * then reports how many possible duplicates straddle the local/account boundary
+ * — so the client can prompt the user to **review** them. By design it does
+ * **not** auto-merge (a wrong merge is destructive) and does **not** push: the
+ * local people are real user data, preserved and pushed up by the normal
+ * post-join sync; merging is manual via the existing duplicate-review surface.
+ *
+ * Returns `{ duplicateCount: 0 }` for a fresh device (no local people) or an
+ * account with no relay, skipping the pull entirely.
+ */
+export async function reconcileOnJoin(opts: {
+  driver: SqliteDriver;
+  masterKey: Uint8Array;
+  core: { duplicates: { findCandidates(): Promise<DuplicateCandidate[]> } };
+}): Promise<JoinReconcileResult> {
+  const { driver, masterKey, core } = opts;
+
+  // Snapshot local people BEFORE the pull → exactly the pre-existing set.
+  const localIds = new Set(
+    (await createPeopleRepo(driver).list()).map((p) => p.id),
+  );
+  if (localIds.size === 0) return { duplicateCount: 0 };
+
+  const account = await createAccountRepo(driver).getSingleton();
+  if (account === undefined || account.relayUrl === null) {
+    return { duplicateCount: 0 };
+  }
+
+  // Pull-first: bring the account's people/contacts local so detection sees both
+  // sets. Persist the cursor so the following autoTrigger sync() doesn't re-pull.
+  const engine = createAccountSyncEngine({
+    driver,
+    masterKey,
+    relayUrl: account.relayUrl,
+    accountId: account.id,
+    authVerifier: account.authVerifier,
+  });
+  const syncState = createSyncStateRepo(driver);
+  const { cursor } = await engine.pull(await syncState.getPullCursor());
+  await syncState.setPullCursor(cursor);
+
+  const candidates = await core.duplicates.findCandidates();
+  return { duplicateCount: selectJoinDuplicates(candidates, localIds).length };
 }
 
 /**

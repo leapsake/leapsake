@@ -6,7 +6,14 @@ import {
   generateKey,
   generateSalt,
 } from "@leapsake/crypto";
-import { enableSync, ensureDeviceMasterKey, joinAccount } from "@leapsake/core";
+import {
+  createCore,
+  enableSync,
+  ensureDeviceMasterKey,
+  joinAccount,
+  reconcileOnJoin,
+  runAccountSync,
+} from "@leapsake/core";
 import {
   type MilestonesRepo,
   type PeopleRepo,
@@ -421,6 +428,79 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     expect(names).not.toContain("account");
     expect(names).not.toContain("key_wrap");
     expect(names).not.toContain("content_key");
+
+    d1.db.close();
+    d2.db.close();
+  });
+
+  it("reconcile-on-join surfaces local↔account duplicates without auto-merging, and keeps local data", async () => {
+    // --- Device 1: enable + register, create "Jane Doe", push. ---
+    const d1 = blankDevice();
+    const { masterKey: mk1 } = await enableAndRegister(d1);
+    const d1People = createPeopleRepo(d1.driver);
+    const accountJane = await d1People.create({
+      firstName: "Jane",
+      lastName: "Doe",
+    });
+    await runAccountSync({ driver: d1.driver, masterKey: mk1 });
+
+    // --- Device 2: fresh, but already holds its own local "Jane Doe" (a
+    // distinct-id duplicate of the account's) and an unrelated "Bob Jones"
+    // before it ever joins. ---
+    const d2 = blankDevice();
+    await runMigrations(d2.driver);
+    await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+    const d2People = createPeopleRepo(d2.driver);
+    const localJane = await d2People.create({
+      firstName: "Jane",
+      lastName: "Doe",
+    });
+    const bob = await d2People.create({ firstName: "Bob", lastName: "Jones" });
+    expect(localJane.id).not.toBe(accountJane.id);
+
+    // --- Join, then reconcile. ---
+    const session = await joinAccount({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      transport: createHttpSyncTransport({ baseUrl }),
+      relayUrl: baseUrl,
+      username: "ada",
+      password: PASSWORD,
+      platform: "mobile",
+    });
+    const d2Core = createCore(d2.driver, session);
+    const { duplicateCount } = await reconcileOnJoin({
+      driver: d2.driver,
+      masterKey: session.masterKey,
+      core: d2Core,
+    });
+
+    // The join surfaced exactly the Jane↔Jane pair; Bob is unique and ignored.
+    expect(duplicateCount).toBe(1);
+
+    // No auto-merge: both Janes and Bob are still active on B...
+    const activeIds = (await d2People.list()).map((p) => p.id);
+    expect(activeIds).toContain(localJane.id);
+    expect(activeIds).toContain(accountJane.id);
+    expect(activeIds).toContain(bob.id);
+
+    // ...and the pair is offered through the normal duplicate-review surface.
+    const candidates = await d2Core.duplicates.findCandidates();
+    expect(
+      candidates.some((c) => {
+        const ids = new Set([c.a.id, c.b.id]);
+        return ids.has(localJane.id) && ids.has(accountJane.id);
+      }),
+    ).toBe(true);
+
+    // Local data is preserved, not abandoned: B's normal sync pushes it up and
+    // device 1 converges on Bob + the second Jane.
+    await runAccountSync({ driver: d2.driver, masterKey: session.masterKey });
+    await runAccountSync({ driver: d1.driver, masterKey: mk1 });
+    const onD1 = (await d1People.list()).map((p) => p.id);
+    expect(onD1).toContain(bob.id);
+    expect(onD1).toContain(localJane.id);
+    expect(onD1).toContain(accountJane.id);
 
     d1.db.close();
     d2.db.close();

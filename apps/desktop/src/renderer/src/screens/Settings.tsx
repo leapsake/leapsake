@@ -42,9 +42,17 @@ function passwordHint(password: string): string {
 export function Settings() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
+  // How many possible duplicates the most recent join surfaced — a prompt to
+  // review them (0 = nothing to review). Set when a join completes.
+  const [reviewCount, setReviewCount] = useState(0);
 
   function refreshStatus() {
     void window.sync.status().then(setStatus);
+  }
+
+  function onJoined(duplicateCount: number) {
+    setReviewCount(duplicateCount);
+    refreshStatus();
   }
 
   useEffect(refreshStatus, []);
@@ -73,9 +81,14 @@ export function Settings() {
       {status === null ? (
         <p>Loading…</p>
       ) : status.enabled ? (
-        <AccountEnabled status={status} onCleared={refreshStatus} />
+        <AccountEnabled
+          status={status}
+          reviewCount={reviewCount}
+          onReviewed={() => setReviewCount(0)}
+          onCleared={refreshStatus}
+        />
       ) : (
-        <SyncSetup onEnabled={setRecoveryKey} onJoined={refreshStatus} />
+        <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
       )}
     </main>
   );
@@ -84,9 +97,13 @@ export function Settings() {
 /** Shown once sync is enabled: the account exists; sync runs on demand. */
 function AccountEnabled({
   status,
+  reviewCount,
+  onReviewed,
   onCleared,
 }: {
   status: SyncStatus;
+  reviewCount: number;
+  onReviewed: () => void;
   onCleared: () => void;
 }) {
   const [lastSynced, setLastSynced] = useState<number | null>(null);
@@ -135,6 +152,16 @@ function AccountEnabled({
 
   return (
     <>
+      {reviewCount > 0 && (
+        <p role="status">
+          Logging in found <strong>{reviewCount}</strong> possible{" "}
+          {reviewCount === 1 ? "duplicate" : "duplicates"} between this device
+          and your account.{" "}
+          <Link to="/duplicates" onClick={onReviewed}>
+            Review duplicates
+          </Link>
+        </p>
+      )}
       <p>
         Your account is set up and protected by your password and recovery key.
       </p>
@@ -252,7 +279,7 @@ function SyncSetup({
   onJoined,
 }: {
   onEnabled: (recoveryKey: string) => void;
-  onJoined: () => void;
+  onJoined: (duplicateCount: number) => void;
 }) {
   const [username, setUsername] = useState("");
   const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_URL);
@@ -495,7 +522,7 @@ function LoginStep({
   username: string;
   relayUrl: string;
   onBack: () => void;
-  onJoined: () => void;
+  onJoined: (duplicateCount: number) => void;
 }) {
   const [password, setPassword] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -524,8 +551,12 @@ function LoginStep({
     setError(null);
     setWorking(true);
     try {
-      await window.sync.join({ username, password, relayUrl });
-      onJoined();
+      const { duplicateCount } = await window.sync.join({
+        username,
+        password,
+        relayUrl,
+      });
+      onJoined(duplicateCount);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't log in.");
       setWorking(false);
@@ -540,10 +571,11 @@ function LoginStep({
         {hasLocalData === null ? (
           <p>Checking this device…</p>
         ) : hasLocalData ? (
-          <p role="alert">
+          <p>
             <strong>This device already has data.</strong> Logging in to{" "}
-            <strong>{username}</strong> will replace it with the account's data.
-            This can't be undone.
+            <strong>{username}</strong> keeps it and combines it with the
+            account's data; any people that look like duplicates are flagged for
+            you to review and merge.
           </p>
         ) : (
           <p>
@@ -557,11 +589,7 @@ function LoginStep({
             onClick={login}
             disabled={working || hasLocalData === null}
           >
-            {working
-              ? "Logging in…"
-              : hasLocalData
-                ? "Log in and replace data"
-                : "Log in"}
+            {working ? "Logging in…" : "Log in"}
           </button>{" "}
           <button
             type="button"

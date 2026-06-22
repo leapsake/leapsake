@@ -316,7 +316,10 @@ const sync = {
     username: string;
     password: string;
     relayUrl: string;
-  }): Promise<void> => ipcRenderer.invoke("sync:join", args),
+    // `duplicateCount` is how many possible duplicates the join surfaced between
+    // this device's pre-existing people and the account's — a prompt to review.
+  }): Promise<{ duplicateCount: number }> =>
+    ipcRenderer.invoke("sync:join", args),
   syncNow: (): Promise<{ at: number }> => ipcRenderer.invoke("sync:now"),
   clear: (): Promise<void> => ipcRenderer.invoke("sync:clear"),
   /** Read this install's "Sync automatically" preference (default true). */

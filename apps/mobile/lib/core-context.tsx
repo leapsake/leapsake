@@ -29,6 +29,7 @@ import {
   getSyncStatus,
   joinAccountViaRelay,
   lookupAccount,
+  reconcileOnJoin,
   registerAccountWithRelay,
   runAccountSync,
   runMigrations,
@@ -104,7 +105,9 @@ export interface SyncApi {
     username: string;
     password: string;
     relayUrl: string;
-  }): Promise<void>;
+    // `duplicateCount` is how many possible duplicates the join surfaced between
+    // this device's pre-existing people and the account's — a prompt to review.
+  }): Promise<{ duplicateCount: number }>;
   /** Run one push→pull cycle against the configured relay. */
   syncNow(): Promise<{ at: number }>;
   /**
@@ -308,12 +311,26 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // (desktop does this via its IPC Proxy; here `setCore` re-renders
           // consumers with the new core).
           keySession.current = session;
-          setCore(
-            withSyncKick(createCore(driver, session), () =>
-              scheduler.current?.kick(),
-            ),
+          const joinedCore = withSyncKick(createCore(driver, session), () =>
+            scheduler.current?.kick(),
           );
-          void scheduler.current?.autoTrigger(); // pull the account onto this device
+          setCore(joinedCore);
+          // Reconcile this device's pre-existing local people against the
+          // account: pull first, then count the possible duplicates the join
+          // surfaced so the screen can prompt the user to review them (no
+          // auto-merge). Best-effort — a failure here must not fail the join.
+          let duplicateCount = 0;
+          try {
+            ({ duplicateCount } = await reconcileOnJoin({
+              driver,
+              masterKey: session.masterKey,
+              core: joinedCore,
+            }));
+          } catch {
+            duplicateCount = 0;
+          }
+          void scheduler.current?.autoTrigger(); // push this device's data + pull remainder
+          return { duplicateCount };
         },
         // Route through the scheduler so the button and background syncs share
         // single-flight; a guarded skip (not enabled) surfaces as the same error.
