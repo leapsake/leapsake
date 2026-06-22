@@ -43,7 +43,7 @@ export const countryCodeSchema = z.string().regex(/^[A-Z]{2}$/);
 /**
  * The columns every contact-method row shares: a uuid id, the polymorphic owner,
  * the free-text `label` (suggestions are UI-only), and the sync-safe timestamps +
- * nullable `deletedAt` (reboot-plan.md §4.2). Everything kind-specific (address,
+ * nullable `deletedAt` (see AGENTS.md). Everything kind-specific (address,
  * number, the postal lines) is added by each schema below.
  */
 const spine = {

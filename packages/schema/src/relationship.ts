@@ -516,7 +516,7 @@ export function rolesForPair(
  * unlike a mirrored two-row model. There is intentionally no unique constraint
  * on the pair: the same two entities may relate in more than one way.
  *
- * Same sync-safe conventions as Person (reboot-plan.md §4.2): client UUID id,
+ * Same sync-safe conventions as Person (see AGENTS.md): client UUID id,
  * epoch-ms UTC timestamps, nullable `deletedAt`.
  */
 export const relationshipSchema = z

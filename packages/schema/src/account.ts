@@ -20,7 +20,7 @@ import { z } from "zod";
  * store (sync never enabled) — they are populated at enable-sync, and on a
  * joining device after login.
  *
- * Same sync-safe conventions as every table (reboot-plan.md §4.2): UUID PK,
+ * Same sync-safe conventions as every table (see AGENTS.md): UUID PK,
  * epoch-ms UTC timestamps, nullable `deletedAt` soft delete.
  */
 export const accountSchema = z.object({

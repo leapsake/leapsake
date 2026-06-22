@@ -6,7 +6,7 @@ import type { SqliteDriver } from "./driver.js";
  * the engine needs over any one table — collect locally-changed rows, decode a
  * pulled JSON payload, and apply a peer's row via the merge — so the engine
  * stays schema-agnostic and one more synced entity is just one more entry in the
- * registry (plans/encryption/status.md, the "extend beyond `people`" step).
+ * registry (plans/status.md, the "extend beyond `people`" step).
  *
  * Most domain repositories implement this via {@link defineSyncable} (see the
  * recipe below); a repo that owns more than one table (tags + taggings, the
@@ -137,7 +137,7 @@ interface ParsableSchema<T> {
  *
  *   1. **Migration** — the table carries the sync substrate: a UUID `id`, and
  *      epoch-ms `created_at` / `updated_at` / nullable `deleted_at`
- *      (reboot-plan.md §4.2). Every domain table already does.
+ *      (see AGENTS.md). Every domain table already does.
  *   2. **Schema** — a `z.object({...})` raw-row schema in `packages/schema`
  *      whose camelCase fields are the snake_case columns (`createdAt` ⇄
  *      `created_at`). This both validates a peer's payload and supplies the

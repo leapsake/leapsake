@@ -10,7 +10,7 @@ import { z } from "zod";
  * (see {@link parseTagNames}). The leading "#" sigil shown in the UI is
  * presentation only and is never stored in {@link name}.
  *
- * Same sync-safe conventions as Person (see reboot-plan.md §4.2): client-generated
+ * Same sync-safe conventions as Person (see AGENTS.md): client-generated
  * UUID primary key, epoch-ms UTC timestamps, nullable `deletedAt` for soft deletes.
  */
 export const tagSchema = z.object({

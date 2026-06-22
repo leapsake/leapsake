@@ -4,13 +4,24 @@
 
 Leapsake is a privacy-first people management app. Data lives locally in SQLite;
 no cloud dependency in V1. The architecture is designed to grow incrementally:
-desktop (V1) → mobile (V2) → sync + web (V3).
+desktop (V1) → mobile (V2) → sync + web (V3). It is a personal project, restarted
+from scratch after a prior version became overcomplicated on an unfamiliar stack
+(Rust/Tauri) — hence the bias toward incremental, shippable delivery and a lean,
+mostly-stdlib dependency set.
+
+> **For what to work on next, see [`plans/status.md`](plans/status.md)** (the single status
+> oracle); for the project map, [`plans/README.md`](plans/README.md). This file is
+> conventions and guardrails, not status.
 
 ## Guiding Principles
 
 - **Incremental delivery** — each phase is usable and shippable on its own.
 - **Lean scope** — no speculative features, no premature abstractions.
-- **TypeScript everywhere** — no Rust or other application languages.
+- **TypeScript everywhere** — no Rust or other application languages *in our own
+  source*. This governs the code we write, not our dependencies: build tools in
+  other languages (Vite/oxc) are fine, and a native dependency consumable from TS
+  is judged on merit (platform reach + the dependency budget), not excluded for
+  being non-JS — e.g. a possible future P2P transport (`plans/encryption/sync.md`).
 - **Offline-first** — SQLite is the primary data store.
 - **Dependencies are a budget** — add a dependency only when it pays for itself
   across more than one place.
@@ -35,24 +46,31 @@ desktop (V1) → mobile (V2) → sync + web (V3).
 
 ```
 apps/
-  desktop/          # Electron app (V1)
-  mobile/           # Expo app (V2 — not yet created)
+  desktop/          # Electron app (V1) — built
+  mobile/           # Expo app (V2) — built, feature-complete vs. desktop
+  server/           # Blind sync relay (V3) — built; see apps/server/README.md
   web/              # Web app (V3 — not yet created)
-  server/           # Server (V3 — not yet created)
 packages/
   schema/           # Zod schemas → inferred types + pure portable domain logic
                     # (formatters, role algebra, normalization). Zero platform deps.
   data/             # SqliteDriver port, migration runner, per-entity repositories,
-                    # cross-repo services (kinship, search, timeline).
+                    # cross-repo services (kinship, search, timeline), the sync engine.
                     # Depends on schema. No DB driver import.
   core/             # Client-agnostic application surface (CoreApi): transactional
                     # writes, cascade deletes, relationship orientation, view-models.
                     # Depends on data + schema.
+  crypto/           # V3 envelope primitives (seal/wrap, the password KDF) + the
+                    # KeyStore port. See packages/crypto/README.md.
   highlight/        # Search-match highlighting.
 AGENTS.md
-plans/
-  reboot-plan.md    # Architecture and delivery plan
+plans/                # forward-looking only — upcoming work, not past decisions
+  README.md           # project map / front door
+  status.md           # the single status oracle (all workstreams) — what's done + what's next
+  encryption/         # V3 encryption, privacy & sync design (unbuilt Stages 2–4)
 ```
+
+Per-package architecture rationale (the "why this package is shaped this way") lives in each
+package's own `README.md` — `packages/{schema,data,core,crypto}`, `apps/{desktop,server}`.
 
 ## Data Model
 

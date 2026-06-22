@@ -40,7 +40,7 @@ export const migrations: Migration[] = [
       // any entity (just 'person' today), so new entity types tag in without a
       // schema change. Partial unique indexes scoped to `deleted_at IS NULL`
       // enforce "one active row per key" while letting soft-deleted history
-      // coexist (reboot-plan.md §4.2 soft-delete + sync).
+      // coexist (see AGENTS.md — soft-delete + sync).
       await driver.exec(`
         CREATE TABLE tags (
           id         TEXT    PRIMARY KEY,
@@ -137,7 +137,7 @@ export const migrations: Migration[] = [
       // dismissal keeps a computed-on-read edge gone without writing a competing
       // explicit fact. `role` is the dismissed base role; NULL dismisses any
       // derived edge to that pair. Soft-delete + partial index follow the same
-      // conventions as the other tables (reboot-plan.md §4.2).
+      // conventions as the other tables (see AGENTS.md).
       await driver.exec(`
         CREATE TABLE relationship_dismissals (
           id           TEXT    PRIMARY KEY,
@@ -199,7 +199,7 @@ export const migrations: Migration[] = [
       // generic table, since each fits its own shape (contact-methods-plan.md).
       // Every row shares a spine — a polymorphic `(owner_type, owner_id)` pair, a
       // per-table label + free-text `label_note` for the `other` escape hatch,
-      // and the usual sync-safe id/timestamps/soft-delete (reboot-plan.md §4.2).
+      // and the usual sync-safe id/timestamps/soft-delete (see AGENTS.md).
       // `owner_type` is 'person' today; the Zod enum reserves 'household' so a
       // future household entity owns a shared method with no migration.
       //
@@ -301,7 +301,7 @@ export const migrations: Migration[] = [
       // crypto primitive can change later (§15.3 review) without reshaping data.
       // Partial unique indexes scoped to `deleted_at IS NULL` enforce "one
       // active row per key" while letting soft-deleted history coexist
-      // (reboot-plan.md §4.2).
+      // (see AGENTS.md).
       await driver.exec(`
         CREATE TABLE content_key (
           id          TEXT    PRIMARY KEY,
@@ -435,7 +435,7 @@ export const migrations: Migration[] = [
   {
     version: 16,
     async up(driver) {
-      // Reconciliation "not a duplicate" memory (plans/reconciliation/increment-b.md).
+      // Reconciliation "not a duplicate" memory (packages/core/README.md).
       // When the user reviews a proposed merge and says "these are not the same",
       // we remember the rejected pair so no device re-nags. The pair is stored
       // **canonicalized** — `lower_id` < `higher_id` — so (A,B) and (B,A) are one
@@ -462,7 +462,7 @@ export const migrations: Migration[] = [
 /**
  * Apply any migrations newer than the database's current `user_version`, each
  * inside a transaction, then bump `user_version`. Cheap hand-rolled runner in
- * place of a migration library (reboot-plan.md §4.5).
+ * place of a migration library (packages/data/README.md).
  */
 export async function runMigrations(
   driver: SqliteDriver,

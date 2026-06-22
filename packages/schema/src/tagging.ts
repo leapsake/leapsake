@@ -7,7 +7,7 @@ import { entityTypeSchema } from "./relationship.js";
  * entity-oriented (`setEntityTags`), but a tagging is its own synced row: a tag
  * that travels without its taggings means nothing, so both replicate.
  *
- * Same sync-safe substrate as every domain row (reboot-plan.md §4.2): client
+ * Same sync-safe substrate as every domain row (see AGENTS.md): client
  * UUID id, epoch-ms UTC timestamps, nullable `deletedAt` — so it merges via
  * whole-row LWW ({@link resolveMerge}) like the rest.
  */

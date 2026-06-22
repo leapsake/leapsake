@@ -15,7 +15,7 @@
  * associative, so folding a batch converges regardless of arrival order.
  *
  * The sync-safe substrate this needs (UUID `id`, epoch-ms `updatedAt`, nullable
- * `deletedAt`) is already on every domain table (reboot-plan.md §4.2), so this
+ * `deletedAt`) is already on every domain table (see AGENTS.md), so this
  * layer adds no columns and no migration.
  */
 
