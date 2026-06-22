@@ -13,6 +13,7 @@ import {
   getSyncStatus,
   joinAccountViaRelay,
   lookupAccount,
+  reconcileOnJoin,
   registerAccountWithRelay,
   runAccountSync,
   runMigrations,
@@ -509,7 +510,24 @@ function registerSyncIpc(opts: { keyStore: KeyStore }): void {
         throw new Error(relayErrorMessage(cause, relayUrl), { cause });
       }
       setActiveCore(keySession);
-      void scheduler?.autoTrigger(); // pull the account's data onto this fresh device
+      // Reconcile this device's pre-existing local people against the account:
+      // pull first, then surface how many possible duplicates the join created
+      // so the renderer can prompt the user to review them (no auto-merge).
+      // Best-effort — a reconcile failure must not fail an otherwise-good join.
+      let duplicateCount = 0;
+      try {
+        if (activeCore !== undefined) {
+          ({ duplicateCount } = await reconcileOnJoin({
+            driver,
+            masterKey: keySession.masterKey,
+            core: activeCore,
+          }));
+        }
+      } catch {
+        duplicateCount = 0;
+      }
+      void scheduler?.autoTrigger(); // push this device's data + pull any remainder
+      return { duplicateCount };
     },
   );
 

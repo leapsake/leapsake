@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import { Link } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
 import { useCore, useSync } from "../../lib/core-context";
 import { colors, styles } from "../../lib/styles";
@@ -53,9 +54,17 @@ export default function SettingsScreen() {
   const sync = useSync();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
+  // How many possible duplicates the most recent join surfaced — a prompt to
+  // review them (0 = nothing to review). Set when a join completes.
+  const [reviewCount, setReviewCount] = useState(0);
 
   function refreshStatus() {
     void sync.status().then(setStatus);
+  }
+
+  function onJoined(duplicateCount: number) {
+    setReviewCount(duplicateCount);
+    refreshStatus();
   }
 
   useEffect(refreshStatus, [sync]);
@@ -79,9 +88,14 @@ export default function SettingsScreen() {
       {status === null ? (
         <Text style={styles.muted}>Loading…</Text>
       ) : status.enabled ? (
-        <AccountEnabled status={status} onCleared={refreshStatus} />
+        <AccountEnabled
+          status={status}
+          reviewCount={reviewCount}
+          onReviewed={() => setReviewCount(0)}
+          onCleared={refreshStatus}
+        />
       ) : (
-        <SyncSetup onEnabled={setRecoveryKey} onJoined={refreshStatus} />
+        <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
       )}
     </ScrollView>
   );
@@ -90,9 +104,13 @@ export default function SettingsScreen() {
 /** Shown once sync is enabled: the account exists; sync runs on demand. */
 function AccountEnabled({
   status,
+  reviewCount,
+  onReviewed,
   onCleared,
 }: {
   status: SyncStatus;
+  reviewCount: number;
+  onReviewed: () => void;
   onCleared: () => void;
 }) {
   const sync = useSync();
@@ -142,6 +160,16 @@ function AccountEnabled({
 
   return (
     <View style={styles.section}>
+      {reviewCount > 0 && (
+        <Text style={styles.muted} accessibilityRole="summary">
+          Logging in found {reviewCount} possible{" "}
+          {reviewCount === 1 ? "duplicate" : "duplicates"} between this device
+          and your account.{" "}
+          <Link href="/duplicates" style={styles.link} onPress={onReviewed}>
+            Review duplicates
+          </Link>
+        </Text>
+      )}
       <Text style={styles.fieldValue}>Your account is set up.</Text>
       <Text style={styles.muted}>
         This device is protected by your password and recovery key.
@@ -262,7 +290,7 @@ function SyncSetup({
   onJoined,
 }: {
   onEnabled: (recoveryKey: string) => void;
-  onJoined: () => void;
+  onJoined: (duplicateCount: number) => void;
 }) {
   const sync = useSync();
   const [username, setUsername] = useState("");
@@ -494,10 +522,11 @@ function SignupStep({
 
 /**
  * Log-in branch: the account exists. Collect the password, then require an
- * explicit confirm before joining. Because joining **replaces** this device's
- * data with the account's (the overwrite stance, multi-device-login.md), the
- * confirmation checks whether this device actually has local data and warns in
- * the strongest terms only when there is something to lose.
+ * explicit confirm before joining. Joining **keeps** this device's local data
+ * and reconciles it with the account's (reconcile-on-join, reconciliation
+ * Increment C): the two sets are combined and any possible duplicates are
+ * surfaced for the user to review and merge, so the confirm notes that rather
+ * than warning of data loss.
  */
 function LoginStep({
   username,
@@ -508,7 +537,7 @@ function LoginStep({
   username: string;
   relayUrl: string;
   onBack: () => void;
-  onJoined: () => void;
+  onJoined: (duplicateCount: number) => void;
 }) {
   const sync = useSync();
   const core = useCore();
@@ -524,7 +553,7 @@ function LoginStep({
       setError("Password is required.");
       return;
     }
-    // Find out whether logging in would discard anything on this device, so the
+    // Find out whether this device has local data to reconcile, so the
     // confirmation can be honest. Treat a read failure as "might have data".
     setHasLocalData(null);
     void core.views
@@ -538,8 +567,12 @@ function LoginStep({
     setError(null);
     setWorking(true);
     try {
-      await sync.join({ username, password, relayUrl });
-      onJoined();
+      const { duplicateCount } = await sync.join({
+        username,
+        password,
+        relayUrl,
+      });
+      onJoined(duplicateCount);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't log in.");
       setWorking(false);
@@ -554,9 +587,10 @@ function LoginStep({
         {hasLocalData === null ? (
           <Text style={styles.muted}>Checking this device…</Text>
         ) : hasLocalData ? (
-          <Text style={styles.danger} accessibilityRole="alert">
-            This device already has data. Logging in to “{username}” will
-            replace it with the account's data. This can't be undone.
+          <Text style={styles.muted}>
+            This device already has data. Logging in to “{username}” keeps it
+            and combines it with the account's data; any people that look like
+            duplicates are flagged for you to review and merge.
           </Text>
         ) : (
           <Text style={styles.muted}>
@@ -569,11 +603,7 @@ function LoginStep({
           onPress={login}
         >
           <Text style={styles.buttonText}>
-            {working
-              ? "Logging in…"
-              : hasLocalData
-                ? "Log in and replace data"
-                : "Log in"}
+            {working ? "Logging in…" : "Log in"}
           </Text>
         </Pressable>
         <Pressable

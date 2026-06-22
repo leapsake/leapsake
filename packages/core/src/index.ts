@@ -101,6 +101,9 @@ export {
   registerAccountWithRelay,
   joinAccountViaRelay,
   runAccountSync,
+  reconcileOnJoin,
+  selectJoinDuplicates,
+  type JoinReconcileResult,
   getAutoSync,
   setAutoSync,
 } from "./sync.js";
