@@ -141,6 +141,18 @@ export interface ContactMethodsRepo {
    * the caller composes it with the entity's own delete inside one transaction.
    */
   removeAllForOwner(type: ContactOwnerType, id: string): Promise<void>;
+
+  /**
+   * Re-point every active contact method (all three kinds) of `fromId` onto
+   * `toId` (used when merging `fromId` into `toId`). Methods are not deduped — a
+   * person can legitimately list the same number twice. Transaction-free
+   * building block.
+   */
+  repointOwner(
+    type: ContactOwnerType,
+    fromId: string,
+    toId: string,
+  ): Promise<void>;
 }
 
 /** Shared soft-delete-by-id for any contact-method table. */
@@ -480,6 +492,21 @@ export function createContactMethodsRepo(
           `UPDATE ${table} SET deleted_at = ?, updated_at = ?
              WHERE owner_type = ? AND owner_id = ? AND deleted_at IS NULL`,
           [now, now, type, id],
+        );
+      }
+    },
+
+    async repointOwner(type, fromId, toId) {
+      const now = Date.now();
+      for (const table of [
+        "email_addresses",
+        "phone_numbers",
+        "postal_addresses",
+      ]) {
+        await driver.run(
+          `UPDATE ${table} SET owner_id = ?, updated_at = ?
+             WHERE owner_type = ? AND owner_id = ? AND deleted_at IS NULL`,
+          [toId, now, type, fromId],
         );
       }
     },

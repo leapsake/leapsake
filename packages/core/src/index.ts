@@ -342,6 +342,31 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           await milestones.removeAllForEntity("person", id);
           await contactMethods.removeAllForOwner("person", id);
         }),
+      // Absorb the `loser` person into the `survivor`, in one transaction: the
+      // mirror of the cascade-delete above, re-pointing every fact onto the
+      // survivor instead of removing it, then tombstoning the loser. The
+      // survivor's own scalar fields (name, gender) win as-is — survivorship v1
+      // is deliberately blunt, with no per-field picker. Re-points bump each
+      // row's updated_at and the loser's tombstone propagates, so the merge
+      // replicates across devices over normal sync with no merge-specific code.
+      merge: async (survivorId: string, loserId: string): Promise<void> => {
+        if (survivorId === loserId) {
+          throw new Error(
+            "mergePeople: survivor and loser are the same person",
+          );
+        }
+        return driver.transaction(async () => {
+          await tags.repointEntity("person", loserId, survivorId);
+          await relationships.repointEntity("person", loserId, survivorId);
+          await dismissals.repointEntity("person", loserId, survivorId);
+          await milestones.repointEntity("person", loserId, survivorId);
+          await contactMethods.repointOwner("person", loserId, survivorId);
+          // Bump the survivor's clock so the merged survivor wins LWW against any
+          // concurrent edit to the loser still in flight from another device.
+          await people.update(survivorId, {});
+          await people.softDelete(loserId);
+        });
+      },
     },
 
     pets: {

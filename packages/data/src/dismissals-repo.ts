@@ -78,6 +78,13 @@ export interface DismissalsRepo extends SyncableRepo<Dismissal> {
    * composes it inside one `driver.transaction`.
    */
   removeAllForEntity(type: EntityType, id: string): Promise<void>;
+
+  /**
+   * Re-point every active dismissal touching `fromId` on *either* end onto
+   * `toId` (used when merging `fromId` into `toId`), then drop any dismissal that
+   * now points the survivor at itself. Transaction-free building block.
+   */
+  repointEntity(type: EntityType, fromId: string, toId: string): Promise<void>;
 }
 
 /**
@@ -154,6 +161,29 @@ export function createDismissalsRepo(driver: SqliteDriver): DismissalsRepo {
            AND ((subject_type = ? AND subject_id = ?)
              OR (other_type = ? AND other_id = ?))`,
         [now, now, type, id, type, id],
+      );
+    },
+
+    async repointEntity(type, fromId, toId) {
+      const now = Date.now();
+      await driver.run(
+        `UPDATE relationship_dismissals SET subject_id = ?, updated_at = ?
+           WHERE subject_type = ? AND subject_id = ? AND deleted_at IS NULL`,
+        [toId, now, type, fromId],
+      );
+      await driver.run(
+        `UPDATE relationship_dismissals SET other_id = ?, updated_at = ?
+           WHERE other_type = ? AND other_id = ? AND deleted_at IS NULL`,
+        [toId, now, type, fromId],
+      );
+      // A dismissal whose two ends are now the survivor suppresses an edge from a
+      // person to themselves — meaningless, so drop it.
+      await driver.run(
+        `UPDATE relationship_dismissals SET deleted_at = ?, updated_at = ?
+           WHERE deleted_at IS NULL
+             AND subject_type = ? AND subject_id = ?
+             AND other_type = ? AND other_id = ?`,
+        [now, now, type, toId, type, toId],
       );
     },
   };

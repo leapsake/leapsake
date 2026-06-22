@@ -61,6 +61,17 @@ export interface TagsRepo extends SyncableRepo<Tag> {
   removeAllForEntity(entityType: string, entityId: string): Promise<void>;
 
   /**
+   * Move `fromId`'s taggings onto `toId` (used when merging `fromId` into
+   * `toId`). A tag the survivor already carries is not duplicated — the loser's
+   * tagging for it is dropped instead. Transaction-free building block.
+   */
+  repointEntity(
+    entityType: string,
+    fromId: string,
+    toId: string,
+  ): Promise<void>;
+
+  /**
    * Soft-delete a tag and every active tagging that applies it, removing the tag
    * from all entities at once. Transaction-free building block — the caller wraps
    * the deletion in one `driver.transaction`.
@@ -199,6 +210,39 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
           [Date.now(), Date.now(), id],
         );
         await gcTagIfOrphaned(tag_id);
+      }
+    },
+
+    async repointEntity(entityType, fromId, toId) {
+      const now = Date.now();
+      const survivorTagIds = new Set(
+        (
+          await driver.all<{ tag_id: string }>(
+            `SELECT tag_id FROM taggings
+              WHERE entity_type = ? AND entity_id = ? AND deleted_at IS NULL`,
+            [entityType, toId],
+          )
+        ).map((r) => r.tag_id),
+      );
+      const fromTaggings = await driver.all<{ id: string; tag_id: string }>(
+        `SELECT id, tag_id FROM taggings
+          WHERE entity_type = ? AND entity_id = ? AND deleted_at IS NULL`,
+        [entityType, fromId],
+      );
+      for (const { id, tag_id } of fromTaggings) {
+        if (survivorTagIds.has(tag_id)) {
+          // Survivor already wears this tag — drop the would-be duplicate.
+          await driver.run(
+            "UPDATE taggings SET deleted_at = ?, updated_at = ? WHERE id = ?",
+            [now, now, id],
+          );
+        } else {
+          await driver.run(
+            "UPDATE taggings SET entity_id = ?, updated_at = ? WHERE id = ?",
+            [toId, now, id],
+          );
+          survivorTagIds.add(tag_id);
+        }
       }
     },
 

@@ -138,6 +138,11 @@ function registerIpc(getCore: () => CoreApi): void {
   ipcMain.handle("people:softDelete", (_event, id: string) =>
     core.people.softDelete(id),
   );
+  ipcMain.handle(
+    "people:merge",
+    (_event, survivorId: string, loserId: string) =>
+      core.people.merge(survivorId, loserId),
+  );
 
   ipcMain.handle("pets:list", () => core.pets.list());
   ipcMain.handle("pets:get", (_event, id: string) => core.pets.get(id));

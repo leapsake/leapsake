@@ -96,6 +96,18 @@ export interface MilestonesRepo extends SyncableRepo<Milestone> {
    * subjects aren't creatable here), so there is nothing to orphan today.
    */
   removeAllForEntity(type: MilestoneSubjectType, id: string): Promise<void>;
+
+  /**
+   * Re-point every active milestone of `fromId` onto `toId` (used when merging
+   * `fromId` into `toId`). Per-item content keys are keyed by milestone id, not
+   * subject, so moving the subject leaves encryption untouched. Transaction-free
+   * building block.
+   */
+  repointEntity(
+    type: MilestoneSubjectType,
+    fromId: string,
+    toId: string,
+  ): Promise<void>;
 }
 
 /**
@@ -277,6 +289,15 @@ export function createMilestonesRepo(
            SET deleted_at = ?, updated_at = ?
          WHERE subject_type = ? AND subject_id = ? AND deleted_at IS NULL`,
         [now, now, type, id],
+      );
+    },
+
+    async repointEntity(type, fromId, toId) {
+      const now = Date.now();
+      await driver.run(
+        `UPDATE milestones SET subject_id = ?, updated_at = ?
+           WHERE subject_type = ? AND subject_id = ? AND deleted_at IS NULL`,
+        [toId, now, type, fromId],
       );
     },
   };
