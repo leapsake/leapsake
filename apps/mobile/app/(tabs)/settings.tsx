@@ -7,11 +7,10 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import type { SyncStatus } from "@leapsake/core";
-import { useCore, useSync } from "../lib/core-context";
-import { colors, styles } from "../lib/styles";
+import { useCore, useSync } from "../../lib/core-context";
+import { colors, styles } from "../../lib/styles";
 
 /**
  * Mirror of the core's `MIN_PASSWORD_LENGTH` boundary check — keep them in step.
@@ -76,7 +75,6 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <Stack.Screen options={{ title: "Settings" }} />
       <Text style={styles.title}>Account &amp; sync</Text>
       {status === null ? (
         <Text style={styles.muted}>Loading…</Text>
@@ -651,7 +649,6 @@ function RecoveryKeyReveal({
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <Stack.Screen options={{ title: "Save your recovery key" }} />
       <Text style={styles.title}>Save your recovery key</Text>
       <Text style={styles.muted}>
         This is shown once. Store it somewhere safe, like a password manager. If
