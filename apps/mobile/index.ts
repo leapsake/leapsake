@@ -3,7 +3,7 @@
 // for every primary key) and `crypto.getRandomValues` (`@leapsake/crypto`'s noble
 // primitives, for key/salt/recovery-key generation in the enable-sync door). We
 // establish the global here from expo-crypto's native implementation — no hand-rolled
-// algorithm, just wiring (reboot-plan.md §2: don't reimplement a standard a first-party
+// algorithm, just wiring (AGENTS.md, guiding principles): don't reimplement a standard a first-party
 // module ships). expo-crypto emits canonical lowercase v4 UUIDs, the same form Node
 // (desktop) and browsers (web) produce, so stored IDs carry no platform fingerprint.
 // Desktop and web supply `crypto` natively; this is mobile-only.

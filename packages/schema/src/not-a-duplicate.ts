@@ -10,7 +10,7 @@ import { z } from "zod";
  * The pair is **canonicalized** by the repo — `lowerId` < `higherId` — so the
  * unordered pair (A,B) is a single row. People-only for v1; no `entityType`.
  *
- * Same sync-safe substrate as every domain row (reboot-plan.md §4.2): client
+ * Same sync-safe substrate as every domain row (see AGENTS.md): client
  * UUID id, epoch-ms UTC timestamps, nullable `deletedAt` — so it merges via
  * whole-row LWW ({@link resolveMerge}) and rides the sync allowlist like the
  * rest, which is what keeps a rejection from re-nagging on other devices.

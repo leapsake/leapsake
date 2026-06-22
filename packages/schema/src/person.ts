@@ -4,7 +4,7 @@ import { genderSchema } from "./gender.js";
 /**
  * A Person — the core entity. The full database row shape.
  *
- * Sync-safe conventions (see reboot-plan.md §4.2): client-generated UUID
+ * Sync-safe conventions (see AGENTS.md): client-generated UUID
  * primary key, epoch-ms UTC timestamps, and a nullable `deletedAt` for soft
  * deletes (rows are never hard-deleted, so deletions can propagate during V3
  * sync).

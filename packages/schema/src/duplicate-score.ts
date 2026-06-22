@@ -1,6 +1,6 @@
 /**
  * Pairwise duplicate scoring for people — the *detection* half of reconciliation
- * (plans/reconciliation/increment-b.md). Pure and dependency-free like
+ * (packages/core/README.md). Pure and dependency-free like
  * {@link ./merge.ts}: the data layer feeds it folded/normalized fields, and it
  * returns a tier + human-readable reasons. It never touches the DB, never
  * merges, and never auto-acts — every proposed merge still goes through

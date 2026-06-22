@@ -11,7 +11,7 @@ import type { SqliteDriver } from "./driver.js";
 
 /**
  * Duplicate *detection* over the people list — the read half of reconciliation
- * Increment B (plans/reconciliation/increment-b.md). A read-only cross-table
+ * Increment B (packages/core/README.md). A read-only cross-table
  * aggregator in the same shape as {@link createSearchService}: pull the small set
  * of active rows, derive in memory, and hand each candidate pair to the pure
  * {@link scoreDuplicate}. It only *proposes* — every actual merge still goes

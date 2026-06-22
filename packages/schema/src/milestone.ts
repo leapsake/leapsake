@@ -151,7 +151,7 @@ export function kindsForSubjectType(
  * wedding added before its relationship exists lives on the person and is
  * later re-pointed to the relationship via a single-row subject update.
  *
- * Same sync-safe conventions as the other tables (reboot-plan.md §4.2): client
+ * Same sync-safe conventions as the other tables (see AGENTS.md): client
  * UUID id, epoch-ms UTC timestamps, nullable `deletedAt`.
  */
 export const milestoneSchema = z

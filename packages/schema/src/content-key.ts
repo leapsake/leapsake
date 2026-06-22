@@ -6,7 +6,7 @@ import { z } from "zod";
  * item it protects — never the key bytes themselves, which live only as
  * `key_wrap` ciphertext.
  *
- * Same sync-safe conventions as the domain tables (reboot-plan.md §4.2):
+ * Same sync-safe conventions as the domain tables (see AGENTS.md):
  * client-generated UUID PK, epoch-ms UTC timestamps, nullable `deletedAt` soft
  * delete. `entityType` is left an open string (not an enum) because the set
  * grows freely — 'person', 'pet', 'photo_album', 'share_bundle', … — without a

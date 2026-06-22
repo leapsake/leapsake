@@ -49,7 +49,7 @@ interface NotADuplicateRow {
  * against the async {@link SqliteDriver} port so it runs unchanged on desktop and
  * mobile. It is a {@link SyncableRepo} (the rejection must replicate, else every
  * device re-nags about a pair the user already dismissed) — see
- * plans/reconciliation/increment-b.md.
+ * packages/core/README.md.
  */
 export function createNotADuplicateRepo(
   driver: SqliteDriver,
