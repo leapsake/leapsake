@@ -209,10 +209,11 @@ A passphrase is never required to *start* using Leapsake on one device — only 
 
 ## 8. Encryption at rest, and the `node:sqlite` tension
 
-> **Stage 2 ([`status.md`](../status.md)).** At-rest is **not** in the Stage-1 zero-knowledge core — it is
-> deferred so V3 keeps `node:sqlite` clean and ships the high-value sync envelope first
-> (§2). Until Stage 2 the local file is plaintext-and-queryable, as today. The shape
-> below is the Stage-2 target.
+> **Stage 2 ([`status.md`](../status.md)) — now in v0.1 launch scope.** At-rest was **not**
+> in the Stage-1 core (Stage 1 shipped the high-value sync envelope first, §2); it is the
+> **next encryption increment**. **Decided:** at-rest is worth a backend swap — the
+> `node:sqlite` preference (chosen to stay native-module-free) **yields** to it. Until it
+> ships the local file is plaintext-and-queryable, as today. The shape below is the target.
 
 The right shape is **whole-database encryption** (SQLCipher-style: the file on disk is
 ciphertext, the engine decrypts pages into memory as you query, a key is supplied at

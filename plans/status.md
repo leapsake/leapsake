@@ -14,9 +14,10 @@
 - **V1 desktop + V1.5 local CRM** and **V2 mobile** (feature-complete vs. desktop, verified
   iOS + Android) — ✅ done. (Delivery history is in git; durable lessons are in
   [`../AGENTS.md`](../AGENTS.md) and the package READMEs.)
-- **V3 · Encryption + sync** — **Stage 1 (zero-knowledge sync) is code-complete** on both
-  clients. One acceptance gate left (a desktop ↔ mobile over-the-wire demo). Stages 2–4
-  (at-rest, sharing, SSR) are ahead. Design: [`encryption/`](./encryption/).
+- **V3 · Encryption + sync** — **Stage 1 (zero-knowledge sync) is done** on both clients,
+  verified desktop ↔ mobile over the wire. **Stage 2 (at-rest) is now done on desktop**
+  (the local file is encrypted; mobile at-rest is the follow-on increment). Stages 3–4
+  (sharing, SSR) remain post-launch. Design: [`encryption/`](./encryption/).
 - **V3 · Reconciliation (dedup & merge)** — Increments A, B, and C's merge-on-join are
   built; only C's bulk-import dedup remains (deferred until the importer exists). Design:
   [`packages/core/README.md`](../packages/core/README.md).
@@ -60,6 +61,32 @@ in [`encryption/`](./encryption/) (`model.md` for the why, `sync.md` for transpo
   "Sync now", "Disconnect account", recovery-key reveal, 12-char floor, "no password reset"
   copy, relay per-IP rate limiting).
 
+### Encryption + sync — Stage 2 (at-rest encryption, desktop)
+
+Whole-DB encryption on desktop (`model.md` §8): the on-disk `leapsake.db` is now ciphertext,
+decrypted into memory only while the process holds the device's whole-DB key. Search, kinship,
+and timelines are untouched — they still run on in-memory plaintext. A backend swap behind the
+existing `SqliteDriver` port, with **zero edits above the driver**.
+
+- **Backend decision (spiked):** `better-sqlite3-multiple-ciphers` (SQLite3-Multiple-Ciphers,
+  SQLCipher-compatible) over a WASM build — it is the only maintained, batteries-included
+  encrypted SQLite for Node/Electron, ships prebuilt binaries for **both** Node (Vitest) and
+  Electron (the app) so there is no node-gyp compile, and is synchronous (a near drop-in for the
+  old `node:sqlite` driver). This reintroduces a native addon — the cost `node:sqlite` was chosen
+  to avoid — **accepted** for at-rest; mitigated by prebuilds + a `pnpm --filter @leapsake/desktop
+  rebuild` step (`@electron/rebuild`) for the Electron ABI.
+- **Whole-DB key custody:** a random 256-bit key minted once on first launch and held **only** in
+  the OS enclave via the `KeyStore` (`db-key`), supplied at open time. It is deliberately **not** a
+  `key_wrap` row — that table lives inside the encrypted DB (chicken-and-egg) — and is orthogonal to
+  the in-DB master-key hierarchy (at-rest protects the *file*; per-item content keys live *inside*).
+- **Existing-data upgrade:** a pre-Stage-2 plaintext file is detected by its `SQLite format 3`
+  header and re-keyed in place on first launch, keeping the original as `leapsake.db.plaintext.bak`.
+  Idempotent; a no-op for fresh installs and already-encrypted files.
+- Code: `apps/desktop/src/main/db/{encrypted-sqlite-driver,database-key,plaintext-migration}.ts`;
+  the old plaintext `node-sqlite-driver.ts` is removed. Tests run under Vitest's Node ABI and prove
+  ciphertext-at-rest, wrong-key rejection, BLOB round-trip, and the plaintext→encrypted migration.
+  `packages/data` integration tests stay on `node:sqlite` `:memory:` (encryption is a driver concern).
+
 ### Reconciliation (dedup & merge)
 
 Detail + reuse rationale in [`packages/core/README.md`](../packages/core/README.md).
@@ -81,58 +108,67 @@ Detail + reuse rationale in [`packages/core/README.md`](../packages/core/README.
 
 ## What's next
 
-### Encryption + sync
+> **v0.1 launch line.** Items are grouped by launch scope. The pivot: **the web app is
+> post-launch**, and it's the render vehicle for every URL-based share — so capability links
+> and Stage 3 sharing defer with it. Mobile + desktop + the blind relay are judged enough for
+> v0.1 person-data management. More pre-v0.1 polish/testing will be added here as launch nears.
 
-**The one acceptance gate to call Stage 1 done:**
-- A desktop ↔ mobile over-the-wire demo against a localhost `apps/server` relay (needs a
-  simulator/device). Enable sync on one client, log in + "Sync now" on the other, confirm a
-  person + decrypted milestone note converge both ways. Mobile's UI is verified at the code
-  level; desktop↔desktop was verified live (two `--user-data-dir` profiles, 2026-06-20).
+### Pre-v0.1 (toward initial launch)
 
-**Stage 1 polish (deferred, none blocking the gate):**
-- Capability-link sharing (`#fragment`, `model.md` §11) — the last unbuilt Stage-1 design
-  item; key rides the URL, no `key_wrap` row.
-- CK revocation / GC on entity delete (a sync-era cleanup concern).
-- Relay hardening before a public, at-scale relay: TLS, challenge–response vs. bearer replay,
-  device-scoped tokens, proxy-aware/shared rate limiter (`encryption/security-review.md` §3).
-- A human-transcribable recovery-key encoding (both clients show base64 today).
-- Sync onboarding prompt ("Already using Leapsake on another device? Sync now").
-- Native background-fetch / true background sync; a configurable sync-*interval* UI.
-- Registration-token enforcement / paid relay; username reconciliation across relays.
-- Additive future unlock doors (none foreclosed — each is one more `key_wrap` of MK): the
-  high-entropy sync-code / QR-pairing door, and the email/password door for the paid tier.
+**Encryption + sync** — Stage 1 is done (desktop ↔ mobile over-the-wire demo verified: a
+person + decrypted milestone note converge both ways through a localhost `apps/server` relay).
+What's left for launch:
+- **Stage 2 — at-rest encryption.** **Desktop is done** (see Recently shipped:
+  `better-sqlite3-multiple-ciphers` behind the `SqliteDriver` port, whole-DB key in the OS
+  enclave, plaintext→encrypted upgrade-on-launch). **Remaining: mobile at-rest** — its own
+  increment with its own backend question (verify expo-sqlite's SQLCipher path on SDK 56, else
+  `@op-engineering/op-sqlite` via a config plugin); same key-custody pattern, lifted from
+  desktop's `database-key.ts`. Stage 2's convenience doors (passkeys, Tier-1 escrow) stay
+  additive/post-launch.
+- **Relay hardening** — TLS, challenge–response vs. bearer replay, device-scoped tokens,
+  proxy-aware/shared rate limiter (`encryption/security-review.md` §3).
+- **Human-transcribable recovery-key encoding** (base64 today; the only Tier-2 way back in).
+- **CK revocation / GC on entity delete** (sync-era cleanup; stops orphaned keys).
+- **True background-fetch sync + a configurable sync-*interval* UI.**
 
-**Stages 2–4 (designed, not started; this is when `encryption/` should start collapsing toward
-a flat doc):**
-- **Stage 2** — whole-DB at-rest encryption + the custody dial + passkeys + Tier-1 escrow.
-- **Stage 3** — account keypair + public-key directory + authenticated / constrained sharing
-  (hosted links, Alexa, CardDAV).
-- **Stage 4** — SSR split-session rendering for the no-JS web app.
+**Distribution (launch-gating)** — code signing, macOS notarization, auto-update; v0.1 can't
+ship without distributable apps. (None yet.)
 
-### Reconciliation
+**Reconciliation** (quality; can land pre- or post-launch as capacity allows):
+- **Fuzzy / typo-tolerant name matching** — the scorer's reserved `"low"` tier via
+  `fastest-levenshtein` or `cmpstr`, entirely inside `duplicate-score.ts`'s `sameFoldedName`
+  predicate — no caller/API change.
+- **`libphonenumber-js` phone normalization** — E.164 canonicalization; its own increment.
+- **Pets / generalized `mergeEntities`** — small follow-on; the reference graph is entity-typed.
+- **Bulk-import dedup** — deferred until the importer exists (then mostly A+B reuse, honoring
+  the `not_a_duplicate` memory).
 
-- **Bulk-import dedup (C's other half) — deferred until the importer exists** *(next)*. Dedup
-  incoming contacts against existing People via A+B, honoring the `not_a_duplicate` memory.
-  Mostly *reuse* of A+B, not new logic.
-- **Fuzzy / typo-tolerant name matching** — turn on the scorer's reserved `"low"` tier via
-  `fastest-levenshtein` or `cmpstr`; lands entirely inside `duplicate-score.ts`'s
-  `sameFoldedName` predicate — no caller/API change.
-- **`libphonenumber-js` phone normalization** — E.164 canonicalization so the same number in
-  different formats matches; its own increment (touches the contact-method normalization layer).
-- **Pets / generalized `mergeEntities`** — the reference graph is already entity-typed, so a
-  `mergePets` is a small follow-on.
+**Client / UX** (sequenced *after* the encryption work above):
+- **Home screen** — a task/reminder surface (upcoming birthdays/holidays + user- &
+  Leapsake-defined tasks) on the existing desktop + mobile clients. Doubles as the first-run
+  **sync-onboarding** entry point ("Already using Leapsake on another device?"), so onboarding
+  and the Home task/reminder UI are learned together. (New workstream; design TBD.)
 
-### V3 · Distribution & web (cross-cutting, not yet started)
+### Post-launch (after the web app)
 
-- **Distribution** graduates with sync — code signing, macOS notarization, and an auto-update
-  mechanism. "Truly distributable" is only meaningful once there's something to sync, so it
-  ships alongside the sync work above (no signing/notarization/auto-update yet).
-- **Web app** — add it and choose its framework then (Remix / Next.js / React Router
-  candidates). Server-rendered with progressive enhancement. **Privacy note** (`encryption/
-  model.md` §10): "no client JS required" means *progressive enhancement of privacy* — with no
-  JS the render server decrypts transiently for the session; with JS, decryption is
-  client-side only and the server stays zero-knowledge. The framework must support both paths
-  in one app (this is also encryption Stage 4 / the open web-framework question below).
+- **Web app — encryption Stage 4** (SSR split-session rendering + PWA; `model.md` §10): the
+  no-JS accessibility floor and the gate for all URL-based sharing. "No client JS required"
+  means *progressive enhancement of privacy* — no-JS, the render server decrypts transiently;
+  with JS, decryption is client-side and the server stays zero-knowledge. Framework still open
+  (Remix / Next.js / React Router). **Low retrofit risk** — the KEK layer makes the SSR
+  session-key door additive, the auth-verifier split it needs is already built, and web is just
+  another `core` consumer behind existing ports; no migrations/breaking changes foreseen.
+- **Capability-link sharing** (`model.md` §11; the last unbuilt Stage-1 design item):
+  zero-knowledge public links (key in the `#fragment`, no `key_wrap` row). Needs the web app as
+  render vehicle **and** a prior URL-formation decision (see Open questions).
+- **Stage 3 — authenticated sharing** — account keypair + public-key directory (TOFU-vs-verify
+  trust) + constrained principals (hosted links, Alexa, CardDAV). Kept **entirely** post-web:
+  even native-to-native sharing (which could ride the relay without a URL) defers with it.
+  Needs an external crypto audit before public ship.
+- **Custody tiers** — Tier-1 server escrow (email/password reset) + Tier-0; **passkeys**
+  (WebAuthn PRF) as another unlock door. Each is one more MK wrapping, re-encrypting nothing.
+- Registration-token enforcement / paid relay; username reconciliation across relays; the
+  high-entropy sync-code / QR-pairing unlock door.
 
 ---
 
@@ -144,6 +180,10 @@ a flat doc):**
 - Public-key directory trust model (TOFU vs. verification) — **Stage 3**.
 - Web framework — must support both SSR (no-JS) and a client-side decryption path in one app
   (`model.md` §10) — **Stage 4**.
+- Share-URL formation — how the official/paid instance (`leapsake.com` / `app.leapsake.com`)
+  vs. self-hosted instances at arbitrary domains form & resolve share URLs, and how account
+  identity / the public-key directory reconcile across relays and domains. Blocks
+  **capability-link sharing**; tied to the **web app** + **Stage 3**.
 - Metadata minimization — explicitly out of scope for V3; revisit later.
 - Confidential-computing enclave for SSR — the **Stage 4** ceiling; only if server-side
   decryption trust ever needs hardening.
