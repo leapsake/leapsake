@@ -118,6 +118,13 @@ export default function PersonDetailScreen() {
         onChanged={reload}
       />
 
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push(`/people/${person.id}/merge`)}
+      >
+        <Text style={styles.link}>Merge duplicate…</Text>
+      </Pressable>
+
       <Pressable accessibilityRole="button" onPress={confirmDelete}>
         <Text style={[styles.link, styles.danger]}>Delete person</Text>
       </Pressable>

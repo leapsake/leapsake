@@ -33,6 +33,7 @@ import { ErrorPage } from "./screens/ErrorPage";
 import { PersonCreate } from "./screens/PersonCreate";
 import { PersonDelete } from "./screens/PersonDelete";
 import { PersonEdit } from "./screens/PersonEdit";
+import { PersonMerge } from "./screens/PersonMerge";
 import { MilestoneCreate } from "./screens/MilestoneCreate";
 import { MilestoneDelete } from "./screens/MilestoneDelete";
 import { MilestoneEdit } from "./screens/MilestoneEdit";
@@ -756,6 +757,28 @@ export const router = createHashRouter([
         action: async ({ params }) => {
           await window.api.people.softDelete(params.id as string);
           return redirect("/");
+        },
+      },
+      {
+        // Merge a duplicate person into this one: this person survives, the
+        // picked duplicate's facts re-point onto it, then it is tombstoned.
+        path: "people/:id/merge",
+        loader: async ({ params }: LoaderFunctionArgs) => {
+          const id = params.id as string;
+          const person = await window.api.people.get(id);
+          if (!person) throw new Response("Person not found", { status: 404 });
+          const others = (await window.api.people.list()).filter(
+            (p) => p.id !== id,
+          );
+          return { person, others };
+        },
+        element: <PersonMerge />,
+        action: async ({ request, params }) => {
+          const id = params.id as string;
+          const formData = await request.formData();
+          const loserId = String(formData.get("loserId"));
+          await window.api.people.merge(id, loserId);
+          return redirect(`/people/${id}`);
         },
       },
       {

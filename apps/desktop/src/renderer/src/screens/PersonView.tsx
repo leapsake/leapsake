@@ -37,6 +37,7 @@ export function PersonView() {
       <header>
         <h1>{fullName(person)}</h1>
         <Link to={`/people/${person.id}/edit`}>Edit</Link>{" "}
+        <Link to={`/people/${person.id}/merge`}>Merge</Link>{" "}
         <Link to={`/people/${person.id}/delete`}>Delete</Link>
       </header>
 

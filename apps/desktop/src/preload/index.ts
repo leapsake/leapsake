@@ -72,6 +72,8 @@ const api = {
       ipcRenderer.invoke("people:update", id, input, tagNames),
     softDelete: (id: string): Promise<void> =>
       ipcRenderer.invoke("people:softDelete", id),
+    merge: (survivorId: string, loserId: string): Promise<void> =>
+      ipcRenderer.invoke("people:merge", survivorId, loserId),
   },
   pets: {
     list: (): Promise<Pet[]> => ipcRenderer.invoke("pets:list"),
