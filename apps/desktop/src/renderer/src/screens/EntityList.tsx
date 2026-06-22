@@ -18,7 +18,8 @@ export function EntityList() {
 
       <p>
         <Link to="/people/new">Add person</Link>{" "}
-        <Link to="/pets/new">Add pet</Link>
+        <Link to="/pets/new">Add pet</Link>{" "}
+        <Link to="/duplicates">Review duplicates</Link>
       </p>
 
       {entities.length === 0 ? (

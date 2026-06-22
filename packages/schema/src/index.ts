@@ -44,6 +44,8 @@ export type { Tag } from "./tag.js";
 export { taggingSchema } from "./tagging.js";
 export type { Tagging } from "./tagging.js";
 export { dismissalSchema } from "./dismissal.js";
+export { notADuplicateSchema } from "./not-a-duplicate.js";
+export type { NotADuplicate } from "./not-a-duplicate.js";
 export { fullName, entityLabel, tagLabel } from "./labels.js";
 export { genderSchema, genderLabel } from "./gender.js";
 export type { Gender } from "./gender.js";
@@ -131,6 +133,12 @@ export {
 export type { HighlightMode } from "./search-fold.js";
 export { resolveMerge } from "./merge.js";
 export type { SyncRow } from "./merge.js";
+export { scoreDuplicate, TIER_RANK } from "./duplicate-score.js";
+export type {
+  DuplicateInput,
+  DuplicateTier,
+  DuplicateScore,
+} from "./duplicate-score.js";
 export { parseBirthdayQuery } from "./birthday-query.js";
 export type { PartialDate } from "./birthday-query.js";
 export { contactCountryOptions, countryFlag } from "./countries.js";

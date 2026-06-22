@@ -1,9 +1,5 @@
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
-import {
-  type KeyStore,
-  base64ToBytes,
-  bytesToBase64,
-} from "@leapsake/crypto";
+import { type KeyStore, base64ToBytes, bytesToBase64 } from "@leapsake/crypto";
 import { safeStorage } from "electron";
 
 /**

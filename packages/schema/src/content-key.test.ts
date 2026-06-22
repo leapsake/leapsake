@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { contentKeySchema, createContentKeyInputSchema } from "./content-key.js";
+import {
+  contentKeySchema,
+  createContentKeyInputSchema,
+} from "./content-key.js";
 
 const validRow = {
   id: crypto.randomUUID(),
@@ -24,7 +27,9 @@ describe("contentKeySchema", () => {
   });
 
   it("rejects an empty entityType", () => {
-    expect(() => contentKeySchema.parse({ ...validRow, entityType: "" })).toThrow();
+    expect(() =>
+      contentKeySchema.parse({ ...validRow, entityType: "" }),
+    ).toThrow();
   });
 
   it("rejects a non-uuid entityId", () => {

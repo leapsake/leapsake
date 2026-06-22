@@ -1,6 +1,7 @@
 import type {
   CoreApi,
   DerivedRelationshipView,
+  DuplicateCandidate,
   EntityRow,
   GenderResult,
   MilestoneNewView,
@@ -220,6 +221,12 @@ const api = {
   search: {
     query: (term: string): Promise<SearchHit[]> =>
       ipcRenderer.invoke("search:query", term),
+  },
+  duplicates: {
+    findCandidates: (): Promise<DuplicateCandidate[]> =>
+      ipcRenderer.invoke("duplicates:findCandidates"),
+    reject: (idA: string, idB: string): Promise<void> =>
+      ipcRenderer.invoke("duplicates:reject", idA, idB),
   },
   views: {
     entityList: (): Promise<EntityRow[]> =>

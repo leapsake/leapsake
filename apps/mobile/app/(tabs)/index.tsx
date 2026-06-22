@@ -26,6 +26,11 @@ export default function HomeScreen() {
         <FlatList
           data={entities}
           keyExtractor={(entity) => `${entity.type}:${entity.id}`}
+          ListHeaderComponent={
+            <Link href="/duplicates" style={[styles.row, styles.link]}>
+              Review duplicates
+            </Link>
+          }
           ListEmptyComponent={
             <Text style={styles.muted}>Nobody here yet.</Text>
           }

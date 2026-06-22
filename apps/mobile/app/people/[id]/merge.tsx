@@ -23,7 +23,7 @@ import { styles } from "../../../lib/styles";
 export default function PersonMergeScreen() {
   const core = useCore();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, loser } = useLocalSearchParams<{ id: string; loser?: string }>();
   const load = useCallback(
     async () => ({
       person: await core.people.get(id),
@@ -69,7 +69,11 @@ export default function PersonMergeScreen() {
       ) : (
         (() => {
           const survivor = data.person;
-          const others = data.people.filter((p) => p.id !== survivor.id);
+          const others = data.people
+            .filter((p) => p.id !== survivor.id)
+            // Float the duplicate to the top when arriving from "Review
+            // duplicates" (?loser=…), so the obvious choice is the first tap.
+            .sort((x, y) => (x.id === loser ? -1 : y.id === loser ? 1 : 0));
           return (
             <ScrollView contentContainerStyle={styles.screen}>
               <Text style={styles.muted}>

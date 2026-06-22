@@ -1,11 +1,14 @@
 import {
+  type DuplicateCandidate,
   type GenderResult,
   type SqliteDriver,
   createContactMethodsRepo,
   createContentCipher,
   createDismissalsRepo,
+  createDuplicateService,
   createKinshipService,
   createMilestonesRepo,
+  createNotADuplicateRepo,
   createPeopleRepo,
   createPetsRepo,
   createRelationshipsRepo,
@@ -60,6 +63,13 @@ import { createViews } from "./views.js";
 // Re-exported so apps can wire everything from one entry point: construct a
 // concrete SqliteDriver, run migrations, then build the core.
 export { runMigrations, type SqliteDriver, type GenderResult };
+
+// Duplicate-detection result shapes (reconciliation Increment B), re-exported
+// from the data layer so every client renders candidates against one contract.
+export type {
+  DuplicateCandidate,
+  DuplicateCandidatePerson,
+} from "@leapsake/data";
 
 // The custody Phase 0 bootstrap: the first KeyStore consumer, run between
 // migrations and createCore to make the device's master key available. Plus the
@@ -169,6 +179,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
   const tags = createTagsRepo(driver);
   const relationships = createRelationshipsRepo(driver);
   const dismissals = createDismissalsRepo(driver);
+  const notADuplicate = createNotADuplicateRepo(driver);
   const milestones = createMilestonesRepo(driver, cipher);
   const contactMethods = createContactMethodsRepo(driver);
   const kinship = createKinshipService(driver, {
@@ -178,6 +189,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     dismissals,
   });
   const search = createSearchService(driver);
+  const duplicates = createDuplicateService(driver);
 
   // Resolve an entity to its display label for relationship rows and timeline
   // annotations, using the shared `@leapsake/schema` formatters so every client
@@ -361,6 +373,9 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           await dismissals.repointEntity("person", loserId, survivorId);
           await milestones.repointEntity("person", loserId, survivorId);
           await contactMethods.repointOwner("person", loserId, survivorId);
+          // Carry the "not a duplicate" memory across so the merge doesn't strand
+          // or self-pair a rejection (it re-canonicalizes and drops self/dupes).
+          await notADuplicate.repointEntity(loserId, survivorId);
           // Bump the survivor's clock so the merged survivor wins LWW against any
           // concurrent edit to the loser still in flight from another device.
           await people.update(survivorId, {});
@@ -545,6 +560,19 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
 
     search: {
       query: (term: string): Promise<SearchHit[]> => search.query(term),
+    },
+
+    // Duplicate detection (reconciliation Increment B): propose merges and
+    // remember rejected pairs. Detection only — an actual merge goes through
+    // `people.merge` (Increment A); `reject` records the "not a duplicate" memory
+    // (which syncs, so no other device re-nags the pair).
+    duplicates: {
+      findCandidates: (): Promise<DuplicateCandidate[]> =>
+        notADuplicate
+          .listPairs()
+          .then((pairs) => duplicates.findCandidates(pairs)),
+      reject: (idA: string, idB: string): Promise<void> =>
+        driver.transaction(() => notADuplicate.record(idA, idB)),
     },
 
     // Read-and-compose view-model builders: portable fan-outs, label resolution,

@@ -34,6 +34,7 @@ import { PersonCreate } from "./screens/PersonCreate";
 import { PersonDelete } from "./screens/PersonDelete";
 import { PersonEdit } from "./screens/PersonEdit";
 import { PersonMerge } from "./screens/PersonMerge";
+import { Duplicates } from "./screens/Duplicates";
 import { MilestoneCreate } from "./screens/MilestoneCreate";
 import { MilestoneDelete } from "./screens/MilestoneDelete";
 import { MilestoneEdit } from "./screens/MilestoneEdit";
@@ -714,6 +715,22 @@ export const router = createHashRouter([
         element: <Settings />,
       },
       {
+        // Review duplicates: propose candidate pairs (reconciliation Increment
+        // B). The "Not the same" action records the rejection and revalidates
+        // this loader in place; "Merge…" routes into the people merge confirm.
+        path: "duplicates",
+        loader: () => window.api.duplicates.findCandidates(),
+        element: <Duplicates />,
+        action: async ({ request }) => {
+          const formData = await request.formData();
+          await window.api.duplicates.reject(
+            String(formData.get("idA")),
+            String(formData.get("idB")),
+          );
+          return null;
+        },
+      },
+      {
         path: "people/new",
         loader: () => window.api.views.candidates(),
         element: <PersonCreate />,
@@ -763,14 +780,17 @@ export const router = createHashRouter([
         // Merge a duplicate person into this one: this person survives, the
         // picked duplicate's facts re-point onto it, then it is tombstoned.
         path: "people/:id/merge",
-        loader: async ({ params }: LoaderFunctionArgs) => {
+        loader: async ({ params, request }: LoaderFunctionArgs) => {
           const id = params.id as string;
           const person = await window.api.people.get(id);
           if (!person) throw new Response("Person not found", { status: 404 });
           const others = (await window.api.people.list()).filter(
             (p) => p.id !== id,
           );
-          return { person, others };
+          // Preselect the duplicate when arriving from "Review duplicates".
+          const defaultLoserId =
+            new URL(request.url).searchParams.get("loser") ?? "";
+          return { person, others, defaultLoserId };
         },
         element: <PersonMerge />,
         action: async ({ request, params }) => {
