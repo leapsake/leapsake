@@ -7,7 +7,8 @@
 > do next*, then the relevant design doc for the *why*.** Update *this* file per increment;
 > keep the design docs stable.
 >
-> **Updated 2026-06-22** (recovery-phrase increment landed; UI pending manual verification).
+> **Updated 2026-06-23** (device re-auth after a remote password reset landed, test-verified;
+> recovery-phrase + re-auth UI pending manual verification).
 
 ## Where things stand
 
@@ -172,6 +173,32 @@ phrase opens the local file *and* the account. Design context in the plan
   recovers MK from the phrase, reads device-1's data, and the new password unlocks locally;
   plus wrong-phrase rejection.
 
+### Encryption + sync — device re-auth after a remote password reset
+
+Closes the gap the recovery-phrase increment opened: a recovery resets the account password,
+which rotates the account's `kdfSalt` + `authVerifier` on the relay, so *other* devices' stored
+credential goes stale and their background sync starts failing with **401** — previously a raw
+`"failed: 401"` with no recovery path short of Disconnect + rejoin. Re-auth is **"re-join an
+account you are already on"**: it reuses the join machinery but *updates* the local account row
+and skips device registration. **The master key is never touched** (it stays in the enclave);
+only the password-derived door is refreshed. No relay write.
+
+- **Core** — `reauthenticate` (`packages/core/src/key-session.ts`): `lookup` the rotated salt →
+  `deriveKeyMaterial` → `fetchBootstrap` (the relay's verifier gate **401s a wrong password
+  before any unwrap**) → assert the recovered MK equals this device's enclave MK (defense in
+  depth) → atomically `accountRepo.updateCredentials` + re-wrap the local `password` door.
+  `reauthenticateViaRelay` + `isRelayAuthError` (`sync.ts`) wrap it for the clients;
+  `AccountRepo.updateCredentials` (`packages/data`) is the new singleton-row update.
+- **Clients** — the sync-activity payload gained `needsReauth`; both schedulers' `onError`
+  flag a 401 via `isRelayAuthError`, and Settings shows a "your password was changed on another
+  device — re-enter it to reconnect" prompt wired to a new `sync.reauthenticate(password)`
+  (desktop IPC `sync:reauthenticate` + preload bridge; mobile `SyncApi.reauthenticate`). A
+  success kicks a sync so the device reconnects immediately.
+- **Tests** — `apps/server/test/relay.test.ts` proves an end-to-end reset → 401 → re-auth →
+  converge (plus a wrong-password rejection that leaves the local credential untouched);
+  `packages/core/test/reauthenticate.test.ts` unit-tests the credential rotation, password-door
+  re-wrap, MK-unchanged, and different-account refusal.
+
 ### Reconciliation (dedup & merge)
 
 Detail + reuse rationale in [`packages/core/README.md`](../packages/core/README.md).
@@ -234,14 +261,10 @@ the build agent** and need a human pass. Verify and report back:
 
 #### Identified issues / follow-ups from this increment
 
-- **Password reset invalidates other devices' relay credential** (no re-auth flow). After a
-  recovery resets the password, *other* devices still hold the old password-derived
-  `authVerifier`, so their `runAccountSync` will start failing with **401** and silently stop
-  (data stays intact locally). This is standard "reset logs out other sessions," but there is
-  **no UI to re-connect** a device after a remote password change. Add a flow: on a sync 401,
-  surface "your password changed elsewhere — re-enter it to reconnect" and re-derive
-  salt/verifier (a `lookup` + password re-entry, no new MK). Touches the scheduler's `onError`
-  path and `runAccountSync` callers.
+- **Password reset invalidates other devices' relay credential** — **fixed** (see *Recently
+  shipped → device re-auth after a remote password reset*). A sync 401 now surfaces a
+  re-enter-password prompt on both clients that re-derives the device's credential locally (no
+  new MK) and resumes syncing.
 - **Per-device vs per-account recovery phrase.** The phrase is unified (local file **and**
   account) only on the device that *enabled* sync or *recovered* the account. A device that
   joined by **password** keeps its **own** first-launch recovery key for its local-file

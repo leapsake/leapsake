@@ -29,8 +29,10 @@ import {
   ensureDeviceMasterKey,
   getAutoSync,
   getSyncStatus,
+  isRelayAuthError,
   joinAccountViaRelay,
   lookupAccount,
+  reauthenticateViaRelay,
   recoverAccountViaRelay,
   reconcileOnJoin,
   registerAccountWithRelay,
@@ -139,6 +141,13 @@ export interface SyncApi {
   /** Run one push→pull cycle against the configured relay. */
   syncNow(): Promise<{ at: number }>;
   /**
+   * Re-authenticate this device after the account password was reset on another
+   * device (a sync 401): re-derive this device's relay credential from the
+   * re-entered password. The master key is untouched. Resolves once a sync has
+   * been kicked; rejects with a friendly message on a wrong password.
+   */
+  reauthenticate(password: string): Promise<void>;
+  /**
    * Disconnect the account from this device: revoke the password + recovery
    * doors but keep the master key in the enclave, so local data stays readable.
    */
@@ -164,6 +173,7 @@ export interface SyncApi {
       at?: number;
       error?: string;
       changed?: boolean;
+      needsReauth?: boolean;
     }) => void,
   ): () => void;
 }
@@ -306,6 +316,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         at?: number;
         error?: string;
         changed?: boolean;
+        needsReauth?: boolean;
       }) => {
         // A changed pull bumps the data version so focused screens re-read.
         if (payload.changed) setDataVersion((v) => v + 1);
@@ -327,9 +338,21 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         onResult: ({ at, applied }) =>
           notifyActivity({ at, changed: applied !== undefined && applied > 0 }),
         onError: (cause) =>
-          notifyActivity({
-            error: cause instanceof Error ? cause.message : String(cause),
-          }),
+          // A 401 means the relay rejected this device's credential — almost
+          // always because the password was reset on another device. Flag it so
+          // Settings can prompt for the new password instead of a raw error.
+          notifyActivity(
+            isRelayAuthError(cause)
+              ? {
+                  error:
+                    "Your password was changed on another device. Re-enter it to reconnect.",
+                  needsReauth: true,
+                }
+              : {
+                  error:
+                    cause instanceof Error ? cause.message : String(cause),
+                },
+          ),
       });
 
       setCore(
@@ -464,6 +487,18 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             throw new Error("Sync is not enabled for this store.");
           }
           return result;
+        },
+        // Re-derive this device's relay credential from the re-entered password
+        // (the MK stays in the enclave), then kick a sync so a success reconnects
+        // immediately.
+        async reauthenticate(password) {
+          const { relayUrl } = await getSyncStatus({ driver });
+          try {
+            await reauthenticateViaRelay({ keyStore, driver, password });
+          } catch (cause) {
+            throw new Error(relayErrorMessage(cause, relayUrl ?? ""), { cause });
+          }
+          await scheduler.current?.trigger();
         },
         clear: () => clearLocalAccount({ driver }),
         revealRecoveryPhrase: async () =>

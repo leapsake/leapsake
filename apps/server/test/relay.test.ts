@@ -12,6 +12,7 @@ import {
   enableSync,
   ensureDeviceMasterKey,
   joinAccount,
+  reauthenticateViaRelay,
   recoverAccountViaRelay,
   reconcileOnJoin,
   runAccountSync,
@@ -535,6 +536,115 @@ describe("multi-device login over the relay (enable → join → converge)", () 
 
     d1.db.close();
     d2.db.close();
+  });
+
+  it("re-authenticates a device after the password is reset on another device", async () => {
+    // --- Device 1: enable (capture the phrase) + register, create Ada, push. ---
+    const d1 = blankDevice();
+    await runMigrations(d1.driver);
+    const mk = await ensureDeviceMasterKey({
+      keyStore: d1.keyStore,
+      driver: d1.driver,
+    });
+    const { recoveryKey, bootstrap } = await enableSync({
+      keyStore: d1.keyStore,
+      driver: d1.driver,
+      username: "ada",
+      password: PASSWORD,
+      relayUrl: baseUrl,
+      platform: "desktop",
+    });
+    await createHttpSyncTransport({
+      baseUrl,
+      accountId: bootstrap.accountId,
+      authVerifier: bootstrap.authVerifier,
+    }).register({
+      username: bootstrap.username ?? "",
+      kdfSalt: bootstrap.kdfSalt,
+      wrappedMasterKey: bootstrap.wrappedMasterKey,
+      wrappedMasterKeyRecovery: bootstrap.wrappedMasterKeyRecovery,
+      recoveryVerifier: bootstrap.recoveryVerifier,
+    });
+    const phrase = encodeRecoveryPhrase(recoveryKey);
+    const ada = await reposFor(d1.driver, mk.masterKey).people.create({
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+    await runAccountSync({ driver: d1.driver, masterKey: mk.masterKey });
+
+    // --- Device 2: join by username+password, sync, read Ada. It now holds the
+    //     original-password credential. ---
+    const d2 = blankDevice();
+    await runMigrations(d2.driver);
+    await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+    const d2session = await joinAccount({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      transport: createHttpSyncTransport({ baseUrl }),
+      relayUrl: baseUrl,
+      username: "ada",
+      password: PASSWORD,
+      platform: "mobile",
+    });
+    await runAccountSync({ driver: d2.driver, masterKey: d2session.masterKey });
+    expect(
+      await reposFor(d2.driver, d2session.masterKey).people.get(ada.id),
+    ).toEqual(ada);
+
+    // --- Device 3: recover from the phrase, which resets the account password —
+    //     the event that strands device 2's credential. ---
+    const d3 = blankDevice();
+    await runMigrations(d3.driver);
+    await ensureDeviceMasterKey({ keyStore: d3.keyStore, driver: d3.driver });
+    const NEW_PASSWORD = "a brand new battery horse staple";
+    const d3session = await recoverAccountViaRelay({
+      keyStore: d3.keyStore,
+      driver: d3.driver,
+      relayUrl: baseUrl,
+      username: "ada",
+      recoveryPhrase: phrase,
+      newPassword: NEW_PASSWORD,
+      platform: "desktop",
+    });
+
+    // Device 2's credential is now stale → its sync fails with a relay 401.
+    await expect(
+      runAccountSync({ driver: d2.driver, masterKey: d2session.masterKey }),
+    ).rejects.toThrow(/401/);
+
+    // A wrong password fails at the relay's verifier check, before any local
+    // mutation (the account row keeps its stale — and still-wrong — credential).
+    await expect(
+      reauthenticateViaRelay({
+        keyStore: d2.keyStore,
+        driver: d2.driver,
+        password: "not the new password",
+      }),
+    ).rejects.toThrow();
+    await expect(
+      runAccountSync({ driver: d2.driver, masterKey: d2session.masterKey }),
+    ).rejects.toThrow(/401/);
+
+    // Device 2 re-authenticates with the new password — the MK is untouched — and
+    // resumes syncing: it pulls a person device 3 pushes after the reset.
+    await reauthenticateViaRelay({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      password: NEW_PASSWORD,
+    });
+    const grace = await reposFor(d3.driver, d3session.masterKey).people.create({
+      firstName: "Grace",
+      lastName: "Hopper",
+    });
+    await runAccountSync({ driver: d3.driver, masterKey: d3session.masterKey });
+    await runAccountSync({ driver: d2.driver, masterKey: d2session.masterKey });
+    expect(
+      await reposFor(d2.driver, d2session.masterKey).people.get(grace.id),
+    ).toEqual(grace);
+
+    d1.db.close();
+    d2.db.close();
+    d3.db.close();
   });
 
   it("reconcile-on-join surfaces local↔account duplicates without auto-merging, and keeps local data", async () => {

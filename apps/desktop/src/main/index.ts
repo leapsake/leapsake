@@ -11,8 +11,10 @@ import {
   ensureDeviceMasterKey,
   getAutoSync,
   getSyncStatus,
+  isRelayAuthError,
   joinAccountViaRelay,
   lookupAccount,
+  reauthenticateViaRelay,
   recoverAccountViaRelay,
   reconcileOnJoin,
   registerAccountWithRelay,
@@ -94,6 +96,7 @@ function broadcastSyncActivity(payload: {
   at?: number;
   error?: string;
   changed?: boolean;
+  needsReauth?: boolean;
 }): void {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send("sync:activity", payload);
@@ -599,6 +602,23 @@ function registerSyncIpc(opts: { keyStore: KeyStore }): void {
     },
   );
 
+  // Re-authenticate this device after the account password was reset elsewhere:
+  // re-derive this device's relay credential from the re-entered password (the MK
+  // stays in the enclave), then kick a sync so a success reconnects immediately.
+  ipcMain.handle("sync:reauthenticate", async (_event, args: unknown) => {
+    const password = requireText(
+      (args as { password?: unknown } | undefined)?.password,
+      "Password",
+    );
+    const { relayUrl } = await getSyncStatus({ driver });
+    try {
+      await reauthenticateViaRelay({ keyStore, driver, password });
+    } catch (cause) {
+      throw new Error(relayErrorMessage(cause, relayUrl ?? ""), { cause });
+    }
+    await scheduler?.trigger();
+  });
+
   // Run one push→pull cycle for the enabled account, routed through the scheduler
   // so the manual button and background syncs share single-flight. Returns the
   // completion time for a "last synced" indicator; a guarded skip (sync not
@@ -725,9 +745,18 @@ void app.whenReady().then(async () => {
         changed: applied !== undefined && applied > 0,
       }),
     onError: (error) =>
-      broadcastSyncActivity({
-        error: error instanceof Error ? error.message : String(error),
-      }),
+      // A 401 means the relay rejected this device's credential — almost always
+      // because the password was reset on another device. Flag it so Settings can
+      // prompt for the new password instead of showing a raw "failed: 401".
+      broadcastSyncActivity(
+        isRelayAuthError(error)
+          ? {
+              error:
+                "Your password was changed on another device. Re-enter it to reconnect.",
+              needsReauth: true,
+            }
+          : { error: error instanceof Error ? error.message : String(error) },
+      ),
   });
 
   setActiveCore(keySession);
