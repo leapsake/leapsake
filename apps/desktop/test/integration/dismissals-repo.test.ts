@@ -1,26 +1,24 @@
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type DismissalsRepo,
+  type SqliteDriver,
   createDismissalsRepo,
-} from "../src/dismissals-repo.js";
-import { type SqliteDriver } from "../src/driver.js";
-import { runMigrations } from "../src/migrations.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+  runMigrations,
+} from "@leapsake/data";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let repo: DismissalsRepo;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   repo = createDismissalsRepo(driver);
 });
 
 afterEach(() => {
-  db.close();
+  cleanup();
 });
 
 const subject = { type: "person" as const, id: crypto.randomUUID() };

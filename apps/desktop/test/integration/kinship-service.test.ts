@@ -1,31 +1,28 @@
-import { DatabaseSync } from "node:sqlite";
 import type { CreatePersonInput } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createDismissalsRepo } from "../src/dismissals-repo.js";
-import { type SqliteDriver } from "../src/driver.js";
 import {
   type KinshipService,
-  createKinshipService,
-} from "../src/kinship-service.js";
-import { runMigrations } from "../src/migrations.js";
-import { type PeopleRepo, createPeopleRepo } from "../src/people-repo.js";
-import {
+  type PeopleRepo,
   type RelationshipsRepo,
+  type SqliteDriver,
+  createDismissalsRepo,
+  createKinshipService,
+  createPeopleRepo,
+  createPetsRepo,
   createRelationshipsRepo,
-} from "../src/relationships-repo.js";
-import { createPetsRepo } from "../src/pets-repo.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+  runMigrations,
+} from "@leapsake/data";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let people: PeopleRepo;
 let relationships: RelationshipsRepo;
 let dismissals: ReturnType<typeof createDismissalsRepo>;
 let kinship: KinshipService;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   people = createPeopleRepo(driver);
   const pets = createPetsRepo(driver);
@@ -40,7 +37,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  db.close();
+  cleanup();
 });
 
 function person(firstName: string, over: Partial<CreatePersonInput> = {}) {

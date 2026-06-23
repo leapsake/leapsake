@@ -1,4 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
 import { type KeyStore, createInMemoryKeyStore } from "@leapsake/crypto";
 import {
   type CoreApi,
@@ -8,15 +7,15 @@ import {
   runMigrations,
 } from "@leapsake/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 // `milestone.note` is the first domain field encrypted at rest under a per-item
 // content key. These tests prove the round-trip is transparent (the Milestone
 // shape callers see is unchanged), that the stored bytes are genuinely ciphertext,
 // that it survives a cold reopen, and that legacy plaintext rows still read.
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let keyStore: KeyStore;
 let core: CoreApi;
 
@@ -37,8 +36,7 @@ function milestoneWithNote(note: string | null = NOTE) {
 }
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   keyStore = createInMemoryKeyStore();
   const session = await ensureDeviceMasterKey({ keyStore, driver });
@@ -46,7 +44,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  db.close();
+  cleanup();
 });
 
 describe("milestone note encryption", () => {

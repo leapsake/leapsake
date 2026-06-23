@@ -1,8 +1,10 @@
-import { DatabaseSync } from "node:sqlite";
+import {
+  type SqliteDriver,
+  createSyncStateRepo,
+  runMigrations,
+} from "@leapsake/data";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runMigrations } from "../src/migrations.js";
-import { createSyncStateRepo } from "../src/sync-state-repo.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * The device-local watermark/preference store. These tests focus on the
@@ -11,18 +13,19 @@ import { nodeSqliteDriver } from "./node-sqlite-driver.js";
  * by the sync engine integration test (`sync.test.ts`).
  */
 describe("createSyncStateRepo — auto-sync preference", () => {
-  let db: DatabaseSync;
+  let reopen: () => SqliteDriver;
+  let cleanup: () => void;
   let repo: ReturnType<typeof createSyncStateRepo>;
 
   beforeEach(async () => {
-    db = new DatabaseSync(":memory:");
-    const driver = nodeSqliteDriver(db);
+    let driver: SqliteDriver;
+    ({ driver, reopen, cleanup } = makeEncryptedTestDriver());
     await runMigrations(driver);
     repo = createSyncStateRepo(driver);
   });
 
   afterEach(() => {
-    db.close();
+    cleanup();
   });
 
   it("defaults to enabled when the row is absent", async () => {
@@ -39,7 +42,7 @@ describe("createSyncStateRepo — auto-sync preference", () => {
 
   it("persists across a fresh repo on the same database", async () => {
     await repo.setAutoSyncEnabled(false);
-    const fresh = createSyncStateRepo(nodeSqliteDriver(db));
+    const fresh = createSyncStateRepo(reopen());
     expect(await fresh.getAutoSyncEnabled()).toBe(false);
   });
 });

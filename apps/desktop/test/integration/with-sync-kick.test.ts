@@ -1,9 +1,6 @@
-import { DatabaseSync } from "node:sqlite";
-import { runMigrations } from "@leapsake/data";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createCore } from "../src/index.js";
-import { withSyncKick } from "../src/sync-scheduler.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import { createCore, runMigrations, withSyncKick } from "@leapsake/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * `withSyncKick` is how a local write triggers a sync without every call site
@@ -103,11 +100,17 @@ function collectFnPaths(value: unknown, prefix = ""): string[] {
 
 describe("withSyncKick — pins the CoreApi mutating surface", () => {
   let core: ReturnType<typeof createCore>;
+  let cleanup: () => void;
 
   beforeEach(async () => {
-    const driver = nodeSqliteDriver(new DatabaseSync(":memory:"));
-    await runMigrations(driver);
-    core = createCore(driver);
+    const bundle = makeEncryptedTestDriver();
+    cleanup = bundle.cleanup;
+    await runMigrations(bundle.driver);
+    core = createCore(bundle.driver);
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("treats exactly the write methods as mutations", () => {

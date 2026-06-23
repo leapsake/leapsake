@@ -1,4 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
 import {
   type CoreApi,
   type SqliteDriver,
@@ -7,20 +6,20 @@ import {
 } from "@leapsake/core";
 import { roleDefs } from "@leapsake/schema";
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
-let db: DatabaseSync;
+let cleanup: () => void;
 let core: CoreApi;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  const driver: SqliteDriver = nodeSqliteDriver(db);
+  let driver: SqliteDriver;
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   core = createCore(driver);
 });
 
 afterEach(() => {
-  db.close();
+  cleanup();
 });
 
 describe("views.entityList / views.candidates", () => {

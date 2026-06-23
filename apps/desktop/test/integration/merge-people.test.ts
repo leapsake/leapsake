@@ -1,4 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
 import {
   type CoreApi,
   type SqliteDriver,
@@ -6,8 +5,8 @@ import {
   runMigrations,
   syncableRepos,
 } from "@leapsake/core";
-import { beforeEach, describe, expect, it } from "vitest";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * Reconciliation Increment A — `mergePeople`: absorbing one Person into another
@@ -17,24 +16,26 @@ import { nodeSqliteDriver } from "./node-sqlite-driver.js";
  * replicates over the existing blind-relay sync with no merge-specific code.
  */
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let core: CoreApi;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   core = createCore(driver);
 });
 
+afterEach(() => {
+  cleanup();
+});
+
 /** Count not-soft-deleted rows for white-box re-point assertions. */
-function activeRows(database: DatabaseSync, table: string): number {
-  return (
-    database
-      .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE deleted_at IS NULL`)
-      .get() as { n: number }
-  ).n;
+async function activeRows(d: SqliteDriver, table: string): Promise<number> {
+  const row = await d.get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM ${table} WHERE deleted_at IS NULL`,
+  );
+  return row!.n;
 }
 
 describe("createCore — mergePeople", () => {
@@ -110,16 +111,13 @@ describe("createCore — mergePeople", () => {
     expect(
       await core.contactMethods.listForOwner("person", bob.id),
     ).toHaveLength(0);
-    const danglingDismissal = (
-      db
-        .prepare(
-          `SELECT COUNT(*) AS n FROM relationship_dismissals
+    const danglingDismissal = (await driver.get<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM relationship_dismissals
             WHERE deleted_at IS NULL
               AND ((subject_type = 'person' AND subject_id = ?)
                 OR (other_type = 'person' AND other_id = ?))`,
-        )
-        .get(bob.id, bob.id) as { n: number }
-    ).n;
+      [bob.id, bob.id],
+    ))!.n;
     expect(danglingDismissal).toBe(0);
   });
 
@@ -147,7 +145,7 @@ describe("createCore — mergePeople", () => {
     expect(
       await core.relationships.listForEntity("person", jane.id),
     ).toHaveLength(0);
-    expect(activeRows(db, "relationships")).toBe(0);
+    expect(await activeRows(driver, "relationships")).toBe(0);
   });
 
   it("dedupes an edge the survivor already had, keeping one", async () => {
@@ -180,7 +178,7 @@ describe("createCore — mergePeople", () => {
     const rels = await core.relationships.listForEntity("person", jane.id);
     expect(rels).toHaveLength(1);
     expect(rels[0].otherId).toBe(carol.id);
-    expect(activeRows(db, "relationships")).toBe(1);
+    expect(await activeRows(driver, "relationships")).toBe(1);
   });
 
   it("drops a dismissal that becomes self-referential", async () => {
@@ -197,7 +195,7 @@ describe("createCore — mergePeople", () => {
 
     await core.people.merge(jane.id, bob.id);
 
-    expect(activeRows(db, "relationship_dismissals")).toBe(0);
+    expect(await activeRows(driver, "relationship_dismissals")).toBe(0);
   });
 
   it("merges tags without duplicating one the survivor already wears", async () => {
@@ -257,14 +255,15 @@ describe("createCore — mergePeople", () => {
 
     // The bob↔jane rejection becomes survivor↔itself and is dropped; the
     // bob↔carol rejection survives, re-pointed onto the survivor.
-    expect(activeRows(db, "not_a_duplicate")).toBe(1);
+    expect(await activeRows(driver, "not_a_duplicate")).toBe(1);
     const [lo, hi] =
       jane.id < carol.id ? [jane.id, carol.id] : [carol.id, jane.id];
-    const remaining = db
-      .prepare(
-        "SELECT lower_id, higher_id FROM not_a_duplicate WHERE deleted_at IS NULL",
-      )
-      .get() as { lower_id: string; higher_id: string };
+    const remaining = (await driver.get<{
+      lower_id: string;
+      higher_id: string;
+    }>(
+      "SELECT lower_id, higher_id FROM not_a_duplicate WHERE deleted_at IS NULL",
+    ))!;
     expect(remaining).toEqual({ lower_id: lo, higher_id: hi });
   });
 
@@ -303,8 +302,7 @@ describe("createCore — mergePeople converges over sync", () => {
   it("replicates the re-points and the loser tombstone to a second device", async () => {
     const key = new Uint8Array(32); // a fixed account master key for both devices
 
-    const db2 = new DatabaseSync(":memory:");
-    const driver2 = nodeSqliteDriver(db2);
+    const { driver: driver2, cleanup: cleanup2 } = makeEncryptedTestDriver();
     await runMigrations(driver2);
     const core2 = createCore(driver2);
 
@@ -346,6 +344,6 @@ describe("createCore — mergePeople converges over sync", () => {
       await core2.relationships.listForEntity("person", bob.id),
     ).toHaveLength(0);
 
-    db2.close();
+    cleanup2();
   });
 });

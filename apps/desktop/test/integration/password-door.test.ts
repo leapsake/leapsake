@@ -1,18 +1,17 @@
-import { DatabaseSync } from "node:sqlite";
 import { createInMemoryKeyStore } from "@leapsake/crypto";
 import {
   type SqliteDriver,
   createAccountRepo,
   runMigrations,
 } from "@leapsake/data";
-import { beforeEach, describe, expect, it } from "vitest";
 import {
   enableSync,
   ensureDeviceMasterKey,
   unlockWithPassword,
   unlockWithRecoveryKey,
-} from "../src/key-session.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+} from "@leapsake/core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * Custody Phase 1/2: the password unlock door. Proves the password (and the
@@ -21,14 +20,17 @@ import { nodeSqliteDriver } from "./node-sqlite-driver.js";
  * ciphertext arrives over the relay.
  */
 describe("the password unlock door", () => {
-  let db: DatabaseSync;
   let driver: SqliteDriver;
+  let cleanup: () => void;
   const PASSWORD = "correct horse battery staple";
 
   beforeEach(async () => {
-    db = new DatabaseSync(":memory:");
-    driver = nodeSqliteDriver(db);
+    ({ driver, cleanup } = makeEncryptedTestDriver());
     await runMigrations(driver);
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("unlocks the same MK from the password alone, no enclave", async () => {

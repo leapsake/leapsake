@@ -1,4 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
 import {
   type CoreApi,
   type SqliteDriver,
@@ -6,21 +5,20 @@ import {
   runMigrations,
 } from "@leapsake/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let core: CoreApi;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   core = createCore(driver);
 });
 
 afterEach(() => {
-  db.close();
+  cleanup();
 });
 
 /**
@@ -39,12 +37,11 @@ function failOnSql(base: SqliteDriver, pattern: RegExp): SqliteDriver {
 }
 
 /** Count not-soft-deleted rows for white-box cascade assertions. */
-function activeRows(table: string): number {
-  return (
-    db
-      .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE deleted_at IS NULL`)
-      .get() as { n: number }
-  ).n;
+async function activeRows(table: string): Promise<number> {
+  const row = await driver.get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM ${table} WHERE deleted_at IS NULL`,
+  );
+  return row!.n;
 }
 
 describe("createCore — transactional writes", () => {
@@ -77,8 +74,8 @@ describe("createCore — transactional writes", () => {
 
     // Neither the person nor any tag survived — the whole transaction unwound.
     expect(await core.people.list()).toHaveLength(0);
-    expect(activeRows("tags")).toBe(0);
-    expect(activeRows("taggings")).toBe(0);
+    expect(await activeRows("tags")).toBe(0);
+    expect(await activeRows("taggings")).toBe(0);
   });
 
   it("rolls back an update and its tag changes when the tag write fails", async () => {
@@ -147,7 +144,7 @@ describe("createCore — cascade soft-delete", () => {
     expect(
       await core.contactMethods.listForOwner("person", jane.id),
     ).toHaveLength(0);
-    expect(activeRows("relationship_dismissals")).toBe(0);
+    expect(await activeRows("relationship_dismissals")).toBe(0);
   });
 
   it("cascades a pet delete across tags, relationships, and milestones", async () => {

@@ -1,13 +1,12 @@
-import { DatabaseSync } from "node:sqlite";
 import { createInMemoryKeyStore, generateKey } from "@leapsake/crypto";
 import {
   type SqliteDriver,
   createKeyWrapRepo,
   runMigrations,
 } from "@leapsake/data";
-import { beforeEach, describe, expect, it } from "vitest";
-import { ensureDeviceMasterKey } from "../src/key-session.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import { ensureDeviceMasterKey } from "@leapsake/core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * Custody Phase 0: the device master-key bootstrap (the first KeyStore
@@ -15,13 +14,16 @@ import { nodeSqliteDriver } from "./node-sqlite-driver.js";
  * never stored in the clear, and genuinely bound to the device enclave secret.
  */
 describe("ensureDeviceMasterKey", () => {
-  let db: DatabaseSync;
   let driver: SqliteDriver;
+  let cleanup: () => void;
 
   beforeEach(async () => {
-    db = new DatabaseSync(":memory:");
-    driver = nodeSqliteDriver(db);
+    ({ driver, cleanup } = makeEncryptedTestDriver());
     await runMigrations(driver);
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("mints the MK on first run, persisting only its enclave wrapping", async () => {

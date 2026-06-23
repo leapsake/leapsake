@@ -1,33 +1,30 @@
-import { DatabaseSync } from "node:sqlite";
 import type {
   CreateMilestoneInput,
   EntityType,
   Relationship,
 } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type SqliteDriver } from "../src/driver.js";
-import { listTimelineForEntity } from "../src/milestone-timeline.js";
 import {
   type MilestonesRepo,
-  createMilestonesRepo,
-} from "../src/milestones-repo.js";
-import { type PeopleRepo, createPeopleRepo } from "../src/people-repo.js";
-import {
+  type PeopleRepo,
   type RelationshipsRepo,
+  type SqliteDriver,
+  createMilestonesRepo,
+  createPeopleRepo,
   createRelationshipsRepo,
-} from "../src/relationships-repo.js";
-import { runMigrations } from "../src/migrations.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+  listTimelineForEntity,
+  runMigrations,
+} from "@leapsake/data";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let milestones: MilestonesRepo;
 let relationships: RelationshipsRepo;
 let people: PeopleRepo;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   milestones = createMilestonesRepo(driver);
   relationships = createRelationshipsRepo(driver);
@@ -35,7 +32,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  db.close();
+  cleanup();
 });
 
 /** Resolve a person/pet to a display label, mirroring the IPC layer's resolver. */

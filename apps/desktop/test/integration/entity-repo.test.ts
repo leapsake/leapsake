@@ -1,22 +1,21 @@
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ContactMethodsRepo,
+  type PetsRepo,
+  type SqliteDriver,
   createContactMethodsRepo,
-} from "../src/contact-methods-repo.js";
-import { type SqliteDriver } from "../src/driver.js";
-import { runMigrations } from "../src/migrations.js";
-import { type PetsRepo, createPetsRepo } from "../src/pets-repo.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+  createPetsRepo,
+  runMigrations,
+} from "@leapsake/data";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let pets: PetsRepo;
 let contacts: ContactMethodsRepo;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   pets = createPetsRepo(driver);
   contacts = createContactMethodsRepo(driver);
@@ -24,7 +23,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  db.close();
+  cleanup();
 });
 
 // The CRUD surface every repo gets from `createEntityRepo`. These pin the two
