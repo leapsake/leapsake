@@ -1,12 +1,11 @@
-import { DatabaseSync } from "node:sqlite";
 import {
   type CoreApi,
   type SqliteDriver,
   createCore,
   runMigrations,
 } from "@leapsake/core";
-import { beforeEach, describe, expect, it } from "vitest";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * Reconciliation Increment B — duplicate *detection*. Proves the detector
@@ -14,15 +13,18 @@ import { nodeSqliteDriver } from "./node-sqlite-driver.js";
  * "not a duplicate" rejection is suppressed from future results.
  */
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let core: CoreApi;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   core = createCore(driver);
+});
+
+afterEach(() => {
+  cleanup();
 });
 
 describe("createCore — duplicate detection", () => {

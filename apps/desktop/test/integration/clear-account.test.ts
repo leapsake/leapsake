@@ -1,19 +1,18 @@
-import { DatabaseSync } from "node:sqlite";
 import { createInMemoryKeyStore, equalBytes } from "@leapsake/crypto";
 import {
   type SqliteDriver,
   createKeyWrapRepo,
   runMigrations,
 } from "@leapsake/data";
-import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearLocalAccount,
   enableSync,
   ensureDeviceMasterKey,
   getSyncStatus,
   unlockWithPassword,
-} from "../src/key-session.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+} from "@leapsake/core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * Disconnecting an account from a device (clearLocalAccount): the account
@@ -23,16 +22,20 @@ import { nodeSqliteDriver } from "./node-sqlite-driver.js";
  */
 describe("clearLocalAccount", () => {
   let driver: SqliteDriver;
+  let cleanup: () => void;
   let keyStore: ReturnType<typeof createInMemoryKeyStore>;
   let masterKey: Uint8Array;
 
   beforeEach(async () => {
-    const db = new DatabaseSync(":memory:");
-    driver = nodeSqliteDriver(db);
+    ({ driver, cleanup } = makeEncryptedTestDriver());
     await runMigrations(driver);
     keyStore = createInMemoryKeyStore();
     // The stable enclave master key, captured before any account exists.
     masterKey = (await ensureDeviceMasterKey({ keyStore, driver })).masterKey;
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("clears the account but keeps the enclave master key, and allows re-enabling", async () => {

@@ -1,30 +1,32 @@
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type SqliteDriver } from "../src/driver.js";
-import { runMigrations } from "../src/migrations.js";
-import { type TagsRepo, createTagsRepo } from "../src/tags-repo.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import {
+  type SqliteDriver,
+  type TagsRepo,
+  createTagsRepo,
+  runMigrations,
+} from "@leapsake/data";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let repo: TagsRepo;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   repo = createTagsRepo(driver);
 });
 
 afterEach(() => {
-  db.close();
+  cleanup();
 });
 
 /** Count rows in a table (including soft-deleted) for white-box assertions. */
-function countRows(table: string): number {
-  return (
-    db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }
-  ).n;
+async function countRows(table: string): Promise<number> {
+  const row = await driver.get<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM ${table}`,
+  );
+  return row!.n;
 }
 
 describe("tagsRepo", () => {
@@ -47,7 +49,7 @@ describe("tagsRepo", () => {
     // Same shared tag row, first spelling ("Friend") preserved.
     expect(p2[0]?.id).toBe(p1[0]?.id);
     expect(p2[0]?.name).toBe("Friend");
-    expect(countRows("tags")).toBe(1);
+    expect(await countRows("tags")).toBe(1);
   });
 
   it("treats re-applying an existing tag as a no-op", async () => {
@@ -56,7 +58,7 @@ describe("tagsRepo", () => {
 
     expect(await repo.listForEntity("person", "p1")).toHaveLength(1);
     // No extra active tagging rows created.
-    expect(countRows("taggings")).toBe(1);
+    expect(await countRows("taggings")).toBe(1);
   });
 
   it("removes a dropped tag and soft-deletes its now-orphaned tag", async () => {
@@ -67,10 +69,10 @@ describe("tagsRepo", () => {
     expect(tags.map((t) => t.name)).toEqual(["Friend"]);
     // "Colleague" tag has no active taggings, so it is soft-deleted (not gone).
     expect(await repo.get(tags[0]?.id as string)).toBeDefined();
-    const colleague = db
-      .prepare("SELECT deleted_at FROM tags WHERE normalized = 'colleague'")
-      .get() as { deleted_at: number | null };
-    expect(colleague.deleted_at).not.toBeNull();
+    const colleague = await driver.get<{ deleted_at: number | null }>(
+      "SELECT deleted_at FROM tags WHERE normalized = 'colleague'",
+    );
+    expect(colleague!.deleted_at).not.toBeNull();
   });
 
   it("keeps a shared tag alive while another entity still uses it", async () => {
@@ -106,10 +108,10 @@ describe("tagsRepo", () => {
 
     expect(await repo.listForEntity("person", "p1")).toHaveLength(0);
     // "Family" was unique to p1 -> soft-deleted; "Friend" survives via p2.
-    const family = db
-      .prepare("SELECT deleted_at FROM tags WHERE normalized = 'family'")
-      .get() as { deleted_at: number | null };
-    expect(family.deleted_at).not.toBeNull();
+    const family = await driver.get<{ deleted_at: number | null }>(
+      "SELECT deleted_at FROM tags WHERE normalized = 'family'",
+    );
+    expect(family!.deleted_at).not.toBeNull();
     expect(await repo.listForEntity("person", "p2")).toHaveLength(1);
   });
 

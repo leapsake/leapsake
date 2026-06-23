@@ -1,4 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
 import { createInMemoryKeyStore, unwrapKey } from "@leapsake/crypto";
 import {
   type SqliteDriver,
@@ -6,14 +5,14 @@ import {
   createKeyWrapRepo,
   runMigrations,
 } from "@leapsake/data";
-import { beforeEach, describe, expect, it } from "vitest";
 import {
   type AccountBootstrap,
   type AccountBootstrapChannel,
   enableSync,
   joinAccount,
-} from "../src/key-session.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+} from "@leapsake/core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * Multi-device login (custody Phase 2): the one capability that completes
@@ -59,15 +58,19 @@ function fakeRelay(bootstrap: AccountBootstrap): AccountBootstrapChannel {
   };
 }
 
+const cleanups: Array<() => void> = [];
+afterEach(() => {
+  for (const c of cleanups.splice(0)) c();
+});
+
 async function freshDevice(): Promise<{
   driver: SqliteDriver;
   keyStore: ReturnType<typeof createInMemoryKeyStore>;
-  db: DatabaseSync;
 }> {
-  const db = new DatabaseSync(":memory:");
-  const driver = nodeSqliteDriver(db);
+  const { driver, cleanup } = makeEncryptedTestDriver();
   await runMigrations(driver);
-  return { driver, keyStore: createInMemoryKeyStore(), db };
+  cleanups.push(cleanup);
+  return { driver, keyStore: createInMemoryKeyStore() };
 }
 
 describe("joinAccount — multi-device login", () => {

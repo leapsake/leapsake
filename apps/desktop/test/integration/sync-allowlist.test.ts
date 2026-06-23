@@ -1,9 +1,8 @@
-import { DatabaseSync } from "node:sqlite";
 import { generateKey } from "@leapsake/crypto";
 import { runMigrations } from "@leapsake/data";
+import { syncableRepos } from "@leapsake/core";
 import { beforeEach, describe, expect, it } from "vitest";
-import { syncableRepos } from "../src/sync.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * The canonical sync allowlist, pinned in production code. `syncableRepos` is the
@@ -17,12 +16,12 @@ describe("syncableRepos — the canonical allowlist", () => {
   let tables: string[];
 
   beforeEach(async () => {
-    const db = new DatabaseSync(":memory:");
-    const driver = nodeSqliteDriver(db);
+    const { driver, cleanup } = makeEncryptedTestDriver();
     await runMigrations(driver);
     tables = syncableRepos(driver, generateKey())
       .map((repo) => repo.table)
       .sort();
+    cleanup();
   });
 
   it("syncs exactly the opted-in tables", () => {

@@ -1,26 +1,28 @@
-import { DatabaseSync } from "node:sqlite";
 import { createInMemoryKeyStore } from "@leapsake/crypto";
 import { type SqliteDriver, runMigrations } from "@leapsake/data";
-import { beforeEach, describe, expect, it } from "vitest";
 import {
   enableSync,
   ensureDeviceMasterKey,
   getSyncStatus,
-} from "../src/key-session.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+} from "@leapsake/core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * The status probe a client's onboarding UI branches on: not-enabled before
  * {@link enableSync}, enabled (with the account identity, no secrets) after.
  */
 describe("getSyncStatus", () => {
-  let db: DatabaseSync;
   let driver: SqliteDriver;
+  let cleanup: () => void;
 
   beforeEach(async () => {
-    db = new DatabaseSync(":memory:");
-    driver = nodeSqliteDriver(db);
+    ({ driver, cleanup } = makeEncryptedTestDriver());
     await runMigrations(driver);
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("reports not enabled before sync is enabled", async () => {

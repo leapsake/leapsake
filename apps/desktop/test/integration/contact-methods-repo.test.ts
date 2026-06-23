@@ -1,4 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
 import type {
   CreateEmailInput,
   CreatePhoneInput,
@@ -7,26 +6,25 @@ import type {
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type ContactMethodsRepo,
+  type SqliteDriver,
   createContactMethodsRepo,
   listContactMethods,
-} from "../src/contact-methods-repo.js";
-import type { SqliteDriver } from "../src/driver.js";
-import { runMigrations } from "../src/migrations.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+  runMigrations,
+} from "@leapsake/data";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let repo: ContactMethodsRepo;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   repo = createContactMethodsRepo(driver);
 });
 
 afterEach(() => {
-  db.close();
+  cleanup();
 });
 
 function email(

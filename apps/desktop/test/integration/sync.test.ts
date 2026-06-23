@@ -1,40 +1,33 @@
-import { DatabaseSync } from "node:sqlite";
 import type { SyncRow } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type ContactMethodsRepo,
-  createContactMethodsRepo,
-} from "../src/contact-methods-repo.js";
-import { createContentCipher } from "../src/content-cipher.js";
-import {
   type DismissalsRepo,
-  createDismissalsRepo,
-} from "../src/dismissals-repo.js";
-import type { SqliteDriver } from "../src/driver.js";
-import { runMigrations } from "../src/migrations.js";
-import {
   type MilestonesRepo,
-  createMilestonesRepo,
-} from "../src/milestones-repo.js";
-import {
   type NotADuplicateRepo,
-  createNotADuplicateRepo,
-} from "../src/not-a-duplicate-repo.js";
-import { type PeopleRepo, createPeopleRepo } from "../src/people-repo.js";
-import { type PetsRepo, createPetsRepo } from "../src/pets-repo.js";
-import {
+  type PeopleRepo,
+  type PetsRepo,
   type RelationshipsRepo,
-  createRelationshipsRepo,
-} from "../src/relationships-repo.js";
-import { type SyncEngine, createSyncEngine } from "../src/sync-engine.js";
-import { createSyncStateRepo } from "../src/sync-state-repo.js";
-import {
+  type SqliteDriver,
+  type SyncEngine,
   type SyncTransport,
+  type SyncableRepo,
+  type TagsRepo,
+  createContactMethodsRepo,
+  createContentCipher,
+  createDismissalsRepo,
   createInMemoryTransport,
-} from "../src/sync-transport.js";
-import type { SyncableRepo } from "../src/syncable.js";
-import { type TagsRepo, createTagsRepo } from "../src/tags-repo.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+  createMilestonesRepo,
+  createNotADuplicateRepo,
+  createPeopleRepo,
+  createPetsRepo,
+  createRelationshipsRepo,
+  createSyncEngine,
+  createSyncStateRepo,
+  createTagsRepo,
+  runMigrations,
+} from "@leapsake/data";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * End-to-end sync of the **whole dataset** over the blind in-memory transport
@@ -53,7 +46,7 @@ const MK = new Uint8Array(32).fill(7);
 
 /** A device: its own SQLite DB + the full set of domain repos. */
 interface Device {
-  db: DatabaseSync;
+  cleanup: () => void;
   driver: SqliteDriver;
   people: PeopleRepo;
   pets: PetsRepo;
@@ -66,12 +59,11 @@ interface Device {
 }
 
 async function makeDevice(): Promise<Device> {
-  const db = new DatabaseSync(":memory:");
-  const driver = nodeSqliteDriver(db);
+  const { driver, cleanup } = makeEncryptedTestDriver();
   await runMigrations(driver);
   const cipher = createContentCipher({ driver, masterKey: MK });
   return {
-    db,
+    cleanup,
     driver,
     people: createPeopleRepo(driver),
     pets: createPetsRepo(driver),
@@ -143,8 +135,8 @@ describe("sync engine (all entities, in-memory transport)", () => {
   });
 
   afterEach(() => {
-    A.db.close();
-    B.db.close();
+    A.cleanup();
+    B.cleanup();
   });
 
   // --- The allowlist guard: sync is opt-in, key tables must never leave. -----

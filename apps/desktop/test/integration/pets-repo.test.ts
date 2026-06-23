@@ -1,23 +1,24 @@
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type SqliteDriver } from "../src/driver.js";
-import { runMigrations } from "../src/migrations.js";
-import { type PetsRepo, createPetsRepo } from "../src/pets-repo.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import {
+  type PetsRepo,
+  type SqliteDriver,
+  createPetsRepo,
+  runMigrations,
+} from "@leapsake/data";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let repo: PetsRepo;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   repo = createPetsRepo(driver);
 });
 
 afterEach(() => {
-  db.close();
+  cleanup();
 });
 
 describe("petsRepo", () => {

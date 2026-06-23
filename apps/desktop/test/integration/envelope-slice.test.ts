@@ -1,4 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
 import {
   ALG,
   createInMemoryKeyStore,
@@ -8,12 +7,14 @@ import {
   unwrapKey,
   wrapKey,
 } from "@leapsake/crypto";
-import { beforeEach, describe, expect, it } from "vitest";
-import { createContentKeyRepo } from "../src/content-key-repo.js";
-import type { SqliteDriver } from "../src/driver.js";
-import { createKeyWrapRepo } from "../src/key-wrap-repo.js";
-import { runMigrations } from "../src/migrations.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import {
+  type SqliteDriver,
+  createContentKeyRepo,
+  createKeyWrapRepo,
+  runMigrations,
+} from "@leapsake/data";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * The envelope vertical slice (jaunty-soaring-pinwheel plan): mint a master key,
@@ -24,13 +25,16 @@ import { nodeSqliteDriver } from "./node-sqlite-driver.js";
  * `KeyStore` port, and the `content_key` + `key_wrap` data layer.
  */
 describe("envelope slice", () => {
-  let db: DatabaseSync;
   let driver: SqliteDriver;
+  let cleanup: () => void;
 
   beforeEach(async () => {
-    db = new DatabaseSync(":memory:");
-    driver = nodeSqliteDriver(db);
+    ({ driver, cleanup } = makeEncryptedTestDriver());
     await runMigrations(driver);
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("round-trips a payload through enclave → MK → CK → ciphertext and back", async () => {

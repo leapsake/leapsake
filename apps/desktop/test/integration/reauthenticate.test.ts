@@ -1,4 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
 import {
   createInMemoryKeyStore,
   deriveKeyMaterial,
@@ -13,15 +12,15 @@ import {
   createKeyWrapRepo,
   runMigrations,
 } from "@leapsake/data";
-import { beforeEach, describe, expect, it } from "vitest";
 import {
   type AccountBootstrap,
   type AccountBootstrapChannel,
   enableSync,
   reauthenticate,
   unlockWithPassword,
-} from "../src/key-session.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+} from "@leapsake/core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * Re-authentication after a remote password reset (`status.md` follow-up): when
@@ -61,15 +60,19 @@ function fakeRelay(bootstrap: AccountBootstrap): AccountBootstrapChannel {
   };
 }
 
+const cleanups: Array<() => void> = [];
+afterEach(() => {
+  for (const c of cleanups.splice(0)) c();
+});
+
 async function freshDevice(): Promise<{
   driver: SqliteDriver;
   keyStore: ReturnType<typeof createInMemoryKeyStore>;
-  db: DatabaseSync;
 }> {
-  const db = new DatabaseSync(":memory:");
-  const driver = nodeSqliteDriver(db);
+  const { driver, cleanup } = makeEncryptedTestDriver();
   await runMigrations(driver);
-  return { driver, keyStore: createInMemoryKeyStore(), db };
+  cleanups.push(cleanup);
+  return { driver, keyStore: createInMemoryKeyStore() };
 }
 
 describe("reauthenticate — refresh credential after a remote password reset", () => {
@@ -156,7 +159,9 @@ describe("reauthenticate — refresh credential after a remote password reset", 
     // The account row keeps its original (pre-reset) credential — untouched.
     const after = await createAccountRepo(device.driver).getSingleton();
     expect(equal(after!.kdfSalt, originalBootstrap.kdfSalt)).toBe(true);
-    expect(equal(after!.authVerifier, originalBootstrap.authVerifier)).toBe(true);
+    expect(equal(after!.authVerifier, originalBootstrap.authVerifier)).toBe(
+      true,
+    );
   });
 
   it("refuses when the relay returns a different account's master key", async () => {
@@ -178,6 +183,8 @@ describe("reauthenticate — refresh credential after a remote password reset", 
     ).rejects.toThrow(/different account/i);
 
     const after = await createAccountRepo(device.driver).getSingleton();
-    expect(equal(after!.authVerifier, originalBootstrap.authVerifier)).toBe(true);
+    expect(equal(after!.authVerifier, originalBootstrap.authVerifier)).toBe(
+      true,
+    );
   });
 });

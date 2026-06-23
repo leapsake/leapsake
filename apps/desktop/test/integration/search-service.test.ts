@@ -1,27 +1,25 @@
-import { DatabaseSync } from "node:sqlite";
+import { parseBirthdayQuery } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type ContactMethodsRepo,
-  createContactMethodsRepo,
-} from "../src/contact-methods-repo.js";
-import { type SqliteDriver } from "../src/driver.js";
-import { runMigrations } from "../src/migrations.js";
-import {
   type MilestonesRepo,
-  createMilestonesRepo,
-} from "../src/milestones-repo.js";
-import { type PeopleRepo, createPeopleRepo } from "../src/people-repo.js";
-import { type PetsRepo, createPetsRepo } from "../src/pets-repo.js";
-import {
+  type PeopleRepo,
+  type PetsRepo,
   type SearchService,
+  type SqliteDriver,
+  type TagsRepo,
+  createContactMethodsRepo,
+  createMilestonesRepo,
+  createPeopleRepo,
+  createPetsRepo,
   createSearchService,
-  parseBirthdayQuery,
-} from "../src/search-service.js";
-import { type TagsRepo, createTagsRepo } from "../src/tags-repo.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+  createTagsRepo,
+  runMigrations,
+} from "@leapsake/data";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let people: PeopleRepo;
 let pets: PetsRepo;
 let contactMethods: ContactMethodsRepo;
@@ -30,8 +28,7 @@ let milestones: MilestonesRepo;
 let search: SearchService;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   people = createPeopleRepo(driver);
   pets = createPetsRepo(driver);
@@ -42,7 +39,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  db.close();
+  cleanup();
 });
 
 /** Titles of the hits, in result order. */

@@ -1,27 +1,25 @@
-import { DatabaseSync } from "node:sqlite";
 import type { CreateRelationshipInput } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type SqliteDriver } from "../src/driver.js";
-import { runMigrations } from "../src/migrations.js";
 import {
   type RelationshipsRepo,
+  type SqliteDriver,
   createRelationshipsRepo,
-} from "../src/relationships-repo.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+  runMigrations,
+} from "@leapsake/data";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
-let db: DatabaseSync;
 let driver: SqliteDriver;
+let cleanup: () => void;
 let repo: RelationshipsRepo;
 
 beforeEach(async () => {
-  db = new DatabaseSync(":memory:");
-  driver = nodeSqliteDriver(db);
+  ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   repo = createRelationshipsRepo(driver);
 });
 
 afterEach(() => {
-  db.close();
+  cleanup();
 });
 
 /** A person↔person parent/child relationship input between two ids. */
