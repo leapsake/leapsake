@@ -328,6 +328,14 @@ const sync = {
   }): Promise<{ duplicateCount: number }> =>
     ipcRenderer.invoke("sync:recover", args),
   syncNow: (): Promise<{ at: number }> => ipcRenderer.invoke("sync:now"),
+  /**
+   * Re-authenticate this device after the account password was reset on another
+   * device (a sync 401): re-derive this device's relay credential from the
+   * re-entered password. The master key is untouched. Resolves once a sync has
+   * been kicked; rejects with a friendly message on a wrong password.
+   */
+  reauthenticate: (password: string): Promise<void> =>
+    ipcRenderer.invoke("sync:reauthenticate", { password }),
   clear: (): Promise<void> => ipcRenderer.invoke("sync:clear"),
   /** Reveal this device's recovery phrase (the words back into the data). */
   revealRecoveryPhrase: (): Promise<string> =>
@@ -349,11 +357,17 @@ const sync = {
       at?: number;
       error?: string;
       changed?: boolean;
+      needsReauth?: boolean;
     }) => void,
   ): (() => void) => {
     const handler = (
       _event: unknown,
-      payload: { at?: number; error?: string; changed?: boolean },
+      payload: {
+        at?: number;
+        error?: string;
+        changed?: boolean;
+        needsReauth?: boolean;
+      },
     ) => listener(payload);
     ipcRenderer.on("sync:activity", handler);
     return () => ipcRenderer.removeListener("sync:activity", handler);

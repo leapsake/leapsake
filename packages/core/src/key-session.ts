@@ -660,6 +660,79 @@ export async function recoverAccount(opts: {
   return { deviceId, masterKey };
 }
 
+/**
+ * Re-authenticate this device after another device **reset the account password**
+ * (the sibling of the recovery 401 follow-up, `status.md`). A reset rotates the
+ * account's `kdfSalt` + `authVerifier` on the relay, so this device's stored
+ * credential goes stale and its sync starts failing with 401. This refreshes the
+ * credential from the *new* password — it is essentially "re-join an account you
+ * are already on": look the account up to get the rotated salt, derive the new
+ * KEK + verifier, authenticate against the relay (a wrong password → wrong
+ * verifier → 401 there, before any unwrap), and on success update the local
+ * `account` credentials + re-wrap the local `password` door.
+ *
+ * The master key is **never** touched: it stays in this device's enclave, so we
+ * only refresh the password-derived door. As defense in depth the master key the
+ * relay hands back (`unwrap(wrap(MK, newKEK))`) must equal this device's enclave
+ * MK — if it differs (a different account), it refuses rather than corrupt the
+ * local doors. Throws if sync is not enabled or the account has no username.
+ */
+export async function reauthenticate(opts: {
+  keyStore: KeyStore;
+  driver: SqliteDriver;
+  transport: AccountBootstrapChannel;
+  password: string;
+}): Promise<void> {
+  const { keyStore, driver, transport, password } = opts;
+  const accountRepo = createAccountRepo(driver);
+  const account = await accountRepo.getSingleton();
+  if (account === undefined) {
+    throw new Error("Sync is not enabled for this store.");
+  }
+  if (account.username === null) {
+    throw new Error("This account has no username to re-authenticate.");
+  }
+
+  // 1. Prelogin → the rotated public salt (unauthed). Copy onto a fresh array so
+  //    it is ArrayBuffer-backed for the account-row write.
+  const lookup = await transport.lookup(account.username);
+  const kdfSalt = Uint8Array.from(lookup.kdfSalt);
+
+  // 2. Derive the KEK + verifier from the new password and the rotated salt.
+  const { kek, authVerifier } = deriveKeyMaterial(password, kdfSalt);
+
+  // 3. Authenticate with the verifier and fetch wrap(MK, newKEK); a wrong
+  //    password → wrong verifier → 401 here, before any unwrap.
+  const wrappedMasterKey = Uint8Array.from(
+    await transport.fetchBootstrap({ accountId: account.id, authVerifier }),
+  );
+  const masterKey = unwrapKey(wrappedMasterKey, kek);
+
+  // 4. Defense in depth: the relay's MK must be this device's enclave MK — the
+  //    same account — or we refuse rather than rewrite the local doors.
+  const session = await ensureDeviceMasterKey({ keyStore, driver });
+  if (!equalBytes(masterKey, session.masterKey)) {
+    throw new Error("Re-authentication returned a different account's key.");
+  }
+
+  // 5. Update the local credential + refresh the password door, atomically.
+  await driver.transaction(async () => {
+    await accountRepo.updateCredentials({ kdfSalt, authVerifier });
+    const keyWrapRepo = createKeyWrapRepo(driver);
+    const old = await keyWrapRepo.getActive({
+      wrappedKind: "master",
+      principalKind: "password",
+    });
+    if (old !== undefined) await keyWrapRepo.revoke(old.id);
+    await keyWrapRepo.add({
+      wrappedKind: "master",
+      principalKind: "password",
+      ciphertext: wrappedMasterKey,
+      alg: ALG,
+    });
+  });
+}
+
 /** Fetch the active `wrap(MK, <door>)` row and unwrap it under `key`. */
 async function unwrapMasterKeyUnder(
   driver: SqliteDriver,

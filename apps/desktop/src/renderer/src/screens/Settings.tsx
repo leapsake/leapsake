@@ -112,6 +112,9 @@ function AccountEnabled({
   const [lastSynced, setLastSynced] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  // Set when a sync 401s because the password was reset on another device — shows
+  // the re-enter-password prompt below. Cleared on the next successful sync.
+  const [needsReauth, setNeedsReauth] = useState(false);
   // The per-client "Sync automatically" preference (default on). Null until loaded.
   const [autoSync, setAutoSync] = useState<boolean | null>(null);
 
@@ -124,8 +127,10 @@ function AccountEnabled({
         if (payload.at !== undefined) {
           setLastSynced(payload.at);
           setError(null);
+          setNeedsReauth(false);
         }
         if (payload.error !== undefined) setError(payload.error);
+        if (payload.needsReauth === true) setNeedsReauth(true);
       }),
     [],
   );
@@ -206,9 +211,70 @@ function AccountEnabled({
         <p>Last synced {new Date(lastSynced).toLocaleTimeString()}.</p>
       )}
       {error !== null && <p role="alert">{error}</p>}
+      {needsReauth && (
+        <ReconnectForm
+          onReconnected={() => {
+            setNeedsReauth(false);
+            setError(null);
+          }}
+          onError={setError}
+        />
+      )}
       <hr />
       <DisconnectAccount onCleared={onCleared} />
     </>
+  );
+}
+
+/**
+ * Re-enter the (new) password to reconnect this device after the account password
+ * was reset on another device. Re-derives this device's relay credential from the
+ * password — the master key and local data are untouched — then resumes sync.
+ */
+function ReconnectForm({
+  onReconnected,
+  onError,
+}: {
+  onReconnected: () => void;
+  onError: (message: string) => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [working, setWorking] = useState(false);
+
+  async function reconnect() {
+    if (password.length === 0) return;
+    setWorking(true);
+    try {
+      await window.sync.reauthenticate(password);
+      setPassword("");
+      onReconnected();
+    } catch (cause) {
+      onError(cause instanceof Error ? cause.message : "Couldn't reconnect.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void reconnect();
+      }}
+    >
+      <label>
+        New password{" "}
+        <input
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          autoComplete="current-password"
+        />
+      </label>{" "}
+      <button type="submit" disabled={working || password.length === 0}>
+        {working ? "Reconnecting…" : "Reconnect"}
+      </button>
+    </form>
   );
 }
 

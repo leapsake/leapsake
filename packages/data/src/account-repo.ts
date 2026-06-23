@@ -50,6 +50,17 @@ function toAccount(row: AccountRow): Account {
 export interface AccountRepo {
   /** Create the account row (custody Phase 1); fails the singleton if one exists. */
   create(input: CreateAccountInput): Promise<Account>;
+  /**
+   * Rotate this device's relay credential after a remote password change: replace
+   * the public salt + auth verifier on the singleton account row (and bump its
+   * clock). Used by the re-auth flow when another device reset the password — the
+   * master key is untouched (it lives in the enclave); only the password-derived
+   * door is refreshed. A no-op if no account is set up.
+   */
+  updateCredentials(input: {
+    kdfSalt: Uint8Array;
+    authVerifier: Uint8Array;
+  }): Promise<void>;
   /** The single active account for this local store, or undefined before sync. */
   getSingleton(): Promise<Account | undefined>;
   /**
@@ -111,6 +122,15 @@ export function createAccountRepo(driver: SqliteDriver): AccountRepo {
         ],
       );
       return account;
+    },
+
+    async updateCredentials({ kdfSalt, authVerifier }) {
+      await driver.run(
+        `UPDATE account
+            SET kdf_salt = ?, auth_verifier = ?, updated_at = ?
+          WHERE deleted_at IS NULL`,
+        [kdfSalt, authVerifier, Date.now()],
+      );
     },
 
     async getSingleton() {

@@ -118,6 +118,11 @@ function AccountEnabled({
   const [lastSynced, setLastSynced] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  // Set when a sync 401s because the password was reset on another device — shows
+  // the re-enter-password prompt below. Cleared on the next successful sync.
+  const [needsReauth, setNeedsReauth] = useState(false);
+  const [reauthPassword, setReauthPassword] = useState("");
+  const [reconnecting, setReconnecting] = useState(false);
   // The per-client "Sync automatically" preference (default on). Null until loaded.
   const [autoSync, setAutoSync] = useState<boolean | null>(null);
 
@@ -130,8 +135,10 @@ function AccountEnabled({
         if (payload.at !== undefined) {
           setLastSynced(payload.at);
           setError(null);
+          setNeedsReauth(false);
         }
         if (payload.error !== undefined) setError(payload.error);
+        if (payload.needsReauth === true) setNeedsReauth(true);
       }),
     [sync],
   );
@@ -156,6 +163,21 @@ function AccountEnabled({
       setError(cause instanceof Error ? cause.message : "Couldn't sync.");
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function reconnect() {
+    if (reauthPassword.length === 0) return;
+    setError(null);
+    setReconnecting(true);
+    try {
+      await sync.reauthenticate(reauthPassword);
+      setReauthPassword("");
+      setNeedsReauth(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't reconnect.");
+    } finally {
+      setReconnecting(false);
     }
   }
 
@@ -208,6 +230,28 @@ function AccountEnabled({
         <Text style={styles.danger} accessibilityRole="alert">
           {error}
         </Text>
+      )}
+      {needsReauth && (
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>New password</Text>
+          <TextInput
+            style={styles.input}
+            value={reauthPassword}
+            onChangeText={setReauthPassword}
+            secureTextEntry
+            autoComplete="current-password"
+            textContentType="password"
+          />
+          <Pressable
+            style={styles.button}
+            disabled={reconnecting || reauthPassword.length === 0}
+            onPress={reconnect}
+          >
+            <Text style={styles.buttonText}>
+              {reconnecting ? "Reconnecting…" : "Reconnect"}
+            </Text>
+          </Pressable>
+        </View>
       )}
       <DisconnectAccount onCleared={onCleared} />
     </View>

@@ -23,6 +23,7 @@ import {
   type AccountBootstrap,
   type KeySession,
   joinAccount,
+  reauthenticate,
   recoverAccount,
 } from "./key-session.js";
 
@@ -228,6 +229,43 @@ export async function runAccountSync(opts: {
   });
   const { applied } = await engine.sync();
   return { at: Date.now(), applied };
+}
+
+/**
+ * Re-authenticate the enabled account on this store after another device reset the
+ * password (the relay 401 follow-up, `status.md`): read the account's relay
+ * coordinates internally (like {@link runAccountSync}), build the credential-less
+ * bootstrap transport, and run {@link reauthenticate} with the re-entered password.
+ * Throws if sync is not enabled or the account is not relay-bound. Keeps the HTTP
+ * transport construction in core; the app passes only the new password.
+ */
+export async function reauthenticateViaRelay(opts: {
+  keyStore: KeyStore;
+  driver: SqliteDriver;
+  password: string;
+}): Promise<void> {
+  const { keyStore, driver, password } = opts;
+  const account = await createAccountRepo(driver).getSingleton();
+  if (account === undefined) {
+    throw new Error("Sync is not enabled for this store.");
+  }
+  if (account.relayUrl === null) {
+    throw new Error("This account is not connected to a relay.");
+  }
+  const transport = createHttpSyncTransport({ baseUrl: account.relayUrl });
+  await reauthenticate({ keyStore, driver, transport, password });
+}
+
+/**
+ * Whether a sync failure is the relay rejecting this device's credential (a 401) —
+ * the signal that the password was reset elsewhere and the device should prompt to
+ * re-authenticate (`reauthenticateViaRelay`). The HTTP transport surfaces relay
+ * failures as `"relay <method> /<path> failed: <status>"`, so a substring check is
+ * the seam both the scheduler's error path and the clients agree on.
+ */
+export function isRelayAuthError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("401");
 }
 
 export interface JoinReconcileResult {
