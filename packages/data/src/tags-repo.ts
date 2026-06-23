@@ -7,6 +7,7 @@ import {
   taggingSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
+import { softDeleteRow, softDeleteWhere } from "./entity-repo.js";
 import { type SyncableRepo, defineSyncable } from "./syncable.js";
 
 /** The `tags` table row, exactly as stored (snake_case columns). */
@@ -129,10 +130,7 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
       [tagId],
     );
     if ((remaining?.n ?? 0) === 0) {
-      await driver.run(
-        "UPDATE tags SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-        [Date.now(), Date.now(), tagId],
-      );
+      await softDeleteRow(driver, "tags", tagId);
     }
   }
 
@@ -177,10 +175,7 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
       // Remove taggings whose tag is no longer desired, then GC the tag.
       for (const row of current) {
         if (desiredKeys.has(row.normalized)) continue;
-        await driver.run(
-          "UPDATE taggings SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-          [Date.now(), Date.now(), row.tagging_id],
-        );
+        await softDeleteRow(driver, "taggings", row.tagging_id);
         await gcTagIfOrphaned(row.id);
       }
 
@@ -205,10 +200,7 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
         [entityType, entityId],
       );
       for (const { id, tag_id } of rows) {
-        await driver.run(
-          "UPDATE taggings SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-          [Date.now(), Date.now(), id],
-        );
+        await softDeleteRow(driver, "taggings", id);
         await gcTagIfOrphaned(tag_id);
       }
     },
@@ -236,10 +228,7 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
       for (const { id, tag_id } of fromTaggings) {
         if (survivorTagIds.has(tag_id)) {
           // Survivor already wears this tag — drop the would-be duplicate.
-          await driver.run(
-            "UPDATE taggings SET deleted_at = ?, updated_at = MAX(?, updated_at + 1) WHERE id = ?",
-            [now, now, id],
-          );
+          await softDeleteRow(driver, "taggings", id);
         } else {
           await driver.run(
             "UPDATE taggings SET entity_id = ?, updated_at = MAX(?, updated_at + 1) WHERE id = ?",
@@ -251,15 +240,8 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
     },
 
     async softDelete(tagId) {
-      const now = Date.now();
-      await driver.run(
-        "UPDATE taggings SET deleted_at = ?, updated_at = ? WHERE tag_id = ? AND deleted_at IS NULL",
-        [now, now, tagId],
-      );
-      await driver.run(
-        "UPDATE tags SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-        [now, now, tagId],
-      );
+      await softDeleteWhere(driver, "taggings", "tag_id = ?", [tagId]);
+      await softDeleteRow(driver, "tags", tagId);
     },
 
     async get(id) {

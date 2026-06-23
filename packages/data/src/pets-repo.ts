@@ -7,115 +7,44 @@ import {
   updatePetInputSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
-import { type SyncableRepo, defineSyncable } from "./syncable.js";
+import { type EntityRepo, createEntityRepo } from "./entity-repo.js";
 
-/** The `pets` table row, exactly as stored (snake_case columns). */
-interface PetRow {
-  id: string;
-  name: string;
-  gender: string | null;
-  created_at: number;
-  updated_at: number;
-  deleted_at: number | null;
-}
-
-/** Map a raw DB row to a validated `Pet`. */
-function toPet(row: PetRow): Pet {
-  return petSchema.parse({
-    id: row.id,
-    name: row.name,
-    gender: row.gender,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    deletedAt: row.deleted_at,
-  });
-}
-
-export interface PetsRepo extends SyncableRepo<Pet> {
+export interface PetsRepo extends EntityRepo<Pet> {
   create(input: CreatePetInput): Promise<Pet>;
-  list(): Promise<Pet[]>;
-  get(id: string): Promise<Pet | undefined>;
   update(id: string, input: UpdatePetInput): Promise<Pet | undefined>;
-  softDelete(id: string): Promise<void>;
 }
 
 /**
  * The Pets repository, written against the async {@link SqliteDriver} port so
- * it runs unchanged on desktop and mobile. Excludes soft-deleted rows from all
- * reads and never hard-deletes (mirrors the People repository).
+ * it runs unchanged on desktop and mobile (mirrors the People repository). The
+ * standard CRUD and the sync surface come from {@link createEntityRepo}; only
+ * `create` (input parse + assemble) is bespoke.
  */
 export function createPetsRepo(driver: SqliteDriver): PetsRepo {
+  const base = createEntityRepo<Pet>({
+    driver,
+    table: "pets",
+    schema: petSchema,
+    orderBy: "name",
+  });
+
   return {
-    ...defineSyncable<Pet>({ driver, table: "pets", schema: petSchema }),
+    ...base,
 
     async create(input) {
       const { name, gender = null } = createPetInputSchema.parse(input);
       const now = Date.now();
-      const pet: Pet = {
+      return base.insert({
         id: crypto.randomUUID(),
         name,
         gender,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
-      };
-      await driver.run(
-        `INSERT INTO pets
-           (id, name, gender, created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          pet.id,
-          pet.name,
-          pet.gender,
-          pet.createdAt,
-          pet.updatedAt,
-          pet.deletedAt,
-        ],
-      );
-      return pet;
+      });
     },
 
-    async list() {
-      const rows = await driver.all<PetRow>(
-        `SELECT * FROM pets
-         WHERE deleted_at IS NULL
-         ORDER BY name`,
-      );
-      return rows.map(toPet);
-    },
-
-    async get(id) {
-      const row = await driver.get<PetRow>(
-        "SELECT * FROM pets WHERE id = ? AND deleted_at IS NULL",
-        [id],
-      );
-      return row ? toPet(row) : undefined;
-    },
-
-    async update(id, input) {
-      const patch = updatePetInputSchema.parse(input);
-      const existing = await this.get(id);
-      if (!existing) return undefined;
-
-      const updated: Pet = {
-        ...existing,
-        ...patch,
-        updatedAt: Date.now(),
-      };
-      await driver.run(
-        `UPDATE pets
-         SET name = ?, gender = ?, updated_at = ?
-         WHERE id = ? AND deleted_at IS NULL`,
-        [updated.name, updated.gender, updated.updatedAt, id],
-      );
-      return updated;
-    },
-
-    async softDelete(id) {
-      await driver.run(
-        "UPDATE pets SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-        [Date.now(), Date.now(), id],
-      );
-    },
+    update: async (id, input) =>
+      base.update(id, updatePetInputSchema.parse(input)),
   };
 }

@@ -4,6 +4,7 @@ import {
   dismissalSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
+import { softDeleteRow, softDeleteWhere } from "./entity-repo.js";
 import { type SyncableRepo, defineSyncable } from "./syncable.js";
 
 /** An endpoint of a dismissal: an entity `(type, id)` pair. */
@@ -145,24 +146,15 @@ export function createDismissalsRepo(driver: SqliteDriver): DismissalsRepo {
       return rows.map(toDismissal);
     },
 
-    async softDelete(id) {
-      await driver.run(
-        "UPDATE relationship_dismissals SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-        [Date.now(), Date.now(), id],
-      );
-    },
+    softDelete: (id) => softDeleteRow(driver, "relationship_dismissals", id),
 
-    async removeAllForEntity(type, id) {
-      const now = Date.now();
-      await driver.run(
-        `UPDATE relationship_dismissals
-           SET deleted_at = ?, updated_at = ?
-         WHERE deleted_at IS NULL
-           AND ((subject_type = ? AND subject_id = ?)
-             OR (other_type = ? AND other_id = ?))`,
-        [now, now, type, id, type, id],
-      );
-    },
+    removeAllForEntity: (type, id) =>
+      softDeleteWhere(
+        driver,
+        "relationship_dismissals",
+        "(subject_type = ? AND subject_id = ?) OR (other_type = ? AND other_id = ?)",
+        [type, id, type, id],
+      ),
 
     async repointEntity(type, fromId, toId) {
       const now = Date.now();
@@ -182,12 +174,11 @@ export function createDismissalsRepo(driver: SqliteDriver): DismissalsRepo {
       );
       // A dismissal whose two ends are now the survivor suppresses an edge from a
       // person to themselves — meaningless, so drop it.
-      await driver.run(
-        `UPDATE relationship_dismissals SET deleted_at = ?, updated_at = MAX(?, updated_at + 1)
-           WHERE deleted_at IS NULL
-             AND subject_type = ? AND subject_id = ?
-             AND other_type = ? AND other_id = ?`,
-        [now, now, type, toId, type, toId],
+      await softDeleteWhere(
+        driver,
+        "relationship_dismissals",
+        "subject_type = ? AND subject_id = ? AND other_type = ? AND other_id = ?",
+        [type, toId, type, toId],
       );
     },
   };

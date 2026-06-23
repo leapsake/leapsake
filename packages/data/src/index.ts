@@ -78,3 +78,9 @@ export {
   type SyncableRepo,
   defineSyncable,
 } from "./syncable.js";
+export {
+  type EntityRepo,
+  createEntityRepo,
+  softDeleteRow,
+  softDeleteWhere,
+} from "./entity-repo.js";

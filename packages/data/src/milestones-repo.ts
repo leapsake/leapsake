@@ -9,7 +9,11 @@ import {
 } from "@leapsake/schema";
 import type { ContentCipher } from "./content-cipher.js";
 import type { SqliteDriver } from "./driver.js";
-import { type SyncableRepo, defineSyncable } from "./syncable.js";
+import {
+  type EntityRepo,
+  createEntityRepo,
+  softDeleteWhere,
+} from "./entity-repo.js";
 
 /** The entity type under which a milestone's content key is registered. */
 const MILESTONE_ENTITY = "milestone";
@@ -70,14 +74,12 @@ async function toMilestone(
   });
 }
 
-export interface MilestonesRepo extends SyncableRepo<Milestone> {
+export interface MilestonesRepo extends EntityRepo<Milestone> {
   create(input: CreateMilestoneInput): Promise<Milestone>;
-  get(id: string): Promise<Milestone | undefined>;
   update(
     id: string,
     input: UpdateMilestoneInput,
   ): Promise<Milestone | undefined>;
-  softDelete(id: string): Promise<void>;
 
   /**
    * Every active milestone of a subject, ordered by year, then month, then day.
@@ -143,43 +145,53 @@ export function createMilestonesRepo(
     return [note, null];
   }
 
-  return {
-    // The one entity whose on-wire shape differs from its on-disk shape, so it
-    // needs a `codec` rather than the default snake_case rename: `note` is
-    // decrypted on the way out (it rides as plaintext *inside* the master-key
-    // seal, never as content-key ciphertext the peer can't open) and re-sealed
-    // under *this* device's own content key on the way in — so content_key /
-    // key_wrap rows stay device-local and never sync (model.md §3).
-    ...defineSyncable<Milestone>({
-      driver,
-      table: "milestones",
-      schema: milestoneSchema,
-      codec: {
-        fromRow: (raw) => toMilestone(raw as unknown as MilestoneRow, cipher),
-        toRow: async (m) => {
-          const [note, noteCiphertext] = await noteColumns(m.id, m.note);
-          return {
-            id: m.id,
-            kind: m.kind,
-            subject_type: m.subjectType,
-            subject_id: m.subjectId,
-            year: m.year,
-            month: m.month,
-            day: m.day,
-            note,
-            note_ciphertext: noteCiphertext,
-            created_at: m.createdAt,
-            updated_at: m.updatedAt,
-            deleted_at: m.deletedAt,
-          };
-        },
+  // The one entity whose on-wire shape differs from its on-disk shape, so it
+  // needs a `codec` rather than the default snake_case rename: `note` is
+  // decrypted on the way out (it rides as plaintext *inside* the master-key
+  // seal, never as content-key ciphertext the peer can't open) and re-sealed
+  // under *this* device's own content key on the way in — so content_key /
+  // key_wrap rows stay device-local and never sync (model.md §3). The codec is
+  // the only thing milestones add over the standard CRUD: `createEntityRepo`'s
+  // insert/get/list/update route through `toRow`/`fromRow`, so encryption is
+  // transparent. (A soft-deleted milestone leaves its content_key + key_wrap
+  // rows in place — harmless, since the ciphertext they protect is gone too;
+  // key GC is a later sync-era concern.)
+  const base = createEntityRepo<Milestone>({
+    driver,
+    table: "milestones",
+    schema: milestoneSchema,
+    orderBy: "year, month, day",
+    codec: {
+      fromRow: (raw) => toMilestone(raw as unknown as MilestoneRow, cipher),
+      toRow: async (m) => {
+        const [note, noteCiphertext] = await noteColumns(m.id, m.note);
+        return {
+          id: m.id,
+          kind: m.kind,
+          subject_type: m.subjectType,
+          subject_id: m.subjectId,
+          year: m.year,
+          month: m.month,
+          day: m.day,
+          note,
+          note_ciphertext: noteCiphertext,
+          created_at: m.createdAt,
+          updated_at: m.updatedAt,
+          deleted_at: m.deletedAt,
+        };
       },
-    }),
+    },
+  });
+
+  return {
+    ...base,
 
     async create(input) {
       const parsed = createMilestoneInputSchema.parse(input);
       const now = Date.now();
-      const milestone: Milestone = milestoneSchema.parse({
+      // The codec seals `note` on the way to disk; hand `insert` the plaintext
+      // domain row (it re-validates the day⇒month / subject-type rules).
+      return base.insert({
         id: crypto.randomUUID(),
         kind: parsed.kind,
         subjectType: parsed.subjectType,
@@ -192,105 +204,25 @@ export function createMilestonesRepo(
         updatedAt: now,
         deletedAt: null,
       });
-      const [note, noteCiphertext] = await noteColumns(
-        milestone.id,
-        milestone.note,
-      );
-      await driver.run(
-        `INSERT INTO milestones
-           (id, kind, subject_type, subject_id, year, month, day, note,
-            note_ciphertext, created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          milestone.id,
-          milestone.kind,
-          milestone.subjectType,
-          milestone.subjectId,
-          milestone.year,
-          milestone.month,
-          milestone.day,
-          note,
-          noteCiphertext,
-          milestone.createdAt,
-          milestone.updatedAt,
-          milestone.deletedAt,
-        ],
-      );
-      return milestone;
     },
 
-    async get(id) {
-      const row = await driver.get<MilestoneRow>(
-        "SELECT * FROM milestones WHERE id = ? AND deleted_at IS NULL",
-        [id],
-      );
-      return row ? toMilestone(row, cipher) : undefined;
-    },
+    update: async (id, input) =>
+      base.update(id, updateMilestoneInputSchema.parse(input)),
 
-    async update(id, input) {
-      const patch = updateMilestoneInputSchema.parse(input);
-      const existing = await this.get(id);
-      if (!existing) return undefined;
+    listForSubject: (type, id) =>
+      base.listWhere({
+        where: "subject_type = ? AND subject_id = ?",
+        params: [type, id],
+        orderBy: "year, month, day",
+      }),
 
-      // Merge the patch, then re-validate the whole row so the day⇒month and
-      // subject-type rules still hold after a partial update.
-      const updated: Milestone = milestoneSchema.parse({
-        ...existing,
-        ...patch,
-        updatedAt: Date.now(),
-      });
-      const [note, noteCiphertext] = await noteColumns(id, updated.note);
-      await driver.run(
-        `UPDATE milestones
-           SET kind = ?, subject_type = ?, subject_id = ?,
-               year = ?, month = ?, day = ?, note = ?, note_ciphertext = ?,
-               updated_at = ?
-         WHERE id = ? AND deleted_at IS NULL`,
-        [
-          updated.kind,
-          updated.subjectType,
-          updated.subjectId,
-          updated.year,
-          updated.month,
-          updated.day,
-          note,
-          noteCiphertext,
-          updated.updatedAt,
-          id,
-        ],
-      );
-      return updated;
-    },
-
-    async softDelete(id) {
-      // Note: a soft-deleted milestone leaves its content_key + key_wrap rows in
-      // place. Orphaned content keys are harmless (the ciphertext they protect is
-      // also gone); key revocation/GC is a later (sync-era) concern.
-      await driver.run(
-        "UPDATE milestones SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-        [Date.now(), Date.now(), id],
-      );
-    },
-
-    async listForSubject(type, id) {
-      const rows = await driver.all<MilestoneRow>(
-        `SELECT * FROM milestones
-          WHERE subject_type = ? AND subject_id = ? AND deleted_at IS NULL
-          ORDER BY year, month, day`,
+    removeAllForEntity: (type, id) =>
+      softDeleteWhere(
+        driver,
+        "milestones",
+        "subject_type = ? AND subject_id = ?",
         [type, id],
-      );
-      return Promise.all(rows.map((row) => toMilestone(row, cipher)));
-    },
-
-    async removeAllForEntity(type, id) {
-      const now = Date.now();
-      await driver.run(
-        `UPDATE milestones
-           SET deleted_at = ?, updated_at = ?
-         WHERE subject_type = ? AND subject_id = ? AND deleted_at IS NULL`,
-        [now, now, type, id],
-      );
-    },
+      ),
 
     async repointEntity(type, fromId, toId) {
       const now = Date.now();

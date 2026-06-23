@@ -1,5 +1,6 @@
 import { type NotADuplicate, notADuplicateSchema } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
+import { softDeleteRow } from "./entity-repo.js";
 import { type SyncableRepo, defineSyncable } from "./syncable.js";
 
 export type { NotADuplicate };
@@ -119,10 +120,7 @@ export function createNotADuplicateRepo(
         // merge lands in the row's creation millisecond (see relationships-repo
         // `repointEntity`).
         if (collides) {
-          await driver.run(
-            "UPDATE not_a_duplicate SET deleted_at = ?, updated_at = MAX(?, updated_at + 1) WHERE id = ?",
-            [now, now, row.id],
-          );
+          await softDeleteRow(driver, "not_a_duplicate", row.id);
           continue;
         }
         await driver.run(

@@ -39,7 +39,41 @@ export interface SyncableRepo<T extends SyncRow> {
 }
 
 /** The value types SQLite (node + expo) round-trips for a bound parameter. */
-type SqlValue = string | number | Uint8Array | null;
+export type SqlValue = string | number | Uint8Array | null;
+
+/**
+ * Build an `INSERT` statement + bound params from a snake_case column map (as a
+ * {@link RowCodec}'s `toRow` returns). Shared by {@link upsertFromRemote} and the
+ * CRUD `insert` in `entity-repo.ts`, so both spell columns one way.
+ */
+export function insertStatement(
+  table: string,
+  cols: Record<string, SqlValue>,
+): [string, SqlValue[]] {
+  const names = Object.keys(cols);
+  return [
+    `INSERT INTO ${table} (${names.join(", ")})
+     VALUES (${names.map(() => "?").join(", ")})`,
+    names.map((name) => cols[name]),
+  ];
+}
+
+/**
+ * Build the `col = ?, …` assignment clause + bound params for an `UPDATE`,
+ * skipping the `exclude` columns (e.g. `id`, or `created_at` on a CRUD update).
+ * Shared by {@link upsertFromRemote} and the CRUD `update` in `entity-repo.ts`.
+ */
+export function assignmentClause(
+  cols: Record<string, SqlValue>,
+  exclude: readonly string[],
+): [string, SqlValue[]] {
+  const skip = new Set(exclude);
+  const names = Object.keys(cols).filter((name) => !skip.has(name));
+  return [
+    names.map((name) => `${name} = ?`).join(", "),
+    names.map((name) => cols[name]),
+  ];
+}
 
 /**
  * The one part of sync that is genuinely entity-specific: how a *domain* row
@@ -115,10 +149,25 @@ function defaultCodec<T extends SyncRow>(
 }
 
 /** The slice of a Zod object schema this helper relies on. */
-interface ParsableSchema<T> {
+export interface ParsableSchema<T> {
   parse(value: unknown): T;
   /** Present on `z.object(...)`; absent on a refined schema (then pass a `codec`). */
   shape?: Record<string, unknown>;
+}
+
+/**
+ * The codec a repo will use: the explicit one if given, else the default
+ * camelCase↔snake_case codec derived from the schema. Extracted so the CRUD
+ * `entity-repo.ts` and {@link defineSyncable} resolve the *same* codec from the
+ * same options (and `entity-repo` then hands it back in so both share one instance).
+ */
+export function resolveCodec<T extends SyncRow>(opts: {
+  schema: ParsableSchema<T>;
+  fields?: readonly string[];
+  booleans?: readonly string[];
+  codec?: RowCodec<T>;
+}): RowCodec<T> {
+  return opts.codec ?? defaultCodec<T>(opts.schema, opts.fields, opts.booleans);
 }
 
 /**
@@ -178,8 +227,7 @@ export function defineSyncable<T extends SyncRow>(opts: {
   codec?: RowCodec<T>;
 }): SyncableRepo<T> {
   const { driver, table, schema } = opts;
-  const codec =
-    opts.codec ?? defaultCodec<T>(schema, opts.fields, opts.booleans);
+  const codec = resolveCodec<T>(opts);
 
   return {
     table,
@@ -209,22 +257,16 @@ export function defineSyncable<T extends SyncRow>(opts: {
       }
 
       const cols = await codec.toRow(remote);
-      const names = Object.keys(cols);
       if (existing !== undefined) {
-        const assignable = names.filter((name) => name !== "id");
-        await driver.run(
-          `UPDATE ${table}
-             SET ${assignable.map((name) => `${name} = ?`).join(", ")}
-           WHERE id = ?`,
-          [...assignable.map((name) => cols[name]), remote.id],
-        );
+        const [setSql, params] = assignmentClause(cols, ["id"]);
+        await driver.run(`UPDATE ${table} SET ${setSql} WHERE id = ?`, [
+          ...params,
+          remote.id,
+        ]);
         return;
       }
-      await driver.run(
-        `INSERT INTO ${table} (${names.join(", ")})
-         VALUES (${names.map(() => "?").join(", ")})`,
-        names.map((name) => cols[name]),
-      );
+      const [insertSql, insertParams] = insertStatement(table, cols);
+      await driver.run(insertSql, insertParams);
     },
   };
 }

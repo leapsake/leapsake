@@ -8,6 +8,7 @@ import {
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
+import { softDeleteRow, softDeleteWhere } from "./entity-repo.js";
 import { type SyncableRepo, defineSyncable } from "./syncable.js";
 
 /** The `relationships` table row, exactly as stored (snake_case columns). */
@@ -183,12 +184,7 @@ export function createRelationshipsRepo(
       return updated;
     },
 
-    async softDelete(id) {
-      await driver.run(
-        "UPDATE relationships SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-        [Date.now(), Date.now(), id],
-      );
-    },
+    softDelete: (id) => softDeleteRow(driver, "relationships", id),
 
     async listForEntity(type, id) {
       const rows = await driver.all<RelationshipRow>(
@@ -201,16 +197,13 @@ export function createRelationshipsRepo(
       return rows.map(toRelationship);
     },
 
-    async removeAllForEntity(type, id) {
-      const now = Date.now();
-      await driver.run(
-        `UPDATE relationships
-           SET deleted_at = ?, updated_at = ?
-         WHERE deleted_at IS NULL
-           AND ((a_type = ? AND a_id = ?) OR (b_type = ? AND b_id = ?))`,
-        [now, now, type, id, type, id],
-      );
-    },
+    removeAllForEntity: (type, id) =>
+      softDeleteWhere(
+        driver,
+        "relationships",
+        "(a_type = ? AND a_id = ?) OR (b_type = ? AND b_id = ?)",
+        [type, id, type, id],
+      ),
 
     async repointEntity(type, fromId, toId) {
       const now = Date.now();
@@ -235,11 +228,11 @@ export function createRelationshipsRepo(
 
       // Prune self-loops: an edge whose ends are now both the survivor (the two
       // merged people were related to each other) no longer means anything.
-      await driver.run(
-        `UPDATE relationships SET deleted_at = ?, updated_at = MAX(?, updated_at + 1)
-           WHERE deleted_at IS NULL
-             AND a_type = ? AND a_id = ? AND b_type = ? AND b_id = ?`,
-        [now, now, type, toId, type, toId],
+      await softDeleteWhere(
+        driver,
+        "relationships",
+        "a_type = ? AND a_id = ? AND b_type = ? AND b_id = ?",
+        [type, toId, type, toId],
       );
 
       // Dedupe edges that now describe the same connection (the survivor already
@@ -270,10 +263,7 @@ export function createRelationshipsRepo(
         );
         for (const rel of group) {
           if (rel.id === winner.id) continue;
-          await driver.run(
-            "UPDATE relationships SET deleted_at = ?, updated_at = MAX(?, updated_at + 1) WHERE id = ?",
-            [now, now, rel.id],
-          );
+          await softDeleteRow(driver, "relationships", rel.id);
         }
       }
     },
