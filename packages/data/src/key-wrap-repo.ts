@@ -7,6 +7,10 @@ import {
   keyWrapSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
+// key_wrap is device-local and never syncs, so the strictly-monotonic tombstone
+// isn't load-bearing here — but routing through the shared helper keeps a single,
+// exception-free soft-delete idiom across the data layer.
+import { softDeleteRow } from "./entity-repo.js";
 
 /** The `key_wrap` table row, exactly as stored (snake_case columns). */
 interface KeyWrapRow {
@@ -127,12 +131,6 @@ export function createKeyWrapRepo(driver: SqliteDriver): KeyWrapRepo {
       return row ? toKeyWrap(row) : undefined;
     },
 
-    async revoke(id) {
-      const now = Date.now();
-      await driver.run(
-        "UPDATE key_wrap SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-        [now, now, id],
-      );
-    },
+    revoke: (id) => softDeleteRow(driver, "key_wrap", id),
   };
 }
