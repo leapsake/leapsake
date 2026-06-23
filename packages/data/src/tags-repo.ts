@@ -229,16 +229,20 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
           WHERE entity_type = ? AND entity_id = ? AND deleted_at IS NULL`,
         [entityType, fromId],
       );
+      // `MAX(?, updated_at + 1)` keeps each re-point strictly newer than the row
+      // it rewrites, so it wins LWW on every device instead of tying when the
+      // merge runs in the tagging's creation millisecond (see relationships-repo
+      // `repointEntity` for the full rationale).
       for (const { id, tag_id } of fromTaggings) {
         if (survivorTagIds.has(tag_id)) {
           // Survivor already wears this tag — drop the would-be duplicate.
           await driver.run(
-            "UPDATE taggings SET deleted_at = ?, updated_at = ? WHERE id = ?",
+            "UPDATE taggings SET deleted_at = ?, updated_at = MAX(?, updated_at + 1) WHERE id = ?",
             [now, now, id],
           );
         } else {
           await driver.run(
-            "UPDATE taggings SET entity_id = ?, updated_at = ? WHERE id = ?",
+            "UPDATE taggings SET entity_id = ?, updated_at = MAX(?, updated_at + 1) WHERE id = ?",
             [toId, now, id],
           );
           survivorTagIds.add(tag_id);

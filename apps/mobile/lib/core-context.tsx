@@ -10,8 +10,10 @@ import {
   ActivityIndicator,
   AppState,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import * as SQLite from "expo-sqlite";
@@ -29,6 +31,7 @@ import {
   getSyncStatus,
   joinAccountViaRelay,
   lookupAccount,
+  recoverAccountViaRelay,
   reconcileOnJoin,
   registerAccountWithRelay,
   runAccountSync,
@@ -37,11 +40,21 @@ import {
   withSyncKick,
 } from "@leapsake/core";
 import {
-  bytesToBase64,
+  DATABASE_KEY,
+  RECOVERY_KEY,
+  decodeRecoveryPhrase,
+  encodeRecoveryPhrase,
   ensureDatabaseKey,
+  ensureRecoveryKey,
+  openDbKeyFromRecovery,
   rawKeyLiteral,
+  sealDbKeyForRecovery,
 } from "@leapsake/crypto";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
+import {
+  readRecoverySidecar,
+  writeRecoverySidecar,
+} from "../db/recovery-sidecar";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 
 /**
@@ -112,6 +125,17 @@ export interface SyncApi {
     // `duplicateCount` is how many possible duplicates the join surfaced between
     // this device's pre-existing people and the account's — a prompt to review.
   }): Promise<{ duplicateCount: number }>;
+  /**
+   * Recover an existing account on this device from the recovery phrase (forgot
+   * password, `model.md` §6): unwrap MK from the relay's recovery escrow, set a
+   * new password, adopt MK under this device's enclave, and swap the live core in.
+   */
+  recover(args: {
+    username: string;
+    recoveryPhrase: string;
+    newPassword: string;
+    relayUrl: string;
+  }): Promise<{ duplicateCount: number }>;
   /** Run one push→pull cycle against the configured relay. */
   syncNow(): Promise<{ at: number }>;
   /**
@@ -119,6 +143,8 @@ export interface SyncApi {
    * doors but keep the master key in the enclave, so local data stays readable.
    */
   clear(): Promise<void>;
+  /** Reveal this device's recovery phrase (the words back into the data). */
+  revealRecoveryPhrase(): Promise<string>;
   /** Read this install's "Sync automatically" preference (default true). */
   getAutoSync(): Promise<boolean>;
   /**
@@ -187,6 +213,14 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   const [core, setCore] = useState<CoreApi | null>(null);
   const [sync, setSync] = useState<SyncApi | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The boot-time at-rest recovery prompt (model.md §6): set when this device's
+  // enclave key is gone but the recovery sidecar survives, so the user must type
+  // their phrase before the DB can open. `resolve` feeds the typed phrase back to
+  // the awaiting bootstrap; a wrong phrase re-sets this with an `error`.
+  const [recoveryPrompt, setRecoveryPrompt] = useState<{
+    error?: string;
+    resolve: (phrase: string) => void;
+  } | null>(null);
   // Reactive invalidation: bumped whenever a sync pull applied changes, so the
   // focused screen (via `useFocusedData` → `useDataVersion`) re-reads in place.
   const [dataVersion, setDataVersion] = useState(0);
@@ -213,21 +247,60 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       if (state === "active") void scheduler.current?.autoTrigger();
     });
 
+    // Park the bootstrap on the recovery gate until the user submits a phrase.
+    const requestRecoveryPhrase = (attemptError?: string) =>
+      new Promise<string>((resolve) =>
+        setRecoveryPrompt({ error: attemptError, resolve }),
+      );
+
     (async () => {
-      const db = await SQLite.openDatabaseAsync("leapsake.db");
-      const driver = expoSqliteDriver(db);
       // The same keystore instance that backs the enable-sync door below.
       const keyStore = secureStoreKeyStore();
-      // At-rest encryption (Stage 2): supply the whole-DB key as the very first
-      // statement on the fresh connection, before migrations or any other read —
-      // SQLCipher requires `PRAGMA key` to precede all DB access. The key is minted
-      // once and held only in the OS enclave (expo-secure-store); the on-disk file
-      // is ciphertext, decrypted into memory page-by-page while we hold it. This is
-      // orthogonal to the in-DB master-key hierarchy below.
-      const dbKey = await ensureDatabaseKey(keyStore);
+
+      // At-rest encryption (Stage 2): the whole-DB key is minted once and held
+      // only in the OS enclave; the on-disk file is ciphertext. Resolve it now,
+      // before opening the DB. Three cases (mirrors desktop's open.ts):
+      //  1. enclave holds it → use it;
+      //  2. no key + a recovery sidecar survives → the enclave was wiped: recover
+      //     the key from the sidecar via the typed phrase (the only way back);
+      //  3. no key + no sidecar → a fresh install: mint one.
+      let dbKey = await keyStore.getSecret(DATABASE_KEY);
+      let recoverySecret: Uint8Array | undefined;
+      const sidecar = await readRecoverySidecar();
+
+      if (dbKey === undefined && sidecar !== undefined) {
+        let attemptError: string | undefined;
+        for (;;) {
+          const phrase = await requestRecoveryPhrase(attemptError);
+          try {
+            recoverySecret = decodeRecoveryPhrase(phrase);
+            dbKey = openDbKeyFromRecovery(sidecar, recoverySecret);
+            break;
+          } catch {
+            recoverySecret = undefined;
+            attemptError = "That recovery phrase doesn't open this database.";
+          }
+        }
+        await keyStore.setSecret(DATABASE_KEY, dbKey);
+        setRecoveryPrompt(null);
+      }
+      if (dbKey === undefined) dbKey = await ensureDatabaseKey(keyStore);
+
+      const db = await SQLite.openDatabaseAsync("leapsake.db");
+      const driver = expoSqliteDriver(db);
+      // SQLCipher requires `PRAGMA key` to precede all DB access, so supply it as
+      // the very first statement on the fresh connection, before migrations.
       await driver.exec(`PRAGMA key = "${rawKeyLiteral(dbKey)}"`);
       await runMigrations(driver);
       keySession.current = await ensureDeviceMasterKey({ keyStore, driver });
+
+      // Refresh the recovery sidecar to the *current* enclave recovery key on
+      // every launch (not just when missing), so it stays in step if the key was
+      // later adopted — e.g. after recovering an account.
+      if (recoverySecret === undefined)
+        recoverySecret = await ensureRecoveryKey(keyStore);
+      else await keyStore.setSecret(RECOVERY_KEY, recoverySecret);
+      await writeRecoverySidecar(sealDbKeyForRecovery(dbKey, recoverySecret));
 
       const notifyActivity = (payload: {
         at?: number;
@@ -301,7 +374,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           void scheduler.current?.autoTrigger(); // push this device's data right away
           return {
             accountId: account.id,
-            recoveryKey: bytesToBase64(recoveryKey),
+            recoveryKey: encodeRecoveryPhrase(recoveryKey),
           };
         },
         async join({ username, password, relayUrl }) {
@@ -344,6 +417,45 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           void scheduler.current?.autoTrigger(); // push this device's data + pull remainder
           return { duplicateCount };
         },
+        async recover({ username, recoveryPhrase, newPassword, relayUrl }) {
+          if (newPassword.length < MIN_PASSWORD_LENGTH) {
+            throw new Error(
+              `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+            );
+          }
+          let session: KeySession;
+          try {
+            session = await recoverAccountViaRelay({
+              keyStore,
+              driver,
+              relayUrl,
+              username,
+              recoveryPhrase,
+              newPassword,
+              platform: Platform.OS,
+            });
+          } catch (cause) {
+            throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+          }
+          // Adopt the recovered master key everywhere, like join.
+          keySession.current = session;
+          const recoveredCore = withSyncKick(createCore(driver, session), () =>
+            scheduler.current?.kick(),
+          );
+          setCore(recoveredCore);
+          let duplicateCount = 0;
+          try {
+            ({ duplicateCount } = await reconcileOnJoin({
+              driver,
+              masterKey: session.masterKey,
+              core: recoveredCore,
+            }));
+          } catch {
+            duplicateCount = 0;
+          }
+          void scheduler.current?.autoTrigger();
+          return { duplicateCount };
+        },
         // Route through the scheduler so the button and background syncs share
         // single-flight; a guarded skip (not enabled) surfaces as the same error.
         async syncNow() {
@@ -354,6 +466,8 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           return result;
         },
         clear: () => clearLocalAccount({ driver }),
+        revealRecoveryPhrase: async () =>
+          encodeRecoveryPhrase(await ensureRecoveryKey(keyStore)),
         getAutoSync: () => getAutoSync({ driver }),
         async setAutoSync(enabled) {
           await setAutoSync({ driver, enabled });
@@ -380,6 +494,15 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  if (recoveryPrompt !== null) {
+    return (
+      <RecoveryGate
+        error={recoveryPrompt.error}
+        onSubmit={recoveryPrompt.resolve}
+      />
+    );
+  }
+
   if (core === null || sync === null) {
     return (
       <View style={styles.center}>
@@ -399,6 +522,66 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * The boot-time at-rest recovery prompt (encryption `model.md` §6), the mobile
+ * counterpart to desktop's `RecoveryGate`. Shown before the app loads when the
+ * enclave key is missing but the recovery sidecar survives; the typed phrase is
+ * fed back to the awaiting bootstrap, which unwraps the whole-DB key and reopens
+ * the file. A wrong phrase comes back as `error`, re-enabling the form.
+ */
+function RecoveryGate({
+  error,
+  onSubmit,
+}: {
+  error?: string;
+  onSubmit: (phrase: string) => void;
+}) {
+  const [phrase, setPhrase] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // A new error means the last attempt failed — let the user try again.
+  useEffect(() => {
+    if (error !== undefined) setSubmitting(false);
+  }, [error]);
+
+  function submit() {
+    if (phrase.trim() === "") return;
+    setSubmitting(true);
+    onSubmit(phrase);
+  }
+
+  return (
+    <View style={styles.gate}>
+      <Text style={styles.gateTitle}>Restore access to your data</Text>
+      <Text style={styles.gateBody}>
+        This device's key is missing — its secure storage was likely reset — but
+        your encrypted data is still here. Enter your recovery phrase to unlock
+        it.
+      </Text>
+      <TextInput
+        value={phrase}
+        onChangeText={setPhrase}
+        editable={!submitting}
+        multiline
+        autoCapitalize="none"
+        autoCorrect={false}
+        placeholder="Enter your 24-word recovery phrase…"
+        style={styles.gateInput}
+      />
+      {error !== undefined && <Text style={styles.error}>{error}</Text>}
+      <Pressable
+        style={[styles.gateButton, submitting && { opacity: 0.5 }]}
+        disabled={submitting}
+        onPress={submit}
+      >
+        <Text style={styles.gateButtonText}>
+          {submitting ? "Checking…" : "Unlock"}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   center: {
     flex: 1,
@@ -409,5 +592,38 @@ const styles = StyleSheet.create({
   error: {
     fontSize: 14,
     color: "#b00020",
+  },
+  gate: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 24,
+    gap: 12,
+  },
+  gateTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+  },
+  gateBody: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  gateInput: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 6,
+    padding: 12,
+    minHeight: 88,
+    fontFamily: "Courier",
+    textAlignVertical: "top",
+  },
+  gateButton: {
+    backgroundColor: "#2563eb",
+    borderRadius: 6,
+    padding: 14,
+    alignItems: "center",
+  },
+  gateButtonText: {
+    color: "#fff",
+    fontWeight: "600",
   },
 });

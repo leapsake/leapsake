@@ -41,7 +41,7 @@ export function migratePlaintextDatabase(
  * ciphertext and will not match, so this cleanly distinguishes "needs migration"
  * from "already encrypted".
  */
-function isPlaintextSqlite(path: string): boolean {
+export function isPlaintextSqlite(path: string): boolean {
   const header = readFileSync(path).subarray(0, 16).toString("latin1");
   return header.startsWith("SQLite format 3");
 }

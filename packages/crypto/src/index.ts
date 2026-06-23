@@ -6,6 +6,7 @@ export {
   SALT_BYTES,
   type KeyMaterial,
   deriveKeyMaterial,
+  deriveRecoveryVerifier,
   generateSalt,
   generateRecoveryKey,
 } from "./kdf.js";
@@ -16,11 +17,22 @@ export {
   rawKeyLiteral,
 } from "./database-key.js";
 export {
+  RECOVERY_KEY,
+  ensureRecoveryKey,
+  sealDbKeyForRecovery,
+  openDbKeyFromRecovery,
+} from "./recovery.js";
+export {
   bytesToBase64,
   base64ToBytes,
   bytesToHex,
   hexToBytes,
 } from "./base64.js";
+export {
+  RECOVERY_PHRASE_WORDS,
+  encodeRecoveryPhrase,
+  decodeRecoveryPhrase,
+} from "./recovery-phrase.js";
 // UTF-8 string ↔ bytes, for storing text identifiers (e.g. a device UUID) as
 // KeyStore secrets. Re-exported from `@noble/ciphers`, which implements them in
 // pure JS — so they run identically on Node/Electron and Hermes, with no

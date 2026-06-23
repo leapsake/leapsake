@@ -2,11 +2,13 @@ import {
   ALG,
   KDF_ALG,
   type KeyStore,
+  RECOVERY_KEY,
   bytesToUtf8,
   deriveKeyMaterial,
+  deriveRecoveryVerifier,
+  ensureRecoveryKey,
   equalBytes,
   generateKey,
-  generateRecoveryKey,
   generateSalt,
   unwrapKey,
   utf8ToBytes,
@@ -201,6 +203,17 @@ export interface AccountBootstrap {
   kdfSalt: Uint8Array;
   authVerifier: Uint8Array;
   wrappedMasterKey: Uint8Array;
+  /**
+   * Ciphertext `wrap(MK, recoveryKey)` — the recovery escrow. Escrowed on the
+   * relay (alongside the password wrap) so a device that lost its password can
+   * recover the master key from the recovery phrase alone (`model.md` §6).
+   */
+  wrappedMasterKeyRecovery: Uint8Array;
+  /**
+   * The recovery auth verifier ({@link deriveRecoveryVerifier}); the relay stores
+   * only its hash, so it can authenticate a recovery without learning the key.
+   */
+  recoveryVerifier: Uint8Array;
 }
 
 /** Normalize a username to its canonical form (matches the relay's normalization). */
@@ -222,6 +235,27 @@ export interface AccountBootstrapChannel {
     accountId: string;
     authVerifier: Uint8Array;
   }): Promise<Uint8Array>;
+}
+
+/**
+ * The relay channel {@link recoverAccount} needs — the recovery siblings of the
+ * bootstrap channel. `fetchRecovery` proves possession of the recovery key (its
+ * verifier) to fetch `wrap(MK, recoveryKey)`; `resetCredentials` replaces the
+ * account's password door under the same proof, so a recovered device can sync.
+ */
+export interface RecoveryChannel {
+  lookup(username: string): Promise<{ accountId: string; kdfSalt: Uint8Array }>;
+  fetchRecovery(creds: {
+    accountId: string;
+    recoveryVerifier: Uint8Array;
+  }): Promise<Uint8Array>;
+  resetCredentials(args: {
+    accountId: string;
+    recoveryVerifier: Uint8Array;
+    authVerifier: Uint8Array;
+    kdfSalt: Uint8Array;
+    wrappedMasterKey: Uint8Array;
+  }): Promise<void>;
 }
 
 /**
@@ -281,10 +315,19 @@ export async function enableSync(opts: {
 
   const salt = generateSalt();
   const { kek, authVerifier } = deriveKeyMaterial(password, salt);
-  const recoveryKey = generateRecoveryKey();
+  // Reuse this device's enclave recovery key (minted at first launch, and already
+  // wrapping the at-rest db-key) rather than minting a fresh one, so a single
+  // recovery phrase opens both the local file and — via the escrow below — the
+  // account (`model.md` §6). Idempotent: it's the same key shown in Settings.
+  const recoveryKey = await ensureRecoveryKey(keyStore);
+  const recoveryVerifier = deriveRecoveryVerifier(recoveryKey);
   // The protected symmetric key: wrap(MK, password-KEK). Persisted locally as the
   // `password` door *and* handed to the relay so a second device can recover MK.
   const wrappedMasterKey = wrapKey(masterKey, kek);
+  // The recovery escrow: wrap(MK, recoveryKey). Stored locally as the `recovery`
+  // door *and* handed to the relay, so a device that forgot its password can
+  // recover MK from the phrase alone.
+  const wrappedMasterKeyRecovery = wrapKey(masterKey, recoveryKey);
 
   const account = await accountRepo.create({
     kdfSalt: salt,
@@ -310,7 +353,7 @@ export async function enableSync(opts: {
   await keyWrapRepo.add({
     wrappedKind: "master",
     principalKind: "recovery",
-    ciphertext: wrapKey(masterKey, recoveryKey),
+    ciphertext: wrappedMasterKeyRecovery,
     alg: ALG,
   });
 
@@ -323,6 +366,8 @@ export async function enableSync(opts: {
       kdfSalt: salt,
       authVerifier,
       wrappedMasterKey,
+      wrappedMasterKeyRecovery,
+      recoveryVerifier,
     },
   };
 }
@@ -474,6 +519,135 @@ export async function joinAccount(opts: {
     ciphertext: wrapKey(masterKey, enclaveKey),
     alg: ALG,
   });
+
+  // 6. Register this device on the account.
+  await createDeviceRepo(driver).register({
+    id: deviceId,
+    accountId,
+    label: label ?? null,
+    platform: platform ?? null,
+  });
+
+  return { deviceId, masterKey };
+}
+
+/**
+ * Recover an account on a fresh device from the **recovery phrase** alone — the
+ * "I forgot my password, on a new device" path (`model.md` §6). The relay holds
+ * the recovery escrow (`wrap(MK, recoveryKey)`) and only `sha256` of the recovery
+ * verifier, so this: looks the account up; proves possession of the recovery key
+ * (its verifier) to fetch the escrow and unwrap MK; **sets a new password** and
+ * resets the account's password door on the relay (the old password is gone, and
+ * the relay credential is password-derived, so a recovered device must establish
+ * a fresh one to sync); persists the local account; adopts MK under this device's
+ * enclave; and adopts the account recovery key as this device's recovery key so
+ * one phrase keeps covering both the account and the local file.
+ *
+ * Refuses if this device is already part of an account (like {@link joinAccount}).
+ * A recovery key for a *different* account fails at the relay's verifier check.
+ */
+export async function recoverAccount(opts: {
+  keyStore: KeyStore;
+  driver: SqliteDriver;
+  transport: RecoveryChannel;
+  relayUrl: string;
+  username: string;
+  recoveryKey: Uint8Array;
+  newPassword: string;
+  label?: string;
+  platform?: string;
+}): Promise<KeySession> {
+  const {
+    keyStore,
+    driver,
+    transport,
+    relayUrl,
+    recoveryKey,
+    newPassword,
+    label,
+    platform,
+  } = opts;
+  const username = normalizeUsername(opts.username);
+  const accountRepo = createAccountRepo(driver);
+
+  if ((await accountRepo.getSingleton()) !== undefined) {
+    throw new Error("This device is already part of an account.");
+  }
+
+  // 1. Prelogin → account id. 2. Prove possession of the recovery key (its
+  //    verifier) to fetch wrap(MK, recoveryKey); a wrong phrase → wrong verifier
+  //    → the relay answers 401 here, before any unwrap.
+  const { accountId } = await transport.lookup(username);
+  const recoveryVerifier = deriveRecoveryVerifier(recoveryKey);
+  // Copy onto a plain ArrayBuffer-backed array so it flows into the BLOB-typed
+  // key_wrap field and the crypto primitives (the same posture as the KDF).
+  const wrappedMasterKeyRecovery = Uint8Array.from(
+    await transport.fetchRecovery({ accountId, recoveryVerifier }),
+  );
+  const masterKey = unwrapKey(wrappedMasterKeyRecovery, recoveryKey);
+
+  // 3. Establish a new password and reset the account's password door on the
+  //    relay (proven by the recovery verifier), so this device can authenticate
+  //    sync going forward.
+  const salt = generateSalt();
+  const { kek, authVerifier } = deriveKeyMaterial(newPassword, salt);
+  const wrappedMasterKey = wrapKey(masterKey, kek);
+  await transport.resetCredentials({
+    accountId,
+    recoveryVerifier,
+    authVerifier,
+    kdfSalt: salt,
+    wrappedMasterKey,
+  });
+
+  // 4. Persist the local account row under the recovered id + new salt/verifier.
+  await accountRepo.create({
+    id: accountId,
+    kdfSalt: salt,
+    authVerifier,
+    kdfAlg: KDF_ALG,
+    username,
+    relayUrl,
+  });
+
+  // 5. Adopt MK under this device's enclave, and lay down the local password +
+  //    recovery doors so later launches and an on-device recovery both work.
+  const { deviceId } = await ensureDeviceMasterKey({ keyStore, driver });
+  const enclaveKey = await keyStore.getSecret(ENCLAVE_KEY);
+  if (enclaveKey === undefined) {
+    throw new Error("Device enclave secret is missing.");
+  }
+  const keyWrapRepo = createKeyWrapRepo(driver);
+  const throwaway = await keyWrapRepo.getActive({
+    wrappedKind: "master",
+    principalKind: "enclave",
+    principalRef: deviceId,
+  });
+  if (throwaway !== undefined) await keyWrapRepo.revoke(throwaway.id);
+  await keyWrapRepo.add({
+    wrappedKind: "master",
+    principalKind: "enclave",
+    principalRef: deviceId,
+    ciphertext: wrapKey(masterKey, enclaveKey),
+    alg: ALG,
+  });
+  await keyWrapRepo.add({
+    wrappedKind: "master",
+    principalKind: "password",
+    ciphertext: wrappedMasterKey,
+    alg: ALG,
+  });
+  await keyWrapRepo.add({
+    wrappedKind: "master",
+    principalKind: "recovery",
+    ciphertext: wrappedMasterKeyRecovery,
+    alg: ALG,
+  });
+
+  // Adopt the account recovery key as this device's recovery key, so the one
+  // phrase the user holds keeps opening both the account and this device's local
+  // file (the at-rest sidecar re-keys to it on the next launch).
+  await keyStore.setSecret(RECOVERY_KEY, recoveryKey);
 
   // 6. Register this device on the account.
   await createDeviceRepo(driver).register({

@@ -1,7 +1,8 @@
-import { StrictMode } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 import { router } from "./router";
+import { RecoveryGate } from "./screens/RecoveryGate";
 
 const container = document.getElementById("root");
 if (!container) throw new Error("Root element #root not found");
@@ -16,8 +17,42 @@ window.sync.onActivity((payload) => {
   if (payload.changed) void router.revalidate();
 });
 
+/**
+ * The boot gate: the renderer mounts before the database is open, so it watches
+ * the main process's boot phase and renders the at-rest recovery prompt while the
+ * enclave key is being recovered, swapping in the real app once the core is live.
+ * `status()` is the race-safe initial read in case an event fired before we
+ * subscribed (encryption `model.md` §6).
+ */
+function Root() {
+  const [phase, setPhase] = useState<"starting" | "recovering" | "ready">(
+    "starting",
+  );
+  const [error, setError] = useState<string | undefined>();
+
+  useEffect(() => {
+    const offNeeded = window.boot.onRecoveryNeeded((err) => {
+      setError(err);
+      setPhase("recovering");
+    });
+    const offReady = window.boot.onReady(() => setPhase("ready"));
+    void window.boot.status().then((s) => {
+      setPhase(s.phase);
+      setError(s.error);
+    });
+    return () => {
+      offNeeded();
+      offReady();
+    };
+  }, []);
+
+  if (phase === "ready") return <RouterProvider router={router} />;
+  if (phase === "recovering") return <RecoveryGate error={error} />;
+  return null; // brief "starting" flash; the DB usually opens immediately
+}
+
 createRoot(container).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <Root />
   </StrictMode>,
 );

@@ -114,15 +114,19 @@ export function createNotADuplicateRepo(
                 AND id <> ?`,
             [lower, higher, row.id],
           )) !== undefined;
+        // `MAX(?, updated_at + 1)` keeps each re-point strictly newer than the row
+        // it rewrites so it wins LWW on every device rather than tying when the
+        // merge lands in the row's creation millisecond (see relationships-repo
+        // `repointEntity`).
         if (collides) {
           await driver.run(
-            "UPDATE not_a_duplicate SET deleted_at = ?, updated_at = ? WHERE id = ?",
+            "UPDATE not_a_duplicate SET deleted_at = ?, updated_at = MAX(?, updated_at + 1) WHERE id = ?",
             [now, now, row.id],
           );
           continue;
         }
         await driver.run(
-          `UPDATE not_a_duplicate SET lower_id = ?, higher_id = ?, updated_at = ?
+          `UPDATE not_a_duplicate SET lower_id = ?, higher_id = ?, updated_at = MAX(?, updated_at + 1)
              WHERE id = ?`,
           [lower, higher, now, row.id],
         );

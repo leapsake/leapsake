@@ -90,6 +90,9 @@ export function Settings() {
       ) : (
         <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
       )}
+
+      <hr />
+      <RecoveryPhraseSection />
     </main>
   );
 }
@@ -529,6 +532,18 @@ function LoginStep({
   const [hasLocalData, setHasLocalData] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+
+  if (recovering) {
+    return (
+      <RecoverStep
+        username={username}
+        relayUrl={relayUrl}
+        onBack={() => setRecovering(false)}
+        onJoined={onJoined}
+      />
+    );
+  }
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -630,6 +645,120 @@ function LoginStep({
           Back
         </button>
       </form>
+      <p>
+        <button type="button" onClick={() => setRecovering(true)}>
+          Forgot your password? Recover with your recovery phrase
+        </button>
+      </p>
+    </>
+  );
+}
+
+/**
+ * Forgot-password recovery branch (model.md §6): the account exists but the user
+ * lost the password. They enter their recovery phrase and choose a new password;
+ * the master key is recovered from the relay's escrow and the password reset.
+ */
+function RecoverStep({
+  username,
+  relayUrl,
+  onBack,
+  onJoined,
+}: {
+  username: string;
+  relayUrl: string;
+  onBack: () => void;
+  onJoined: (duplicateCount: number) => void;
+}) {
+  const [recoveryPhrase, setRecoveryPhrase] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    if (recoveryPhrase.trim() === "") {
+      setError("Enter your recovery phrase.");
+      return;
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
+    setWorking(true);
+    try {
+      const { duplicateCount } = await window.sync.recover({
+        username,
+        recoveryPhrase,
+        newPassword: password,
+        relayUrl,
+      });
+      onJoined(duplicateCount);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't recover.");
+      setWorking(false);
+    }
+  }
+
+  return (
+    <>
+      <h3>Recover “{username}”</h3>
+      <p>
+        Enter your recovery phrase to recover <strong>{username}</strong> on{" "}
+        {relayUrl} and choose a new password. Your old password can't be
+        recovered — this replaces it.
+      </p>
+      <form onSubmit={onSubmit}>
+        <p>
+          <label>
+            Recovery phrase
+            <br />
+            <textarea
+              value={recoveryPhrase}
+              rows={3}
+              style={{ width: "100%", fontFamily: "monospace" }}
+              onChange={(e) => setRecoveryPhrase(e.target.value)}
+            />
+          </label>
+        </p>
+        <p>
+          <label>
+            New password
+            <br />
+            <input
+              type="password"
+              value={password}
+              autoComplete="new-password"
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+        </p>
+        <p>
+          <label>
+            Confirm new password
+            <br />
+            <input
+              type="password"
+              value={confirm}
+              autoComplete="new-password"
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+          </label>
+        </p>
+        {error !== null && <p role="alert">{error}</p>}
+        <button type="submit" disabled={working}>
+          {working ? "Recovering…" : "Recover"}
+        </button>{" "}
+        <button type="button" onClick={onBack} disabled={working}>
+          Back
+        </button>
+      </form>
     </>
   );
 }
@@ -645,39 +774,17 @@ function RecoveryKeyReveal({
   recoveryKey: string;
   onDone: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
-
-  async function copy() {
-    await navigator.clipboard.writeText(recoveryKey);
-    setCopied(true);
-  }
 
   return (
     <main>
-      <h1>Save your recovery key</h1>
+      <h1>Save your recovery phrase</h1>
       <p>
-        This is shown <strong>once</strong>. Store it somewhere safe, like a
-        password manager. If you lose both your password and this key, your data
-        cannot be recovered.
+        This is shown <strong>once</strong>. Write it down or store it in a
+        password manager. It's the only way back into your data if you lose your
+        password — if you lose both, your data cannot be recovered.
       </p>
-      <p>
-        <code
-          style={{
-            display: "block",
-            padding: "0.75rem",
-            wordBreak: "break-all",
-            userSelect: "all",
-          }}
-        >
-          {recoveryKey}
-        </code>
-      </p>
-      <p>
-        <button type="button" onClick={copy}>
-          {copied ? "Copied" : "Copy"}
-        </button>
-      </p>
+      <RecoveryPhraseWords phrase={recoveryKey} />
       <p>
         <label>
           <input
@@ -685,12 +792,99 @@ function RecoveryKeyReveal({
             checked={acknowledged}
             onChange={(e) => setAcknowledged(e.target.checked)}
           />{" "}
-          I've saved my recovery key
+          I've saved my recovery phrase
         </label>
       </p>
       <button type="button" disabled={!acknowledged} onClick={onDone}>
         Done
       </button>
     </main>
+  );
+}
+
+/** The numbered word grid + a copy button — shared by the one-time reveal and
+ *  the on-demand "Reveal recovery phrase" in Settings. */
+function RecoveryPhraseWords({ phrase }: { phrase: string }) {
+  const [copied, setCopied] = useState(false);
+  const words = phrase.split(" ");
+
+  async function copy() {
+    await navigator.clipboard.writeText(phrase);
+    setCopied(true);
+  }
+
+  return (
+    <>
+      <ol
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: "0.25rem 1rem",
+          padding: "0.75rem 0.75rem 0.75rem 2.5rem",
+          margin: 0,
+          fontFamily: "monospace",
+          border: "1px solid currentColor",
+          borderRadius: "0.25rem",
+          userSelect: "all",
+        }}
+      >
+        {words.map((word, i) => (
+          <li key={`${i}-${word}`}>{word}</li>
+        ))}
+      </ol>
+      <p>
+        <button type="button" onClick={copy}>
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </p>
+    </>
+  );
+}
+
+/**
+ * On-demand recovery-phrase reveal, available whether or not sync is on (the
+ * phrase also unlocks the local file if this device's key is ever lost —
+ * `model.md` §6). Hidden behind a button so the words aren't shown unprompted.
+ */
+function RecoveryPhraseSection() {
+  const [phrase, setPhrase] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function reveal() {
+    setError(null);
+    try {
+      setPhrase(await window.sync.revealRecoveryPhrase());
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Couldn't read the phrase.",
+      );
+    }
+  }
+
+  return (
+    <>
+      <h2>Recovery phrase</h2>
+      <p>
+        Your recovery phrase is the way back into your data if you lose your
+        password or this device's secure storage is reset.
+      </p>
+      {phrase === null ? (
+        <p>
+          <button type="button" onClick={reveal}>
+            Reveal recovery phrase
+          </button>
+        </p>
+      ) : (
+        <>
+          <RecoveryPhraseWords phrase={phrase} />
+          <p>
+            <button type="button" onClick={() => setPhrase(null)}>
+              Hide
+            </button>
+          </p>
+        </>
+      )}
+      {error !== null && <p role="alert">{error}</p>}
+    </>
   );
 }

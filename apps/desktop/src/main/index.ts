@@ -13,6 +13,7 @@ import {
   getSyncStatus,
   joinAccountViaRelay,
   lookupAccount,
+  recoverAccountViaRelay,
   reconcileOnJoin,
   registerAccountWithRelay,
   runAccountSync,
@@ -22,8 +23,8 @@ import {
 } from "@leapsake/core";
 import {
   type KeyStore,
-  bytesToBase64,
-  ensureDatabaseKey,
+  encodeRecoveryPhrase,
+  ensureRecoveryKey,
 } from "@leapsake/crypto";
 import {
   type ContactOwnerType,
@@ -46,11 +47,7 @@ import {
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
 import { BrowserWindow, app, ipcMain } from "electron";
-import {
-  encryptedSqliteDriver,
-  openEncryptedDatabase,
-} from "./db/encrypted-sqlite-driver.js";
-import { migratePlaintextDatabase } from "./db/plaintext-migration.js";
+import { openAppDatabase } from "./db/open.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
 // The shared SQLite driver, assigned once in whenReady. Module-scoped so the
@@ -488,7 +485,10 @@ function registerSyncIpc(opts: { keyStore: KeyStore }): void {
         throw new Error(relayErrorMessage(cause, relayUrl), { cause });
       }
       void scheduler?.autoTrigger(); // push the first device's data right away
-      return { accountId: account.id, recoveryKey: bytesToBase64(recoveryKey) };
+      return {
+        accountId: account.id,
+        recoveryKey: encodeRecoveryPhrase(recoveryKey),
+      };
     },
   );
 
@@ -538,6 +538,67 @@ function registerSyncIpc(opts: { keyStore: KeyStore }): void {
     },
   );
 
+  // Recover an existing account on this fresh device from the recovery phrase
+  // (forgot password): unwrap MK from the relay's recovery escrow, set a new
+  // password, adopt MK under this device's enclave, and rebuild the core.
+  ipcMain.handle(
+    "sync:recover",
+    async (
+      _event,
+      args: {
+        username?: unknown;
+        recoveryPhrase?: unknown;
+        newPassword?: unknown;
+        relayUrl?: unknown;
+      },
+    ) => {
+      const username = requireText(args?.username, "Username");
+      const relayUrl = requireText(args?.relayUrl, "Relay URL");
+      const recoveryPhrase = requireText(
+        args?.recoveryPhrase,
+        "Recovery phrase",
+      );
+      const newPassword = args?.newPassword;
+      if (
+        typeof newPassword !== "string" ||
+        newPassword.length < MIN_PASSWORD_LENGTH
+      ) {
+        throw new Error(
+          `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        );
+      }
+      try {
+        keySession = await recoverAccountViaRelay({
+          keyStore,
+          driver,
+          relayUrl,
+          username,
+          recoveryPhrase,
+          newPassword,
+          platform: "desktop",
+        });
+      } catch (cause) {
+        throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+      }
+      setActiveCore(keySession);
+      // Same post-join reconcile: a recovering device may hold local data too.
+      let duplicateCount = 0;
+      try {
+        if (activeCore !== undefined) {
+          ({ duplicateCount } = await reconcileOnJoin({
+            driver,
+            masterKey: keySession.masterKey,
+            core: activeCore,
+          }));
+        }
+      } catch {
+        duplicateCount = 0;
+      }
+      void scheduler?.autoTrigger();
+      return { duplicateCount };
+    },
+  );
+
   // Run one push→pull cycle for the enabled account, routed through the scheduler
   // so the manual button and background syncs share single-flight. Returns the
   // completion time for a "last synced" indicator; a guarded skip (sync not
@@ -559,6 +620,14 @@ function registerSyncIpc(opts: { keyStore: KeyStore }): void {
   // The per-client "Sync automatically" preference (default on). Read at render
   // time for the Settings toggle; the setter persists it *and* flips the live
   // scheduler so the change takes effect immediately (and survives a restart).
+  // Reveal this device's recovery phrase on demand (it lives in the enclave, so
+  // it can be shown any time — not just the one-time enable reveal). The escape
+  // hatch back into both the local file and a synced account (model.md §6).
+  ipcMain.handle("sync:revealRecoveryPhrase", async () => {
+    const recoveryKey = await ensureRecoveryKey(keyStore);
+    return encodeRecoveryPhrase(recoveryKey);
+  });
+
   ipcMain.handle("sync:getAutoSync", () => getAutoSync({ driver }));
   ipcMain.handle("sync:setAutoSync", async (_event, enabled: unknown) => {
     const next = enabled === true;
@@ -567,7 +636,7 @@ function registerSyncIpc(opts: { keyStore: KeyStore }): void {
   });
 }
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 900,
     height: 700,
@@ -586,19 +655,55 @@ function createWindow(): void {
   } else {
     void window.loadFile(join(__dirname, "../renderer/index.html"));
   }
+  return window;
+}
+
+// --- Boot gate (at-rest recovery, model.md §6). ----------------------------
+// The renderer mounts before the DB is open so it can host the recovery prompt
+// when this device's enclave key is gone but the encrypted file + sidecar
+// survive. `requestRecoveryPhrase` (passed into openAppDatabase) parks until the
+// renderer submits a phrase; a wrong phrase loops back here with an error.
+
+type BootPhase = "starting" | "recovering" | "ready";
+let bootPhase: BootPhase = "starting";
+let bootError: string | undefined;
+let mainWindow: BrowserWindow | undefined;
+let recoveryPhraseResolver: ((phrase: string) => void) | undefined;
+
+function registerBootIpc(): void {
+  ipcMain.handle("boot:status", () => ({ phase: bootPhase, error: bootError }));
+  ipcMain.handle("boot:recovery", (_event, phrase: unknown) => {
+    if (typeof phrase === "string" && recoveryPhraseResolver !== undefined) {
+      const resolve = recoveryPhraseResolver;
+      recoveryPhraseResolver = undefined;
+      resolve(phrase);
+    }
+  });
+}
+
+function requestRecoveryPhrase({ error }: { error?: string }): Promise<string> {
+  bootPhase = "recovering";
+  bootError = error;
+  mainWindow?.webContents.send("boot:recovery-needed", error);
+  return new Promise<string>((resolve) => {
+    recoveryPhraseResolver = resolve;
+  });
 }
 
 void app.whenReady().then(async () => {
   const userData = app.getPath("userData");
   const dbPath = join(userData, "leapsake.db");
 
-  // The enclave-held whole-DB key opens the encrypted file (Stage 2, model.md §8).
-  // KeyStore first, so the key is in hand before the DB is touched: mint/read the
-  // db-key, upgrade any pre-Stage-2 plaintext file in place, then open encrypted.
+  // The renderer (and its recovery gate) need a window before the DB is opened,
+  // and the boot IPC must be live before the renderer queries it.
+  registerBootIpc();
+  mainWindow = createWindow();
+
+  // Open the at-rest DB: enclave key on a normal launch, mint on a fresh/plaintext
+  // launch, or recover from the `.recovery` sidecar via a typed phrase if the
+  // enclave was wiped (open.ts). The prompt is hosted by the renderer's gate.
   const keyStore = safeStorageKeyStore(join(userData, "keystore.json"));
-  const dbKey = await ensureDatabaseKey(keyStore);
-  migratePlaintextDatabase(dbPath, dbKey);
-  driver = encryptedSqliteDriver(openEncryptedDatabase(dbPath, dbKey));
+  driver = await openAppDatabase({ dbPath, keyStore, requestRecoveryPhrase });
   await runMigrations(driver);
   keySession = await ensureDeviceMasterKey({ keyStore, driver });
 
@@ -641,10 +746,16 @@ void app.whenReady().then(async () => {
     void scheduler?.autoTrigger();
   });
 
-  createWindow();
+  // The core is live — let the gate render the app (the window was created up
+  // front so any recovery prompt had somewhere to show).
+  bootPhase = "ready";
+  bootError = undefined;
+  mainWindow?.webContents.send("boot:ready");
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      mainWindow = createWindow();
+    }
   });
 });
 

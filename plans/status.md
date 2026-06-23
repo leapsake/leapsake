@@ -7,7 +7,7 @@
 > do next*, then the relevant design doc for the *why*.** Update *this* file per increment;
 > keep the design docs stable.
 >
-> **Updated 2026-06-22.**
+> **Updated 2026-06-22** (recovery-phrase increment landed; UI pending manual verification).
 
 ## Where things stand
 
@@ -15,9 +15,13 @@
   iOS + Android) — ✅ done. (Delivery history is in git; durable lessons are in
   [`../AGENTS.md`](../AGENTS.md) and the package READMEs.)
 - **V3 · Encryption + sync** — **Stage 1 (zero-knowledge sync) is done** on both clients,
-  verified desktop ↔ mobile over the wire. **Stage 2 (at-rest) is now done on both clients**
-  (the local file is encrypted on desktop *and* mobile). Stages 3–4
-  (sharing, SSR) remain post-launch. Design: [`encryption/`](./encryption/).
+  verified desktop ↔ mobile over the wire. **Stage 2 (at-rest) is done on both clients**
+  (the local file is encrypted on desktop *and* mobile). **The recovery-phrase increment is
+  code-complete** — the recovery key is now a 24-word phrase that recovers **both** loss
+  events (lost OS keychain → reopen the local file; forgot password → recover the account on
+  a new device). Crypto/core/relay paths are test-verified; **the UI on both clients is not
+  yet manually verified** (see *What's next → Immediate verification*). Stages 3–4 (sharing,
+  SSR) remain post-launch. Design: [`encryption/`](./encryption/).
 - **V3 · Reconciliation (dedup & merge)** — Increments A, B, and C's merge-on-join are
   built; only C's bulk-import dedup remains (deferred until the importer exists). Design:
   [`packages/core/README.md`](../packages/core/README.md).
@@ -73,8 +77,9 @@ existing `SqliteDriver` port, with **zero edits above the driver**.
   encrypted SQLite for Node/Electron, ships prebuilt binaries for **both** Node (Vitest) and
   Electron (the app) so there is no node-gyp compile, and is synchronous (a near drop-in for the
   old `node:sqlite` driver). This reintroduces a native addon — the cost `node:sqlite` was chosen
-  to avoid — **accepted** for at-rest; mitigated by prebuilds + a `pnpm --filter @leapsake/desktop
-  rebuild` step (`@electron/rebuild`) for the Electron ABI.
+  to avoid — **accepted** for at-rest; mitigated by prebuilds + an automatic ABI guard
+  (`scripts/ensure-sqlite-abi.mjs`, via `prebuild-install`) wired into `dev`/`start`/`test` so the
+  one native binary flips between the Electron and Node (Vitest) ABIs with no manual `rebuild` step.
 - **Whole-DB key custody:** a random 256-bit key minted once on first launch and held **only** in
   the OS enclave via the `KeyStore` (`db-key`), supplied at open time. It is deliberately **not** a
   `key_wrap` row — that table lives inside the encrypted DB (chicken-and-egg) — and is orthogonal to
@@ -128,6 +133,45 @@ whole-DB key. Search/kinship/timelines untouched (in-memory plaintext, as on des
   (Xcode 16.4+) and the local Xcode is 16.2 (Swift 6.0) — an environment gate unrelated to this
   change. The shared code path is platform-identical, so Android's pass exercises it fully.
 
+### Encryption + sync — recovery phrase (make the recovery key a real lifeline)
+
+The recovery key was previously inert: minted at `enableSync`, shown once as base64, wired to
+nothing. This increment makes one **24-word recovery phrase** recover **both** at-rest loss
+events, and is the unifying decision behind the design: `enableSync` now **reuses the device's
+enclave recovery key** (minted at first launch) instead of generating a fresh one, so the same
+phrase opens the local file *and* the account. Design context in the plan
+`~/.claude/plans/read-plans-readme-md-make-a-inherited-dragonfly.md` and [`encryption/model.md`](./encryption/) §6.
+
+- **Stage A — encoding (verified).** `@scure/bip39` in `packages/crypto`;
+  `recovery-phrase.ts` = `encodeRecoveryPhrase`/`decodeRecoveryPhrase` (tolerant parse +
+  BIP39 checksum, so a mangled paste fails with a friendly message, not an opaque AEAD error).
+  Both clients' one-time reveal renders a numbered 24-word grid. Unit-tested.
+- **Stage B — single-device recovery (core verified, UI not).** New enclave secret
+  `recovery-key` (`packages/crypto/src/recovery.ts`: `ensureRecoveryKey`,
+  `sealDbKeyForRecovery`/`openDbKeyFromRecovery`, `LSKR1` versioned blob) wraps the **db-key**
+  into a sidecar *outside* the encrypted DB, so a lost OS keychain can be recovered with the
+  phrase. Desktop: `apps/desktop/src/main/db/open.ts` (3-case boot: normal / fresh+plaintext /
+  keychain-loss recovery; sidecar `leapsake.db.recovery`; rewritten every boot so key-adoption
+  self-heals) — **Node-ABI tested against the real encrypted engine** (`apps/desktop/test/open.test.ts`).
+  Mobile: sidecar in a *second, unencrypted* expo-sqlite DB `leapsake-recovery.db`
+  (`apps/mobile/db/recovery-sidecar.ts`) — chosen to avoid adding a native filesystem dep (no
+  new prebuild). Boot recovery prompt: desktop `RecoveryGate` + `window.boot` bridge
+  (`preload/index.ts`, `main.tsx`, `main/index.ts` boot restructure — window now created
+  *before* the DB opens); mobile `RecoveryGate` in `core-context.tsx`. "Reveal recovery
+  phrase" added to Settings on both (works for non-sync local-only users too).
+- **Stage C — cross-device recovery (core+relay verified, UI not).** `deriveRecoveryVerifier`
+  (HKDF branch of the recovery key, `packages/crypto/src/kdf.ts`). The relay now escrows
+  `wrap(MK, recoveryKey)` + `sha256(recoveryVerifier)` (`apps/server` `store.ts` columns +
+  `ALTER TABLE` for existing DBs; `relay.ts` `GET /accounts/recovery` + `POST /accounts/reset`
+  behind a distinct `Authorization: Recovery …` scheme). `recoverAccount` /
+  `recoverAccountViaRelay` (`packages/core`): look up → fetch escrow → unwrap MK → **set a new
+  password** (reset on the relay) → adopt MK + the account recovery key locally. Transport:
+  `fetchRecovery`/`resetCredentials` (`packages/data/src/http-sync-transport.ts`). UI: "Recover
+  with recovery phrase" in the login flow (`RecoverStep`) + `sync.recover` IPC/SyncApi on both
+  clients. **End-to-end test** (`apps/server/test/relay.test.ts`) proves a fresh device
+  recovers MK from the phrase, reads device-1's data, and the new password unlocks locally;
+  plus wrong-phrase rejection.
+
 ### Reconciliation (dedup & merge)
 
 Detail + reuse rationale in [`packages/core/README.md`](../packages/core/README.md).
@@ -159,18 +203,63 @@ Detail + reuse rationale in [`packages/core/README.md`](../packages/core/README.
 **Encryption + sync** — Stage 1 is done (desktop ↔ mobile over-the-wire demo verified: a
 person + decrypted milestone note converge both ways through a localhost `apps/server` relay).
 What's left for launch:
-- **Stage 2 — at-rest encryption.** **Desktop is done** (see Recently shipped:
-  `better-sqlite3-multiple-ciphers` behind the `SqliteDriver` port, whole-DB key in the OS
-  enclave, plaintext→encrypted upgrade-on-launch). **Remaining: mobile at-rest** — its own
-  increment with its own backend question (verify expo-sqlite's SQLCipher path on SDK 56, else
-  `@op-engineering/op-sqlite` via a config plugin); same key-custody pattern, lifted from
-  desktop's `database-key.ts`. Stage 2's convenience doors (passkeys, Tier-1 escrow) stay
-  additive/post-launch.
+- **Stage 2 — at-rest encryption.** **Done on both clients** (see Recently shipped).
+- **Recovery phrase.** **Done (code-complete), pending UI verification** (see Recently
+  shipped + *Immediate verification* below). Replaced the base64 placeholder.
 - **Relay hardening** — TLS, challenge–response vs. bearer replay, device-scoped tokens,
-  proxy-aware/shared rate limiter (`encryption/security-review.md` §3).
-- **Human-transcribable recovery-key encoding** (base64 today; the only Tier-2 way back in).
+  proxy-aware/shared rate limiter (`encryption/security-review.md` §3). **Now also covers the
+  two new recovery endpoints**: `POST /accounts/reset` is a state-changing, password-resetting
+  surface gated only by the recovery verifier (256-bit, so brute force is infeasible) and is
+  **not rate-limited** today — add it to the limiter in the hardening pass; `GET
+  /accounts/recovery` serves the recovery escrow under the same verifier gate.
 - **CK revocation / GC on entity delete** (sync-era cleanup; stops orphaned keys).
 - **True background-fetch sync + a configurable sync-*interval* UI.**
+
+#### Immediate verification (recovery phrase — UI not yet exercised)
+
+The crypto/core/relay layers are test-verified; the **UI and boot flows could not be run in
+the build agent** and need a human pass. Verify and report back:
+- **Desktop reveal:** enable sync → the reveal shows a 24-word phrase (not base64); the same
+  phrase appears under Settings → "Reveal recovery phrase".
+- **Desktop single-device recovery:** with `leapsake.db` + `leapsake.db.recovery` present,
+  delete the `db-key` entry from the OS keychain (or the `db-key` line in
+  `<userData>/keystore.json`) → relaunch → the `RecoveryGate` prompts for the phrase →
+  entering it restores access (wrong phrase shows an error and re-prompts).
+- **Desktop cross-device recovery:** second profile/instance → login flow → "Forgot your
+  password? Recover with your recovery phrase" → enter phrase + a new password → data
+  converges over a localhost `apps/server` relay; the new password then unlocks on relaunch.
+- **Mobile:** the same reveal + boot-recovery + recover-with-phrase flows on a dev client
+  (Android emulator, as in Stage 2 mobile verification). Confirm the `leapsake-recovery.db`
+  sidecar is created beside the main DB.
+
+#### Identified issues / follow-ups from this increment
+
+- **Password reset invalidates other devices' relay credential** (no re-auth flow). After a
+  recovery resets the password, *other* devices still hold the old password-derived
+  `authVerifier`, so their `runAccountSync` will start failing with **401** and silently stop
+  (data stays intact locally). This is standard "reset logs out other sessions," but there is
+  **no UI to re-connect** a device after a remote password change. Add a flow: on a sync 401,
+  surface "your password changed elsewhere — re-enter it to reconnect" and re-derive
+  salt/verifier (a `lookup` + password re-entry, no new MK). Touches the scheduler's `onError`
+  path and `runAccountSync` callers.
+- **Per-device vs per-account recovery phrase.** The phrase is unified (local file **and**
+  account) only on the device that *enabled* sync or *recovered* the account. A device that
+  joined by **password** keeps its **own** first-launch recovery key for its local-file
+  sidecar; the account-MK recovery phrase remains the enabling device's. So "Reveal recovery
+  phrase" on a password-joined device shows that device's *local-file* phrase, not the account
+  phrase — a possible point of user confusion. (A password join can't adopt the account phrase
+  because it never sees it.) Decide whether to document this in-product or revisit.
+- **Fixed — merge-on-same-ms LWW tie** (was: flaky `merge-people.test.ts`). Root cause was a
+  real correctness bug, not just test noise: a merge that re-points/tombstones a row in the same
+  millisecond the row was created stamped an equal `updated_at`, so whole-row LWW's canonical
+  tiebreak could keep the *pre-merge* version on other devices (a re-point stranded on the
+  tombstoned loser, or a resurrected loser). Fixed by making every merge write strictly advance
+  the row's clock — `updated_at = MAX(?, updated_at + 1)` in `people.softDelete` and all six
+  `repointEntity`/`repointOwner` paths (`relationships`, `tags`, `dismissals`, `milestones`,
+  `contact-methods`, `not-a-duplicate`). Verified deterministic over repeated runs.
+- **Relay store migration:** new columns are added via `ALTER TABLE relay_account ADD COLUMN`
+  (try/catch on duplicate) in `apps/server/src/store.ts` — fine for the single-node SQLite
+  relay; revisit if the relay store ever moves backends.
 
 **Distribution (launch-gating)** — code signing, macOS notarization, auto-update; v0.1 can't
 ship without distributable apps. (None yet.)

@@ -97,6 +97,7 @@ export default function SettingsScreen() {
       ) : (
         <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
       )}
+      <RecoveryPhraseSection />
     </ScrollView>
   );
 }
@@ -546,6 +547,18 @@ function LoginStep({
   const [hasLocalData, setHasLocalData] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+
+  if (recovering) {
+    return (
+      <RecoverStep
+        username={username}
+        relayUrl={relayUrl}
+        onBack={() => setRecovering(false)}
+        onJoined={onJoined}
+      />
+    );
+  }
 
   function onSubmit() {
     setError(null);
@@ -654,6 +667,125 @@ function LoginStep({
       >
         <Text style={styles.buttonText}>Back</Text>
       </Pressable>
+      <Pressable onPress={() => setRecovering(true)}>
+        <Text style={styles.link}>
+          Forgot your password? Recover with your recovery phrase
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * Forgot-password recovery branch (model.md §6): the account exists but the user
+ * lost the password. They enter their recovery phrase and choose a new password;
+ * the master key is recovered from the relay's escrow and the password reset.
+ */
+function RecoverStep({
+  username,
+  relayUrl,
+  onBack,
+  onJoined,
+}: {
+  username: string;
+  relayUrl: string;
+  onBack: () => void;
+  onJoined: (duplicateCount: number) => void;
+}) {
+  const sync = useSync();
+  const [recoveryPhrase, setRecoveryPhrase] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  async function onSubmit() {
+    setError(null);
+    if (recoveryPhrase.trim() === "") {
+      setError("Enter your recovery phrase.");
+      return;
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
+    setWorking(true);
+    try {
+      const { duplicateCount } = await sync.recover({
+        username,
+        recoveryPhrase,
+        newPassword: password,
+        relayUrl,
+      });
+      onJoined(duplicateCount);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't recover.");
+      setWorking(false);
+    }
+  }
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.fieldValue}>Recover “{username}”</Text>
+      <Text style={styles.muted}>
+        Enter your recovery phrase to recover “{username}” on {relayUrl} and
+        choose a new password. Your old password can't be recovered — this
+        replaces it.
+      </Text>
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Recovery phrase</Text>
+        <TextInput
+          style={[styles.input, { minHeight: 72 }]}
+          value={recoveryPhrase}
+          onChangeText={setRecoveryPhrase}
+          multiline
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>New password</Text>
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          autoComplete="new-password"
+          textContentType="newPassword"
+        />
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Confirm new password</Text>
+        <TextInput
+          style={styles.input}
+          value={confirm}
+          onChangeText={setConfirm}
+          secureTextEntry
+          autoComplete="new-password"
+          textContentType="newPassword"
+        />
+      </View>
+      {error !== null && (
+        <Text style={styles.danger} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
+      <Pressable style={styles.button} disabled={working} onPress={onSubmit}>
+        <Text style={styles.buttonText}>
+          {working ? "Recovering…" : "Recover"}
+        </Text>
+      </Pressable>
+      <Pressable
+        style={[styles.button, { backgroundColor: colors.border }]}
+        disabled={working}
+        onPress={onBack}
+      >
+        <Text style={styles.buttonText}>Back</Text>
+      </Pressable>
     </View>
   );
 }
@@ -669,32 +801,19 @@ function RecoveryKeyReveal({
   recoveryKey: string;
   onDone: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
-
-  async function copy() {
-    await Clipboard.setStringAsync(recoveryKey);
-    setCopied(true);
-  }
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <Text style={styles.title}>Save your recovery key</Text>
+      <Text style={styles.title}>Save your recovery phrase</Text>
       <Text style={styles.muted}>
-        This is shown once. Store it somewhere safe, like a password manager. If
-        you lose both your password and this key, your data cannot be recovered.
+        This is shown once. Write it down or store it in a password manager.
+        It's the only way back into your data if you lose your password — if you
+        lose both, your data cannot be recovered.
       </Text>
-      <Text
-        selectable
-        style={[styles.input, { fontFamily: "Courier", color: colors.text }]}
-      >
-        {recoveryKey}
-      </Text>
-      <Pressable style={styles.button} onPress={copy}>
-        <Text style={styles.buttonText}>{copied ? "Copied" : "Copy"}</Text>
-      </Pressable>
+      <RecoveryPhraseWords phrase={recoveryKey} />
       <View style={[styles.rowMeta, { marginTop: 0 }]}>
-        <Text style={styles.fieldValue}>I've saved my recovery key</Text>
+        <Text style={styles.fieldValue}>I've saved my recovery phrase</Text>
         <Switch value={acknowledged} onValueChange={setAcknowledged} />
       </View>
       <Pressable
@@ -708,5 +827,90 @@ function RecoveryKeyReveal({
         <Text style={styles.buttonText}>Done</Text>
       </Pressable>
     </ScrollView>
+  );
+}
+
+/** The numbered word grid + a copy button — shared by the one-time reveal and
+ *  the on-demand "Reveal recovery phrase" section. */
+function RecoveryPhraseWords({ phrase }: { phrase: string }) {
+  const [copied, setCopied] = useState(false);
+  const words = phrase.split(" ");
+
+  async function copy() {
+    await Clipboard.setStringAsync(phrase);
+    setCopied(true);
+  }
+
+  return (
+    <>
+      <View
+        style={[
+          styles.input,
+          { flexDirection: "row", flexWrap: "wrap", rowGap: 4 },
+        ]}
+      >
+        {words.map((word, i) => (
+          <Text
+            key={`${i}-${word}`}
+            selectable
+            style={{ width: "33%", fontFamily: "Courier", color: colors.text }}
+          >
+            {i + 1}. {word}
+          </Text>
+        ))}
+      </View>
+      <Pressable style={styles.button} onPress={copy}>
+        <Text style={styles.buttonText}>{copied ? "Copied" : "Copy"}</Text>
+      </Pressable>
+    </>
+  );
+}
+
+/**
+ * On-demand recovery-phrase reveal, available whether or not sync is on (the
+ * phrase also unlocks the local file if this device's key is ever lost —
+ * `model.md` §6). Hidden behind a button so the words aren't shown unprompted.
+ */
+function RecoveryPhraseSection() {
+  const sync = useSync();
+  const [phrase, setPhrase] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function reveal() {
+    setError(null);
+    try {
+      setPhrase(await sync.revealRecoveryPhrase());
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Couldn't read the phrase.",
+      );
+    }
+  }
+
+  return (
+    <View style={{ marginTop: 24, gap: 8 }}>
+      <Text style={styles.title}>Recovery phrase</Text>
+      <Text style={styles.muted}>
+        Your recovery phrase is the way back into your data if you lose your
+        password or this device's secure storage is reset.
+      </Text>
+      {phrase === null ? (
+        <Pressable style={styles.button} onPress={reveal}>
+          <Text style={styles.buttonText}>Reveal recovery phrase</Text>
+        </Pressable>
+      ) : (
+        <>
+          <RecoveryPhraseWords phrase={phrase} />
+          <Pressable style={styles.button} onPress={() => setPhrase(null)}>
+            <Text style={styles.buttonText}>Hide</Text>
+          </Pressable>
+        </>
+      )}
+      {error !== null && (
+        <Text style={styles.danger} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
+    </View>
   );
 }

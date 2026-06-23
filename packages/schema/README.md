@@ -14,7 +14,7 @@ its keep as the one validation dependency.
 
 ## Domain naming: People, not Contacts
 
-The core entity is **`Person`** (table `people`). A "contact" is an abstraction *over* a
+The core entity is **`Person`** (table `people`). A "contact" is an abstraction _over_ a
 person; the app may also hold people who aren't contacts. **`Pet`** is first-class alongside
 Person. Use `Person` / `people` / `peopleRepo` consistently.
 
@@ -27,8 +27,8 @@ Person. Use `Person` / `people` / `peopleRepo` consistently.
   gender derivation, relationship-role algebra (`inverseRole`, `genderedVariant`,
   `composeRoles`, …), milestone date precision, contact-method normalization, search folding.
 - **Merge primitives** — `resolveMerge` (whole-row last-writer-wins on `updatedAt` +
-  tombstones: the *same-id* merge that sync converges with) and `scoreDuplicate` (the
-  *distinct-id* duplicate detector). The two-kinds-of-merge framing is in
+  tombstones: the _same-id_ merge that sync converges with) and `scoreDuplicate` (the
+  _distinct-id_ duplicate detector). The two-kinds-of-merge framing is in
   [`packages/core`](../core/README.md).
 
 ## Constraints

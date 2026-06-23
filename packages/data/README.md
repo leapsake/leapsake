@@ -29,7 +29,7 @@ NULL`**, so soft-deleted history coexists with live data (see the sync-safe conv
 
 Each entity has an async repo over the port (`create`, `list`/`listForEntity`, `get`,
 `update`, `softDelete`, cascade `removeAllForEntity`/`removeAllForOwner`, and — for
-reconciliation — `repointEntity`/`repointOwner`). Cross-repo *services* (kinship derivation,
+reconciliation — `repointEntity`/`repointOwner`). Cross-repo _services_ (kinship derivation,
 search folding/matching, milestone timeline, duplicate detection) compose multiple repos.
 
 ## Sync engine (V3)
