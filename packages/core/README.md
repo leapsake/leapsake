@@ -17,19 +17,19 @@ Both clients consume it the same way:
   bridge can never drift from core.
 - **Mobile** builds the core in-process and calls it directly.
 
-This is the seam that made V2 a *UI* port: the entire non-UI surface was already
+This is the seam that made V2 a _UI_ port: the entire non-UI surface was already
 client-agnostic and tested, so only the UI was new.
 
 ## Two kinds of "merge" (sync vs. reconciliation)
 
 Leapsake has two distinct merge problems; conflating them causes bugs.
 
-| | Same-`id` reconciliation | Distinct-`id` reconciliation |
-|---|---|---|
-| **What** | Two *versions* of the **same row** (same UUID) | Two *different rows* that mean the **same person** |
-| **When** | Sync: the same record edited on two devices | A dupe is hand-created, joined, or imported |
-| **Who decides** | Nobody — fully automatic | Often a **human** (ambiguous) |
-| **Mechanism** | `resolveMerge` (whole-row LWW, in `schema`) | `core.people.merge` + the scorer (here + `schema`) |
+|                 | Same-`id` reconciliation                       | Distinct-`id` reconciliation                       |
+| --------------- | ---------------------------------------------- | -------------------------------------------------- |
+| **What**        | Two _versions_ of the **same row** (same UUID) | Two _different rows_ that mean the **same person** |
+| **When**        | Sync: the same record edited on two devices    | A dupe is hand-created, joined, or imported        |
+| **Who decides** | Nobody — fully automatic                       | Often a **human** (ambiguous)                      |
+| **Mechanism**   | `resolveMerge` (whole-row LWW, in `schema`)    | `core.people.merge` + the scorer (here + `schema`) |
 
 Sync's `resolveMerge` only ever merges rows with a **matching id**; two records for the same
 person have **different** UUIDs, so LWW never touches them — they coexist as duplicates.
@@ -45,17 +45,17 @@ soft-deletes the loser. A Person id is referenced in these places (the full set,
 against the cascade-delete path), each with a `repointEntity`/`repointOwner` building block on
 its repo:
 
-| Table / repo | FK column(s) | Note |
-|---|---|---|
-| relationships | `aId`/`aType`, `bId`/`bType` | either endpoint; prune self-loops + dup-edges after |
-| taggings | `entityId`/`entityType` | drop a tagging the survivor already has |
-| milestones | `subjectId`/`subjectType` | subject may also be a *relationship* — unaffected |
-| emails / phones / postals | `ownerId`/`ownerType` | three tables, same shape |
-| dismissals | `subjectId` **and** `otherId` | directional — both ends; drop now-self rows |
-| not_a_duplicate | `lowerId` / `higherId` | re-canonicalize; drop self-pairs |
+| Table / repo              | FK column(s)                  | Note                                                |
+| ------------------------- | ----------------------------- | --------------------------------------------------- |
+| relationships             | `aId`/`aType`, `bId`/`bType`  | either endpoint; prune self-loops + dup-edges after |
+| taggings                  | `entityId`/`entityType`       | drop a tagging the survivor already has             |
+| milestones                | `subjectId`/`subjectType`     | subject may also be a _relationship_ — unaffected   |
+| emails / phones / postals | `ownerId`/`ownerType`         | three tables, same shape                            |
+| dismissals                | `subjectId` **and** `otherId` | directional — both ends; drop now-self rows         |
+| not_a_duplicate           | `lowerId` / `higherId`        | re-canonicalize; drop self-pairs                    |
 
 **It syncs for free:** re-points bump `updatedAt` (propagate as normal edits) and the loser's
-soft-delete is a tombstone (propagates) — a merge on one device just *happens* on the other
+soft-delete is a tombstone (propagates) — a merge on one device just _happens_ on the other
 via the existing engine, no new sync code. The survivor's `updatedAt` is bumped so it wins
 LWW against a concurrent edit to the loser elsewhere. Endpoints/owners are already
 entity-typed, so a future `mergePets` / generalized `mergeEntities` is a small follow-on.

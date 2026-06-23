@@ -138,8 +138,13 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
     },
 
     async softDelete(id) {
+      // `MAX(?, updated_at + 1)` makes the tombstone strictly out-rank the row's
+      // current version on every device. Without it a delete landing in the same
+      // millisecond the row was created (as a merge does to the loser) ties on
+      // `updated_at`, and whole-row LWW's canonical tiebreak could keep the live
+      // row — resurrecting it after sync. See relationships-repo `repointEntity`.
       await driver.run(
-        "UPDATE people SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+        "UPDATE people SET deleted_at = ?, updated_at = MAX(?, updated_at + 1) WHERE id = ? AND deleted_at IS NULL",
         [Date.now(), Date.now(), id],
       );
     },

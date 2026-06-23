@@ -77,6 +77,10 @@ export interface AccountRegistration {
   kdfSalt: Uint8Array;
   /** Ciphertext `wrap(MK, KEK)` — the protected symmetric key. */
   wrappedMasterKey: Uint8Array;
+  /** Ciphertext `wrap(MK, recoveryKey)` — the recovery escrow (model.md §6). */
+  wrappedMasterKeyRecovery: Uint8Array;
+  /** The recovery auth verifier; the relay stores only its hash. */
+  recoveryVerifier: Uint8Array;
 }
 
 /**
@@ -116,6 +120,27 @@ export interface HttpSyncTransport extends SyncTransport {
     accountId: string;
     authVerifier: Uint8Array;
   }): Promise<Uint8Array>;
+  /**
+   * Recovery-authed: prove possession of the recovery key (its verifier) to fetch
+   * `wrap(MK, recoveryKey)` so a device that lost its password can unwrap the
+   * master key (model.md §6). A wrong recovery key → wrong verifier → relay 401.
+   */
+  fetchRecovery(creds: {
+    accountId: string;
+    recoveryVerifier: Uint8Array;
+  }): Promise<Uint8Array>;
+  /**
+   * Recovery-authed: replace the account's password door (verifier, salt, and
+   * `wrap(MK, KEK)`) with freshly chosen-password material. How a recovered
+   * device re-establishes a working relay credential after recovery.
+   */
+  resetCredentials(args: {
+    accountId: string;
+    recoveryVerifier: Uint8Array;
+    authVerifier: Uint8Array;
+    kdfSalt: Uint8Array;
+    wrappedMasterKey: Uint8Array;
+  }): Promise<void>;
 }
 
 export function createHttpSyncTransport(opts: {
@@ -178,6 +203,10 @@ export function createHttpSyncTransport(opts: {
           authVerifier: bytesToBase64(authVerifier),
           kdfSalt: bytesToBase64(registration.kdfSalt),
           wrappedMasterKey: bytesToBase64(registration.wrappedMasterKey),
+          wrappedMasterKeyRecovery: bytesToBase64(
+            registration.wrappedMasterKeyRecovery,
+          ),
+          recoveryVerifier: bytesToBase64(registration.recoveryVerifier),
         }),
       });
       if (!res.ok) throw new Error(`relay register failed: ${res.status}`);
@@ -212,6 +241,40 @@ export function createHttpSyncTransport(opts: {
       }
       const body = (await res.json()) as { wrappedMasterKey: string };
       return base64ToBytes(body.wrappedMasterKey);
+    },
+
+    async fetchRecovery(creds) {
+      // A distinct `Recovery` scheme so the relay checks the recovery-verifier
+      // hash, not the password one. `<accountId>.<base64(recoveryVerifier)>`.
+      const token = `${creds.accountId}.${bytesToBase64(creds.recoveryVerifier)}`;
+      const res = await doFetch(`${base}/accounts/recovery`, {
+        method: "GET",
+        headers: { authorization: `Recovery ${token}` },
+      });
+      if (!res.ok) {
+        throw new Error(`relay GET /accounts/recovery failed: ${res.status}`);
+      }
+      const body = (await res.json()) as { wrappedMasterKeyRecovery: string };
+      return base64ToBytes(body.wrappedMasterKeyRecovery);
+    },
+
+    async resetCredentials(args) {
+      const token = `${args.accountId}.${bytesToBase64(args.recoveryVerifier)}`;
+      const res = await doFetch(`${base}/accounts/reset`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Recovery ${token}`,
+        },
+        body: JSON.stringify({
+          authVerifier: bytesToBase64(args.authVerifier),
+          kdfSalt: bytesToBase64(args.kdfSalt),
+          wrappedMasterKey: bytesToBase64(args.wrappedMasterKey),
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`relay POST /accounts/reset failed: ${res.status}`);
+      }
     },
 
     async push(records) {

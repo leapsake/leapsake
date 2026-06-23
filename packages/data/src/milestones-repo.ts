@@ -294,8 +294,12 @@ export function createMilestonesRepo(
 
     async repointEntity(type, fromId, toId) {
       const now = Date.now();
+      // `MAX(?, updated_at + 1)` keeps the re-point strictly newer than the row it
+      // rewrites so it wins LWW on every device rather than tying when the merge
+      // lands in the milestone's creation millisecond (see relationships-repo
+      // `repointEntity`).
       await driver.run(
-        `UPDATE milestones SET subject_id = ?, updated_at = ?
+        `UPDATE milestones SET subject_id = ?, updated_at = MAX(?, updated_at + 1)
            WHERE subject_type = ? AND subject_id = ? AND deleted_at IS NULL`,
         [toId, now, type, fromId],
       );

@@ -54,10 +54,13 @@ synchronous — a near drop-in for the previous `node:sqlite` driver.
 This reintroduces a native addon (the cost `node:sqlite` had let us avoid — accepted
 for at-rest encryption). Two consequences:
 
-- **Electron ABI rebuild.** `pnpm install` fetches the Node-ABI prebuild (used by
-  Vitest); the app needs the Electron-ABI build. Run `pnpm --filter @leapsake/desktop
-  rebuild` (`@electron/rebuild`, fetches the matching prebuild — no compile) before
-  `dev`/`build` when the Electron version changes.
+- **Electron ABI guard (automatic).** The single native `.node` carries one ABI at a
+  time, and Vitest (Node) and the app (Electron) need *different* ABIs — running one
+  otherwise flips the binary out from under the other. `scripts/ensure-sqlite-abi.mjs`
+  (repo root) re-extracts the matching prebuild (from `prebuild-install`'s cache — no
+  compile) and is wired into the commands: `dev`/`start`/`rebuild` ensure the Electron
+  ABI, `pnpm test` ensures the Node ABI. So the two are interchangeable with no manual
+  step; the Electron version is auto-derived, so a bump needs no edit.
 - The native module is externalized by `electron-vite` automatically (it is a real
   dependency, not a `@leapsake/*` workspace package), so its `.node` loads from
   `node_modules` at runtime.

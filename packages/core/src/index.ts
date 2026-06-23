@@ -80,6 +80,7 @@ export {
   ensureDeviceMasterKey,
   enableSync,
   joinAccount,
+  recoverAccount,
   unlockWithPassword,
   unlockWithRecoveryKey,
   getSyncStatus,
@@ -89,6 +90,7 @@ export {
   type SyncStatus,
   type AccountBootstrap,
   type AccountBootstrapChannel,
+  type RecoveryChannel,
 } from "./key-session.js";
 
 // The production sync-engine assembly: the canonical syncable allowlist plus a
@@ -100,6 +102,7 @@ export {
   lookupAccount,
   registerAccountWithRelay,
   joinAccountViaRelay,
+  recoverAccountViaRelay,
   runAccountSync,
   reconcileOnJoin,
   selectJoinDuplicates,

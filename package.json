@@ -11,7 +11,7 @@
     "format": "oxfmt . '!**/*.md'",
     "format:check": "oxfmt --check . '!**/*.md'",
     "lint": "oxlint",
-    "test": "vitest run",
+    "test": "node scripts/ensure-sqlite-abi.mjs node && vitest run",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {

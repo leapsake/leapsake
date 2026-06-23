@@ -51,6 +51,17 @@ const registerBodySchema = z.object({
   authVerifier: base64,
   kdfSalt: base64,
   wrappedMasterKey: base64,
+  // Recovery escrow (model.md §6). Optional so a pre-recovery client can still
+  // register; current clients always send both.
+  wrappedMasterKeyRecovery: base64.optional(),
+  recoveryVerifier: base64.optional(),
+});
+
+/** Recovery-authenticated password reset: new password-door material. */
+const resetBodySchema = z.object({
+  authVerifier: base64,
+  kdfSalt: base64,
+  wrappedMasterKey: base64,
 });
 
 const wireRecordSchema = z.object({
@@ -175,6 +186,46 @@ function authenticate(req: IncomingMessage, store: RelayStore): string | null {
   return accountId;
 }
 
+/**
+ * Authenticate a **recovery** request: the `Authorization: Recovery
+ * <accountId>.<base64(recoveryVerifier)>` scheme, checked against the stored
+ * recovery-verifier hash (the recovery sibling of {@link authenticate}). A
+ * distinct scheme so the password and recovery doors never cross-authenticate.
+ * Returns the account id or `null` (no account, no recovery escrow, mismatch).
+ */
+function authenticateRecovery(
+  req: IncomingMessage,
+  store: RelayStore,
+): string | null {
+  const header = req.headers.authorization;
+  if (header === undefined || !header.startsWith("Recovery ")) return null;
+  const token = header.slice("Recovery ".length);
+
+  const dot = token.indexOf(".");
+  if (dot < 0) return null;
+  const accountId = token.slice(0, dot);
+  const verifierB64 = token.slice(dot + 1);
+
+  const account = store.getAccount(accountId);
+  if (account === undefined || account.recoveryVerifierHash === undefined) {
+    return null;
+  }
+
+  let presented: Uint8Array;
+  try {
+    presented = base64ToBytes(verifierB64);
+  } catch {
+    return null;
+  }
+  const presentedHash = sha256(presented);
+  if (presentedHash.length !== account.recoveryVerifierHash.length) return null;
+  if (!timingSafeEqual(presentedHash, account.recoveryVerifierHash)) {
+    return null;
+  }
+
+  return accountId;
+}
+
 // --- The server. ------------------------------------------------------------
 
 export function createRelayServer(opts: {
@@ -219,14 +270,27 @@ export function createRelayServer(opts: {
         sendJson(res, 400, { error: "invalid request" });
         return;
       }
-      const { accountId, username, authVerifier, kdfSalt, wrappedMasterKey } =
-        parsed.data;
+      const {
+        accountId,
+        username,
+        authVerifier,
+        kdfSalt,
+        wrappedMasterKey,
+        wrappedMasterKeyRecovery,
+        recoveryVerifier,
+      } = parsed.data;
       const result = store.registerAccount(
         accountId,
         username.trim().toLowerCase(),
         sha256(base64ToBytes(authVerifier)),
         base64ToBytes(kdfSalt),
         base64ToBytes(wrappedMasterKey),
+        wrappedMasterKeyRecovery === undefined
+          ? undefined
+          : base64ToBytes(wrappedMasterKeyRecovery),
+        recoveryVerifier === undefined
+          ? undefined
+          : sha256(base64ToBytes(recoveryVerifier)),
       );
       if (result === "username-taken") {
         sendJson(res, 409, { error: "username taken" });
@@ -272,6 +336,54 @@ export function createRelayServer(opts: {
       sendJson(res, 200, {
         wrappedMasterKey: bytesToBase64(account.wrappedMasterKey),
       });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/accounts/recovery") {
+      // Recovery-authed: hand back wrap(MK, recoveryKey) so a device that lost
+      // its password can unwrap MK from the recovery phrase. Opaque to the relay.
+      const accountId = authenticateRecovery(req, store);
+      if (accountId === null) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return;
+      }
+      const account = store.getAccount(accountId);
+      if (account?.wrappedMasterKeyRecovery === undefined) {
+        sendJson(res, 404, { error: "not found" });
+        return;
+      }
+      sendJson(res, 200, {
+        wrappedMasterKeyRecovery: bytesToBase64(
+          account.wrappedMasterKeyRecovery,
+        ),
+      });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/accounts/reset") {
+      // Recovery-authed: replace the password door with new material so the
+      // recovered device can authenticate going forward. The recovery escrow +
+      // verifier are untouched, so the same phrase keeps working.
+      const accountId = authenticateRecovery(req, store);
+      if (accountId === null) {
+        sendJson(res, 401, { error: "unauthorized" });
+        return;
+      }
+      const parsed = resetBodySchema.safeParse(
+        JSON.parse((await readBody(req)) || "{}"),
+      );
+      if (!parsed.success) {
+        sendJson(res, 400, { error: "invalid request" });
+        return;
+      }
+      const { authVerifier, kdfSalt, wrappedMasterKey } = parsed.data;
+      store.setCredentials(
+        accountId,
+        sha256(base64ToBytes(authVerifier)),
+        base64ToBytes(kdfSalt),
+        base64ToBytes(wrappedMasterKey),
+      );
+      sendJson(res, 200, { ok: true });
       return;
     }
 

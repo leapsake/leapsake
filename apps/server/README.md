@@ -3,8 +3,9 @@
 The Leapsake **blind sync relay** — the V3 transport host behind zero-knowledge
 sync. It is deliberately the "least clever option"
 ([`plans/encryption/sync.md`](../../plans/encryption/sync.md) §2): a `node:http`
-+ `node:sqlite` + `node:crypto` service (zero runtime deps beyond `zod`; `tsx`
-only to run it) that stores and serves opaque, already-encrypted records.
+
+- `node:sqlite` + `node:crypto` service (zero runtime deps beyond `zod`; `tsx`
+  only to run it) that stores and serves opaque, already-encrypted records.
 
 It can read, merge, or order **nothing** about content — it stores ciphertext +
 cleartext sync metadata (UUIDs, `updated_at`, `deleted_at`) in a per-account
@@ -24,13 +25,13 @@ model and its accepted residual risks are in
 
 ## Routes (`src/relay.ts`)
 
-| Route | Auth | Purpose |
-|---|---|---|
-| `POST /accounts` | optional registration token | register `{ accountId, username, authVerifier, kdfSalt, wrappedMasterKey }`; dup username → `409` |
-| `GET /accounts/lookup?username=` | none (prelogin) | → `{ accountId, kdfSalt }` \| `404` |
-| `GET /accounts/bootstrap` | bearer | → `{ wrappedMasterKey }` for a joining device |
-| `POST /sync/push` | bearer | append `{ records }` to the account log |
-| `GET /sync/pull?since=<cursor>` | bearer | → `{ records, cursor }` |
+| Route                            | Auth                        | Purpose                                                                                           |
+| -------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `POST /accounts`                 | optional registration token | register `{ accountId, username, authVerifier, kdfSalt, wrappedMasterKey }`; dup username → `409` |
+| `GET /accounts/lookup?username=` | none (prelogin)             | → `{ accountId, kdfSalt }` \| `404`                                                               |
+| `GET /accounts/bootstrap`        | bearer                      | → `{ wrappedMasterKey }` for a joining device                                                     |
+| `POST /sync/push`                | bearer                      | append `{ records }` to the account log                                                           |
+| `GET /sync/pull?since=<cursor>`  | bearer                      | → `{ records, cursor }`                                                                           |
 
 The unauthenticated endpoints are per-IP rate-limited (`RateLimit`, env-tunable)
 as the username-enumeration mitigation.

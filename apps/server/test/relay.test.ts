@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { DatabaseSync } from "node:sqlite";
 import {
   createInMemoryKeyStore,
+  encodeRecoveryPhrase,
   generateKey,
   generateSalt,
 } from "@leapsake/crypto";
@@ -11,8 +12,10 @@ import {
   enableSync,
   ensureDeviceMasterKey,
   joinAccount,
+  recoverAccountViaRelay,
   reconcileOnJoin,
   runAccountSync,
+  unlockWithPassword,
 } from "@leapsake/core";
 import {
   type MilestonesRepo,
@@ -53,6 +56,10 @@ const USERNAME = "ada";
 // Opaque wrap(MK, KEK) ciphertext from the relay's point of view; the pre-join
 // sync cases never unwrap it, so any bytes do.
 const WRAPPED_MK = new Uint8Array(48).fill(9);
+// Recovery escrow (model.md §6): opaque wrap(MK, recoveryKey) + a recovery
+// verifier. Like WRAPPED_MK, the pre-join sync cases never unwrap them.
+const WRAPPED_MK_RECOVERY = new Uint8Array(48).fill(5);
+const RECOVERY_VERIFIER = generateKey();
 
 interface Device {
   db: DatabaseSync;
@@ -143,6 +150,8 @@ describe("blind HTTPS relay (server + adapter)", () => {
       username: USERNAME,
       kdfSalt: KDF_SALT,
       wrappedMasterKey: WRAPPED_MK,
+      wrappedMasterKeyRecovery: WRAPPED_MK_RECOVERY,
+      recoveryVerifier: RECOVERY_VERIFIER,
     });
     A = await makeDevice();
     B = await makeDevice();
@@ -350,6 +359,8 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       username: bootstrap.username ?? "",
       kdfSalt: bootstrap.kdfSalt,
       wrappedMasterKey: bootstrap.wrappedMasterKey,
+      wrappedMasterKeyRecovery: bootstrap.wrappedMasterKeyRecovery,
+      recoveryVerifier: bootstrap.recoveryVerifier,
     });
     return { masterKey: mk.masterKey };
   }
@@ -428,6 +439,99 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     expect(names).not.toContain("account");
     expect(names).not.toContain("key_wrap");
     expect(names).not.toContain("content_key");
+
+    d1.db.close();
+    d2.db.close();
+  });
+
+  it("a fresh device recovers the account from the recovery phrase, resets the password, and reads the data", async () => {
+    // --- Device 1: enable (capture the recovery phrase), register, push. ---
+    const d1 = blankDevice();
+    await runMigrations(d1.driver);
+    const mk = await ensureDeviceMasterKey({
+      keyStore: d1.keyStore,
+      driver: d1.driver,
+    });
+    const { recoveryKey, bootstrap } = await enableSync({
+      keyStore: d1.keyStore,
+      driver: d1.driver,
+      username: "ada",
+      password: PASSWORD,
+      relayUrl: baseUrl,
+      platform: "desktop",
+    });
+    await createHttpSyncTransport({
+      baseUrl,
+      accountId: bootstrap.accountId,
+      authVerifier: bootstrap.authVerifier,
+    }).register({
+      username: bootstrap.username ?? "",
+      kdfSalt: bootstrap.kdfSalt,
+      wrappedMasterKey: bootstrap.wrappedMasterKey,
+      wrappedMasterKeyRecovery: bootstrap.wrappedMasterKeyRecovery,
+      recoveryVerifier: bootstrap.recoveryVerifier,
+    });
+    const phrase = encodeRecoveryPhrase(recoveryKey);
+    const ada = await reposFor(d1.driver, mk.masterKey).people.create({
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+    await runAccountSync({ driver: d1.driver, masterKey: mk.masterKey });
+
+    // --- Device 2: fresh, forgot the password — has only the recovery phrase. ---
+    const d2 = blankDevice();
+    await runMigrations(d2.driver);
+    await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+    const NEW_PASSWORD = "a brand new battery horse staple";
+    const session = await recoverAccountViaRelay({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      relayUrl: baseUrl,
+      username: "ada",
+      recoveryPhrase: phrase,
+      newPassword: NEW_PASSWORD,
+      platform: "mobile",
+    });
+    // It recovered the *account* master key from the relay's recovery escrow.
+    expect(session.masterKey).toEqual(mk.masterKey);
+
+    // Device 2 syncs and reads device 1's data, decrypted.
+    await runAccountSync({ driver: d2.driver, masterKey: session.masterKey });
+    expect(
+      await reposFor(d2.driver, session.masterKey).people.get(ada.id),
+    ).toEqual(ada);
+
+    // The newly-set password now unlocks MK locally (the reset took on the relay
+    // and the local password door was laid down).
+    const unlocked = await unlockWithPassword({
+      driver: d2.driver,
+      password: NEW_PASSWORD,
+    });
+    expect(unlocked.masterKey).toEqual(mk.masterKey);
+
+    d1.db.close();
+    d2.db.close();
+  });
+
+  it("rejects recovery with a wrong recovery phrase", async () => {
+    const d1 = blankDevice();
+    const { masterKey: _mk } = await enableAndRegister(d1);
+
+    const d2 = blankDevice();
+    await runMigrations(d2.driver);
+    await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+    // A valid-format phrase for the *wrong* key → wrong verifier → relay 401.
+    const wrongPhrase = encodeRecoveryPhrase(new Uint8Array(32).fill(1));
+    await expect(
+      recoverAccountViaRelay({
+        keyStore: d2.keyStore,
+        driver: d2.driver,
+        relayUrl: baseUrl,
+        username: "ada",
+        recoveryPhrase: wrongPhrase,
+        newPassword: "a brand new battery horse staple",
+      }),
+    ).rejects.toThrow();
 
     d1.db.close();
     d2.db.close();

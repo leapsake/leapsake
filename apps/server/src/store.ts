@@ -26,6 +26,14 @@ export interface RelayAccount {
   kdfSalt: Uint8Array;
   /** Ciphertext `wrap(MK, KEK)` — opaque to the relay (multi-device-login.md). */
   wrappedMasterKey: Uint8Array;
+  /**
+   * Ciphertext `wrap(MK, recoveryKey)` — the recovery escrow, opaque to the relay
+   * (under a full 256-bit key). Absent on accounts registered before recovery
+   * escrow existed.
+   */
+  wrappedMasterKeyRecovery?: Uint8Array;
+  /** `sha256(recoveryVerifier)` — authenticates a recovery without the key. */
+  recoveryVerifierHash?: Uint8Array;
 }
 
 /** Outcome of {@link RelayStore.registerAccount}, mapped to an HTTP status. */
@@ -44,8 +52,20 @@ export interface RelayStore {
     authVerifierHash: Uint8Array,
     kdfSalt: Uint8Array,
     wrappedMasterKey: Uint8Array,
+    wrappedMasterKeyRecovery: Uint8Array | undefined,
+    recoveryVerifierHash: Uint8Array | undefined,
   ): RegisterResult;
   getAccount(accountId: string): RelayAccount | undefined;
+  /**
+   * Replace an account's password door (verifier hash, salt, wrapped MK) — the
+   * recovery-authenticated reset. The recovery escrow + verifier are untouched.
+   */
+  setCredentials(
+    accountId: string,
+    authVerifierHash: Uint8Array,
+    kdfSalt: Uint8Array,
+    wrappedMasterKey: Uint8Array,
+  ): void;
   /** Prelogin: resolve a username to its account id + public salt, or undefined. */
   getAccountByUsername(
     username: string,
@@ -98,16 +118,34 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
       ON relay_record (account_id, seq);
   `);
 
+  // Recovery escrow columns — added in place for stores created before recovery
+  // existed (CREATE TABLE IF NOT EXISTS won't alter an existing table). Both
+  // nullable; a duplicate-column error on a fresh DB is expected and ignored.
+  for (const column of [
+    "wrapped_master_key_recovery BLOB",
+    "recovery_verifier_hash BLOB",
+  ]) {
+    try {
+      db.exec(`ALTER TABLE relay_account ADD COLUMN ${column}`);
+    } catch {
+      // Column already exists — the steady state after the first run.
+    }
+  }
+
   const getAccount = (accountId: string): RelayAccount | undefined => {
     const row = db
       .prepare(
-        "SELECT auth_verifier_hash, kdf_salt, wrapped_master_key FROM relay_account WHERE account_id = ?",
+        `SELECT auth_verifier_hash, kdf_salt, wrapped_master_key,
+                wrapped_master_key_recovery, recovery_verifier_hash
+           FROM relay_account WHERE account_id = ?`,
       )
       .get(accountId) as
       | {
           auth_verifier_hash: Uint8Array;
           kdf_salt: Uint8Array;
           wrapped_master_key: Uint8Array;
+          wrapped_master_key_recovery: Uint8Array | null;
+          recovery_verifier_hash: Uint8Array | null;
         }
       | undefined;
     if (row === undefined) return undefined;
@@ -115,6 +153,14 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
       authVerifierHash: bytes(row.auth_verifier_hash),
       kdfSalt: bytes(row.kdf_salt),
       wrappedMasterKey: bytes(row.wrapped_master_key),
+      wrappedMasterKeyRecovery:
+        row.wrapped_master_key_recovery === null
+          ? undefined
+          : bytes(row.wrapped_master_key_recovery),
+      recoveryVerifierHash:
+        row.recovery_verifier_hash === null
+          ? undefined
+          : bytes(row.recovery_verifier_hash),
     };
   };
 
@@ -139,6 +185,8 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
       authVerifierHash,
       kdfSalt,
       wrappedMasterKey,
+      wrappedMasterKeyRecovery,
+      recoveryVerifierHash,
     ) {
       // Idempotent on the account id — re-registering the same device's account
       // keeps the first registration untouched.
@@ -149,17 +197,33 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
 
       db.prepare(
         `INSERT INTO relay_account
-           (account_id, username, auth_verifier_hash, kdf_salt, wrapped_master_key, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+           (account_id, username, auth_verifier_hash, kdf_salt, wrapped_master_key,
+            wrapped_master_key_recovery, recovery_verifier_hash, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         accountId,
         username,
         authVerifierHash as SQLInputValue,
         kdfSalt as SQLInputValue,
         wrappedMasterKey as SQLInputValue,
+        (wrappedMasterKeyRecovery ?? null) as SQLInputValue,
+        (recoveryVerifierHash ?? null) as SQLInputValue,
         Date.now(),
       );
       return "created";
+    },
+
+    setCredentials(accountId, authVerifierHash, kdfSalt, wrappedMasterKey) {
+      db.prepare(
+        `UPDATE relay_account
+            SET auth_verifier_hash = ?, kdf_salt = ?, wrapped_master_key = ?
+          WHERE account_id = ?`,
+      ).run(
+        authVerifierHash as SQLInputValue,
+        kdfSalt as SQLInputValue,
+        wrappedMasterKey as SQLInputValue,
+        accountId,
+      );
     },
 
     getAccount,

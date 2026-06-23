@@ -166,20 +166,24 @@ export function createDismissalsRepo(driver: SqliteDriver): DismissalsRepo {
 
     async repointEntity(type, fromId, toId) {
       const now = Date.now();
+      // `MAX(?, updated_at + 1)` makes each re-point strictly newer than the row
+      // it rewrites so it wins LWW on every device rather than tying when the
+      // merge lands in the dismissal's creation millisecond (see relationships-repo
+      // `repointEntity`).
       await driver.run(
-        `UPDATE relationship_dismissals SET subject_id = ?, updated_at = ?
+        `UPDATE relationship_dismissals SET subject_id = ?, updated_at = MAX(?, updated_at + 1)
            WHERE subject_type = ? AND subject_id = ? AND deleted_at IS NULL`,
         [toId, now, type, fromId],
       );
       await driver.run(
-        `UPDATE relationship_dismissals SET other_id = ?, updated_at = ?
+        `UPDATE relationship_dismissals SET other_id = ?, updated_at = MAX(?, updated_at + 1)
            WHERE other_type = ? AND other_id = ? AND deleted_at IS NULL`,
         [toId, now, type, fromId],
       );
       // A dismissal whose two ends are now the survivor suppresses an edge from a
       // person to themselves — meaningless, so drop it.
       await driver.run(
-        `UPDATE relationship_dismissals SET deleted_at = ?, updated_at = ?
+        `UPDATE relationship_dismissals SET deleted_at = ?, updated_at = MAX(?, updated_at + 1)
            WHERE deleted_at IS NULL
              AND subject_type = ? AND subject_id = ?
              AND other_type = ? AND other_id = ?`,

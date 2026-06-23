@@ -214,15 +214,21 @@ export function createRelationshipsRepo(
 
     async repointEntity(type, fromId, toId) {
       const now = Date.now();
-      // Move every edge endpoint from the loser to the survivor. Bumping
-      // updated_at makes each re-point ride to other devices as a normal edit.
+      // Move every edge endpoint from the loser to the survivor. The re-point
+      // must out-rank the pre-merge version of the *same* row on every device,
+      // and whole-row LWW (`resolveMerge`) settles equal `updated_at` by an
+      // arbitrary canonical tiebreak — so a re-point performed in the same
+      // millisecond the edge was created would tie and could lose, stranding the
+      // edge on the tombstoned loser. `MAX(?, updated_at + 1)` makes updated_at
+      // *strictly* advance past the row's current value (while never going below
+      // wall-clock now), so the re-point deterministically wins LWW everywhere.
       await driver.run(
-        `UPDATE relationships SET a_id = ?, updated_at = ?
+        `UPDATE relationships SET a_id = ?, updated_at = MAX(?, updated_at + 1)
            WHERE a_type = ? AND a_id = ? AND deleted_at IS NULL`,
         [toId, now, type, fromId],
       );
       await driver.run(
-        `UPDATE relationships SET b_id = ?, updated_at = ?
+        `UPDATE relationships SET b_id = ?, updated_at = MAX(?, updated_at + 1)
            WHERE b_type = ? AND b_id = ? AND deleted_at IS NULL`,
         [toId, now, type, fromId],
       );
@@ -230,7 +236,7 @@ export function createRelationshipsRepo(
       // Prune self-loops: an edge whose ends are now both the survivor (the two
       // merged people were related to each other) no longer means anything.
       await driver.run(
-        `UPDATE relationships SET deleted_at = ?, updated_at = ?
+        `UPDATE relationships SET deleted_at = ?, updated_at = MAX(?, updated_at + 1)
            WHERE deleted_at IS NULL
              AND a_type = ? AND a_id = ? AND b_type = ? AND b_id = ?`,
         [now, now, type, toId, type, toId],
@@ -265,7 +271,7 @@ export function createRelationshipsRepo(
         for (const rel of group) {
           if (rel.id === winner.id) continue;
           await driver.run(
-            "UPDATE relationships SET deleted_at = ?, updated_at = ? WHERE id = ?",
+            "UPDATE relationships SET deleted_at = ?, updated_at = MAX(?, updated_at + 1) WHERE id = ?",
             [now, now, rel.id],
           );
         }

@@ -1,5 +1,5 @@
 import type { SyncRow } from "@leapsake/schema";
-import type { KeyStore } from "@leapsake/crypto";
+import { type KeyStore, decodeRecoveryPhrase } from "@leapsake/crypto";
 import {
   type DuplicateCandidate,
   type SqliteDriver,
@@ -23,6 +23,7 @@ import {
   type AccountBootstrap,
   type KeySession,
   joinAccount,
+  recoverAccount,
 } from "./key-session.js";
 
 /**
@@ -146,6 +147,8 @@ export async function registerAccountWithRelay(opts: {
     username: bootstrap.username,
     kdfSalt: bootstrap.kdfSalt,
     wrappedMasterKey: bootstrap.wrappedMasterKey,
+    wrappedMasterKeyRecovery: bootstrap.wrappedMasterKeyRecovery,
+    recoveryVerifier: bootstrap.recoveryVerifier,
   });
 }
 
@@ -168,6 +171,31 @@ export function joinAccountViaRelay(opts: {
   const { relayUrl, ...rest } = opts;
   const transport = createHttpSyncTransport({ baseUrl: relayUrl });
   return joinAccount({ ...rest, relayUrl, transport });
+}
+
+/**
+ * Recover an account on a fresh device from the **recovery phrase** via the relay
+ * (the "forgot password" path, `model.md` §6): decode the phrase to the recovery
+ * key here (so a bad phrase fails fast, before any network call, with a friendly
+ * message), build the credential-less recovery transport, and run
+ * {@link recoverAccount} — which unwraps MK from the relay's recovery escrow,
+ * resets the password, and adopts MK + the recovery key on this device. Returns
+ * the unlocked {@link KeySession} so the caller rebuilds `core`.
+ */
+export function recoverAccountViaRelay(opts: {
+  keyStore: KeyStore;
+  driver: SqliteDriver;
+  relayUrl: string;
+  username: string;
+  recoveryPhrase: string;
+  newPassword: string;
+  label?: string;
+  platform?: string;
+}): Promise<KeySession> {
+  const { relayUrl, recoveryPhrase, ...rest } = opts;
+  const recoveryKey = decodeRecoveryPhrase(recoveryPhrase);
+  const transport = createHttpSyncTransport({ baseUrl: relayUrl });
+  return recoverAccount({ ...rest, relayUrl, recoveryKey, transport });
 }
 
 /**

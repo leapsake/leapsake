@@ -498,13 +498,17 @@ export function createContactMethodsRepo(
 
     async repointOwner(type, fromId, toId) {
       const now = Date.now();
+      // `MAX(?, updated_at + 1)` keeps each re-point strictly newer than the row it
+      // rewrites so it wins LWW on every device rather than tying when the merge
+      // lands in the contact method's creation millisecond (see relationships-repo
+      // `repointEntity`).
       for (const table of [
         "email_addresses",
         "phone_numbers",
         "postal_addresses",
       ]) {
         await driver.run(
-          `UPDATE ${table} SET owner_id = ?, updated_at = ?
+          `UPDATE ${table} SET owner_id = ?, updated_at = MAX(?, updated_at + 1)
              WHERE owner_type = ? AND owner_id = ? AND deleted_at IS NULL`,
           [toId, now, type, fromId],
         );

@@ -320,8 +320,18 @@ const sync = {
     // this device's pre-existing people and the account's — a prompt to review.
   }): Promise<{ duplicateCount: number }> =>
     ipcRenderer.invoke("sync:join", args),
+  recover: (args: {
+    username: string;
+    recoveryPhrase: string;
+    newPassword: string;
+    relayUrl: string;
+  }): Promise<{ duplicateCount: number }> =>
+    ipcRenderer.invoke("sync:recover", args),
   syncNow: (): Promise<{ at: number }> => ipcRenderer.invoke("sync:now"),
   clear: (): Promise<void> => ipcRenderer.invoke("sync:clear"),
+  /** Reveal this device's recovery phrase (the words back into the data). */
+  revealRecoveryPhrase: (): Promise<string> =>
+    ipcRenderer.invoke("sync:revealRecoveryPhrase"),
   /** Read this install's "Sync automatically" preference (default true). */
   getAutoSync: (): Promise<boolean> => ipcRenderer.invoke("sync:getAutoSync"),
   /** Persist + apply the "Sync automatically" preference for this install. */
@@ -353,6 +363,37 @@ const sync = {
 contextBridge.exposeInMainWorld("sync", sync);
 
 export type Sync = typeof sync;
+
+/**
+ * The **boot gate** bridge: the renderer mounts before the database is open, so
+ * it can host the at-rest recovery prompt when this device's enclave key is gone
+ * but the encrypted file + recovery sidecar survive (encryption `model.md` §6).
+ * `status` is the race-safe initial read (an event may fire before the renderer
+ * subscribes); `onRecoveryNeeded` carries the previous attempt's error on a retry;
+ * `onReady` fires once the core is fully initialized and the app may render.
+ */
+const boot = {
+  status: (): Promise<{
+    phase: "starting" | "recovering" | "ready";
+    error?: string;
+  }> => ipcRenderer.invoke("boot:status"),
+  submitRecoveryPhrase: (phrase: string): Promise<void> =>
+    ipcRenderer.invoke("boot:recovery", phrase),
+  onRecoveryNeeded: (listener: (error?: string) => void): (() => void) => {
+    const handler = (_event: unknown, error?: string) => listener(error);
+    ipcRenderer.on("boot:recovery-needed", handler);
+    return () => ipcRenderer.removeListener("boot:recovery-needed", handler);
+  },
+  onReady: (listener: () => void): (() => void) => {
+    const handler = () => listener();
+    ipcRenderer.on("boot:ready", handler);
+    return () => ipcRenderer.removeListener("boot:ready", handler);
+  },
+};
+
+contextBridge.exposeInMainWorld("boot", boot);
+
+export type Boot = typeof boot;
 
 export type { GenderResult };
 

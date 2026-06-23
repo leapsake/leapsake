@@ -48,6 +48,16 @@ const KEK_INFO = utf8ToBytes("leapsake:kek:v1");
 const AUTH_INFO = utf8ToBytes("leapsake:auth:v1");
 
 /**
+ * Domain-separation label for the **recovery auth verifier** — the relay-side
+ * proof of possession for the recovery key, the recovery sibling of `AUTH_INFO`.
+ * Derived from the high-entropy recovery key (not a password), so it needs no
+ * Argon2id; one HKDF branch yields a verifier whose stored hash lets the relay
+ * authenticate a "forgot password" recovery without ever seeing the key
+ * (`model.md` §6, multi-device-login.md). Independent of the KEK/auth branches.
+ */
+const RECOVERY_AUTH_INFO = utf8ToBytes("leapsake:recovery-auth:v1");
+
+/**
  * The two secrets derived from a password + the account's public salt:
  *
  * - `kek` — the key-encryption-key that wraps the master key (never leaves the
@@ -86,6 +96,24 @@ export function deriveKeyMaterial(
 /** Mint a fresh random Argon2id salt for a new account (public, stored). */
 export function generateSalt(): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(randomBytes(SALT_BYTES));
+}
+
+/**
+ * Derive the recovery auth verifier from the 32-byte recovery key — one HKDF
+ * branch under {@link RECOVERY_AUTH_INFO}. The relay stores only `sha256` of this
+ * (never the recovery key, never this verifier), so a device that lost its
+ * password can prove possession of the recovery key to fetch the recovery-wrapped
+ * master key and reset its password, all without the relay learning anything that
+ * decrypts data (`model.md` §6). No Argon2id: the recovery key is already
+ * high-entropy, so an HKDF expansion is sufficient (mirrors why the password path
+ * needs Argon2id but this does not).
+ */
+export function deriveRecoveryVerifier(
+  recoveryKey: Uint8Array,
+): Uint8Array<ArrayBuffer> {
+  return Uint8Array.from(
+    hkdf(sha256, recoveryKey, undefined, RECOVERY_AUTH_INFO, KEY_BYTES),
+  );
 }
 
 /**
