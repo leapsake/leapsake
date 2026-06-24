@@ -7,8 +7,9 @@
 > do next*, then the relevant design doc for the *why*.** Update *this* file per increment;
 > keep the design docs stable.
 >
-> **Updated 2026-06-23** (device re-auth after a remote password reset landed, test-verified;
-> recovery-phrase + re-auth UI pending manual verification).
+> **Updated 2026-06-24** (the `SqliteDriver` contract suite — testing keystone, backlog
+> steps 1–2 — landed and green on the desktop encrypted driver; recovery-phrase + re-auth UI
+> still pending manual verification).
 
 ## Where things stand
 
@@ -128,11 +129,13 @@ whole-DB key. Search/kinship/timelines untouched (in-memory plaintext, as on des
   possible (mobile SQLCipher is a native iOS/Android module, unlike desktop's Node-ABI binary);
   **verified on an Android emulator** — the dev client built with the SQLCipher amalgamation,
   booted, keyed the DB, ran all migrations, and the on-disk `leapsake.db` is ciphertext (first
-  bytes random, not the `SQLite format 3` magic). iOS verification is **pending a local Xcode
-  upgrade**: the prebuild + SQLCipher integration are correct (amalgamation vendored, pods
-  resolved, compiles), but RN 0.85 / Expo 56's prebuilt `ExpoModulesJSI` requires Swift tools 6.2
-  (Xcode 16.4+) and the local Xcode is 16.2 (Swift 6.0) — an environment gate unrelated to this
-  change. The shared code path is platform-identical, so Android's pass exercises it fully.
+  bytes random, not the `SQLite format 3` magic). **iOS now verified too (2026-06-24):** the local
+  toolchain was upgraded to **Xcode 26.5 / Swift 6.2** (clearing the prebuilt `ExpoModulesJSI`
+  requirement of RN 0.85 / Expo 56 that previously blocked the iOS dev-client build on Xcode 16.2 /
+  Swift 6.0), the iOS 26.5 simulator runtime installed, and a clean `expo prebuild` + `expo run:ios`
+  produced a green native build (SQLCipher dev client compiled, signed, installed, launched, and
+  the JS bundle loaded) on the iPhone 16 Pro (iOS 26.5) simulator. So **both iOS and Android are
+  verified first-class native targets** — the shared code path is platform-identical.
 
 ### Encryption + sync — recovery phrase (make the recovery key a real lifeline)
 
@@ -215,6 +218,29 @@ Detail + reuse rationale in [`packages/core/README.md`](../packages/core/README.
 - **C — merge-on-join (detect + prompt, no auto-merge)** — a joining device now **keeps** its
   local data: it pulls the account first, detects the duplicates the join introduced, and
   prompts the user to review them (merge stays manual). Replaces the old "overwrite/abandon".
+
+### Testing — the `SqliteDriver` contract suite (keystone, backlog steps 1–2)
+
+The first automated guard on the driver port: one reusable spec that pins any `SqliteDriver`
+to identical observable behavior, so the two unrelated backends (desktop
+`better-sqlite3-multiple-ciphers`, mobile `expo-sqlite`) behind it can't silently diverge —
+the seam directly under at-rest encryption. Design + open decisions in
+[`testing/`](./testing/).
+
+- **Shared, framework-agnostic spec** — `runDriverContract(testApi, makeDriver)` in
+  `packages/data/src/testing/driver-contract.ts`, exported via the **`@leapsake/data/testing`**
+  subpath. It imports no test runner: callers inject `{ describe, it, expect }` + a driver
+  factory, so the future mobile native tier runs the *same* spec unchanged (backlog step 3).
+  Schema-independent (each case makes its own throwaway table; no migrations); each case
+  provisions/tears down its own driver, so the injected API needs no hooks.
+- **Desktop conformance run wired** — `apps/desktop/test/integration/driver-contract.test.ts`
+  runs it against the **production** `encryptedSqliteDriver` via `makeEncryptedTestDriver`;
+  green under `pnpm test` (424 total). 11 cases cover run+get, `get()`→`undefined` on miss,
+  `all` all/`[]`/ordering, positional binding, BLOB round-trip, multi-statement `exec`,
+  transaction commit/rollback-and-rethrow/return-value, NULL round-trip. Verified
+  non-vacuous (deliberately breaking desktop `get`'s miss-coercion reddens exactly that case).
+- **Scope decision:** desktop-encrypted driver only for now; the spec is already
+  factory-agnostic, so a second node:sqlite run (or the mobile run) is additive.
 
 ---
 
