@@ -167,10 +167,19 @@ These were surfaced but deliberately left open so the strategy is recorded first
    Green under `pnpm test` (424 total); verified non-vacuous (breaking desktop `get`'s
    miss-coercion turns the suite red). Owner decision: desktop-encrypted driver only for now
    (no second node:sqlite factory yet).
-3. **Stand up the mobile native test tier (Android):** an in-app dev-only self-test that
-   runs the *same* contract suite against the real `expoSqliteDriver` in-process and
-   surfaces PASS/FAIL, plus the chosen harness (Maestro) launching it on an emulator and
-   asserting PASS. *(Gated on the harness-tool decision.)*
+3. **Stand up the mobile native test tier.** Two halves:
+   - **3a — the in-app self-test (✅ done; iOS + Android).** A dev-only screen runs the
+     *same* `runDriverContract` spec against the real `expoSqliteDriver` in-process and
+     renders PASS/FAIL. Reached by deep link `leapsake://dev-selftest`; `__DEV__`-gated.
+     Details in [`status.md`](../status.md). **Assertion contract for the harness (3b):**
+     wait for `testID=driver-selftest-status`, assert its `accessibilityLabel` reads
+     `PASS` (it is `FAIL` on any failed case *or* a zero-case run, and `ERROR` if the
+     suite couldn't start). Key on that stable token, not the human-readable `N/N` count.
+   - **3b — the blackbox harness (pending; gated on the Maestro/Detox decision).** Launch
+     the app on a simulator/emulator, navigate the deep link, and assert the contract above
+     from the command line. **This is what makes the mobile leg terminal** rather than a
+     human reading the screen — until it lands, a newly-added contract case that mobile
+     *fails* is only caught by a manual open (see *Keeping the contract from going stale*).
 4. **Define `pnpm test` orchestration** — tiers + a documented umbrella so principle #6
    holds. *(Gated on the pnpm-test-shape decision.)*
 5. **Close the tsconfig-scope landmine** — make sure every new test dir is in a tsconfig's
@@ -194,6 +203,35 @@ These were surfaced but deliberately left open so the strategy is recorded first
 12. **Hosted-CI wiring** — when/if CI exists, port the local umbrella to it (emulator/native
     jobs for the E2E tiers; also the natural home for the Windows/Linux hosts). Out of scope
     while "local MacBook" is the assumption.
+
+## Keeping the contract from going stale
+
+The contract is the *single* spec both drivers run — desktop Vitest and the mobile
+self-test screen each call `runDriverContract` rather than copying cases. So **which**
+cases run never drifts: add a case to `driver-contract.ts` and it appears in both
+consumers automatically, with no edit to the mobile screen, shim, or factory. The real
+risk is the *contract* failing to grow when the driver does — two backends could diverge
+on a new behavior with no case to catch it. Two levers, neither on the screen:
+
+- **Coverage gate (the authoring forcer).** Run the contract under coverage against the
+  driver implementations (`apps/mobile/db/expo-sqlite-driver.ts`,
+  `apps/desktop/src/main/db/encrypted-sqlite-driver.ts`) and gate on ~full coverage of
+  those files. Then a new driver code path *mechanically* fails CI until a contract case
+  exercises it. Lives on the desktop Vitest run (terminal today); protects both drivers
+  from one place. Not yet wired — fold into step 4 (`pnpm test` orchestration).
+- **The CI matrix runs the one spec on both engines.** Desktop Vitest + the step-3b
+  harness both consume `runDriverContract`, so a new case must go green on *both*. Until
+  3b lands the mobile leg is a manual gate (a human opens the screen) — this is the
+  remaining non-terminal dependency, and closing it is exactly what 3b is for.
+
+The screen guards against one stale-signal trap itself: a zero-case run reads **FAIL**
+(`total > 0` required for PASS), so a broken import or no-op shim can't show a vacuous
+green that the harness would then assert.
+
+> Future candidate cases (where unrelated native SQLite libs most plausibly diverge):
+> type/affinity coercion (int/real/text, BigInt, empty-string vs NULL, boolean), large
+> BLOBs, constraint-violation/error shape, nested-transaction behavior, collation/Unicode
+> ordering, and any new `SqliteDriver` port method.
 
 ## The one rule (same as the rest of `plans/`)
 
