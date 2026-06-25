@@ -7,9 +7,10 @@
 > do next*, then the relevant design doc for the *why*.** Update *this* file per increment;
 > keep the design docs stable.
 >
-> **Updated 2026-06-24** (the `SqliteDriver` contract suite — testing keystone, backlog
-> steps 1–2 — landed and green on the desktop encrypted driver; recovery-phrase + re-auth UI
-> still pending manual verification).
+> **Updated 2026-06-24** (the mobile native test tier — backlog step 3a — landed: an in-app
+> dev-only self-test runs the `SqliteDriver` contract against the real `expoSqliteDriver`,
+> green on iOS + Android. The blackbox harness that asserts it from the CLI (step 3b) is
+> still pending; recovery-phrase + re-auth UI still pending manual verification).
 
 ## Where things stand
 
@@ -241,6 +242,38 @@ the seam directly under at-rest encryption. Design + open decisions in
   non-vacuous (deliberately breaking desktop `get`'s miss-coercion reddens exactly that case).
 - **Scope decision:** desktop-encrypted driver only for now; the spec is already
   factory-agnostic, so a second node:sqlite run (or the mobile run) is additive.
+
+### Testing — the mobile native self-test (keystone, backlog step 3a)
+
+The mobile half of the seam-proof desktop already had: the *same* `runDriverContract` spec
+now runs against the **real** `expoSqliteDriver` on the native SQLCipher engine, in-app on a
+simulator/emulator — the only prod-faithful way to exercise it (expo-sqlite can't load
+headlessly; `testing/mobile-engine.md`). **Green on both iOS and Android** (all 11 cases
+PASS). Design + the staleness/coverage enforcement model in [`testing/`](./testing/).
+
+- **In-app dev-only self-test** — `apps/mobile/app/dev-selftest.tsx` runs the suite in a
+  `useEffect` and renders a PASS/FAIL banner + per-case list. Reached by deep link
+  `leapsake://dev-selftest` (no link from any shipping screen); `__DEV__`-gated (redirects
+  home in a release build, so it's unreachable in production).
+- **Runner shim + factory (reusable infra, not screens)** — `apps/mobile/test/test-api.ts`
+  is a tiny `describe`/`it`/`expect` that *collects* results (no Vitest on device), typed
+  against the spec's `TestApi` so its matcher surface can't drift.
+  `apps/mobile/test/driver-contract-selftest.ts` is the `DriverFactory`: a fresh,
+  **encrypted** throwaway DB per case (`openDatabaseSync` + `execSync('PRAGMA key …')`,
+  mirroring the production boot), wrapping the real `expoSqliteDriver`; cleaned up via
+  `closeSync` + `deleteDatabaseAsync`.
+- **Built to surface divergence, not smooth it** — keyed like prod, real native engine, no
+  mock/WASM/stub. Verified non-vacuous (flipping the driver's get-miss `?? undefined` to
+  `?? null` reddens exactly that case). A zero-case run reads FAIL (`total > 0` required),
+  so a broken import can't fake a green.
+- **Terminal-confirmable hook for step 3b** — the result banner carries
+  `testID=driver-selftest-status` with `accessibilityLabel` `PASS`/`FAIL`/`ERROR`, the
+  stable signal the future Maestro/Detox harness asserts from the CLI.
+- **Two known follow-ups** (both in `testing/README.md`): the harness (step 3b) is what makes
+  the mobile leg *terminal* — until then it's a manual gate; and the harness still ships in
+  the release JS bundle behind the `__DEV__` gate (RN is a single bundle — `import()` only
+  defers eval, it doesn't strip), so a true exclusion (a production Metro
+  `resolver.resolveRequest` stub) is deferred to an app-size pass.
 
 ---
 
