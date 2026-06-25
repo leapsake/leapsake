@@ -152,7 +152,13 @@ function AccountEnabled({
       const { at } = await window.sync.syncNow();
       setLastSynced(at);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't sync.");
+      const message = cause instanceof Error ? cause.message : "Couldn't sync.";
+      // A 401 means the account password was reset on another device. The main
+      // process broadcasts the re-auth prompt via sync:activity (the onActivity
+      // effect above sets the friendly text); flip the prompt on and suppress the
+      // raw "…failed: 401" so the friendly message wins instead of leaking.
+      if (message.includes("401")) setNeedsReauth(true);
+      else setError(message);
     } finally {
       setSyncing(false);
     }
