@@ -105,6 +105,12 @@ function broadcastSyncActivity(payload: {
   }
 }
 
+/** The user-facing prompt shown when a sync 401s because the account password was
+ *  reset on another device. Both the background scheduler's `onError` and the
+ *  manual "Sync now" path surface it, so it lives here to stay identical. */
+const REAUTH_PROMPT =
+  "Your password was changed on another device. Re-enter it to reconnect.";
+
 /** Coerce IPC-supplied tag names to a clean `string[]` before the repo dedupes. */
 function asTagNames(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String) : [];
@@ -426,11 +432,24 @@ function registerSyncIpc(opts: { keyStore: KeyStore }): void {
   // completion time for a "last synced" indicator; a guarded skip (sync not
   // enabled) surfaces as the same error the direct call used to throw.
   ipcMain.handle("sync:now", async () => {
-    const result = await scheduler?.trigger();
-    if (result === undefined) {
-      throw new Error("Sync is not enabled for this store.");
+    try {
+      const result = await scheduler?.trigger();
+      if (result === undefined) {
+        throw new Error("Sync is not enabled for this store.");
+      }
+      return result;
+    } catch (error) {
+      // A manual "Sync now" 401s the same way a background sync does when the
+      // password was reset on another device. The background path routes that to
+      // the re-auth prompt via onError; do the same here (the scheduler's manual
+      // trigger rethrows instead of calling onError) so the button surfaces the
+      // friendly prompt, not a raw "failed: 401". The original error still
+      // propagates (carrying the 401) so the caller can recognize it too.
+      if (isRelayAuthError(error)) {
+        broadcastSyncActivity({ error: REAUTH_PROMPT, needsReauth: true });
+      }
+      throw error;
     }
-    return result;
   });
 
   // Disconnect the account from this device: drop the account identity + the
@@ -552,11 +571,7 @@ void app.whenReady().then(async () => {
       // prompt for the new password instead of showing a raw "failed: 401".
       broadcastSyncActivity(
         isRelayAuthError(error)
-          ? {
-              error:
-                "Your password was changed on another device. Re-enter it to reconnect.",
-              needsReauth: true,
-            }
+          ? { error: REAUTH_PROMPT, needsReauth: true }
           : { error: error instanceof Error ? error.message : String(error) },
       ),
   });

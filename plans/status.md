@@ -7,12 +7,13 @@
 > do next*, then the relevant design doc for the *why*.** Update *this* file per increment;
 > keep the design docs stable.
 >
-> **Updated 2026-06-25** (recovery-phrase UI verification began on desktop: the **reveal** and
-> **single-device (keychain-loss) recovery** flows are now manually verified, and a real
-> recovery-path bug was found + fixed — a successful boot recovery used to land on the
-> "Something went wrong" `ErrorPage` because the data router's eager initial loader raced the
-> core IPC; the router is now built lazily once boot is `ready`. Still pending manual
-> verification: desktop **cross-device** recovery + re-auth, and **all mobile** recovery flows.
+> **Updated 2026-06-25** (recovery-phrase UI verification on **desktop is complete** — all four
+> flows manually verified: **reveal**, **single-device (keychain-loss) recovery**,
+> **cross-device recovery**, and **re-auth** after a remote password reset. Two bugs found +
+> fixed along the way (the `ErrorPage` recovery-boot race, and a raw-`401` leak on the manual
+> "Sync now" path), plus one observed-not-fixed (an unhandled promise rejection on the background
+> 401 path) — all under *Identified issues*. Still pending manual verification: **all mobile**
+> recovery flows.
 > Prior 2026-06-24 note: the mobile native test tier — backlog step 3a — landed: an in-app
 > dev-only self-test runs the `SqliteDriver` contract against the real `expoSqliteDriver`,
 > green on iOS + Android. The blackbox harness that asserts it from the CLI (step 3b) is
@@ -318,14 +319,63 @@ the build agent** and need a human pass. Verify and report back:
   relaunch → the `RecoveryGate` prompts → entering the phrase restores access (wrong phrase
   shows the error and re-prompts; `db-key` restored to the keystore, sidecar rewritten, data
   intact). **Surfaced + fixed the `ErrorPage` race** noted under *Identified issues* below.
-- **Desktop cross-device recovery:** ⏳ pending — second profile/instance → login flow → "Forgot your
-  password? Recover with your recovery phrase" → enter phrase + a new password → data
-  converges over a localhost `apps/server` relay; the new password then unlocks on relaunch.
-- **Desktop re-auth after remote reset:** ⏳ pending — needs the cross-device reset above first.
+- **Desktop cross-device recovery:** ✅ **verified 2026-06-25** — a second instance (separate
+  `--user-data-dir` against the same dev server) ran the login flow → "Recover with your recovery
+  phrase" → entered phrase + a new password → the account's data converged over a localhost
+  `apps/server` relay (people appeared on the fresh device, no errors).
+- **Desktop re-auth after remote reset:** ✅ **verified 2026-06-25** — after the recovery above
+  rotated the password, device 1's sync 401'd and Settings surfaced the friendly "password changed
+  on another device" prompt; re-entering the new password reconnected (no Disconnect/rejoin).
+  **Surfaced + fixed a raw-`401` leak on the manual "Sync now" path**, and **observed an unhandled
+  promise rejection** in the background 401 path — both under *Identified issues* below.
 - **Mobile:** ⏳ pending — the same reveal + boot-recovery + recover-with-phrase flows on a dev
   client (Android emulator, as in Stage 2 mobile verification). Confirm the `leapsake-recovery.db`
   sidecar is created beside the main DB. (The boot-recovery leg needs a `__DEV__` affordance to
-  clear *only* the secure-store `db-key` — a reinstall wipes both DBs; see the plan.)
+  clear *only* the secure-store `db-key` — a reinstall wipes both DBs; see the runbook below.)
+
+#### Next session — run these in order (fresh-context runbook)
+
+Desktop scenarios 1–4 are verified; bug #1 (ErrorPage race) is committed, bug #2 (manual-sync raw
+`401`) is in the tree. Three follow-ups remain, in order. **Dev harness used throughout:**
+
+- **Relay:** `cd apps/server && pnpm exec tsx src/index.ts` → `http://localhost:4000`. Store
+  persists to `apps/server/relay.db` (accounts + recovery escrow survive restarts; `rm` it for a
+  clean slate).
+- **Device 1 (primary):** `pnpm --filter @leapsake/desktop dev`. Its userData is
+  `~/Library/Application Support/@leapsake/desktop` — **note: the dev app uses this, not the
+  packaged `…/Leapsake` dir**. `keystore.json` there holds `db-key`/`recovery-key`; delete the
+  `db-key` JSON key to simulate keychain loss. Reveal the account phrase via Settings → "Reveal
+  recovery phrase".
+- **Extra instances (device 2, 3, …) on the same dev server** (no single-instance lock, so they
+  coexist): from the repo root,
+  `ELECTRON_RENDERER_URL=http://localhost:5173 "$(node -p 'require("electron")')" apps/desktop --user-data-dir=<fresh-dir>`.
+  Each distinct `--user-data-dir` is a separate "device" (use a throwaway tmp dir).
+
+**1. Live-verify bug #2 (manual "Sync now" 401).** With device 1 synced, rotate the account
+password out from under it: on a *fresh* instance run the login flow → "Recover with your recovery
+phrase" → phrase + a NEW password (this resets the relay password). Device 1's credential is now
+stale. On device 1, **press "Sync now" while the re-auth prompt is showing** → confirm the friendly
+"password changed on another device" prompt appears and **no raw `…failed: 401` dialog leaks**;
+entering the new password reconnects. (Restart device 1 first to be sure the `main/index.ts` change
+is loaded; electron-vite restarts the main process on change.)
+
+**2. Fix bug #3 (unhandled rejection on the background 401 path).** Repro: make device 1 stale (as
+in #1) and let auto-sync fire (focus the window, or wait the backstop). The main-process log shows
+`UnhandledPromiseRejectionWarning: … failed: 401` from `runAccountSync`. Trace the auto-trigger
+paths — `void scheduler.autoTrigger()` (the `browser-window-focus` handler + on-launch in
+`apps/desktop/src/main/index.ts`) and `createSyncScheduler` (find it under `packages/`) — and make
+every auto path route errors to `onError` instead of letting the promise reject. Check whether
+mobile's scheduler wiring shares the gap.
+
+**3. Mobile (scenarios 5–8).** Build the iOS dev client: `pnpm --filter @leapsake/mobile ios`
+(native SQLCipher build; Expo Go can't host it). Point the simulator at the host relay — **iOS sim:
+`http://localhost:4000`; Android emulator: `http://10.0.2.2:4000`**. Verify: **reveal**
+(`app/(tabs)/settings.tsx`); **cross-device recover** (`RecoverStep`) converging with a desktop
+instance over the relay; **re-auth** prompt. Confirm the `leapsake-recovery.db` sidecar appears
+beside the main DB. **Single-device boot recovery (scenario 8)** needs a `__DEV__`-only affordance to
+clear *only* the `expo-secure-store` `db-key` (a reinstall wipes both the DB and the sidecar) — add
+one reachable like the existing `leapsake://dev-selftest` deep link, then relaunch to hit the mobile
+`RecoveryGate` (`apps/mobile/lib/core-context.tsx`).
 
 #### Identified issues / follow-ups from this increment
 
@@ -342,6 +392,24 @@ the build agent** and need a human pass. Verify and report back:
   revalidation now targets that instance). Desktop typecheck green; re-verified the recovery
   boot lands directly on the people list. **Normal launches were unaffected** (the core
   registers before the renderer JS runs); only the slow recovery boot lost the race.
+- **Manual "Sync now" leaked a raw `401` while awaiting re-auth** — **fixed (2026-06-25)**.
+  Found during the desktop re-auth verification: with the re-auth prompt showing, pressing "Sync
+  now" again surfaced a raw `Error invoking remote method 'sync:now': … failed: 401` instead of
+  the friendly prompt (it self-healed on focusing the password field). The background path routes
+  a 401 to the prompt via the scheduler's `onError`, but the **manual** `scheduler.trigger()`
+  rethrows without that routing. Fixed in `apps/desktop/src/main/index.ts` (the `sync:now` handler
+  now broadcasts the same `needsReauth` activity on an `isRelayAuthError`, with the prompt copy
+  hoisted to a shared `REAUTH_PROMPT` const reused by `onError`) and `screens/Settings.tsx` (the
+  `syncNow` catch recognizes a `401` → flips `needsReauth` and suppresses the raw message, letting
+  the broadcast's friendly text win). Typecheck green; the renderer fix is live via HMR. **Not yet
+  re-exercised against a fresh live 401** (re-staging needs another password rotation on the relay).
+- **Unhandled promise rejection on the background 401 path** — **observed, not yet fixed
+  (2026-06-25)**. While device 1 was stale (pre-re-auth), the main-process log showed
+  `UnhandledPromiseRejectionWarning: Error: relay GET /sync/pull… failed: 401` from
+  `runAccountSync` under the scheduler's auto-trigger. Console-only (not user-facing) and the
+  re-auth prompt still fired, but it's a real unhandled rejection in the scheduler's auto-sync
+  error path worth tracing (likely a `void scheduler.autoTrigger()` whose rejection escapes
+  `onError`). Follow-up.
 - **Password reset invalidates other devices' relay credential** — **fixed** (see *Recently
   shipped → device re-auth after a remote password reset*). A sync 401 now surfaces a
   re-enter-password prompt on both clients that re-derives the device's credential locally (no
