@@ -337,22 +337,25 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         },
         onResult: ({ at, applied }) =>
           notifyActivity({ at, changed: applied !== undefined && applied > 0 }),
-        onError: (cause) =>
+        onError: (cause) => {
           // A 401 means the relay rejected this device's credential — almost
           // always because the password was reset on another device. Flag it so
           // Settings can prompt for the new password instead of a raw error.
-          notifyActivity(
-            isRelayAuthError(cause)
-              ? {
-                  error:
-                    "Your password was changed on another device. Re-enter it to reconnect.",
-                  needsReauth: true,
-                }
-              : {
-                  error:
-                    cause instanceof Error ? cause.message : String(cause),
-                },
-          ),
+          if (isRelayAuthError(cause)) {
+            notifyActivity({
+              error:
+                "Your password was changed on another device. Re-enter it to reconnect.",
+              needsReauth: true,
+            });
+            return;
+          }
+          // Any other background failure: log it (autoTrigger swallows the
+          // rejection so it no longer surfaces on its own) and surface it in UI.
+          console.error("auto-sync failed:", cause);
+          notifyActivity({
+            error: cause instanceof Error ? cause.message : String(cause),
+          });
+        },
       });
 
       setCore(

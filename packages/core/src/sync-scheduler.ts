@@ -43,6 +43,11 @@ export interface SyncScheduler {
    * `undefined` without doing anything. Every event-driven caller (launch,
    * window focus / app foreground, post-enable/join) uses this so the user's
    * "Sync automatically" toggle gates them while the manual button keeps working.
+   *
+   * Unlike {@link trigger}, this **never rejects** — a failure is routed to
+   * `onError` and then swallowed. The automatic path is fire-and-forget (callers
+   * invoke it as `void scheduler.autoTrigger()`), so a rejection here would
+   * otherwise escape as an unhandled promise rejection.
    */
   autoTrigger(): Promise<{ at: number; applied?: number } | undefined>;
   /**
@@ -115,12 +120,15 @@ export function createSyncScheduler(opts: {
   }
 
   // The automatic path: identical to trigger() but gated on the preference, so a
-  // disabled "Sync automatically" silently no-ops every event-driven sync.
+  // disabled "Sync automatically" silently no-ops every event-driven sync. It
+  // also swallows the rejection trigger() rethrows — onError has already seen the
+  // failure (e.g. a 401 → re-auth prompt), and every caller fires this as
+  // `void autoTrigger()`, so rethrowing would surface as an unhandled rejection.
   function autoTrigger(): Promise<
     { at: number; applied?: number } | undefined
   > {
     if (!autoEnabled) return Promise.resolve(undefined);
-    return trigger();
+    return trigger().catch(() => undefined);
   }
 
   return {
@@ -140,8 +148,8 @@ export function createSyncScheduler(opts: {
       autoEnabled = enabled;
       if (enabled) {
         // The user just re-enabled automatic sync: catch up now rather than
-        // waiting for the next focus/write/interval.
-        void autoTrigger().catch(() => {});
+        // waiting for the next focus/write/interval. (autoTrigger never rejects.)
+        void autoTrigger();
       } else if (kickTimer !== undefined) {
         // Cancel a write-debounced push that was queued before the user opted out.
         clearTimeout(kickTimer);
@@ -153,7 +161,7 @@ export function createSyncScheduler(opts: {
       // The timer keeps running even while automatic sync is off (so toggling
       // back on resumes without a restart); the tick itself is gated.
       interval = setInterval(() => {
-        void autoTrigger().catch(() => {});
+        void autoTrigger(); // never rejects
       }, intervalMs);
     },
     stop() {
