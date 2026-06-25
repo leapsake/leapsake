@@ -7,10 +7,16 @@
 > do next*, then the relevant design doc for the *why*.** Update *this* file per increment;
 > keep the design docs stable.
 >
-> **Updated 2026-06-24** (the mobile native test tier — backlog step 3a — landed: an in-app
+> **Updated 2026-06-25** (recovery-phrase UI verification began on desktop: the **reveal** and
+> **single-device (keychain-loss) recovery** flows are now manually verified, and a real
+> recovery-path bug was found + fixed — a successful boot recovery used to land on the
+> "Something went wrong" `ErrorPage` because the data router's eager initial loader raced the
+> core IPC; the router is now built lazily once boot is `ready`. Still pending manual
+> verification: desktop **cross-device** recovery + re-auth, and **all mobile** recovery flows.
+> Prior 2026-06-24 note: the mobile native test tier — backlog step 3a — landed: an in-app
 > dev-only self-test runs the `SqliteDriver` contract against the real `expoSqliteDriver`,
 > green on iOS + Android. The blackbox harness that asserts it from the CLI (step 3b) is
-> still pending; recovery-phrase + re-auth UI still pending manual verification).
+> still pending.)
 
 ## Where things stand
 
@@ -305,21 +311,37 @@ What's left for launch:
 
 The crypto/core/relay layers are test-verified; the **UI and boot flows could not be run in
 the build agent** and need a human pass. Verify and report back:
-- **Desktop reveal:** enable sync → the reveal shows a 24-word phrase (not base64); the same
-  phrase appears under Settings → "Reveal recovery phrase".
-- **Desktop single-device recovery:** with `leapsake.db` + `leapsake.db.recovery` present,
-  delete the `db-key` entry from the OS keychain (or the `db-key` line in
-  `<userData>/keystore.json`) → relaunch → the `RecoveryGate` prompts for the phrase →
-  entering it restores access (wrong phrase shows an error and re-prompts).
-- **Desktop cross-device recovery:** second profile/instance → login flow → "Forgot your
+- **Desktop reveal:** ✅ **verified 2026-06-25** — enable sync → the reveal shows a 24-word
+  phrase (not base64); the same phrase appears under Settings → "Reveal recovery phrase".
+- **Desktop single-device recovery:** ✅ **verified 2026-06-25** — with `leapsake.db` +
+  `leapsake.db.recovery` present, deleting the `db-key` line in `<userData>/keystore.json` →
+  relaunch → the `RecoveryGate` prompts → entering the phrase restores access (wrong phrase
+  shows the error and re-prompts; `db-key` restored to the keystore, sidecar rewritten, data
+  intact). **Surfaced + fixed the `ErrorPage` race** noted under *Identified issues* below.
+- **Desktop cross-device recovery:** ⏳ pending — second profile/instance → login flow → "Forgot your
   password? Recover with your recovery phrase" → enter phrase + a new password → data
   converges over a localhost `apps/server` relay; the new password then unlocks on relaunch.
-- **Mobile:** the same reveal + boot-recovery + recover-with-phrase flows on a dev client
-  (Android emulator, as in Stage 2 mobile verification). Confirm the `leapsake-recovery.db`
-  sidecar is created beside the main DB.
+- **Desktop re-auth after remote reset:** ⏳ pending — needs the cross-device reset above first.
+- **Mobile:** ⏳ pending — the same reveal + boot-recovery + recover-with-phrase flows on a dev
+  client (Android emulator, as in Stage 2 mobile verification). Confirm the `leapsake-recovery.db`
+  sidecar is created beside the main DB. (The boot-recovery leg needs a `__DEV__` affordance to
+  clear *only* the secure-store `db-key` — a reinstall wipes both DBs; see the plan.)
 
 #### Identified issues / follow-ups from this increment
 
+- **Successful boot recovery landed on `ErrorPage`** — **fixed (2026-06-25)**. Found during the
+  desktop single-device recovery verification: after the `RecoveryGate` accepted the phrase and
+  the DB opened, the app showed "Something went wrong" (and only a "Go back to people" link got
+  you in). Root cause: the renderer's data router was created at **module load**, and
+  `createHashRouter` runs the index route's loader (`views.entityList`) **eagerly** — during a
+  human-paced recovery boot that fires before the main process has opened the DB and registered
+  its IPC, so the initial load rejected ("No handler registered") and the router opened straight
+  into its `errorElement`. Fixed by building the router **lazily** once boot is `ready`:
+  `router.tsx` now exports `createAppRouter()` (route tree extracted to a typed `routes`
+  array), and `main.tsx`'s boot gate constructs it only on the `ready` transition (sync-activity
+  revalidation now targets that instance). Desktop typecheck green; re-verified the recovery
+  boot lands directly on the people list. **Normal launches were unaffected** (the core
+  registers before the renderer JS runs); only the slow recovery boot lost the race.
 - **Password reset invalidates other devices' relay credential** — **fixed** (see *Recently
   shipped → device re-auth after a remote password reset*). A sync 401 now surfaces a
   re-enter-password prompt on both clients that re-derives the device's credential locally (no

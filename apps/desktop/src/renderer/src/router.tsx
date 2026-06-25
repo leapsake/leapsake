@@ -20,6 +20,7 @@ import {
 import {
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
+  type RouteObject,
   createHashRouter,
   redirect,
 } from "react-router-dom";
@@ -697,7 +698,7 @@ async function relationshipRowDeleteAction({ params }: ActionFunctionArgs) {
  * react-router framework mode — the desktop client just swaps `createHashRouter`
  * (required under Electron's `file://` load) for the server entry.
  */
-export const router = createHashRouter([
+const routes: RouteObject[] = [
   {
     path: "/",
     element: <App />,
@@ -1032,4 +1033,17 @@ export const router = createHashRouter([
       },
     ],
   },
-]);
+];
+
+/**
+ * Build the renderer's data router. Constructed **lazily** by the boot gate
+ * (`main.tsx`) rather than at module load, because `createHashRouter` runs the
+ * initial route's loader *eagerly* on creation. Building it before the main
+ * process has opened the DB and registered its IPC — a window that only opens
+ * during a slow, human-paced recovery boot — makes the index `views.entityList`
+ * load reject ("No handler registered") and the router opens straight into
+ * `ErrorPage` even though recovery succeeded. Deferring creation until the core
+ * is live closes that race.
+ */
+export const createAppRouter = (): ReturnType<typeof createHashRouter> =>
+  createHashRouter(routes);

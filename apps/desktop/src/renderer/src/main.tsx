@@ -1,11 +1,18 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
-import { router } from "./router";
+import { createAppRouter } from "./router";
 import { RecoveryGate } from "./screens/RecoveryGate";
 
 const container = document.getElementById("root");
 if (!container) throw new Error("Root element #root not found");
+
+// The data router is built lazily once boot is "ready" (see Root): `createHashRouter`
+// runs its initial loader eagerly, so creating it at module load would fire
+// `views.entityList` before the main process registers its IPC during a recovery
+// boot. We hold the instance here so the sync-activity subscription can revalidate
+// it once it exists (and harmlessly no-op before then).
+let appRouter: ReturnType<typeof createAppRouter> | undefined;
 
 // Reactive invalidation: when a background sync pull applies remote changes,
 // re-run the active route's loaders in place so the visible screen reflects the
@@ -14,7 +21,7 @@ if (!container) throw new Error("Root element #root not found");
 // a pointless re-read on pure-push or no-op pulls. Wiring to the activity event
 // (not a specific trigger) means a manual "Sync now" still revalidates too.
 window.sync.onActivity((payload) => {
-  if (payload.changed) void router.revalidate();
+  if (payload.changed) void appRouter?.revalidate();
 });
 
 /**
@@ -35,8 +42,14 @@ function Root() {
       setError(err);
       setPhase("recovering");
     });
-    const offReady = window.boot.onReady(() => setPhase("ready"));
+    const offReady = window.boot.onReady(() => {
+      // Core is live — safe to build the router now (its eager initial loader
+      // will hit a registered `views.entityList`).
+      appRouter ??= createAppRouter();
+      setPhase("ready");
+    });
     void window.boot.status().then((s) => {
+      if (s.phase === "ready") appRouter ??= createAppRouter();
       setPhase(s.phase);
       setError(s.error);
     });
@@ -46,7 +59,8 @@ function Root() {
     };
   }, []);
 
-  if (phase === "ready") return <RouterProvider router={router} />;
+  if (phase === "ready" && appRouter !== undefined)
+    return <RouterProvider router={appRouter} />;
   if (phase === "recovering") return <RecoveryGate error={error} />;
   return null; // brief "starting" flash; the DB usually opens immediately
 }
