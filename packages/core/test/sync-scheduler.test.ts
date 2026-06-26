@@ -120,6 +120,24 @@ describe("createSyncScheduler", () => {
     await expect(scheduler.trigger()).rejects.toThrow("relay down");
   });
 
+  it("routes an autoTrigger failure to onError without rejecting", async () => {
+    // The automatic path is fire-and-forget (`void scheduler.autoTrigger()`), so
+    // it must resolve rather than reject even on failure — otherwise the
+    // rejection escapes as an unhandled promise rejection at every call site.
+    const onError = vi.fn();
+    const failure = new Error("relay GET /sync/pull failed: 401");
+    const run = vi.fn(async () => {
+      throw failure;
+    });
+    const scheduler = createSyncScheduler({ run, onError });
+
+    await expect(scheduler.autoTrigger()).resolves.toBeUndefined();
+    expect(onError).toHaveBeenCalledWith(failure);
+
+    // The manual path still surfaces the rejection to its caller.
+    await expect(scheduler.trigger()).rejects.toThrow("failed: 401");
+  });
+
   it("start() is idempotent", async () => {
     vi.useFakeTimers();
     const run = vi.fn(async () => ({ at: 1 }));

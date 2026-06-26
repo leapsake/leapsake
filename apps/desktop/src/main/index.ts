@@ -565,15 +565,21 @@ void app.whenReady().then(async () => {
         at,
         changed: applied !== undefined && applied > 0,
       }),
-    onError: (error) =>
+    onError: (error) => {
       // A 401 means the relay rejected this device's credential — almost always
       // because the password was reset on another device. Flag it so Settings can
       // prompt for the new password instead of showing a raw "failed: 401".
-      broadcastSyncActivity(
-        isRelayAuthError(error)
-          ? { error: REAUTH_PROMPT, needsReauth: true }
-          : { error: error instanceof Error ? error.message : String(error) },
-      ),
+      if (isRelayAuthError(error)) {
+        broadcastSyncActivity({ error: REAUTH_PROMPT, needsReauth: true });
+        return;
+      }
+      // Any other background failure: log it (autoTrigger swallows the rejection
+      // so it no longer surfaces in the terminal on its own) and surface it in UI.
+      console.error("auto-sync failed:", error);
+      broadcastSyncActivity({
+        error: error instanceof Error ? error.message : String(error),
+      });
+    },
   });
 
   setActiveCore(keySession);
