@@ -8,7 +8,17 @@ import {
 import { base64ToBytes, bytesToBase64 } from "@leapsake/crypto";
 import { decodeRecord, encodeRecord } from "@leapsake/data";
 import { z } from "zod";
+import {
+  DEFAULT_RATE_LIMIT,
+  DEFAULT_RECOVERY_RATE_LIMIT,
+  ENV,
+  type RateLimit,
+} from "./config.js";
 import type { RelayStore } from "./store.js";
+
+// `RateLimit` is part of the public `createRelayServer` options surface; re-export
+// it from here so existing importers keep their path while the value lives in config.
+export type { RateLimit };
 
 /**
  * The blind relay — `sync.md` §2's "least clever option": an authenticated
@@ -88,7 +98,7 @@ function sha256(input: Uint8Array): Uint8Array {
  * the host-auth / paid-relay seam — content-blind, orthogonal to zero-knowledge.
  */
 function registrationTokenOk(req: IncomingMessage): boolean {
-  const expected = process.env.RELAY_REGISTRATION_TOKEN;
+  const expected = process.env[ENV.registrationToken];
   if (expected === undefined || expected === "") return true;
   const presented = req.headers["x-registration-token"];
   if (typeof presented !== "string") return false;
@@ -98,30 +108,21 @@ function registrationTokenOk(req: IncomingMessage): boolean {
 }
 
 /**
- * A minimal fixed-window, per-IP rate limiter for the **unauthenticated**
- * enumeration vectors (`GET /accounts/lookup` and `POST /accounts`). The launch
- * join scheme is username + password (multi-device-login.md), so a username
- * existence oracle is an *accepted, deliberate* property — it can't be removed
- * without dropping usernames — but it **can be throttled**, which is the
- * pragmatic enumeration mitigation (security-review.md §3). The authenticated
- * routes (`bootstrap`/`push`/`pull`) are not enumeration oracles, so they are not
- * throttled here.
+ * A minimal fixed-window, per-IP rate limiter. Two instances guard the relay (see
+ * {@link createRelayServer}): one on the **unauthenticated** enumeration vectors
+ * (`GET /accounts/lookup`, `POST /accounts`) and a stricter one on the
+ * recovery-authed endpoints. The launch join scheme is username + password
+ * (multi-device-login.md), so a username existence oracle is an *accepted,
+ * deliberate* property — it can't be removed without dropping usernames — but it
+ * **can be throttled**, the pragmatic enumeration mitigation (security-review.md
+ * §3). The authenticated routes (`bootstrap`/`push`/`pull`) aren't enumeration
+ * oracles, so they aren't throttled.
  *
  * In-memory and per-process: right for a single-node relay. A multi-node or
  * reverse-proxied deployment needs a shared counter and `X-Forwarded-For`
  * awareness (the client IP is otherwise the proxy's) — named follow-ups in the
- * security review.
+ * security review. Default parameters live in {@link ./config}.
  */
-export interface RateLimit {
-  /** Max requests allowed per client IP within the window. */
-  max: number;
-  /** Window length in milliseconds. */
-  windowMs: number;
-}
-
-/** The default throttle when none is supplied — generous; tune per deployment. */
-const DEFAULT_RATE_LIMIT: RateLimit = { max: 60, windowMs: 60_000 };
-
 function createRateLimiter(limit: RateLimit): (ip: string) => boolean {
   const hits = new Map<string, { count: number; resetAt: number }>();
   return function allow(ip: string): boolean {
@@ -232,13 +233,39 @@ export function createRelayServer(opts: {
   store: RelayStore;
   /** Per-IP throttle on the unauthenticated endpoints. Defaults generous. */
   rateLimit?: RateLimit;
+  /**
+   * Per-IP throttle on the recovery-authed endpoints (`/accounts/recovery`,
+   * `/accounts/reset`). Defaults tighter than {@link rateLimit} — see
+   * {@link DEFAULT_RECOVERY_RATE_LIMIT}.
+   */
+  recoveryRateLimit?: RateLimit;
 }): Server {
   const { store } = opts;
   const allow = createRateLimiter(opts.rateLimit ?? DEFAULT_RATE_LIMIT);
+  // A separate counter so recovery-flood throttling never spends (or is spent by)
+  // the enumeration budget — the two surfaces are independent.
+  const allowRecovery = createRateLimiter(
+    opts.recoveryRateLimit ?? DEFAULT_RECOVERY_RATE_LIMIT,
+  );
 
   /** Throttle a request by client IP; answers 429 and returns true if over. */
   function throttled(req: IncomingMessage, res: ServerResponse): boolean {
     if (allow(req.socket.remoteAddress ?? "unknown")) return false;
+    sendJson(res, 429, { error: "rate limited" });
+    return true;
+  }
+
+  /**
+   * Throttle a recovery-authed request by client IP against the stricter
+   * recovery budget; answers 429 and returns true if over. Call this *before*
+   * {@link authenticateRecovery} so a wrong-verifier guesser is throttled (a
+   * post-auth check would never see the rejected attempts it's meant to limit).
+   */
+  function throttledRecovery(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): boolean {
+    if (allowRecovery(req.socket.remoteAddress ?? "unknown")) return false;
     sendJson(res, 429, { error: "rate limited" });
     return true;
   }
@@ -340,6 +367,7 @@ export function createRelayServer(opts: {
     }
 
     if (method === "GET" && url.pathname === "/accounts/recovery") {
+      if (throttledRecovery(req, res)) return;
       // Recovery-authed: hand back wrap(MK, recoveryKey) so a device that lost
       // its password can unwrap MK from the recovery phrase. Opaque to the relay.
       const accountId = authenticateRecovery(req, store);
@@ -361,6 +389,7 @@ export function createRelayServer(opts: {
     }
 
     if (method === "POST" && url.pathname === "/accounts/reset") {
+      if (throttledRecovery(req, res)) return;
       // Recovery-authed: replace the password door with new material so the
       // recovered device can authenticate going forward. The recovery escrow +
       // verifier are untouched, so the same phrase keeps working.

@@ -7,17 +7,18 @@
 > do next*, then the relevant design doc for the *why*.** Update *this* file per increment;
 > keep the design docs stable.
 >
-> **Updated 2026-06-25** (recovery-phrase UI verification on **desktop is complete** — all four
-> flows manually verified: **reveal**, **single-device (keychain-loss) recovery**,
-> **cross-device recovery**, and **re-auth** after a remote password reset. Three bugs found +
-> fixed along the way (the `ErrorPage` recovery-boot race, a raw-`401` leak on the manual
-> "Sync now" path, and the unhandled promise rejection on the background 401 path — the last now
-> fixed at the scheduler source, covering desktop **and** mobile) — all under *Identified issues*.
-> Still pending manual verification: **all mobile** recovery flows.
-> Prior 2026-06-24 note: the mobile native test tier — backlog step 3a — landed: an in-app
-> dev-only self-test runs the `SqliteDriver` contract against the real `expoSqliteDriver`,
-> green on iOS + Android. The blackbox harness that asserts it from the CLI (step 3b) is
-> still pending.)
+> **Updated 2026-06-26** (recovery-phrase UI verification is **complete on both clients** — the
+> mobile flows (reveal, single-device keychain-loss recovery, cross-device recovery, re-auth) are
+> now verified on a dev client, matching the desktop pass finished 2026-06-25. **The
+> recovery-phrase increment is fully done** — no remaining UI verification. A `__DEV__`-only
+> affordance to simulate keychain loss landed to enable scenario 8: deep-link
+> `leapsake://dev-clear-dbkey` deletes only the secure-store `db-key`
+> (`apps/mobile/app/dev-clear-dbkey.tsx`). Next code-only item: **relay hardening**, starting with
+> rate-limiting the unprotected `POST /accounts/reset` recovery endpoint.
+> Prior 2026-06-25 desktop note: all four desktop flows verified; three bugs found + fixed (the
+> `ErrorPage` recovery-boot race, a raw-`401` leak on the manual "Sync now" path, and the
+> unhandled promise rejection on the background 401 path — the last fixed at the scheduler source,
+> covering desktop **and** mobile) — all under *Identified issues*.)
 
 ## Where things stand
 
@@ -27,10 +28,10 @@
 - **V3 · Encryption + sync** — **Stage 1 (zero-knowledge sync) is done** on both clients,
   verified desktop ↔ mobile over the wire. **Stage 2 (at-rest) is done on both clients**
   (the local file is encrypted on desktop *and* mobile). **The recovery-phrase increment is
-  code-complete** — the recovery key is now a 24-word phrase that recovers **both** loss
+  done** — the recovery key is now a 24-word phrase that recovers **both** loss
   events (lost OS keychain → reopen the local file; forgot password → recover the account on
-  a new device). Crypto/core/relay paths are test-verified; **the UI on both clients is not
-  yet manually verified** (see *What's next → Immediate verification*). Stages 3–4 (sharing,
+  a new device). Crypto/core/relay paths are test-verified and **the UI is manually verified on
+  both clients** (desktop 2026-06-25, mobile 2026-06-26). Stages 3–4 (sharing,
   SSR) remain post-launch. Design: [`encryption/`](./encryption/).
 - **V3 · Reconciliation (dedup & merge)** — Increments A, B, and C's merge-on-join are
   built; only C's bulk-import dedup remains (deferred until the importer exists). Design:
@@ -297,78 +298,53 @@ PASS). Design + the staleness/coverage enforcement model in [`testing/`](./testi
 person + decrypted milestone note converge both ways through a localhost `apps/server` relay).
 What's left for launch:
 - **Stage 2 — at-rest encryption.** **Done on both clients** (see Recently shipped).
-- **Recovery phrase.** **Done (code-complete), pending UI verification** (see Recently
-  shipped + *Immediate verification* below). Replaced the base64 placeholder.
+- **Recovery phrase.** **Done** — code-complete and UI-verified on both clients (desktop
+  2026-06-25, mobile 2026-06-26; see Recently shipped). Replaced the base64 placeholder.
 - **Relay hardening** — TLS, challenge–response vs. bearer replay, device-scoped tokens,
-  proxy-aware/shared rate limiter (`encryption/security-review.md` §3). **Now also covers the
-  two new recovery endpoints**: `POST /accounts/reset` is a state-changing, password-resetting
-  surface gated only by the recovery verifier (256-bit, so brute force is infeasible) and is
-  **not rate-limited** today — add it to the limiter in the hardening pass; `GET
-  /accounts/recovery` serves the recovery escrow under the same verifier gate.
+  proxy-aware/shared rate limiter (`encryption/security-review.md` §3). Still all open *except*
+  the recovery-endpoint throttle (below). The shared/proxy-aware limiter rework folds in here:
+  today's limiters are in-memory, per-process, and key on `req.socket.remoteAddress` (the proxy's
+  IP behind a reverse proxy), so a multi-node or proxied deploy needs `X-Forwarded-For` awareness
+  + a shared counter.
+  - **Recovery-endpoint rate-limiting — done (2026-06-26).** `POST /accounts/reset` (state-changing
+    password reset) and `GET /accounts/recovery` (escrow read) are both gated only by the 256-bit
+    recovery verifier — brute force is already infeasible, but they were **unthrottled**. Added a
+    *separate, tighter* per-IP limiter (`DEFAULT_RECOVERY_RATE_LIMIT` = 10/min, vs. 60/min for
+    enumeration; env `RELAY_RECOVERY_RATE_LIMIT_MAX`/`_WINDOW_MS`) applied **before**
+    `authenticateRecovery` so a wrong-verifier guesser is throttled, on its own counter so it never
+    shares the enumeration budget. Defense-in-depth + flood/DoS mitigation. Tested
+    (`apps/server/test/relay.test.ts`: throttle-before-auth + budget-independence).
 - **CK revocation / GC on entity delete** (sync-era cleanup; stops orphaned keys).
 - **True background-fetch sync + a configurable sync-*interval* UI.**
 
-#### Immediate verification (recovery phrase — UI not yet exercised)
+#### Verification record (recovery phrase — complete)
 
-The crypto/core/relay layers are test-verified; the **UI and boot flows could not be run in
-the build agent** and need a human pass. Verify and report back:
-- **Desktop reveal:** ✅ **verified 2026-06-25** — enable sync → the reveal shows a 24-word
-  phrase (not base64); the same phrase appears under Settings → "Reveal recovery phrase".
-- **Desktop single-device recovery:** ✅ **verified 2026-06-25** — with `leapsake.db` +
-  `leapsake.db.recovery` present, deleting the `db-key` line in `<userData>/keystore.json` →
-  relaunch → the `RecoveryGate` prompts → entering the phrase restores access (wrong phrase
-  shows the error and re-prompts; `db-key` restored to the keystore, sidecar rewritten, data
-  intact). **Surfaced + fixed the `ErrorPage` race** noted under *Identified issues* below.
-- **Desktop cross-device recovery:** ✅ **verified 2026-06-25** — a second instance (separate
-  `--user-data-dir` against the same dev server) ran the login flow → "Recover with your recovery
-  phrase" → entered phrase + a new password → the account's data converged over a localhost
-  `apps/server` relay (people appeared on the fresh device, no errors).
-- **Desktop re-auth after remote reset:** ✅ **verified 2026-06-25** — after the recovery above
-  rotated the password, device 1's sync 401'd and Settings surfaced the friendly "password changed
-  on another device" prompt; re-entering the new password reconnected (no Disconnect/rejoin).
-  **Surfaced + fixed a raw-`401` leak on the manual "Sync now" path**, and **surfaced + later fixed
-  an unhandled promise rejection** in the background 401 path — both under *Identified issues* below.
-- **Mobile:** ⏳ pending — the same reveal + boot-recovery + recover-with-phrase flows on a dev
-  client (Android emulator, as in Stage 2 mobile verification). Confirm the `leapsake-recovery.db`
-  sidecar is created beside the main DB. (The boot-recovery leg needs a `__DEV__` affordance to
-  clear *only* the secure-store `db-key` — a reinstall wipes both DBs; see the runbook below.)
+All recovery-phrase UI/boot flows are manually verified on **both clients**; the increment is done.
+The dev harness below is retained because the relay + multi-instance setup is reused by future
+sync work (relay hardening, background-fetch).
 
-#### Next session — run these in order (fresh-context runbook)
+- **Desktop (2026-06-25, all four flows):** reveal (24-word phrase, not base64; same phrase under
+  Settings → "Reveal recovery phrase"); single-device keychain-loss recovery (delete the `db-key`
+  line in `<userData>/keystore.json` → relaunch → `RecoveryGate` → phrase restores access);
+  cross-device recovery (a second `--user-data-dir` instance recovers and converges over the
+  relay); re-auth after the remote reset (device 1's 401 → friendly prompt → reconnect). Surfaced
+  + fixed three bugs (see *Identified issues*).
+- **Mobile (2026-06-26, all flows):** reveal (`app/(tabs)/settings.tsx`); cross-device recover
+  (`RecoverStep`) converging with a desktop instance over the relay; re-auth prompt;
+  single-device boot recovery via the new `leapsake://dev-clear-dbkey` affordance →
+  force-quit/relaunch → mobile `RecoveryGate`. Confirmed `leapsake-recovery.db` sits beside the
+  main DB.
 
-Desktop scenarios 1–4 are verified; bug #1 (ErrorPage race) is committed, bug #2 (manual-sync raw
-`401`) and bug #3 (background-401 unhandled rejection) are in the tree. Two follow-ups remain, in
-order. **Dev harness used throughout:**
-
+**Dev harness (reusable):**
 - **Relay:** `cd apps/server && pnpm exec tsx src/index.ts` → `http://localhost:4000`. Store
   persists to `apps/server/relay.db` (accounts + recovery escrow survive restarts; `rm` it for a
-  clean slate).
-- **Device 1 (primary):** `pnpm --filter @leapsake/desktop dev`. Its userData is
-  `~/Library/Application Support/@leapsake/desktop` — **note: the dev app uses this, not the
-  packaged `…/Leapsake` dir**. `keystore.json` there holds `db-key`/`recovery-key`; delete the
-  `db-key` JSON key to simulate keychain loss. Reveal the account phrase via Settings → "Reveal
-  recovery phrase".
-- **Extra instances (device 2, 3, …) on the same dev server** (no single-instance lock, so they
-  coexist): from the repo root,
-  `ELECTRON_RENDERER_URL=http://localhost:5173 "$(node -p 'require("electron")')" apps/desktop --user-data-dir=<fresh-dir>`.
-  Each distinct `--user-data-dir` is a separate "device" (use a throwaway tmp dir).
-
-**1. Live-verify bug #2 (manual "Sync now" 401).** With device 1 synced, rotate the account
-password out from under it: on a *fresh* instance run the login flow → "Recover with your recovery
-phrase" → phrase + a NEW password (this resets the relay password). Device 1's credential is now
-stale. On device 1, **press "Sync now" while the re-auth prompt is showing** → confirm the friendly
-"password changed on another device" prompt appears and **no raw `…failed: 401` dialog leaks**;
-entering the new password reconnects. (Restart device 1 first to be sure the `main/index.ts` change
-is loaded; electron-vite restarts the main process on change.)
-
-**2. Mobile (scenarios 5–8).** Build the iOS dev client: `pnpm --filter @leapsake/mobile ios`
-(native SQLCipher build; Expo Go can't host it). Point the simulator at the host relay — **iOS sim:
-`http://localhost:4000`; Android emulator: `http://10.0.2.2:4000`**. Verify: **reveal**
-(`app/(tabs)/settings.tsx`); **cross-device recover** (`RecoverStep`) converging with a desktop
-instance over the relay; **re-auth** prompt. Confirm the `leapsake-recovery.db` sidecar appears
-beside the main DB. **Single-device boot recovery (scenario 8)** needs a `__DEV__`-only affordance to
-clear *only* the `expo-secure-store` `db-key` (a reinstall wipes both the DB and the sidecar) — add
-one reachable like the existing `leapsake://dev-selftest` deep link, then relaunch to hit the mobile
-`RecoveryGate` (`apps/mobile/lib/core-context.tsx`).
+  clean slate). Mobile sims point at it: **iOS `http://localhost:4000`; Android `http://10.0.2.2:4000`**.
+- **Desktop device 1:** `pnpm --filter @leapsake/desktop dev`; userData
+  `~/Library/Application Support/@leapsake/desktop` (the dev app, not the packaged `…/Leapsake`).
+- **Extra desktop instances** (no single-instance lock): from repo root,
+  `ELECTRON_RENDERER_URL=http://localhost:5173 "$(node -p 'require("electron")')" apps/desktop --user-data-dir=<fresh-dir>` —
+  each distinct `--user-data-dir` is a separate "device".
+- **Mobile dev client:** `pnpm --filter @leapsake/mobile ios` (native SQLCipher build; Expo Go can't host it).
 
 #### Identified issues / follow-ups from this increment
 

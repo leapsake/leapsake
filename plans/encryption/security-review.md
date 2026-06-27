@@ -95,9 +95,12 @@ Two pinned decisions specific to *this* review, not the package surface:
   before you can authenticate); it cannot be removed without dropping usernames
   (the deferred high-entropy-code door) or adopting an aPAKE (OPAQUE). **Mitigation
   (built):** per-IP **rate limiting** on the two unauthenticated endpoints
-  (`apps/server/src/relay.ts`, `RateLimit`; env-tunable). Residual: a single-node
-  in-memory limiter — a multi-node / reverse-proxied relay needs a shared counter
-  and `X-Forwarded-For` awareness (the limiter otherwise sees the proxy IP).
+  (`apps/server/src/relay.ts`, `RateLimit`; env-tunable) — and on the
+  recovery-authed endpoints (`/accounts/reset`, `/accounts/recovery`) under a
+  separate, stricter per-IP budget applied before the verifier check. Residual: a
+  single-node in-memory limiter — a multi-node / reverse-proxied relay needs a
+  shared counter and `X-Forwarded-For` awareness (the limiter otherwise sees the
+  proxy IP).
 - **Password strength is the encryption strength — floored, not solved.** The
   password derives the KEK, so a weak password weakens the at-rest protection and,
   on a relay-store leak, the offline-attack cost — with no server-side reset to
