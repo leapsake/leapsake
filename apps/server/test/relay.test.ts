@@ -780,3 +780,71 @@ describe("relay rate limiting (unauthenticated endpoints)", () => {
     expect(await probe()).toBe(429);
   });
 });
+
+/**
+ * The recovery-authed endpoints (`/accounts/recovery`, `/accounts/reset`) have
+ * their own, tighter throttle (security-review.md §3): `reset` is state-changing
+ * and both are gated only by the recovery verifier, so they're the brute-force
+ * target. The throttle fires *before* the verifier check, so a wrong-token
+ * guesser is limited — and it's a separate budget from the enumeration throttle.
+ */
+describe("relay rate limiting (recovery endpoints)", () => {
+  let server: Server;
+  let db: DatabaseSync;
+  let baseUrl: string;
+
+  beforeEach(async () => {
+    db = new DatabaseSync(":memory:");
+    server = createRelayServer({
+      store: createRelayStore(db),
+      // Generous enumeration budget, but a tiny recovery budget: this proves the
+      // two are independent (recovery 429s while lookup is nowhere near its cap).
+      rateLimit: { max: 100, windowMs: 60_000 },
+      recoveryRateLimit: { max: 2, windowMs: 60_000 },
+    });
+    baseUrl = `http://127.0.0.1:${await listen(server)}`;
+  });
+
+  afterEach(async () => {
+    await close(server);
+    db.close();
+  });
+
+  it("throttles a recovery-verifier guesser before authenticating it", async () => {
+    // A bogus Recovery token: it never authenticates (no such account), so each
+    // attempt would 401 — but the throttle must cut in first on the third try.
+    const guess = () =>
+      fetch(`${baseUrl}/accounts/reset`, {
+        method: "POST",
+        headers: {
+          authorization: `Recovery ${crypto.randomUUID()}.${Buffer.from(
+            generateKey(),
+          ).toString("base64")}`,
+          "content-type": "application/json",
+        },
+        body: "{}",
+      }).then((r) => r.status);
+    expect(await guess()).toBe(401);
+    expect(await guess()).toBe(401);
+    // Third within the window is throttled before authenticateRecovery runs.
+    expect(await guess()).toBe(429);
+  });
+
+  it("keeps the recovery budget separate from the enumeration budget", async () => {
+    // Spend the entire recovery budget…
+    const reset = () =>
+      fetch(`${baseUrl}/accounts/reset`, {
+        method: "POST",
+        headers: { authorization: "Recovery x.y", "content-type": "application/json" },
+        body: "{}",
+      }).then((r) => r.status);
+    await reset();
+    await reset();
+    expect(await reset()).toBe(429);
+    // …the unauthenticated lookup throttle is untouched (its own counter).
+    const lookup = await fetch(`${baseUrl}/accounts/lookup?username=nobody`).then(
+      (r) => r.status,
+    );
+    expect(lookup).toBe(404);
+  });
+});

@@ -34,7 +34,9 @@ model and its accepted residual risks are in
 | `GET /sync/pull?since=<cursor>`  | bearer                      | → `{ records, cursor }`                                                                           |
 
 The unauthenticated endpoints are per-IP rate-limited (`RateLimit`, env-tunable)
-as the username-enumeration mitigation.
+as the username-enumeration mitigation; the recovery-authed endpoints
+(`/accounts/recovery`, `/accounts/reset`) carry a separate, stricter throttle.
+Defaults and env-var names are centralized in `src/config.ts`.
 
 ## Running
 
