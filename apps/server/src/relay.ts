@@ -7,10 +7,12 @@ import {
 } from "node:http";
 import { base64ToBytes, bytesToBase64 } from "@leapsake/crypto";
 import { decodeRecord, encodeRecord } from "@leapsake/data";
+import proxyaddr from "proxy-addr";
 import { z } from "zod";
 import {
   DEFAULT_RATE_LIMIT,
   DEFAULT_RECOVERY_RATE_LIMIT,
+  DEFAULT_TRUSTED_PROXIES,
   ENV,
   type RateLimit,
 } from "./config.js";
@@ -118,10 +120,11 @@ function registrationTokenOk(req: IncomingMessage): boolean {
  * §3). The authenticated routes (`bootstrap`/`push`/`pull`) aren't enumeration
  * oracles, so they aren't throttled.
  *
- * In-memory and per-process: right for a single-node relay. A multi-node or
- * reverse-proxied deployment needs a shared counter and `X-Forwarded-For`
- * awareness (the client IP is otherwise the proxy's) — named follow-ups in the
- * security review. Default parameters live in {@link ./config}.
+ * The key is a proxy-aware client IP (see {@link createRelayServer}'s `clientIp`):
+ * behind a trusted reverse proxy it's the real client from `X-Forwarded-For`, not
+ * the proxy's address. In-memory and per-process, so right for a *single-node*
+ * relay; a multi-node deployment still needs a shared counter (the remaining
+ * security-review.md §3 follow-up). Default parameters live in {@link ./config}.
  */
 function createRateLimiter(limit: RateLimit): (ip: string) => boolean {
   const hits = new Map<string, { count: number; resetAt: number }>();
@@ -239,6 +242,14 @@ export function createRelayServer(opts: {
    * {@link DEFAULT_RECOVERY_RATE_LIMIT}.
    */
   recoveryRateLimit?: RateLimit;
+  /**
+   * Reverse proxies trusted to set `X-Forwarded-For`, so the rate limiters key on
+   * the real client IP rather than the proxy's when the relay runs behind one.
+   * Each entry is an IP, a CIDR range, or a `proxy-addr` preset (`loopback`,
+   * `uniquelocal`, …). Empty (the default) trusts none and ignores the header —
+   * the secure default; see {@link DEFAULT_TRUSTED_PROXIES}.
+   */
+  trustedProxies?: readonly string[];
 }): Server {
   const { store } = opts;
   const allow = createRateLimiter(opts.rateLimit ?? DEFAULT_RATE_LIMIT);
@@ -248,9 +259,19 @@ export function createRelayServer(opts: {
     opts.recoveryRateLimit ?? DEFAULT_RECOVERY_RATE_LIMIT,
   );
 
+  // Compile the trusted-proxy predicate once. proxy-addr walks `socket + XFF`
+  // from the socket end, hops over each *trusted* address, and returns the first
+  // untrusted one — the real client. An empty trust set never hops, so this just
+  // returns `req.socket.remoteAddress` (today's behavior) and the spoofable XFF
+  // is ignored.
+  const trust = proxyaddr.compile([
+    ...(opts.trustedProxies ?? DEFAULT_TRUSTED_PROXIES),
+  ]);
+  const clientIp = (req: IncomingMessage): string => proxyaddr(req, trust);
+
   /** Throttle a request by client IP; answers 429 and returns true if over. */
   function throttled(req: IncomingMessage, res: ServerResponse): boolean {
-    if (allow(req.socket.remoteAddress ?? "unknown")) return false;
+    if (allow(clientIp(req))) return false;
     sendJson(res, 429, { error: "rate limited" });
     return true;
   }
@@ -265,7 +286,7 @@ export function createRelayServer(opts: {
     req: IncomingMessage,
     res: ServerResponse,
   ): boolean {
-    if (allowRecovery(req.socket.remoteAddress ?? "unknown")) return false;
+    if (allowRecovery(clientIp(req))) return false;
     sendJson(res, 429, { error: "rate limited" });
     return true;
   }

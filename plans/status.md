@@ -302,10 +302,22 @@ What's left for launch:
   2026-06-25, mobile 2026-06-26; see Recently shipped). Replaced the base64 placeholder.
 - **Relay hardening** — TLS, challenge–response vs. bearer replay, device-scoped tokens,
   proxy-aware/shared rate limiter (`encryption/security-review.md` §3). Still all open *except*
-  the recovery-endpoint throttle (below). The shared/proxy-aware limiter rework folds in here:
-  today's limiters are in-memory, per-process, and key on `req.socket.remoteAddress` (the proxy's
-  IP behind a reverse proxy), so a multi-node or proxied deploy needs `X-Forwarded-For` awareness
-  + a shared counter.
+  the recovery-endpoint throttle and the **proxy-aware client IP** (both below). The limiters key
+  on a proxy-aware client IP now; the remaining limiter gap is the **shared cross-process counter**
+  for a multi-node deploy (today's are still in-memory, per-process).
+  - **Proxy-aware client IP — done (2026-06-26).** Behind a reverse proxy the per-IP limiters keyed
+    on `req.socket.remoteAddress` (the *proxy's* IP for every client), collapsing both throttles to
+    one shared bucket (self-DoS) or, if widened, to a no-op. Now a `clientIp(req)` helper recovers
+    the real client from `X-Forwarded-For` via `proxy-addr` (the Express `trust proxy` resolver,
+    so IPv6 / IPv4-mapped-IPv6 are handled), but **only** for connections from a configured trusted
+    proxy — an **IP/CIDR allowlist** (`RELAY_TRUSTED_PROXIES`, comma-separated IPs/CIDRs or presets
+    `loopback`/`uniquelocal`; `DEFAULT_TRUSTED_PROXIES = []`). **Secure by default:** unset → trust
+    none → XFF ignored → byte-for-byte today's behavior, so a forged header can't mint fresh buckets.
+    Compiled once at server construction; both `throttled`/`throttledRecovery` call sites swapped.
+    Tested (`apps/server/test/relay.test.ts`: per-client buckets behind a trusted proxy, XFF ignored
+    with no trust configured, rightmost-untrusted/anti-spoof selection) + manual `curl` smoke of the
+    env wiring. Single-node only; the **shared counter** for multi-node relays remains the open §3
+    limiter item.
   - **Recovery-endpoint rate-limiting — done (2026-06-26).** `POST /accounts/reset` (state-changing
     password reset) and `GET /accounts/recovery` (escrow read) are both gated only by the 256-bit
     recovery verifier — brute force is already infeasible, but they were **unthrottled**. Added a

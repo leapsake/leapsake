@@ -58,6 +58,21 @@ export const DEFAULT_RECOVERY_RATE_LIMIT: RateLimit = {
 };
 
 /**
+ * The set of reverse proxies the relay trusts to set `X-Forwarded-For`, used to
+ * recover the real client IP for the per-IP rate limiters when the relay runs
+ * behind a proxy/load balancer (otherwise every client looks like the proxy and
+ * the throttles collapse to one shared bucket — security-review.md §3). Each
+ * entry is an IP, a CIDR range (`10.0.0.0/8`), or a `proxy-addr` preset name
+ * (`loopback`, `linklocal`, `uniquelocal`).
+ *
+ * **Empty by default — the secure default.** With no trusted proxy, the client
+ * IP is taken from the raw socket and a (spoofable) `X-Forwarded-For` is ignored,
+ * so a forged header can't mint fresh rate-limit buckets. Only widen this to the
+ * actual proxies in front of the relay.
+ */
+export const DEFAULT_TRUSTED_PROXIES: readonly string[] = [];
+
+/**
  * The env vars the relay reads, named in one place so the set of override knobs
  * is discoverable and a rename touches a single line. Resolution (parsing,
  * defaulting) lives at the call sites (`index.ts`, `relay.ts`); this is only the
@@ -76,4 +91,11 @@ export const ENV = {
   /** Recovery throttle overrides (default {@link DEFAULT_RECOVERY_RATE_LIMIT}). */
   recoveryRateLimitMax: "RELAY_RECOVERY_RATE_LIMIT_MAX",
   recoveryRateLimitWindowMs: "RELAY_RECOVERY_RATE_LIMIT_WINDOW_MS",
+  /**
+   * Comma-separated trusted reverse-proxy IPs / CIDR ranges / `proxy-addr` preset
+   * names (`loopback`, `uniquelocal`); empty/unset trusts none (default
+   * {@link DEFAULT_TRUSTED_PROXIES}). Enables `X-Forwarded-For`-aware client IPs
+   * for the rate limiters when behind a proxy.
+   */
+  trustedProxies: "RELAY_TRUSTED_PROXIES",
 } as const;
