@@ -19,8 +19,14 @@ import { createRelayStore } from "./store.js";
  * `RELAY_RECOVERY_RATE_LIMIT_WINDOW_MS`. All defaults + env-var names live in
  * `./config`.
  *
+ * Behind a reverse proxy, set `RELAY_TRUSTED_PROXIES` (comma-separated IPs / CIDR
+ * ranges / `proxy-addr` presets like `loopback`, `uniquelocal`) so the rate
+ * limiters key on the real client IP from `X-Forwarded-For`; unset trusts no
+ * proxy and ignores the header (the secure default).
+ *
  * Still deferred (see plans/encryption/security-review.md): TLS termination,
- * replay defense, device-scoped tokens, and proxy-aware client-IP handling.
+ * replay defense, device-scoped tokens, and a shared cross-process rate-limit
+ * counter for multi-node relays (the single-node proxy-aware client IP is done).
  */
 const port = Number(process.env[ENV.port] ?? DEFAULT_PORT);
 const dbPath = process.env[ENV.dbPath] ?? DEFAULT_DB_PATH;
@@ -47,7 +53,16 @@ const recoveryRateLimit = rateLimitFromEnv(
   process.env[ENV.recoveryRateLimitWindowMs],
 );
 
+// Comma-separated trusted proxies → string[] (empty when unset; trims blanks).
+const trustedProxies = (process.env[ENV.trustedProxies] ?? "")
+  .split(",")
+  .map((entry) => entry.trim())
+  .filter((entry) => entry.length > 0);
+
 const store = createRelayStore(new DatabaseSync(dbPath));
-createRelayServer({ store, rateLimit, recoveryRateLimit }).listen(port, () => {
-  console.log(`Leapsake relay listening on http://localhost:${port}`);
-});
+createRelayServer({ store, rateLimit, recoveryRateLimit, trustedProxies }).listen(
+  port,
+  () => {
+    console.log(`Leapsake relay listening on http://localhost:${port}`);
+  },
+);

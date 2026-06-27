@@ -848,3 +848,67 @@ describe("relay rate limiting (recovery endpoints)", () => {
     expect(lookup).toBe(404);
   });
 });
+
+/**
+ * Proxy-aware client IP (security-review.md §3): behind a reverse proxy every
+ * request shares the proxy's socket address, so the rate limiters must key on the
+ * real client from `X-Forwarded-For` — but *only* when the request actually came
+ * from a trusted proxy, or a forged header would mint unlimited buckets. These
+ * tests run over a `127.0.0.1` socket, so `trustedProxies: ["loopback"]` makes
+ * the test connection itself the "trusted proxy" whose XFF is honored.
+ */
+describe("relay rate limiting (proxy-aware client IP)", () => {
+  let server: Server;
+  let db: DatabaseSync;
+  let baseUrl: string;
+
+  async function start(
+    rateLimit: { max: number; windowMs: number },
+    trustedProxies?: string[],
+  ): Promise<void> {
+    db = new DatabaseSync(":memory:");
+    server = createRelayServer({
+      store: createRelayStore(db),
+      rateLimit,
+      trustedProxies,
+    });
+    baseUrl = `http://127.0.0.1:${await listen(server)}`;
+  }
+
+  // A lookup probe carrying a chosen X-Forwarded-For; 404 on a miss, 429 throttled.
+  const probe = (xff: string) =>
+    fetch(`${baseUrl}/accounts/lookup?username=nobody`, {
+      headers: { "x-forwarded-for": xff },
+    }).then((r) => r.status);
+
+  afterEach(async () => {
+    await close(server);
+    db.close();
+  });
+
+  it("keys per-client via X-Forwarded-For behind a trusted proxy", async () => {
+    await start({ max: 1, windowMs: 60_000 }, ["loopback"]);
+    // Client 1.1.1.1: first probe passes (404 miss), the second trips its bucket.
+    expect(await probe("1.1.1.1")).toBe(404);
+    expect(await probe("1.1.1.1")).toBe(429);
+    // A different client has its own bucket — not collateral-throttled by 1.1.1.1.
+    expect(await probe("2.2.2.2")).toBe(404);
+  });
+
+  it("ignores X-Forwarded-For when no proxy is trusted", async () => {
+    await start({ max: 1, windowMs: 60_000 }); // trust nobody (the secure default)
+    // Distinct XFF values, but the real 127.0.0.1 socket is the key, so a spoofed
+    // header can't mint a fresh bucket: the second request is throttled.
+    expect(await probe("1.1.1.1")).toBe(404);
+    expect(await probe("2.2.2.2")).toBe(429);
+  });
+
+  it("trusts only the rightmost, proxy-appended X-Forwarded-For entry", async () => {
+    await start({ max: 1, windowMs: 60_000 }, ["loopback"]);
+    // The rightmost entry (added by our trusted proxy) is the real client; the
+    // leftmost is client-supplied and spoofable. Same real client (1.1.1.1) under
+    // a different forged leftmost → same bucket → throttled.
+    expect(await probe("9.9.9.9, 1.1.1.1")).toBe(404);
+    expect(await probe("8.8.8.8, 1.1.1.1")).toBe(429);
+  });
+});
