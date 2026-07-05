@@ -176,6 +176,53 @@ describe("blind HTTPS relay (server + adapter)", () => {
     expect(await B.people.get(ada.id)).toEqual(ada); // identical, over the wire
   });
 
+  it("skips an undecryptable record and still converges the batch (M3)", async () => {
+    // A valid record on the log…
+    const ada = await A.people.create({
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+    await engineFor(A).sync();
+
+    // …then inject a garbage-ciphertext record for a *real* table straight onto the
+    // relay (bypassing the client seal), as a hostile/buggy relay or a corrupt row
+    // would. Long enough to clear the open() length guard, so it exercises the
+    // sync-engine per-record try/catch, not just the crypto guard.
+    const bearer = `Bearer ${ACCOUNT_ID}.${Buffer.from(AUTH_VERIFIER).toString("base64")}`;
+    const inject = await fetch(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: bearer },
+      body: JSON.stringify({
+        records: [
+          {
+            id: crypto.randomUUID(),
+            table: "people",
+            updatedAt: ada.updatedAt + 1,
+            deletedAt: null,
+            ciphertext: Buffer.from(new Uint8Array(48).fill(3)).toString(
+              "base64",
+            ),
+          },
+        ],
+      }),
+    });
+    expect(inject.status).toBe(200);
+
+    // B pulls the whole batch (valid + poison) from the start: it must not throw,
+    // the valid row converges, and the poison is skipped — so only the valid record
+    // counts toward `applied`.
+    const engineB = engineFor(B);
+    const first = await engineB.pull(0);
+    expect(first.applied).toBe(1);
+    expect(await B.people.get(ada.id)).toEqual(ada);
+
+    // The returned cursor advanced past the poison, so a second pull from it is
+    // clean (nothing re-pulled, no re-throw) — the permanent-poisoning loop the
+    // finding describes is broken.
+    const second = await engineB.pull(first.cursor);
+    expect(second.applied).toBe(0);
+  });
+
   it("round-trips an encrypted milestone note; content keys never leave the device", async () => {
     const milestone = await A.milestones.create({
       kind: "birthday",
@@ -835,16 +882,98 @@ describe("relay rate limiting (recovery endpoints)", () => {
     const reset = () =>
       fetch(`${baseUrl}/accounts/reset`, {
         method: "POST",
-        headers: { authorization: "Recovery x.y", "content-type": "application/json" },
+        headers: {
+          authorization: "Recovery x.y",
+          "content-type": "application/json",
+        },
         body: "{}",
       }).then((r) => r.status);
     await reset();
     await reset();
     expect(await reset()).toBe(429);
     // …the unauthenticated lookup throttle is untouched (its own counter).
-    const lookup = await fetch(`${baseUrl}/accounts/lookup?username=nobody`).then(
+    const lookup = await fetch(
+      `${baseUrl}/accounts/lookup?username=nobody`,
+    ).then((r) => r.status);
+    expect(lookup).toBe(404);
+  });
+});
+
+/**
+ * Failed logins at `GET /accounts/bootstrap` are throttled per IP
+ * (security-findings.md H2). Bootstrap isn't an enumeration oracle but *is* a password
+ * oracle — a successful auth hands back `wrap(MK, KEK)` — so an attacker who has a
+ * username (via the unauthed `lookup`) could otherwise grind passwords against it with
+ * unlimited 401s. Only *failed* auths consume the budget, on its own counter, so a
+ * legitimate join is never charged and the enumeration budget is untouched.
+ */
+describe("relay rate limiting (bootstrap endpoint)", () => {
+  let server: Server;
+  let db: DatabaseSync;
+  let baseUrl: string;
+  const accountId = crypto.randomUUID();
+  const verifier = generateKey();
+  const wrappedMk = new Uint8Array(48).fill(9);
+
+  const bootstrap = (authorization: string) =>
+    fetch(`${baseUrl}/accounts/bootstrap`, { headers: { authorization } }).then(
       (r) => r.status,
     );
+  const wrongBearer = () =>
+    `Bearer ${accountId}.${Buffer.from(generateKey()).toString("base64")}`;
+  const rightBearer = () =>
+    `Bearer ${accountId}.${Buffer.from(verifier).toString("base64")}`;
+
+  beforeEach(async () => {
+    db = new DatabaseSync(":memory:");
+    server = createRelayServer({
+      store: createRelayStore(db),
+      // Generous enumeration/recovery budgets, tiny bootstrap budget: proves the
+      // bootstrap throttle fires on its own counter, independent of the others.
+      rateLimit: { max: 100, windowMs: 60_000 },
+      recoveryRateLimit: { max: 100, windowMs: 60_000 },
+      bootstrapRateLimit: { max: 2, windowMs: 60_000 },
+    });
+    baseUrl = `http://127.0.0.1:${await listen(server)}`;
+    // A real account so a *valid* bootstrap can succeed (proving success is free).
+    await createHttpSyncTransport({
+      baseUrl,
+      accountId,
+      authVerifier: verifier,
+    }).register({
+      username: "ada",
+      kdfSalt: generateSalt(),
+      wrappedMasterKey: wrappedMk,
+      wrappedMasterKeyRecovery: new Uint8Array(48).fill(5),
+      recoveryVerifier: generateKey(),
+    });
+  });
+
+  afterEach(async () => {
+    await close(server);
+    db.close();
+  });
+
+  it("throttles a bootstrap password-guesser after the failure cap", async () => {
+    // Wrong verifier → each attempt would 401, but the third within the window is
+    // throttled instead (only failed auths consume the budget).
+    expect(await bootstrap(wrongBearer())).toBe(401);
+    expect(await bootstrap(wrongBearer())).toBe(401);
+    expect(await bootstrap(wrongBearer())).toBe(429);
+  });
+
+  it("never charges a valid bootstrap, and keeps its budget separate", async () => {
+    // Exhaust the failure budget…
+    await bootstrap(wrongBearer());
+    await bootstrap(wrongBearer());
+    expect(await bootstrap(wrongBearer())).toBe(429);
+    // …a correct bootstrap from the same IP still succeeds (success never touches
+    // the counter, so a legit joining device is unaffected).
+    expect(await bootstrap(rightBearer())).toBe(200);
+    // …and the enumeration throttle is untouched (its own counter).
+    const lookup = await fetch(
+      `${baseUrl}/accounts/lookup?username=nobody`,
+    ).then((r) => r.status);
     expect(lookup).toBe(404);
   });
 });

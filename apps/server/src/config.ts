@@ -58,6 +58,21 @@ export const DEFAULT_RECOVERY_RATE_LIMIT: RateLimit = {
 };
 
 /**
+ * A tight default throttle on **failed** authentications at `GET /accounts/bootstrap`
+ * (security-findings.md H2). Bootstrap is the de-facto login endpoint: a joining device
+ * that authenticates successfully is handed `wrap(MK, KEK)`, so an unauthenticated route
+ * (`GET /accounts/lookup`) leaks the salt and an attacker can then grind candidate
+ * passwords against bootstrap — each 401 costing the relay nothing. Only *failed* auths
+ * consume this budget, and a legitimate join/re-auth touches bootstrap only a handful of
+ * times, so the cap is low, like {@link DEFAULT_RECOVERY_RATE_LIMIT}. Per-IP (an accepted
+ * limit: per-account keying is a tracked follow-up, since it opens a lockout-DoS vector).
+ */
+export const DEFAULT_BOOTSTRAP_RATE_LIMIT: RateLimit = {
+  max: 10,
+  windowMs: DEFAULT_RATE_LIMIT_WINDOW_MS,
+};
+
+/**
  * The set of reverse proxies the relay trusts to set `X-Forwarded-For`, used to
  * recover the real client IP for the per-IP rate limiters when the relay runs
  * behind a proxy/load balancer (otherwise every client looks like the proxy and
@@ -91,6 +106,13 @@ export const ENV = {
   /** Recovery throttle overrides (default {@link DEFAULT_RECOVERY_RATE_LIMIT}). */
   recoveryRateLimitMax: "RELAY_RECOVERY_RATE_LIMIT_MAX",
   recoveryRateLimitWindowMs: "RELAY_RECOVERY_RATE_LIMIT_WINDOW_MS",
+  /**
+   * Bootstrap failed-auth throttle overrides (default
+   * {@link DEFAULT_BOOTSTRAP_RATE_LIMIT}). Limits online password guessing at
+   * `GET /accounts/bootstrap` (security-findings.md H2).
+   */
+  bootstrapRateLimitMax: "RELAY_BOOTSTRAP_RATE_LIMIT_MAX",
+  bootstrapRateLimitWindowMs: "RELAY_BOOTSTRAP_RATE_LIMIT_WINDOW_MS",
   /**
    * Comma-separated trusted reverse-proxy IPs / CIDR ranges / `proxy-addr` preset
    * names (`loopback`, `uniquelocal`); empty/unset trusts none (default

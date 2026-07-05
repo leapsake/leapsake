@@ -39,9 +39,10 @@ export interface SyncEngine {
   /**
    * Pull records since `cursor`, decrypt, and apply each via its repo's merge,
    * returning the advanced `cursor` to pass next time and `applied` — the number
-   * of records the relay delivered this batch. `applied > 0` is the "something
-   * may have changed locally" signal reactive invalidation gates on; it is an
-   * upper bound (the relay echoes the device's own pushed rows, which LWW-merge
+   * of records successfully applied this batch (records for unknown tables, or any
+   * that fail to decrypt/decode, are skipped and not counted). `applied > 0` is the
+   * "something may have changed locally" signal reactive invalidation gates on; it is
+   * an upper bound (the relay echoes the device's own pushed rows, which LWW-merge
    * to a no-op), so a redundant revalidate after your own push is possible but
    * harmless (loaders are idempotent).
    */
@@ -102,15 +103,32 @@ export function createSyncEngine(opts: {
     // Apply order within a batch does not affect the converged state:
     // foreign-key enforcement is off and `upsertFromRemote` is LWW-idempotent,
     // so an edge that arrives before its endpoint still reconciles correctly.
+    let applied = 0;
     for (const record of records) {
       const repo = byTable.get(record.table);
       if (repo === undefined) continue; // unknown table — forward-compatible
-      const row = repo.decode(
-        JSON.parse(bytesToUtf8(open(record.ciphertext, masterKey))),
-      );
-      await repo.upsertFromRemote(row);
+      // Skip-and-log a record that fails to decrypt/decode/apply rather than
+      // aborting the whole batch: a single malformed row (a corrupt row, or one
+      // injected by a hostile relay) would otherwise throw here and — since the
+      // cursor never advances past it — re-throw on every subsequent pull,
+      // permanently stalling convergence (security-findings.md M3). The cursor
+      // still advances to `next`, so the bad row is pulled once, skipped, and
+      // never seen again. AEAD still fails closed, so this is not a confidentiality
+      // relaxation — only a resilience one.
+      try {
+        const row = repo.decode(
+          JSON.parse(bytesToUtf8(open(record.ciphertext, masterKey))),
+        );
+        await repo.upsertFromRemote(row);
+        applied += 1;
+      } catch (err) {
+        console.warn(
+          `sync: skipping undecryptable/invalid record for table "${record.table}"`,
+          err,
+        );
+      }
     }
-    return { cursor: next, applied: records.length };
+    return { cursor: next, applied };
   }
 
   return {

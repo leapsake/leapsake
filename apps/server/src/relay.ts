@@ -10,6 +10,7 @@ import { decodeRecord, encodeRecord } from "@leapsake/data";
 import proxyaddr from "proxy-addr";
 import { z } from "zod";
 import {
+  DEFAULT_BOOTSTRAP_RATE_LIMIT,
   DEFAULT_RATE_LIMIT,
   DEFAULT_RECOVERY_RATE_LIMIT,
   DEFAULT_TRUSTED_PROXIES,
@@ -110,15 +111,17 @@ function registrationTokenOk(req: IncomingMessage): boolean {
 }
 
 /**
- * A minimal fixed-window, per-IP rate limiter. Two instances guard the relay (see
+ * A minimal fixed-window, per-IP rate limiter. Three instances guard the relay (see
  * {@link createRelayServer}): one on the **unauthenticated** enumeration vectors
- * (`GET /accounts/lookup`, `POST /accounts`) and a stricter one on the
- * recovery-authed endpoints. The launch join scheme is username + password
- * (multi-device-login.md), so a username existence oracle is an *accepted,
- * deliberate* property — it can't be removed without dropping usernames — but it
- * **can be throttled**, the pragmatic enumeration mitigation (security-review.md
- * §3). The authenticated routes (`bootstrap`/`push`/`pull`) aren't enumeration
- * oracles, so they aren't throttled.
+ * (`GET /accounts/lookup`, `POST /accounts`), a stricter one on the recovery-authed
+ * endpoints, and a third on **failed** authentications at `GET /accounts/bootstrap`.
+ * The launch join scheme is username + password (multi-device-login.md), so a username
+ * existence oracle is an *accepted, deliberate* property — it can't be removed without
+ * dropping usernames — but it **can be throttled**, the pragmatic enumeration mitigation
+ * (security-review.md §3). Bootstrap isn't an enumeration oracle but *is* a password
+ * oracle — a successful auth returns `wrap(MK, KEK)` — so an online guessing grind is
+ * capped there too (security-findings.md H2). `push`/`pull` stay un-throttled: neither
+ * oracle, and hit legitimately on every sync.
  *
  * The key is a proxy-aware client IP (see {@link createRelayServer}'s `clientIp`):
  * behind a trusted reverse proxy it's the real client from `X-Forwarded-For`, not
@@ -243,6 +246,13 @@ export function createRelayServer(opts: {
    */
   recoveryRateLimit?: RateLimit;
   /**
+   * Per-IP throttle on **failed** authentications at `GET /accounts/bootstrap`, the
+   * online-password-guessing mitigation (security-findings.md H2). Its own counter, so
+   * a guessing grind never spends the enumeration/recovery budgets. Defaults tight —
+   * see {@link DEFAULT_BOOTSTRAP_RATE_LIMIT}.
+   */
+  bootstrapRateLimit?: RateLimit;
+  /**
    * Reverse proxies trusted to set `X-Forwarded-For`, so the rate limiters key on
    * the real client IP rather than the proxy's when the relay runs behind one.
    * Each entry is an IP, a CIDR range, or a `proxy-addr` preset (`loopback`,
@@ -257,6 +267,11 @@ export function createRelayServer(opts: {
   // the enumeration budget — the two surfaces are independent.
   const allowRecovery = createRateLimiter(
     opts.recoveryRateLimit ?? DEFAULT_RECOVERY_RATE_LIMIT,
+  );
+  // A third, independent counter for failed bootstrap auths (security-findings.md H2),
+  // so an online password-guessing grind can't spend the enumeration/recovery budgets.
+  const allowBootstrap = createRateLimiter(
+    opts.bootstrapRateLimit ?? DEFAULT_BOOTSTRAP_RATE_LIMIT,
   );
 
   // Compile the trusted-proxy predicate once. proxy-addr walks `socket + XFF`
@@ -371,6 +386,13 @@ export function createRelayServer(opts: {
     if (method === "GET" && url.pathname === "/accounts/bootstrap") {
       const accountId = authenticate(req, store);
       if (accountId === null) {
+        // A failed auth consumes the per-IP bootstrap budget; once exhausted we 429 so
+        // a password-guessing grind is throttled (security-findings.md H2). A legit
+        // device authenticates successfully and never touches this counter.
+        if (!allowBootstrap(clientIp(req))) {
+          sendJson(res, 429, { error: "rate limited" });
+          return;
+        }
         sendJson(res, 401, { error: "unauthorized" });
         return;
       }
