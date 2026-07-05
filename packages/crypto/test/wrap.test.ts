@@ -33,6 +33,17 @@ describe("seal/open", () => {
     const sealed = seal(new TextEncoder().encode("hands off"), generateKey());
     expect(() => open(sealed, generateKey())).toThrow();
   });
+
+  it("rejects a blob too short to hold a nonce + tag (M3 length guard)", () => {
+    const key = generateKey();
+    // Shorter than 24-byte nonce + 16-byte tag: can't be a genuine sealed value.
+    expect(() => open(new Uint8Array(10), key)).toThrow(
+      "sealed blob too short",
+    );
+    // A well-formed empty-plaintext seal is exactly at the floor and still opens.
+    const sealedEmpty = seal(new Uint8Array(0), key);
+    expect(open(sealedEmpty, key)).toEqual(new Uint8Array(0));
+  });
 });
 
 describe("wrapKey/unwrapKey", () => {

@@ -301,10 +301,40 @@ What's left for launch:
 - **Recovery phrase.** **Done** — code-complete and UI-verified on both clients (desktop
   2026-06-25, mobile 2026-06-26; see Recently shipped). Replaced the base64 placeholder.
 - **Relay hardening** — TLS, challenge–response vs. bearer replay, device-scoped tokens,
-  proxy-aware/shared rate limiter (`encryption/security-review.md` §3). Still all open *except*
-  the recovery-endpoint throttle and the **proxy-aware client IP** (both below). The limiters key
-  on a proxy-aware client IP now; the remaining limiter gap is the **shared cross-process counter**
-  for a multi-node deploy (today's are still in-memory, per-process).
+  proxy-aware/shared rate limiter (`encryption/security-review.md` §3). Done so far: the
+  recovery-endpoint throttle, the **proxy-aware client IP**, the **bootstrap online-guessing
+  throttle (H2)**, and the **convergence-DoS hardening (M3)** (all below). The limiters key on a
+  proxy-aware client IP now; the remaining limiter gap is the **shared cross-process counter** for a
+  multi-node deploy (today's are still in-memory, per-process). Still open: TLS + short-lived
+  session tokens (H3) and the offline-oracle mitigation (H1/H1-a).
+  - **Adversarial-review backlog (2026-07-05).** A "poke holes" pass produced a severity-ranked
+    findings doc: [`encryption/security-findings.md`](./encryption/security-findings.md). **H2 and
+    M3 are now done (2026-07-05, below).** The remaining load-bearing item for launch: **H1** — the
+    relay observes the raw auth verifier on every request, making it a standing *offline* crack
+    oracle; the highest-leverage fix (**H1-a**) is a client-held Secret Key/pepper in the KDF
+    (demotes H1 *and* the weak-Argon2 M1 together), with OPAQUE the long-term answer. After that,
+    **H3** (TLS + short-lived session tokens) is the deployment gate. See the doc for the full list
+    + fix order.
+  - **Bootstrap online-guessing throttle (H2) — done (2026-07-05).** `GET /accounts/bootstrap` (the
+    de-facto login endpoint) was the one auth route with **no rate limit**: an attacker with a
+    username (from the unauthed `lookup`) could grind passwords against it with unlimited 401s, and a
+    hit returns *both* the verifier and `wrap(MK, KEK)` → total account compromise. Added a third
+    per-IP limiter (`DEFAULT_BOOTSTRAP_RATE_LIMIT` = 10/min; env `RELAY_BOOTSTRAP_RATE_LIMIT_MAX`/
+    `_WINDOW_MS`) that counts only **failed** auths, on its own counter, so a legitimate join/re-auth
+    is never charged and the enumeration/recovery budgets are untouched. Per-IP only (per-account
+    keying + lockout-with-recovery deferred — it opens a lockout-DoS vector). Tested
+    (`apps/server/test/relay.test.ts`: 401→401→429, valid-bootstrap-unaffected, budget-independence)
+    + `curl` smoke.
+  - **Convergence-DoS hardening (M3) — done (2026-07-05).** A short/garbage ciphertext (a corrupt row
+    or one injected by a hostile relay) threw in `open()` and aborted the *entire* `pull` batch —
+    and, since the cursor never advanced past it, re-threw on every later pull, permanently stalling
+    sync. Fixed both halves: `open()` (`packages/crypto/src/wrap.ts`) length-guards
+    `< NONCE_BYTES + TAG_BYTES` with a typed throw, and `SyncEngine.pull()`
+    (`packages/data/src/sync-engine.ts`) wraps each record in try/catch that **skips-and-logs** and
+    keeps going, with the cursor still advancing (poison pulled once, skipped, never re-seen).
+    `applied` now counts only rows actually applied. Tested (`wrap.test.ts` too-short-blob;
+    `relay.test.ts` E2E skip-and-converge, verified non-vacuous). Not a confidentiality change — AEAD
+    still fails closed.
   - **Proxy-aware client IP — done (2026-06-26).** Behind a reverse proxy the per-IP limiters keyed
     on `req.socket.remoteAddress` (the *proxy's* IP for every client), collapsing both throttles to
     one shared bucket (self-DoS) or, if widened, to a no-op. Now a `clientIp(req)` helper recovers

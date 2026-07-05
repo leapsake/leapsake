@@ -17,6 +17,9 @@ export const ALG = "xchacha20poly1305.raw@1";
 /** XChaCha20-Poly1305 nonce length, prepended to each sealed blob. */
 const NONCE_BYTES = 24;
 
+/** Poly1305 authentication-tag length, the minimum a valid ciphertext can carry. */
+const TAG_BYTES = 16;
+
 /**
  * AEAD-encrypt `plaintext` under a 32-byte `key`, returning
  * `nonce(24) ‖ ciphertext+tag`. A fresh random nonce per call means the same
@@ -40,8 +43,16 @@ export function seal(
  * the key is wrong or any byte was tampered with — Poly1305 authentication
  * fails closed, which is what makes a flipped ciphertext byte unrecoverable
  * rather than silently wrong.
+ *
+ * Length-guards before the split: a blob too short to hold nonce + tag can't be a
+ * genuine sealed value, so we reject it with a clear error instead of feeding a
+ * negative-length remainder into the AEAD. This keeps a hostile/corrupt relay record
+ * from crashing the sync pull loop in an opaque way (security-findings.md M3).
  */
 export function open(sealed: Uint8Array, key: Uint8Array): Uint8Array {
+  if (sealed.length < NONCE_BYTES + TAG_BYTES) {
+    throw new Error("sealed blob too short");
+  }
   const nonce = sealed.subarray(0, NONCE_BYTES);
   const ciphertext = sealed.subarray(NONCE_BYTES);
   return xchacha20poly1305(key, nonce).decrypt(ciphertext);

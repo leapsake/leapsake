@@ -18,6 +18,7 @@ oracle [`../status.md`](../status.md)** (all workstreams).
 | [`custody-sequence.md`](./custody-sequence.md) | The key lifecycle, step by step (first launch → enable sync → second device → share → constrained principal), with a per-phase key ledger. Reference. | When wiring onboarding / account / device bootstrap. |
 | [`sync.md`](./sync.md) | The `SyncTransport` transport seam, the merge model, the account-bootstrap channel + the join-scheme decision, and the **P2P-is-a-deferred-adapter** decision. | When building sync, the relay, or evaluating P2P. |
 | [`security-review.md`](./security-review.md) | The recorded design review of the key hierarchy and relay auth: how the constructions hold the model's properties + the residual risks accepted. Pinned params live in [`packages/crypto/README.md`](../../packages/crypto/README.md). | When touching the KDF / password door, or before an external audit. |
+| [`security-findings.md`](./security-findings.md) | The adversarial "poke holes" review of the *shipped* code + relay: a severity-ranked backlog of concrete attacks (offline crack oracle, unthrottled login, convergence DoS) with mitigations. | Before hardening the relay / KDF, or picking up a security fix. |
 
 ## The one rule that keeps these from drifting
 
