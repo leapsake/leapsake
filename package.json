@@ -12,7 +12,8 @@
     "format:check": "oxfmt --check . '!**/*.md'",
     "lint": "oxlint",
     "test": "node scripts/ensure-sqlite-abi.mjs node && vitest run",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+	"server": "pnpm --filter @leapsake/server start"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

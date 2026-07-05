@@ -4,25 +4,17 @@ Leapsake is a **privacy-first people-management app** (a personal CRM): people, 
 tags, a relationship graph with derived kinship, milestones, and contact methods. It is
 **offline-first** (local SQLite, no cloud dependency to use it) and built for
 **incremental, shippable delivery** — every increment is usable on its own. It grows
-desktop (V1) → mobile (V2) → sync + web (V3), with a shared, client-agnostic data/core
-layer underneath all clients.
+desktop (V1) → mobile (V2) → sync + web (V3) → media (v0.2+), with a shared,
+client-agnostic data/core layer underneath all clients.
 
-## Where we are right now
+## How to read this folder (keep your context lean)
 
-- **V1 — desktop (Electron) + V1.5 local CRM** — ✅ done, runs locally.
-- **V2 — mobile (Expo / React Native)** — ✅ done, feature-complete vs. desktop,
-  verified on iOS + Android.
-- **V3 — sync + distribution + web** — 🚧 in progress, two workstreams (full state in
-  **[`status.md`](./status.md)**, the single cross-workstream oracle):
-  - **Encryption + sync foundations** — **Stage 1 (zero-knowledge sync) is done** on both
-    clients (verified desktop ↔ mobile over the wire); Stages 2–4 (at-rest, sharing, SSR)
-    are ahead. Design:
-    [`encryption/`](./encryption/).
-  - **Entity reconciliation (dedup & merge)** — Increments A, B, and C's merge-on-join are
-    built; only C's bulk-import dedup remains (deferred until the importer exists). A
-    cross-cutting substrate (detect/merge distinct records that mean the same person) serving
-    multi-device merge-on-join *and* a future bulk-contact-import. Design:
-    [`packages/core/README.md`](../packages/core/README.md).
+1. Read this file, then **[`status.md`](./status.md)** — the single cross-workstream
+   oracle for what's done, what's next, and the decided product posture.
+2. Open **only** the design doc your increment touches (table below). The design docs are
+   stable "why" references; you rarely need more than one.
+3. **[`shipped.md`](./shipped.md)** is the archive of finished-increment narratives —
+   don't load it unless you need the history of a specific increment.
 
 ## Where to look
 
@@ -30,9 +22,11 @@ layer underneath all clients.
 |---|---|
 | **Know what's done and what's next (any workstream)** | **[`status.md`](./status.md)** — the single status oracle |
 | Understand the encryption / privacy / sync design | [`encryption/`](./encryption/) — start at its `README.md` (then `model.md`, `sync.md`, `schema.md`, `custody-sequence.md`) |
+| Understand the file/media (photos v0.2) design | [`files.md`](./files.md) — the encrypted-blob invariants, pinned before build |
 | Understand the dedup / merge design | [`packages/core/README.md`](../packages/core/README.md) — the two-kinds-of-merge framing + the person reference graph |
-| Understand the testing strategy (all apps/packages) | [`testing/`](./testing/) — start at its `README.md` (principles, the driver-contract keystone, the mobile-engine wall, open decisions + task backlog) |
+| Understand the testing strategy (all apps/packages) | [`testing/`](./testing/) — start at its `README.md` (principles, the driver-contract keystone, the mobile-engine wall) |
 | Understand a shared package's architecture & rationale | its own `README.md` — [`schema`](../packages/schema/README.md), [`data`](../packages/data/README.md), [`core`](../packages/core/README.md), [`crypto`](../packages/crypto/README.md) |
+| Read how a *finished* increment was built/verified | [`shipped.md`](./shipped.md) — the archive |
 | Know conventions & guardrails | [`../AGENTS.md`](../AGENTS.md) |
 | Read the code | `packages/{schema,data,core,crypto,highlight}`, `apps/{desktop,mobile,server}` |
 
@@ -66,5 +60,6 @@ repo/service against a real in-memory SQLite. Run `pnpm test` (or per-package fi
 ## The one rule
 
 **This file is a map, not a status board.** Live status and next-step decisions for every
-workstream live in the single [`status.md`](./status.md). Update *that*; keep this map short
-and stable so it stays a reliable front door.
+workstream live in the single [`status.md`](./status.md); finished-increment narratives
+live in [`shipped.md`](./shipped.md). Update *those*; keep this map short and stable so
+it stays a reliable front door.

@@ -57,23 +57,31 @@ The zero-knowledge property against the relay therefore reduces exactly to *pass
 strength, stretched by one OWASP-interactive Argon2id pass*. The adversary here is the
 relay the model designed to be **blind**, not merely a DB thief.
 
+> **DECIDED (2026-07-05).** **OPAQUE is the chosen mitigation, gated on the hosted-relay
+> era** (v0.1 sync is self-host-only, so the operator is the user's own choice); the
+> Secret-Key pepper (mitigation 1 below) is **declined as a default** — it fully closes
+> the hole but adds a second user-held secret (a known support burden that breaks
+> password-only join); at most a much-later opt-in dial after passkeys. Full decision +
+> the honest residual (a maximally malicious operator can still *actively* grind guesses
+> under OPAQUE using its own OPRF key — only user-held entropy removes that) recorded in
+> [`sync.md`](./sync.md) §4 *Auth-hardening decision*. Until then, H3's session tokens
+> shrink the observation window to once-per-login.
+
 - **Severity:** High for any relay not operated by the data owner themselves — which is
   the entire point of Tier 2 (untrusted operator).
-- **Mitigations (escalating):**
-  1. *Cheap, high-leverage:* a per-account **client-held Secret Key / pepper** mixed
-     into the KDF input (1Password's model). The password alone stops being sufficient
-     to derive the KEK, so an observed verifier is no longer a crackable oracle. Fits
-     the existing device-enrollment story (the QR / device-link path already planned in
-     `model.md` §13 can carry the Secret Key to a second device). **This one change
-     demotes H1 *and* M1 together.**
+- **Mitigations (escalating; see decision note above):**
+  1. *Fully closes the hole, but declined as default:* a per-account **client-held Secret
+     Key / pepper** mixed into the KDF input (1Password's model). The password alone stops
+     being sufficient to derive the KEK, so an observed verifier is no longer a crackable
+     oracle. Demotes H1 *and* M1 together — at the cost of a second user-held secret.
   2. *Medium:* **challenge–response** login — relay sends a nonce, client returns
      `HMAC(verifier, nonce)` — so the raw verifier never transits. Caveat: this makes
      the relay store the verifier (or an HMAC key) rather than its hash, trading against
-     the store-leak property; weigh explicitly.
-  3. *Right long-term answer:* an **aPAKE (OPAQUE)** — already named as the alternative
-     in `security-review.md` §3. Solves H1, replay (H3), and enumeration in one
-     construction. Worth pulling forward on the roadmap rather than leaving as a
-     someday.
+     the store-leak property; weigh explicitly. (Superseded by the OPAQUE decision.)
+  3. *Chosen:* an **aPAKE (OPAQUE)** — nothing crack-usable transits and a stolen store
+     alone is not an oracle; also addresses replay (H3) and enumeration in one
+     construction. Residual: an actively malicious operator can still grind offline with
+     its own OPRF key — accepted; see the decision note.
 
 ### H2 — Online password guessing on `GET /accounts/bootstrap` is unthrottled
 
@@ -133,9 +141,11 @@ mobile UX, not resistance to an adversary holding the salt + an observed verifie
 
 - **Severity:** Medium; compounds H1.
 - **Mitigation:** measure Hermes headroom and raise memory cost as far as mobile
-  tolerates (many RN apps bear 46–64 MiB), and/or adopt the H1-a pepper so this
-  parameter is no longer load-bearing alone. `KDF_ALG` versioning already makes a bump a
-  clean non-migrating change (`packages/crypto/src/kdf.ts`) — use it.
+  tolerates (many RN apps bear 46–64 MiB). `KDF_ALG` versioning already makes a bump a
+  clean non-migrating change (`packages/crypto/src/kdf.ts`) — use it. Raising the cost is
+  now the **primary** lever here: the H1-a pepper was declined as a default (see H1
+  decision note), and even under OPAQUE this parameter still stretches a malicious
+  operator's active grind — so it stays load-bearing.
 
 ### M2 — No key zeroization; master key is a long-lived plaintext `Uint8Array`
 
@@ -226,11 +236,13 @@ These are either already documented as accepted in `security-review.md` §3 / `m
    *online* guessing door. Pure relay change.
 2. ~~**M3** — length-guard `open` + per-record try/catch in `pull`.~~ **Done (2026-07-05).**
    Closed the relay-driven convergence DoS and hardened against corrupt rows.
-3. **H1-a** — client Secret Key / pepper into the KDF. Highest-leverage single change;
-   demotes H1 *and* M1, and fits the existing device-enrollment model.
-4. **H3** — require TLS + move to short-lived session tokens. Deployment gate: do not run
-   `index.ts` on plain HTTP anywhere real.
+3. **H3** — require TLS + move to short-lived session tokens. Deployment gate: do not run
+   `index.ts` on plain HTTP anywhere real. Also shrinks H1's observation window to
+   once-per-login.
+4. **H1 — via OPAQUE** (decided 2026-07-05, `sync.md` §4): required before the official/
+   hosted relay era; not a v0.1 gate since v0.1 sync is self-host-only. The H1-a pepper is
+   declined as a default (opt-in dial at most, after passkeys).
 
-H1 (fully, via OPAQUE), M2, M4, and the LOW items are legitimately post-launch / larger,
+M1 (raise Argon2 cost), M2, M4, and the LOW items are legitimately post-launch / larger,
 but should be tracked so the zero-knowledge claim and the roadmap stay honest with each
 other.

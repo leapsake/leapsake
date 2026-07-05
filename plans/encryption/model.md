@@ -28,6 +28,13 @@
   theme: *default to the practices that protect and respect the user, but give them
   control to use their data how they want.* Security is a **configurable dial**, set
   high by default, not a fixed wall.
+- **Accessibility is the tiebreak** *(decided 2026-07-05)*. Leapsake should feel as close
+  to a familiar centralized app as possible while being safer under the hood. When a
+  safest-practice *default* would force a layperson through hoops (a second secret to
+  carry, an unfamiliar ritual), re-evaluate it: keep the safe **mechanism**, but make the
+  hoop **opt-in** rather than default. Laypeople get sensible defaults; power users get
+  the dials. (Worked example: the auth-hardening decision in [`sync.md`](./sync.md) §4 —
+  OPAQUE over a user-held Secret Key.)
 - **Zero-knowledge by default.** Servers should, by default, store only ciphertext
   they cannot read. The user holds the keys.
 - **Modern-SaaS convenience without surrendering privacy.** Arbitrary sharing (a
@@ -372,7 +379,9 @@ no-JS/preview behavior.
 **Photos / large binaries** introduce **blob/object storage** (photos don't belong in
 SQLite rows). Same per-item-key model — encrypt each blob with a content key, store
 ciphertext in object storage, wrap keys as above. A storage concern, not a
-crypto-model change.
+crypto-model change. The file-layer design invariants (separate blob channel, resumable
+chunked transfer, client-computed encrypted derivatives, the `BlobStore` port) are pinned
+in [`../files.md`](../files.md).
 
 ## 12. The honest trust boundary & limits
 

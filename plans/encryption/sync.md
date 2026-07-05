@@ -250,6 +250,43 @@ registration tokens, Tailscale auth keys) — lets a relay host optionally gate 
 paid/official relay) without ever seeing plaintext. The relay reserves this as a documented,
 env-gated seam (public when unset); enforcement is a future phase.
 
+### Auth-hardening decision — OPAQUE at the hosted-relay gate (decided 2026-07-05)
+
+The problem being decided:
+[`security-findings.md`](./security-findings.md) **H1** — the relay observes the raw auth
+verifier on every request, so against a curious *operator* (the exact adversary the blind
+relay is designed for), account confidentiality reduces to password strength stretched by
+one interactive Argon2id pass. Three candidate fixes were weighed **through the
+accessibility lens** (`model.md` §1: security defaults must not cost laypeople usability).
+Recorded so it isn't relitigated:
+
+- **Decision: OPAQUE (an aPAKE) is the chosen fix, required before any official/hosted
+  relay stores other people's data** — "the hosted-relay gate." Not v0.1 scope (v0.1 sync
+  is self-host-only; the operator is the user or someone they chose to trust). The deciding
+  criterion: OPAQUE keeps login *exactly* username + password — the entire cost is
+  engineering (a vetted protocol dependency), zero new user-visible burden.
+- **v0.1 posture until then:** the current verifier scheme, plus **H3** (TLS required +
+  short-lived session tokens, which shrink verifier observation from "every request,
+  forever" to "once per login"), plus an honest sentence in the self-hosting docs: *a relay
+  operator could attempt offline guesses against a weak password — use a strong one.*
+- **Passkeys (WebAuthn PRF): supported eventually, deliberately not the default.** A
+  passkey-derived key is high-entropy (nothing crackable at all) and platform-synced — but
+  passkeys are not yet common or universally understood enough to be the layperson default.
+  They land as one more additive MK unlock door (`model.md` §4/§5), post-launch.
+- **A 1Password-style Secret Key / client pepper (findings H1-a): declined as a default.**
+  It is the only option that *fully* closes the operator-crack hole, but it introduces a
+  second user-held secret — new-device join stops working with just a password, and the
+  "emergency kit" model is a notorious support burden. At most a much-later **opt-in**
+  hardening dial, sequenced after passkeys.
+- **The honest limit, accepted:** OPAQUE eliminates passive observation and third-party
+  offline cracking (nothing crack-usable transits, and a stolen store alone is not an
+  oracle), but a *maximally malicious operator* — who holds the server's own OPRF key —
+  can still mount an **active** offline guessing campaign against a weak password. Only
+  user-held entropy (a passkey, the pepper, the recovery key) removes that entirely. This
+  residual is accepted for the password door, mitigated by the 12-char floor and by the
+  Argon2 cost (findings M1); users wanting stronger custody get it via the passkey door
+  when it ships.
+
 ## 5. How this fits the encryption model (recap)
 
 - **Encryption** (`model.md`) protects *content*; **this doc** moves and reconciles the
