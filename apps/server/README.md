@@ -40,8 +40,21 @@ Defaults and env-var names are centralized in `src/config.ts`.
 
 ## Running
 
+**Dev** — TypeScript straight from source via `tsx`:
+
 ```sh
-PORT=4000 pnpm --filter @leapsake/server dev   # or against a temp/:memory: DB
+PORT=4000 pnpm --filter @leapsake/server dev   # add RELAY_DB=:memory: for a throwaway store
+```
+
+**Production** — the relay bundles to a single self-contained ESM file
+(`dist/index.mjs`) with **no runtime `node_modules`**: esbuild inlines `zod`,
+`proxy-addr`, `@noble/ciphers`, and the workspace packages, leaving only Node
+built-ins external (`node:http`, `node:sqlite`, `node:crypto`). This is what the
+container image runs.
+
+```sh
+pnpm --filter @leapsake/server build   # → dist/index.mjs
+pnpm --filter @leapsake/server start   # node dist/index.mjs
 ```
 
 > **Hardening still ahead** before a public, at-scale relay: TLS termination,
