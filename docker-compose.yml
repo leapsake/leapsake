@@ -1,0 +1,49 @@
+# Turnkey self-host deployment of the Leapsake blind relay behind Caddy (Option A —
+# TLS terminated in front; the recommended path). Caddy gets an automatic Let's
+# Encrypt certificate and reverse-proxies to the relay, which speaks plain HTTP on
+# a private network only Caddy can reach. Full guide: apps/server/README.md → Deploy.
+#
+#   RELAY_DOMAIN=relay.example.com ACME_EMAIL=you@example.com docker compose up -d
+
+services:
+  relay:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    restart: unless-stopped
+    environment:
+      # Trust Caddy's X-Forwarded-For so the per-IP rate limiters key on the real
+      # client, not Caddy (relay.ts). Only Caddy is on this private network, so
+      # trusting its RFC1918 range (`uniquelocal`) is safe here.
+      RELAY_TRUSTED_PROXIES: uniquelocal
+      # Optional: gate account creation on a shared token (unset ⇒ open relay).
+      # RELAY_REGISTRATION_TOKEN: change-me
+      # Optional: session-token lifetime in ms (default 1h).
+      # RELAY_SESSION_TTL_MS: "3600000"
+    volumes:
+      - relay-data:/data
+    # No `ports:` — the relay is never exposed to the host, only to Caddy.
+    expose:
+      - "4000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - relay
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Your relay's public hostname (required) and an ACME contact email (optional).
+      RELAY_DOMAIN: ${RELAY_DOMAIN:?set RELAY_DOMAIN to your relay's public hostname}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./apps/server/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # ACME account + issued certs — persist across restarts.
+      - caddy-config:/config
+
+volumes:
+  relay-data:
+  caddy-data:
+  caddy-config:

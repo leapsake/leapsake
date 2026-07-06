@@ -1,0 +1,30 @@
+# Keep the relay's Docker build context small and free of host artifacts — the
+# image installs and bundles everything in-stage (apps/server/Dockerfile). Native
+# host node_modules especially must never leak into the Linux image.
+**/node_modules
+**/dist
+**/build
+**/out
+.git
+.github
+
+# SQLite stores (mirrors .gitignore).
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+
+# Logs, editor, OS cruft.
+**/*.log
+**/.DS_Store
+**/.vite
+**/.expo
+
+# Client toolchain output the relay bundle never touches.
+apps/desktop/out
+apps/mobile/ios
+apps/mobile/android
+
+# The deployment files themselves aren't needed inside the build.
+docker-compose.yml
+apps/server/Caddyfile

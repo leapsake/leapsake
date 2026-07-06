@@ -1,0 +1,17 @@
+# Caddy fronts the Leapsake relay and provides Option A TLS: it auto-provisions and
+# auto-renews a Let's Encrypt certificate for your domain, terminates HTTPS, and
+# reverse-proxies to the relay over the private compose network. The relay itself
+# speaks plain HTTP, reachable only by Caddy. See apps/server/README.md → Deploy.
+#
+# RELAY_DOMAIN / ACME_EMAIL come from the environment (docker-compose.yml).
+
+{$RELAY_DOMAIN} {
+	encode zstd gzip
+
+	# Caddy sets X-Forwarded-For / -Proto automatically; the relay trusts them via
+	# RELAY_TRUSTED_PROXIES so its per-IP rate limiters key on the real client.
+	reverse_proxy relay:4000
+
+	# Email for the ACME account (expiry notices). Empty is valid (anonymous).
+	tls {$ACME_EMAIL}
+}

@@ -62,12 +62,15 @@ These four decisions shape sequencing below; the accessibility principle behind 
   findings backlog in [`encryption/security-findings.md`](./encryption/security-findings.md).
   Remaining, in order:
   1. **H3 TLS — the deployment gate** (never run the relay on plain HTTP anywhere real).
-     Session tokens are done (the verifier now transits once per login, not per request);
-     the TLS half is split into two shippable increments: **(a)** a TLS-terminating proxy
-     in front — the *recommended/default* path, delivered as the Dockerfile + one-page
-     deploy doc below (the relay is already proxy-aware); **(b)** *optional* in-process TLS
-     in `apps/server` (cert loading behind config) for self-hosters who'd rather not run a
-     proxy. Default posture stays plain-HTTP-behind-a-proxy.
+     Session tokens are done (the verifier now transits once per login, not per request).
+     The TLS half is split into two increments: **(a) — DONE (2026-07-05):** the
+     TLS-terminating-proxy path (Option A), the *recommended/default* — shipped as the
+     esbuild single-file bundle + `apps/server/Dockerfile` + root `docker-compose.yml`
+     (relay + Caddy auto-TLS) + the README Deploy section + a startup warning when run on
+     plain HTTP with no trusted proxy. **(b) — remaining:** *optional* in-process TLS in
+     `apps/server` (cert loading behind config, Option B) for self-hosters who'd rather not
+     run a proxy; A and B are orthogonal and compose freely. Default posture stays
+     plain-HTTP-behind-a-proxy.
   2. **Shared cross-process rate-limit counter** — today's limiters *and* session store are
      in-memory, per-process; a multi-node relay collapses them (one shared follow-up).
   3. **H1 — decided 2026-07-05: OPAQUE, gated on the hosted-relay era** (not v0.1). The
@@ -98,7 +101,9 @@ These four decisions shape sequencing below; the accessibility principle behind 
 
 **Relay packaging & durability** (self-host is the only v0.1 sync path, so it must be easy
 and boring to run):
-- A Dockerfile + a one-page deploy doc (TLS-in-front required — pairs with H3).
+- ✅ **Done (2026-07-05):** `apps/server/Dockerfile` (a single bundled file, zero runtime
+  `node_modules`), root `docker-compose.yml` (relay + Caddy auto-TLS), and the deploy doc
+  (README → Deploy) — the TLS-in-front path that pairs with H3.
 - **Relay disposability** ([`encryption/sync.md`](./encryption/sync.md) §2): losing
   `relay.db` must never lose user data. Content already lives on devices; close the gap by
   having devices **self-heal the account row + recovery escrow** on sync, so a relay wipe
