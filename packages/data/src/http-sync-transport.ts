@@ -13,8 +13,17 @@ import type {
  *
  * The relay is a *dumb pipe for ciphertext* (sync.md §1): everything it carries
  * is already sealed, so this adapter only base64-encodes the binary fields for
- * JSON transit and attaches the account's bearer credential. It never holds a
- * master key and never merges.
+ * JSON transit and attaches the account's credential. It never holds a master key
+ * and never merges.
+ *
+ * **Sessions (security-findings.md H3).** The hot `push`/`pull` path authenticates
+ * with a short-lived **session token**, not the password-derived verifier — so the
+ * verifier transits only *once per login*. This adapter manages that lifecycle
+ * itself, invisibly: it logs in with the verifier on first use (and near expiry),
+ * caches the token in memory, and on a 401 re-logs-in once and retries. Everything
+ * above it — the {@link SyncEngine}, `core`, the apps — is unchanged; a re-login
+ * that *itself* 401s (the verifier is now stale, e.g. the password was reset on
+ * another device) propagates as a `401` error, the signal the clients already read.
  */
 
 /**
@@ -163,24 +172,76 @@ export function createHttpSyncTransport(opts: {
   const base = opts.baseUrl.replace(/\/+$/, "");
   const doFetch = opts.fetch ?? fetch;
 
-  // `<accountId>.<base64(verifier)>` — the account UUID never contains a `.` and
-  // base64 never produces one, so the relay splits on the first `.` unambiguously.
-  // Built only when credentials were supplied (sync / post-join usage).
-  const bearer =
-    accountId !== undefined && authVerifier !== undefined
-      ? `${accountId}.${bytesToBase64(authVerifier)}`
-      : undefined;
+  // The live session token for the hot path, or undefined until first login. Held
+  // in memory only — it is ephemeral per-device state, never persisted or synced.
+  interface Session {
+    token: string;
+    expiresAt: number;
+  }
+  let session: Session | undefined;
 
-  async function authed(path: string, init: RequestInit): Promise<Response> {
-    if (bearer === undefined) {
+  // Log in a touch before the token actually expires, so a request never races a
+  // mid-flight expiry (the 401 retry below is the backstop if it does anyway).
+  const SESSION_REFRESH_SKEW_MS = 30_000;
+
+  /**
+   * Exchange the durable verifier for a fresh session token (`POST
+   * /accounts/session`). The verifier bearer is `<accountId>.<base64(verifier)>`
+   * — the account UUID never contains a `.` and base64 never produces one, so the
+   * relay splits on the first `.` unambiguously. A wrong/stale verifier → relay
+   * 401, surfaced as a throw (which the clients read as "re-authenticate").
+   */
+  async function login(): Promise<Session> {
+    if (accountId === undefined || authVerifier === undefined) {
       throw new Error(
         "this transport has no credentials — construct it with accountId + authVerifier",
       );
     }
-    const res = await doFetch(`${base}/${path}`, {
-      ...init,
-      headers: { ...init.headers, authorization: `Bearer ${bearer}` },
+    const verifierBearer = `${accountId}.${bytesToBase64(authVerifier)}`;
+    const res = await doFetch(`${base}/accounts/session`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${verifierBearer}` },
     });
+    if (!res.ok) {
+      throw new Error(`relay POST /accounts/session failed: ${res.status}`);
+    }
+    session = (await res.json()) as Session;
+    return session;
+  }
+
+  /** The cached session if still fresh, else a freshly-logged-in one. */
+  function ensureSession(): Promise<Session> {
+    if (
+      session !== undefined &&
+      Date.now() < session.expiresAt - SESSION_REFRESH_SKEW_MS
+    ) {
+      return Promise.resolve(session);
+    }
+    return login();
+  }
+
+  /**
+   * Perform a session-authed request, managing the token lifecycle: ensure a live
+   * session (logging in on first use / near expiry), then attach it. A 401 means
+   * the session was invalidated server-side (expired, or the relay restarted and
+   * lost its in-memory sessions) — re-login once and retry. If that re-login
+   * *itself* 401s (verifier now stale), it propagates, preserving the clients'
+   * password-reset signal.
+   */
+  async function authed(path: string, init: RequestInit): Promise<Response> {
+    let current = await ensureSession();
+    const send = (): Promise<Response> =>
+      doFetch(`${base}/${path}`, {
+        ...init,
+        headers: { ...init.headers, authorization: `Session ${current.token}` },
+      });
+
+    let res = await send();
+    if (res.status === 401) {
+      session = undefined;
+      current = await login();
+      res = await send();
+    }
     if (!res.ok) {
       throw new Error(
         `relay ${init.method ?? "GET"} /${path} failed: ${res.status}`,

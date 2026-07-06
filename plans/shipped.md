@@ -199,6 +199,29 @@ only the password-derived door is refreshed. No relay write.
 The findings backlog is [`encryption/security-findings.md`](./encryption/security-findings.md);
 the remaining items are tracked in [`status.md`](./status.md). Landed so far:
 
+- **Session tokens (H3, the session half) — done (2026-07-05).** The password-derived verifier
+  was a forever-valid bearer sent on *every* `push`/`pull`, so the relay observed it on every
+  request — the H1 exposure H3 shrinks. Now the verifier is exchanged **once per login** for a
+  short-lived session token: a new `POST /accounts/session` (verifier-authed) mints a random
+  32-byte token, and `GET /accounts/bootstrap` mints one too (a join is already a login), so a
+  joining device never logs in twice. The hot path (`/sync/push`, `/sync/pull`) switched from the
+  verifier `Bearer` to `Authorization: Session <token>` — a hard cutover, so the raw verifier is
+  no longer accepted there at all. Sessions live **in-memory, per-process** (`sha256(token)` →
+  `{accountId, expiresAt}`, keyed by hash so a memory dump yields no usable bearer; lazy-purged on
+  mint), *not* in the durable blind store — they're ephemeral non-user-data, and a relay restart
+  costs each device one silent re-login. TTL is `DEFAULT_SESSION_TTL_MS` (1 h; env
+  `RELAY_SESSION_TTL_MS`). The client half is entirely inside the transport
+  (`packages/data/src/http-sync-transport.ts`): it logs in on first use / near expiry, caches the
+  token, and on a 401 re-logs-in once and retries — so `SyncEngine`/`core`/the apps are unchanged,
+  and a re-login that *itself* 401s (verifier now stale = password reset elsewhere) still surfaces
+  as a 401, preserving `isRelayAuthError`. Failed logins at both verifier-checking endpoints share
+  the H2 bootstrap throttle (a guessing grind can't be laundered across them). Files:
+  `apps/server/src/{relay,config,index}.ts`, `packages/data/src/http-sync-transport.ts`. Tested
+  (`relay.test.ts`: mint→authorize-hot-path, raw-verifier-rejected-on-hot-path, expired-token-401;
+  `packages/data/test/http-sync-transport.test.ts`: login-once-and-reuse, Session-scheme-never-
+  verifier, re-login-on-401-retry, stale-verifier-propagates-401, credential-less-throws). **Still
+  open (H3):** TLS (the deploy gate, next), per-device tokens/revocation, replay defense; a
+  multi-node relay needs a shared session store (bundled with the shared rate-limit counter).
 - **Bootstrap online-guessing throttle (H2) — done (2026-07-05).** `GET /accounts/bootstrap` (the
   de-facto login endpoint) was the one auth route with **no rate limit**: an attacker with a
   username (from the unauthed `lookup`) could grind passwords against it with unlimited 401s, and a

@@ -143,6 +143,23 @@ describe("blind HTTPS relay (server + adapter)", () => {
     });
   }
 
+  /**
+   * Log in with a verifier and return the raw session token, for the tests that
+   * hit the session-authed hot path (`/sync/push|pull`) with a raw `fetch` rather
+   * than the transport (which manages sessions itself).
+   */
+  async function mintSession(
+    verifier: Uint8Array = AUTH_VERIFIER,
+  ): Promise<string> {
+    const bearer = `Bearer ${ACCOUNT_ID}.${Buffer.from(verifier).toString("base64")}`;
+    const res = await fetch(`${baseUrl}/accounts/session`, {
+      method: "POST",
+      headers: { authorization: bearer },
+    });
+    if (!res.ok) throw new Error(`mintSession failed: ${res.status}`);
+    return ((await res.json()) as { token: string }).token;
+  }
+
   beforeEach(async () => {
     relayDb = new DatabaseSync(":memory:");
     server = createRelayServer({ store: createRelayStore(relayDb) });
@@ -187,11 +204,12 @@ describe("blind HTTPS relay (server + adapter)", () => {
     // …then inject a garbage-ciphertext record for a *real* table straight onto the
     // relay (bypassing the client seal), as a hostile/buggy relay or a corrupt row
     // would. Long enough to clear the open() length guard, so it exercises the
-    // sync-engine per-record try/catch, not just the crypto guard.
-    const bearer = `Bearer ${ACCOUNT_ID}.${Buffer.from(AUTH_VERIFIER).toString("base64")}`;
+    // sync-engine per-record try/catch, not just the crypto guard. The hot push
+    // path is session-authed (H3), so log in with the verifier first.
+    const session = `Session ${await mintSession(AUTH_VERIFIER)}`;
     const inject = await fetch(`${baseUrl}/sync/push`, {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: bearer },
+      headers: { "content-type": "application/json", authorization: session },
       body: JSON.stringify({
         records: [
           {
@@ -290,10 +308,55 @@ describe("blind HTTPS relay (server + adapter)", () => {
     const anon = await fetch(`${baseUrl}/sync/pull?since=0`);
     expect(anon.status).toBe(401);
 
-    // Right account, wrong verifier.
+    // Right account, wrong verifier: the transport's login fails → a 401 throw.
     const forged = transportFor(generateKey());
     await expect(forged.pull(0)).rejects.toThrow(/401/);
     await expect(forged.push([])).rejects.toThrow(/401/);
+  });
+
+  it("mints a session from the verifier and authorizes the hot path with it (H3)", async () => {
+    const token = await mintSession();
+    const pulled = await fetch(`${baseUrl}/sync/pull?since=0`, {
+      headers: { authorization: `Session ${token}` },
+    });
+    expect(pulled.status).toBe(200);
+
+    // A wrong verifier can't mint a session in the first place.
+    await expect(mintSession(generateKey())).rejects.toThrow(/401/);
+  });
+
+  it("no longer accepts the raw verifier on the hot path — session required (H3)", async () => {
+    // The pre-H3 credential (`Bearer <accountId>.<verifier>`) is now rejected on
+    // push/pull; the verifier only mints sessions, it doesn't authorize sync.
+    const bearer = `Bearer ${ACCOUNT_ID}.${Buffer.from(AUTH_VERIFIER).toString("base64")}`;
+    const pulled = await fetch(`${baseUrl}/sync/pull?since=0`, {
+      headers: { authorization: bearer },
+    });
+    expect(pulled.status).toBe(401);
+  });
+
+  it("rejects an expired session token (H3)", async () => {
+    // A dedicated relay with an already-elapsed TTL: the token is dead on arrival.
+    const shortLived = createRelayServer({
+      store: createRelayStore(relayDb),
+      sessionTtlMs: 0,
+    });
+    const shortUrl = `http://127.0.0.1:${await listen(shortLived)}`;
+    try {
+      const login = await fetch(`${shortUrl}/accounts/session`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${ACCOUNT_ID}.${Buffer.from(AUTH_VERIFIER).toString("base64")}`,
+        },
+      });
+      const { token } = (await login.json()) as { token: string };
+      const pulled = await fetch(`${shortUrl}/sync/pull?since=0`, {
+        headers: { authorization: `Session ${token}` },
+      });
+      expect(pulled.status).toBe(401);
+    } finally {
+      await close(shortLived);
+    }
   });
 
   it("rejects a duplicate username with 409", async () => {

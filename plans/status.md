@@ -57,14 +57,19 @@ These four decisions shape sequencing below; the accessibility principle behind 
 **Encryption + sync:**
 
 - **Relay hardening.** Landed: recovery-endpoint throttle, proxy-aware client IP, the
-  bootstrap online-guessing throttle (H2), convergence-DoS hardening (M3) — details in
-  [`shipped.md`](./shipped.md); findings backlog in
-  [`encryption/security-findings.md`](./encryption/security-findings.md). Remaining, in order:
-  1. **H3 — TLS + short-lived session tokens.** The deployment gate (never run the relay on
-     plain HTTP anywhere real); session tokens also shrink H1's verifier-observation window
-     from "every request" to "once per login."
-  2. **Shared cross-process rate-limit counter** — today's limiters are in-memory,
-     per-process; a multi-node relay collapses them.
+  bootstrap online-guessing throttle (H2), convergence-DoS hardening (M3), and **H3's
+  short-lived session tokens** (2026-07-05) — details in [`shipped.md`](./shipped.md);
+  findings backlog in [`encryption/security-findings.md`](./encryption/security-findings.md).
+  Remaining, in order:
+  1. **H3 TLS — the deployment gate** (never run the relay on plain HTTP anywhere real).
+     Session tokens are done (the verifier now transits once per login, not per request);
+     the TLS half is split into two shippable increments: **(a)** a TLS-terminating proxy
+     in front — the *recommended/default* path, delivered as the Dockerfile + one-page
+     deploy doc below (the relay is already proxy-aware); **(b)** *optional* in-process TLS
+     in `apps/server` (cert loading behind config) for self-hosters who'd rather not run a
+     proxy. Default posture stays plain-HTTP-behind-a-proxy.
+  2. **Shared cross-process rate-limit counter** — today's limiters *and* session store are
+     in-memory, per-process; a multi-node relay collapses them (one shared follow-up).
   3. **H1 — decided 2026-07-05: OPAQUE, gated on the hosted-relay era** (not v0.1). The
      decision + rationale (why OPAQUE over a 1Password-style Secret Key, where passkeys fit)
      is recorded in [`encryption/sync.md`](./encryption/sync.md) §4 *Auth-hardening decision*.
