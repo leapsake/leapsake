@@ -24,11 +24,14 @@ import { createRelayStore } from "./store.js";
  * Behind a reverse proxy, set `RELAY_TRUSTED_PROXIES` (comma-separated IPs / CIDR
  * ranges / `proxy-addr` presets like `loopback`, `uniquelocal`) so the rate
  * limiters key on the real client IP from `X-Forwarded-For`; unset trusts no
- * proxy and ignores the header (the secure default).
+ * proxy and ignores the header (the secure default). Short-lived login sessions
+ * (security-findings.md H3) carry the hot sync path; tune their lifetime with
+ * `RELAY_SESSION_TTL_MS`.
  *
- * Still deferred (see plans/encryption/security-review.md): TLS termination,
- * replay defense, device-scoped tokens, and a shared cross-process rate-limit
- * counter for multi-node relays (the single-node proxy-aware client IP is done).
+ * Still deferred (see plans/encryption/security-review.md): TLS termination (the
+ * H3 deploy gate — put a TLS-terminating proxy in front, or the coming in-process
+ * TLS option), replay defense, and a shared cross-process session + rate-limit
+ * store for multi-node relays (the single-node proxy-aware client IP is done).
  */
 const port = Number(process.env[ENV.port] ?? DEFAULT_PORT);
 const dbPath = process.env[ENV.dbPath] ?? DEFAULT_DB_PATH;
@@ -65,6 +68,11 @@ const trustedProxies = (process.env[ENV.trustedProxies] ?? "")
   .map((entry) => entry.trim())
   .filter((entry) => entry.length > 0);
 
+// Session-token lifetime (undefined → built-in default in createRelayServer).
+const sessionTtlEnv = process.env[ENV.sessionTtlMs];
+const sessionTtlMs =
+  sessionTtlEnv === undefined ? undefined : Number(sessionTtlEnv);
+
 const store = createRelayStore(new DatabaseSync(dbPath));
 createRelayServer({
   store,
@@ -72,6 +80,7 @@ createRelayServer({
   recoveryRateLimit,
   bootstrapRateLimit,
   trustedProxies,
+  sessionTtlMs,
 }).listen(port, () => {
   console.log(`Leapsake relay listening on http://localhost:${port}`);
 });

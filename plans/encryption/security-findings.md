@@ -126,6 +126,17 @@ layer that does not exist in the repo, and `apps/server/src/index.ts` serves pla
   one addition that also shrinks H1: exchange the verifier once at login for a
   **short-lived session token**, and send that per request instead of the verifier —
   turning the H1 observation window from "every request, forever" into "once per login."
+- **Status — session tokens DONE (2026-07-05).** The verifier is now exchanged once at
+  `POST /accounts/session` (and folded into `GET /accounts/bootstrap`) for a short-lived,
+  in-memory session token that authenticates the hot `push`/`pull` path via
+  `Authorization: Session <token>`; the raw verifier no longer transits per-request
+  (`apps/server/src/relay.ts`, `packages/data/src/http-sync-transport.ts`, TTL in
+  `config.ts` / `RELAY_SESSION_TTL_MS`). The transport manages the lifecycle itself
+  (login on first use / near expiry; re-login-and-retry on 401), so nothing above it
+  changed. **Still open here:** TLS (the deploy gate — a TLS-terminating proxy in front,
+  or a coming in-process TLS option), per-device tokens / revocation, and replay defense.
+  Sessions are per-process in-memory, so a multi-node relay needs a shared session store —
+  the same follow-up as the shared rate-limit counter (security-review.md §3).
 
 ---
 

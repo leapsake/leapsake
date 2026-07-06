@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   createServer,
   type IncomingMessage,
@@ -13,6 +13,7 @@ import {
   DEFAULT_BOOTSTRAP_RATE_LIMIT,
   DEFAULT_RATE_LIMIT,
   DEFAULT_RECOVERY_RATE_LIMIT,
+  DEFAULT_SESSION_TTL_MS,
   DEFAULT_TRUSTED_PROXIES,
   ENV,
   type RateLimit,
@@ -32,14 +33,26 @@ export type { RateLimit };
  * - `POST /accounts`           — register `{ accountId, username, authVerifier,
  *                                kdfSalt, wrappedMasterKey }` (b64); dup username → 409.
  * - `GET  /accounts/lookup`    — unauthed prelogin; `?username=` → `{ accountId, kdfSalt }`.
- * - `GET  /accounts/bootstrap` — auth required; → `{ wrappedMasterKey }` for a joining device.
- * - `POST /sync/push`          — auth required; append `{ records }` to the account log.
- * - `GET  /sync/pull`          — auth required; `?since=<cursor>` → `{ records, cursor }`.
+ * - `POST /accounts/session`   — verifier auth; mints a short-lived session token.
+ * - `GET  /accounts/bootstrap` — verifier auth; → `{ wrappedMasterKey, token, expiresAt }`
+ *                                for a joining device (the wrapped MK *and* a session).
+ * - `POST /sync/push`          — session auth; append `{ records }` to the account log.
+ * - `GET  /sync/pull`          — session auth; `?since=<cursor>` → `{ records, cursor }`.
  *
- * Auth is `Authorization: Bearer <accountId>.<base64(authVerifier)>`. The relay
- * stores only `sha256(verifier)` and constant-time-compares (model.md §9.3); a
- * device may only ever touch its own namespace, taken from the authenticated
- * identity — never from the request body.
+ * **Two credentials, one durable and one short-lived (security-findings.md H3).**
+ * The durable one is the password-derived **verifier**, sent as
+ * `Authorization: Bearer <accountId>.<base64(authVerifier)>`; the relay stores only
+ * `sha256(verifier)` and constant-time-compares (model.md §9.3). It authenticates the
+ * two login endpoints (`/accounts/session`, `/accounts/bootstrap`) — *once per login*,
+ * not per request. Each mints a random **session token**, presented on the hot
+ * `push`/`pull` path as `Authorization: Session <token>`. That shrinks raw-verifier
+ * observation from "every request, forever" to "once per login", the v0.1 half of the
+ * H1 mitigation (the other half is TLS; OPAQUE closes it fully at the hosted-relay gate,
+ * sync.md §4). Sessions are held **in-memory, per-process** — ephemeral, non-user-data:
+ * a relay restart just costs each device one silent re-login, and (like the rate
+ * limiters) a multi-node relay still needs a shared session store, the same follow-up as
+ * the shared rate-limit counter (security-review.md §3). Either way a device may only
+ * ever touch its own namespace, taken from the authenticated identity — never the body.
  *
  * Account creation reserves an env-gated **registration-token** seam: access
  * control (who may store bytes) is orthogonal to zero-knowledge (who may read
@@ -114,14 +127,15 @@ function registrationTokenOk(req: IncomingMessage): boolean {
  * A minimal fixed-window, per-IP rate limiter. Three instances guard the relay (see
  * {@link createRelayServer}): one on the **unauthenticated** enumeration vectors
  * (`GET /accounts/lookup`, `POST /accounts`), a stricter one on the recovery-authed
- * endpoints, and a third on **failed** authentications at `GET /accounts/bootstrap`.
+ * endpoints, and a third on **failed** authentications at the two verifier-checking
+ * login endpoints (`GET /accounts/bootstrap`, `POST /accounts/session`).
  * The launch join scheme is username + password (multi-device-login.md), so a username
  * existence oracle is an *accepted, deliberate* property — it can't be removed without
  * dropping usernames — but it **can be throttled**, the pragmatic enumeration mitigation
- * (security-review.md §3). Bootstrap isn't an enumeration oracle but *is* a password
- * oracle — a successful auth returns `wrap(MK, KEK)` — so an online guessing grind is
- * capped there too (security-findings.md H2). `push`/`pull` stay un-throttled: neither
- * oracle, and hit legitimately on every sync.
+ * (security-review.md §3). Those two logins aren't enumeration oracles but *are* password
+ * oracles — a successful auth returns `wrap(MK, KEK)` or a session token — so an online
+ * guessing grind is capped across both, sharing one budget (security-findings.md H2/H3).
+ * `push`/`pull` stay un-throttled: neither oracle, and hit legitimately on every sync.
  *
  * The key is a proxy-aware client IP (see {@link createRelayServer}'s `clientIp`):
  * behind a trusted reverse proxy it's the real client from `X-Forwarded-For`, not
@@ -246,10 +260,11 @@ export function createRelayServer(opts: {
    */
   recoveryRateLimit?: RateLimit;
   /**
-   * Per-IP throttle on **failed** authentications at `GET /accounts/bootstrap`, the
-   * online-password-guessing mitigation (security-findings.md H2). Its own counter, so
-   * a guessing grind never spends the enumeration/recovery budgets. Defaults tight —
-   * see {@link DEFAULT_BOOTSTRAP_RATE_LIMIT}.
+   * Per-IP throttle on **failed** authentications at the verifier-checking login
+   * endpoints (`GET /accounts/bootstrap`, `POST /accounts/session`), the online-
+   * password-guessing mitigation (security-findings.md H2/H3). Its own shared counter,
+   * so a guessing grind never spends — nor is laundered across — the enumeration/
+   * recovery budgets. Defaults tight — see {@link DEFAULT_BOOTSTRAP_RATE_LIMIT}.
    */
   bootstrapRateLimit?: RateLimit;
   /**
@@ -260,6 +275,11 @@ export function createRelayServer(opts: {
    * the secure default; see {@link DEFAULT_TRUSTED_PROXIES}.
    */
   trustedProxies?: readonly string[];
+  /**
+   * Lifetime of a minted session token, in ms (default
+   * {@link DEFAULT_SESSION_TTL_MS}). Short by design — see that constant.
+   */
+  sessionTtlMs?: number;
 }): Server {
   const { store } = opts;
   const allow = createRateLimiter(opts.rateLimit ?? DEFAULT_RATE_LIMIT);
@@ -304,6 +324,61 @@ export function createRelayServer(opts: {
     if (allowRecovery(clientIp(req))) return false;
     sendJson(res, 429, { error: "rate limited" });
     return true;
+  }
+
+  // In-memory session store: sha256(token) → the account it authenticates and its
+  // expiry. Ephemeral and per-process by design (see the header doc); keyed by the
+  // token *hash* so a memory dump never yields a usable bearer. The token itself is
+  // 256-bit random — not password-derived — so a lookup miss leaks nothing and needs
+  // no constant-time compare (unlike the verifier hashes).
+  const sessionTtlMs = opts.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
+  const sessions = new Map<string, { accountId: string; expiresAt: number }>();
+
+  /** Drop every expired session; called on each mint so the map stays bounded. */
+  function purgeExpiredSessions(now: number): void {
+    for (const [key, session] of sessions) {
+      if (now >= session.expiresAt) sessions.delete(key);
+    }
+  }
+
+  /** Mint a fresh session token for an authenticated account; returns the wire pair. */
+  function mintSession(accountId: string): {
+    token: string;
+    expiresAt: number;
+  } {
+    const now = Date.now();
+    purgeExpiredSessions(now);
+    const raw = Uint8Array.from(randomBytes(32));
+    const expiresAt = now + sessionTtlMs;
+    sessions.set(bytesToBase64(sha256(raw)), { accountId, expiresAt });
+    return { token: bytesToBase64(raw), expiresAt };
+  }
+
+  /**
+   * Authenticate a `Authorization: Session <token>` request against a live session.
+   * Returns the account id, or `null` on any failure (missing/malformed header,
+   * unknown token, expired). The session sibling of {@link authenticate} — the hot
+   * `push`/`pull` path uses this so the raw verifier never transits per-request.
+   */
+  function authenticateSession(req: IncomingMessage): string | null {
+    const header = req.headers.authorization;
+    if (header === undefined || !header.startsWith("Session ")) return null;
+    const token = header.slice("Session ".length);
+
+    let presented: Uint8Array;
+    try {
+      presented = base64ToBytes(token);
+    } catch {
+      return null;
+    }
+    const key = bytesToBase64(sha256(presented));
+    const session = sessions.get(key);
+    if (session === undefined) return null;
+    if (Date.now() >= session.expiresAt) {
+      sessions.delete(key);
+      return null;
+    }
+    return session.accountId;
   }
 
   return createServer((req, res) => {
@@ -383,6 +458,24 @@ export function createRelayServer(opts: {
       return;
     }
 
+    if (method === "POST" && url.pathname === "/accounts/session") {
+      // The steady-state login: verifier auth *once*, in exchange for a short-lived
+      // session token that carries the hot `push`/`pull` path (security-findings.md H3).
+      const accountId = authenticate(req, store);
+      if (accountId === null) {
+        // Failed auth here is the same online-guessing surface as bootstrap, so it
+        // shares that budget (a wrong-verifier grind can't be laundered across the two).
+        if (!allowBootstrap(clientIp(req))) {
+          sendJson(res, 429, { error: "rate limited" });
+          return;
+        }
+        sendJson(res, 401, { error: "unauthorized" });
+        return;
+      }
+      sendJson(res, 200, mintSession(accountId));
+      return;
+    }
+
     if (method === "GET" && url.pathname === "/accounts/bootstrap") {
       const accountId = authenticate(req, store);
       if (accountId === null) {
@@ -396,8 +489,10 @@ export function createRelayServer(opts: {
         sendJson(res, 401, { error: "unauthorized" });
         return;
       }
-      // Authenticated: hand back this account's opaque wrap(MK, KEK) so the
-      // joining device can unwrap the master key locally. The relay never reads it.
+      // Authenticated: hand back this account's opaque wrap(MK, KEK) so the joining
+      // device can unwrap the master key locally (the relay never reads it), plus a
+      // session token so the same verifier auth that joined also seeds sync — the
+      // joining device never has to log in a second time.
       const account = store.getAccount(accountId);
       if (account === undefined) {
         sendJson(res, 404, { error: "not found" });
@@ -405,6 +500,7 @@ export function createRelayServer(opts: {
       }
       sendJson(res, 200, {
         wrappedMasterKey: bytesToBase64(account.wrappedMasterKey),
+        ...mintSession(accountId),
       });
       return;
     }
@@ -460,7 +556,7 @@ export function createRelayServer(opts: {
     }
 
     if (method === "POST" && url.pathname === "/sync/push") {
-      const accountId = authenticate(req, store);
+      const accountId = authenticateSession(req);
       if (accountId === null) {
         sendJson(res, 401, { error: "unauthorized" });
         return;
@@ -480,7 +576,7 @@ export function createRelayServer(opts: {
     }
 
     if (method === "GET" && url.pathname === "/sync/pull") {
-      const accountId = authenticate(req, store);
+      const accountId = authenticateSession(req);
       if (accountId === null) {
         sendJson(res, 401, { error: "unauthorized" });
         return;

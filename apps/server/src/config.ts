@@ -28,6 +28,18 @@ export const DEFAULT_DB_PATH = "relay.db";
 export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 
 /**
+ * How long a minted session token stays valid (`POST /accounts/session`,
+ * security-findings.md H3). Short-lived on purpose: the token is the credential
+ * that transits on every `push`/`pull`, so a bounded lifetime caps the value of
+ * a leaked one and shrinks raw-verifier observation to *once per login*. A device
+ * silently re-logs-in (it still holds the verifier locally) when its token
+ * expires, so the TTL trades only a rare extra login round-trip for that bound.
+ * One hour is a comfortable default for a background sync loop; tune per
+ * deployment via `RELAY_SESSION_TTL_MS`.
+ */
+export const DEFAULT_SESSION_TTL_MS = 60 * 60_000;
+
+/**
  * The default throttle on the **unauthenticated** enumeration vectors
  * (`GET /accounts/lookup`, `POST /accounts`) — generous; tune per deployment. The
  * username join scheme makes an existence oracle deliberate-but-throttled
@@ -58,14 +70,16 @@ export const DEFAULT_RECOVERY_RATE_LIMIT: RateLimit = {
 };
 
 /**
- * A tight default throttle on **failed** authentications at `GET /accounts/bootstrap`
- * (security-findings.md H2). Bootstrap is the de-facto login endpoint: a joining device
- * that authenticates successfully is handed `wrap(MK, KEK)`, so an unauthenticated route
- * (`GET /accounts/lookup`) leaks the salt and an attacker can then grind candidate
- * passwords against bootstrap — each 401 costing the relay nothing. Only *failed* auths
- * consume this budget, and a legitimate join/re-auth touches bootstrap only a handful of
- * times, so the cap is low, like {@link DEFAULT_RECOVERY_RATE_LIMIT}. Per-IP (an accepted
- * limit: per-account keying is a tracked follow-up, since it opens a lockout-DoS vector).
+ * A tight default throttle on **failed** authentications at the two verifier-checking
+ * endpoints — `GET /accounts/bootstrap` and `POST /accounts/session` (security-findings.md
+ * H2/H3). Both are de-facto login endpoints: a device that authenticates successfully is
+ * handed either `wrap(MK, KEK)` (bootstrap) or a session token (session), so an
+ * unauthenticated route (`GET /accounts/lookup`) leaks the salt and an attacker can then
+ * grind candidate passwords against either — each 401 costing the relay nothing. Only
+ * *failed* auths consume this shared budget, and a legitimate join/login touches these only
+ * a handful of times, so the cap is low, like {@link DEFAULT_RECOVERY_RATE_LIMIT}. Per-IP
+ * (an accepted limit: per-account keying is a tracked follow-up, since it opens a
+ * lockout-DoS vector).
  */
 export const DEFAULT_BOOTSTRAP_RATE_LIMIT: RateLimit = {
   max: 10,
@@ -113,6 +127,8 @@ export const ENV = {
    */
   bootstrapRateLimitMax: "RELAY_BOOTSTRAP_RATE_LIMIT_MAX",
   bootstrapRateLimitWindowMs: "RELAY_BOOTSTRAP_RATE_LIMIT_WINDOW_MS",
+  /** Session-token lifetime in ms (default {@link DEFAULT_SESSION_TTL_MS}). */
+  sessionTtlMs: "RELAY_SESSION_TTL_MS",
   /**
    * Comma-separated trusted reverse-proxy IPs / CIDR ranges / `proxy-addr` preset
    * names (`loopback`, `uniquelocal`); empty/unset trusts none (default
