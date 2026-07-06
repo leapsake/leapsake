@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/index.ts",
+    "dev": "tsx src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/index.mjs",
+    "start": "node dist/index.mjs",
     "typecheck": "tsc"
   },
   "dependencies": {
@@ -17,6 +19,7 @@
   "devDependencies": {
     "@leapsake/core": "workspace:*",
     "@types/proxy-addr": "^2.0.3",
+    "esbuild": "^0.28.1",
     "tsx": "^4.19.0"
   }
 }

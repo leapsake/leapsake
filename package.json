@@ -13,7 +13,7 @@
     "lint": "oxlint",
     "test": "node scripts/ensure-sqlite-abi.mjs node && vitest run",
     "typecheck": "pnpm -r typecheck",
-	"server": "pnpm --filter @leapsake/server start"
+    "server": "pnpm --filter @leapsake/server dev"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
