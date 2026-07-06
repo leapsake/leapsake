@@ -228,7 +228,26 @@ the remaining items are tracked in [`status.md`](./status.md). Landed so far:
   and toolchain-free, and esbuild still runs (its binary comes via optional deps). Runtime
   image ~347 MB (node:24-slim + one 604 KB file). **Not** smoke-tested locally: the Caddy
   **ACME** path (needs a real public domain) — but the relay container it fronts is verified
-  and the Caddyfile is standard. **Remaining (Option B):** in-process TLS in the relay.
+  and the Caddyfile is standard.
+- **In-process TLS (H3 TLS, Option B) — done (2026-07-05).** The relay now terminates HTTPS
+  itself when handed a cert + key, completing the H3 TLS gate. `createRelayServer` takes an
+  optional `tls: { cert, key, passphrase? }` and wraps the *same* request listener in
+  `node:https` instead of `node:http` (`https.Server` extends `http.Server`, so the return
+  type and every existing test are unchanged — TLS is a pure transport wrapper over the same
+  handler/session-store/limiters); `index.ts` reads `RELAY_TLS_CERT`/`RELAY_TLS_KEY` (PEM
+  paths, both-or-neither with a fatal error otherwise; `RELAY_TLS_KEY_PASSPHRASE` optional),
+  logs `https://`, and suppresses the plain-HTTP startup warning when TLS is on. **Option A
+  and B are orthogonal and compose freely** (A+B = re-encrypt to a different-host backend).
+  Deliberately no HTTP→HTTPS redirect (a front-proxy concern) — a code comment marks where
+  one would go. Docs: README Option-B quickstart (`docker run` with mounted certs +
+  `PORT=443`) + config rows. Tested with a **committed TEST-ONLY** self-signed localhost cert
+  (`apps/server/test/fixtures/`, flagged in filename, cert org, a PEM-preamble banner, and a
+  fixtures README; excluded from the Docker context via `.dockerignore`): a new
+  `relay.test.ts` block validates against the fixture CA (a real handshake, not
+  `rejectUnauthorized:false`) — unauth 401 over TLS + a full register→session→pull over HTTPS.
+  **Verified live:** the bundle and the container both serve the whole session flow over
+  HTTPS (register/session/pull `200`, `https://` log, warning suppressed, plain HTTP to the
+  TLS port refused). H3 is now complete for v0.1.
 - **Session tokens (H3, the session half) — done (2026-07-05).** The password-derived verifier
   was a forever-valid bearer sent on *every* `push`/`pull`, so the relay observed it on every
   request — the H1 exposure H3 shrinks. Now the verifier is exchanged **once per login** for a

@@ -81,12 +81,15 @@ ways to terminate TLS; they're independent and compose freely:
   (Caddy/nginx/a load balancer) terminates HTTPS and forwards to the relay, which speaks
   plain HTTP on a private network. Lowest effort — Caddy auto-provisions and auto-renews
   Let's Encrypt certs. This repo ships a turnkey Caddy setup (below).
-- **Option B — TLS in the relay** _(coming)_: the relay loads a cert/key and speaks HTTPS
-  directly, no proxy. For self-hosters who'd rather not run one; you own cert renewal.
+- **Option B — TLS in the relay.** Set `RELAY_TLS_CERT` + `RELAY_TLS_KEY` (PEM file paths;
+  `RELAY_TLS_KEY_PASSPHRASE` for an encrypted key) and the relay speaks HTTPS directly, no
+  proxy. For self-hosters who'd rather not run one; you own cert acquisition + renewal.
+  Quickstart below.
 - **A + B together** is meaningful only when the proxy and relay run on **different hosts**
   (it also encrypts that hop); on a single host it's redundant-but-harmless.
 - **Neither** (plain HTTP, nothing in front) is dev/loopback only — the relay warns at
-  startup if it's run in production (`NODE_ENV=production`) with no trusted proxy set.
+  startup if it's run in production (`NODE_ENV=production`) with neither TLS nor a trusted
+  proxy set.
 
 ### Quickstart — Option A with Docker + Caddy
 
@@ -106,6 +109,27 @@ The relay image is standalone (one bundled file, no `node_modules`). To build it
 docker build -f apps/server/Dockerfile -t leapsake-relay .
 ```
 
+### Quickstart — Option B with in-process TLS (no proxy)
+
+Point the relay at a cert + key and it terminates HTTPS itself. Bring your own
+certificate (e.g. `certbot certonly`); the relay does not fetch or renew certs. Running
+the image directly, with the certs and store mounted in:
+
+```sh
+docker run -d --name leapsake-relay -p 443:443 \
+  -e PORT=443 \
+  -e RELAY_TLS_CERT=/tls/fullchain.pem \
+  -e RELAY_TLS_KEY=/tls/privkey.pem \
+  -v /etc/letsencrypt/live/relay.example.com:/tls:ro \
+  -v leapsake-relay-data:/data \
+  leapsake-relay
+```
+
+Point clients at `https://relay.example.com`. Set both `RELAY_TLS_CERT` and
+`RELAY_TLS_KEY` or neither — exactly one is a fatal misconfiguration. (No front proxy
+means no `X-Forwarded-For`, so leave `RELAY_TRUSTED_PROXIES` unset; the rate limiters key
+on the real socket IP.)
+
 ### Configuration
 
 All knobs are env vars, centralized in [`src/config.ts`](./src/config.ts):
@@ -117,6 +141,8 @@ All knobs are env vars, centralized in [`src/config.ts`](./src/config.ts):
 | `RELAY_TRUSTED_PROXIES`               | _(none)_    | comma-separated proxy IPs / CIDRs / `proxy-addr` presets (`loopback`, `uniquelocal`) so rate limiters see the real client IP — **set this in any Option A deploy** |
 | `RELAY_REGISTRATION_TOKEN`            | _(none)_    | if set, `POST /accounts` requires a matching `X-Registration-Token`; unset ⇒ open relay                                       |
 | `RELAY_SESSION_TTL_MS`                | `3600000`   | session-token lifetime (1h)                                                                                                   |
+| `RELAY_TLS_CERT` / `RELAY_TLS_KEY`    | _(none)_    | PEM file paths for in-process TLS (Option B); set **both** to speak HTTPS, or neither for plain HTTP behind a proxy           |
+| `RELAY_TLS_KEY_PASSPHRASE`            | _(none)_    | passphrase for an encrypted `RELAY_TLS_KEY`                                                                                   |
 | `RELAY_RATE_LIMIT_MAX` / `_WINDOW_MS` | `60` / `60000` | unauthenticated-endpoint throttle                                                                                         |
 | `RELAY_RECOVERY_RATE_LIMIT_MAX` / `_WINDOW_MS` | `10` / `60000` | recovery-endpoint throttle                                                                                       |
 | `RELAY_BOOTSTRAP_RATE_LIMIT_MAX` / `_WINDOW_MS` | `10` / `60000` | failed-login throttle (bootstrap + session)                                                                    |
@@ -135,7 +161,6 @@ fully closed later by OPAQUE at the hosted-relay tier). On a self-hosted relay t
 is you or someone you chose to trust — but **use a strong password** regardless. Details:
 [`plans/encryption/sync.md`](../../plans/encryption/sync.md) §4.
 
-> **Still ahead** before a public, at-scale relay: in-process TLS (Option B),
-> per-device tokens + revocation, replay defense, and a shared cross-process session +
-> rate-limit store for multi-node. Tracked in the encryption status oracle and
-> `security-findings.md` (H3).
+> **Still ahead** before a public, at-scale relay: per-device tokens + revocation, replay
+> defense, and a shared cross-process session + rate-limit store for multi-node. Tracked in
+> the encryption status oracle and `security-findings.md` (H3).

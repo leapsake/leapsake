@@ -1,0 +1,27 @@
+TEST-ONLY self-signed certificate for `localhost` / 127.0.0.1 — used solely by the
+relay's in-process TLS test (apps/server/test/relay.test.ts). It secures NOTHING:
+it protects no real host, carries no secret, and MUST NOT be used in production.
+Regenerate with the command in this directory's README.md. (PEM parsers ignore this
+preamble and read only the BEGIN/END block below.)
+
+-----BEGIN CERTIFICATE-----
+MIIDezCCAmOgAwIBAgIUY3NAUT1YJJThBqlQGvqy7RGWgZ4wDQYJKoZIhvcNAQEL
+BQAwPjESMBAGA1UEAwwJbG9jYWxob3N0MSgwJgYDVQQKDB9MZWFwc2FrZSBURVNU
+IE9OTFkgLSBkbyBub3QgdXNlMCAXDTI2MDcwNjAzNDUxNFoYDzIxMjYwNjEyMDM0
+NTE0WjA+MRIwEAYDVQQDDAlsb2NhbGhvc3QxKDAmBgNVBAoMH0xlYXBzYWtlIFRF
+U1QgT05MWSAtIGRvIG5vdCB1c2UwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
+AoIBAQDQ7NozPp3STcy9jsATTnZq6WUQDhwmwTFPgEFN3i2fuLTCN8S5YKIDanOO
+uSPR6gGQqGXdHX1GR0CTvlGvyWXpTAC+RWpho+HNTlcotoFLtZ9sB+06FSLTllHW
+SIkFtqFr6ls6Hr9v1Hj+zXQhiRrUj7OvMwi/UBeI+yAnEYjcdsydhxqcwRXbSuYc
+SCrYBp8Fk7Pm8E9fJXHorYRVlOSgL2Sg5HIcuP+wmzBNrfB/Uyhd0EW9pd19eDX+
+UfOHUW0/2/sUZuTrznXPUNOc4dZVraHuH7MO4xd98umWyg9p6Em0yv7OnZlOdpPw
+faByU0itUJcOlPMh3TTRtVOL8QmlAgMBAAGjbzBtMB0GA1UdDgQWBBRX8dicFWG5
+1ILZbSwU07Q9grSiWjAfBgNVHSMEGDAWgBRX8dicFWG51ILZbSwU07Q9grSiWjAP
+BgNVHRMBAf8EBTADAQH/MBoGA1UdEQQTMBGCCWxvY2FsaG9zdIcEfwAAATANBgkq
+hkiG9w0BAQsFAAOCAQEAWU6MsILiF5TNov090IgwO/f9/hntO8mA9uWe5HhRGlFY
+wnP0ZByStArfyL+GXe/Em3d6tINlvnixIcDfQo1tX9IWyomGtyWOtFT6XwaXYLQo
+ESkYcq5Cxuj6wF7+/QMa/vTLc+WjmbNUkm6qtnb4//pM26ZrRIsIThj/8TgmL8Hs
+TlNJvW/n1ghoiTvHKrzCGMOu/nWMn24dzBOsRz7LoEakZzXdAZjlz3eah8Jt+igQ
++a5EDqwvBV7HuP1gEHvdkFEiOFIYJgrz9cwPu/zVZFzgXQPvJ2x3WpFE1fAFs1CW
+04fptzbEgnNhNvaHkjRZMaygqE5+x+uHw2OpigwcAQ==
+-----END CERTIFICATE-----

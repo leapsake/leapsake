@@ -14,6 +14,11 @@
 **/*.db-wal
 **/*.db-shm
 
+# Tests never enter the relay build — this also keeps the committed TEST-ONLY TLS
+# fixture key out of every image layer.
+**/test
+**/*.test.ts
+
 # Logs, editor, OS cruft.
 **/*.log
 **/.DS_Store
