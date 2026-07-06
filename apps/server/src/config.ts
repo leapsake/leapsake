@@ -130,6 +130,15 @@ export const ENV = {
   /** Session-token lifetime in ms (default {@link DEFAULT_SESSION_TTL_MS}). */
   sessionTtlMs: "RELAY_SESSION_TTL_MS",
   /**
+   * In-process TLS (Option B). Paths to the PEM cert (a fullchain, including any
+   * intermediates) and its private key; set **both** to make the relay speak HTTPS
+   * itself instead of plain HTTP. Unset ⇒ plain HTTP (the default — terminate TLS
+   * in front, Option A). `tlsKeyPassphrase` decrypts an encrypted key if needed.
+   */
+  tlsCert: "RELAY_TLS_CERT",
+  tlsKey: "RELAY_TLS_KEY",
+  tlsKeyPassphrase: "RELAY_TLS_KEY_PASSPHRASE",
+  /**
    * Comma-separated trusted reverse-proxy IPs / CIDR ranges / `proxy-addr` preset
    * names (`loopback`, `uniquelocal`); empty/unset trusts none (default
    * {@link DEFAULT_TRUSTED_PROXIES}). Enables `X-Forwarded-For`-aware client IPs

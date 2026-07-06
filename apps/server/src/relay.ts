@@ -1,10 +1,11 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
-  createServer,
+  createServer as createHttpServer,
   type IncomingMessage,
   type Server,
   type ServerResponse,
 } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
 import { base64ToBytes, bytesToBase64 } from "@leapsake/crypto";
 import { decodeRecord, encodeRecord } from "@leapsake/data";
 import proxyaddr from "proxy-addr";
@@ -280,6 +281,14 @@ export function createRelayServer(opts: {
    * {@link DEFAULT_SESSION_TTL_MS}). Short by design — see that constant.
    */
   sessionTtlMs?: number;
+  /**
+   * In-process TLS (Option B). When set, the relay terminates HTTPS itself with
+   * this cert + key instead of speaking plain HTTP; when omitted, it speaks plain
+   * HTTP and TLS is terminated in front of it (Option A, the default). The two are
+   * orthogonal — a deployment may do both (public TLS at a proxy, re-encrypted to
+   * the relay) when the proxy and relay sit on different hosts.
+   */
+  tls?: { cert: string | Buffer; key: string | Buffer; passphrase?: string };
 }): Server {
   const { store } = opts;
   const allow = createRateLimiter(opts.rateLimit ?? DEFAULT_RATE_LIMIT);
@@ -381,11 +390,22 @@ export function createRelayServer(opts: {
     return session.accountId;
   }
 
-  return createServer((req, res) => {
+  // The request listener is identical over HTTP and HTTPS — TLS (Option B) is purely
+  // a transport wrapper around the same handler, session store, and limiters.
+  const listener = (req: IncomingMessage, res: ServerResponse): void => {
     void handle(req, res).catch(() => {
       if (!res.headersSent) sendJson(res, 500, { error: "internal" });
     });
-  });
+  };
+
+  // Option B serves HTTPS only — there is deliberately no HTTP→HTTPS redirect
+  // listener: clients hold the relay's `https://` URL directly, and port-80
+  // handling is a front-proxy (Option A) concern. If one were ever wanted, add a
+  // second `createHttpServer` bound to :80 here whose handler 301s to the https
+  // origin. (`https.Server` extends `http.Server`, so the return type is unchanged.)
+  return opts.tls === undefined
+    ? createHttpServer(listener)
+    : createHttpsServer(opts.tls, listener);
 
   async function handle(
     req: IncomingMessage,

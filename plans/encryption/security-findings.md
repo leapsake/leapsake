@@ -133,10 +133,15 @@ layer that does not exist in the repo, and `apps/server/src/index.ts` serves pla
   (`apps/server/src/relay.ts`, `packages/data/src/http-sync-transport.ts`, TTL in
   `config.ts` / `RELAY_SESSION_TTL_MS`). The transport manages the lifecycle itself
   (login on first use / near expiry; re-login-and-retry on 401), so nothing above it
-  changed. **Still open here:** TLS (the deploy gate — a TLS-terminating proxy in front,
-  or a coming in-process TLS option), per-device tokens / revocation, and replay defense.
-  Sessions are per-process in-memory, so a multi-node relay needs a shared session store —
-  the same follow-up as the shared rate-limit counter (security-review.md §3).
+  changed.
+- **Status — TLS DONE (2026-07-05).** The deploy gate is closed both ways (both shippable,
+  orthogonal, composable): **Option A** — a TLS-terminating proxy in front, shipped as the
+  `apps/server/Dockerfile` + root `docker-compose.yml` (relay + Caddy auto-TLS) + deploy
+  docs; **Option B** — in-process TLS in the relay (`createRelayServer`'s `tls` option over
+  `node:https`, env `RELAY_TLS_CERT`/`RELAY_TLS_KEY`). A production run with neither TLS nor
+  a trusted proxy warns at startup. **Still open here:** per-device tokens / revocation and
+  replay defense. Sessions are per-process in-memory, so a multi-node relay needs a shared
+  session store — the same follow-up as the shared rate-limit counter (security-review.md §3).
 
 ---
 

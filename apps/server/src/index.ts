@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import {
   DEFAULT_DB_PATH,
@@ -28,10 +29,13 @@ import { createRelayStore } from "./store.js";
  * (security-findings.md H3) carry the hot sync path; tune their lifetime with
  * `RELAY_SESSION_TTL_MS`.
  *
- * Still deferred (see plans/encryption/security-review.md): TLS termination (the
- * H3 deploy gate — put a TLS-terminating proxy in front, or the coming in-process
- * TLS option), replay defense, and a shared cross-process session + rate-limit
- * store for multi-node relays (the single-node proxy-aware client IP is done).
+ * TLS: terminate it **in front** (Option A — a proxy; the default) or **in-process**
+ * (Option B) by setting `RELAY_TLS_CERT` + `RELAY_TLS_KEY` (PEM file paths; plus
+ * `RELAY_TLS_KEY_PASSPHRASE` for an encrypted key). See apps/server/README.md → Deploy.
+ *
+ * Still deferred (see plans/encryption/security-review.md): replay defense and a
+ * shared cross-process session + rate-limit store for multi-node relays (the
+ * single-node proxy-aware client IP is done).
  */
 const port = Number(process.env[ENV.port] ?? DEFAULT_PORT);
 const dbPath = process.env[ENV.dbPath] ?? DEFAULT_DB_PATH;
@@ -73,17 +77,40 @@ const sessionTtlEnv = process.env[ENV.sessionTtlMs];
 const sessionTtlMs =
   sessionTtlEnv === undefined ? undefined : Number(sessionTtlEnv);
 
-// The relay speaks plain HTTP; TLS must be terminated in front of it (Option A) or
-// in-process (Option B, later). It can't detect a proxy except via a configured
-// trusted-proxy set, so in a production run with none we assume it's exposed raw and
-// warn loudly — the H3 deploy gate (never serve the relay on plain HTTP anywhere
-// real). Dev runs (NODE_ENV unset) stay quiet. See apps/server/README.md → Deploy.
-if (process.env.NODE_ENV === "production" && trustedProxies.length === 0) {
+// In-process TLS (Option B): set BOTH the cert and key paths, or neither. Both ⇒ the
+// relay speaks HTTPS itself; neither ⇒ plain HTTP (terminate TLS in front, Option A).
+const tlsCertPath = process.env[ENV.tlsCert];
+const tlsKeyPath = process.env[ENV.tlsKey];
+if ((tlsCertPath === undefined) !== (tlsKeyPath === undefined)) {
+  throw new Error(
+    `In-process TLS needs both ${ENV.tlsCert} and ${ENV.tlsKey} (or neither).`,
+  );
+}
+const tls =
+  tlsCertPath === undefined || tlsKeyPath === undefined
+    ? undefined
+    : {
+        cert: readFileSync(tlsCertPath),
+        key: readFileSync(tlsKeyPath),
+        passphrase: process.env[ENV.tlsKeyPassphrase],
+      };
+
+// The relay must sit behind TLS — terminated in front (Option A) or in-process
+// (Option B, `tls` above). It can't detect a front proxy except via a configured
+// trusted-proxy set, so a production run with neither TLS nor a trusted proxy is
+// assumed to be exposed on raw HTTP, and we warn loudly (the H3 deploy gate: never
+// serve the relay on plain HTTP anywhere real). Dev runs (NODE_ENV unset) and any
+// TLS/proxy config stay quiet. See apps/server/README.md → Deploy.
+if (
+  process.env.NODE_ENV === "production" &&
+  trustedProxies.length === 0 &&
+  tls === undefined
+) {
   console.warn(
-    "⚠  Leapsake relay: serving plain HTTP with no trusted proxy configured. Put a " +
-      "TLS-terminating proxy (e.g. Caddy) in front and set RELAY_TRUSTED_PROXIES — " +
-      "never expose the relay on plain HTTP. If you terminate TLS elsewhere, set " +
-      "RELAY_TRUSTED_PROXIES to silence this. See apps/server/README.md → Deploy.",
+    "⚠  Leapsake relay: serving plain HTTP with no TLS and no trusted proxy. Put a " +
+      "TLS-terminating proxy (e.g. Caddy) in front and set RELAY_TRUSTED_PROXIES, or " +
+      "enable in-process TLS with RELAY_TLS_CERT + RELAY_TLS_KEY — never expose the " +
+      "relay on plain HTTP. See apps/server/README.md → Deploy.",
   );
 }
 
@@ -95,6 +122,8 @@ createRelayServer({
   bootstrapRateLimit,
   trustedProxies,
   sessionTtlMs,
+  tls,
 }).listen(port, () => {
-  console.log(`Leapsake relay listening on http://localhost:${port}`);
+  const scheme = tls === undefined ? "http" : "https";
+  console.log(`Leapsake relay listening on ${scheme}://localhost:${port}`);
 });

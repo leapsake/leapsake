@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import type { Server } from "node:http";
+import { request as httpsRequest } from "node:https";
 import type { AddressInfo } from "node:net";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -1102,5 +1104,110 @@ describe("relay rate limiting (proxy-aware client IP)", () => {
     // a different forged leftmost → same bucket → throttled.
     expect(await probe("9.9.9.9, 1.1.1.1")).toBe(404);
     expect(await probe("8.8.8.8, 1.1.1.1")).toBe(429);
+  });
+});
+
+/**
+ * In-process TLS (Option B, security-findings.md H3): handed a cert + key, the relay
+ * terminates HTTPS itself and serves the *same* handler over TLS. Driven with the
+ * committed TEST-ONLY self-signed localhost cert (`test/fixtures`) so it needs no
+ * tools at runtime — and validated against its own CA (not `rejectUnauthorized:
+ * false`), so this also proves a genuine TLS handshake.
+ */
+describe("in-process TLS (Option B)", () => {
+  const cert = readFileSync(
+    new URL("./fixtures/localhost-test-only.crt", import.meta.url),
+  );
+  const key = readFileSync(
+    new URL("./fixtures/localhost-test-only.key", import.meta.url),
+  );
+
+  let server: Server;
+  let port: number;
+
+  beforeEach(async () => {
+    const store = createRelayStore(new DatabaseSync(":memory:"));
+    server = createRelayServer({ store, tls: { cert, key } });
+    port = await listen(server);
+  });
+  afterEach(() => close(server));
+
+  /** One HTTPS request over TLS, validated against the fixture CA. */
+  function httpsReq(opts: {
+    method: string;
+    path: string;
+    headers?: Record<string, string>;
+    body?: string;
+  }): Promise<{ status: number; json: unknown }> {
+    return new Promise((resolve, reject) => {
+      const req = httpsRequest(
+        {
+          host: "127.0.0.1",
+          port,
+          method: opts.method,
+          path: opts.path,
+          headers: opts.headers,
+          ca: cert, // trust exactly the fixture — a real handshake must succeed
+        },
+        (res) => {
+          let data = "";
+          res.on("data", (chunk) => {
+            data += chunk;
+          });
+          res.on("end", () =>
+            resolve({
+              status: res.statusCode ?? 0,
+              json: data === "" ? undefined : JSON.parse(data),
+            }),
+          );
+        },
+      );
+      req.on("error", reject);
+      if (opts.body !== undefined) req.write(opts.body);
+      req.end();
+    });
+  }
+
+  it("rejects an unauthenticated request over HTTPS (the handler runs over TLS)", async () => {
+    const { status } = await httpsReq({
+      method: "GET",
+      path: "/sync/pull?since=0",
+    });
+    expect(status).toBe(401);
+  });
+
+  it("runs the full register → session → sync flow over HTTPS", async () => {
+    const accountId = crypto.randomUUID();
+    const verifierB64 = Buffer.from(generateKey()).toString("base64");
+
+    const registered = await httpsReq({
+      method: "POST",
+      path: "/accounts",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        accountId,
+        username: "tls-ada",
+        authVerifier: verifierB64,
+        kdfSalt: Buffer.from(generateSalt()).toString("base64"),
+        wrappedMasterKey: Buffer.from(WRAPPED_MK).toString("base64"),
+      }),
+    });
+    expect(registered.status).toBe(200);
+
+    const session = await httpsReq({
+      method: "POST",
+      path: "/accounts/session",
+      headers: { authorization: `Bearer ${accountId}.${verifierB64}` },
+    });
+    expect(session.status).toBe(200);
+    const { token } = session.json as { token: string };
+
+    const pulled = await httpsReq({
+      method: "GET",
+      path: "/sync/pull?since=0",
+      headers: { authorization: `Session ${token}` },
+    });
+    expect(pulled.status).toBe(200);
+    expect((pulled.json as { records: unknown[] }).records).toEqual([]);
   });
 });
