@@ -73,6 +73,20 @@ const sessionTtlEnv = process.env[ENV.sessionTtlMs];
 const sessionTtlMs =
   sessionTtlEnv === undefined ? undefined : Number(sessionTtlEnv);
 
+// The relay speaks plain HTTP; TLS must be terminated in front of it (Option A) or
+// in-process (Option B, later). It can't detect a proxy except via a configured
+// trusted-proxy set, so in a production run with none we assume it's exposed raw and
+// warn loudly — the H3 deploy gate (never serve the relay on plain HTTP anywhere
+// real). Dev runs (NODE_ENV unset) stay quiet. See apps/server/README.md → Deploy.
+if (process.env.NODE_ENV === "production" && trustedProxies.length === 0) {
+  console.warn(
+    "⚠  Leapsake relay: serving plain HTTP with no trusted proxy configured. Put a " +
+      "TLS-terminating proxy (e.g. Caddy) in front and set RELAY_TRUSTED_PROXIES — " +
+      "never expose the relay on plain HTTP. If you terminate TLS elsewhere, set " +
+      "RELAY_TRUSTED_PROXIES to silence this. See apps/server/README.md → Deploy.",
+  );
+}
+
 const store = createRelayStore(new DatabaseSync(dbPath));
 createRelayServer({
   store,

@@ -199,6 +199,36 @@ only the password-derived door is refreshed. No relay write.
 The findings backlog is [`encryption/security-findings.md`](./encryption/security-findings.md);
 the remaining items are tracked in [`status.md`](./status.md). Landed so far:
 
+- **Relay packaging — build step + Option A deploy (H3 TLS-in-front) — done (2026-07-05).**
+  Two increments toward the H3 deploy gate. **(1.5) Build step:** the relay now bundles to a
+  single self-contained ESM file via esbuild (`apps/server` `build` → `dist/index.mjs`,
+  `platform=node`, `target=node24`), inlining `zod`, `proxy-addr`, `@noble/ciphers`, and the
+  workspace packages — only Node built-ins (`node:http`/`node:sqlite`/`node:crypto`) stay
+  external, so the artifact runs with **zero runtime `node_modules`**. Scripts split into
+  `dev` (tsx), `build`, `start` (`node dist/index.mjs`); root `server` script → `dev`. **(2)
+  Option A (TLS-in-front, the recommended default):** `apps/server/Dockerfile` (multi-stage —
+  a build stage runs
+  `pnpm install --frozen-lockfile --ignore-scripts` and bundles; a runtime stage copies just the
+  one `.mjs` onto `node:24-slim`, runs as `USER node`, `relay.db` on a `/data` volume), a repo-root
+  `.dockerignore`, and a root `docker-compose.yml` bundling the relay + **Caddy** (automatic
+  Let's Encrypt TLS, `apps/server/Caddyfile`, `RELAY_TRUSTED_PROXIES=uniquelocal` so the
+  proxy-aware limiters see real client IPs). Plus an `index.ts` **startup warning** when
+  `NODE_ENV=production` and no trusted proxy is set (the "plain HTTP, nothing in front"
+  footgun made loud-but-permitted, since the relay can't detect a proxy). The README got a
+  **Deploy** section (A/B/A+B TLS matrix, compose quickstart, full env-var reference, backups,
+  the honest weak-password self-host note) and its stale pre-session-tokens auth/routes were
+  refreshed. **Verified:** the image **builds and runs** — `docker build` then `docker run` the
+  container passes the full session smoke (register → mint session → push/pull 200; raw
+  verifier rejected 401; `X-Forwarded-For` honored under the trusted proxy); the
+  startup-warning matrix holds in-container (prod-no-proxy warns; prod-with-proxy and dev
+  quiet); `docker compose config` validates. A **build gotcha caught + fixed:**
+  `pnpm install` ignores `--filter` (it always installs the whole workspace), so the first
+  build ran electron's binary download + better-sqlite3's native compile; `--ignore-scripts`
+  neutralizes them (we bundle, so no install scripts are needed) — the build is now hermetic
+  and toolchain-free, and esbuild still runs (its binary comes via optional deps). Runtime
+  image ~347 MB (node:24-slim + one 604 KB file). **Not** smoke-tested locally: the Caddy
+  **ACME** path (needs a real public domain) — but the relay container it fronts is verified
+  and the Caddyfile is standard. **Remaining (Option B):** in-process TLS in the relay.
 - **Session tokens (H3, the session half) — done (2026-07-05).** The password-derived verifier
   was a forever-valid bearer sent on *every* `push`/`pull`, so the relay observed it on every
   request — the H1 exposure H3 shrinks. Now the verifier is exchanged **once per login** for a
