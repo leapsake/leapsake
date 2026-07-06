@@ -90,6 +90,8 @@ type MissingChannels = Exclude<ApiChannel, (typeof API_CHANNELS)[number]>;
 // `missing` in the error to see which.
 const channelsCoverCoreApi: [MissingChannels] extends [never]
   ? true
-  : { error: "CoreApi methods missing from API_CHANNELS"; missing: MissingChannels } =
-  true;
+  : {
+      error: "CoreApi methods missing from API_CHANNELS";
+      missing: MissingChannels;
+    } = true;
 void channelsCoverCoreApi;

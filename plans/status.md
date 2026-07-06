@@ -17,8 +17,8 @@
 - **V3 · Encryption + sync** — **Stages 1 (zero-knowledge sync) and 2 (at-rest) are done on
   both clients**, verified over the wire and on-disk. **The recovery-phrase increment is
   done** (24-word phrase recovers both loss events; UI verified on both clients). **Relay
-  hardening is in progress** (see *What's next*). Stages 3–4 (sharing, SSR web) are
-  post-launch. Design: [`encryption/`](./encryption/).
+  hardening: H3 done; only non-v0.1-blocking items remain** (see *What's next*). Stages 3–4
+  (sharing, SSR web) are post-launch. Design: [`encryption/`](./encryption/).
 - **V3 · Reconciliation (dedup & merge)** — Increments A, B, and C's merge-on-join are
   built; only C's bulk-import dedup remains (deferred until the importer exists). Design:
   [`packages/core/README.md`](../packages/core/README.md).
@@ -56,13 +56,9 @@ These four decisions shape sequencing below; the accessibility principle behind 
 
 **Encryption + sync:**
 
-- **Relay hardening.** Landed: recovery-endpoint throttle, proxy-aware client IP, the
-  bootstrap online-guessing throttle (H2), convergence-DoS hardening (M3), **H3's
-  short-lived session tokens**, and **H3 TLS — fully done** (2026-07-05): both the
-  Caddy-in-front (Option A) and in-process (Option B) TLS paths ship, plus the esbuild
-  single-file bundle, `apps/server/Dockerfile`, root `docker-compose.yml`, the README
-  Deploy section, and a plain-HTTP-with-no-TLS-and-no-proxy startup warning. **H3 is
-  complete for v0.1.** Details in [`shipped.md`](./shipped.md); findings backlog in
+- **Relay hardening.** **H3 is complete for v0.1** — session tokens + both TLS paths
+  (Option A Caddy-in-front, Option B in-process) — as are H2, M3, proxy-aware IP, and the
+  recovery throttle. Narratives in [`shipped.md`](./shipped.md); findings backlog in
   [`encryption/security-findings.md`](./encryption/security-findings.md). Remaining, in order:
   1. **Shared cross-process rate-limit counter** — today's limiters *and* session store are
      in-memory, per-process; a multi-node relay collapses them (one shared follow-up).
@@ -94,9 +90,8 @@ These four decisions shape sequencing below; the accessibility principle behind 
 
 **Relay packaging & durability** (self-host is the only v0.1 sync path, so it must be easy
 and boring to run):
-- ✅ **Done (2026-07-05):** `apps/server/Dockerfile` (a single bundled file, zero runtime
-  `node_modules`), root `docker-compose.yml` (relay + Caddy auto-TLS), and the deploy doc
-  (README → Deploy) — the TLS-in-front path that pairs with H3.
+- **Packaging is done** — Dockerfile, `docker-compose.yml` + Caddy, README → Deploy (see
+  [`shipped.md`](./shipped.md)).
 - **Relay disposability** ([`encryption/sync.md`](./encryption/sync.md) §2): losing
   `relay.db` must never lose user data. Content already lives on devices; close the gap by
   having devices **self-heal the account row + recovery escrow** on sync, so a relay wipe

@@ -41,7 +41,10 @@ function ClearDbKey() {
       await secureStoreKeyStore().deleteSecret(DATABASE_KEY);
       setState({ kind: "done" });
     } catch (e) {
-      setState({ kind: "error", message: e instanceof Error ? e.message : String(e) });
+      setState({
+        kind: "error",
+        message: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 
@@ -51,10 +54,10 @@ function ClearDbKey() {
       <ScrollView contentContainerStyle={styles.screen}>
         <View style={styles.section}>
           <Text style={styles.rowText}>
-            Deletes only the secure-store <Text style={{ fontWeight: "700" }}>db-key</Text>,
-            simulating OS-keychain loss. The encrypted database and the recovery
-            sidecar are left intact, so the next launch shows the recovery-phrase
-            gate.
+            Deletes only the secure-store{" "}
+            <Text style={{ fontWeight: "700" }}>db-key</Text>, simulating
+            OS-keychain loss. The encrypted database and the recovery sidecar
+            are left intact, so the next launch shows the recovery-phrase gate.
           </Text>
         </View>
 
@@ -76,14 +79,19 @@ function ClearDbKey() {
             style={[banner, { backgroundColor: colors.danger }]}
           >
             <Text style={bannerText}>Couldn't clear db-key</Text>
-            <Text style={[bannerText, { fontWeight: "400" }]}>{state.message}</Text>
+            <Text style={[bannerText, { fontWeight: "400" }]}>
+              {state.message}
+            </Text>
           </View>
         ) : (
           <Pressable
             testID="dev-clear-dbkey-button"
             style={[
               banner,
-              { backgroundColor: colors.danger, opacity: state.kind === "working" ? 0.5 : 1 },
+              {
+                backgroundColor: colors.danger,
+                opacity: state.kind === "working" ? 0.5 : 1,
+              },
             ]}
             disabled={state.kind === "working"}
             onPress={() => void clear()}

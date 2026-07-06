@@ -499,7 +499,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           try {
             await reauthenticateViaRelay({ keyStore, driver, password });
           } catch (cause) {
-            throw new Error(relayErrorMessage(cause, relayUrl ?? ""), { cause });
+            throw new Error(relayErrorMessage(cause, relayUrl ?? ""), {
+              cause,
+            });
           }
           await scheduler.current?.trigger();
         },
