@@ -237,6 +237,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   // The unlocked device key material (custody Phase 0), passed into createCore so
   // it can encrypt sensitive fields at rest under per-item content keys.
   const keySession = useRef<KeySession | null>(null);
+  // The live core, mirrored in a ref so the AppState (foreground) listener — set
+  // up once, before the core is built — can reach the *current* core (which a
+  // later join/recover swaps) to regenerate system reminders on foreground.
+  const coreRef = useRef<CoreApi | null>(null);
   // The background-sync scheduler (seamless sync): writes kick it, foregrounding
   // and the interval trigger it, the manual button routes through it. Held in a
   // ref so the AppState listener and SyncApi methods reach the live instance.
@@ -250,11 +254,35 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    /**
+     * Reconcile automated (`system`) reminders — upcoming birthdays — against the
+     * given core, then, only if anything changed, bump the data version so the
+     * focused screen re-reads and kick a sync so the rows propagate. Runs at boot
+     * and on foreground (a new local day can bring a birthday into range).
+     * Best-effort: a failure must never break the app. `regenerateSystem` isn't a
+     * sync-kicking mutation (it runs off a user write), hence the explicit kick.
+     */
+    const regenerateSystemReminders = async (coreApi: CoreApi) => {
+      try {
+        const { created, removed } = await coreApi.reminders.regenerateSystem();
+        if (created > 0 || removed > 0) {
+          setDataVersion((v) => v + 1);
+          scheduler.current?.kick();
+        }
+      } catch (cause) {
+        console.error("regenerate system reminders failed:", cause);
+      }
+    };
+
     // Pull the peer's edits when the app returns to the foreground — the
     // event-driven companion to write-kicked pushes. (RN JS timers are suspended
     // in the background, so the interval is a foreground-only backstop anyway.)
     const appStateSub = AppState.addEventListener("change", (state) => {
-      if (state === "active") void scheduler.current?.autoTrigger();
+      if (state !== "active") return;
+      void scheduler.current?.autoTrigger();
+      if (coreRef.current !== null) {
+        void regenerateSystemReminders(coreRef.current);
+      }
     });
 
     // Park the bootstrap on the recovery gate until the user submits a phrase.
@@ -358,12 +386,14 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         },
       });
 
-      setCore(
-        withSyncKick(createCore(driver, keySession.current), () =>
-          scheduler.current?.kick(),
-        ),
+      const bootedCore = withSyncKick(
+        createCore(driver, keySession.current),
+        () => scheduler.current?.kick(),
       );
+      coreRef.current = bootedCore;
+      setCore(bootedCore);
       scheduler.current.start(); // backstop interval
+      void regenerateSystemReminders(bootedCore); // birthdays atop Home
       void scheduler.current.autoTrigger(); // initial sync (skipped if auto off)
       // The enable-sync surface closes over the *booted* driver + keystore, so it
       // never re-opens the DB or re-creates the keystore (custody Phase 1).
@@ -425,6 +455,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           const joinedCore = withSyncKick(createCore(driver, session), () =>
             scheduler.current?.kick(),
           );
+          coreRef.current = joinedCore;
           setCore(joinedCore);
           // Reconcile this device's pre-existing local people against the
           // account: pull first, then count the possible duplicates the join
@@ -468,6 +499,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           const recoveredCore = withSyncKick(createCore(driver, session), () =>
             scheduler.current?.kick(),
           );
+          coreRef.current = recoveredCore;
           setCore(recoveredCore);
           let duplicateCount = 0;
           try {
