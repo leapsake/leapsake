@@ -63,6 +63,19 @@ export type {
 } from "./reminder.js";
 export { taggingSchema, tagBearerTypeSchema } from "./tagging.js";
 export type { Tagging, TagBearerType } from "./tagging.js";
+export {
+  MENTION_NAMESPACE,
+  mentionToken,
+  parseMentions,
+  plainMentionText,
+} from "./mention.js";
+export type { Mention } from "./mention.js";
+export { mentioningSchema, mentionBearerTypeSchema } from "./mentioning.js";
+export type {
+  Mentioning,
+  MentionBearerType,
+  ResolvedMention,
+} from "./mentioning.js";
 export { dismissalSchema } from "./dismissal.js";
 export { notADuplicateSchema } from "./not-a-duplicate.js";
 export type { NotADuplicate } from "./not-a-duplicate.js";

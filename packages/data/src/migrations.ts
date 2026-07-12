@@ -506,6 +506,38 @@ export const migrations: Migration[] = [
       await driver.exec(`ALTER TABLE reminders ADD COLUMN due_date INTEGER;`);
     },
   },
+  {
+    version: 20,
+    async up(driver) {
+      // Mentions — the synced, indexed backlink for inline `@mentions` embedded in
+      // freeform text (plans reminder-mentions). A mention is derived from a token
+      // in the bearer's text (the text is the source of truth), and materialized
+      // here so "what mentions this person?" is an indexed lookup, not a scan.
+      // Both axes are polymorphic: `bearer_*` is what holds the text (a reminder
+      // today), `target_*` is the referenced entity (person/pet). Same partial-
+      // unique + soft-delete convention as `taggings` (migration 3). Row ids are
+      // deterministic (schema/mention.ts), so cross-device re-derivation converges.
+      await driver.exec(`
+        CREATE TABLE mentions (
+          id          TEXT    PRIMARY KEY,
+          bearer_type TEXT    NOT NULL,
+          bearer_id   TEXT    NOT NULL,
+          target_type TEXT    NOT NULL,
+          target_id   TEXT    NOT NULL,
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL,
+          deleted_at  INTEGER
+        );
+        CREATE UNIQUE INDEX ux_mentions_active
+          ON mentions(bearer_type, bearer_id, target_type, target_id)
+          WHERE deleted_at IS NULL;
+        CREATE INDEX ix_mentions_target
+          ON mentions(target_type, target_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_mentions_bearer
+          ON mentions(bearer_type, bearer_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**

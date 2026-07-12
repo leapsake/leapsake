@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ResolvedMention } from "./mentioning.js";
 import type { Tag } from "./tag.js";
 
 /**
@@ -18,11 +19,13 @@ export type ReminderSource = z.infer<typeof reminderSourceSchema>;
  * {@link completedAt} is null until the user marks it done and is cleared when
  * they un-do it (a reversible toggle, not a one-way action).
  *
- * `#tags` are parsed **inline** from the text (see {@link parseHashtags}) and
- * stored as ordinary taggings under bearer type `"reminder"` — the reminder text
- * is the single source of truth for its tags. `@mentions` of People/Pets are a
- * later increment (a distinct `mentions` relationship pointing at an entity id,
- * *not* a tagging).
+ * Both `#tags` and `@mentions` are parsed **inline** from the text — the reminder
+ * text is the single source of truth for both. `#tags` (see {@link parseHashtags})
+ * are stored as ordinary taggings under bearer type `"reminder"`. `@mentions` of
+ * People/Pets (see {@link parseMentions}) are a *distinct* thing: an inline token
+ * carrying the referenced entity's id, re-derived on write into synced, indexed
+ * {@link Mentioning} rows (a relationship pointing at an entity id, **not** a
+ * tagging — a mention names a specific pre-existing entity, never a shared label).
  *
  * Same sync-safe substrate as every domain row (see AGENTS.md): client UUID id,
  * epoch-ms UTC timestamps, nullable `deletedAt` — so it merges via whole-row LWW.
@@ -49,12 +52,18 @@ export const reminderSchema = z
 export type Reminder = z.infer<typeof reminderSchema>;
 
 /**
- * A reminder joined with the tags parsed from its text — each carrying the id the
- * tag was resolved/created under, so a renderer can link an inline `#tag` (see
- * {@link splitHashtags}) to its tag page. Core populates this on reads; the text
- * remains the single source of truth for *which* tags exist.
+ * A reminder joined with the references derived from its text: the `#tags` (each
+ * carrying the id its tag was resolved/created under, to link an inline `#tag` —
+ * see {@link splitHashtags} — to its tag page) and the `@mentions` (each resolved
+ * to its target entity's current label, to link an inline mention token to the
+ * person/pet page). Core populates both on reads; the text remains the single
+ * source of truth for *which* tags and mentions exist. (The name is historical —
+ * it now carries mentions too.)
  */
-export type ReminderWithTags = Reminder & { tags: Tag[] };
+export type ReminderWithTags = Reminder & {
+  tags: Tag[];
+  mentions: ResolvedMention[];
+};
 
 /** The optional text fields shared by create/update inputs. */
 const textShape = {
