@@ -108,6 +108,27 @@ describe("core.reminders", () => {
     expect(tagId).toBe(janeTag?.id);
   });
 
+  it("surfaces a tagged reminder on the tag's page, and drops it when deleted", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", middleName: null, lastName: "Doe", gender: null },
+      ["family"],
+    );
+    const r = await core.reminders.create({ title: "call sister #family" });
+    const tagId = (await reminderTags(r.id))[0]!.id;
+
+    // The reminder lists on the tag's page, and doesn't displace the person.
+    expect((await core.tags.remindersForTag(tagId)).map((x) => x.id)).toEqual([
+      r.id,
+    ]);
+    expect((await core.tags.peopleForTag(tagId)).map((p) => p.id)).toEqual([
+      jane.id,
+    ]);
+
+    // A soft-deleted reminder falls off the tag page.
+    await core.reminders.softDelete(r.id);
+    expect(await core.tags.remindersForTag(tagId)).toEqual([]);
+  });
+
   it("lists reminders, distinguishing open from completed via completedAt", async () => {
     const a = await core.reminders.create({ title: "open one" });
     const b = await core.reminders.create({ title: "done one" });

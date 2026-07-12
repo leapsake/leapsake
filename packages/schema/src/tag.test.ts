@@ -100,9 +100,9 @@ describe("splitHashtags", () => {
   it("marks the tag exactly as parseHashtags would, stopping at punctuation", () => {
     const segments = splitHashtags("ask about the #trip, then #home.");
     // The marked runs match parseHashtags one-for-one.
-    expect(segments.filter((s) => s.tagName !== null).map((s) => s.tagName)).toEqual(
-      parseHashtags("ask about the #trip, then #home."),
-    );
+    expect(
+      segments.filter((s) => s.tagName !== null).map((s) => s.tagName),
+    ).toEqual(parseHashtags("ask about the #trip, then #home."));
     // The trailing comma/period stay as plain prose, not part of the tag.
     expect(segments).toContainEqual({ text: ", then ", tagName: null });
     expect(segments).toContainEqual({ text: ".", tagName: null });
@@ -117,7 +117,11 @@ describe("splitHashtags", () => {
 
   it("preserves the original string when concatenated back", () => {
     const text = "  #Café then #2024! and a bare # sign";
-    expect(splitHashtags(text).map((s) => s.text).join("")).toBe(text);
+    expect(
+      splitHashtags(text)
+        .map((s) => s.text)
+        .join(""),
+    ).toBe(text);
   });
 
   it("returns a single plain segment when there are no tags, and [] for empty", () => {

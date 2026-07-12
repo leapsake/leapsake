@@ -449,6 +449,13 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         const found = await Promise.all(ids.map((id) => pets.get(id)));
         return found.filter((p): p is Pet => p !== undefined);
       },
+      // Reminders carry tags too (parsed inline from their text under bearer type
+      // "reminder"), so they list on a tag's page alongside people and pets.
+      remindersForTag: async (tagId: string): Promise<Reminder[]> => {
+        const ids = await tags.entityIdsForTag(tagId, "reminder");
+        const found = await Promise.all(ids.map((id) => reminders.get(id)));
+        return found.filter((r): r is Reminder => r !== undefined);
+      },
     },
 
     relationships: {
