@@ -7,6 +7,7 @@ import {
   daysUntil,
   dueDateMs,
   kindDefs,
+  mentionToken,
   nextOccurrence,
 } from "@leapsake/schema";
 
@@ -134,8 +135,17 @@ async function computeAndReconcile(
       occurrenceName(m.id, occ.year),
     );
     const kindDef = kindDefs[m.kind];
+    // Wrap the subject in an inline mention token so the name links to the
+    // person/pet page (the reminder text is the single source of truth for the
+    // mention; core re-derives the backlink from it). A relationship bearer has
+    // no single entity to point at, so it stays plain text — though in practice a
+    // relationship never reaches here (its label resolves to null above).
+    const subject =
+      m.bearerType === "relationship"
+        ? label
+        : mentionToken(label, m.bearerType, m.bearerId);
     const title =
-      `${kindDef.icon ?? ""} ${label}'s ${kindDef.label.toLowerCase()}`.trim();
+      `${kindDef.icon ?? ""} ${subject}'s ${kindDef.label.toLowerCase()}`.trim();
     desired.set(id, { id, title, dueDate: dueDateMs(occ) });
   }
 

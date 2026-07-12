@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { plainMentionText } from "./mention.js";
 import type { ResolvedMention } from "./mentioning.js";
 import type { Tag } from "./tag.js";
 
@@ -104,15 +105,18 @@ export const updateReminderInputSchema = z.object({
 export type UpdateReminderInput = z.infer<typeof updateReminderInputSchema>;
 
 /**
- * The display label for a reminder: its title, else the first line of its body,
- * else a placeholder (the schema guarantees at least one of title/body, so the
- * placeholder is only a type-level fallback).
+ * The display label for a reminder as a **plain string**: its title, else the
+ * first line of its body, else a placeholder (the schema guarantees at least one
+ * of title/body, so the placeholder is only a type-level fallback). Inline
+ * `@mention` tokens are stripped to their display names (see
+ * {@link plainMentionText}) — this feeds the contexts that show raw text rather
+ * than the `ReminderText` renderer (delete confirmations, list labels).
  */
 export function reminderLabel(r: {
   title: string | null;
   body: string | null;
 }): string {
-  if (r.title !== null) return r.title;
-  if (r.body !== null) return r.body.split("\n")[0];
+  if (r.title !== null) return plainMentionText(r.title);
+  if (r.body !== null) return plainMentionText(r.body.split("\n")[0]);
   return "Untitled reminder";
 }

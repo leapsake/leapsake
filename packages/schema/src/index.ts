@@ -68,8 +68,9 @@ export {
   mentionToken,
   parseMentions,
   plainMentionText,
+  splitAnnotatedText,
 } from "./mention.js";
-export type { Mention } from "./mention.js";
+export type { Mention, AnnotatedSegment } from "./mention.js";
 export { mentioningSchema, mentionBearerTypeSchema } from "./mentioning.js";
 export type {
   Mentioning,
