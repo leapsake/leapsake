@@ -246,8 +246,8 @@ describe("blind HTTPS relay (server + adapter)", () => {
   it("round-trips an encrypted milestone note; content keys never leave the device", async () => {
     const milestone = await A.milestones.create({
       kind: "birthday",
-      subjectType: "person",
-      subjectId: crypto.randomUUID(),
+      bearerType: "person",
+      bearerId: crypto.randomUUID(),
       month: 6,
       day: 18,
       note: "secret picnic",
@@ -489,8 +489,8 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     });
     const milestone = await d1Repos.milestones.create({
       kind: "birthday",
-      subjectType: "person",
-      subjectId: ada.id,
+      bearerType: "person",
+      bearerId: ada.id,
       month: 6,
       day: 18,
       note: "secret picnic",

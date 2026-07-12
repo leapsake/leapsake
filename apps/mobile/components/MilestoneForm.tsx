@@ -3,14 +3,14 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import {
   type Milestone,
   type MilestoneKind,
-  type MilestoneSubjectType,
+  type MilestoneBearerType,
   kindDefs,
-  kindsForSubjectType,
+  kindsForBearerType,
 } from "@leapsake/schema";
 import { SelectField } from "./SelectField";
 import { colors, styles } from "../lib/styles";
 
-/** The structured value the form hands back; the screen supplies subject + call. */
+/** The structured value the form hands back; the screen supplies bearer + call. */
 export interface MilestoneFormValue {
   kind: MilestoneKind;
   year: number | null;
@@ -35,29 +35,29 @@ const MONTH_OPTIONS: { value: string; label: string }[] = [
  * Add/edit form for a milestone, ported from the desktop `MilestoneForm` (minus
  * its relationship-binding "with whom?" / rebind branches, which belong with the
  * deferred Relationships increment). The user picks a kind — constrained to those
- * the subject type can hold — plus any subset of a partial date (month, day,
+ * the bearer type can hold — plus any subset of a partial date (month, day,
  * year) and an optional note. The day⇒month rule is mirrored here for friendly
  * inline validation; the schema re-validates on submit.
  *
  * Mirroring `PetForm`, this component only collects input: the screen owns the
- * `core.milestones.create/update` call (and supplies the subject), and gets back
+ * `core.milestones.create/update` call (and supplies the bearer), and gets back
  * a structured {@link MilestoneFormValue}. When `milestone` is provided the form
  * is in edit mode and pre-fills from it.
  */
 export function MilestoneForm({
-  subjectType,
+  bearerType,
   milestone,
   submitLabel,
   onSubmit,
   onCancel,
 }: {
-  subjectType: MilestoneSubjectType;
+  bearerType: MilestoneBearerType;
   milestone?: Milestone;
   submitLabel: string;
   onSubmit: (value: MilestoneFormValue) => Promise<void>;
   onCancel: () => void;
 }) {
-  const kinds = kindsForSubjectType(subjectType);
+  const kinds = kindsForBearerType(bearerType);
 
   const [kind, setKind] = useState<MilestoneKind>(
     milestone?.kind ?? kinds[0]?.kind ?? "birthday",

@@ -31,7 +31,7 @@ import type {
   EmailAddress,
   EntityType,
   Milestone,
-  MilestoneSubjectType,
+  MilestoneBearerType,
   MilestoneTimelineEntry,
   Person,
   Pet,
@@ -132,7 +132,7 @@ export type {
   EntityRow,
   EntityRef,
   RelationshipCandidate,
-  MilestoneSubject,
+  MilestoneBearer,
   RelationshipViewPartner,
   RelationshipPartner,
   PersonView,
@@ -318,7 +318,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     pets: { list: () => pets.list(), get: (id) => pets.get(id) },
     listTags: (type, id) => tags.listForEntity(type, id),
     getRelationship: (id) => relationships.get(id),
-    listMilestones: (type, id) => milestones.listForSubject(type, id),
+    listMilestones: (type, id) => milestones.listForBearer(type, id),
     orientedNeighbors,
     neighborsFor: (type, id) => kinship.neighborsFor(type, id),
     genderFor: (type, id) => kinship.genderFor(type, id),
@@ -471,10 +471,10 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     },
 
     milestones: {
-      listForSubject: (
-        type: MilestoneSubjectType,
+      listForBearer: (
+        type: MilestoneBearerType,
         id: string,
-      ): Promise<Milestone[]> => milestones.listForSubject(type, id),
+      ): Promise<Milestone[]> => milestones.listForBearer(type, id),
       // Own milestones merged with those of each explicit relationship the entity
       // is in, resolved read-only and annotated with the partner's label.
       timelineFor: (

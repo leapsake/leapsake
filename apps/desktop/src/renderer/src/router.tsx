@@ -6,14 +6,14 @@ import {
   type EntityType,
   type Gender,
   type MilestoneKind,
-  type MilestoneSubjectType,
+  type MilestoneBearerType,
   type RelationshipRole,
   type UpdateMilestoneInput,
   createMilestoneInputSchema,
   createRelationshipInputSchema,
   fullName,
   parseTagNames,
-  preferredSubjectType,
+  preferredBearerType,
   updateMilestoneInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
@@ -334,10 +334,10 @@ function relationshipDismissAction(subjectType: EntityType) {
  * person's existing explicit edges — used to bind to an existing relationship or
  * infer the spouse. Other subject types never offer those kinds.
  */
-function milestoneNewLoader(subjectType: MilestoneSubjectType) {
+function milestoneNewLoader(bearerType: MilestoneBearerType) {
   return async ({ params }: LoaderFunctionArgs) => {
     const view = await window.api.views.milestoneNew(
-      subjectType,
+      bearerType,
       params.id as string,
     );
     if (!view) throw new Response("Not found", { status: 404 });
@@ -356,12 +356,12 @@ function milestoneNewLoader(subjectType: MilestoneSubjectType) {
 async function resolveWithWhom(
   personId: string,
   formData: FormData,
-): Promise<{ subjectType: MilestoneSubjectType; subjectId: string } | null> {
+): Promise<{ bearerType: MilestoneBearerType; bearerId: string } | null> {
   const mode = String(formData.get("relMode") ?? "");
   if (mode === "bind") {
     return {
-      subjectType: "relationship",
-      subjectId: String(formData.get("relId")),
+      bearerType: "relationship",
+      bearerId: String(formData.get("relId")),
     };
   }
   if (mode === "create") {
@@ -372,10 +372,10 @@ async function resolveWithWhom(
       otherId: String(formData.get("withId")),
       otherRole: String(formData.get("relRole")) as RelationshipRole,
     });
-    return { subjectType: "relationship", subjectId: rel.id };
+    return { bearerType: "relationship", bearerId: rel.id };
   }
   if (mode === "unbound") {
-    return { subjectType: "person", subjectId: personId };
+    return { bearerType: "person", bearerId: personId };
   }
   return null;
 }
@@ -387,31 +387,31 @@ async function resolveWithWhom(
  * unbound a relationship per the form's resolved hidden fields. Met / First Date
  * require a partner: an empty resolution cancels the add (no row written).
  */
-function milestoneCreateAction(subjectType: MilestoneSubjectType) {
+function milestoneCreateAction(bearerType: MilestoneBearerType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
     const formData = await request.formData();
     const fields = readMilestoneFields(formData);
 
-    let subject: { subjectType: MilestoneSubjectType; subjectId: string } = {
-      subjectType,
-      subjectId: id,
+    let bearer: { bearerType: MilestoneBearerType; bearerId: string } = {
+      bearerType,
+      bearerId: id,
     };
     if (
-      subjectType === "person" &&
-      preferredSubjectType(fields.kind) === "relationship"
+      bearerType === "person" &&
+      preferredBearerType(fields.kind) === "relationship"
     ) {
       const resolved = await resolveWithWhom(id, formData);
-      if (!resolved) return redirect(`${entityBasePath(subjectType)}/${id}`);
-      subject = resolved;
+      if (!resolved) return redirect(`${entityBasePath(bearerType)}/${id}`);
+      bearer = resolved;
     }
 
     const input: CreateMilestoneInput = createMilestoneInputSchema.parse({
-      ...subject,
+      ...bearer,
       ...fields,
     });
     await window.api.milestones.create(input);
-    return redirect(`${entityBasePath(subjectType)}/${id}`);
+    return redirect(`${entityBasePath(bearerType)}/${id}`);
   };
 }
 
@@ -420,24 +420,24 @@ function milestoneCreateAction(subjectType: MilestoneSubjectType) {
  * the milestone among the subject's list (there is no get-by-id IPC; the list
  * is already scoped + soft-delete-aware, mirroring the relationship screens).
  */
-function milestoneForSubjectLoader(subjectType: MilestoneSubjectType) {
+function milestoneForBearerLoader(bearerType: MilestoneBearerType) {
   return async ({ params }: LoaderFunctionArgs) => {
     const id = params.id as string;
     const milestoneId = params.milestoneId as string;
-    const subject = await window.api.views.milestoneSubject(subjectType, id);
-    if (!subject) throw new Response("Not found", { status: 404 });
-    const milestones = await window.api.milestones.listForSubject(
-      subjectType,
+    const bearer = await window.api.views.milestoneBearer(bearerType, id);
+    if (!bearer) throw new Response("Not found", { status: 404 });
+    const milestones = await window.api.milestones.listForBearer(
+      bearerType,
       id,
     );
     const milestone = milestones.find((m) => m.id === milestoneId);
     if (!milestone) throw new Response("Milestone not found", { status: 404 });
-    return { subject, milestone };
+    return { bearer, milestone };
   };
 }
 
 /** Action for the milestone edit screen: updates the editable fields. */
-function milestoneEditAction(subjectType: MilestoneSubjectType) {
+function milestoneEditAction(bearerType: MilestoneBearerType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
     const formData = await request.formData();
@@ -445,15 +445,15 @@ function milestoneEditAction(subjectType: MilestoneSubjectType) {
       readMilestoneFields(formData),
     );
     await window.api.milestones.update(params.milestoneId as string, input);
-    return redirect(`${entityBasePath(subjectType)}/${id}`);
+    return redirect(`${entityBasePath(bearerType)}/${id}`);
   };
 }
 
 /** Action for the "remove milestone" screen. */
-function milestoneDeleteAction(subjectType: MilestoneSubjectType) {
+function milestoneDeleteAction(bearerType: MilestoneBearerType) {
   return async ({ params }: ActionFunctionArgs) => {
     await window.api.milestones.softDelete(params.milestoneId as string);
-    return redirect(`${entityBasePath(subjectType)}/${params.id}`);
+    return redirect(`${entityBasePath(bearerType)}/${params.id}`);
   };
 }
 
@@ -466,16 +466,16 @@ function milestoneDeleteAction(subjectType: MilestoneSubjectType) {
 async function milestoneRebindLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const milestoneId = params.milestoneId as string;
-  const subject = await window.api.views.milestoneSubject("person", id);
-  if (!subject) throw new Response("Not found", { status: 404 });
-  const milestones = await window.api.milestones.listForSubject("person", id);
+  const bearer = await window.api.views.milestoneBearer("person", id);
+  if (!bearer) throw new Response("Not found", { status: 404 });
+  const milestones = await window.api.milestones.listForBearer("person", id);
   const milestone = milestones.find((m) => m.id === milestoneId);
   if (!milestone) throw new Response("Milestone not found", { status: 404 });
   const [candidates, neighbors] = await Promise.all([
     window.api.views.candidates({ type: "person", id }),
     window.api.relationships.listForEntity("person", id),
   ]);
-  return { subject, milestone, candidates, neighbors };
+  return { bearer, milestone, candidates, neighbors };
 }
 
 /**
@@ -489,10 +489,10 @@ async function milestoneRebindAction({ request, params }: ActionFunctionArgs) {
   const milestoneId = params.milestoneId as string;
   const formData = await request.formData();
   const resolved = await resolveWithWhom(id, formData);
-  if (resolved && resolved.subjectType === "relationship") {
+  if (resolved && resolved.bearerType === "relationship") {
     await window.api.milestones.update(milestoneId, {
-      subjectType: resolved.subjectType,
-      subjectId: resolved.subjectId,
+      bearerType: resolved.bearerType,
+      bearerId: resolved.bearerId,
     });
   }
   return redirect(`/people/${id}`);
@@ -840,13 +840,13 @@ const routes: RouteObject[] = [
       },
       {
         path: "people/:id/milestones/:milestoneId/edit",
-        loader: milestoneForSubjectLoader("person"),
+        loader: milestoneForBearerLoader("person"),
         element: <MilestoneEdit />,
         action: milestoneEditAction("person"),
       },
       {
         path: "people/:id/milestones/:milestoneId/delete",
-        loader: milestoneForSubjectLoader("person"),
+        loader: milestoneForBearerLoader("person"),
         element: <MilestoneDelete />,
         action: milestoneDeleteAction("person"),
       },
@@ -954,13 +954,13 @@ const routes: RouteObject[] = [
       },
       {
         path: "pets/:id/milestones/:milestoneId/edit",
-        loader: milestoneForSubjectLoader("pet"),
+        loader: milestoneForBearerLoader("pet"),
         element: <MilestoneEdit />,
         action: milestoneEditAction("pet"),
       },
       {
         path: "pets/:id/milestones/:milestoneId/delete",
-        loader: milestoneForSubjectLoader("pet"),
+        loader: milestoneForBearerLoader("pet"),
         element: <MilestoneDelete />,
         action: milestoneDeleteAction("pet"),
       },
@@ -989,13 +989,13 @@ const routes: RouteObject[] = [
       },
       {
         path: "relationships/:id/milestones/:milestoneId/edit",
-        loader: milestoneForSubjectLoader("relationship"),
+        loader: milestoneForBearerLoader("relationship"),
         element: <MilestoneEdit />,
         action: milestoneEditAction("relationship"),
       },
       {
         path: "relationships/:id/milestones/:milestoneId/delete",
-        loader: milestoneForSubjectLoader("relationship"),
+        loader: milestoneForBearerLoader("relationship"),
         element: <MilestoneDelete />,
         action: milestoneDeleteAction("relationship"),
       },

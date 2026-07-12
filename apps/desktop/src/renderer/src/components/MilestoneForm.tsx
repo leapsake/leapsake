@@ -1,11 +1,11 @@
 import {
   type Milestone,
   type MilestoneKind,
-  type MilestoneSubjectType,
+  type MilestoneBearerType,
   type RelationshipNeighbor,
   kindDefs,
-  kindsForSubjectType,
-  preferredSubjectType,
+  kindsForBearerType,
+  preferredBearerType,
 } from "@leapsake/schema";
 import { useMemo, useState } from "react";
 import { Form, Link, useNavigation } from "react-router-dom";
@@ -25,8 +25,8 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => ({
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
 /**
- * Add/edit form for a milestone, rendered on a subject entity's page. The user
- * picks a kind (constrained to those the subject type can hold) and any subset
+ * Add/edit form for a milestone, rendered on a bearer entity's page. The user
+ * picks a kind (constrained to those the bearer type can hold) and any subset
  * of a partial date — month, day, year — plus an optional note. The day⇒month
  * rule is mirrored here for friendly inline validation; the server re-validates.
  *
@@ -40,13 +40,13 @@ const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
  * for a Person create) drive binding/inference of the other party.
  */
 export function MilestoneForm({
-  subjectType,
+  bearerType,
   milestone,
   candidates = [],
   neighbors = [],
   cancelTo,
 }: {
-  subjectType: MilestoneSubjectType;
+  bearerType: MilestoneBearerType;
   milestone?: Milestone;
   candidates?: RelationshipCandidate[];
   neighbors?: RelationshipNeighbor[];
@@ -55,7 +55,7 @@ export function MilestoneForm({
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
 
-  const kinds = useMemo(() => kindsForSubjectType(subjectType), [subjectType]);
+  const kinds = useMemo(() => kindsForBearerType(bearerType), [bearerType]);
 
   const [kind, setKind] = useState<MilestoneKind>(
     milestone?.kind ?? kinds[0]?.kind ?? "birthday",
@@ -68,11 +68,11 @@ export function MilestoneForm({
 
   const editing = milestone !== undefined;
   // A relationship kind added from a Person needs the "with whom?" step; for
-  // every other case the subject is fixed and the picker stays hidden.
+  // every other case the bearer is fixed and the picker stays hidden.
   const needsWithWhom =
     !editing &&
-    subjectType === "person" &&
-    preferredSubjectType(kind) === "relationship";
+    bearerType === "person" &&
+    preferredBearerType(kind) === "relationship";
 
   // Mirror the schema rule: a day is only meaningful alongside a month.
   const dayWithoutMonth = day !== "" && month === "";

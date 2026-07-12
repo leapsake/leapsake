@@ -5,7 +5,7 @@ import { z } from "zod";
  * value reachable today; `household` is **reserved now** so a future household
  * entity can own a shared address/phone with no schema change — the same
  * forward-compatible trick as `entityTypeSchema` reserving `pet` and
- * `milestoneSubjectTypeSchema` reserving `relationship`. The owner is a
+ * `milestoneBearerTypeSchema` reserving `relationship`. The owner is a
  * polymorphic `(ownerType, ownerId)` pair like taggings/relationships.
  *
  * When households ship, a person's *effective* methods become `own ∪

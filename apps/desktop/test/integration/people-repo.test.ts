@@ -26,7 +26,7 @@ describe("runMigrations", () => {
     const version = await driver.get<{ user_version: number }>(
       "PRAGMA user_version",
     );
-    expect(version?.user_version).toBe(16);
+    expect(version?.user_version).toBe(17);
   });
 
   it("is idempotent on a second run", async () => {
@@ -34,7 +34,7 @@ describe("runMigrations", () => {
     const version = await driver.get<{ user_version: number }>(
       "PRAGMA user_version",
     );
-    expect(version?.user_version).toBe(16);
+    expect(version?.user_version).toBe(17);
   });
 });
 

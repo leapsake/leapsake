@@ -13,7 +13,7 @@ export default function PersonMilestoneEditScreen() {
   // No `core.milestones.get`; load the subject's own milestones and find this one
   // (keeps `packages/*` untouched — the same list the timeline is built from).
   const load = useCallback(
-    async () => (await core.milestones.listForSubject("person", id)) ?? [],
+    async () => (await core.milestones.listForBearer("person", id)) ?? [],
     [core, id],
   );
   const { data: milestones, error } = useFocusedData(load);
@@ -36,7 +36,7 @@ export default function PersonMilestoneEditScreen() {
         </View>
       ) : (
         <MilestoneForm
-          subjectType="person"
+          bearerType="person"
           milestone={milestone}
           submitLabel="Save"
           onCancel={() => router.back()}

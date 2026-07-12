@@ -26,8 +26,8 @@ const NOTE = "met her at the Cambridge analytical-engine talk, 1843";
 function milestoneWithNote(note: string | null = NOTE) {
   return {
     kind: "birthday" as const,
-    subjectType: "person" as const,
-    subjectId: SUBJECT,
+    bearerType: "person" as const,
+    bearerId: SUBJECT,
     year: 1815,
     month: 12,
     day: 10,
@@ -82,7 +82,7 @@ describe("milestone note encryption", () => {
   it("decrypts the note transparently on read", async () => {
     await core.milestones.create(milestoneWithNote());
 
-    const [read] = await core.milestones.listForSubject("person", SUBJECT);
+    const [read] = await core.milestones.listForBearer("person", SUBJECT);
     expect(read?.note).toBe(NOTE);
   });
 
@@ -94,7 +94,7 @@ describe("milestone note encryption", () => {
     const recovered = await ensureDeviceMasterKey({ keyStore, driver });
     const reopened = createCore(driver, recovered);
 
-    const [read] = await reopened.milestones.listForSubject("person", SUBJECT);
+    const [read] = await reopened.milestones.listForBearer("person", SUBJECT);
     expect(read?.id).toBe(created.id);
     expect(read?.note).toBe(NOTE);
   });
@@ -120,13 +120,13 @@ describe("milestone note encryption", () => {
     const now = Date.now();
     await driver.run(
       `INSERT INTO milestones
-         (id, kind, subject_type, subject_id, year, month, day, note,
+         (id, kind, bearer_type, bearer_id, year, month, day, note,
           note_ciphertext, created_at, updated_at, deleted_at)
        VALUES (?, 'birthday', 'person', ?, 1906, 12, 9, ?, NULL, ?, ?, NULL)`,
       [id, SUBJECT, "legacy plaintext note", now, now],
     );
 
-    const [read] = await core.milestones.listForSubject("person", SUBJECT);
+    const [read] = await core.milestones.listForBearer("person", SUBJECT);
     expect(read?.note).toBe("legacy plaintext note");
 
     // Touching the row upgrades it to ciphertext.

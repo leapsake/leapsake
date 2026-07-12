@@ -63,12 +63,12 @@ export function PersonView() {
       />
 
       <MilestonesSection
-        subjectType="person"
-        subjectId={person.id}
+        bearerType="person"
+        bearerId={person.id}
         entries={timeline}
       />
 
-      <TagsSection subjectType="person" subjectId={person.id} tags={tags} />
+      <TagsSection bearerType="person" bearerId={person.id} tags={tags} />
 
       <dl>
         <dt>Created</dt>

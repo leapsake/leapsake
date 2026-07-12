@@ -47,7 +47,7 @@ function byDate(a: Milestone, b: Milestone): number {
  * own and relationship entries interleave by date.
  */
 export async function listTimelineForEntity(
-  milestones: Pick<MilestonesRepo, "listForSubject">,
+  milestones: Pick<MilestonesRepo, "listForBearer">,
   relationships: Pick<RelationshipsRepo, "listForEntity">,
   resolveLabel: (type: EntityType, id: string) => Promise<string | undefined>,
   type: EntityType,
@@ -56,7 +56,7 @@ export async function listTimelineForEntity(
   const entries: MilestoneTimelineEntry[] = [];
 
   // 1. The entity's own milestones — editable in place.
-  for (const milestone of await milestones.listForSubject(type, id)) {
+  for (const milestone of await milestones.listForBearer(type, id)) {
     entries.push({
       milestone,
       origin: "own",
@@ -68,7 +68,7 @@ export async function listTimelineForEntity(
   // 2. Each explicit relationship's milestones, annotated with that edge's id
   //    and the other partner's label for display.
   for (const rel of await relationships.listForEntity(type, id)) {
-    const relMilestones = await milestones.listForSubject(
+    const relMilestones = await milestones.listForBearer(
       "relationship",
       rel.id,
     );

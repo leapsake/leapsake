@@ -47,11 +47,11 @@ async function resolveLabel(
 
 /** A milestone input with a full date, defaulting to a person birthday. */
 function milestone(
-  over: Partial<CreateMilestoneInput> & Pick<CreateMilestoneInput, "subjectId">,
+  over: Partial<CreateMilestoneInput> & Pick<CreateMilestoneInput, "bearerId">,
 ): CreateMilestoneInput {
   return {
     kind: "birthday",
-    subjectType: "person",
+    bearerType: "person",
     year: 1990,
     month: 1,
     day: 1,
@@ -74,7 +74,7 @@ function marry(aId: string, bId: string): Promise<Relationship> {
 describe("listTimelineForEntity", () => {
   it("returns an entity's own milestones tagged origin 'own'", async () => {
     const jane = await people.create({ firstName: "Jane", lastName: "Doe" });
-    const created = await milestones.create(milestone({ subjectId: jane.id }));
+    const created = await milestones.create(milestone({ bearerId: jane.id }));
 
     const timeline = await listTimelineForEntity(
       milestones,
@@ -98,15 +98,15 @@ describe("listTimelineForEntity", () => {
     const wedding = await milestones.create(
       milestone({
         kind: "wedding",
-        subjectType: "relationship",
-        subjectId: rel.id,
+        bearerType: "relationship",
+        bearerId: rel.id,
         year: 2020,
         month: 6,
         day: 1,
       }),
     );
 
-    for (const [subject, partnerLabel] of [
+    for (const [bearer, partnerLabel] of [
       [jane.id, "John Doe"],
       [john.id, "Jane Doe"],
     ] as const) {
@@ -115,7 +115,7 @@ describe("listTimelineForEntity", () => {
         relationships,
         resolveLabel,
         "person",
-        subject,
+        bearer,
       );
       expect(timeline).toHaveLength(1);
       expect(timeline[0].origin).toBe("relationship");
@@ -131,13 +131,13 @@ describe("listTimelineForEntity", () => {
     const rel = await marry(jane.id, john.id);
 
     const birthday = await milestones.create(
-      milestone({ subjectId: jane.id, year: 1990, month: 3, day: 9 }),
+      milestone({ bearerId: jane.id, year: 1990, month: 3, day: 9 }),
     );
     const wedding = await milestones.create(
       milestone({
         kind: "wedding",
-        subjectType: "relationship",
-        subjectId: rel.id,
+        bearerType: "relationship",
+        bearerId: rel.id,
         year: 2020,
         month: 6,
         day: 1,
@@ -148,7 +148,7 @@ describe("listTimelineForEntity", () => {
       milestone({
         kind: "other",
         note: "Annual",
-        subjectId: jane.id,
+        bearerId: jane.id,
         year: null,
         month: 2,
         day: 2,

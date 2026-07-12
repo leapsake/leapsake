@@ -6,8 +6,9 @@
 > (the archive) — don't load it unless you need the history of a specific increment.
 > Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-05** (docs restructured: shipped narratives moved to `shipped.md`;
-> product-posture decisions + the auth-hardening decision recorded; `files.md` added).
+> **Updated 2026-07-11** (stable product posture + the user/client/account model moved out to
+> [`product-truths.md`](./product-truths.md) so this file stays focused on current status,
+> most-recently-done, and immediately-next).
 
 ## Where things stand
 
@@ -25,24 +26,12 @@
 - **Files / media** — nothing built; design invariants pinned in [`files.md`](./files.md).
   Photos are the v0.2 headline (first consumer of that design).
 
-## Product posture (decided 2026-07-05)
+## Product posture
 
-These four decisions shape sequencing below; the accessibility principle behind them is in
-[`encryption/model.md`](./encryption/model.md) §1.
-
-- **Laypeople first, power users under the hood.** Defaults must work for someone who has
-  never heard of a key or a relay; every stronger-or-different choice is a visible-but-
-  optional dial, never a prerequisite.
-- **v0.1 ships without a hosted relay.** Multi-device sync users self-host `apps/server`
-  (single-device use needs no server at all and stays the layperson-complete path). The
-  design still optimizes the layperson flow so nothing needs reworking when the hosted
-  relay arrives.
-- **Storage/hosting strategy is incremental and reversible:** self-hosted relay (v0.1) →
-  official paid hosted relay → user-customizable/BYO storage. Mantra: *simplicity and
-  security first, followed closely by total customizability.*
-- **v0.2 = photo management**, built as the first consumer of the file-type-agnostic
-  encrypted-blob design ([`files.md`](./files.md)) so video/documents/audio later reuse the
-  same pattern.
+The stable product truths — the launch-posture decisions and the canonical
+user/client/account/sharing/encryption model — live in
+[`product-truths.md`](./product-truths.md). This file never restates them; it only sequences
+the work they imply.
 
 ---
 

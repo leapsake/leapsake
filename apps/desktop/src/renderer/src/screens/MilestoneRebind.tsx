@@ -1,6 +1,6 @@
 import {
   type Milestone,
-  type MilestoneSubjectType,
+  type MilestoneBearerType,
   type RelationshipNeighbor,
   milestoneLabel,
 } from "@leapsake/schema";
@@ -11,8 +11,8 @@ import type { RelationshipCandidate } from "../components/RelationshipForm";
 import { WithWhomFields } from "../components/WithWhomFields";
 
 /** The Person whose unbound milestone is being linked to a relationship. */
-interface Subject {
-  type: MilestoneSubjectType;
+interface Bearer {
+  type: MilestoneBearerType;
   id: string;
   label: string;
 }
@@ -21,16 +21,16 @@ interface Subject {
  * Rebind an unbound relationship-kind milestone (a Wedding stored on a Person
  * while its spouse was unknown) to a relationship — reusing the same
  * {@link WithWhomFields} picker the add flow uses. Submitting re-points the
- * milestone's subject to the chosen/created relationship.
+ * milestone's bearer to the chosen/created relationship.
  */
 export function MilestoneRebind() {
-  const { subject, milestone, candidates, neighbors } = useLoaderData() as {
-    subject: Subject;
+  const { bearer, milestone, candidates, neighbors } = useLoaderData() as {
+    bearer: Bearer;
     milestone: Milestone;
     candidates: RelationshipCandidate[];
     neighbors: RelationshipNeighbor[];
   };
-  const subjectPath = `/people/${subject.id}`;
+  const bearerPath = `/people/${bearer.id}`;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
   const [ready, setReady] = useState(false);
@@ -40,7 +40,7 @@ export function MilestoneRebind() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: subject.label, to: subjectPath },
+          { label: bearer.label, to: bearerPath },
           { label: "Set spouse" },
         ]}
       />
@@ -50,7 +50,7 @@ export function MilestoneRebind() {
           <button type="submit" disabled={submitting || !ready}>
             Link
           </button>{" "}
-          <Link to={subjectPath}>Cancel</Link>
+          <Link to={bearerPath}>Cancel</Link>
         </header>
         <p>Link {milestoneLabel(milestone).toLowerCase()} to a relationship.</p>
         <fieldset disabled={submitting}>

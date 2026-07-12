@@ -1,19 +1,19 @@
 import {
-  type MilestoneSubjectType,
+  type MilestoneBearerType,
   type MilestoneTimelineEntry,
   formatMilestoneDate,
   kindDefs,
   milestoneLabel,
-  preferredSubjectType,
+  preferredBearerType,
 } from "@leapsake/schema";
 import { Link } from "react-router-dom";
 import { entityBasePath } from "../lib/entityLabel";
 
 /**
  * The Milestones section shared by the Person, Pet, and Relationship view
- * screens — the dated facts of a subject's life. It renders a {@link
+ * screens — the dated facts of a bearer's life. It renders a {@link
  * MilestoneTimelineEntry} list: an entry's **own** milestones are editable in
- * place (Edit / Remove), while milestones drawn from a relationship the subject
+ * place (Edit / Remove), while milestones drawn from a relationship the bearer
  * participates in are shown **read-only** (labelled "· with <partner>") with a
  * link out to the relationship's page — its single, canonical edit surface.
  *
@@ -22,15 +22,15 @@ import { entityBasePath } from "../lib/entityLabel";
  * to a relationship later.
  */
 export function MilestonesSection({
-  subjectType,
-  subjectId,
+  bearerType,
+  bearerId,
   entries,
 }: {
-  subjectType: MilestoneSubjectType;
-  subjectId: string;
+  bearerType: MilestoneBearerType;
+  bearerId: string;
   entries: MilestoneTimelineEntry[];
 }) {
-  const basePath = `${entityBasePath(subjectType)}/${subjectId}`;
+  const basePath = `${entityBasePath(bearerType)}/${bearerId}`;
 
   return (
     <section>
@@ -58,10 +58,10 @@ export function MilestonesSection({
               // An unbound relationship-kind milestone (e.g. a Wedding stored on
               // the Person while its spouse was unknown) can be bound later.
               const canRebind =
-                subjectType === "person" &&
+                bearerType === "person" &&
                 entry.origin === "own" &&
-                milestone.subjectType === "person" &&
-                preferredSubjectType(milestone.kind) === "relationship";
+                milestone.bearerType === "person" &&
+                preferredBearerType(milestone.kind) === "relationship";
               return (
                 <tr key={milestone.id}>
                   <td>

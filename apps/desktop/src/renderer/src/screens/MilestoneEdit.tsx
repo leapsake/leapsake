@@ -1,36 +1,36 @@
-import type { Milestone, MilestoneSubjectType } from "@leapsake/schema";
+import type { Milestone, MilestoneBearerType } from "@leapsake/schema";
 import { useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { MilestoneForm } from "../components/MilestoneForm";
 import { entityBasePath } from "../lib/entityLabel";
 
-/** The subject entity the edited milestone hangs off of. */
-interface Subject {
-  type: MilestoneSubjectType;
+/** The bearer entity the edited milestone hangs off of. */
+interface Bearer {
+  type: MilestoneBearerType;
   id: string;
   label: string;
 }
 
 export function MilestoneEdit() {
-  const { subject, milestone } = useLoaderData() as {
-    subject: Subject;
+  const { bearer, milestone } = useLoaderData() as {
+    bearer: Bearer;
     milestone: Milestone;
   };
-  const subjectPath = `${entityBasePath(subject.type)}/${subject.id}`;
+  const bearerPath = `${entityBasePath(bearer.type)}/${bearer.id}`;
 
   return (
     <main>
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: subject.label, to: subjectPath },
+          { label: bearer.label, to: bearerPath },
           { label: "Edit milestone" },
         ]}
       />
       <MilestoneForm
-        subjectType={subject.type}
+        bearerType={bearer.type}
         milestone={milestone}
-        cancelTo={subjectPath}
+        cancelTo={bearerPath}
       />
     </main>
   );

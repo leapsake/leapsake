@@ -103,10 +103,10 @@ interface TagRow {
   name: string;
   normalized: string;
 }
-/** A birthday milestone: matched on its partial date, resolved to its subject. */
+/** A birthday milestone: matched on its partial date, resolved to its bearer. */
 interface BirthdayMatchRow {
-  subject_type: string;
-  subject_id: string;
+  bearer_type: string;
+  bearer_id: string;
   year: number | null;
   month: number | null;
   day: number | null;
@@ -168,7 +168,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         "SELECT id, name, normalized FROM tags WHERE deleted_at IS NULL",
       ),
       driver.all<BirthdayMatchRow>(
-        `SELECT subject_type, subject_id, year, month, day
+        `SELECT bearer_type, bearer_id, year, month, day
              FROM milestones
             WHERE kind = 'birthday' AND deleted_at IS NULL`,
       ),
@@ -393,13 +393,13 @@ export function createSearchService(driver: SqliteDriver): SearchService {
 
     // Birthday: parse the term into the partial date(s) it could mean, then
     // surface every birthday consistent with a candidate (resolving to its
-    // person/pet subject). A candidate matches only when every part it
+    // person/pet bearer). A candidate matches only when every part it
     // *specifies* equals the milestone's part, so a "march" query never lights
     // up a year-only birthday, and a milestone missing a specified part drops.
     // parseBirthdayQuery returns [] for a non-date term, so the block is skipped
     // rather than matching everyone (the same empty-query guard the other facets
-    // use). Birthdays only ever sit on person/pet subjects (the kind's
-    // allowedSubjectTypes), so addOwnerHit resolves them all.
+    // use). Birthdays only ever sit on person/pet bearers (the kind's
+    // allowedBearerTypes), so addOwnerHit resolves them all.
     const birthdayCandidates = parseBirthdayQuery(term);
     if (birthdayCandidates.length > 0) {
       for (const m of birthdays) {
@@ -411,8 +411,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         );
         if (!matched) continue;
         addOwnerHit(
-          m.subject_type,
-          m.subject_id,
+          m.bearer_type,
+          m.bearer_id,
           "birthday",
           formatMilestoneDate(m),
           QUALITY_SUBSTRING,

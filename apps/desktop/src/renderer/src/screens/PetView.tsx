@@ -51,12 +51,12 @@ export function PetView() {
       />
 
       <MilestonesSection
-        subjectType="pet"
-        subjectId={pet.id}
+        bearerType="pet"
+        bearerId={pet.id}
         entries={timeline}
       />
 
-      <TagsSection subjectType="pet" subjectId={pet.id} tags={tags} />
+      <TagsSection bearerType="pet" bearerId={pet.id} tags={tags} />
 
       <dl>
         <dt>Created</dt>

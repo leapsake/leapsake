@@ -73,8 +73,8 @@ describe("views.person / views.pet", () => {
     });
     await core.milestones.create({
       kind: "birthday",
-      subjectType: "person",
-      subjectId: jane.id,
+      bearerType: "person",
+      bearerId: jane.id,
       year: 1990,
       month: 3,
       day: 9,
@@ -243,12 +243,12 @@ describe("views.milestoneNew / views.milestoneSubject", () => {
     });
 
     const fromPerson = await core.views.milestoneNew("person", jane.id);
-    expect(fromPerson?.subject.type).toBe("person");
+    expect(fromPerson?.bearer.type).toBe("person");
     expect(fromPerson?.candidates?.map((c) => c.id)).toEqual([john.id]);
     expect(fromPerson?.neighbors?.map((n) => n.otherId)).toEqual([john.id]);
 
     const fromRel = await core.views.milestoneNew("relationship", rel.id);
-    expect(fromRel?.subject.label).toBe("Jane Doe & John Doe");
+    expect(fromRel?.bearer.label).toBe("Jane Doe & John Doe");
     expect(fromRel?.candidates).toBeUndefined();
     expect(fromRel?.neighbors).toBeUndefined();
   });

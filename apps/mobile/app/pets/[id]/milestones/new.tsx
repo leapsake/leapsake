@@ -11,14 +11,14 @@ export default function PetMilestoneNewScreen() {
     <>
       <Stack.Screen options={{ title: "Add milestone" }} />
       <MilestoneForm
-        subjectType="pet"
+        bearerType="pet"
         submitLabel="Add"
         onCancel={() => router.back()}
         onSubmit={async (value) => {
           await core.milestones.create({
             ...value,
-            subjectType: "pet",
-            subjectId: id,
+            bearerType: "pet",
+            bearerId: id,
           });
           router.back();
         }}

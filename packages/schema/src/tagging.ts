@@ -1,10 +1,21 @@
 import { z } from "zod";
-import { entityTypeSchema } from "./relationship.js";
+
+/**
+ * The entity types that can *bear* a tag — a Person or Pet today (Reminders join
+ * later). A tag is a shared label an entity carries; the bearer is a polymorphic
+ * `(bearerType, bearerId)` pair, so a new bearer type joins without a schema
+ * change. Kept **separate** from relationship's `entityTypeSchema` (role-holders):
+ * a reminder can bear a tag but can't hold a relationship role — the same reason
+ * milestones use their own {@link milestoneBearerTypeSchema}.
+ */
+export const tagBearerTypeSchema = z.enum(["person", "pet"]);
+
+export type TagBearerType = z.infer<typeof tagBearerTypeSchema>;
 
 /**
  * A tagging — the join row that applies one shared {@link tagSchema} Tag to one
- * entity (a Person or Pet today). The Tags repository's public API is
- * entity-oriented (`setEntityTags`), but a tagging is its own synced row: a tag
+ * bearer (a Person or Pet today). The Tags repository's public API is
+ * bearer-oriented (`setEntityTags`), but a tagging is its own synced row: a tag
  * that travels without its taggings means nothing, so both replicate.
  *
  * Same sync-safe substrate as every domain row (see AGENTS.md): client
@@ -14,8 +25,8 @@ import { entityTypeSchema } from "./relationship.js";
 export const taggingSchema = z.object({
   id: z.uuid(),
   tagId: z.uuid(),
-  entityType: entityTypeSchema,
-  entityId: z.uuid(),
+  bearerType: tagBearerTypeSchema,
+  bearerId: z.uuid(),
   createdAt: z.number().int(), // epoch ms, UTC
   updatedAt: z.number().int(),
   deletedAt: z.number().int().nullable(),

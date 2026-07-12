@@ -14,7 +14,7 @@ export default function RelationshipMilestoneEditScreen() {
   // this one (keeps `packages/*` untouched — the same list the page renders).
   const load = useCallback(
     async () =>
-      (await core.milestones.listForSubject("relationship", rid)) ?? [],
+      (await core.milestones.listForBearer("relationship", rid)) ?? [],
     [core, rid],
   );
   const { data: milestones, error } = useFocusedData(load);
@@ -37,7 +37,7 @@ export default function RelationshipMilestoneEditScreen() {
         </View>
       ) : (
         <MilestoneForm
-          subjectType="relationship"
+          bearerType="relationship"
           milestone={milestone}
           submitLabel="Save"
           onCancel={() => router.back()}

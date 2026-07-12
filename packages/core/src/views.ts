@@ -4,7 +4,7 @@ import type {
   ContactOwnerType,
   EntityType,
   Milestone,
-  MilestoneSubjectType,
+  MilestoneBearerType,
   MilestoneTimelineEntry,
   Person,
   Pet,
@@ -41,9 +41,9 @@ export interface EntityRef {
   label: string;
 }
 
-/** A milestone subject (person, pet, or relationship) resolved for display. */
-export interface MilestoneSubject {
-  type: MilestoneSubjectType;
+/** A milestone bearer (person, pet, or relationship) resolved for display. */
+export interface MilestoneBearer {
+  type: MilestoneBearerType;
   id: string;
   label: string;
 }
@@ -122,10 +122,10 @@ export interface DerivedRelationshipView {
 /**
  * The add-milestone view. From a Person the relationship-kind milestones need a
  * "with whom?" step, so the candidate list and the person's explicit neighbors
- * are included; other subject types omit them.
+ * are included; other bearer types omit them.
  */
 export interface MilestoneNewView {
-  subject: MilestoneSubject;
+  bearer: MilestoneBearer;
   candidates?: RelationshipCandidate[];
   neighbors?: RelationshipNeighbor[];
 }
@@ -146,7 +146,7 @@ export interface ViewsDeps {
   };
   listTags(type: EntityType, id: string): Promise<Tag[]>;
   getRelationship(id: string): Promise<Relationship | undefined>;
-  listMilestones(type: MilestoneSubjectType, id: string): Promise<Milestone[]>;
+  listMilestones(type: MilestoneBearerType, id: string): Promise<Milestone[]>;
   /** The subject's explicit neighbors, oriented + label/role resolved. */
   orientedNeighbors(
     type: EntityType,
@@ -230,19 +230,19 @@ export function createViews(deps: ViewsDeps) {
     ];
   }
 
-  async function milestoneSubject(
-    subjectType: MilestoneSubjectType,
+  async function milestoneBearer(
+    bearerType: MilestoneBearerType,
     id: string,
-  ): Promise<MilestoneSubject | undefined> {
-    if (subjectType === "relationship") {
+  ): Promise<MilestoneBearer | undefined> {
+    if (bearerType === "relationship") {
       const rel = await deps.getRelationship(id);
       return rel
-        ? { type: subjectType, id, label: await relationshipLabel(rel) }
+        ? { type: bearerType, id, label: await relationshipLabel(rel) }
         : undefined;
     }
-    const entity = await getEntity(subjectType, id);
+    const entity = await getEntity(bearerType, id);
     return entity
-      ? { type: subjectType, id, label: entityLabel(subjectType, entity) }
+      ? { type: bearerType, id, label: entityLabel(bearerType, entity) }
       : undefined;
   }
 
@@ -415,25 +415,25 @@ export function createViews(deps: ViewsDeps) {
       return neighbor ? { subject, neighbor, role } : null;
     },
 
-    /** A milestone subject (person, pet, or relationship) resolved for display. */
-    milestoneSubject,
+    /** A milestone bearer (person, pet, or relationship) resolved for display. */
+    milestoneBearer,
 
     /**
      * The add-milestone view. From a Person, also loads the candidate list and
      * the person's explicit neighbors for the "with whom?" step.
      */
     milestoneNew: async (
-      subjectType: MilestoneSubjectType,
+      bearerType: MilestoneBearerType,
       id: string,
     ): Promise<MilestoneNewView | null> => {
-      const subject = await milestoneSubject(subjectType, id);
-      if (!subject) return null;
-      if (subjectType !== "person") return { subject };
+      const bearer = await milestoneBearer(bearerType, id);
+      if (!bearer) return null;
+      if (bearerType !== "person") return { bearer };
       const [cands, neighbors] = await Promise.all([
         candidates({ type: "person", id }),
         deps.orientedNeighbors("person", id),
       ]);
-      return { subject, candidates: cands, neighbors };
+      return { bearer, candidates: cands, neighbors };
     },
   };
 }

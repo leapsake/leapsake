@@ -12,15 +12,15 @@ import { entityBasePath } from "../lib/entityLabel";
  * here opens that form), where they save as a whole set with the entity.
  */
 export function TagsSection({
-  subjectType,
-  subjectId,
+  bearerType,
+  bearerId,
   tags,
 }: {
-  subjectType: EntityType;
-  subjectId: string;
+  bearerType: EntityType;
+  bearerId: string;
   tags: Tag[];
 }) {
-  const basePath = `${entityBasePath(subjectType)}/${subjectId}`;
+  const basePath = `${entityBasePath(bearerType)}/${bearerId}`;
 
   return (
     <section>

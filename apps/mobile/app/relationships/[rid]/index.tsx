@@ -91,8 +91,8 @@ export default function RelationshipDetailScreen() {
       ))}
 
       <MilestonesSection
-        subjectType="relationship"
-        subjectId={rid}
+        bearerType="relationship"
+        bearerId={rid}
         entries={entries}
         onChanged={reload}
       />
