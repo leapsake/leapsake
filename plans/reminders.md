@@ -1,7 +1,7 @@
 # Leapsake Reminders — the home-screen surface (why & invariants)
 
-> **Stable "why" doc.** Reminders are the intended heart of the future **home
-> screen** and the first-run **onboarding** hub (account setup etc. can later be
+> **Stable "why" doc.** Reminders are the **home screen** (now the landing surface on both
+> clients) and the intended first-run **onboarding** hub (account setup etc. can later be
 > surfaced *as* reminders). This doc pins what Reminders are and the decisions
 > behind them; live status/sequencing lives in [`status.md`](./status.md), the
 > product model in [`product-truths.md`](./product-truths.md).
@@ -18,7 +18,24 @@ create / edit / complete / delete. `#tags` are typed **inline** in the text.
   `packages/data/src/reminders-repo.ts` (plaintext `createEntityRepo` +
   `setCompleted`), the `core.reminders` group, and one line in `syncableRepos()`.
 - **Clients:** desktop screens under `renderer/src/screens/Reminder*` + routes;
-  mobile `app/(tabs)/reminders.tsx` + `app/reminders/**` + `components/ReminderForm`.
+  mobile `app/(tabs)/index.tsx` (the Reminders/Home tab) + `app/reminders/**` +
+  `components/ReminderForm`.
+
+## Since then (Home + inline tag links)
+
+Reminders is now the **landing / Home screen** on both clients: desktop `/` redirects to
+`/reminders` and the combined People & Pets list moved to `/people` (top-nav link + breadcrumb
+root); mobile Reminders is the `(tabs)` group's **`index`** tab, and People & Pets became
+`(tabs)/people`. Three UI follow-ups shipped with it:
+
+- **Inline `#tags` are links to their tag page.** A platform-agnostic `splitHashtags(text)`
+  (`tag.ts`, same `#`-anchored pattern as `parseHashtags`) segments the text; core reads
+  (`reminders.list`/`get`) now return **`ReminderWithTags`** carrying the resolved tag rows, so
+  a per-client `ReminderText` component links each `#tag` to `/tags/:id`.
+- **The body shows as details under the title** in the lists (title leads; a body-only reminder
+  isn't repeated).
+- **A tag's page lists its reminders** alongside people/pets (`core.tags.remindersForTag`,
+  realizing decision 2 below).
 
 ## The decisions (pinned)
 
@@ -38,7 +55,10 @@ create / edit / complete / delete. `#tags` are typed **inline** in the text.
    as a sibling inline-reference feature in the UI. See `product-truths.md`.
 4. **`source` enum (`user` | `system`), default `user`.** Everything today is
    `user`; `system` is reserved so the automated increment needs no schema change.
-5. **Standalone screen now; "Home" later.** Kept deliberately narrow to ship.
+5. **Standalone screen first, then Home.** Shipped narrow — a standalone screen — to prove
+   the entity, then promoted Reminders to the landing / Home screen once it was proven (see
+   *Since then*). "Home" as the surface is done; the *content* that makes Home valuable
+   (automation, onboarding-as-reminders) is what remains.
 
 ## Deferred (all additive later)
 
@@ -48,8 +68,10 @@ create / edit / complete / delete. `#tags` are typed **inline** in the text.
 - **`due_date`** — a nullable column + list ordering/《upcoming》grouping.
 - **Automated / `system` reminders** — upcoming-birthday/holiday triggers and
   Leapsake-defined tasks generate reminders; needs dedup/regeneration keyed off
-  `source` and the trigger identity.
-- **Make Reminders the landing "Home" screen** + **onboarding-as-reminders**
-  (e.g. "Already using Leapsake on another device?" as a first-run reminder).
+  `source` and the trigger identity. *(Now the highest-value next step: the Home
+  surface exists but is empty for a fresh user until something populates it.)*
+- **Onboarding-as-reminders** — surface first-run setup *as* reminders (e.g. "Already
+  using Leapsake on another device?" as the first-run sync entry point). *(Reminders
+  becoming the landing "Home" screen itself is done — see* Since then*.)*
 - **Autocomplete** for tags/mentions (v2, reusing the `search` folded matcher) and
   **reminder search**.
