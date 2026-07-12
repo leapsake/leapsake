@@ -614,6 +614,25 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           }
           return reminder;
         }),
+      // The reverse of an inline `@mention`: every reminder whose text mentions
+      // this entity, so its detail page can list "who talks about me". The mirror
+      // of `tags.remindersForTag` — read the indexed backlink (scoped to reminder
+      // bearers), fan out to `reminders.get`, drop any gone. System (birthday)
+      // reminders count: a person's own birthday reminder mentions them. Soft-
+      // deleted reminders already fall out (their mentions clear on delete and
+      // `reminders.get` skips tombstones), so the filter is just defensive.
+      mentioning: async (
+        targetType: EntityType,
+        targetId: string,
+      ): Promise<Reminder[]> => {
+        const ids = await mentions.bearerIdsForTarget(
+          targetType,
+          targetId,
+          "reminder",
+        );
+        const found = await Promise.all(ids.map((id) => reminders.get(id)));
+        return found.filter((r): r is Reminder => r !== undefined);
+      },
       // Reversible completion toggle: stamps/clears `completedAt`; text (and so its
       // tags/mentions) is untouched, so no re-derivation needed.
       setCompleted: (

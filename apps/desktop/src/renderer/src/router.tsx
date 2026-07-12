@@ -155,18 +155,34 @@ function entityListLoader() {
   return window.api.views.entityList();
 }
 
-/** A Person plus its tags, derived gender, and neighbors (explicit + derived). */
+/**
+ * A Person plus its tags, derived gender, and neighbors (explicit + derived),
+ * alongside the reminders that `@mention` them — the backlink the view lists in
+ * its "Mentioned in" section, loaded in parallel with the view itself.
+ */
 async function personLoader({ params }: LoaderFunctionArgs) {
-  const view = await window.api.views.person(params.id as string);
+  const id = params.id as string;
+  const [view, mentionedIn] = await Promise.all([
+    window.api.views.person(id),
+    window.api.reminders.mentioning("person", id),
+  ]);
   if (!view) throw new Response("Person not found", { status: 404 });
-  return view;
+  return { ...view, mentionedIn };
 }
 
-/** A Pet plus its tags, derived gender, and neighbors (explicit + derived). */
+/**
+ * A Pet plus its tags, derived gender, and neighbors (explicit + derived),
+ * alongside the reminders that `@mention` it — the "Mentioned in" backlink,
+ * loaded in parallel with the view itself.
+ */
 async function petLoader({ params }: LoaderFunctionArgs) {
-  const view = await window.api.views.pet(params.id as string);
+  const id = params.id as string;
+  const [view, mentionedIn] = await Promise.all([
+    window.api.views.pet(id),
+    window.api.reminders.mentioning("pet", id),
+  ]);
   if (!view) throw new Response("Pet not found", { status: 404 });
-  return view;
+  return { ...view, mentionedIn };
 }
 
 /**
