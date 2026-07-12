@@ -35,6 +35,7 @@ export const reminderSchema = z
     title: z.string().min(1).nullable(),
     body: z.string().min(1).nullable(),
     completedAt: z.number().int().nullable(), // epoch ms, UTC; null = open
+    dueDate: z.number().int().nullable(), // epoch-ms UTC midnight of the civil due day; null = no due date
     source: reminderSourceSchema,
     createdAt: z.number().int(), // epoch ms, UTC
     updatedAt: z.number().int(),
@@ -70,6 +71,7 @@ function hasTitleOrBody(r: { title?: string | null; body?: string | null }) {
 export const createReminderInputSchema = z
   .object({
     ...textShape,
+    dueDate: z.number().int().nullable().optional(),
     source: reminderSourceSchema.optional(),
   })
   .refine(hasTitleOrBody, {
@@ -86,6 +88,7 @@ export type CreateReminderInput = z.infer<typeof createReminderInputSchema>;
  */
 export const updateReminderInputSchema = z.object({
   ...textShape,
+  dueDate: z.number().int().nullable().optional(),
   completedAt: z.number().int().nullable().optional(),
 });
 

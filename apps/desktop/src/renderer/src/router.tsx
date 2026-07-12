@@ -11,6 +11,7 @@ import {
   type UpdateMilestoneInput,
   createMilestoneInputSchema,
   createRelationshipInputSchema,
+  dueMsFromIso,
   fullName,
   parseTagNames,
   preferredBearerType,
@@ -706,12 +707,15 @@ async function relationshipRowDeleteAction({ params }: ActionFunctionArgs) {
 function readReminderInput(formData: FormData): {
   title: string | null;
   body: string | null;
+  dueDate: number | null;
 } {
   const title = String(formData.get("title") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
   return {
     title: title.length > 0 ? title : null,
     body: body.length > 0 ? body : null,
+    // The date input yields "YYYY-MM-DD" (or "" when cleared) → stored due epoch.
+    dueDate: dueMsFromIso(String(formData.get("dueDate") ?? "")),
   };
 }
 

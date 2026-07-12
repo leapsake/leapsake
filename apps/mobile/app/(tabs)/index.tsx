@@ -8,7 +8,12 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { type ReminderWithTags, reminderLabel } from "@leapsake/schema";
+import {
+  type ReminderWithTags,
+  compareReminderDue,
+  formatDueIn,
+  reminderLabel,
+} from "@leapsake/schema";
 import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
@@ -41,9 +46,10 @@ export default function RemindersScreen() {
     );
   }
 
-  // Open first, then completed — each group already newest-first from the repo.
+  // Open first (soonest due first, undated sinking below), then completed —
+  // completed keeps the repo's newest-first order.
   const ordered = [
-    ...data.filter((r) => r.completedAt === null),
+    ...data.filter((r) => r.completedAt === null).sort(compareReminderDue),
     ...data.filter((r) => r.completedAt !== null),
   ];
 
@@ -118,7 +124,11 @@ function ReminderRow({
         />
       )}
       <View style={styles.rowMeta}>
-        <View />
+        {reminder.dueDate !== null ? (
+          <Text style={styles.muted}>{formatDueIn(reminder.dueDate)}</Text>
+        ) : (
+          <View />
+        )}
         <View style={styles.rowActions}>
           <Pressable accessibilityRole="button" onPress={toggle}>
             <Text style={styles.link}>{done ? "Reopen" : "Done"}</Text>

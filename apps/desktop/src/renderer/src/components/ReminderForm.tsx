@@ -1,4 +1,4 @@
-import type { Reminder } from "@leapsake/schema";
+import { type Reminder, isoFromDueMs } from "@leapsake/schema";
 import { Form, Link, useNavigation } from "react-router-dom";
 
 /**
@@ -36,6 +36,19 @@ export function ReminderForm({ reminder }: { reminder?: Reminder }) {
               rows={4}
               defaultValue={reminder?.body ?? ""}
               placeholder="Add #tags inline, e.g. ask about the trip #family"
+            />
+          </label>
+        </p>
+        <p>
+          <label>
+            Due date
+            <br />
+            <input
+              type="date"
+              name="dueDate"
+              defaultValue={
+                reminder?.dueDate != null ? isoFromDueMs(reminder.dueDate) : ""
+              }
             />
           </label>
         </p>

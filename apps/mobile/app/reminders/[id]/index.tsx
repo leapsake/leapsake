@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { reminderLabel } from "@leapsake/schema";
+import { formatDueIn, isoFromDueMs, reminderLabel } from "@leapsake/schema";
 import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
@@ -93,6 +93,14 @@ export default function ReminderDetailScreen() {
             tags={reminder.tags}
             style={styles.fieldValue}
           />
+        </View>
+      )}
+      {reminder.dueDate !== null && (
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Due</Text>
+          <Text style={styles.fieldValue}>
+            {isoFromDueMs(reminder.dueDate)} ({formatDueIn(reminder.dueDate)})
+          </Text>
         </View>
       )}
       <View style={styles.field}>

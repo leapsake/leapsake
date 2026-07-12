@@ -495,6 +495,17 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 19,
+    async up(driver) {
+      // Reminders gain an optional due date (plans/reminders.md, automated
+      // reminders). Stored as epoch-ms **UTC midnight of the civil due day** so it
+      // sorts and merges like any other timestamp column, while the app treats it
+      // as a whole calendar day (schema/reminder-schedule.ts). Nullable — an
+      // undated reminder has no countdown and sinks below dated ones.
+      await driver.exec(`ALTER TABLE reminders ADD COLUMN due_date INTEGER;`);
+    },
+  },
 ];
 
 /**
