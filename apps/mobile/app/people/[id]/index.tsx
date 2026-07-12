@@ -69,7 +69,7 @@ export default function PersonDetailScreen() {
         style: "destructive",
         onPress: () => {
           core.people.softDelete(id).then(
-            () => router.replace("/"),
+            () => router.replace("/people"),
             (e: unknown) => Alert.alert("Couldn't delete", String(e)),
           );
         },

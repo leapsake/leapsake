@@ -1,61 +1,120 @@
 import { useCallback } from "react";
-import { ActivityIndicator, FlatList, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
 import { Link } from "expo-router";
-import type { EntityRow } from "@leapsake/core";
+import { type Reminder, reminderLabel } from "@leapsake/schema";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
 
-// The combined "People & Pets" home, ported from desktop's EntityList. People
-// and pets share one alphabetical list, and both row types navigate to their
-// own detail page. The muted "(pet)" suffix keeps the two entity types visually
-// distinguishable in the shared list. This screen's title and "Add" actions live
-// on the tab navigator (app/(tabs)/_layout.tsx), which owns this tab's header.
-export default function HomeScreen() {
+/**
+ * The Reminders tab — the app's home/landing screen, so it lives at the `(tabs)`
+ * group's `index` route. A standalone list of user-created reminders: open ones
+ * lead; completed ones sink to the bottom with a struck-through label. Each row
+ * toggles completion and removes in place (the list reloads without navigating).
+ * "+ Add" lives on the tab header (app/(tabs)/_layout.tsx).
+ */
+export default function RemindersScreen() {
   const core = useCore();
-  const load = useCallback(() => core.views.entityList(), [core]);
-  const { data: entities, error } = useFocusedData(load);
+  const load = useCallback(() => core.reminders.list(), [core]);
+  const { data, error, reload } = useFocusedData(load);
+
+  if (error !== null) {
+    return (
+      <View style={styles.screen}>
+        <Text style={styles.danger}>{error}</Text>
+      </View>
+    );
+  }
+  if (data === null) {
+    return (
+      <View style={styles.screen}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  // Open first, then completed — each group already newest-first from the repo.
+  const ordered = [
+    ...data.filter((r) => r.completedAt === null),
+    ...data.filter((r) => r.completedAt !== null),
+  ];
 
   return (
     <View style={styles.screen}>
-      {error !== null ? (
-        <Text style={styles.danger}>{error}</Text>
-      ) : entities === null ? (
-        <ActivityIndicator />
-      ) : (
-        <FlatList
-          data={entities}
-          keyExtractor={(entity) => `${entity.type}:${entity.id}`}
-          ListHeaderComponent={
-            <Link href="/duplicates" style={[styles.row, styles.link]}>
-              Review duplicates
-            </Link>
-          }
-          ListEmptyComponent={
-            <Text style={styles.muted}>Nobody here yet.</Text>
-          }
-          renderItem={({ item }) => <EntityListRow entity={item} />}
-        />
-      )}
+      <FlatList
+        data={ordered}
+        keyExtractor={(r) => r.id}
+        ListEmptyComponent={<Text style={styles.muted}>No reminders yet.</Text>}
+        renderItem={({ item }) => (
+          <ReminderRow reminder={item} reload={reload} />
+        )}
+      />
     </View>
   );
 }
 
-function EntityListRow({ entity }: { entity: EntityRow }) {
-  if (entity.type === "person") {
-    return (
-      <Link href={`/people/${entity.id}`} style={styles.row}>
-        <Text style={[styles.rowText, { color: colors.accent }]}>
-          {entity.label}
-        </Text>
-      </Link>
+function ReminderRow({
+  reminder,
+  reload,
+}: {
+  reminder: Reminder;
+  reload: () => Promise<void>;
+}) {
+  const core = useCore();
+  const done = reminder.completedAt !== null;
+
+  function toggle() {
+    core.reminders.setCompleted(reminder.id, !done).then(
+      () => reload(),
+      (e: unknown) => Alert.alert("Couldn't update", String(e)),
     );
   }
+
+  function confirmDelete() {
+    Alert.alert("Delete reminder", `Delete “${reminderLabel(reminder)}”?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () =>
+          core.reminders.softDelete(reminder.id).then(
+            () => reload(),
+            (e: unknown) => Alert.alert("Couldn't delete", String(e)),
+          ),
+      },
+    ]);
+  }
+
   return (
-    <Link href={`/pets/${entity.id}`} style={styles.row}>
-      <Text style={[styles.rowText, { color: colors.accent }]}>
-        {entity.label} <Text style={styles.muted}>(pet)</Text>
-      </Text>
-    </Link>
+    <View style={styles.row}>
+      <Link href={`/reminders/${reminder.id}`}>
+        <Text
+          style={[
+            styles.rowText,
+            done && { textDecorationLine: "line-through", color: colors.muted },
+          ]}
+        >
+          {reminderLabel(reminder)}
+        </Text>
+      </Link>
+      <View style={styles.rowMeta}>
+        <View />
+        <View style={styles.rowActions}>
+          <Pressable accessibilityRole="button" onPress={toggle}>
+            <Text style={styles.link}>{done ? "Reopen" : "Done"}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={confirmDelete}>
+            <Text style={[styles.link, styles.danger]}>Remove</Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
   );
 }

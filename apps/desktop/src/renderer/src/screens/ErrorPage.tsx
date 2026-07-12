@@ -11,7 +11,7 @@ export function ErrorPage() {
     <main>
       <h1>{message}</h1>
       <p>
-        <Link to="/">Back to people</Link>
+        <Link to="/people">Back to people</Link>
       </p>
     </main>
   );

@@ -692,7 +692,7 @@ async function relationshipRowDeleteAction({ params }: ActionFunctionArgs) {
   const id = params.id as string;
   const rel = await window.api.relationships.get(id);
   await window.api.relationships.softDelete(id);
-  return redirect(rel ? `${entityBasePath(rel.aType)}/${rel.aId}` : "/");
+  return redirect(rel ? `${entityBasePath(rel.aType)}/${rel.aId}` : "/people");
 }
 
 /**
@@ -763,7 +763,14 @@ const routes: RouteObject[] = [
     errorElement: <ErrorPage />,
     children: [
       {
+        // The landing screen is Reminders; `/` redirects there. The combined
+        // People & Pets list keeps its own path (`/people`), reached from the
+        // top nav and the breadcrumb root.
         index: true,
+        loader: () => redirect("/reminders"),
+      },
+      {
+        path: "people",
         loader: entityListLoader,
         element: <EntityList />,
       },
@@ -861,7 +868,7 @@ const routes: RouteObject[] = [
         element: <PersonDelete />,
         action: async ({ params }) => {
           await window.api.people.softDelete(params.id as string);
-          return redirect("/");
+          return redirect("/people");
         },
       },
       {
@@ -1000,7 +1007,7 @@ const routes: RouteObject[] = [
         element: <PetDelete />,
         action: async ({ params }) => {
           await window.api.pets.softDelete(params.id as string);
-          return redirect("/");
+          return redirect("/people");
         },
       },
       {
@@ -1115,7 +1122,7 @@ const routes: RouteObject[] = [
         element: <TagDelete />,
         action: async ({ params }) => {
           await window.api.tags.softDelete(params.id as string);
-          return redirect("/");
+          return redirect("/people");
         },
       },
     ],
