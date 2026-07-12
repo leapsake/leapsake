@@ -67,7 +67,7 @@ export default function PetDetailScreen() {
         style: "destructive",
         onPress: () => {
           core.pets.softDelete(id).then(
-            () => router.replace("/"),
+            () => router.replace("/people"),
             (e: unknown) => Alert.alert("Couldn't delete", String(e)),
           );
         },
