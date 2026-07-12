@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { genderLabel, tagLabel } from "@leapsake/schema";
+import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
 import { useCore } from "../../../lib/core-context";
@@ -35,8 +36,14 @@ export default function PetDetailScreen() {
   const core = useCore();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const load = useCallback(() => core.views.pet(id), [core, id]);
-  const { data: view, error, reload } = useFocusedData(load);
+  // Load the view and the reminders that @mention this pet together, so the
+  // "Mentioned in" backlink refreshes on focus alongside the rest of the page.
+  const load = useCallback(
+    () =>
+      Promise.all([core.views.pet(id), core.reminders.mentioning("pet", id)]),
+    [core, id],
+  );
+  const { data, error, reload } = useFocusedData(load);
 
   if (error !== null) {
     return (
@@ -46,6 +53,15 @@ export default function PetDetailScreen() {
     );
   }
 
+  if (data === null) {
+    return (
+      <View style={styles.screen}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  const [view, mentionedIn] = data;
   if (view === null) {
     return (
       <View style={styles.screen}>
@@ -107,6 +123,8 @@ export default function PetDetailScreen() {
         entries={timeline}
         onChanged={reload}
       />
+
+      <MentionedInSection reminders={mentionedIn} />
 
       <Pressable accessibilityRole="button" onPress={confirmDelete}>
         <Text style={[styles.link, styles.danger]}>Delete pet</Text>

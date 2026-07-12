@@ -6,7 +6,12 @@ import {
 } from "@leapsake/core";
 import { createMentionsRepo } from "@leapsake/data";
 import { deterministicUuid } from "@leapsake/crypto";
-import { MENTION_NAMESPACE, mentionToken } from "@leapsake/schema";
+import {
+  type CivilDate,
+  MENTION_NAMESPACE,
+  mentionToken,
+  todayCivil,
+} from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
@@ -31,6 +36,17 @@ async function makeAlice() {
     [],
   );
   return alice;
+}
+
+/** The civil date `days` after today, normalised across month/year boundaries. */
+function civilDaysFromToday(days: number): CivilDate {
+  const t = todayCivil();
+  const d = new Date(Date.UTC(t.year, t.month - 1, t.day + days));
+  return {
+    year: d.getUTCFullYear(),
+    month: d.getUTCMonth() + 1,
+    day: d.getUTCDate(),
+  };
 }
 
 /** Active mention rows stored for a reminder bearer, straight from the table. */
@@ -153,5 +169,87 @@ describe("core.reminders @mentions", () => {
     // Removing the mention drops it from the backlink.
     await core.reminders.update(r.id, { title: "call nobody" });
     expect(await repo.bearerIdsForTarget("person", alice.id)).toEqual([]);
+  });
+});
+
+describe("core.reminders.mentioning (the entity-page backlink)", () => {
+  it("lists exactly the reminders whose text mentions the entity", async () => {
+    const alice = await makeAlice();
+    const mentions = await core.reminders.create({
+      title: `call ${mentionToken("Alice Ng", "person", alice.id)}`,
+    });
+    // A reminder that names nobody, plus one naming someone else, must not leak in.
+    await core.reminders.create({ title: "unrelated errand" });
+    const bob = await core.people.create(
+      { firstName: "Bob", middleName: null, lastName: "Roy", gender: null },
+      [],
+    );
+    await core.reminders.create({
+      title: `email ${mentionToken("Bob Roy", "person", bob.id)}`,
+    });
+
+    expect(
+      (await core.reminders.mentioning("person", alice.id)).map((r) => r.id),
+    ).toEqual([mentions.id]);
+  });
+
+  it("surfaces a reminder that mentions two entities on both of their lists", async () => {
+    const alice = await makeAlice();
+    const rex = await core.pets.create({ name: "Rex", gender: null }, []);
+    const r = await core.reminders.create({
+      title: `walk ${mentionToken("Rex", "pet", rex.id)} with ${mentionToken(
+        "Alice Ng",
+        "person",
+        alice.id,
+      )}`,
+    });
+
+    expect(
+      (await core.reminders.mentioning("person", alice.id)).map((x) => x.id),
+    ).toEqual([r.id]);
+    expect(
+      (await core.reminders.mentioning("pet", rex.id)).map((x) => x.id),
+    ).toEqual([r.id]);
+  });
+
+  it("drops a reminder once its mention is edited out", async () => {
+    const alice = await makeAlice();
+    const r = await core.reminders.create({
+      title: `see ${mentionToken("Alice Ng", "person", alice.id)}`,
+    });
+    expect(await core.reminders.mentioning("person", alice.id)).toHaveLength(1);
+
+    await core.reminders.update(r.id, { title: "see nobody" });
+    expect(await core.reminders.mentioning("person", alice.id)).toEqual([]);
+  });
+
+  it("excludes a soft-deleted reminder (its mentions clear on delete)", async () => {
+    const alice = await makeAlice();
+    const r = await core.reminders.create({
+      title: `bye ${mentionToken("Alice Ng", "person", alice.id)}`,
+    });
+    expect(await core.reminders.mentioning("person", alice.id)).toHaveLength(1);
+
+    await core.reminders.softDelete(r.id);
+    expect(await core.reminders.mentioning("person", alice.id)).toEqual([]);
+  });
+
+  it("includes a person's own system birthday reminder", async () => {
+    const alice = await makeAlice();
+    const soon = civilDaysFromToday(10);
+    // A recurring birthday (month+day) within the reminder window.
+    await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: alice.id,
+      month: soon.month,
+      day: soon.day,
+    });
+    await core.reminders.regenerateSystem();
+
+    // The generated birthday reminder mentions its subject, so it backlinks here.
+    const listed = await core.reminders.mentioning("person", alice.id);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.source).toBe("system");
   });
 });

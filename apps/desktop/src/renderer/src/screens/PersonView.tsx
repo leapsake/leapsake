@@ -3,6 +3,7 @@ import type {
   MilestoneTimelineEntry,
   Person,
   RelationshipNeighbor,
+  Reminder,
   Tag,
 } from "@leapsake/schema";
 import { fullName } from "@leapsake/schema";
@@ -10,6 +11,7 @@ import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { ContactMethodsSection } from "../components/ContactMethodsSection";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
+import { MentionedInSection } from "../components/MentionedInSection";
 import { MilestonesSection } from "../components/MilestonesSection";
 import { RelationshipsSection } from "../components/RelationshipsSection";
 import { TagsSection } from "../components/TagsSection";
@@ -20,15 +22,23 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PersonView() {
-  const { person, tags, relationships, gender, timeline, contactMethods } =
-    useLoaderData() as {
-      person: Person;
-      tags: Tag[];
-      relationships: RelationshipNeighbor[];
-      gender: GenderResult;
-      timeline: MilestoneTimelineEntry[];
-      contactMethods: ContactMethod[];
-    };
+  const {
+    person,
+    tags,
+    relationships,
+    gender,
+    timeline,
+    contactMethods,
+    mentionedIn,
+  } = useLoaderData() as {
+    person: Person;
+    tags: Tag[];
+    relationships: RelationshipNeighbor[];
+    gender: GenderResult;
+    timeline: MilestoneTimelineEntry[];
+    contactMethods: ContactMethod[];
+    mentionedIn: Reminder[];
+  };
 
   return (
     <main>
@@ -69,6 +79,8 @@ export function PersonView() {
       />
 
       <TagsSection bearerType="person" bearerId={person.id} tags={tags} />
+
+      <MentionedInSection reminders={mentionedIn} />
 
       <dl>
         <dt>Created</dt>

@@ -2,11 +2,13 @@ import type {
   MilestoneTimelineEntry,
   Pet,
   RelationshipNeighbor,
+  Reminder,
   Tag,
 } from "@leapsake/schema";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
+import { MentionedInSection } from "../components/MentionedInSection";
 import { MilestonesSection } from "../components/MilestonesSection";
 import { RelationshipsSection } from "../components/RelationshipsSection";
 import { TagsSection } from "../components/TagsSection";
@@ -17,13 +19,15 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PetView() {
-  const { pet, tags, relationships, gender, timeline } = useLoaderData() as {
-    pet: Pet;
-    tags: Tag[];
-    relationships: RelationshipNeighbor[];
-    gender: GenderResult;
-    timeline: MilestoneTimelineEntry[];
-  };
+  const { pet, tags, relationships, gender, timeline, mentionedIn } =
+    useLoaderData() as {
+      pet: Pet;
+      tags: Tag[];
+      relationships: RelationshipNeighbor[];
+      gender: GenderResult;
+      timeline: MilestoneTimelineEntry[];
+      mentionedIn: Reminder[];
+    };
 
   return (
     <main>
@@ -57,6 +61,8 @@ export function PetView() {
       />
 
       <TagsSection bearerType="pet" bearerId={pet.id} tags={tags} />
+
+      <MentionedInSection reminders={mentionedIn} />
 
       <dl>
         <dt>Created</dt>
