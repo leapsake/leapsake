@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { normalizeTagName, parseHashtags, parseTagNames } from "./tag.js";
+import {
+  normalizeTagName,
+  parseHashtags,
+  parseTagNames,
+  splitHashtags,
+} from "./tag.js";
 
 describe("parseTagNames", () => {
   it("splits on commas and whitespace alike", () => {
@@ -80,6 +85,46 @@ describe("parseHashtags", () => {
   it("returns nothing for a bare '#' or empty input", () => {
     expect(parseHashtags("")).toEqual([]);
     expect(parseHashtags("a # b")).toEqual([]);
+  });
+});
+
+describe("splitHashtags", () => {
+  it("marks each #tag and leaves the prose between them plain", () => {
+    expect(splitHashtags("call mom #family soon")).toEqual([
+      { text: "call mom ", tagName: null },
+      { text: "#family", tagName: "family" },
+      { text: " soon", tagName: null },
+    ]);
+  });
+
+  it("marks the tag exactly as parseHashtags would, stopping at punctuation", () => {
+    const segments = splitHashtags("ask about the #trip, then #home.");
+    // The marked runs match parseHashtags one-for-one.
+    expect(segments.filter((s) => s.tagName !== null).map((s) => s.tagName)).toEqual(
+      parseHashtags("ask about the #trip, then #home."),
+    );
+    // The trailing comma/period stay as plain prose, not part of the tag.
+    expect(segments).toContainEqual({ text: ", then ", tagName: null });
+    expect(segments).toContainEqual({ text: ".", tagName: null });
+  });
+
+  it("handles adjacent tags and a leading tag with no plain run between", () => {
+    expect(splitHashtags("#a#b")).toEqual([
+      { text: "#a", tagName: "a" },
+      { text: "#b", tagName: "b" },
+    ]);
+  });
+
+  it("preserves the original string when concatenated back", () => {
+    const text = "  #Café then #2024! and a bare # sign";
+    expect(splitHashtags(text).map((s) => s.text).join("")).toBe(text);
+  });
+
+  it("returns a single plain segment when there are no tags, and [] for empty", () => {
+    expect(splitHashtags("buy milk and eggs")).toEqual([
+      { text: "buy milk and eggs", tagName: null },
+    ]);
+    expect(splitHashtags("")).toEqual([]);
   });
 });
 

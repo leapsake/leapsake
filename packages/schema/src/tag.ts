@@ -72,3 +72,36 @@ export function parseHashtags(text: string): string[] {
   }
   return names;
 }
+
+/**
+ * One piece of a hashtag-annotated string: a run of `text` that is either an
+ * inline `#tag` (`tagName` is the tag's raw spelling, sans "#") or ordinary prose
+ * (`tagName` is null). The pieces concatenate back to exactly the input.
+ */
+export interface HashtagSegment {
+  text: string;
+  tagName: string | null;
+}
+
+/**
+ * Split freeform text into ordered {@link HashtagSegment}s, marking each inline
+ * `#tag`. It uses the very same `#([\p{L}\p{N}]+)` pattern as
+ * {@link parseHashtags}, so the marked runs are exactly the tokens that became
+ * stored taggings — a renderer can turn each into a link to its tag page while
+ * emitting everything between them verbatim. Platform-agnostic (no DOM / RN), so
+ * it's directly unit-testable and shared by both apps. The empty string → `[]`.
+ */
+export function splitHashtags(text: string): HashtagSegment[] {
+  const segments: HashtagSegment[] = [];
+  let last = 0;
+  for (const match of text.matchAll(/#([\p{L}\p{N}]+)/gu)) {
+    const start = match.index;
+    if (start > last)
+      segments.push({ text: text.slice(last, start), tagName: null });
+    segments.push({ text: match[0], tagName: match[1] });
+    last = start + match[0].length;
+  }
+  if (last < text.length)
+    segments.push({ text: text.slice(last), tagName: null });
+  return segments;
+}

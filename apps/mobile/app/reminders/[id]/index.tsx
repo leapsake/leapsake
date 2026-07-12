@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { reminderLabel } from "@leapsake/schema";
+import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
@@ -77,13 +78,21 @@ export default function ReminderDetailScreen() {
       {reminder.title !== null && (
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Title</Text>
-          <Text style={styles.fieldValue}>{reminder.title}</Text>
+          <ReminderText
+            text={reminder.title}
+            tags={reminder.tags}
+            style={styles.fieldValue}
+          />
         </View>
       )}
       {reminder.body !== null && (
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Details</Text>
-          <Text style={styles.fieldValue}>{reminder.body}</Text>
+          <ReminderText
+            text={reminder.body}
+            tags={reminder.tags}
+            style={styles.fieldValue}
+          />
         </View>
       )}
       <View style={styles.field}>
