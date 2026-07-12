@@ -39,8 +39,26 @@ export type {
   KeyWrap,
   AddKeyWrapInput,
 } from "./key-wrap.js";
-export { tagSchema, normalizeTagName, parseTagNames } from "./tag.js";
+export {
+  tagSchema,
+  normalizeTagName,
+  parseTagNames,
+  parseHashtags,
+} from "./tag.js";
 export type { Tag } from "./tag.js";
+export {
+  reminderSchema,
+  reminderSourceSchema,
+  createReminderInputSchema,
+  updateReminderInputSchema,
+  reminderLabel,
+} from "./reminder.js";
+export type {
+  Reminder,
+  ReminderSource,
+  CreateReminderInput,
+  UpdateReminderInput,
+} from "./reminder.js";
 export { taggingSchema, tagBearerTypeSchema } from "./tagging.js";
 export type { Tagging, TagBearerType } from "./tagging.js";
 export { dismissalSchema } from "./dismissal.js";

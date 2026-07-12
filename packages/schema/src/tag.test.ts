@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeTagName, parseTagNames } from "./tag.js";
+import { normalizeTagName, parseHashtags, parseTagNames } from "./tag.js";
 
 describe("parseTagNames", () => {
   it("splits on commas and whitespace alike", () => {
@@ -51,6 +51,35 @@ describe("parseTagNames", () => {
   it("returns nothing for input with no letters or numbers", () => {
     expect(parseTagNames("")).toEqual([]);
     expect(parseTagNames("  #  , !! ")).toEqual([]);
+  });
+});
+
+describe("parseHashtags", () => {
+  it("extracts only #-prefixed tokens, leaving ordinary words alone", () => {
+    expect(parseHashtags("call mom #family #urgent")).toEqual([
+      "family",
+      "urgent",
+    ]);
+    // No sigils → nothing (unlike parseTagNames, which would tag every word).
+    expect(parseHashtags("buy milk and eggs")).toEqual([]);
+  });
+
+  it("stops a tag at the first non-alphanumeric character", () => {
+    expect(parseHashtags("ask about the #trip, then #home.")).toEqual([
+      "trip",
+      "home",
+    ]);
+    expect(parseHashtags("#a-b")).toEqual(["a"]);
+  });
+
+  it("keeps accented letters and numbers; dedupes by normalized form", () => {
+    expect(parseHashtags("#Café #2024")).toEqual(["Café", "2024"]);
+    expect(parseHashtags("#Family #family #FAMILY")).toEqual(["Family"]);
+  });
+
+  it("returns nothing for a bare '#' or empty input", () => {
+    expect(parseHashtags("")).toEqual([]);
+    expect(parseHashtags("a # b")).toEqual([]);
   });
 });
 

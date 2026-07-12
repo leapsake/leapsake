@@ -14,6 +14,7 @@ export function App() {
       <header>
         <SearchBar />
         <nav>
+          <Link to="/reminders">Reminders</Link>{" "}
           <Link to="/settings">Settings</Link>
         </nav>
       </header>

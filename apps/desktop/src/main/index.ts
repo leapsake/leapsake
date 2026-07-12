@@ -35,6 +35,7 @@ import {
   createPetInputSchema,
   createPhoneInputSchema,
   createPostalInputSchema,
+  createReminderInputSchema,
   createRelationshipInputSchema,
   updateEmailInputSchema,
   updateMilestoneInputSchema,
@@ -42,6 +43,7 @@ import {
   updatePetInputSchema,
   updatePhoneInputSchema,
   updatePostalInputSchema,
+  updateReminderInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
 import { BrowserWindow, app, ipcMain } from "electron";
@@ -146,6 +148,8 @@ const boundaryParsers: Partial<Record<ApiChannel, ArgParser>> = {
   ],
   "milestones.create": (a) => [createMilestoneInputSchema.parse(a[0])],
   "milestones.update": (a) => [a[0], updateMilestoneInputSchema.parse(a[1])],
+  "reminders.create": (a) => [createReminderInputSchema.parse(a[0])],
+  "reminders.update": (a) => [a[0], updateReminderInputSchema.parse(a[1])],
   "contactMethods.emails.create": (a) => [createEmailInputSchema.parse(a[0])],
   "contactMethods.emails.update": (a) => [
     a[0],

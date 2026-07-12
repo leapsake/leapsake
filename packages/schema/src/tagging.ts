@@ -8,7 +8,7 @@ import { z } from "zod";
  * a reminder can bear a tag but can't hold a relationship role — the same reason
  * milestones use their own {@link milestoneBearerTypeSchema}.
  */
-export const tagBearerTypeSchema = z.enum(["person", "pet"]);
+export const tagBearerTypeSchema = z.enum(["person", "pet", "reminder"]);
 
 export type TagBearerType = z.infer<typeof tagBearerTypeSchema>;
 
