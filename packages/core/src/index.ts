@@ -7,6 +7,7 @@ import {
   createDismissalsRepo,
   createDuplicateService,
   createKinshipService,
+  createMentionsRepo,
   createMilestonesRepo,
   createNotADuplicateRepo,
   createPeopleRepo,
@@ -44,6 +45,7 @@ import type {
   RelationshipRole,
   Reminder,
   ReminderWithTags,
+  ResolvedMention,
   SearchHit,
   Tag,
   UpdateEmailInput,
@@ -61,6 +63,7 @@ import {
   impliedGender,
   inverseRole,
   parseHashtags,
+  parseMentions,
   roleDefs,
   todayCivil,
 } from "@leapsake/schema";
@@ -183,6 +186,20 @@ export type CoreApi = ReturnType<typeof createCore>;
  * Omit it and those fields are stored and read as plaintext, unchanged — so tests
  * and any not-yet-keyed path keep working.
  */
+// The `@mention` targets embedded inline in a reminder's text — the derivation
+// input the `mentions` join is reconciled to on every write, mirroring how
+// `parseHashtags` drives the taggings graph. Title and body are joined so a
+// mention in either field counts.
+function mentionTargetsOf(r: {
+  title: string | null;
+  body: string | null;
+}): { targetType: EntityType; targetId: string }[] {
+  return parseMentions(`${r.title ?? ""}\n${r.body ?? ""}`).map((m) => ({
+    targetType: m.targetType,
+    targetId: m.targetId,
+  }));
+}
+
 export function createCore(driver: SqliteDriver, keySession?: KeySession) {
   // The first consumer of the unlocked master key: a content cipher that the
   // repositories with encrypted fields use to seal/open under per-item keys.
@@ -199,6 +216,24 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
   const notADuplicate = createNotADuplicateRepo(driver);
   const milestones = createMilestonesRepo(driver, cipher);
   const reminders = createRemindersRepo(driver);
+  const mentions = createMentionsRepo(driver);
+
+  // Resolve a reminder's stored mentions to their targets' **current** labels
+  // (null when the target is gone), so a client can render an inline mention token
+  // as a live link. The join rows are the source of *which* entities are mentioned;
+  // the label is re-resolved fresh, so a rename shows through.
+  const resolveMentions = async (
+    reminderId: string,
+  ): Promise<ResolvedMention[]> => {
+    const rows = await mentions.listForBearer("reminder", reminderId);
+    return Promise.all(
+      rows.map(async (m) => ({
+        targetType: m.targetType,
+        targetId: m.targetId,
+        label: (await resolveLabel(m.targetType, m.targetId)) ?? null,
+      })),
+    );
+  };
   const contactMethods = createContactMethodsRepo(driver);
   const kinship = createKinshipService(driver, {
     people,
@@ -516,28 +551,34 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     },
 
     reminders: {
-      // Reads join each reminder with its #tags (resolved to their tag rows), so
-      // a client can link the inline hashtags in the text to their tag pages. The
-      // text stays the source of truth for *which* tags exist (see create/update);
-      // this only attaches the ids they were stored under.
+      // Reads join each reminder with its #tags (resolved to their tag rows) and
+      // its @mentions (resolved to each target's current label), so a client can
+      // link the inline hashtags and mention tokens in the text to their pages. The
+      // text stays the source of truth for *which* tags/mentions exist (see
+      // create/update); this only attaches what they resolve to right now.
       list: async (): Promise<ReminderWithTags[]> => {
         const rows = await reminders.list();
         return Promise.all(
           rows.map(async (r) => ({
             ...r,
             tags: await tags.listForEntity("reminder", r.id),
+            mentions: await resolveMentions(r.id),
           })),
         );
       },
       get: async (id: string): Promise<ReminderWithTags | undefined> => {
         const reminder = await reminders.get(id);
         if (!reminder) return undefined;
-        return { ...reminder, tags: await tags.listForEntity("reminder", id) };
+        return {
+          ...reminder,
+          tags: await tags.listForEntity("reminder", id),
+          mentions: await resolveMentions(id),
+        };
       },
-      // The reminder text is the single source of truth for its #tags: on every
-      // create/update we re-parse `#tags` out of title+body and apply them under
-      // bearer type "reminder" (reusing the shared taggings graph). No separate
-      // tags field, and @mentions are a later increment (a distinct relationship).
+      // The reminder text is the single source of truth for its #tags AND its
+      // @mentions: on every create/update we re-parse both out of title+body and
+      // reconcile them under bearer type "reminder" — `#tags` into the shared
+      // taggings graph, `@mention` tokens into the synced `mentions` backlink.
       create: (input: CreateReminderInput): Promise<Reminder> =>
         driver.transaction(async () => {
           const reminder = await reminders.create(input);
@@ -545,6 +586,11 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
             "reminder",
             reminder.id,
             parseHashtags(`${reminder.title ?? ""}\n${reminder.body ?? ""}`),
+          );
+          await mentions.setEntityMentions(
+            "reminder",
+            reminder.id,
+            mentionTargetsOf(reminder),
           );
           return reminder;
         }),
@@ -560,11 +606,16 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
               id,
               parseHashtags(`${reminder.title ?? ""}\n${reminder.body ?? ""}`),
             );
+            await mentions.setEntityMentions(
+              "reminder",
+              id,
+              mentionTargetsOf(reminder),
+            );
           }
           return reminder;
         }),
-      // Reversible completion toggle: stamps/clears `completedAt`; text (and so
-      // its tags) is untouched, so no re-tagging needed.
+      // Reversible completion toggle: stamps/clears `completedAt`; text (and so its
+      // tags/mentions) is untouched, so no re-derivation needed.
       setCompleted: (
         id: string,
         completed: boolean,
@@ -574,6 +625,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         driver.transaction(async () => {
           await reminders.softDelete(id);
           await tags.removeAllForEntity("reminder", id);
+          await mentions.removeAllForBearer("reminder", id);
         }),
       // The composition root for automated (`system`) reminders: construct the
       // `@leapsake/reminders` engine over the real repos + this core's own
@@ -588,9 +640,26 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           },
           reminders: {
             getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
-            insert: (row) => reminders.insert(row),
+            // The engine writes system reminders through this port (bypassing the
+            // `create` wrapper above), so materialize their @mentions here too:
+            // the birthday title carries a mention token, re-derived into the same
+            // synced backlink. Runs inside the engine's own transaction.
+            insert: async (row) => {
+              const inserted = await reminders.insert(row);
+              await mentions.setEntityMentions(
+                "reminder",
+                inserted.id,
+                mentionTargetsOf(inserted),
+              );
+              return inserted;
+            },
             listWhere: (query) => reminders.listWhere(query),
-            softDelete: (id) => reminders.softDelete(id),
+            // Pruning a stale system reminder clears its mentions too (mirrors the
+            // user-facing softDelete above).
+            softDelete: async (id) => {
+              await reminders.softDelete(id);
+              await mentions.removeAllForBearer("reminder", id);
+            },
           },
           // Birthdays only bear on a person/pet; a relationship bearer (future
           // kinds) has no single label, so it's skipped rather than mislabelled.

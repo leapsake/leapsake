@@ -30,6 +30,11 @@ export {
 export { type TagsRepo, createTagsRepo } from "./tags-repo.js";
 export { type RemindersRepo, createRemindersRepo } from "./reminders-repo.js";
 export {
+  type MentionsRepo,
+  type MentionTarget,
+  createMentionsRepo,
+} from "./mentions-repo.js";
+export {
   type Dismissal,
   type DismissalEndpoint,
   type DismissalsRepo,
