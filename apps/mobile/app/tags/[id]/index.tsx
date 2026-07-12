@@ -8,16 +8,16 @@ import {
   View,
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
-import type { Person, Pet, Tag } from "@leapsake/schema";
-import { fullName, tagLabel } from "@leapsake/schema";
+import type { Person, Pet, Reminder, Tag } from "@leapsake/schema";
+import { fullName, reminderLabel, tagLabel } from "@leapsake/schema";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { colors, styles } from "../../../lib/styles";
 
 // Tag detail, ported from desktop's TagView: everything carrying a given tag,
-// grouped by entity type. People and pets are both taggable; each group renders
-// only when non-empty, and an empty tag shows a placeholder. This is the landing
-// page for a standalone tag search result.
+// grouped by type. People, pets, and reminders are all taggable; each group
+// renders only when non-empty, and an empty tag shows a placeholder. This is the
+// landing page for a standalone tag search result.
 export default function TagDetailScreen() {
   const core = useCore();
   const router = useRouter();
@@ -29,6 +29,7 @@ export default function TagDetailScreen() {
         core.tags.get(id),
         core.tags.peopleForTag(id),
         core.tags.petsForTag(id),
+        core.tags.remindersForTag(id),
       ]),
     [core, id],
   );
@@ -50,7 +51,12 @@ export default function TagDetailScreen() {
     );
   }
 
-  const [tag, people, pets]: [Tag | undefined, Person[], Pet[]] = data;
+  const [tag, people, pets, reminders]: [
+    Tag | undefined,
+    Person[],
+    Pet[],
+    Reminder[],
+  ] = data;
 
   if (tag === undefined) {
     return (
@@ -62,7 +68,8 @@ export default function TagDetailScreen() {
   }
 
   const label = tagLabel(tag.name);
-  const empty = people.length === 0 && pets.length === 0;
+  const empty =
+    people.length === 0 && pets.length === 0 && reminders.length === 0;
 
   function confirmDelete() {
     Alert.alert("Delete tag", `Delete #${label}?`, [
@@ -110,6 +117,23 @@ export default function TagDetailScreen() {
             <Link key={pet.id} href={`/pets/${pet.id}`} style={styles.row}>
               <Text style={[styles.rowText, { color: colors.accent }]}>
                 {pet.name}
+              </Text>
+            </Link>
+          ))}
+        </View>
+      )}
+
+      {reminders.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Reminders</Text>
+          {reminders.map((reminder) => (
+            <Link
+              key={reminder.id}
+              href={`/reminders/${reminder.id}`}
+              style={styles.row}
+            >
+              <Text style={[styles.rowText, { color: colors.accent }]}>
+                {reminderLabel(reminder)}
               </Text>
             </Link>
           ))}

@@ -11,9 +11,7 @@ import { ReminderText } from "../components/ReminderText";
 function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
   const fetcher = useFetcher();
   const done = reminder.completedAt !== null;
-  const strike = done
-    ? { textDecoration: "line-through" as const }
-    : undefined;
+  const strike = done ? { textDecoration: "line-through" as const } : undefined;
   const heading = reminder.title ?? reminder.body ?? "";
 
   return (

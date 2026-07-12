@@ -1,5 +1,5 @@
-import type { Person, Pet, Tag } from "@leapsake/schema";
-import { fullName, tagLabel } from "@leapsake/schema";
+import type { Person, Pet, Reminder, Tag } from "@leapsake/schema";
+import { fullName, reminderLabel, tagLabel } from "@leapsake/schema";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 
@@ -30,18 +30,21 @@ function EntityRows({
 }
 
 /**
- * Everything carrying a given tag, grouped by entity type. People and Pets are
- * both taggable; each group renders only when it has members, and an empty tag
- * shows a placeholder.
+ * Everything carrying a given tag, grouped by type. People, Pets, and Reminders
+ * are all taggable; each group renders only when it has members, and an empty tag
+ * shows a placeholder. Reminders have no standalone view on desktop, so a
+ * reminder row opens its edit screen (its actionable page here).
  */
 export function TagView() {
-  const { tag, people, pets } = useLoaderData() as {
+  const { tag, people, pets, reminders } = useLoaderData() as {
     tag: Tag;
     people: Person[];
     pets: Pet[];
+    reminders: Reminder[];
   };
 
-  const empty = people.length === 0 && pets.length === 0;
+  const empty =
+    people.length === 0 && pets.length === 0 && reminders.length === 0;
 
   return (
     <main>
@@ -75,6 +78,19 @@ export function TagView() {
               id: pet.id,
               label: pet.name,
               to: `/pets/${pet.id}`,
+            }))}
+          />
+        </>
+      )}
+
+      {reminders.length > 0 && (
+        <>
+          <h2>Reminders</h2>
+          <EntityRows
+            rows={reminders.map((reminder) => ({
+              id: reminder.id,
+              label: reminderLabel(reminder),
+              to: `/reminders/${reminder.id}/edit`,
             }))}
           />
         </>

@@ -1099,11 +1099,12 @@ const routes: RouteObject[] = [
           const id = params.id as string;
           const tag = await window.api.tags.get(id);
           if (!tag) throw new Response("Tag not found", { status: 404 });
-          const [people, pets] = await Promise.all([
+          const [people, pets, reminders] = await Promise.all([
             window.api.tags.peopleForTag(id),
             window.api.tags.petsForTag(id),
+            window.api.tags.remindersForTag(id),
           ]);
-          return { tag, people, pets };
+          return { tag, people, pets, reminders };
         },
         element: <TagView />,
       },
@@ -1113,11 +1114,15 @@ const routes: RouteObject[] = [
           const id = params.id as string;
           const tag = await window.api.tags.get(id);
           if (!tag) throw new Response("Tag not found", { status: 404 });
-          const [people, pets] = await Promise.all([
+          const [people, pets, reminders] = await Promise.all([
             window.api.tags.peopleForTag(id),
             window.api.tags.petsForTag(id),
+            window.api.tags.remindersForTag(id),
           ]);
-          return { tag, count: people.length + pets.length };
+          return {
+            tag,
+            count: people.length + pets.length + reminders.length,
+          };
         },
         element: <TagDelete />,
         action: async ({ params }) => {
