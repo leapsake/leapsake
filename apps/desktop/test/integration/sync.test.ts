@@ -460,11 +460,11 @@ describe("sync engine (all entities, in-memory transport)", () => {
     const engineA = engineFor(A);
     const engineB = engineFor(B);
 
-    const subjectId = crypto.randomUUID();
+    const bearerId = crypto.randomUUID();
     const milestone = await A.milestones.create({
       kind: "birthday",
-      subjectType: "person",
-      subjectId,
+      bearerType: "person",
+      bearerId,
       month: 6,
       day: 18,
       note: "secret picnic",

@@ -1,6 +1,6 @@
 import {
   type Milestone,
-  type MilestoneSubjectType,
+  type MilestoneBearerType,
   formatMilestoneDate,
   milestoneLabel,
 } from "@leapsake/schema";
@@ -8,19 +8,19 @@ import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { entityBasePath } from "../lib/entityLabel";
 
-/** The subject entity the milestone being removed hangs off of. */
-interface Subject {
-  type: MilestoneSubjectType;
+/** The bearer entity the milestone being removed hangs off of. */
+interface Bearer {
+  type: MilestoneBearerType;
   id: string;
   label: string;
 }
 
 export function MilestoneDelete() {
-  const { subject, milestone } = useLoaderData() as {
-    subject: Subject;
+  const { bearer, milestone } = useLoaderData() as {
+    bearer: Bearer;
     milestone: Milestone;
   };
-  const subjectPath = `${entityBasePath(subject.type)}/${subject.id}`;
+  const bearerPath = `${entityBasePath(bearer.type)}/${bearer.id}`;
   const navigation = useNavigation();
   const deleting = navigation.state === "submitting";
 
@@ -31,20 +31,20 @@ export function MilestoneDelete() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: subject.label, to: subjectPath },
+          { label: bearer.label, to: bearerPath },
           { label: "Remove milestone" },
         ]}
       />
       <h1>Remove milestone?</h1>
       <p>
         Remove {milestoneLabel(milestone).toLowerCase()}
-        {date === "" ? "" : ` (${date})`} from {subject.label}?
+        {date === "" ? "" : ` (${date})`} from {bearer.label}?
       </p>
 
       <Form method="post">
         <fieldset disabled={deleting}>
           <button type="submit">Remove</button>{" "}
-          <Link to={subjectPath}>Cancel</Link>
+          <Link to={bearerPath}>Cancel</Link>
         </fieldset>
       </Form>
     </main>

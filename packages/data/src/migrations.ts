@@ -457,6 +457,22 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 17,
+    async up(driver) {
+      // Naming-consistency pass (pre-launch): the polymorphic "what this attaches
+      // to" columns adopt the **bearer** vocabulary — an entity *bears* a
+      // milestone/tag. Pure column rename, no data change; SQLite propagates the
+      // rename to dependent indexes. Kept distinct from relationship "subject"
+      // (orientation) and contact-method "owner". See plans/product-truths.md.
+      await driver.exec(`
+        ALTER TABLE milestones RENAME COLUMN subject_type TO bearer_type;
+        ALTER TABLE milestones RENAME COLUMN subject_id TO bearer_id;
+        ALTER TABLE taggings RENAME COLUMN entity_type TO bearer_type;
+        ALTER TABLE taggings RENAME COLUMN entity_id TO bearer_id;
+      `);
+    },
+  },
 ];
 
 /**

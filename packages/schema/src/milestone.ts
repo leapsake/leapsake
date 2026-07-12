@@ -1,20 +1,20 @@
 import { z } from "zod";
 
 /**
- * The kinds of subject a milestone can hang off. A *separate* enum from
- * `entityTypeSchema`: a `relationship` can be a milestone subject (a
+ * The kinds of bearer a milestone can hang off. A *separate* enum from
+ * `entityTypeSchema`: a `relationship` can be a milestone bearer (a
  * wedding belongs to the relationship, not to either partner) but is not a
  * relationship-role holder, so we don't widen `entityTypeSchema` to include it.
- * Like taggings/relationships, the subject is a polymorphic `(type, id)` pair,
- * so a new subject type joins without a schema change.
+ * Like taggings/relationships, the bearer is a polymorphic `(type, id)` pair,
+ * so a new bearer type joins without a schema change.
  */
-export const milestoneSubjectTypeSchema = z.enum([
+export const milestoneBearerTypeSchema = z.enum([
   "person",
   "pet",
   "relationship",
 ]);
 
-export type MilestoneSubjectType = z.infer<typeof milestoneSubjectTypeSchema>;
+export type MilestoneBearerType = z.infer<typeof milestoneBearerTypeSchema>;
 
 /**
  * The closed set of milestone kinds — "the big dates in someone's life". A
@@ -43,12 +43,12 @@ export interface MilestoneKindDef {
   /** Optional emoji shown beside the label. */
   icon?: string;
   /**
-   * Which subject types may hold this kind, in preference order. A wedding
-   * prefers a `relationship` subject but can sit on a `person` until the
+   * Which bearer types may hold this kind, in preference order. A wedding
+   * prefers a `relationship` bearer but can sit on a `person` until the
    * relationship exists (the unbound/pending case); a birthday is a `person` or
-   * `pet`. The first entry is the {@link MilestoneKindDef.preferredSubjectType}.
+   * `pet`. The first entry is the {@link MilestoneKindDef.preferredBearerType}.
    */
-  allowedSubjectTypes: MilestoneSubjectType[];
+  allowedBearerTypes: MilestoneBearerType[];
   /**
    * Whether this kind recurs every year (drives the future reminders inbox).
    * Unused by the v1 UI but set now so the inbox increment needs no schema or
@@ -58,86 +58,84 @@ export interface MilestoneKindDef {
 }
 
 /**
- * The milestone-kind registry. `allowedSubjectTypes[0]` is the preferred
- * subject; `recursAnnually` is read by the (deferred) inbox. Insertion order
+ * The milestone-kind registry. `allowedBearerTypes[0]` is the preferred
+ * bearer; `recursAnnually` is read by the (deferred) inbox. Insertion order
  * matches {@link milestoneKindSchema} and is the UI listing order.
  */
 export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
   birthday: {
     label: "Birthday",
     icon: "🎂",
-    allowedSubjectTypes: ["person", "pet"],
+    allowedBearerTypes: ["person", "pet"],
     recursAnnually: true,
   },
   death: {
     label: "Death",
     icon: "🕯️",
-    allowedSubjectTypes: ["person", "pet"],
+    allowedBearerTypes: ["person", "pet"],
     recursAnnually: true,
   },
   "first-date": {
     label: "First Date",
     icon: "💞",
-    allowedSubjectTypes: ["relationship", "person"],
+    allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
   },
   wedding: {
     label: "Wedding",
     icon: "💍",
-    allowedSubjectTypes: ["relationship", "person"],
+    allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
   },
   met: {
     label: "Met",
     icon: "🤝",
-    allowedSubjectTypes: ["relationship", "person"],
+    allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
   },
   graduation: {
     label: "Graduation",
     icon: "🎓",
-    allowedSubjectTypes: ["person"],
+    allowedBearerTypes: ["person"],
     recursAnnually: false,
   },
   "job-start": {
     label: "Started a job",
     icon: "💼",
-    allowedSubjectTypes: ["person"],
+    allowedBearerTypes: ["person"],
     recursAnnually: false,
   },
   other: {
     label: "Other",
-    allowedSubjectTypes: ["person", "pet", "relationship"],
+    allowedBearerTypes: ["person", "pet", "relationship"],
     recursAnnually: false,
   },
 };
 
-/** The preferred (first allowed) subject type for a kind. */
-export function preferredSubjectType(
-  kind: MilestoneKind,
-): MilestoneSubjectType {
-  return kindDefs[kind].allowedSubjectTypes[0];
+/** The preferred (first allowed) bearer type for a kind. */
+export function preferredBearerType(kind: MilestoneKind): MilestoneBearerType {
+  return kindDefs[kind].allowedBearerTypes[0];
 }
 
-/** Whether `subjectType` is allowed to hold `kind`. */
-export function kindAllowsSubject(
+/** Whether `bearerType` is allowed to hold `kind`. */
+export function kindAllowsBearer(
   kind: MilestoneKind,
-  subjectType: MilestoneSubjectType,
+  bearerType: MilestoneBearerType,
 ): boolean {
-  return kindDefs[kind].allowedSubjectTypes.includes(subjectType);
+  return kindDefs[kind].allowedBearerTypes.includes(bearerType);
 }
 
-/** Kinds a given subject type may hold, in registry order — drives the kind picker. */
-export function kindsForSubjectType(
-  subjectType: MilestoneSubjectType,
+/** Kinds a given bearer type may hold, in registry order — drives the kind picker. */
+export function kindsForBearerType(
+  bearerType: MilestoneBearerType,
 ): { kind: MilestoneKind; label: string }[] {
   return (Object.keys(kindDefs) as MilestoneKind[])
-    .filter((kind) => kindAllowsSubject(kind, subjectType))
+    .filter((kind) => kindAllowsBearer(kind, bearerType))
     .map((kind) => ({ kind, label: kindDefs[kind].label }));
 }
 
 /**
- * A Milestone — one dated fact about a subject, stored as a single row.
+ * A Milestone — one dated fact about a bearer, stored as a single row.
  *
  * The date is **partial**: `year`/`month`/`day` are individually nullable so a
  * milestone can record exactly what's known ("March 9, 1992", "March 1992",
@@ -147,9 +145,9 @@ export function kindsForSubjectType(
  * {@link datePrecisionOf}), not stored. The nullable parts stay individually
  * queryable so the future inbox can scan `month`/`day` ignoring `year`.
  *
- * The subject is a polymorphic, *mutable* `(subjectType, subjectId)` pair: a
+ * The bearer is a polymorphic, *mutable* `(bearerType, bearerId)` pair: a
  * wedding added before its relationship exists lives on the person and is
- * later re-pointed to the relationship via a single-row subject update.
+ * later re-pointed to the relationship via a single-row bearer update.
  *
  * Same sync-safe conventions as the other tables (see AGENTS.md): client
  * UUID id, epoch-ms UTC timestamps, nullable `deletedAt`.
@@ -158,8 +156,8 @@ export const milestoneSchema = z
   .object({
     id: z.uuid(),
     kind: milestoneKindSchema,
-    subjectType: milestoneSubjectTypeSchema,
-    subjectId: z.uuid(),
+    bearerType: milestoneBearerTypeSchema,
+    bearerId: z.uuid(),
     year: z.number().int().nullable(),
     month: z.number().int().min(1).max(12).nullable(),
     day: z.number().int().min(1).max(31).nullable(),
@@ -172,9 +170,9 @@ export const milestoneSchema = z
     message: "a day requires a month (no lone day, no year+day)",
     path: ["day"],
   })
-  .refine((m) => kindAllowsSubject(m.kind, m.subjectType), {
-    message: "subjectType is not allowed to hold this milestone kind",
-    path: ["subjectType"],
+  .refine((m) => kindAllowsBearer(m.kind, m.bearerType), {
+    message: "bearerType is not allowed to hold this milestone kind",
+    path: ["bearerType"],
   });
 
 export type Milestone = z.infer<typeof milestoneSchema>;
@@ -210,36 +208,36 @@ function dayImpliesMonth(d: { month?: number | null; day?: number | null }) {
   return (d.day ?? null) === null || (d.month ?? null) !== null;
 }
 
-/** The subject + kind + partial date accepted when creating a milestone. */
+/** The bearer + kind + partial date accepted when creating a milestone. */
 export const createMilestoneInputSchema = z
   .object({
     kind: milestoneKindSchema,
-    subjectType: milestoneSubjectTypeSchema,
-    subjectId: z.uuid(),
+    bearerType: milestoneBearerTypeSchema,
+    bearerId: z.uuid(),
     ...datePartsShape,
   })
   .refine(dayImpliesMonth, {
     message: "a day requires a month (no lone day, no year+day)",
     path: ["day"],
   })
-  .refine((m) => kindAllowsSubject(m.kind, m.subjectType), {
-    message: "subjectType is not allowed to hold this milestone kind",
-    path: ["subjectType"],
+  .refine((m) => kindAllowsBearer(m.kind, m.bearerType), {
+    message: "bearerType is not allowed to hold this milestone kind",
+    path: ["bearerType"],
   });
 
 export type CreateMilestoneInput = z.infer<typeof createMilestoneInputSchema>;
 
 /**
  * Editable fields when updating a milestone: the kind, the date parts, and the
- * note — **plus** an optional new `subjectType`/`subjectId`, so the v2 rebind
+ * note — **plus** an optional new `bearerType`/`bearerId`, so the v2 rebind
  * (unbound person → relationship) is a normal update. The repository merges
  * this onto the stored row and re-validates the whole row, so the day⇒month and
- * subject-type rules still hold after a partial update.
+ * bearer-type rules still hold after a partial update.
  */
 export const updateMilestoneInputSchema = z.object({
   kind: milestoneKindSchema.optional(),
-  subjectType: milestoneSubjectTypeSchema.optional(),
-  subjectId: z.uuid().optional(),
+  bearerType: milestoneBearerTypeSchema.optional(),
+  bearerId: z.uuid().optional(),
   ...datePartsShape,
 });
 

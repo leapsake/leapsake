@@ -430,8 +430,8 @@ describe("searchService", () => {
       const person = await people.create({ firstName, lastName });
       await milestones.create({
         kind: "birthday",
-        subjectType: "person",
-        subjectId: person.id,
+        bearerType: "person",
+        bearerId: person.id,
         ...date,
       });
       return person;
@@ -504,8 +504,8 @@ describe("searchService", () => {
       });
       await milestones.create({
         kind: "birthday",
-        subjectType: "person",
-        subjectId: person.id,
+        bearerType: "person",
+        bearerId: person.id,
         month: 3,
         day: 14,
       });
@@ -531,8 +531,8 @@ describe("searchService", () => {
       const pet = await pets.create({ name: "Rex" });
       await milestones.create({
         kind: "birthday",
-        subjectType: "pet",
-        subjectId: pet.id,
+        bearerType: "pet",
+        bearerId: pet.id,
         month: 8,
         day: 20,
       });

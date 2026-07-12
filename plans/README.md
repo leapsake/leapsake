@@ -21,6 +21,7 @@ client-agnostic data/core layer underneath all clients.
 | You want to… | Go to |
 |---|---|
 | **Know what's done and what's next (any workstream)** | **[`status.md`](./status.md)** — the single status oracle |
+| **Know the product posture / user model (stable "why")** | **[`product-truths.md`](./product-truths.md)** — launch posture + the user/client/account/sharing/encryption model |
 | Understand the encryption / privacy / sync design | [`encryption/`](./encryption/) — start at its `README.md` (then `model.md`, `sync.md`, `schema.md`, `custody-sequence.md`) |
 | Understand the file/media (photos v0.2) design | [`files.md`](./files.md) — the encrypted-blob invariants, pinned before build |
 | Understand the dedup / merge design | [`packages/core/README.md`](../packages/core/README.md) — the two-kinds-of-merge framing + the person reference graph |

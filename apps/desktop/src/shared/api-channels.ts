@@ -41,7 +41,7 @@ export const API_CHANNELS = [
   "relationships.createFromSubject",
   "relationships.editFromSubject",
 
-  "milestones.listForSubject",
+  "milestones.listForBearer",
   "milestones.timelineFor",
   "milestones.create",
   "milestones.update",
@@ -77,7 +77,7 @@ export const API_CHANNELS = [
   "views.relationshipPartners",
   "views.relationshipForSubject",
   "views.derivedRelationship",
-  "views.milestoneSubject",
+  "views.milestoneBearer",
   "views.milestoneNew",
 ] as const satisfies readonly ApiChannel[];
 

@@ -3,17 +3,17 @@ import {
   createMilestoneInputSchema,
   datePrecisionOf,
   formatMilestoneDate,
-  kindsForSubjectType,
+  kindsForBearerType,
   milestoneLabel,
   milestoneSchema,
-  preferredSubjectType,
+  preferredBearerType,
 } from "./milestone.js";
 
 const validMilestone = {
   id: crypto.randomUUID(),
   kind: "birthday" as const,
-  subjectType: "person" as const,
-  subjectId: crypto.randomUUID(),
+  bearerType: "person" as const,
+  bearerId: crypto.randomUUID(),
   year: 1992,
   month: 3,
   day: 9,
@@ -64,18 +64,18 @@ describe("milestoneSchema", () => {
     ).toThrow();
   });
 
-  it("enforces allowed subject types per kind", () => {
+  it("enforces allowed bearer types per kind", () => {
     // A pet can have a birthday…
     expect(
-      milestoneSchema.parse({ ...validMilestone, subjectType: "pet" })
-        .subjectType,
+      milestoneSchema.parse({ ...validMilestone, bearerType: "pet" })
+        .bearerType,
     ).toBe("pet");
     // …but graduation is a person-only kind.
     expect(() =>
       milestoneSchema.parse({
         ...validMilestone,
         kind: "graduation",
-        subjectType: "pet",
+        bearerType: "pet",
       }),
     ).toThrow();
     // A first date may sit on a relationship.
@@ -83,8 +83,8 @@ describe("milestoneSchema", () => {
       milestoneSchema.parse({
         ...validMilestone,
         kind: "first-date",
-        subjectType: "relationship",
-      }).subjectType,
+        bearerType: "relationship",
+      }).bearerType,
     ).toBe("relationship");
   });
 
@@ -99,11 +99,11 @@ describe("milestoneSchema", () => {
 });
 
 describe("createMilestoneInputSchema", () => {
-  it("accepts a subject + kind with no date parts", () => {
+  it("accepts a bearer + kind with no date parts", () => {
     const input = {
       kind: "birthday" as const,
-      subjectType: "person" as const,
-      subjectId: crypto.randomUUID(),
+      bearerType: "person" as const,
+      bearerId: crypto.randomUUID(),
     };
     expect(createMilestoneInputSchema.parse(input)).toEqual(input);
   });
@@ -112,43 +112,43 @@ describe("createMilestoneInputSchema", () => {
     expect(() =>
       createMilestoneInputSchema.parse({
         kind: "birthday",
-        subjectType: "person",
-        subjectId: crypto.randomUUID(),
+        bearerType: "person",
+        bearerId: crypto.randomUUID(),
         day: 9,
       }),
     ).toThrow();
   });
 
-  it("rejects a kind its subject type can't hold", () => {
+  it("rejects a kind its bearer type can't hold", () => {
     expect(() =>
       createMilestoneInputSchema.parse({
         kind: "graduation",
-        subjectType: "pet",
-        subjectId: crypto.randomUUID(),
+        bearerType: "pet",
+        bearerId: crypto.randomUUID(),
       }),
     ).toThrow();
   });
 });
 
 describe("kind registry", () => {
-  it("lists the kinds a subject type may hold, in registry order", () => {
-    const personKinds = kindsForSubjectType("person").map((k) => k.kind);
+  it("lists the kinds a bearer type may hold, in registry order", () => {
+    const personKinds = kindsForBearerType("person").map((k) => k.kind);
     expect(personKinds).toContain("birthday");
     expect(personKinds).toContain("graduation");
     expect(personKinds[0]).toBe("birthday");
 
-    const petKinds = kindsForSubjectType("pet").map((k) => k.kind);
+    const petKinds = kindsForBearerType("pet").map((k) => k.kind);
     expect(petKinds).toContain("birthday");
     expect(petKinds).not.toContain("graduation");
 
-    const relKinds = kindsForSubjectType("relationship").map((k) => k.kind);
+    const relKinds = kindsForBearerType("relationship").map((k) => k.kind);
     expect(relKinds).toContain("first-date");
     expect(relKinds).not.toContain("birthday");
   });
 
-  it("reports the preferred subject type per kind", () => {
-    expect(preferredSubjectType("birthday")).toBe("person");
-    expect(preferredSubjectType("first-date")).toBe("relationship");
+  it("reports the preferred bearer type per kind", () => {
+    expect(preferredBearerType("birthday")).toBe("person");
+    expect(preferredBearerType("first-date")).toBe("relationship");
   });
 });
 

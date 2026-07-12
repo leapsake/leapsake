@@ -22,15 +22,15 @@ afterEach(() => {
   cleanup();
 });
 
-/** A full-date birthday input for a person subject. */
+/** A full-date birthday input for a person bearer. */
 function birthday(
-  subjectId: string,
+  bearerId: string,
   over: Partial<CreateMilestoneInput> = {},
 ): CreateMilestoneInput {
   return {
     kind: "birthday",
-    subjectType: "person",
-    subjectId,
+    bearerType: "person",
+    bearerId,
     year: 1992,
     month: 3,
     day: 9,
@@ -40,13 +40,13 @@ function birthday(
 
 describe("milestonesRepo", () => {
   it("creates a milestone with a uuid, timestamps, and null deletedAt", async () => {
-    const subject = crypto.randomUUID();
-    const m = await repo.create(birthday(subject));
+    const bearer = crypto.randomUUID();
+    const m = await repo.create(birthday(bearer));
 
     expect(m.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(m.kind).toBe("birthday");
-    expect(m.subjectType).toBe("person");
-    expect(m.subjectId).toBe(subject);
+    expect(m.bearerType).toBe("person");
+    expect(m.bearerId).toBe(bearer);
     expect(m.year).toBe(1992);
     expect(m.month).toBe(3);
     expect(m.day).toBe(9);
@@ -117,33 +117,33 @@ describe("milestonesRepo", () => {
     expect(await repo.get(created.id)).toBeUndefined();
   });
 
-  it("lists a subject's milestones excluding soft-deleted ones, ordered by date", async () => {
-    const subject = crypto.randomUUID();
-    const older = await repo.create(birthday(subject, { year: 1980 }));
+  it("lists a bearer's milestones excluding soft-deleted ones, ordered by date", async () => {
+    const bearer = crypto.randomUUID();
+    const older = await repo.create(birthday(bearer, { year: 1980 }));
     const newer = await repo.create(
-      birthday(subject, { kind: "graduation", year: 2010, month: 5, day: 1 }),
+      birthday(bearer, { kind: "graduation", year: 2010, month: 5, day: 1 }),
     );
     const deleted = await repo.create(
-      birthday(subject, { kind: "other", note: "x", year: 1970 }),
+      birthday(bearer, { kind: "other", note: "x", year: 1970 }),
     );
     await repo.softDelete(deleted.id);
-    // A milestone on a different subject must not appear.
+    // A milestone on a different bearer must not appear.
     await repo.create(birthday(crypto.randomUUID()));
 
-    const list = await repo.listForSubject("person", subject);
+    const list = await repo.listForBearer("person", bearer);
     expect(list.map((m) => m.id)).toEqual([older.id, newer.id]);
   });
 
   it("soft-deletes all of an entity's milestones via removeAllForEntity", async () => {
-    const subject = crypto.randomUUID();
-    await repo.create(birthday(subject, { year: 1980 }));
-    await repo.create(birthday(subject, { kind: "death", year: 2020 }));
+    const bearer = crypto.randomUUID();
+    await repo.create(birthday(bearer, { year: 1980 }));
+    await repo.create(birthday(bearer, { kind: "death", year: 2020 }));
     const other = crypto.randomUUID();
     await repo.create(birthday(other));
 
-    await repo.removeAllForEntity("person", subject);
-    expect(await repo.listForSubject("person", subject)).toHaveLength(0);
-    // Other subjects are untouched.
-    expect(await repo.listForSubject("person", other)).toHaveLength(1);
+    await repo.removeAllForEntity("person", bearer);
+    expect(await repo.listForBearer("person", bearer)).toHaveLength(0);
+    // Other bearers are untouched.
+    expect(await repo.listForBearer("person", other)).toHaveLength(1);
   });
 });

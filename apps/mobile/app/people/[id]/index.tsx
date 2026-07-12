@@ -106,8 +106,8 @@ export default function PersonDetailScreen() {
       />
 
       <MilestonesSection
-        subjectType="person"
-        subjectId={person.id}
+        bearerType="person"
+        bearerId={person.id}
         entries={timeline}
         onChanged={reload}
       />

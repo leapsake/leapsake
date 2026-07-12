@@ -1,7 +1,7 @@
 import {
   type CreateMilestoneInput,
   type Milestone,
-  type MilestoneSubjectType,
+  type MilestoneBearerType,
   type UpdateMilestoneInput,
   createMilestoneInputSchema,
   milestoneSchema,
@@ -22,8 +22,8 @@ const MILESTONE_ENTITY = "milestone";
 interface MilestoneRow {
   id: string;
   kind: string;
-  subject_type: string;
-  subject_id: string;
+  bearer_type: string;
+  bearer_id: string;
   year: number | null;
   month: number | null;
   day: number | null;
@@ -62,8 +62,8 @@ async function toMilestone(
   return milestoneSchema.parse({
     id: row.id,
     kind: row.kind,
-    subjectType: row.subject_type,
-    subjectId: row.subject_id,
+    bearerType: row.bearer_type,
+    bearerId: row.bearer_id,
     year: row.year,
     month: row.month,
     day: row.day,
@@ -82,31 +82,31 @@ export interface MilestonesRepo extends EntityRepo<Milestone> {
   ): Promise<Milestone | undefined>;
 
   /**
-   * Every active milestone of a subject, ordered by year, then month, then day.
+   * Every active milestone of a bearer, ordered by year, then month, then day.
    * SQLite sorts NULLs first, so a milestone missing an earlier part sorts ahead
    * of one that has it (a year-less recurring date leads a dated one).
    */
-  listForSubject(type: MilestoneSubjectType, id: string): Promise<Milestone[]>;
+  listForBearer(type: MilestoneBearerType, id: string): Promise<Milestone[]>;
 
   /**
-   * Soft-delete every active milestone of a subject. Used when the host entity
+   * Soft-delete every active milestone of a bearer. Used when the host entity
    * (a Person or Pet) is deleted. Transaction-free building block — the caller
    * composes it with the entity's own delete inside one transaction.
    *
-   * TODO (v2): also cascade milestones whose subject is a *relationship* the
+   * TODO (v2): also cascade milestones whose bearer is a *relationship* the
    * entity belonged to. No such rows exist via the v1 UI yet (relationship
-   * subjects aren't creatable here), so there is nothing to orphan today.
+   * bearers aren't creatable here), so there is nothing to orphan today.
    */
-  removeAllForEntity(type: MilestoneSubjectType, id: string): Promise<void>;
+  removeAllForEntity(type: MilestoneBearerType, id: string): Promise<void>;
 
   /**
    * Re-point every active milestone of `fromId` onto `toId` (used when merging
    * `fromId` into `toId`). Per-item content keys are keyed by milestone id, not
-   * subject, so moving the subject leaves encryption untouched. Transaction-free
+   * bearer, so moving the bearer leaves encryption untouched. Transaction-free
    * building block.
    */
   repointEntity(
-    type: MilestoneSubjectType,
+    type: MilestoneBearerType,
     fromId: string,
     toId: string,
   ): Promise<void>;
@@ -168,8 +168,8 @@ export function createMilestonesRepo(
         return {
           id: m.id,
           kind: m.kind,
-          subject_type: m.subjectType,
-          subject_id: m.subjectId,
+          bearer_type: m.bearerType,
+          bearer_id: m.bearerId,
           year: m.year,
           month: m.month,
           day: m.day,
@@ -190,12 +190,12 @@ export function createMilestonesRepo(
       const parsed = createMilestoneInputSchema.parse(input);
       const now = Date.now();
       // The codec seals `note` on the way to disk; hand `insert` the plaintext
-      // domain row (it re-validates the day⇒month / subject-type rules).
+      // domain row (it re-validates the day⇒month / bearer-type rules).
       return base.insert({
         id: crypto.randomUUID(),
         kind: parsed.kind,
-        subjectType: parsed.subjectType,
-        subjectId: parsed.subjectId,
+        bearerType: parsed.bearerType,
+        bearerId: parsed.bearerId,
         year: parsed.year ?? null,
         month: parsed.month ?? null,
         day: parsed.day ?? null,
@@ -209,9 +209,9 @@ export function createMilestonesRepo(
     update: async (id, input) =>
       base.update(id, updateMilestoneInputSchema.parse(input)),
 
-    listForSubject: (type, id) =>
+    listForBearer: (type, id) =>
       base.listWhere({
-        where: "subject_type = ? AND subject_id = ?",
+        where: "bearer_type = ? AND bearer_id = ?",
         params: [type, id],
         orderBy: "year, month, day",
       }),
@@ -220,7 +220,7 @@ export function createMilestonesRepo(
       softDeleteWhere(
         driver,
         "milestones",
-        "subject_type = ? AND subject_id = ?",
+        "bearer_type = ? AND bearer_id = ?",
         [type, id],
       ),
 
@@ -231,8 +231,8 @@ export function createMilestonesRepo(
       // lands in the milestone's creation millisecond (see relationships-repo
       // `repointEntity`).
       await driver.run(
-        `UPDATE milestones SET subject_id = ?, updated_at = MAX(?, updated_at + 1)
-           WHERE subject_type = ? AND subject_id = ? AND deleted_at IS NULL`,
+        `UPDATE milestones SET bearer_id = ?, updated_at = MAX(?, updated_at + 1)
+           WHERE bearer_type = ? AND bearer_id = ? AND deleted_at IS NULL`,
         [toId, now, type, fromId],
       );
     },

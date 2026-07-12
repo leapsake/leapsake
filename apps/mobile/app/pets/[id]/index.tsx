@@ -102,8 +102,8 @@ export default function PetDetailScreen() {
       />
 
       <MilestonesSection
-        subjectType="pet"
-        subjectId={pet.id}
+        bearerType="pet"
+        bearerId={pet.id}
         entries={timeline}
         onChanged={reload}
       />

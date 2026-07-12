@@ -149,7 +149,7 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
       const rows = await driver.all<TagRow>(
         `SELECT t.* FROM tags t
            JOIN taggings g ON g.tag_id = t.id
-          WHERE g.entity_type = ? AND g.entity_id = ?
+          WHERE g.bearer_type = ? AND g.bearer_id = ?
             AND g.deleted_at IS NULL AND t.deleted_at IS NULL
           ORDER BY t.name`,
         [entityType, entityId],
@@ -166,7 +166,7 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
       const current = await driver.all<TagRow & { tagging_id: string }>(
         `SELECT t.*, g.id AS tagging_id FROM taggings g
            JOIN tags t ON t.id = g.tag_id
-          WHERE g.entity_type = ? AND g.entity_id = ?
+          WHERE g.bearer_type = ? AND g.bearer_id = ?
             AND g.deleted_at IS NULL AND t.deleted_at IS NULL`,
         [entityType, entityId],
       );
@@ -186,7 +186,7 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
         const now = Date.now();
         await driver.run(
           `INSERT INTO taggings
-             (id, tag_id, entity_type, entity_id, created_at, updated_at, deleted_at)
+             (id, tag_id, bearer_type, bearer_id, created_at, updated_at, deleted_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [crypto.randomUUID(), tag.id, entityType, entityId, now, now, null],
         );
@@ -196,7 +196,7 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
     async removeAllForEntity(entityType, entityId) {
       const rows = await driver.all<{ id: string; tag_id: string }>(
         `SELECT id, tag_id FROM taggings
-          WHERE entity_type = ? AND entity_id = ? AND deleted_at IS NULL`,
+          WHERE bearer_type = ? AND bearer_id = ? AND deleted_at IS NULL`,
         [entityType, entityId],
       );
       for (const { id, tag_id } of rows) {
@@ -211,14 +211,14 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
         (
           await driver.all<{ tag_id: string }>(
             `SELECT tag_id FROM taggings
-              WHERE entity_type = ? AND entity_id = ? AND deleted_at IS NULL`,
+              WHERE bearer_type = ? AND bearer_id = ? AND deleted_at IS NULL`,
             [entityType, toId],
           )
         ).map((r) => r.tag_id),
       );
       const fromTaggings = await driver.all<{ id: string; tag_id: string }>(
         `SELECT id, tag_id FROM taggings
-          WHERE entity_type = ? AND entity_id = ? AND deleted_at IS NULL`,
+          WHERE bearer_type = ? AND bearer_id = ? AND deleted_at IS NULL`,
         [entityType, fromId],
       );
       // `MAX(?, updated_at + 1)` keeps each re-point strictly newer than the row
@@ -231,7 +231,7 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
           await softDeleteRow(driver, "taggings", id);
         } else {
           await driver.run(
-            "UPDATE taggings SET entity_id = ?, updated_at = MAX(?, updated_at + 1) WHERE id = ?",
+            "UPDATE taggings SET bearer_id = ?, updated_at = MAX(?, updated_at + 1) WHERE id = ?",
             [toId, now, id],
           );
           survivorTagIds.add(tag_id);
@@ -253,12 +253,12 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
     },
 
     async entityIdsForTag(tagId, entityType) {
-      const rows = await driver.all<{ entity_id: string }>(
-        `SELECT entity_id FROM taggings
-          WHERE tag_id = ? AND entity_type = ? AND deleted_at IS NULL`,
+      const rows = await driver.all<{ bearer_id: string }>(
+        `SELECT bearer_id FROM taggings
+          WHERE tag_id = ? AND bearer_type = ? AND deleted_at IS NULL`,
         [tagId, entityType],
       );
-      return rows.map((r) => r.entity_id);
+      return rows.map((r) => r.bearer_id);
     },
   };
 }

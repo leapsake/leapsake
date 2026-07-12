@@ -1,7 +1,7 @@
 import { Alert, Pressable, Text, View } from "react-native";
 import { Link } from "expo-router";
 import {
-  type MilestoneSubjectType,
+  type MilestoneBearerType,
   type MilestoneTimelineEntry,
   formatMilestoneDate,
   kindDefs,
@@ -10,12 +10,12 @@ import {
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
-/** The route base for a milestone subject's pages, branching on its type. */
-function basePathFor(subjectType: MilestoneSubjectType, id: string): string {
+/** The route base for a milestone bearer's pages, branching on its type. */
+function basePathFor(bearerType: MilestoneBearerType, id: string): string {
   const segment =
-    subjectType === "person"
+    bearerType === "person"
       ? "people"
-      : subjectType === "pet"
+      : bearerType === "pet"
         ? "pets"
         : "relationships";
   return `/${segment}/${id}`;
@@ -23,9 +23,9 @@ function basePathFor(subjectType: MilestoneSubjectType, id: string): string {
 
 /**
  * The Milestones section shared by the Person, Pet, and relationship detail
- * screens, ported from the desktop `MilestonesSection`. It lists the subject's
+ * screens, ported from the desktop `MilestonesSection`. It lists the bearer's
  * timeline: an entry's **own** milestones are editable in place (Edit / Remove),
- * while milestones drawn from a relationship the subject participates in are shown
+ * while milestones drawn from a relationship the bearer participates in are shown
  * read-only and link out to that relationship's page (labelled "· with
  * <partner>"). On the relationship detail screen every entry is `own`.
  *
@@ -33,18 +33,18 @@ function basePathFor(subjectType: MilestoneSubjectType, id: string): string {
  * delete — then calls `onChanged` so the detail screen refetches its view.
  */
 export function MilestonesSection({
-  subjectType,
-  subjectId,
+  bearerType,
+  bearerId,
   entries,
   onChanged,
 }: {
-  subjectType: MilestoneSubjectType;
-  subjectId: string;
+  bearerType: MilestoneBearerType;
+  bearerId: string;
   entries: MilestoneTimelineEntry[];
   onChanged: () => void;
 }) {
   const core = useCore();
-  const basePath = basePathFor(subjectType, subjectId);
+  const basePath = basePathFor(bearerType, bearerId);
 
   function confirmRemove(entry: MilestoneTimelineEntry) {
     const label = milestoneLabel(entry.milestone);

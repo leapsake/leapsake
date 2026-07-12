@@ -64,8 +64,8 @@ describe("createCore — mergePeople", () => {
     });
     await core.milestones.create({
       kind: "birthday",
-      subjectType: "person",
-      subjectId: bob.id,
+      bearerType: "person",
+      bearerId: bob.id,
       year: 1985,
       month: 7,
       day: 2,
@@ -93,9 +93,9 @@ describe("createCore — mergePeople", () => {
     );
     const rels = await core.relationships.listForEntity("person", jane.id);
     expect(rels.map((r) => r.otherId)).toEqual([carol.id]);
-    expect(
-      await core.milestones.listForSubject("person", jane.id),
-    ).toHaveLength(1);
+    expect(await core.milestones.listForBearer("person", jane.id)).toHaveLength(
+      1,
+    );
     expect(
       await core.contactMethods.listForOwner("person", jane.id),
     ).toHaveLength(1);
@@ -105,7 +105,7 @@ describe("createCore — mergePeople", () => {
     expect(
       await core.relationships.listForEntity("person", bob.id),
     ).toHaveLength(0);
-    expect(await core.milestones.listForSubject("person", bob.id)).toHaveLength(
+    expect(await core.milestones.listForBearer("person", bob.id)).toHaveLength(
       0,
     );
     expect(

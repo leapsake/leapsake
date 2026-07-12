@@ -13,7 +13,7 @@ export default function PetMilestoneEditScreen() {
   // No `core.milestones.get`; load the subject's own milestones and find this one
   // (keeps `packages/*` untouched — the same list the timeline is built from).
   const load = useCallback(
-    async () => (await core.milestones.listForSubject("pet", id)) ?? [],
+    async () => (await core.milestones.listForBearer("pet", id)) ?? [],
     [core, id],
   );
   const { data: milestones, error } = useFocusedData(load);
@@ -36,7 +36,7 @@ export default function PetMilestoneEditScreen() {
         </View>
       ) : (
         <MilestoneForm
-          subjectType="pet"
+          bearerType="pet"
           milestone={milestone}
           submitLabel="Save"
           onCancel={() => router.back()}

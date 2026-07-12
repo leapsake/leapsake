@@ -117,8 +117,8 @@ describe("createCore — cascade soft-delete", () => {
     });
     await core.milestones.create({
       kind: "birthday",
-      subjectType: "person",
-      subjectId: jane.id,
+      bearerType: "person",
+      bearerId: jane.id,
       year: 1990,
       month: 1,
       day: 1,
@@ -138,9 +138,9 @@ describe("createCore — cascade soft-delete", () => {
     expect(
       await core.relationships.listForEntity("person", jane.id),
     ).toHaveLength(0);
-    expect(
-      await core.milestones.listForSubject("person", jane.id),
-    ).toHaveLength(0);
+    expect(await core.milestones.listForBearer("person", jane.id)).toHaveLength(
+      0,
+    );
     expect(
       await core.contactMethods.listForOwner("person", jane.id),
     ).toHaveLength(0);
@@ -163,8 +163,8 @@ describe("createCore — cascade soft-delete", () => {
     });
     await core.milestones.create({
       kind: "birthday",
-      subjectType: "pet",
-      subjectId: rex.id,
+      bearerType: "pet",
+      bearerId: rex.id,
       year: 2018,
       month: 5,
       day: 4,
@@ -177,7 +177,7 @@ describe("createCore — cascade soft-delete", () => {
     expect(await core.relationships.listForEntity("pet", rex.id)).toHaveLength(
       0,
     );
-    expect(await core.milestones.listForSubject("pet", rex.id)).toHaveLength(0);
+    expect(await core.milestones.listForBearer("pet", rex.id)).toHaveLength(0);
   });
 });
 
@@ -287,16 +287,16 @@ describe("createCore — milestones.timelineFor", () => {
     });
     await core.milestones.create({
       kind: "birthday",
-      subjectType: "person",
-      subjectId: jane.id,
+      bearerType: "person",
+      bearerId: jane.id,
       year: 1990,
       month: 3,
       day: 9,
     });
     const wedding = await core.milestones.create({
       kind: "wedding",
-      subjectType: "relationship",
-      subjectId: rel.id,
+      bearerType: "relationship",
+      bearerId: rel.id,
       year: 2020,
       month: 6,
       day: 1,

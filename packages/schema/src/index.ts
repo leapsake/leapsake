@@ -41,8 +41,8 @@ export type {
 } from "./key-wrap.js";
 export { tagSchema, normalizeTagName, parseTagNames } from "./tag.js";
 export type { Tag } from "./tag.js";
-export { taggingSchema } from "./tagging.js";
-export type { Tagging } from "./tagging.js";
+export { taggingSchema, tagBearerTypeSchema } from "./tagging.js";
+export type { Tagging, TagBearerType } from "./tagging.js";
 export { dismissalSchema } from "./dismissal.js";
 export { notADuplicateSchema } from "./not-a-duplicate.js";
 export type { NotADuplicate } from "./not-a-duplicate.js";
@@ -78,21 +78,21 @@ export type {
   RelationshipNeighbor,
 } from "./relationship.js";
 export {
-  milestoneSubjectTypeSchema,
+  milestoneBearerTypeSchema,
   milestoneKindSchema,
   milestoneSchema,
   createMilestoneInputSchema,
   updateMilestoneInputSchema,
   kindDefs,
-  preferredSubjectType,
-  kindAllowsSubject,
-  kindsForSubjectType,
+  preferredBearerType,
+  kindAllowsBearer,
+  kindsForBearerType,
   datePrecisionOf,
   formatMilestoneDate,
   milestoneLabel,
 } from "./milestone.js";
 export type {
-  MilestoneSubjectType,
+  MilestoneBearerType,
   MilestoneKind,
   MilestoneKindDef,
   Milestone,

@@ -69,8 +69,8 @@ export function RelationshipView() {
       </dl>
 
       <MilestonesSection
-        subjectType="relationship"
-        subjectId={relationship.id}
+        bearerType="relationship"
+        bearerId={relationship.id}
         entries={entries}
       />
     </main>
