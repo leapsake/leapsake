@@ -50,3 +50,25 @@ export function parseTagNames(raw: string): string[] {
   }
   return names;
 }
+
+/**
+ * Extract the `#`-prefixed tags embedded **inline** in freeform prose — e.g.
+ * `"call mom #family #urgent"` yields `["family", "urgent"]`. Unlike
+ * {@link parseTagNames} (which treats *every* word as a tag, right for a
+ * dedicated tags field), this matches only tokens introduced by a `#` sigil, so
+ * it can run over a reminder's title/body without turning ordinary words into
+ * tags. A tag is the maximal run of letters/numbers after the `#`. Duplicates
+ * are removed by {@link normalizeTagName}; the first spelling wins.
+ */
+export function parseHashtags(text: string): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const match of text.matchAll(/#([\p{L}\p{N}]+)/gu)) {
+    const name = match[1];
+    const key = normalizeTagName(name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+  return names;
+}

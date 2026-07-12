@@ -25,6 +25,11 @@
   [`packages/core/README.md`](../packages/core/README.md).
 - **Files / media** — nothing built; design invariants pinned in [`files.md`](./files.md).
   Photos are the v0.2 headline (first consumer of that design).
+- **Reminders (home-screen surface)** — first increment done: a user-generated, syncable
+  Reminder entity (freeform title/body, reversible completion, inline `#tags`) on a standalone
+  screen on both clients. Landed on top of a **`bearer` naming-consistency pass** (milestone
+  `subject*` + tagging `entity*` polymorphic columns → `bearer*`; migration 17). Design +
+  deferred items (@mentions, due dates, automation, making it "Home"): [`reminders.md`](./reminders.md).
 
 ## Product posture
 
@@ -101,10 +106,12 @@ can't ship without distributable apps. (None yet.)
   honoring the `not_a_duplicate` memory).
 
 **Client / UX** (sequenced *after* the encryption work above):
-- **Home screen** — a task/reminder surface (upcoming birthdays/holidays + user- &
-  Leapsake-defined tasks) on the existing desktop + mobile clients. Doubles as the first-run
-  **sync-onboarding** entry point ("Already using Leapsake on another device?"). (New
-  workstream; design TBD.)
+- **Reminders → Home screen.** The user-generated Reminders increment is **done**
+  ([`reminders.md`](./reminders.md)); the remaining steps toward the home-screen vision are
+  its deferred items — **automated/`system` reminders** (upcoming birthdays/holidays +
+  Leapsake-defined tasks), **making Reminders the landing screen**, and **onboarding-as-reminders**
+  (the first-run "Already using Leapsake on another device?" sync entry point). Also deferred:
+  **`@mentions`** of People/Pets (a separate `mentions` relationship) and **due dates**.
 
 ### v0.2 (first post-launch feature increment)
 

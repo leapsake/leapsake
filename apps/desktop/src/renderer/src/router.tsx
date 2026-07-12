@@ -52,6 +52,10 @@ import { RelationshipEdit } from "./screens/RelationshipEdit";
 import { RelationshipRolesEdit } from "./screens/RelationshipRolesEdit";
 import { RelationshipRowDelete } from "./screens/RelationshipRowDelete";
 import { RelationshipView } from "./screens/RelationshipView";
+import { ReminderCreate } from "./screens/ReminderCreate";
+import { ReminderDelete } from "./screens/ReminderDelete";
+import { ReminderEdit } from "./screens/ReminderEdit";
+import { ReminderList } from "./screens/ReminderList";
 import { Settings } from "./screens/Settings";
 import { TagDelete } from "./screens/TagDelete";
 import { TagView } from "./screens/TagView";
@@ -698,6 +702,60 @@ async function relationshipRowDeleteAction({ params }: ActionFunctionArgs) {
  * react-router framework mode — the desktop client just swaps `createHashRouter`
  * (required under Electron's `file://` load) for the server entry.
  */
+/** Pull the editable reminder fields from a form; blank fields become null. */
+function readReminderInput(formData: FormData): {
+  title: string | null;
+  body: string | null;
+} {
+  const title = String(formData.get("title") ?? "").trim();
+  const body = String(formData.get("body") ?? "").trim();
+  return {
+    title: title.length > 0 ? title : null,
+    body: body.length > 0 ? body : null,
+  };
+}
+
+/** Fetch a reminder by id for the edit/remove screens (404 when missing). */
+async function reminderLoader({ params }: LoaderFunctionArgs) {
+  const reminder = await window.api.reminders.get(params.id as string);
+  if (!reminder) throw new Response("Reminder not found", { status: 404 });
+  return reminder;
+}
+
+/** Create a reminder; both fields blank is a no-op back to the list. */
+async function reminderCreateAction({ request }: ActionFunctionArgs) {
+  const input = readReminderInput(await request.formData());
+  if (input.title === null && input.body === null)
+    return redirect("/reminders");
+  await window.api.reminders.create(input);
+  return redirect("/reminders");
+}
+
+/** Save edits to a reminder — core re-derives its #tags from the new text. */
+async function reminderEditAction({ request, params }: ActionFunctionArgs) {
+  const input = readReminderInput(await request.formData());
+  if (input.title === null && input.body === null)
+    return redirect("/reminders");
+  await window.api.reminders.update(params.id as string, input);
+  return redirect("/reminders");
+}
+
+/** Remove a reminder. */
+async function reminderDeleteAction({ params }: ActionFunctionArgs) {
+  await window.api.reminders.softDelete(params.id as string);
+  return redirect("/reminders");
+}
+
+/** Toggle completion — posted by a list-row fetcher, so it revalidates in place. */
+async function reminderToggleAction({ request, params }: ActionFunctionArgs) {
+  const formData = await request.formData();
+  await window.api.reminders.setCompleted(
+    params.id as string,
+    String(formData.get("completed")) === "true",
+  );
+  return null;
+}
+
 const routes: RouteObject[] = [
   {
     path: "/",
@@ -730,6 +788,35 @@ const routes: RouteObject[] = [
           );
           return null;
         },
+      },
+      {
+        // Reminders — a standalone list of user-created reminders (the seed of the
+        // future home screen). #tags are parsed inline from the text in core.
+        path: "reminders",
+        loader: () => window.api.reminders.list(),
+        element: <ReminderList />,
+      },
+      {
+        path: "reminders/new",
+        element: <ReminderCreate />,
+        action: reminderCreateAction,
+      },
+      {
+        path: "reminders/:id/edit",
+        loader: reminderLoader,
+        element: <ReminderEdit />,
+        action: reminderEditAction,
+      },
+      {
+        path: "reminders/:id/delete",
+        loader: reminderLoader,
+        element: <ReminderDelete />,
+        action: reminderDeleteAction,
+      },
+      {
+        // Action-only: the list-row "Done/Reopen" fetcher posts here.
+        path: "reminders/:id/complete",
+        action: reminderToggleAction,
       },
       {
         path: "people/new",

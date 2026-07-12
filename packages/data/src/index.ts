@@ -28,6 +28,7 @@ export {
   createRelationshipsRepo,
 } from "./relationships-repo.js";
 export { type TagsRepo, createTagsRepo } from "./tags-repo.js";
+export { type RemindersRepo, createRemindersRepo } from "./reminders-repo.js";
 export {
   type Dismissal,
   type DismissalEndpoint,

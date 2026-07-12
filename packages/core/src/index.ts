@@ -12,6 +12,7 @@ import {
   createPeopleRepo,
   createPetsRepo,
   createRelationshipsRepo,
+  createRemindersRepo,
   createSearchService,
   createTagsRepo,
   listContactMethods,
@@ -27,6 +28,7 @@ import type {
   CreatePetInput,
   CreatePhoneInput,
   CreatePostalInput,
+  CreateReminderInput,
   CreateRelationshipInput,
   EmailAddress,
   EntityType,
@@ -40,6 +42,7 @@ import type {
   Relationship,
   RelationshipNeighbor,
   RelationshipRole,
+  Reminder,
   SearchHit,
   Tag,
   UpdateEmailInput,
@@ -48,6 +51,7 @@ import type {
   UpdatePetInput,
   UpdatePhoneInput,
   UpdatePostalInput,
+  UpdateReminderInput,
   UpdateRelationshipInput,
 } from "@leapsake/schema";
 import {
@@ -55,6 +59,7 @@ import {
   genderedVariant,
   impliedGender,
   inverseRole,
+  parseHashtags,
   roleDefs,
 } from "@leapsake/schema";
 import type { KeySession } from "./key-session.js";
@@ -190,6 +195,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
   const dismissals = createDismissalsRepo(driver);
   const notADuplicate = createNotADuplicateRepo(driver);
   const milestones = createMilestonesRepo(driver, cipher);
+  const reminders = createRemindersRepo(driver);
   const contactMethods = createContactMethodsRepo(driver);
   const kinship = createKinshipService(driver, {
     people,
@@ -497,6 +503,52 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         driver.transaction(() => milestones.update(id, input)),
       softDelete: (id: string): Promise<void> =>
         driver.transaction(() => milestones.softDelete(id)),
+    },
+
+    reminders: {
+      list: (): Promise<Reminder[]> => reminders.list(),
+      get: (id: string): Promise<Reminder | undefined> => reminders.get(id),
+      // The reminder text is the single source of truth for its #tags: on every
+      // create/update we re-parse `#tags` out of title+body and apply them under
+      // bearer type "reminder" (reusing the shared taggings graph). No separate
+      // tags field, and @mentions are a later increment (a distinct relationship).
+      create: (input: CreateReminderInput): Promise<Reminder> =>
+        driver.transaction(async () => {
+          const reminder = await reminders.create(input);
+          await tags.setEntityTags(
+            "reminder",
+            reminder.id,
+            parseHashtags(`${reminder.title ?? ""}\n${reminder.body ?? ""}`),
+          );
+          return reminder;
+        }),
+      update: (
+        id: string,
+        input: UpdateReminderInput,
+      ): Promise<Reminder | undefined> =>
+        driver.transaction(async () => {
+          const reminder = await reminders.update(id, input);
+          if (reminder) {
+            await tags.setEntityTags(
+              "reminder",
+              id,
+              parseHashtags(`${reminder.title ?? ""}\n${reminder.body ?? ""}`),
+            );
+          }
+          return reminder;
+        }),
+      // Reversible completion toggle: stamps/clears `completedAt`; text (and so
+      // its tags) is untouched, so no re-tagging needed.
+      setCompleted: (
+        id: string,
+        completed: boolean,
+      ): Promise<Reminder | undefined> =>
+        driver.transaction(() => reminders.setCompleted(id, completed)),
+      softDelete: (id: string): Promise<void> =>
+        driver.transaction(async () => {
+          await reminders.softDelete(id);
+          await tags.removeAllForEntity("reminder", id);
+        }),
     },
 
     contactMethods: {

@@ -35,6 +35,7 @@ describe("syncableRepos — the canonical allowlist", () => {
       "postal_addresses",
       "relationship_dismissals",
       "relationships",
+      "reminders",
       "taggings",
       "tags",
     ]);

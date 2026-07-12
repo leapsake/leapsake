@@ -47,6 +47,13 @@ export const API_CHANNELS = [
   "milestones.update",
   "milestones.softDelete",
 
+  "reminders.list",
+  "reminders.get",
+  "reminders.create",
+  "reminders.update",
+  "reminders.setCompleted",
+  "reminders.softDelete",
+
   "contactMethods.listForOwner",
   "contactMethods.emails.create",
   "contactMethods.emails.update",

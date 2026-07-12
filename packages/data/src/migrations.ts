@@ -473,6 +473,28 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 18,
+    async up(driver) {
+      // Reminders — user-generated freeform notes/tasks (plans/reminders.md), the
+      // seed of the future home screen. Plaintext row (no per-item content key);
+      // `#tags` ride the shared `taggings` table under bearer type "reminder".
+      // `completed_at` is null until marked done (a reversible toggle); `source`
+      // is "user" today, reserving "system" for the future automated increment.
+      await driver.exec(`
+        CREATE TABLE reminders (
+          id           TEXT    PRIMARY KEY,
+          title        TEXT,
+          body         TEXT,
+          completed_at INTEGER,
+          source       TEXT    NOT NULL,
+          created_at   INTEGER NOT NULL,
+          updated_at   INTEGER NOT NULL,
+          deleted_at   INTEGER
+        );
+      `);
+    },
+  },
 ];
 
 /**
