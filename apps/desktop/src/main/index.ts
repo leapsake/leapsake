@@ -92,6 +92,27 @@ function setActiveCore(session: KeySession | undefined): void {
   );
 }
 
+/**
+ * Reconcile the automated (`system`) reminders — upcoming birthdays — against the
+ * live core, then, only if anything actually changed, refresh the renderer in
+ * place and kick a sync so the rows propagate. Called at boot and on window focus
+ * (a new local day can bring a birthday into range). Best-effort: a failure here
+ * must never break launch, so it is logged and swallowed. `regenerateSystem` is
+ * not a sync-kicking mutation (it runs off a user write), hence the explicit kick.
+ */
+async function regenerateSystemReminders(): Promise<void> {
+  if (activeCore === undefined) return;
+  try {
+    const { created, removed } = await activeCore.reminders.regenerateSystem();
+    if (created > 0 || removed > 0) {
+      broadcastSyncActivity({ changed: true });
+      scheduler?.kick();
+    }
+  } catch (error) {
+    console.error("regenerate system reminders failed:", error);
+  }
+}
+
 /** Push a background-sync activity update to every renderer (so Settings can show
  *  "last synced" / a non-fatal error even when the sync wasn't button-initiated).
  *  `changed` signals a pull that applied records, so the renderer can revalidate
@@ -594,11 +615,14 @@ void app.whenReady().then(async () => {
   registerSyncIpc({ keyStore });
 
   scheduler.start(); // backstop interval
+  void regenerateSystemReminders(); // populate today's birthdays atop Home
   void scheduler.autoTrigger(); // initial on-launch sync (skipped if auto off)
 
   // Pull the peer's edits in the moment the user returns to the app — the cheap,
-  // event-driven companion to write-kicked pushes.
+  // event-driven companion to write-kicked pushes. Regenerating here too keeps a
+  // birthday appearing the day it comes into range without a restart.
   app.on("browser-window-focus", () => {
+    void regenerateSystemReminders();
     void scheduler?.autoTrigger();
   });
 

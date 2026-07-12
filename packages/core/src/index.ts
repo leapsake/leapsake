@@ -62,7 +62,9 @@ import {
   inverseRole,
   parseHashtags,
   roleDefs,
+  todayCivil,
 } from "@leapsake/schema";
+import { regenerateSystemReminders } from "@leapsake/reminders";
 import type { KeySession } from "./key-session.js";
 import { createViews } from "./views.js";
 
@@ -572,6 +574,32 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         driver.transaction(async () => {
           await reminders.softDelete(id);
           await tags.removeAllForEntity("reminder", id);
+        }),
+      // The composition root for automated (`system`) reminders: construct the
+      // `@leapsake/reminders` engine over the real repos + this core's own
+      // `resolveLabel`, and reconcile today's upcoming birthdays. "Today" is the
+      // local civil date (a calendar event fires on the user's day). Called at
+      // boot/focus, not through a user write — so it is deliberately *not* a
+      // sync-kicking mutation; the caller triggers the refresh/sync path once.
+      regenerateSystem: (): Promise<{ created: number; removed: number }> =>
+        regenerateSystemReminders({
+          milestones: {
+            listRemindEligible: () => milestones.listRemindEligible(),
+          },
+          reminders: {
+            getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
+            insert: (row) => reminders.insert(row),
+            listWhere: (query) => reminders.listWhere(query),
+            softDelete: (id) => reminders.softDelete(id),
+          },
+          // Birthdays only bear on a person/pet; a relationship bearer (future
+          // kinds) has no single label, so it's skipped rather than mislabelled.
+          resolveLabel: async (bearerType, bearerId) =>
+            bearerType === "relationship"
+              ? null
+              : ((await resolveLabel(bearerType, bearerId)) ?? null),
+          today: todayCivil(),
+          transaction: (body) => driver.transaction(body),
         }),
     },
 
