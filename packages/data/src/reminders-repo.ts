@@ -42,6 +42,7 @@ export function createRemindersRepo(driver: SqliteDriver): RemindersRepo {
       const {
         title = null,
         body = null,
+        dueDate = null,
         source = "user",
       } = createReminderInputSchema.parse(input);
       const now = Date.now();
@@ -50,6 +51,7 @@ export function createRemindersRepo(driver: SqliteDriver): RemindersRepo {
         title,
         body,
         completedAt: null,
+        dueDate,
         source,
         createdAt: now,
         updatedAt: now,

@@ -8,6 +8,7 @@ import {
 const base = {
   id: crypto.randomUUID(),
   completedAt: null,
+  dueDate: null,
   source: "user" as const,
   createdAt: 1,
   updatedAt: 1,

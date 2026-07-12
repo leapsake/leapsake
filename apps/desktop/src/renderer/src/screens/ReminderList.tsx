@@ -1,4 +1,8 @@
-import type { ReminderWithTags } from "@leapsake/schema";
+import {
+  type ReminderWithTags,
+  compareReminderDue,
+  formatDueIn,
+} from "@leapsake/schema";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
 import { ReminderText } from "../components/ReminderText";
 
@@ -27,6 +31,13 @@ function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
       <span style={strike}>
         <ReminderText text={heading} tags={reminder.tags} />
       </span>{" "}
+      {reminder.dueDate !== null && (
+        <>
+          <small style={{ color: "#666" }}>
+            {formatDueIn(reminder.dueDate)}
+          </small>{" "}
+        </>
+      )}
       <Link to={`/reminders/${reminder.id}/edit`}>Edit</Link>{" "}
       <Link to={`/reminders/${reminder.id}/delete`}>Remove</Link>
       {reminder.title !== null && reminder.body !== null && (
@@ -45,7 +56,11 @@ function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
  */
 export function ReminderList() {
   const reminders = useLoaderData() as ReminderWithTags[];
-  const open = reminders.filter((r) => r.completedAt === null);
+  // Open reminders lead, soonest due first (undated sink below); completed ones
+  // keep the repo's newest-first order in the disclosure below.
+  const open = reminders
+    .filter((r) => r.completedAt === null)
+    .sort(compareReminderDue);
   const done = reminders.filter((r) => r.completedAt !== null);
 
   return (

@@ -161,6 +161,17 @@ export type {
 } from "./duplicate-score.js";
 export { parseBirthdayQuery } from "./birthday-query.js";
 export type { PartialDate } from "./birthday-query.js";
+export {
+  todayCivil,
+  daysUntil,
+  dueDateMs,
+  civilFromDueMs,
+  dueMsFromIso,
+  isoFromDueMs,
+  formatDueIn,
+  compareReminderDue,
+} from "./reminder-schedule.js";
+export type { CivilDate } from "./reminder-schedule.js";
 export { contactCountryOptions, countryFlag } from "./countries.js";
 export type { CountryOption } from "./countries.js";
 export type {
