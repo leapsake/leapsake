@@ -29,7 +29,11 @@ function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
         <button type="submit">{done ? "Reopen" : "Done"}</button>
       </fetcher.Form>{" "}
       <span style={strike}>
-        <ReminderText text={heading} tags={reminder.tags} />
+        <ReminderText
+          text={heading}
+          tags={reminder.tags}
+          mentions={reminder.mentions}
+        />
       </span>{" "}
       {reminder.dueDate !== null && (
         <>
@@ -42,7 +46,11 @@ function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
       <Link to={`/reminders/${reminder.id}/delete`}>Remove</Link>
       {reminder.title !== null && reminder.body !== null && (
         <div style={strike}>
-          <ReminderText text={reminder.body} tags={reminder.tags} />
+          <ReminderText
+            text={reminder.body}
+            tags={reminder.tags}
+            mentions={reminder.mentions}
+          />
         </div>
       )}
     </li>

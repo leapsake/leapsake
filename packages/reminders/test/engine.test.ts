@@ -3,6 +3,7 @@ import {
   type RemindEligibleMilestone,
   type Reminder,
   dueDateMs,
+  mentionToken,
 } from "@leapsake/schema";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -98,7 +99,10 @@ describe("regenerateSystemReminders", () => {
 
     const [reminder] = h.activeSystem();
     expect(reminder.source).toBe("system");
-    expect(reminder.title).toBe("🎂 Alice's birthday");
+    // The subject is wrapped in an inline mention token pointing at the person.
+    expect(reminder.title).toBe(
+      `🎂 ${mentionToken("Alice", "person", "p1")}'s birthday`,
+    );
     expect(reminder.body).toBeNull();
     expect(reminder.completedAt).toBeNull();
     expect(reminder.dueDate).toBe(dueDateMs(daysOut(10)));

@@ -10,6 +10,8 @@ import {
   type Milestone,
   civilFromDueMs,
   daysUntil,
+  mentionToken,
+  reminderLabel,
   todayCivil,
 } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -65,11 +67,46 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     expect(result).toEqual({ created: 1, removed: 0 });
 
     const [reminder] = await systemReminders();
-    // The label is the person's full display name (via core.resolveLabel).
-    expect(reminder.title).toBe("🎂 Alice Ng's birthday");
+    // The subject is wrapped in an inline mention token carrying the person id, so
+    // the name links to her page; the plain-text label strips back to her name.
+    expect(reminder.title).toBe(
+      `🎂 ${mentionToken("Alice Ng", "person", alice.id)}'s birthday`,
+    );
+    expect(reminderLabel(reminder)).toBe("🎂 Alice Ng's birthday");
+    // Core resolves the mention to the person's current label for the renderer.
+    expect(reminder.mentions).toEqual([
+      { targetType: "person", targetId: alice.id, label: "Alice Ng" },
+    ]);
     expect(reminder.dueDate).not.toBeNull();
     // Dated exactly 10 civil days out, so the client shows "in 10 days".
     expect(daysUntil(todayCivil(), civilFromDueMs(reminder.dueDate!))).toBe(10);
+  });
+
+  it("relabels the birthday mention live when the person is renamed", async () => {
+    const alice = await core.people.create(
+      { firstName: "Alice", middleName: null, lastName: "Ng", gender: null },
+      [],
+    );
+    const soon = civilDaysFromToday(6);
+    await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: alice.id,
+      month: soon.month,
+      day: soon.day,
+    });
+    await core.reminders.regenerateSystem();
+
+    await core.people.update(
+      alice.id,
+      { firstName: "Alicia", middleName: null, lastName: "Ng", gender: null },
+      [],
+    );
+
+    // The stored title is frozen (the engine never rewrites it), but the resolved
+    // mention re-reads the current label, so the link renders "Alicia Ng".
+    const [reminder] = await systemReminders();
+    expect(reminder.mentions[0].label).toBe("Alicia Ng");
   });
 
   it("is idempotent across runs (no duplicates, stable id)", async () => {

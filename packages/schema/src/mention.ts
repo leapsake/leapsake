@@ -83,3 +83,56 @@ export function plainMentionText(text: string): string {
     (_match, display: string) => display,
   );
 }
+
+/**
+ * One piece of freeform reminder text: a run of ordinary prose, an inline `#tag`,
+ * or an `@mention`. The `text` is always the exact source substring (so the
+ * pieces concatenate back to the input); a renderer shows a hashtag's `text`
+ * verbatim as its link label, but a mention's live/looked-up label in place of
+ * `text` (falling back to `displayName`, the write-time snapshot in the token).
+ */
+export type AnnotatedSegment =
+  | { kind: "text"; text: string }
+  | { kind: "hashtag"; text: string; tagName: string }
+  | {
+      kind: "mention";
+      text: string;
+      displayName: string;
+      targetType: EntityType;
+      targetId: string;
+    };
+
+/**
+ * Split freeform text into ordered {@link AnnotatedSegment}s, marking each inline
+ * `#tag` and `@mention` in a **single** pass so the two never mis-nest. It unions
+ * the very patterns {@link ./tag.js parseHashtags} and {@link parseMentions} use,
+ * so the marked runs are exactly the tokens that became stored taggings/mentions
+ * — the shared render seam for both apps' `ReminderText`. Platform-agnostic (no
+ * DOM / RN), directly unit-testable; the empty string → `[]`.
+ */
+export function splitAnnotatedText(text: string): AnnotatedSegment[] {
+  const segments: AnnotatedSegment[] = [];
+  let last = 0;
+  for (const match of text.matchAll(
+    /#([\p{L}\p{N}]+)|@\[([^\]]+)\]\((person|pet):([0-9a-fA-F-]{36})\)/gu,
+  )) {
+    const start = match.index;
+    if (start > last)
+      segments.push({ kind: "text", text: text.slice(last, start) });
+    if (match[1] !== undefined) {
+      segments.push({ kind: "hashtag", text: match[0], tagName: match[1] });
+    } else {
+      segments.push({
+        kind: "mention",
+        text: match[0],
+        displayName: match[2],
+        targetType: match[3] as EntityType,
+        targetId: match[4],
+      });
+    }
+    last = start + match[0].length;
+  }
+  if (last < text.length)
+    segments.push({ kind: "text", text: text.slice(last) });
+  return segments;
+}

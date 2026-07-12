@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mentionToken, parseMentions, plainMentionText } from "./mention.js";
+import {
+  mentionToken,
+  parseMentions,
+  plainMentionText,
+  splitAnnotatedText,
+} from "./mention.js";
 
 const ALICE = "6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
 const REX = "11111111-2222-4333-8444-555555555555";
@@ -62,5 +67,39 @@ describe("plainMentionText", () => {
     expect(once).toBe("hi Rex");
     expect(plainMentionText(once)).toBe("hi Rex");
     expect(plainMentionText("just prose #tag")).toBe("just prose #tag");
+  });
+});
+
+describe("splitAnnotatedText", () => {
+  it("marks #tags and @mentions in one pass, prose between them plain", () => {
+    const text = `🎂 ${mentionToken("Alice Ng", "person", ALICE)}'s day #party`;
+    expect(splitAnnotatedText(text)).toEqual([
+      { kind: "text", text: "🎂 " },
+      {
+        kind: "mention",
+        text: mentionToken("Alice Ng", "person", ALICE),
+        displayName: "Alice Ng",
+        targetType: "person",
+        targetId: ALICE,
+      },
+      { kind: "text", text: "'s day " },
+      { kind: "hashtag", text: "#party", tagName: "party" },
+    ]);
+  });
+
+  it("preserves the original string when the segment texts are concatenated", () => {
+    const text = `call ${mentionToken("Rex", "pet", REX)} #now, then rest`;
+    expect(
+      splitAnnotatedText(text)
+        .map((s) => s.text)
+        .join(""),
+    ).toBe(text);
+  });
+
+  it("returns a single plain segment when there are no tokens, and [] for empty", () => {
+    expect(splitAnnotatedText("buy milk")).toEqual([
+      { kind: "text", text: "buy milk" },
+    ]);
+    expect(splitAnnotatedText("")).toEqual([]);
   });
 });

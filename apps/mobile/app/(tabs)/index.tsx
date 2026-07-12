@@ -112,6 +112,7 @@ function ReminderRow({
       <ReminderText
         text={heading}
         tags={reminder.tags}
+        mentions={reminder.mentions}
         style={[styles.rowText, strike]}
         onPressText={open}
       />
@@ -119,6 +120,7 @@ function ReminderRow({
         <ReminderText
           text={reminder.body}
           tags={reminder.tags}
+          mentions={reminder.mentions}
           style={[styles.muted, strike]}
           onPressText={open}
         />

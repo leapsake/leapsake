@@ -81,6 +81,7 @@ export default function ReminderDetailScreen() {
           <ReminderText
             text={reminder.title}
             tags={reminder.tags}
+            mentions={reminder.mentions}
             style={styles.fieldValue}
           />
         </View>
@@ -91,6 +92,7 @@ export default function ReminderDetailScreen() {
           <ReminderText
             text={reminder.body}
             tags={reminder.tags}
+            mentions={reminder.mentions}
             style={styles.fieldValue}
           />
         </View>
