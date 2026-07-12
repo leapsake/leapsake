@@ -44,8 +44,9 @@ export {
   normalizeTagName,
   parseTagNames,
   parseHashtags,
+  splitHashtags,
 } from "./tag.js";
-export type { Tag } from "./tag.js";
+export type { Tag, HashtagSegment } from "./tag.js";
 export {
   reminderSchema,
   reminderSourceSchema,
@@ -55,6 +56,7 @@ export {
 } from "./reminder.js";
 export type {
   Reminder,
+  ReminderWithTags,
   ReminderSource,
   CreateReminderInput,
   UpdateReminderInput,

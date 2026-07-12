@@ -7,8 +7,9 @@ import {
   Text,
   View,
 } from "react-native";
-import { Link } from "expo-router";
-import { type Reminder, reminderLabel } from "@leapsake/schema";
+import { useRouter } from "expo-router";
+import { type ReminderWithTags, reminderLabel } from "@leapsake/schema";
+import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
@@ -64,11 +65,19 @@ function ReminderRow({
   reminder,
   reload,
 }: {
-  reminder: Reminder;
+  reminder: ReminderWithTags;
   reload: () => Promise<void>;
 }) {
   const core = useCore();
+  const router = useRouter();
   const done = reminder.completedAt !== null;
+  const strike = done
+    ? { textDecorationLine: "line-through" as const, color: colors.muted }
+    : undefined;
+  // Title leads; the body shows underneath as details. With no title the body
+  // *is* the heading, so it isn't repeated below.
+  const heading = reminder.title ?? reminder.body ?? "";
+  const open = () => router.push(`/reminders/${reminder.id}`);
 
   function toggle() {
     core.reminders.setCompleted(reminder.id, !done).then(
@@ -94,16 +103,20 @@ function ReminderRow({
 
   return (
     <View style={styles.row}>
-      <Link href={`/reminders/${reminder.id}`}>
-        <Text
-          style={[
-            styles.rowText,
-            done && { textDecorationLine: "line-through", color: colors.muted },
-          ]}
-        >
-          {reminderLabel(reminder)}
-        </Text>
-      </Link>
+      <ReminderText
+        text={heading}
+        tags={reminder.tags}
+        style={[styles.rowText, strike]}
+        onPressText={open}
+      />
+      {reminder.title !== null && reminder.body !== null && (
+        <ReminderText
+          text={reminder.body}
+          tags={reminder.tags}
+          style={[styles.muted, strike]}
+          onPressText={open}
+        />
+      )}
       <View style={styles.rowMeta}>
         <View />
         <View style={styles.rowActions}>

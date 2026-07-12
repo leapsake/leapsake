@@ -1,10 +1,20 @@
-import { type Reminder, reminderLabel } from "@leapsake/schema";
+import type { ReminderWithTags } from "@leapsake/schema";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
+import { ReminderText } from "../components/ReminderText";
 
-/** One reminder row: a done/reopen toggle plus its label and edit/remove links. */
-function ReminderRow({ reminder }: { reminder: Reminder }) {
+/**
+ * One reminder row: a done/reopen toggle, the reminder's heading, its edit/remove
+ * links, and — when the reminder has both — its body shown underneath as details.
+ * The title leads; if there's no title the body *is* the heading, so it isn't
+ * repeated below. Inline `#tags` in either field link to their tag pages.
+ */
+function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
   const fetcher = useFetcher();
   const done = reminder.completedAt !== null;
+  const strike = done
+    ? { textDecoration: "line-through" as const }
+    : undefined;
+  const heading = reminder.title ?? reminder.body ?? "";
 
   return (
     <li>
@@ -16,22 +26,27 @@ function ReminderRow({ reminder }: { reminder: Reminder }) {
         <input type="hidden" name="completed" value={done ? "false" : "true"} />
         <button type="submit">{done ? "Reopen" : "Done"}</button>
       </fetcher.Form>{" "}
-      <span style={{ textDecoration: done ? "line-through" : undefined }}>
-        {reminderLabel(reminder)}
+      <span style={strike}>
+        <ReminderText text={heading} tags={reminder.tags} />
       </span>{" "}
       <Link to={`/reminders/${reminder.id}/edit`}>Edit</Link>{" "}
       <Link to={`/reminders/${reminder.id}/delete`}>Remove</Link>
+      {reminder.title !== null && reminder.body !== null && (
+        <div style={strike}>
+          <ReminderText text={reminder.body} tags={reminder.tags} />
+        </div>
+      )}
     </li>
   );
 }
 
 /**
- * The Reminders screen — a standalone list of user-created reminders (the seed of
- * the future home screen). Open reminders lead; completed ones collapse into a
- * details disclosure below.
+ * The Reminders screen — the app's home: a standalone list of user-created
+ * reminders. Open reminders lead; completed ones collapse into a details
+ * disclosure below.
  */
 export function ReminderList() {
-  const reminders = useLoaderData() as Reminder[];
+  const reminders = useLoaderData() as ReminderWithTags[];
   const open = reminders.filter((r) => r.completedAt === null);
   const done = reminders.filter((r) => r.completedAt !== null);
 

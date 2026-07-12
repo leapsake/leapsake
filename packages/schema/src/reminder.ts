@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Tag } from "./tag.js";
 
 /**
  * Where a reminder came from. `user` is everything today — hand-created by the
@@ -45,6 +46,14 @@ export const reminderSchema = z
   });
 
 export type Reminder = z.infer<typeof reminderSchema>;
+
+/**
+ * A reminder joined with the tags parsed from its text — each carrying the id the
+ * tag was resolved/created under, so a renderer can link an inline `#tag` (see
+ * {@link splitHashtags}) to its tag page. Core populates this on reads; the text
+ * remains the single source of truth for *which* tags exist.
+ */
+export type ReminderWithTags = Reminder & { tags: Tag[] };
 
 /** The optional text fields shared by create/update inputs. */
 const textShape = {

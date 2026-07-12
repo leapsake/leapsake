@@ -43,6 +43,7 @@ import type {
   RelationshipNeighbor,
   RelationshipRole,
   Reminder,
+  ReminderWithTags,
   SearchHit,
   Tag,
   UpdateEmailInput,
@@ -506,8 +507,24 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     },
 
     reminders: {
-      list: (): Promise<Reminder[]> => reminders.list(),
-      get: (id: string): Promise<Reminder | undefined> => reminders.get(id),
+      // Reads join each reminder with its #tags (resolved to their tag rows), so
+      // a client can link the inline hashtags in the text to their tag pages. The
+      // text stays the source of truth for *which* tags exist (see create/update);
+      // this only attaches the ids they were stored under.
+      list: async (): Promise<ReminderWithTags[]> => {
+        const rows = await reminders.list();
+        return Promise.all(
+          rows.map(async (r) => ({
+            ...r,
+            tags: await tags.listForEntity("reminder", r.id),
+          })),
+        );
+      },
+      get: async (id: string): Promise<ReminderWithTags | undefined> => {
+        const reminder = await reminders.get(id);
+        if (!reminder) return undefined;
+        return { ...reminder, tags: await tags.listForEntity("reminder", id) };
+      },
       // The reminder text is the single source of truth for its #tags: on every
       // create/update we re-parse `#tags` out of title+body and apply them under
       // bearer type "reminder" (reusing the shared taggings graph). No separate
