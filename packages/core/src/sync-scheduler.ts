@@ -183,7 +183,8 @@ export function createSyncScheduler(opts: {
  * read and passes through untouched. Pinned by `with-sync-kick.test.ts` so a new
  * write method can't silently bypass background sync.
  */
-const MUTATING_METHOD = /^(create|update|edit|softDelete|dismiss|undismiss)/;
+const MUTATING_METHOD =
+  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted)/;
 
 /**
  * Wrap a {@link CoreApi}-shaped object so that every mutating method calls `kick`
