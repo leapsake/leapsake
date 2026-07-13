@@ -1,0 +1,16 @@
+{
+  "name": "@leapsake/reminders",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@leapsake/crypto": "workspace:*",
+    "@leapsake/schema": "workspace:*"
+  }
+}
