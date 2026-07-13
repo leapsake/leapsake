@@ -13,6 +13,8 @@
  * `birthday-query.ts`; the later automated-reminder engine builds on it.
  */
 
+import { type MilestoneKind, kindDefs } from "./milestone.js";
+
 /** A calendar date with no time-of-day: `month` is 1–12, `day` is 1–31. */
 export interface CivilDate {
   year: number;
@@ -109,4 +111,69 @@ export function compareReminderDue(
     return a.dueDate - b.dueDate; // soonest first
   }
   return b.createdAt - a.createdAt; // newest first
+}
+
+/** The proleptic-Gregorian leap-year test, so Feb-29 can be clamped correctly. */
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+/**
+ * A milestone's partial date, as {@link nextOccurrence} reads it: the same
+ * individually-nullable parts a `Milestone` carries. A concrete calendar day
+ * needs **both** a month and a day; the year is used only to place a *one-time*
+ * event and is ignored for a recurring one (whose anchor year, if any, is just
+ * the first occurrence).
+ */
+export interface OccurrenceParts {
+  year: number | null;
+  month: number | null;
+  day: number | null;
+}
+
+/**
+ * The next calendar day a milestone "happens", relative to `today`, or `null`
+ * when it has no upcoming concrete day. This is the date-anchoring the automated
+ * reminder engine schedules against, kept here beside the rest of the civil-date
+ * math and unit-tested in isolation.
+ *
+ * The rule depends on whether the kind **recurs annually** (`kindDefs`):
+ *
+ * - **Recurring** (birthdays, anniversaries): the next occurrence of `(month,
+ *   day)` on or after today — this year's if it hasn't passed, otherwise next
+ *   year's. The year on the parts is irrelevant. A **Feb-29** date falls back to
+ *   **Feb-28** in a non-leap target year (the pragmatic convention — mark it on
+ *   the 28th rather than skip three years in four).
+ * - **One-time** (graduation, a job start): the event's own date, but only if it
+ *   is today or still in the future; a past one-time event returns `null` (it
+ *   won't happen again). A one-time event needs a *full* date — with no year
+ *   there is nothing to place, so it returns `null`.
+ *
+ * Either way, a date with no month **or** no day (`none` / `year` / `year-month`
+ * precision) has no concrete day and returns `null`.
+ */
+export function nextOccurrence(
+  kind: MilestoneKind,
+  parts: OccurrenceParts,
+  today: CivilDate,
+): CivilDate | null {
+  const { month, day } = parts;
+  if (month === null || day === null) return null; // no concrete calendar day
+
+  // Feb-29 → Feb-28 in a non-leap year, so the occurrence lands on a real day.
+  const clampToYear = (year: number): CivilDate =>
+    month === 2 && day === 29 && !isLeapYear(year)
+      ? { year, month: 2, day: 28 }
+      : { year, month, day };
+
+  if (kindDefs[kind].recursAnnually) {
+    const thisYear = clampToYear(today.year);
+    if (daysUntil(today, thisYear) >= 0) return thisYear;
+    return clampToYear(today.year + 1);
+  }
+
+  // One-time: needs a concrete year to place, and only counts if not yet past.
+  if (parts.year === null) return null;
+  const occ = clampToYear(parts.year);
+  return daysUntil(today, occ) >= 0 ? occ : null;
 }

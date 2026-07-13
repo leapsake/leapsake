@@ -116,6 +116,7 @@ export type {
   MilestoneKind,
   MilestoneKindDef,
   Milestone,
+  RemindEligibleMilestone,
   MilestoneTimelineEntry,
   CreateMilestoneInput,
   UpdateMilestoneInput,
@@ -170,8 +171,9 @@ export {
   isoFromDueMs,
   formatDueIn,
   compareReminderDue,
+  nextOccurrence,
 } from "./reminder-schedule.js";
-export type { CivilDate } from "./reminder-schedule.js";
+export type { CivilDate, OccurrenceParts } from "./reminder-schedule.js";
 export { contactCountryOptions, countryFlag } from "./countries.js";
 export type { CountryOption } from "./countries.js";
 export type {

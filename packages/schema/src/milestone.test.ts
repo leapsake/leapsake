@@ -3,6 +3,7 @@ import {
   createMilestoneInputSchema,
   datePrecisionOf,
   formatMilestoneDate,
+  kindDefs,
   kindsForBearerType,
   milestoneLabel,
   milestoneSchema,
@@ -149,6 +150,15 @@ describe("kind registry", () => {
   it("reports the preferred bearer type per kind", () => {
     expect(preferredBearerType("birthday")).toBe("person");
     expect(preferredBearerType("first-date")).toBe("relationship");
+  });
+
+  it("reminds by default only for birthdays (death included in the off set)", () => {
+    expect(kindDefs.birthday.remindByDefault).toBe(true);
+    const remindingKinds = (
+      Object.keys(kindDefs) as (keyof typeof kindDefs)[]
+    ).filter((kind) => kindDefs[kind].remindByDefault);
+    expect(remindingKinds).toEqual(["birthday"]);
+    expect(kindDefs.death.remindByDefault).toBe(false);
   });
 });
 
