@@ -61,6 +61,31 @@ The three biggest deferred items are now shipped — Home is no longer empty for
   reconcile), so the *content* edit is refused for `source: "system"` (`isReminderEditable`);
   completing / reopening and deleting stay open. A future sub-reminder attaches through its own path.
 
+## Since then (mention *authoring* — the loop is closed)
+
+A user can now **create** a mention, not just receive machine-generated ones. Until now the
+`@mention` substrate was fully built but the composer only took free text + inline `#tags`, so
+every mention in the system was birthday-engine output. An `@`-triggered People/Pets **picker** in
+the reminder form now inserts the token for you — the last missing piece of decision 3.
+
+- **Two pure helpers** carry the text logic (`schema/src/mention.ts`, unit-tested alongside the
+  grammar): `activeMentionQuery(text, caret)` finds the active `@`-fragment at the caret (opens at
+  string start / after whitespace, spans the spaces in a name, refuses to overlap an existing token),
+  and `insertMention(text, caret, mention)` splices the `@[Name](type:id)` token in and returns the
+  new text + caret. The `mentionToken` doc-comment had anticipated exactly this reuse.
+- **Thin per-client pickers** wrap Title *and* Details: a controlled `MentionTextField`
+  (`apps/desktop/.../components/MentionTextField.tsx`, `apps/mobile/components/MentionTextField.tsx`)
+  tracks the caret, calls the helpers, queries **`core.search.query`** (desktop `window.api.search`)
+  debounced, filters hits to **person/pet** (tag hits excluded — a mention only references a
+  person/pet), and on pick splices the token + closes. The desktop form's Title/Details became
+  **controlled** to allow the splice but keep their `name="title"/"body"` so the route action reads
+  them from `FormData` unchanged; mobile was already controlled and nudges the caret past the token
+  via a one-shot `selection`.
+- **Purely a compose-surface affordance** — no schema / migration / sync / IPC / core-write change.
+  The write path already re-derives mentions from the saved text, so the inserted token flows through
+  the existing reconcile, forward links, and "Mentioned in" backlink untouched. The token shows as
+  literal text in the field, exactly like an inline `#tag`.
+
 ## The decisions (pinned)
 
 1. **Plaintext syncable rows — not per-item content keys.** Reminders aren't a
@@ -76,7 +101,8 @@ The three biggest deferred items are now shipped — Home is no longer empty for
    **`Tag`** label (deduped); a mention points at a specific **Person/Pet**
    identity (its own page/merges). Mentions are therefore a **separate relationship**
    (the `mentions` table referencing entity ids), *not* a tagging — a sibling
-   inline-reference feature. **Now built** (see *Since then*). See `product-truths.md`.
+   inline-reference feature. **Now built end-to-end** — substrate, rendering, backlinks, merge/delete,
+   *and* authoring (see *Since then*). See `product-truths.md`.
 4. **`source` enum (`user` | `system`), default `user`.** `system` is **now live**
    (birthday reminders, whose text is engine-owned); user reminders stay `user`. The
    enum meant the automated increment needed no schema change — as intended.
@@ -87,13 +113,11 @@ The three biggest deferred items are now shipped — Home is no longer empty for
 
 ## Deferred / next (all additive)
 
-- **Mention *authoring* (the next step).** The `@mention` substrate, rendering, backlinks, and
-  merge/delete wiring are all built — but the composer only takes free text + inline `#tags`, so
-  **a user cannot author a mention today**; only the birthday engine emits them. Next increment: an
-  `@`-triggered People/Pets **picker** in the reminder form that inserts a `@[Name](type:id)` token,
-  reusing `core.search.query` (the folded matcher). The write path already re-derives mentions from
-  the text, so this is purely a compose-surface affordance on both clients. Pairs with **`#tag`
-  autocomplete** on the same surface (the former "Autocomplete (v2)" item).
+- **`#tag` autocomplete (the next step).** With the `@mention` picker shipped (see *Since then*), the
+  natural pairing on the same compose surface is an inline `#tag` typeahead — reusing the same
+  caret-fragment approach against the existing tag list (the former "Autocomplete (v2)" item). Unlike
+  a mention, a `#tag` needs no id resolution (the bare word *is* the tag), so it's a lighter variant
+  of the machinery `MentionTextField` already establishes.
 - **Onboarding-as-reminders** — surface first-run setup *as* reminders (e.g. "Already using
   Leapsake on another device?" as the first-run sync entry point). Fills the empty Home a brand-new
   user (no contacts, no upcoming birthdays) still sees. *(Reminders becoming "Home" itself is done.)*
