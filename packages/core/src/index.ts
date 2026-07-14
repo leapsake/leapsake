@@ -486,7 +486,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
             "mergePeople: survivor and loser are the same person",
           );
         }
-        return driver.transaction(async () => {
+        await driver.transaction(async () => {
           await tags.repointEntity("person", loserId, survivorId);
           await relationships.repointEntity("person", loserId, survivorId);
           await dismissals.repointEntity("person", loserId, survivorId);
@@ -500,6 +500,11 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           await people.update(survivorId, {});
           await people.softDelete(loserId);
         });
+        // The loser's birthday milestone now bears the survivor, but its reminder
+        // still carries the loser's baked-in name + @mention (now a dead link, the
+        // loser being tombstoned). Reconcile so it re-titles onto the survivor and
+        // re-points its mention backlink — same drift-repair a rename triggers.
+        await regenerateSystem();
       },
     },
 

@@ -298,4 +298,46 @@ describe("milestone writes reconcile birthday reminders at once", () => {
     await core.people.softDelete(person.id);
     expect(await systemReminders()).toHaveLength(0);
   });
+
+  it("re-points a merged-in birthday reminder onto the survivor", async () => {
+    const survivor = await core.people.create(
+      { firstName: "Sam", middleName: null, lastName: "Sur", gender: null },
+      [],
+    );
+    const loser = await core.people.create(
+      { firstName: "Lee", middleName: null, lastName: "Los", gender: null },
+      [],
+    );
+    // The birthday (and so its reminder) belongs to the loser before the merge.
+    const occ = civilDaysFromToday(7);
+    await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: loser.id,
+      month: occ.month,
+      day: occ.day,
+    });
+    const [before] = await core.reminders.mentioning("person", loser.id);
+    expect(before).toBeDefined();
+
+    await core.people.merge(survivor.id, loser.id);
+
+    // Still one birthday reminder (same id — the milestone was repointed, not
+    // re-created), now backlinking the survivor and not the tombstoned loser.
+    const [reminder] = await systemReminders();
+    expect(reminder.id).toBe(before.id);
+    expect(
+      (await core.reminders.mentioning("person", survivor.id)).map((r) => r.id),
+    ).toEqual([reminder.id]);
+    expect(await core.reminders.mentioning("person", loser.id)).toEqual([]);
+
+    // Its title + resolved mention now name the survivor, not the dead loser.
+    expect(reminder.title).toBe(
+      `🎂 ${mentionToken("Sam Sur", "person", survivor.id)}'s birthday`,
+    );
+    const resolved = await core.reminders.get(reminder.id);
+    expect(resolved?.mentions).toEqual([
+      { targetType: "person", targetId: survivor.id, label: "Sam Sur" },
+    ]);
+  });
 });
