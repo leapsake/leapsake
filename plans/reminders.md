@@ -86,6 +86,29 @@ the reminder form now inserts the token for you — the last missing piece of de
   the existing reconcile, forward links, and "Mentioned in" backlink untouched. The token shows as
   literal text in the field, exactly like an inline `#tag`.
 
+## Since then (`#tag` autocomplete — the compose surface is complete)
+
+The sibling affordance of the mention picker: typing `#` then a word in Title or Details now offers a
+typeahead of **existing tags**, on both clients. It's the lighter twin decision 3 predicted — a
+`#tag` needs no id resolution (the bare word *is* the tag), so it's purely a compose-surface helper
+with **no** schema / migration / sync / IPC / core-write change; `parseHashtags` still re-derives the
+taggings from the saved text on every write.
+
+- **Two pure helpers** sit beside the mention ones in `schema/src/mention.ts` (they share the
+  mention-token guard), unit-tested next to the tag grammar they mirror: `activeHashtagQuery(text,
+  caret)` finds the active `#`-fragment — a *single* `[\p{L}\p{N}]` token, so unlike a mention it
+  ends at the first non-alphanumeric char — and `insertHashtag(text, caret, tagName)` splices `#name`
+  in (trailing space, caret past it). A `#` inside a mention token's display name is left alone.
+- **Folded into the same `MentionTextField`** rather than a second overlapping field — a reminder
+  wants both `@mentions` and `#tags` in the same fields. All the plumbing is shared; only four things
+  branch on which trigger the caret sits in (resolved by *nearest* trigger, since a mention fragment
+  spans spaces and can overlap a later `#`): which detector runs, how the query is derived, which hits
+  are kept (person/pet vs **`tag`**), and which insert helper fires. Tag hits render with the `#`
+  sigil, mirroring `SearchBar`.
+- **Suggestions are existing tags only** (`core.search.query`, filtered to `entityType: "tag"`, which
+  surfaces only tags with ≥1 bearer). A brand-new tag simply has no suggestion and is created on save
+  exactly as before — the picker never blocks free typing.
+
 ## The decisions (pinned)
 
 1. **Plaintext syncable rows — not per-item content keys.** Reminders aren't a
@@ -113,14 +136,10 @@ the reminder form now inserts the token for you — the last missing piece of de
 
 ## Deferred / next (all additive)
 
-- **`#tag` autocomplete (the next step).** With the `@mention` picker shipped (see *Since then*), the
-  natural pairing on the same compose surface is an inline `#tag` typeahead — reusing the same
-  caret-fragment approach against the existing tag list (the former "Autocomplete (v2)" item). Unlike
-  a mention, a `#tag` needs no id resolution (the bare word *is* the tag), so it's a lighter variant
-  of the machinery `MentionTextField` already establishes.
-- **Onboarding-as-reminders** — surface first-run setup *as* reminders (e.g. "Already using
-  Leapsake on another device?" as the first-run sync entry point). Fills the empty Home a brand-new
-  user (no contacts, no upcoming birthdays) still sees. *(Reminders becoming "Home" itself is done.)*
+- **Onboarding-as-reminders (the next step).** Surface first-run setup *as* reminders (e.g. "Already
+  using Leapsake on another device?" as the first-run sync entry point). Fills the empty Home a
+  brand-new user (no contacts, no upcoming birthdays) still sees. *(Reminders becoming "Home" itself
+  is done; the compose surface — `@mention` + `#tag` authoring — is now complete, see *Since then*.)*
 - **Reminder search.**
 - **Broader automation** — holidays and Leapsake-defined tasks extend the birthday engine (same
   dedup / regeneration keyed off `source` + trigger identity).
