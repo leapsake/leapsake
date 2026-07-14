@@ -1,7 +1,9 @@
 import {
   type EntityType,
   type SearchHit,
+  activeHashtagQuery,
   activeMentionQuery,
+  insertHashtag,
   insertMention,
 } from "@leapsake/schema";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
@@ -18,16 +20,20 @@ const MIN_QUERY_LENGTH = 2;
 const DEBOUNCE_MS = 200;
 
 /**
- * A controlled text field (single-line `input` or `multiline` `textarea`) with an
- * `@mention` authoring typeahead. Typing `@` then a name opens a People/Pets
- * picker (`core.search.query`, tag hits excluded — mentions only reference
- * people/pets); choosing a result splices the self-describing `@[Name](type:id)`
- * token into the text via {@link insertMention}, exactly the token the write path
- * re-derives mentions from. The token stays visible as literal text, like an
- * inline `#tag` — rich rendering is the saved `ReminderText`'s job, not the
- * composer's.
+ * A controlled text field (single-line `input` or `multiline` `textarea`) with a
+ * shared `@mention` / `#tag` authoring typeahead. Typing `@` then a name opens a
+ * People/Pets picker; typing `#` then a word opens an existing-tags picker. Both
+ * run off the same `core.search.query` + caret/debounce/list machinery — only
+ * four things branch on which trigger the caret sits in: which detector runs
+ * ({@link activeMentionQuery} vs {@link activeHashtagQuery}), which hits are kept
+ * (people/pets vs `tag`), and which insert helper splices the chosen token in
+ * ({@link insertMention}'s `@[Name](type:id)` vs {@link insertHashtag}'s `#name`).
+ * Both tokens stay visible as literal text — rich rendering is the saved
+ * `ReminderText`'s job, not the composer's — and the write path re-derives
+ * mentions/taggings from the text, so a brand-new `#tag` with no suggestion is
+ * still created on save; the picker only offers completions and never blocks typing.
  *
- * Controlled (so the token can be spliced in) but still carries `name`, so the
+ * Controlled (so a token can be spliced in) but still carries `name`, so the
  * reminder route action keeps reading it from `FormData` unchanged. The picker's
  * caret/search/list logic lives here; both the Title and Details fields are thin
  * instances of it.
@@ -64,7 +70,24 @@ export function MentionTextField({
   // response (token !== latest) is ignored rather than allowed to flicker in.
   const queryToken = useRef(0);
 
-  const active = caret === null ? null : activeMentionQuery(value, caret);
+  // Which inline trigger — `@mention` or `#hashtag` — the caret sits in. A
+  // mention fragment spans spaces, so it can overlap a later `#`; when both
+  // detectors match, the one whose trigger is nearest the caret (greater `start`)
+  // is the live one — i.e. the token the user is currently typing.
+  const mention = caret === null ? null : activeMentionQuery(value, caret);
+  const hashtag = caret === null ? null : activeHashtagQuery(value, caret);
+  const mode: "mention" | "hashtag" | null =
+    mention && hashtag
+      ? hashtag.start > mention.start
+        ? "hashtag"
+        : "mention"
+      : mention
+        ? "mention"
+        : hashtag
+          ? "hashtag"
+          : null;
+  const active =
+    mode === "hashtag" ? hashtag : mode === "mention" ? mention : null;
   const activeQuery = active?.query ?? null;
 
   useEffect(() => {
@@ -82,24 +105,36 @@ export function MentionTextField({
     const timer = setTimeout(() => {
       void window.api.search.query(activeQuery).then((hits) => {
         if (token !== queryToken.current) return; // superseded by a newer query
-        // Mentions only reference people/pets — a tag hit can't be a mention.
-        setResults(hits.filter((h) => h.entityType !== "tag"));
+        // The `#tag` picker keeps only tag hits; the `@mention` picker excludes
+        // them (mentions only reference people/pets).
+        setResults(
+          hits.filter((h) =>
+            mode === "hashtag"
+              ? h.entityType === "tag"
+              : h.entityType !== "tag",
+          ),
+        );
         setActiveIndex(0);
       });
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [activeQuery, suppressed]);
+  }, [activeQuery, mode, suppressed]);
 
   const open = active !== null && !suppressed && results.length > 0;
 
   /** Splice the chosen hit's token in, then restore focus + caret past it. */
   function pick(hit: SearchHit) {
     if (caret === null) return;
-    const { text, caret: nextCaret } = insertMention(value, caret, {
-      displayName: hit.title,
-      targetType: hit.entityType as EntityType, // tag hits are filtered out
-      targetId: hit.entityId,
-    });
+    // A tag hit inserts the bare `#name`; a person/pet hit inserts the
+    // id-carrying `@[Name](type:id)` token.
+    const { text, caret: nextCaret } =
+      mode === "hashtag"
+        ? insertHashtag(value, caret, hit.title)
+        : insertMention(value, caret, {
+            displayName: hit.title,
+            targetType: hit.entityType as EntityType, // never "tag" here
+            targetId: hit.entityId,
+          });
     onChange(text);
     setResults([]);
     queryToken.current++;
@@ -197,6 +232,9 @@ export function MentionTextField({
                   pick(hit);
                 }}
               >
+                {/* Tag hits show the "#" sigil; it sits outside the highlighted
+                    span since it's never part of the match (mirrors SearchBar). */}
+                {hit.entityType === "tag" && "#"}
                 {highlightMatch(hit.title, activeQuery ?? "")}
                 {reasons.length > 0 && (
                   <span className={styles.reason}>
