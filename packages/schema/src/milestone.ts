@@ -55,6 +55,14 @@ export interface MilestoneKindDef {
    * registry churn.
    */
   recursAnnually: boolean;
+  /**
+   * Whether the automated-reminder engine generates a `system` reminder for this
+   * kind **by default**. Birthdays are on; everything else — including `death` —
+   * is off, so the engine stays a quiet, opt-in surface until a per-milestone
+   * override (a later increment) lets a user turn other kinds on. The default is
+   * per-*kind* so it can be overridden per-*milestone* later without a re-key.
+   */
+  remindByDefault: boolean;
 }
 
 /**
@@ -68,47 +76,55 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     icon: "🎂",
     allowedBearerTypes: ["person", "pet"],
     recursAnnually: true,
+    remindByDefault: true,
   },
   death: {
     label: "Death",
     icon: "🕯️",
     allowedBearerTypes: ["person", "pet"],
     recursAnnually: true,
+    remindByDefault: false,
   },
   "first-date": {
     label: "First Date",
     icon: "💞",
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
+    remindByDefault: false,
   },
   wedding: {
     label: "Wedding",
     icon: "💍",
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
+    remindByDefault: false,
   },
   met: {
     label: "Met",
     icon: "🤝",
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
+    remindByDefault: false,
   },
   graduation: {
     label: "Graduation",
     icon: "🎓",
     allowedBearerTypes: ["person"],
     recursAnnually: false,
+    remindByDefault: false,
   },
   "job-start": {
     label: "Started a job",
     icon: "💼",
     allowedBearerTypes: ["person"],
     recursAnnually: false,
+    remindByDefault: false,
   },
   other: {
     label: "Other",
     allowedBearerTypes: ["person", "pet", "relationship"],
     recursAnnually: false,
+    remindByDefault: false,
   },
 };
 
@@ -176,6 +192,24 @@ export const milestoneSchema = z
   });
 
 export type Milestone = z.infer<typeof milestoneSchema>;
+
+/**
+ * The **plaintext, remind-relevant** projection of a milestone: everything the
+ * automated-reminder engine needs to decide whether and when to remind, and
+ * **nothing that is encrypted**. It deliberately omits `note` (a per-item
+ * ciphertext field), so a cross-bearer scan reads it with no content key and no
+ * decryption — served straight off `ix_milestones_recurring (month, day)`. The
+ * engine's milestone-reader port returns these.
+ */
+export interface RemindEligibleMilestone {
+  id: string;
+  kind: MilestoneKind;
+  bearerType: MilestoneBearerType;
+  bearerId: string;
+  year: number | null;
+  month: number | null;
+  day: number | null;
+}
 
 /**
  * One entry on an entity's milestone timeline: either a milestone stored

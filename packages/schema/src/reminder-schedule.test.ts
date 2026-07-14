@@ -7,6 +7,7 @@ import {
   dueMsFromIso,
   formatDueIn,
   isoFromDueMs,
+  nextOccurrence,
   todayCivil,
 } from "./reminder-schedule.js";
 
@@ -109,5 +110,75 @@ describe("compareReminderDue", () => {
       "undated-new",
       "undated-old",
     ]);
+  });
+});
+
+/** Partial milestone date parts, as `nextOccurrence` reads them. */
+const parts = (
+  year: number | null,
+  month: number | null,
+  day: number | null,
+) => ({ year, month, day });
+
+describe("nextOccurrence", () => {
+  const today = at(2026, 7, 12);
+
+  it("recurring: takes this year's date when it hasn't passed", () => {
+    // A birthday recorded as month+day (no birth year) later this year.
+    expect(nextOccurrence("birthday", parts(null, 7, 22), today)).toEqual(
+      at(2026, 7, 22),
+    );
+  });
+
+  it("recurring: rolls to next year once this year's date has passed", () => {
+    expect(nextOccurrence("birthday", parts(null, 3, 9), today)).toEqual(
+      at(2027, 3, 9),
+    );
+  });
+
+  it("recurring: today itself counts as the next occurrence", () => {
+    expect(nextOccurrence("birthday", parts(null, 7, 12), today)).toEqual(
+      at(2026, 7, 12),
+    );
+  });
+
+  it("recurring: ignores the anchor year of a full-date birthday (anniversary)", () => {
+    // year+month+day birthday — still the next annual anniversary, not the 1992 date.
+    expect(nextOccurrence("birthday", parts(1992, 8, 1), today)).toEqual(
+      at(2026, 8, 1),
+    );
+  });
+
+  it("recurring: clamps Feb-29 to Feb-28 in a non-leap target year", () => {
+    // 2027 is not a leap year; the Feb-29 birthday lands on Feb-28.
+    expect(
+      nextOccurrence("birthday", parts(null, 2, 29), at(2026, 6, 1)),
+    ).toEqual(at(2027, 2, 28));
+    // 2028 IS a leap year — keep the real Feb-29.
+    expect(
+      nextOccurrence("birthday", parts(null, 2, 29), at(2028, 1, 1)),
+    ).toEqual(at(2028, 2, 29));
+  });
+
+  it("one-time: returns the event date when today or later, else null", () => {
+    // graduation does not recur annually.
+    expect(nextOccurrence("graduation", parts(2026, 12, 1), today)).toEqual(
+      at(2026, 12, 1),
+    );
+    expect(nextOccurrence("graduation", parts(2020, 5, 1), today)).toBeNull();
+  });
+
+  it("one-time: null without a concrete year to place it", () => {
+    expect(nextOccurrence("graduation", parts(null, 5, 1), today)).toBeNull();
+  });
+
+  it("returns null when there is no concrete day (no month or no day)", () => {
+    expect(
+      nextOccurrence("birthday", parts(1992, null, null), today),
+    ).toBeNull();
+    expect(nextOccurrence("birthday", parts(null, 7, null), today)).toBeNull();
+    expect(
+      nextOccurrence("birthday", parts(null, null, null), today),
+    ).toBeNull();
   });
 });

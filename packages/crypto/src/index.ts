@@ -28,6 +28,10 @@ export {
   bytesToHex,
   hexToBytes,
 } from "./base64.js";
+// A stable, content-addressed UUID (sha256 → v5-formatted) — the id derivation
+// that lets two devices mint "the same" system row with the same id, so the
+// existing merge dedups them without any sync change.
+export { deterministicUuid } from "./deterministic-id.js";
 export {
   RECOVERY_PHRASE_WORDS,
   encodeRecoveryPhrase,
