@@ -6,9 +6,10 @@
 > (the archive) — don't load it unless you need the history of a specific increment.
 > Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-14** (Reminders: automated `system` birthday reminders, `@mentions` as a
-> synced two-way backlink, due dates, and non-editable system reminders all shipped — next is a
-> mention *authoring* picker; see *What's next*).
+> **Updated 2026-07-14** (Reminders: the `@mention` **authoring picker** shipped on both clients —
+> an `@`-triggered People/Pets typeahead in the composer inserts the token, closing the mention loop.
+> Follows automated birthday reminders, `@mentions` backlink, due dates, non-editable system
+> reminders. Next on this surface is `#tag` autocomplete; see *What's next*).
 
 ## Where things stand
 
@@ -33,8 +34,10 @@
   and **`@mentions`** are a synced two-way backlink (a reminder's mention links to the person/pet; an
   entity's page lists the reminders that mention it — birthday reminders link their own subject).
   System reminders are engine-owned, so their text is **non-editable** (completing/deleting still
-  work). Remaining (the last authoring gap + first-run): a **mention *authoring* picker**,
-  onboarding-as-reminders, reminder search — [`reminders.md`](./reminders.md).
+  work). **Mentions are now user-authorable too:** an `@`-triggered People/Pets picker in the
+  composer inserts the `@[Name](type:id)` token (both clients), closing the loop. Remaining (first-run
+  + polish): `#tag` autocomplete, onboarding-as-reminders, reminder search —
+  [`reminders.md`](./reminders.md).
 
 ## Product posture
 
@@ -112,17 +115,17 @@ can't ship without distributable apps. (None yet.)
 
 **Client / UX** (sequenced *after* the encryption work above):
 - **Reminders → Home screen.** The Reminders entity, Home promotion, **due dates**, **automated
-  `system` (birthday) reminders**, and **`@mentions`** (synced backlink, both directions; birthday
-  reminders link their subject; person-merge/-delete re-point/tombstone mentions) are all done —
-  [`reminders.md`](./reminders.md). **Next: a mention *authoring* affordance** — an `@`-triggered
-  People/Pets picker in the reminder composer that inserts a `@[Name](type:id)` token, reusing
-  `core.search.query`. The mention substrate, rendering, and backlinks all exist, but the composer
-  only takes free text + inline `#tags`, so **a user cannot author a mention today** — only the
-  birthday engine emits them; this closes the loop (and the same picker surface gives `#tag`
-  autocomplete). Then **onboarding-as-reminders** (first-run setup surfaced as reminders, incl. the
-  "Already using Leapsake on another device?" sync entry point — fills the empty Home a brand-new
-  user with no contacts still sees) and **reminder search**; broader automation (holidays,
-  Leapsake-defined tasks) extends the engine later.
+  `system` (birthday) reminders**, **`@mentions`** (synced backlink, both directions; birthday
+  reminders link their subject; person-merge/-delete re-point/tombstone mentions), and now the
+  **`@mention` authoring picker** (an `@`-triggered People/Pets typeahead in the composer that
+  inserts a `@[Name](type:id)` token via two pure `schema` helpers + a thin controlled field per
+  client, reusing `core.search.query`) are all done — [`reminders.md`](./reminders.md). **Next:
+  `#tag` autocomplete** on the same compose surface — the lighter sibling of the mention picker (a
+  bare word, no id resolution), reusing the caret-fragment machinery `MentionTextField` established.
+  Then **onboarding-as-reminders** (first-run setup surfaced as reminders, incl. the "Already using
+  Leapsake on another device?" sync entry point — fills the empty Home a brand-new user with no
+  contacts still sees) and **reminder search**; broader automation (holidays, Leapsake-defined tasks)
+  extends the engine later.
 
 ### v0.2 (first post-launch feature increment)
 
