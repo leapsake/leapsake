@@ -125,6 +125,104 @@ export function insertMention(
 }
 
 /**
+ * Whether `index` falls **inside** an `@[…](type:id)` mention token in `text`.
+ * Used only by {@link activeHashtagQuery} to disqualify a `#` that lives in a
+ * mention's display name (`@[Team #1](person:…)`) — that `#` is part of the token,
+ * not a live hashtag being authored, so it must not open the tag picker. Uses the
+ * same token grammar as {@link parseMentions}, so "inside a token" means exactly
+ * the span the write path treats as one mention.
+ */
+function isInsideMentionToken(text: string, index: number): boolean {
+  for (const match of text.matchAll(
+    /@\[[^\]]+\]\((?:person|pet):[0-9a-fA-F-]{36}\)/gu,
+  )) {
+    if (index >= match.index && index < match.index + match[0].length) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * The active `#`-hashtag fragment at the caret, or `null` when the caret isn't in
+ * one. The sibling of {@link activeMentionQuery} for the compose-surface typeahead
+ * (both apps): it decides whether to show the existing-tags picker and what to
+ * search for. The write path is unaffected — hashtags are re-derived from the
+ * saved text by {@link ./tag.js parseHashtags}, so a brand-new tag with no
+ * suggestion is still created on save; this only offers completions.
+ *
+ * A fragment opens at a `#` that sits at string start or right after whitespace
+ * (so `a#b` mid-word and `##x` never trigger) and runs to the caret. Unlike a
+ * mention, a tag is a single {@link ./tag.js parseHashtags} token — a maximal run
+ * of `[\p{L}\p{N}]` — so the fragment ends at the **first** non-alphanumeric char:
+ * `#fam` is active but `#fam ` (trailing space) has ended it, and the caret moving
+ * onto punctuation/a newline closes it. The empty fragment (`#` with nothing after
+ * it yet) is a valid active query (`query: ""`); the caller's search floor keeps it
+ * quiet until a character is typed. A `#` embedded in a mention token's display
+ * name belongs to that token (see {@link isInsideMentionToken}), not to a live
+ * hashtag, so it returns `null`. Returns the `start` index of the opening `#` so
+ * {@link insertHashtag} knows the span to replace. Platform-agnostic and
+ * unit-testable.
+ */
+export function activeHashtagQuery(
+  text: string,
+  caret: number,
+): { query: string; start: number } | null {
+  // Walk back from the caret through the tag's alphanumeric run to its opening
+  // '#'. Any other character (whitespace, punctuation, a newline, a token
+  // bracket) breaks the run: a hashtag is a single [\p{L}\p{N}] token, so the
+  // first non-alphanumeric before '#' means the caret isn't in a live fragment.
+  for (let i = caret - 1; i >= 0; i--) {
+    const ch = text[i];
+    if (ch === "#") {
+      const before = i > 0 ? text[i - 1] : "";
+      // An opener must be at string start or right after whitespace.
+      if (before !== "" && !/\s/u.test(before)) return null;
+      // A '#' inside a mention token is part of that token, not a live hashtag.
+      if (isInsideMentionToken(text, i)) return null;
+      return { query: text.slice(i + 1, caret), start: i };
+    }
+    if (!/[\p{L}\p{N}]/u.test(ch)) return null;
+  }
+  return null;
+}
+
+/**
+ * Splice a chosen tag name into `text`, replacing the active `#`-fragment at the
+ * caret with `#<tagName>`, and return the new text plus the caret position just
+ * past the insertion. The counterpart to {@link activeHashtagQuery} (and the twin
+ * of {@link insertMention}): the picker calls this when the user selects an
+ * existing-tag hit, then feeds the result back into the field's state. Re-derives
+ * the fragment span from `(text, caret)` so it always replaces exactly what
+ * `activeHashtagQuery` reported; if the caret isn't in a fragment the tag is
+ * inserted at the caret without replacing anything.
+ *
+ * Unlike a mention there is no id to carry — the bare `#name` **is** the tag (see
+ * {@link ./tag.js parseHashtags}), so no name-resolution step is needed. A single
+ * trailing space is appended after the token (unless the following character is
+ * already whitespace) so the tag stays a discrete word and a subsequent `#` typed
+ * right after it can open the picker again. The returned caret sits just after the
+ * `#name` token, before any pre-existing trailing whitespace. Platform-agnostic
+ * and unit-testable.
+ */
+export function insertHashtag(
+  text: string,
+  caret: number,
+  tagName: string,
+): { text: string; caret: number } {
+  const active = activeHashtagQuery(text, caret);
+  const start = active ? active.start : caret;
+  const token = `#${tagName}`;
+  const after = text.slice(caret);
+  const needsSpace = !/^\s/u.test(after); // true when `after` is "" or non-space
+  const insertion = needsSpace ? `${token} ` : token;
+  return {
+    text: text.slice(0, start) + insertion + after,
+    caret: start + token.length, // just after the token, before the space
+  };
+}
+
+/**
  * Extract the mentions embedded **inline** in freeform prose, in first-seen
  * order, **deduped by target** (`targetType:targetId` — a repeated mention of the
  * same entity yields one row, first spelling wins). The display run forbids `]`
