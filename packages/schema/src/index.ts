@@ -69,6 +69,8 @@ export {
   mentionToken,
   activeMentionQuery,
   insertMention,
+  activeHashtagQuery,
+  insertHashtag,
   parseMentions,
   plainMentionText,
   splitAnnotatedText,

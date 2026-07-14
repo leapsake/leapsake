@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
+// The compose-surface hashtag authoring helpers are the twin of the `@mention`
+// ones and live beside them in `mention.ts` (they share the mention-token guard),
+// but they mirror this file's tag grammar, so their edge cases are tested here.
+import { activeHashtagQuery, insertHashtag, mentionToken } from "./mention.js";
 import {
   normalizeTagName,
   parseHashtags,
   parseTagNames,
   splitHashtags,
 } from "./tag.js";
+
+const ALICE = "6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
 
 describe("parseTagNames", () => {
   it("splits on commas and whitespace alike", () => {
@@ -136,5 +142,99 @@ describe("normalizeTagName", () => {
   it("trims and lowercases", () => {
     expect(normalizeTagName(" Friend ")).toBe("friend");
     expect(normalizeTagName("FRIEND")).toBe("friend");
+  });
+});
+
+describe("activeHashtagQuery", () => {
+  it("opens at a '#' at string start, up to the caret", () => {
+    expect(activeHashtagQuery("#fam", 4)).toEqual({ query: "fam", start: 0 });
+  });
+
+  it("opens at a '#' right after whitespace", () => {
+    // "call #fam" — caret at end.
+    expect(activeHashtagQuery("call #fam", 9)).toEqual({
+      query: "fam",
+      start: 5,
+    });
+  });
+
+  it("reads only up to the caret, ignoring text after it", () => {
+    // "#family" with the caret right after "fam".
+    expect(activeHashtagQuery("#family", 4)).toEqual({
+      query: "fam",
+      start: 0,
+    });
+  });
+
+  it("treats a bare '#' with nothing after it as an empty active query", () => {
+    expect(activeHashtagQuery("#", 1)).toEqual({ query: "", start: 0 });
+    expect(activeHashtagQuery("tag me #", 8)).toEqual({ query: "", start: 7 });
+  });
+
+  it("ends the fragment at the first non-alphanumeric char", () => {
+    // A trailing space has closed the tag: the caret is no longer in a fragment.
+    expect(activeHashtagQuery("#fam ", 5)).toBeNull();
+    // Caret sitting on the punctuation right after the tag: closed.
+    expect(activeHashtagQuery("#fam.", 5)).toBeNull();
+  });
+
+  it("returns null for a mid-word '#' and a doubled '##'", () => {
+    expect(activeHashtagQuery("a#b", 3)).toBeNull();
+    expect(activeHashtagQuery("##fam", 5)).toBeNull();
+  });
+
+  it("returns null once the caret is past a newline from the '#'", () => {
+    expect(activeHashtagQuery("#fam\nily", 8)).toBeNull();
+  });
+
+  it("returns null when the caret isn't after any '#' (deleted back past it)", () => {
+    expect(activeHashtagQuery("fam", 3)).toBeNull();
+    expect(activeHashtagQuery("", 0)).toBeNull();
+  });
+
+  it("keeps a completed earlier #tag out of a later fragment's query", () => {
+    // "#one #tw" — caret at end is the *second* fragment only.
+    expect(activeHashtagQuery("#one #tw", 8)).toEqual({
+      query: "tw",
+      start: 5,
+    });
+  });
+
+  it("does not fire on a '#' embedded in a mention token's display name", () => {
+    const text = `${mentionToken("Team #1", "person", ALICE)} `;
+    // Caret parked just after the "#1" inside the token — not a live hashtag.
+    const inside = text.indexOf("#1") + 2;
+    expect(activeHashtagQuery(text, inside)).toBeNull();
+    // Caret at the very end (after the whole token + space) is also not a query.
+    expect(activeHashtagQuery(text, text.length)).toBeNull();
+  });
+});
+
+describe("insertHashtag", () => {
+  it("replaces the active fragment with #<tag> and adds a trailing space", () => {
+    const result = insertHashtag("call #fa", 8, "family");
+    expect(result.text).toBe("call #family ");
+    // Caret sits just after the token, before the trailing space.
+    expect(result.caret).toBe("call #family".length);
+  });
+
+  it("preserves text after the caret", () => {
+    const result = insertHashtag("call #fa soon", 8, "family");
+    expect(result.text).toBe("call #family soon");
+  });
+
+  it("does not double the space when the following char is already whitespace", () => {
+    const result = insertHashtag("#fa there", 3, "family");
+    expect(result.text).toBe("#family there");
+    expect(result.caret).toBe("#family".length); // before the pre-existing space
+  });
+
+  it("splices a tag in from a bare '#'", () => {
+    expect(insertHashtag("#", 1, "family").text).toBe("#family ");
+  });
+
+  it("round-trips: the inserted token parses back to the tag", () => {
+    const { text } = insertHashtag("tag me #fa", 10, "Family");
+    expect(parseHashtags(text)).toEqual(["Family"]);
   });
 });
