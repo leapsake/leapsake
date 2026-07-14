@@ -299,6 +299,42 @@ describe("milestone writes reconcile birthday reminders at once", () => {
     expect(await systemReminders()).toHaveLength(0);
   });
 
+  it("refuses to edit an automatic reminder's content, but allows complete + delete", async () => {
+    await personWithBirthday(9);
+    const reminder = (await systemReminders())[0];
+    expect(reminder.source).toBe("system");
+
+    // Content edits are the engine's to make, not the user's — core rejects them.
+    await expect(
+      core.reminders.update(reminder.id, { title: "hijacked" }),
+    ).rejects.toThrow(/can't be edited/);
+    // The stored title is untouched by the rejected edit.
+    expect((await core.reminders.get(reminder.id))?.title).toBe(reminder.title);
+
+    // Completing/reopening and deleting an automatic reminder still work.
+    const done = await core.reminders.setCompleted(reminder.id, true);
+    expect(done?.completedAt).not.toBeNull();
+    await core.reminders.softDelete(reminder.id);
+    expect(await core.reminders.get(reminder.id)).toBeUndefined();
+  });
+
+  it("still lets the birthday engine re-date its own system reminder (guard is user-only)", async () => {
+    const { milestone } = await personWithBirthday(5);
+    const before = (await systemReminders())[0];
+
+    // The engine's reconcile updates system reminders through the repo directly,
+    // so the user-facing edit guard doesn't block a legitimate drift-repair.
+    const later = civilDaysFromToday(20);
+    await core.milestones.update(milestone.id, {
+      month: later.month,
+      day: later.day,
+    });
+
+    const after = (await systemReminders())[0];
+    expect(after.id).toBe(before.id);
+    expect(daysUntil(todayCivil(), civilFromDueMs(after.dueDate!))).toBe(20);
+  });
+
   it("re-points a merged-in birthday reminder onto the survivor", async () => {
     const survivor = await core.people.create(
       { firstName: "Sam", middleName: null, lastName: "Sur", gender: null },

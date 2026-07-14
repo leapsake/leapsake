@@ -120,3 +120,15 @@ export function reminderLabel(r: {
   if (r.body !== null) return plainMentionText(r.body.split("\n")[0]);
   return "Untitled reminder";
 }
+
+/**
+ * Whether a reminder's title/details are the user's to edit. Automatically
+ * generated (`system`) reminders are derived from a milestone — the engine owns
+ * their text and re-derives it on every reconcile — so only reminders the user
+ * created are content-editable. This gates the *edit* affordance alone: a user can
+ * still complete/reopen or delete an automatic reminder. (A future sub-reminder
+ * would attach through its own path, not this content edit, so it stays unblocked.)
+ */
+export function isReminderEditable(r: { source: ReminderSource }): boolean {
+  return r.source === "user";
+}

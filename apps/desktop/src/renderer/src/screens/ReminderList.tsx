@@ -2,6 +2,7 @@ import {
   type ReminderWithTags,
   compareReminderDue,
   formatDueIn,
+  isReminderEditable,
 } from "@leapsake/schema";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
 import { ReminderText } from "../components/ReminderText";
@@ -42,7 +43,14 @@ function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
           </small>{" "}
         </>
       )}
-      <Link to={`/reminders/${reminder.id}/edit`}>Edit</Link>{" "}
+      {/* Automatic (birthday) reminders aren't content-editable — the engine owns
+          their text — so only user reminders get an Edit link. Done/Reopen and
+          Remove stay available on every reminder. */}
+      {isReminderEditable(reminder) && (
+        <>
+          <Link to={`/reminders/${reminder.id}/edit`}>Edit</Link>{" "}
+        </>
+      )}
       <Link to={`/reminders/${reminder.id}/delete`}>Remove</Link>
       {reminder.title !== null && reminder.body !== null && (
         <div style={strike}>

@@ -62,6 +62,7 @@ import {
   genderedVariant,
   impliedGender,
   inverseRole,
+  isReminderEditable,
   parseHashtags,
   parseMentions,
   roleDefs,
@@ -693,6 +694,18 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         input: UpdateReminderInput,
       ): Promise<Reminder | undefined> =>
         driver.transaction(async () => {
+          // Only user-authored reminders are content-editable: an automatic
+          // (`system`) reminder's title/details are owned by the birthday engine,
+          // which re-derives them on every reconcile, so a user edit here would be
+          // silently overwritten. Completion and deletion aren't routed through
+          // this method (setCompleted / softDelete), so they stay open on system
+          // reminders. The engine's own drift-repair uses the repo directly, not
+          // this guarded wrapper, so it is unaffected.
+          const existing = await reminders.get(id);
+          if (existing === undefined) return undefined;
+          if (!isReminderEditable(existing)) {
+            throw new Error("Automatic reminders can't be edited.");
+          }
           const reminder = await reminders.update(id, input);
           if (reminder) {
             await tags.setEntityTags(

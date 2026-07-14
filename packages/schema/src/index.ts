@@ -53,6 +53,7 @@ export {
   createReminderInputSchema,
   updateReminderInputSchema,
   reminderLabel,
+  isReminderEditable,
 } from "./reminder.js";
 export type {
   Reminder,

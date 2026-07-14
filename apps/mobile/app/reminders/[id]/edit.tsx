@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { isReminderEditable } from "@leapsake/schema";
 import { ReminderForm } from "../../../components/ReminderForm";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
@@ -32,6 +33,16 @@ export default function ReminderEditScreen() {
       <View style={styles.screen}>
         <Stack.Screen options={{ title: "Edit reminder" }} />
         <Text style={styles.muted}>This reminder no longer exists.</Text>
+      </View>
+    );
+  }
+  // Deep-link safety: the detail screen hides Edit for automatic reminders, but a
+  // direct navigation here shouldn't offer a form core would reject on save.
+  if (!isReminderEditable(reminder)) {
+    return (
+      <View style={styles.screen}>
+        <Stack.Screen options={{ title: "Edit reminder" }} />
+        <Text style={styles.muted}>Automatic reminders can't be edited.</Text>
       </View>
     );
   }

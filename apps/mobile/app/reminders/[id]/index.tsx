@@ -8,7 +8,12 @@ import {
   View,
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { formatDueIn, isoFromDueMs, reminderLabel } from "@leapsake/schema";
+import {
+  formatDueIn,
+  isReminderEditable,
+  isoFromDueMs,
+  reminderLabel,
+} from "@leapsake/schema";
 import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
@@ -114,9 +119,14 @@ export default function ReminderDetailScreen() {
         <Pressable accessibilityRole="button" onPress={toggle}>
           <Text style={styles.link}>{done ? "Reopen" : "Mark done"}</Text>
         </Pressable>
-        <Link href={`/reminders/${id}/edit`} style={styles.link}>
-          Edit
-        </Link>
+        {/* Automatic (birthday) reminders aren't content-editable — the engine
+            owns their text — so only user reminders get an Edit link. Mark
+            done/Reopen and Delete stay available on every reminder. */}
+        {isReminderEditable(reminder) && (
+          <Link href={`/reminders/${id}/edit`} style={styles.link}>
+            Edit
+          </Link>
+        )}
         <Pressable accessibilityRole="button" onPress={confirmDelete}>
           <Text style={[styles.link, styles.danger]}>Delete</Text>
         </Pressable>

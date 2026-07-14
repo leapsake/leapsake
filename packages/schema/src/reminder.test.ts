@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createReminderInputSchema,
+  isReminderEditable,
   reminderLabel,
   reminderSchema,
 } from "./reminder.js";
@@ -49,6 +50,13 @@ describe("createReminderInputSchema", () => {
       createReminderInputSchema.parse({ body: "birthday", source: "system" })
         .source,
     ).toBe("system");
+  });
+});
+
+describe("isReminderEditable", () => {
+  it("is true for a user reminder and false for an automatic one", () => {
+    expect(isReminderEditable({ source: "user" })).toBe(true);
+    expect(isReminderEditable({ source: "system" })).toBe(false);
   });
 });
 
