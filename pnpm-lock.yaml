@@ -182,6 +182,9 @@ importers:
       '@leapsake/data':
         specifier: workspace:*
         version: link:../data
+      '@leapsake/reminders':
+        specifier: workspace:*
+        version: link:../reminders
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema
@@ -209,6 +212,15 @@ importers:
 
   packages/highlight:
     dependencies:
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
+
+  packages/reminders:
+    dependencies:
+      '@leapsake/crypto':
+        specifier: workspace:*
+        version: link:../crypto
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema
@@ -6193,9 +6205,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

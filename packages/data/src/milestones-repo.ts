@@ -2,6 +2,8 @@ import {
   type CreateMilestoneInput,
   type Milestone,
   type MilestoneBearerType,
+  type MilestoneKind,
+  type RemindEligibleMilestone,
   type UpdateMilestoneInput,
   createMilestoneInputSchema,
   milestoneSchema,
@@ -87,6 +89,18 @@ export interface MilestonesRepo extends EntityRepo<Milestone> {
    * of one that has it (a year-less recurring date leads a dated one).
    */
   listForBearer(type: MilestoneBearerType, id: string): Promise<Milestone[]>;
+
+  /**
+   * The remind-relevant, **plaintext** projection of every active milestone that
+   * has a concrete calendar day (both `month` and `day` set) — the cross-bearer
+   * scan the automated-reminder engine runs to decide who to remind about. It
+   * reads only the plaintext columns and **never touches `note`**, so it needs
+   * no {@link ContentCipher} and does no decryption; the `month IS NOT NULL AND
+   * day IS NOT NULL` predicate is served by `ix_milestones_recurring (month,
+   * day)` (reserved in migration 8). The engine, not the repo, applies the
+   * per-kind/per-milestone "should this remind" policy.
+   */
+  listRemindEligible(): Promise<RemindEligibleMilestone[]>;
 
   /**
    * Soft-delete every active milestone of a bearer. Used when the host entity
@@ -215,6 +229,35 @@ export function createMilestonesRepo(
         params: [type, id],
         orderBy: "year, month, day",
       }),
+
+    async listRemindEligible() {
+      // A direct plaintext read (not through the codec) — it selects only the
+      // non-encrypted columns, so it stays cipher-free and can't accidentally
+      // surface `note`. `kind`/`bearer_type` are our own constrained values, so
+      // they're cast to their domain unions without a re-parse.
+      const rows = await driver.all<{
+        id: string;
+        kind: string;
+        bearer_type: string;
+        bearer_id: string;
+        year: number | null;
+        month: number | null;
+        day: number | null;
+      }>(
+        `SELECT id, kind, bearer_type, bearer_id, year, month, day
+           FROM milestones
+          WHERE deleted_at IS NULL AND month IS NOT NULL AND day IS NOT NULL`,
+      );
+      return rows.map((r) => ({
+        id: r.id,
+        kind: r.kind as MilestoneKind,
+        bearerType: r.bearer_type as MilestoneBearerType,
+        bearerId: r.bearer_id,
+        year: r.year,
+        month: r.month,
+        day: r.day,
+      }));
+    },
 
     removeAllForEntity: (type, id) =>
       softDeleteWhere(
