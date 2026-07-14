@@ -3,9 +3,13 @@ import {
   type PeopleRepo,
   type SqliteDriver,
   createPeopleRepo,
+  migrations,
   runMigrations,
 } from "@leapsake/data";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
+
+/** The version the runner should land on: the last (highest) migration. */
+const LATEST_VERSION = migrations.at(-1)!.version;
 
 let driver: SqliteDriver;
 let cleanup: () => void;
@@ -26,7 +30,7 @@ describe("runMigrations", () => {
     const version = await driver.get<{ user_version: number }>(
       "PRAGMA user_version",
     );
-    expect(version?.user_version).toBe(17);
+    expect(version?.user_version).toBe(LATEST_VERSION);
   });
 
   it("is idempotent on a second run", async () => {
@@ -34,7 +38,7 @@ describe("runMigrations", () => {
     const version = await driver.get<{ user_version: number }>(
       "PRAGMA user_version",
     );
-    expect(version?.user_version).toBe(17);
+    expect(version?.user_version).toBe(LATEST_VERSION);
   });
 });
 

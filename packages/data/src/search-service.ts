@@ -92,8 +92,8 @@ interface PostalMatchRow {
 }
 /** A tagging joined to its tag: matched on `normalized`, displayed as `name`. */
 interface TagMatchRow {
-  entity_type: string;
-  entity_id: string;
+  bearer_type: string;
+  bearer_id: string;
   name: string;
   normalized: string;
 }
@@ -160,7 +160,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
            FROM postal_addresses WHERE deleted_at IS NULL`,
       ),
       driver.all<TagMatchRow>(
-        `SELECT g.entity_type, g.entity_id, t.name, t.normalized
+        `SELECT g.bearer_type, g.bearer_id, t.name, t.normalized
            FROM taggings g JOIN tags t ON t.id = g.tag_id
           WHERE g.deleted_at IS NULL AND t.deleted_at IS NULL`,
       ),
@@ -381,8 +381,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       for (const tg of taggings) {
         if (tg.normalized.includes(tagQuery)) {
           addOwnerHit(
-            tg.entity_type,
-            tg.entity_id,
+            tg.bearer_type,
+            tg.bearer_id,
             "tag",
             tg.name,
             quality(tg.normalized, tagQuery),
