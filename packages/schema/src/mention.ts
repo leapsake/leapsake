@@ -45,6 +45,86 @@ export function mentionToken(
 }
 
 /**
+ * The active `@`-mention fragment at the caret, or `null` when the caret isn't in
+ * one. Used by the compose-surface typeahead (both apps) to decide whether to show
+ * the People/Pets picker and what to search for; the write path is unaffected
+ * (mentions are re-derived from the saved text by {@link parseMentions}).
+ *
+ * A fragment opens at an `@` that sits at string start or right after whitespace —
+ * so `foo@bar` (an email) and a mid-word `@` never trigger — and runs up to the
+ * caret. Names carry spaces, so the fragment deliberately spans them (`@ali ng`);
+ * it is *not* ended at a space. It is ended by a newline (a mention never wraps a
+ * line) and by any token/markup punctuation (`[](){@}`), which is how an already
+ * inserted `@[Name](type:id)` token — or a caret sitting inside one — reads as
+ * "not a live query" and returns `null` rather than a garbage fragment. The empty
+ * fragment (`@` with nothing after it yet) is a valid active query (`query: ""`);
+ * the caller's search floor keeps it quiet until a character is typed. Returns the
+ * `start` index of the opening `@` so {@link insertMention} knows the span to
+ * replace. Platform-agnostic and unit-testable.
+ */
+export function activeMentionQuery(
+  text: string,
+  caret: number,
+): { query: string; start: number } | null {
+  // Walk back from the caret to the nearest '@' that could open a fragment. Stop
+  // early at a newline (a fragment can't span one); the first '@' we reach is the
+  // only candidate, since a valid fragment can't itself contain an '@'.
+  for (let i = caret - 1; i >= 0; i--) {
+    const ch = text[i];
+    if (ch === "\n") return null;
+    if (ch === "@") {
+      const before = i > 0 ? text[i - 1] : "";
+      // An opener must be at string start or right after whitespace.
+      if (before !== "" && !/\s/u.test(before)) return null;
+      const query = text.slice(i + 1, caret);
+      // Token/markup punctuation means this isn't a name being typed (it's an
+      // existing token, or a caret parked inside/after one) — not a live query.
+      if (/[[\]()@]/u.test(query)) return null;
+      return { query, start: i };
+    }
+  }
+  return null;
+}
+
+/**
+ * Splice a resolved mention into `text`, replacing the active `@`-fragment at the
+ * caret with its inline {@link mentionToken}, and return the new text plus the
+ * caret position just past the insertion. The counterpart to {@link
+ * activeMentionQuery}: the picker calls this when the user selects a hit, then
+ * feeds the result back into the field's state. Re-derives the fragment span from
+ * `(text, caret)` so it always replaces exactly what `activeMentionQuery` reported;
+ * if the caret isn't in a fragment (it should be, when called from the picker) the
+ * token is inserted at the caret without replacing anything.
+ *
+ * A single trailing space is appended after the token (unless the following
+ * character is already whitespace) so the inserted token stays a discrete word —
+ * without it, a subsequent `@` typed right after `)` would fail the "after
+ * whitespace" opener test and never trigger the picker again. The returned caret
+ * sits just after the token (before any pre-existing trailing whitespace).
+ * Platform-agnostic and unit-testable.
+ */
+export function insertMention(
+  text: string,
+  caret: number,
+  mention: Mention,
+): { text: string; caret: number } {
+  const active = activeMentionQuery(text, caret);
+  const start = active ? active.start : caret;
+  const token = mentionToken(
+    mention.displayName,
+    mention.targetType,
+    mention.targetId,
+  );
+  const after = text.slice(caret);
+  const needsSpace = !/^\s/u.test(after); // true when `after` is "" or non-space
+  const insertion = needsSpace ? `${token} ` : token;
+  return {
+    text: text.slice(0, start) + insertion + after,
+    caret: start + token.length, // just after the token, before the space
+  };
+}
+
+/**
  * Extract the mentions embedded **inline** in freeform prose, in first-seen
  * order, **deduped by target** (`targetType:targetId` — a repeated mention of the
  * same entity yields one row, first spelling wins). The display run forbids `]`

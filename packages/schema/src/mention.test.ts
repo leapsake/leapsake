@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  activeMentionQuery,
+  insertMention,
   mentionToken,
   parseMentions,
   plainMentionText,
@@ -53,6 +55,101 @@ describe("parseMentions", () => {
 
   it("returns [] for empty input", () => {
     expect(parseMentions("")).toEqual([]);
+  });
+});
+
+describe("activeMentionQuery", () => {
+  it("opens at an '@' at string start, up to the caret", () => {
+    // "@ali" with the caret at the end.
+    expect(activeMentionQuery("@ali", 4)).toEqual({ query: "ali", start: 0 });
+  });
+
+  it("opens at an '@' right after whitespace", () => {
+    // "email @ali" — caret at end.
+    expect(activeMentionQuery("email @ali", 10)).toEqual({
+      query: "ali",
+      start: 6,
+    });
+  });
+
+  it("keeps spaces inside the fragment (names have spaces)", () => {
+    expect(activeMentionQuery("@ali ng", 7)).toEqual({
+      query: "ali ng",
+      start: 0,
+    });
+  });
+
+  it("treats a bare '@' with nothing after it as an empty active query", () => {
+    expect(activeMentionQuery("@", 1)).toEqual({ query: "", start: 0 });
+    expect(activeMentionQuery("call @", 6)).toEqual({ query: "", start: 5 });
+  });
+
+  it("reads only up to the caret, ignoring text after it", () => {
+    // "hi @ali there" with the caret right after "ali".
+    expect(activeMentionQuery("hi @ali there", 7)).toEqual({
+      query: "ali",
+      start: 3,
+    });
+  });
+
+  it("returns null for a mid-word '@' (e.g. an email)", () => {
+    expect(activeMentionQuery("foo@bar", 7)).toBeNull();
+  });
+
+  it("returns null once the caret is past a newline from the '@'", () => {
+    expect(activeMentionQuery("@ali\nng", 7)).toBeNull();
+  });
+
+  it("returns null when the caret isn't after any '@' (deleted back past it)", () => {
+    expect(activeMentionQuery("ali", 3)).toBeNull();
+    expect(activeMentionQuery("", 0)).toBeNull();
+  });
+
+  it("returns null when the fragment overlaps an existing token", () => {
+    const text = `${mentionToken("Alice Ng", "person", ALICE)} `;
+    // Caret at the very end, after the whole token + trailing space.
+    expect(activeMentionQuery(text, text.length)).toBeNull();
+    // Caret parked in the middle of the token also reads as not-a-query.
+    expect(activeMentionQuery(text, 5)).toBeNull();
+  });
+});
+
+describe("insertMention", () => {
+  const ALICE_MENTION = {
+    displayName: "Alice Ng",
+    targetType: "person" as const,
+    targetId: ALICE,
+  };
+
+  it("replaces the active fragment with the token and adds a trailing space", () => {
+    const result = insertMention("email @ali", 10, ALICE_MENTION);
+    const token = mentionToken("Alice Ng", "person", ALICE);
+    expect(result.text).toBe(`email ${token} `);
+    // Caret sits just after the token, before the trailing space.
+    expect(result.caret).toBe(6 + token.length);
+  });
+
+  it("preserves text after the caret", () => {
+    const result = insertMention("hi @ali there", 7, ALICE_MENTION);
+    const token = mentionToken("Alice Ng", "person", ALICE);
+    expect(result.text).toBe(`hi ${token} there`);
+  });
+
+  it("does not double the space when the following char is already whitespace", () => {
+    const result = insertMention("@ali there", 4, ALICE_MENTION);
+    const token = mentionToken("Alice Ng", "person", ALICE);
+    expect(result.text).toBe(`${token} there`);
+    expect(result.caret).toBe(token.length); // before the pre-existing space
+  });
+
+  it("splices a token in from a bare '@'", () => {
+    const result = insertMention("@", 1, ALICE_MENTION);
+    expect(result.text).toBe(`${mentionToken("Alice Ng", "person", ALICE)} `);
+  });
+
+  it("round-trips: the inserted token parses back to the mention", () => {
+    const { text } = insertMention("ping @al", 8, ALICE_MENTION);
+    expect(parseMentions(text)).toEqual([ALICE_MENTION]);
   });
 });
 
