@@ -13,6 +13,7 @@ import {
   createRelationshipInputSchema,
   dueMsFromIso,
   fullName,
+  isReminderEditable,
   parseTagNames,
   preferredBearerType,
   updateMilestoneInputSchema,
@@ -742,6 +743,18 @@ async function reminderLoader({ params }: LoaderFunctionArgs) {
   return reminder;
 }
 
+/**
+ * Loader for the edit screen only: an automatic (`system`) reminder isn't
+ * content-editable (the birthday engine owns its text), so bounce back to the list
+ * rather than render a form whose save core would reject. The delete screen keeps
+ * using {@link reminderLoader} directly — removing an automatic reminder is fine.
+ */
+async function reminderEditLoader(args: LoaderFunctionArgs) {
+  const reminder = await reminderLoader(args);
+  if (!isReminderEditable(reminder)) return redirect("/reminders");
+  return reminder;
+}
+
 /** Create a reminder; both fields blank is a no-op back to the list. */
 async function reminderCreateAction({ request }: ActionFunctionArgs) {
   const input = readReminderInput(await request.formData());
@@ -830,7 +843,7 @@ const routes: RouteObject[] = [
       },
       {
         path: "reminders/:id/edit",
-        loader: reminderLoader,
+        loader: reminderEditLoader,
         element: <ReminderEdit />,
         action: reminderEditAction,
       },
