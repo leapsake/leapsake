@@ -67,6 +67,8 @@ export type { Tagging, TagBearerType } from "./tagging.js";
 export {
   MENTION_NAMESPACE,
   mentionToken,
+  activeMentionQuery,
+  insertMention,
   parseMentions,
   plainMentionText,
   splitAnnotatedText,
