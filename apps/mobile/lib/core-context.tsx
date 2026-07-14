@@ -264,8 +264,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
      */
     const regenerateSystemReminders = async (coreApi: CoreApi) => {
       try {
-        const { created, removed } = await coreApi.reminders.regenerateSystem();
-        if (created > 0 || removed > 0) {
+        const { created, updated, removed } =
+          await coreApi.reminders.regenerateSystem();
+        if (created > 0 || updated > 0 || removed > 0) {
           setDataVersion((v) => v + 1);
           scheduler.current?.kick();
         }

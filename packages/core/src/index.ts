@@ -357,6 +357,67 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     });
   }
 
+  // The composition root for automated (`system`) reminders: construct the
+  // `@leapsake/reminders` engine over the real repos + this core's own
+  // `resolveLabel`, and reconcile today's upcoming birthdays. "Today" is the local
+  // civil date (a calendar event fires on the user's day). Called at boot/focus
+  // *and* after every milestone write (see `milestones` below), so an added /
+  // edited / deleted birthday reconciles at once instead of waiting for a relaunch.
+  const regenerateSystem = (): Promise<{
+    created: number;
+    updated: number;
+    removed: number;
+  }> =>
+    regenerateSystemReminders({
+      milestones: {
+        listRemindEligible: () => milestones.listRemindEligible(),
+      },
+      reminders: {
+        getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
+        // The engine writes system reminders through this port (bypassing the
+        // `create` wrapper above), so materialize their @mentions here too: the
+        // birthday title carries a mention token, re-derived into the same synced
+        // backlink. Runs inside the engine's own transaction.
+        insert: async (row) => {
+          const inserted = await reminders.insert(row);
+          await mentions.setEntityMentions(
+            "reminder",
+            inserted.id,
+            mentionTargetsOf(inserted),
+          );
+          return inserted;
+        },
+        // A milestone edit moves the date or renames the subject: refresh the
+        // still-live reminder's derived fields, then re-derive its @mentions from
+        // the new title (the mention token's baked-in name changed on a rename).
+        update: async (id, fields) => {
+          const changed = await reminders.update(id, fields);
+          if (changed) {
+            await mentions.setEntityMentions(
+              "reminder",
+              id,
+              mentionTargetsOf(changed),
+            );
+          }
+        },
+        listWhere: (query) => reminders.listWhere(query),
+        // Pruning a stale system reminder clears its mentions too (mirrors the
+        // user-facing softDelete above).
+        softDelete: async (id) => {
+          await reminders.softDelete(id);
+          await mentions.removeAllForBearer("reminder", id);
+        },
+      },
+      // Birthdays only bear on a person/pet; a relationship bearer (future kinds)
+      // has no single label, so it's skipped rather than mislabelled.
+      resolveLabel: async (bearerType, bearerId) =>
+        bearerType === "relationship"
+          ? null
+          : ((await resolveLabel(bearerType, bearerId)) ?? null),
+      today: todayCivil(),
+      transaction: (body) => driver.transaction(body),
+    });
+
   const views = createViews({
     people: { list: () => people.list(), get: (id) => people.get(id) },
     pets: { list: () => pets.list(), get: (id) => pets.get(id) },
@@ -398,15 +459,20 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           return person;
         }),
       // Soft-delete the person and cascade across every fact that references it.
-      softDelete: (id: string): Promise<void> =>
-        driver.transaction(async () => {
+      // The cascade removes their milestones, so reconcile afterwards to prune any
+      // now-orphaned birthday reminder at once (same reason a milestone delete does
+      // — see `milestones.softDelete`), rather than leaving it until boot/focus.
+      softDelete: async (id: string): Promise<void> => {
+        await driver.transaction(async () => {
           await people.softDelete(id);
           await tags.removeAllForEntity("person", id);
           await relationships.removeAllForEntity("person", id);
           await dismissals.removeAllForEntity("person", id);
           await milestones.removeAllForEntity("person", id);
           await contactMethods.removeAllForOwner("person", id);
-        }),
+        });
+        await regenerateSystem();
+      },
       // Absorb the `loser` person into the `survivor`, in one transaction: the
       // mirror of the cascade-delete above, re-pointing every fact onto the
       // survivor instead of removing it, then tombstoning the loser. The
@@ -458,14 +524,18 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           }
           return pet;
         }),
-      softDelete: (id: string): Promise<void> =>
-        driver.transaction(async () => {
+      // Cascade-delete the pet's facts, then reconcile so its birthday reminder is
+      // pruned at once (see the Person `softDelete` above for the rationale).
+      softDelete: async (id: string): Promise<void> => {
+        await driver.transaction(async () => {
           await pets.softDelete(id);
           await tags.removeAllForEntity("pet", id);
           await relationships.removeAllForEntity("pet", id);
           await dismissals.removeAllForEntity("pet", id);
           await milestones.removeAllForEntity("pet", id);
-        }),
+        });
+        await regenerateSystem();
+      },
     },
 
     tags: {
@@ -539,15 +609,34 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           type,
           id,
         ),
-      create: (input: CreateMilestoneInput): Promise<Milestone> =>
-        driver.transaction(() => milestones.create(input)),
-      update: (
+      // Each milestone write reconciles the automated birthday reminders right
+      // after it commits, so adding / editing / deleting a birthday updates the
+      // Home list at once (a new reminder appears, an edited date re-dates its
+      // reminder, a deleted birthday prunes it) rather than waiting for the next
+      // boot/focus. The reconcile is its own transaction (the driver's BEGIN/COMMIT
+      // doesn't nest), and this is a sync-kicking `create/update/softDelete`, so
+      // the reconciled reminder rows ride the same post-write sync kick.
+      create: async (input: CreateMilestoneInput): Promise<Milestone> => {
+        const milestone = await driver.transaction(() =>
+          milestones.create(input),
+        );
+        await regenerateSystem();
+        return milestone;
+      },
+      update: async (
         id: string,
         input: UpdateMilestoneInput,
-      ): Promise<Milestone | undefined> =>
-        driver.transaction(() => milestones.update(id, input)),
-      softDelete: (id: string): Promise<void> =>
-        driver.transaction(() => milestones.softDelete(id)),
+      ): Promise<Milestone | undefined> => {
+        const milestone = await driver.transaction(() =>
+          milestones.update(id, input),
+        );
+        await regenerateSystem();
+        return milestone;
+      },
+      softDelete: async (id: string): Promise<void> => {
+        await driver.transaction(() => milestones.softDelete(id));
+        await regenerateSystem();
+      },
     },
 
     reminders: {
@@ -646,49 +735,12 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           await tags.removeAllForEntity("reminder", id);
           await mentions.removeAllForBearer("reminder", id);
         }),
-      // The composition root for automated (`system`) reminders: construct the
-      // `@leapsake/reminders` engine over the real repos + this core's own
-      // `resolveLabel`, and reconcile today's upcoming birthdays. "Today" is the
-      // local civil date (a calendar event fires on the user's day). Called at
-      // boot/focus, not through a user write — so it is deliberately *not* a
-      // sync-kicking mutation; the caller triggers the refresh/sync path once.
-      regenerateSystem: (): Promise<{ created: number; removed: number }> =>
-        regenerateSystemReminders({
-          milestones: {
-            listRemindEligible: () => milestones.listRemindEligible(),
-          },
-          reminders: {
-            getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
-            // The engine writes system reminders through this port (bypassing the
-            // `create` wrapper above), so materialize their @mentions here too:
-            // the birthday title carries a mention token, re-derived into the same
-            // synced backlink. Runs inside the engine's own transaction.
-            insert: async (row) => {
-              const inserted = await reminders.insert(row);
-              await mentions.setEntityMentions(
-                "reminder",
-                inserted.id,
-                mentionTargetsOf(inserted),
-              );
-              return inserted;
-            },
-            listWhere: (query) => reminders.listWhere(query),
-            // Pruning a stale system reminder clears its mentions too (mirrors the
-            // user-facing softDelete above).
-            softDelete: async (id) => {
-              await reminders.softDelete(id);
-              await mentions.removeAllForBearer("reminder", id);
-            },
-          },
-          // Birthdays only bear on a person/pet; a relationship bearer (future
-          // kinds) has no single label, so it's skipped rather than mislabelled.
-          resolveLabel: async (bearerType, bearerId) =>
-            bearerType === "relationship"
-              ? null
-              : ((await resolveLabel(bearerType, bearerId)) ?? null),
-          today: todayCivil(),
-          transaction: (body) => driver.transaction(body),
-        }),
+      // Reconcile today's automated (`system`) reminders. Runs at boot/focus (a
+      // new local day can bring a birthday into range) — clients call this one and
+      // kick the refresh/sync path when a count is non-zero. Milestone writes
+      // reconcile on their own (see `milestones`), so this needn't be called after
+      // them. See {@link regenerateSystem}.
+      regenerateSystem,
     },
 
     contactMethods: {

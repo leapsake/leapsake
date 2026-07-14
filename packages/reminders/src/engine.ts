@@ -43,6 +43,13 @@ export interface SystemReminderStore {
   getIncludingDeleted(id: string): Promise<Reminder | undefined>;
   /** Persist an already-assembled reminder row (the engine mints id + stamps). */
   insert(row: Reminder): Promise<Reminder>;
+  /**
+   * Refresh a still-live system reminder's derived fields in place — used when its
+   * milestone was edited (the date moved, or the subject was renamed) so the id is
+   * unchanged but the title/due date drifted. Keeps the row's identity and any
+   * manual completion; the store bumps `updated_at` so the edit wins LWW on sync.
+   */
+  update(id: string, fields: { title: string; dueDate: number }): Promise<void>;
   /** Active rows matching a raw snake_case `WHERE` (used for `source = 'system'`). */
   listWhere(query: {
     where: string;
@@ -96,27 +103,31 @@ function occurrenceName(milestoneId: string, occurrenceYear: number): string {
  *
  * - For each remind-by-default milestone with an upcoming occurrence inside the
  *   {@link LEAD_DAYS} window, derive its deterministic id and desired row.
- * - Insert each desired row **only if absent** — `getIncludingDeleted` means a
+ * - Insert each desired row **when absent** — `getIncludingDeleted` means a
  *   user-dismissed reminder (a tombstone under that id) is left dead, never
- *   resurrected; an already-present active row is left exactly as-is (so a manual
- *   completion sticks).
+ *   resurrected.
+ * - **Refresh** an already-present *active* row whose title/due date has drifted
+ *   (the milestone's date moved or the subject was renamed), keeping its identity
+ *   and any manual completion. When nothing drifted it is left byte-for-byte
+ *   as-is, so a steady-state reconcile writes nothing (no sync churn).
  * - Soft-delete every **active** `source="system"` row whose id is no longer
  *   desired — its milestone was deleted, its occurrence passed, or it fell out of
  *   the window.
  *
- * Returns how many rows it created and removed. Runs at boot/focus, not through a
- * per-row user write, so it is intentionally *not* a sync-kicking mutation; the
- * caller triggers the refresh/sync path once, letting normal sync push the rows.
+ * Returns how many rows it created, updated, and removed. Runs at boot/focus and
+ * after every milestone write (folded into core's milestone methods, so an added
+ * / edited / deleted birthday reconciles at once); the caller kicks the refresh /
+ * sync path when any count is non-zero, letting normal sync push the rows.
  */
 export function regenerateSystemReminders(
   deps: ReminderEngineDeps,
-): Promise<{ created: number; removed: number }> {
+): Promise<{ created: number; updated: number; removed: number }> {
   return computeAndReconcile(deps);
 }
 
 async function computeAndReconcile(
   deps: ReminderEngineDeps,
-): Promise<{ created: number; removed: number }> {
+): Promise<{ created: number; updated: number; removed: number }> {
   const milestones = await deps.milestones.listRemindEligible();
 
   // The desired set, keyed by (deterministic) id so duplicate identities collapse.
@@ -152,23 +163,36 @@ async function computeAndReconcile(
   return deps.transaction(async () => {
     const now = Date.now();
     let created = 0;
+    let updated = 0;
     for (const [id, want] of desired) {
-      // Present (active OR tombstoned) → leave it: never resurrect a dismissal,
-      // never clobber a manual edit/completion.
-      if ((await deps.reminders.getIncludingDeleted(id)) !== undefined)
+      const existing = await deps.reminders.getIncludingDeleted(id);
+      if (existing === undefined) {
+        await deps.reminders.insert({
+          id,
+          title: want.title,
+          body: null,
+          completedAt: null,
+          dueDate: want.dueDate,
+          source: "system",
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        });
+        created++;
         continue;
-      await deps.reminders.insert({
-        id,
-        title: want.title,
-        body: null,
-        completedAt: null,
-        dueDate: want.dueDate,
-        source: "system",
-        createdAt: now,
-        updatedAt: now,
-        deletedAt: null,
-      });
-      created++;
+      }
+      // A tombstone (user-dismissed) is left dead — never resurrected.
+      if (existing.deletedAt !== null) continue;
+      // Live row: refresh it only if the milestone drifted (date moved or subject
+      // renamed), keeping its identity and any manual completion. Unchanged rows
+      // are skipped, so a steady-state reconcile stays a no-op.
+      if (existing.title !== want.title || existing.dueDate !== want.dueDate) {
+        await deps.reminders.update(id, {
+          title: want.title,
+          dueDate: want.dueDate,
+        });
+        updated++;
+      }
     }
 
     // Prune active system reminders that today's desired set no longer wants.
@@ -184,6 +208,6 @@ async function computeAndReconcile(
       }
     }
 
-    return { created, removed };
+    return { created, updated, removed };
   });
 }

@@ -103,8 +103,9 @@ function setActiveCore(session: KeySession | undefined): void {
 async function regenerateSystemReminders(): Promise<void> {
   if (activeCore === undefined) return;
   try {
-    const { created, removed } = await activeCore.reminders.regenerateSystem();
-    if (created > 0 || removed > 0) {
+    const { created, updated, removed } =
+      await activeCore.reminders.regenerateSystem();
+    if (created > 0 || updated > 0 || removed > 0) {
       broadcastSyncActivity({ changed: true });
       scheduler?.kick();
     }
