@@ -6,10 +6,11 @@
 > (the archive) — don't load it unless you need the history of a specific increment.
 > Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-14** (Reminders: the `@mention` **authoring picker** shipped on both clients —
-> an `@`-triggered People/Pets typeahead in the composer inserts the token, closing the mention loop.
-> Follows automated birthday reminders, `@mentions` backlink, due dates, non-editable system
-> reminders. Next on this surface is `#tag` autocomplete; see *What's next*).
+> **Updated 2026-07-14** (Reminders: `#tag` **autocomplete** shipped on both clients — typing `#` in
+> the composer offers a typeahead of existing tags, folded into the same `MentionTextField` as the
+> `@mention` picker. The compose surface — `@mention` + `#tag` authoring — is now complete. Follows the
+> mention picker, automated birthday reminders, `@mentions` backlink, due dates. Next on this surface
+> is onboarding-as-reminders; see *What's next*).
 
 ## Where things stand
 
@@ -34,10 +35,10 @@
   and **`@mentions`** are a synced two-way backlink (a reminder's mention links to the person/pet; an
   entity's page lists the reminders that mention it — birthday reminders link their own subject).
   System reminders are engine-owned, so their text is **non-editable** (completing/deleting still
-  work). **Mentions are now user-authorable too:** an `@`-triggered People/Pets picker in the
-  composer inserts the `@[Name](type:id)` token (both clients), closing the loop. Remaining (first-run
-  + polish): `#tag` autocomplete, onboarding-as-reminders, reminder search —
-  [`reminders.md`](./reminders.md).
+  work). **The compose surface is now complete:** an `@`-triggered People/Pets picker inserts the
+  `@[Name](type:id)` token and a `#`-triggered typeahead completes existing tags — both folded into
+  one `MentionTextField` per client. Remaining (first-run + polish): onboarding-as-reminders, reminder
+  search — [`reminders.md`](./reminders.md).
 
 ## Product posture
 
@@ -116,16 +117,14 @@ can't ship without distributable apps. (None yet.)
 **Client / UX** (sequenced *after* the encryption work above):
 - **Reminders → Home screen.** The Reminders entity, Home promotion, **due dates**, **automated
   `system` (birthday) reminders**, **`@mentions`** (synced backlink, both directions; birthday
-  reminders link their subject; person-merge/-delete re-point/tombstone mentions), and now the
-  **`@mention` authoring picker** (an `@`-triggered People/Pets typeahead in the composer that
-  inserts a `@[Name](type:id)` token via two pure `schema` helpers + a thin controlled field per
-  client, reusing `core.search.query`) are all done — [`reminders.md`](./reminders.md). **Next:
-  `#tag` autocomplete** on the same compose surface — the lighter sibling of the mention picker (a
-  bare word, no id resolution), reusing the caret-fragment machinery `MentionTextField` established.
-  Then **onboarding-as-reminders** (first-run setup surfaced as reminders, incl. the "Already using
-  Leapsake on another device?" sync entry point — fills the empty Home a brand-new user with no
-  contacts still sees) and **reminder search**; broader automation (holidays, Leapsake-defined tasks)
-  extends the engine later.
+  reminders link their subject; person-merge/-delete re-point/tombstone mentions), the **`@mention`
+  authoring picker**, and now **`#tag` autocomplete** (a `#`-triggered typeahead of existing tags,
+  folded into the same `MentionTextField` — two more pure `schema` helpers, `entityType: "tag"` hits,
+  no id resolution since the bare word is the tag) are all done — [`reminders.md`](./reminders.md).
+  The compose surface is complete. **Next: onboarding-as-reminders** (first-run setup surfaced as
+  reminders, incl. the "Already using Leapsake on another device?" sync entry point — fills the empty
+  Home a brand-new user with no contacts still sees), then **reminder search**; broader automation
+  (holidays, Leapsake-defined tasks) extends the engine later.
 
 ### v0.2 (first post-launch feature increment)
 
