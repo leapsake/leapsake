@@ -37,6 +37,13 @@ function makeHarness() {
         rows.set(row.id, row);
         return row;
       },
+      // Refresh a live row's derived fields, bumping its clock, as the real repo
+      // update does — leaving identity, completion, and tombstone state alone.
+      update: async (id, fields) => {
+        const row = rows.get(id);
+        if (row)
+          rows.set(id, { ...row, ...fields, updatedAt: row.updatedAt + 1 });
+      },
       // The engine only ever queries active system rows; the fake honours the
       // `source = ?` predicate and the active (not-tombstoned) filter.
       listWhere: async ({ params }) =>
@@ -95,7 +102,7 @@ describe("regenerateSystemReminders", () => {
     h.setMilestones([birthday("m1", "p1", daysOut(10))]);
 
     const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 1, removed: 0 });
+    expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
 
     const [reminder] = h.activeSystem();
     expect(reminder.source).toBe("system");
@@ -114,7 +121,7 @@ describe("regenerateSystemReminders", () => {
     const firstId = h.activeSystem()[0].id;
 
     const second = await regenerateSystemReminders(h.deps);
-    expect(second).toEqual({ created: 0, removed: 0 });
+    expect(second).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.activeSystem()).toHaveLength(1);
     expect(h.activeSystem()[0].id).toBe(firstId);
   });
@@ -122,7 +129,7 @@ describe("regenerateSystemReminders", () => {
   it("does not generate outside the lead window", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(40))]);
     const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 0, removed: 0 });
+    expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.activeSystem()).toHaveLength(0);
   });
 
@@ -133,7 +140,7 @@ describe("regenerateSystemReminders", () => {
 
     h.setMilestones([]); // milestone deleted
     const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 0, removed: 1 });
+    expect(result).toEqual({ created: 0, updated: 0, removed: 1 });
     expect(h.activeSystem()).toHaveLength(0);
   });
 
@@ -144,7 +151,7 @@ describe("regenerateSystemReminders", () => {
 
     h.setMilestones([birthday("m1", "p1", daysOut(40))]); // moved out of range
     const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 0, removed: 1 });
+    expect(result).toEqual({ created: 0, updated: 0, removed: 1 });
     expect(h.activeSystem()).toHaveLength(0);
   });
 
@@ -156,9 +163,58 @@ describe("regenerateSystemReminders", () => {
     await h.deps.reminders.softDelete(id); // user dismissed it
 
     const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 0, removed: 0 });
+    expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.activeSystem()).toHaveLength(0);
     expect(h.rows.get(id)?.deletedAt).not.toBeNull();
+  });
+
+  it("re-dates a live reminder when its milestone's date drifts (same year, same id)", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(5))]);
+    await regenerateSystemReminders(h.deps);
+    const before = h.activeSystem()[0];
+    expect(before.dueDate).toBe(dueDateMs(daysOut(5)));
+
+    // Move the birthday later in the same window: the deterministic id is keyed on
+    // the occurrence *year*, so it's unchanged — the row must be updated in place.
+    h.setMilestones([birthday("m1", "p1", daysOut(12))]);
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 0, updated: 1, removed: 0 });
+
+    const after = h.activeSystem()[0];
+    expect(after.id).toBe(before.id);
+    expect(after.dueDate).toBe(dueDateMs(daysOut(12)));
+  });
+
+  it("re-titles a live reminder when its subject is renamed, keeping the id", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    await regenerateSystemReminders(h.deps);
+    const id = h.activeSystem()[0].id;
+
+    h.labels.set("p1", "Alicia"); // person renamed
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 0, updated: 1, removed: 0 });
+
+    const after = h.activeSystem()[0];
+    expect(after.id).toBe(id);
+    expect(after.title).toBe(
+      `🎂 ${mentionToken("Alicia", "person", "p1")}'s birthday`,
+    );
+  });
+
+  it("preserves a manual completion when re-dating a live reminder", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(5))]);
+    await regenerateSystemReminders(h.deps);
+    const id = h.activeSystem()[0].id;
+    // User marked the birthday reminder done, then the date is edited.
+    h.rows.set(id, { ...h.rows.get(id)!, completedAt: 123 });
+
+    h.setMilestones([birthday("m1", "p1", daysOut(12))]);
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 0, updated: 1, removed: 0 });
+
+    const after = h.activeSystem()[0];
+    expect(after.dueDate).toBe(dueDateMs(daysOut(12)));
+    expect(after.completedAt).toBe(123); // completion survives the re-date
   });
 
   it("ignores kinds that don't remind by default", async () => {
@@ -174,13 +230,13 @@ describe("regenerateSystemReminders", () => {
       },
     ]);
     const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 0, removed: 0 });
+    expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
   });
 
   it("skips a milestone whose bearer no longer resolves to a label", async () => {
     h.setMilestones([birthday("m1", "ghost", daysOut(10))]); // no label for "ghost"
     const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 0, removed: 0 });
+    expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.activeSystem()).toHaveLength(0);
   });
 });

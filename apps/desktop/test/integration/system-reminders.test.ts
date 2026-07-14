@@ -63,9 +63,8 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
       day: soon.day,
     });
 
-    const result = await core.reminders.regenerateSystem();
-    expect(result).toEqual({ created: 1, removed: 0 });
-
+    // core.milestones.create reconciles the birthday reminders in the same call,
+    // so the reminder is live immediately — no explicit regenerateSystem needed.
     const [reminder] = await systemReminders();
     // The subject is wrapped in an inline mention token carrying the person id, so
     // the name links to her page; the plain-text label strips back to her name.
@@ -127,7 +126,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     const firstId = (await systemReminders())[0].id;
 
     const second = await core.reminders.regenerateSystem();
-    expect(second).toEqual({ created: 0, removed: 0 });
+    expect(second).toEqual({ created: 0, updated: 0, removed: 0 });
     const rows = await systemReminders();
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe(firstId);
@@ -146,12 +145,10 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
       month: soon.month,
       day: soon.day,
     });
-    await core.reminders.regenerateSystem();
     expect(await systemReminders()).toHaveLength(1);
 
+    // Deleting the milestone prunes its reminder in the same call — no relaunch.
     await core.milestones.softDelete(milestone.id);
-    const result = await core.reminders.regenerateSystem();
-    expect(result).toEqual({ created: 0, removed: 1 });
     expect(await systemReminders()).toHaveLength(0);
   });
 
@@ -174,7 +171,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     await core.reminders.softDelete(id); // user dismisses it
 
     const result = await core.reminders.regenerateSystem();
-    expect(result).toEqual({ created: 0, removed: 0 });
+    expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(await systemReminders()).toHaveLength(0);
     expect(await core.reminders.get(id)).toBeUndefined(); // still tombstoned
   });
@@ -224,5 +221,81 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
 
     const [idA, idB] = [await idOnDevice(), await idOnDevice()];
     expect(idA).toBe(idB);
+  });
+});
+
+// The reported bugs: birthday reminders only reconciled at boot/focus, so adding,
+// re-dating, or deleting a birthday didn't reflect until a relaunch. Folding the
+// reconcile into the milestone write fixes all three; these drive the write and
+// assert the reminder state without any explicit regenerateSystem().
+describe("milestone writes reconcile birthday reminders at once", () => {
+  /** Create a person with a birthday `days` out; return the person + milestone. */
+  async function personWithBirthday(days: number) {
+    const person = await core.people.create(
+      { firstName: "Faye", middleName: null, lastName: "Ng", gender: null },
+      [],
+    );
+    const occ = civilDaysFromToday(days);
+    const milestone = await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: person.id,
+      month: occ.month,
+      day: occ.day,
+    });
+    return { person, milestone };
+  }
+
+  it("shows a new birthday on the Home list (and the person's backlink) at once", async () => {
+    const { person } = await personWithBirthday(5);
+
+    // No explicit regenerateSystem: creating the birthday already reconciled it.
+    const [reminder] = await systemReminders();
+    expect(reminder).toBeDefined();
+    expect(daysUntil(todayCivil(), civilFromDueMs(reminder.dueDate!))).toBe(5);
+
+    // And it backlinks onto the person's "Mentioned in" section.
+    expect(
+      (await core.reminders.mentioning("person", person.id)).map((r) => r.id),
+    ).toEqual([reminder.id]);
+  });
+
+  it("re-dates the reminder in place when the birthday's date is edited", async () => {
+    const { milestone } = await personWithBirthday(5);
+    const before = (await systemReminders())[0];
+    expect(daysUntil(todayCivil(), civilFromDueMs(before.dueDate!))).toBe(5);
+
+    // Move the birthday later in the same window — the reminder id is stable, so
+    // its due date must update rather than the stale "in 5 days" sticking.
+    const later = civilDaysFromToday(19);
+    await core.milestones.update(milestone.id, {
+      month: later.month,
+      day: later.day,
+    });
+
+    const after = (await systemReminders())[0];
+    expect(after.id).toBe(before.id); // same reminder, re-dated in place
+    expect(daysUntil(todayCivil(), civilFromDueMs(after.dueDate!))).toBe(19);
+  });
+
+  it("drops the reminder off the Home list when the birthday is deleted", async () => {
+    const { person, milestone } = await personWithBirthday(8);
+    expect(await systemReminders()).toHaveLength(1);
+
+    await core.milestones.softDelete(milestone.id);
+
+    expect(await systemReminders()).toHaveLength(0);
+    // And it falls off the person's backlink too (mentions cleared on prune).
+    expect(await core.reminders.mentioning("person", person.id)).toEqual([]);
+  });
+
+  it("prunes the reminder when the whole person is deleted (cascade reconcile)", async () => {
+    const { person } = await personWithBirthday(6);
+    expect(await systemReminders()).toHaveLength(1);
+
+    // Deleting the person cascades away their birthday milestone; the reconcile
+    // folded into people.softDelete drops the orphaned reminder in the same call.
+    await core.people.softDelete(person.id);
+    expect(await systemReminders()).toHaveLength(0);
   });
 });
