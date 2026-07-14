@@ -37,6 +37,30 @@ root); mobile Reminders is the `(tabs)` group's **`index`** tab, and People & Pe
 - **A tag's page lists its reminders** alongside people/pets (`core.tags.remindersForTag`,
   realizing decision 2 below).
 
+## Since then (automation · @mentions · due dates · non-editable system)
+
+The three biggest deferred items are now shipped — Home is no longer empty for a user with contacts:
+
+- **Automated `system` reminders — birthdays.** A standalone `@leapsake/reminders` engine (pure
+  occurrence math + a deterministic, content-addressed reminder id keyed on `milestone:occYear:rule`)
+  reconciles upcoming birthdays into `source: "system"` reminders. Core folds the reconcile into
+  boot/focus **and** every milestone write, person/pet delete, and person merge — so an added /
+  edited / deleted birthday (or a rename) reflects at once, not on relaunch. Idempotent and
+  tombstone-respecting (a dismissed reminder is never resurrected); it also **updates a live
+  reminder in place** when its milestone's date or subject drifts.
+- **`@mentions` as a synced backlink** (realizing decision 3). An inline `@[Name](type:id)` token
+  grammar (`schema/src/mention.ts`), a synced `mentions` join table re-derived from the reminder
+  text on every write like `#tags` (`data/src/mentions-repo.ts`), **forward** links (a mention
+  renders as a link to the person/pet via `ReminderText`), and the **reverse** "Mentioned in"
+  section on each entity page (`core.reminders.mentioning`). Person-merge re-points a mention onto
+  the survivor; person-delete tombstones it. Birthday reminders emit a mention token so the subject
+  links to their page.
+- **Due dates.** Nullable `due_date`, a countdown (`formatDueIn`) + soonest-first ordering
+  (`compareReminderDue`, `reminder-schedule.ts`), and a date input in the composer.
+- **System reminders are non-editable.** Their title/details are engine-owned (re-derived every
+  reconcile), so the *content* edit is refused for `source: "system"` (`isReminderEditable`);
+  completing / reopening and deleting stay open. A future sub-reminder attaches through its own path.
+
 ## The decisions (pinned)
 
 1. **Plaintext syncable rows — not per-item content keys.** Reminders aren't a
@@ -51,27 +75,28 @@ root); mobile Reminders is the `(tabs)` group's **`index`** tab, and People & Pe
 3. **`#tag` ≠ `@mention` — different relationships.** A tag points at a reusable
    **`Tag`** label (deduped); a mention points at a specific **Person/Pet**
    identity (its own page/merges). Mentions are therefore a **separate relationship**
-   (a future `mentions` table referencing entity ids), *not* a tagging — presented
-   as a sibling inline-reference feature in the UI. See `product-truths.md`.
-4. **`source` enum (`user` | `system`), default `user`.** Everything today is
-   `user`; `system` is reserved so the automated increment needs no schema change.
+   (the `mentions` table referencing entity ids), *not* a tagging — a sibling
+   inline-reference feature. **Now built** (see *Since then*). See `product-truths.md`.
+4. **`source` enum (`user` | `system`), default `user`.** `system` is **now live**
+   (birthday reminders, whose text is engine-owned); user reminders stay `user`. The
+   enum meant the automated increment needed no schema change — as intended.
 5. **Standalone screen first, then Home.** Shipped narrow — a standalone screen — to prove
    the entity, then promoted Reminders to the landing / Home screen once it was proven (see
    *Since then*). "Home" as the surface is done; the *content* that makes Home valuable
    (automation, onboarding-as-reminders) is what remains.
 
-## Deferred (all additive later)
+## Deferred / next (all additive)
 
-- **`@mentions`** of People/Pets — a `mentions` relationship + its merge/delete
-  re-point wiring (a person-merge must re-point mentions; a person-delete tombstones
-  them). Nothing to wire today because reminders reference no entities yet.
-- **`due_date`** — a nullable column + list ordering/《upcoming》grouping.
-- **Automated / `system` reminders** — upcoming-birthday/holiday triggers and
-  Leapsake-defined tasks generate reminders; needs dedup/regeneration keyed off
-  `source` and the trigger identity. *(Now the highest-value next step: the Home
-  surface exists but is empty for a fresh user until something populates it.)*
-- **Onboarding-as-reminders** — surface first-run setup *as* reminders (e.g. "Already
-  using Leapsake on another device?" as the first-run sync entry point). *(Reminders
-  becoming the landing "Home" screen itself is done — see* Since then*.)*
-- **Autocomplete** for tags/mentions (v2, reusing the `search` folded matcher) and
-  **reminder search**.
+- **Mention *authoring* (the next step).** The `@mention` substrate, rendering, backlinks, and
+  merge/delete wiring are all built — but the composer only takes free text + inline `#tags`, so
+  **a user cannot author a mention today**; only the birthday engine emits them. Next increment: an
+  `@`-triggered People/Pets **picker** in the reminder form that inserts a `@[Name](type:id)` token,
+  reusing `core.search.query` (the folded matcher). The write path already re-derives mentions from
+  the text, so this is purely a compose-surface affordance on both clients. Pairs with **`#tag`
+  autocomplete** on the same surface (the former "Autocomplete (v2)" item).
+- **Onboarding-as-reminders** — surface first-run setup *as* reminders (e.g. "Already using
+  Leapsake on another device?" as the first-run sync entry point). Fills the empty Home a brand-new
+  user (no contacts, no upcoming birthdays) still sees. *(Reminders becoming "Home" itself is done.)*
+- **Reminder search.**
+- **Broader automation** — holidays and Leapsake-defined tasks extend the birthday engine (same
+  dedup / regeneration keyed off `source` + trigger identity).

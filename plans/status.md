@@ -6,9 +6,9 @@
 > (the archive) — don't load it unless you need the history of a specific increment.
 > Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-11** (stable product posture + the user/client/account model moved out to
-> [`product-truths.md`](./product-truths.md) so this file stays focused on current status,
-> most-recently-done, and immediately-next).
+> **Updated 2026-07-14** (Reminders: automated `system` birthday reminders, `@mentions` as a
+> synced two-way backlink, due dates, and non-editable system reminders all shipped — next is a
+> mention *authoring* picker; see *What's next*).
 
 ## Where things stand
 
@@ -26,12 +26,15 @@
 - **Files / media** — nothing built; design invariants pinned in [`files.md`](./files.md).
   Photos are the v0.2 headline (first consumer of that design).
 - **Reminders (home-screen surface)** — a user-generated, syncable Reminder entity (freeform
-  title/body, reversible completion, inline `#tags`), landed on top of a **`bearer`
-  naming-consistency pass** (milestone `subject*` + tagging `entity*` polymorphic columns →
-  `bearer*`; migration 17). **Now the landing / Home screen on both clients** (People & Pets moved
-  to `/people`), with inline `#tags` linking to their tag page and a tag's page listing its
-  reminders. Deferred (the content that makes Home valuable): automation/`system` reminders,
-  onboarding-as-reminders, @mentions, due dates — [`reminders.md`](./reminders.md).
+  title/body, reversible completion, inline `#tags`, **due dates**), the **landing / Home screen on
+  both clients** (People & Pets at `/people`; inline `#tags` link to their tag page and a tag's page
+  lists its reminders). **Now populated by automation:** an `@leapsake/reminders` **birthday engine**
+  emits `source: "system"` reminders (reconciled on boot/focus *and* every milestone / person write),
+  and **`@mentions`** are a synced two-way backlink (a reminder's mention links to the person/pet; an
+  entity's page lists the reminders that mention it — birthday reminders link their own subject).
+  System reminders are engine-owned, so their text is **non-editable** (completing/deleting still
+  work). Remaining (the last authoring gap + first-run): a **mention *authoring* picker**,
+  onboarding-as-reminders, reminder search — [`reminders.md`](./reminders.md).
 
 ## Product posture
 
@@ -108,14 +111,18 @@ can't ship without distributable apps. (None yet.)
   honoring the `not_a_duplicate` memory).
 
 **Client / UX** (sequenced *after* the encryption work above):
-- **Reminders → Home screen.** The user-generated Reminders increment **and making Reminders the
-  landing/Home screen are done** (inline `#tags` link to their tag page; a tag's page lists its
-  reminders) — [`reminders.md`](./reminders.md). The remaining steps toward the home-screen vision
-  are its deferred items: **automated/`system` reminders** (upcoming birthdays/holidays +
-  Leapsake-defined tasks) — the highest-value next one, since Home now exists but is empty for a
-  fresh user — then **onboarding-as-reminders** (the first-run "Already using Leapsake on another
-  device?" sync entry point). Also deferred: **`@mentions`** of People/Pets (a separate `mentions`
-  relationship) and **due dates**.
+- **Reminders → Home screen.** The Reminders entity, Home promotion, **due dates**, **automated
+  `system` (birthday) reminders**, and **`@mentions`** (synced backlink, both directions; birthday
+  reminders link their subject; person-merge/-delete re-point/tombstone mentions) are all done —
+  [`reminders.md`](./reminders.md). **Next: a mention *authoring* affordance** — an `@`-triggered
+  People/Pets picker in the reminder composer that inserts a `@[Name](type:id)` token, reusing
+  `core.search.query`. The mention substrate, rendering, and backlinks all exist, but the composer
+  only takes free text + inline `#tags`, so **a user cannot author a mention today** — only the
+  birthday engine emits them; this closes the loop (and the same picker surface gives `#tag`
+  autocomplete). Then **onboarding-as-reminders** (first-run setup surfaced as reminders, incl. the
+  "Already using Leapsake on another device?" sync entry point — fills the empty Home a brand-new
+  user with no contacts still sees) and **reminder search**; broader automation (holidays,
+  Leapsake-defined tasks) extends the engine later.
 
 ### v0.2 (first post-launch feature increment)
 
