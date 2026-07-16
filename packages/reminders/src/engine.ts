@@ -4,18 +4,28 @@ import {
   type MilestoneBearerType,
   type RemindEligibleMilestone,
   type Reminder,
+  type ReminderRuleInput,
+  actionDefs,
   daysUntil,
   dueDateMs,
-  kindDefs,
   mentionToken,
   nextOccurrence,
+  reminderRuleLabel,
 } from "@leapsake/schema";
 
+/** Milliseconds in a civil day — a stored due date is UTC midnight, so shifting
+ *  it back by whole days is exact integer subtraction (no DST drift). */
+const DAY_MS = 86_400_000;
+
 /**
- * How many days ahead the engine looks: a `system` reminder appears once its
- * milestone's next occurrence is within this window and is dropped again once
- * the day has passed. A fixed two-day-shy-of-a-month lead for v1 (birthdays);
- * per-kind offsets and configurable windows are on the roadmap.
+ * The base look-ahead: a `system` reminder surfaces once its **own due date** is
+ * within this many days of today (the due date being the milestone's occurrence
+ * shifted back by the rule's `offsetDays`), and is dropped again once the
+ * milestone's day has passed. So a day-of rule (offset 0) appears ~a month out
+ * — unchanged from the birthday-only engine — while a `gift @ 30 days before`
+ * rule appears ~a month before *that*, i.e. ~two months before the birthday,
+ * giving every reminder the same run-up before it comes due. See
+ * {@link isWithinWindow}.
  */
 export const LEAD_DAYS = 30;
 
@@ -25,11 +35,6 @@ export const LEAD_DAYS = 30;
  * every system reminder under a new id and duplicate the lot on next sync.
  */
 export const SYSTEM_REMINDER_NAMESPACE = "leapsake:system-reminder";
-
-/** The rule that produced a reminder, part of its identity. `"day"` (the event's
- * own day) is the only rule in v1; it is present now so future staggered rules
- * (gift → card → wish) and holidays get distinct, non-colliding ids for free. */
-const DAY_RULE = "day";
 
 /**
  * The store surface the engine drives — the narrow slice of the reminders repo
@@ -70,6 +75,17 @@ export interface ReminderEngineDeps {
   /** The system-reminder store (see {@link SystemReminderStore}). */
   reminders: SystemReminderStore;
   /**
+   * The milestone's effective staggered-reminder schedule — its stored rule rows
+   * when it has been customised, else its kind's defaults, already projected to
+   * editable rows (schema's `resolveReminderSchedule`). The engine mints one
+   * reminder per **enabled** entry; disabled entries are ignored (but still
+   * returned so the caller need not filter). Injected so the engine stays free of
+   * `@leapsake/data` — the composition root reads the rules repo + resolver.
+   */
+  resolveSchedule(
+    milestone: RemindEligibleMilestone,
+  ): Promise<ReminderRuleInput[]>;
+  /**
    * Resolve a milestone bearer to its display label, or `null` when the bearer is
    * gone (a dangling milestone) — a null label skips the reminder.
    */
@@ -90,19 +106,44 @@ interface DesiredReminder {
   dueDate: number;
 }
 
-/** The identity string a milestone occurrence is content-addressed under, so two
- *  devices generating "the same" reminder derive the **same** id and the existing
- *  whole-row merge dedups them (plans automated-reminders, cross-cutting). */
-function occurrenceName(milestoneId: string, occurrenceYear: number): string {
-  return `milestone:${milestoneId}:${occurrenceYear}:${DAY_RULE}`;
+/** The identity string a milestone occurrence + rule is content-addressed under,
+ *  so two devices generating "the same" reminder derive the **same** id and the
+ *  existing whole-row merge dedups them (plans automated-reminders, cross-cutting).
+ *  Keyed on the rule's `action` so a milestone's staggered reminders (gift, card,
+ *  wish…) get distinct, non-colliding ids for the same occurrence. */
+function occurrenceName(
+  milestoneId: string,
+  occurrenceYear: number,
+  action: string,
+): string {
+  return `milestone:${milestoneId}:${occurrenceYear}:${action}`;
+}
+
+/**
+ * Whether a rule's reminder should exist today: its due date (the occurrence
+ * shifted back by `offsetDays`) is at most {@link LEAD_DAYS} away, and the
+ * occurrence itself hasn't passed. `days` is `daysUntil(today, occurrence)`, so
+ * the due date is `days - offsetDays` away — bounded above by `LEAD_DAYS` and
+ * held open until the occurrence day (`days >= 0`) so a not-yet-actioned
+ * reminder keeps nagging up to the event rather than vanishing on its due date.
+ */
+function isWithinWindow(
+  daysUntilOccurrence: number,
+  offsetDays: number,
+): boolean {
+  return (
+    daysUntilOccurrence >= 0 && daysUntilOccurrence - offsetDays <= LEAD_DAYS
+  );
 }
 
 /**
  * Compute the set of `system` reminders that *should* exist for `today` and
  * reconcile the store to it, **idempotently** and **tombstone-respectingly**:
  *
- * - For each remind-by-default milestone with an upcoming occurrence inside the
- *   {@link LEAD_DAYS} window, derive its deterministic id and desired row.
+ * - For each milestone with an upcoming occurrence, resolve its staggered
+ *   schedule (stored rules, else kind defaults) and, for every **enabled** rule
+ *   whose due date is inside the {@link LEAD_DAYS} window, derive a deterministic
+ *   id (keyed on the rule's action) and desired row.
  * - Insert each desired row **when absent** — `getIncludingDeleted` means a
  *   user-dismissed reminder (a tombstone under that id) is left dead, never
  *   resurrected.
@@ -133,19 +174,21 @@ async function computeAndReconcile(
   // The desired set, keyed by (deterministic) id so duplicate identities collapse.
   const desired = new Map<string, DesiredReminder>();
   for (const m of milestones) {
-    if (!kindDefs[m.kind].remindByDefault) continue;
     const occ = nextOccurrence(m.kind, m, deps.today);
     if (occ === null) continue;
     const days = daysUntil(deps.today, occ);
-    if (days < 0 || days > LEAD_DAYS) continue;
+    if (days < 0) continue; // occurrence already passed — nothing to schedule
+
+    // The rules that actually want a reminder for this occurrence today: enabled,
+    // and inside their own due-date window. Resolve the schedule up front and skip
+    // the (potentially encrypted) label lookup entirely when nothing applies.
+    const rules = (await deps.resolveSchedule(m)).filter(
+      (r) => r.enabled && isWithinWindow(days, r.offsetDays),
+    );
+    if (rules.length === 0) continue;
+
     const label = await deps.resolveLabel(m.bearerType, m.bearerId);
     if (label === null) continue; // bearer gone — nothing to name the reminder
-
-    const id = deterministicUuid(
-      SYSTEM_REMINDER_NAMESPACE,
-      occurrenceName(m.id, occ.year),
-    );
-    const kindDef = kindDefs[m.kind];
     // Wrap the subject in an inline mention token so the name links to the
     // person/pet page (the reminder text is the single source of truth for the
     // mention; core re-derives the backlink from it). A relationship bearer has
@@ -155,9 +198,32 @@ async function computeAndReconcile(
       m.bearerType === "relationship"
         ? label
         : mentionToken(label, m.bearerType, m.bearerId);
-    const title =
-      `${kindDef.icon ?? ""} ${subject}'s ${kindDef.label.toLowerCase()}`.trim();
-    desired.set(id, { id, title, dueDate: dueDateMs(occ) });
+
+    for (const rule of rules) {
+      const id = deterministicUuid(
+        SYSTEM_REMINDER_NAMESPACE,
+        occurrenceName(m.id, occ.year, rule.action),
+      );
+      const def = actionDefs[rule.action];
+      // The action's copy carries the (mention-wrapped) subject — "Wish @Alice a
+      // happy birthday", "Get @Alice a gift". `other` has no template; it is the
+      // user's own free text, so it names no subject (nothing to interpolate).
+      const body =
+        rule.action === "other"
+          ? reminderRuleLabel({
+              action: rule.action,
+              label: rule.label ?? null,
+            })
+          : def.template(subject);
+      const title = `${def.icon ?? ""} ${body}`.trim();
+      // Due `offsetDays` before the occurrence (day-of when 0); stored as UTC
+      // midnight of that civil day, so plain integer subtraction is exact.
+      desired.set(id, {
+        id,
+        title,
+        dueDate: dueDateMs(occ) - rule.offsetDays * DAY_MS,
+      });
+    }
   }
 
   return deps.transaction(async () => {

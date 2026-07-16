@@ -378,6 +378,15 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       milestones: {
         listRemindEligible: () => milestones.listRemindEligible(),
       },
+      // The milestone's effective staggered schedule: its stored rule rows, or —
+      // when untouched — its kind's defaults (schema's `resolveReminderSchedule`,
+      // the same resolve the editor loads). The engine mints one reminder per
+      // enabled entry.
+      resolveSchedule: async (m) =>
+        resolveReminderSchedule(
+          m.kind,
+          await reminderRules.listForBearer("milestone", m.id),
+        ),
       reminders: {
         getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
         // The engine writes system reminders through this port (bypassing the

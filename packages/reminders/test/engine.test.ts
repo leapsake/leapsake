@@ -2,8 +2,10 @@ import {
   type CivilDate,
   type RemindEligibleMilestone,
   type Reminder,
+  type ReminderRuleInput,
   dueDateMs,
   mentionToken,
+  resolveReminderSchedule,
 } from "@leapsake/schema";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -28,9 +30,17 @@ function makeHarness() {
   const rows = new Map<string, Reminder>();
   let milestones: RemindEligibleMilestone[] = [];
   const labels = new Map<string, string>();
+  // Per-milestone stored rule overrides; a milestone with no entry rides its
+  // kind defaults, exactly as the real `resolveReminderSchedule` does over an
+  // empty stored set.
+  const schedules = new Map<string, ReminderRuleInput[]>();
 
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => milestones },
+    // A custom set is itself the resolved schedule; an un-set milestone rides its
+    // kind defaults (what the real `resolveReminderSchedule` returns over no rows).
+    resolveSchedule: async (m) =>
+      schedules.get(m.id) ?? resolveReminderSchedule(m.kind, []),
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),
       insert: async (row) => {
@@ -67,6 +77,9 @@ function makeHarness() {
     setMilestones: (next: RemindEligibleMilestone[]) => {
       milestones = next;
     },
+    setSchedule: (milestoneId: string, rules: ReminderRuleInput[]) => {
+      schedules.set(milestoneId, rules);
+    },
     activeSystem: () =>
       [...rows.values()].filter(
         (r) => r.source === "system" && r.deletedAt === null,
@@ -91,6 +104,23 @@ function birthday(
   };
 }
 
+/** A remind-eligible death-anniversary milestone helper. */
+function death(
+  id: string,
+  bearerId: string,
+  occ: CivilDate,
+): RemindEligibleMilestone {
+  return {
+    id,
+    kind: "death",
+    bearerType: "person",
+    bearerId,
+    year: null,
+    month: occ.month,
+    day: occ.day,
+  };
+}
+
 describe("regenerateSystemReminders", () => {
   let h: ReturnType<typeof makeHarness>;
   beforeEach(() => {
@@ -106,9 +136,10 @@ describe("regenerateSystemReminders", () => {
 
     const [reminder] = h.activeSystem();
     expect(reminder.source).toBe("system");
-    // The subject is wrapped in an inline mention token pointing at the person.
+    // A birthday's default schedule enables just the day-of "wish" action, whose
+    // action-phrased copy wraps the subject in an inline mention token.
     expect(reminder.title).toBe(
-      `🎂 ${mentionToken("Alice", "person", "p1")}'s birthday`,
+      `🎉 Wish ${mentionToken("Alice", "person", "p1")} a happy birthday`,
     );
     expect(reminder.body).toBeNull();
     expect(reminder.completedAt).toBeNull();
@@ -197,7 +228,7 @@ describe("regenerateSystemReminders", () => {
     const after = h.activeSystem()[0];
     expect(after.id).toBe(id);
     expect(after.title).toBe(
-      `🎂 ${mentionToken("Alicia", "person", "p1")}'s birthday`,
+      `🎉 Wish ${mentionToken("Alicia", "person", "p1")} a happy birthday`,
     );
   });
 
@@ -217,20 +248,76 @@ describe("regenerateSystemReminders", () => {
     expect(after.completedAt).toBe(123); // completion survives the re-date
   });
 
-  it("ignores kinds that don't remind by default", async () => {
-    h.setMilestones([
-      {
-        id: "d1",
-        kind: "death",
-        bearerType: "person",
-        bearerId: "p1",
-        year: null,
-        month: daysOut(10).month,
-        day: daysOut(10).day,
-      },
-    ]);
+  it("ignores a kind whose default schedule is all-off (death)", async () => {
+    // A death's only default rule ("remember") ships disabled, so an untouched
+    // death milestone mints nothing — the quiet, opt-in posture.
+    h.setMilestones([death("d1", "p1", daysOut(10))]);
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
+  });
+
+  it("mints a reminder for a non-birthday kind once its rule is enabled", async () => {
+    h.setMilestones([death("d1", "p1", daysOut(10))]);
+    h.setSchedule("d1", [{ action: "remember", offsetDays: 0, enabled: true }]);
+
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
+    expect(h.activeSystem()[0].title).toBe(
+      `🕯️ Remember ${mentionToken("Alice", "person", "p1")}`,
+    );
+  });
+
+  it("mints one reminder per enabled rule, each due at its own offset", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.setSchedule("m1", [
+      { action: "gift", offsetDays: 30, enabled: true },
+      { action: "wish", offsetDays: 0, enabled: true },
+      { action: "text", offsetDays: 0, enabled: false }, // stays off
+    ]);
+
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 2, updated: 0, removed: 0 });
+
+    const byTitle = new Map(h.activeSystem().map((r) => [r.title, r]));
+    const gift = byTitle.get(
+      `🎁 Get ${mentionToken("Alice", "person", "p1")} a gift`,
+    );
+    const wish = byTitle.get(
+      `🎉 Wish ${mentionToken("Alice", "person", "p1")} a happy birthday`,
+    );
+    expect(gift).toBeDefined();
+    expect(wish).toBeDefined();
+    // The gift is due 30 days before the birthday; the wish is due day-of.
+    expect(gift?.dueDate).toBe(dueDateMs(daysOut(20)) - 30 * 86_400_000);
+    expect(wish?.dueDate).toBe(dueDateMs(daysOut(20)));
+    // Distinct occurrences → distinct ids (keyed on the action).
+    expect(gift?.id).not.toBe(wish?.id);
+  });
+
+  it("surfaces a far-out rule before a nearer one (offset extends the window)", async () => {
+    // 45 days out: the day-of wish is still beyond the 30-day window, but the
+    // gift (due 30 days before) is already inside its own window.
+    h.setMilestones([birthday("m1", "p1", daysOut(45))]);
+    h.setSchedule("m1", [
+      { action: "gift", offsetDays: 30, enabled: true },
+      { action: "wish", offsetDays: 0, enabled: true },
+    ]);
+
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
+    expect(h.activeSystem()[0].title).toBe(
+      `🎁 Get ${mentionToken("Alice", "person", "p1")} a gift`,
+    );
+  });
+
+  it("uses the free-text label for an 'other' rule (no subject mention)", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    h.setSchedule("m1", [
+      { action: "other", label: "Bring flowers", offsetDays: 0, enabled: true },
+    ]);
+
+    await regenerateSystemReminders(h.deps);
+    expect(h.activeSystem()[0].title).toBe("🔔 Bring flowers");
   });
 
   it("skips a milestone whose bearer no longer resolves to a label", async () => {

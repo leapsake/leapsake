@@ -143,8 +143,8 @@ taggings from the saved text on every write.
 - **Reminder search.**
 - **Broader automation** — holidays and Leapsake-defined tasks extend the birthday engine (same
   dedup / regeneration keyed off `source` + trigger identity).
-- **Per-milestone reminder settings — storage/editing shipped; engine wiring is next.** A milestone
-  now carries a *staggered* schedule of reminder rules — an **action** (`gift`/`card`/`call`/`text`/
+- **Per-milestone reminder settings — storage/editing *and* engine wiring shipped.** A milestone
+  carries a *staggered* schedule of reminder rules — an **action** (`gift`/`card`/`call`/`text`/
   `wish`/`visit`/`remember`/`other`, a closed enum + `actionDefs` registry mirroring `kindDefs`, with
   `other` leaning on a free-text label) some number of days before the occurrence, on or off. Defaults
   are per-*kind* (`kindDefs[kind].defaultReminderSchedule`). The **only** rule on by default anywhere is
@@ -154,7 +154,14 @@ taggings from the saved text on every write.
   a new `reminder_rules` table (migration 21, polymorphic `bearer_type` — `"milestone"` now,
   `"holiday"`-ready), synced like reminders; a milestone with **no** rows rides its kind defaults
   (`resolveReminderSchedule`), so untouched milestones store nothing. Edited inline on both clients'
-  milestone forms; persisted in the same transaction as the milestone write. **Not yet wired into the
-  engine** — it still mints one day-of reminder gated on `remindByDefault`. Next increment: the engine
-  reads the schedule and mints one `system` reminder per enabled rule, offset by `offsetDays`, under
-  id `milestone:{id}:{year}:{action}` (the `DAY_RULE`/`occurrenceName` slot already reserved for it).
+  milestone forms; persisted in the same transaction as the milestone write. **Now the engine reads
+  it:** `regenerateSystemReminders` resolves each eligible milestone's schedule (stored rows, else kind
+  defaults) via an injected `resolveSchedule` port and mints one `system` reminder **per enabled rule**,
+  under id `milestone:{id}:{year}:{action}` (the reserved slot), due `offsetDays` before the occurrence
+  — action-phrased from `actionDefs[action].template` ("🎁 Get @Name a gift"; `other` uses its free
+  text). A rule surfaces when its own due date is within `LEAD_DAYS` (so a `gift@30` appears ~a month
+  before *its* due date) and persists until the occurrence passes. The old `remindByDefault` kind flag
+  (the pre-switch gate) is **retired** — `defaultReminderSchedule`'s `enabledByDefault` is now the sole
+  driver, so there's one source of truth. All idempotence / tombstone / drift-repair / merge behaviour
+  is unchanged (still one reminder each for an untouched birthday, now titled "🎉 Wish @Name a happy
+  birthday"). Broader automation (holidays, Leapsake-defined tasks) extends the same engine later.

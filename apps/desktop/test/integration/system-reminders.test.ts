@@ -69,9 +69,9 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     // The subject is wrapped in an inline mention token carrying the person id, so
     // the name links to her page; the plain-text label strips back to her name.
     expect(reminder.title).toBe(
-      `🎂 ${mentionToken("Alice Ng", "person", alice.id)}'s birthday`,
+      `🎉 Wish ${mentionToken("Alice Ng", "person", alice.id)} a happy birthday`,
     );
-    expect(reminderLabel(reminder)).toBe("🎂 Alice Ng's birthday");
+    expect(reminderLabel(reminder)).toBe("🎉 Wish Alice Ng a happy birthday");
     // Core resolves the mention to the person's current label for the renderer.
     expect(reminder.mentions).toEqual([
       { targetType: "person", targetId: alice.id, label: "Alice Ng" },
@@ -79,6 +79,47 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     expect(reminder.dueDate).not.toBeNull();
     // Dated exactly 10 civil days out, so the client shows "in 10 days".
     expect(daysUntil(todayCivil(), civilFromDueMs(reminder.dueDate!))).toBe(10);
+  });
+
+  it("mints one system reminder per enabled rule of a customised schedule", async () => {
+    // The storage→engine seam: a user turns on the staggered "gift" alongside the
+    // default "wish", and the engine mints a reminder for each — the whole point
+    // of the per-milestone schedule.
+    const bea = await core.people.create(
+      { firstName: "Bea", middleName: null, lastName: "Ko", gender: null },
+      [],
+    );
+    const occ = civilDaysFromToday(20);
+    await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: bea.id,
+      month: occ.month,
+      day: occ.day,
+      // Replaces the kind defaults: gift 30 days ahead + the day-of wish, both on.
+      reminderSchedule: [
+        { action: "gift", label: null, offsetDays: 30, enabled: true },
+        { action: "wish", label: null, offsetDays: 0, enabled: true },
+      ],
+    });
+
+    const rows = await systemReminders();
+    const byTitle = new Map(rows.map((r) => [reminderLabel(r), r]));
+    expect([...byTitle.keys()].sort()).toEqual([
+      "🎁 Get Bea Ko a gift",
+      "🎉 Wish Bea Ko a happy birthday",
+    ]);
+    // The wish is due day-of; the gift 30 days earlier.
+    const gift = byTitle.get("🎁 Get Bea Ko a gift")!;
+    const wish = byTitle.get("🎉 Wish Bea Ko a happy birthday")!;
+    expect(daysUntil(todayCivil(), civilFromDueMs(wish.dueDate!))).toBe(20);
+    expect(daysUntil(todayCivil(), civilFromDueMs(gift.dueDate!))).toBe(-10);
+    // Both link back to Bea's page.
+    expect(
+      (await core.reminders.mentioning("person", bea.id))
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual([gift.id, wish.id].sort());
   });
 
   it("relabels the birthday mention live when the person is renamed", async () => {
@@ -369,7 +410,7 @@ describe("milestone writes reconcile birthday reminders at once", () => {
 
     // Its title + resolved mention now name the survivor, not the dead loser.
     expect(reminder.title).toBe(
-      `🎂 ${mentionToken("Sam Sur", "person", survivor.id)}'s birthday`,
+      `🎉 Wish ${mentionToken("Sam Sur", "person", survivor.id)} a happy birthday`,
     );
     const resolved = await core.reminders.get(reminder.id);
     expect(resolved?.mentions).toEqual([

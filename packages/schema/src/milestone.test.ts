@@ -152,13 +152,20 @@ describe("kind registry", () => {
     expect(preferredBearerType("first-date")).toBe("relationship");
   });
 
-  it("reminds by default only for birthdays (death included in the off set)", () => {
-    expect(kindDefs.birthday.remindByDefault).toBe(true);
+  it("enables a default reminder only for birthdays (death offers only an off 'remember')", () => {
+    // The engine mints a reminder for every `enabledByDefault` entry, so "reminds
+    // by default" now means "has an enabled-by-default rule" — the birthday wish
+    // is the only one anywhere.
+    const hasEnabledDefault = (kind: keyof typeof kindDefs) =>
+      kindDefs[kind].defaultReminderSchedule.some((r) => r.enabledByDefault);
     const remindingKinds = (
       Object.keys(kindDefs) as (keyof typeof kindDefs)[]
-    ).filter((kind) => kindDefs[kind].remindByDefault);
+    ).filter(hasEnabledDefault);
     expect(remindingKinds).toEqual(["birthday"]);
-    expect(kindDefs.death.remindByDefault).toBe(false);
+    // A death offers a "remember", but it ships off — nothing fires unprompted.
+    expect(kindDefs.death.defaultReminderSchedule).toEqual([
+      { action: "remember", offsetDays: 0, enabledByDefault: false },
+    ]);
   });
 });
 

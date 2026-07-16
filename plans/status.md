@@ -6,11 +6,13 @@
 > (the archive) — don't load it unless you need the history of a specific increment.
 > Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-14** (Reminders: `#tag` **autocomplete** shipped on both clients — typing `#` in
-> the composer offers a typeahead of existing tags, folded into the same `MentionTextField` as the
-> `@mention` picker. The compose surface — `@mention` + `#tag` authoring — is now complete. Follows the
-> mention picker, automated birthday reminders, `@mentions` backlink, due dates. Next on this surface
-> is onboarding-as-reminders; see *What's next*).
+> **Updated 2026-07-15** (Reminders: the **per-milestone schedule is now wired into the engine** —
+> `regenerateSystemReminders` reads each milestone's resolved schedule and mints one `system` reminder
+> **per enabled rule**, offset by `offsetDays`, under id `milestone:{id}:{year}:{action}`, action-phrased
+> from `actionDefs` ("🎁 Get @Name a gift"). This closes the storage→engine seam the last increment left
+> open; the now-vestigial `remindByDefault` kind flag was retired in favour of `defaultReminderSchedule`.
+> Follows the compose surface (`@mention` + `#tag` authoring), automated birthday reminders, due dates.
+> Next on this surface is onboarding-as-reminders; see *What's next*).
 
 ## Where things stand
 
@@ -35,10 +37,11 @@
   and **`@mentions`** are a synced two-way backlink (a reminder's mention links to the person/pet; an
   entity's page lists the reminders that mention it — birthday reminders link their own subject).
   System reminders are engine-owned, so their text is **non-editable** (completing/deleting still
-  work). **The compose surface is now complete:** an `@`-triggered People/Pets picker inserts the
-  `@[Name](type:id)` token and a `#`-triggered typeahead completes existing tags — both folded into
-  one `MentionTextField` per client. Remaining (first-run + polish): onboarding-as-reminders, reminder
-  search — [`reminders.md`](./reminders.md).
+  work). **The compose surface is complete** (an `@`-triggered People/Pets picker + a `#`-triggered tag
+  typeahead, folded into one `MentionTextField` per client), and **per-milestone staggered schedules are
+  now wired into the engine** — one `system` reminder per enabled rule, offset by `offsetDays`,
+  action-phrased. Remaining (first-run + polish): onboarding-as-reminders, reminder search —
+  [`reminders.md`](./reminders.md).
 
 ## Product posture
 
@@ -121,16 +124,19 @@ can't ship without distributable apps. (None yet.)
   authoring picker**, and now **`#tag` autocomplete** (a `#`-triggered typeahead of existing tags,
   folded into the same `MentionTextField` — two more pure `schema` helpers, `entityType: "tag"` hits,
   no id resolution since the bare word is the tag) are all done — [`reminders.md`](./reminders.md).
-  The compose surface is complete. **Per-milestone reminder settings** (staggered schedules) now have
-  their **storage + inline editing** shipped: a plaintext `reminder_rules` table (migration 21,
-  polymorphic `bearer_type`, holiday-ready), a closed `reminderAction` enum + `actionDefs` registry
-  with an `other` free-text escape hatch, per-kind defaults on `kindDefs`, and a Reminders editor on
-  both clients' milestone forms — but **not yet wired into the engine** (it still mints one day-of
-  birthday reminder). **Next: onboarding-as-reminders** (first-run setup surfaced as reminders, incl.
-  the "Already using Leapsake on another device?" sync entry point — fills the empty Home a brand-new
-  user with no contacts still sees), then **reminder search**; the per-milestone-schedule *engine
-  wiring* (one `system` reminder per enabled rule, offset by `offsetDays`) and broader automation
-  (holidays, Leapsake-defined tasks) extend the engine later.
+  The compose surface is complete. **Per-milestone reminder settings** (staggered schedules) are now
+  **fully wired**: storage + inline editing (a plaintext `reminder_rules` table, migration 21,
+  polymorphic `bearer_type`, holiday-ready; a closed `reminderAction` enum + `actionDefs` registry with
+  an `other` free-text escape hatch; per-kind defaults on `kindDefs`; a Reminders editor on both
+  clients' milestone forms) **and engine consumption** — `regenerateSystemReminders` resolves each
+  eligible milestone's schedule (via an injected `resolveSchedule` port) and mints one `system` reminder
+  **per enabled rule**, offset by `offsetDays`, under id `milestone:{id}:{year}:{action}`, action-phrased
+  from `actionDefs.template`. The vestigial `remindByDefault` kind flag was retired
+  (`defaultReminderSchedule.enabledByDefault` is now the one source of truth). **Next:
+  onboarding-as-reminders** (first-run setup surfaced as reminders, incl. the "Already using Leapsake on
+  another device?" sync entry point — fills the empty Home a brand-new user with no contacts still
+  sees), then **reminder search**; broader automation (holidays, Leapsake-defined tasks) extends the
+  same engine later.
 
 ### v0.2 (first post-launch feature increment)
 
