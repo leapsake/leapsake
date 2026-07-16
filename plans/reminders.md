@@ -1,167 +1,52 @@
 # Leapsake Reminders — the home-screen surface (why & invariants)
 
-> **Stable "why" doc.** Reminders are the **home screen** (now the landing surface on both
-> clients) and the intended first-run **onboarding** hub (account setup etc. can later be
-> surfaced *as* reminders). This doc pins what Reminders are and the decisions
-> behind them; live status/sequencing lives in [`status.md`](./status.md), the
-> product model in [`product-truths.md`](./product-truths.md).
+> **Stable "why" doc.** Reminders are the **home screen** (the landing surface on both clients)
+> and the intended first-run **onboarding** hub (account setup etc. can later be surfaced *as*
+> reminders). This doc pins what Reminders are and the decisions behind them. Live
+> status/sequencing lives in [`status.md`](./status.md); how each increment was built lives in
+> `git log`; the product model in [`product-truths.md`](./product-truths.md).
 
-## What shipped (first increment — user-generated CRUD)
+## What a Reminder is
 
-A first-class, syncable **Reminder** entity: freeform `title` and/or `body` (at
-least one required), a `completed_at` toggle (reversible), and a `source` enum.
-Standalone **Reminders** screen on desktop (nav link) and mobile (tab), with
-create / edit / complete / delete. `#tags` are typed **inline** in the text.
-
-- **Schema/data/core:** `packages/schema/src/reminder.ts` (+ `reminderLabel`,
-  `parseHashtags` in `tag.ts`), migration **18** (`reminders` table),
-  `packages/data/src/reminders-repo.ts` (plaintext `createEntityRepo` +
-  `setCompleted`), the `core.reminders` group, and one line in `syncableRepos()`.
-- **Clients:** desktop screens under `renderer/src/screens/Reminder*` + routes;
-  mobile `app/(tabs)/index.tsx` (the Reminders/Home tab) + `app/reminders/**` +
-  `components/ReminderForm`.
-
-## Since then (Home + inline tag links)
-
-Reminders is now the **landing / Home screen** on both clients: desktop `/` redirects to
-`/reminders` and the combined People & Pets list moved to `/people` (top-nav link + breadcrumb
-root); mobile Reminders is the `(tabs)` group's **`index`** tab, and People & Pets became
-`(tabs)/people`. Three UI follow-ups shipped with it:
-
-- **Inline `#tags` are links to their tag page.** A platform-agnostic `splitHashtags(text)`
-  (`tag.ts`, same `#`-anchored pattern as `parseHashtags`) segments the text; core reads
-  (`reminders.list`/`get`) now return **`ReminderWithTags`** carrying the resolved tag rows, so
-  a per-client `ReminderText` component links each `#tag` to `/tags/:id`.
-- **The body shows as details under the title** in the lists (title leads; a body-only reminder
-  isn't repeated).
-- **A tag's page lists its reminders** alongside people/pets (`core.tags.remindersForTag`,
-  realizing decision 2 below).
-
-## Since then (automation · @mentions · due dates · non-editable system)
-
-The three biggest deferred items are now shipped — Home is no longer empty for a user with contacts:
-
-- **Automated `system` reminders — birthdays.** A standalone `@leapsake/reminders` engine (pure
-  occurrence math + a deterministic, content-addressed reminder id keyed on `milestone:occYear:rule`)
-  reconciles upcoming birthdays into `source: "system"` reminders. Core folds the reconcile into
-  boot/focus **and** every milestone write, person/pet delete, and person merge — so an added /
-  edited / deleted birthday (or a rename) reflects at once, not on relaunch. Idempotent and
-  tombstone-respecting (a dismissed reminder is never resurrected); it also **updates a live
-  reminder in place** when its milestone's date or subject drifts.
-- **`@mentions` as a synced backlink** (realizing decision 3). An inline `@[Name](type:id)` token
-  grammar (`schema/src/mention.ts`), a synced `mentions` join table re-derived from the reminder
-  text on every write like `#tags` (`data/src/mentions-repo.ts`), **forward** links (a mention
-  renders as a link to the person/pet via `ReminderText`), and the **reverse** "Mentioned in"
-  section on each entity page (`core.reminders.mentioning`). Person-merge re-points a mention onto
-  the survivor; person-delete tombstones it. Birthday reminders emit a mention token so the subject
-  links to their page.
-- **Due dates.** Nullable `due_date`, a countdown (`formatDueIn`) + soonest-first ordering
-  (`compareReminderDue`, `reminder-schedule.ts`), and a date input in the composer.
-- **System reminders are non-editable.** Their title/details are engine-owned (re-derived every
-  reconcile), so the *content* edit is refused for `source: "system"` (`isReminderEditable`);
-  completing / reopening and deleting stay open. A future sub-reminder attaches through its own path.
-
-## Since then (mention *authoring* — the loop is closed)
-
-A user can now **create** a mention, not just receive machine-generated ones. Until now the
-`@mention` substrate was fully built but the composer only took free text + inline `#tags`, so
-every mention in the system was birthday-engine output. An `@`-triggered People/Pets **picker** in
-the reminder form now inserts the token for you — the last missing piece of decision 3.
-
-- **Two pure helpers** carry the text logic (`schema/src/mention.ts`, unit-tested alongside the
-  grammar): `activeMentionQuery(text, caret)` finds the active `@`-fragment at the caret (opens at
-  string start / after whitespace, spans the spaces in a name, refuses to overlap an existing token),
-  and `insertMention(text, caret, mention)` splices the `@[Name](type:id)` token in and returns the
-  new text + caret. The `mentionToken` doc-comment had anticipated exactly this reuse.
-- **Thin per-client pickers** wrap Title *and* Details: a controlled `MentionTextField`
-  (`apps/desktop/.../components/MentionTextField.tsx`, `apps/mobile/components/MentionTextField.tsx`)
-  tracks the caret, calls the helpers, queries **`core.search.query`** (desktop `window.api.search`)
-  debounced, filters hits to **person/pet** (tag hits excluded — a mention only references a
-  person/pet), and on pick splices the token + closes. The desktop form's Title/Details became
-  **controlled** to allow the splice but keep their `name="title"/"body"` so the route action reads
-  them from `FormData` unchanged; mobile was already controlled and nudges the caret past the token
-  via a one-shot `selection`.
-- **Purely a compose-surface affordance** — no schema / migration / sync / IPC / core-write change.
-  The write path already re-derives mentions from the saved text, so the inserted token flows through
-  the existing reconcile, forward links, and "Mentioned in" backlink untouched. The token shows as
-  literal text in the field, exactly like an inline `#tag`.
-
-## Since then (`#tag` autocomplete — the compose surface is complete)
-
-The sibling affordance of the mention picker: typing `#` then a word in Title or Details now offers a
-typeahead of **existing tags**, on both clients. It's the lighter twin decision 3 predicted — a
-`#tag` needs no id resolution (the bare word *is* the tag), so it's purely a compose-surface helper
-with **no** schema / migration / sync / IPC / core-write change; `parseHashtags` still re-derives the
-taggings from the saved text on every write.
-
-- **Two pure helpers** sit beside the mention ones in `schema/src/mention.ts` (they share the
-  mention-token guard), unit-tested next to the tag grammar they mirror: `activeHashtagQuery(text,
-  caret)` finds the active `#`-fragment — a *single* `[\p{L}\p{N}]` token, so unlike a mention it
-  ends at the first non-alphanumeric char — and `insertHashtag(text, caret, tagName)` splices `#name`
-  in (trailing space, caret past it). A `#` inside a mention token's display name is left alone.
-- **Folded into the same `MentionTextField`** rather than a second overlapping field — a reminder
-  wants both `@mentions` and `#tags` in the same fields. All the plumbing is shared; only four things
-  branch on which trigger the caret sits in (resolved by *nearest* trigger, since a mention fragment
-  spans spaces and can overlap a later `#`): which detector runs, how the query is derived, which hits
-  are kept (person/pet vs **`tag`**), and which insert helper fires. Tag hits render with the `#`
-  sigil, mirroring `SearchBar`.
-- **Suggestions are existing tags only** (`core.search.query`, filtered to `entityType: "tag"`, which
-  surfaces only tags with ≥1 bearer). A brand-new tag simply has no suggestion and is created on save
-  exactly as before — the picker never blocks free typing.
+A first-class, syncable entity: a freeform `title` and/or `body` (at least one required), a
+reversible `completed_at` toggle, an optional `due_date`, and a `source` enum (`user` | `system`).
+Inline `#tags` and `@mentions` are typed into the text. It is the landing / Home screen on both
+clients (People & Pets live at `/people`), populated both by user CRUD and by an automated
+birthday/milestone engine (`@leapsake/reminders`).
 
 ## The decisions (pinned)
 
-1. **Plaintext syncable rows — not per-item content keys.** Reminders aren't a
-   share target and are already protected by whole-DB-at-rest + master-key-sealed
-   sync. Milestones prove a plaintext→content-key retrofit is additive if that ever
-   changes (`packages/data/src/milestones-repo.ts`).
-2. **`#tags` are inline; the text is the single source of truth.** Core re-parses
-   `#tags` out of `title`+`body` on every create/update (`parseHashtags`, a
-   `#`-anchored variant of `parseTagNames`) and applies them via the **shared**
-   `taggings` table under **bearer type `"reminder"`** — so browsing `#family`
-   shows reminders alongside people/pets. No separate tags field.
-3. **`#tag` ≠ `@mention` — different relationships.** A tag points at a reusable
-   **`Tag`** label (deduped); a mention points at a specific **Person/Pet**
-   identity (its own page/merges). Mentions are therefore a **separate relationship**
-   (the `mentions` table referencing entity ids), *not* a tagging — a sibling
-   inline-reference feature. **Now built end-to-end** — substrate, rendering, backlinks, merge/delete,
-   *and* authoring (see *Since then*). See `product-truths.md`.
-4. **`source` enum (`user` | `system`), default `user`.** `system` is **now live**
-   (birthday reminders, whose text is engine-owned); user reminders stay `user`. The
-   enum meant the automated increment needed no schema change — as intended.
-5. **Standalone screen first, then Home.** Shipped narrow — a standalone screen — to prove
-   the entity, then promoted Reminders to the landing / Home screen once it was proven (see
-   *Since then*). "Home" as the surface is done; the *content* that makes Home valuable
-   (automation, onboarding-as-reminders) is what remains.
+1. **Plaintext syncable rows — not per-item content keys.** Reminders aren't a share target and
+   are already protected by whole-DB-at-rest + master-key-sealed sync. Milestones prove a
+   plaintext→content-key retrofit is additive if that ever changes
+   (`packages/data/src/milestones-repo.ts`).
 
-## Deferred / next (all additive)
+2. **`#tags` are inline; the text is the single source of truth.** Core re-parses `#tags` out of
+   `title`+`body` on every write (`parseHashtags`) and applies them via the **shared** `taggings`
+   table under **bearer type `"reminder"`** — so browsing `#family` shows reminders alongside
+   people/pets. No separate tags field.
 
-- **Onboarding-as-reminders (the next step).** Surface first-run setup *as* reminders (e.g. "Already
-  using Leapsake on another device?" as the first-run sync entry point). Fills the empty Home a
-  brand-new user (no contacts, no upcoming birthdays) still sees. *(Reminders becoming "Home" itself
-  is done; the compose surface — `@mention` + `#tag` authoring — is now complete, see *Since then*.)*
+3. **`#tag` ≠ `@mention` — different relationships.** A tag points at a reusable, deduped `Tag`
+   label; a mention points at a specific Person/Pet identity (its own page/merges). Mentions are a
+   **separate relationship** (the `mentions` table referencing entity ids), not a tagging — a
+   sibling inline-reference feature, built end-to-end (substrate, rendering, two-way backlinks,
+   merge/delete re-point/tombstone, and the `@`-picker authoring surface).
+
+4. **`source` enum (`user` | `system`), default `user`.** `system` reminders are engine-owned
+   (birthdays / per-milestone schedules): their text is re-derived every reconcile, so it's
+   **non-editable** (completing/deleting stay open). The enum meant automation needed no schema
+   change. Reconcile is idempotent and tombstone-respecting (a dismissed reminder is never
+   resurrected) and repairs a live reminder in place when its milestone drifts.
+
+5. **Standalone screen first, then Home.** Shipped narrow to prove the entity, then promoted to
+   the landing / Home screen. The surface is done; the *content* that makes Home valuable is what
+   remains.
+
+## What remains (additive)
+
+- **Onboarding-as-reminders** — surface first-run setup *as* reminders (e.g. "Already using
+  Leapsake on another device?" as the sync entry point), filling the empty Home a brand-new user
+  with no contacts still sees.
 - **Reminder search.**
-- **Broader automation** — holidays and Leapsake-defined tasks extend the birthday engine (same
+- **Broader automation** — holidays and Leapsake-defined tasks extend the same engine (same
   dedup / regeneration keyed off `source` + trigger identity).
-- **Per-milestone reminder settings — storage/editing *and* engine wiring shipped.** A milestone
-  carries a *staggered* schedule of reminder rules — an **action** (`gift`/`card`/`call`/`text`/
-  `wish`/`visit`/`remember`/`other`, a closed enum + `actionDefs` registry mirroring `kindDefs`, with
-  `other` leaning on a free-text label) some number of days before the occurrence, on or off. Defaults
-  are per-*kind* (`kindDefs[kind].defaultReminderSchedule`). The **only** rule on by default anywhere is
-  **`wish`** ("wish them a happy birthday", day-of) on a **birthday**; a birthday also *offers* a
-  staggered gift@30 / card@7 / call@0 / text@0 but they start **off**, and a death anniversary offers
-  only `remember` (off, and never a `text`) — everything else is opt-in. Stored plaintext in
-  a new `reminder_rules` table (migration 21, polymorphic `bearer_type` — `"milestone"` now,
-  `"holiday"`-ready), synced like reminders; a milestone with **no** rows rides its kind defaults
-  (`resolveReminderSchedule`), so untouched milestones store nothing. Edited inline on both clients'
-  milestone forms; persisted in the same transaction as the milestone write. **Now the engine reads
-  it:** `regenerateSystemReminders` resolves each eligible milestone's schedule (stored rows, else kind
-  defaults) via an injected `resolveSchedule` port and mints one `system` reminder **per enabled rule**,
-  under id `milestone:{id}:{year}:{action}` (the reserved slot), due `offsetDays` before the occurrence
-  — action-phrased from `actionDefs[action].template` ("🎁 Get @Name a gift"; `other` uses its free
-  text). A rule surfaces when its own due date is within `LEAD_DAYS` (so a `gift@30` appears ~a month
-  before *its* due date) and persists until the occurrence passes. The old `remindByDefault` kind flag
-  (the pre-switch gate) is **retired** — `defaultReminderSchedule`'s `enabledByDefault` is now the sole
-  driver, so there's one source of truth. All idempotence / tombstone / drift-repair / merge behaviour
-  is unchanged (still one reminder each for an untouched birthday, now titled "🎉 Wish @Name a happy
-  birthday"). Broader automation (holidays, Leapsake-defined tasks) extends the same engine later.

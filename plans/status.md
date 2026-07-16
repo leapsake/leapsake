@@ -2,23 +2,17 @@
 
 > **This is the one file that tracks status across every workstream.** Picking up work?
 > Read this file for *what to do next*, then the relevant design doc for the *why*.
-> Detailed narratives of **finished** increments live in [`shipped.md`](./shipped.md)
-> (the archive) — don't load it unless you need the history of a specific increment.
-> Design docs never restate status; this file never restates design.
+> The history of a **finished** increment lives in `git log` + the code's own doc-comments,
+> not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-15** (Reminders: the **per-milestone schedule is now wired into the engine** —
-> `regenerateSystemReminders` reads each milestone's resolved schedule and mints one `system` reminder
-> **per enabled rule**, offset by `offsetDays`, under id `milestone:{id}:{year}:{action}`, action-phrased
-> from `actionDefs` ("🎁 Get @Name a gift"). This closes the storage→engine seam the last increment left
-> open; the now-vestigial `remindByDefault` kind flag was retired in favour of `defaultReminderSchedule`.
-> Follows the compose surface (`@mention` + `#tag` authoring), automated birthday reminders, due dates.
-> Next on this surface is onboarding-as-reminders; see *What's next*).
+> **Updated 2026-07-15** — Reminders: per-milestone schedules now wired into the birthday engine
+> (`git log`). Next on this surface is onboarding-as-reminders; see *What's next*.
 
 ## Where things stand
 
 - **V1 desktop + V1.5 local CRM** and **V2 mobile** (feature-complete vs. desktop, verified
-  iOS + Android) — ✅ done. (Delivery history: git + [`shipped.md`](./shipped.md); durable
-  lessons: [`../AGENTS.md`](../AGENTS.md) and the package READMEs.)
+  iOS + Android) — ✅ done. (Delivery history: `git log`; durable lessons:
+  [`../AGENTS.md`](../AGENTS.md) and the package READMEs.)
 - **V3 · Encryption + sync** — **Stages 1 (zero-knowledge sync) and 2 (at-rest) are done on
   both clients**, verified over the wire and on-disk. **The recovery-phrase increment is
   done** (24-word phrase recovers both loss events; UI verified on both clients). **Relay
@@ -64,7 +58,7 @@ the work they imply.
 
 - **Relay hardening.** **H3 is complete for v0.1** — session tokens + both TLS paths
   (Option A Caddy-in-front, Option B in-process) — as are H2, M3, proxy-aware IP, and the
-  recovery throttle. Narratives in [`shipped.md`](./shipped.md); findings backlog in
+  recovery throttle. Delivery detail in `git log`; findings backlog in
   [`encryption/security-findings.md`](./encryption/security-findings.md). Remaining, in order:
   1. **Shared cross-process rate-limit counter** — today's limiters *and* session store are
      in-memory, per-process; a multi-node relay collapses them (one shared follow-up).
@@ -96,8 +90,7 @@ the work they imply.
 
 **Relay packaging & durability** (self-host is the only v0.1 sync path, so it must be easy
 and boring to run):
-- **Packaging is done** — Dockerfile, `docker-compose.yml` + Caddy, README → Deploy (see
-  [`shipped.md`](./shipped.md)).
+- **Packaging is done** — Dockerfile, `docker-compose.yml` + Caddy, README → Deploy.
 - **Relay disposability** ([`encryption/sync.md`](./encryption/sync.md) §2): losing
   `relay.db` must never lose user data. Content already lives on devices; close the gap by
   having devices **self-heal the account row + recovery escrow** on sync, so a relay wipe
@@ -118,25 +111,12 @@ can't ship without distributable apps. (None yet.)
   honoring the `not_a_duplicate` memory).
 
 **Client / UX** (sequenced *after* the encryption work above):
-- **Reminders → Home screen.** The Reminders entity, Home promotion, **due dates**, **automated
-  `system` (birthday) reminders**, **`@mentions`** (synced backlink, both directions; birthday
-  reminders link their subject; person-merge/-delete re-point/tombstone mentions), the **`@mention`
-  authoring picker**, and now **`#tag` autocomplete** (a `#`-triggered typeahead of existing tags,
-  folded into the same `MentionTextField` — two more pure `schema` helpers, `entityType: "tag"` hits,
-  no id resolution since the bare word is the tag) are all done — [`reminders.md`](./reminders.md).
-  The compose surface is complete. **Per-milestone reminder settings** (staggered schedules) are now
-  **fully wired**: storage + inline editing (a plaintext `reminder_rules` table, migration 21,
-  polymorphic `bearer_type`, holiday-ready; a closed `reminderAction` enum + `actionDefs` registry with
-  an `other` free-text escape hatch; per-kind defaults on `kindDefs`; a Reminders editor on both
-  clients' milestone forms) **and engine consumption** — `regenerateSystemReminders` resolves each
-  eligible milestone's schedule (via an injected `resolveSchedule` port) and mints one `system` reminder
-  **per enabled rule**, offset by `offsetDays`, under id `milestone:{id}:{year}:{action}`, action-phrased
-  from `actionDefs.template`. The vestigial `remindByDefault` kind flag was retired
-  (`defaultReminderSchedule.enabledByDefault` is now the one source of truth). **Next:
-  onboarding-as-reminders** (first-run setup surfaced as reminders, incl. the "Already using Leapsake on
-  another device?" sync entry point — fills the empty Home a brand-new user with no contacts still
-  sees), then **reminder search**; broader automation (holidays, Leapsake-defined tasks) extends the
-  same engine later.
+- **Reminders — remaining work.** The entity, Home promotion, automation (birthday + per-milestone
+  staggered schedules), `@mentions`, and the compose surface (`@`/`#` pickers) are all done — see the
+  *Where things stand* bullet and [`reminders.md`](./reminders.md). **Next: onboarding-as-reminders**
+  (first-run setup surfaced as reminders, incl. the "Already using Leapsake on another device?" sync
+  entry point — fills the empty Home a brand-new user with no contacts still sees), then **reminder
+  search**; broader automation (holidays, Leapsake-defined tasks) extends the same engine later.
 
 ### v0.2 (first post-launch feature increment)
 

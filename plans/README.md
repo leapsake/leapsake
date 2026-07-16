@@ -13,8 +13,8 @@ client-agnostic data/core layer underneath all clients.
    oracle for what's done, what's next, and the decided product posture.
 2. Open **only** the design doc your increment touches (table below). The design docs are
    stable "why" references; you rarely need more than one.
-3. **[`shipped.md`](./shipped.md)** is the archive of finished-increment narratives —
-   don't load it unless you need the history of a specific increment.
+3. For the history of a *finished* increment, read `git log` and the doc-comments in the
+   code it touched — that's where delivery detail and rationale live, not a separate doc.
 
 ## Where to look
 
@@ -27,7 +27,7 @@ client-agnostic data/core layer underneath all clients.
 | Understand the dedup / merge design | [`packages/core/README.md`](../packages/core/README.md) — the two-kinds-of-merge framing + the person reference graph |
 | Understand the testing strategy (all apps/packages) | [`testing/`](./testing/) — start at its `README.md` (principles, the driver-contract keystone, the mobile-engine wall) |
 | Understand a shared package's architecture & rationale | its own `README.md` — [`schema`](../packages/schema/README.md), [`data`](../packages/data/README.md), [`core`](../packages/core/README.md), [`crypto`](../packages/crypto/README.md) |
-| Read how a *finished* increment was built/verified | [`shipped.md`](./shipped.md) — the archive |
+| Read how a *finished* increment was built/verified | `git log` + the code's own doc-comments |
 | Know conventions & guardrails | [`../AGENTS.md`](../AGENTS.md) |
 | Read the code | `packages/{schema,data,core,crypto,highlight}`, `apps/{desktop,mobile,server}` |
 
@@ -61,6 +61,6 @@ repo/service against a real in-memory SQLite. Run `pnpm test` (or per-package fi
 ## The one rule
 
 **This file is a map, not a status board.** Live status and next-step decisions for every
-workstream live in the single [`status.md`](./status.md); finished-increment narratives
-live in [`shipped.md`](./shipped.md). Update *those*; keep this map short and stable so
+workstream live in the single [`status.md`](./status.md); finished-increment history lives in
+`git log` + the code's doc-comments. Update *status.md*; keep this map short and stable so
 it stays a reliable front door.
