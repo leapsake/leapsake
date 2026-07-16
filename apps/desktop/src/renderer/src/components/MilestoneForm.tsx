@@ -3,13 +3,16 @@ import {
   type MilestoneKind,
   type MilestoneBearerType,
   type RelationshipNeighbor,
+  type ReminderRuleInput,
   kindDefs,
   kindsForBearerType,
   preferredBearerType,
+  resolveReminderSchedule,
 } from "@leapsake/schema";
 import { useMemo, useState } from "react";
 import { Form, Link, useNavigation } from "react-router-dom";
 import type { RelationshipCandidate } from "./RelationshipForm";
+import { ReminderScheduleFields } from "./ReminderScheduleFields";
 import { WithWhomFields } from "./WithWhomFields";
 
 /** Month options for the picker: value 1–12 with the locale's long names. */
@@ -42,12 +45,19 @@ const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 export function MilestoneForm({
   bearerType,
   milestone,
+  initialSchedule,
   candidates = [],
   neighbors = [],
   cancelTo,
 }: {
   bearerType: MilestoneBearerType;
   milestone?: Milestone;
+  /**
+   * The milestone's resolved reminder schedule (stored rules, else kind
+   * defaults), loaded when editing. Absent on create — the schedule is derived
+   * from the picked kind's defaults instead.
+   */
+  initialSchedule?: ReminderRuleInput[];
   candidates?: RelationshipCandidate[];
   neighbors?: RelationshipNeighbor[];
   cancelTo: string;
@@ -57,14 +67,31 @@ export function MilestoneForm({
 
   const kinds = useMemo(() => kindsForBearerType(bearerType), [bearerType]);
 
-  const [kind, setKind] = useState<MilestoneKind>(
-    milestone?.kind ?? kinds[0]?.kind ?? "birthday",
-  );
+  const initialKind = milestone?.kind ?? kinds[0]?.kind ?? "birthday";
+  const [kind, setKind] = useState<MilestoneKind>(initialKind);
   const [month, setMonth] = useState(milestone?.month?.toString() ?? "");
   const [day, setDay] = useState(milestone?.day?.toString() ?? "");
   const [year, setYear] = useState(milestone?.year?.toString() ?? "");
   const [note, setNote] = useState(milestone?.note ?? "");
   const [withWhomReady, setWithWhomReady] = useState(false);
+
+  // The staggered-reminder schedule to edit + submit. Seeded from the loaded
+  // schedule (edit) or the initial kind's defaults (create). Until the user
+  // touches it, switching kind re-seeds it from the new kind's defaults; once
+  // they edit a rule it's theirs and a kind change leaves it alone.
+  const [schedule, setSchedule] = useState<ReminderRuleInput[]>(
+    initialSchedule ?? resolveReminderSchedule(initialKind, []),
+  );
+  const [scheduleCustomized, setScheduleCustomized] = useState(false);
+
+  const onKindChange = (next: MilestoneKind) => {
+    setKind(next);
+    if (!scheduleCustomized) setSchedule(resolveReminderSchedule(next, []));
+  };
+  const onScheduleChange = (next: ReminderRuleInput[]) => {
+    setSchedule(next);
+    setScheduleCustomized(true);
+  };
 
   const editing = milestone !== undefined;
   // A relationship kind added from a Person needs the "with whom?" step; for
@@ -76,7 +103,13 @@ export function MilestoneForm({
 
   // Mirror the schema rule: a day is only meaningful alongside a month.
   const dayWithoutMonth = day !== "" && month === "";
-  const ready = !dayWithoutMonth && (!needsWithWhom || withWhomReady);
+  // Mirror the rule that an `other` reminder needs a label, so submit stays
+  // enabled only when every such row has one (the server re-validates).
+  const scheduleValid = schedule.every(
+    (rule) => rule.action !== "other" || (rule.label ?? "").trim() !== "",
+  );
+  const ready =
+    !dayWithoutMonth && scheduleValid && (!needsWithWhom || withWhomReady);
 
   return (
     <Form method="post">
@@ -94,7 +127,9 @@ export function MilestoneForm({
           <select
             name="kind"
             value={kind}
-            onChange={(event) => setKind(event.target.value as MilestoneKind)}
+            onChange={(event) =>
+              onKindChange(event.target.value as MilestoneKind)
+            }
           >
             {kinds.map((k) => (
               <option key={k.kind} value={k.kind}>
@@ -171,6 +206,14 @@ export function MilestoneForm({
           {kindDefs[kind].icon ? `${kindDefs[kind].icon} ` : ""}
           {kindDefs[kind].label}
         </p>
+        {/* The staggered-reminder schedule, serialised to a hidden field the
+            route action reads (the controlled-field-with-a-name pattern). */}
+        <ReminderScheduleFields value={schedule} onChange={onScheduleChange} />
+        <input
+          type="hidden"
+          name="reminderSchedule"
+          value={JSON.stringify(schedule)}
+        />
       </fieldset>
     </Form>
   );

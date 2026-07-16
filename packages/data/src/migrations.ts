@@ -538,6 +538,41 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 21,
+    async up(driver) {
+      // Per-milestone reminder rules (plans per-milestone reminder settings) —
+      // the staggered-reminder schedule a milestone offers: an action (get a
+      // gift, send a card, give a call…) `offset_days` before the occurrence,
+      // on or off. Plaintext row (no per-item content key), like reminders
+      // themselves: reminder policy is scheduling metadata, not a share target,
+      // and rides whole-DB-at-rest + the master-key sync seal. `bearer_*` is
+      // polymorphic — "milestone" today, reserving "holiday" for the future
+      // holidays increment with no schema change. `action` is free text in the
+      // DB (constrained to the reminderActionSchema enum in Zod, portable across
+      // node:sqlite and expo-sqlite); `label` carries the user's text for the
+      // `other` action. A milestone with NO rows rides its kind's defaults
+      // (schema resolveReminderSchedule); rows exist only once customised. This
+      // increment stores/edits them — wiring them into the reminder engine is
+      // the next increment.
+      await driver.exec(`
+        CREATE TABLE reminder_rules (
+          id          TEXT    PRIMARY KEY,
+          bearer_type TEXT    NOT NULL,
+          bearer_id   TEXT    NOT NULL,
+          action      TEXT    NOT NULL,
+          label       TEXT,
+          offset_days INTEGER NOT NULL,
+          enabled     INTEGER NOT NULL,
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL,
+          deleted_at  INTEGER
+        );
+        CREATE INDEX ix_reminder_rules_bearer
+          ON reminder_rules(bearer_type, bearer_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**

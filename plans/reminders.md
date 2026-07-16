@@ -143,3 +143,18 @@ taggings from the saved text on every write.
 - **Reminder search.**
 - **Broader automation** — holidays and Leapsake-defined tasks extend the birthday engine (same
   dedup / regeneration keyed off `source` + trigger identity).
+- **Per-milestone reminder settings — storage/editing shipped; engine wiring is next.** A milestone
+  now carries a *staggered* schedule of reminder rules — an **action** (`gift`/`card`/`call`/`text`/
+  `wish`/`visit`/`remember`/`other`, a closed enum + `actionDefs` registry mirroring `kindDefs`, with
+  `other` leaning on a free-text label) some number of days before the occurrence, on or off. Defaults
+  are per-*kind* (`kindDefs[kind].defaultReminderSchedule`). The **only** rule on by default anywhere is
+  **`wish`** ("wish them a happy birthday", day-of) on a **birthday**; a birthday also *offers* a
+  staggered gift@30 / card@7 / call@0 / text@0 but they start **off**, and a death anniversary offers
+  only `remember` (off, and never a `text`) — everything else is opt-in. Stored plaintext in
+  a new `reminder_rules` table (migration 21, polymorphic `bearer_type` — `"milestone"` now,
+  `"holiday"`-ready), synced like reminders; a milestone with **no** rows rides its kind defaults
+  (`resolveReminderSchedule`), so untouched milestones store nothing. Edited inline on both clients'
+  milestone forms; persisted in the same transaction as the milestone write. **Not yet wired into the
+  engine** — it still mints one day-of reminder gated on `remindByDefault`. Next increment: the engine
+  reads the schedule and mints one `system` reminder per enabled rule, offset by `offsetDays`, under
+  id `milestone:{id}:{year}:{action}` (the `DAY_RULE`/`occurrenceName` slot already reserved for it).

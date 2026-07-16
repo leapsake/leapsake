@@ -1,13 +1,17 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import {
   type Milestone,
   type MilestoneKind,
   type MilestoneBearerType,
+  type ReminderRuleInput,
   kindDefs,
   kindsForBearerType,
+  resolveReminderSchedule,
 } from "@leapsake/schema";
 import { SelectField } from "./SelectField";
+import { ReminderScheduleFields } from "./ReminderScheduleFields";
+import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
 
 /** The structured value the form hands back; the screen supplies bearer + call. */
@@ -17,6 +21,8 @@ export interface MilestoneFormValue {
   month: number | null;
   day: number | null;
   note: string | null;
+  /** The staggered-reminder schedule to persist (replaces the milestone's rules). */
+  reminderSchedule: ReminderRuleInput[];
 }
 
 /** Month options for the picker: a leading unset, then value "1".."12" with the locale's long names. */
@@ -57,16 +63,49 @@ export function MilestoneForm({
   onSubmit: (value: MilestoneFormValue) => Promise<void>;
   onCancel: () => void;
 }) {
+  const core = useCore();
   const kinds = kindsForBearerType(bearerType);
 
-  const [kind, setKind] = useState<MilestoneKind>(
-    milestone?.kind ?? kinds[0]?.kind ?? "birthday",
-  );
+  const initialKind = milestone?.kind ?? kinds[0]?.kind ?? "birthday";
+  const [kind, setKind] = useState<MilestoneKind>(initialKind);
   const [month, setMonth] = useState(milestone?.month?.toString() ?? "");
   const [day, setDay] = useState(milestone?.day?.toString() ?? "");
   const [year, setYear] = useState(milestone?.year?.toString() ?? "");
   const [note, setNote] = useState(milestone?.note ?? "");
   const [submitting, setSubmitting] = useState(false);
+
+  // The staggered-reminder schedule to edit + submit. Seeded from the kind's
+  // defaults; when editing, the milestone's stored rules are loaded in (once) to
+  // replace them. Until the user touches it, switching kind re-seeds from the new
+  // kind's defaults; once they edit a rule it's theirs and a kind change leaves it.
+  const [schedule, setSchedule] = useState<ReminderRuleInput[]>(() =>
+    resolveReminderSchedule(initialKind, []),
+  );
+  const [scheduleCustomized, setScheduleCustomized] = useState(false);
+  const hydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (!milestone || hydratedRef.current) return;
+    hydratedRef.current = true;
+    let active = true;
+    void core.milestones
+      .reminderSchedule(milestone.id, milestone.kind)
+      .then((loaded) => {
+        if (active) setSchedule(loaded);
+      });
+    return () => {
+      active = false;
+    };
+  }, [core, milestone]);
+
+  const onKindChange = (next: MilestoneKind) => {
+    setKind(next);
+    if (!scheduleCustomized) setSchedule(resolveReminderSchedule(next, []));
+  };
+  const onScheduleChange = (next: ReminderRuleInput[]) => {
+    setSchedule(next);
+    setScheduleCustomized(true);
+  };
 
   const monthNum = month === "" ? null : Number(month);
   const dayNum = day.trim() === "" ? null : Number(day);
@@ -80,8 +119,17 @@ export function MilestoneForm({
   const yearValid = yearNum === null || Number.isInteger(yearNum);
   const noteRequired = kind === "other";
   const noteOk = !noteRequired || note.trim().length > 0;
+  // Mirror the rule that an `other` reminder needs a label (the schema re-checks).
+  const scheduleValid = schedule.every(
+    (rule) => rule.action !== "other" || (rule.label ?? "").trim() !== "",
+  );
   const canSubmit =
-    !submitting && !dayWithoutMonth && dayValid && yearValid && noteOk;
+    !submitting &&
+    !dayWithoutMonth &&
+    dayValid &&
+    yearValid &&
+    noteOk &&
+    scheduleValid;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -93,6 +141,7 @@ export function MilestoneForm({
         month: monthNum,
         day: dayNum,
         note: note.trim() === "" ? null : note.trim(),
+        reminderSchedule: schedule,
       });
     } finally {
       setSubmitting(false);
@@ -128,7 +177,7 @@ export function MilestoneForm({
         label="Kind"
         value={kind}
         options={kinds.map((k) => ({ value: k.kind, label: k.label }))}
-        onChange={(value) => setKind(value)}
+        onChange={(value) => onKindChange(value)}
       />
 
       <SelectField
@@ -188,6 +237,8 @@ export function MilestoneForm({
         {def.icon ? `${def.icon} ` : ""}
         {def.label}
       </Text>
+
+      <ReminderScheduleFields value={schedule} onChange={onScheduleChange} />
     </ScrollView>
   );
 }

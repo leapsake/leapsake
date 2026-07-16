@@ -65,6 +65,21 @@ export type {
 export { taggingSchema, tagBearerTypeSchema } from "./tagging.js";
 export type { Tagging, TagBearerType } from "./tagging.js";
 export {
+  reminderActionSchema,
+  actionDefs,
+  reminderRuleBearerTypeSchema,
+  reminderRuleSchema,
+  reminderRuleInputSchema,
+  reminderRuleLabel,
+} from "./reminder-rule.js";
+export type {
+  ReminderAction,
+  ReminderActionDef,
+  ReminderRuleBearerType,
+  ReminderRule,
+  ReminderRuleInput,
+} from "./reminder-rule.js";
+export {
   MENTION_NAMESPACE,
   mentionToken,
   activeMentionQuery,
@@ -126,6 +141,7 @@ export {
   preferredBearerType,
   kindAllowsBearer,
   kindsForBearerType,
+  resolveReminderSchedule,
   datePrecisionOf,
   formatMilestoneDate,
   milestoneLabel,
@@ -134,6 +150,7 @@ export type {
   MilestoneBearerType,
   MilestoneKind,
   MilestoneKindDef,
+  DefaultReminderRule,
   Milestone,
   RemindEligibleMilestone,
   MilestoneTimelineEntry,
