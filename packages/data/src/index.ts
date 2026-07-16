@@ -65,6 +65,7 @@ export {
   type DuplicateService,
   type DuplicateCandidate,
   type DuplicateCandidatePerson,
+  type DuplicateMatch,
   createDuplicateService,
 } from "./duplicate-service.js";
 export {

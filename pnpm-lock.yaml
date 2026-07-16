@@ -26,6 +26,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@leapsake/contact-import':
+        specifier: workspace:*
+        version: link:../../packages/contact-import
       '@leapsake/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -174,8 +177,20 @@ importers:
         specifier: ^4.19.0
         version: 4.22.4
 
+  packages/contact-import:
+    dependencies:
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+
   packages/core:
     dependencies:
+      '@leapsake/contact-import':
+        specifier: workspace:*
+        version: link:../contact-import
       '@leapsake/crypto':
         specifier: workspace:*
         version: link:../crypto

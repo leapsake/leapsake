@@ -1,0 +1,108 @@
+/* Styling for the drag-to-import affordance and the review modal. Kept local to
+   the import feature; matches the app's plain light aesthetic (see SearchBar). */
+
+/* The full-window hint shown while a file is dragged over the app. */
+.dropHint {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(240, 246, 255, 0.85);
+  border: 3px dashed #4a7dff;
+  pointer-events: none;
+  font-size: 1.25rem;
+  color: #2b4fb0;
+}
+
+/* A dim backdrop behind the review / notice dialogs. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.dialog {
+  background: #fff;
+  border-radius: 6px;
+  max-width: 44rem;
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.notice {
+  max-width: 28rem;
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  padding: 0.75rem 0;
+  border-top: 1px solid #eee;
+}
+
+.row[data-skipped="true"] {
+  opacity: 0.5;
+}
+
+.rowHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.nameFields {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.nameFields input {
+  padding: 0.15rem 0.35rem;
+}
+
+.detail {
+  margin: 0.25rem 0 0;
+  font-size: 0.9em;
+  color: #444;
+}
+
+.dupWarning {
+  color: #a05a00;
+  font-size: 0.9em;
+}
+
+.dropped {
+  color: #777;
+  font-size: 0.85em;
+}
+
+.needsName {
+  color: #b00020;
+  font-size: 0.85em;
+}
+
+.actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.errorList {
+  color: #b00020;
+  font-size: 0.9em;
+}

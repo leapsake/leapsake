@@ -46,6 +46,10 @@ import {
   updateReminderInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
+import {
+  importDecisionsSchema,
+  parsedContactsSchema,
+} from "@leapsake/contact-import";
 import { BrowserWindow, app, ipcMain } from "electron";
 import { API_CHANNELS } from "../shared/api-channels.js";
 import {
@@ -191,6 +195,11 @@ const boundaryParsers: Partial<Record<ApiChannel, ArgParser>> = {
   // Read-only global search: non-string input coerces to an empty query, which
   // the service short-circuits to no results.
   "search.query": (a) => [typeof a[0] === "string" ? a[0] : ""],
+  // Contact import: the renderer parses the dropped file and sends these across,
+  // so the whole payload is untrusted and re-validated here against the parser's
+  // own boundary schema before core touches the DB.
+  "import.preview": (a) => [parsedContactsSchema.parse(a[0])],
+  "import.commit": (a) => [importDecisionsSchema.parse(a[0])],
 };
 
 /**

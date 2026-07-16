@@ -33,6 +33,18 @@ export interface DuplicateCandidate {
   reasons: string[];
 }
 
+/**
+ * An existing person a not-yet-stored contact (e.g. one being imported) looks
+ * like: which person, and the pure scorer's tier + reasons. Same `propose, never
+ * auto-act` contract — the importer decides whether to skip or merge.
+ */
+export interface DuplicateMatch {
+  personId: string;
+  name: string;
+  tier: DuplicateTier;
+  reasons: string[];
+}
+
 export interface DuplicateService {
   /**
    * Score every pair of active people, drop the pairs the caller already
@@ -41,6 +53,18 @@ export interface DuplicateService {
    * first). Tier `none`/`low` never appears in the result.
    */
   findCandidates(excludePairs: Set<string>): Promise<DuplicateCandidate[]>;
+  /**
+   * Score one **not-yet-stored** contact against every active person and return
+   * the matches (tier `none`/`low` dropped), high first. Used by contact import
+   * to flag likely-existing people in the review before anything is written. The
+   * caller passes raw name/emails/phones; this normalizes them the same way the
+   * stored rows were, so keys line up.
+   */
+  matchContact(contact: {
+    name: string;
+    emails: string[];
+    phones: string[];
+  }): Promise<DuplicateMatch[]>;
 }
 
 interface PersonRow {
@@ -59,9 +83,14 @@ function pairKey(idA: string, idB: string): string {
 }
 
 export function createDuplicateService(driver: SqliteDriver): DuplicateService {
-  async function findCandidates(
-    excludePairs: Set<string>,
-  ): Promise<DuplicateCandidate[]> {
+  /**
+   * Load every active person as a ready {@link DuplicateInput} (id kept alongside),
+   * with contacts indexed by owner and re-normalized defensively. Shared by
+   * {@link findCandidates} (pairwise) and {@link matchContact} (one-vs-all).
+   */
+  async function loadInputs(): Promise<
+    { id: string; input: DuplicateInput }[]
+  > {
     const [people, emails, phones] = await Promise.all([
       driver.all<PersonRow>(
         "SELECT id, first_name, last_name FROM people WHERE deleted_at IS NULL",
@@ -92,8 +121,7 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
       phonesBy.set(row.owner_id, list);
     }
 
-    // Build the scorer input once per person (id kept alongside for the result).
-    const inputs = people.map((p) => {
+    return people.map((p) => {
       const name = `${p.first_name} ${p.last_name}`.trim();
       const input: DuplicateInput = {
         name,
@@ -103,6 +131,12 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
       };
       return { id: p.id, input };
     });
+  }
+
+  async function findCandidates(
+    excludePairs: Set<string>,
+  ): Promise<DuplicateCandidate[]> {
+    const inputs = await loadInputs();
 
     // Pairwise. O(n²) is fine at personal-CRM scale; if it ever matters, block on
     // shared-contact / folded-name first — note it, don't pre-optimize.
@@ -133,5 +167,37 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
     return candidates;
   }
 
-  return { findCandidates };
+  async function matchContact(contact: {
+    name: string;
+    emails: string[];
+    phones: string[];
+  }): Promise<DuplicateMatch[]> {
+    const name = contact.name.trim();
+    const incoming: DuplicateInput = {
+      name,
+      foldedName: fold(name),
+      emails: contact.emails.map(normalizeEmail),
+      phones: contact.phones.map(normalizePhone),
+    };
+
+    const inputs = await loadInputs();
+    const matches: DuplicateMatch[] = [];
+    for (const person of inputs) {
+      const { tier, reasons } = scoreDuplicate(incoming, person.input);
+      if (tier === "none" || tier === "low") continue;
+      matches.push({
+        personId: person.id,
+        name: person.input.name,
+        tier,
+        reasons,
+      });
+    }
+    matches.sort(
+      (x, y) =>
+        TIER_RANK[x.tier] - TIER_RANK[y.tier] || x.name.localeCompare(y.name),
+    );
+    return matches;
+  }
+
+  return { findCandidates, matchContact };
 }

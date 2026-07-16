@@ -1,5 +1,6 @@
 import {
   type DuplicateCandidate,
+  type DuplicateMatch,
   type GenderResult,
   type SqliteDriver,
   createContactMethodsRepo,
@@ -73,6 +74,13 @@ import {
   todayCivil,
 } from "@leapsake/schema";
 import { regenerateSystemReminders } from "@leapsake/reminders";
+import {
+  type ImportDecision,
+  type ImportPorts,
+  type ImportResult,
+  type ParsedContact,
+  ingestContacts,
+} from "@leapsake/contact-import";
 import type { KeySession } from "./key-session.js";
 import { createViews } from "./views.js";
 
@@ -85,7 +93,17 @@ export { runMigrations, type SqliteDriver, type GenderResult };
 export type {
   DuplicateCandidate,
   DuplicateCandidatePerson,
+  DuplicateMatch,
 } from "@leapsake/data";
+
+// Contact-import shapes, re-exported so the desktop boundary parser and the
+// review UI bind to the same contract the ingest engine consumes.
+export type {
+  ImportDecision,
+  ImportError,
+  ImportResult,
+  ParsedContact,
+} from "@leapsake/contact-import";
 
 // The custody Phase 0 bootstrap: the first KeyStore consumer, run between
 // migrations and createCore to make the device's master key available. Plus the
@@ -904,6 +922,91 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           .then((pairs) => duplicates.findCandidates(pairs)),
       reject: (idA: string, idB: string): Promise<void> =>
         driver.transaction(() => notADuplicate.record(idA, idB)),
+    },
+
+    // Contact import (e.g. a dropped vCard). The pure parse + format detection run
+    // client-side (`@leapsake/contact-import`); this is the write half — take the
+    // reviewed `ParsedContact`s and commit them through the same repos manual
+    // creation uses. `preview` is the read half: flag likely-existing people so
+    // the review can offer skip/merge before anything is written.
+    import: {
+      // Commit the reviewed decisions. The ingest engine drives the injected ports
+      // below; each contact commits in its own `driver.transaction` (one bad row
+      // rolls back alone), and the automated birthday reminders reconcile once
+      // after the batch — the same `regenerateSystem` a manual birthday triggers,
+      // so imported birthdays surface on the Home list at once.
+      commit: async (decisions: ImportDecision[]): Promise<ImportResult> => {
+        const ports: ImportPorts = {
+          createPerson: (name, gender) =>
+            people.create({
+              firstName: name.firstName,
+              middleName: name.middleName,
+              lastName: name.lastName,
+              gender,
+            }),
+          addEmail: async (personId, email) => {
+            await contactMethods.emails.create({
+              ownerType: "person",
+              ownerId: personId,
+              label: email.label,
+              address: email.address,
+            });
+          },
+          addPhone: async (personId, phone) => {
+            await contactMethods.phones.create({
+              ownerType: "person",
+              ownerId: personId,
+              label: phone.label,
+              number: phone.number,
+              extension: phone.extension,
+              country: phone.country,
+              smsCapable: phone.smsCapable,
+            });
+          },
+          addPostal: async (personId, postal) => {
+            await contactMethods.postals.create({
+              ownerType: "person",
+              ownerId: personId,
+              label: postal.label,
+              line1: postal.line1,
+              line2: postal.line2,
+              locality: postal.locality,
+              region: postal.region,
+              postalCode: postal.postalCode,
+              country: postal.country,
+            });
+          },
+          addBirthday: async (personId, birthday) => {
+            await milestones.create({
+              kind: "birthday",
+              bearerType: "person",
+              bearerId: personId,
+              year: birthday.year,
+              month: birthday.month,
+              day: birthday.day,
+            });
+          },
+          transaction: (body) => driver.transaction(body),
+        };
+        const result = await ingestContacts(ports, decisions);
+        if (result.created > 0) await regenerateSystem();
+        return result;
+      },
+      // Read-only: for each parsed contact, the active people it looks like, so the
+      // review UI can flag likely duplicates. Never writes.
+      preview: (
+        contacts: ParsedContact[],
+      ): Promise<{ index: number; matches: DuplicateMatch[] }[]> =>
+        Promise.all(
+          contacts.map(async (contact, index) => ({
+            index,
+            matches: await duplicates.matchContact({
+              name: `${contact.name.firstName} ${contact.name.lastName}`.trim(),
+              emails: contact.emails.map((e) => e.address),
+              phones: contact.phones.map((p) => p.number),
+            }),
+          })),
+        ),
     },
 
     // Read-and-compose view-model builders: portable fan-outs, label resolution,

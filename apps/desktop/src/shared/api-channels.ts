@@ -79,6 +79,9 @@ export const API_CHANNELS = [
   "duplicates.findCandidates",
   "duplicates.reject",
 
+  "import.preview",
+  "import.commit",
+
   "views.entityList",
   "views.candidates",
   "views.relationshipNew",

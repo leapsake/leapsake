@@ -1,0 +1,160 @@
+import type { ParsedContact } from "@leapsake/contact-import";
+import {
+  type CoreApi,
+  type SqliteDriver,
+  createCore,
+  runMigrations,
+} from "@leapsake/core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
+
+/**
+ * Contact import — the write + preview halves that `core.import.*` composes over
+ * the real repos. Proves a committed contact lands a person, its contact methods
+ * and a birthday milestone; that one bad contact is isolated while the rest
+ * commit; and that `preview` flags a contact matching an existing person.
+ */
+
+let driver: SqliteDriver;
+let cleanup: () => void;
+let core: CoreApi;
+
+beforeEach(async () => {
+  ({ driver, cleanup } = makeEncryptedTestDriver());
+  await runMigrations(driver);
+  core = createCore(driver);
+});
+
+afterEach(() => {
+  cleanup();
+});
+
+function contact(over: Partial<ParsedContact> = {}): ParsedContact {
+  return {
+    name: { firstName: "Jane", middleName: null, lastName: "Doe" },
+    displayName: "Jane Doe",
+    gender: null,
+    emails: [],
+    phones: [],
+    postals: [],
+    birthday: null,
+    dropped: [],
+    ...over,
+  };
+}
+
+describe("core.import.commit", () => {
+  it("lands a person with contact methods and a birthday milestone", async () => {
+    const result = await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          name: { firstName: "Jane", middleName: "M", lastName: "Doe" },
+          gender: "female",
+          emails: [{ label: "Home", address: "jane@home.example" }],
+          phones: [
+            {
+              label: "Mobile",
+              number: "+1 555 100",
+              extension: null,
+              country: null,
+              smsCapable: true,
+            },
+          ],
+          postals: [
+            {
+              label: "Home",
+              line1: "1 Main St",
+              line2: null,
+              locality: "Springfield",
+              region: "IL",
+              postalCode: "62704",
+              country: "US",
+            },
+          ],
+          birthday: { year: 1992, month: 3, day: 9 },
+        }),
+      },
+    ]);
+    expect(result).toEqual({ created: 1, skipped: 0, errors: [] });
+
+    const people = await core.people.list();
+    expect(people).toHaveLength(1);
+    const person = people[0];
+    expect(person.firstName).toBe("Jane");
+    expect(person.middleName).toBe("M");
+    expect(person.gender).toBe("female");
+
+    const methods = await core.contactMethods.listForOwner("person", person.id);
+    expect(methods.map((m) => m.kind).sort()).toEqual([
+      "email",
+      "phone",
+      "postal",
+    ]);
+
+    const milestones = await core.milestones.listForBearer("person", person.id);
+    expect(milestones).toHaveLength(1);
+    expect(milestones[0].kind).toBe("birthday");
+    expect(milestones[0]).toMatchObject({ year: 1992, month: 3, day: 9 });
+  });
+
+  it("skips a skip decision and isolates a bad contact", async () => {
+    const result = await core.import.commit([
+      { action: "create", contact: contact({ displayName: "ok" }) },
+      { action: "skip", contact: contact({ displayName: "skipped" }) },
+      {
+        action: "create",
+        // Empty last name — refused without fabricating one.
+        contact: contact({
+          name: { firstName: "Acme", middleName: null, lastName: "" },
+        }),
+      },
+    ]);
+    expect(result.created).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].index).toBe(2);
+    expect(await core.people.list()).toHaveLength(1);
+  });
+
+  it("reconciles a birthday reminder for an imported birthday", async () => {
+    // A birthday within the lead window should materialize a system reminder.
+    const today = new Date();
+    const soon = new Date(today.getTime() + 3 * 86_400_000);
+    await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          birthday: {
+            year: null,
+            month: soon.getMonth() + 1,
+            day: soon.getDate(),
+          },
+        }),
+      },
+    ]);
+    const reminders = await core.reminders.list();
+    expect(reminders.some((r) => r.source === "system")).toBe(true);
+  });
+});
+
+describe("core.import.preview", () => {
+  it("flags a parsed contact that matches an existing person", async () => {
+    await core.people.create({ firstName: "Jane", lastName: "Doe" }, []);
+
+    const rows = await core.import.preview([
+      contact({
+        name: { firstName: "Jane", middleName: null, lastName: "Doe" },
+      }),
+      contact({
+        name: { firstName: "Nobody", middleName: null, lastName: "New" },
+      }),
+    ]);
+
+    expect(rows[0].index).toBe(0);
+    expect(rows[0].matches).toHaveLength(1);
+    expect(rows[0].matches[0].name).toBe("Jane Doe");
+    expect(rows[0].matches[0].reasons).toContain('Same name "Jane Doe"');
+    expect(rows[1].matches).toHaveLength(0);
+  });
+});
