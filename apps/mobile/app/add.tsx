@@ -32,6 +32,13 @@ export default function AddScreen() {
       >
         <Text style={styles.buttonText}>Add Pet</Text>
       </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        style={styles.button}
+        onPress={() => router.replace("/import")}
+      >
+        <Text style={styles.buttonText}>Import from Contacts</Text>
+      </Pressable>
     </View>
   );
 }

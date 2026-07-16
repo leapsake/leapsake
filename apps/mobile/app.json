@@ -15,6 +15,14 @@
       "package": "net.leapsake.mobile"
     },
     "web": {},
-    "plugins": ["expo-status-bar", ["expo-sqlite", { "useSQLCipher": true }], "expo-router"]
+    "plugins": [
+      "expo-status-bar",
+      ["expo-sqlite", { "useSQLCipher": true }],
+      "expo-router",
+      [
+        "expo-contacts",
+        { "contactsPermission": "Leapsake reads your contacts so you can import them as People." }
+      ]
+    ]
   }
 }

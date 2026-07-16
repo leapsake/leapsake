@@ -1,0 +1,436 @@
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { Stack, useRouter } from "expo-router";
+import {
+  Contact,
+  ContactField,
+  ContactsSortOrder,
+  requestPermissionsAsync,
+} from "expo-contacts";
+import type { ParsedContact } from "@leapsake/contact-import";
+import type { DuplicateMatch, ImportResult } from "@leapsake/core";
+import { deviceContactToParsed } from "../lib/device-contacts";
+import { useCore } from "../lib/core-context";
+import { colors, styles } from "../lib/styles";
+
+/**
+ * Import from Contacts — the mobile counterpart to desktop's drag-and-drop vCard
+ * import. It reads the phone's address book (`expo-contacts`), maps each record
+ * to the shared {@link ParsedContact} shape via {@link deviceContactToParsed},
+ * flags likely-existing people with `core.import.preview`, and lets the user
+ * multi-select who to bring in before committing through `core.import.commit` —
+ * the same write path (and duplicate/birthday reconciliation) manual creation and
+ * the desktop importer use. Nothing is written until the user taps Import.
+ */
+
+/** The fields the mapper reads — kept in sync with `DeviceContact`. */
+const CONTACT_FIELDS: ContactField[] = [
+  ContactField.GIVEN_NAME,
+  ContactField.MIDDLE_NAME,
+  ContactField.FAMILY_NAME,
+  ContactField.FULL_NAME,
+  ContactField.COMPANY,
+  ContactField.NOTE,
+  ContactField.EMAILS,
+  ContactField.PHONES,
+  ContactField.ADDRESSES,
+  ContactField.BIRTHDAY,
+];
+
+const TIER_LABEL: Record<string, string> = {
+  high: "Very likely already in Leapsake",
+  medium: "Possibly already in Leapsake",
+};
+
+/** Read + map device contacts, or signal that permission was refused. */
+async function readDeviceContacts(): Promise<ParsedContact[] | "denied"> {
+  const permission = await requestPermissionsAsync();
+  if (!permission.granted) return "denied";
+  const details = await Contact.getAllDetails(CONTACT_FIELDS, {
+    sortOrder: ContactsSortOrder.GivenName,
+  });
+  return details.map(deviceContactToParsed);
+}
+
+type Phase = "loading" | "denied" | "review" | "error";
+
+export default function ImportScreen() {
+  const core = useCore();
+  const router = useRouter();
+
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [contacts, setContacts] = useState<ParsedContact[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [matchesByIndex, setMatchesByIndex] = useState<
+    Map<number, DuplicateMatch[]>
+  >(new Map());
+  const [search, setSearch] = useState("");
+  const [committing, setCommitting] = useState(false);
+  const [result, setResult] = useState<ImportResult | null>(null);
+
+  // Read the address book once, then fetch duplicate flags. A preview failure
+  // just leaves rows unflagged (the import still works).
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const read = await readDeviceContacts();
+        if (!live) return;
+        if (read === "denied") {
+          setPhase("denied");
+          return;
+        }
+        setContacts(read);
+        setPhase("review");
+        if (read.length > 0) {
+          const preview = await core.import.preview(read);
+          if (!live) return;
+          setMatchesByIndex(new Map(preview.map((p) => [p.index, p.matches])));
+        }
+      } catch (cause) {
+        if (live) {
+          setLoadError(String(cause));
+          setPhase("error");
+        }
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [core]);
+
+  function toggle(index: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  function setName(
+    index: number,
+    field: "firstName" | "lastName",
+    value: string,
+  ) {
+    setContacts((prev) =>
+      prev.map((contact, i) =>
+        i === index
+          ? { ...contact, name: { ...contact.name, [field]: value } }
+          : contact,
+      ),
+    );
+  }
+
+  // Rows matching the search box, carrying their original index so selection,
+  // duplicate flags, and name edits stay keyed to the full list.
+  const rows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const withIndex = contacts.map((contact, index) => ({ contact, index }));
+    if (term === "") return withIndex;
+    return withIndex.filter(({ contact }) =>
+      [contact.displayName, contact.name.firstName, contact.name.lastName]
+        .filter((s): s is string => s !== null && s !== "")
+        .some((s) => s.toLowerCase().includes(term)),
+    );
+  }, [contacts, search]);
+
+  async function commit() {
+    setCommitting(true);
+    const decisions = contacts
+      .map((contact, index) => ({ contact, index }))
+      .filter(({ index }) => selected.has(index))
+      .map(({ contact }) => ({ action: "create" as const, contact }));
+    try {
+      setResult(await core.import.commit(decisions));
+    } catch (cause) {
+      Alert.alert("Import failed", String(cause));
+    } finally {
+      setCommitting(false);
+    }
+  }
+
+  // ---- Terminal / non-review states -------------------------------------
+
+  if (result !== null) {
+    return (
+      <Screen title="Import complete">
+        <Text style={styles.rowText}>
+          Imported {result.created} {result.created === 1 ? "person" : "people"}
+          {result.skipped > 0 ? `, skipped ${result.skipped}` : ""}.
+        </Text>
+        {result.errors.length > 0 && (
+          <View style={local.errorBox}>
+            <Text style={styles.danger}>
+              Couldn’t import {result.errors.length}:
+            </Text>
+            {result.errors.map((err) => (
+              <Text key={err.index} style={styles.muted}>
+                • {err.contact.displayName ?? "Unnamed contact"} — {err.message}
+              </Text>
+            ))}
+          </View>
+        )}
+        <Pressable
+          accessibilityRole="button"
+          style={styles.button}
+          onPress={() => router.replace("/(tabs)/people")}
+        >
+          <Text style={styles.buttonText}>Done</Text>
+        </Pressable>
+      </Screen>
+    );
+  }
+
+  if (phase === "loading") {
+    return (
+      <Screen title="Import from Contacts">
+        <ActivityIndicator />
+      </Screen>
+    );
+  }
+
+  if (phase === "denied") {
+    return (
+      <Screen title="Import from Contacts">
+        <Text style={styles.rowText}>
+          Leapsake needs permission to read your contacts to import them.
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          style={styles.button}
+          onPress={() => void Linking.openSettings()}
+        >
+          <Text style={styles.buttonText}>Open Settings</Text>
+        </Pressable>
+      </Screen>
+    );
+  }
+
+  if (phase === "error") {
+    return (
+      <Screen title="Import from Contacts">
+        <Text style={styles.danger}>{loadError}</Text>
+      </Screen>
+    );
+  }
+
+  // ---- Review (multi-select) --------------------------------------------
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Stack.Screen options={{ title: "Import from Contacts" }} />
+      <FlatList
+        data={rows}
+        keyExtractor={({ index }) => String(index)}
+        contentContainerStyle={styles.screen}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          contacts.length === 0 ? null : (
+            <View style={{ gap: 12 }}>
+              <Text style={styles.muted}>
+                Choose which contacts to add as People. Nothing is imported
+                until you tap Import.
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={search}
+                onChangeText={setSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder="Search contacts…"
+                placeholderTextColor={colors.muted}
+              />
+            </View>
+          )
+        }
+        ListEmptyComponent={
+          <Text style={styles.muted}>
+            {contacts.length === 0
+              ? "No contacts found on this device."
+              : "No contacts match your search."}
+          </Text>
+        }
+        renderItem={({ item }) => (
+          <ContactRow
+            contact={item.contact}
+            selected={selected.has(item.index)}
+            matches={matchesByIndex.get(item.index) ?? []}
+            onToggle={() => toggle(item.index)}
+            onName={(field, value) => setName(item.index, field, value)}
+          />
+        )}
+      />
+      {contacts.length > 0 && (
+        <View style={local.footer}>
+          <Pressable
+            accessibilityRole="button"
+            style={[
+              styles.button,
+              (selected.size === 0 || committing) && { opacity: 0.5 },
+            ]}
+            disabled={selected.size === 0 || committing}
+            onPress={commit}
+          >
+            <Text style={styles.buttonText}>
+              {committing ? "Importing…" : `Import ${selected.size}`}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function ContactRow({
+  contact,
+  selected,
+  matches,
+  onToggle,
+  onName,
+}: {
+  contact: ParsedContact;
+  selected: boolean;
+  matches: DuplicateMatch[];
+  onToggle: () => void;
+  onName: (field: "firstName" | "lastName", value: string) => void;
+}) {
+  const needsName =
+    contact.name.firstName.trim() === "" || contact.name.lastName.trim() === "";
+  const topMatch = matches[0];
+  const label =
+    contact.displayName ??
+    `${contact.name.firstName} ${contact.name.lastName}`.trim();
+
+  return (
+    <View style={styles.row}>
+      {/* The toggle target: tapping anywhere here selects/deselects. The name
+          inputs below sit *outside* it so editing a name never flips the box. */}
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: selected }}
+        onPress={onToggle}
+        style={local.row}
+      >
+        <View style={[local.checkbox, selected && local.checkboxOn]}>
+          {selected && <Text style={local.checkboxMark}>✓</Text>}
+        </View>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={styles.rowText}>{label || "Unnamed contact"}</Text>
+          <ContactDetail contact={contact} />
+          {topMatch && (
+            <Text style={styles.danger}>
+              ⚠ {TIER_LABEL[topMatch.tier] ?? topMatch.tier}: matches{" "}
+              {topMatch.name} ({topMatch.reasons.join("; ")})
+            </Text>
+          )}
+          {contact.dropped.length > 0 && (
+            <Text style={styles.muted}>
+              Not imported: {contact.dropped.map((d) => d.property).join(", ")}
+            </Text>
+          )}
+        </View>
+      </Pressable>
+
+      {needsName && (
+        <View style={local.nameFix}>
+          <Text style={styles.danger}>
+            Add a first and last name to import:
+          </Text>
+          <View style={local.nameFields}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={contact.name.firstName}
+              onChangeText={(v) => onName("firstName", v)}
+              autoCapitalize="words"
+              placeholder="First name"
+              placeholderTextColor={colors.muted}
+            />
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={contact.name.lastName}
+              onChangeText={(v) => onName("lastName", v)}
+              autoCapitalize="words"
+              placeholder="Last name"
+              placeholderTextColor={colors.muted}
+            />
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function ContactDetail({ contact }: { contact: ParsedContact }) {
+  const bits: string[] = [];
+  for (const e of contact.emails) bits.push(e.address);
+  for (const p of contact.phones) bits.push(p.number);
+  if (contact.birthday) bits.push("🎂");
+  if (bits.length === 0) return null;
+  return <Text style={styles.muted}>{bits.join(" · ")}</Text>;
+}
+
+/** A simple centered container for the loading/denied/error/done states. */
+function Screen({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={styles.screen}>
+      <Stack.Screen options={{ title }} />
+      {children}
+    </View>
+  );
+}
+
+const local = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  checkboxOn: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  checkboxMark: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  nameFix: {
+    gap: 6,
+    marginTop: 8,
+    marginLeft: 36,
+  },
+  nameFields: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  footer: {
+    padding: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  errorBox: {
+    gap: 4,
+  },
+});
