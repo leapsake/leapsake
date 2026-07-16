@@ -111,8 +111,12 @@ approximation before first release; see
   bridge to idle) and Jest-style matchers — worth it only if real E2E flows get flaky.
 - **Appium** is overkill here.
 
-**Recommendation (open until owner confirms):** start **Maestro**; keep Detox in reserve
-if flakiness on elaborate flows ever justifies the heavier, instrumented setup.
+**Decision (owner-confirmed 2026-07-16):** **Maestro.** Blackbox, single binary, and
+*arch-agnostic* — it never touches the RN bridge, so New-Architecture/Fabric on RN 0.85
+is a non-issue, whereas Detox's instrumented build is the part most likely to fight the
+New Arch. Detox stays **in reserve** for the day an elaborate flow (sync/pairing) turns
+flaky and its bridge-idle determinism earns back the gray-box cost; the tool-agnostic flow
+catalog keeps that switch cheap. (Not built yet — founds the mobile E2E tier at steps 8–9.)
 
 ## `pnpm test` orchestration (open decision)
 

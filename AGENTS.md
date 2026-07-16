@@ -158,12 +158,39 @@ the main process and forwards over IPC; mobile (V2) builds it in-process.
 
 ## Testing
 
+Strategy, principles, and the driver-contract keystone live in
+[`plans/testing/`](plans/testing/); this is the operational summary.
+
 - **Unit**: schema validation + pure domain logic (role algebra, gender
   derivation, milestone precision, normalization) in `packages/schema`.
-- **Integration**: every repository and cross-repo service against a real
-  `node:sqlite` `:memory:` database — run migrations, then exercise CRUD,
-  soft-delete, cascades, kinship, search, timeline. (~234 tests, green.)
-- **E2E** (deferred): Playwright + Electron, once UI surface justifies it.
+- **Integration**: every repository and cross-repo service against the **real
+  production desktop engine** (`better-sqlite3-multiple-ciphers` via
+  `makeEncryptedTestDriver`) — run migrations, then exercise CRUD, soft-delete,
+  cascades, kinship, search, timeline.
+- **Driver contract**: one shared spec (`@leapsake/data/testing` →
+  `runDriverContract`) pins every `SqliteDriver` impl to identical observable
+  behavior; desktop runs it under Vitest, mobile via the in-app self-test.
+- **E2E** (blocked, not built): the crucial-flow catalog per platform — desktop
+  Playwright/Electron, mobile **Maestro** (committed). See `plans/testing/`.
+
+### The test harness (`scripts/test-all.mjs`)
+
+One orchestrator runs each trophy tier as a `pnpm test:*` script and prints a
+combined verdict; **blocked** tiers (native/E2E, not built yet) are surfaced as
+⏳, never silently skipped.
+
+- `pnpm test` — the fast local suite (static + unit + integration + coverage
+  gate; no emulator). The default inner loop.
+- `pnpm test:all` — everything reachable + reports the blocked native/E2E tiers.
+- `pnpm test:node` — just Vitest (unit + integration), the tightest loop.
+- `pnpm test:format` · `test:lint` · `test:types` — individual static tiers.
+- `pnpm test:coverage` — the driver-contract coverage forcer (gates the desktop
+  driver file at 100%, so a new driver path fails until a contract case covers it).
+- `pnpm test:native` / `test:e2e` — report BLOCKED until their harnesses exist.
+
+**tsconfig-include invariant**: a new test directory must sit under some project
+tsconfig's `include`, or its type errors go unchecked (`pnpm test:types` only
+sees included files). All current test dirs are covered; verify when adding one.
 
 ## Desktop app (`apps/desktop`)
 

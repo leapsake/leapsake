@@ -108,15 +108,25 @@ These are the lens every testing decision is judged against. Restated in depth i
   tool-agnostic flow catalog + open-source harness specs) is what we own; the *execution*
   layer (local / self-hosted VM / farm) is a swappable backend. Never bake a farm's
   proprietary API into a spec. (strategy.md §6.3.)
+- **Mobile harness/E2E tool = Maestro (owner-confirmed 2026-07-16).** Blackbox YAML flows,
+  single binary, no app instrumentation — best fit for principle #4, and *arch-agnostic*
+  (it never touches the RN bridge, so New-Architecture/Fabric on RN 0.85 is a non-issue,
+  where Detox's instrumented build is the riskiest part). Also the tool Expo's own E2E docs
+  pave. Detox stays **in reserve** — its bridge-idle determinism is worth the gray-box cost
+  *only if* an elaborate flow (sync/pairing) turns flaky; the tool-agnostic flow catalog
+  makes a later switch cheap. Trade-offs: [`mobile-engine.md`](./mobile-engine.md#harness-tool-trade-offs).
+  (Desktop E2E tool — Playwright/Electron — remains a lean, committed at the desktop-E2E step.)
+- **`pnpm test` shape = tiered + a `test:all` umbrella (owner-confirmed 2026-07-16).** The fast
+  local suite is the default (`pnpm test` = static + unit + integration, no emulator);
+  `test:native` / `test:e2e` are the sim/emulator tiers; `test:all` runs everything reachable
+  and surfaces the still-*blocked* native/E2E tiers explicitly (principle #6). A summary-printing
+  orchestrator (`scripts/test-all.mjs`) owns the tier registry. Rejected: a single `pnpm test`
+  that boots an emulator every run (fails the day-to-day-speed test).
 
 ### Open (need owner sign-off before building — captured, not yet decided)
 
 These were surfaced but deliberately left open so the strategy is recorded first:
 
-- **Mobile harness/E2E tool: Maestro vs Detox** (vs decide-at-E2E-step). Trade-offs in
-  [`mobile-engine.md`](./mobile-engine.md#harness-tool-trade-offs). Leaning **Maestro**
-  (blackbox, lightest, best fit for principle #4); Detox's edge is gray-box sync stability.
-  Whatever is chosen also founds the mobile **E2E** tier, so it's a long-term choice.
 - **Desktop E2E tool: Playwright (Electron) — leaning, commit at the E2E step.** Owner
   decision: record the lean now, choose when the desktop E2E tier is actually built (mirrors
   the Maestro/Detox call above). Playwright's Electron support is open-source, launches the
@@ -130,10 +140,6 @@ These were surfaced but deliberately left open so the strategy is recorded first
   ~5–6: first-run, unlock+re-auth, create person+relationship, record milestone, pair second
   device, recovery code). Confirm/trim before the first harness implements it, so all
   platforms implement one agreed list.
-- **`pnpm test` shape.** Tiered (fast Node default + `test:native`/`test:e2e` +
-  a `test:all` umbrella) **vs** a single `pnpm test` that boots the emulator and runs
-  everything each time. Tension: principle #6 (everything reachable) vs day-to-day speed.
-  Leaning **tiered with a documented `test:all` umbrella**.
 - **Scope/order of the next increment.** Keystone-first (contract suite + desktop run +
   minimal Android native tier) **vs** full mobile trophy in one push. Leaning
   **keystone-first** — it lays the reusable native/E2E harness without boiling the ocean.
@@ -180,8 +186,13 @@ These were surfaced but deliberately left open so the strategy is recorded first
      from the command line. **This is what makes the mobile leg terminal** rather than a
      human reading the screen — until it lands, a newly-added contract case that mobile
      *fails* is only caught by a manual open (see *Keeping the contract from going stale*).
-4. **Define `pnpm test` orchestration** — tiers + a documented umbrella so principle #6
-   holds. *(Gated on the pnpm-test-shape decision.)*
+4. **Define `pnpm test` orchestration** — 🚧 **in progress** (decision landed: tiered +
+   `test:all`). A summary-printing orchestrator (`scripts/test-all.mjs`) owns a tier registry
+   and runs each layer's `pnpm test:*` script: `test:format` · `test:lint` · `test:types` ·
+   `test:node` (unit+integration) as the ready tiers; `test:native` · `test:e2e` registered
+   but **blocked** (reported ⏳, not silently skipped) until steps 6–10 build them. `pnpm test`
+   = the fast local suite (static + node, no emulator); `pnpm test:all` = everything reachable.
+   Fold the coverage/staleness gate (below) in here.
 5. **Close the tsconfig-scope landmine** — make sure every new test dir is in a tsconfig's
    `include` (desktop's `test/` was silently excluded until fixed; mobile's tsconfig globs
    `**/*.ts`, but verify when adding a runner with different type deps).

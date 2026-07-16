@@ -56,7 +56,10 @@ schema  →  data  →  core  →  clients (apps/desktop, apps/mobile)
   not a rewrite.
 
 Tests are Vitest: unit tests on `schema`'s pure logic, integration tests running every
-repo/service against a real in-memory SQLite. Run `pnpm test` (or per-package filters).
+repo/service against the real production desktop engine. **`pnpm test`** runs the fast
+local suite (static + unit + integration + the driver-coverage gate); **`pnpm test:all`**
+adds the still-blocked native/E2E tiers as explicit ⏳ rows. The orchestrator is
+`scripts/test-all.mjs`; the full strategy is in [`testing/`](./testing/).
 
 ## The one rule
 

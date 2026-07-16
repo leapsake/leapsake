@@ -5,8 +5,10 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-15** — Reminders: per-milestone schedules now wired into the birthday engine
-> (`git log`). Next on this surface is onboarding-as-reminders; see *What's next*.
+> **Updated 2026-07-16** — Testing harness: the tiered `pnpm test` orchestration landed
+> (`scripts/test-all.mjs` + `test:*` scripts; driver-coverage forcer at 100%; Maestro
+> confirmed for mobile). Next testing brick is the mobile Maestro harness (step 3b). Prior:
+> Reminders per-milestone schedules wired into the birthday engine. See *What's next*.
 
 ## Where things stand
 
@@ -36,6 +38,14 @@
   now wired into the engine** — one `system` reminder per enabled rule, offset by `offsetDays`,
   action-phrased. Remaining (first-run + polish): onboarding-as-reminders, reminder search —
   [`reminders.md`](./reminders.md).
+- **Testing harness** — the tiered `pnpm test` orchestration is built: `scripts/test-all.mjs`
+  runs each trophy tier (static · lint · typecheck · unit+integration · driver-coverage gate)
+  and reports the still-**blocked** native/E2E tiers as ⏳ (never silently skipped). `pnpm test`
+  = fast local suite; `pnpm test:all` = everything reachable. The **driver-coverage forcer**
+  gates the desktop driver file at 100% (a new driver path fails until a contract case covers
+  it). Owner decisions landed: **Maestro** for mobile E2E, tiered+umbrella `pnpm test` shape.
+  Next bricks (see [`testing/README.md`](./testing/README.md) backlog): mobile Maestro harness
+  (3b) → crucial-flow catalog (6) → desktop macOS Playwright E2E (7). Design: [`testing/`](./testing/).
 
 ## Product posture
 

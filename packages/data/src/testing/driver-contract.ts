@@ -216,5 +216,20 @@ export function runDriverContract(t: TestApi, makeDriver: DriverFactory): void {
         );
         expect(row?.name).toBeNull();
       }));
+
+    it("closes the connection, and use after close rejects", () =>
+      withDriver(async (driver) => {
+        // `close()` is optional on the port; a driver that omits it opts out of
+        // this case (both real drivers implement it, so it runs for them).
+        if (!driver.close) return;
+        await driver.exec("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+        await driver.close();
+
+        // Both engines throw once the handle is closed (better-sqlite3's
+        // `prepare` / expo-sqlite's async call) — assert only *that* it rejects,
+        // not the engine-specific message. `cleanup` must tolerate the already-
+        // closed handle (the factories guard their teardown accordingly).
+        await expect(driver.all("SELECT id FROM t")).rejects.toThrow();
+      }));
   });
 }

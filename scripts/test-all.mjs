@@ -1,0 +1,163 @@
+// The testing-trophy orchestrator — the single harness that runs every automated tier
+// this machine can reach and prints one combined verdict.
+//
+// It owns the *tier registry* (below): each layer of the trophy maps to a `pnpm test:*`
+// script (the scripts stay the source of truth for *how* a tier runs; this file decides
+// *which* tiers run and *reports* the result). Tiers marked `blocked` are the native /
+// E2E gates that aren't built yet — they are surfaced as ⏳ BLOCKED, never silently
+// skipped, so principle #6 ("everything reachable, or explicitly blocked — not waived")
+// stays visible. See plans/testing/ for the strategy.
+//
+// Usage:
+//   node scripts/test-all.mjs                 all ready tiers + report blocked ones (⏳)
+//   node scripts/test-all.mjs --fast          static + node only (skip native/e2e rows)
+//   node scripts/test-all.mjs --only=lint,node   just those tiers (by key)
+//   node scripts/test-all.mjs --strict        a BLOCKED tier fails the run (release-gate mode)
+//
+// Exit code: non-zero if any *ready* tier failed, if `--only` names a blocked tier, or if
+// `--strict` and any blocked tier was in scope. Blocked tiers otherwise don't fail the run.
+import { spawnSync } from "node:child_process";
+
+// layer = the trophy layer this proves; key = CLI selector; script = the pnpm script to run.
+const TIERS = [
+  {
+    key: "format",
+    layer: "static",
+    label: "format",
+    script: "test:format",
+    status: "ready",
+  },
+  {
+    key: "lint",
+    layer: "static",
+    label: "lint",
+    script: "test:lint",
+    status: "ready",
+  },
+  {
+    key: "typecheck",
+    layer: "static",
+    label: "typecheck",
+    script: "test:types",
+    status: "ready",
+  },
+  {
+    key: "node",
+    layer: "unit + integration",
+    label: "unit + integration (vitest, real desktop engine)",
+    script: "test:node",
+    status: "ready",
+  },
+  {
+    key: "coverage",
+    layer: "driver-contract forcer",
+    label: "driver coverage gate (contract forces 100% of the driver)",
+    script: "test:coverage",
+    status: "ready",
+  },
+  {
+    key: "native",
+    layer: "mobile native",
+    label: "mobile driver-contract (Maestro, on a sim/emulator)",
+    script: "test:native",
+    status: "blocked",
+    note: "Maestro harness not built (plans/testing step 3b/8). Manual: leapsake://dev-selftest",
+  },
+  {
+    key: "e2e",
+    layer: "E2E",
+    label: "crucial-flow catalog (Playwright / Maestro, per platform)",
+    script: "test:e2e",
+    status: "blocked",
+    note: "flow catalog not built (plans/testing steps 6-10)",
+  },
+];
+
+const args = process.argv.slice(2);
+const fast = args.includes("--fast");
+const strict = args.includes("--strict");
+const onlyArg = args.find((a) => a.startsWith("--only="));
+const only = onlyArg
+  ? new Set(
+      onlyArg
+        .slice("--only=".length)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    )
+  : null;
+
+if (only) {
+  const known = new Set(TIERS.map((t) => t.key));
+  const unknown = [...only].filter((k) => !known.has(k));
+  if (unknown.length > 0) {
+    console.error(`unknown tier(s): ${unknown.join(", ")}`);
+    console.error(`known tiers: ${TIERS.map((t) => t.key).join(", ")}`);
+    process.exit(2);
+  }
+}
+
+let selected = TIERS;
+if (only) selected = selected.filter((t) => only.has(t.key));
+else if (fast) selected = selected.filter((t) => t.status === "ready");
+
+// Each tier runs its own `pnpm run <script>`. `pnpm` is resolved from PATH (shell:true on
+// Windows so `pnpm.cmd` is found); every dev running this already has pnpm on PATH.
+const spawnPnpm = (script) =>
+  spawnSync("pnpm", ["run", script], {
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
+
+const results = [];
+for (const tier of selected) {
+  if (tier.status === "blocked") {
+    // `--only=<blocked>` means the dev explicitly asked for a tier that isn't built:
+    // that's a hard failure. Otherwise a blocked tier is reported, not run.
+    const failed = strict || (only && only.has(tier.key));
+    console.log(`\n⏳ ${tier.label} — BLOCKED (${tier.note})`);
+    results.push({ tier, status: failed ? "blocked-fail" : "blocked", ms: 0 });
+    continue;
+  }
+  console.log(`\n→ ${tier.label}  [pnpm ${tier.script}]`);
+  const start = Date.now();
+  const run = spawnPnpm(tier.script);
+  const ms = Date.now() - start;
+  const ok = run.status === 0;
+  results.push({ tier, status: ok ? "pass" : "fail", ms });
+}
+
+// Summary
+const icon = { pass: "✅", fail: "❌", blocked: "⏳", "blocked-fail": "❌" };
+const word = {
+  pass: "PASS",
+  fail: "FAIL",
+  blocked: "BLOCKED",
+  "blocked-fail": "BLOCKED",
+};
+const nameW = Math.max(...results.map((r) => r.tier.label.length), 8);
+console.log(`\n${"─".repeat(nameW + 22)}`);
+console.log("Testing trophy — summary");
+console.log("─".repeat(nameW + 22));
+for (const r of results) {
+  const time = r.ms ? `${(r.ms / 1000).toFixed(1)}s` : "";
+  console.log(
+    `${icon[r.status]}  ${word[r.status].padEnd(8)} ${r.tier.label.padEnd(nameW)}  ${time}`,
+  );
+}
+console.log("─".repeat(nameW + 22));
+
+const failed = results.filter(
+  (r) => r.status === "fail" || r.status === "blocked-fail",
+);
+const blocked = results.filter((r) => r.status === "blocked");
+if (blocked.length > 0) {
+  console.log(
+    `⏳ ${blocked.length} tier(s) blocked (not built yet) — see plans/testing/. Not counted as failure${strict ? " but --strict is on, so they fail this run" : ""}.`,
+  );
+}
+if (failed.length > 0) {
+  console.log(`❌ ${failed.length} tier(s) failed.`);
+  process.exit(1);
+}
+console.log("✅ all ready tiers passed.");

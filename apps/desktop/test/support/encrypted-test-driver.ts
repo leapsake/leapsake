@@ -45,7 +45,9 @@ export function makeEncryptedTestDriver(): {
     driver: open(),
     reopen: open,
     cleanup: () => {
-      for (const db of handles) db.close();
+      // Tolerate a handle a test already closed through the driver's `close()`
+      // (the contract's close case does exactly this) — `.open` guards a double close.
+      for (const db of handles) if (db.open) db.close();
       rmSync(dir, { recursive: true, force: true });
     },
   };
