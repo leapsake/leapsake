@@ -13,6 +13,7 @@ import {
   createPeopleRepo,
   createPetsRepo,
   createRelationshipsRepo,
+  createReminderRulesRepo,
   createRemindersRepo,
   createSearchService,
   createTagsRepo,
@@ -40,10 +41,12 @@ import type {
   Pet,
   PhoneNumber,
   PostalAddress,
+  MilestoneKind,
   Relationship,
   RelationshipNeighbor,
   RelationshipRole,
   Reminder,
+  ReminderRuleInput,
   ReminderWithTags,
   ResolvedMention,
   SearchHit,
@@ -65,6 +68,7 @@ import {
   isReminderEditable,
   parseHashtags,
   parseMentions,
+  resolveReminderSchedule,
   roleDefs,
   todayCivil,
 } from "@leapsake/schema";
@@ -216,6 +220,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
   const dismissals = createDismissalsRepo(driver);
   const notADuplicate = createNotADuplicateRepo(driver);
   const milestones = createMilestonesRepo(driver, cipher);
+  const reminderRules = createReminderRulesRepo(driver);
   const reminders = createRemindersRepo(driver);
   const mentions = createMentionsRepo(driver);
 
@@ -622,10 +627,39 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       // boot/focus. The reconcile is its own transaction (the driver's BEGIN/COMMIT
       // doesn't nest), and this is a sync-kicking `create/update/softDelete`, so
       // the reconciled reminder rows ride the same post-write sync kick.
-      create: async (input: CreateMilestoneInput): Promise<Milestone> => {
-        const milestone = await driver.transaction(() =>
-          milestones.create(input),
+      // The effective staggered-reminder schedule to show/edit for a milestone:
+      // its stored rules if it's been customised, else its kind's defaults
+      // (schema `resolveReminderSchedule`). The editor loads this when opening an
+      // existing milestone; a brand-new milestone's defaults come straight from
+      // the kind, so create needs no read.
+      reminderSchedule: async (
+        milestoneId: string,
+        kind: MilestoneKind,
+      ): Promise<ReminderRuleInput[]> => {
+        const stored = await reminderRules.listForBearer(
+          "milestone",
+          milestoneId,
         );
+        return resolveReminderSchedule(kind, stored);
+      },
+      // A milestone's write and its reminder schedule commit in one transaction,
+      // so the two never diverge. `reminderSchedule` (when the form sends it)
+      // replaces the milestone's whole rule set; omitting it leaves the stored
+      // rules untouched (an untouched milestone keeps riding its kind defaults).
+      // The automated birthday reminders reconcile right after commit, as before.
+      create: async (input: CreateMilestoneInput): Promise<Milestone> => {
+        const { reminderSchedule, ...milestoneInput } = input;
+        const milestone = await driver.transaction(async () => {
+          const created = await milestones.create(milestoneInput);
+          if (reminderSchedule !== undefined) {
+            await reminderRules.replaceForBearer(
+              "milestone",
+              created.id,
+              reminderSchedule,
+            );
+          }
+          return created;
+        });
         await regenerateSystem();
         return milestone;
       },
@@ -633,14 +667,30 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         id: string,
         input: UpdateMilestoneInput,
       ): Promise<Milestone | undefined> => {
-        const milestone = await driver.transaction(() =>
-          milestones.update(id, input),
-        );
+        const { reminderSchedule, ...milestoneInput } = input;
+        const milestone = await driver.transaction(async () => {
+          const updated = await milestones.update(id, milestoneInput);
+          // Only touch rules for a milestone that still exists (update returns
+          // undefined for a gone/tombstoned row).
+          if (updated !== undefined && reminderSchedule !== undefined) {
+            await reminderRules.replaceForBearer(
+              "milestone",
+              id,
+              reminderSchedule,
+            );
+          }
+          return updated;
+        });
         await regenerateSystem();
         return milestone;
       },
       softDelete: async (id: string): Promise<void> => {
-        await driver.transaction(() => milestones.softDelete(id));
+        await driver.transaction(async () => {
+          await milestones.softDelete(id);
+          // Drop the milestone's reminder rules with it — nothing references a
+          // deleted milestone's schedule.
+          await reminderRules.removeAllForBearer("milestone", id);
+        });
         await regenerateSystem();
       },
     },

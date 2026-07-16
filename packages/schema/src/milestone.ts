@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  type ReminderAction,
+  type ReminderRule,
+  type ReminderRuleInput,
+  reminderRuleInputSchema,
+} from "./reminder-rule.js";
 
 /**
  * The kinds of bearer a milestone can hang off. A *separate* enum from
@@ -36,6 +42,20 @@ export const milestoneKindSchema = z.enum([
 
 export type MilestoneKind = z.infer<typeof milestoneKindSchema>;
 
+/**
+ * One entry in a kind's **default** staggered-reminder schedule: an action to
+ * take `offsetDays` days before the milestone's occurrence (0 = day-of), and
+ * whether it starts on. An action a kind never wants (a "send a text" on a
+ * death anniversary) is simply **absent** from its schedule — "disabled
+ * entirely"; a present entry with `enabledByDefault: false` is "offered but
+ * off". A milestone with no stored rules resolves against this list.
+ */
+export interface DefaultReminderRule {
+  action: ReminderAction;
+  offsetDays: number;
+  enabledByDefault: boolean;
+}
+
 /** Static metadata for a milestone kind: how it displays, who it attaches to, and whether it recurs. */
 export interface MilestoneKindDef {
   /** Display label, e.g. "Birthday". */
@@ -63,6 +83,16 @@ export interface MilestoneKindDef {
    * per-*kind* so it can be overridden per-*milestone* later without a re-key.
    */
   remindByDefault: boolean;
+  /**
+   * The kind's default staggered-reminder schedule — the set of actions and
+   * lead times a fresh milestone of this kind offers (birthdays stagger a gift,
+   * a card, a call and a text; a death anniversary offers only a quiet
+   * "remember"). A milestone stores rule rows only once the user customises;
+   * until then `resolveReminderSchedule` reads this list. Additive metadata for
+   * the per-milestone reminder increment — the engine still gates on
+   * {@link MilestoneKindDef.remindByDefault} until the switch-over increment.
+   */
+  defaultReminderSchedule: DefaultReminderRule[];
 }
 
 /**
@@ -77,6 +107,16 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person", "pet"],
     recursAnnually: true,
     remindByDefault: true,
+    // "Wish them a happy birthday" day-of is the one reminder on by default
+    // anywhere; the staggered gift/card/call/text are offered but start off, for
+    // the user to opt into.
+    defaultReminderSchedule: [
+      { action: "gift", offsetDays: 30, enabledByDefault: false },
+      { action: "card", offsetDays: 7, enabledByDefault: false },
+      { action: "wish", offsetDays: 0, enabledByDefault: true },
+      { action: "call", offsetDays: 0, enabledByDefault: false },
+      { action: "text", offsetDays: 0, enabledByDefault: false },
+    ],
   },
   death: {
     label: "Death",
@@ -84,6 +124,11 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person", "pet"],
     recursAnnually: true,
     remindByDefault: false,
+    // Offers a quiet "remember them", day-of — but off by default (nothing but a
+    // birthday wish is on by default). No gift/card/text/call for a death.
+    defaultReminderSchedule: [
+      { action: "remember", offsetDays: 0, enabledByDefault: false },
+    ],
   },
   "first-date": {
     label: "First Date",
@@ -91,6 +136,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
     remindByDefault: false,
+    defaultReminderSchedule: [
+      { action: "card", offsetDays: 7, enabledByDefault: false },
+      { action: "call", offsetDays: 0, enabledByDefault: false },
+    ],
   },
   wedding: {
     label: "Wedding",
@@ -98,6 +147,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
     remindByDefault: false,
+    defaultReminderSchedule: [
+      { action: "gift", offsetDays: 7, enabledByDefault: false },
+      { action: "call", offsetDays: 0, enabledByDefault: false },
+    ],
   },
   met: {
     label: "Met",
@@ -105,6 +158,9 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
     remindByDefault: false,
+    defaultReminderSchedule: [
+      { action: "call", offsetDays: 0, enabledByDefault: false },
+    ],
   },
   graduation: {
     label: "Graduation",
@@ -112,6 +168,9 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person"],
     recursAnnually: false,
     remindByDefault: false,
+    defaultReminderSchedule: [
+      { action: "call", offsetDays: 0, enabledByDefault: false },
+    ],
   },
   "job-start": {
     label: "Started a job",
@@ -119,12 +178,17 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person"],
     recursAnnually: false,
     remindByDefault: false,
+    defaultReminderSchedule: [
+      { action: "call", offsetDays: 0, enabledByDefault: false },
+    ],
   },
   other: {
     label: "Other",
     allowedBearerTypes: ["person", "pet", "relationship"],
     recursAnnually: false,
     remindByDefault: false,
+    // No default reminders for a free-form milestone — the user adds their own.
+    defaultReminderSchedule: [],
   },
 };
 
@@ -148,6 +212,36 @@ export function kindsForBearerType(
   return (Object.keys(kindDefs) as MilestoneKind[])
     .filter((kind) => kindAllowsBearer(kind, bearerType))
     .map((kind) => ({ kind, label: kindDefs[kind].label }));
+}
+
+/**
+ * The effective staggered-reminder schedule to show/edit for a milestone:
+ * `storedRules` when the milestone has been customised (at least one rule row),
+ * otherwise the `kind`'s {@link MilestoneKindDef.defaultReminderSchedule}
+ * projected into editable rows. "Missing rows ⇒ kind default" keeps an
+ * untouched milestone free of stored rows (and free of sync churn) while the
+ * editor always has a populated schedule to render. Ordered furthest-out first
+ * (a month → a week → day-of), stable within an equal lead.
+ */
+export function resolveReminderSchedule(
+  kind: MilestoneKind,
+  storedRules: ReminderRule[],
+): ReminderRuleInput[] {
+  const source: ReminderRuleInput[] =
+    storedRules.length > 0
+      ? storedRules.map((r) => ({
+          action: r.action,
+          label: r.label,
+          offsetDays: r.offsetDays,
+          enabled: r.enabled,
+        }))
+      : kindDefs[kind].defaultReminderSchedule.map((d) => ({
+          action: d.action,
+          label: null,
+          offsetDays: d.offsetDays,
+          enabled: d.enabledByDefault,
+        }));
+  return [...source].sort((a, b) => b.offsetDays - a.offsetDays);
 }
 
 /**
@@ -242,6 +336,17 @@ function dayImpliesMonth(d: { month?: number | null; day?: number | null }) {
   return (d.day ?? null) === null || (d.month ?? null) !== null;
 }
 
+/**
+ * The optional per-milestone staggered-reminder schedule the forms submit
+ * alongside the milestone. When present, it **replaces** the milestone's stored
+ * rule set (an empty array clears it back to "no reminders"); when absent, the
+ * stored rules are left untouched — so an untouched milestone keeps riding its
+ * kind defaults. Persisted in the same transaction as the milestone write.
+ */
+const reminderScheduleShape = {
+  reminderSchedule: z.array(reminderRuleInputSchema).optional(),
+};
+
 /** The bearer + kind + partial date accepted when creating a milestone. */
 export const createMilestoneInputSchema = z
   .object({
@@ -249,6 +354,7 @@ export const createMilestoneInputSchema = z
     bearerType: milestoneBearerTypeSchema,
     bearerId: z.uuid(),
     ...datePartsShape,
+    ...reminderScheduleShape,
   })
   .refine(dayImpliesMonth, {
     message: "a day requires a month (no lone day, no year+day)",
@@ -273,6 +379,7 @@ export const updateMilestoneInputSchema = z.object({
   bearerType: milestoneBearerTypeSchema.optional(),
   bearerId: z.uuid().optional(),
   ...datePartsShape,
+  ...reminderScheduleShape,
 });
 
 export type UpdateMilestoneInput = z.infer<typeof updateMilestoneInputSchema>;

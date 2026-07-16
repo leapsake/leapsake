@@ -8,6 +8,7 @@ import {
   type MilestoneKind,
   type MilestoneBearerType,
   type RelationshipRole,
+  type ReminderRuleInput,
   type UpdateMilestoneInput,
   createMilestoneInputSchema,
   createRelationshipInputSchema,
@@ -103,7 +104,21 @@ function readDatePart(formData: FormData, key: string): number | null {
   return value === "" ? null : Number(value);
 }
 
-/** Pull the editable milestone fields (kind + partial date + note) out of a form. */
+/**
+ * Parse the milestone's staggered-reminder schedule out of the form's hidden
+ * JSON field. Absent (older form / no field) leaves the stored rules untouched;
+ * a present array (possibly empty) replaces them. Core + the repo re-validate.
+ */
+function readReminderSchedule(
+  formData: FormData,
+): ReminderRuleInput[] | undefined {
+  const raw = formData.get("reminderSchedule");
+  if (raw === null) return undefined;
+  const parsed = JSON.parse(String(raw)) as unknown;
+  return Array.isArray(parsed) ? (parsed as ReminderRuleInput[]) : undefined;
+}
+
+/** Pull the editable milestone fields (kind + partial date + note + reminders) out of a form. */
 function readMilestoneFields(formData: FormData) {
   return {
     kind: String(formData.get("kind")) as MilestoneKind,
@@ -111,6 +126,7 @@ function readMilestoneFields(formData: FormData) {
     month: readDatePart(formData, "month"),
     day: readDatePart(formData, "day"),
     note: readNote(formData, "note"),
+    reminderSchedule: readReminderSchedule(formData),
   };
 }
 
@@ -454,7 +470,13 @@ function milestoneForBearerLoader(bearerType: MilestoneBearerType) {
     );
     const milestone = milestones.find((m) => m.id === milestoneId);
     if (!milestone) throw new Response("Milestone not found", { status: 404 });
-    return { bearer, milestone };
+    // The milestone's resolved reminder schedule (its stored rules, else its
+    // kind's defaults) prefills the edit form's Reminders section.
+    const reminderSchedule = await window.api.milestones.reminderSchedule(
+      milestoneId,
+      milestone.kind,
+    );
+    return { bearer, milestone, reminderSchedule };
   };
 }
 

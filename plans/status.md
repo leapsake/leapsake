@@ -121,10 +121,16 @@ can't ship without distributable apps. (None yet.)
   authoring picker**, and now **`#tag` autocomplete** (a `#`-triggered typeahead of existing tags,
   folded into the same `MentionTextField` — two more pure `schema` helpers, `entityType: "tag"` hits,
   no id resolution since the bare word is the tag) are all done — [`reminders.md`](./reminders.md).
-  The compose surface is complete. **Next: onboarding-as-reminders** (first-run setup surfaced as
-  reminders, incl. the "Already using Leapsake on another device?" sync entry point — fills the empty
-  Home a brand-new user with no contacts still sees), then **reminder search**; broader automation
-  (holidays, Leapsake-defined tasks) extends the engine later.
+  The compose surface is complete. **Per-milestone reminder settings** (staggered schedules) now have
+  their **storage + inline editing** shipped: a plaintext `reminder_rules` table (migration 21,
+  polymorphic `bearer_type`, holiday-ready), a closed `reminderAction` enum + `actionDefs` registry
+  with an `other` free-text escape hatch, per-kind defaults on `kindDefs`, and a Reminders editor on
+  both clients' milestone forms — but **not yet wired into the engine** (it still mints one day-of
+  birthday reminder). **Next: onboarding-as-reminders** (first-run setup surfaced as reminders, incl.
+  the "Already using Leapsake on another device?" sync entry point — fills the empty Home a brand-new
+  user with no contacts still sees), then **reminder search**; the per-milestone-schedule *engine
+  wiring* (one `system` reminder per enabled rule, offset by `offsetDays`) and broader automation
+  (holidays, Leapsake-defined tasks) extend the engine later.
 
 ### v0.2 (first post-launch feature increment)
 

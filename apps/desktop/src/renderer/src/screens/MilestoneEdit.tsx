@@ -1,4 +1,8 @@
-import type { Milestone, MilestoneBearerType } from "@leapsake/schema";
+import type {
+  Milestone,
+  MilestoneBearerType,
+  ReminderRuleInput,
+} from "@leapsake/schema";
 import { useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { MilestoneForm } from "../components/MilestoneForm";
@@ -12,9 +16,10 @@ interface Bearer {
 }
 
 export function MilestoneEdit() {
-  const { bearer, milestone } = useLoaderData() as {
+  const { bearer, milestone, reminderSchedule } = useLoaderData() as {
     bearer: Bearer;
     milestone: Milestone;
+    reminderSchedule: ReminderRuleInput[];
   };
   const bearerPath = `${entityBasePath(bearer.type)}/${bearer.id}`;
 
@@ -30,6 +35,7 @@ export function MilestoneEdit() {
       <MilestoneForm
         bearerType={bearer.type}
         milestone={milestone}
+        initialSchedule={reminderSchedule}
         cancelTo={bearerPath}
       />
     </main>
