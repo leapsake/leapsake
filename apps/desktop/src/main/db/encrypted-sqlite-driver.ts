@@ -93,5 +93,9 @@ export function encryptedSqliteDriver(db: EncryptedDatabase): SqliteDriver {
         throw error;
       }
     },
+
+    async close() {
+      db.close();
+    },
   };
 }

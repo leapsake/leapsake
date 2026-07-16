@@ -13,6 +13,9 @@ const MIN_PASSWORD_LENGTH = 12;
 /** Prefilled relay origin for local development (apps/server defaults to :4000). */
 const DEFAULT_RELAY_URL = "http://localhost:4000";
 
+/** The word a user must type to arm the (irreversible) factory reset. */
+const FACTORY_RESET_PHRASE = "ERASE";
+
 /**
  * A humble, dependency-free password hint. It does not pretend to score entropy
  * (no zxcvbn) — it enforces the length floor and steers toward a passphrase,
@@ -93,6 +96,9 @@ export function Settings() {
 
       <hr />
       <RecoveryPhraseSection />
+
+      <hr />
+      <FactoryReset syncEnabled={status?.enabled ?? false} />
     </main>
   );
 }
@@ -909,6 +915,105 @@ function RecoveryPhraseWords({ phrase }: { phrase: string }) {
           {copied ? "Copied" : "Copy"}
         </button>
       </p>
+    </>
+  );
+}
+
+/**
+ * Factory reset: erase everything on this device and reopen as a fresh install.
+ * Far more destructive than {@link DisconnectAccount} — it deletes all data, the
+ * encryption keys, and the recovery phrase — so it is gated behind a
+ * type-to-confirm step (the "Erase everything" button stays disabled until the
+ * user types {@link FACTORY_RESET_PHRASE}). The copy is honest about whether the
+ * data is recoverable: synced accounts survive in the account/other devices, but
+ * an unsynced store is gone for good. The main process relaunches the app on
+ * success, so there is no completion state to render.
+ */
+function FactoryReset({ syncEnabled }: { syncEnabled: boolean }) {
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  const armed = typed.trim().toUpperCase() === FACTORY_RESET_PHRASE;
+
+  async function reset() {
+    if (!armed) return;
+    setError(null);
+    setWorking(true);
+    try {
+      await window.sync.factoryReset();
+      // Unreachable in practice: the app relaunches before this resolves.
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't reset.");
+      setWorking(false);
+    }
+  }
+
+  function cancel() {
+    setConfirming(false);
+    setTyped("");
+    setError(null);
+  }
+
+  if (!confirming) {
+    return (
+      <>
+        <h2>Factory reset</h2>
+        <p>
+          Erase everything on this device and start over — all people, pets,
+          reminders, and settings, plus the encryption keys and recovery phrase.
+          The app restarts as if newly installed.
+        </p>
+        <p>
+          <button type="button" onClick={() => setConfirming(true)}>
+            Factory reset…
+          </button>
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h2>Factory reset</h2>
+      <p>
+        <strong>This permanently erases all data on this device.</strong>{" "}
+        {syncEnabled
+          ? "Your synced data stays in your account and on your other devices, but this device will be wiped and signed out."
+          : "Sync is not set up, so this data cannot be recovered afterward."}
+      </p>
+      <p>
+        Type <strong>{FACTORY_RESET_PHRASE}</strong> to confirm.
+      </p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void reset();
+        }}
+      >
+        <p>
+          <label>
+            Confirmation
+            <br />
+            <input
+              type="text"
+              value={typed}
+              autoComplete="off"
+              onChange={(event) => setTyped(event.target.value)}
+            />
+          </label>
+        </p>
+        <p>
+          <button type="submit" disabled={!armed || working}>
+            {working ? "Erasing…" : "Erase everything"}
+          </button>{" "}
+          <button type="button" onClick={cancel} disabled={working}>
+            Cancel
+          </button>
+        </p>
+        {error !== null && <p role="alert">{error}</p>}
+      </form>
     </>
   );
 }

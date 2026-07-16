@@ -31,6 +31,7 @@ import {
   getSyncStatus,
   isRelayAuthError,
   joinAccountViaRelay,
+  KEYSTORE_SECRET_IDS,
   lookupAccount,
   reauthenticateViaRelay,
   recoverAccountViaRelay,
@@ -54,6 +55,7 @@ import {
 } from "@leapsake/crypto";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 import {
+  deleteRecoverySidecar,
   readRecoverySidecar,
   writeRecoverySidecar,
 } from "../db/recovery-sidecar";
@@ -152,6 +154,14 @@ export interface SyncApi {
    * doors but keep the master key in the enclave, so local data stays readable.
    */
   clear(): Promise<void>;
+  /**
+   * Factory reset: erase all local data, the encryption keys, and the recovery
+   * sidecar, then rebuild the app in place as a fresh install (there is no
+   * relaunch primitive on mobile, so this re-runs the bootstrap). Unlike
+   * {@link clear} — which keeps the data and master key — this is unrecoverable
+   * unless the account was synced.
+   */
+  factoryReset(): Promise<void>;
   /** Reveal this device's recovery phrase (the words back into the data). */
   revealRecoveryPhrase(): Promise<string>;
   /** Read this install's "Sync automatically" preference (default true). */
@@ -234,6 +244,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   // Reactive invalidation: bumped whenever a sync pull applied changes, so the
   // focused screen (via `useFocusedData` → `useDataVersion`) re-reads in place.
   const [dataVersion, setDataVersion] = useState(0);
+  // Bumped by a factory reset to re-run the bootstrap effect after the data +
+  // keys have been wiped, so the app re-mints a fresh key over an empty DB in
+  // place — the mobile stand-in for desktop's process relaunch.
+  const [resetVersion, setResetVersion] = useState(0);
   // The unlocked device key material (custody Phase 0), passed into createCore so
   // it can encrypt sensitive fields at rest under per-item content keys.
   const keySession = useRef<KeySession | null>(null);
@@ -539,6 +553,26 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           await scheduler.current?.trigger();
         },
         clear: () => clearLocalAccount({ driver }),
+        async factoryReset() {
+          // Show the loading state first so the wiped core is never rendered,
+          // then tear everything down: stop background sync, close the DB handle,
+          // delete the encrypted DB + recovery sidecar, and clear every keystore
+          // secret. Bumping resetVersion re-runs the bootstrap effect, which finds
+          // no key + no DB and takes the fresh-install path (mint a key, migrate an
+          // empty DB) — landing on a clean app without a relaunch.
+          setCore(null);
+          setSync(null);
+          scheduler.current?.stop();
+          await driver.close?.();
+          await SQLite.deleteDatabaseAsync("leapsake.db");
+          await deleteRecoverySidecar();
+          for (const id of KEYSTORE_SECRET_IDS) {
+            await keyStore.deleteSecret(id);
+          }
+          keySession.current = null;
+          coreRef.current = null;
+          setResetVersion((v) => v + 1);
+        },
         revealRecoveryPhrase: async () =>
           encodeRecoveryPhrase(await ensureRecoveryKey(keyStore)),
         getAutoSync: () => getAutoSync({ driver }),
@@ -557,7 +591,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       appStateSub.remove();
       scheduler.current?.stop();
     };
-  }, []);
+  }, [resetVersion]);
 
   if (error !== null) {
     return (

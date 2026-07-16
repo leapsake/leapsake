@@ -17,4 +17,12 @@ export interface SqliteDriver {
   get<T>(sql: string, params?: unknown[]): Promise<T | undefined>;
   /** Run `fn` inside a transaction, committing on success or rolling back. */
   transaction<T>(fn: () => Promise<T>): Promise<T>;
+  /**
+   * Release the underlying database handle, if the backing engine holds one.
+   * Optional because most callers keep a driver open for the process lifetime;
+   * a **factory reset** needs it so the file is unlocked before it is deleted
+   * (Windows refuses to unlink an open SQLite file). A driver with no handle to
+   * free (e.g. an in-memory test driver) may leave it undefined.
+   */
+  close?(): Promise<void>;
 }

@@ -1,5 +1,6 @@
 import {
   ALG,
+  DATABASE_KEY,
   KDF_ALG,
   type KeyStore,
   RECOVERY_KEY,
@@ -37,6 +38,21 @@ export interface KeySession {
 const DEVICE_ID_KEY = "device-id";
 /** KeyStore id holding this device's 32-byte enclave secret. */
 const ENCLAVE_KEY = "enclave";
+
+/**
+ * Every KeyStore id this app writes — the complete set of on-device secrets. It
+ * exists as one exported list so a **factory reset** can clear them all without
+ * knowing where each id is defined (the mobile {@link KeyStore} has no bulk clear,
+ * only per-id `deleteSecret`). Keep this in step with every `keyStore.setSecret`
+ * call across the packages: `db-key`/`recovery-key` (the at-rest + recovery keys
+ * from `@leapsake/crypto`) and this file's `device-id`/`enclave`.
+ */
+export const KEYSTORE_SECRET_IDS = [
+  DATABASE_KEY,
+  RECOVERY_KEY,
+  DEVICE_ID_KEY,
+  ENCLAVE_KEY,
+] as const;
 
 /**
  * Custody Phase 0 (encryption/custody-sequence.md): make the device's master

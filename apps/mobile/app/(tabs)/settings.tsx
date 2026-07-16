@@ -23,6 +23,9 @@ const MIN_PASSWORD_LENGTH = 12;
 /** Prefilled relay origin for local development (apps/server defaults to :4000). */
 const DEFAULT_RELAY_URL = "http://localhost:4000";
 
+/** The word a user must type to arm the (irreversible) factory reset. */
+const FACTORY_RESET_PHRASE = "ERASE";
+
 /**
  * A humble, dependency-free password hint. It does not score entropy (no
  * zxcvbn) — it enforces the length floor and steers toward a passphrase, which
@@ -98,6 +101,7 @@ export default function SettingsScreen() {
         <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
       )}
       <RecoveryPhraseSection />
+      <FactoryResetSection syncEnabled={status?.enabled ?? false} />
     </ScrollView>
   );
 }
@@ -907,6 +911,108 @@ function RecoveryPhraseWords({ phrase }: { phrase: string }) {
         <Text style={styles.buttonText}>{copied ? "Copied" : "Copy"}</Text>
       </Pressable>
     </>
+  );
+}
+
+/**
+ * Factory reset: erase everything on this device and rebuild the app as a fresh
+ * install. Far more destructive than {@link DisconnectAccount} — it deletes all
+ * data, the encryption keys, and the recovery phrase — so it is gated behind a
+ * type-to-confirm step (the danger-styled "Erase everything" button stays
+ * disabled until the user types {@link FACTORY_RESET_PHRASE}). The copy is honest
+ * about recoverability: a synced account survives elsewhere, an unsynced store is
+ * gone for good. On success the provider rebuilds in place, so this screen
+ * unmounts into a clean app — there is no completion state to render.
+ */
+function FactoryResetSection({ syncEnabled }: { syncEnabled: boolean }) {
+  const sync = useSync();
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  const armed = typed.trim().toUpperCase() === FACTORY_RESET_PHRASE;
+
+  async function reset() {
+    if (!armed) return;
+    setError(null);
+    setWorking(true);
+    try {
+      await sync.factoryReset();
+      // The provider rebuilds in place; this screen unmounts to the fresh app.
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't reset.");
+      setWorking(false);
+    }
+  }
+
+  function cancel() {
+    setConfirming(false);
+    setTyped("");
+    setError(null);
+  }
+
+  return (
+    <View style={{ marginTop: 24, gap: 8 }}>
+      <Text style={styles.title}>Factory reset</Text>
+      <Text style={styles.muted}>
+        Erase everything on this device and start over — all people, pets,
+        reminders, and settings, plus the encryption keys and recovery phrase.
+      </Text>
+      {!confirming ? (
+        <Pressable
+          style={[styles.button, { backgroundColor: colors.border }]}
+          onPress={() => setConfirming(true)}
+        >
+          <Text style={styles.buttonText}>Factory reset…</Text>
+        </Pressable>
+      ) : (
+        <View style={styles.section}>
+          <Text style={styles.muted}>
+            {syncEnabled
+              ? "This permanently erases all data on this device. Your synced data stays in your account and on your other devices, but this device will be wiped and signed out."
+              : "This permanently erases all data on this device. Sync is not set up, so this data cannot be recovered afterward."}
+          </Text>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>
+              Type {FACTORY_RESET_PHRASE} to confirm
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={typed}
+              onChangeText={setTyped}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+          </View>
+          <Pressable
+            style={[
+              styles.button,
+              { backgroundColor: colors.danger },
+              (!armed || working) && { opacity: 0.5 },
+            ]}
+            disabled={!armed || working}
+            onPress={reset}
+          >
+            <Text style={styles.buttonText}>
+              {working ? "Erasing…" : "Erase everything"}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.button, { backgroundColor: colors.border }]}
+            disabled={working}
+            onPress={cancel}
+          >
+            <Text style={styles.buttonText}>Cancel</Text>
+          </Pressable>
+          {error !== null && (
+            <Text style={styles.danger} accessibilityRole="alert">
+              {error}
+            </Text>
+          )}
+        </View>
+      )}
+    </View>
   );
 }
 

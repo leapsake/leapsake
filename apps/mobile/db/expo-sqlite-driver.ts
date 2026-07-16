@@ -45,5 +45,9 @@ export function expoSqliteDriver(db: SQLiteDatabase): SqliteDriver {
         throw error;
       }
     },
+
+    async close() {
+      await db.closeAsync();
+    },
   };
 }

@@ -102,6 +102,7 @@ export {
   unlockWithRecoveryKey,
   getSyncStatus,
   clearLocalAccount,
+  KEYSTORE_SECRET_IDS,
   type KeySession,
   type UnlockedMasterKey,
   type SyncStatus,

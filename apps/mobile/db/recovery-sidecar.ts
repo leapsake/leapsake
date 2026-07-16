@@ -45,3 +45,13 @@ export async function writeRecoverySidecar(bytes: Uint8Array): Promise<void> {
     await db.closeAsync();
   }
 }
+
+/**
+ * Delete the sidecar database outright — the mobile half of a **factory reset**,
+ * where losing the recovery wrap is intended (the whole store is being erased).
+ * Each read/write opens its own short-lived connection and closes it, so nothing
+ * holds this DB open; a fresh launch recreates it from the new enclave key.
+ */
+export async function deleteRecoverySidecar(): Promise<void> {
+  await SQLite.deleteDatabaseAsync(SIDECAR_DB);
+}

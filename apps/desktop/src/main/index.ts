@@ -53,6 +53,7 @@ import {
   type ArgParser,
   registerCoreHandlers,
 } from "../shared/ipc-bridge.js";
+import { factoryResetFiles } from "./db/factory-reset.js";
 import { openAppDatabase } from "./db/open.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
@@ -263,8 +264,12 @@ function relayErrorMessage(cause: unknown, relayUrl: string): string {
  * the length here before deriving anything, and returns the one-time recovery
  * key **base64-encoded for display** — the raw key bytes never cross IPC.
  */
-function registerSyncIpc(opts: { keyStore: KeyStore }): void {
-  const { keyStore } = opts;
+function registerSyncIpc(opts: {
+  keyStore: KeyStore;
+  dbPath: string;
+  keystorePath: string;
+}): void {
+  const { keyStore, dbPath, keystorePath } = opts;
 
   ipcMain.handle("sync:status", () => getSyncStatus({ driver }));
 
@@ -484,6 +489,20 @@ function registerSyncIpc(opts: { keyStore: KeyStore }): void {
   // unchanged, so the core needs no rebuild.
   ipcMain.handle("sync:clear", () => clearLocalAccount({ driver }));
 
+  // Factory reset: erase everything and reopen as a first-run install. Unlike
+  // sync:clear (which keeps the data and master key), this deletes the encrypted
+  // DB, the recovery sidecar, and every keystore secret, then relaunches so the
+  // next boot mints a fresh key over an empty DB. We close the DB handle first so
+  // the file is unlocked before it is removed, then hard-restart the process:
+  // app.relaunch queues a new instance, app.exit tears this one (and its held DB
+  // handle + key material) down for real.
+  ipcMain.handle("app:factoryReset", async () => {
+    await driver.close?.();
+    factoryResetFiles({ dbPath, keystorePath });
+    app.relaunch();
+    app.exit(0);
+  });
+
   // The per-client "Sync automatically" preference (default on). Read at render
   // time for the Settings toggle; the setter persists it *and* flips the live
   // scheduler so the change takes effect immediately (and survives a restart).
@@ -569,7 +588,8 @@ void app.whenReady().then(async () => {
   // Open the at-rest DB: enclave key on a normal launch, mint on a fresh/plaintext
   // launch, or recover from the `.recovery` sidecar via a typed phrase if the
   // enclave was wiped (open.ts). The prompt is hosted by the renderer's gate.
-  const keyStore = safeStorageKeyStore(join(userData, "keystore.json"));
+  const keystorePath = join(userData, "keystore.json");
+  const keyStore = safeStorageKeyStore(keystorePath);
   driver = await openAppDatabase({ dbPath, keyStore, requestRecoveryPhrase });
   await runMigrations(driver);
   keySession = await ensureDeviceMasterKey({ keyStore, driver });
@@ -613,7 +633,7 @@ void app.whenReady().then(async () => {
     if (activeCore === undefined) throw new Error("Core is not initialized.");
     return activeCore;
   });
-  registerSyncIpc({ keyStore });
+  registerSyncIpc({ keyStore, dbPath, keystorePath });
 
   scheduler.start(); // backstop interval
   void regenerateSystemReminders(); // populate today's birthdays atop Home

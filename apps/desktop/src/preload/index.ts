@@ -66,6 +66,14 @@ const sync = {
   reauthenticate: (password: string): Promise<void> =>
     ipcRenderer.invoke("sync:reauthenticate", { password }),
   clear: (): Promise<void> => ipcRenderer.invoke("sync:clear"),
+  /**
+   * Factory reset: erase all local data, keys, and the recovery sidecar, then
+   * relaunch into a first-run state. Unlike {@link clear} (which keeps the data
+   * and master key so sync can be re-enabled), this is unrecoverable unless the
+   * account was synced. The app relaunches on success, so the returned promise
+   * never resolves in practice — the caller does not await a result.
+   */
+  factoryReset: (): Promise<void> => ipcRenderer.invoke("app:factoryReset"),
   /** Reveal this device's recovery phrase (the words back into the data). */
   revealRecoveryPhrase: (): Promise<string> =>
     ipcRenderer.invoke("sync:revealRecoveryPhrase"),
