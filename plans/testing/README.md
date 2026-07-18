@@ -181,11 +181,20 @@ These were surfaced but deliberately left open so the strategy is recorded first
      wait for `testID=driver-selftest-status`, assert its `accessibilityLabel` reads
      `PASS` (it is `FAIL` on any failed case *or* a zero-case run, and `ERROR` if the
      suite couldn't start). Key on that stable token, not the human-readable `N/N` count.
-   - **3b — the blackbox harness (pending; gated on the Maestro/Detox decision).** Launch
-     the app on a simulator/emulator, navigate the deep link, and assert the contract above
-     from the command line. **This is what makes the mobile leg terminal** rather than a
-     human reading the screen — until it lands, a newly-added contract case that mobile
-     *fails* is only caught by a manual open (see *Keeping the contract from going stale*).
+   - **3b — the blackbox harness (✅ done; Android).** `pnpm test:native`
+     (`scripts/test-native.mjs`) loads the dev-client bundle on a booted Android emulator,
+     deep-links to the self-test, and a vendor-neutral Maestro flow
+     (`apps/mobile/maestro/driver-selftest.yaml`) asserts the `driver-selftest-status`
+     element's `PASS` label from the command line (non-zero exit on FAIL/ERROR). **This is
+     what makes the mobile leg terminal** rather than a human reading the screen. Proven
+     non-vacuous (a broken contract case turns the flow RED). The `native` tier in
+     `scripts/test-all.mjs` is now `ready` (a `device: true` marker keeps it out of the fast
+     `pnpm test` inner loop while `pnpm test:all` runs it). iOS is the follow-on (step 9) —
+     the flow is platform-identical, so it is mostly a device-target add in `test-native.mjs`.
+     *Landing this immediately earned its keep:* the first automated run surfaced a stale-
+     contract regression a manual open had missed — a 12th contract case (added with the
+     desktop close-case guard) failed on mobile because the self-test factory's `cleanup`
+     double-closed the handle; fixed to mirror the desktop factory's guard.
 4. **Define `pnpm test` orchestration** — 🚧 **in progress** (decision landed: tiered +
    `test:all`). A summary-printing orchestrator (`scripts/test-all.mjs`) owns a tier registry
    and runs each layer's `pnpm test:*` script: `test:format` · `test:lint` · `test:types` ·
@@ -231,9 +240,11 @@ on a new behavior with no case to catch it. Two levers, neither on the screen:
   exercises it. Lives on the desktop Vitest run (terminal today); protects both drivers
   from one place. Not yet wired — fold into step 4 (`pnpm test` orchestration).
 - **The CI matrix runs the one spec on both engines.** Desktop Vitest + the step-3b
-  harness both consume `runDriverContract`, so a new case must go green on *both*. Until
-  3b lands the mobile leg is a manual gate (a human opens the screen) — this is the
-  remaining non-terminal dependency, and closing it is exactly what 3b is for.
+  harness both consume `runDriverContract`, so a new case must go green on *both*. With 3b
+  landed (`pnpm test:native`), the mobile leg is terminal — no longer a manual open. This
+  is not hypothetical: the 12th contract case (the connection-close case) had slipped in
+  failing on mobile precisely because the leg was still manual; the first automated
+  `test:native` run caught it, and it is fixed.
 
 The screen guards against one stale-signal trap itself: a zero-case run reads **FAIL**
 (`total > 0` required for PASS), so a broken import or no-op shim can't show a vacuous

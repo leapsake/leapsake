@@ -170,6 +170,9 @@ Strategy, principles, and the driver-contract keystone live in
 - **Driver contract**: one shared spec (`@leapsake/data/testing` →
   `runDriverContract`) pins every `SqliteDriver` impl to identical observable
   behavior; desktop runs it under Vitest, mobile via the in-app self-test.
+- **Mobile native** (built, Android): `pnpm test:native` drives the in-app
+  self-test on a booted Android emulator via **Maestro** and asserts PASS from the
+  CLI — the mobile driver leg is a terminal automated gate, not a manual screen read.
 - **E2E** (blocked, not built): the crucial-flow catalog per platform — desktop
   Playwright/Electron, mobile **Maestro** (committed). See `plans/testing/`.
 
@@ -186,7 +189,12 @@ combined verdict; **blocked** tiers (native/E2E, not built yet) are surfaced as
 - `pnpm test:format` · `test:lint` · `test:types` — individual static tiers.
 - `pnpm test:coverage` — the driver-contract coverage forcer (gates the desktop
   driver file at 100%, so a new driver path fails until a contract case covers it).
-- `pnpm test:native` / `test:e2e` — report BLOCKED until their harnesses exist.
+- `pnpm test:native` — the mobile driver-contract self-test on an Android emulator
+  via Maestro (`scripts/test-native.mjs` → `apps/mobile/maestro/driver-selftest.yaml`).
+  Assumes a booted emulator + installed dev-client build + running Metro; it fails with
+  the exact setup command if one is missing (see `apps/mobile/maestro/README.md`). It is
+  a `device` tier: `pnpm test` (fast loop) skips it; `pnpm test:all` runs it.
+- `pnpm test:e2e` — reports BLOCKED until the crucial-flow catalog exists.
 
 **tsconfig-include invariant**: a new test directory must sit under some project
 tsconfig's `include`, or its type errors go unchecked (`pnpm test:types` only

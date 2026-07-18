@@ -5,10 +5,13 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-16** — Testing harness: the tiered `pnpm test` orchestration landed
-> (`scripts/test-all.mjs` + `test:*` scripts; driver-coverage forcer at 100%; Maestro
-> confirmed for mobile). Next testing brick is the mobile Maestro harness (step 3b). Prior:
-> Reminders per-milestone schedules wired into the birthday engine. See *What's next*.
+> **Updated 2026-07-17** — Testing harness: the **mobile Maestro native tier (step 3b) is
+> built** — `pnpm test:native` drives the in-app driver-contract self-test on an Android
+> emulator and asserts PASS from the CLI (the `native` tier is now `ready`, not blocked).
+> Verified end-to-end on Android (PASS *and* a deliberately-broken RED run). The automated
+> run also caught a stale-contract regression the manual gate had missed (a 12th contract
+> case; the mobile self-test factory's cleanup double-closed the handle) — now fixed.
+> Prior: the tiered `pnpm test` orchestration + driver-coverage forcer. See *What's next*.
 
 ## Where things stand
 
@@ -40,12 +43,20 @@
   [`reminders.md`](./reminders.md).
 - **Testing harness** — the tiered `pnpm test` orchestration is built: `scripts/test-all.mjs`
   runs each trophy tier (static · lint · typecheck · unit+integration · driver-coverage gate)
-  and reports the still-**blocked** native/E2E tiers as ⏳ (never silently skipped). `pnpm test`
-  = fast local suite; `pnpm test:all` = everything reachable. The **driver-coverage forcer**
-  gates the desktop driver file at 100% (a new driver path fails until a contract case covers
-  it). Owner decisions landed: **Maestro** for mobile E2E, tiered+umbrella `pnpm test` shape.
-  Next bricks (see [`testing/README.md`](./testing/README.md) backlog): mobile Maestro harness
-  (3b) → crucial-flow catalog (6) → desktop macOS Playwright E2E (7). Design: [`testing/`](./testing/).
+  and now also the **mobile native tier** (`ready`); the still-**blocked** E2E tier is reported
+  as ⏳ (never silently skipped). `pnpm test` = fast local suite (skips the device tiers via a
+  `device: true` marker); `pnpm test:all` = everything reachable, including the emulator run.
+  The **driver-coverage forcer** gates the desktop driver file at 100% (a new driver path fails
+  until a contract case covers it). **Step 3b (mobile native tier) is done:** `pnpm test:native`
+  (`scripts/test-native.mjs`) loads the dev-client bundle on a booted Android emulator, deep-links
+  to the `__DEV__` self-test (`leapsake://dev-selftest`), and a vendor-neutral Maestro flow
+  (`apps/mobile/maestro/driver-selftest.yaml`) asserts the `driver-selftest-status` element's
+  `PASS` label — non-zero exit on FAIL/ERROR. Verified on Android, both PASS and a deliberately-
+  broken RED run; the script fails with the exact setup command if the emulator / dev build /
+  Metro isn't prepared. Owner decisions landed: **Maestro** for mobile E2E, tiered+umbrella
+  `pnpm test` shape. Next bricks (see [`testing/README.md`](./testing/README.md) backlog):
+  crucial-flow catalog (6) → desktop macOS Playwright E2E (7) → iOS native tier (a device-target
+  add to `test-native.mjs`, 9). Design: [`testing/`](./testing/).
 
 ## Product posture
 

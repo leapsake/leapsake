@@ -29,7 +29,16 @@ function makeExpoTestDriver() {
   return {
     driver: expoSqliteDriver(db),
     cleanup: async () => {
-      db.closeSync();
+      // Tolerate a handle a test already closed through the driver's `close()`
+      // (the contract's close case does exactly this) — expo-sqlite throws
+      // "Access to closed resource" on a double `closeSync`. This mirrors the
+      // desktop factory's `if (db.open)` guard; expo-sqlite exposes no `isOpen`,
+      // so we swallow the already-closed throw rather than test a flag.
+      try {
+        db.closeSync();
+      } catch {
+        // already closed by the test — nothing to do
+      }
       await SQLite.deleteDatabaseAsync(name);
     },
   };

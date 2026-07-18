@@ -3,10 +3,11 @@
 //
 // It owns the *tier registry* (below): each layer of the trophy maps to a `pnpm test:*`
 // script (the scripts stay the source of truth for *how* a tier runs; this file decides
-// *which* tiers run and *reports* the result). Tiers marked `blocked` are the native /
-// E2E gates that aren't built yet — they are surfaced as ⏳ BLOCKED, never silently
-// skipped, so principle #6 ("everything reachable, or explicitly blocked — not waived")
-// stays visible. See plans/testing/ for the strategy.
+// *which* tiers run and *reports* the result). Tiers marked `blocked` are gates that
+// aren't built yet (currently just E2E — the mobile `native` tier is now built and
+// `ready`) — they are surfaced as ⏳ BLOCKED, never silently skipped, so principle #6
+// ("everything reachable, or explicitly blocked — not waived") stays visible. See
+// plans/testing/ for the strategy.
 //
 // Usage:
 //   node scripts/test-all.mjs                 all ready tiers + report blocked ones (⏳)
@@ -19,6 +20,10 @@
 import { spawnSync } from "node:child_process";
 
 // layer = the trophy layer this proves; key = CLI selector; script = the pnpm script to run.
+// device = true marks the emulator/simulator/native-host tiers (mobile native + E2E):
+// they need a booted device beyond the Node process, so `--fast` (the inner loop, `pnpm
+// test`) skips them regardless of ready/blocked. `pnpm test:all` still runs them. This is
+// what keeps `pnpm test` fast now that `native` is built (`ready`) rather than `blocked`.
 const TIERS = [
   {
     key: "format",
@@ -60,8 +65,11 @@ const TIERS = [
     layer: "mobile native",
     label: "mobile driver-contract (Maestro, on a sim/emulator)",
     script: "test:native",
-    status: "blocked",
-    note: "Maestro harness not built (plans/testing step 3b/8). Manual: leapsake://dev-selftest",
+    status: "ready",
+    device: true,
+    // Needs a prepared Android environment (booted emulator + installed dev client +
+    // running Metro); `pnpm test:native` (scripts/test-native.mjs) fails with the
+    // exact setup command if one is missing. Built at plans/testing step 3b.
   },
   {
     key: "e2e",
@@ -69,6 +77,7 @@ const TIERS = [
     label: "crucial-flow catalog (Playwright / Maestro, per platform)",
     script: "test:e2e",
     status: "blocked",
+    device: true,
     note: "flow catalog not built (plans/testing steps 6-10)",
   },
 ];
@@ -99,7 +108,10 @@ if (only) {
 
 let selected = TIERS;
 if (only) selected = selected.filter((t) => only.has(t.key));
-else if (fast) selected = selected.filter((t) => t.status === "ready");
+// --fast = the inner loop: ready tiers that don't need a device (skip the emulator /
+// simulator / native-host tiers). `--only` overrides (you can force a device tier by key).
+else if (fast)
+  selected = selected.filter((t) => t.status === "ready" && !t.device);
 
 // Each tier runs its own `pnpm run <script>`. `pnpm` is resolved from PATH (shell:true on
 // Windows so `pnpm.cmd` is found); every dev running this already has pnpm on PATH.

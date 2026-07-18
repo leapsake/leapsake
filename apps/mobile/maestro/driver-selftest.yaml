@@ -1,0 +1,50 @@
+# Mobile native test tier — blackbox harness (testing backlog step 3b).
+#
+# Drives the in-app driver-contract self-test from the command line: deep-link to the
+# dev-only self-test route, wait for the async contract run to finish, then assert its
+# PASS token. This is what makes the mobile driver leg *terminal* (an automated gate)
+# instead of a human opening the screen and reading it — the project's #1 principle is
+# "automate over manual". See plans/testing/mobile-engine.md.
+#
+# Vendor-neutral by construction: plain open-source Maestro YAML, no mobile.dev cloud
+# coupling. Runs on the local `maestro` CLI against whatever emulator/simulator is
+# booted.
+#
+# PREREQUISITE: the dev-client app must already be running and connected to Metro (its
+# JS bundle loaded). `scripts/test-native.mjs` (`pnpm test:native`) guarantees this —
+# it boots/loads the bundle via adb and waits for the home screen before invoking
+# Maestro. This flow deliberately does NOT `launchApp`: a cold launch of a dev client
+# opens the expo-dev-launcher (not the app), and the __DEV__-only self-test route only
+# exists once JS is loaded. To run this flow by hand, first open the app to its home
+# screen against a running Metro (see ./README.md).
+#
+# `net.leapsake.mobile` is the dev-client build id (app.json → android.package /
+# ios.bundleIdentifier).
+appId: net.leapsake.mobile
+---
+# Deep-link into the dev-only self-test route (expo-router
+# apps/mobile/app/dev-selftest.tsx). This foregrounds the already-loaded app and
+# navigates. leapsake://dev-clear-dbkey is a *different* dev route — not this one.
+- openLink: leapsake://dev-selftest
+
+# The status element does NOT exist while the suite runs — the screen shows only an
+# ActivityIndicator under testID="driver-selftest" until the async run finishes. So
+# first WAIT (generously) for the status element to appear at all; keying on the id
+# alone tolerates any outcome (PASS/FAIL/ERROR), so this step means "the run finished",
+# distinct from the assertion below.
+- extendedWaitUntil:
+    visible:
+      id: "driver-selftest-status"
+    timeout: 120000
+
+# Bind the assertion to that exact element AND its accessibilityLabel token.
+# testID -> Android resource-id / iOS accessibilityIdentifier (matched by `id`);
+# accessibilityLabel "PASS" -> Android content-desc / iOS accessibilityLabel (matched
+# by `text`). Combining both pins us to the status banner's stable PASS/FAIL/ERROR
+# token, NOT the human-readable "PASS — 12/12" count (a Text child whose full text is
+# not "PASS", so `text: "PASS"` won't match it). On a FAILED or zero-case run the label
+# is "FAIL" (or "ERROR"), so this finds nothing and the flow goes RED — proven
+# non-vacuous (verified 2026-07-17: breaking a contract case turns this assertion red).
+- assertVisible:
+    id: "driver-selftest-status"
+    text: "PASS"
