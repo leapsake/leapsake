@@ -14,7 +14,13 @@ export const colors = {
 
 export const styles = StyleSheet.create({
   screen: {
-    flex: 1,
+    // `flexGrow`, not `flex: 1`: this style is used both as a plain View root
+    // (fills the screen) and as a ScrollView `contentContainerStyle`. On a
+    // scroll content container `flex: 1` clamps the content to the viewport
+    // height, which silently disables scrolling and hides anything below the
+    // fold (e.g. the factory-reset button). `flexGrow` fills when short but
+    // still lets tall content grow and scroll.
+    flexGrow: 1,
     padding: 16,
     gap: 16,
   },
