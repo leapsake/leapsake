@@ -62,10 +62,10 @@
   the orchestrator maps to the per-platform rows. Verified on Android **and** iOS (PASS + a
   deliberately-broken RED run; iOS also verified the un-booted-sim BLOCKED path). The script
   fails with the exact setup command if a device / dev build / Metro isn't prepared. Owner
-  decisions landed: **Maestro** for mobile E2E, tiered+umbrella `pnpm test` shape. Next bricks
-  (see [`testing/README.md`](./testing/README.md) backlog): crucial-flow catalog (6) → desktop
-  macOS Playwright E2E (7) → mobile E2E flows on the same harness (8) → iOS E2E half (9).
-  Design: [`testing/`](./testing/).
+  decisions landed: **Maestro** for mobile E2E, tiered+umbrella `pnpm test` shape. **The
+  crucial-flow catalog is now drafted** ([`testing/crucial-flows.md`](./testing/crucial-flows.md),
+  pending owner sign-off). Next E2E bricks: desktop macOS Playwright E2E → mobile E2E flows on the
+  same harness → iOS E2E half. Design: [`testing/`](./testing/).
 
 ## Product posture
 
