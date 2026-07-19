@@ -25,6 +25,10 @@
   [`packages/core/README.md`](../packages/core/README.md).
 - **Files / media** — nothing built; design invariants pinned in [`files.md`](./files.md).
   Photos are the v0.2 headline (first consumer of that design).
+- **Holidays** — nothing built, no implementation plan yet; the architecture is researched and
+  decided in [`holidays/research.md`](./holidays/research.md) (catalog / observance / rule
+  layering, with an observance as the reminder rule's bearer). Extends the same
+  `@leapsake/reminders` engine; §4 of that doc lists what's still open.
 - **Reminders (home-screen surface)** — a user-generated, syncable Reminder entity (freeform
   title/body, reversible completion, inline `#tags`, **due dates**), the **landing / Home screen on
   both clients** (People & Pets at `/people`; inline `#tags` link to their tag page and a tag's page
@@ -130,7 +134,8 @@ can't ship without distributable apps. (None yet.)
 - **Reminders — remaining work.** The entity, Home promotion, automation (birthday + per-milestone
   staggered schedules), `@mentions`, the compose surface (`@`/`#` pickers), and onboarding-as-reminders
   are all done — see the *Where things stand* bullet and [`reminders.md`](./reminders.md). **Next:
-  reminder search**; broader automation (holidays, Leapsake-defined tasks) extends the same engine later.
+  reminder search**; broader automation (**holidays** — [`holidays/research.md`](./holidays/research.md) —
+  and Leapsake-defined tasks) extends the same engine later.
 
 ### v0.2 (first post-launch feature increment)
 

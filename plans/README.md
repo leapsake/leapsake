@@ -24,6 +24,7 @@ client-agnostic data/core layer underneath all clients.
 | **Know the product posture / user model (stable "why")** | **[`product-truths.md`](./product-truths.md)** — launch posture + the user/client/account/sharing/encryption model |
 | Understand the encryption / privacy / sync design | [`encryption/`](./encryption/) — start at its `README.md` (then `model.md`, `sync.md`, `schema.md`, `custody-sequence.md`) |
 | Understand the file/media (photos v0.2) design | [`files.md`](./files.md) — the encrypted-blob invariants, pinned before build |
+| Understand the holidays design | [`holidays/research.md`](./holidays/research.md) — the catalog/observance/rule layering + decisions, pinned before build |
 | Understand the dedup / merge design | [`packages/core/README.md`](../packages/core/README.md) — the two-kinds-of-merge framing + the person reference graph |
 | Understand the testing strategy (all apps/packages) | [`testing/`](./testing/) — start at its `README.md` (principles, the driver-contract keystone, the mobile-engine wall) |
 | Understand a shared package's architecture & rationale | its own `README.md` — [`schema`](../packages/schema/README.md), [`data`](../packages/data/README.md), [`core`](../packages/core/README.md), [`crypto`](../packages/crypto/README.md) |
