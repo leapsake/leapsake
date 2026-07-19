@@ -5,16 +5,10 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-18** — Testing harness: the **mobile Maestro native tier now runs on
-> iOS too** (step 9, native half). `pnpm test:native` auto-detects each booted platform and
-> drives the *same* driver-contract self-test on an Android emulator **and** a booted iOS
-> simulator, asserting PASS from the CLI; `--platform=ios|android` runs one. `scripts/test-all.mjs`
-> now has per-platform `native-android` / `native-ios` rows and maps the runner's exit codes
-> (0→PASS, 1→FAIL, 3→BLOCKED) so an un-booted platform is reported ⏳ BLOCKED, never skipped
-> (principle #6). Verified end-to-end on iOS (PASS, a deliberately-broken RED run keyed on the
-> a11y label, and the un-booted-sim BLOCKED/exit-3 path); Android unchanged and re-verified.
-> Prior (2026-07-17): step 3b built for Android; the tiered `pnpm test` orchestration +
-> driver-coverage forcer. See *What's next*.
+> **Updated 2026-07-19** — **Onboarding-as-reminders shipped:** a `system` onboarding-nudge
+> family (add-first-person + connect-to-sync) with tombstone-respecting "don't re-nag"
+> semantics, CTA-wired on both clients — so a brand-new user's empty Home is no longer empty.
+> Delivery detail in `git log`. See *What's next* for what remains.
 
 ## Where things stand
 
@@ -42,8 +36,8 @@
   work). **The compose surface is complete** (an `@`-triggered People/Pets picker + a `#`-triggered tag
   typeahead, folded into one `MentionTextField` per client), and **per-milestone staggered schedules are
   now wired into the engine** — one `system` reminder per enabled rule, offset by `offsetDays`,
-  action-phrased. Remaining (first-run + polish): onboarding-as-reminders, reminder search —
-  [`reminders.md`](./reminders.md).
+  action-phrased, and **onboarding nudges** now fill a brand-new user's empty Home (CTA-wired on
+  both clients). Remaining: reminder search — [`reminders.md`](./reminders.md).
 - **Testing harness** — the tiered `pnpm test` orchestration is built: `scripts/test-all.mjs`
   runs each trophy tier (static · lint · typecheck · unit+integration · driver-coverage gate)
   and the **mobile native tier on both platforms** — per-platform `native-android` /
@@ -142,11 +136,9 @@ can't ship without distributable apps. (None yet.)
 
 **Client / UX** (sequenced *after* the encryption work above):
 - **Reminders — remaining work.** The entity, Home promotion, automation (birthday + per-milestone
-  staggered schedules), `@mentions`, and the compose surface (`@`/`#` pickers) are all done — see the
-  *Where things stand* bullet and [`reminders.md`](./reminders.md). **Next: onboarding-as-reminders**
-  (first-run setup surfaced as reminders, incl. the "Already using Leapsake on another device?" sync
-  entry point — fills the empty Home a brand-new user with no contacts still sees), then **reminder
-  search**; broader automation (holidays, Leapsake-defined tasks) extends the same engine later.
+  staggered schedules), `@mentions`, the compose surface (`@`/`#` pickers), and onboarding-as-reminders
+  are all done — see the *Where things stand* bullet and [`reminders.md`](./reminders.md). **Next:
+  reminder search**; broader automation (holidays, Leapsake-defined tasks) extends the same engine later.
 
 ### v0.2 (first post-launch feature increment)
 
