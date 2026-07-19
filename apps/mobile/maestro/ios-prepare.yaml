@@ -1,0 +1,60 @@
+# iOS-only prepare flow — get the dev client to the app's home screen (People tab).
+#
+# The Android harness loads the JS bundle with an adb `am start` deep link
+# (leapsake://expo-development-client/?url=…). On iOS that path does NOT work: an
+# `xcrun simctl openurl` deep link raises a SpringBoard "Open in Leapsake?" confirm and
+# the dev-launcher then ignores the ?url= anyway (verified 2026-07-18). What *does* work
+# is the dev-launcher's own "Continue" button, which reconnects to the last dev server
+# — the one the `pnpm --filter @leapsake/mobile ios` prerequisite already set. So this
+# flow drives the launcher UI to home instead of deep-linking.
+#
+# It is deliberately resilient: from a cold `launchApp` the dev client may land on the
+# dev-launcher ("Continue"/"Scan"), may raise the SpringBoard open-confirm ("Open"), or —
+# once connected — may show the RN dev-menu overlay ("Reload"/"Close") over the app. Each
+# `runFlow: when` fires only if that control is present, so the flow tolerates whichever
+# subset appears (and their absence) and still converges on People home. The final
+# extendedWaitUntil is the readiness gate the runner relies on: People is on the app home
+# only (absent from the launcher and the dev menu).
+#
+# iOS-specific and invoked by scripts/test-native.mjs; the assertion itself lives in the
+# platform-neutral driver-selftest.yaml, which this flow does not touch.
+appId: net.leapsake.mobile
+---
+- launchApp
+
+# Dismiss/click-through whatever the dev client shows on a cold launch, in the order it
+# tends to appear. Repeated so a second overlay (e.g. the dev menu appearing *after*
+# Continue connects) is also cleared. Each tap is guarded by `when visible`, so a missing
+# control is simply skipped — nothing here fails the flow on its own.
+- repeat:
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            visible: "Open"
+          commands:
+            - tapOn: "Open"
+      - runFlow:
+          when:
+            visible: "Continue"
+          commands:
+            - tapOn: "Continue"
+      - runFlow:
+          when:
+            visible: "Reload"
+          commands:
+            - tapOn: "Close"
+      - runFlow:
+          when:
+            visible: "Close"
+          commands:
+            - tapOn: "Close"
+
+# Readiness gate: the People tab is present only on the real app home (not the
+# dev-launcher, not the RN dev menu). This absorbs the first Metro bundle build. The
+# selector is a regex — on iOS the tab's accessibility text is "People, tab, 2 of 4"
+# (VoiceOver-style), not a bare "People", and Maestro text selectors are full-match, so
+# a bare "People" would never match. `.*People.*` pins the People tab wherever it sits.
+- extendedWaitUntil:
+    visible: ".*People.*"
+    timeout: 180000

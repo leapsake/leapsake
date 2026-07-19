@@ -181,16 +181,18 @@ These were surfaced but deliberately left open so the strategy is recorded first
      wait for `testID=driver-selftest-status`, assert its `accessibilityLabel` reads
      `PASS` (it is `FAIL` on any failed case *or* a zero-case run, and `ERROR` if the
      suite couldn't start). Key on that stable token, not the human-readable `N/N` count.
-   - **3b — the blackbox harness (✅ done; Android).** `pnpm test:native`
-     (`scripts/test-native.mjs`) loads the dev-client bundle on a booted Android emulator,
+   - **3b — the blackbox harness (✅ done; Android + iOS).** `pnpm test:native`
+     (`scripts/test-native.mjs`) loads the dev-client bundle on a booted device,
      deep-links to the self-test, and a vendor-neutral Maestro flow
      (`apps/mobile/maestro/driver-selftest.yaml`) asserts the `driver-selftest-status`
      element's `PASS` label from the command line (non-zero exit on FAIL/ERROR). **This is
      what makes the mobile leg terminal** rather than a human reading the screen. Proven
-     non-vacuous (a broken contract case turns the flow RED). The `native` tier in
-     `scripts/test-all.mjs` is now `ready` (a `device: true` marker keeps it out of the fast
-     `pnpm test` inner loop while `pnpm test:all` runs it). iOS is the follow-on (step 9) —
-     the flow is platform-identical, so it is mostly a device-target add in `test-native.mjs`.
+     non-vacuous on both platforms (a broken contract case turns the flow RED). The two
+     `native-android` / `native-ios` tiers in `scripts/test-all.mjs` are `ready` (a
+     `device: true` marker keeps them out of the fast `pnpm test` inner loop while `pnpm
+     test:all` runs them). The iOS device-target add landed under step 9 — same flow, an
+     iOS-specific `ios-prepare.yaml` prepare (the Android bundle-load deep link is
+     intercepted by a SpringBoard confirm on iOS, so it reconnects via the dev-launcher).
      *Landing this immediately earned its keep:* the first automated run surfaced a stale-
      contract regression a manual open had missed — a 12th contract case (added with the
      desktop close-case guard) failed on mobile because the self-test factory's `cleanup`
@@ -213,9 +215,11 @@ These were surfaced but deliberately left open so the strategy is recorded first
    first native-E2E brick (ahead of iOS, which is Xcode-gated).
 8. **Mobile E2E flows (Android)** on the chosen harness — implement the same catalog as real
    user journeys on the Android emulator. Reuses the harness from step 3.
-9. **iOS native + E2E tier** once the local Xcode gate (16.4+) is lifted — harness/self-test
-   are platform-identical, so mostly a build-target add. Completes the **v0.1 gate
-   (iOS + Android + macOS)**.
+9. **iOS native + E2E tier** — the **native (driver-contract) half is ✅ done**: the local
+   Xcode gate was lifted (26.5), and `pnpm test:native --platform=ios` now drives the same
+   Maestro self-test on a booted simulator (device-target add + an `ios-prepare.yaml` prepare;
+   see step 3b). The **iOS E2E half** (the crucial-flow catalog on iOS) rides on steps 6–8.
+   Completing both, with macOS + Android, closes the **v0.1 gate (iOS + Android + macOS)**.
 10. **Windows / Linux E2E** — deferred past v0.1. Gated on provisioning a vendor-neutral host
     (open decision above); implement the *same* catalog, no spec changes.
 11. **Trophy audit** — per app and package, enumerate which of static/unit/integration/E2E

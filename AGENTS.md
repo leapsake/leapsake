@@ -170,17 +170,21 @@ Strategy, principles, and the driver-contract keystone live in
 - **Driver contract**: one shared spec (`@leapsake/data/testing` →
   `runDriverContract`) pins every `SqliteDriver` impl to identical observable
   behavior; desktop runs it under Vitest, mobile via the in-app self-test.
-- **Mobile native** (built, Android): `pnpm test:native` drives the in-app
-  self-test on a booted Android emulator via **Maestro** and asserts PASS from the
-  CLI — the mobile driver leg is a terminal automated gate, not a manual screen read.
+- **Mobile native** (built, Android + iOS): `pnpm test:native` drives the in-app
+  self-test on a booted Android emulator **and/or** iOS simulator via **Maestro** and
+  asserts PASS from the CLI — the mobile driver leg is a terminal automated gate, not a
+  manual screen read. The Maestro flow is byte-identical across platforms.
 - **E2E** (blocked, not built): the crucial-flow catalog per platform — desktop
   Playwright/Electron, mobile **Maestro** (committed). See `plans/testing/`.
 
 ### The test harness (`scripts/test-all.mjs`)
 
 One orchestrator runs each trophy tier as a `pnpm test:*` script and prints a
-combined verdict; **blocked** tiers (native/E2E, not built yet) are surfaced as
-⏳, never silently skipped.
+combined verdict; **blocked** tiers — either not built yet (E2E) *or* a built
+native tier whose device isn't booted here — are surfaced as ⏳, never silently
+skipped. The two mobile native tiers run per platform (`native-android` /
+`native-ios`, each `pnpm test:native --platform=<x>`); the orchestrator maps the
+runner's exit code 0→PASS, 3→BLOCKED, else→FAIL.
 
 - `pnpm test` — the fast local suite (static + unit + integration + coverage
   gate; no emulator). The default inner loop.
@@ -189,11 +193,13 @@ combined verdict; **blocked** tiers (native/E2E, not built yet) are surfaced as
 - `pnpm test:format` · `test:lint` · `test:types` — individual static tiers.
 - `pnpm test:coverage` — the driver-contract coverage forcer (gates the desktop
   driver file at 100%, so a new driver path fails until a contract case covers it).
-- `pnpm test:native` — the mobile driver-contract self-test on an Android emulator
-  via Maestro (`scripts/test-native.mjs` → `apps/mobile/maestro/driver-selftest.yaml`).
-  Assumes a booted emulator + installed dev-client build + running Metro; it fails with
-  the exact setup command if one is missing (see `apps/mobile/maestro/README.md`). It is
-  a `device` tier: `pnpm test` (fast loop) skips it; `pnpm test:all` runs it.
+- `pnpm test:native` — the mobile driver-contract self-test on a booted device via Maestro
+  (`scripts/test-native.mjs` → `apps/mobile/maestro/driver-selftest.yaml`). Auto-detects each
+  booted platform (Android emulator + iOS simulator); `--platform=ios|android` runs one.
+  Assumes a booted device + installed dev-client build + running Metro; it fails with the exact
+  setup command if one is missing, or exits 3 (BLOCKED) if no device/toolchain is present (see
+  `apps/mobile/maestro/README.md`). It is a `device` tier: `pnpm test` (fast loop) skips it;
+  `pnpm test:all` runs it.
 - `pnpm test:e2e` — reports BLOCKED until the crucial-flow catalog exists.
 
 **tsconfig-include invariant**: a new test directory must sit under some project

@@ -4,10 +4,17 @@
 // It owns the *tier registry* (below): each layer of the trophy maps to a `pnpm test:*`
 // script (the scripts stay the source of truth for *how* a tier runs; this file decides
 // *which* tiers run and *reports* the result). Tiers marked `blocked` are gates that
-// aren't built yet (currently just E2E — the mobile `native` tier is now built and
-// `ready`) — they are surfaced as ⏳ BLOCKED, never silently skipped, so principle #6
-// ("everything reachable, or explicitly blocked — not waived") stays visible. See
-// plans/testing/ for the strategy.
+// aren't built yet (currently just E2E — the mobile native tiers are built and `ready`) —
+// they are surfaced as ⏳ BLOCKED, never silently skipped, so principle #6 ("everything
+// reachable, or explicitly blocked — not waived") stays visible. See plans/testing/.
+//
+// Two kinds of BLOCKED, both ⏳: *statically* blocked (a tier not built yet, e.g. e2e) and
+// *runtime* blocked (a built tier whose environment isn't reachable here — e.g. the iOS
+// native tier when no simulator is booted). The mobile native tiers run per platform
+// (`pnpm test:native --platform=<x>`) and report the latter via **exit code 3**; this file
+// maps a ready tier's child exit code 0 → PASS, 3 → BLOCKED (not a failure), anything else
+// → FAIL. So `pnpm test:all` shows each platform's reachable-or-blocked status explicitly
+// instead of hiding an un-booted platform inside one aggregate row.
 //
 // Usage:
 //   node scripts/test-all.mjs                 all ready tiers + report blocked ones (⏳)
@@ -61,15 +68,29 @@ const TIERS = [
     status: "ready",
   },
   {
-    key: "native",
+    key: "native-android",
     layer: "mobile native",
-    label: "mobile driver-contract (Maestro, on a sim/emulator)",
+    label: "mobile driver-contract — Android (Maestro, emulator)",
     script: "test:native",
+    args: ["--platform=android"],
     status: "ready",
     device: true,
     // Needs a prepared Android environment (booted emulator + installed dev client +
-    // running Metro); `pnpm test:native` (scripts/test-native.mjs) fails with the
-    // exact setup command if one is missing. Built at plans/testing step 3b.
+    // running Metro); `pnpm test:native` (scripts/test-native.mjs) exits 3 (→ BLOCKED)
+    // if no emulator is booted, and fails with the exact setup command if the dev client
+    // or Metro is missing. Built at plans/testing step 3b.
+  },
+  {
+    key: "native-ios",
+    layer: "mobile native",
+    label: "mobile driver-contract — iOS (Maestro, simulator)",
+    script: "test:native",
+    args: ["--platform=ios"],
+    status: "ready",
+    device: true,
+    // Same shape as Android on a booted iOS simulator; exits 3 (→ BLOCKED) when no sim
+    // is booted or Xcode's simctl is absent (e.g. a non-macOS host), so the iOS gate is
+    // reported as blocked-here, never silently skipped. Built at plans/testing step 9.
   },
   {
     key: "e2e",
@@ -114,12 +135,18 @@ else if (fast)
   selected = selected.filter((t) => t.status === "ready" && !t.device);
 
 // Each tier runs its own `pnpm run <script>`. `pnpm` is resolved from PATH (shell:true on
-// Windows so `pnpm.cmd` is found); every dev running this already has pnpm on PATH.
-const spawnPnpm = (script) =>
-  spawnSync("pnpm", ["run", script], {
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
+// Windows so `pnpm.cmd` is found); every dev running this already has pnpm on PATH. Extra
+// args (e.g. `--platform=ios`) are forwarded to the script after `--` so pnpm passes them
+// through rather than parsing them as its own flags.
+const spawnPnpm = (script, extra = []) =>
+  spawnSync(
+    "pnpm",
+    ["run", script, ...(extra.length ? ["--", ...extra] : [])],
+    {
+      stdio: "inherit",
+      shell: process.platform === "win32",
+    },
+  );
 
 const results = [];
 for (const tier of selected) {
@@ -131,12 +158,21 @@ for (const tier of selected) {
     results.push({ tier, status: failed ? "blocked-fail" : "blocked", ms: 0 });
     continue;
   }
-  console.log(`\n→ ${tier.label}  [pnpm ${tier.script}]`);
+  const argStr = tier.args?.length ? ` ${tier.args.join(" ")}` : "";
+  console.log(`\n→ ${tier.label}  [pnpm ${tier.script}${argStr}]`);
   const start = Date.now();
-  const run = spawnPnpm(tier.script);
+  const run = spawnPnpm(tier.script, tier.args);
   const ms = Date.now() - start;
-  const ok = run.status === 0;
-  results.push({ tier, status: ok ? "pass" : "fail", ms });
+  // A ready tier's child exit code: 0 = pass, 3 = runtime-blocked (environment not
+  // reachable here, e.g. no device booted — reported ⏳, not a failure), else fail. Only
+  // the mobile native tiers currently emit 3; the others only ever exit 0 or non-zero.
+  // `--strict` (release-gate) upgrades a runtime-blocked tier to a failure, mirroring how
+  // statically-blocked tiers are treated under --strict.
+  if (run.status === 3) {
+    results.push({ tier, status: strict ? "blocked-fail" : "blocked", ms });
+  } else {
+    results.push({ tier, status: run.status === 0 ? "pass" : "fail", ms });
+  }
 }
 
 // Summary
@@ -165,7 +201,7 @@ const failed = results.filter(
 const blocked = results.filter((r) => r.status === "blocked");
 if (blocked.length > 0) {
   console.log(
-    `⏳ ${blocked.length} tier(s) blocked (not built yet) — see plans/testing/. Not counted as failure${strict ? " but --strict is on, so they fail this run" : ""}.`,
+    `⏳ ${blocked.length} tier(s) blocked (not built yet, or environment not reachable here) — see plans/testing/. Not counted as failure${strict ? " but --strict is on, so they fail this run" : ""}.`,
   );
 }
 if (failed.length > 0) {
