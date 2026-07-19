@@ -123,6 +123,15 @@ interface DesiredReminder {
   id: string;
   title: string;
   dueDate: number | null;
+  /**
+   * Display-priority rank among **dateless** rows: 0 = highest (shown first),
+   * realized as a small `createdAt` back-off at insert so the client's
+   * `compareReminderDue` — which orders undated rows newest-`createdAt`-first —
+   * puts a lower rank above a higher one. Omitted (⇒ 0) for milestone rows, which
+   * are dated and already order by their due date. Applied only on first insert,
+   * so a steady-state reconcile never rewrites it.
+   */
+  order?: number;
 }
 
 /** The identity string a milestone occurrence + rule is content-addressed under,
@@ -172,19 +181,26 @@ interface OnboardingStep {
  * so a step does **not** re-appear if its condition later reverts (e.g. the user
  * deletes all their people). That is the correct "don't re-nag" onboarding
  * semantic — see {@link computeAndReconcile}.
+ *
+ * **Array order is display priority** (first = shown highest on Home). Sync leads:
+ * a returning user already on another device should reconnect before re-adding
+ * anyone, so their existing data flows in rather than being re-entered by hand.
+ * The order is made deterministic by a per-step `createdAt` back-off at insert
+ * time (see {@link computeAndReconcile}), so it doesn't hinge on insertion-tie
+ * ordering in the store.
  */
 const ONBOARDING_STEPS: readonly OnboardingStep[] = [
-  {
-    key: "add-first-person",
-    title: "👋 Add your first person to get started",
-    route: "add-person",
-    applies: (s) => !s.hasEntities,
-  },
   {
     key: "sync-devices",
     title: "🔄 Already using Leapsake on another device? Connect to sync.",
     route: "connect-sync",
     applies: (s) => !s.syncConnected,
+  },
+  {
+    key: "add-first-person",
+    title: "👋 Add your first person to get started",
+    route: "add-person",
+    applies: (s) => !s.hasEntities,
   },
 ];
 
@@ -339,10 +355,12 @@ async function computeAndReconcile(
       hasEntities: await deps.onboarding.hasAnyEntity(),
       syncConnected: await deps.onboarding.isSyncConnected(),
     };
-    for (const step of ONBOARDING_STEPS) {
+    for (const [index, step] of ONBOARDING_STEPS.entries()) {
       if (!step.applies(signals)) continue;
       const id = onboardingId(step.key);
-      desired.set(id, { id, title: step.title, dueDate: null });
+      // `index` is the step's display priority (0 = first); realized as a
+      // `createdAt` back-off below so the nudges sort in array order on Home.
+      desired.set(id, { id, title: step.title, dueDate: null, order: index });
     }
   }
 
@@ -360,7 +378,10 @@ async function computeAndReconcile(
           completedAt: null,
           dueDate: want.dueDate,
           source: "system",
-          createdAt: now,
+          // Back off `createdAt` by the row's display rank so dateless rows sort
+          // in priority order on Home (newest-first tiebreak); dated milestone
+          // rows omit `order`, so this is a no-op for them.
+          createdAt: now - (want.order ?? 0),
           updatedAt: now,
           deletedAt: null,
         });

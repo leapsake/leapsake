@@ -11,6 +11,7 @@ import {
 } from "@leapsake/core";
 import {
   type CivilDate,
+  compareReminderDue,
   daysUntil,
   reminderLabel,
   todayCivil,
@@ -67,6 +68,12 @@ describe("onboarding reminders (end to end through core)", () => {
     expect(new Set(rows.map((r) => r.id))).toEqual(
       new Set(ONBOARDING_REMINDERS.map((o) => o.id)),
     );
+    // Home order (through the real driver + list ordering): sync leads so a
+    // returning user reconnects before re-adding anyone.
+    expect(rows.sort(compareReminderDue).map((r) => r.id)).toEqual([
+      idFor("connect-sync"),
+      idFor("add-person"),
+    ]);
   });
 
   it("retires 'add your first person' on people.create with no explicit reconcile", async () => {

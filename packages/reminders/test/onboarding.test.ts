@@ -2,6 +2,7 @@ import {
   type CivilDate,
   type RemindEligibleMilestone,
   type Reminder,
+  compareReminderDue,
   resolveReminderSchedule,
 } from "@leapsake/schema";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -101,6 +102,18 @@ describe("onboarding reminders", () => {
     expect(h.byId(idFor("connect-sync"))?.title).toBe(
       "🔄 Already using Leapsake on another device? Connect to sync.",
     );
+  });
+
+  it("orders the sync nudge above the add-person nudge on Home", async () => {
+    await regenerateSystemReminders(h.deps);
+
+    // Home sorts open reminders with compareReminderDue; both nudges are dateless,
+    // so the createdAt back-off is what puts sync first.
+    const ordered = h.activeSystem().sort(compareReminderDue);
+    expect(ordered.map((r) => r.id)).toEqual([
+      idFor("connect-sync"),
+      idFor("add-person"),
+    ]);
   });
 
   it("is idempotent: a second run adds/changes nothing", async () => {
