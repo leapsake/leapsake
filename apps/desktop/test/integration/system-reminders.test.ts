@@ -2,6 +2,7 @@ import {
   type CoreApi,
   type SqliteDriver,
   createCore,
+  onboardingRouteOf,
   runMigrations,
 } from "@leapsake/core";
 import { createMilestonesRepo } from "@leapsake/data";
@@ -42,9 +43,13 @@ function civilDaysFromToday(days: number): CivilDate {
   };
 }
 
-/** The `system` reminders currently live, via the normal core read. */
+/** The `system` **milestone** reminders currently live, via the normal core read
+ *  — excluding the onboarding nudge family (also `source: "system"`), which these
+ *  birthday-engine tests aren't about. See onboarding-reminders.test.ts. */
 async function systemReminders() {
-  return (await core.reminders.list()).filter((r) => r.source === "system");
+  return (await core.reminders.list()).filter(
+    (r) => r.source === "system" && onboardingRouteOf(r.id) === null,
+  );
 }
 
 describe("core.reminders.regenerateSystem (birthday engine)", () => {
@@ -251,7 +256,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
         await createMilestonesRepo(d.driver).insert(milestone);
         await deviceCore.reminders.regenerateSystem();
         const rows = (await deviceCore.reminders.list()).filter(
-          (r) => r.source === "system",
+          (r) => r.source === "system" && onboardingRouteOf(r.id) === null,
         );
         expect(rows).toHaveLength(1);
         return rows[0].id;

@@ -74,6 +74,11 @@ import {
   todayCivil,
 } from "@leapsake/schema";
 import { regenerateSystemReminders } from "@leapsake/reminders";
+// The onboarding-nudge id-convention, surfaced through core (the apps' single
+// entry point) so a client can map a Home reminder's id to its CTA route without
+// depending on `@leapsake/reminders` directly.
+export { ONBOARDING_REMINDERS, onboardingRouteOf } from "@leapsake/reminders";
+export type { OnboardingReminder, OnboardingRoute } from "@leapsake/reminders";
 import {
   type ImportDecision,
   type ImportPorts,
@@ -81,6 +86,7 @@ import {
   type ParsedContact,
   ingestContacts,
 } from "@leapsake/contact-import";
+import { getSyncStatus } from "./key-session.js";
 import type { KeySession } from "./key-session.js";
 import { createViews } from "./views.js";
 
@@ -450,6 +456,16 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           : ((await resolveLabel(bearerType, bearerId)) ?? null),
       today: todayCivil(),
       transaction: (body) => driver.transaction(body),
+      // The first-run signals for the onboarding nudges. `hasAnyEntity` gates the
+      // "add your first person" step; a relay-connected account (a `relayUrl` on
+      // the singleton) gates the "sync another device" step. Both retire (prune)
+      // automatically once satisfied — see `@leapsake/reminders` ONBOARDING_STEPS.
+      onboarding: {
+        hasAnyEntity: async () =>
+          (await people.list()).length > 0 || (await pets.list()).length > 0,
+        isSyncConnected: async () =>
+          (await getSyncStatus({ driver })).relayUrl !== undefined,
+      },
     });
 
   const views = createViews({
@@ -474,12 +490,22 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       get: (id: string): Promise<Person | undefined> => people.get(id),
       // A Person's write and its tag changes commit in one transaction, so a
       // partial failure rolls back both.
-      create: (input: CreatePersonInput, tagNames: string[]): Promise<Person> =>
-        driver.transaction(async () => {
-          const person = await people.create(input);
-          await tags.setEntityTags("person", person.id, tagNames);
-          return person;
-        }),
+      create: async (
+        input: CreatePersonInput,
+        tagNames: string[],
+      ): Promise<Person> => {
+        const person = await driver.transaction(async () => {
+          const created = await people.create(input);
+          await tags.setEntityTags("person", created.id, tagNames);
+          return created;
+        });
+        // Reconcile after commit so the "add your first person" onboarding nudge
+        // retires promptly (its `hasAnyEntity` signal just flipped true) rather
+        // than waiting for the next boot/focus. Its own transaction — BEGIN/COMMIT
+        // doesn't nest — and a sync-kicking write, so the pruned row rides the kick.
+        await regenerateSystem();
+        return person;
+      },
       update: (
         id: string,
         input: UpdatePersonInput,
@@ -545,12 +571,21 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     pets: {
       list: (): Promise<Pet[]> => pets.list(),
       get: (id: string): Promise<Pet | undefined> => pets.get(id),
-      create: (input: CreatePetInput, tagNames: string[]): Promise<Pet> =>
-        driver.transaction(async () => {
-          const pet = await pets.create(input);
-          await tags.setEntityTags("pet", pet.id, tagNames);
-          return pet;
-        }),
+      create: async (
+        input: CreatePetInput,
+        tagNames: string[],
+      ): Promise<Pet> => {
+        const pet = await driver.transaction(async () => {
+          const created = await pets.create(input);
+          await tags.setEntityTags("pet", created.id, tagNames);
+          return created;
+        });
+        // Reconcile after commit so the "add your first person" onboarding nudge
+        // retires promptly (a pet also satisfies `hasAnyEntity`) — see the mirror
+        // in `people.create`.
+        await regenerateSystem();
+        return pet;
+      },
       update: (
         id: string,
         input: UpdatePetInput,

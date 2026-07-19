@@ -13,7 +13,14 @@
  */
 export {
   LEAD_DAYS,
+  ONBOARDING_REMINDERS,
   SYSTEM_REMINDER_NAMESPACE,
+  onboardingRouteOf,
   regenerateSystemReminders,
 } from "./engine.js";
-export type { ReminderEngineDeps, SystemReminderStore } from "./engine.js";
+export type {
+  OnboardingReminder,
+  OnboardingRoute,
+  ReminderEngineDeps,
+  SystemReminderStore,
+} from "./engine.js";

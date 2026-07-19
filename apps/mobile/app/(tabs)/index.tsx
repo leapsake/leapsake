@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { type OnboardingRoute, onboardingRouteOf } from "@leapsake/core";
 import {
   type ReminderWithTags,
   compareReminderDue,
@@ -18,6 +19,16 @@ import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
+
+/**
+ * Each onboarding nudge's abstract {@link OnboardingRoute} mapped to this client's
+ * own expo-router path — the tap target its row deep-links to. Looked up by id via
+ * {@link onboardingRouteOf}; a non-onboarding reminder taps through to its detail.
+ */
+const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
+  "add-person": "/people/new",
+  "connect-sync": "/(tabs)/settings",
+};
 
 /**
  * The Reminders tab — the app's home/landing screen, so it lives at the `(tabs)`
@@ -83,7 +94,15 @@ function ReminderRow({
   // Title leads; the body shows underneath as details. With no title the body
   // *is* the heading, so it isn't repeated below.
   const heading = reminder.title ?? reminder.body ?? "";
-  const open = () => router.push(`/reminders/${reminder.id}`);
+  // An onboarding nudge deep-links to its target screen instead of a (nonexistent)
+  // reminder detail; every other reminder taps through to its detail as before.
+  const onboardingRoute = onboardingRouteOf(reminder.id);
+  const open = () =>
+    router.push(
+      onboardingRoute === null
+        ? `/reminders/${reminder.id}`
+        : ONBOARDING_PATH[onboardingRoute],
+    );
 
   function toggle() {
     core.reminders.setCompleted(reminder.id, !done).then(
@@ -128,6 +147,12 @@ function ReminderRow({
       <View style={styles.rowMeta}>
         {reminder.dueDate !== null ? (
           <Text style={styles.muted}>{formatDueIn(reminder.dueDate)}</Text>
+        ) : onboardingRoute !== null ? (
+          // A subtle affordance that the nudge deep-links somewhere (tapping the
+          // text routes there); dateless nudges have no due-in to show here.
+          <Pressable accessibilityRole="button" onPress={open}>
+            <Text style={styles.link}>Get started ›</Text>
+          </Pressable>
         ) : (
           <View />
         )}

@@ -53,8 +53,14 @@ export interface SystemReminderStore {
    * milestone was edited (the date moved, or the subject was renamed) so the id is
    * unchanged but the title/due date drifted. Keeps the row's identity and any
    * manual completion; the store bumps `updated_at` so the edit wins LWW on sync.
+   * `dueDate` is nullable so a dateless onboarding row's copy can also be refreshed
+   * (see {@link ONBOARDING_STEPS}) — in practice onboarding copy is static, so this
+   * path is unlikely to fire for it.
    */
-  update(id: string, fields: { title: string; dueDate: number }): Promise<void>;
+  update(
+    id: string,
+    fields: { title: string; dueDate: number | null },
+  ): Promise<void>;
   /** Active rows matching a raw snake_case `WHERE` (used for `source = 'system'`). */
   listWhere(query: {
     where: string;
@@ -97,13 +103,26 @@ export interface ReminderEngineDeps {
   today: CivilDate;
   /** Run the reconcile body atomically (the real driver's `transaction`). */
   transaction<T>(body: () => Promise<T>): Promise<T>;
+  /**
+   * The first-run signals the onboarding nudges (see {@link ONBOARDING_STEPS})
+   * are decided from. **Optional**: engine unit tests and any non-onboarding
+   * caller may omit it, and the desired set then carries no onboarding rows. The
+   * composition root reads these off its people/pets repos and sync-status.
+   */
+  onboarding?: {
+    /** Whether the store holds any person or pet yet. */
+    hasAnyEntity(): Promise<boolean>;
+    /** Whether this device has connected to a sync relay. */
+    isSyncConnected(): Promise<boolean>;
+  };
 }
 
-/** A reminder the engine wants to exist for today's reconcile. */
+/** A reminder the engine wants to exist for today's reconcile. `dueDate` is null
+ *  for the dateless onboarding nudges (see {@link ONBOARDING_STEPS}). */
 interface DesiredReminder {
   id: string;
   title: string;
-  dueDate: number;
+  dueDate: number | null;
 }
 
 /** The identity string a milestone occurrence + rule is content-addressed under,
@@ -117,6 +136,87 @@ function occurrenceName(
   action: string,
 ): string {
   return `milestone:${milestoneId}:${occurrenceYear}:${action}`;
+}
+
+/**
+ * The abstract navigation target an onboarding nudge deep-links to. Kept abstract
+ * (not a concrete client path) so each client maps it to its own router — see
+ * {@link onboardingRouteOf} and the client CTA tables.
+ */
+export type OnboardingRoute = "add-person" | "connect-sync";
+
+/** The raw first-run signals an onboarding step's condition is evaluated against. */
+interface OnboardingSignals {
+  hasEntities: boolean;
+  syncConnected: boolean;
+}
+
+/** One first-run nudge: a stable `key` (folded into its deterministic id), the
+ *  copy shown on Home, the abstract CTA `route`, and `applies` — true while the
+ *  step's condition is still unmet, i.e. while the nudge should exist. */
+interface OnboardingStep {
+  key: string;
+  title: string;
+  route: OnboardingRoute;
+  applies(s: OnboardingSignals): boolean;
+}
+
+/**
+ * The onboarding nudge definitions — a second family of `system` reminders the
+ * engine owns copy for, mirroring how it owns the milestone `actionDefs`. Each is
+ * a dateless row surfaced while its condition is unmet and retired (soft-deleted)
+ * once met. Titles are kept free of `#`/`@` tokens so the core insert-wrapper
+ * materializes no tags/@mentions for them.
+ *
+ * **Permanent retirement is intentional:** retirement is a `softDelete` tombstone,
+ * so a step does **not** re-appear if its condition later reverts (e.g. the user
+ * deletes all their people). That is the correct "don't re-nag" onboarding
+ * semantic — see {@link computeAndReconcile}.
+ */
+const ONBOARDING_STEPS: readonly OnboardingStep[] = [
+  {
+    key: "add-first-person",
+    title: "👋 Add your first person to get started",
+    route: "add-person",
+    applies: (s) => !s.hasEntities,
+  },
+  {
+    key: "sync-devices",
+    title: "🔄 Already using Leapsake on another device? Connect to sync.",
+    route: "connect-sync",
+    applies: (s) => !s.syncConnected,
+  },
+];
+
+/** The deterministic id an onboarding step is content-addressed under — derived
+ *  under the same {@link SYSTEM_REMINDER_NAMESPACE} as milestone reminders but in
+ *  the disjoint `onboarding:<key>` name-space, so the two families never collide. */
+function onboardingId(key: string): string {
+  return deterministicUuid(SYSTEM_REMINDER_NAMESPACE, `onboarding:${key}`);
+}
+
+/** An onboarding reminder's stable id paired with its abstract CTA route. */
+export interface OnboardingReminder {
+  id: string;
+  route: OnboardingRoute;
+}
+
+/**
+ * The id ⇒ route convention clients look a Home reminder's CTA up against — the
+ * whole point of the id-convention: no schema field, no migration, no sync change.
+ * A client renders a deep-link CTA for a reminder **only** when
+ * {@link onboardingRouteOf} finds a match here.
+ */
+export const ONBOARDING_REMINDERS: readonly OnboardingReminder[] =
+  ONBOARDING_STEPS.map((step) => ({
+    id: onboardingId(step.key),
+    route: step.route,
+  }));
+
+/** The CTA route for a reminder id, or `null` when it isn't an onboarding
+ *  reminder (a milestone or user reminder) — the client's branch for "show a CTA". */
+export function onboardingRouteOf(id: string): OnboardingRoute | null {
+  return ONBOARDING_REMINDERS.find((r) => r.id === id)?.route ?? null;
 }
 
 /**
@@ -223,6 +323,26 @@ async function computeAndReconcile(
         title,
         dueDate: dueDateMs(occ) - rule.offsetDays * DAY_MS,
       });
+    }
+  }
+
+  // Onboarding nudges — a second `system` family on the *same* rails: dateless
+  // rows fed into the same desired set, so insert-when-absent, refresh-on-drift,
+  // tombstone-guard, and prune all apply unchanged. A step whose condition is
+  // unmet is desired (→ inserted); once met it drops out (→ pruned = softDelete).
+  // Because prune tombstones the row, a retired step never re-appears even if its
+  // condition later reverts (the user deletes all their people) — the intended
+  // "don't re-nag" semantic. Only when the caller injects the port (clients do;
+  // engine unit tests may not) — otherwise no onboarding rows join the set.
+  if (deps.onboarding !== undefined) {
+    const signals: OnboardingSignals = {
+      hasEntities: await deps.onboarding.hasAnyEntity(),
+      syncConnected: await deps.onboarding.isSyncConnected(),
+    };
+    for (const step of ONBOARDING_STEPS) {
+      if (!step.applies(signals)) continue;
+      const id = onboardingId(step.key);
+      desired.set(id, { id, title: step.title, dueDate: null });
     }
   }
 

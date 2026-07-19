@@ -1,3 +1,4 @@
+import { type OnboardingRoute, onboardingRouteOf } from "@leapsake/core";
 import {
   type ReminderWithTags,
   compareReminderDue,
@@ -6,6 +7,18 @@ import {
 } from "@leapsake/schema";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
 import { ReminderText } from "../components/ReminderText";
+
+/**
+ * The deep-link CTA each onboarding nudge (a `system` reminder whose id maps to an
+ * {@link OnboardingRoute}) renders — the abstract route mapped to this client's own
+ * router path plus its button copy. Looked up by id via {@link onboardingRouteOf};
+ * a non-onboarding reminder returns null and shows no CTA.
+ */
+const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
+  {
+    "add-person": { path: "/people/new", label: "Add person →" },
+    "connect-sync": { path: "/settings", label: "Set up sync →" },
+  };
 
 /**
  * One reminder row: a done/reopen toggle, the reminder's heading, its edit/remove
@@ -18,6 +31,10 @@ function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
   const done = reminder.completedAt !== null;
   const strike = done ? { textDecoration: "line-through" as const } : undefined;
   const heading = reminder.title ?? reminder.body ?? "";
+  // Onboarding nudges deep-link to their target screen; a non-onboarding reminder
+  // (milestone / user) has no route and shows no CTA.
+  const onboardingRoute = onboardingRouteOf(reminder.id);
+  const cta = onboardingRoute === null ? null : ONBOARDING_CTA[onboardingRoute];
 
   return (
     <li>
@@ -49,6 +66,11 @@ function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
       {isReminderEditable(reminder) && (
         <>
           <Link to={`/reminders/${reminder.id}/edit`}>Edit</Link>{" "}
+        </>
+      )}
+      {cta !== null && (
+        <>
+          <Link to={cta.path}>{cta.label}</Link>{" "}
         </>
       )}
       <Link to={`/reminders/${reminder.id}/delete`}>Remove</Link>
