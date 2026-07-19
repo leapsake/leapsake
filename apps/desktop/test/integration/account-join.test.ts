@@ -1,4 +1,8 @@
-import { createInMemoryKeyStore, unwrapKey } from "@leapsake/crypto";
+import {
+  createInMemoryKeyStore,
+  deriveRecoveryVerifier,
+  unwrapKey,
+} from "@leapsake/crypto";
 import {
   type SqliteDriver,
   createAccountRepo,
@@ -53,7 +57,10 @@ function fakeRelay(bootstrap: AccountBootstrap): AccountBootstrapChannel {
       ) {
         throw new Error("401 unauthorized");
       }
-      return bootstrap.wrappedMasterKey;
+      return {
+        wrappedMasterKey: bootstrap.wrappedMasterKey,
+        wrappedRecoveryKey: bootstrap.wrappedRecoveryKey,
+      };
     },
   };
 }
@@ -77,6 +84,7 @@ describe("joinAccount — multi-device login", () => {
   let device1: Awaited<ReturnType<typeof freshDevice>>;
   let bootstrap: AccountBootstrap;
   let accountMasterKey: Uint8Array;
+  let accountRecoveryKey: Uint8Array;
 
   beforeEach(async () => {
     device1 = await freshDevice();
@@ -89,6 +97,7 @@ describe("joinAccount — multi-device login", () => {
       platform: "desktop",
     });
     bootstrap = enabled.bootstrap;
+    accountRecoveryKey = enabled.recoveryKey;
     // The MK the account is built around, unwrapped via the recovery key so we
     // can compare device 2 to it without reaching into device 1's enclave.
     const recoveryWrap = await createKeyWrapRepo(device1.driver).getActive({
@@ -153,6 +162,92 @@ describe("joinAccount — multi-device login", () => {
       "SELECT COUNT(*) AS n FROM device WHERE deleted_at IS NULL",
     );
     expect(devices[0]?.n).toBe(1);
+  });
+
+  it("adopts the account recovery key so device 2 reveals the account phrase", async () => {
+    const device2 = await freshDevice();
+    // Capture device 2's throwaway first-launch recovery key: the bug was that
+    // joining kept *this* key, so Settings showed a phrase that recovers nothing.
+    const preJoinRecoveryKey = await device2.keyStore.getSecret("recovery-key");
+
+    await joinAccount({
+      keyStore: device2.keyStore,
+      driver: device2.driver,
+      transport: fakeRelay(bootstrap),
+      relayUrl: RELAY_URL,
+      username: USERNAME,
+      password: PASSWORD,
+      platform: "mobile",
+    });
+
+    // Device 2 now holds the *account* recovery key — the same one device 1 shows,
+    // whose verifier matches the relay escrow (so recovery on a third device works).
+    const device2RecoveryKey = await device2.keyStore.getSecret("recovery-key");
+    expect(device2RecoveryKey).toBeDefined();
+    expect(equal(device2RecoveryKey!, accountRecoveryKey)).toBe(true);
+    if (preJoinRecoveryKey !== undefined) {
+      // If a throwaway existed, it was genuinely replaced (the bug, made concrete).
+      expect(equal(device2RecoveryKey!, preJoinRecoveryKey)).toBe(false);
+    }
+    expect(
+      equal(
+        deriveRecoveryVerifier(device2RecoveryKey!),
+        bootstrap.recoveryVerifier,
+      ),
+    ).toBe(true);
+
+    // And the local `recovery` door this flow used to lack now exists and unwraps
+    // the account MK under the account recovery key.
+    const recoveryDoor = await createKeyWrapRepo(device2.driver).getActive({
+      wrappedKind: "master",
+      principalKind: "recovery",
+    });
+    expect(recoveryDoor).toBeDefined();
+    expect(
+      equal(
+        unwrapKey(recoveryDoor!.ciphertext, accountRecoveryKey),
+        accountMasterKey,
+      ),
+    ).toBe(true);
+  });
+
+  it("back-compat: joins a pre-unification relay and keeps its device-local phrase", async () => {
+    const device2 = await freshDevice();
+    // A pre-change relay omits wrappedRecoveryKey from bootstrap.
+    const legacyRelay: AccountBootstrapChannel = {
+      lookup: (u) => fakeRelay(bootstrap).lookup(u),
+      async fetchBootstrap(creds) {
+        const { wrappedMasterKey } =
+          await fakeRelay(bootstrap).fetchBootstrap(creds);
+        return { wrappedMasterKey };
+      },
+    };
+    const preJoinRecoveryKey = await device2.keyStore.getSecret("recovery-key");
+
+    const session = await joinAccount({
+      keyStore: device2.keyStore,
+      driver: device2.driver,
+      transport: legacyRelay,
+      relayUrl: RELAY_URL,
+      username: USERNAME,
+      password: PASSWORD,
+      platform: "mobile",
+    });
+
+    // No throw, MK recovered — and no recovery adoption happened, so the device
+    // keeps whatever recovery key it already had (unchanged) and lays no door.
+    expect(equal(session.masterKey, accountMasterKey)).toBe(true);
+    const after = await device2.keyStore.getSecret("recovery-key");
+    if (preJoinRecoveryKey === undefined) {
+      expect(after).toBeUndefined();
+    } else {
+      expect(equal(after!, preJoinRecoveryKey)).toBe(true);
+    }
+    const recoveryDoor = await createKeyWrapRepo(device2.driver).getActive({
+      wrappedKind: "master",
+      principalKind: "recovery",
+    });
+    expect(recoveryDoor).toBeUndefined();
   });
 
   it("rejects a wrong password at the relay verifier, before any unwrap", async () => {

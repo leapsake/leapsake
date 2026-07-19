@@ -92,14 +92,6 @@ the work they imply.
      v0.1 self-host posture: current verifier scheme + H3, plus an honest note in the
      self-hosting docs that a relay operator could attempt offline guesses against a weak
      password — use a strong one.
-- **Recovery-phrase unification (one account, one phrase).** Today a password-joined device
-  reveals its *own* first-launch phrase, which cannot recover the account — a layperson trap
-  (every device should show the same phrase, matching the mental model). Direction: sync
-  `wrap(accountRecoveryKey, MK)` as a `key_wrap` row so any device holding MK can reveal the
-  account phrase, then have password-join **adopt** the account recovery key for its local
-  sidecar too (the cross-device *recovery* flow already does exactly this adoption — join
-  should match it). Circular wrapping of two random keys is sound (MK compromise is already
-  total); re-verify at build time.
 - **vCard/JSContact export** (import comes later with the bulk importer). The portability /
   exit-strategy answer: user-initiated, client-side (the client already holds plaintext),
   people + contact methods first. Cheap, and it doubles as groundwork for the future

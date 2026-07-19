@@ -154,6 +154,7 @@ export async function registerAccountWithRelay(opts: {
     username: bootstrap.username,
     kdfSalt: bootstrap.kdfSalt,
     wrappedMasterKey: bootstrap.wrappedMasterKey,
+    wrappedRecoveryKey: bootstrap.wrappedRecoveryKey,
     wrappedMasterKeyRecovery: bootstrap.wrappedMasterKeyRecovery,
     recoveryVerifier: bootstrap.recoveryVerifier,
   });

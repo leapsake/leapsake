@@ -55,7 +55,10 @@ function fakeRelay(bootstrap: AccountBootstrap): AccountBootstrapChannel {
       ) {
         throw new Error("401 unauthorized");
       }
-      return bootstrap.wrappedMasterKey;
+      return {
+        wrappedMasterKey: bootstrap.wrappedMasterKey,
+        wrappedRecoveryKey: bootstrap.wrappedRecoveryKey,
+      };
     },
   };
 }
@@ -115,6 +118,7 @@ describe("reauthenticate — refresh credential after a remote password reset", 
       kdfSalt: newSalt,
       authVerifier: newVerifier,
       wrappedMasterKey: wrapKey(accountMasterKey, derived.kek),
+      wrappedRecoveryKey: originalBootstrap.wrappedRecoveryKey,
       wrappedMasterKeyRecovery: originalBootstrap.wrappedMasterKeyRecovery,
       recoveryVerifier: originalBootstrap.recoveryVerifier,
     };

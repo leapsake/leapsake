@@ -86,6 +86,12 @@ export interface AccountRegistration {
   kdfSalt: Uint8Array;
   /** Ciphertext `wrap(MK, KEK)` — the protected symmetric key. */
   wrappedMasterKey: Uint8Array;
+  /**
+   * Ciphertext `wrap(recoveryKey, MK)` — the inverse escrow that lets a
+   * password-joining device recover the account recovery key from MK alone, so
+   * every device reveals one phrase.
+   */
+  wrappedRecoveryKey: Uint8Array;
   /** Ciphertext `wrap(MK, recoveryKey)` — the recovery escrow (model.md §6). */
   wrappedMasterKeyRecovery: Uint8Array;
   /** The recovery auth verifier; the relay stores only its hash. */
@@ -128,7 +134,10 @@ export interface HttpSyncTransport extends SyncTransport {
   fetchBootstrap(creds: {
     accountId: string;
     authVerifier: Uint8Array;
-  }): Promise<Uint8Array>;
+  }): Promise<{
+    wrappedMasterKey: Uint8Array;
+    wrappedRecoveryKey?: Uint8Array;
+  }>;
   /**
    * Recovery-authed: prove possession of the recovery key (its verifier) to fetch
    * `wrap(MK, recoveryKey)` so a device that lost its password can unwrap the
@@ -264,6 +273,7 @@ export function createHttpSyncTransport(opts: {
           authVerifier: bytesToBase64(authVerifier),
           kdfSalt: bytesToBase64(registration.kdfSalt),
           wrappedMasterKey: bytesToBase64(registration.wrappedMasterKey),
+          wrappedRecoveryKey: bytesToBase64(registration.wrappedRecoveryKey),
           wrappedMasterKeyRecovery: bytesToBase64(
             registration.wrappedMasterKeyRecovery,
           ),
@@ -300,8 +310,18 @@ export function createHttpSyncTransport(opts: {
       if (!res.ok) {
         throw new Error(`relay GET /accounts/bootstrap failed: ${res.status}`);
       }
-      const body = (await res.json()) as { wrappedMasterKey: string };
-      return base64ToBytes(body.wrappedMasterKey);
+      const body = (await res.json()) as {
+        wrappedMasterKey: string;
+        // Optional for back-compat with a pre-unification relay.
+        wrappedRecoveryKey?: string;
+      };
+      return {
+        wrappedMasterKey: base64ToBytes(body.wrappedMasterKey),
+        wrappedRecoveryKey:
+          body.wrappedRecoveryKey === undefined
+            ? undefined
+            : base64ToBytes(body.wrappedRecoveryKey),
+      };
     },
 
     async fetchRecovery(creds) {

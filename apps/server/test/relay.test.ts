@@ -62,6 +62,9 @@ const WRAPPED_MK = new Uint8Array(48).fill(9);
 // Recovery escrow (model.md §6): opaque wrap(MK, recoveryKey) + a recovery
 // verifier. Like WRAPPED_MK, the pre-join sync cases never unwrap them.
 const WRAPPED_MK_RECOVERY = new Uint8Array(48).fill(5);
+// Inverse escrow wrap(recoveryKey, MK) — the one-phrase unification escrow. Opaque
+// here too; pre-join sync cases never unwrap it.
+const WRAPPED_RECOVERY_KEY = new Uint8Array(48).fill(3);
 const RECOVERY_VERIFIER = generateKey();
 
 interface Device {
@@ -170,6 +173,7 @@ describe("blind HTTPS relay (server + adapter)", () => {
       username: USERNAME,
       kdfSalt: KDF_SALT,
       wrappedMasterKey: WRAPPED_MK,
+      wrappedRecoveryKey: WRAPPED_RECOVERY_KEY,
       wrappedMasterKeyRecovery: WRAPPED_MK_RECOVERY,
       recoveryVerifier: RECOVERY_VERIFIER,
     });
@@ -387,12 +391,14 @@ describe("blind HTTPS relay (server + adapter)", () => {
   });
 
   it("serves the wrapped master key only to an authenticated device", async () => {
-    // Authenticated → the opaque wrap(MK, KEK) the relay can't read.
+    // Authenticated → the opaque wrap(MK, KEK) the relay can't read, plus the
+    // inverse escrow wrap(recoveryKey, MK) a joining device adopts.
     const wrapped = await transportFor().fetchBootstrap({
       accountId: ACCOUNT_ID,
       authVerifier: AUTH_VERIFIER,
     });
-    expect(wrapped).toEqual(WRAPPED_MK);
+    expect(wrapped.wrappedMasterKey).toEqual(WRAPPED_MK);
+    expect(wrapped.wrappedRecoveryKey).toEqual(WRAPPED_RECOVERY_KEY);
 
     // Unauthenticated bootstrap → 401.
     const anon = await fetch(`${baseUrl}/accounts/bootstrap`);
@@ -472,6 +478,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       username: bootstrap.username ?? "",
       kdfSalt: bootstrap.kdfSalt,
       wrappedMasterKey: bootstrap.wrappedMasterKey,
+      wrappedRecoveryKey: bootstrap.wrappedRecoveryKey,
       wrappedMasterKeyRecovery: bootstrap.wrappedMasterKeyRecovery,
       recoveryVerifier: bootstrap.recoveryVerifier,
     });
@@ -581,6 +588,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       username: bootstrap.username ?? "",
       kdfSalt: bootstrap.kdfSalt,
       wrappedMasterKey: bootstrap.wrappedMasterKey,
+      wrappedRecoveryKey: bootstrap.wrappedRecoveryKey,
       wrappedMasterKeyRecovery: bootstrap.wrappedMasterKeyRecovery,
       recoveryVerifier: bootstrap.recoveryVerifier,
     });
@@ -674,6 +682,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       username: bootstrap.username ?? "",
       kdfSalt: bootstrap.kdfSalt,
       wrappedMasterKey: bootstrap.wrappedMasterKey,
+      wrappedRecoveryKey: bootstrap.wrappedRecoveryKey,
       wrappedMasterKeyRecovery: bootstrap.wrappedMasterKeyRecovery,
       recoveryVerifier: bootstrap.recoveryVerifier,
     });
@@ -1009,6 +1018,7 @@ describe("relay rate limiting (bootstrap endpoint)", () => {
       username: "ada",
       kdfSalt: generateSalt(),
       wrappedMasterKey: wrappedMk,
+      wrappedRecoveryKey: new Uint8Array(48).fill(3),
       wrappedMasterKeyRecovery: new Uint8Array(48).fill(5),
       recoveryVerifier: generateKey(),
     });

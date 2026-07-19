@@ -27,6 +27,12 @@ export interface RelayAccount {
   /** Ciphertext `wrap(MK, KEK)` — opaque to the relay (multi-device-login.md). */
   wrappedMasterKey: Uint8Array;
   /**
+   * Ciphertext `wrap(recoveryKey, MK)`, opaque to the relay; absent on
+   * pre-unification accounts. Handed to a password-joining device so it recovers
+   * the account recovery key from MK alone and reveals the account phrase.
+   */
+  wrappedRecoveryKey?: Uint8Array;
+  /**
    * Ciphertext `wrap(MK, recoveryKey)` — the recovery escrow, opaque to the relay
    * (under a full 256-bit key). Absent on accounts registered before recovery
    * escrow existed.
@@ -52,6 +58,7 @@ export interface RelayStore {
     authVerifierHash: Uint8Array,
     kdfSalt: Uint8Array,
     wrappedMasterKey: Uint8Array,
+    wrappedRecoveryKey: Uint8Array | undefined,
     wrappedMasterKeyRecovery: Uint8Array | undefined,
     recoveryVerifierHash: Uint8Array | undefined,
   ): RegisterResult;
@@ -122,6 +129,7 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
   // existed (CREATE TABLE IF NOT EXISTS won't alter an existing table). Both
   // nullable; a duplicate-column error on a fresh DB is expected and ignored.
   for (const column of [
+    "wrapped_recovery_key BLOB",
     "wrapped_master_key_recovery BLOB",
     "recovery_verifier_hash BLOB",
   ]) {
@@ -136,7 +144,8 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
     const row = db
       .prepare(
         `SELECT auth_verifier_hash, kdf_salt, wrapped_master_key,
-                wrapped_master_key_recovery, recovery_verifier_hash
+                wrapped_recovery_key, wrapped_master_key_recovery,
+                recovery_verifier_hash
            FROM relay_account WHERE account_id = ?`,
       )
       .get(accountId) as
@@ -144,6 +153,7 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
           auth_verifier_hash: Uint8Array;
           kdf_salt: Uint8Array;
           wrapped_master_key: Uint8Array;
+          wrapped_recovery_key: Uint8Array | null;
           wrapped_master_key_recovery: Uint8Array | null;
           recovery_verifier_hash: Uint8Array | null;
         }
@@ -153,6 +163,10 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
       authVerifierHash: bytes(row.auth_verifier_hash),
       kdfSalt: bytes(row.kdf_salt),
       wrappedMasterKey: bytes(row.wrapped_master_key),
+      wrappedRecoveryKey:
+        row.wrapped_recovery_key === null
+          ? undefined
+          : bytes(row.wrapped_recovery_key),
       wrappedMasterKeyRecovery:
         row.wrapped_master_key_recovery === null
           ? undefined
@@ -185,6 +199,7 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
       authVerifierHash,
       kdfSalt,
       wrappedMasterKey,
+      wrappedRecoveryKey,
       wrappedMasterKeyRecovery,
       recoveryVerifierHash,
     ) {
@@ -198,14 +213,16 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
       db.prepare(
         `INSERT INTO relay_account
            (account_id, username, auth_verifier_hash, kdf_salt, wrapped_master_key,
-            wrapped_master_key_recovery, recovery_verifier_hash, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            wrapped_recovery_key, wrapped_master_key_recovery, recovery_verifier_hash,
+            created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         accountId,
         username,
         authVerifierHash as SQLInputValue,
         kdfSalt as SQLInputValue,
         wrappedMasterKey as SQLInputValue,
+        (wrappedRecoveryKey ?? null) as SQLInputValue,
         (wrappedMasterKeyRecovery ?? null) as SQLInputValue,
         (recoveryVerifierHash ?? null) as SQLInputValue,
         Date.now(),

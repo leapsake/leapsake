@@ -220,6 +220,14 @@ export interface AccountBootstrap {
   authVerifier: Uint8Array;
   wrappedMasterKey: Uint8Array;
   /**
+   * Ciphertext `wrap(recoveryKey, MK)` — lets a password-joining device recover
+   * the account recovery key from MK alone, so every device shows one phrase. The
+   * inverse of {@link wrappedMasterKeyRecovery}: escrowed on the relay and handed
+   * back over the already-authenticated bootstrap channel, where a joining device
+   * holds MK (just unwrapped it) but never had the recovery phrase.
+   */
+  wrappedRecoveryKey: Uint8Array;
+  /**
    * Ciphertext `wrap(MK, recoveryKey)` — the recovery escrow. Escrowed on the
    * relay (alongside the password wrap) so a device that lost its password can
    * recover the master key from the recovery phrase alone (`model.md` §6).
@@ -246,11 +254,18 @@ function normalizeUsername(username: string): string {
 export interface AccountBootstrapChannel {
   /** Prelogin: resolve a username → account id + public salt (unauthed). */
   lookup(username: string): Promise<{ accountId: string; kdfSalt: Uint8Array }>;
-  /** Bearer-authed (with the derived creds): fetch `wrap(MK, KEK)` ciphertext. */
+  /**
+   * Bearer-authed (with the derived creds): fetch `wrap(MK, KEK)` ciphertext, plus
+   * the optional `wrap(recoveryKey, MK)` escrow a joining device adopts so it
+   * reveals the account phrase (`wrappedRecoveryKey` absent from a pre-change relay).
+   */
   fetchBootstrap(creds: {
     accountId: string;
     authVerifier: Uint8Array;
-  }): Promise<Uint8Array>;
+  }): Promise<{
+    wrappedMasterKey: Uint8Array;
+    wrappedRecoveryKey?: Uint8Array;
+  }>;
 }
 
 /**
@@ -344,6 +359,12 @@ export async function enableSync(opts: {
   // door *and* handed to the relay, so a device that forgot its password can
   // recover MK from the phrase alone.
   const wrappedMasterKeyRecovery = wrapKey(masterKey, recoveryKey);
+  // The inverse escrow: wrap(recoveryKey, MK). Handed to the relay so a
+  // password-joining device — which holds MK but never had the phrase — can
+  // recover the *account* recovery key and reveal the same phrase (one account,
+  // one phrase). A circular wrap of two independent random keys; leaks nothing new
+  // (MK compromise is already total).
+  const wrappedRecoveryKey = wrapKey(recoveryKey, masterKey);
 
   const account = await accountRepo.create({
     kdfSalt: salt,
@@ -382,6 +403,7 @@ export async function enableSync(opts: {
       kdfSalt: salt,
       authVerifier,
       wrappedMasterKey,
+      wrappedRecoveryKey,
       wrappedMasterKeyRecovery,
       recoveryVerifier,
     },
@@ -496,11 +518,11 @@ export async function joinAccount(opts: {
 
   // 3. Authenticate with the verifier and fetch wrap(MK, KEK), then unwrap MK
   //    locally. A wrong password → wrong verifier → 401 here, before any unwrap.
-  const wrappedMasterKey = await transport.fetchBootstrap({
+  const bootstrap = await transport.fetchBootstrap({
     accountId,
     authVerifier,
   });
-  const masterKey = unwrapKey(wrappedMasterKey, kek);
+  const masterKey = unwrapKey(bootstrap.wrappedMasterKey, kek);
 
   // 4. Persist the local account row under the looked-up id, so this device
   //    pushes/pulls into the same relay namespace as device 1.
@@ -535,6 +557,24 @@ export async function joinAccount(opts: {
     ciphertext: wrapKey(masterKey, enclaveKey),
     alg: ALG,
   });
+
+  // 5b. Adopt the account recovery key so this device reveals the same phrase as
+  //     the rest of the account, mirroring recoverAccount. wrap(recoveryKey, MK)
+  //     lets us recover it from MK alone (this device never had the phrase).
+  //     Optional so a pre-change relay still lets us join (we then keep our
+  //     device-local key). Setting RECOVERY_KEY re-keys the at-rest sidecar on the
+  //     next launch (`apps/desktop/src/main/db/open.ts`).
+  if (bootstrap.wrappedRecoveryKey !== undefined) {
+    const recoveryKey = unwrapKey(bootstrap.wrappedRecoveryKey, masterKey);
+    await keyStore.setSecret(RECOVERY_KEY, recoveryKey);
+    // Lay the local `recovery` door this flow currently lacks.
+    await keyWrapRepo.add({
+      wrappedKind: "master",
+      principalKind: "recovery",
+      ciphertext: wrapKey(masterKey, recoveryKey),
+      alg: ALG,
+    });
+  }
 
   // 6. Register this device on the account.
   await createDeviceRepo(driver).register({
@@ -719,9 +759,11 @@ export async function reauthenticate(opts: {
 
   // 3. Authenticate with the verifier and fetch wrap(MK, newKEK); a wrong
   //    password → wrong verifier → 401 here, before any unwrap.
-  const wrappedMasterKey = Uint8Array.from(
-    await transport.fetchBootstrap({ accountId: account.id, authVerifier }),
-  );
+  const bootstrap = await transport.fetchBootstrap({
+    accountId: account.id,
+    authVerifier,
+  });
+  const wrappedMasterKey = Uint8Array.from(bootstrap.wrappedMasterKey);
   const masterKey = unwrapKey(wrappedMasterKey, kek);
 
   // 4. Defense in depth: the relay's MK must be this device's enclave MK — the

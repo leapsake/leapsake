@@ -35,8 +35,9 @@ export type { RateLimit };
  *                                kdfSalt, wrappedMasterKey }` (b64); dup username → 409.
  * - `GET  /accounts/lookup`    — unauthed prelogin; `?username=` → `{ accountId, kdfSalt }`.
  * - `POST /accounts/session`   — verifier auth; mints a short-lived session token.
- * - `GET  /accounts/bootstrap` — verifier auth; → `{ wrappedMasterKey, token, expiresAt }`
- *                                for a joining device (the wrapped MK *and* a session).
+ * - `GET  /accounts/bootstrap` — verifier auth; → `{ wrappedMasterKey,
+ *                                wrappedRecoveryKey?, token, expiresAt }` for a joining
+ *                                device (the wrapped MK, the recovery-key escrow, *and* a session).
  * - `POST /sync/push`          — session auth; append `{ records }` to the account log.
  * - `GET  /sync/pull`          — session auth; `?since=<cursor>` → `{ records, cursor }`.
  *
@@ -78,6 +79,9 @@ const registerBodySchema = z.object({
   authVerifier: base64,
   kdfSalt: base64,
   wrappedMasterKey: base64,
+  // Inverse escrow wrap(recoveryKey, MK) — lets a password-joining device reveal
+  // the account phrase. Optional, matching wrappedMasterKeyRecovery.
+  wrappedRecoveryKey: base64.optional(),
   // Recovery escrow (model.md §6). Optional so a pre-recovery client can still
   // register; current clients always send both.
   wrappedMasterKeyRecovery: base64.optional(),
@@ -434,6 +438,7 @@ export function createRelayServer(opts: {
         authVerifier,
         kdfSalt,
         wrappedMasterKey,
+        wrappedRecoveryKey,
         wrappedMasterKeyRecovery,
         recoveryVerifier,
       } = parsed.data;
@@ -443,6 +448,9 @@ export function createRelayServer(opts: {
         sha256(base64ToBytes(authVerifier)),
         base64ToBytes(kdfSalt),
         base64ToBytes(wrappedMasterKey),
+        wrappedRecoveryKey === undefined
+          ? undefined
+          : base64ToBytes(wrappedRecoveryKey),
         wrappedMasterKeyRecovery === undefined
           ? undefined
           : base64ToBytes(wrappedMasterKeyRecovery),
@@ -520,6 +528,13 @@ export function createRelayServer(opts: {
       }
       sendJson(res, 200, {
         wrappedMasterKey: bytesToBase64(account.wrappedMasterKey),
+        // The inverse escrow so a joining device reveals the account phrase;
+        // absent on pre-unification accounts.
+        ...(account.wrappedRecoveryKey === undefined
+          ? {}
+          : {
+              wrappedRecoveryKey: bytesToBase64(account.wrappedRecoveryKey),
+            }),
         ...mintSession(accountId),
       });
       return;
