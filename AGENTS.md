@@ -15,32 +15,24 @@ mostly-stdlib dependency set.
 
 ## Guiding Principles
 
-- **Incremental delivery** — each phase is usable and shippable on its own.
-- **Lean scope** — no speculative features, no premature abstractions.
-- **TypeScript everywhere** — no Rust or other application languages *in our own
-  source*. This governs the code we write, not our dependencies: build tools in
-  other languages (Vite/oxc) are fine, and a native dependency consumable from TS
-  is judged on merit (platform reach + the dependency budget), not excluded for
-  being non-JS — e.g. a possible future P2P transport (`plans/encryption/sync.md`).
-- **Offline-first** — SQLite is the primary data store.
-- **Dependencies are a budget** — add a dependency only when it pays for itself
-  across more than one place.
+- Simpler is better than more complex.
+- Always prefer small, incremental, independently commitable changes that can deliver independent value. Massive commits create more errors.
+- Approach applications from an offline-first, progressively enhanced perspective.
+- Always use pnpm as the package manager, and pnpm workspaces to manage the independent workspaces
+- Use TypeScript whenever possible.
+- Prefer less code over more code, but prefer legible code over concise code or "code golf"
+- Add a dependency only when it pays for itself across more than one place.
+- Well-written tests are preferable to docs or code comments that can drift to not reflect accurate behavior.
+- Tests should generally treat the thing they are testing as a black box, and not care about the implementation.
+- Well-named, legible functions and code are preferable to code comments or docs, but code comments and docs are preferable to unclear code or behavior.
+- Use docs for
+  - explaining infrequently-changing architecture that cuts across many files in a more succinct way
+  - steps that a human needs to take to interact with the codebase
+  - planning steps
+- As much generalized logic as possible should live in packages/, so that we can share logic across clients
+- Specific logic that's only used for a given client or app should be located in that relevant apps/ project.
+- For code comments, docs, string content, text in the UI, and anywhere else appropriate, be sure to use the appropriate quotation marks, e.g. “Father’s Day” instead of "Father's Day".
 
-## Tech Stack
-
-| Concern | Choice |
-|---|---|
-| Package manager | pnpm + pnpm workspaces |
-| Languages | TypeScript, React, CSS Modules |
-| Desktop shell | Electron via electron-vite |
-| Database | `node:sqlite` (`DatabaseSync`, Node built-in) in the Electron main process |
-| Renderer routing | react-router (`react-router-dom`) |
-| Renderer ↔ main | Typed IPC over `contextBridge` (`window.api`) |
-| Validation | Zod — schemas → inferred types, at every trust boundary |
-| IDs | `crypto.randomUUID()` — no dependency |
-| Lint | oxlint |
-| Format | oxfmt (fall back to Prettier if needed) |
-| Test | Vitest |
 
 ## Repository Structure
 
