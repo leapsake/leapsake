@@ -257,11 +257,10 @@ first increment**, not a follow-up. "Christmas — who do you celebrate with?" w
 to ship, or the feature has no on-ramp and dies of data entry.
 
 > **Amended 2026-07-20.** The *concern* stands; the *control* does not. Select-all shipped and was
-> then judged too cumbersome to scan and scroll. It is being replaced by an autocomplete that
-> stays open across repeated picks — cheaper for the common one-person case, and still workable in
+> then judged too cumbersome to scan and scroll. It was replaced by an autocomplete that stays
+> open across repeated picks — cheaper for the common one-person case, and still workable in
 > bulk. If data entry does prove to be the thing that kills adoption, the fix is an additional
-> bulk affordance (e.g. "add everyone tagged #family"), not a return to the checklist. See
-> [`observance-authoring.md`](./observance-authoring.md).
+> bulk affordance (e.g. "add everyone tagged #family"), not a return to the checklist.
 
 ### 2.13 Relating catalog entries — three distinct edges
 
@@ -353,12 +352,12 @@ is the additive fix — an overlay, never an edit.
   fill the empty Home a new user sees (the gap [`reminders.md`](../reminders.md) calls out)
   without generating per-person work — but v1 is otherwise scoped to per-person reminders.
 - **SETTLED — The on-ramp shape.** **Holiday-centric**, and it shipped that way. But the
-  *control* has since been reversed: the select-all checklist over the whole address book was
-  judged too cumbersome, and is being replaced by an **autocomplete** on the Holiday screen, with
-  a mirrored one on the Person screen (decided 2026-07-20). §2.12's warning that bulk assignment
-  is mandatory is not refuted by that reversal, only outweighed for the common case — see
-  [`observance-authoring.md`](./observance-authoring.md) §1.1 for the tension and the shape that
-  keeps the on-ramp viable. Original question: Is the
+  *control* was then reversed: the select-all checklist over the whole address book was judged too
+  cumbersome, and was replaced by an **autocomplete** on the Holiday screen, with a mirrored one
+  on the Person screen (decided 2026-07-20) — a field that stays open across repeated picks and
+  excludes those already added. §2.12's warning that bulk assignment is mandatory is not refuted
+  by that reversal, only outweighed for the common case; see the amendment there for what to do if
+  data entry does prove to kill adoption. Original question: Is the
   primary flow holiday-centric ("Christmas — who do you celebrate with?"), person-centric, or a
   first-run pass over existing contacts?
 - **SETTLED — v1 catalog breadth.** **15 entries covering every recurrence shape**: six fixed,
@@ -393,14 +392,5 @@ is the additive fix — an overlay, never an edit.
 
 ---
 
-## 6. Sequencing instinct (not a plan)
-
-Mirrors how reminder rules were built — storage and editing shipped before engine wiring:
-
-1. **Catalog + recurrence engine as a standalone package**, no reminder wiring. Pure,
-   exhaustively testable, zero product risk. This is where the real difficulty lives.
-2. **Observance storage + the holiday-centric bulk-assignment UI.** The mandatory on-ramp (§2.12).
-3. **Engine wiring** — small by then, since the rule/schedule machinery already generalizes.
-
-Each stage is independently useful. A real plan goes in `plans/holidays/` alongside this doc, and
-sequencing lands in [`status.md`](../status.md).
+*Built in three stages (package → observance storage + authoring UI → engine wiring), all shipped
+2026-07-20. Remaining work is sequenced in [`status.md`](../status.md).*
