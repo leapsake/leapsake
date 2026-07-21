@@ -1,5 +1,5 @@
 import * as SQLite from "expo-sqlite";
-import { base64ToBytes, bytesToBase64 } from "@leapsake/crypto";
+import { base64ToBytes, bytesToBase64 } from "@leapsake/bytes";
 
 /**
  * The mobile at-rest **recovery sidecar** (encryption `model.md` §6): the

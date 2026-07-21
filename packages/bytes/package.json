@@ -1,5 +1,5 @@
 {
-  "name": "@leapsake/reminders",
+  "name": "@leapsake/bytes",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@leapsake/bytes": "workspace:*",
-    "@leapsake/schema": "workspace:*"
+    "@noble/ciphers": "^2.2.0",
+    "@noble/hashes": "^2.0.0"
   }
 }

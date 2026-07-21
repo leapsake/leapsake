@@ -29,6 +29,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@leapsake/bytes':
+        specifier: workspace:*
+        version: link:../../packages/bytes
       '@leapsake/contact-import':
         specifier: workspace:*
         version: link:../../packages/contact-import
@@ -84,6 +87,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@leapsake/bytes':
+        specifier: workspace:*
+        version: link:../../packages/bytes
       '@leapsake/contact-import':
         specifier: workspace:*
         version: link:../../packages/contact-import
@@ -160,9 +166,9 @@ importers:
 
   apps/server:
     dependencies:
-      '@leapsake/crypto':
+      '@leapsake/bytes':
         specifier: workspace:*
-        version: link:../../packages/crypto
+        version: link:../../packages/bytes
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -179,6 +185,9 @@ importers:
       '@leapsake/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@leapsake/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@leapsake/data':
         specifier: workspace:*
         version: link:../../packages/data
@@ -192,6 +201,15 @@ importers:
         specifier: ^4.19.0
         version: 4.22.4
 
+  packages/bytes:
+    dependencies:
+      '@noble/ciphers':
+        specifier: ^2.2.0
+        version: 2.2.0
+      '@noble/hashes':
+        specifier: ^2.0.0
+        version: 2.2.0
+
   packages/contact-import:
     dependencies:
       '@leapsake/schema':
@@ -203,6 +221,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@leapsake/bytes':
+        specifier: workspace:*
+        version: link:../bytes
       '@leapsake/contact-import':
         specifier: workspace:*
         version: link:../contact-import
@@ -227,6 +248,9 @@ importers:
 
   packages/crypto:
     dependencies:
+      '@leapsake/bytes':
+        specifier: workspace:*
+        version: link:../bytes
       '@noble/ciphers':
         specifier: ^2.2.0
         version: 2.2.0
@@ -239,6 +263,9 @@ importers:
 
   packages/data:
     dependencies:
+      '@leapsake/bytes':
+        specifier: workspace:*
+        version: link:../bytes
       '@leapsake/crypto':
         specifier: workspace:*
         version: link:../crypto
@@ -260,9 +287,9 @@ importers:
 
   packages/reminders:
     dependencies:
-      '@leapsake/crypto':
+      '@leapsake/bytes':
         specifier: workspace:*
-        version: link:../crypto
+        version: link:../bytes
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema
@@ -275,6 +302,9 @@ importers:
 
   packages/sync:
     dependencies:
+      '@leapsake/bytes':
+        specifier: workspace:*
+        version: link:../bytes
       '@leapsake/crypto':
         specifier: workspace:*
         version: link:../crypto
@@ -6315,7 +6345,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

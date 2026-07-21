@@ -19,8 +19,14 @@ modeled in `packages/data`/`packages/core`. This package never persists anything
   Argon2id pass → HKDF-SHA256 split into an independent **KEK** and **auth
   verifier**.
 - `KeyStore` port + in-memory adapter (`keystore.ts`).
-- byte/string/base64/hex codecs + constant-time `equalBytes` (`base64.ts`,
-  re-exports).
+- constant-time `equalBytes` (re-export) — the one byte helper that stays here,
+  because it exists to compare an auth verifier without leaking timing.
+
+The plain codecs (base64/hex/utf-8) and the content-addressed `deterministicUuid`
+live in [`@leapsake/bytes`](../bytes/README.md). They handle no key material, so
+keeping them here made packages that only wanted an id — `@leapsake/reminders`
+did — declare a dependency on the security package. The rule now: **depend on
+`crypto` only if you handle keys or ciphertext.**
 
 ## Pinned algorithms & parameters
 

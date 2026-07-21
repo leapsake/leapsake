@@ -1,4 +1,5 @@
-import { bytesToUtf8, open, seal, utf8ToBytes } from "@leapsake/crypto";
+import { bytesToUtf8, utf8ToBytes } from "@leapsake/bytes";
+import { open, seal } from "@leapsake/crypto";
 import type { SyncRow } from "@leapsake/schema";
 import type { SyncStateRepo, SyncableRepo } from "@leapsake/data";
 import type { Cursor, EncryptedRecord, SyncTransport } from "./transport.js";

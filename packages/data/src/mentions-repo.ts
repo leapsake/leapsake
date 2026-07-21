@@ -1,4 +1,4 @@
-import { deterministicUuid } from "@leapsake/crypto";
+import { deterministicUuid } from "@leapsake/bytes";
 import {
   type EntityType,
   MENTION_NAMESPACE,

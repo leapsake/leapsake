@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@leapsake/bytes": "workspace:*",
     "@leapsake/contact-import": "workspace:*",
     "@leapsake/core": "workspace:*",
     "@leapsake/crypto": "workspace:*",

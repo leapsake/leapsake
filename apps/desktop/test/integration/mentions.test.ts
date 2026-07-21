@@ -5,7 +5,7 @@ import {
   runMigrations,
 } from "@leapsake/core";
 import { createMentionsRepo } from "@leapsake/data";
-import { deterministicUuid } from "@leapsake/crypto";
+import { deterministicUuid } from "@leapsake/bytes";
 import {
   type CivilDate,
   MENTION_NAMESPACE,

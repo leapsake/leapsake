@@ -1,4 +1,4 @@
-import { deterministicUuid } from "@leapsake/crypto";
+import { deterministicUuid } from "@leapsake/bytes";
 import {
   HIDDEN_HOLIDAY_NAMESPACE,
   HOLIDAY_NAMESPACE,

@@ -23,25 +23,14 @@ export {
   openDbKeyFromRecovery,
 } from "./recovery.js";
 export {
-  bytesToBase64,
-  base64ToBytes,
-  bytesToHex,
-  hexToBytes,
-} from "./base64.js";
-// A stable, content-addressed UUID (sha256 → v5-formatted) — the id derivation
-// that lets two devices mint "the same" system row with the same id, so the
-// existing merge dedups them without any sync change.
-export { deterministicUuid } from "./deterministic-id.js";
-export {
   RECOVERY_PHRASE_WORDS,
   encodeRecoveryPhrase,
   decodeRecoveryPhrase,
 } from "./recovery-phrase.js";
-// UTF-8 string ↔ bytes, for storing text identifiers (e.g. a device UUID) as
-// KeyStore secrets. Re-exported from `@noble/ciphers`, which implements them in
-// pure JS — so they run identically on Node/Electron and Hermes, with no
-// reliance on a global `TextEncoder`/`TextDecoder`.
-export { utf8ToBytes, bytesToUtf8 } from "@noble/ciphers/utils.js";
 // Constant-time byte comparison, for checking an auth verifier without leaking
 // timing. Re-exported from `@noble/ciphers`, pure-JS on every target.
+//
+// This stays here rather than moving to `@leapsake/bytes` with the other byte
+// helpers: it looks like a codec utility, but its whole reason to exist is not
+// leaking timing on a secret comparison, which makes it a security primitive.
 export { equalBytes } from "@noble/ciphers/utils.js";

@@ -56,8 +56,11 @@ packages/
                     # writes, cascade deletes, relationship orientation, view-models.
                     # Owns the syncable-repo allowlist and account bootstrap.
                     # Depends on data + sync + schema.
+  bytes/            # Byte ↔ string codecs (base64/hex/utf-8) + deterministicUuid.
+                    # Non-secret data only; no workspace deps. See its README.
   crypto/           # V3 envelope primitives (seal/wrap, the password KDF) + the
-                    # KeyStore port. See packages/crypto/README.md.
+                    # KeyStore port. Depend on this only if you handle keys or
+                    # ciphertext. See packages/crypto/README.md.
   highlight/        # Search-match highlighting.
 AGENTS.md
 plans/                # forward-looking only — upcoming work, not past decisions
@@ -67,7 +70,8 @@ plans/                # forward-looking only — upcoming work, not past decisio
 ```
 
 Per-package architecture rationale (the "why this package is shaped this way") lives in each
-package's own `README.md` — `packages/{schema,data,sync,core,crypto}`, `apps/{desktop,server}`.
+package's own `README.md` — `packages/{schema,data,sync,core,crypto,bytes}`,
+`apps/{desktop,server}`.
 
 ## Data Model
 

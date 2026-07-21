@@ -1,4 +1,4 @@
-import { bytesToBase64 } from "@leapsake/crypto";
+import { bytesToBase64 } from "@leapsake/bytes";
 import { describe, expect, it } from "vitest";
 import { createHttpSyncTransport } from "../src/http-transport.js";
 

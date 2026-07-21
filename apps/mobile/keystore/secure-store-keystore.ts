@@ -1,9 +1,5 @@
-import {
-  type KeyStore,
-  base64ToBytes,
-  bytesToBase64,
-  bytesToHex,
-} from "@leapsake/crypto";
+import { base64ToBytes, bytesToBase64, bytesToHex } from "@leapsake/bytes";
+import type { KeyStore } from "@leapsake/crypto";
 import * as SecureStore from "expo-secure-store";
 
 /**

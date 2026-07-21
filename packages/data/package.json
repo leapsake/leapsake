@@ -11,6 +11,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@leapsake/bytes": "workspace:*",
     "@leapsake/crypto": "workspace:*",
     "@leapsake/schema": "workspace:*"
   }

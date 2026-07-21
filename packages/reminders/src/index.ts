@@ -6,7 +6,7 @@
  * makes the store match it.
  *
  * It depends only on `@leapsake/schema` (the pure occurrence/civil-date math and
- * the milestone kind registry) and `@leapsake/crypto` (the deterministic id), and
+ * the milestone kind registry) and `@leapsake/bytes` (the deterministic id), and
  * on a handful of small **injected ports** ({@link ReminderEngineDeps}) — never
  * on `@leapsake/core` or `@leapsake/data`. The composition root (`@leapsake/core`)
  * constructs the real ports over its repos and calls the engine.

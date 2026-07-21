@@ -4,7 +4,6 @@ import {
   KDF_ALG,
   type KeyStore,
   RECOVERY_KEY,
-  bytesToUtf8,
   deriveKeyMaterial,
   deriveRecoveryVerifier,
   ensureRecoveryKey,
@@ -12,9 +11,9 @@ import {
   generateKey,
   generateSalt,
   unwrapKey,
-  utf8ToBytes,
   wrapKey,
 } from "@leapsake/crypto";
+import { bytesToUtf8, utf8ToBytes } from "@leapsake/bytes";
 import type { Account } from "@leapsake/schema";
 import {
   type SqliteDriver,

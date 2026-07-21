@@ -1,4 +1,4 @@
-import { bytesToHex } from "./base64.js";
+import { bytesToHex } from "@leapsake/bytes";
 import { generateKey } from "./keys.js";
 import type { KeyStore } from "./keystore.js";
 

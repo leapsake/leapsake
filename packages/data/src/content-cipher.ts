@@ -1,11 +1,10 @@
+import { bytesToUtf8, utf8ToBytes } from "@leapsake/bytes";
 import {
   ALG,
-  bytesToUtf8,
   generateKey,
   open,
   seal,
   unwrapKey,
-  utf8ToBytes,
   wrapKey,
 } from "@leapsake/crypto";
 import {

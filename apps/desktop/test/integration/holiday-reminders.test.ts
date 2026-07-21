@@ -8,7 +8,7 @@ import {
   runMigrations,
 } from "@leapsake/data";
 import type { SqliteDriver } from "@leapsake/data";
-import { deterministicUuid } from "@leapsake/crypto";
+import { deterministicUuid } from "@leapsake/bytes";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
