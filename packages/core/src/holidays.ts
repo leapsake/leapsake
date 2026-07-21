@@ -10,13 +10,19 @@ import type {
   ObservancesRepo,
   PeopleRepo,
   PetsRepo,
+  ReminderRulesRepo,
   SqliteDriver,
 } from "@leapsake/data";
+import {
+  type HolidayOccurrenceCandidate,
+  LEAD_DAYS,
+} from "@leapsake/reminders";
 import {
   type CivilDate,
   type HolidayOrigin,
   type ObservanceBearerType,
   fullName,
+  observanceDefaultReminderSchedule,
   todayCivil,
 } from "@leapsake/schema";
 
@@ -96,6 +102,83 @@ export interface HolidaysApiDeps {
   driver: SqliteDriver;
   /** The viewer's local civil date; injectable so tests aren't clock-dependent. */
   today?: () => CivilDate;
+}
+
+/**
+ * Build the reminder engine's holiday candidates: every live observance paired
+ * with the occurrences of its holiday that could plausibly be due.
+ *
+ * Three filters, in the order that keeps the work small:
+ *
+ * 1. **`observes: false` rows are dropped** — an explicit override is a
+ *    statement that the bearer does *not* observe, so it must generate nothing.
+ * 2. **Hidden holidays are dropped**, and this is why hiding has to happen here
+ *    rather than only on browse surfaces: otherwise "I hid Mother's Day" still
+ *    produces "Call @Alice for Mother's Day", which is worse than an ordinary
+ *    bug for precisely the holiday people hide for painful reasons (§2.6).
+ * 3. **Unresolvable holidays yield no occurrences** and simply contribute
+ *    nothing — the row survives, per-holiday, without failing the reconcile.
+ *
+ * The horizon is derived from the widest lead time actually in use rather than
+ * fixed, so a user who sets a 90-day gift reminder still gets it: the engine
+ * surfaces a rule once its own due date (occurrence − offset) is within
+ * `LEAD_DAYS`, so an occurrence matters up to `LEAD_DAYS + maxOffset` away.
+ */
+export async function holidayReminderCandidates(deps: {
+  holidays: HolidaysRepo;
+  observances: ObservancesRepo;
+  hiddenHolidays: HiddenHolidaysRepo;
+  reminderRules: ReminderRulesRepo;
+  today: CivilDate;
+}): Promise<HolidayOccurrenceCandidate[]> {
+  const [rows, hidden, observances, rules] = await Promise.all([
+    deps.holidays.list(),
+    deps.hiddenHolidays.listHiddenIds(),
+    deps.observances.list(),
+    deps.reminderRules.listWhere({
+      where: "bearer_type = ?",
+      params: ["observance"],
+    }),
+  ]);
+
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const resolver = createHolidayResolver(
+    rows.map((row) => ({
+      slug: row.slug,
+      recurrence: parseRecurrence(row.recurrence),
+    })),
+  );
+
+  const maxOffset = Math.max(
+    0,
+    ...observanceDefaultReminderSchedule.map((r) => r.offsetDays),
+    ...rules.map((r) => r.offsetDays),
+  );
+  const horizon = LEAD_DAYS + maxOffset;
+
+  const candidates: HolidayOccurrenceCandidate[] = [];
+  for (const observance of observances) {
+    if (!observance.observes) continue;
+    if (hidden.has(observance.holidayId)) continue;
+    const holiday = byId.get(observance.holidayId);
+    if (holiday === undefined) continue;
+
+    const occurrences = resolver.upcomingOccurrences(
+      holiday.slug,
+      deps.today,
+      horizon,
+    );
+    if (occurrences.length === 0) continue;
+
+    candidates.push({
+      observanceId: observance.id,
+      greeting: holiday.greeting,
+      bearerType: observance.bearerType,
+      bearerId: observance.bearerId,
+      occurrences: [...occurrences],
+    });
+  }
+  return candidates;
 }
 
 /** The key an observance is addressed by within one holiday. */

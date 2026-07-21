@@ -2,8 +2,9 @@
 
 > **Research doc, not a plan and not a status board.** It records the architectural
 > decisions, rejected alternatives, and known edge cases worked out in design discussion
-> **before** any implementation plan exists. Nothing here is built. Sequencing and live
-> status belong in [`status.md`](../status.md); the reminder surface these hang off is
+> **before** implementation. The feature is now **built on desktop** and these decisions held —
+> where the build refined one, the section says so inline (see §2.4 on observance ids). Sequencing
+> and live status belong in [`status.md`](../status.md); the reminder surface these hang off is
 > [`reminders.md`](../reminders.md); the product posture is
 > [`product-truths.md`](../product-truths.md).
 
@@ -96,7 +97,12 @@ Both, via a primitive already in use:
 - **Catalog rows** — `id = deterministicUuid(HOLIDAY_NAMESPACE, slug)`, with `slug` its own
   column. Every device derives the same UUID from the same slug independently, so seeded rows
   converge *even without syncing*.
-- **User rows** — random UUID, ordinary user data.
+- **User rows** — random UUID, ordinary user data. **Refined in the build:** this holds for a
+  user-defined *holiday*, but **observances and hides are deterministic too**, keyed on
+  `(holiday, bearer)` and `(holiday)`. Both tables carry a partial unique index on that key, so
+  random ids would let two offline devices assert the same fact as two rows that then collide on
+  the index the moment they sync. Deriving the id from the key makes them one row that LWW
+  merges — the same reason `mentions` is content-addressed.
 - `origin: "catalog" | "user"` drives what is editable.
 
 Observances then point at a single `holidayId` with **no polymorphism and no source
@@ -313,6 +319,10 @@ is the additive fix — an overlay, never an edit.
 
 ## 4. Open questions
 
+> **Four of these were settled when the feature was built (2026-07-20)** — marked **SETTLED**
+> below, with what was chosen. The rest stand. Status and remaining work live in
+> [`status.md`](../status.md), not here.
+
 - **Synchronized load — punted, and safe to punt.** Birthdays spread across the year; holidays
   do not. Everyone's Christmas gift reminders come due at once, and with `LEAD_DAYS = 30` on top
   of a 30-day gift offset they would all surface in late October. Reversible: ids key on
@@ -320,17 +330,33 @@ is the additive fix — an overlay, never an edit.
   invalidates no tombstones. **The non-reversible variant is aggregate reminders** — collapsing
   "40 Christmas cards" into one row is a different id, and migrating later loses completion
   state. Hence the disjoint-namespace hedge above. Christmas cards are the known worst case.
-- **Does an observance need payload beyond yes/no?** A per-person note ("Alice does gifts on
+- **SETTLED — Does an observance need payload beyond yes/no?** **No.** The thin single-table
+  shape in §2.1 shipped: `(holidayId, bearerType, bearerId, observes)`. A note or per-person
+  offset is a nullable column away if it ever proves necessary, and adding one later breaks
+  neither LWW nor sync. One refinement the build forced: observance ids are **deterministic**
+  (derived from the key), not random as §2.4 implies for user rows — the partial unique index
+  means two offline devices asserting the same observance would otherwise mint two rows and
+  collide on sync apply. Original question: A per-person note ("Alice does gifts on
   Christmas Eve"), or a date offset. If yes, that argues back toward the richer
   relationship-style shape and away from the thin single-table decision in §2.1 — so it should be
   settled before the schema hardens.
-- **Awareness vs. action.** Is a non-person "upcoming holidays" surface in v1 scope? It would
+- **SETTLED — Awareness vs. action.** **Deferred.** v1 stays scoped to per-person reminders;
+  `/holidays` gives a place to see the catalog without generating work. A Home-screen strip
+  remains additive (§5 keeps the door open). Original question: It would
   fill the empty Home a new user sees (the gap [`reminders.md`](../reminders.md) calls out)
   without generating per-person work — but v1 is otherwise scoped to per-person reminders.
-- **The on-ramp shape.** With no implicit source, every observance starts explicit. Is the
+- **SETTLED — The on-ramp shape.** **Holiday-centric.** `/holidays/:id/observers` asks
+  "Christmas — who do you celebrate with?" over the whole address book with select-all; one pass
+  per holiday covers everyone, where a per-person toggle would be N screens for N people. A
+  person-side section is a follow-up, not a prerequisite. Original question: Is the
   primary flow holiday-centric ("Christmas — who do you celebrate with?"), person-centric, or a
   first-run pass over existing contacts?
-- **v1 catalog breadth.** US-centric start is decided; the exact entry list is not, and it
+- **SETTLED — v1 catalog breadth.** **15 entries covering every recurrence shape**: six fixed,
+  five nth-weekday, Western Easter (computus), Good Friday (offset), and Hanukkah + Lunar New Year
+  from precomputed tables — so no path in the §2.8 matrix is unexercised, and §2.9's insistence on
+  an early lunisolar entry is honoured. ⚠️ Those two tables were authored from memory and are
+  flagged provisional in `packages/holidays/src/catalog.ts`; they need sourcing and extending to
+  the ~30-year horizon before ship. Original question: and it
   determines how much of the recurrence matrix must exist immediately (see §2.9 — at least one
   lunar entry).
 - **Observed-date shifting** (holiday falls Saturday → observed Friday). Matters for "office

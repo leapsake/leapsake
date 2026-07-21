@@ -72,6 +72,7 @@ import {
   isReminderEditable,
   parseHashtags,
   parseMentions,
+  resolveObservanceReminderSchedule,
   resolveReminderSchedule,
   roleDefs,
   todayCivil,
@@ -91,7 +92,7 @@ import {
 } from "@leapsake/contact-import";
 import { getSyncStatus } from "./key-session.js";
 import type { KeySession } from "./key-session.js";
-import { createHolidaysApi } from "./holidays.js";
+import { createHolidaysApi, holidayReminderCandidates } from "./holidays.js";
 import { createViews } from "./views.js";
 
 // Re-exported so apps can wire everything from one entry point: construct a
@@ -493,6 +494,34 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           (await people.list()).length > 0 || (await pets.list()).length > 0,
         isSyncConnected: async () =>
           (await getSyncStatus({ driver })).relayUrl !== undefined,
+      },
+      // Holiday observances — the second dated reminder family. Always supplied
+      // here, never conditionally: the engine prunes (and permanently
+      // tombstones) every active system reminder absent from the desired set, so
+      // a client that omitted this port would silently kill every holiday
+      // reminder it had already generated.
+      holidays: {
+        listCandidates: () =>
+          holidayReminderCandidates({
+            holidays,
+            observances,
+            hiddenHolidays,
+            reminderRules,
+            today: todayCivil(),
+          }),
+        // Per-observance schedule: stored rules when customised, else the
+        // observance defaults — the same "missing rows ⇒ defaults" contract
+        // milestones use, which is what keeps an untouched observance free of
+        // stored rows and of sync churn.
+        resolveSchedule: async (candidate) =>
+          resolveObservanceReminderSchedule(
+            await reminderRules.listForBearer(
+              "observance",
+              candidate.observanceId,
+            ),
+          ),
+        resolveLabel: async (bearerType, bearerId) =>
+          (await resolveLabel(bearerType, bearerId)) ?? null,
       },
     });
 

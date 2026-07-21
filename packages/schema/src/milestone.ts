@@ -87,6 +87,14 @@ export interface MilestoneKindDef {
    * a user turns more on), overridable per-*milestone* without a re-key.
    */
   defaultReminderSchedule: DefaultReminderRule[];
+  /**
+   * The occasion phrase the `wish` action's copy interpolates — "Wish @Alice **a
+   * happy birthday**" — carrying its own article. The holiday catalog supplies
+   * the same field per entry, which is what lets one template serve both
+   * sources instead of baking "birthday" into the action (see
+   * {@link ReminderCopyContext}).
+   */
+  greeting: string;
 }
 
 /**
@@ -100,6 +108,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     icon: "🎂",
     allowedBearerTypes: ["person", "pet"],
     recursAnnually: true,
+    greeting: "a happy birthday",
     // "Wish them a happy birthday" day-of is the one reminder on by default
     // anywhere; the staggered gift/card/call/text are offered but start off, for
     // the user to opt into.
@@ -116,6 +125,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     icon: "🕯️",
     allowedBearerTypes: ["person", "pet"],
     recursAnnually: true,
+    greeting: "a peaceful remembrance",
     // Offers a quiet "remember them", day-of — but off by default (nothing but a
     // birthday wish is on by default). No gift/card/text/call for a death.
     defaultReminderSchedule: [
@@ -127,6 +137,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     icon: "💞",
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
+    greeting: "a happy anniversary",
     defaultReminderSchedule: [
       { action: "card", offsetDays: 7, enabledByDefault: false },
       { action: "call", offsetDays: 0, enabledByDefault: false },
@@ -137,6 +148,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     icon: "💍",
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
+    greeting: "a happy anniversary",
     defaultReminderSchedule: [
       { action: "gift", offsetDays: 7, enabledByDefault: false },
       { action: "call", offsetDays: 0, enabledByDefault: false },
@@ -147,6 +159,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     icon: "🤝",
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
+    greeting: "a happy anniversary",
     defaultReminderSchedule: [
       { action: "call", offsetDays: 0, enabledByDefault: false },
     ],
@@ -156,6 +169,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     icon: "🎓",
     allowedBearerTypes: ["person"],
     recursAnnually: false,
+    greeting: "congratulations",
     defaultReminderSchedule: [
       { action: "call", offsetDays: 0, enabledByDefault: false },
     ],
@@ -165,6 +179,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     icon: "💼",
     allowedBearerTypes: ["person"],
     recursAnnually: false,
+    greeting: "congratulations",
     defaultReminderSchedule: [
       { action: "call", offsetDays: 0, enabledByDefault: false },
     ],
@@ -173,6 +188,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     label: "Other",
     allowedBearerTypes: ["person", "pet", "relationship"],
     recursAnnually: false,
+    greeting: "the best",
     // No default reminders for a free-form milestone — the user adds their own.
     defaultReminderSchedule: [],
   },

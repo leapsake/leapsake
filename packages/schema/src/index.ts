@@ -75,6 +75,7 @@ export {
 export type {
   ReminderAction,
   ReminderActionDef,
+  ReminderCopyContext,
   ReminderRuleBearerType,
   ReminderRule,
   ReminderRuleInput,
@@ -107,8 +108,10 @@ export {
   holidayOriginSchema,
   holidaySchema,
   observanceBearerTypeSchema,
+  observanceDefaultReminderSchedule,
   observanceIdName,
   observanceSchema,
+  resolveObservanceReminderSchedule,
 } from "./holiday.js";
 export type {
   HiddenHoliday,

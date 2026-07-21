@@ -22,6 +22,25 @@ export const reminderActionSchema = z.enum([
 
 export type ReminderAction = z.infer<typeof reminderActionSchema>;
 
+/**
+ * What a reminder's copy is written about: who, and what occasion.
+ *
+ * Passed as an object rather than positionally on purpose. The `greeting` was
+ * added when holidays joined milestones as a reminder source, and a forgotten
+ * positional argument would have silently rendered birthday copy for Christmas
+ * — a failure that typechecks and reads fine in review.
+ */
+export interface ReminderCopyContext {
+  /** The bearer's display label, already mention-wrapped where applicable. */
+  subject: string;
+  /**
+   * The occasion phrase, carrying its own article where it needs one: "a happy
+   * birthday", "a Merry Christmas", "Eid Mubarak". Supplied by the milestone
+   * kind (`kindDefs`) or the holiday catalog entry, so one template serves both.
+   */
+  greeting: string;
+}
+
 /** Static metadata for a reminder action: how it displays and its default copy. */
 export interface ReminderActionDef {
   /** Display label, e.g. "Get a gift". */
@@ -29,14 +48,15 @@ export interface ReminderActionDef {
   /** Optional emoji shown beside the label. */
   icon?: string;
   /**
-   * The reminder copy this action produces for a bearer, e.g.
-   * `` (name) => `Get ${name} a gift` ``. Reserved for the **next** increment,
-   * where the engine turns an enabled rule into a `system` reminder title;
-   * unused by this increment's storage/editing surface. `other` has no fixed
-   * template — its copy is the rule's free-text {@link ReminderRule.label}
-   * (see {@link reminderRuleLabel}) — so it falls back to its plain label.
+   * The reminder copy this action produces, e.g.
+   * `` ({subject}) => `Get ${subject} a gift` ``. Most actions ignore the
+   * occasion entirely — a gift is a gift — but {@link ReminderCopyContext.greeting}
+   * is what lets `wish` serve both "Wish @Alice a happy birthday" and "Wish
+   * @Alice a Merry Christmas" from one template. `other` has no fixed template —
+   * its copy is the rule's free-text {@link ReminderRule.label} (see
+   * {@link reminderRuleLabel}) — so it falls back to its plain label.
    */
-  template: (bearerLabel: string) => string;
+  template: (context: ReminderCopyContext) => string;
 }
 
 /**
@@ -47,39 +67,41 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
   wish: {
     label: "Wish them",
     icon: "🎉",
-    // Birthday-centric copy (its default home); the engine can specialise the
-    // greeting per kind/holiday in the wiring increment.
-    template: (name) => `Wish ${name} a happy birthday`,
+    // The one action whose copy turns on the occasion. With a birthday's
+    // greeting this renders exactly the string the birthday-only engine used to
+    // hard-code, which is what keeps existing reminders from drifting on
+    // upgrade; with a holiday's it reads "Wish @Alice a Merry Christmas".
+    template: ({ subject, greeting }) => `Wish ${subject} ${greeting}`,
   },
   gift: {
     label: "Get a gift",
     icon: "🎁",
-    template: (name) => `Get ${name} a gift`,
+    template: ({ subject }) => `Get ${subject} a gift`,
   },
   card: {
     label: "Send a card",
     icon: "💌",
-    template: (name) => `Send ${name} a card`,
+    template: ({ subject }) => `Send ${subject} a card`,
   },
   call: {
     label: "Give a call",
     icon: "📞",
-    template: (name) => `Call ${name}`,
+    template: ({ subject }) => `Call ${subject}`,
   },
   text: {
     label: "Send a text",
     icon: "💬",
-    template: (name) => `Text ${name}`,
+    template: ({ subject }) => `Text ${subject}`,
   },
   visit: {
     label: "Visit",
     icon: "🏡",
-    template: (name) => `Visit ${name}`,
+    template: ({ subject }) => `Visit ${subject}`,
   },
   remember: {
     label: "Remember them",
     icon: "🕯️",
-    template: (name) => `Remember ${name}`,
+    template: ({ subject }) => `Remember ${subject}`,
   },
   other: {
     label: "Other",
@@ -90,12 +112,19 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
 };
 
 /**
- * The bearer types a reminder rule can hang off. `milestone` today; the
- * polymorphic `(bearerType, bearerId)` pair lets `holiday` join later with no
- * schema change — the same reason milestones/taggings/mentions use a bearer
- * pair. This increment only ever writes `"milestone"`.
+ * The bearer types a reminder rule can hang off, via the same polymorphic
+ * `(bearerType, bearerId)` pair milestones/taggings/mentions use. Adding one is
+ * a Zod-only change — the column is free text.
+ *
+ * Note the second entry is **`observance`**, not `holiday`, though earlier
+ * comments here and on migration 21 anticipated the latter. The rule bears on
+ * the observance — the (person, holiday) pair — because that is what makes a
+ * per-person schedule expressible: "gift Alice 30 days before Christmas" but
+ * "just call Grandma day-of". Hanging it off the holiday would need a third
+ * column naming the person, plus a parallel copy of the schedule machinery
+ * (holidays/research.md §1).
  */
-export const reminderRuleBearerTypeSchema = z.enum(["milestone"]);
+export const reminderRuleBearerTypeSchema = z.enum(["milestone", "observance"]);
 
 export type ReminderRuleBearerType = z.infer<
   typeof reminderRuleBearerTypeSchema

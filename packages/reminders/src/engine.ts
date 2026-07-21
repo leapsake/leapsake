@@ -8,6 +8,7 @@ import {
   actionDefs,
   daysUntil,
   dueDateMs,
+  kindDefs,
   mentionToken,
   nextOccurrence,
   reminderRuleLabel,
@@ -115,6 +116,56 @@ export interface ReminderEngineDeps {
     /** Whether this device has connected to a sync relay. */
     isSyncConnected(): Promise<boolean>;
   };
+  /**
+   * The holiday-observance source — the second family of recurring dated facts
+   * the engine generates from.
+   *
+   * A **parallel port rather than a widening** of `milestones`/`resolveSchedule`
+   * /`resolveLabel`. Those are typed against `RemindEligibleMilestone`, and
+   * generalising them would have touched every existing call site and fake for
+   * no behavioural gain — with a real risk of perturbing milestone id derivation
+   * in the process, which would duplicate every existing system reminder on the
+   * next sync. The `onboarding` port above already proved this shape: a second
+   * desired-row family feeding the same map, inheriting insert / refresh /
+   * tombstone-guard / prune unchanged.
+   *
+   * **Optional**, like `onboarding`, so engine unit tests can omit it — but the
+   * composition root always supplies it. Omitting it in production would prune
+   * (and permanently tombstone) every holiday reminder.
+   */
+  holidays?: {
+    /**
+     * Every (observance × upcoming occurrence) worth considering today, already
+     * narrowed to the horizon by the caller and carrying **no** bearer label —
+     * the label lookup is potentially encrypted, so it stays behind the schedule
+     * and window filters below. Holidays multiply the candidate set by
+     * (people × holidays), so that ordering matters more here than it does for
+     * milestones.
+     */
+    listCandidates(): Promise<HolidayOccurrenceCandidate[]>;
+    resolveSchedule(
+      candidate: HolidayOccurrenceCandidate,
+    ): Promise<ReminderRuleInput[]>;
+    resolveLabel(
+      bearerType: HolidayBearerType,
+      bearerId: string,
+    ): Promise<string | null>;
+  };
+}
+
+/** The entities a holiday observance can hang off. */
+export type HolidayBearerType = "person" | "pet";
+
+/** One person's observance of one holiday, with the dates it falls on. */
+export interface HolidayOccurrenceCandidate {
+  /** The observance row's id — the reminder's bearer, and part of its identity. */
+  observanceId: string;
+  /** The occasion phrase for reminder copy, e.g. "a Merry Christmas". */
+  greeting: string;
+  bearerType: HolidayBearerType;
+  bearerId: string;
+  /** The occurrence dates to consider, ascending. */
+  occurrences: CivilDate[];
 }
 
 /** A reminder the engine wants to exist for today's reconcile. `dueDate` is null
@@ -209,6 +260,32 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
  *  the disjoint `onboarding:<key>` name-space, so the two families never collide. */
 function onboardingId(key: string): string {
   return deterministicUuid(SYSTEM_REMINDER_NAMESPACE, `onboarding:${key}`);
+}
+
+/**
+ * The identity a holiday-observance occurrence + rule is content-addressed
+ * under — the third disjoint name-space under {@link SYSTEM_REMINDER_NAMESPACE},
+ * alongside `milestone:` and `onboarding:`.
+ *
+ * Keyed on the occurrence **date** rather than its year, unlike
+ * {@link occurrenceName}. A year is a safe key for a birthday, which falls once
+ * per year by construction; it is wrong for a lunisolar holiday, which can fall
+ * **twice** in one Gregorian year — Ramadan did in 1997 — and would collapse
+ * both occurrences onto one reminder. The date is strictly more robust and costs
+ * nothing.
+ */
+function observanceOccurrenceName(
+  observanceId: string,
+  occurrenceIso: string,
+  action: string,
+): string {
+  return `observance:${observanceId}:${occurrenceIso}:${action}`;
+}
+
+/** `YYYY-MM-DD` for a civil date — the occurrence key above. */
+function isoOf(date: CivilDate): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.year}-${pad(date.month)}-${pad(date.day)}`;
 }
 
 /** An onboarding reminder's stable id paired with its abstract CTA route. */
@@ -330,7 +407,10 @@ async function computeAndReconcile(
               action: rule.action,
               label: rule.label ?? null,
             })
-          : def.template(subject);
+          : def.template({
+              subject,
+              greeting: kindDefs[m.kind].greeting,
+            });
       const title = `${def.icon ?? ""} ${body}`.trim();
       // Due `offsetDays` before the occurrence (day-of when 0); stored as UTC
       // midnight of that civil day, so plain integer subtraction is exact.
@@ -339,6 +419,72 @@ async function computeAndReconcile(
         title,
         dueDate: dueDateMs(occ) - rule.offsetDays * DAY_MS,
       });
+    }
+  }
+
+  // Holiday observances — the second dated family, on the same rails. A
+  // candidate carries the (person, holiday) pair and the dates it falls on; each
+  // (occurrence × enabled rule) becomes one reminder, exactly as a milestone's
+  // occurrence does.
+  //
+  // Note what is deliberately NOT here: a try/catch. "Unresolvable holiday →
+  // generate nothing" is a per-holiday rule, enforced upstream by the resolver
+  // answering `[]` for a rule it can't make sense of — never a per-reconcile
+  // one. Swallowing a failure here would hand `computeAndReconcile` a desired
+  // set missing every holiday row, and the prune below would tombstone the lot
+  // permanently. Letting it throw aborts the reconcile before the transaction
+  // opens, having written nothing.
+  if (deps.holidays !== undefined) {
+    for (const candidate of await deps.holidays.listCandidates()) {
+      let label: string | undefined;
+      for (const occ of candidate.occurrences) {
+        const days = daysUntil(deps.today, occ);
+        if (days < 0) continue; // already passed
+
+        const rules = (await deps.holidays.resolveSchedule(candidate)).filter(
+          (r) => r.enabled && isWithinWindow(days, r.offsetDays),
+        );
+        if (rules.length === 0) continue;
+
+        // Resolved at most once per candidate, and only once something is
+        // actually due — the candidate set here is (people × holidays), so a
+        // label lookup per occurrence would be the N+1 this ordering exists to
+        // avoid.
+        if (label === undefined) {
+          const resolved = await deps.holidays.resolveLabel(
+            candidate.bearerType,
+            candidate.bearerId,
+          );
+          if (resolved === null) break; // bearer gone — skip the whole candidate
+          label = resolved;
+        }
+
+        const subject = mentionToken(
+          label,
+          candidate.bearerType,
+          candidate.bearerId,
+        );
+        const iso = isoOf(occ);
+        for (const rule of rules) {
+          const id = deterministicUuid(
+            SYSTEM_REMINDER_NAMESPACE,
+            observanceOccurrenceName(candidate.observanceId, iso, rule.action),
+          );
+          const def = actionDefs[rule.action];
+          const body =
+            rule.action === "other"
+              ? reminderRuleLabel({
+                  action: rule.action,
+                  label: rule.label ?? null,
+                })
+              : def.template({ subject, greeting: candidate.greeting });
+          desired.set(id, {
+            id,
+            title: `${def.icon ?? ""} ${body}`.trim(),
+            dueDate: dueDateMs(occ) - rule.offsetDays * DAY_MS,
+          });
+        }
+      }
     }
   }
 

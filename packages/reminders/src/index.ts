@@ -19,6 +19,8 @@ export {
   regenerateSystemReminders,
 } from "./engine.js";
 export type {
+  HolidayBearerType,
+  HolidayOccurrenceCandidate,
   OnboardingReminder,
   OnboardingRoute,
   ReminderEngineDeps,

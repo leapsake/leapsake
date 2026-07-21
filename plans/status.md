@@ -5,10 +5,11 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-19** — **Onboarding-as-reminders shipped:** a `system` onboarding-nudge
-> family (add-first-person + connect-to-sync) with tombstone-respecting "don't re-nag"
-> semantics, CTA-wired on both clients — so a brand-new user's empty Home is no longer empty.
-> Delivery detail in `git log`. See *What's next* for what remains.
+> **Updated 2026-07-20** — **Holidays shipped (desktop):** a `@leapsake/holidays` catalog +
+> recurrence engine, three synced tables (holidays / observances / hidden_holidays), the
+> `/holidays` browse + bulk observer picker, and engine wiring that turns an observance into
+> `system` reminders. Delivery detail in `git log`. See *What's next* for what remains —
+> mobile parity, the lunisolar tables, and the default-schedule decision.
 
 ## Where things stand
 
@@ -25,10 +26,18 @@
   [`packages/core/README.md`](../packages/core/README.md).
 - **Files / media** — nothing built; design invariants pinned in [`files.md`](./files.md).
   Photos are the v0.2 headline (first consumer of that design).
-- **Holidays** — nothing built, no implementation plan yet; the architecture is researched and
-  decided in [`holidays/research.md`](./holidays/research.md) (catalog / observance / rule
-  layering, with an observance as the reminder rule's bearer). Extends the same
-  `@leapsake/reminders` engine; §4 of that doc lists what's still open.
+- **Holidays** — **built on desktop, end to end.** `@leapsake/holidays` owns the catalog and the
+  recurrence engine (fixed / nth-weekday / computed / offset / precomputed-table behind one
+  `occurrencesFor`); migration 22 adds three synced tables; the bundled catalog seeds itself
+  through the sync merge path, gated on a device-local `CATALOG_VERSION`; `/holidays` browses it
+  and its select-all picker answers "who do you celebrate with?"; and the reminder engine grew a
+  parallel `holidays` port that mints one `system` reminder per (observance × occurrence × enabled
+  rule), keyed on the occurrence **date** so a lunisolar holiday falling twice in one Gregorian
+  year doesn't collapse. Design: [`holidays/research.md`](./holidays/research.md) (§4's four open
+  questions are now settled there). **Remaining: mobile parity** (core + data are shared, so it is
+  screens only), **the two lunisolar date tables** (provisional, authored from memory — see the
+  warning in `packages/holidays/src/catalog.ts`), and **whether the day-of `wish` should stay on by
+  default** for observances.
 - **Reminders (home-screen surface)** — a user-generated, syncable Reminder entity (freeform
   title/body, reversible completion, inline `#tags`, **due dates**), the **landing / Home screen on
   both clients** (People & Pets at `/people`; inline `#tags` link to their tag page and a tag's page
@@ -132,10 +141,22 @@ can't ship without distributable apps. (None yet.)
 
 **Client / UX** (sequenced *after* the encryption work above):
 - **Reminders — remaining work.** The entity, Home promotion, automation (birthday + per-milestone
-  staggered schedules), `@mentions`, the compose surface (`@`/`#` pickers), and onboarding-as-reminders
-  are all done — see the *Where things stand* bullet and [`reminders.md`](./reminders.md). **Next:
-  reminder search**; broader automation (**holidays** — [`holidays/research.md`](./holidays/research.md) —
-  and Leapsake-defined tasks) extends the same engine later.
+  staggered schedules + **holidays**), `@mentions`, the compose surface (`@`/`#` pickers), and
+  onboarding-as-reminders are all done — see the *Where things stand* bullet and
+  [`reminders.md`](./reminders.md). **Next: reminder search**; Leapsake-defined tasks extend the
+  same engine later.
+- **Holidays — remaining work**, in order:
+  1. **Source the lunisolar tables.** Hanukkah and Lunar New Year shipped with dates authored from
+     memory and flagged provisional in the catalog module. Verify against Hebcal and a published
+     Chinese calendar, and extend both to the ~30-year horizon §2.8 specifies. A wrong date here is
+     worse than a missing one.
+  2. **Decide the observance default schedule.** The day-of `wish` currently ships **on**, mirroring
+     birthdays, so the picker visibly does something. But holidays don't spread across the year the
+     way birthdays do — everyone's Christmas lands at once, so a user with forty people gets forty
+     reminders in late November (§4's synchronized-load question, still open). Reversible: ids key on
+     (occurrence, action), not on the surface date.
+  3. **Mobile parity** — core and data are shared, so this is the two screens plus a picker.
+  4. **A person-side observances section**, the per-person counterpart to the holiday-centric picker.
 
 ### v0.2 (first post-launch feature increment)
 

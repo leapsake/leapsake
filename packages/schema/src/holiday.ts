@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { DefaultReminderRule } from "./milestone.js";
+import type { ReminderRule, ReminderRuleInput } from "./reminder-rule.js";
 
 /**
  * The three synced rows the Holidays feature adds: the **catalog** (what a
@@ -205,3 +207,56 @@ export const hiddenHolidaySchema = z.object({
 });
 
 export type HiddenHoliday = z.infer<typeof hiddenHolidaySchema>;
+
+/**
+ * The staggered-reminder schedule a fresh observance offers, and which entries
+ * start on — the holiday counterpart to a milestone kind's
+ * `defaultReminderSchedule`. An observance with no stored rules rides this list
+ * (see {@link resolveObservanceReminderSchedule}); rows appear only once a user
+ * customises it, so an untouched observance stays free of sync churn.
+ *
+ * Mirrors the birthday schedule, including the day-of `wish` being the one entry
+ * on by default. That is what makes the observer picker do something: say Alice
+ * celebrates Christmas and a reminder appears, rather than the answer vanishing
+ * into a screen the user then has to find and configure.
+ *
+ * ⚠️ **Load consideration.** Birthdays spread across the year; holidays do not.
+ * Every Christmas observance comes due on the same day, so a user with forty
+ * people gets forty reminders at once in late November (research §4, "synchronized
+ * load" — punted, and deliberately reversible: reminder ids key on
+ * (occurrence, action) rather than on the surface date, so changing the window
+ * later re-keys nothing and invalidates no tombstones). Turning this entry off
+ * by default is a one-word change if the volume proves worse than the silence.
+ */
+export const observanceDefaultReminderSchedule: DefaultReminderRule[] = [
+  { action: "gift", offsetDays: 30, enabledByDefault: false },
+  { action: "card", offsetDays: 7, enabledByDefault: false },
+  { action: "wish", offsetDays: 0, enabledByDefault: true },
+  { action: "call", offsetDays: 0, enabledByDefault: false },
+];
+
+/**
+ * An observance's effective reminder schedule: its stored rules when it has been
+ * customised, else {@link observanceDefaultReminderSchedule}. The direct
+ * analogue of `resolveReminderSchedule` for milestones — same "missing rows ⇒
+ * defaults" contract, same furthest-lead-first ordering.
+ */
+export function resolveObservanceReminderSchedule(
+  storedRules: ReminderRule[],
+): ReminderRuleInput[] {
+  const source: ReminderRuleInput[] =
+    storedRules.length > 0
+      ? storedRules.map((r) => ({
+          action: r.action,
+          label: r.label,
+          offsetDays: r.offsetDays,
+          enabled: r.enabled,
+        }))
+      : observanceDefaultReminderSchedule.map((d) => ({
+          action: d.action,
+          label: null,
+          offsetDays: d.offsetDays,
+          enabled: d.enabledByDefault,
+        }));
+  return [...source].sort((a, b) => b.offsetDays - a.offsetDays);
+}
