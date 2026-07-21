@@ -158,6 +158,9 @@ can't ship without distributable apps. (None yet.)
      observance host screen yet. Until this lands the feature stores observances and generates
      nothing.
   3. **Mobile parity** — core and data are shared, so this is the two screens plus a picker.
+     Note `apps/mobile/app/(tabs)/search.tsx` currently **filters holiday hits out** of global
+     search, because the shared search service returns them but mobile has no screen to open;
+     delete that filter when the screens land.
   4. **A person-side observances section**, the per-person counterpart to the holiday-centric picker.
 
 ### v0.2 (first post-launch feature increment)

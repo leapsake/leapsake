@@ -111,6 +111,14 @@ interface BirthdayMatchRow {
   month: number | null;
   day: number | null;
 }
+/**
+ * A holiday, surfaced as its own navigable result. No `normalized` column — the
+ * name is folded at read time, as postal addresses are.
+ */
+interface HolidayRow {
+  id: string;
+  name: string;
+}
 
 /** An accumulating result row plus the keys we sort on. */
 interface Accumulator {
@@ -144,6 +152,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       taggings,
       tagList,
       birthdays,
+      holidays,
     ] = await Promise.all([
       driver.all<PersonRow>(
         "SELECT id, first_name, middle_name, last_name FROM people WHERE deleted_at IS NULL",
@@ -171,6 +180,13 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         `SELECT bearer_type, bearer_id, year, month, day
              FROM milestones
             WHERE kind = 'birthday' AND deleted_at IS NULL`,
+      ),
+      // Hidden holidays are included deliberately: hiding suppresses a holiday's
+      // reminders, not its existence, and search is the fastest route back to
+      // the screen where it can be unhidden. Excluding them would make a hidden
+      // holiday reachable only by scrolling the full catalog.
+      driver.all<HolidayRow>(
+        "SELECT id, name FROM holidays WHERE deleted_at IS NULL",
       ),
     ]);
 
@@ -420,17 +436,35 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       }
     }
 
+    // Holiday-as-result: like a tag, a holiday has its own screen, so a matching
+    // one surfaces as its own navigable row rather than only through the people
+    // who observe it. Recorded as a name hit (facet "name", so no "matched on …"
+    // line) and floated above equally-matching entities by the sort below.
+    //
+    // Unlike a tag there is no matching holiday-as-*reason* pass. A tag usually
+    // labels a handful of entities, but Christmas can easily have forty
+    // observers — surfacing them all would bury every other result and duplicate
+    // what the holiday's own screen already lists.
+    for (const h of holidays) {
+      const foldedName = fold(h.name);
+      const q = quality(foldedName, folded);
+      if (q === QUALITY_NONE) continue;
+      record("holiday", h.id, h.name, true, "name", h.name, q);
+    }
+
     const rows = [...acc.values()];
     rows.sort((a, b) => {
       // 1. name hits before contact-only hits.
       if (a.isName !== b.isName) return a.isName ? -1 : 1;
       // 2. match-quality bucket: exact > starts-with > substring.
       if (a.bestQuality !== b.bestQuality) return a.bestQuality - b.bestQuality;
-      // 3. a tag result floats above an equally-matching entity, so when the
-      //    query best matches a tag the tag leads, followed by its bearers.
-      const aTag = a.hit.entityType === "tag";
-      const bTag = b.hit.entityType === "tag";
-      if (aTag !== bTag) return aTag ? -1 : 1;
+      // 3. a result that *is* its own screen (a tag or a holiday) floats above an
+      //    equally-matching entity, so when the query best matches a tag the tag
+      //    leads, followed by its bearers — likewise for a holiday.
+      const ownScreen = (t: SearchResultType) => t === "tag" || t === "holiday";
+      const aOwn = ownScreen(a.hit.entityType);
+      const bOwn = ownScreen(b.hit.entityType);
+      if (aOwn !== bOwn) return aOwn ? -1 : 1;
       // 4. alphabetical by title.
       return a.hit.title.localeCompare(b.hit.title);
     });

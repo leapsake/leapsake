@@ -69,11 +69,14 @@ export function SearchBar() {
     setResults([]);
     setTerm("");
     inputRef.current?.blur(); // drop focus so the result screen takes over
-    // A tag result targets its own screen; entities use their type's base path.
+    // Tags and holidays target their own screens; entities use their type's
+    // base path.
     const path =
       hit.entityType === "tag"
         ? `/tags/${hit.entityId}`
-        : `${entityBasePath(hit.entityType)}/${hit.entityId}`;
+        : hit.entityType === "holiday"
+          ? `/holidays/${hit.entityId}`
+          : `${entityBasePath(hit.entityType)}/${hit.entityId}`;
     navigate(path);
   }
 
@@ -107,7 +110,7 @@ export function SearchBar() {
         ref={inputRef}
         type="text"
         role="combobox"
-        aria-label="Search people, pets, and tags"
+        aria-label="Search people, pets, tags, and holidays"
         aria-expanded={open}
         aria-controls={listboxId}
         aria-activedescendant={open ? optionId(activeIndex) : undefined}

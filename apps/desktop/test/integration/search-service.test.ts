@@ -1,3 +1,4 @@
+import { seedHolidayCatalog } from "@leapsake/core";
 import { parseBirthdayQuery } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -12,8 +13,11 @@ import {
   createMilestonesRepo,
   createPeopleRepo,
   createPetsRepo,
+  createHiddenHolidaysRepo,
+  createObservancesRepo,
   createSearchService,
   createTagsRepo,
+  holidayIdFor,
   runMigrations,
 } from "@leapsake/data";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
@@ -544,5 +548,87 @@ describe("searchService", () => {
         matchedText: "August 20",
       });
     });
+  });
+});
+
+/**
+ * Holidays surface as their own navigable result, on the `tag` precedent: the
+ * thing you searched for has a screen, so it appears as itself rather than only
+ * through the people behind it.
+ */
+describe("searchService — holidays", () => {
+  beforeEach(async () => {
+    await seedHolidayCatalog({ driver });
+  });
+
+  it("finds a holiday by name", async () => {
+    const hits = await search.query("christmas");
+    const holiday = hits.find((h) => h.entityType === "holiday");
+    expect(holiday?.title).toBe("Christmas");
+    expect(holiday?.entityId).toBe(holidayIdFor("christmas"));
+  });
+
+  it("matches a substring of the name", async () => {
+    expect(
+      (await search.query("thanksgiv")).some((h) => h.title === "Thanksgiving"),
+    ).toBe(true);
+  });
+
+  it("is case- and accent-insensitive, like every other facet", async () => {
+    expect(
+      (await search.query("EASTER")).some((h) => h.title === "Easter"),
+    ).toBe(true);
+  });
+
+  it("floats above an equally-matching person", async () => {
+    // Someone named "Noel Christmas" must not outrank the holiday itself when
+    // the query is the holiday's name.
+    await people.create({ firstName: "Noel", lastName: "Christmas" });
+    const hits = await search.query("christmas");
+    expect(hits[0].entityType).toBe("holiday");
+    // …and the person is still there, just below.
+    expect(hits.some((h) => h.title === "Noel Christmas")).toBe(true);
+  });
+
+  it("carries no 'matched on' reason, since it matched its own name", async () => {
+    const [hit] = (await search.query("christmas")).filter(
+      (h) => h.entityType === "holiday",
+    );
+    expect(hit.reasons.every((r) => r.facet === "name")).toBe(true);
+  });
+
+  it("does not surface the people who observe it", async () => {
+    // Deliberate: Christmas can have dozens of observers, and listing them all
+    // would bury every other result while duplicating the holiday's own screen.
+    const alice = await people.create({
+      firstName: "Alice",
+      lastName: "Chen",
+    });
+    await createObservancesRepo(driver).setObservance(
+      holidayIdFor("christmas"),
+      "person",
+      alice.id,
+      true,
+    );
+
+    expect(
+      (await search.query("christmas")).some((h) => h.title === "Alice Chen"),
+    ).toBe(false);
+  });
+
+  it("still finds a hidden holiday, so it can be unhidden", async () => {
+    // Hiding suppresses a holiday's reminders, not its existence — and search is
+    // the fastest route back to the screen that can restore it.
+    const mothersDay = holidayIdFor("us-mothers-day");
+    await createHiddenHolidaysRepo(driver).setHidden(mothersDay, true);
+    expect(
+      (await search.query("mother")).some((h) => h.entityType === "holiday"),
+    ).toBe(true);
+  });
+
+  it("ignores a holiday nothing matches", async () => {
+    expect(
+      (await search.query("zzzzz")).some((h) => h.entityType === "holiday"),
+    ).toBe(false);
   });
 });

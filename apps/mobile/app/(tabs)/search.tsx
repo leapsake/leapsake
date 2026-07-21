@@ -22,6 +22,20 @@ function pathFor(hit: SearchHit): string {
 }
 
 /**
+ * Drop result types this client has no screen for.
+ *
+ * The search service is shared, so it returns `holiday` hits here as it does on
+ * desktop — but mobile has no holidays UI yet, so showing one would be a result
+ * that navigates nowhere. Filtering is the honest interim: a missing result is
+ * better than a dead tap. **Delete this the moment the mobile holiday screens
+ * land** (see `plans/status.md`), or holidays will stay quietly unsearchable
+ * here long after they work.
+ */
+function navigable(hit: SearchHit): boolean {
+  return hit.entityType !== "holiday";
+}
+
+/**
  * Global search, ported from the desktop's chrome SearchBar to its own tab. A
  * debounced `core.search.query` feeds a results list; each hit shows its title
  * (matched run bolded) and, for non-name matches, a muted "matched on …" line.
@@ -50,7 +64,7 @@ export default function SearchScreen() {
     const timer = setTimeout(() => {
       void core.search.query(term).then((hits) => {
         if (token !== queryToken.current) return; // a newer query superseded this
-        setResults(hits);
+        setResults(hits.filter(navigable));
       });
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
