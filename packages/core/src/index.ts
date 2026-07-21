@@ -7,8 +7,11 @@ import {
   createContentCipher,
   createDismissalsRepo,
   createDuplicateService,
+  createHiddenHolidaysRepo,
+  createHolidaysRepo,
   createKinshipService,
   createMentionsRepo,
+  createObservancesRepo,
   createMilestonesRepo,
   createNotADuplicateRepo,
   createPeopleRepo,
@@ -88,6 +91,7 @@ import {
 } from "@leapsake/contact-import";
 import { getSyncStatus } from "./key-session.js";
 import type { KeySession } from "./key-session.js";
+import { createHolidaysApi } from "./holidays.js";
 import { createViews } from "./views.js";
 
 // Re-exported so apps can wire everything from one entry point: construct a
@@ -159,6 +163,12 @@ export {
 // version. Re-exported so a client never depends on `@leapsake/holidays`
 // directly, the same way the reminders engine is kept behind this surface.
 export { seedHolidayCatalog } from "./holiday-seed.js";
+export { createHolidaysApi } from "./holidays.js";
+export type {
+  HolidayDetail,
+  HolidayListItem,
+  HolidaysApiDeps,
+} from "./holidays.js";
 
 // The scheduling layer that turns the manual one-shot sync into seamless
 // background sync: a debounced, single-flight scheduler plus a CoreApi wrapper
@@ -253,6 +263,14 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
   const reminderRules = createReminderRulesRepo(driver);
   const reminders = createRemindersRepo(driver);
   const mentions = createMentionsRepo(driver);
+  const holidays = createHolidaysRepo(driver);
+  const observances = createObservancesRepo(driver);
+  const hiddenHolidays = createHiddenHolidaysRepo(driver);
+  const holidaysApi = createHolidaysApi({
+    holidays,
+    observances,
+    hiddenHolidays,
+  });
 
   // Resolve a reminder's stored mentions to their targets' **current** labels
   // (null when the target is gone), so a client can render an inline mention token
@@ -643,6 +661,12 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         return found.filter((r): r is Reminder => r !== undefined);
       },
     },
+
+    // Holidays — read-only for now. The catalog is public reference data, so
+    // there is no create/update here: a catalog row is immutable by design
+    // (holidays/research.md §2.6), and the user's own levers are the observance
+    // and the hide, which land with the observer picker.
+    holidays: holidaysApi,
 
     relationships: {
       get: (id: string): Promise<Relationship | undefined> =>

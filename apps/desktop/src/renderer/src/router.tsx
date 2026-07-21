@@ -61,6 +61,8 @@ import { ReminderEdit } from "./screens/ReminderEdit";
 import { ReminderList } from "./screens/ReminderList";
 import { Settings } from "./screens/Settings";
 import { TagDelete } from "./screens/TagDelete";
+import { HolidayList } from "./screens/HolidayList";
+import { HolidayView } from "./screens/HolidayView";
 import { TagView } from "./screens/TagView";
 
 /** Parse the Gender select: the empty option means "unset" (null). */
@@ -1147,6 +1149,25 @@ const routes: RouteObject[] = [
         loader: milestoneForBearerLoader("relationship"),
         element: <MilestoneDelete />,
         action: milestoneDeleteAction("relationship"),
+      },
+      {
+        // The holiday catalog. Read-only: a catalog row is immutable by design,
+        // and the user's levers (observe / hide) hang off it rather than editing
+        // it.
+        path: "holidays",
+        loader: () => window.api.holidays.list(),
+        element: <HolidayList />,
+      },
+      {
+        path: "holidays/:id",
+        loader: async ({ params }: LoaderFunctionArgs) => {
+          const holiday = await window.api.holidays.get(params.id as string);
+          if (!holiday) {
+            throw new Response("Holiday not found", { status: 404 });
+          }
+          return holiday;
+        },
+        element: <HolidayView />,
       },
       {
         path: "tags/:id",

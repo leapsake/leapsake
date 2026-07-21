@@ -329,4 +329,23 @@ describe("upcomingOccurrences", () => {
       r.upcomingOccurrences("solstice", today, 30).map(isoFromCivil),
     ).toEqual(["2026-12-20"]);
   });
+
+  it("returns multiple occurrences soonest-first", () => {
+    // Two regression guards in one. An inverted sort is invisible while only a
+    // single occurrence lands in the window — callers taking `[0]` as "the next
+    // one" silently get the FURTHEST date. And a year range hardcoded to
+    // "this year and next" truncates any horizon over a year, returning a short
+    // list that looks perfectly plausible.
+    //
+    // From 2026-12-20, 800 days reaches 2029-02-27, so three New Year's Days
+    // fall inside the window.
+    const r = graph([
+      { slug: "nye", recurrence: { type: "fixed", month: 1, day: 1 } },
+    ]);
+    expect(r.upcomingOccurrences("nye", today, 800).map(isoFromCivil)).toEqual([
+      "2027-01-01",
+      "2028-01-01",
+      "2029-01-01",
+    ]);
+  });
 });

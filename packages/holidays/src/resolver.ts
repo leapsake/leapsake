@@ -28,6 +28,7 @@ import {
   type HolidayRecurrence,
   isoFromCivil,
   occurrencesInYear,
+  shiftDays,
 } from "./recurrence.js";
 
 /**
@@ -123,12 +124,17 @@ export function createHolidayResolver(
     occurrencesFor: (slug, year) => resolve(slug, year, 0),
 
     upcomingOccurrences(slug, today, horizonDays) {
-      // A horizon can cross into next year, and an offset rule can pull a date
-      // back from it, so both years are searched and the window does the work.
-      const candidates = [
-        ...resolve(slug, today.year, 0),
-        ...resolve(slug, today.year + 1, 0),
-      ];
+      // Search every year the horizon actually touches, not a fixed two. A
+      // hardcoded range silently truncates the moment the horizon exceeds a
+      // year — the caller gets a short list that looks perfectly plausible.
+      // Starting at `today.year` is enough at the near end: an `offset` rule
+      // already widens its own search a year either side, so a date pulled back
+      // from January is found when its own year is resolved.
+      const lastYear = shiftDays(today, Math.max(horizonDays, 0)).year;
+      const candidates: CivilDate[] = [];
+      for (let year = today.year; year <= lastYear; year++) {
+        candidates.push(...resolve(slug, year, 0));
+      }
       const seen = new Set<string>();
       const out: CivilDate[] = [];
       for (const date of candidates) {
@@ -139,7 +145,10 @@ export function createHolidayResolver(
         seen.add(iso);
         out.push(date);
       }
-      return out.sort((a, b) => daysUntil(a, b));
+      // Ascending: `daysUntil(b, a)` is negative when `a` is the earlier date,
+      // which is the order `sort` wants. (`daysUntil(a, b)` reads the right way
+      // round in English and sorts exactly backwards.)
+      return out.sort((a, b) => daysUntil(b, a));
     },
   };
 }
