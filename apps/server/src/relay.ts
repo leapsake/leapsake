@@ -7,7 +7,7 @@ import {
 } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { base64ToBytes, bytesToBase64 } from "@leapsake/crypto";
-import { decodeRecord, encodeRecord } from "@leapsake/data";
+import { decodeRecord, encodeRecord } from "@leapsake/sync";
 import proxyaddr from "proxy-addr";
 import { z } from "zod";
 import {

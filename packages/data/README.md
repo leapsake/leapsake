@@ -1,7 +1,7 @@
 # @leapsake/data
 
 Persistence: the `SqliteDriver` port, the hand-rolled migration runner, per-entity
-repositories, cross-repo services (kinship, search, timeline), and the V3 sync engine.
+repositories, and cross-repo services (kinship, search, timeline).
 Depends on `schema`; imports **no concrete DB driver** (the apps supply one).
 
 ## The `SqliteDriver` port — the seam that made V2 a port, not a rewrite
@@ -32,13 +32,14 @@ Each entity has an async repo over the port (`create`, `list`/`listForEntity`, `
 reconciliation — `repointEntity`/`repointOwner`). Cross-repo _services_ (kinship derivation,
 search folding/matching, milestone timeline, duplicate detection) compose multiple repos.
 
-## Sync engine (V3)
+## The sync substrate (V3)
 
-A registry-driven `SyncEngine` over a `SyncTransport` port: every entity is **one
-`defineSyncable` call** behind an **opt-in allowlist**, reconciled with `resolveMerge`
-(whole-row LWW), with durable watermarks in a device-local `sync_state` table. The canonical
-"how to add a synced entity" recipe is the `defineSyncable` module doc comment. Design and
-status: [`plans/encryption/`](../../plans/encryption/) and
+The engine, transports, and scheduler live in [`@leapsake/sync`](../sync/README.md). What
+stays here is the substrate they run on: **`defineSyncable`** — the primitive that makes an
+entity syncable in one call, reconciled with `resolveMerge` (whole-row LWW) — and
+**`SyncStateRepo`**, the durable watermarks in a device-local `sync_state` table. The
+canonical "how to add a synced entity" recipe is the `defineSyncable` module doc comment.
+Design and status: [`plans/encryption/`](../../plans/encryption/) and
 [`plans/status.md`](../../plans/status.md).
 
 ## Deferred

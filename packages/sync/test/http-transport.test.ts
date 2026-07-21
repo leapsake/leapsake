@@ -1,6 +1,6 @@
 import { bytesToBase64 } from "@leapsake/crypto";
 import { describe, expect, it } from "vitest";
-import { createHttpSyncTransport } from "../src/http-sync-transport.js";
+import { createHttpSyncTransport } from "../src/http-transport.js";
 
 /**
  * The session lifecycle the HTTP transport manages *itself* (security-findings.md

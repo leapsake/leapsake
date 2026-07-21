@@ -21,7 +21,7 @@ invisible); and **bulk export of originals** as a first-class exit story.
 2. **A `file` row references the blob; bytes live elsewhere.** The metadata row (id, blob ref,
    size, MIME, dimensions/duration, wrapped CK) is an ordinary syncable entity — one
    `defineSyncable`, LWW untouched. The reserved `wrappedKey` field on `EncryptedRecord`
-   (`packages/data/src/sync-transport.ts`) is the hook: the row escalates to a per-item content
+   (`packages/sync/src/transport.ts`) is the hook: the row escalates to a per-item content
    key (`model.md` §3), and that same CK encrypts the blob.
 3. **Chunked + resumable from day one.** Mobile background limits make non-resumable uploads fail
    at real library scale. Encrypt per-chunk with the chunk index bound into the AEAD's AAD (no

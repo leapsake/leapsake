@@ -27,7 +27,7 @@ Two pinned decisions specific to *this* review, not the package surface:
 - **Relay auth credential** — the §9.3 **`authVerifier`** as a bearer token over
   (assumed-TLS) HTTPS; the relay stores only **SHA-256(verifier)**, compared
   **constant-time** (`apps/server/src/relay.ts`,
-  `packages/data/src/http-sync-transport.ts`).
+  `packages/sync/src/http-transport.ts`).
 - **Asymmetric (X25519/Ed25519)** — **deferred to Stage 3**; not needed by the
   symmetric Stage-1 core (`model.md` §4, `status.md`).
 

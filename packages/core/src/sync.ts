@@ -3,7 +3,6 @@ import { type KeyStore, decodeRecoveryPhrase } from "@leapsake/crypto";
 import {
   type DuplicateCandidate,
   type SqliteDriver,
-  type SyncEngine,
   type SyncableRepo,
   createAccountRepo,
   createContactMethodsRepo,
@@ -11,7 +10,6 @@ import {
   createDismissalsRepo,
   createHiddenHolidaysRepo,
   createHolidaysRepo,
-  createHttpSyncTransport,
   createMilestonesRepo,
   createObservancesRepo,
   createMentionsRepo,
@@ -21,10 +19,14 @@ import {
   createRelationshipsRepo,
   createReminderRulesRepo,
   createRemindersRepo,
-  createSyncEngine,
   createSyncStateRepo,
   createTagsRepo,
 } from "@leapsake/data";
+import {
+  type SyncEngine,
+  createHttpSyncTransport,
+  createSyncEngine,
+} from "@leapsake/sync";
 import {
   type AccountBootstrap,
   type KeySession,

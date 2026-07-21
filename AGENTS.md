@@ -46,11 +46,16 @@ packages/
   schema/           # Zod schemas → inferred types + pure portable domain logic
                     # (formatters, role algebra, normalization). Zero platform deps.
   data/             # SqliteDriver port, migration runner, per-entity repositories,
-                    # cross-repo services (kinship, search, timeline), the sync engine.
-                    # Depends on schema. No DB driver import.
+                    # cross-repo services (kinship, search, timeline), and the sync
+                    # substrate (defineSyncable, sync_state). Depends on schema.
+                    # No DB driver import.
+  sync/             # V3 client convergence: the SyncTransport port + in-memory and
+                    # HTTPS relay adapters, the registry-driven SyncEngine, and the
+                    # scheduler. Depends on data for types only.
   core/             # Client-agnostic application surface (CoreApi): transactional
                     # writes, cascade deletes, relationship orientation, view-models.
-                    # Depends on data + schema.
+                    # Owns the syncable-repo allowlist and account bootstrap.
+                    # Depends on data + sync + schema.
   crypto/           # V3 envelope primitives (seal/wrap, the password KDF) + the
                     # KeyStore port. See packages/crypto/README.md.
   highlight/        # Search-match highlighting.
@@ -62,7 +67,7 @@ plans/                # forward-looking only — upcoming work, not past decisio
 ```
 
 Per-package architecture rationale (the "why this package is shaped this way") lives in each
-package's own `README.md` — `packages/{schema,data,core,crypto}`, `apps/{desktop,server}`.
+package's own `README.md` — `packages/{schema,data,sync,core,crypto}`, `apps/{desktop,server}`.
 
 ## Data Model
 

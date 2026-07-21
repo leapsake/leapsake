@@ -1,5 +1,5 @@
 {
-  "name": "@leapsake/core",
+  "name": "@leapsake/sync",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,12 +10,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@leapsake/contact-import": "workspace:*",
     "@leapsake/crypto": "workspace:*",
     "@leapsake/data": "workspace:*",
-    "@leapsake/holidays": "workspace:*",
-    "@leapsake/reminders": "workspace:*",
-    "@leapsake/schema": "workspace:*",
-    "@leapsake/sync": "workspace:*"
+    "@leapsake/schema": "workspace:*"
   }
 }

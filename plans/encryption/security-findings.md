@@ -130,7 +130,7 @@ layer that does not exist in the repo, and `apps/server/src/index.ts` serves pla
   `POST /accounts/session` (and folded into `GET /accounts/bootstrap`) for a short-lived,
   in-memory session token that authenticates the hot `push`/`pull` path via
   `Authorization: Session <token>`; the raw verifier no longer transits per-request
-  (`apps/server/src/relay.ts`, `packages/data/src/http-sync-transport.ts`, TTL in
+  (`apps/server/src/relay.ts`, `packages/sync/src/http-transport.ts`, TTL in
   `config.ts` / `RELAY_SESSION_TTL_MS`). The transport manages the lifecycle itself
   (login on first use / near expiry; re-login-and-retry on 401), so nothing above it
   changed.
@@ -184,7 +184,7 @@ the future SSR path, not the native clients that hold MK indefinitely today.
 > **DONE (2026-07-05).** Both halves of the proposed mitigation shipped: (a) `open()`
 > (`packages/crypto/src/wrap.ts`) length-guards `sealed.length < NONCE_BYTES + TAG_BYTES`
 > and throws `"sealed blob too short"` before the `subarray`; (b) `SyncEngine.pull()`
-> (`packages/data/src/sync-engine.ts`) wraps each record's decode/decrypt/apply in
+> (`packages/sync/src/engine.ts`) wraps each record's decode/decrypt/apply in
 > try/catch that **skips-and-logs** (`console.warn`) instead of aborting the batch, and the
 > cursor still advances to the batch high-water mark, so a poison row is pulled once,
 > skipped, and never re-seen — breaking the permanent stall. `applied` now counts only
@@ -196,7 +196,7 @@ the future SSR path, not the native clients that hold MK indefinitely today.
 then decrypts the remainder, with no minimum-length guard. The relay accepts any base64
 for `ciphertext` / `wrappedKey` (`apps/server/src/relay.ts` `wireRecordSchema`, ~L79–86)
 and stores it blindly. A peer then pulls it and calls `open()` in the sync engine
-(`packages/data/src/sync-engine.ts` `pull`, L109) inside a loop with **no per-record
+(`packages/sync/src/engine.ts` `pull`, L109) inside a loop with **no per-record
 try/catch** — so one malformed record throws and aborts the *entire* batch, and it will
 re-throw on every subsequent pull. That is a targeted denial of *convergence*, injected
 by a compromised relay or a single corrupt row. (It is not a confidentiality break — AEAD
@@ -205,7 +205,7 @@ still fails closed.)
 - **Severity:** Medium.
 - **Mitigation:** (a) length-guard `open` — throw a typed "sealed blob too short" before
   `subarray` when `sealed.length < NONCE_BYTES + 16`; (b) wrap the per-record
-  decode/apply in `sync-engine.ts` `pull()` in try/catch that **skips-and-logs** a record
+  decode/apply in `engine.ts` `pull()` in try/catch that **skips-and-logs** a record
   that fails to decrypt/parse rather than aborting the batch. (b) also stops a genuinely
   corrupt row from poisoning sync permanently.
 

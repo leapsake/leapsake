@@ -189,7 +189,7 @@ export {
   SYNC_INTERVAL_MS,
   SYNC_KICK_DEBOUNCE_MS,
   type SyncScheduler,
-} from "./sync-scheduler.js";
+} from "@leapsake/sync";
 
 // The view-model contracts the `views` builders return, re-exported so every
 // client renders against the same shapes carried out via `CoreApi`.

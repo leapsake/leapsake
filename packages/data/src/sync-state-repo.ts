@@ -19,7 +19,7 @@ import type { SqliteDriver } from "./driver.js";
  *
  * A missing row reads as `0`, which is the documented floor for both:
  * `push(0)` collects every local row and `pull(0)` returns the whole log (see
- * `sync-transport.ts`, where transport sequences start at 1).
+ * `@leapsake/sync`, where transport sequences start at 1).
  */
 export interface SyncStateRepo {
   getPushHwm(): Promise<number>;

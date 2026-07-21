@@ -11,13 +11,14 @@
   },
   "dependencies": {
     "@leapsake/crypto": "workspace:*",
-    "@leapsake/data": "workspace:*",
     "@leapsake/schema": "workspace:*",
+    "@leapsake/sync": "workspace:*",
     "proxy-addr": "^2.0.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@leapsake/core": "workspace:*",
+    "@leapsake/data": "workspace:*",
     "@types/proxy-addr": "^2.0.3",
     "esbuild": "^0.28.1",
     "tsx": "^4.19.0"

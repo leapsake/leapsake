@@ -27,13 +27,12 @@ import {
   type SyncableRepo,
   createAccountRepo,
   createContentCipher,
-  createHttpSyncTransport,
   createMilestonesRepo,
   createPeopleRepo,
-  createSyncEngine,
   createSyncStateRepo,
   runMigrations,
 } from "@leapsake/data";
+import { createHttpSyncTransport, createSyncEngine } from "@leapsake/sync";
 import type { SyncRow } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createRelayServer } from "../src/relay.js";

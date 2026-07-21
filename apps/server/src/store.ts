@@ -1,5 +1,5 @@
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
-import type { EncryptedRecord } from "@leapsake/data";
+import type { EncryptedRecord } from "@leapsake/sync";
 
 /**
  * The blind relay's own store — *not* the app's domain schema (plans/encryption/

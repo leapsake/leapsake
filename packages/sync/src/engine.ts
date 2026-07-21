@@ -1,12 +1,7 @@
 import { bytesToUtf8, open, seal, utf8ToBytes } from "@leapsake/crypto";
 import type { SyncRow } from "@leapsake/schema";
-import type { SyncStateRepo } from "./sync-state-repo.js";
-import type { SyncableRepo } from "./syncable.js";
-import type {
-  Cursor,
-  EncryptedRecord,
-  SyncTransport,
-} from "./sync-transport.js";
+import type { SyncStateRepo, SyncableRepo } from "@leapsake/data";
+import type { Cursor, EncryptedRecord, SyncTransport } from "./transport.js";
 
 /**
  * The client sync engine — the half that finally consumes both built pieces:

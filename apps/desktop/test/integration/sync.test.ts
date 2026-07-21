@@ -9,24 +9,26 @@ import {
   type PetsRepo,
   type RelationshipsRepo,
   type SqliteDriver,
-  type SyncEngine,
-  type SyncTransport,
   type SyncableRepo,
   type TagsRepo,
   createContactMethodsRepo,
   createContentCipher,
   createDismissalsRepo,
-  createInMemoryTransport,
   createMilestonesRepo,
   createNotADuplicateRepo,
   createPeopleRepo,
   createPetsRepo,
   createRelationshipsRepo,
-  createSyncEngine,
   createSyncStateRepo,
   createTagsRepo,
   runMigrations,
 } from "@leapsake/data";
+import {
+  type SyncEngine,
+  type SyncTransport,
+  createInMemoryTransport,
+  createSyncEngine,
+} from "@leapsake/sync";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**

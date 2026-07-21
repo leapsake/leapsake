@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createSyncScheduler } from "../src/sync-scheduler.js";
+import { createSyncScheduler } from "../src/scheduler.js";
 
 /**
  * The scheduling primitive behind seamless background sync. It owns only the

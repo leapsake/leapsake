@@ -1,9 +1,5 @@
 import { base64ToBytes, bytesToBase64 } from "@leapsake/crypto";
-import type {
-  Cursor,
-  EncryptedRecord,
-  SyncTransport,
-} from "./sync-transport.js";
+import type { Cursor, EncryptedRecord, SyncTransport } from "./transport.js";
 
 /**
  * The real {@link SyncTransport} adapter: an authenticated HTTPS client for the

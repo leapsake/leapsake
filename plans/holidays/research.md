@@ -294,7 +294,7 @@ is the additive fix — an overlay, never an edit.
 
 - **Unresolvable holiday → keep the row, generate nothing.** Never throw, never prune. Reachable
   even with a synced catalog: `pull` applies records one at a time across cursor-paginated
-  batches with no cross-table transaction (`packages/data/src/sync-engine.ts:99`), so observances
+  batches with no cross-table transaction (`packages/sync/src/engine.ts:99`), so observances
   and holidays arrive interleaved. Also reachable via **rule-type skew** — a device whose *code*
   predates a recurrence type in its *data*. Data syncs; code does not. Ten lines; permanent value
   once there are real users.

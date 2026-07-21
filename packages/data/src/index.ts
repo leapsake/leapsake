@@ -79,21 +79,6 @@ export {
   type DuplicateMatch,
   createDuplicateService,
 } from "./duplicate-service.js";
-export {
-  type Cursor,
-  type EncryptedRecord,
-  type SyncTransport,
-  createInMemoryTransport,
-} from "./sync-transport.js";
-export { type SyncEngine, createSyncEngine } from "./sync-engine.js";
-export {
-  type AccountRegistration,
-  type HttpSyncTransport,
-  type WireRecord,
-  createHttpSyncTransport,
-  decodeRecord,
-  encodeRecord,
-} from "./http-sync-transport.js";
 export { type SyncStateRepo, createSyncStateRepo } from "./sync-state-repo.js";
 export {
   type RowCodec,

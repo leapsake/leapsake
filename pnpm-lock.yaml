@@ -47,6 +47,9 @@ importers:
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@leapsake/sync':
+        specifier: workspace:*
+        version: link:../../packages/sync
       better-sqlite3-multiple-ciphers:
         specifier: ^12.11.1
         version: 12.11.1
@@ -160,12 +163,12 @@ importers:
       '@leapsake/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
-      '@leapsake/data':
-        specifier: workspace:*
-        version: link:../../packages/data
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@leapsake/sync':
+        specifier: workspace:*
+        version: link:../../packages/sync
       proxy-addr:
         specifier: ^2.0.7
         version: 2.0.7
@@ -176,6 +179,9 @@ importers:
       '@leapsake/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@leapsake/data':
+        specifier: workspace:*
+        version: link:../../packages/data
       '@types/proxy-addr':
         specifier: ^2.0.3
         version: 2.0.3
@@ -215,6 +221,9 @@ importers:
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema
+      '@leapsake/sync':
+        specifier: workspace:*
+        version: link:../sync
 
   packages/crypto:
     dependencies:
@@ -263,6 +272,18 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
+
+  packages/sync:
+    dependencies:
+      '@leapsake/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+      '@leapsake/data':
+        specifier: workspace:*
+        version: link:../data
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
 
 packages:
 
