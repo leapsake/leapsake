@@ -152,21 +152,17 @@ can't ship without distributable apps. (None yet.)
      memory and flagged provisional in the catalog module. Verify against Hebcal and a published
      Chinese calendar, and extend both to the ~30-year horizon §2.8 specifies. A wrong date here is
      worse than a missing one.
-  2. ~~A per-observance reminder-schedule editor~~ — **done.** `HolidayView` lists each observer,
-     and each links to `/holidays/:id/observers/:bearerType/:bearerId`, which hosts the shared
-     `ReminderScheduleFields` for that observance. Observance defaults ship with **every action
-     off** (decided 2026-07-20: holidays all land on one day, so a default-on wish would flood late
-     November — §4's synchronized-load question), so this editor is how a holiday is made to do
-     anything. Every holidays write now reconciles the engine immediately rather than waiting for
-     the next boot.
-  3. **Mobile parity — screens written, NOT yet run on a device.** A Holidays tab, detail,
-     observer picker, and per-observance schedule editor are ported (expo-router, `useFocusedData`,
-     the existing mobile `ReminderScheduleFields`), and mobile search now routes holiday hits (the
-     interim filter is gone). But the `pnpm test` trophy never exercises mobile UI, and
-     `pnpm test:native` reported ⏳ BLOCKED on both platforms here — no booted emulator/simulator.
-     **Someone must run these on a device before trusting them**: `pnpm --filter @leapsake/mobile
-     ios` (or `android`), then walk Holidays → a holiday → observers → save → a schedule → save.
-  4. **A person-side observances section**, the per-person counterpart to the holiday-centric picker.
+  2. **Replace the observer checklist with an autocomplete, on both clients** — and add the
+     mirrored Person-screen field ("which holidays does this person observe?"). Decided
+     2026-07-20: the shipped select-all checklist over the whole address book is too cumbersome.
+     Full design, existing-code inventory, prior art, and the §2.12 tension it creates:
+     [`holidays/observance-authoring.md`](./holidays/observance-authoring.md). **No new write API
+     is needed** — `setObservers` already accepts a single decision.
+  3. **Device-verify the mobile screens.** The Holidays tab, detail, picker, and schedule editor
+     are written, typechecked and linted, but have **never run**: `pnpm test` doesn't exercise
+     mobile UI and `pnpm test:native` reports ⏳ BLOCKED without a booted emulator/simulator. Run
+     `pnpm --filter @leapsake/mobile ios` (or `android`) and walk the flow. Best done *after* the
+     autocomplete lands, so the picker isn't verified twice.
 
 ### v0.2 (first post-launch feature increment)
 

@@ -256,6 +256,13 @@ Two constraints on inference:
 first increment**, not a follow-up. "Christmas — who do you celebrate with?" with select-all has
 to ship, or the feature has no on-ramp and dies of data entry.
 
+> **Amended 2026-07-20.** The *concern* stands; the *control* does not. Select-all shipped and was
+> then judged too cumbersome to scan and scroll. It is being replaced by an autocomplete that
+> stays open across repeated picks — cheaper for the common one-person case, and still workable in
+> bulk. If data entry does prove to be the thing that kills adoption, the fix is an additional
+> bulk affordance (e.g. "add everyone tagged #family"), not a return to the checklist. See
+> [`observance-authoring.md`](./observance-authoring.md).
+
 ### 2.13 Relating catalog entries — three distinct edges
 
 Do not conflate:
@@ -345,10 +352,13 @@ is the additive fix — an overlay, never an edit.
   remains additive (§5 keeps the door open). Original question: It would
   fill the empty Home a new user sees (the gap [`reminders.md`](../reminders.md) calls out)
   without generating per-person work — but v1 is otherwise scoped to per-person reminders.
-- **SETTLED — The on-ramp shape.** **Holiday-centric.** `/holidays/:id/observers` asks
-  "Christmas — who do you celebrate with?" over the whole address book with select-all; one pass
-  per holiday covers everyone, where a per-person toggle would be N screens for N people. A
-  person-side section is a follow-up, not a prerequisite. Original question: Is the
+- **SETTLED — The on-ramp shape.** **Holiday-centric**, and it shipped that way. But the
+  *control* has since been reversed: the select-all checklist over the whole address book was
+  judged too cumbersome, and is being replaced by an **autocomplete** on the Holiday screen, with
+  a mirrored one on the Person screen (decided 2026-07-20). §2.12's warning that bulk assignment
+  is mandatory is not refuted by that reversal, only outweighed for the common case — see
+  [`observance-authoring.md`](./observance-authoring.md) §1.1 for the tension and the shape that
+  keeps the on-ramp viable. Original question: Is the
   primary flow holiday-centric ("Christmas — who do you celebrate with?"), person-centric, or a
   first-run pass over existing contacts?
 - **SETTLED — v1 catalog breadth.** **15 entries covering every recurrence shape**: six fixed,
