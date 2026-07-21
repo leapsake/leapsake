@@ -8,8 +8,9 @@
 > **Updated 2026-07-20** — **Holidays shipped (desktop):** a `@leapsake/holidays` catalog +
 > recurrence engine, three synced tables (holidays / observances / hidden_holidays), the
 > `/holidays` browse + bulk observer picker, and engine wiring that turns an observance into
-> `system` reminders. Delivery detail in `git log`. See *What's next* for what remains —
-> mobile parity, the lunisolar tables, and the default-schedule decision.
+> `system` reminders — plus global-search integration and a per-observance schedule editor, with
+> the mobile screens ported but **not yet device-verified**. Delivery detail in `git log`. See
+> *What's next* for what remains.
 
 ## Where things stand
 
@@ -34,10 +35,11 @@
   parallel `holidays` port that mints one `system` reminder per (observance × occurrence × enabled
   rule), keyed on the occurrence **date** so a lunisolar holiday falling twice in one Gregorian
   year doesn't collapse. Design: [`holidays/research.md`](./holidays/research.md) (§4's four open
-  questions are now settled there). **Remaining: mobile parity** (core + data are shared, so it is
-  screens only), **the two lunisolar date tables** (provisional, authored from memory — see the
-  warning in `packages/holidays/src/catalog.ts`), and **whether the day-of `wish` should stay on by
-  default** for observances.
+  questions are now settled there). Holidays are also **searchable** (their own result type, on the
+  `tag` precedent), and each observance has its own **reminder-schedule editor** — needed because
+  observance defaults ship with every action off. **Remaining: device-verifying the mobile
+  screens** and **the two lunisolar date tables** (provisional, authored from memory — see the
+  warning in `packages/holidays/src/catalog.ts`).
 - **Reminders (home-screen surface)** — a user-generated, syncable Reminder entity (freeform
   title/body, reversible completion, inline `#tags`, **due dates**), the **landing / Home screen on
   both clients** (People & Pets at `/people`; inline `#tags` link to their tag page and a tag's page
@@ -157,10 +159,13 @@ can't ship without distributable apps. (None yet.)
      November — §4's synchronized-load question), so this editor is how a holiday is made to do
      anything. Every holidays write now reconciles the engine immediately rather than waiting for
      the next boot.
-  3. **Mobile parity** — core and data are shared, so this is the two screens plus a picker.
-     Note `apps/mobile/app/(tabs)/search.tsx` currently **filters holiday hits out** of global
-     search, because the shared search service returns them but mobile has no screen to open;
-     delete that filter when the screens land.
+  3. **Mobile parity — screens written, NOT yet run on a device.** A Holidays tab, detail,
+     observer picker, and per-observance schedule editor are ported (expo-router, `useFocusedData`,
+     the existing mobile `ReminderScheduleFields`), and mobile search now routes holiday hits (the
+     interim filter is gone). But the `pnpm test` trophy never exercises mobile UI, and
+     `pnpm test:native` reported ⏳ BLOCKED on both platforms here — no booted emulator/simulator.
+     **Someone must run these on a device before trusting them**: `pnpm --filter @leapsake/mobile
+     ios` (or `android`), then walk Holidays → a holiday → observers → save → a schedule → save.
   4. **A person-side observances section**, the per-person counterpart to the holiday-centric picker.
 
 ### v0.2 (first post-launch feature increment)

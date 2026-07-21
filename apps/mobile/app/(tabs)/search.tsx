@@ -14,25 +14,12 @@ import { colors, styles } from "../../lib/styles";
 const MIN_QUERY_LENGTH = 2;
 const DEBOUNCE_MS = 200;
 
-/** The route base for an entity/tag result's page, branching on its type. */
+/** The route base for a result's page, branching on its type. */
 function pathFor(hit: SearchHit): string {
   if (hit.entityType === "tag") return `/tags/${hit.entityId}`;
+  if (hit.entityType === "holiday") return `/holidays/${hit.entityId}`;
   if (hit.entityType === "pet") return `/pets/${hit.entityId}`;
   return `/people/${hit.entityId}`;
-}
-
-/**
- * Drop result types this client has no screen for.
- *
- * The search service is shared, so it returns `holiday` hits here as it does on
- * desktop — but mobile has no holidays UI yet, so showing one would be a result
- * that navigates nowhere. Filtering is the honest interim: a missing result is
- * better than a dead tap. **Delete this the moment the mobile holiday screens
- * land** (see `plans/status.md`), or holidays will stay quietly unsearchable
- * here long after they work.
- */
-function navigable(hit: SearchHit): boolean {
-  return hit.entityType !== "holiday";
 }
 
 /**
@@ -64,7 +51,7 @@ export default function SearchScreen() {
     const timer = setTimeout(() => {
       void core.search.query(term).then((hits) => {
         if (token !== queryToken.current) return; // a newer query superseded this
-        setResults(hits.filter(navigable));
+        setResults(hits);
       });
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
@@ -76,7 +63,7 @@ export default function SearchScreen() {
         style={styles.input}
         value={term}
         onChangeText={setTerm}
-        placeholder="Search people, pets, and tags"
+        placeholder="Search people, pets, tags, and holidays"
         placeholderTextColor={colors.muted}
         autoFocus
         autoCorrect={false}

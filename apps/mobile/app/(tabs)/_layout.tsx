@@ -4,12 +4,12 @@ import { colors, styles } from "../../lib/styles";
 
 /**
  * The app's bottom tab bar: Reminders (the home/landing tab, so it lives at the
- * group's `index` route), the combined People & Pets list, global Search, and
- * Settings. Detail screens (people/[id], pets/[id], relationships, tags) and the
- * "+ Add" chooser live outside this group on the root stack, so navigating into
- * one pushes full-screen over the tabs — the standard pattern. This navigator
- * owns each tab's header (the root stack hides its own header for the `(tabs)`
- * route in app/_layout.tsx).
+ * group's `index` route), the combined People & Pets list, the Holidays catalog,
+ * global Search, and Settings. Detail screens (people/[id], pets/[id],
+ * relationships, tags, holidays/[id]) and the "+ Add" chooser live outside this
+ * group on the root stack, so navigating into one pushes full-screen over the
+ * tabs — the standard pattern. This navigator owns each tab's header (the root
+ * stack hides its own header for the `(tabs)` route in app/_layout.tsx).
  *
  * Tab icons are plain emoji `<Text>` rather than a vector-icon font, keeping the
  * dependency budget (no `@expo/vector-icons`); the `color` follows focus.
@@ -49,6 +49,13 @@ export default function TabsLayout() {
               </Link>
             </View>
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="holidays"
+        options={{
+          title: "Holidays",
+          tabBarIcon: ({ color }) => <TabIcon glyph="🎉" color={color} />,
         }}
       />
       <Tabs.Screen
