@@ -155,6 +155,11 @@ export {
   setAutoSync,
 } from "./sync.js";
 
+// The bundled holiday catalog's seed, applied at store open once per bundle
+// version. Re-exported so a client never depends on `@leapsake/holidays`
+// directly, the same way the reminders engine is kept behind this surface.
+export { seedHolidayCatalog } from "./holiday-seed.js";
+
 // The scheduling layer that turns the manual one-shot sync into seamless
 // background sync: a debounced, single-flight scheduler plus a CoreApi wrapper
 // that kicks a sync after every local write. Each client wires the platform

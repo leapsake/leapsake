@@ -20,6 +20,7 @@ import {
   registerAccountWithRelay,
   runAccountSync,
   runMigrations,
+  seedHolidayCatalog,
   setAutoSync,
   withSyncKick,
 } from "@leapsake/core";
@@ -601,6 +602,9 @@ void app.whenReady().then(async () => {
   const keyStore = safeStorageKeyStore(keystorePath);
   driver = await openAppDatabase({ dbPath, keyStore, requestRecoveryPhrase });
   await runMigrations(driver);
+  // The bundled holiday catalog, applied only when this install hasn't seen this
+  // bundle yet. Cheap no-op on every launch after the first.
+  await seedHolidayCatalog({ driver });
   keySession = await ensureDeviceMasterKey({ keyStore, driver });
 
   // Seamless background sync: the run thunk is the "is sync even enabled" guard

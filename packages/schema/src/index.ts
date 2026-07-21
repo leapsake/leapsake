@@ -97,6 +97,26 @@ export type {
   MentionBearerType,
   ResolvedMention,
 } from "./mentioning.js";
+export {
+  HIDDEN_HOLIDAY_NAMESPACE,
+  HOLIDAY_NAMESPACE,
+  OBSERVANCE_NAMESPACE,
+  hiddenHolidayIdName,
+  hiddenHolidaySchema,
+  holidayIdName,
+  holidayOriginSchema,
+  holidaySchema,
+  observanceBearerTypeSchema,
+  observanceIdName,
+  observanceSchema,
+} from "./holiday.js";
+export type {
+  HiddenHoliday,
+  Holiday,
+  HolidayOrigin,
+  Observance,
+  ObservanceBearerType,
+} from "./holiday.js";
 export { dismissalSchema } from "./dismissal.js";
 export { notADuplicateSchema } from "./not-a-duplicate.js";
 export type { NotADuplicate } from "./not-a-duplicate.js";

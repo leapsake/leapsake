@@ -573,6 +573,91 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 22,
+    async up(driver) {
+      // Holidays (plans/holidays/research.md) — three tables that together
+      // extend the automated-reminder engine to a second family of recurring
+      // dated facts about people. All plaintext rows, all synced.
+      //
+      // `holidays` holds BOTH the shipped catalog and user-authored entries,
+      // told apart by `origin`; catalog rows are read-only, and a user "forks"
+      // one by hiding it and creating their own (§2.6). A catalog row's `id` is
+      // derived from its `slug` (schema/holiday.ts), so every device mints the
+      // same uuid and seeded rows converge even without syncing. `recurrence`
+      // is deliberately opaque TEXT — the canonical JSON of a rule union owned
+      // by @leapsake/holidays — so a device whose *code* predates a rule type
+      // in its *data* still stores and relays the row instead of rejecting it.
+      //
+      // `observances` is who observes what. It is the reminder rule's bearer,
+      // not the holiday, which is what makes per-person schedules ("gift Alice
+      // 30 days before Christmas" vs "just call Grandma day-of") fall out of
+      // the existing polymorphic bearer pair with no schema change (§1). One
+      // table with a polarity flag rather than the relationships/dismissals
+      // pair, because the payload is thin and symmetric: no row = the implicit
+      // answer, observes=1 = explicit yes, observes=0 = explicit override (§2.1).
+      // A row exists only where it DIVERGES from the implicit answer (§2.2).
+      //
+      // `hidden_holidays` is the negative assertion that suppresses a catalog
+      // holiday entirely — its own table rather than a column, because writing
+      // a column would be an edit to a catalog row and would fight the next
+      // catalog update (§2.6). It syncs: hiding suppresses generated reminders,
+      // and an input to the reminder engine must sit on the same side of the
+      // sync boundary as the reminders it generates, or one device's prune
+      // tombstones a row the other keeps regenerating.
+      //
+      // Both join tables use the partial-unique-active idiom (migration 20) so
+      // one key has at most one live row while soft-delete history is kept, and
+      // both derive their ids from that key so two offline devices asserting
+      // the same thing converge on one row instead of colliding on the index.
+      await driver.exec(`
+        CREATE TABLE holidays (
+          id                TEXT    PRIMARY KEY,
+          slug              TEXT    NOT NULL,
+          name              TEXT    NOT NULL,
+          greeting          TEXT    NOT NULL,
+          recurrence        TEXT    NOT NULL,
+          duration_days     INTEGER,
+          family_id         TEXT,
+          implied_by_locale INTEGER NOT NULL,
+          origin            TEXT    NOT NULL,
+          created_at        INTEGER NOT NULL,
+          updated_at        INTEGER NOT NULL,
+          deleted_at        INTEGER
+        );
+        CREATE UNIQUE INDEX ux_holidays_slug_active
+          ON holidays(slug) WHERE deleted_at IS NULL;
+
+        CREATE TABLE observances (
+          id          TEXT    PRIMARY KEY,
+          holiday_id  TEXT    NOT NULL,
+          bearer_type TEXT    NOT NULL,
+          bearer_id   TEXT    NOT NULL,
+          observes    INTEGER NOT NULL,
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL,
+          deleted_at  INTEGER
+        );
+        CREATE UNIQUE INDEX ux_observances_active
+          ON observances(holiday_id, bearer_type, bearer_id)
+          WHERE deleted_at IS NULL;
+        CREATE INDEX ix_observances_bearer
+          ON observances(bearer_type, bearer_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_observances_holiday
+          ON observances(holiday_id) WHERE deleted_at IS NULL;
+
+        CREATE TABLE hidden_holidays (
+          id         TEXT    PRIMARY KEY,
+          holiday_id TEXT    NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          deleted_at INTEGER
+        );
+        CREATE UNIQUE INDEX ux_hidden_holidays_active
+          ON hidden_holidays(holiday_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**

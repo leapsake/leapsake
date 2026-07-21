@@ -29,11 +29,28 @@ export interface SyncStateRepo {
   /** Whether automatic background sync is enabled on this install (default true). */
   getAutoSyncEnabled(): Promise<boolean>;
   setAutoSyncEnabled(enabled: boolean): Promise<void>;
+  /**
+   * The bundled holiday-catalog version this install has already seeded
+   * (`0` = never). Device-local by construction, which is exactly what the seed
+   * gate needs: "has *this device* applied *this bundle*" is a fact about the
+   * install, not about the account.
+   *
+   * The alternative — deciding whether to seed by checking whether holiday rows
+   * exist — is wrong in two ways at once (holidays/research.md §3): a device
+   * that received the catalog via sync would re-seed from its own stale bundle,
+   * and holidays the user deleted would come back.
+   *
+   * An integer, because that is what this table's `value` column holds. That
+   * forecloses a semver catalog version, which is the natural instinct.
+   */
+  getHolidayCatalogVersion(): Promise<number>;
+  setHolidayCatalogVersion(version: number): Promise<void>;
 }
 
 const PUSH_HWM = "push_hwm";
 const PULL_CURSOR = "pull_cursor";
 const AUTO_SYNC_DISABLED = "auto_sync_disabled";
+const HOLIDAY_CATALOG_VERSION = "holiday_catalog_version";
 
 export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
   async function read(key: string): Promise<number> {
@@ -62,5 +79,8 @@ export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
     // Stored inverted (see the interface doc): absent/0 ⇒ enabled, 1 ⇒ disabled.
     getAutoSyncEnabled: async () => (await read(AUTO_SYNC_DISABLED)) !== 1,
     setAutoSyncEnabled: (enabled) => write(AUTO_SYNC_DISABLED, enabled ? 0 : 1),
+    getHolidayCatalogVersion: () => read(HOLIDAY_CATALOG_VERSION),
+    setHolidayCatalogVersion: (version) =>
+      write(HOLIDAY_CATALOG_VERSION, version),
   };
 }

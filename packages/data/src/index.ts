@@ -39,6 +39,17 @@ export {
   createMentionsRepo,
 } from "./mentions-repo.js";
 export {
+  type HiddenHolidaysRepo,
+  type HolidaysRepo,
+  type ObservancesRepo,
+  createHiddenHolidaysRepo,
+  createHolidaysRepo,
+  createObservancesRepo,
+  hiddenHolidayIdFor,
+  holidayIdFor,
+  observanceIdFor,
+} from "./holidays-repo.js";
+export {
   type Dismissal,
   type DismissalEndpoint,
   type DismissalsRepo,

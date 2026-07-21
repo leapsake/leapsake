@@ -206,6 +206,9 @@ importers:
       '@leapsake/data':
         specifier: workspace:*
         version: link:../data
+      '@leapsake/holidays':
+        specifier: workspace:*
+        version: link:../holidays
       '@leapsake/reminders':
         specifier: workspace:*
         version: link:../reminders

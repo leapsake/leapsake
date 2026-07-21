@@ -9,8 +9,11 @@ import {
   createContactMethodsRepo,
   createContentCipher,
   createDismissalsRepo,
+  createHiddenHolidaysRepo,
+  createHolidaysRepo,
   createHttpSyncTransport,
   createMilestonesRepo,
+  createObservancesRepo,
   createMentionsRepo,
   createNotADuplicateRepo,
   createPeopleRepo,
@@ -59,6 +62,16 @@ export function syncableRepos(
     createRemindersRepo(driver),
     createReminderRulesRepo(driver),
     createMentionsRepo(driver),
+    // Holidays: the catalog syncs alongside user data so only ONE device ever
+    // needs internet — a laptop that updates at a coffee shop can carry the new
+    // catalog to every other device over an internet-less LAN relay. The usual
+    // objection (an old device's re-seed reverting a newer catalog) dissolves
+    // because catalog rows carry the release's *authored* timestamp, so LWW
+    // orders them correctly by construction (research §2.3, §2.5). `observances`
+    // and `hidden_holidays` are ordinary user data and must sync regardless.
+    createHolidaysRepo(driver),
+    createObservancesRepo(driver),
+    createHiddenHolidaysRepo(driver),
     tags,
     tags.taggings,
     contactMethods.emails,

@@ -13,6 +13,7 @@
     "@leapsake/contact-import": "workspace:*",
     "@leapsake/crypto": "workspace:*",
     "@leapsake/data": "workspace:*",
+    "@leapsake/holidays": "workspace:*",
     "@leapsake/reminders": "workspace:*",
     "@leapsake/schema": "workspace:*"
   }
