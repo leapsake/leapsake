@@ -1,4 +1,4 @@
-# Holidays — observance authoring (design, not yet built)
+# Holidays — observance authoring
 
 > **Design doc, not a status board.** It records what the observance-authoring
 > surfaces should become and why, plus the context an implementer needs to start
@@ -6,8 +6,11 @@
 > surfaces sit on is [`research.md`](./research.md); the reminder surface they
 > feed is [`reminders.md`](../reminders.md).
 >
-> **Nothing in this doc is built.** The rest of Holidays *is* — see
-> [`status.md`](../status.md) for what shipped.
+> **Built 2026-07-20**, and the decisions below held. Both §2 surfaces shipped on
+> both clients, plus the Pet mirror §2.2's prose implies but §3.4's file list
+> omitted. Two refinements the build forced are marked **inline**: the person-side
+> read's shape (§3.2) and the write path's fetcher hazard (§2.1). What remains is
+> walking them on a device — see [`status.md`](../status.md).
 
 ---
 
@@ -141,6 +144,20 @@ No new write API is required. (`setObservers` writes a row only where the answer
 *diverges* from the implicit one — research §2.2 — and every holidays write
 reconciles the reminder engine immediately.)
 
+> **Two hazards the build hit, both worth preserving.**
+>
+> **Don't route these writes through `useFetcher`.** A fetcher submission started
+> while another is in flight *supersedes* it, so a fast type→Enter→type→Enter
+> silently drops picks. Both desktop surfaces call `window.api` directly and
+> serialise on a `useRef` promise chain instead (well-precedented — `SearchBar`,
+> `MentionTextField` and `Settings` all call `window.api` directly). Hide/unhide
+> stays on the route action, where one submit has nothing to race.
+>
+> **That chain needs a `catch`.** Without one, a single rejected write leaves the
+> ref holding a rejected promise, every later pick chains off it and never runs,
+> and the field wedges with no visible cause. Both surfaces catch, surface the
+> error, and keep the queue alive.
+
 ### 3.2 What is missing
 
 Two reads:
@@ -156,6 +173,19 @@ Two reads:
    `core.holidays.listForBearer(bearerType, bearerId)` returning the holidays a
    person observes (with each holiday's name, next occurrence, and observance
    state) — plus a channel entry in `api-channels.ts`.
+
+   > **Built as `BearerHolidayCandidate[]` — the whole catalog with the bearer's
+   > answers, not only what they observe.** Two things forced the shape. It is the
+   > exact mirror of `listObservers`, so one read serves both the observed list
+   > *and* the add-field's suggestion pool and the two cannot drift. And it
+   > deliberately omits `observerCount`: that single field is what makes
+   > `loadCatalog` scan **every observance in the database**, and the person screen
+   > never displays it, so the read uses the index-backed
+   > `observances.listForBearer` instead. `compareForBrowse` was widened to the
+   > three fields it actually reads so both shapes can share it. Net effect —
+   > `personLoader` went 2→3 parallel reads, and the added work is smaller than
+   > what `views.candidates()` (the entire address book) already costs on the
+   > relationship screens.
 
 ### 3.3 Autocomplete prior art to reuse
 

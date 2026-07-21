@@ -31,15 +31,17 @@
   recurrence engine (fixed / nth-weekday / computed / offset / precomputed-table behind one
   `occurrencesFor`); migration 22 adds three synced tables; the bundled catalog seeds itself
   through the sync merge path, gated on a device-local `CATALOG_VERSION`; `/holidays` browses it
-  and its select-all picker answers "who do you celebrate with?"; and the reminder engine grew a
+  and an **autocomplete** answers "who do you celebrate with?" — mirrored by a Holidays section on
+  Person and Pet screens, so an observance is authorable from either end; and the reminder engine grew a
   parallel `holidays` port that mints one `system` reminder per (observance × occurrence × enabled
   rule), keyed on the occurrence **date** so a lunisolar holiday falling twice in one Gregorian
   year doesn't collapse. Design: [`holidays/research.md`](./holidays/research.md) (§4's four open
   questions are now settled there). Holidays are also **searchable** (their own result type, on the
   `tag` precedent), and each observance has its own **reminder-schedule editor** — needed because
-  observance defaults ship with every action off. **Remaining: device-verifying the mobile
-  screens** and **the two lunisolar date tables** (provisional, authored from memory — see the
-  warning in `packages/holidays/src/catalog.ts`).
+  observance defaults ship with every action off. **Remaining: walking the new authoring surfaces
+  on both clients** (no UI test tier exists, and the mobile screens have still never run) and
+  **the two lunisolar date tables** (provisional, authored from memory — see the warning in
+  `packages/holidays/src/catalog.ts`).
 - **Reminders (home-screen surface)** — a user-generated, syncable Reminder entity (freeform
   title/body, reversible completion, inline `#tags`, **due dates**), the **landing / Home screen on
   both clients** (People & Pets at `/people`; inline `#tags` link to their tag page and a tag's page
@@ -152,17 +154,17 @@ can't ship without distributable apps. (None yet.)
      memory and flagged provisional in the catalog module. Verify against Hebcal and a published
      Chinese calendar, and extend both to the ~30-year horizon §2.8 specifies. A wrong date here is
      worse than a missing one.
-  2. **Replace the observer checklist with an autocomplete, on both clients** — and add the
-     mirrored Person-screen field ("which holidays does this person observe?"). Decided
-     2026-07-20: the shipped select-all checklist over the whole address book is too cumbersome.
-     Full design, existing-code inventory, prior art, and the §2.12 tension it creates:
-     [`holidays/observance-authoring.md`](./holidays/observance-authoring.md). **No new write API
-     is needed** — `setObservers` already accepts a single decision.
-  3. **Device-verify the mobile screens.** The Holidays tab, detail, picker, and schedule editor
-     are written, typechecked and linted, but have **never run**: `pnpm test` doesn't exercise
-     mobile UI and `pnpm test:native` reports ⏳ BLOCKED without a booted emulator/simulator. Run
-     `pnpm --filter @leapsake/mobile ios` (or `android`) and walk the flow. Best done *after* the
-     autocomplete lands, so the picker isn't verified twice.
+  2. ~~Replace the observer checklist with an autocomplete.~~ ✅ **Done** — both clients, plus the
+     mirrored Holidays section on Person *and* Pet screens. The select-all checklist is retired on
+     both. Design: [`holidays/observance-authoring.md`](./holidays/observance-authoring.md).
+  3. **Device-verify the mobile screens.** The Holidays tab, detail, the new add-observer
+     typeahead, the Person/Pet Holidays section, and the schedule editor are written, typechecked
+     and linted, but have **never run**: `pnpm test` doesn't exercise mobile UI and
+     `pnpm test:native` reports ⏳ BLOCKED without a booted emulator/simulator. Run
+     `pnpm --filter @leapsake/mobile ios` (or `android`) and walk the flow. **This is now the
+     next Holidays task** — and the desktop walk is outstanding too (the autocomplete has passing
+     integration tests but no UI test tier exists, so neither client's new surfaces have been
+     seen running).
 
 ### v0.2 (first post-launch feature increment)
 

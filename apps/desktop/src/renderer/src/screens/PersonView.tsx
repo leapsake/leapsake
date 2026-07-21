@@ -1,3 +1,4 @@
+import type { BearerHolidayCandidate } from "@leapsake/core";
 import type {
   ContactMethod,
   MilestoneTimelineEntry,
@@ -11,6 +12,7 @@ import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { ContactMethodsSection } from "../components/ContactMethodsSection";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
+import { HolidaysSection } from "../components/HolidaysSection";
 import { MentionedInSection } from "../components/MentionedInSection";
 import { MilestonesSection } from "../components/MilestonesSection";
 import { RelationshipsSection } from "../components/RelationshipsSection";
@@ -30,6 +32,7 @@ export function PersonView() {
     timeline,
     contactMethods,
     mentionedIn,
+    holidays,
   } = useLoaderData() as {
     person: Person;
     tags: Tag[];
@@ -38,6 +41,7 @@ export function PersonView() {
     timeline: MilestoneTimelineEntry[];
     contactMethods: ContactMethod[];
     mentionedIn: Reminder[];
+    holidays: BearerHolidayCandidate[];
   };
 
   return (
@@ -76,6 +80,12 @@ export function PersonView() {
         bearerType="person"
         bearerId={person.id}
         entries={timeline}
+      />
+
+      <HolidaysSection
+        bearerType="person"
+        bearerId={person.id}
+        holidays={holidays}
       />
 
       <TagsSection bearerType="person" bearerId={person.id} tags={tags} />

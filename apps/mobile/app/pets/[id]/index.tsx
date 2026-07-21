@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { genderLabel, tagLabel } from "@leapsake/schema";
+import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
@@ -40,7 +41,11 @@ export default function PetDetailScreen() {
   // "Mentioned in" backlink refreshes on focus alongside the rest of the page.
   const load = useCallback(
     () =>
-      Promise.all([core.views.pet(id), core.reminders.mentioning("pet", id)]),
+      Promise.all([
+        core.views.pet(id),
+        core.reminders.mentioning("pet", id),
+        core.holidays.listForBearer("pet", id),
+      ]),
     [core, id],
   );
   const { data, error, reload } = useFocusedData(load);
@@ -61,7 +66,7 @@ export default function PetDetailScreen() {
     );
   }
 
-  const [view, mentionedIn] = data;
+  const [view, mentionedIn, holidays] = data;
   if (view === null) {
     return (
       <View style={styles.screen}>
@@ -121,6 +126,13 @@ export default function PetDetailScreen() {
         bearerType="pet"
         bearerId={pet.id}
         entries={timeline}
+        onChanged={reload}
+      />
+
+      <HolidaysSection
+        bearerType="pet"
+        bearerId={pet.id}
+        holidays={holidays}
         onChanged={reload}
       />
 

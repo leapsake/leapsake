@@ -1,0 +1,48 @@
+/* Positions the suggestion listbox as an overlay under the input, so the rows
+   already added below the field don't jump while typing.
+
+   Deliberately a copy of SearchBar.module.css rather than a shared stylesheet:
+   the decision was to keep this control independent of SearchBar and
+   MentionTextField rather than extract a common combobox, since there is no
+   desktop component-test tier to catch a regression in those two shipped
+   surfaces. Keeping the duplication visible means a later extraction has both
+   copies to diff. */
+
+.container {
+  position: relative;
+}
+
+.listbox {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 20rem;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ccc;
+}
+
+.option {
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+.option[aria-selected="true"] {
+  background: #e0e0e0;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}

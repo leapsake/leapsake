@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams } from "expo-router";
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
+import { Typeahead } from "../../../components/Typeahead";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { formatOccurrence } from "../../../lib/formatOccurrence";
@@ -61,9 +62,41 @@ export default function HolidayDetailScreen() {
     );
   }
 
-  // `listObservers` answers for the whole address book (it is the picker's
-  // read); this screen wants only those who actually observe.
+  // One read serves both halves: who observes it, and who could be added.
+  // Excluding current observers from the suggestions is what stops the same
+  // person being added twice and shrinks the list as you go.
   const observers = candidates.filter((c) => c.observes);
+  const addable = candidates.filter((c) => !c.observes);
+
+  const setObserves = (
+    observer: HolidayObserverCandidate,
+    observes: boolean,
+  ) => {
+    core.holidays
+      .setObservers(id, [
+        {
+          bearerType: observer.bearerType,
+          bearerId: observer.bearerId,
+          observes,
+        },
+      ])
+      .then(reload, (e: unknown) => Alert.alert("Couldn't save", String(e)));
+  };
+
+  const removeObserver = (observer: HolidayObserverCandidate) => {
+    Alert.alert(
+      "Remove observer",
+      `${observer.label} will stop getting reminders for ${holiday.name}.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => setObserves(observer, false),
+        },
+      ],
+    );
+  };
 
   // A const arrow rather than a `function` declaration: the latter is hoisted,
   // so TypeScript analyses it without the `holiday === undefined` guard above
@@ -122,6 +155,28 @@ export default function HolidayDetailScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Observed by</Text>
+        {candidates.length === 0 ? (
+          <Text style={styles.muted}>
+            Add some people first, then come back to say who celebrates.
+          </Text>
+        ) : (
+          <Typeahead
+            multi
+            label="Add someone"
+            value={null}
+            options={addable}
+            onChange={(c) => c !== null && setObserves(c, true)}
+            getKey={(c) => `${c.bearerType}:${c.bearerId}`}
+            getLabel={(c) => c.label}
+            renderOption={(c) => (
+              <Text style={styles.rowText}>
+                {c.label}
+                {c.bearerType === "pet" ? " (pet)" : ""}
+              </Text>
+            )}
+            placeholder="Search people and pets…"
+          />
+        )}
         {observers.length === 0 ? (
           <Text style={styles.muted}>No one yet.</Text>
         ) : (
@@ -129,23 +184,31 @@ export default function HolidayDetailScreen() {
           // bears on the observance, not the holiday — which is what lets one
           // person get a gift reminder and another only a day-of call.
           observers.map((observer) => (
-            <Link
+            <View
               key={`${observer.bearerType}:${observer.bearerId}`}
-              href={`/holidays/${id}/observers/${observer.bearerType}/${observer.bearerId}`}
               style={styles.row}
             >
-              <Text style={[styles.rowText, { color: colors.accent }]}>
-                {observer.label}
-                {observer.bearerType === "pet" ? " (pet)" : ""}
-              </Text>
-            </Link>
+              <View style={styles.rowMeta}>
+                <Link
+                  href={`/holidays/${id}/observers/${observer.bearerType}/${observer.bearerId}`}
+                >
+                  <Text style={[styles.rowText, { color: colors.accent }]}>
+                    {observer.label}
+                    {observer.bearerType === "pet" ? " (pet)" : ""}
+                  </Text>
+                </Link>
+                <View style={styles.rowActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => removeObserver(observer)}
+                  >
+                    <Text style={styles.danger}>Remove</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
           ))
         )}
-        <Link href={`/holidays/${id}/observers`} style={styles.link}>
-          {observers.length === 0
-            ? "Choose who celebrates this"
-            : "Change who celebrates this"}
-        </Link>
       </View>
 
       <Pressable accessibilityRole="button" onPress={toggleHidden}>

@@ -1,3 +1,4 @@
+import type { BearerHolidayCandidate } from "@leapsake/core";
 import type {
   MilestoneTimelineEntry,
   Pet,
@@ -8,6 +9,7 @@ import type {
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
+import { HolidaysSection } from "../components/HolidaysSection";
 import { MentionedInSection } from "../components/MentionedInSection";
 import { MilestonesSection } from "../components/MilestonesSection";
 import { RelationshipsSection } from "../components/RelationshipsSection";
@@ -19,7 +21,7 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PetView() {
-  const { pet, tags, relationships, gender, timeline, mentionedIn } =
+  const { pet, tags, relationships, gender, timeline, mentionedIn, holidays } =
     useLoaderData() as {
       pet: Pet;
       tags: Tag[];
@@ -27,6 +29,7 @@ export function PetView() {
       gender: GenderResult;
       timeline: MilestoneTimelineEntry[];
       mentionedIn: Reminder[];
+      holidays: BearerHolidayCandidate[];
     };
 
   return (
@@ -59,6 +62,8 @@ export function PetView() {
         bearerId={pet.id}
         entries={timeline}
       />
+
+      <HolidaysSection bearerType="pet" bearerId={pet.id} holidays={holidays} />
 
       <TagsSection bearerType="pet" bearerId={pet.id} tags={tags} />
 

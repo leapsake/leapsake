@@ -171,6 +171,7 @@ export {
 export { seedHolidayCatalog } from "./holiday-seed.js";
 export { createHolidaysApi } from "./holidays.js";
 export type {
+  BearerHolidayCandidate,
   HolidayDetail,
   HolidayListItem,
   HolidayObserverCandidate,

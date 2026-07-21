@@ -37,6 +37,7 @@ export const API_CHANNELS = [
   "holidays.list",
   "holidays.get",
   "holidays.listObservers",
+  "holidays.listForBearer",
   "holidays.setObservers",
   "holidays.setHidden",
   "holidays.getObservanceSchedule",

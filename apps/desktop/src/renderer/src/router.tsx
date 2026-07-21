@@ -63,7 +63,6 @@ import { Settings } from "./screens/Settings";
 import { TagDelete } from "./screens/TagDelete";
 import { HolidayList } from "./screens/HolidayList";
 import { HolidayObservanceSchedule } from "./screens/HolidayObservanceSchedule";
-import { HolidayObservers } from "./screens/HolidayObservers";
 import { HolidayView } from "./screens/HolidayView";
 import { TagView } from "./screens/TagView";
 
@@ -183,12 +182,15 @@ function entityListLoader() {
  */
 async function personLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
-  const [view, mentionedIn] = await Promise.all([
+  const [view, mentionedIn, holidays] = await Promise.all([
     window.api.views.person(id),
     window.api.reminders.mentioning("person", id),
+    // The whole catalog with this person's answers — one read serving both the
+    // Holidays section's list and the pool its add-field suggests from.
+    window.api.holidays.listForBearer("person", id),
   ]);
   if (!view) throw new Response("Person not found", { status: 404 });
-  return { ...view, mentionedIn };
+  return { ...view, mentionedIn, holidays };
 }
 
 /**
@@ -198,12 +200,13 @@ async function personLoader({ params }: LoaderFunctionArgs) {
  */
 async function petLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
-  const [view, mentionedIn] = await Promise.all([
+  const [view, mentionedIn, holidays] = await Promise.all([
     window.api.views.pet(id),
     window.api.reminders.mentioning("pet", id),
+    window.api.holidays.listForBearer("pet", id),
   ]);
   if (!view) throw new Response("Pet not found", { status: 404 });
-  return { ...view, mentionedIn };
+  return { ...view, mentionedIn, holidays };
 }
 
 /**
@@ -1171,9 +1174,9 @@ const routes: RouteObject[] = [
           if (!holiday) {
             throw new Response("Holiday not found", { status: 404 });
           }
-          // `listObservers` answers for the whole address book (it's the
-          // picker's read); this screen wants only those who actually observe.
-          return { holiday, observers: candidates.filter((c) => c.observes) };
+          // The whole address book with each answer: the screen splits it into
+          // the observers it lists and the pool its add-field suggests from.
+          return { holiday, candidates };
         },
         element: <HolidayView />,
         action: async ({ params, request }: ActionFunctionArgs) => {
@@ -1186,24 +1189,6 @@ const routes: RouteObject[] = [
           );
           return null;
         },
-      },
-      {
-        // The bulk-assignment on-ramp. Loads every person and pet, not just
-        // current observers — with no implicit source, this is where the first
-        // observance for anyone gets created.
-        path: "holidays/:id/observers",
-        loader: async ({ params }: LoaderFunctionArgs) => {
-          const id = params.id as string;
-          const [holiday, candidates] = await Promise.all([
-            window.api.holidays.get(id),
-            window.api.holidays.listObservers(id),
-          ]);
-          if (!holiday) {
-            throw new Response("Holiday not found", { status: 404 });
-          }
-          return { holiday, candidates };
-        },
-        element: <HolidayObservers />,
       },
       {
         // One observance's reminder schedule. Per-observance rather than

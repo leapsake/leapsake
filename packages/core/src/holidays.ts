@@ -88,6 +88,39 @@ export interface HolidayObserverCandidate {
   observes: boolean;
 }
 
+/**
+ * One catalog holiday paired with a single bearer's answer — the mirror of
+ * {@link HolidayObserverCandidate}, for the "which holidays does this person
+ * observe?" field on a Person or Pet screen.
+ *
+ * Deliberately **not** a {@link HolidayListItem}: `observerCount` is the one
+ * field that would force a full scan of every observance in the database, and
+ * this read never displays it. Everything else the field needs — the name to
+ * show, the date to show beside it, and whether the holiday is hidden — is here.
+ */
+export interface BearerHolidayCandidate {
+  id: string;
+  slug: string;
+  name: string;
+  greeting: string;
+  durationDays: number | null;
+  familyId: string | null;
+  origin: HolidayOrigin;
+  /** The next occurrence as `YYYY-MM-DD`, or `null` — same contract as the browse list. */
+  nextOccurrence: string | null;
+  /** Whether the user has suppressed this holiday entirely. */
+  hidden: boolean;
+  /**
+   * The **stored** answer, `null` when there is no row and the bearer rides the
+   * implicit one. Same distinction {@link HolidayObserverCandidate} draws, and
+   * for the same reason: removing an observance the user asserted is a delete,
+   * while removing one they inherited implicitly is an override.
+   */
+  explicit: boolean | null;
+  /** The effective answer — what the UI partitions on and the engine acts on. */
+  observes: boolean;
+}
+
 /** One row of a picker save. */
 export interface ObserverDecision {
   bearerType: ObservanceBearerType;
@@ -371,6 +404,75 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
     },
 
     /**
+     * Every holiday in the catalog with one bearer's answer — the mirror of
+     * {@link listObservers}, read by the Holidays section on a Person or Pet.
+     *
+     * Returns the *whole* catalog rather than only what the bearer observes,
+     * for the same reason `listObservers` returns the whole address book: one
+     * read has to serve both the list of what they observe **and** the pool of
+     * what they could add, and deriving both from one snapshot is what stops the
+     * two from disagreeing.
+     *
+     * Hidden and unobserved entries are included. Filtering is the caller's job
+     * — the field excludes hidden holidays because offering one would be
+     * offering a no-op (§2.6), but a holiday the bearer already observes stays
+     * listed even when hidden, or the state would be unexplainable.
+     *
+     * Deliberately does **not** use `loadCatalog`: that counts observers, which
+     * costs a full scan of every observance in the database. This read wants one
+     * bearer's rows, which `listForBearer` answers off an index.
+     */
+    async listForBearer(
+      bearerType: ObservanceBearerType,
+      bearerId: string,
+    ): Promise<BearerHolidayCandidate[]> {
+      const [rows, hidden, stored] = await Promise.all([
+        deps.holidays.list(),
+        deps.hiddenHolidays.listHiddenIds(),
+        deps.observances.listForBearer(bearerType, bearerId),
+      ]);
+
+      const resolver = createHolidayResolver(
+        rows.map((row) => ({
+          slug: row.slug,
+          recurrence: parseRecurrence(row.recurrence),
+        })),
+      );
+      const explicitByHolidayId = new Map(
+        stored.map((row) => [row.holidayId, row.observes]),
+      );
+      const key = bearerKey(bearerType, bearerId);
+      const today = now();
+
+      const candidates = rows.map((row) => {
+        const [next] = resolver.upcomingOccurrences(
+          row.slug,
+          today,
+          LOOKAHEAD_DAYS,
+        );
+        const explicit = explicitByHolidayId.get(row.id) ?? null;
+        return {
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+          greeting: row.greeting,
+          durationDays: row.durationDays,
+          familyId: row.familyId,
+          origin: row.origin,
+          nextOccurrence: next === undefined ? null : isoFromCivil(next),
+          hidden: hidden.has(row.id),
+          explicit,
+          // Resolved exactly as `listObservers` resolves it, so the implicit
+          // seam stays a single flattening pass and lights up both directions
+          // together when it is eventually filled in.
+          observes: explicit ?? implicitObservers(row.id).has(key),
+        };
+      });
+
+      return candidates.sort(compareForBrowse);
+    },
+
+    /**
      * Save a picker's decisions, writing a row **only where the answer diverges
      * from the implicit one** (research §2.2).
      *
@@ -469,12 +571,22 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
   };
 }
 
+/** The fields browse order actually depends on — see {@link compareForBrowse}. */
+type BrowseSortable = Pick<
+  HolidayListItem,
+  "hidden" | "nextOccurrence" | "name"
+>;
+
 /**
  * Browse order: soonest first, then holidays with no upcoming date, then hidden
  * ones — with name as the stable tiebreak. Undated entries sink rather than
  * disappear so an unresolvable holiday is visible enough to be diagnosed.
+ *
+ * Typed on the three fields it reads rather than on `HolidayListItem`, so the
+ * per-bearer read can share it without carrying `observerCount` it doesn't
+ * compute.
  */
-function compareForBrowse(a: HolidayListItem, b: HolidayListItem): number {
+function compareForBrowse(a: BrowseSortable, b: BrowseSortable): number {
   if (a.hidden !== b.hidden) return a.hidden ? 1 : -1;
   if (a.nextOccurrence !== b.nextOccurrence) {
     if (a.nextOccurrence === null) return 1;

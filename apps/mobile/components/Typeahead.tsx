@@ -18,6 +18,15 @@ import { colors, styles } from "../lib/styles";
  * / `renderValue` (e.g. a country flag). To reset the live query when the field's
  * context changes — a dependent picker after its parent selection moves — give the
  * element a React `key`, which remounts it fresh.
+ *
+ * ## Multi-add
+ *
+ * With `multi`, the field holds no value of its own: each pick calls `onChange`
+ * and resets the query, leaving the field open for the next one. That is what
+ * lets a holiday's observers be added one after another without a round trip
+ * through a screen per person — the caller renders the added rows beneath and
+ * passes `exclude` so a pick stops being suggested. `value` is ignored in this
+ * mode; pass `null`.
  */
 export function Typeahead<T>({
   label,
@@ -31,6 +40,8 @@ export function Typeahead<T>({
   placeholder,
   clearable = false,
   minChars = 2,
+  multi = false,
+  exclude,
 }: {
   label: string;
   value: T | null;
@@ -43,12 +54,17 @@ export function Typeahead<T>({
   placeholder: string;
   clearable?: boolean;
   minChars?: number;
+  /** Stay open after each pick and never show a chosen-value row. */
+  multi?: boolean;
+  /** Keys already chosen — dropped from suggestions so nothing can be added twice. */
+  exclude?: ReadonlySet<string>;
 }) {
   const [editing, setEditing] = useState(false);
   const [query, setQuery] = useState("");
 
   // Chosen and not re-picking: show the value with Change (+ optional Clear).
-  if (value !== null && !editing) {
+  // Never in multi mode, where there is no single chosen value to show.
+  if (!multi && value !== null && !editing) {
     return (
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>{label}</Text>
@@ -87,7 +103,11 @@ export function Typeahead<T>({
     q.length < minChars
       ? []
       : options
-          .filter((o) => getLabel(o).toLowerCase().includes(q))
+          .filter(
+            (o) =>
+              getLabel(o).toLowerCase().includes(q) &&
+              exclude?.has(getKey(o)) !== true,
+          )
           .slice(0, 20);
 
   return (
@@ -111,7 +131,9 @@ export function Typeahead<T>({
             style={styles.row}
             onPress={() => {
               onChange(option);
-              setEditing(false);
+              // Multi-add stays in search mode and keeps the keyboard up, so
+              // the next pick is one more tap-and-type rather than a reopen.
+              if (!multi) setEditing(false);
               setQuery("");
             }}
           >

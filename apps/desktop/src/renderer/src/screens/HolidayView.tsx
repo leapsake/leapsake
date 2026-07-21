@@ -1,6 +1,8 @@
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
-import { Form, Link, useLoaderData } from "react-router-dom";
+import { useRef, useState } from "react";
+import { Form, Link, useLoaderData, useRevalidator } from "react-router-dom";
 import { Breadcrumbs } from "../components/Breadcrumbs";
+import { MultiAddCombobox } from "../components/MultiAddCombobox";
 import { formatOccurrence } from "./HolidayList";
 
 /**
@@ -13,10 +15,51 @@ import { formatOccurrence } from "./HolidayList";
  * mechanism or lineage tracking to maintain.
  */
 export function HolidayView() {
-  const { holiday, observers } = useLoaderData() as {
+  const { holiday, candidates } = useLoaderData() as {
     holiday: HolidayDetail;
-    observers: HolidayObserverCandidate[];
+    candidates: HolidayObserverCandidate[];
   };
+  const revalidator = useRevalidator();
+
+  // One read serves both halves: who observes it, and who could be added.
+  // Excluding current observers from the suggestions is what stops the same
+  // person being added twice and shrinks the list as you go.
+  const observers = candidates.filter((c) => c.observes);
+  const addable = candidates.filter((c) => !c.observes);
+
+  // Writes go straight through `window.api` rather than a route action, and the
+  // reason matters: a `useFetcher` submission started while another is still in
+  // flight *supersedes* it, so a fast type→Enter→type→Enter would silently drop
+  // a pick. Awaiting each call behind this flag cannot. (Direct `window.api`
+  // calls are well-precedented in the renderer — SearchBar, MentionTextField and
+  // Settings all do it.) Hide/unhide stays on the route action, where a single
+  // submit has nothing to race.
+  const inFlight = useRef<Promise<void>>(Promise.resolve());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function setObserves(candidate: HolidayObserverCandidate, observes: boolean) {
+    setBusy(true);
+    setError(null);
+    // The `catch` is what keeps the queue alive: without it a single rejected
+    // write would leave `inFlight` rejected, and every later pick would chain
+    // off it and never run — the field would wedge with no visible cause.
+    inFlight.current = inFlight.current
+      .then(() =>
+        window.api.holidays.setObservers(holiday.id, [
+          {
+            bearerType: candidate.bearerType,
+            bearerId: candidate.bearerId,
+            observes,
+          },
+        ]),
+      )
+      .then(
+        () => revalidator.revalidate(),
+        (e: unknown) => setError(String(e)),
+      )
+      .finally(() => setBusy(false));
+  }
 
   return (
     <main>
@@ -67,6 +110,26 @@ export function HolidayView() {
       )}
 
       <h2>Observed by</h2>
+      {error !== null && <p>Couldn't save: {error}</p>}
+      {candidates.length === 0 ? (
+        <p>Add some people first, then come back to say who celebrates.</p>
+      ) : (
+        <MultiAddCombobox
+          label={`Add someone who observes ${holiday.name}`}
+          placeholder="Add someone…"
+          options={addable}
+          getKey={(c) => `${c.bearerType}:${c.bearerId}`}
+          getLabel={(c) => c.label}
+          renderOption={(c) => (
+            <>
+              {c.label}
+              {c.bearerType === "pet" && " (pet)"}
+            </>
+          )}
+          onPick={(c) => setObserves(c, true)}
+        />
+      )}
+
       {observers.length === 0 ? (
         <p>No one yet.</p>
       ) : (
@@ -81,18 +144,18 @@ export function HolidayView() {
               >
                 {observer.label}
               </Link>
-              {observer.bearerType === "pet" && " (pet)"}
+              {observer.bearerType === "pet" && " (pet)"}{" "}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setObserves(observer, false)}
+              >
+                Remove
+              </button>
             </li>
           ))}
         </ul>
       )}
-      <p>
-        <Link to={`/holidays/${holiday.id}/observers`}>
-          {observers.length === 0
-            ? "Choose who celebrates this"
-            : "Change who celebrates this"}
-        </Link>
-      </p>
     </main>
   );
 }
