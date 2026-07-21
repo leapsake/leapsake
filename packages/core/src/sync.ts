@@ -33,7 +33,7 @@ import {
   joinAccount,
   reauthenticate,
   recoverAccount,
-} from "./key-session.js";
+} from "@leapsake/key-custody";
 
 /**
  * Build the **canonical sync allowlist** — every `SyncableRepo` that may leave

@@ -18,7 +18,7 @@
  *
  * Deliberately *not* here: `equalBytes`. Constant-time comparison looks like a
  * byte utility but exists to check an auth verifier without leaking timing
- * (`key-session.ts`), which makes it a security primitive. It stays in `crypto`.
+ * (`key-custody/src/session.ts`), which makes it a security primitive. It stays in `crypto`.
  */
 export {
   base64ToBytes,

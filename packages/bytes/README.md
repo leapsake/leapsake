@@ -40,5 +40,5 @@ junk drawer.
 ## What deliberately stays in `crypto`
 
 `equalBytes`. It looks like a byte utility, but its whole reason to exist is
-comparing an auth verifier without leaking timing (`core/src/key-session.ts`),
+comparing an auth verifier without leaking timing (`key-custody/src/session.ts`),
 which makes it a security primitive whose call sites deserve review.

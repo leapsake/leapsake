@@ -236,6 +236,9 @@ importers:
       '@leapsake/holidays':
         specifier: workspace:*
         version: link:../holidays
+      '@leapsake/key-custody':
+        specifier: workspace:*
+        version: link:../key-custody
       '@leapsake/reminders':
         specifier: workspace:*
         version: link:../reminders
@@ -281,6 +284,21 @@ importers:
 
   packages/holidays:
     dependencies:
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
+
+  packages/key-custody:
+    dependencies:
+      '@leapsake/bytes':
+        specifier: workspace:*
+        version: link:../bytes
+      '@leapsake/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+      '@leapsake/data':
+        specifier: workspace:*
+        version: link:../data
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema
@@ -6345,9 +6363,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

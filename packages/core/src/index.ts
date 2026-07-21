@@ -91,8 +91,8 @@ import {
   type ParsedContact,
   ingestContacts,
 } from "@leapsake/contact-import";
-import { getSyncStatus } from "./key-session.js";
-import type { KeySession } from "./key-session.js";
+import { getSyncStatus } from "@leapsake/key-custody";
+import type { KeySession } from "@leapsake/key-custody";
 import {
   type ObserverDecision,
   createHolidaysApi,
@@ -143,7 +143,7 @@ export {
   type AccountBootstrap,
   type AccountBootstrapChannel,
   type RecoveryChannel,
-} from "./key-session.js";
+} from "@leapsake/key-custody";
 
 // The production sync-engine assembly: the canonical syncable allowlist plus a
 // one-call cycle for an enabled account, so each client drives sync the same way

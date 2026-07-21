@@ -16,7 +16,7 @@
 >
 > **Reviewed at:** commit `e7e3d36` (proxy-aware client-IP rate limiting), 2026-07-05.
 > Scope: `packages/crypto`, `packages/data` (sync engine + transport + repos),
-> `packages/core` (`key-session.ts`, `sync.ts`), `apps/server` (relay), both `KeyStore`
+> `packages/key-custody` (`session.ts`), `packages/core` (`sync.ts`), `apps/server` (relay), both `KeyStore`
 > adapters. **Not** a third-party cryptographic audit (that's still worth commissioning
 > before a public at-scale launch — see `security-review.md` scope note).
 
@@ -166,7 +166,7 @@ mobile UX, not resistance to an adversary holding the salt + an observed verifie
 ### M2 — No key zeroization; master key is a long-lived plaintext `Uint8Array`
 
 `KeySession.masterKey`, the derived KEK, and unwrapped content keys live in ordinary JS
-`Uint8Array`s for the process lifetime (`packages/core/src/key-session.ts`,
+`Uint8Array`s for the process lifetime (`packages/key-custody/src/session.ts`,
 `packages/data/src/content-cipher.ts`). Nothing wipes them; in V8/Hermes you cannot
 reliably anyway (GC copies/interns). `security-review.md` discusses zeroization only for
 the future SSR path, not the native clients that hold MK indefinitely today.
@@ -212,7 +212,7 @@ still fails closed.)
 ### M4 — On-device recovery-phrase entry has no local backpressure
 
 The relay throttles the recovery routes well, but on-device `unlockWithRecoveryKey`
-(`packages/core/src/key-session.ts`) and the phrase-entry UI gate access to MK with no
+(`packages/key-custody/src/session.ts`) and the phrase-entry UI gate access to MK with no
 attempt limiting. Less severe than the password path because the phrase is 256-bit, but
 the asymmetry is worth noting: passwords get a 12-char floor + Argon2id, the recovery
 path gets neither locally.

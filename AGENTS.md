@@ -52,10 +52,14 @@ packages/
   sync/             # V3 client convergence: the SyncTransport port + in-memory and
                     # HTTPS relay adapters, the registry-driven SyncEngine, and the
                     # scheduler. Depends on data for types only.
+  key-custody/      # How a device obtains, holds, escrows, and relinquishes the
+                    # master key: the enclave bootstrap, the password/recovery
+                    # door, join + recover + reauthenticate. Implements
+                    # plans/encryption/custody-sequence.md. See its README.
   core/             # Client-agnostic application surface (CoreApi): transactional
                     # writes, cascade deletes, relationship orientation, view-models.
-                    # Owns the syncable-repo allowlist and account bootstrap.
-                    # Depends on data + sync + schema.
+                    # Owns the syncable-repo allowlist and relay wiring.
+                    # Depends on data + sync + key-custody + schema.
   bytes/            # Byte ↔ string codecs (base64/hex/utf-8) + deterministicUuid.
                     # Non-secret data only; no workspace deps. See its README.
   crypto/           # V3 envelope primitives (seal/wrap, the password KDF) + the
@@ -70,7 +74,7 @@ plans/                # forward-looking only — upcoming work, not past decisio
 ```
 
 Per-package architecture rationale (the "why this package is shaped this way") lives in each
-package's own `README.md` — `packages/{schema,data,sync,core,crypto,bytes}`,
+package's own `README.md` — `packages/{schema,data,sync,key-custody,core,crypto,bytes}`,
 `apps/{desktop,server}`.
 
 ## Data Model
