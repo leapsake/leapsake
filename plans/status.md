@@ -150,11 +150,13 @@ can't ship without distributable apps. (None yet.)
      memory and flagged provisional in the catalog module. Verify against Hebcal and a published
      Chinese calendar, and extend both to the ~30-year horizon §2.8 specifies. A wrong date here is
      worse than a missing one.
-  2. **Decide the observance default schedule.** The day-of `wish` currently ships **on**, mirroring
-     birthdays, so the picker visibly does something. But holidays don't spread across the year the
-     way birthdays do — everyone's Christmas lands at once, so a user with forty people gets forty
-     reminders in late November (§4's synchronized-load question, still open). Reversible: ids key on
-     (occurrence, action), not on the surface date.
+  2. **A per-observance reminder-schedule editor — now the blocking gap.** Observance defaults ship
+     with **every action off** (decided 2026-07-20: holidays all land on one day, so a default-on
+     wish would flood late November — §4's synchronized-load question). The consequence is that
+     saying "Alice celebrates Christmas" currently produces no reminder and there is **no UI to turn
+     one on** — the schedule editor exists for milestones (`ReminderScheduleFields`) but has no
+     observance host screen yet. Until this lands the feature stores observances and generates
+     nothing.
   3. **Mobile parity** — core and data are shared, so this is the two screens plus a picker.
   4. **A person-side observances section**, the per-person counterpart to the holiday-centric picker.
 

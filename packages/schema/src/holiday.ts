@@ -215,23 +215,26 @@ export type HiddenHoliday = z.infer<typeof hiddenHolidaySchema>;
  * (see {@link resolveObservanceReminderSchedule}); rows appear only once a user
  * customises it, so an untouched observance stays free of sync churn.
  *
- * Mirrors the birthday schedule, including the day-of `wish` being the one entry
- * on by default. That is what makes the observer picker do something: say Alice
- * celebrates Christmas and a reminder appears, rather than the answer vanishing
- * into a screen the user then has to find and configure.
+ * Mirrors the birthday schedule in its *offered* actions, but — unlike a
+ * birthday — **nothing is on by default**.
  *
- * ⚠️ **Load consideration.** Birthdays spread across the year; holidays do not.
- * Every Christmas observance comes due on the same day, so a user with forty
- * people gets forty reminders at once in late November (research §4, "synchronized
- * load" — punted, and deliberately reversible: reminder ids key on
- * (occurrence, action) rather than on the surface date, so changing the window
- * later re-keys nothing and invalidates no tombstones). Turning this entry off
- * by default is a one-word change if the volume proves worse than the silence.
+ * The reason is load, and it is specific to holidays. Birthdays spread across
+ * the year, so a default-on day-of wish yields roughly one reminder at a time.
+ * Holidays do not: every Christmas observance comes due on the same day, so a
+ * default-on wish would hand a user with forty people forty reminders at once in
+ * late November (research §4, "synchronized load"). That is the kind of volume
+ * that trains someone to ignore the surface, which costs more than the silence
+ * does — and it would break the codebase's own posture that the day-of birthday
+ * wish is the one automated reminder on by default *anywhere*.
+ *
+ * Reversible either way: reminder ids key on (occurrence, action) rather than on
+ * the surface date, so flipping a default re-keys nothing and invalidates no
+ * tombstones.
  */
 export const observanceDefaultReminderSchedule: DefaultReminderRule[] = [
   { action: "gift", offsetDays: 30, enabledByDefault: false },
   { action: "card", offsetDays: 7, enabledByDefault: false },
-  { action: "wish", offsetDays: 0, enabledByDefault: true },
+  { action: "wish", offsetDays: 0, enabledByDefault: false },
   { action: "call", offsetDays: 0, enabledByDefault: false },
 ];
 

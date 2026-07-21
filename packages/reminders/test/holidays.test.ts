@@ -55,8 +55,15 @@ function makeHarness() {
     transaction: (body) => body(),
     holidays: {
       listCandidates: async () => candidates,
+      // Observances ship with **every** action off (holidays land all at once,
+      // so a default-on wish would flood late November), which would make every
+      // test below assert an empty store. So the harness stands in for a user
+      // who has switched the day-of wish on; the real defaults are asserted
+      // directly in "ships with every action off by default".
       resolveSchedule: async (c) =>
-        schedules.get(c.observanceId) ?? resolveObservanceReminderSchedule([]),
+        schedules.get(c.observanceId) ?? [
+          { action: "wish", label: null, offsetDays: 0, enabled: true },
+        ],
       resolveLabel: async (_type, id) => labels.get(id) ?? null,
     },
   };
@@ -210,6 +217,20 @@ describe("holiday reminders", () => {
     expect(h.activeSystem()[0].dueDate).toBe(
       dueDateMs({ year: 2026, month: 11, day: 25 }),
     );
+  });
+
+  it("ships with every action off by default", async () => {
+    // Unlike a birthday, an observance generates nothing until the user asks for
+    // it: every Christmas observance comes due on the same day, so a default-on
+    // wish would surface forty reminders at once for a forty-person address book.
+    for (const rule of resolveObservanceReminderSchedule([])) {
+      expect(rule.enabled).toBe(false);
+    }
+
+    h.setCandidates([candidate()]);
+    h.setSchedule("obs-christmas-alice", resolveObservanceReminderSchedule([]));
+    await regenerateSystemReminders(h.deps);
+    expect(h.activeSystem()).toEqual([]);
   });
 
   it("skips a disabled rule", async () => {

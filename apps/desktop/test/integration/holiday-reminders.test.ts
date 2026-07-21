@@ -43,6 +43,14 @@ describe("holiday reminders", () => {
     vi.setSystemTime(new Date(year, month - 1, day, 12));
   }
 
+  /**
+   * A person observing a holiday, with the day-of wish switched **on**.
+   *
+   * An observance ships with every action off — holidays all land at once, so a
+   * default-on wish would flood a user's Home — which means the opt-in has to be
+   * explicit here. "generates nothing until a rule is enabled" below pins that
+   * default directly.
+   */
   async function aliceObserving(holidayId: string) {
     const core = createCore(driver);
     const alice = await core.people.create(
@@ -52,6 +60,11 @@ describe("holiday reminders", () => {
     await core.holidays.setObservers(holidayId, [
       { bearerType: "person", bearerId: alice.id, observes: true },
     ]);
+    await createReminderRulesRepo(driver).replaceForBearer(
+      "observance",
+      observanceIdFor(holidayId, "person", alice.id),
+      [{ action: "wish", offsetDays: 0, enabled: true }],
+    );
     return { core, alice };
   }
 
@@ -75,6 +88,26 @@ describe("holiday reminders", () => {
     expect(titles.some((t) => t.includes(`person:${alice.id}`))).toBe(true);
     // Never the birthday copy the `wish` action used to hard-code.
     expect(titles.some((t) => t.includes("happy birthday"))).toBe(false);
+  });
+
+  it("generates nothing until a rule is enabled", async () => {
+    // The default an observance rides. Deliberately quieter than a birthday's:
+    // every Christmas observance comes due on the same day, so a default-on wish
+    // would surface one reminder per person all at once.
+    today(2026, 12, 1);
+    const core = createCore(driver);
+    const alice = await core.people.create(
+      { firstName: "Alice", lastName: "Chen" },
+      [],
+    );
+    await core.holidays.setObservers(CHRISTMAS, [
+      { bearerType: "person", bearerId: alice.id, observes: true },
+    ]);
+    await core.reminders.regenerateSystem();
+
+    expect(
+      (await systemTitles(core)).some((t) => t.includes("Christmas")),
+    ).toBe(false);
   });
 
   it("generates nothing for an explicit non-observer", async () => {
