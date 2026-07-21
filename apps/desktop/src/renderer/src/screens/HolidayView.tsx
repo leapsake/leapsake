@@ -1,16 +1,16 @@
 import type { HolidayDetail } from "@leapsake/core";
-import { useLoaderData } from "react-router-dom";
+import { Form, Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { formatOccurrence } from "./HolidayList";
 
 /**
- * One holiday: when it next falls, the dates after that, and (once the observer
- * picker lands) who observes it.
+ * One holiday: when it next falls, the dates after that, and who observes it.
  *
  * There is no edit affordance, and that is the design rather than an omission —
  * a catalog holiday is read-only, and a user who wants a different Mother's Day
  * hides this one and creates their own (holidays/research.md §2.6). That keeps a
- * user's edit from ever losing to, or blocking, a catalog update.
+ * user's edit from ever losing to, or blocking, a catalog update, with no fork
+ * mechanism or lineage tracking to maintain.
  */
 export function HolidayView() {
   const holiday = useLoaderData() as HolidayDetail;
@@ -26,7 +26,22 @@ export function HolidayView() {
 
       <header>
         <h1>{holiday.name}</h1>
-        {holiday.hidden && <p>This holiday is hidden.</p>}
+        {holiday.hidden && (
+          <p>
+            This holiday is hidden — it produces no reminders. Your saved
+            answers about who observes it are kept.
+          </p>
+        )}
+        <Form method="post">
+          <input
+            type="hidden"
+            name="hidden"
+            value={holiday.hidden ? "false" : "true"}
+          />
+          <button type="submit">
+            {holiday.hidden ? "Unhide this holiday" : "Hide this holiday"}
+          </button>
+        </Form>
       </header>
 
       <h2>Upcoming</h2>
@@ -55,6 +70,13 @@ export function HolidayView() {
           : `${holiday.observerCount} ${
               holiday.observerCount === 1 ? "person" : "people"
             }.`}
+      </p>
+      <p>
+        <Link to={`/holidays/${holiday.id}/observers`}>
+          {holiday.observerCount === 0
+            ? "Choose who celebrates this"
+            : "Change who celebrates this"}
+        </Link>
       </p>
     </main>
   );

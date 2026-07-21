@@ -167,7 +167,9 @@ export { createHolidaysApi } from "./holidays.js";
 export type {
   HolidayDetail,
   HolidayListItem,
+  HolidayObserverCandidate,
   HolidaysApiDeps,
+  ObserverDecision,
 } from "./holidays.js";
 
 // The scheduling layer that turns the manual one-shot sync into seamless
@@ -270,6 +272,9 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     holidays,
     observances,
     hiddenHolidays,
+    people,
+    pets,
+    driver,
   });
 
   // Resolve a reminder's stored mentions to their targets' **current** labels
@@ -553,6 +558,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           await dismissals.removeAllForEntity("person", id);
           await milestones.removeAllForEntity("person", id);
           await contactMethods.removeAllForOwner("person", id);
+          await observances.removeAllForBearer("person", id);
         });
         await regenerateSystem();
       },
@@ -575,6 +581,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           await dismissals.repointEntity("person", loserId, survivorId);
           await milestones.repointEntity("person", loserId, survivorId);
           await contactMethods.repointOwner("person", loserId, survivorId);
+          await observances.repointBearer("person", loserId, survivorId);
           // Carry the "not a duplicate" memory across so the merge doesn't strand
           // or self-pair a rejection (it re-canonicalizes and drops self/dupes).
           await notADuplicate.repointEntity(loserId, survivorId);
@@ -630,6 +637,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           await relationships.removeAllForEntity("pet", id);
           await dismissals.removeAllForEntity("pet", id);
           await milestones.removeAllForEntity("pet", id);
+          await observances.removeAllForBearer("pet", id);
         });
         await regenerateSystem();
       },

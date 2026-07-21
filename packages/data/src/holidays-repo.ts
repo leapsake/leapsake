@@ -118,6 +118,25 @@ export interface ObservancesRepo extends EntityRepo<Observance> {
     bearerType: ObservanceBearerType,
     bearerId: string,
   ): Promise<void>;
+  /**
+   * Carry a bearer's observances onto another bearer, for a people merge.
+   *
+   * Not the plain `UPDATE … SET bearer_id` the other repos' `repointEntity` can
+   * use: an observance's id is *derived from* its bearer, so moving one means
+   * writing a new row under the survivor's id and tombstoning the loser's.
+   * Re-pointing in place would leave a row whose id no longer matches its key,
+   * and the next device to assert the same observance would mint the correct id
+   * and collide with it on the unique index.
+   *
+   * Where the survivor already has an answer for that holiday, the survivor's
+   * stands and the loser's is dropped — matching survivorship v1, which keeps
+   * the survivor's own fields wholesale rather than merging field by field.
+   */
+  repointBearer(
+    bearerType: ObservanceBearerType,
+    loserId: string,
+    survivorId: string,
+  ): Promise<void>;
 }
 
 export function createObservancesRepo(driver: SqliteDriver): ObservancesRepo {
@@ -128,47 +147,79 @@ export function createObservancesRepo(driver: SqliteDriver): ObservancesRepo {
     booleans: ["observes"],
   });
 
+  const listForBearer: ObservancesRepo["listForBearer"] = (
+    bearerType,
+    bearerId,
+  ) =>
+    base.listWhere({
+      where: "bearer_type = ? AND bearer_id = ?",
+      params: [bearerType, bearerId],
+    });
+
+  const setObservance: ObservancesRepo["setObservance"] = async (
+    holidayId,
+    bearerType,
+    bearerId,
+    observes,
+  ) => {
+    const id = observanceIdFor(holidayId, bearerType, bearerId);
+    if (observes === null) {
+      await softDeleteWhere(driver, "observances", "id = ?", [id]);
+      return;
+    }
+    // The row may exist as a tombstone (previously cleared), which `update`
+    // would not see — so revive it explicitly rather than inserting a
+    // duplicate the unique index would reject.
+    const existing = await base.getIncludingDeleted(id);
+    const now = Date.now();
+    if (existing === undefined) {
+      await base.insert({
+        id,
+        holidayId,
+        bearerType,
+        bearerId,
+        observes,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      });
+      return;
+    }
+    await driver.run(
+      `UPDATE observances
+          SET observes = ?, deleted_at = NULL, updated_at = MAX(?, updated_at + 1)
+        WHERE id = ?`,
+      [observes ? 1 : 0, now, id],
+    );
+  };
+
   return {
     ...base,
+    listForBearer,
+    setObservance,
 
     listForHoliday: (holidayId) =>
       base.listWhere({ where: "holiday_id = ?", params: [holidayId] }),
 
-    listForBearer: (bearerType, bearerId) =>
-      base.listWhere({
-        where: "bearer_type = ? AND bearer_id = ?",
-        params: [bearerType, bearerId],
-      }),
-
-    async setObservance(holidayId, bearerType, bearerId, observes) {
-      const id = observanceIdFor(holidayId, bearerType, bearerId);
-      if (observes === null) {
-        await softDeleteWhere(driver, "observances", "id = ?", [id]);
-        return;
-      }
-      // The row may exist as a tombstone (previously cleared), which `update`
-      // would not see — so revive it explicitly rather than inserting a
-      // duplicate the unique index would reject.
-      const existing = await base.getIncludingDeleted(id);
-      const now = Date.now();
-      if (existing === undefined) {
-        await base.insert({
-          id,
-          holidayId,
+    async repointBearer(bearerType, loserId, survivorId) {
+      for (const row of await listForBearer(bearerType, loserId)) {
+        const survivorsOwn = await base.get(
+          observanceIdFor(row.holidayId, bearerType, survivorId),
+        );
+        // The survivor already answered for this holiday — keep their answer.
+        if (survivorsOwn !== undefined) continue;
+        await setObservance(
+          row.holidayId,
           bearerType,
-          bearerId,
-          observes,
-          createdAt: now,
-          updatedAt: now,
-          deletedAt: null,
-        });
-        return;
+          survivorId,
+          row.observes,
+        );
       }
-      await driver.run(
-        `UPDATE observances
-            SET observes = ?, deleted_at = NULL, updated_at = MAX(?, updated_at + 1)
-          WHERE id = ?`,
-        [observes ? 1 : 0, now, id],
+      await softDeleteWhere(
+        driver,
+        "observances",
+        "bearer_type = ? AND bearer_id = ?",
+        [bearerType, loserId],
       );
     },
 

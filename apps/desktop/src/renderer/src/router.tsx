@@ -62,6 +62,7 @@ import { ReminderList } from "./screens/ReminderList";
 import { Settings } from "./screens/Settings";
 import { TagDelete } from "./screens/TagDelete";
 import { HolidayList } from "./screens/HolidayList";
+import { HolidayObservers } from "./screens/HolidayObservers";
 import { HolidayView } from "./screens/HolidayView";
 import { TagView } from "./screens/TagView";
 
@@ -1168,6 +1169,34 @@ const routes: RouteObject[] = [
           return holiday;
         },
         element: <HolidayView />,
+        action: async ({ params, request }: ActionFunctionArgs) => {
+          // Hide / unhide. A catalog row is read-only, so suppressing it is the
+          // user's only lever over the holiday itself.
+          const formData = await request.formData();
+          await window.api.holidays.setHidden(
+            params.id as string,
+            formData.get("hidden") === "true",
+          );
+          return null;
+        },
+      },
+      {
+        // The bulk-assignment on-ramp. Loads every person and pet, not just
+        // current observers — with no implicit source, this is where the first
+        // observance for anyone gets created.
+        path: "holidays/:id/observers",
+        loader: async ({ params }: LoaderFunctionArgs) => {
+          const id = params.id as string;
+          const [holiday, candidates] = await Promise.all([
+            window.api.holidays.get(id),
+            window.api.holidays.listObservers(id),
+          ]);
+          if (!holiday) {
+            throw new Response("Holiday not found", { status: 404 });
+          }
+          return { holiday, candidates };
+        },
+        element: <HolidayObservers />,
       },
       {
         path: "tags/:id",

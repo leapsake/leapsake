@@ -8,10 +8,15 @@ import type {
   HiddenHolidaysRepo,
   HolidaysRepo,
   ObservancesRepo,
+  PeopleRepo,
+  PetsRepo,
+  SqliteDriver,
 } from "@leapsake/data";
 import {
   type CivilDate,
   type HolidayOrigin,
+  type ObservanceBearerType,
+  fullName,
   todayCivil,
 } from "@leapsake/schema";
 
@@ -59,12 +64,64 @@ export interface HolidayDetail extends HolidayListItem {
   upcoming: string[];
 }
 
+export interface HolidayObserverCandidate {
+  bearerType: ObservanceBearerType;
+  bearerId: string;
+  label: string;
+  /**
+   * The **stored** answer: `true`/`false` when the user has said so explicitly,
+   * `null` when there is no row and the bearer rides the implicit answer.
+   * Distinct from {@link observes} on purpose — the picker needs to know whether
+   * clearing a box means "write an override" or "delete the row".
+   */
+  explicit: boolean | null;
+  /** The effective answer: what the reminder engine would act on. */
+  observes: boolean;
+}
+
+/** One row of a picker save. */
+export interface ObserverDecision {
+  bearerType: ObservanceBearerType;
+  bearerId: string;
+  observes: boolean;
+}
+
 export interface HolidaysApiDeps {
   holidays: HolidaysRepo;
   observances: ObservancesRepo;
   hiddenHolidays: HiddenHolidaysRepo;
+  people: PeopleRepo;
+  pets: PetsRepo;
+  /** Composes a whole picker save into one transaction. */
+  driver: SqliteDriver;
   /** The viewer's local civil date; injectable so tests aren't clock-dependent. */
   today?: () => CivilDate;
+}
+
+/** The key an observance is addressed by within one holiday. */
+function bearerKey(bearerType: ObservanceBearerType, bearerId: string): string {
+  return `${bearerType}:${bearerId}`;
+}
+
+/**
+ * The bearers who observe a holiday **implicitly** — inferred rather than
+ * stated.
+ *
+ * v1 returns nothing, uniformly and unconditionally, and that is a deliberate
+ * shape rather than a stub. No reliable implicit source exists yet: religion
+ * isn't recorded anywhere, and country lives on *contact methods* rather than on
+ * the person (research §2.12). Returning an empty set unconditionally — instead
+ * of making the resolver conditional on a feature that doesn't exist — means the
+ * accelerator layer (Religions, Nationalities, a Settings default country) is
+ * purely additive when it arrives.
+ *
+ * Two constraints bind whatever fills this in: never infer religion from
+ * country or country from religion, and keep derived-nationality feeding
+ * derived-observance a **single flattening pass**, so the UI can always answer
+ * "why does Leapsake think Grandma observes this?".
+ */
+function implicitObservers(_holidayId: string): ReadonlySet<string> {
+  return new Set<string>();
 }
 
 /**
@@ -172,6 +229,107 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
         observerCount: observerCounts.get(row.id) ?? 0,
         upcoming: upcoming.map(isoFromCivil),
       };
+    },
+
+    /**
+     * Every person and pet as a picker row, with their current answer for this
+     * holiday — the "Christmas — who do you celebrate with?" read.
+     *
+     * Returns the *whole* address book rather than only current observers,
+     * because the picker's job is bulk assignment: with no implicit source,
+     * every observance starts explicit, and a screen that only listed existing
+     * observers would have no way to add the first one.
+     */
+    async listObservers(
+      holidayId: string,
+    ): Promise<HolidayObserverCandidate[]> {
+      const [people, pets, stored] = await Promise.all([
+        deps.people.list(),
+        deps.pets.list(),
+        deps.observances.listForHoliday(holidayId),
+      ]);
+
+      const explicitByKey = new Map(
+        stored.map((row) => [
+          bearerKey(row.bearerType, row.bearerId),
+          row.observes,
+        ]),
+      );
+      const implicit = implicitObservers(holidayId);
+
+      const candidates: HolidayObserverCandidate[] = [
+        ...people.map((person) => ({
+          bearerType: "person" as const,
+          bearerId: person.id,
+          label: fullName(person),
+        })),
+        ...pets.map((pet) => ({
+          bearerType: "pet" as const,
+          bearerId: pet.id,
+          label: pet.name,
+        })),
+      ].map((base) => {
+        const key = bearerKey(base.bearerType, base.bearerId);
+        const explicit = explicitByKey.get(key) ?? null;
+        return {
+          ...base,
+          explicit,
+          // An explicit answer always wins over the implicit one — that is the
+          // whole point of storing it.
+          observes: explicit ?? implicit.has(key),
+        };
+      });
+
+      return candidates.sort((a, b) => a.label.localeCompare(b.label));
+    },
+
+    /**
+     * Save a picker's decisions, writing a row **only where the answer diverges
+     * from the implicit one** (research §2.2).
+     *
+     * That asymmetry is the whole design, not an optimisation. A decision that
+     * agrees with the implicit answer *deletes* its row rather than storing a
+     * redundant one, which keeps untouched data free of sync churn and — more
+     * importantly — keeps "the user said so" distinguishable from "the inference
+     * happened to agree once". If the user later corrects the data an inference
+     * was drawn from, the explicit row survives and the observance holds.
+     *
+     * The whole save is one transaction, so a partial failure can't leave the
+     * holiday half-assigned.
+     */
+    async setObservers(
+      holidayId: string,
+      decisions: readonly ObserverDecision[],
+    ): Promise<void> {
+      const implicit = implicitObservers(holidayId);
+      await deps.driver.transaction(async () => {
+        for (const decision of decisions) {
+          const key = bearerKey(decision.bearerType, decision.bearerId);
+          const agreesWithImplicit = decision.observes === implicit.has(key);
+          await deps.observances.setObservance(
+            holidayId,
+            decision.bearerType,
+            decision.bearerId,
+            agreesWithImplicit ? null : decision.observes,
+          );
+        }
+      });
+    },
+
+    /**
+     * Suppress or restore a holiday.
+     *
+     * Non-destructive in both directions: hiding never touches the observances
+     * hanging off the holiday, so unhiding restores them intact. The one thing
+     * it does *not* restore is the current occurrence's already-generated
+     * reminders — hiding prunes those, and a pruned system reminder is
+     * tombstoned rather than deleted, so it stays dead until the next
+     * occurrence. Documented rather than fixed: telling "pruned because
+     * suppressed" apart from "pruned because stale" is a distinction the engine
+     * structurally does not have.
+     */
+    setHidden(holidayId: string, hidden: boolean): Promise<void> {
+      return deps.hiddenHolidays.setHidden(holidayId, hidden);
     },
   };
 }
