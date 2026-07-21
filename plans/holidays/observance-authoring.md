@@ -9,8 +9,7 @@
 > **Built 2026-07-20**, and the decisions below held. Both §2 surfaces shipped on
 > both clients, plus the Pet mirror §2.2's prose implies but §3.4's file list
 > omitted. Two refinements the build forced are marked **inline**: the person-side
-> read's shape (§3.2) and the write path's fetcher hazard (§2.1). What remains is
-> walking them on a device — see [`status.md`](../status.md).
+> read's shape (§3.2) and the write path's fetcher hazard (§2.1).
 
 ---
 
@@ -266,18 +265,7 @@ trusted by a real user:
 A wrong date here is worse than a missing one: it produces a confidently-wrong
 reminder on a day that matters to someone.
 
-### 4.2 The mobile screens have never run on a device
-
-The Holidays tab, detail, picker, and schedule editor are written, typechecked
-and linted, but `pnpm test` does not exercise mobile UI and `pnpm test:native`
-reports ⏳ BLOCKED without a booted emulator/simulator. Before trusting them:
-`pnpm --filter @leapsake/mobile ios` (or `android`), then walk
-Holidays → a holiday → observers → save → a schedule → save.
-
-Since §2 replaces the picker anyway, doing that verification *after* the
-autocomplete lands avoids verifying a screen twice.
-
-### 4.3 Still-open questions from `research.md` §4
+### 4.2 Still-open questions from `research.md` §4
 
 - **Synchronized load.** Birthdays spread across the year; holidays do not, so
   everyone's Christmas reminders come due at once. Mitigated for now by shipping
@@ -289,7 +277,7 @@ autocomplete lands avoids verifying a screen twice.
 - **Observed-date shifting** (holiday falls Saturday → observed Friday). Noted,
   not solved; leaning skip.
 
-### 4.4 Doors deliberately left open (`research.md` §5)
+### 4.3 Doors deliberately left open (`research.md` §5)
 
 Unchanged and still deferred: holiday reminders with no person attached, a
 user-defined-holiday authoring UI, Events, Religions/Nationalities as
@@ -298,7 +286,7 @@ overlay, and aggregate/grouped reminders.
 
 The **implicit-observance resolver seam already exists** and returns `[]`
 unconditionally — `implicitObservers()` in `packages/core/src/holidays.ts`. The
-accelerator layer (§4.4) fills it in; two constraints bind whatever does: never
+accelerator layer (§4.3) fills it in; two constraints bind whatever does: never
 infer religion from country or country from religion, and keep
 derived-nationality feeding derived-observance a *single flattening pass*, so the
 UI can always answer "why does Leapsake think Grandma observes this?".

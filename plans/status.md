@@ -5,12 +5,11 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-20** — **Holidays shipped (desktop):** a `@leapsake/holidays` catalog +
+> **Updated 2026-07-20** — **Holidays shipped on both clients:** a `@leapsake/holidays` catalog +
 > recurrence engine, three synced tables (holidays / observances / hidden_holidays), the
-> `/holidays` browse + bulk observer picker, and engine wiring that turns an observance into
-> `system` reminders — plus global-search integration and a per-observance schedule editor, with
-> the mobile screens ported but **not yet device-verified**. Delivery detail in `git log`. See
-> *What's next* for what remains.
+> `/holidays` browse + an autocomplete for authoring observances from either end, and engine
+> wiring that turns an observance into `system` reminders — plus global-search integration and a
+> per-observance schedule editor. Delivery detail in `git log`. See *What's next* for what remains.
 
 ## Where things stand
 
@@ -38,10 +37,8 @@
   year doesn't collapse. Design: [`holidays/research.md`](./holidays/research.md) (§4's four open
   questions are now settled there). Holidays are also **searchable** (their own result type, on the
   `tag` precedent), and each observance has its own **reminder-schedule editor** — needed because
-  observance defaults ship with every action off. **Remaining: walking the new authoring surfaces
-  on both clients** (no UI test tier exists, and the mobile screens have still never run) and
-  **the two lunisolar date tables** (provisional, authored from memory — see the warning in
-  `packages/holidays/src/catalog.ts`).
+  observance defaults ship with every action off. **Remaining: the two lunisolar date tables**
+  (provisional, authored from memory — see the warning in `packages/holidays/src/catalog.ts`).
 - **Reminders (home-screen surface)** — a user-generated, syncable Reminder entity (freeform
   title/body, reversible completion, inline `#tags`, **due dates**), the **landing / Home screen on
   both clients** (People & Pets at `/people`; inline `#tags` link to their tag page and a tag's page
@@ -149,22 +146,11 @@ can't ship without distributable apps. (None yet.)
   onboarding-as-reminders are all done — see the *Where things stand* bullet and
   [`reminders.md`](./reminders.md). **Next: reminder search**; Leapsake-defined tasks extend the
   same engine later.
-- **Holidays — remaining work**, in order:
-  1. **Source the lunisolar tables.** Hanukkah and Lunar New Year shipped with dates authored from
-     memory and flagged provisional in the catalog module. Verify against Hebcal and a published
-     Chinese calendar, and extend both to the ~30-year horizon §2.8 specifies. A wrong date here is
-     worse than a missing one.
-  2. ~~Replace the observer checklist with an autocomplete.~~ ✅ **Done** — both clients, plus the
-     mirrored Holidays section on Person *and* Pet screens. The select-all checklist is retired on
-     both. Design: [`holidays/observance-authoring.md`](./holidays/observance-authoring.md).
-  3. **Device-verify the mobile screens.** The Holidays tab, detail, the new add-observer
-     typeahead, the Person/Pet Holidays section, and the schedule editor are written, typechecked
-     and linted, but have **never run**: `pnpm test` doesn't exercise mobile UI and
-     `pnpm test:native` reports ⏳ BLOCKED without a booted emulator/simulator. Run
-     `pnpm --filter @leapsake/mobile ios` (or `android`) and walk the flow. **This is now the
-     next Holidays task** — and the desktop walk is outstanding too (the autocomplete has passing
-     integration tests but no UI test tier exists, so neither client's new surfaces have been
-     seen running).
+- **Holidays — remaining work: source the lunisolar tables.** Hanukkah and Lunar New Year shipped
+  with dates authored from memory and flagged provisional in the catalog module. Verify against
+  Hebcal and a published Chinese calendar, and extend both to the ~30-year horizon
+  [`research.md`](./holidays/research.md) §2.8 specifies. A wrong date here is worse than a missing
+  one: it produces a confidently-wrong reminder on a day that matters to someone.
 
 ### v0.2 (first post-launch feature increment)
 
