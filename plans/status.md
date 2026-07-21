@@ -150,13 +150,13 @@ can't ship without distributable apps. (None yet.)
      memory and flagged provisional in the catalog module. Verify against Hebcal and a published
      Chinese calendar, and extend both to the ~30-year horizon §2.8 specifies. A wrong date here is
      worse than a missing one.
-  2. **A per-observance reminder-schedule editor — now the blocking gap.** Observance defaults ship
-     with **every action off** (decided 2026-07-20: holidays all land on one day, so a default-on
-     wish would flood late November — §4's synchronized-load question). The consequence is that
-     saying "Alice celebrates Christmas" currently produces no reminder and there is **no UI to turn
-     one on** — the schedule editor exists for milestones (`ReminderScheduleFields`) but has no
-     observance host screen yet. Until this lands the feature stores observances and generates
-     nothing.
+  2. ~~A per-observance reminder-schedule editor~~ — **done.** `HolidayView` lists each observer,
+     and each links to `/holidays/:id/observers/:bearerType/:bearerId`, which hosts the shared
+     `ReminderScheduleFields` for that observance. Observance defaults ship with **every action
+     off** (decided 2026-07-20: holidays all land on one day, so a default-on wish would flood late
+     November — §4's synchronized-load question), so this editor is how a holiday is made to do
+     anything. Every holidays write now reconciles the engine immediately rather than waiting for
+     the next boot.
   3. **Mobile parity** — core and data are shared, so this is the two screens plus a picker.
      Note `apps/mobile/app/(tabs)/search.tsx` currently **filters holiday hits out** of global
      search, because the shared search service returns them but mobile has no screen to open;

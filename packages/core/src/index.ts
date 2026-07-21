@@ -46,6 +46,7 @@ import type {
   PhoneNumber,
   PostalAddress,
   MilestoneKind,
+  ObservanceBearerType,
   Relationship,
   RelationshipNeighbor,
   RelationshipRole,
@@ -92,7 +93,11 @@ import {
 } from "@leapsake/contact-import";
 import { getSyncStatus } from "./key-session.js";
 import type { KeySession } from "./key-session.js";
-import { createHolidaysApi, holidayReminderCandidates } from "./holidays.js";
+import {
+  type ObserverDecision,
+  createHolidaysApi,
+  holidayReminderCandidates,
+} from "./holidays.js";
 import { createViews } from "./views.js";
 
 // Re-exported so apps can wire everything from one entry point: construct a
@@ -275,6 +280,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     hiddenHolidays,
     people,
     pets,
+    reminderRules,
     driver,
   });
 
@@ -699,11 +705,45 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       },
     },
 
-    // Holidays — read-only for now. The catalog is public reference data, so
-    // there is no create/update here: a catalog row is immutable by design
-    // (holidays/research.md §2.6), and the user's own levers are the observance
-    // and the hide, which land with the observer picker.
-    holidays: holidaysApi,
+    // Holidays. The catalog itself is read-only — a catalog row is immutable by
+    // design (holidays/research.md §2.6) — so the user's levers are all
+    // *around* it: who observes, what each observance reminds about, and whether
+    // the holiday is suppressed entirely.
+    //
+    // Every one of those is an input to the reminder engine, so each write
+    // reconciles afterwards rather than waiting for the next boot/focus. Without
+    // this, saying "Alice celebrates Christmas" would sit inert until the app
+    // was restarted — the same reason a person/milestone write reconciles above.
+    // Each runs in its own transaction (BEGIN/COMMIT doesn't nest) and rides the
+    // sync kick as a normal write.
+    holidays: {
+      ...holidaysApi,
+      setObservers: async (
+        holidayId: string,
+        decisions: readonly ObserverDecision[],
+      ): Promise<void> => {
+        await holidaysApi.setObservers(holidayId, decisions);
+        await regenerateSystem();
+      },
+      setHidden: async (holidayId: string, hidden: boolean): Promise<void> => {
+        await holidaysApi.setHidden(holidayId, hidden);
+        await regenerateSystem();
+      },
+      setObservanceSchedule: async (
+        holidayId: string,
+        bearerType: ObservanceBearerType,
+        bearerId: string,
+        rules: ReminderRuleInput[],
+      ): Promise<void> => {
+        await holidaysApi.setObservanceSchedule(
+          holidayId,
+          bearerType,
+          bearerId,
+          rules,
+        );
+        await regenerateSystem();
+      },
+    },
 
     relationships: {
       get: (id: string): Promise<Relationship | undefined> =>

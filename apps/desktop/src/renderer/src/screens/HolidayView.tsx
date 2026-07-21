@@ -1,4 +1,4 @@
-import type { HolidayDetail } from "@leapsake/core";
+import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
 import { Form, Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { formatOccurrence } from "./HolidayList";
@@ -13,7 +13,10 @@ import { formatOccurrence } from "./HolidayList";
  * mechanism or lineage tracking to maintain.
  */
 export function HolidayView() {
-  const holiday = useLoaderData() as HolidayDetail;
+  const { holiday, observers } = useLoaderData() as {
+    holiday: HolidayDetail;
+    observers: HolidayObserverCandidate[];
+  };
 
   return (
     <main>
@@ -64,16 +67,28 @@ export function HolidayView() {
       )}
 
       <h2>Observed by</h2>
-      <p>
-        {holiday.observerCount === 0
-          ? "No one yet."
-          : `${holiday.observerCount} ${
-              holiday.observerCount === 1 ? "person" : "people"
-            }.`}
-      </p>
+      {observers.length === 0 ? (
+        <p>No one yet.</p>
+      ) : (
+        // Each observer links to their own schedule, because the reminder rule
+        // bears on the observance, not the holiday — which is what lets one
+        // person get a gift reminder and another only a day-of call.
+        <ul>
+          {observers.map((observer) => (
+            <li key={`${observer.bearerType}:${observer.bearerId}`}>
+              <Link
+                to={`/holidays/${holiday.id}/observers/${observer.bearerType}/${observer.bearerId}`}
+              >
+                {observer.label}
+              </Link>
+              {observer.bearerType === "pet" && " (pet)"}
+            </li>
+          ))}
+        </ul>
+      )}
       <p>
         <Link to={`/holidays/${holiday.id}/observers`}>
-          {holiday.observerCount === 0
+          {observers.length === 0
             ? "Choose who celebrates this"
             : "Change who celebrates this"}
         </Link>

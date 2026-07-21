@@ -5,6 +5,7 @@ import {
   createObservancesRepo,
   createPeopleRepo,
   createPetsRepo,
+  createReminderRulesRepo,
   holidayIdFor,
   runMigrations,
 } from "@leapsake/data";
@@ -33,6 +34,7 @@ describe("holidays read API", () => {
       hiddenHolidays: createHiddenHolidaysRepo(driver),
       people: createPeopleRepo(driver),
       pets: createPetsRepo(driver),
+      reminderRules: createReminderRulesRepo(driver),
       driver,
       today: () => TODAY,
     });

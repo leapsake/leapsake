@@ -9,23 +9,28 @@ import {
 const ACTIONS = reminderActionSchema.options;
 
 /**
- * The staggered-reminder editor for a milestone: a list of rules, each an action
- * (get a gift, send a card…) some number of days before the milestone, on or
- * off. Seeded from the milestone kind's defaults (or the milestone's stored
- * rules when editing); the parent {@link MilestoneForm} serialises `value` to a
- * hidden field the route action reads. Controlled — every edit calls `onChange`
- * with the next array.
+ * The staggered-reminder editor: a list of rules, each an action (get a gift,
+ * send a card…) some number of days before an occurrence, on or off. Controlled
+ * — every edit calls `onChange` with the next array — and the parent serialises
+ * `value` to a hidden field the route action reads.
+ *
+ * Shared by both things a reminder rule can bear on: a **milestone** (seeded
+ * from its kind's defaults) and a **holiday observance** (seeded from the
+ * observance defaults, where nothing is on until the user says so). The bearer
+ * is entirely the parent's concern; this component only knows about rules.
  *
  * `other` reveals a free-text label (the reminder's wording), mirroring how the
- * `other` milestone kind reveals its note. This increment only stores the
- * schedule; the reminder engine consumes it in a later increment.
+ * `other` milestone kind reveals its note.
  */
 export function ReminderScheduleFields({
   value,
   onChange,
+  emptyText = "No reminders for this milestone.",
 }: {
   value: ReminderRuleInput[];
   onChange: (next: ReminderRuleInput[]) => void;
+  /** Copy for the no-rules case; defaults to the milestone wording. */
+  emptyText?: string;
 }) {
   const update = (index: number, patch: Partial<ReminderRuleInput>) =>
     onChange(
@@ -43,7 +48,7 @@ export function ReminderScheduleFields({
     <fieldset>
       <legend>Reminders</legend>
       {value.length === 0 ? (
-        <p>No reminders for this milestone.</p>
+        <p>{emptyText}</p>
       ) : (
         <ul>
           {value.map((rule, i) => (

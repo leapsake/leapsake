@@ -281,3 +281,169 @@ async function createHolidaysRepoRow(
     deletedAt: null,
   });
 }
+
+/**
+ * The per-observance schedule editor. This is the surface that makes a holiday
+ * do anything at all — observances ship with every action off, so without it a
+ * saved observance is inert.
+ */
+describe("observance reminder schedule", () => {
+  let driver: SqliteDriver;
+  let cleanup: () => void;
+  const CHRISTMAS = holidayIdFor("christmas");
+
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    ({ driver, cleanup } = makeEncryptedTestDriver());
+    await runMigrations(driver);
+    await seedHolidayCatalog({ driver });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  async function alice(core: ReturnType<typeof createCore>) {
+    const person = await core.people.create(
+      { firstName: "Alice", lastName: "Chen" },
+      [],
+    );
+    await core.holidays.setObservers(CHRISTMAS, [
+      { bearerType: "person", bearerId: person.id, observes: true },
+    ]);
+    return person;
+  }
+
+  it("reads the offered actions, all off, for an untouched observance", async () => {
+    const core = createCore(driver);
+    const person = await alice(core);
+
+    const schedule = await core.holidays.getObservanceSchedule(
+      CHRISTMAS,
+      "person",
+      person.id,
+    );
+    expect(schedule.length).toBeGreaterThan(0);
+    expect(schedule.every((r) => !r.enabled)).toBe(true);
+    // Furthest lead first, like the milestone editor.
+    const offsets = schedule.map((r) => r.offsetDays);
+    expect(offsets).toEqual([...offsets].sort((a, b) => b - a));
+  });
+
+  it("persists an enabled rule and reads it back", async () => {
+    const core = createCore(driver);
+    const person = await alice(core);
+
+    await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
+      { action: "gift", label: null, offsetDays: 21, enabled: true },
+    ]);
+
+    const schedule = await core.holidays.getObservanceSchedule(
+      CHRISTMAS,
+      "person",
+      person.id,
+    );
+    expect(schedule).toEqual([
+      expect.objectContaining({
+        action: "gift",
+        offsetDays: 21,
+        enabled: true,
+      }),
+    ]);
+  });
+
+  it("generates the reminder as soon as the schedule is saved", async () => {
+    // The write reconciles rather than waiting for the next boot — otherwise
+    // turning a reminder on would appear to do nothing until a restart.
+    vi.setSystemTime(new Date(2026, 11, 1, 12));
+    const core = createCore(driver);
+    const person = await alice(core);
+
+    await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
+      { action: "wish", label: null, offsetDays: 0, enabled: true },
+    ]);
+
+    const titles = (await core.reminders.list())
+      .filter((r) => r.source === "system")
+      .map((r) => r.title ?? "");
+    expect(titles.some((t) => t.includes("a Merry Christmas"))).toBe(true);
+  });
+
+  it("prunes the reminder when the rule is switched off", async () => {
+    vi.setSystemTime(new Date(2026, 11, 1, 12));
+    const core = createCore(driver);
+    const person = await alice(core);
+    await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
+      { action: "wish", label: null, offsetDays: 0, enabled: true },
+    ]);
+
+    await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
+      { action: "wish", label: null, offsetDays: 0, enabled: false },
+    ]);
+
+    const titles = (await core.reminders.list())
+      .filter((r) => r.source === "system" && r.deletedAt === null)
+      .map((r) => r.title ?? "");
+    expect(titles.some((t) => t.includes("Christmas"))).toBe(false);
+  });
+
+  it("keeps two observers of one holiday on independent schedules", async () => {
+    // The reason the rule bears on the observance rather than the holiday: one
+    // person can want a gift reminder while another wants only a day-of call.
+    vi.setSystemTime(new Date(2026, 11, 1, 12));
+    const core = createCore(driver);
+    const person = await alice(core);
+    const grandma = await core.people.create(
+      { firstName: "Rose", lastName: "Fitz" },
+      [],
+    );
+    await core.holidays.setObservers(CHRISTMAS, [
+      { bearerType: "person", bearerId: person.id, observes: true },
+      { bearerType: "person", bearerId: grandma.id, observes: true },
+    ]);
+
+    await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
+      { action: "gift", label: null, offsetDays: 21, enabled: true },
+    ]);
+    await core.holidays.setObservanceSchedule(CHRISTMAS, "person", grandma.id, [
+      { action: "call", label: null, offsetDays: 0, enabled: true },
+    ]);
+
+    const titles = (await core.reminders.list())
+      .filter((r) => r.source === "system")
+      .map((r) => r.title ?? "");
+    expect(titles.some((t) => t.includes("Get") && t.includes("Alice"))).toBe(
+      true,
+    );
+    expect(titles.some((t) => t.includes("Call") && t.includes("Rose"))).toBe(
+      true,
+    );
+    // Alice gets no call, Rose gets no gift.
+    expect(titles.some((t) => t.includes("Call") && t.includes("Alice"))).toBe(
+      false,
+    );
+  });
+
+  it("clearing the schedule falls back to the (all-off) defaults", async () => {
+    const core = createCore(driver);
+    const person = await alice(core);
+    await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
+      { action: "wish", label: null, offsetDays: 0, enabled: true },
+    ]);
+
+    await core.holidays.setObservanceSchedule(
+      CHRISTMAS,
+      "person",
+      person.id,
+      [],
+    );
+
+    const schedule = await core.holidays.getObservanceSchedule(
+      CHRISTMAS,
+      "person",
+      person.id,
+    );
+    expect(schedule.every((r) => !r.enabled)).toBe(true);
+  });
+});

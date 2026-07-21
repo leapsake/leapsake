@@ -62,6 +62,7 @@ import { ReminderList } from "./screens/ReminderList";
 import { Settings } from "./screens/Settings";
 import { TagDelete } from "./screens/TagDelete";
 import { HolidayList } from "./screens/HolidayList";
+import { HolidayObservanceSchedule } from "./screens/HolidayObservanceSchedule";
 import { HolidayObservers } from "./screens/HolidayObservers";
 import { HolidayView } from "./screens/HolidayView";
 import { TagView } from "./screens/TagView";
@@ -1162,11 +1163,17 @@ const routes: RouteObject[] = [
       {
         path: "holidays/:id",
         loader: async ({ params }: LoaderFunctionArgs) => {
-          const holiday = await window.api.holidays.get(params.id as string);
+          const id = params.id as string;
+          const [holiday, candidates] = await Promise.all([
+            window.api.holidays.get(id),
+            window.api.holidays.listObservers(id),
+          ]);
           if (!holiday) {
             throw new Response("Holiday not found", { status: 404 });
           }
-          return holiday;
+          // `listObservers` answers for the whole address book (it's the
+          // picker's read); this screen wants only those who actually observe.
+          return { holiday, observers: candidates.filter((c) => c.observes) };
         },
         element: <HolidayView />,
         action: async ({ params, request }: ActionFunctionArgs) => {
@@ -1197,6 +1204,51 @@ const routes: RouteObject[] = [
           return { holiday, candidates };
         },
         element: <HolidayObservers />,
+      },
+      {
+        // One observance's reminder schedule. Per-observance rather than
+        // per-holiday because the rule's bearer is the observance — the seam
+        // that lets two people who observe the same holiday be reminded about
+        // entirely different things.
+        path: "holidays/:id/observers/:bearerType/:bearerId",
+        loader: async ({ params }: LoaderFunctionArgs) => {
+          const id = params.id as string;
+          const bearerType = params.bearerType as "person" | "pet";
+          const bearerId = params.bearerId as string;
+          const [holiday, candidates, schedule] = await Promise.all([
+            window.api.holidays.get(id),
+            window.api.holidays.listObservers(id),
+            window.api.holidays.getObservanceSchedule(id, bearerType, bearerId),
+          ]);
+          if (!holiday) {
+            throw new Response("Holiday not found", { status: 404 });
+          }
+          const observer = candidates.find(
+            (c) => c.bearerType === bearerType && c.bearerId === bearerId,
+          );
+          if (!observer) {
+            throw new Response("Person not found", { status: 404 });
+          }
+          return {
+            holiday,
+            label: observer.label,
+            bearerType,
+            bearerId,
+            schedule,
+          };
+        },
+        element: <HolidayObservanceSchedule />,
+        action: async ({ params, request }: ActionFunctionArgs) => {
+          const formData = await request.formData();
+          const rules = readReminderSchedule(formData) ?? [];
+          await window.api.holidays.setObservanceSchedule(
+            params.id as string,
+            String(formData.get("bearerType")) as "person" | "pet",
+            String(formData.get("bearerId")),
+            rules,
+          );
+          return redirect(`/holidays/${params.id}`);
+        },
       },
       {
         path: "tags/:id",

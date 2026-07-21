@@ -4,6 +4,7 @@ import {
   isoFromCivil,
   parseRecurrence,
 } from "@leapsake/holidays";
+import { observanceIdFor } from "@leapsake/data";
 import type {
   HiddenHolidaysRepo,
   HolidaysRepo,
@@ -21,8 +22,10 @@ import {
   type CivilDate,
   type HolidayOrigin,
   type ObservanceBearerType,
+  type ReminderRuleInput,
   fullName,
   observanceDefaultReminderSchedule,
+  resolveObservanceReminderSchedule,
   todayCivil,
 } from "@leapsake/schema";
 
@@ -98,6 +101,7 @@ export interface HolidaysApiDeps {
   hiddenHolidays: HiddenHolidaysRepo;
   people: PeopleRepo;
   pets: PetsRepo;
+  reminderRules: ReminderRulesRepo;
   /** Composes a whole picker save into one transaction. */
   driver: SqliteDriver;
   /** The viewer's local civil date; injectable so tests aren't clock-dependent. */
@@ -413,6 +417,54 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
      */
     setHidden(holidayId: string, hidden: boolean): Promise<void> {
       return deps.hiddenHolidays.setHidden(holidayId, hidden);
+    },
+
+    /**
+     * One observance's effective reminder schedule — its stored rules if the
+     * user has customised them, else {@link observanceDefaultReminderSchedule}.
+     *
+     * Every action ships **off**, so this is the screen that makes a holiday
+     * actually do something. The read is the same "missing rows ⇒ defaults"
+     * contract the milestone editor uses, which is why an untouched observance
+     * still shows the full set of offered actions rather than an empty list.
+     */
+    async getObservanceSchedule(
+      holidayId: string,
+      bearerType: ObservanceBearerType,
+      bearerId: string,
+    ): Promise<ReminderRuleInput[]> {
+      return resolveObservanceReminderSchedule(
+        await deps.reminderRules.listForBearer(
+          "observance",
+          observanceIdFor(holidayId, bearerType, bearerId),
+        ),
+      );
+    },
+
+    /**
+     * Replace one observance's reminder schedule.
+     *
+     * Note this writes rows even when the schedule still matches the defaults —
+     * unlike an *observance*, where §2.2 forbids materialising a row that agrees
+     * with the implicit answer. The asymmetry is deliberate and matches
+     * milestones: `replaceForBearer` is a set-replace, and "the user opened the
+     * editor and pressed save" is itself the signal that this schedule is now
+     * authored rather than inherited. A user who wants back to defaults clears
+     * the list, which stores nothing.
+     */
+    setObservanceSchedule(
+      holidayId: string,
+      bearerType: ObservanceBearerType,
+      bearerId: string,
+      rules: ReminderRuleInput[],
+    ): Promise<void> {
+      return deps.driver.transaction(() =>
+        deps.reminderRules.replaceForBearer(
+          "observance",
+          observanceIdFor(holidayId, bearerType, bearerId),
+          rules,
+        ),
+      );
     },
   };
 }
