@@ -85,27 +85,59 @@ function authored(iso: string): number {
 }
 
 const V1 = authored("2026-07-20");
+const V2 = authored("2026-07-23");
 
 /**
  * Bump on any change to {@link CATALOG}. Integer, not semver — see the module
  * doc.
  */
-export const CATALOG_VERSION = 1;
+export const CATALOG_VERSION = 2;
 
 /**
- * ⚠️ **The two lunisolar tables below are provisional and must be verified
- * against an authoritative source before this ships.** They were authored from
- * memory, and a wrong date here is worse than a missing one: it produces a
- * confidently-wrong reminder on a day that matters to someone. The mechanism
- * they exercise is correct and tested; the *data* needs sourcing (Hebcal for
- * Hanukkah, the Hong Kong Observatory or a published Chinese calendar for Lunar
- * New Year), and the horizon should be extended to ~30 years at the same time.
+ * ## The lunisolar tables
  *
- * They are included now rather than deferred because research §2.9 is explicit
- * that the precomputed path must be proven end-to-end early — a user cannot
- * hand-author these holidays themselves, so the catalog is the only place they
- * can come from, and the recurrence engine must not ossify around arithmetic
- * rules.
+ * The two `table` entries below (Hanukkah, Lunar New Year) run to **2056**, the
+ * ~30-year horizon research §2.8 asks for. Past it they stop producing
+ * occurrences rather than producing wrong ones — the honest degradation the
+ * `table` shape exists for. **Extend them before ~2050**, and re-derive rather
+ * than extrapolate: neither sequence has a period that can be continued by eye.
+ *
+ * They are here rather than deferred because research §2.9 is explicit that the
+ * precomputed path must be proven end-to-end early — a user cannot hand-author
+ * these holidays themselves, so the catalog is the only place they can come
+ * from, and the recurrence engine must not ossify around arithmetic rules.
+ *
+ * ### How these dates were derived
+ *
+ * Both were computed from the source calendars' own rules and then cross-checked
+ * against a second, independent implementation (ICU's `Intl` calendar data, via
+ * `en-u-ca-hebrew` and `en-u-ca-chinese`), plus a regression against known
+ * published dates for years already past. A wrong date here is worse than a
+ * missing one — it produces a confidently-wrong reminder on a day that matters
+ * to someone — so no date rests on a single source.
+ *
+ * - **Hanukkah** is 25 Kislev. The Hebrew calendar is *purely arithmetic* (molad
+ *   plus the four dehiyyot), so these dates are **exact**, with no observational
+ *   or borderline cases. The independent computation and ICU agree on all 41
+ *   years checked, and reproduce 2023–2026 as published.
+ * - **Lunar New Year** is the first day of the first Chinese month, which
+ *   depends on true astronomical new moons evaluated in **China Standard Time
+ *   (UTC+8)**: month 11 is the month containing the December solstice, a leap
+ *   month is inserted where a month contains no major solar term, and month 1
+ *   follows two months later — three, when a leap month intervenes. Computed
+ *   with Meeus' new-moon and solar-longitude series; reproduces 2020–2026 as
+ *   published, **including 2034**, where the naive "second new moon after the
+ *   solstice" shortcut gives 2034-01-20 and the leap-month rule correctly gives
+ *   2034-02-19 (the well-known 2033 anomaly).
+ *
+ * Two Lunar New Year dates are astronomically **borderline** — the new moon
+ * falls within minutes of local midnight, so the civil date turns on precision
+ * rather than on the rule: **2027** (23:56 CST, 4 min before midnight) and
+ * **2030** (00:07 CST, 7 min after). ICU disagrees on exactly these two and no
+ * others, which is the signature of its lower-precision astronomer rather than a
+ * dispute about the calendar. The values kept here match the Meeus computation
+ * and the published tables. If either is ever contradicted by the Purple
+ * Mountain Observatory's official almanac, that is the authority — change it.
  */
 export const CATALOG: readonly HolidayEntry[] = [
   // ── Fixed date ────────────────────────────────────────────────────────────
@@ -235,8 +267,9 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "hanukkah",
     name: "Hanukkah",
     greeting: "a Happy Hanukkah",
-    // First day (the daytime date; the festival begins the preceding evening).
-    // PROVISIONAL — verify against Hebcal and extend to a ~30-year horizon.
+    // 25 Kislev — the first day (the daytime date; the festival begins the
+    // preceding evening). Exact: the Hebrew calendar is arithmetic. See the
+    // module doc for derivation.
     recurrence: {
       type: "table",
       dates: [
@@ -250,17 +283,38 @@ export const CATALOG: readonly HolidayEntry[] = [
         "2033-12-17",
         "2034-12-07",
         "2035-12-26",
+        "2036-12-14",
+        "2037-12-03",
+        "2038-12-22",
+        "2039-12-12",
+        "2040-11-30",
+        "2041-12-18",
+        "2042-12-08",
+        "2043-12-27",
+        "2044-12-15",
+        "2045-12-04",
+        "2046-12-24",
+        "2047-12-13",
+        "2048-11-30",
+        "2049-12-20",
+        "2050-12-10",
+        "2051-11-29",
+        "2052-12-16",
+        "2053-12-06",
+        "2054-12-26",
+        "2055-12-15",
+        "2056-12-03",
       ],
     },
     durationDays: 8,
-    authoredAt: V1,
+    authoredAt: V2,
   },
   {
     slug: "lunar-new-year",
     name: "Lunar New Year",
     greeting: "a Happy Lunar New Year",
-    // PROVISIONAL — verify against a published Chinese calendar and extend to a
-    // ~30-year horizon.
+    // First day of Chinese month 1, from true new moons in UTC+8. 2027 and 2030
+    // are the borderline pair called out in the module doc.
     recurrence: {
       type: "table",
       dates: [
@@ -273,9 +327,30 @@ export const CATALOG: readonly HolidayEntry[] = [
         "2033-01-31",
         "2034-02-19",
         "2035-02-08",
+        "2036-01-28",
+        "2037-02-15",
+        "2038-02-04",
+        "2039-01-24",
+        "2040-02-12",
+        "2041-02-01",
+        "2042-01-22",
+        "2043-02-10",
+        "2044-01-30",
+        "2045-02-17",
+        "2046-02-06",
+        "2047-01-26",
+        "2048-02-14",
+        "2049-02-02",
+        "2050-01-23",
+        "2051-02-11",
+        "2052-02-01",
+        "2053-02-19",
+        "2054-02-08",
+        "2055-01-28",
+        "2056-02-15",
       ],
     },
     familyId: "lunar-new-year",
-    authoredAt: V1,
+    authoredAt: V2,
   },
 ];

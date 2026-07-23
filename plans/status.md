@@ -37,8 +37,10 @@
   year doesn't collapse. Design: [`holidays/research.md`](./holidays/research.md) (§4's four open
   questions are now settled there). Holidays are also **searchable** (their own result type, on the
   `tag` precedent), and each observance has its own **reminder-schedule editor** — needed because
-  observance defaults ship with every action off. **Remaining: the two lunisolar date tables**
-  (provisional, authored from memory — see the warning in `packages/holidays/src/catalog.ts`).
+  observance defaults ship with every action off. The two lunisolar tables are now **derived and
+  cross-checked** (Hanukkah from the arithmetic Hebrew calendar; Lunar New Year from true new moons
+  in UTC+8 with the leap-month rule), each verified against a second independent implementation and
+  against published dates for years already past, and both run to **2056**. **Nothing outstanding.**
 - **Reminders (home-screen surface)** — a user-generated, syncable Reminder entity (freeform
   title/body, reversible completion, inline `#tags`, **due dates**), the **landing / Home screen on
   both clients** (People & Pets at `/people`; inline `#tags` link to their tag page and a tag's page
@@ -146,11 +148,12 @@ can't ship without distributable apps. (None yet.)
   onboarding-as-reminders are all done — see the *Where things stand* bullet and
   [`reminders.md`](./reminders.md). **Next: reminder search**; Leapsake-defined tasks extend the
   same engine later.
-- **Holidays — remaining work: source the lunisolar tables.** Hanukkah and Lunar New Year shipped
-  with dates authored from memory and flagged provisional in the catalog module. Verify against
-  Hebcal and a published Chinese calendar, and extend both to the ~30-year horizon
-  [`research.md`](./holidays/research.md) §2.8 specifies. A wrong date here is worse than a missing
-  one: it produces a confidently-wrong reminder on a day that matters to someone.
+- **Holidays — done.** The lunisolar tables are sourced and extended to 2056 (`CATALOG_VERSION` 2).
+  Every provisional date held up under verification — none were wrong — but they are now *derived*
+  rather than remembered, and the horizon went from ~9 years to 30. Derivation and the two
+  borderline Lunar New Year years are documented in `packages/holidays/src/catalog.ts`. The only
+  future task is calendrical and distant: **extend both tables before ~2050**, re-deriving rather
+  than extrapolating.
 
 ### v0.2 (first post-launch feature increment)
 

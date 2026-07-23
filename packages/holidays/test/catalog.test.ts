@@ -92,6 +92,56 @@ describe("catalog dates", () => {
     expect(on("lunar-new-year", 2027)).toEqual(["2027-02-06"]);
   });
 
+  it("pins the lunisolar dates that a rule would get wrong", () => {
+    // Each of these is a spot-check of a *different* way the data could be
+    // wrong, so a regression names its own cause rather than just "a date moved".
+
+    // Hanukkah drifts across a five-week Gregorian window and can fall in
+    // November — anything that assumed "late December" is wrong here.
+    expect(on("hanukkah", 2032)).toEqual(["2032-11-28"]);
+    expect(on("hanukkah", 2040)).toEqual(["2040-11-30"]);
+    // ...and can land after Christmas.
+    expect(on("hanukkah", 2043)).toEqual(["2043-12-27"]);
+
+    // 2034 is the leap-month case: the naive "second new moon after the winter
+    // solstice" rule yields 2034-01-20, a month early. See the module doc.
+    expect(on("lunar-new-year", 2034)).toEqual(["2034-02-19"]);
+
+    // The two borderline years, where the new moon falls within minutes of
+    // midnight in UTC+8 and the civil date turns on precision, not on the rule.
+    expect(on("lunar-new-year", 2027)).toEqual(["2027-02-06"]);
+    expect(on("lunar-new-year", 2030)).toEqual(["2030-02-03"]);
+  });
+
+  it("carries both lunisolar tables to the ~30-year horizon", () => {
+    // Research §2.8 asks for ~30 years. The failure mode this guards is silent:
+    // a table that quietly runs out stops generating reminders rather than
+    // erroring, so nothing else would notice.
+    for (const slug of ["hanukkah", "lunar-new-year"]) {
+      const entry = bySlug.get(slug);
+      if (entry?.recurrence.type !== "table")
+        throw new Error(`${slug} is not a table`);
+      const last = entry.recurrence.dates.at(-1) ?? "";
+      expect(Number(last.slice(0, 4))).toBeGreaterThanOrEqual(2056);
+    }
+  });
+
+  it("keeps every lunisolar table ascending, unique and well-formed", () => {
+    // Ascending order is load-bearing: `occurrencesFor` and the horizon check
+    // both read the array as sorted.
+    for (const entry of CATALOG) {
+      if (entry.recurrence.type !== "table") continue;
+      const { dates } = entry.recurrence;
+      for (const d of dates) expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect([...dates]).toEqual([...dates].sort());
+      expect(new Set(dates).size).toBe(dates.length);
+      // One occurrence per year for both of these holidays, over this horizon —
+      // a duplicated year would mean a transcription slip.
+      const years = dates.map((d) => d.slice(0, 4));
+      expect(new Set(years).size).toBe(years.length);
+    }
+  });
+
   it("stops rather than extrapolating past the lunisolar horizon", () => {
     expect(on("hanukkah", 2099)).toEqual([]);
     expect(on("lunar-new-year", 2099)).toEqual([]);
@@ -138,7 +188,7 @@ describe("catalog serialization", () => {
       ].join(FIELD),
     ).join(RECORD);
     expect(createHash("sha256").update(payload).digest("hex")).toBe(
-      "46786ffca43fc76b04579538f00f6a0cb1dc79b0aaf793531b8e64cc950182c4",
+      "44f6d06defec148823fb00b5748f596235e30ec214b1bb66bd0a71a7c73b0360",
     );
   });
 

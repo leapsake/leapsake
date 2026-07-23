@@ -363,9 +363,12 @@ is the additive fix — an overlay, never an edit.
 - **SETTLED — v1 catalog breadth.** **15 entries covering every recurrence shape**: six fixed,
   five nth-weekday, Western Easter (computus), Good Friday (offset), and Hanukkah + Lunar New Year
   from precomputed tables — so no path in the §2.8 matrix is unexercised, and §2.9's insistence on
-  an early lunisolar entry is honoured. ⚠️ Those two tables were authored from memory and are
-  flagged provisional in `packages/holidays/src/catalog.ts`; they need sourcing and extending to
-  the ~30-year horizon before ship. Original question: and it
+  an early lunisolar entry is honoured. Those two tables were initially authored from memory and
+  flagged provisional; **as of 2026-07-23 they are derived from the source calendars' own rules,
+  cross-checked against an independent implementation, and extended to 2056.** The §2.8 bet that a
+  precomputed table beats bundling a calendar library held: the arithmetic Hebrew calendar makes
+  Hanukkah exact, and Lunar New Year needs true new moons in UTC+8 plus the leap-month rule — real
+  astronomy that no arithmetic recurrence rule could have carried. Original question: and it
   determines how much of the recurrence matrix must exist immediately (see §2.9 — at least one
   lunar entry).
 - **Observed-date shifting** (holiday falls Saturday → observed Friday). Matters for "office

@@ -295,8 +295,6 @@ Pre-flight, in order (git history is public *forever* — this precedes the flip
 ## 8. What this plan does *not* change
 
 The pre-v0.1 items already in [`status.md`](./status.md) — vCard export, CK revocation/GC,
-background-fetch sync, relay disposability, reminder search, the lunisolar holiday tables —
-are untouched by this plan and can interleave as capacity allows. The one exception is the
-**lunisolar tables**, which are a correctness bug with real user-facing harm ("a confidently
-wrong reminder on a day that matters to someone") and should close before public launch
-regardless of where they sit in this sequence.
+background-fetch sync, relay disposability, reminder search — are untouched by this plan and
+can interleave as capacity allows. The **lunisolar holiday tables** were on this list as the one
+launch-blocking exception; they closed on 2026-07-23 (derived, cross-checked, extended to 2056).
