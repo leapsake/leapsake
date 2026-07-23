@@ -22,6 +22,7 @@ client-agnostic data/core layer underneath all clients.
 |---|---|
 | **Know what's done and what's next (any workstream)** | **[`status.md`](./status.md)** — the single status oracle |
 | **Know the product posture / user model (stable "why")** | **[`product-truths.md`](./product-truths.md)** — launch posture + the user/client/account/sharing/encryption model |
+| **Ship v0.1 — packaging, signing, stores, the release gate** | [`launch.md`](./launch.md) — the distribution plan + its increments |
 | Understand the encryption / privacy / sync design | [`encryption/`](./encryption/) — start at its `README.md` (then `model.md`, `sync.md`, `schema.md`, `custody-sequence.md`) |
 | Understand the file/media (photos v0.2) design | [`files.md`](./files.md) — the encrypted-blob invariants, pinned before build |
 | Understand the holidays design | [`holidays/research.md`](./holidays/research.md) — the catalog/observance/rule layering + decisions, pinned before build |
