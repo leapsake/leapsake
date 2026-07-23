@@ -9,10 +9,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "net.leapsake.mobile"
+      "bundleIdentifier": "com.leapsake.app"
     },
     "android": {
-      "package": "net.leapsake.mobile"
+      "package": "com.leapsake.app"
     },
     "web": {},
     "plugins": [

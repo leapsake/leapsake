@@ -18,7 +18,7 @@
 #
 # iOS-specific and invoked by scripts/test-native.mjs; the assertion itself lives in the
 # platform-neutral driver-selftest.yaml, which this flow does not touch.
-appId: net.leapsake.mobile
+appId: com.leapsake.app
 ---
 - launchApp
 

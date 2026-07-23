@@ -41,7 +41,7 @@ import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-const APP_ID = "net.leapsake.mobile"; // app.json → android.package / ios.bundleIdentifier
+const APP_ID = "com.leapsake.app"; // app.json → android.package / ios.bundleIdentifier
 const SCHEME = "leapsake"; // app.json → scheme
 const METRO_PORT = 8081;
 const METRO_URL = `http://localhost:${METRO_PORT}`;

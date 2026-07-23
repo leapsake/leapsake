@@ -18,9 +18,9 @@
 # exists once JS is loaded. To run this flow by hand, first open the app to its home
 # screen against a running Metro (see ./README.md).
 #
-# `net.leapsake.mobile` is the dev-client build id (app.json → android.package /
+# `com.leapsake.app` is the dev-client build id (app.json → android.package /
 # ios.bundleIdentifier).
-appId: net.leapsake.mobile
+appId: com.leapsake.app
 ---
 # Deep-link into the dev-only self-test route (expo-router
 # apps/mobile/app/dev-selftest.tsx). This foregrounds the already-loaded app and

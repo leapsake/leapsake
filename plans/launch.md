@@ -15,7 +15,7 @@
 |---|---|---|
 | Developer account type | **Individual**, both stores | Cheapest start; legal name is the public seller name; Play's 12-tester/14-day wall applies |
 | Eventual org move | **Yes, early** — via app transfer | Transfers preserve installs/reviews/bundle IDs, but **not keychain access** (§2) |
-| Bundle IDs | `com.leapsake.mobile` · `com.leapsake.desktop` | Must change *before* first publish — permanent afterward |
+| Bundle IDs | `com.leapsake.app` · `com.leapsake.desktop` | Must change *before* first publish — permanent afterward. `.app` (not `.mobile`) is form-factor-neutral, so a future iPad/tvOS/watchOS target joins the same Apple record via Universal Purchase; it also survives an RN→native rewrite, since a bundle ID names the product, not the codebase. Electron stays a separate identity — Universal Purchase would require the Mac App Store and cost `electron-updater` (Increment 8) |
 | macOS distribution | **Direct download**, notarized, not Mac App Store | No review latency for desktop; auto-update is ours to own; MAS sandbox pain avoided |
 | Release gate | **Local script** over `pnpm test:all --strict` | Real keychain, $0, honors testing principle #6; hosted CI is an *additional* PR check |
 | Repo visibility | **Public at (or shortly before) v0.1** | Unlocks free macOS Actions runners; requires the §7 pre-flight first |
@@ -32,7 +32,7 @@ move key custody:
   app's code signature. A Leapsake LLC Developer ID is a different signing principal; the
   existing item stops being readable.
 - **iOS** — keychain access groups are prefixed with the Team ID
-  (`$(AppIdentifierPrefix)com.leapsake.mobile`). New team, new prefix, existing items
+  (`$(AppIdentifierPrefix)com.leapsake.app`). New team, new prefix, existing items
   unreachable.
 
 So on the day of the org move, **every user's enclave key becomes unreadable and they boot
@@ -103,20 +103,16 @@ half-built if the next one is deferred.
 
 **Value:** closes the only permanent, free-to-fix decision on the board.
 
-- `apps/mobile/app.json`: `net.leapsake.mobile` → `com.leapsake.mobile` (both
-  `ios.bundleIdentifier` and `android.package`; keep them identical).
 - Pick the real `version` (currently `0.0.0`) and the versioning scheme for both clients.
-- `git rm --cached apps/mobile/.expo/devices.json apps/mobile/.expo/README.md` — tracked
-  despite `.expo/` sitting in `apps/mobile/.gitignore:8` (committed before the rule; this is
-  also the perpetually-dirty file in `git status`).
 - **Preemptively** gitignore the credential shapes Increments 4/7 will introduce: `*.p12`,
   `AuthKey_*.p8`, `*.mobileprovision`, `*.jks`, `*.keystore`, `credentials.json`. Cheaper
   than a history rewrite.
 
-**Acceptance:** fresh dev install on both platforms under the new ID; `git status` clean.
-**Note:** the ID change resets the iOS/Android app identity, so existing dev installs lose
-their secure store and DB. Expected — do it before any real data exists. `scheme: "leapsake"`
-deep links and the Maestro flows are unaffected.
+**Acceptance:** fresh dev install on both platforms under `com.leapsake.app`; `git status`
+clean.
+**Note:** the new ID is a new app identity, so existing dev installs hold orphaned data under
+the old one — uninstall them and rebuild the dev client before running `pnpm test:native`.
+`scheme: "leapsake"` is unchanged, so the `leapsake://` deep links still route.
 
 ### Increment 2 — Recovery-phrase onboarding nudge
 
@@ -243,7 +239,6 @@ succeeds only on a full green.
 **Value:** transparency for a privacy product; free macOS Actions runners.
 
 Pre-flight, in order (git history is public *forever* — this precedes the flip):
-- ✅ `relay.db` already untracked and gitignored — verified, no account data leaks.
 - Confirm `apps/server/test/fixtures/localhost-test-only.key` is a throwaway self-signed
   localhost cert (the name says so; verify).
 - Run a proper secret scan over full history (gitleaks/trufflehog). Filename-level scanning
