@@ -170,9 +170,26 @@ async function createRelationships(
   }
 }
 
-/** The combined People & Pets home list, merged and sorted by display name. */
-function entityListLoader() {
-  return window.api.views.entityList();
+/**
+ * The combined People & Pets home list, merged and sorted by display name, plus
+ * the id of the Person that is "you" (or null) so the list can badge it "You"
+ * and the pick-self flow can tick the current choice (plans/gifts.md §Slice 0).
+ */
+async function entityListLoader() {
+  const [entities, self] = await Promise.all([
+    window.api.views.entityList(),
+    window.api.self.get(),
+  ]);
+  return { entities, selfPersonId: self?.personId ?? null };
+}
+
+/** Set the self-person from the pick-self flow, then return to the list (now
+ *  badged "You"). The form carries the chosen Person's id. */
+async function entityListAction({ request }: { request: Request }) {
+  const form = await request.formData();
+  const personId = String(form.get("personId"));
+  await window.api.self.set(personId);
+  return redirect("/people");
 }
 
 /**
@@ -834,6 +851,7 @@ const routes: RouteObject[] = [
       {
         path: "people",
         loader: entityListLoader,
+        action: entityListAction,
         element: <EntityList />,
       },
       {

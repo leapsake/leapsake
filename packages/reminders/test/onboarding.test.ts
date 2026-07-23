@@ -23,7 +23,7 @@ const TODAY: CivilDate = { year: 2026, month: 6, day: 1 };
  */
 function makeHarness() {
   const rows = new Map<string, Reminder>();
-  const signals = { hasEntities: false, syncConnected: false };
+  const signals = { hasEntities: false, syncConnected: false, hasSelf: false };
 
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => [] },
@@ -54,6 +54,7 @@ function makeHarness() {
     onboarding: {
       hasAnyEntity: async () => signals.hasEntities,
       isSyncConnected: async () => signals.syncConnected,
+      hasSelf: async () => signals.hasSelf,
     },
   };
 
@@ -81,6 +82,8 @@ describe("onboarding reminders", () => {
 
   it("seeds both nudges for a fresh store — dateless, system-sourced, exact copy", async () => {
     const result = await regenerateSystemReminders(h.deps);
+    // A fresh store has no entities, so the pick-self nudge (which needs a person
+    // to pick from) doesn't apply yet — only the sync and add-person nudges do.
     expect(result).toEqual({ created: 2, updated: 0, removed: 0 });
 
     const rows = h.activeSystem();
@@ -94,7 +97,7 @@ describe("onboarding reminders", () => {
 
     // Ids are exactly the exported convention, so client CTA lookup lines up.
     expect(new Set(rows.map((r) => r.id))).toEqual(
-      new Set(ONBOARDING_REMINDERS.map((o) => o.id)),
+      new Set([idFor("connect-sync"), idFor("add-person")]),
     );
     expect(h.byId(idFor("add-person"))?.title).toBe(
       "👋 Add your first person to get started",
@@ -127,6 +130,7 @@ describe("onboarding reminders", () => {
     await regenerateSystemReminders(h.deps);
 
     h.signals.hasEntities = true; // user added their first person/pet
+    h.signals.hasSelf = true; // ...and already picked themselves (isolate this nudge)
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 0, removed: 1 });
 
@@ -149,6 +153,7 @@ describe("onboarding reminders", () => {
     await regenerateSystemReminders(h.deps);
     h.signals.hasEntities = true;
     h.signals.syncConnected = true;
+    h.signals.hasSelf = true; // all three conditions met
 
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 0, removed: 2 });
@@ -171,6 +176,7 @@ describe("onboarding reminders", () => {
   it("does not re-nag a retired nudge if its condition later reverts", async () => {
     await regenerateSystemReminders(h.deps);
     h.signals.hasEntities = true;
+    h.signals.hasSelf = true; // isolate: don't introduce the pick-self nudge
     await regenerateSystemReminders(h.deps); // 'add-person' retired (tombstoned)
 
     // The user deletes all their people again — the condition reverts, but the
@@ -179,6 +185,31 @@ describe("onboarding reminders", () => {
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.byId(idFor("add-person"))?.deletedAt).not.toBeNull();
+  });
+
+  it("surfaces 'pick yourself' once a person exists and self is unset", async () => {
+    // Fresh store: no person to pick from, so the nudge is absent.
+    await regenerateSystemReminders(h.deps);
+    expect(h.activeSystem().map((r) => r.id)).not.toContain(idFor("pick-self"));
+
+    // A person now exists but self is still unset — the nudge applies.
+    h.signals.hasEntities = true;
+    await regenerateSystemReminders(h.deps);
+    const pickSelf = h.byId(idFor("pick-self"));
+    expect(pickSelf?.title).toBe("🙋 Which of these is you? Pick yourself.");
+    expect(pickSelf?.dueDate).toBeNull();
+    expect(h.activeSystem().map((r) => r.id)).toContain(idFor("pick-self"));
+  });
+
+  it("retires 'pick yourself' once the self-person is set", async () => {
+    h.signals.hasEntities = true;
+    await regenerateSystemReminders(h.deps); // pick-self surfaced
+    expect(h.activeSystem().map((r) => r.id)).toContain(idFor("pick-self"));
+
+    h.signals.hasSelf = true; // user picked themselves
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result.removed).toBeGreaterThanOrEqual(1);
+    expect(h.activeSystem().map((r) => r.id)).not.toContain(idFor("pick-self"));
   });
 
   it("skips onboarding entirely when no port is injected", async () => {

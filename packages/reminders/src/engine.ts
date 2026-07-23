@@ -100,6 +100,16 @@ export interface ReminderEngineDeps {
     bearerType: MilestoneBearerType,
     bearerId: string,
   ): Promise<string | null>;
+  /**
+   * Whether a milestone bearer is the **self-person** (plans/gifts.md §Slice 0) —
+   * flips the birthday *wish* copy from "Wish @You a happy birthday" to a self-
+   * directed "It's your birthday!". A single branch in the copy layer, keyed on
+   * `getSelf()`, **not** a filter: your own birthday is still reminded, just
+   * addressed to you. **Optional**, like `onboarding`/`holidays`, so engine unit
+   * tests may omit it (the wish then always uses the third-party copy); the
+   * composition root supplies it.
+   */
+  isSelf?(bearerType: MilestoneBearerType, bearerId: string): Promise<boolean>;
   /** The **local civil** "today" reconcile runs against (see reminder-schedule). */
   today: CivilDate;
   /** Run the reconcile body atomically (the real driver's `transaction`). */
@@ -115,6 +125,8 @@ export interface ReminderEngineDeps {
     hasAnyEntity(): Promise<boolean>;
     /** Whether this device has connected to a sync relay. */
     isSyncConnected(): Promise<boolean>;
+    /** Whether the self-person has been picked yet (plans/gifts.md §Slice 0). */
+    hasSelf(): Promise<boolean>;
   };
   /**
    * The holiday-observance source — the second family of recurring dated facts
@@ -203,12 +215,13 @@ function occurrenceName(
  * (not a concrete client path) so each client maps it to its own router — see
  * {@link onboardingRouteOf} and the client CTA tables.
  */
-export type OnboardingRoute = "add-person" | "connect-sync";
+export type OnboardingRoute = "add-person" | "connect-sync" | "pick-self";
 
 /** The raw first-run signals an onboarding step's condition is evaluated against. */
 interface OnboardingSignals {
   hasEntities: boolean;
   syncConnected: boolean;
+  hasSelf: boolean;
 }
 
 /** One first-run nudge: a stable `key` (folded into its deterministic id), the
@@ -252,6 +265,15 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     title: "👋 Add your first person to get started",
     route: "add-person",
     applies: (s) => !s.hasEntities,
+  },
+  {
+    // Pick yourself, once there's a list to pick from — the self-person is the
+    // ego anchor gifts (and, later, kinship) need (plans/gifts.md §Slice 0). It
+    // sits below add-person because you can't pick yourself from an empty list.
+    key: "pick-self",
+    title: "🙋 Which of these is you? Pick yourself.",
+    route: "pick-self",
+    applies: (s) => s.hasEntities && !s.hasSelf,
   },
 ];
 
@@ -392,26 +414,42 @@ async function computeAndReconcile(
         ? label
         : mentionToken(label, m.bearerType, m.bearerId);
 
+    // Is this milestone's bearer *you*? A single copy-layer branch (below) flips
+    // the birthday wish to self-directed rather than filtering your own birthday
+    // out — you are not excluded (plans/gifts.md §Slice 0). Resolved once per
+    // milestone: only a person can be self, and only when the port is supplied.
+    const bearerIsSelf =
+      m.bearerType === "person" && deps.isSelf !== undefined
+        ? await deps.isSelf(m.bearerType, m.bearerId)
+        : false;
+
     for (const rule of rules) {
       const id = deterministicUuid(
         SYSTEM_REMINDER_NAMESPACE,
         occurrenceName(m.id, occ.year, rule.action),
       );
       const def = actionDefs[rule.action];
-      // The action's copy carries the (mention-wrapped) subject — "Wish @Alice a
-      // happy birthday", "Get @Alice a gift". `other` has no template; it is the
-      // user's own free text, so it names no subject (nothing to interpolate).
-      const body =
-        rule.action === "other"
-          ? reminderRuleLabel({
-              action: rule.action,
-              label: rule.label ?? null,
-            })
-          : def.template({
-              subject,
-              greeting: kindDefs[m.kind].greeting,
-            });
-      const title = `${def.icon ?? ""} ${body}`.trim();
+      let title: string;
+      if (bearerIsSelf && rule.action === "wish" && m.kind === "birthday") {
+        // Your own birthday — addressed *to* you, so no "@You" mention token and
+        // a celebratory icon in place of "Wish @You a happy birthday".
+        title = "🎂 It's your birthday!";
+      } else {
+        // The action's copy carries the (mention-wrapped) subject — "Wish @Alice a
+        // happy birthday", "Get @Alice a gift". `other` has no template; it is the
+        // user's own free text, so it names no subject (nothing to interpolate).
+        const body =
+          rule.action === "other"
+            ? reminderRuleLabel({
+                action: rule.action,
+                label: rule.label ?? null,
+              })
+            : def.template({
+                subject,
+                greeting: kindDefs[m.kind].greeting,
+              });
+        title = `${def.icon ?? ""} ${body}`.trim();
+      }
       // Due `offsetDays` before the occurrence (day-of when 0); stored as UTC
       // midnight of that civil day, so plain integer subtraction is exact.
       desired.set(id, {
@@ -500,6 +538,7 @@ async function computeAndReconcile(
     const signals: OnboardingSignals = {
       hasEntities: await deps.onboarding.hasAnyEntity(),
       syncConnected: await deps.onboarding.isSyncConnected(),
+      hasSelf: await deps.onboarding.hasSelf(),
     };
     for (const [index, step] of ONBOARDING_STEPS.entries()) {
       if (!step.applies(signals)) continue;

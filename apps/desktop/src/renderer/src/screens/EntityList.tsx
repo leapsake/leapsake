@@ -1,26 +1,50 @@
 import type { EntityRow } from "@leapsake/core";
-import { Link, useLoaderData } from "react-router-dom";
+import {
+  Link,
+  useFetcher,
+  useLoaderData,
+  useSearchParams,
+} from "react-router-dom";
 import { entityBasePath } from "../lib/entityLabel";
 
 export type { EntityRow };
+
+/** The list plus who "you" are — the loader resolves the self-person alongside
+ *  the entities so a row can be badged and the pick-self flow can tick it. */
+interface EntityListData {
+  entities: EntityRow[];
+  selfPersonId: string | null;
+}
 
 /**
  * The combined "People & Pets" home screen. People and pets are minor variations
  * on the same idea, so they share one alphabetical list rather than two parallel
  * screens; each row links to its own view page.
+ *
+ * `?pick=self` puts the screen in **pick-yourself** mode (reached from the
+ * onboarding nudge or the post-import prompt): each Person row offers a "This is
+ * me" button that sets the self-person (plans/gifts.md §Slice 0). Pets can't be
+ * you, so they show nothing in that mode.
  */
 export function EntityList() {
-  const entities = useLoaderData() as EntityRow[];
+  const { entities, selfPersonId } = useLoaderData() as EntityListData;
+  const [params] = useSearchParams();
+  const picking = params.get("pick") === "self";
+  const fetcher = useFetcher();
 
   return (
     <main>
       <h1>People &amp; Pets</h1>
 
-      <p>
-        <Link to="/people/new">Add person</Link>{" "}
-        <Link to="/pets/new">Add pet</Link>{" "}
-        <Link to="/duplicates">Review duplicates</Link>
-      </p>
+      {picking ? (
+        <p>Which of these is you? Pick yourself from the list.</p>
+      ) : (
+        <p>
+          <Link to="/people/new">Add person</Link>{" "}
+          <Link to="/pets/new">Add pet</Link>{" "}
+          <Link to="/duplicates">Review duplicates</Link>
+        </p>
+      )}
 
       {entities.length === 0 ? (
         <p>Nobody here yet.</p>
@@ -32,15 +56,36 @@ export function EntityList() {
             </tr>
           </thead>
           <tbody>
-            {entities.map((entity) => (
-              <tr key={`${entity.type}:${entity.id}`}>
-                <td>
-                  <Link to={`${entityBasePath(entity.type)}/${entity.id}`}>
-                    {entity.label}
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {entities.map((entity) => {
+              const isSelf =
+                entity.type === "person" && entity.id === selfPersonId;
+              return (
+                <tr key={`${entity.type}:${entity.id}`}>
+                  <td>
+                    <Link to={`${entityBasePath(entity.type)}/${entity.id}`}>
+                      {entity.label}
+                    </Link>{" "}
+                    {isSelf && <small style={{ color: "#666" }}>(You)</small>}
+                    {/* Pick-yourself: only a Person can be you, and there's no
+                        point offering it on the row that's already you. */}
+                    {picking && entity.type === "person" && !isSelf && (
+                      <fetcher.Form
+                        method="post"
+                        action="/people"
+                        style={{ display: "inline" }}
+                      >
+                        <input
+                          type="hidden"
+                          name="personId"
+                          value={entity.id}
+                        />
+                        <button type="submit">This is me</button>
+                      </fetcher.Form>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

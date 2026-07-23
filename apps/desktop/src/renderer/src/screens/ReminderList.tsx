@@ -18,6 +18,7 @@ const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
   {
     "add-person": { path: "/people/new", label: "Add person →" },
     "connect-sync": { path: "/settings", label: "Set up sync →" },
+    "pick-self": { path: "/people?pick=self", label: "Pick yourself →" },
   };
 
 /**

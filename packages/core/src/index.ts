@@ -20,6 +20,7 @@ import {
   createReminderRulesRepo,
   createRemindersRepo,
   createSearchService,
+  createSelfPersonRepo,
   createTagsRepo,
   listContactMethods,
   listTimelineForEntity,
@@ -55,6 +56,7 @@ import type {
   ReminderWithTags,
   ResolvedMention,
   SearchHit,
+  SelfPerson,
   Tag,
   UpdateEmailInput,
   UpdateMilestoneInput,
@@ -271,6 +273,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
   const milestones = createMilestonesRepo(driver, cipher);
   const reminderRules = createReminderRulesRepo(driver);
   const reminders = createRemindersRepo(driver);
+  const self = createSelfPersonRepo(driver);
   const mentions = createMentionsRepo(driver);
   const holidays = createHolidaysRepo(driver);
   const observances = createObservancesRepo(driver);
@@ -490,17 +493,25 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         bearerType === "relationship"
           ? null
           : ((await resolveLabel(bearerType, bearerId)) ?? null),
+      // Is a milestone's bearer the self-person? Flips your own birthday's wish to
+      // its self-directed copy (plans/gifts.md §Slice 0). Only a person can be
+      // self, so a pet/relationship bearer is `false` without a lookup.
+      isSelf: async (bearerType, bearerId) =>
+        bearerType === "person" &&
+        bearerId === (await self.getSelf())?.personId,
       today: todayCivil(),
       transaction: (body) => driver.transaction(body),
       // The first-run signals for the onboarding nudges. `hasAnyEntity` gates the
       // "add your first person" step; a relay-connected account (a `relayUrl` on
-      // the singleton) gates the "sync another device" step. Both retire (prune)
-      // automatically once satisfied — see `@leapsake/reminders` ONBOARDING_STEPS.
+      // the singleton) gates the "sync another device" step; `hasSelf` gates the
+      // "pick yourself" step. All retire (prune) automatically once satisfied —
+      // see `@leapsake/reminders` ONBOARDING_STEPS.
       onboarding: {
         hasAnyEntity: async () =>
           (await people.list()).length > 0 || (await pets.list()).length > 0,
         isSyncConnected: async () =>
           (await getSyncStatus({ driver })).relayUrl !== undefined,
+        hasSelf: async () => (await self.getSelf()) !== undefined,
       },
       // Holiday observances — the second dated reminder family. Always supplied
       // here, never conditionally: the engine prunes (and permanently
@@ -979,6 +990,24 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       // reconcile on their own (see `milestones`), so this needn't be called after
       // them. See {@link regenerateSystem}.
       regenerateSystem,
+    },
+
+    // Who "you" are — a pointer at the Person that is the self (plans/gifts.md
+    // §Slice 0). `get` reads the singleton (undefined when unset); `set` points
+    // it at an existing Person and reconciles the automated reminders, so your
+    // own birthday's wish flips to its self-directed copy at once (rather than
+    // waiting for the next boot/focus reconcile); `clear` un-picks it.
+    self: {
+      get: (): Promise<SelfPerson | undefined> => self.getSelf(),
+      set: async (personId: string): Promise<SelfPerson> => {
+        const row = await self.setSelf(personId);
+        await regenerateSystem();
+        return row;
+      },
+      clear: async (): Promise<void> => {
+        await self.clearSelf();
+        await regenerateSystem();
+      },
     },
 
     contactMethods: {

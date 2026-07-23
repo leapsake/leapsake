@@ -658,6 +658,39 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 23,
+    async up(driver) {
+      // The self-person (plans/gifts.md §Slice 0) — a synced singleton pointing
+      // at the Person that is "you". Gifts are the first feature to need a self
+      // concept (who gave / received); it is also the future kinship ego anchor
+      // and the "me" of vCard export.
+      //
+      // A **fixed-PK singleton**, deliberately not `account.self_id` and not
+      // `people.is_self` + a partial-unique-index. A local-only user has no
+      // `account` row and `account` is off the sync allowlist (zero-knowledge),
+      // so `self_id` would have nowhere to live and couldn't ride the people
+      // channel. And two devices each marking a *different* person as self via a
+      // `people.is_self` unique index would collide on merge — a hard, manual-
+      // only sync failure. Here both devices write the *same* primary key (the
+      // constant SELF_PERSON_ID), so whole-row LWW resolves it like everything
+      // else: one row, last writer wins, no error.
+      //
+      // Plaintext synced row (no per-item content key), like reminders: a self
+      // pointer is not a share target and rides whole-DB-at-rest + the master-key
+      // sync seal. No FK on `person_id` — it points into the synced people rows
+      // and resolves at read, never enforced at write (sync rows carry no FKs).
+      await driver.exec(`
+        CREATE TABLE self_person (
+          id         TEXT    PRIMARY KEY,
+          person_id  TEXT    NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          deleted_at INTEGER
+        );
+      `);
+    },
+  },
 ];
 
 /**

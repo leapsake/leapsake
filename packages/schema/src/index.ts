@@ -65,6 +65,13 @@ export type {
 export { taggingSchema, tagBearerTypeSchema } from "./tagging.js";
 export type { Tagging, TagBearerType } from "./tagging.js";
 export {
+  SELF_PERSON_NAMESPACE,
+  SELF_PERSON_ID_NAME,
+  selfPersonSchema,
+  setSelfInputSchema,
+} from "./self-person.js";
+export type { SelfPerson, SetSelfInput } from "./self-person.js";
+export {
   reminderActionSchema,
   actionDefs,
   reminderRuleBearerTypeSchema,

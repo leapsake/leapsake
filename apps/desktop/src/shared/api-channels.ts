@@ -67,6 +67,10 @@ export const API_CHANNELS = [
   "reminders.regenerateSystem",
   "reminders.mentioning",
 
+  "self.get",
+  "self.set",
+  "self.clear",
+
   "contactMethods.listForOwner",
   "contactMethods.emails.create",
   "contactMethods.emails.update",

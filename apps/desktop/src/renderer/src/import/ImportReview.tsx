@@ -43,6 +43,10 @@ export function ImportReview({
     "review",
   );
   const [result, setResult] = useState<ImportResult | null>(null);
+  // After a successful import, prompt the user to pick themselves if they haven't
+  // yet — a natural moment now that there's a list to pick from (plans/gifts.md
+  // §Slice 0). A lookup failure just leaves it false (no nudge, no error).
+  const [promptSelf, setPromptSelf] = useState(false);
 
   // Fetch likely-duplicate flags once; a failure just leaves rows unflagged.
   useEffect(() => {
@@ -99,6 +103,10 @@ export function ImportReview({
     }));
     const imported = await window.api.import.commit(decisions);
     setResult(imported);
+    // Offer the pick-yourself prompt only when something was imported and no self
+    // is set yet — there's now a list to pick from.
+    const self = await window.api.self.get().catch(() => undefined);
+    setPromptSelf(imported.created > 0 && self === undefined);
     setPhase("done");
   }
 
@@ -107,6 +115,12 @@ export function ImportReview({
     // Reflect the new people wherever the user is; then land on the list.
     revalidator.revalidate();
     navigate("/people");
+  }
+
+  function pickSelf() {
+    onClose();
+    revalidator.revalidate();
+    navigate("/people?pick=self");
   }
 
   if (phase === "done" && result) {
@@ -131,6 +145,14 @@ export function ImportReview({
                 ))}
               </ul>
             </div>
+          )}
+          {promptSelf && (
+            <p>
+              Which of these is you?{" "}
+              <button type="button" onClick={pickSelf}>
+                Pick yourself
+              </button>
+            </p>
           )}
           <div className={styles.actions}>
             <button type="button" onClick={finish}>

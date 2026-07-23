@@ -30,6 +30,9 @@ function makeHarness() {
   const rows = new Map<string, Reminder>();
   let milestones: RemindEligibleMilestone[] = [];
   const labels = new Map<string, string>();
+  // The person id that is "you", if any — drives the `isSelf` port so the
+  // self-directed birthday wish branch can be exercised.
+  let selfPersonId: string | null = null;
   // Per-milestone stored rule overrides; a milestone with no entry rides its
   // kind defaults, exactly as the real `resolveReminderSchedule` does over an
   // empty stored set.
@@ -66,6 +69,7 @@ function makeHarness() {
       },
     },
     resolveLabel: async (_type, id) => labels.get(id) ?? null,
+    isSelf: async (type, id) => type === "person" && id === selfPersonId,
     today: TODAY,
     transaction: (body) => body(),
   };
@@ -76,6 +80,9 @@ function makeHarness() {
     labels,
     setMilestones: (next: RemindEligibleMilestone[]) => {
       milestones = next;
+    },
+    setSelf: (personId: string | null) => {
+      selfPersonId = personId;
     },
     setSchedule: (milestoneId: string, rules: ReminderRuleInput[]) => {
       schedules.set(milestoneId, rules);
@@ -144,6 +151,33 @@ describe("regenerateSystemReminders", () => {
     expect(reminder.body).toBeNull();
     expect(reminder.completedAt).toBeNull();
     expect(reminder.dueDate).toBe(dueDateMs(daysOut(10)));
+  });
+
+  it("renders your own birthday's wish self-directed, with no @You mention", async () => {
+    h.setSelf("p1"); // Alice is you
+    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
+
+    const [reminder] = h.activeSystem();
+    // Addressed to you — a celebratory icon and no mention token, not the
+    // third-party "🎉 Wish @You a happy birthday" (plans/gifts.md §Slice 0).
+    expect(reminder.title).toBe("🎂 It's your birthday!");
+    expect(reminder.title).not.toContain("@[");
+    // Still a real, dated reminder — you are not excluded, just re-worded.
+    expect(reminder.dueDate).toBe(dueDateMs(daysOut(10)));
+  });
+
+  it("leaves a non-self birthday's wish unchanged when a self-person is set", async () => {
+    h.setSelf("p2"); // someone else is you
+    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+
+    await regenerateSystemReminders(h.deps);
+    const [reminder] = h.activeSystem();
+    expect(reminder.title).toBe(
+      `🎉 Wish ${mentionToken("Alice", "person", "p1")} a happy birthday`,
+    );
   });
 
   it("is idempotent: a second run adds no duplicate and keeps the id stable", async () => {

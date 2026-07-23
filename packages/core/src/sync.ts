@@ -19,6 +19,7 @@ import {
   createRelationshipsRepo,
   createReminderRulesRepo,
   createRemindersRepo,
+  createSelfPersonRepo,
   createSyncStateRepo,
   createTagsRepo,
 } from "@leapsake/data";
@@ -64,6 +65,10 @@ export function syncableRepos(
     createRemindersRepo(driver),
     createReminderRulesRepo(driver),
     createMentionsRepo(driver),
+    // The self-person singleton rides the people sync channel (its `person_id`
+    // points into the people rows) — plaintext, converging by whole-row LWW on
+    // its fixed PK (plans/gifts.md §Slice 0).
+    createSelfPersonRepo(driver),
     // Holidays: the catalog syncs alongside user data so only ONE device ever
     // needs internet — a laptop that updates at a coffee shop can carry the new
     // catalog to every other device over an internet-less LAN relay. The usual

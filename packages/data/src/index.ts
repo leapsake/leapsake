@@ -30,6 +30,11 @@ export {
 export { type TagsRepo, createTagsRepo } from "./tags-repo.js";
 export { type RemindersRepo, createRemindersRepo } from "./reminders-repo.js";
 export {
+  SELF_PERSON_ID,
+  type SelfPersonRepo,
+  createSelfPersonRepo,
+} from "./self-person-repo.js";
+export {
   type ReminderRulesRepo,
   createReminderRulesRepo,
 } from "./reminder-rules-repo.js";

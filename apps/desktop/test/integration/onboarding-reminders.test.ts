@@ -65,8 +65,10 @@ describe("onboarding reminders (end to end through core)", () => {
       expect(r.dueDate).toBeNull();
       expect(onboardingRouteOf(r.id)).not.toBeNull();
     }
+    // A fresh store has no entities, so the pick-self nudge (which needs a person
+    // to pick from) doesn't apply yet — only sync + add-person do.
     expect(new Set(rows.map((r) => r.id))).toEqual(
-      new Set(ONBOARDING_REMINDERS.map((o) => o.id)),
+      new Set([idFor("connect-sync"), idFor("add-person")]),
     );
     // Home order (through the real driver + list ordering): sync leads so a
     // returning user reconnects before re-adding anyone.
