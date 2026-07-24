@@ -691,6 +691,30 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 24,
+    async up(driver) {
+      // Gift ideas (plans/gifts.md §GiftIdea) — "a thing in the world", reusable
+      // and person-agnostic: `title` (required) plus optional `url` and `notes`.
+      // The first of the three gift tables; a suggestion pairs an idea with a
+      // recipient and a giving is a dated event, but an idea alone is a standalone
+      // shopping/idea list. Plaintext synced row (no per-item content key), like
+      // reminders — not a share target, protected by whole-DB-at-rest + the
+      // master-key sync seal. Near-duplicate titles are tolerated by design (the
+      // reconciliation substrate is the eventual de-dup, not a unique index here).
+      await driver.exec(`
+        CREATE TABLE gift_ideas (
+          id         TEXT    PRIMARY KEY,
+          title      TEXT    NOT NULL,
+          url        TEXT,
+          notes      TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          deleted_at INTEGER
+        );
+      `);
+    },
+  },
 ];
 
 /**

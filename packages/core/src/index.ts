@@ -17,6 +17,7 @@ import {
   createPeopleRepo,
   createPetsRepo,
   createRelationshipsRepo,
+  createGiftIdeasRepo,
   createReminderRulesRepo,
   createRemindersRepo,
   createSearchService,
@@ -37,6 +38,7 @@ import type {
   CreatePostalInput,
   CreateReminderInput,
   CreateRelationshipInput,
+  CreateGiftIdeaInput,
   EmailAddress,
   EntityType,
   Milestone,
@@ -57,6 +59,7 @@ import type {
   ResolvedMention,
   SearchHit,
   SelfPerson,
+  GiftIdea,
   Tag,
   UpdateEmailInput,
   UpdateMilestoneInput,
@@ -66,6 +69,7 @@ import type {
   UpdatePostalInput,
   UpdateReminderInput,
   UpdateRelationshipInput,
+  UpdateGiftIdeaInput,
 } from "@leapsake/schema";
 import {
   entityLabel,
@@ -274,6 +278,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
   const reminderRules = createReminderRulesRepo(driver);
   const reminders = createRemindersRepo(driver);
   const self = createSelfPersonRepo(driver);
+  const giftIdeas = createGiftIdeasRepo(driver);
   const mentions = createMentionsRepo(driver);
   const holidays = createHolidaysRepo(driver);
   const observances = createObservancesRepo(driver);
@@ -1007,6 +1012,25 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       clear: async (): Promise<void> => {
         await self.clearSelf();
         await regenerateSystem();
+      },
+    },
+
+    // Gifts (plans/gifts.md). Slice 1 is the standalone idea list — a thing in
+    // the world, person-agnostic. Suggestions (idea × recipient) and givings
+    // (dated events) join this namespace in later slices.
+    gifts: {
+      ideas: {
+        list: (): Promise<GiftIdea[]> => giftIdeas.list(),
+        get: (id: string): Promise<GiftIdea | undefined> => giftIdeas.get(id),
+        create: (input: CreateGiftIdeaInput): Promise<GiftIdea> =>
+          driver.transaction(() => giftIdeas.create(input)),
+        update: (
+          id: string,
+          input: UpdateGiftIdeaInput,
+        ): Promise<GiftIdea | undefined> =>
+          driver.transaction(() => giftIdeas.update(id, input)),
+        softDelete: (id: string): Promise<void> =>
+          driver.transaction(() => giftIdeas.softDelete(id)),
       },
     },
 

@@ -34,6 +34,7 @@ export {
   type SelfPersonRepo,
   createSelfPersonRepo,
 } from "./self-person-repo.js";
+export { type GiftIdeasRepo, createGiftIdeasRepo } from "./gift-ideas-repo.js";
 export {
   type ReminderRulesRepo,
   createReminderRulesRepo,

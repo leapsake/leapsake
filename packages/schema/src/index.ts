@@ -72,6 +72,16 @@ export {
 } from "./self-person.js";
 export type { SelfPerson, SetSelfInput } from "./self-person.js";
 export {
+  giftIdeaSchema,
+  createGiftIdeaInputSchema,
+  updateGiftIdeaInputSchema,
+} from "./gift-idea.js";
+export type {
+  GiftIdea,
+  CreateGiftIdeaInput,
+  UpdateGiftIdeaInput,
+} from "./gift-idea.js";
+export {
   reminderActionSchema,
   actionDefs,
   reminderRuleBearerTypeSchema,

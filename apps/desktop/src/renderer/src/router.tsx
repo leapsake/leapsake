@@ -39,6 +39,10 @@ import { PersonDelete } from "./screens/PersonDelete";
 import { PersonEdit } from "./screens/PersonEdit";
 import { PersonMerge } from "./screens/PersonMerge";
 import { Duplicates } from "./screens/Duplicates";
+import { GiftIdeaCreate } from "./screens/GiftIdeaCreate";
+import { GiftIdeaDelete } from "./screens/GiftIdeaDelete";
+import { GiftIdeaEdit } from "./screens/GiftIdeaEdit";
+import { GiftIdeaList } from "./screens/GiftIdeaList";
 import { MilestoneCreate } from "./screens/MilestoneCreate";
 import { MilestoneDelete } from "./screens/MilestoneDelete";
 import { MilestoneEdit } from "./screens/MilestoneEdit";
@@ -825,6 +829,50 @@ async function reminderDeleteAction({ params }: ActionFunctionArgs) {
   return redirect("/reminders");
 }
 
+/** Pull the editable gift-idea fields from a form; blank url/notes become null. */
+function readGiftIdeaInput(formData: FormData): {
+  title: string;
+  url: string | null;
+  notes: string | null;
+} {
+  const url = String(formData.get("url") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
+  return {
+    title: String(formData.get("title") ?? "").trim(),
+    url: url.length > 0 ? url : null,
+    notes: notes.length > 0 ? notes : null,
+  };
+}
+
+/** Fetch a gift idea by id for the edit/remove screens (404 when missing). */
+async function giftIdeaLoader({ params }: LoaderFunctionArgs) {
+  const idea = await window.api.gifts.ideas.get(params.id as string);
+  if (!idea) throw new Response("Gift idea not found", { status: 404 });
+  return idea;
+}
+
+/** Create a gift idea; a blank title is a no-op back to the list. */
+async function giftIdeaCreateAction({ request }: ActionFunctionArgs) {
+  const input = readGiftIdeaInput(await request.formData());
+  if (input.title === "") return redirect("/gifts");
+  await window.api.gifts.ideas.create(input);
+  return redirect("/gifts");
+}
+
+/** Save edits to a gift idea; a blank title is a no-op back to the list. */
+async function giftIdeaEditAction({ request, params }: ActionFunctionArgs) {
+  const input = readGiftIdeaInput(await request.formData());
+  if (input.title === "") return redirect("/gifts");
+  await window.api.gifts.ideas.update(params.id as string, input);
+  return redirect("/gifts");
+}
+
+/** Remove a gift idea. */
+async function giftIdeaDeleteAction({ params }: ActionFunctionArgs) {
+  await window.api.gifts.ideas.softDelete(params.id as string);
+  return redirect("/gifts");
+}
+
 /** Toggle completion — posted by a list-row fetcher, so it revalidates in place. */
 async function reminderToggleAction({ request, params }: ActionFunctionArgs) {
   const formData = await request.formData();
@@ -904,6 +952,29 @@ const routes: RouteObject[] = [
         // Action-only: the list-row "Done/Reopen" fetcher posts here.
         path: "reminders/:id/complete",
         action: reminderToggleAction,
+      },
+      {
+        // Gift ideas — a standalone idea/shopping list (plans/gifts.md §GiftIdea).
+        path: "gifts",
+        loader: () => window.api.gifts.ideas.list(),
+        element: <GiftIdeaList />,
+      },
+      {
+        path: "gifts/new",
+        element: <GiftIdeaCreate />,
+        action: giftIdeaCreateAction,
+      },
+      {
+        path: "gifts/:id/edit",
+        loader: giftIdeaLoader,
+        element: <GiftIdeaEdit />,
+        action: giftIdeaEditAction,
+      },
+      {
+        path: "gifts/:id/delete",
+        loader: giftIdeaLoader,
+        element: <GiftIdeaDelete />,
+        action: giftIdeaDeleteAction,
       },
       {
         path: "people/new",
