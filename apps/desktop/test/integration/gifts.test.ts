@@ -167,3 +167,92 @@ describe("core.gifts.suggestions", () => {
     expect(moved.map((s) => s.giftIdeaId)).toEqual([idea.id]);
   });
 });
+
+describe("core.gifts.given", () => {
+  it("logs a giving against an existing idea, joined for the recipient", async () => {
+    const alice = await makePerson("Alice");
+    const self = await makePerson("Me");
+    await core.self.set(self);
+    const idea = await core.gifts.ideas.create({ title: "BB Gun" });
+
+    const gift = await core.gifts.given.create({
+      giftIdea: { id: idea.id },
+      recipient: { type: "person", id: alice },
+      giver: { type: "person", id: self },
+      date: { year: 1941, month: 12, day: 25 },
+    });
+    expect(gift.giftIdeaId).toBe(idea.id);
+
+    const [row] = await core.gifts.given.listForRecipient("person", alice);
+    expect(row?.ideaTitle).toBe("BB Gun");
+    expect(row?.giverLabel).toBe("Me X");
+    expect(row?.year).toBe(1941);
+  });
+
+  it("mints a new idea in the same transaction when logging a giving", async () => {
+    const alice = await makePerson("Alice");
+    expect(await core.gifts.ideas.list()).toHaveLength(0);
+
+    await core.gifts.given.create({
+      giftIdea: { title: "Homemade jam" },
+      recipient: { type: "person", id: alice },
+    });
+
+    const ideas = await core.gifts.ideas.list();
+    expect(ideas.map((i) => i.title)).toEqual(["Homemade jam"]);
+    const [row] = await core.gifts.given.listForRecipient("person", alice);
+    expect(row?.giverLabel).toBeNull(); // no giver given ⇒ unknown
+  });
+
+  it("rejects logging a giving against a missing idea id", async () => {
+    const alice = await makePerson("Alice");
+    await expect(
+      core.gifts.given.create({
+        giftIdea: { id: crypto.randomUUID() },
+        recipient: { type: "person", id: alice },
+      }),
+    ).rejects.toThrow(/gift idea not found/);
+  });
+
+  it("deleting the idea cascades to its gifts", async () => {
+    const alice = await makePerson("Alice");
+    const idea = await core.gifts.ideas.create({ title: "Socks" });
+    await core.gifts.given.create({
+      giftIdea: { id: idea.id },
+      recipient: { type: "person", id: alice },
+    });
+    await core.gifts.ideas.softDelete(idea.id);
+    expect(await core.gifts.given.listForRecipient("person", alice)).toEqual(
+      [],
+    );
+  });
+
+  it("deleting a recipient cascades to their gifts", async () => {
+    const alice = await makePerson("Alice");
+    await core.gifts.given.create({
+      giftIdea: { title: "Socks" },
+      recipient: { type: "person", id: alice },
+    });
+    await core.people.softDelete(alice);
+    // Re-created probe recipient to prove the store isn't globally empty would be
+    // overkill; the delete cascade is asserted directly by the repo test.
+    expect(await core.gifts.given.listForRecipient("person", alice)).toEqual(
+      [],
+    );
+  });
+
+  it("repoints gifts on merge and drops a self-referential result", async () => {
+    const alice = await makePerson("Alice");
+    const bob = await makePerson("Bob");
+    // Alice gave Bob a gift → after merging Bob into Alice it's Alice→Alice, dropped.
+    await core.gifts.given.create({
+      giftIdea: { title: "Book" },
+      recipient: { type: "person", id: bob },
+      giver: { type: "person", id: alice },
+    });
+    await core.people.merge(alice, bob); // survivor=alice, loser=bob
+    expect(await core.gifts.given.listForRecipient("person", alice)).toEqual(
+      [],
+    );
+  });
+});

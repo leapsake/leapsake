@@ -72,6 +72,11 @@ function flattenAdornments(input: {
  * helpers (delete, merge re-point) mirror the milestones repo. Ordered by target
  * date so a dated intent sorts ahead of an undated "someday".
  */
+// A dated intent sorts ahead of an undated "someday". Passed to every scoped read
+// (`listWhere` ignores the repo's default `orderBy`).
+const SUGGESTION_ORDER =
+  "target_year, target_month, target_day, created_at DESC";
+
 export function createGiftSuggestionsRepo(
   driver: SqliteDriver,
 ): GiftSuggestionsRepo {
@@ -79,7 +84,7 @@ export function createGiftSuggestionsRepo(
     driver,
     table: "gift_suggestions",
     schema: giftSuggestionSchema,
-    orderBy: "target_year, target_month, target_day, created_at DESC",
+    orderBy: SUGGESTION_ORDER,
   });
 
   return {
@@ -115,12 +120,14 @@ export function createGiftSuggestionsRepo(
       base.listWhere({
         where: "recipient_type = ? AND recipient_id = ?",
         params: [type, id],
+        orderBy: SUGGESTION_ORDER,
       }),
 
     listForIdea: (ideaId) =>
       base.listWhere({
         where: "gift_idea_id = ?",
         params: [ideaId],
+        orderBy: SUGGESTION_ORDER,
       }),
 
     removeAllForRecipient: (type, id) =>

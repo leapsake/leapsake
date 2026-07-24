@@ -29,6 +29,7 @@ describe("syncableRepos — the canonical allowlist", () => {
       "email_addresses",
       "gift_ideas",
       "gift_suggestions",
+      "gifts",
       "hidden_holidays",
       "holidays",
       "mentions",

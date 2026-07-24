@@ -10,6 +10,7 @@ import {
   createDismissalsRepo,
   createGiftIdeasRepo,
   createGiftSuggestionsRepo,
+  createGiftsRepo,
   createHiddenHolidaysRepo,
   createHolidaysRepo,
   createMilestonesRepo,
@@ -75,6 +76,8 @@ export function syncableRepos(
     createGiftIdeasRepo(driver),
     // Gift suggestions — idea × recipient candidates (plans/gifts.md).
     createGiftSuggestionsRepo(driver),
+    // Gifts — dated giving events (plans/gifts.md).
+    createGiftsRepo(driver),
     // Holidays: the catalog syncs alongside user data so only ONE device ever
     // needs internet — a laptop that updates at a coffee shop can carry the new
     // catalog to every other device over an internet-less LAN relay. The usual

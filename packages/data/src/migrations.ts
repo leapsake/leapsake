@@ -754,6 +754,49 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 26,
+    async up(driver) {
+      // Gifts (plans/gifts.md §Gift) — a dated **event**: something changed hands
+      // ("Ralphie was given a BB gun, Christmas 1941"). A giving points at the
+      // **idea**, never a suggestion — so "✓ given" is a query on
+      // `(gift_idea_id, recipient)` with no state column, and the scotch you give
+      // every Christmas is one suggestion and N gifts.
+      //
+      // `gift_idea_id` required. `giver_*` NULLABLE = "unknown who gave it" (NOT
+      // "me" — "I gave it" points the giver at the self-person, a real Person).
+      // `recipient_*` required. Both parties polymorphic (person | pet). Plain
+      // `year`/`month`/`day` = *what happened* (distinct from a suggestion's
+      // `target_*` intent), reusing the milestone day⇒month shape. Optional
+      // `occasion_*` pointer (milestone | holiday). Plaintext synced row, no FKs —
+      // idea/parties/occasion resolve at read (the giver≠recipient and
+      // both-or-neither rules live in Zod).
+      await driver.exec(`
+        CREATE TABLE gifts (
+          id             TEXT    PRIMARY KEY,
+          gift_idea_id   TEXT    NOT NULL,
+          giver_type     TEXT,
+          giver_id       TEXT,
+          recipient_type TEXT    NOT NULL,
+          recipient_id   TEXT    NOT NULL,
+          year           INTEGER,
+          month          INTEGER,
+          day            INTEGER,
+          occasion_type  TEXT,
+          occasion_id    TEXT,
+          created_at     INTEGER NOT NULL,
+          updated_at     INTEGER NOT NULL,
+          deleted_at     INTEGER
+        );
+        CREATE INDEX ix_gifts_recipient
+          ON gifts(recipient_type, recipient_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_gifts_giver
+          ON gifts(giver_type, giver_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_gifts_idea
+          ON gifts(gift_idea_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**
