@@ -28,6 +28,7 @@ describe("syncableRepos — the canonical allowlist", () => {
     expect(tables).toEqual([
       "email_addresses",
       "gift_ideas",
+      "gift_suggestions",
       "hidden_holidays",
       "holidays",
       "mentions",

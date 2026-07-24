@@ -1,6 +1,10 @@
-import type { BearerHolidayCandidate } from "@leapsake/core";
+import type {
+  BearerHolidayCandidate,
+  GiftSuggestionForRecipient,
+} from "@leapsake/core";
 import type {
   ContactMethod,
+  GiftIdea,
   MilestoneTimelineEntry,
   Person,
   RelationshipNeighbor,
@@ -12,6 +16,7 @@ import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { ContactMethodsSection } from "../components/ContactMethodsSection";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
+import { GiftSuggestionsSection } from "../components/GiftSuggestionsSection";
 import { HolidaysSection } from "../components/HolidaysSection";
 import { MentionedInSection } from "../components/MentionedInSection";
 import { MilestonesSection } from "../components/MilestonesSection";
@@ -33,6 +38,8 @@ export function PersonView() {
     contactMethods,
     mentionedIn,
     holidays,
+    giftSuggestions,
+    giftIdeaPool,
   } = useLoaderData() as {
     person: Person;
     tags: Tag[];
@@ -42,6 +49,8 @@ export function PersonView() {
     contactMethods: ContactMethod[];
     mentionedIn: Reminder[];
     holidays: BearerHolidayCandidate[];
+    giftSuggestions: GiftSuggestionForRecipient[];
+    giftIdeaPool: GiftIdea[];
   };
 
   return (
@@ -86,6 +95,14 @@ export function PersonView() {
         bearerType="person"
         bearerId={person.id}
         holidays={holidays}
+      />
+
+      <GiftSuggestionsSection
+        recipientType="person"
+        recipientId={person.id}
+        recipientLabel={fullName(person)}
+        suggestions={giftSuggestions}
+        ideaPool={giftIdeaPool}
       />
 
       <TagsSection bearerType="person" bearerId={person.id} tags={tags} />

@@ -203,15 +203,20 @@ async function entityListAction({ request }: { request: Request }) {
  */
 async function personLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
-  const [view, mentionedIn, holidays] = await Promise.all([
-    window.api.views.person(id),
-    window.api.reminders.mentioning("person", id),
-    // The whole catalog with this person's answers — one read serving both the
-    // Holidays section's list and the pool its add-field suggests from.
-    window.api.holidays.listForBearer("person", id),
-  ]);
+  const [view, mentionedIn, holidays, giftSuggestions, giftIdeaPool] =
+    await Promise.all([
+      window.api.views.person(id),
+      window.api.reminders.mentioning("person", id),
+      // The whole catalog with this person's answers — one read serving both the
+      // Holidays section's list and the pool its add-field suggests from.
+      window.api.holidays.listForBearer("person", id),
+      // The person's gift suggestions plus the full idea pool the add-field
+      // suggests from (it filters out the already-suggested).
+      window.api.gifts.suggestions.listForRecipient("person", id),
+      window.api.gifts.ideas.list(),
+    ]);
   if (!view) throw new Response("Person not found", { status: 404 });
-  return { ...view, mentionedIn, holidays };
+  return { ...view, mentionedIn, holidays, giftSuggestions, giftIdeaPool };
 }
 
 /**
@@ -221,13 +226,16 @@ async function personLoader({ params }: LoaderFunctionArgs) {
  */
 async function petLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
-  const [view, mentionedIn, holidays] = await Promise.all([
-    window.api.views.pet(id),
-    window.api.reminders.mentioning("pet", id),
-    window.api.holidays.listForBearer("pet", id),
-  ]);
+  const [view, mentionedIn, holidays, giftSuggestions, giftIdeaPool] =
+    await Promise.all([
+      window.api.views.pet(id),
+      window.api.reminders.mentioning("pet", id),
+      window.api.holidays.listForBearer("pet", id),
+      window.api.gifts.suggestions.listForRecipient("pet", id),
+      window.api.gifts.ideas.list(),
+    ]);
   if (!view) throw new Response("Pet not found", { status: 404 });
-  return { ...view, mentionedIn, holidays };
+  return { ...view, mentionedIn, holidays, giftSuggestions, giftIdeaPool };
 }
 
 /**
@@ -844,19 +852,70 @@ function readGiftIdeaInput(formData: FormData): {
   };
 }
 
-/** Fetch a gift idea by id for the edit/remove screens (404 when missing). */
+/** Fetch a gift idea by id for the remove screen (404 when missing). */
 async function giftIdeaLoader({ params }: LoaderFunctionArgs) {
   const idea = await window.api.gifts.ideas.get(params.id as string);
   if (!idea) throw new Response("Gift idea not found", { status: 404 });
   return idea;
 }
 
-/** Create a gift idea; a blank title is a no-op back to the list. */
+/**
+ * The edit screen also shows the idea's "Suggested for" recipients, so it loads
+ * the idea, its suggestions, and the people/pets pool the add-field draws from,
+ * in parallel.
+ */
+async function giftIdeaEditLoader({ params }: LoaderFunctionArgs) {
+  const id = params.id as string;
+  const [idea, suggestions, entities] = await Promise.all([
+    window.api.gifts.ideas.get(id),
+    window.api.gifts.suggestions.listForIdea(id),
+    window.api.views.entityList(),
+  ]);
+  if (!idea) throw new Response("Gift idea not found", { status: 404 });
+  const candidates = entities.map((e) => ({
+    type: e.type,
+    id: e.id,
+    label: e.label,
+  }));
+  return { idea, suggestions, candidates };
+}
+
+/** Parse a `?for=<person|pet>:<id>` recipient hint (from a person/pet's "add a
+ *  new gift idea for X" link) into a `suggestFor` arm, or null when absent. */
+function readSuggestForParam(
+  request: Request,
+): { recipientType: "person" | "pet"; recipientId: string } | null {
+  const raw = new URL(request.url).searchParams.get("for");
+  if (raw === null) return null;
+  const [type, id] = raw.split(":");
+  if ((type !== "person" && type !== "pet") || !id) return null;
+  return { recipientType: type, recipientId: id };
+}
+
+/**
+ * Create a gift idea; a blank title is a no-op. A `?for=<type>:<id>` hint means
+ * this was launched from a recipient's page — mint the idea *and* a suggestion for
+ * that recipient in one action, then land back on their page.
+ */
 async function giftIdeaCreateAction({ request }: ActionFunctionArgs) {
   const input = readGiftIdeaInput(await request.formData());
-  if (input.title === "") return redirect("/gifts");
-  await window.api.gifts.ideas.create(input);
-  return redirect("/gifts");
+  const suggestForOne = readSuggestForParam(request);
+  if (input.title === "") {
+    return redirect(
+      suggestForOne
+        ? `${entityBasePath(suggestForOne.recipientType)}/${suggestForOne.recipientId}`
+        : "/gifts",
+    );
+  }
+  await window.api.gifts.ideas.create({
+    ...input,
+    ...(suggestForOne ? { suggestFor: [suggestForOne] } : {}),
+  });
+  return redirect(
+    suggestForOne
+      ? `${entityBasePath(suggestForOne.recipientType)}/${suggestForOne.recipientId}`
+      : "/gifts",
+  );
 }
 
 /** Save edits to a gift idea; a blank title is a no-op back to the list. */
@@ -966,7 +1025,7 @@ const routes: RouteObject[] = [
       },
       {
         path: "gifts/:id/edit",
-        loader: giftIdeaLoader,
+        loader: giftIdeaEditLoader,
         element: <GiftIdeaEdit />,
         action: giftIdeaEditAction,
       },

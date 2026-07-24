@@ -1,10 +1,19 @@
+import type { GiftSuggestionForIdea } from "@leapsake/core";
 import type { GiftIdea } from "@leapsake/schema";
 import { useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { GiftIdeaForm } from "../components/GiftIdeaForm";
+import {
+  GiftIdeaRecipientsSection,
+  type RecipientCandidate,
+} from "../components/GiftIdeaRecipientsSection";
 
 export function GiftIdeaEdit() {
-  const idea = useLoaderData() as GiftIdea;
+  const { idea, suggestions, candidates } = useLoaderData() as {
+    idea: GiftIdea;
+    suggestions: GiftSuggestionForIdea[];
+    candidates: RecipientCandidate[];
+  };
 
   return (
     <main>
@@ -17,6 +26,12 @@ export function GiftIdeaEdit() {
       />
       <h1>Edit gift idea</h1>
       <GiftIdeaForm idea={idea} />
+
+      <GiftIdeaRecipientsSection
+        ideaId={idea.id}
+        suggestions={suggestions}
+        candidates={candidates}
+      />
     </main>
   );
 }

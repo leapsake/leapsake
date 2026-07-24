@@ -18,6 +18,7 @@ import {
   createPetsRepo,
   createRelationshipsRepo,
   createGiftIdeasRepo,
+  createGiftSuggestionsRepo,
   createReminderRulesRepo,
   createRemindersRepo,
   createSearchService,
@@ -39,6 +40,7 @@ import type {
   CreateReminderInput,
   CreateRelationshipInput,
   CreateGiftIdeaInput,
+  CreateGiftSuggestionInput,
   EmailAddress,
   EntityType,
   Milestone,
@@ -60,6 +62,9 @@ import type {
   SearchHit,
   SelfPerson,
   GiftIdea,
+  GiftPartyType,
+  GiftSuggestion,
+  SuggestForEntry,
   Tag,
   UpdateEmailInput,
   UpdateMilestoneInput,
@@ -70,6 +75,7 @@ import type {
   UpdateReminderInput,
   UpdateRelationshipInput,
   UpdateGiftIdeaInput,
+  UpdateGiftSuggestionInput,
 } from "@leapsake/schema";
 import {
   entityLabel,
@@ -77,6 +83,7 @@ import {
   impliedGender,
   inverseRole,
   isReminderEditable,
+  milestoneLabel,
   parseHashtags,
   parseMentions,
   resolveObservanceReminderSchedule,
@@ -185,6 +192,27 @@ export type {
   ObserverDecision,
 } from "./holidays.js";
 
+/**
+ * A gift suggestion joined for the recipient's "Gift ideas" section: the row plus
+ * its idea's title/url and its occasion's resolved label. The idea is always live
+ * (deleting an idea cascades to its suggestions), so the title is non-null.
+ */
+export type GiftSuggestionForRecipient = GiftSuggestion & {
+  ideaTitle: string;
+  ideaUrl: string | null;
+  occasionLabel: string | null;
+};
+
+/**
+ * A gift suggestion joined for an idea's "Suggested for" section: the row plus its
+ * recipient's display label and its occasion's resolved label. A suggestion whose
+ * recipient is gone is dropped by the reader, so the label is non-null.
+ */
+export type GiftSuggestionForIdea = GiftSuggestion & {
+  recipientLabel: string;
+  occasionLabel: string | null;
+};
+
 // The scheduling layer that turns the manual one-shot sync into seamless
 // background sync: a debounced, single-flight scheduler plus a CoreApi wrapper
 // that kicks a sync after every local write. Each client wires the platform
@@ -279,6 +307,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
   const reminders = createRemindersRepo(driver);
   const self = createSelfPersonRepo(driver);
   const giftIdeas = createGiftIdeasRepo(driver);
+  const giftSuggestions = createGiftSuggestionsRepo(driver);
   const mentions = createMentionsRepo(driver);
   const holidays = createHolidaysRepo(driver);
   const observances = createObservancesRepo(driver);
@@ -333,6 +362,23 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     }
     const pet = await pets.get(id);
     return pet ? entityLabel("pet", pet) : undefined;
+  }
+
+  // Resolve a gift suggestion's optional occasion pointer to a display label — a
+  // milestone's label (e.g. "Birthday") or a holiday's name — or null when there
+  // is no occasion or its target is gone. The occasion is only a label; the
+  // suggestion's target date remains the source of truth for *when*.
+  async function resolveOccasionLabel(
+    occasionType: "milestone" | "holiday" | null,
+    occasionId: string | null,
+  ): Promise<string | null> {
+    if (occasionType === null || occasionId === null) return null;
+    if (occasionType === "milestone") {
+      const m = await milestones.get(occasionId);
+      return m ? milestoneLabel(m) : null;
+    }
+    const holiday = await holidays.get(occasionId);
+    return holiday ? holiday.name : null;
   }
 
   // Orient each stored row touching the subject and resolve the *other* end's
@@ -611,6 +657,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           await milestones.removeAllForEntity("person", id);
           await contactMethods.removeAllForOwner("person", id);
           await observances.removeAllForBearer("person", id);
+          await giftSuggestions.removeAllForRecipient("person", id);
         });
         await regenerateSystem();
       },
@@ -634,6 +681,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           await milestones.repointEntity("person", loserId, survivorId);
           await contactMethods.repointOwner("person", loserId, survivorId);
           await observances.repointBearer("person", loserId, survivorId);
+          await giftSuggestions.repointRecipient("person", loserId, survivorId);
           // Carry the "not a duplicate" memory across so the merge doesn't strand
           // or self-pair a rejection (it re-canonicalizes and drops self/dupes).
           await notADuplicate.repointEntity(loserId, survivorId);
@@ -690,6 +738,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           await dismissals.removeAllForEntity("pet", id);
           await milestones.removeAllForEntity("pet", id);
           await observances.removeAllForBearer("pet", id);
+          await giftSuggestions.removeAllForRecipient("pet", id);
         });
         await regenerateSystem();
       },
@@ -1015,22 +1064,105 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       },
     },
 
-    // Gifts (plans/gifts.md). Slice 1 is the standalone idea list — a thing in
-    // the world, person-agnostic. Suggestions (idea × recipient) and givings
-    // (dated events) join this namespace in later slices.
+    // Gifts (plans/gifts.md). An idea is a thing in the world (person-agnostic);
+    // a suggestion pairs an idea with a recipient (a candidate). Givings (dated
+    // events) join this namespace in a later slice.
     gifts: {
       ideas: {
         list: (): Promise<GiftIdea[]> => giftIdeas.list(),
         get: (id: string): Promise<GiftIdea | undefined> => giftIdeas.get(id),
-        create: (input: CreateGiftIdeaInput): Promise<GiftIdea> =>
-          driver.transaction(() => giftIdeas.create(input)),
+        // Single-payload create (share-target ready): capture an idea and,
+        // optionally, suggest it for zero-to-many recipients in one transaction.
+        create: ({
+          suggestFor,
+          ...ideaInput
+        }: CreateGiftIdeaInput & {
+          suggestFor?: SuggestForEntry[];
+        }): Promise<GiftIdea> =>
+          driver.transaction(async () => {
+            const idea = await giftIdeas.create(ideaInput);
+            for (const entry of suggestFor ?? []) {
+              await giftSuggestions.create({ giftIdeaId: idea.id, ...entry });
+            }
+            return idea;
+          }),
         update: (
           id: string,
           input: UpdateGiftIdeaInput,
         ): Promise<GiftIdea | undefined> =>
           driver.transaction(() => giftIdeas.update(id, input)),
+        // Removing an idea cascades to its suggestions — nothing references a
+        // deleted idea, and a live suggestion must always point at a live idea.
         softDelete: (id: string): Promise<void> =>
-          driver.transaction(() => giftIdeas.softDelete(id)),
+          driver.transaction(async () => {
+            await giftIdeas.softDelete(id);
+            await giftSuggestions.removeAllForIdea(id);
+          }),
+      },
+
+      suggestions: {
+        // The recipient's "Gift ideas" section: each suggestion joined with its
+        // idea's title/url and its occasion label. A suggestion whose idea is
+        // somehow gone is dropped (defensive — the idea cascade prevents it).
+        listForRecipient: async (
+          type: GiftPartyType,
+          id: string,
+        ): Promise<GiftSuggestionForRecipient[]> => {
+          const rows = await giftSuggestions.listForRecipient(type, id);
+          const joined = await Promise.all(
+            rows.map(async (s) => {
+              const idea = await giftIdeas.get(s.giftIdeaId);
+              if (idea === undefined) return null;
+              return {
+                ...s,
+                ideaTitle: idea.title,
+                ideaUrl: idea.url,
+                occasionLabel: await resolveOccasionLabel(
+                  s.occasionType,
+                  s.occasionId,
+                ),
+              };
+            }),
+          );
+          return joined.filter(
+            (s): s is GiftSuggestionForRecipient => s !== null,
+          );
+        },
+        // An idea's "Suggested for" section: each suggestion joined with its
+        // recipient's current label. A suggestion whose recipient is gone is
+        // dropped (defensive — the recipient cascade prevents it).
+        listForIdea: async (
+          ideaId: string,
+        ): Promise<GiftSuggestionForIdea[]> => {
+          const rows = await giftSuggestions.listForIdea(ideaId);
+          const joined = await Promise.all(
+            rows.map(async (s) => {
+              const recipientLabel = await resolveLabel(
+                s.recipientType,
+                s.recipientId,
+              );
+              if (recipientLabel === undefined) return null;
+              return {
+                ...s,
+                recipientLabel,
+                occasionLabel: await resolveOccasionLabel(
+                  s.occasionType,
+                  s.occasionId,
+                ),
+              };
+            }),
+          );
+          return joined.filter((s): s is GiftSuggestionForIdea => s !== null);
+        },
+        create: (input: CreateGiftSuggestionInput): Promise<GiftSuggestion> =>
+          driver.transaction(() => giftSuggestions.create(input)),
+        update: (
+          id: string,
+          input: UpdateGiftSuggestionInput,
+        ): Promise<GiftSuggestion | undefined> =>
+          driver.transaction(() => giftSuggestions.update(id, input)),
+        softDelete: (id: string): Promise<void> =>
+          driver.transaction(() => giftSuggestions.softDelete(id)),
       },
     },
 

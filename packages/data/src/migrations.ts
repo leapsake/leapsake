@@ -715,6 +715,45 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 25,
+    async up(driver) {
+      // Gift suggestions (plans/gifts.md §GiftSuggestion) — a candidate: one gift
+      // idea paired with a recipient ("Ralphie would like a BB gun"). NOT a giving
+      // (that's the dated `gifts` table, later): a suggestion carries no state and
+      // no "given" column, because whether it was given is a query over gifts, not
+      // a mutation here. No note, no giver in v1 (a suggestion implicitly
+      // originates with the user).
+      //
+      // `occasion_*` is an optional polymorphic pointer (milestone | holiday) —
+      // both parts move together (enforced in Zod). It's a *label*: the
+      // `target_*` partial date is the source of truth for *when* (reusing the
+      // milestone day⇒month shape, distinct column names so intent never blurs
+      // with a gift's what-happened date). `recipient_*` is polymorphic
+      // (person | pet), reserving `relationship` for later with no schema change.
+      // Plaintext synced row, no FKs — recipient/idea/occasion resolve at read.
+      await driver.exec(`
+        CREATE TABLE gift_suggestions (
+          id             TEXT    PRIMARY KEY,
+          gift_idea_id   TEXT    NOT NULL,
+          recipient_type TEXT    NOT NULL,
+          recipient_id   TEXT    NOT NULL,
+          occasion_type  TEXT,
+          occasion_id    TEXT,
+          target_year    INTEGER,
+          target_month   INTEGER,
+          target_day     INTEGER,
+          created_at     INTEGER NOT NULL,
+          updated_at     INTEGER NOT NULL,
+          deleted_at     INTEGER
+        );
+        CREATE INDEX ix_gift_suggestions_recipient
+          ON gift_suggestions(recipient_type, recipient_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_gift_suggestions_idea
+          ON gift_suggestions(gift_idea_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**

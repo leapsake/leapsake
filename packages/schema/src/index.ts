@@ -82,6 +82,27 @@ export type {
   UpdateGiftIdeaInput,
 } from "./gift-idea.js";
 export {
+  giftPartyTypeSchema,
+  giftOccasionTypeSchema,
+  giftOccasionSchema,
+  giftTargetDateSchema,
+  giftSuggestionSchema,
+  suggestForEntrySchema,
+  createGiftSuggestionInputSchema,
+  updateGiftSuggestionInputSchema,
+  formatGiftTargetDate,
+} from "./gift-suggestion.js";
+export type {
+  GiftPartyType,
+  GiftOccasionType,
+  GiftOccasion,
+  GiftTargetDate,
+  GiftSuggestion,
+  SuggestForEntry,
+  CreateGiftSuggestionInput,
+  UpdateGiftSuggestionInput,
+} from "./gift-suggestion.js";
+export {
   reminderActionSchema,
   actionDefs,
   reminderRuleBearerTypeSchema,

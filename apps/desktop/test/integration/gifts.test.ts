@@ -60,3 +60,110 @@ describe("core.gifts.ideas", () => {
     expect(scarf.createdAt).toBeGreaterThanOrEqual(socks.createdAt);
   });
 });
+
+/** Create a Person and return its id. */
+async function makePerson(name: string): Promise<string> {
+  const person = await core.people.create(
+    { firstName: name, middleName: null, lastName: "X", gender: null },
+    [],
+  );
+  return person.id;
+}
+
+describe("core.gifts.suggestions", () => {
+  it("suggestFor mints the idea and suggestions in one call, joined for the recipient", async () => {
+    const alice = await makePerson("Alice");
+    const idea = await core.gifts.ideas.create({
+      title: "BB Gun",
+      suggestFor: [{ recipientType: "person", recipientId: alice }],
+    });
+
+    const forAlice = await core.gifts.suggestions.listForRecipient(
+      "person",
+      alice,
+    );
+    expect(forAlice).toHaveLength(1);
+    expect(forAlice[0]?.giftIdeaId).toBe(idea.id);
+    expect(forAlice[0]?.ideaTitle).toBe("BB Gun");
+    expect(forAlice[0]?.occasionLabel).toBeNull();
+  });
+
+  it("joins listForIdea with the recipient's current label", async () => {
+    const alice = await makePerson("Alice");
+    const idea = await core.gifts.ideas.create({ title: "Scarf" });
+    await core.gifts.suggestions.create({
+      giftIdeaId: idea.id,
+      recipientType: "person",
+      recipientId: alice,
+    });
+
+    const forIdea = await core.gifts.suggestions.listForIdea(idea.id);
+    expect(forIdea).toHaveLength(1);
+    expect(forIdea[0]?.recipientLabel).toBe("Alice X");
+  });
+
+  it("resolves a milestone occasion to its label", async () => {
+    const alice = await makePerson("Alice");
+    const birthday = await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: alice,
+      month: 6,
+      day: 1,
+    });
+    const idea = await core.gifts.ideas.create({ title: "Cake" });
+    await core.gifts.suggestions.create({
+      giftIdeaId: idea.id,
+      recipientType: "person",
+      recipientId: alice,
+      occasion: { type: "milestone", id: birthday.id },
+      targetDate: { year: 2026, month: 6, day: 1 },
+    });
+
+    const [s] = await core.gifts.suggestions.listForRecipient("person", alice);
+    expect(s?.occasionLabel).toBe("Birthday");
+    expect(s?.targetYear).toBe(2026);
+  });
+
+  it("cascades: deleting the idea removes its suggestions", async () => {
+    const alice = await makePerson("Alice");
+    const idea = await core.gifts.ideas.create({
+      title: "Socks",
+      suggestFor: [{ recipientType: "person", recipientId: alice }],
+    });
+    await core.gifts.ideas.softDelete(idea.id);
+    expect(
+      await core.gifts.suggestions.listForRecipient("person", alice),
+    ).toEqual([]);
+  });
+
+  it("cascades: deleting the recipient removes their suggestions", async () => {
+    const alice = await makePerson("Alice");
+    const idea = await core.gifts.ideas.create({
+      title: "Socks",
+      suggestFor: [{ recipientType: "person", recipientId: alice }],
+    });
+    await core.people.softDelete(alice);
+    expect(await core.gifts.suggestions.listForIdea(idea.id)).toEqual([]);
+  });
+
+  it("repoints a loser's suggestions onto the survivor on merge", async () => {
+    const alice = await makePerson("Alice");
+    const bob = await makePerson("Bob");
+    const idea = await core.gifts.ideas.create({
+      title: "Socks",
+      suggestFor: [{ recipientType: "person", recipientId: bob }],
+    });
+
+    await core.people.merge(alice, bob); // survivor=alice, loser=bob
+
+    expect(
+      await core.gifts.suggestions.listForRecipient("person", bob),
+    ).toEqual([]);
+    const moved = await core.gifts.suggestions.listForRecipient(
+      "person",
+      alice,
+    );
+    expect(moved.map((s) => s.giftIdeaId)).toEqual([idea.id]);
+  });
+});

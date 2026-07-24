@@ -1,5 +1,9 @@
-import type { BearerHolidayCandidate } from "@leapsake/core";
 import type {
+  BearerHolidayCandidate,
+  GiftSuggestionForRecipient,
+} from "@leapsake/core";
+import type {
+  GiftIdea,
   MilestoneTimelineEntry,
   Pet,
   RelationshipNeighbor,
@@ -9,6 +13,7 @@ import type {
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
+import { GiftSuggestionsSection } from "../components/GiftSuggestionsSection";
 import { HolidaysSection } from "../components/HolidaysSection";
 import { MentionedInSection } from "../components/MentionedInSection";
 import { MilestonesSection } from "../components/MilestonesSection";
@@ -21,16 +26,27 @@ function formatTimestamp(ms: number): string {
 }
 
 export function PetView() {
-  const { pet, tags, relationships, gender, timeline, mentionedIn, holidays } =
-    useLoaderData() as {
-      pet: Pet;
-      tags: Tag[];
-      relationships: RelationshipNeighbor[];
-      gender: GenderResult;
-      timeline: MilestoneTimelineEntry[];
-      mentionedIn: Reminder[];
-      holidays: BearerHolidayCandidate[];
-    };
+  const {
+    pet,
+    tags,
+    relationships,
+    gender,
+    timeline,
+    mentionedIn,
+    holidays,
+    giftSuggestions,
+    giftIdeaPool,
+  } = useLoaderData() as {
+    pet: Pet;
+    tags: Tag[];
+    relationships: RelationshipNeighbor[];
+    gender: GenderResult;
+    timeline: MilestoneTimelineEntry[];
+    mentionedIn: Reminder[];
+    holidays: BearerHolidayCandidate[];
+    giftSuggestions: GiftSuggestionForRecipient[];
+    giftIdeaPool: GiftIdea[];
+  };
 
   return (
     <main>
@@ -64,6 +80,14 @@ export function PetView() {
       />
 
       <HolidaysSection bearerType="pet" bearerId={pet.id} holidays={holidays} />
+
+      <GiftSuggestionsSection
+        recipientType="pet"
+        recipientId={pet.id}
+        recipientLabel={pet.name}
+        suggestions={giftSuggestions}
+        ideaPool={giftIdeaPool}
+      />
 
       <TagsSection bearerType="pet" bearerId={pet.id} tags={tags} />
 

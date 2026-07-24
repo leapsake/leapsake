@@ -76,6 +76,11 @@ export const API_CHANNELS = [
   "gifts.ideas.create",
   "gifts.ideas.update",
   "gifts.ideas.softDelete",
+  "gifts.suggestions.listForRecipient",
+  "gifts.suggestions.listForIdea",
+  "gifts.suggestions.create",
+  "gifts.suggestions.update",
+  "gifts.suggestions.softDelete",
 
   "contactMethods.listForOwner",
   "contactMethods.emails.create",

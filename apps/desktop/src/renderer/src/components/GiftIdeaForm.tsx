@@ -8,7 +8,14 @@ import { Form, Link, useNavigation } from "react-router-dom";
  * token splicing to manage (unlike the reminder form). Presentational: the route
  * action owns the write.
  */
-export function GiftIdeaForm({ idea }: { idea?: GiftIdea }) {
+export function GiftIdeaForm({
+  idea,
+  cancelTo = "/gifts",
+}: {
+  idea?: GiftIdea;
+  /** Where Cancel returns to — the recipient's page when launched from there. */
+  cancelTo?: string;
+}) {
   const navigation = useNavigation();
   const saving = navigation.state === "submitting";
 
@@ -49,7 +56,7 @@ export function GiftIdeaForm({ idea }: { idea?: GiftIdea }) {
           />
         </p>
         <p>
-          <button type="submit">Save</button> <Link to="/gifts">Cancel</Link>
+          <button type="submit">Save</button> <Link to={cancelTo}>Cancel</Link>
         </p>
       </fieldset>
     </Form>

@@ -36,6 +36,10 @@ export {
 } from "./self-person-repo.js";
 export { type GiftIdeasRepo, createGiftIdeasRepo } from "./gift-ideas-repo.js";
 export {
+  type GiftSuggestionsRepo,
+  createGiftSuggestionsRepo,
+} from "./gift-suggestions-repo.js";
+export {
   type ReminderRulesRepo,
   createReminderRulesRepo,
 } from "./reminder-rules-repo.js";
