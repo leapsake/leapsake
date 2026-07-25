@@ -661,7 +661,7 @@ export const migrations: Migration[] = [
   {
     version: 23,
     async up(driver) {
-      // The self-person (plans/gifts.md §Slice 0) — a synced singleton pointing
+      // The self-person — a synced singleton pointing
       // at the Person that is "you". Gifts are the first feature to need a self
       // concept (who gave / received); it is also the future kinship ego anchor
       // and the "me" of vCard export.
@@ -694,7 +694,7 @@ export const migrations: Migration[] = [
   {
     version: 24,
     async up(driver) {
-      // Gift ideas (plans/gifts.md §GiftIdea) — "a thing in the world", reusable
+      // Gift ideas — "a thing in the world", reusable
       // and person-agnostic: `title` (required) plus optional `url` and `notes`.
       // The first of the three gift tables; a suggestion pairs an idea with a
       // recipient and a giving is a dated event, but an idea alone is a standalone
@@ -718,7 +718,7 @@ export const migrations: Migration[] = [
   {
     version: 25,
     async up(driver) {
-      // Gift suggestions (plans/gifts.md §GiftSuggestion) — a candidate: one gift
+      // Gift suggestions — a candidate: one gift
       // idea paired with a recipient ("Ralphie would like a BB gun"). NOT a giving
       // (that's the dated `gifts` table, later): a suggestion carries no state and
       // no "given" column, because whether it was given is a query over gifts, not
@@ -757,7 +757,7 @@ export const migrations: Migration[] = [
   {
     version: 26,
     async up(driver) {
-      // Gifts (plans/gifts.md §Gift) — a dated **event**: something changed hands
+      // Gifts — a dated **event**: something changed hands
       // ("Ralphie was given a BB gun, Christmas 1941"). A giving points at the
       // **idea**, never a suggestion — so "✓ given" is a query on
       // `(gift_idea_id, recipient)` with no state column, and the scotch you give

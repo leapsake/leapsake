@@ -24,7 +24,7 @@ const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
 
 /**
  * The path a `🎁 gift` reminder's CTA points at, which flips on completion — the
- * loop plans/gifts.md sequencing 5 closes. **Open:** the recipient's own page,
+ * loop the reminder itself opens. **Open:** the recipient's own page,
  * whose Gifts section lists what's already suggested for them (and what they've
  * been given, so you don't repeat yourself). **Done:** the capture form fixed to
  * that recipient, to record what you actually gave.

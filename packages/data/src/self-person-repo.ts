@@ -14,7 +14,7 @@ import { type EntityRepo, createEntityRepo } from "./entity-repo.js";
  * device. Content-addressed like the holiday ids (see `holidays-repo.ts`), but
  * with a *fixed* name because there is exactly one self-person: both devices
  * write the same PK, so a divergent pick converges by whole-row LWW instead of
- * colliding (plans/gifts.md §Slice 0). Kept constant forever — moving it would
+ * colliding. Kept constant forever — moving it would
  * re-mint "you" and duplicate the row on next sync.
  */
 export const SELF_PERSON_ID = deterministicUuid(

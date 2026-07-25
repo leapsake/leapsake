@@ -70,13 +70,13 @@ export function syncableRepos(
     createMentionsRepo(driver),
     // The self-person singleton rides the people sync channel (its `person_id`
     // points into the people rows) — plaintext, converging by whole-row LWW on
-    // its fixed PK (plans/gifts.md §Slice 0).
+    // its fixed PK.
     createSelfPersonRepo(driver),
-    // Gift ideas — plaintext, person-agnostic rows (plans/gifts.md §GiftIdea).
+    // Gift ideas — plaintext, person-agnostic rows.
     createGiftIdeasRepo(driver),
-    // Gift suggestions — idea × recipient candidates (plans/gifts.md).
+    // Gift suggestions — idea × recipient candidates.
     createGiftSuggestionsRepo(driver),
-    // Gifts — dated giving events (plans/gifts.md).
+    // Gifts — dated giving events.
     createGiftsRepo(driver),
     // Holidays: the catalog syncs alongside user data so only ONE device ever
     // needs internet — a laptop that updates at a coffee shop can carry the new

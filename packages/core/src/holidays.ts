@@ -354,7 +354,7 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
     /**
      * The date(s) a holiday falls on in one Gregorian year, ISO — the reverse of
      * reading a date off an occasion, which is what lets a gift form fill
-     * "Christmas" + 1941 in as 1941-12-25 (plans/gifts.md: the occasion runs in
+     * "Christmas" + 1941 in as 1941-12-25 (the occasion runs in
      * reverse for free).
      *
      * Usually one date. A lunisolar holiday can fall **twice** in one Gregorian

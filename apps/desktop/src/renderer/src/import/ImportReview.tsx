@@ -44,8 +44,8 @@ export function ImportReview({
   );
   const [result, setResult] = useState<ImportResult | null>(null);
   // After a successful import, prompt the user to pick themselves if they haven't
-  // yet — a natural moment now that there's a list to pick from (plans/gifts.md
-  // §Slice 0). A lookup failure just leaves it false (no nudge, no error).
+  // yet — a natural moment now that there's a list to pick from.
+  // A lookup failure just leaves it false (no nudge, no error).
   const [promptSelf, setPromptSelf] = useState(false);
 
   // Fetch likely-duplicate flags once; a failure just leaves rows unflagged.

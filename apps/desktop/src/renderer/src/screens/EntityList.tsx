@@ -23,7 +23,7 @@ interface EntityListData {
  *
  * `?pick=self` puts the screen in **pick-yourself** mode (reached from the
  * onboarding nudge or the post-import prompt): each Person row offers a "This is
- * me" button that sets the self-person (plans/gifts.md §Slice 0). Pets can't be
+ * me" button that sets the self-person. Pets can't be
  * you, so they show nothing in that mode.
  */
 export function EntityList() {

@@ -163,7 +163,7 @@ describe("regenerateSystemReminders", () => {
 
     const [reminder] = h.activeSystem();
     // Addressed to you — a celebratory icon and no mention token, not the
-    // third-party "🎉 Wish @You a happy birthday" (plans/gifts.md §Slice 0).
+    // third-party "🎉 Wish @You a happy birthday".
     expect(reminder.title).toBe("🎂 It's your birthday!");
     expect(reminder.title).not.toContain("@[");
     // Still a real, dated reminder — you are not excluded, just re-worded.
@@ -365,7 +365,7 @@ describe("regenerateSystemReminders", () => {
 
 /**
  * What a system reminder is *about* — the read that lets a client offer an action
- * on it (plans/gifts.md sequencing 5 turns the `gift` one into a link to the
+ * on it (a client turns the `gift` one into a link to the
  * recipient's gifts). It shares the reconcile's own walk, and the first test here
  * is the guard on that: the targets must name the very rows reconcile wrote.
  */

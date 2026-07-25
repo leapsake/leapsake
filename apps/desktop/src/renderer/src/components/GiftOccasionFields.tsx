@@ -50,7 +50,7 @@ const keyOf = (o: GiftOccasion | null) =>
 
 /**
  * The occasion + partial-date pair, authored together because their *meanings*
- * come from the pair (plans/gifts.md): "Christmas, no year" is a standing intent,
+ * come from the pair: "Christmas, no year" is a standing intent,
  * "Christmas 2026" is one specific one, a bare date is an arbitrary deadline, and
  * neither is "someday". Used for a suggestion's **target** date and for a giving's
  * **what-happened** date — the same two controls, different columns underneath.

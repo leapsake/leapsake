@@ -102,7 +102,7 @@ export interface ReminderEngineDeps {
     bearerId: string,
   ): Promise<string | null>;
   /**
-   * Whether a milestone bearer is the **self-person** (plans/gifts.md §Slice 0) —
+   * Whether a milestone bearer is the **self-person** —
    * flips the birthday *wish* copy from "Wish @You a happy birthday" to a self-
    * directed "It's your birthday!". A single branch in the copy layer, keyed on
    * `getSelf()`, **not** a filter: your own birthday is still reminded, just
@@ -126,7 +126,7 @@ export interface ReminderEngineDeps {
     hasAnyEntity(): Promise<boolean>;
     /** Whether this device has connected to a sync relay. */
     isSyncConnected(): Promise<boolean>;
-    /** Whether the self-person has been picked yet (plans/gifts.md §Slice 0). */
+    /** Whether the self-person has been picked yet. */
     hasSelf(): Promise<boolean>;
   };
   /**
@@ -201,7 +201,7 @@ interface DesiredReminder {
    * a **person/pet** bearer (a milestone or holiday one), absent for onboarding
    * nudges and relationship-borne milestones. Clients read it through
    * {@link listSystemReminderTargets} to offer an action on the reminder (the
-   * `gift` one opens the recipient's gifts — plans/gifts.md sequencing 5).
+   * `gift` one opens the recipient's gifts).
    */
   target?: Omit<SystemReminderTarget, "id">;
 }
@@ -291,7 +291,7 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   },
   {
     // Pick yourself, once there's a list to pick from — the self-person is the
-    // ego anchor gifts (and, later, kinship) need (plans/gifts.md §Slice 0). It
+    // ego anchor gifts (and, later, kinship) need. It
     // sits below add-person because you can't pick yourself from an empty list.
     key: "pick-self",
     title: "🙋 Which of these is you? Pick yourself.",
@@ -459,7 +459,7 @@ async function computeDesired(
 
     // Is this milestone's bearer *you*? A single copy-layer branch (below) flips
     // the birthday wish to self-directed rather than filtering your own birthday
-    // out — you are not excluded (plans/gifts.md §Slice 0). Resolved once per
+    // out — you are not excluded. Resolved once per
     // milestone: only a person can be self, and only when the port is supplied.
     const bearerIsSelf =
       m.bearerType === "person" && deps.isSelf !== undefined

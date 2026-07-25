@@ -177,7 +177,7 @@ async function createRelationships(
 /**
  * The combined People & Pets home list, merged and sorted by display name, plus
  * the id of the Person that is "you" (or null) so the list can badge it "You"
- * and the pick-self flow can tick the current choice (plans/gifts.md §Slice 0).
+ * and the pick-self flow can tick the current choice.
  */
 async function entityListLoader() {
   const [entities, self] = await Promise.all([
@@ -920,8 +920,8 @@ async function giftIdeaEditLoader({ params }: LoaderFunctionArgs) {
  * The "Add a gift" screen: the idea pool the capture form autocompletes against
  * plus the people/pets pool its recipient picker draws from, loaded in parallel.
  *
- * A `?recipient=<type>:<id>` param (how a completed `🎁 gift` reminder hands off
- * — plans/gifts.md sequencing 5) fixes the form to that one recipient and seeds a
+ * A `?recipient=<type>:<id>` param (how a completed `🎁 gift` reminder hands
+ * off) fixes the form to that one recipient and seeds a
  * blank date row, so "record what you gave" opens ready to log a giving rather
  * than to shortlist one. An unresolvable id falls back to the ordinary picker.
  */
@@ -1059,7 +1059,7 @@ const routes: RouteObject[] = [
         action: reminderToggleAction,
       },
       {
-        // Gifts — the whole graph keyed by idea (plans/gifts.md). Creating is its
+        // Gifts — the whole graph keyed by idea. Creating is its
         // own screen, so this stays a plain list (the People & Pets pattern).
         path: "gifts",
         loader: () => window.api.gifts.overview(),

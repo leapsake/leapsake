@@ -122,7 +122,7 @@ interface HolidayRow {
 }
 /**
  * A gift idea, surfaced as its own navigable result and as the resolution target
- * of a tag match (gift ideas are taggable — plans/gifts.md sequencing 4). Matched
+ * of a tag match (gift ideas are taggable). Matched
  * on the folded `title`, like a holiday's name, and on its `url` — the half-
  * remembered link ("that thing from thelocalbookshop") is a real way people reach
  * for an idea, and it's the one field here a *name* can't stand in for.
@@ -293,7 +293,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     // as its own navigable row ("what was that BB gun link?"). Registered in
     // titleByEntity *here*, before the tag pass below, so a gift idea also
     // resolves as the owner of a matching tag — the one facet gift ideas share
-    // with people and pets (plans/gifts.md sequencing 4).
+    // with people and pets.
     for (const idea of giftIdeas) {
       titleByEntity.set(key("gift_idea", idea.id), {
         type: "gift_idea",

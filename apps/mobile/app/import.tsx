@@ -157,8 +157,8 @@ export default function ImportScreen() {
     try {
       const imported = await core.import.commit(decisions);
       setResult(imported);
-      // Import is a natural prompt point for the self-person (plans/gifts.md
-      // §Slice 0), mirroring desktop's ImportReview: offer it only when people
+      // Import is a natural prompt point for the self-person, mirroring
+      // desktop's ImportReview: offer it only when people
       // actually landed and no self is set yet — there's now a list to pick from.
       const self = await core.self.get().catch(() => undefined);
       setPromptSelf(imported.created > 0 && self === undefined);

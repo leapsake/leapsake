@@ -640,7 +640,7 @@ describe("searchService — holidays", () => {
 /**
  * Gift ideas surface as their own navigable result, on the tag/holiday
  * precedent — "what was that BB gun link?" is a search for the *thing*
- * (plans/gifts.md sequencing 4). Unlike a tag or a holiday, an idea aggregates
+ *. Unlike a tag or a holiday, an idea aggregates
  * nothing, so it doesn't float above equally-matching people; unlike a holiday,
  * it *is* reachable through its tags, since gift ideas are taggable.
  */

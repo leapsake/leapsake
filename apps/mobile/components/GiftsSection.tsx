@@ -29,7 +29,7 @@ const joinBits = (bits: (string | null)[]) => bits.filter(Boolean).join(", ");
  * The "Gifts" section on a Person or Pet screen, ported from the desktop
  * `GiftsSection`. One consolidated capture form on top — type a gift
  * (autocompleting existing ideas), and it's a suggestion; add a date and it's a
- * logged giving (plans/gifts.md) — over one list combining **suggestions**
+ * logged giving — over one list combining **suggestions**
  * (candidates) and **givings** (dated events), grouped by idea. A giving points at
  * the idea, never the suggestion, so "✓ given" is just a fact read alongside (the
  * suggestion row never changes state); candidates not yet given lead, given ideas

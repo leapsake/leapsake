@@ -405,7 +405,7 @@ describe("core.gifts.capture (the consolidated create)", () => {
 });
 
 /**
- * The occasion pool a gift form's picker draws from (plans/gifts.md). Narrow by
+ * The occasion pool a gift form's picker draws from. Narrow by
  * design: the recipient's own milestones plus the holidays they observe — never
  * the whole catalog, which would offer "Christmas" to someone who doesn't keep it.
  */
@@ -470,7 +470,7 @@ describe("core.gifts.occasionsFor", () => {
 });
 
 /**
- * The reverse fill (plans/gifts.md): an occasion + a year resolves back to a
+ * The reverse fill: an occasion + a year resolves back to a
  * date, so "Christmas 1941" can fill in Dec 25 without the user counting.
  */
 describe("core.holidays.occurrencesIn", () => {
@@ -542,7 +542,7 @@ describe("core.gifts.overview (the Gifts screen, keyed by idea)", () => {
 });
 
 /**
- * Tags on gift ideas (plans/gifts.md sequencing 4): `gift_idea` joined
+ * Tags on gift ideas: `gift_idea` joined
  * `tagBearerTypeSchema` as one more bearer, so an idea list stays browsable once
  * it's long. The tag set rides the idea's create/update the way a Person's does.
  */
@@ -645,7 +645,7 @@ function civilDaysFromToday(days: number): CivilDate {
 }
 
 /**
- * The reminder loop (plans/gifts.md sequencing 5): the `🎁 gift` action has
+ * The reminder loop: the `🎁 gift` action has
  * always minted "Get @Alice a gift"; `giftTargets` is what tells a client which
  * reminders those are and who they're for, so it can link to the recipient's
  * gifts and — once done — to logging what was given.

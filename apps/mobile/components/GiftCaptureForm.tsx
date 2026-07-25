@@ -162,7 +162,7 @@ function SuggestionDisclosure({
 }
 
 /**
- * The re-gift guard (plans/gifts.md sequencing 3): what this recipient has
+ * The re-gift guard: what this recipient has
  * *already been given* of the idea being typed. A giving points at the idea, so
  * this is the same `(gift_idea_id, recipient)` read the "✓ given" annotation
  * makes — surfaced here, at the moment it can still change the user's mind,
@@ -237,7 +237,7 @@ function usePartyContext(parties: PartyOption[]): Map<string, PartyContext> {
 }
 
 /**
- * The one consolidated "capture a gift" form (plans/gifts.md), ported from the
+ * The one consolidated "capture a gift" form, ported from the
  * desktop `GiftCaptureForm`. Type a gift's name (autocompleting existing ideas)
  * or paste a URL; that alone captures an **idea**. On the Gifts screen you then
  * add **recipients** (each a suggestion), and dates are entered **per recipient**

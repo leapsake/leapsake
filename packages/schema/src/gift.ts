@@ -20,7 +20,7 @@ export type GiftParty = z.infer<typeof giftPartySchema>;
  * 2023"). Reuses the milestone partial-date shape (`year`/`month`/`day`
  * individually nullable, the tested **day ⇒ month** rule, precision derived).
  * Plain `year`/`month`/`day` — a gift records *what happened*, distinct from a
- * suggestion's `target_*` *intent* (plans/gifts.md).
+ * suggestion's `target_*` *intent*.
  */
 export const giftDateSchema = z
   .object({
@@ -37,7 +37,7 @@ export type GiftDate = z.infer<typeof giftDateSchema>;
 
 /**
  * How the create surface names the idea a giving is of: an **existing** idea by
- * id, or a **new** one to mint in the same transaction (plans/gifts.md — "logging
+ * id, or a **new** one to mint in the same transaction ("logging
  * 'I gave Ralphie a BB gun' mints the idea and the gift in one transaction if 'BB
  * gun' doesn't exist yet"). A share-from-the-web giving may arrive URL-first, so
  * the new-idea arm accepts an optional url too.
@@ -53,7 +53,7 @@ export const giftIdeaRefSchema = z.union([
 export type GiftIdeaRef = z.infer<typeof giftIdeaRefSchema>;
 
 /**
- * A Gift — a **dated event**: something changed hands (plans/gifts.md). "Ralphie
+ * A Gift — a **dated event**: something changed hands. "Ralphie
  * was given a Red Ryder BB Gun, Christmas 1941." Distinct from an idea (the
  * *thing*) and a suggestion (a *candidate*): a giving is a fact with a date and a
  * second party. A giving points at the **idea**, never the suggestion, so "✓
@@ -112,7 +112,7 @@ export const giftSchema = z
 export type Gift = z.infer<typeof giftSchema>;
 
 /**
- * The fields accepted when logging a giving (plans/gifts.md single-payload create
+ * The fields accepted when logging a giving (the single-payload create
  * surface). `giftIdea` mints a new idea when it isn't an existing id. `giver` is
  * omitted for "unknown", or points at the self-person for "I gave it".
  */
@@ -163,7 +163,7 @@ export type GiftGivingEntry = z.infer<typeof giftGivingEntrySchema>;
 /**
  * What a recipient's **suggestion** arm carries when it has no givings: the
  * occasion it's for and the target date it's aimed at ("for Christmas 2026",
- * "before her trip on the 3rd", "someday" — plans/gifts.md). The mirror of a
+ * "before her trip on the 3rd", "someday"). The mirror of a
  * {@link giftGivingEntrySchema}'s adornments, one arm over.
  */
 export const captureSuggestionSchema = z.object({
@@ -194,7 +194,7 @@ export const captureRecipientSchema = z.object({
 export type CaptureRecipient = z.infer<typeof captureRecipientSchema>;
 
 /**
- * The **one consolidated create** surface (plans/gifts.md single-payload create):
+ * The **one consolidated create** surface:
  * an idea (existing or new) captured with zero-to-many recipients, each with its
  * own zero-to-many givings, in one transaction. It expresses the whole "type a
  * gift → suggest it → log it" flow as data:

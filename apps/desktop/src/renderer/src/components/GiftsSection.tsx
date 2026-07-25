@@ -23,7 +23,7 @@ interface IdeaGroup {
 /**
  * The "Gifts" section on a Person or Pet screen. One consolidated capture form on
  * top — type a gift (autocompleting existing ideas), and it's a suggestion; add a
- * date and it's a logged giving (plans/gifts.md) — over one list combining
+ * date and it's a logged giving — over one list combining
  * **suggestions** (candidates) and **givings** (dated events), grouped by idea.
  * A giving points at the idea, never the suggestion, so "✓ given" is just a fact
  * read alongside (the suggestion row never changes state); candidates not yet

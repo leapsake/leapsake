@@ -251,7 +251,7 @@ export type GiftForIdea = Gift & {
  * A `🎁 gift` system reminder paired with the person/pet it's about — what turns
  * "Get @Alice a gift" from a note into a loop: the client links it to Alice's
  * gifts, and once it's done, to logging what was actually given
- * (plans/gifts.md sequencing 5). Derived from the engine's own desired-set walk,
+ *. Derived from the engine's own desired-set walk,
  * so it lights up on exactly the reminders the engine minted — never a stored
  * column, in keeping with the id-convention the onboarding CTAs established.
  */
@@ -675,7 +675,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         ? null
         : ((await resolveLabel(bearerType, bearerId)) ?? null),
     // Is a milestone's bearer the self-person? Flips your own birthday's wish to
-    // its self-directed copy (plans/gifts.md §Slice 0). Only a person can be
+    // its self-directed copy. Only a person can be
     // self, so a pet/relationship bearer is `false` without a lookup.
     isSelf: async (bearerType, bearerId) =>
       bearerType === "person" && bearerId === (await self.getSelf())?.personId,
@@ -910,7 +910,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         return found.filter((r): r is Reminder => r !== undefined);
       },
       // As do gift ideas — a "#books" or "#kitchen" tag is how an idea list
-      // stays browsable once it's long (plans/gifts.md sequencing 4).
+      // stays browsable once it's long.
       giftIdeasForTag: async (tagId: string): Promise<GiftIdea[]> => {
         const ids = await tags.entityIdsForTag(tagId, "gift_idea");
         const found = await Promise.all(ids.map((id) => giftIdeas.get(id)));
@@ -1192,7 +1192,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       // them. See {@link regenerateSystem}.
       regenerateSystem,
       // Which of today's automated reminders are **gift** ones, and who each is
-      // about — the loop-closing read for plans/gifts.md sequencing 5. The `🎁`
+      // about — the loop-closing read behind the gift CTA. The `🎁`
       // action has always minted "Get @Alice a gift"; this is what lets a client
       // turn that into a link to Alice's gifts and, once done, into a logged
       // giving. Covers both dated families (a birthday's gift rule and a
@@ -1209,8 +1209,8 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       },
     },
 
-    // Who "you" are — a pointer at the Person that is the self (plans/gifts.md
-    // §Slice 0). `get` reads the singleton (undefined when unset); `set` points
+    // Who "you" are — a pointer at the Person that is the self.
+    // `get` reads the singleton (undefined when unset); `set` points
     // it at an existing Person and reconciles the automated reminders, so your
     // own birthday's wish flips to its self-directed copy at once (rather than
     // waiting for the next boot/focus reconcile); `clear` un-picks it.
@@ -1227,7 +1227,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       },
     },
 
-    // Gifts (plans/gifts.md). An idea is a thing in the world (person-agnostic);
+    // Gifts. An idea is a thing in the world (person-agnostic);
     // a suggestion pairs an idea with a recipient (a candidate). Givings (dated
     // events) join this namespace in a later slice.
     gifts: {
@@ -1237,7 +1237,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         // Single-payload create (share-target ready): capture an idea and,
         // optionally, suggest it for zero-to-many recipients in one transaction.
         // `tagNames` rides along the same way a Person's does — the whole desired
-        // set, committed with the row (plans/gifts.md sequencing 4).
+        // set, committed with the row.
         create: (
           {
             suggestFor,
@@ -1363,7 +1363,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           return joined.filter((g): g is GiftForRecipient => g !== null);
         },
         // Log a giving; mints the idea in the same transaction when `giftIdea`
-        // isn't an existing id (plans/gifts.md). An existing-id reference is
+        // isn't an existing id. An existing-id reference is
         // verified so a gift never points at a missing idea.
         create: (input: CreateGiftInput): Promise<Gift> =>
           driver.transaction(async () => {
@@ -1396,7 +1396,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           driver.transaction(() => giftsRepo.softDelete(id)),
       },
 
-      // The one consolidated create (plans/gifts.md single-payload surface): an
+      // The one consolidated create: an
       // idea (existing or minted) captured with zero-to-many recipients and
       // zero-to-many givings, all in one transaction. No recipients ⇒ just the
       // idea; recipients with no givings ⇒ a suggestion each; recipients with

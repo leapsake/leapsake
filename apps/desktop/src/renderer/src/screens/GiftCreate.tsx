@@ -14,7 +14,7 @@ import {
  * Reached with a recipient already chosen (`?recipient=…`) when a completed
  * `🎁 gift` reminder hands off — then the picker collapses to that one person or
  * pet and the form opens on a date row, since the answer to "record what you
- * gave" is a giving, not a shortlist (plans/gifts.md sequencing 5).
+ * gave" is a giving, not a shortlist.
  */
 export function GiftCreate() {
   const { ideas, candidates, fixedRecipient } = useLoaderData() as {

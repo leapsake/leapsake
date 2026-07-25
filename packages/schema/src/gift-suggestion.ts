@@ -6,7 +6,7 @@ import { formatMilestoneDate } from "./milestone.js";
  * own enum per the house convention that each concern owns its bearer enum (see
  * `tagging.ts`). `relationship` is a plausible fourth party later ("we gave the
  * Smiths a wedding present") — one line here, no migration, exactly as
- * {@link milestoneBearerTypeSchema} reserved room (plans/gifts.md).
+ * {@link milestoneBearerTypeSchema} reserved room.
  */
 export const giftPartyTypeSchema = z.enum(["person", "pet"]);
 
@@ -14,7 +14,7 @@ export type GiftPartyType = z.infer<typeof giftPartyTypeSchema>;
 
 /**
  * What a gift's **occasion** points at — a milestone or a holiday. A third type
- * is one line later (plans/gifts.md). The occasion is a *label*, not the source
+ * is one line later. The occasion is a *label*, not the source
  * of truth for *when*: it references the **holiday** (never an observance) or the
  * milestone, and the target date + person resolve the actual occurrence — a
  * holiday reference alone is ambiguous (a lunisolar holiday can fall twice in one
@@ -54,7 +54,7 @@ export type GiftTargetDate = z.infer<typeof giftTargetDateSchema>;
 
 /**
  * A GiftSuggestion — a **candidate**: one {@link GiftIdea} paired with a
- * recipient (plans/gifts.md). "Ralphie would like a Red Ryder BB Gun." Distinct
+ * recipient. "Ralphie would like a Red Ryder BB Gun." Distinct
  * from the idea (about the *thing*) and from a {@link Gift} (a dated event); a
  * suggestion is a set membership, and its cardinality differs from a giving's —
  * the scotch you give your dad every Christmas is **one** suggestion and N
@@ -98,7 +98,7 @@ export type GiftSuggestion = z.infer<typeof giftSuggestionSchema>;
 
 /**
  * One recipient-and-adornments entry — the shape shared by a standalone create
- * and by an arm of the idea's `suggestFor` single-payload create (plans/gifts.md).
+ * and by an arm of the idea's `suggestFor` single-payload create.
  * `giftIdeaId` is supplied by the enclosing create (the idea being suggested), so
  * it isn't repeated here.
  */

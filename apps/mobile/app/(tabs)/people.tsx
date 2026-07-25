@@ -22,7 +22,7 @@ import { colors, styles } from "../../lib/styles";
 // `?pick=self` puts the screen in **pick-yourself** mode, which is where the
 // "🙋 Which of these is you?" onboarding nudge lands (app/(tabs)/index.tsx maps
 // it here): each Person row grows a "This is me" action that sets the
-// self-person (plans/gifts.md §Slice 0). Pets can't be you, so they offer
+// self-person. Pets can't be you, so they offer
 // nothing in that mode. The picked person keeps a "(You)" badge afterwards — the
 // readback that the pick landed, in either mode.
 export default function PeoplePetsScreen() {

@@ -24,7 +24,7 @@ import { styles } from "../../lib/styles";
  * Reached with a recipient already chosen (`?recipient=<type>:<id>`) when a
  * completed `🎁 gift` reminder hands off — then the picker collapses to that one
  * person or pet and the form opens on a date row, since the answer to "record what
- * you gave" is a giving, not a shortlist (plans/gifts.md sequencing 5). An
+ * you gave" is a giving, not a shortlist. An
  * unresolvable id falls back to the ordinary picker.
  */
 export default function GiftCreateScreen() {

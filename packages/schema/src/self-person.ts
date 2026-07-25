@@ -8,7 +8,7 @@ import { z } from "zod";
  * constant forever — the whole point is that every device mints the **same** id
  * for "you", so the row converges by ordinary whole-row LWW instead of a
  * `people.is_self` flag two devices could set on *different* people (a hard sync
- * failure). See plans/gifts.md §Slice 0.
+ * failure).
  */
 export const SELF_PERSON_NAMESPACE = "leapsake:self-person";
 
@@ -23,7 +23,7 @@ export const SELF_PERSON_ID_NAME = "singleton";
  * Person (no special columns, appears in the people list, has milestones and
  * relationships like anyone else). Gifts are the first feature to need a self
  * concept — who gave / received — and it is also the future kinship ego anchor
- * and the "me" of vCard export (plans/gifts.md §Slice 0).
+ * and the "me" of vCard export.
  *
  * `personId` is **non-polymorphic** — you are always a Person, never a Pet — and
  * carries no FK: like every synced row it rides the people sync channel and is
@@ -33,8 +33,7 @@ export const SELF_PERSON_ID_NAME = "singleton";
  * key (derived in the repo), epoch-ms UTC timestamps, and a nullable `deletedAt`
  * — a soft-deleted self reads as "unset". Deliberately plaintext (no per-item
  * content key): a self pointer is not a share target, and whole-DB-at-rest +
- * master-key-sealed sync already protect it (plans/gifts.md §The three gift
- * tables).
+ * master-key-sealed sync already protect it (as they do every other gift row).
  */
 export const selfPersonSchema = z.object({
   id: z.uuid(), // always the constant SELF_PERSON_ID, minted by the repo

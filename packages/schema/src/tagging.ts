@@ -4,7 +4,7 @@ import { z } from "zod";
  * The entity types that can *bear* a tag — a Person, Pet, Reminder, or GiftIdea.
  * A tag is a shared label an entity carries; the bearer is a polymorphic
  * `(bearerType, bearerId)` pair, so a new bearer type joins as **one line here**,
- * with no migration (`gift_idea` did exactly that — plans/gifts.md sequencing 4).
+ * with no migration (`gift_idea` did exactly that).
  * Kept **separate** from relationship's `entityTypeSchema` (role-holders): a
  * reminder can bear a tag but can't hold a relationship role — the same reason
  * milestones use their own {@link milestoneBearerTypeSchema}.
