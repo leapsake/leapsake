@@ -1,0 +1,65 @@
+/* Positions the suggestion listbox as an overlay under the field, so whatever
+   sits below — page content, or the rows already added by a multi-add field —
+   doesn't jump while typing.
+
+   This is the single copy of what used to be two identical stylesheets
+   (SearchBar.module.css and MultiAddCombobox.module.css, the latter a literal
+   copy of the former, with MentionTextField importing SearchBar's). The
+   duplication was left deliberately because there was no component-test tier to
+   catch a regression across the three shipped surfaces; there is one now. */
+
+.container {
+  position: relative;
+}
+
+.listbox {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 20rem;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ccc;
+}
+
+.option {
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+.option[aria-selected="true"] {
+  background: #e0e0e0;
+}
+
+.detail {
+  display: block;
+  font-size: 0.8em;
+  color: #555;
+  /* A matched link is one unbreakable run — wrap it inside the listbox rather
+     than letting a long URL push past the dropdown's edge. */
+  overflow-wrap: anywhere;
+}
+
+/* Highlight the matched substring as bold rather than the browser default
+   (yellow background), keeping the <mark> semantics without the heavy styling. */
+.option mark {
+  background: transparent;
+  color: inherit;
+  font-weight: 600;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}

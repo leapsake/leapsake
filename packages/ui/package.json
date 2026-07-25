@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./headless": "./src/headless/index.ts",
     "./tokens": "./src/tokens/index.ts",
     "./web": "./src/web/index.ts"
   },
