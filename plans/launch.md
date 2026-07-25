@@ -167,6 +167,8 @@ closed testing with the tester count met and the 14-day clock running.
 - Add electron-builder (or Forge) producing a macOS `.app` + DMG/zip from `out/`.
 - Wire `better-sqlite3-multiple-ciphers` native-module packaging for the Electron ABI —
   this is where `scripts/ensure-sqlite-abi.mjs` and asar unpacking must agree.
+  (An N-API fork release would delete this whole constraint — see
+  [`sqlite-abi-napi.md`](./sqlite-abi-napi.md).)
 - Bundle ID `com.leapsake.desktop`; app icon; category; version from Increment 1.
 
 **Acceptance:** `.app` launches on a clean macOS user account, creates its DB, migrates,
