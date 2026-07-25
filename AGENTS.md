@@ -66,6 +66,11 @@ packages/
                     # KeyStore port. Depend on this only if you handle keys or
                     # ciphertext. See packages/crypto/README.md.
   highlight/        # Search-match highlighting.
+  ui/               # Shared presentational UI, consumed by the Electron renderer
+                    # and (later) apps/web. Three subpaths: /tokens (plain-data
+                    # design tokens), /headless (behavior hooks, no DOM), /web
+                    # (DOM components). React is a *peer* dependency. See its
+                    # README and plans/ui-extraction.md.
 AGENTS.md
 plans/                # forward-looking only — upcoming work, not past decisions
   README.md           # project map / front door
@@ -172,6 +177,12 @@ Strategy, principles, and the driver-contract keystone live in
   production desktop engine** (`better-sqlite3-multiple-ciphers` via
   `makeEncryptedTestDriver`) — run migrations, then exercise CRUD, soft-delete,
   cascades, kinship, search, timeline.
+- **Component**: `packages/ui`'s presentational components under
+  `@testing-library/react`. Vitest runs `node` by default, so these files opt into
+  a DOM with a `// @vitest-environment jsdom` docblock; they also need an explicit
+  `afterEach(cleanup)`, since the suite runs without globals and Testing Library
+  can't register its own. Assert what a user perceives (roles, text, the `name` a
+  field submits under), not internals.
 - **Driver contract**: one shared spec (`@leapsake/data/testing` →
   `runDriverContract`) pins every `SqliteDriver` impl to identical observable
   behavior; desktop runs it under Vitest, mobile via the in-app self-test.
@@ -300,6 +311,17 @@ hoisted root forces a second, nested copy that a React library (e.g.
 - **Do not** add a global `pnpm.overrides` forcing one `react`/`react-dom`
   version across the repo — that recouples desktop to Expo's pinned version,
   which is the opposite of what we want.
+- **A shared UI package declares React as a `peerDependency`, never a
+  dependency** (`packages/ui`). A direct dep would put a second physical React in
+  desktop's bundle — the exact failure the dedupe exists to prevent.
+- **The workspace root pins a matching `react`/`react-dom` pair** (mobile's
+  version) purely so the component tests render against one. Before that, root
+  hoisting produced a *mismatched* pair — mobile's `react` beside desktop's
+  `react-dom`, the only `react-dom` consumer — which renders nothing and reports
+  a bogus `act(…)` warning, because React 19's `act` queue lives in `react` while
+  the work lives in `react-dom`. Root is pinned to mobile's version deliberately:
+  moving it would push mobile off the hoisted copy and into the nested case Metro
+  currently doesn't have to handle. Desktop keeps its own newer pair, nested.
 
 **Regression guard:** `pnpm --filter @leapsake/desktop check:bundle` builds the
 renderer and asserts the bundle contains exactly one `react` and one `react-dom`
@@ -314,6 +336,12 @@ bundler config.
 Runtime: `electron`, `react`, `react-dom`, `react-router-dom`, `zod`.
 (`node:sqlite` is a Node built-in — zero dependency.)
 Dev: `electron-vite`, `vite`, `@vitejs/plugin-react`, `typescript`, `vitest`,
-`oxlint`, `oxfmt`.
+`oxlint`, `oxfmt`, `@testing-library/react` + `jsdom`.
 
-Anything beyond this list needs a clear reason.
+Anything beyond this list needs a clear reason. The testing-library/jsdom pair's
+reason: the desktop renderer had **no** test coverage of any kind, which is
+explicitly why three near-identical combobox implementations were left
+un-deduplicated (the header comment in
+`apps/desktop/src/renderer/src/components/MultiAddCombobox.module.css` records
+that call). They are the safety net for the UI extraction — see
+[`plans/ui-extraction.md`](plans/ui-extraction.md).

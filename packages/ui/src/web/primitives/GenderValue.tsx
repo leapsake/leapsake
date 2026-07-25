@@ -1,6 +1,13 @@
 import { type Gender, genderLabel } from "@leapsake/schema";
 
-/** A gender read from the kinship engine: the value plus how it was determined. */
+/**
+ * A gender read from the kinship engine: the value plus how it was determined.
+ *
+ * Declared here rather than imported from `@leapsake/core` so this package stays
+ * off the data layer entirely — it is structurally the same type, and a
+ * presentational package that can't reach `core` can't accidentally grow a
+ * dependency on it.
+ */
 export interface GenderResult {
   value: Gender | null;
   origin: "explicit" | "derived";

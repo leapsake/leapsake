@@ -1,0 +1,23 @@
+{
+  "name": "@leapsake/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tokens": "./src/tokens/index.ts",
+    "./web": "./src/web/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@leapsake/highlight": "workspace:*",
+    "@leapsake/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "jsdom": "^29.1.1"
+  }
+}

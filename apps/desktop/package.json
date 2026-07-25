@@ -20,6 +20,7 @@
     "@leapsake/highlight": "workspace:*",
     "@leapsake/schema": "workspace:*",
     "@leapsake/sync": "workspace:*",
+    "@leapsake/ui": "workspace:*",
     "better-sqlite3-multiple-ciphers": "^12.11.1",
     "react": "19.2.7",
     "react-dom": "19.2.7",

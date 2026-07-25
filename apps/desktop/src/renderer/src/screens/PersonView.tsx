@@ -14,10 +14,10 @@ import type {
   Tag,
 } from "@leapsake/schema";
 import { fullName } from "@leapsake/schema";
+import { GenderValue, type GenderResult } from "@leapsake/ui/web";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { ContactMethodsSection } from "../components/ContactMethodsSection";
-import { GenderValue, type GenderResult } from "../components/GenderValue";
 import { GiftsSection } from "../components/GiftsSection";
 import { HolidaysSection } from "../components/HolidaysSection";
 import { MentionedInSection } from "../components/MentionedInSection";

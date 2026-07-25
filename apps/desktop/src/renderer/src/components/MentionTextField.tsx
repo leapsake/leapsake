@@ -6,8 +6,8 @@ import {
   insertHashtag,
   insertMention,
 } from "@leapsake/schema";
+import { highlightMatch } from "@leapsake/ui/web";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
-import { highlightMatch } from "../lib/highlightMatch";
 import styles from "./SearchBar.module.css";
 
 /**

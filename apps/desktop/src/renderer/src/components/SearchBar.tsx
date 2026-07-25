@@ -1,8 +1,8 @@
 import type { SearchHit } from "@leapsake/schema";
+import { highlightBirthday, highlightMatch } from "@leapsake/ui/web";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { entityBasePath } from "../lib/entityLabel";
-import { highlightBirthday, highlightMatch } from "../lib/highlightMatch";
 import styles from "./SearchBar.module.css";
 
 /**

@@ -1,7 +1,7 @@
 import type { Pet } from "@leapsake/schema";
+import { GenderField } from "@leapsake/ui/web";
 import type { ReactNode } from "react";
 import { Form, Link, useNavigation } from "react-router-dom";
-import { GenderField } from "./GenderField";
 import { RelationshipFields } from "./RelationshipFields";
 import type { RelationshipCandidate } from "./RelationshipForm";
 

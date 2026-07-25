@@ -15,6 +15,9 @@ export type { HighlightMode };
  * rest renders as plain text. All the matching/folding lives in
  * `@leapsake/highlight`; this is the web's thin rendering wrapper (a React Native
  * renderer would map the same segments to styled `<Text>`).
+ *
+ * This split — portable segments in one package, a five-line renderer per
+ * platform — is the pattern the rest of this package follows.
  */
 function render(segments: HighlightSegment[]): ReactNode {
   return (
@@ -41,7 +44,7 @@ export function highlightMatch(
 }
 
 /**
- * Highlight a birthday reason (a formatted date like "October 31, 1990") against
+ * Highlight a birthday reason (a formatted date like “October 31, 1990”) against
  * the user's query — month-name queries fold like text, numeric queries mark the
  * structural date pieces they name. See {@link highlightBirthdaySegments}.
  */

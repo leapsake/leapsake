@@ -163,14 +163,17 @@ can't ship without distributable apps. (None yet.)
   borderline Lunar New Year years are documented in `packages/holidays/src/catalog.ts`. The only
   future task is calendrical and distant: **extend both tables before ~2050**, re-deriving rather
   than extrapolating.
-- **UI extraction — not started.** The desktop renderer can't be reused (60 of 71 files import
-  `react-router-dom`; 12 call `window.api` directly), and desktop + mobile duplicate derivation
-  logic verbatim. Two packages: `@leapsake/ui` (strictly presentational, injected `Link`/`Form`
-  adapter, the eventual design-system home) and `@leapsake/view-models` (headless derivations, all
-  three clients). Eight independently shippable increments — start at 0 (package skeleton + the
-  first component-test tier the renderer has ever had) or 7 (`view-models`, independent of the
-  rest). It also lands desktop's missing renderer test coverage. Design + increments:
-  [`ui-extraction.md`](./ui-extraction.md). **Styling is a separate pre-v0.1 pass, after this.**
+- **UI extraction — increment 0 done; 1–7 remain.** The desktop renderer can't be reused (60 of
+  71 files import `react-router-dom`; 12 call `window.api` directly), and desktop + mobile
+  duplicate derivation logic verbatim. Two packages: `@leapsake/ui` (strictly presentational,
+  injected `Link`/`Form` adapter, the eventual design-system home) and `@leapsake/view-models`
+  (headless derivations, all three clients). **Increment 0 shipped**: the package with its three
+  subpaths, the `UiAdapter` seam (desktop implements it in `lib/ui-adapter.tsx`), a seeded token
+  layer, the first three moved components — and **the first component-test tier the renderer has
+  ever had** (`@testing-library/react` + jsdom). **Next: increment 1** — the shared primitives
+  plus the 10 confirm-destructive screens. Each code-moving increment is two commits (split in
+  place, then move). Design + increments: [`ui-extraction.md`](./ui-extraction.md). **Styling is a
+  separate pre-v0.1 pass, after this.**
 
 ### v0.2 (first post-launch feature increment)
 
