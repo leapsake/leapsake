@@ -1,22 +1,28 @@
 import type { GiftIdea } from "@leapsake/schema";
 import { Link, useLoaderData } from "react-router-dom";
+import {
+  GiftCaptureForm,
+  type PartyOption,
+} from "../components/GiftCaptureForm";
 
 /**
  * The Gifts screen — a standalone list of gift ideas (things in the world),
- * newest first. Useful on its own as an idea / shopping list; suggestions (idea ×
- * recipient) and givings hang off these ideas in later slices. Each row links its
- * title to its edit page, shows its link and notes, and offers Remove.
+ * newest first. The consolidated capture form on top (plans/gifts.md): typing a
+ * name/URL captures an **idea**; adding people/pets makes it **suggestions**;
+ * adding dates makes it **givings**. Each row links its title to its edit page
+ * (where its recipients live), shows its link and notes, and offers Remove.
  */
 export function GiftIdeaList() {
-  const ideas = useLoaderData() as GiftIdea[];
+  const { ideas, candidates } = useLoaderData() as {
+    ideas: GiftIdea[];
+    candidates: PartyOption[];
+  };
 
   return (
     <main>
       <h1>Gift ideas</h1>
 
-      <p>
-        <Link to="/gifts/new">Add gift idea</Link>
-      </p>
+      <GiftCaptureForm ideaPool={ideas} recipientCandidates={candidates} />
 
       {ideas.length === 0 ? (
         <p>No gift ideas yet.</p>

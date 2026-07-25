@@ -184,7 +184,7 @@ export function createSyncScheduler(opts: {
  * write method can't silently bypass background sync.
  */
 const MUTATING_METHOD =
-  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted)/;
+  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|capture)/;
 
 /**
  * Wrap a {@link CoreApi}-shaped object so that every mutating method calls `kick`

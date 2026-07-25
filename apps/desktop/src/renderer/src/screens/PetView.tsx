@@ -14,8 +14,7 @@ import type {
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
-import { GiftSuggestionsSection } from "../components/GiftSuggestionsSection";
-import { GiftsGivenSection } from "../components/GiftsGivenSection";
+import { GiftsSection } from "../components/GiftsSection";
 import { HolidaysSection } from "../components/HolidaysSection";
 import { MentionedInSection } from "../components/MentionedInSection";
 import { MilestonesSection } from "../components/MilestonesSection";
@@ -85,20 +84,13 @@ export function PetView() {
 
       <HolidaysSection bearerType="pet" bearerId={pet.id} holidays={holidays} />
 
-      <GiftSuggestionsSection
+      <GiftsSection
         recipientType="pet"
         recipientId={pet.id}
         recipientLabel={pet.name}
         suggestions={giftSuggestions}
-        ideaPool={giftIdeaPool}
-        giftsGiven={giftsGiven}
-      />
-
-      <GiftsGivenSection
-        recipientType="pet"
-        recipientId={pet.id}
-        recipientLabel={pet.name}
         gifts={giftsGiven}
+        ideaPool={giftIdeaPool}
       />
 
       <TagsSection bearerType="pet" bearerId={pet.id} tags={tags} />

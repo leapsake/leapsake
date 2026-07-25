@@ -256,3 +256,97 @@ describe("core.gifts.given", () => {
     );
   });
 });
+
+describe("core.gifts.capture (the consolidated create)", () => {
+  it("with no recipients, just creates the idea", async () => {
+    await core.gifts.capture({ giftIdea: { title: "Socks" }, recipients: [] });
+    expect((await core.gifts.ideas.list()).map((i) => i.title)).toEqual([
+      "Socks",
+    ]);
+  });
+
+  it("with recipients and no givings, creates a suggestion each", async () => {
+    const alice = await makePerson("Alice");
+    const bob = await makePerson("Bob");
+    await core.gifts.capture({
+      giftIdea: { title: "Scarf" },
+      recipients: [
+        { party: { type: "person", id: alice } },
+        { party: { type: "person", id: bob } },
+      ],
+    });
+    expect(
+      await core.gifts.suggestions.listForRecipient("person", alice),
+    ).toHaveLength(1);
+    expect(
+      await core.gifts.suggestions.listForRecipient("person", bob),
+    ).toHaveLength(1);
+    expect(await core.gifts.given.listForRecipient("person", alice)).toEqual(
+      [],
+    );
+  });
+
+  it("attaches givings to their own recipient, not to every recipient", async () => {
+    const alice = await makePerson("Alice");
+    const bob = await makePerson("Bob");
+    const me = await makePerson("Me");
+    await core.self.set(me);
+
+    // Alice gets two dated givings; Bob gets none (just a suggestion).
+    await core.gifts.capture({
+      giftIdea: { title: "BB Gun" },
+      recipients: [
+        {
+          party: { type: "person", id: alice },
+          givings: [{ date: { year: 1941 } }, { date: { year: 1942 } }],
+        },
+        { party: { type: "person", id: bob } },
+      ],
+    });
+
+    const aliceGifts = await core.gifts.given.listForRecipient("person", alice);
+    expect(aliceGifts).toHaveLength(2);
+    expect(aliceGifts.every((g) => g.giverLabel === "Me X")).toBe(true);
+    // Bob got a suggestion and NO gift — the dates were Alice's alone.
+    expect(await core.gifts.given.listForRecipient("person", bob)).toEqual([]);
+    expect(
+      await core.gifts.suggestions.listForRecipient("person", bob),
+    ).toHaveLength(1);
+    // Two givings of one idea mint exactly one idea, not two.
+    expect(await core.gifts.ideas.list()).toHaveLength(1);
+    // Alice's dated entry is a giving, not a suggestion.
+    expect(
+      await core.gifts.suggestions.listForRecipient("person", alice),
+    ).toEqual([]);
+  });
+
+  it("falls back to an unknown giver when the recipient is the self-person", async () => {
+    const me = await makePerson("Me");
+    await core.self.set(me);
+    // Logging a gift to yourself: giver would be you == recipient, which the
+    // schema forbids, so it records an unknown giver instead of throwing.
+    await core.gifts.capture({
+      giftIdea: { title: "Treat" },
+      recipients: [
+        {
+          party: { type: "person", id: me },
+          givings: [{ date: { year: 2026 } }],
+        },
+      ],
+    });
+    const [g] = await core.gifts.given.listForRecipient("person", me);
+    expect(g?.giverLabel).toBeNull();
+  });
+
+  it("reuses an existing idea by id rather than minting a duplicate", async () => {
+    const alice = await makePerson("Alice");
+    const idea = await core.gifts.ideas.create({ title: "Scarf" });
+    await core.gifts.capture({
+      giftIdea: { id: idea.id },
+      recipients: [{ party: { type: "person", id: alice } }],
+    });
+    expect(await core.gifts.ideas.list()).toHaveLength(1);
+    const [s] = await core.gifts.suggestions.listForRecipient("person", alice);
+    expect(s?.giftIdeaId).toBe(idea.id);
+  });
+});

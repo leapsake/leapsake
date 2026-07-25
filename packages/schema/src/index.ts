@@ -110,6 +110,9 @@ export {
   createGiftInputSchema,
   createGiftRowInputSchema,
   updateGiftInputSchema,
+  giftGivingEntrySchema,
+  captureRecipientSchema,
+  captureGiftInputSchema,
   formatGiftDate,
 } from "./gift.js";
 export type {
@@ -120,6 +123,9 @@ export type {
   CreateGiftInput,
   CreateGiftRowInput,
   UpdateGiftInput,
+  GiftGivingEntry,
+  CaptureRecipient,
+  CaptureGiftInput,
 } from "./gift.js";
 export {
   reminderActionSchema,

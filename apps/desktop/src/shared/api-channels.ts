@@ -85,6 +85,7 @@ export const API_CHANNELS = [
   "gifts.given.create",
   "gifts.given.update",
   "gifts.given.softDelete",
+  "gifts.capture",
 
   "contactMethods.listForOwner",
   "contactMethods.emails.create",

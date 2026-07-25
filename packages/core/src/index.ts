@@ -43,6 +43,7 @@ import type {
   CreateGiftIdeaInput,
   CreateGiftSuggestionInput,
   CreateGiftInput,
+  CaptureGiftInput,
   EmailAddress,
   EntityType,
   Milestone,
@@ -1256,6 +1257,68 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         softDelete: (id: string): Promise<void> =>
           driver.transaction(() => giftsRepo.softDelete(id)),
       },
+
+      // The one consolidated create (plans/gifts.md single-payload surface): an
+      // idea (existing or minted) captured with zero-to-many recipients and
+      // zero-to-many givings, all in one transaction. No recipients ⇒ just the
+      // idea; recipients with no givings ⇒ a suggestion each; recipients with
+      // givings ⇒ a gift per (recipient × giving). Returns the resolved idea.
+      capture: (input: CaptureGiftInput): Promise<GiftIdea> =>
+        driver.transaction(async () => {
+          // Resolve (or mint) the idea once, so N gifts of a new idea don't mint
+          // N ideas.
+          let idea: GiftIdea;
+          if ("id" in input.giftIdea) {
+            const found = await giftIdeas.get(input.giftIdea.id);
+            if (found === undefined) throw new Error("gift idea not found");
+            idea = found;
+          } else {
+            idea = await giftIdeas.create({
+              title: input.giftIdea.title,
+              url: input.giftIdea.url ?? null,
+            });
+          }
+
+          // "I gave it": the giver defaults to the self-person when unspecified.
+          let giver = input.giver;
+          if (giver === undefined) {
+            const selfRow = await self.getSelf();
+            giver =
+              selfRow !== undefined
+                ? { type: "person", id: selfRow.personId }
+                : null;
+          }
+
+          for (const { party, givings } of input.recipients) {
+            const entries = givings ?? [];
+            if (entries.length === 0) {
+              await giftSuggestions.create({
+                giftIdeaId: idea.id,
+                recipientType: party.type,
+                recipientId: party.id,
+              });
+              continue;
+            }
+            // A giver can't be the recipient (schema rule) — e.g. logging a gift
+            // to yourself — so fall back to an unknown giver there.
+            const giftGiver =
+              giver !== null &&
+              giver.type === party.type &&
+              giver.id === party.id
+                ? null
+                : giver;
+            for (const giving of entries) {
+              await giftsRepo.create({
+                giftIdeaId: idea.id,
+                recipient: party,
+                giver: giftGiver,
+                date: giving.date,
+                occasion: giving.occasion,
+              });
+            }
+          }
+          return idea;
+        }),
     },
 
     contactMethods: {

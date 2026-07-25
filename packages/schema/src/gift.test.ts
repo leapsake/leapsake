@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createGiftInputSchema, formatGiftDate, giftSchema } from "./gift.js";
+import {
+  captureGiftInputSchema,
+  createGiftInputSchema,
+  formatGiftDate,
+  giftSchema,
+} from "./gift.js";
 
 const alice = crypto.randomUUID();
 const bob = crypto.randomUUID();
@@ -114,6 +119,54 @@ describe("createGiftInputSchema", () => {
         giftIdea: { id: crypto.randomUUID() },
         recipient: { type: "person", id: alice },
         date: { day: 25 },
+      }),
+    ).toThrow();
+  });
+});
+
+describe("captureGiftInputSchema", () => {
+  it("accepts an idea with no recipients (just create the idea)", () => {
+    const input = { giftIdea: { title: "Socks" }, recipients: [] };
+    expect(captureGiftInputSchema.parse(input)).toEqual(input);
+  });
+
+  it("accepts recipients with no givings (suggestions)", () => {
+    const input = {
+      giftIdea: { id: crypto.randomUUID() },
+      recipients: [
+        { party: { type: "person" as const, id: alice } },
+        { party: { type: "pet" as const, id: bob } },
+      ],
+    };
+    expect(captureGiftInputSchema.parse(input)).toEqual(input);
+  });
+
+  it("accepts per-recipient givings (gifts)", () => {
+    const input = {
+      giftIdea: { title: "BB Gun" },
+      recipients: [
+        {
+          party: { type: "person" as const, id: alice },
+          givings: [
+            { date: { year: 1941, month: 12, day: 25 } },
+            { date: { year: 1942 } },
+          ],
+        },
+      ],
+    };
+    expect(captureGiftInputSchema.parse(input)).toEqual(input);
+  });
+
+  it("rejects a giving date day without a month", () => {
+    expect(() =>
+      captureGiftInputSchema.parse({
+        giftIdea: { title: "x" },
+        recipients: [
+          {
+            party: { type: "person", id: alice },
+            givings: [{ date: { day: 3 } }],
+          },
+        ],
       }),
     ).toThrow();
   });

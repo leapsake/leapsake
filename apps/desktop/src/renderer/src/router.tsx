@@ -39,8 +39,6 @@ import { PersonDelete } from "./screens/PersonDelete";
 import { PersonEdit } from "./screens/PersonEdit";
 import { PersonMerge } from "./screens/PersonMerge";
 import { Duplicates } from "./screens/Duplicates";
-import { GiftGivenCreate } from "./screens/GiftGivenCreate";
-import { GiftIdeaCreate } from "./screens/GiftIdeaCreate";
 import { GiftIdeaDelete } from "./screens/GiftIdeaDelete";
 import { GiftIdeaEdit } from "./screens/GiftIdeaEdit";
 import { GiftIdeaList } from "./screens/GiftIdeaList";
@@ -911,42 +909,19 @@ async function giftIdeaEditLoader({ params }: LoaderFunctionArgs) {
   return { idea, suggestions, candidates };
 }
 
-/** Parse a `?for=<person|pet>:<id>` recipient hint (from a person/pet's "add a
- *  new gift idea for X" link) into a `suggestFor` arm, or null when absent. */
-function readSuggestForParam(
-  request: Request,
-): { recipientType: "person" | "pet"; recipientId: string } | null {
-  const raw = new URL(request.url).searchParams.get("for");
-  if (raw === null) return null;
-  const [type, id] = raw.split(":");
-  if ((type !== "person" && type !== "pet") || !id) return null;
-  return { recipientType: type, recipientId: id };
-}
-
-/**
- * Create a gift idea; a blank title is a no-op. A `?for=<type>:<id>` hint means
- * this was launched from a recipient's page — mint the idea *and* a suggestion for
- * that recipient in one action, then land back on their page.
- */
-async function giftIdeaCreateAction({ request }: ActionFunctionArgs) {
-  const input = readGiftIdeaInput(await request.formData());
-  const suggestForOne = readSuggestForParam(request);
-  if (input.title === "") {
-    return redirect(
-      suggestForOne
-        ? `${entityBasePath(suggestForOne.recipientType)}/${suggestForOne.recipientId}`
-        : "/gifts",
-    );
-  }
-  await window.api.gifts.ideas.create({
-    ...input,
-    ...(suggestForOne ? { suggestFor: [suggestForOne] } : {}),
-  });
-  return redirect(
-    suggestForOne
-      ? `${entityBasePath(suggestForOne.recipientType)}/${suggestForOne.recipientId}`
-      : "/gifts",
-  );
+/** The Gifts screen: the idea list plus the people/pets pool the capture form's
+ *  recipient picker draws from, loaded in parallel. */
+async function giftsListLoader() {
+  const [ideas, entities] = await Promise.all([
+    window.api.gifts.ideas.list(),
+    window.api.views.entityList(),
+  ]);
+  const candidates = entities.map((e) => ({
+    type: e.type,
+    id: e.id,
+    label: e.label,
+  }));
+  return { ideas, candidates };
 }
 
 /** Save edits to a gift idea; a blank title is a no-op back to the list. */
@@ -961,85 +936,6 @@ async function giftIdeaEditAction({ request, params }: ActionFunctionArgs) {
 async function giftIdeaDeleteAction({ params }: ActionFunctionArgs) {
   await window.api.gifts.ideas.softDelete(params.id as string);
   return redirect("/gifts");
-}
-
-/** Parse a `?to=<person|pet>:<id>` recipient hint into a party, or null. */
-function readPartyParam(
-  request: Request,
-  key: string,
-): { type: "person" | "pet"; id: string } | null {
-  const raw = new URL(request.url).searchParams.get(key);
-  if (raw === null) return null;
-  const [type, id] = raw.split(":");
-  if ((type !== "person" && type !== "pet") || !id) return null;
-  return { type, id };
-}
-
-/**
- * Loader for "log a gift given to X": resolves the recipient (from `?to`) to its
- * label + the idea pool the form's dropdown offers. 404s if the recipient is gone.
- */
-async function giftGivenNewLoader({ request }: LoaderFunctionArgs) {
-  const to = readPartyParam(request, "to");
-  if (to === null) throw new Response("No recipient", { status: 400 });
-  const [entities, ideas] = await Promise.all([
-    window.api.views.entityList(),
-    window.api.gifts.ideas.list(),
-  ]);
-  const match = entities.find((e) => e.type === to.type && e.id === to.id);
-  if (!match) throw new Response("Recipient not found", { status: 404 });
-  return { recipient: { type: to.type, id: to.id, label: match.label }, ideas };
-}
-
-/** An optional integer form field: a positive value, else null. */
-function readIntField(formData: FormData, name: string): number | null {
-  const raw = String(formData.get(name) ?? "").trim();
-  if (raw === "") return null;
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-/**
- * Log a giving. A new-idea title (if given) mints the idea; else the picked
- * existing id is used. The giver is attributed to the self-person when one is set
- * (null/"unknown" otherwise). Returns to the recipient's page.
- */
-async function giftGivenCreateAction({ request }: ActionFunctionArgs) {
-  const to = readPartyParam(request, "to");
-  if (to === null) return redirect("/gifts");
-  const back = `${entityBasePath(to.type)}/${to.id}`;
-
-  const formData = await request.formData();
-  const newTitle = String(formData.get("newTitle") ?? "").trim();
-  const newUrl = String(formData.get("newUrl") ?? "").trim();
-  const ideaId = String(formData.get("ideaId") ?? "").trim();
-
-  // A new title wins over a picked existing idea; nothing chosen is a no-op.
-  const giftIdea =
-    newTitle !== ""
-      ? { title: newTitle, url: newUrl !== "" ? newUrl : null }
-      : ideaId !== ""
-        ? { id: ideaId }
-        : null;
-  if (giftIdea === null) return redirect(back);
-
-  // Partial date: a day is meaningful only with a month (drop a lone day).
-  const year = readIntField(formData, "year");
-  const month = readIntField(formData, "month");
-  const day = month !== null ? readIntField(formData, "day") : null;
-
-  // "I gave it" attributes the giver to the self-person; unset self ⇒ unknown.
-  const self = await window.api.self.get();
-  const giver =
-    self !== undefined ? { type: "person" as const, id: self.personId } : null;
-
-  await window.api.gifts.given.create({
-    giftIdea,
-    recipient: to,
-    giver,
-    date: { year, month, day },
-  });
-  return redirect(back);
 }
 
 /** Toggle completion — posted by a list-row fetcher, so it revalidates in place. */
@@ -1123,15 +1019,10 @@ const routes: RouteObject[] = [
         action: reminderToggleAction,
       },
       {
-        // Gift ideas — a standalone idea/shopping list (plans/gifts.md §GiftIdea).
+        // Gifts — the idea list + the consolidated capture form (plans/gifts.md).
         path: "gifts",
-        loader: () => window.api.gifts.ideas.list(),
+        loader: giftsListLoader,
         element: <GiftIdeaList />,
-      },
-      {
-        path: "gifts/new",
-        element: <GiftIdeaCreate />,
-        action: giftIdeaCreateAction,
       },
       {
         path: "gifts/:id/edit",
@@ -1144,13 +1035,6 @@ const routes: RouteObject[] = [
         loader: giftIdeaLoader,
         element: <GiftIdeaDelete />,
         action: giftIdeaDeleteAction,
-      },
-      {
-        // Log a giving for a recipient (reached from their "Gifts given" section).
-        path: "gifts/given/new",
-        loader: giftGivenNewLoader,
-        element: <GiftGivenCreate />,
-        action: giftGivenCreateAction,
       },
       {
         path: "people/new",

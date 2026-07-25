@@ -85,7 +85,9 @@ describe("withSyncKick — kick after mutations", () => {
 // Mirror of the predicate in sync-scheduler.ts; kept here so this test fails
 // loudly if the source predicate and the real surface ever diverge.
 const isMutating = (name: string) =>
-  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted)/.test(name);
+  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|capture)/.test(
+    name,
+  );
 
 function collectFnPaths(value: unknown, prefix = ""): string[] {
   if (typeof value === "function") return [prefix];
@@ -128,6 +130,7 @@ describe("withSyncKick — pins the CoreApi mutating surface", () => {
       "contactMethods.postals.create",
       "contactMethods.postals.softDelete",
       "contactMethods.postals.update",
+      "gifts.capture",
       "gifts.given.create",
       "gifts.given.softDelete",
       "gifts.given.update",

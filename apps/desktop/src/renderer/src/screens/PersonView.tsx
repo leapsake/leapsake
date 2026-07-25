@@ -17,8 +17,7 @@ import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { ContactMethodsSection } from "../components/ContactMethodsSection";
 import { GenderValue, type GenderResult } from "../components/GenderValue";
-import { GiftSuggestionsSection } from "../components/GiftSuggestionsSection";
-import { GiftsGivenSection } from "../components/GiftsGivenSection";
+import { GiftsSection } from "../components/GiftsSection";
 import { HolidaysSection } from "../components/HolidaysSection";
 import { MentionedInSection } from "../components/MentionedInSection";
 import { MilestonesSection } from "../components/MilestonesSection";
@@ -101,20 +100,13 @@ export function PersonView() {
         holidays={holidays}
       />
 
-      <GiftSuggestionsSection
+      <GiftsSection
         recipientType="person"
         recipientId={person.id}
         recipientLabel={fullName(person)}
         suggestions={giftSuggestions}
-        ideaPool={giftIdeaPool}
-        giftsGiven={giftsGiven}
-      />
-
-      <GiftsGivenSection
-        recipientType="person"
-        recipientId={person.id}
-        recipientLabel={fullName(person)}
         gifts={giftsGiven}
+        ideaPool={giftIdeaPool}
       />
 
       <TagsSection bearerType="person" bearerId={person.id} tags={tags} />

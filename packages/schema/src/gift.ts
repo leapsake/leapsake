@@ -150,6 +150,51 @@ export const updateGiftInputSchema = z.object({
 
 export type UpdateGiftInput = z.infer<typeof updateGiftInputSchema>;
 
+/** One giving in a {@link captureGiftInputSchema} payload: a what-happened date
+ *  and/or an occasion. Each entry becomes one {@link Gift} per recipient. */
+export const giftGivingEntrySchema = z.object({
+  date: giftDateSchema.optional(),
+  occasion: giftOccasionSchema.nullable().optional(),
+});
+
+export type GiftGivingEntry = z.infer<typeof giftGivingEntrySchema>;
+
+/**
+ * One recipient in a {@link captureGiftInputSchema} payload, with **its own**
+ * givings — givings are per-recipient (you gave Alice one on Christmas and Bob one
+ * on his birthday), never shared across the whole payload. No givings ⇒ a
+ * suggestion for this recipient; one-or-more ⇒ a gift each.
+ */
+export const captureRecipientSchema = z.object({
+  party: giftPartySchema,
+  givings: z.array(giftGivingEntrySchema).optional(),
+});
+
+export type CaptureRecipient = z.infer<typeof captureRecipientSchema>;
+
+/**
+ * The **one consolidated create** surface (plans/gifts.md single-payload create):
+ * an idea (existing or new) captured with zero-to-many recipients, each with its
+ * own zero-to-many givings, in one transaction. It expresses the whole "type a
+ * gift → suggest it → log it" flow as data:
+ *
+ * - **no recipients** → just the {@link GiftIdea} (typing a name on the Gifts
+ *   screen).
+ * - **a recipient with no givings** → one {@link GiftSuggestion} (a candidate —
+ *   "would like this").
+ * - **a recipient with giving(s)** → one {@link Gift} per giving (it happened, on
+ *   these dates / occasions) — for *that* recipient only.
+ *
+ * `giver` defaults to the self-person downstream ("I gave it") when omitted.
+ */
+export const captureGiftInputSchema = z.object({
+  giftIdea: giftIdeaRefSchema,
+  recipients: z.array(captureRecipientSchema),
+  giver: giftPartySchema.nullable().optional(),
+});
+
+export type CaptureGiftInput = z.infer<typeof captureGiftInputSchema>;
+
 /**
  * A locale- and precision-aware rendering of a gift's what-happened date — the
  * same output as {@link formatMilestoneDate} (its columns are already `year`/
