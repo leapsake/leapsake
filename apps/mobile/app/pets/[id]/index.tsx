@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { genderLabel, tagLabel } from "@leapsake/schema";
+import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
@@ -32,7 +33,7 @@ function DetailField({ label, value }: { label: string; value: string }) {
 }
 
 // Pet detail, ported from desktop's PetView (name, gender, tags, timestamps,
-// relationships, milestones).
+// relationships, milestones, holidays, gifts).
 export default function PetDetailScreen() {
   const core = useCore();
   const router = useRouter();
@@ -45,6 +46,11 @@ export default function PetDetailScreen() {
         core.views.pet(id),
         core.reminders.mentioning("pet", id),
         core.holidays.listForBearer("pet", id),
+        // The Gifts section: what's suggested for them, what they've been given,
+        // and the idea pool its capture form autocompletes against.
+        core.gifts.suggestions.listForRecipient("pet", id),
+        core.gifts.given.listForRecipient("pet", id),
+        core.gifts.ideas.list(),
       ]),
     [core, id],
   );
@@ -66,7 +72,14 @@ export default function PetDetailScreen() {
     );
   }
 
-  const [view, mentionedIn, holidays] = data;
+  const [
+    view,
+    mentionedIn,
+    holidays,
+    giftSuggestions,
+    giftsGiven,
+    giftIdeaPool,
+  ] = data;
   if (view === null) {
     return (
       <View style={styles.screen}>
@@ -133,6 +146,16 @@ export default function PetDetailScreen() {
         bearerType="pet"
         bearerId={pet.id}
         holidays={holidays}
+        onChanged={reload}
+      />
+
+      <GiftsSection
+        recipientType="pet"
+        recipientId={pet.id}
+        recipientLabel={pet.name}
+        suggestions={giftSuggestions}
+        gifts={giftsGiven}
+        ideaPool={giftIdeaPool}
         onChanged={reload}
       />
 

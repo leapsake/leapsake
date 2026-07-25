@@ -8,16 +8,17 @@ import {
   View,
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
-import type { Person, Pet, Reminder, Tag } from "@leapsake/schema";
+import type { GiftIdea, Person, Pet, Reminder, Tag } from "@leapsake/schema";
 import { fullName, reminderLabel, tagLabel } from "@leapsake/schema";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { colors, styles } from "../../../lib/styles";
 
 // Tag detail, ported from desktop's TagView: everything carrying a given tag,
-// grouped by type. People, pets, and reminders are all taggable; each group
-// renders only when non-empty, and an empty tag shows a placeholder. This is the
-// landing page for a standalone tag search result.
+// grouped by type. People, pets, reminders, and gift ideas are all taggable; each
+// group renders only when non-empty, and an empty tag shows a placeholder. This
+// is the landing page for a standalone tag search result. A gift idea has no
+// read-only view, so its row opens the idea's edit screen (as desktop's does).
 export default function TagDetailScreen() {
   const core = useCore();
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function TagDetailScreen() {
         core.tags.peopleForTag(id),
         core.tags.petsForTag(id),
         core.tags.remindersForTag(id),
+        core.tags.giftIdeasForTag(id),
       ]),
     [core, id],
   );
@@ -51,11 +53,12 @@ export default function TagDetailScreen() {
     );
   }
 
-  const [tag, people, pets, reminders]: [
+  const [tag, people, pets, reminders, giftIdeas]: [
     Tag | undefined,
     Person[],
     Pet[],
     Reminder[],
+    GiftIdea[],
   ] = data;
 
   if (tag === undefined) {
@@ -69,7 +72,10 @@ export default function TagDetailScreen() {
 
   const label = tagLabel(tag.name);
   const empty =
-    people.length === 0 && pets.length === 0 && reminders.length === 0;
+    people.length === 0 &&
+    pets.length === 0 &&
+    reminders.length === 0 &&
+    giftIdeas.length === 0;
 
   function confirmDelete() {
     Alert.alert("Delete tag", `Delete #${label}?`, [
@@ -134,6 +140,23 @@ export default function TagDetailScreen() {
             >
               <Text style={[styles.rowText, { color: colors.accent }]}>
                 {reminderLabel(reminder)}
+              </Text>
+            </Link>
+          ))}
+        </View>
+      )}
+
+      {giftIdeas.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Gift ideas</Text>
+          {giftIdeas.map((idea) => (
+            <Link
+              key={idea.id}
+              href={`/gifts/${idea.id}/edit`}
+              style={styles.row}
+            >
+              <Text style={[styles.rowText, { color: colors.accent }]}>
+                {idea.title}
               </Text>
             </Link>
           ))}

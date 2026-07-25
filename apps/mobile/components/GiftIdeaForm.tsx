@@ -1,0 +1,134 @@
+import { useState } from "react";
+import { Pressable, Text, TextInput, View } from "react-native";
+import type { GiftIdea } from "@leapsake/schema";
+import { colors, styles } from "../lib/styles";
+
+/** The structured value the form hands back; the screen owns the core call. */
+export interface GiftIdeaFormValue {
+  title: string;
+  url: string | null;
+  notes: string | null;
+}
+
+/**
+ * The edit form for a GiftIdea, ported from the desktop `GiftIdeaForm`. Title is
+ * required; Link and Notes are optional (blanks become null). Tags ride the same
+ * write, as a Person's do — the raw text goes back to the screen, which parses it
+ * with `parseTagNames`.
+ *
+ * There is no *create* screen behind this form on either client: a new idea is
+ * captured by the `GiftCaptureForm`, which is the single-payload surface.
+ */
+export function GiftIdeaForm({
+  idea,
+  tagNames = "",
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: {
+  idea?: GiftIdea;
+  /** Space-separated existing tag labels; empty on create. */
+  tagNames?: string;
+  submitLabel: string;
+  onSubmit: (value: GiftIdeaFormValue, tagsRaw: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(idea?.title ?? "");
+  const [url, setUrl] = useState(idea?.url ?? "");
+  const [notes, setNotes] = useState(idea?.notes ?? "");
+  const [tags, setTags] = useState(tagNames);
+  const [submitting, setSubmitting] = useState(false);
+
+  const canSubmit = title.trim().length > 0 && !submitting;
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      const trimmedUrl = url.trim();
+      const trimmedNotes = notes.trim();
+      await onSubmit(
+        {
+          title: title.trim(),
+          url: trimmedUrl === "" ? null : trimmedUrl,
+          notes: trimmedNotes === "" ? null : trimmedNotes,
+        },
+        tags,
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <View style={styles.section}>
+      <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={onCancel}
+          disabled={submitting}
+        >
+          <Text style={styles.link}>Cancel</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void handleSubmit()}
+          disabled={!canSubmit}
+          style={[styles.button, !canSubmit && { opacity: 0.5 }]}
+        >
+          <Text style={styles.buttonText}>{submitLabel}</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Title</Text>
+        <TextInput
+          style={styles.input}
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Red Ryder BB Gun"
+          placeholderTextColor={colors.muted}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Link</Text>
+        <TextInput
+          style={styles.input}
+          value={url}
+          onChangeText={setUrl}
+          keyboardType="url"
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="https://…"
+          placeholderTextColor={colors.muted}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Notes</Text>
+        <TextInput
+          style={[styles.input, { minHeight: 88, textAlignVertical: "top" }]}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          placeholder="the 200-shot model; she mentioned it in June"
+          placeholderTextColor={colors.muted}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Tags</Text>
+        <TextInput
+          style={styles.input}
+          value={tags}
+          onChangeText={setTags}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="#books #kitchen"
+          placeholderTextColor={colors.muted}
+        />
+      </View>
+    </View>
+  );
+}

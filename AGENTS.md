@@ -250,6 +250,12 @@ desktop form already chose `<select>` vs `<datalist>`:**
   `RelationshipForm` are the callers — map your value to/from an option via
   `getKey`/`getLabel`, and give the element a React `key` to reset its live query
   when a parent selection moves (e.g. Role after the Name changes).
+- **Free text + suggestions** (a plain `TextInput` with a pressable suggestion
+  list under it, same 2-char floor) — for a desktop `<datalist>` whose input is
+  *free text with shortcuts*, where a brand-new value is the normal case: the
+  gift-capture title field (`components/GiftCaptureForm.tsx`). A `Typeahead`
+  would be wrong here — it collapses to a "chosen option" row, which a new title
+  can never be.
 - **Pills / segmented control** — reserved for a genuinely small, glanceable,
   mutually-exclusive choice. **Not currently used** (the old `OptionPills` was
   retired because it scaled badly past ~4 options); reintroduce only if a true

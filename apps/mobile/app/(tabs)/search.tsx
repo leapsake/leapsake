@@ -14,10 +14,15 @@ import { colors, styles } from "../../lib/styles";
 const MIN_QUERY_LENGTH = 2;
 const DEBOUNCE_MS = 200;
 
-/** The route base for a result's page, branching on its type. */
+/**
+ * The route a result opens, branching on its type. A gift idea has no read-only
+ * view on either client, so its actionable page is the edit screen (the same
+ * choice the tag page makes for its gift-idea rows).
+ */
 function pathFor(hit: SearchHit): string {
   if (hit.entityType === "tag") return `/tags/${hit.entityId}`;
   if (hit.entityType === "holiday") return `/holidays/${hit.entityId}`;
+  if (hit.entityType === "gift_idea") return `/gifts/${hit.entityId}/edit`;
   if (hit.entityType === "pet") return `/pets/${hit.entityId}`;
   return `/people/${hit.entityId}`;
 }
@@ -51,10 +56,7 @@ export default function SearchScreen() {
     const timer = setTimeout(() => {
       void core.search.query(term).then((hits) => {
         if (token !== queryToken.current) return; // a newer query superseded this
-        // Gift ideas are searchable in shared core, but mobile has no gift
-        // screens yet (plans/gifts.md sequencing 6 — the mobile port), so a hit
-        // here would have nowhere to open. Drop them until those screens land.
-        setResults(hits.filter((hit) => hit.entityType !== "gift_idea"));
+        setResults(hits);
       });
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
@@ -66,7 +68,7 @@ export default function SearchScreen() {
         style={styles.input}
         value={term}
         onChangeText={setTerm}
-        placeholder="Search people, pets, tags, and holidays"
+        placeholder="Search people, pets, tags, holidays, and gift ideas"
         placeholderTextColor={colors.muted}
         autoFocus
         autoCorrect={false}

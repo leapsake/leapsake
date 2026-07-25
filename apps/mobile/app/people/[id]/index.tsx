@@ -10,6 +10,7 @@ import {
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName, genderLabel, tagLabel } from "@leapsake/schema";
 import { ContactsSection } from "../../../components/ContactsSection";
+import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
@@ -33,7 +34,7 @@ function DetailField({ label, value }: { label: string; value: string }) {
 }
 
 // Person detail, ported from desktop's PersonView (core fields, gender, tags,
-// timestamps, relationships, milestones, contacts).
+// timestamps, relationships, milestones, holidays, gifts, contacts).
 export default function PersonDetailScreen() {
   const core = useCore();
   const router = useRouter();
@@ -48,6 +49,11 @@ export default function PersonDetailScreen() {
         // The whole catalog with this person's answers — one read serving both
         // the Holidays section's list and its add-field's suggestions.
         core.holidays.listForBearer("person", id),
+        // The Gifts section: what's suggested for them, what they've been given,
+        // and the idea pool its capture form autocompletes against.
+        core.gifts.suggestions.listForRecipient("person", id),
+        core.gifts.given.listForRecipient("person", id),
+        core.gifts.ideas.list(),
       ]),
     [core, id],
   );
@@ -69,7 +75,14 @@ export default function PersonDetailScreen() {
     );
   }
 
-  const [view, mentionedIn, holidays] = data;
+  const [
+    view,
+    mentionedIn,
+    holidays,
+    giftSuggestions,
+    giftsGiven,
+    giftIdeaPool,
+  ] = data;
   if (view === null) {
     return (
       <View style={styles.screen}>
@@ -139,6 +152,16 @@ export default function PersonDetailScreen() {
         bearerType="person"
         bearerId={person.id}
         holidays={holidays}
+        onChanged={reload}
+      />
+
+      <GiftsSection
+        recipientType="person"
+        recipientId={person.id}
+        recipientLabel={fullName(person)}
+        suggestions={giftSuggestions}
+        gifts={giftsGiven}
+        ideaPool={giftIdeaPool}
         onChanged={reload}
       />
 

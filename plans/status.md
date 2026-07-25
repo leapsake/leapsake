@@ -5,14 +5,17 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-25** — **Gifts slices 0–5 shipped:** a synced **self-person** singleton (the ego
+> **Updated 2026-07-25** — **Gifts slices 0–6 shipped — the workstream is now on both clients:** a
+> synced **self-person** singleton (the ego
 > anchor for who gave / received), **GiftIdea** (a standalone `/gifts` idea list), **GiftSuggestion**
 > (idea × recipient, authorable from either end), **Gift** (dated givings — the "Gifts given"
 > section, the "✓ given" annotation + re-gift guard) — migrations 23–26, desktop UI, cascades wired;
 > the occasion / target-date form UI is deferred — and **tags + search on gift ideas** (`gift_idea`
 > joined `tagBearerTypeSchema`, no migration; gift ideas are their own search result type) — and the
 > **`🎁 gift` reminder loop**, which turns "Get @Alice a gift" into a link to Alice's gifts and, once
-> done, into a logged giving. **Slice 6 (the mobile port) is next.** *Earlier
+> done, into a logged giving — and, in **slice 6**, the **mobile port** of all of it (a Gifts tab, the
+> capture form, the idea edit screen, the Person/Pet Gifts section, gift-idea search hits, tagged
+> ideas on a tag's page, and the same gift reminder CTA). *Earlier
 > (2026-07-20):* **Holidays shipped on both clients** — a `@leapsake/holidays` catalog + recurrence
 > engine, three synced tables (holidays / observances / hidden_holidays), the `/holidays` browse + an
 > autocomplete for authoring observances from either end, engine wiring to `system` reminders, global
@@ -62,7 +65,8 @@
   now wired into the engine** — one `system` reminder per enabled rule, offset by `offsetDays`,
   action-phrased, and **onboarding nudges** now fill a brand-new user's empty Home (CTA-wired on
   both clients). Remaining: reminder search — [`reminders.md`](./reminders.md).
-- **Gifts** — **slices 0–5 shipped on desktop** (design: [`gifts.md`](./gifts.md); three deliberately
+- **Gifts** — **slices 0–6 shipped: desktop end to end, and now mobile** (design:
+  [`gifts.md`](./gifts.md); three deliberately
   separate tables — an idea is a thing in the world, a suggestion is idea × recipient, a giving is a
   dated event). **0 · self-person** (migration 23): a synced fixed-PK singleton pointing at the Person
   that is "you" — the ego anchor gifts need for who gave / received, and the future kinship anchor —
@@ -99,11 +103,20 @@
   dated families: a birthday's gift rule **and** a holiday observance's), and the reminder row's CTA
   flips on completion — open → the recipient's page and its Gifts section; done → the capture form fixed
   to that recipient and opened on a date row ("record what you gave"). Completion itself stays the plain
-  Done button; the link is offered, never a modal. **Deferred to a later UI increment:** the occasion
-  picker + suggestion target-date inputs — schema/core/repo support them fully and are tested, but those
-  forms stay bare for now. **Next: slice 6, the mobile port** (data already flows via shared core; mobile
-  search drops gift-idea hits and mobile reminder rows show no gift CTA until its screens exist) — see
-  *What's next*.
+  Done button; the link is offered, never a modal.
+  **6 · The mobile port** (no schema, core, or repo change — every read/write already flowed through
+  shared core): a **Gifts tab** over `gifts.overview`, the capture form (`gifts.capture`) as its own
+  "Add a gift" screen and inline on the **Person/Pet Gifts section**, and the idea's edit screen with
+  its "Suggested for" recipient manager and a native-`Alert` remove (desktop's separate confirm screen
+  has no mobile counterpart). Two controls diverge from desktop by RN necessity and are documented
+  where they live: the recipient pickers are the multi-add `Typeahead` (desktop's `MultiAddCombobox`),
+  while the gift-title field stays a plain `TextInput` with its own suggestion list, because
+  desktop's `<datalist>` there is *free text with shortcuts* — a `Typeahead` would wrongly collapse a
+  brand-new title into a "chosen option" row. Mobile search now keeps gift-idea hits (they open the
+  idea's edit screen), a tag's page lists its gift ideas, and mobile reminder rows carry the same
+  completion-flipping gift CTA. **Deferred to a later UI increment (both clients):** the occasion
+  picker + suggestion target-date inputs — schema/core/repo support them fully and are tested, but
+  those forms stay bare for now.
 - **Testing harness** — the tiered `pnpm test` orchestration is built: `scripts/test-all.mjs`
   runs each trophy tier (static · lint · typecheck · unit+integration · driver-coverage gate)
   and the **mobile native tier on both platforms** — per-platform `native-android` /
@@ -204,12 +217,13 @@ can't ship without distributable apps. (None yet.)
   borderline Lunar New Year years are documented in `packages/holidays/src/catalog.ts`. The only
   future task is calendrical and distant: **extend both tables before ~2050**, re-deriving rather
   than extrapolating.
-- **Gifts — remaining.** Slices 0–5 (self-person, GiftIdea, GiftSuggestion, Gift, tags + search, the
-  reminder loop) are done — see *Where things stand*. **Next: slice 6** — the mobile port: faithful
-  ports of the desktop gift forms, which also un-hides gift-idea search hits on mobile and lets mobile
-  reminder rows carry the same gift CTA (`reminders.giftTargets` is already in shared core). Also
-  carried over: the **occasion picker + target-date UI** for suggestions and gifts (data model + core
-  already support it; the forms create bare rows for now). Design: [`gifts.md`](./gifts.md).
+- **Gifts — remaining.** All six slices (self-person, GiftIdea, GiftSuggestion, Gift, tags + search,
+  the reminder loop, the mobile port) are done — see *Where things stand*. The mobile port is
+  **unverified on a device**: it typechecks and lints, but nothing here has been driven on a booted
+  simulator/emulator, so the gift screens want a manual pass on both platforms. The one carried-over
+  feature gap is the **occasion picker + target-date UI** for suggestions and gifts, on **both**
+  clients (data model + core already support it; the forms create bare rows for now). Design:
+  [`gifts.md`](./gifts.md).
 
 ### v0.2 (first post-launch feature increment)
 
