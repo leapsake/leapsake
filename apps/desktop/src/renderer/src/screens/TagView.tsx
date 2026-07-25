@@ -1,7 +1,7 @@
 import type { GiftIdea, Person, Pet, Reminder, Tag } from "@leapsake/schema";
 import { fullName, reminderLabel, tagLabel } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { Link, useLoaderData } from "react-router-dom";
-import { Breadcrumbs } from "../components/Breadcrumbs";
 
 /** One row in a tag's grouped listing: a labelled link to an entity's page. */
 function EntityRows({

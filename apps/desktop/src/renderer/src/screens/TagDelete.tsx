@@ -1,8 +1,8 @@
 import type { Tag } from "@leapsake/schema";
+import { ConfirmDelete } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { homeCrumb } from "../components/Breadcrumbs";
-import { ConfirmDelete } from "../components/ConfirmDelete";
 import { useSubmitting } from "../lib/useSubmitting";
+import { homeCrumb } from "../lib/crumbs";
 
 export function TagDelete() {
   const { tag, count } = useLoaderData() as { tag: Tag; count: number };
@@ -10,7 +10,11 @@ export function TagDelete() {
 
   return (
     <ConfirmDelete
-      trail={[homeCrumb, { label: tag.name, to: tagPath }, { label: "Delete" }]}
+      trail={[
+        homeCrumb,
+        { label: tag.name, href: tagPath },
+        { label: "Delete" },
+      ]}
       heading={`Delete “${tag.name}”?`}
       confirmLabel="Delete"
       cancelTo={tagPath}

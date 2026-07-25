@@ -1,8 +1,8 @@
 import { type ContactMethod, formatPostalAddress } from "@leapsake/schema";
+import { ConfirmDelete } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { homeCrumb } from "../components/Breadcrumbs";
-import { ConfirmDelete } from "../components/ConfirmDelete";
 import { useSubmitting } from "../lib/useSubmitting";
+import { homeCrumb } from "../lib/crumbs";
 
 /** The person the contact method being removed hangs off of. */
 interface Subject {
@@ -31,7 +31,7 @@ export function ContactMethodDelete() {
     <ConfirmDelete
       trail={[
         homeCrumb,
-        { label: subject.label, to: subjectPath },
+        { label: subject.label, href: subjectPath },
         { label: "Remove contact" },
       ]}
       heading="Remove contact method?"

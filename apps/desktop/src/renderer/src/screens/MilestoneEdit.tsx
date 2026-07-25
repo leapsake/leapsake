@@ -3,10 +3,11 @@ import type {
   MilestoneBearerType,
   ReminderRuleInput,
 } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { MilestoneForm } from "../components/MilestoneForm";
 import { entityBasePath } from "../lib/entityLabel";
+import { homeCrumb } from "../lib/crumbs";
 
 /** The bearer entity the edited milestone hangs off of. */
 interface Bearer {
@@ -28,7 +29,7 @@ export function MilestoneEdit() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: bearer.label, to: bearerPath },
+          { label: bearer.label, href: bearerPath },
           { label: "Edit milestone" },
         ]}
       />

@@ -213,23 +213,30 @@ Remember the per-slice two-step rule: commit A splits in place, commit B moves.
 **Done when:** `pnpm test` passes, `pnpm --filter @leapsake/desktop check:bundle` reports exactly
 one `react`/`react-dom`, and `pnpm desktop` runs with no visible change.
 
-### 1 — Primitives + the 10 confirm-destructive screens
+### 1 — Breadcrumbs + `ConfirmDelete` + the 10 confirm-destructive screens
 
 **Goal:** the highest duplication-to-risk ratio in the codebase; validates the two-step rule on
 real screens.
 
-- Primitives into `src/web/primitives/`: `Section`, `EmptyState`, `DetailList` (the `<dl>`),
-  `Breadcrumbs` (from `components/Breadcrumbs.tsx` — note `homeCrumb` hardcodes `/people` and
-  becomes a caller-supplied crumb, not a package constant).
-- Pattern into `src/web/patterns/`: `ConfirmDelete` — breadcrumbs slot, heading, prose slot,
-  `<Form method="post">` + `<fieldset disabled={submitting}>` + submit + cancel link.
+- `src/web/primitives/Breadcrumbs.tsx` — from `components/Breadcrumbs.tsx`. `homeCrumb`
+  hardcodes `/people`, so it stays in the app (`lib/crumbs.ts`) rather than becoming a package
+  constant: which route is home is a client decision.
+- `src/web/patterns/ConfirmDelete.tsx` — breadcrumbs slot, heading, prose slot,
+  `<Form method="post">` + `<fieldset disabled={submitting}>` + submit + cancel link, plus a
+  `hiddenFields` record for the inferred-relationship dismiss.
 - Migrate: `ContactMethodDelete`, `GiftIdeaDelete`, `MilestoneDelete`, `PersonDelete`,
   `PetDelete`, `RelationshipDelete`, `RelationshipDismiss`, `RelationshipRowDelete`,
-  `ReminderDelete`, `TagDelete`. Each keeps a thin app-side container that calls
-  `useLoaderData()`/`useNavigation()` and renders the pattern.
+  `ReminderDelete`, `TagDelete`. Each keeps a thin app-side container that reads the loader and
+  renders the pattern.
+- Add an app-side `useSubmitting()` (`useNavigation().state === "submitting"`), so `submitting`
+  can be a prop at every call site without ten hand-written copies.
+
+`Section` / `EmptyState` / `DetailList` were originally listed here and moved to increment 3,
+where their first consumers live — shipping unconsumed primitives would be guessing at their
+shape.
 
 **Done when:** all 10 screens render and delete correctly; the pattern has tests covering the
-disabled-while-submitting state and the cancel path.
+disabled-while-submitting state, the hidden fields, and the cancel path.
 
 ### 2 — The combobox trio
 
@@ -254,7 +261,10 @@ stale-response guard. Delete the duplicated stylesheet.
 
 - `src/headless/routes.ts` — `entityBasePath` and the relationship explicit-vs-derived path
   helpers, as pure string functions with tests.
-- `src/web/primitives/DataTable.tsx` — header row, body rows, trailing actions column.
+- `src/web/primitives/`: `DataTable` (header row, body rows, trailing actions column),
+  `Section` (the `<section><header><h2>…` shell), `EmptyState` (the 14 “No X yet.” lines), and
+  `DetailList` (the `<dl>` on the three view screens) — deferred here from increment 1 so each
+  lands with a real consumer.
 - Migrate `TagsSection`, `MentionedInSection`, `MilestonesSection`, `RelationshipsSection`,
   `ContactMethodsSection` to props-in/paths-in.
 - Migrate the read-only screen bodies that consume them: `PersonView`, `PetView`,

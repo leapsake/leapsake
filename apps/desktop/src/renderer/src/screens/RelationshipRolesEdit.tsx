@@ -3,9 +3,10 @@ import {
   type RelationshipRole,
   rolesForPair,
 } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
+import { homeCrumb } from "../lib/crumbs";
 import { useMemo, useState } from "react";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 
 /** One endpoint of the relationship being edited. */
 interface Partner {
@@ -64,7 +65,7 @@ export function RelationshipRolesEdit() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: title, to: relPath },
+          { label: title, href: relPath },
           { label: "Edit roles" },
         ]}
       />

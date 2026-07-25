@@ -4,11 +4,11 @@ import {
   formatMilestoneDate,
   milestoneLabel,
 } from "@leapsake/schema";
+import { ConfirmDelete } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { homeCrumb } from "../components/Breadcrumbs";
-import { ConfirmDelete } from "../components/ConfirmDelete";
 import { entityBasePath } from "../lib/entityLabel";
 import { useSubmitting } from "../lib/useSubmitting";
+import { homeCrumb } from "../lib/crumbs";
 
 /** The bearer entity the milestone being removed hangs off of. */
 interface Bearer {
@@ -29,7 +29,7 @@ export function MilestoneDelete() {
     <ConfirmDelete
       trail={[
         homeCrumb,
-        { label: bearer.label, to: bearerPath },
+        { label: bearer.label, href: bearerPath },
         { label: "Remove milestone" },
       ]}
       heading="Remove milestone?"

@@ -14,9 +14,8 @@ import type {
   Tag,
 } from "@leapsake/schema";
 import { fullName } from "@leapsake/schema";
-import { GenderValue, type GenderResult } from "@leapsake/ui/web";
+import { Breadcrumbs, GenderValue, type GenderResult } from "@leapsake/ui/web";
 import { Link, useLoaderData } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { ContactMethodsSection } from "../components/ContactMethodsSection";
 import { GiftsSection } from "../components/GiftsSection";
 import { HolidaysSection } from "../components/HolidaysSection";
@@ -24,6 +23,7 @@ import { MentionedInSection } from "../components/MentionedInSection";
 import { MilestonesSection } from "../components/MilestonesSection";
 import { RelationshipsSection } from "../components/RelationshipsSection";
 import { TagsSection } from "../components/TagsSection";
+import { homeCrumb } from "../lib/crumbs";
 
 /** Render an epoch-ms timestamp in the user's locale. */
 function formatTimestamp(ms: number): string {

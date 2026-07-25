@@ -1,6 +1,7 @@
 import type { DuplicateCandidate } from "@leapsake/core";
+import { Breadcrumbs } from "@leapsake/ui/web";
+import { homeCrumb } from "../lib/crumbs";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 
 /** Human-friendly tier copy; falls back to the raw tier if ever extended. */
 const TIER_LABEL: Record<string, string> = {

@@ -1,7 +1,8 @@
 import type { ContactMethodKind } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { ContactMethodForm } from "../components/ContactMethodForm";
+import { homeCrumb } from "../lib/crumbs";
 
 /** The person a new contact method hangs off of. */
 interface Subject {
@@ -21,7 +22,7 @@ export function ContactMethodCreate() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: subject.label, to: subjectPath },
+          { label: subject.label, href: subjectPath },
           { label: "Add contact" },
         ]}
       />

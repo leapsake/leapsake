@@ -1,8 +1,8 @@
 import type { HolidayDetail } from "@leapsake/core";
 import type { ReminderRuleInput } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { useState } from "react";
 import { Form, useLoaderData } from "react-router-dom";
-import { Breadcrumbs } from "../components/Breadcrumbs";
 import { ReminderScheduleFields } from "../components/ReminderScheduleFields";
 
 /**
@@ -35,8 +35,8 @@ export function HolidayObservanceSchedule() {
     <main>
       <Breadcrumbs
         trail={[
-          { label: "Holidays", to: "/holidays" },
-          { label: holiday.name, to: `/holidays/${holiday.id}` },
+          { label: "Holidays", href: "/holidays" },
+          { label: holiday.name, href: `/holidays/${holiday.id}` },
           { label },
         ]}
       />

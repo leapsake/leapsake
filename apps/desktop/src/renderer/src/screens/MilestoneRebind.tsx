@@ -4,11 +4,12 @@ import {
   type RelationshipNeighbor,
   milestoneLabel,
 } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { useState } from "react";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import type { RelationshipCandidate } from "../components/RelationshipForm";
 import { WithWhomFields } from "../components/WithWhomFields";
+import { homeCrumb } from "../lib/crumbs";
 
 /** The Person whose unbound milestone is being linked to a relationship. */
 interface Bearer {
@@ -40,7 +41,7 @@ export function MilestoneRebind() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: bearer.label, to: bearerPath },
+          { label: bearer.label, href: bearerPath },
           { label: "Set spouse" },
         ]}
       />

@@ -1,11 +1,12 @@
 import type { EntityType } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import {
   type RelationshipCandidate,
   RelationshipForm,
 } from "../components/RelationshipForm";
 import { entityBasePath } from "../lib/entityLabel";
+import { homeCrumb } from "../lib/crumbs";
 
 /** The subject entity a new relationship hangs off of. */
 interface Subject {
@@ -26,7 +27,7 @@ export function RelationshipCreate() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: subject.label, to: subjectPath },
+          { label: subject.label, href: subjectPath },
           { label: "Add relationship" },
         ]}
       />

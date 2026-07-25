@@ -4,10 +4,11 @@ import {
   type RelationshipRole,
   rolesForPair,
 } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { useMemo, useState } from "react";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { entityBasePath } from "../lib/entityLabel";
+import { homeCrumb } from "../lib/crumbs";
 
 /** The subject entity the edited relationship hangs off of. */
 interface Subject {
@@ -58,7 +59,7 @@ export function RelationshipEdit() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: subject.label, to: subjectPath },
+          { label: subject.label, href: subjectPath },
           { label: "Edit relationship" },
         ]}
       />

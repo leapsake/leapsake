@@ -1,5 +1,6 @@
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { ReminderForm } from "../components/ReminderForm";
+import { homeCrumb } from "../lib/crumbs";
 
 export function ReminderCreate() {
   return (
@@ -7,7 +8,7 @@ export function ReminderCreate() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: "Reminders", to: "/reminders" },
+          { label: "Reminders", href: "/reminders" },
           { label: "Add reminder" },
         ]}
       />

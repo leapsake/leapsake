@@ -1,8 +1,9 @@
 import type { Pet, Tag } from "@leapsake/schema";
 import { tagLabel } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { PetForm } from "../components/PetForm";
+import { homeCrumb } from "../lib/crumbs";
 
 export function PetEdit() {
   const { pet, tags } = useLoaderData() as { pet: Pet; tags: Tag[] };
@@ -10,7 +11,7 @@ export function PetEdit() {
   return (
     <main>
       <Breadcrumbs
-        trail={[homeCrumb, { label: pet.name, to: `/pets/${pet.id}` }]}
+        trail={[homeCrumb, { label: pet.name, href: `/pets/${pet.id}` }]}
       />
       <PetForm
         title={`Edit ${pet.name}`}

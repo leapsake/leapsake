@@ -1,8 +1,8 @@
 import { type Reminder, reminderLabel } from "@leapsake/schema";
+import { ConfirmDelete } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { homeCrumb } from "../components/Breadcrumbs";
-import { ConfirmDelete } from "../components/ConfirmDelete";
 import { useSubmitting } from "../lib/useSubmitting";
+import { homeCrumb } from "../lib/crumbs";
 
 export function ReminderDelete() {
   const reminder = useLoaderData() as Reminder;
@@ -11,7 +11,7 @@ export function ReminderDelete() {
     <ConfirmDelete
       trail={[
         homeCrumb,
-        { label: "Reminders", to: "/reminders" },
+        { label: "Reminders", href: "/reminders" },
         { label: "Remove reminder" },
       ]}
       heading="Remove reminder?"

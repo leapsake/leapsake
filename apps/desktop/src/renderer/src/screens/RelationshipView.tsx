@@ -4,11 +4,12 @@ import type {
   MilestoneTimelineEntry,
   Relationship,
 } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { Fragment } from "react";
 import { Link, useLoaderData } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { MilestonesSection } from "../components/MilestonesSection";
 import { entityBasePath } from "../lib/entityLabel";
+import { homeCrumb } from "../lib/crumbs";
 
 /** One endpoint of the relationship, resolved for display. */
 interface Partner {

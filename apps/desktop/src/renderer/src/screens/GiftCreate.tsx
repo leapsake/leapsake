@@ -1,10 +1,11 @@
 import type { GiftIdea } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { Link, useLoaderData } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import {
   GiftCaptureForm,
   type PartyOption,
 } from "../components/GiftCaptureForm";
+import { homeCrumb } from "../lib/crumbs";
 
 /**
  * Add a gift — the standalone create screen (reached from the Gifts list's "Add
@@ -28,7 +29,7 @@ export function GiftCreate() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: "Gifts", to: "/gifts" },
+          { label: "Gifts", href: "/gifts" },
           { label: "Add a gift" },
         ]}
       />

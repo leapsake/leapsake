@@ -3,11 +3,11 @@ import type {
   RelationshipNeighbor,
   RelationshipRole,
 } from "@leapsake/schema";
+import { ConfirmDelete } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { homeCrumb } from "../components/Breadcrumbs";
-import { ConfirmDelete } from "../components/ConfirmDelete";
 import { entityBasePath } from "../lib/entityLabel";
 import { useSubmitting } from "../lib/useSubmitting";
+import { homeCrumb } from "../lib/crumbs";
 
 /** The subject entity the inferred relationship is computed for. */
 interface Subject {
@@ -35,7 +35,7 @@ export function RelationshipDismiss() {
     <ConfirmDelete
       trail={[
         homeCrumb,
-        { label: subject.label, to: subjectPath },
+        { label: subject.label, href: subjectPath },
         { label: "Remove relationship" },
       ]}
       heading="Remove relationship?"

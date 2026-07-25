@@ -23,5 +23,7 @@ export {
   highlightMatch,
   type HighlightMode,
 } from "./highlight.js";
+export { ConfirmDelete } from "./patterns/ConfirmDelete.js";
+export { Breadcrumbs, type Crumb } from "./primitives/Breadcrumbs.js";
 export { GenderField } from "./primitives/GenderField.js";
 export { GenderValue, type GenderResult } from "./primitives/GenderValue.js";

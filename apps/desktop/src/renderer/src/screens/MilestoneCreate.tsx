@@ -2,11 +2,12 @@ import type {
   MilestoneBearerType,
   RelationshipNeighbor,
 } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { MilestoneForm } from "../components/MilestoneForm";
 import type { RelationshipCandidate } from "../components/RelationshipForm";
 import { entityBasePath } from "../lib/entityLabel";
+import { homeCrumb } from "../lib/crumbs";
 
 /** The bearer entity a new milestone hangs off of. */
 interface Bearer {
@@ -30,7 +31,7 @@ export function MilestoneCreate() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: bearer.label, to: bearerPath },
+          { label: bearer.label, href: bearerPath },
           { label: "Add milestone" },
         ]}
       />

@@ -1,7 +1,8 @@
 import type { Person } from "@leapsake/schema";
 import { fullName } from "@leapsake/schema";
+import { Breadcrumbs } from "@leapsake/ui/web";
+import { homeCrumb } from "../lib/crumbs";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 
 /**
  * Merge a duplicate person into the one being viewed. The viewed person is the
@@ -26,7 +27,7 @@ export function PersonMerge() {
   return (
     <main>
       <Breadcrumbs
-        trail={[homeCrumb, { label: name, to: `/people/${person.id}` }]}
+        trail={[homeCrumb, { label: name, href: `/people/${person.id}` }]}
       />
       <h1>Merge another person into {name}?</h1>
 

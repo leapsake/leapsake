@@ -1,8 +1,8 @@
 import type { EntityType } from "@leapsake/schema";
+import { ConfirmDelete } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { homeCrumb } from "../components/Breadcrumbs";
-import { ConfirmDelete } from "../components/ConfirmDelete";
 import { useSubmitting } from "../lib/useSubmitting";
+import { homeCrumb } from "../lib/crumbs";
 
 /** One endpoint of the relationship being removed. */
 interface Partner {
@@ -30,7 +30,7 @@ export function RelationshipRowDelete() {
     <ConfirmDelete
       trail={[
         homeCrumb,
-        { label: title, to: relPath },
+        { label: title, href: relPath },
         { label: "Remove relationship" },
       ]}
       heading="Remove relationship?"

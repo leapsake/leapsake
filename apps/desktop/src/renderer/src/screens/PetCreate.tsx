@@ -1,7 +1,8 @@
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
 import { PetForm } from "../components/PetForm";
 import type { RelationshipCandidate } from "../components/RelationshipForm";
+import { homeCrumb } from "../lib/crumbs";
 
 export function PetCreate() {
   const candidates = useLoaderData() as RelationshipCandidate[];

@@ -1,25 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { UiProvider, useUi, type UiAdapter } from "../src/web/index.js";
+import { useUi } from "../src/web/index.js";
+import { renderWithUi } from "./support.js";
 
 // Vitest runs without globals, so Testing Library can't register its own
 // auto-cleanup — without this, `screen` sees every earlier test's markup too.
 afterEach(cleanup);
-
-/** A minimal host adapter: plain DOM elements, no router involved. */
-const adapter: UiAdapter = {
-  Link: ({ href, children, ...rest }) => (
-    <a href={href} {...rest}>
-      {children}
-    </a>
-  ),
-  Form: ({ method, action, children }) => (
-    <form method={method} action={action}>
-      {children}
-    </form>
-  ),
-};
 
 function Consumer() {
   const { Link, Form } = useUi();
@@ -33,11 +20,7 @@ function Consumer() {
 
 describe("UiProvider", () => {
   it("supplies the host's Link and Form to components below it", () => {
-    render(
-      <UiProvider adapter={adapter}>
-        <Consumer />
-      </UiProvider>,
-    );
+    renderWithUi(<Consumer />);
 
     expect(screen.getByRole("link", { name: "Back" })).toHaveProperty(
       "pathname",

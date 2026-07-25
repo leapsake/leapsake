@@ -1,8 +1,8 @@
 import type { GiftIdea } from "@leapsake/schema";
+import { ConfirmDelete } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { homeCrumb } from "../components/Breadcrumbs";
-import { ConfirmDelete } from "../components/ConfirmDelete";
 import { useSubmitting } from "../lib/useSubmitting";
+import { homeCrumb } from "../lib/crumbs";
 
 export function GiftIdeaDelete() {
   const idea = useLoaderData() as GiftIdea;
@@ -11,7 +11,7 @@ export function GiftIdeaDelete() {
     <ConfirmDelete
       trail={[
         homeCrumb,
-        { label: "Gifts", to: "/gifts" },
+        { label: "Gifts", href: "/gifts" },
         { label: "Remove gift idea" },
       ]}
       heading="Remove gift idea?"

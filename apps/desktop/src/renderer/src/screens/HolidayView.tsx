@@ -1,7 +1,7 @@
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
+import { Breadcrumbs } from "@leapsake/ui/web";
 import { useRef, useState } from "react";
 import { Form, Link, useLoaderData, useRevalidator } from "react-router-dom";
-import { Breadcrumbs } from "../components/Breadcrumbs";
 import { MultiAddCombobox } from "../components/MultiAddCombobox";
 import { formatOccurrence } from "./HolidayList";
 
@@ -65,7 +65,7 @@ export function HolidayView() {
     <main>
       <Breadcrumbs
         trail={[
-          { label: "Holidays", to: "/holidays" },
+          { label: "Holidays", href: "/holidays" },
           { label: holiday.name },
         ]}
       />

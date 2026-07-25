@@ -1,15 +1,15 @@
 import type { ReactNode } from "react";
-import { Form, Link } from "react-router-dom";
-import { Breadcrumbs, type Crumb } from "./Breadcrumbs";
+import { useUi } from "../adapter.js";
+import { Breadcrumbs, type Crumb } from "../primitives/Breadcrumbs.js";
 
 /**
  * The confirm-before-destroying screen, shared by every delete/remove route.
  *
- * All ten of them were the same page — breadcrumbs, a question as the heading,
- * a sentence of prose naming what's about to go, and a `<Form method="post">`
- * whose `<fieldset>` disables while the submission is in flight — differing only
- * in wording and where Cancel returns to. The route action is addressed by the
- * route itself, so the form needs no `action`.
+ * All ten of desktop's were the same page — breadcrumbs, a question as the
+ * heading, a sentence of prose naming what's about to go, and a
+ * `<form method="post">` whose `<fieldset>` disables while the submission is in
+ * flight — differing only in wording and where Cancel returns to. The action is
+ * addressed by the route itself, so the form needs no `action` of its own.
  *
  * The `<fieldset disabled>` is the load-bearing part: it takes the submit button
  * out of play for the moment between click and navigation, so an impatient
@@ -42,6 +42,8 @@ export function ConfirmDelete({
   /** The prose explaining what is about to happen. */
   children: ReactNode;
 }) {
+  const { Form, Link } = useUi();
+
   return (
     <main>
       <Breadcrumbs trail={trail} />
@@ -55,7 +57,7 @@ export function ConfirmDelete({
           ))}
         <fieldset disabled={submitting}>
           <button type="submit">{confirmLabel}</button>{" "}
-          <Link to={cancelTo}>Cancel</Link>
+          <Link href={cancelTo}>Cancel</Link>
         </fieldset>
       </Form>
     </main>

@@ -1,8 +1,8 @@
 import type { Pet } from "@leapsake/schema";
+import { ConfirmDelete } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { homeCrumb } from "../components/Breadcrumbs";
-import { ConfirmDelete } from "../components/ConfirmDelete";
 import { useSubmitting } from "../lib/useSubmitting";
+import { homeCrumb } from "../lib/crumbs";
 
 export function PetDelete() {
   const { pet } = useLoaderData() as { pet: Pet };
@@ -10,7 +10,7 @@ export function PetDelete() {
 
   return (
     <ConfirmDelete
-      trail={[homeCrumb, { label: pet.name, to: petPath }]}
+      trail={[homeCrumb, { label: pet.name, href: petPath }]}
       heading={`Delete ${pet.name}?`}
       confirmLabel="Delete"
       cancelTo={petPath}
