@@ -916,9 +916,16 @@ async function giftIdeaEditLoader({ params }: LoaderFunctionArgs) {
   };
 }
 
-/** The "Add a gift" screen: the idea pool the capture form autocompletes against
- *  plus the people/pets pool its recipient picker draws from, loaded in parallel. */
-async function giftCreateLoader() {
+/**
+ * The "Add a gift" screen: the idea pool the capture form autocompletes against
+ * plus the people/pets pool its recipient picker draws from, loaded in parallel.
+ *
+ * A `?recipient=<type>:<id>` param (how a completed `🎁 gift` reminder hands off
+ * — plans/gifts.md sequencing 5) fixes the form to that one recipient and seeds a
+ * blank date row, so "record what you gave" opens ready to log a giving rather
+ * than to shortlist one. An unresolvable id falls back to the ordinary picker.
+ */
+async function giftCreateLoader({ request }: LoaderFunctionArgs) {
   const [ideas, entities] = await Promise.all([
     window.api.gifts.ideas.list(),
     window.api.views.entityList(),
@@ -928,7 +935,26 @@ async function giftCreateLoader() {
     id: e.id,
     label: e.label,
   }));
-  return { ideas, candidates };
+  const wanted = new URL(request.url).searchParams.get("recipient");
+  const fixedRecipient =
+    wanted === null
+      ? undefined
+      : candidates.find((c) => `${c.type}:${c.id}` === wanted);
+  return { ideas, candidates, fixedRecipient };
+}
+
+/**
+ * The Reminders screen: the rows plus which of them are `🎁 gift` reminders and
+ * who they're about, so a gift reminder can offer the recipient's gifts (and,
+ * once done, logging what was given). Derived from the engine's own walk, so the
+ * CTA appears on exactly the reminders it minted.
+ */
+async function remindersLoader() {
+  const [reminders, giftTargets] = await Promise.all([
+    window.api.reminders.list(),
+    window.api.reminders.giftTargets(),
+  ]);
+  return { reminders, giftTargets };
 }
 
 /** Save edits to a gift idea; a blank title is a no-op back to the list. The
@@ -1007,7 +1033,7 @@ const routes: RouteObject[] = [
         // Reminders — a standalone list of user-created reminders (the seed of the
         // future home screen). #tags are parsed inline from the text in core.
         path: "reminders",
-        loader: () => window.api.reminders.list(),
+        loader: remindersLoader,
         element: <ReminderList />,
       },
       {

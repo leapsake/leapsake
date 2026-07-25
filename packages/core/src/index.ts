@@ -96,7 +96,11 @@ import {
   roleDefs,
   todayCivil,
 } from "@leapsake/schema";
-import { regenerateSystemReminders } from "@leapsake/reminders";
+import {
+  type ReminderEngineDeps,
+  listSystemReminderTargets,
+  regenerateSystemReminders,
+} from "@leapsake/reminders";
 // The onboarding-nudge id-convention, surfaced through core (the apps' single
 // entry point) so a client can map a Home reminder's id to its CTA route without
 // depending on `@leapsake/reminders` directly.
@@ -241,6 +245,20 @@ export type GiftForIdea = Gift & {
   giverLabel: string | null;
   occasionLabel: string | null;
 };
+
+/**
+ * A `🎁 gift` system reminder paired with the person/pet it's about — what turns
+ * "Get @Alice a gift" from a note into a loop: the client links it to Alice's
+ * gifts, and once it's done, to logging what was actually given
+ * (plans/gifts.md sequencing 5). Derived from the engine's own desired-set walk,
+ * so it lights up on exactly the reminders the engine minted — never a stored
+ * column, in keeping with the id-convention the onboarding CTAs established.
+ */
+export interface GiftReminderTarget {
+  reminderId: string;
+  recipientType: GiftPartyType;
+  recipientId: string;
+}
 
 /**
  * One row of the Gifts overview (the `/gifts` screen, keyed by idea): an idea
@@ -575,121 +593,123 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     });
   }
 
-  // The composition root for automated (`system`) reminders: construct the
-  // `@leapsake/reminders` engine over the real repos + this core's own
-  // `resolveLabel`, and reconcile today's upcoming birthdays. "Today" is the local
-  // civil date (a calendar event fires on the user's day). Called at boot/focus
-  // *and* after every milestone write (see `milestones` below), so an added /
-  // edited / deleted birthday reconciles at once instead of waiting for a relaunch.
+  // The composition root for automated (`system`) reminders: the
+  // `@leapsake/reminders` engine's ports over the real repos + this core's own
+  // `resolveLabel`. Built fresh per call so "today" is re-read each time — the
+  // local civil date (a calendar event fires on the user's day). Two consumers:
+  // `regenerateSystem` below reconciles the store to it (at boot/focus *and*
+  // after every milestone write, so an added / edited / deleted birthday
+  // reconciles at once), and `reminders.giftTargets` reads the same walk without
+  // writing.
+  const systemReminderDeps = (): ReminderEngineDeps => ({
+    milestones: {
+      listRemindEligible: () => milestones.listRemindEligible(),
+    },
+    // The milestone's effective staggered schedule: its stored rule rows, or —
+    // when untouched — its kind's defaults (schema's `resolveReminderSchedule`,
+    // the same resolve the editor loads). The engine mints one reminder per
+    // enabled entry.
+    resolveSchedule: async (m) =>
+      resolveReminderSchedule(
+        m.kind,
+        await reminderRules.listForBearer("milestone", m.id),
+      ),
+    reminders: {
+      getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
+      // The engine writes system reminders through this port (bypassing the
+      // `create` wrapper above), so materialize their @mentions here too: the
+      // birthday title carries a mention token, re-derived into the same synced
+      // backlink. Runs inside the engine's own transaction.
+      insert: async (row) => {
+        const inserted = await reminders.insert(row);
+        await mentions.setEntityMentions(
+          "reminder",
+          inserted.id,
+          mentionTargetsOf(inserted),
+        );
+        return inserted;
+      },
+      // A milestone edit moves the date or renames the subject: refresh the
+      // still-live reminder's derived fields, then re-derive its @mentions from
+      // the new title (the mention token's baked-in name changed on a rename).
+      update: async (id, fields) => {
+        const changed = await reminders.update(id, fields);
+        if (changed) {
+          await mentions.setEntityMentions(
+            "reminder",
+            id,
+            mentionTargetsOf(changed),
+          );
+        }
+      },
+      listWhere: (query) => reminders.listWhere(query),
+      // Pruning a stale system reminder clears its mentions too (mirrors the
+      // user-facing softDelete above).
+      softDelete: async (id) => {
+        await reminders.softDelete(id);
+        await mentions.removeAllForBearer("reminder", id);
+      },
+    },
+    // Birthdays only bear on a person/pet; a relationship bearer (future kinds)
+    // has no single label, so it's skipped rather than mislabelled.
+    resolveLabel: async (bearerType, bearerId) =>
+      bearerType === "relationship"
+        ? null
+        : ((await resolveLabel(bearerType, bearerId)) ?? null),
+    // Is a milestone's bearer the self-person? Flips your own birthday's wish to
+    // its self-directed copy (plans/gifts.md §Slice 0). Only a person can be
+    // self, so a pet/relationship bearer is `false` without a lookup.
+    isSelf: async (bearerType, bearerId) =>
+      bearerType === "person" && bearerId === (await self.getSelf())?.personId,
+    today: todayCivil(),
+    transaction: (body) => driver.transaction(body),
+    // The first-run signals for the onboarding nudges. `hasAnyEntity` gates the
+    // "add your first person" step; a relay-connected account (a `relayUrl` on
+    // the singleton) gates the "sync another device" step; `hasSelf` gates the
+    // "pick yourself" step. All retire (prune) automatically once satisfied —
+    // see `@leapsake/reminders` ONBOARDING_STEPS.
+    onboarding: {
+      hasAnyEntity: async () =>
+        (await people.list()).length > 0 || (await pets.list()).length > 0,
+      isSyncConnected: async () =>
+        (await getSyncStatus({ driver })).relayUrl !== undefined,
+      hasSelf: async () => (await self.getSelf()) !== undefined,
+    },
+    // Holiday observances — the second dated reminder family. Always supplied
+    // here, never conditionally: the engine prunes (and permanently
+    // tombstones) every active system reminder absent from the desired set, so
+    // a client that omitted this port would silently kill every holiday
+    // reminder it had already generated.
+    holidays: {
+      listCandidates: () =>
+        holidayReminderCandidates({
+          holidays,
+          observances,
+          hiddenHolidays,
+          reminderRules,
+          today: todayCivil(),
+        }),
+      // Per-observance schedule: stored rules when customised, else the
+      // observance defaults — the same "missing rows ⇒ defaults" contract
+      // milestones use, which is what keeps an untouched observance free of
+      // stored rows and of sync churn.
+      resolveSchedule: async (candidate) =>
+        resolveObservanceReminderSchedule(
+          await reminderRules.listForBearer(
+            "observance",
+            candidate.observanceId,
+          ),
+        ),
+      resolveLabel: async (bearerType, bearerId) =>
+        (await resolveLabel(bearerType, bearerId)) ?? null,
+    },
+  });
+
   const regenerateSystem = (): Promise<{
     created: number;
     updated: number;
     removed: number;
-  }> =>
-    regenerateSystemReminders({
-      milestones: {
-        listRemindEligible: () => milestones.listRemindEligible(),
-      },
-      // The milestone's effective staggered schedule: its stored rule rows, or —
-      // when untouched — its kind's defaults (schema's `resolveReminderSchedule`,
-      // the same resolve the editor loads). The engine mints one reminder per
-      // enabled entry.
-      resolveSchedule: async (m) =>
-        resolveReminderSchedule(
-          m.kind,
-          await reminderRules.listForBearer("milestone", m.id),
-        ),
-      reminders: {
-        getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
-        // The engine writes system reminders through this port (bypassing the
-        // `create` wrapper above), so materialize their @mentions here too: the
-        // birthday title carries a mention token, re-derived into the same synced
-        // backlink. Runs inside the engine's own transaction.
-        insert: async (row) => {
-          const inserted = await reminders.insert(row);
-          await mentions.setEntityMentions(
-            "reminder",
-            inserted.id,
-            mentionTargetsOf(inserted),
-          );
-          return inserted;
-        },
-        // A milestone edit moves the date or renames the subject: refresh the
-        // still-live reminder's derived fields, then re-derive its @mentions from
-        // the new title (the mention token's baked-in name changed on a rename).
-        update: async (id, fields) => {
-          const changed = await reminders.update(id, fields);
-          if (changed) {
-            await mentions.setEntityMentions(
-              "reminder",
-              id,
-              mentionTargetsOf(changed),
-            );
-          }
-        },
-        listWhere: (query) => reminders.listWhere(query),
-        // Pruning a stale system reminder clears its mentions too (mirrors the
-        // user-facing softDelete above).
-        softDelete: async (id) => {
-          await reminders.softDelete(id);
-          await mentions.removeAllForBearer("reminder", id);
-        },
-      },
-      // Birthdays only bear on a person/pet; a relationship bearer (future kinds)
-      // has no single label, so it's skipped rather than mislabelled.
-      resolveLabel: async (bearerType, bearerId) =>
-        bearerType === "relationship"
-          ? null
-          : ((await resolveLabel(bearerType, bearerId)) ?? null),
-      // Is a milestone's bearer the self-person? Flips your own birthday's wish to
-      // its self-directed copy (plans/gifts.md §Slice 0). Only a person can be
-      // self, so a pet/relationship bearer is `false` without a lookup.
-      isSelf: async (bearerType, bearerId) =>
-        bearerType === "person" &&
-        bearerId === (await self.getSelf())?.personId,
-      today: todayCivil(),
-      transaction: (body) => driver.transaction(body),
-      // The first-run signals for the onboarding nudges. `hasAnyEntity` gates the
-      // "add your first person" step; a relay-connected account (a `relayUrl` on
-      // the singleton) gates the "sync another device" step; `hasSelf` gates the
-      // "pick yourself" step. All retire (prune) automatically once satisfied —
-      // see `@leapsake/reminders` ONBOARDING_STEPS.
-      onboarding: {
-        hasAnyEntity: async () =>
-          (await people.list()).length > 0 || (await pets.list()).length > 0,
-        isSyncConnected: async () =>
-          (await getSyncStatus({ driver })).relayUrl !== undefined,
-        hasSelf: async () => (await self.getSelf()) !== undefined,
-      },
-      // Holiday observances — the second dated reminder family. Always supplied
-      // here, never conditionally: the engine prunes (and permanently
-      // tombstones) every active system reminder absent from the desired set, so
-      // a client that omitted this port would silently kill every holiday
-      // reminder it had already generated.
-      holidays: {
-        listCandidates: () =>
-          holidayReminderCandidates({
-            holidays,
-            observances,
-            hiddenHolidays,
-            reminderRules,
-            today: todayCivil(),
-          }),
-        // Per-observance schedule: stored rules when customised, else the
-        // observance defaults — the same "missing rows ⇒ defaults" contract
-        // milestones use, which is what keeps an untouched observance free of
-        // stored rows and of sync churn.
-        resolveSchedule: async (candidate) =>
-          resolveObservanceReminderSchedule(
-            await reminderRules.listForBearer(
-              "observance",
-              candidate.observanceId,
-            ),
-          ),
-        resolveLabel: async (bearerType, bearerId) =>
-          (await resolveLabel(bearerType, bearerId)) ?? null,
-      },
-    });
+  }> => regenerateSystemReminders(systemReminderDeps());
 
   const views = createViews({
     people: { list: () => people.list(), get: (id) => people.get(id) },
@@ -1153,6 +1173,22 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       // reconcile on their own (see `milestones`), so this needn't be called after
       // them. See {@link regenerateSystem}.
       regenerateSystem,
+      // Which of today's automated reminders are **gift** ones, and who each is
+      // about — the loop-closing read for plans/gifts.md sequencing 5. The `🎁`
+      // action has always minted "Get @Alice a gift"; this is what lets a client
+      // turn that into a link to Alice's gifts and, once done, into a logged
+      // giving. Covers both dated families (a birthday's gift rule and a
+      // holiday observance's), since both mint the same action.
+      giftTargets: async (): Promise<GiftReminderTarget[]> => {
+        const targets = await listSystemReminderTargets(systemReminderDeps());
+        return targets
+          .filter((t) => t.action === "gift")
+          .map((t) => ({
+            reminderId: t.id,
+            recipientType: t.bearerType,
+            recipientId: t.bearerId,
+          }));
+      },
     },
 
     // Who "you" are — a pointer at the Person that is the self (plans/gifts.md

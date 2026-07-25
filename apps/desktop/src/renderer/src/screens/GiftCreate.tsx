@@ -10,11 +10,17 @@ import {
  * Add a gift — the standalone create screen (reached from the Gifts list's "Add
  * a gift" link). Type a name/URL to capture an idea; add people/pets to suggest
  * it; add dates under a recipient to log givings. Returns to the list on save.
+ *
+ * Reached with a recipient already chosen (`?recipient=…`) when a completed
+ * `🎁 gift` reminder hands off — then the picker collapses to that one person or
+ * pet and the form opens on a date row, since the answer to "record what you
+ * gave" is a giving, not a shortlist (plans/gifts.md sequencing 5).
  */
 export function GiftCreate() {
-  const { ideas, candidates } = useLoaderData() as {
+  const { ideas, candidates, fixedRecipient } = useLoaderData() as {
     ideas: GiftIdea[];
     candidates: PartyOption[];
+    fixedRecipient?: PartyOption;
   };
 
   return (
@@ -27,9 +33,18 @@ export function GiftCreate() {
         ]}
       />
       <h1>Add a gift</h1>
+      {fixedRecipient !== undefined && (
+        <p>
+          Recording a gift for <strong>{fixedRecipient.label}</strong>.
+        </p>
+      )}
       <GiftCaptureForm
         ideaPool={ideas}
-        recipientCandidates={candidates}
+        fixedRecipient={fixedRecipient}
+        recipientCandidates={
+          fixedRecipient === undefined ? candidates : undefined
+        }
+        startWithGiving={fixedRecipient !== undefined}
         redirectTo="/gifts"
       />
       <p>

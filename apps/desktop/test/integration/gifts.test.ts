@@ -4,6 +4,7 @@ import {
   createCore,
   runMigrations,
 } from "@leapsake/core";
+import { type CivilDate, reminderLabel, todayCivil } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
@@ -488,5 +489,125 @@ describe("core.gifts.ideas — tags", () => {
     expect(await core.tags.giftIdeasForTag(tag.id)).toEqual([]);
     // Its last bearer gone, the tag itself is garbage-collected.
     expect(await core.tags.get(tag.id)).toBeUndefined();
+  });
+});
+
+/** The civil date `days` after today, normalised across month/year boundaries. */
+function civilDaysFromToday(days: number): CivilDate {
+  const t = todayCivil();
+  const d = new Date(Date.UTC(t.year, t.month - 1, t.day + days));
+  return {
+    year: d.getUTCFullYear(),
+    month: d.getUTCMonth() + 1,
+    day: d.getUTCDate(),
+  };
+}
+
+/**
+ * The reminder loop (plans/gifts.md sequencing 5): the `🎁 gift` action has
+ * always minted "Get @Alice a gift"; `giftTargets` is what tells a client which
+ * reminders those are and who they're for, so it can link to the recipient's
+ * gifts and — once done — to logging what was given.
+ */
+describe("core.reminders.giftTargets", () => {
+  /** A person with a birthday `days` out whose schedule turns the gift action on. */
+  async function personWithGiftReminder(days: number, name: string) {
+    const person = await core.people.create(
+      { firstName: name, middleName: null, lastName: "X", gender: null },
+      [],
+    );
+    const occ = civilDaysFromToday(days);
+    await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: person.id,
+      year: null,
+      month: occ.month,
+      day: occ.day,
+      reminderSchedule: [
+        { action: "gift", label: null, offsetDays: 30, enabled: true },
+        { action: "wish", label: null, offsetDays: 0, enabled: true },
+      ],
+    });
+    return person.id;
+  }
+
+  it("names the gift reminder and its recipient", async () => {
+    const alice = await personWithGiftReminder(20, "Alice");
+
+    const targets = await core.reminders.giftTargets();
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      recipientType: "person",
+      recipientId: alice,
+    });
+
+    // The named reminder is the gift one — not the birthday wish beside it.
+    const reminder = await core.reminders.get(targets[0].reminderId);
+    expect(reminderLabel(reminder!)).toBe("🎁 Get Alice X a gift");
+  });
+
+  it("excludes the wish reminder minted alongside it", async () => {
+    await personWithGiftReminder(20, "Alice");
+    const targets = await core.reminders.giftTargets();
+    const labels = await Promise.all(
+      targets.map(async (t) =>
+        reminderLabel((await core.reminders.get(t.reminderId))!),
+      ),
+    );
+    expect(labels).toEqual(["🎁 Get Alice X a gift"]);
+  });
+
+  it("keeps naming the reminder once it's completed, so the giving can be logged", async () => {
+    const alice = await personWithGiftReminder(20, "Alice");
+    const [target] = await core.reminders.giftTargets();
+    await core.reminders.setCompleted(target.reminderId, true);
+
+    const after = await core.reminders.giftTargets();
+    expect(after).toEqual([
+      {
+        reminderId: target.reminderId,
+        recipientType: "person",
+        recipientId: alice,
+      },
+    ]);
+  });
+
+  it("returns nothing when no gift action is enabled", async () => {
+    // The birthday kind defaults leave gift off — only the day-of wish is on.
+    const person = await core.people.create(
+      { firstName: "Bea", middleName: null, lastName: "X", gender: null },
+      [],
+    );
+    const occ = civilDaysFromToday(10);
+    await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: person.id,
+      year: null,
+      month: occ.month,
+      day: occ.day,
+    });
+    expect(await core.reminders.giftTargets()).toEqual([]);
+  });
+
+  it("hands the recipient to a giving that closes the loop", async () => {
+    // What the completed-reminder CTA does: capture a gift for the named
+    // recipient, which then reads back on their page as a logged giving.
+    const alice = await personWithGiftReminder(20, "Alice");
+    const [target] = await core.reminders.giftTargets();
+
+    await core.gifts.capture({
+      giftIdea: { title: "Scarf" },
+      recipients: [
+        {
+          party: { type: target.recipientType, id: target.recipientId },
+          givings: [{ date: { year: 2026, month: 3, day: 9 } }],
+        },
+      ],
+    });
+
+    const given = await core.gifts.given.listForRecipient("person", alice);
+    expect(given.map((g) => g.ideaTitle)).toEqual(["Scarf"]);
   });
 });

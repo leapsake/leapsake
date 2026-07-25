@@ -1,3 +1,4 @@
+import type { GiftReminderTarget } from "@leapsake/core";
 import { type OnboardingRoute, onboardingRouteOf } from "@leapsake/core";
 import {
   type ReminderWithTags,
@@ -22,12 +23,46 @@ const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
   };
 
 /**
+ * The path a `🎁 gift` reminder's CTA points at, which flips on completion — the
+ * loop plans/gifts.md sequencing 5 closes. **Open:** the recipient's own page,
+ * whose Gifts section lists what's already suggested for them (and what they've
+ * been given, so you don't repeat yourself). **Done:** the capture form fixed to
+ * that recipient, to record what you actually gave.
+ *
+ * Completion is deliberately left as the plain Done button rather than growing a
+ * modal: nothing else in reminders interrupts that path, and a link the user can
+ * take or ignore respects a "done" that meant "handled, nothing to log".
+ */
+function giftCtaFor(
+  target: GiftReminderTarget,
+  done: boolean,
+): { path: string; label: string } {
+  const party = `${target.recipientType}:${target.recipientId}`;
+  return done
+    ? {
+        path: `/gifts/new?recipient=${encodeURIComponent(party)}`,
+        label: "Record what you gave →",
+      }
+    : {
+        path: `${target.recipientType === "pet" ? "/pets" : "/people"}/${target.recipientId}`,
+        label: "See their gifts →",
+      };
+}
+
+/**
  * One reminder row: a done/reopen toggle, the reminder's heading, its edit/remove
  * links, and — when the reminder has both — its body shown underneath as details.
  * The title leads; if there's no title the body *is* the heading, so it isn't
  * repeated below. Inline `#tags` in either field link to their tag pages.
  */
-function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
+function ReminderRow({
+  reminder,
+  giftTarget,
+}: {
+  reminder: ReminderWithTags;
+  /** Set when this is a `🎁 gift` reminder — see {@link giftCtaFor}. */
+  giftTarget?: GiftReminderTarget;
+}) {
   const fetcher = useFetcher();
   const done = reminder.completedAt !== null;
   const strike = done ? { textDecoration: "line-through" as const } : undefined;
@@ -35,7 +70,12 @@ function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
   // Onboarding nudges deep-link to their target screen; a non-onboarding reminder
   // (milestone / user) has no route and shows no CTA.
   const onboardingRoute = onboardingRouteOf(reminder.id);
-  const cta = onboardingRoute === null ? null : ONBOARDING_CTA[onboardingRoute];
+  const cta =
+    onboardingRoute !== null
+      ? ONBOARDING_CTA[onboardingRoute]
+      : giftTarget !== undefined
+        ? giftCtaFor(giftTarget, done)
+        : null;
 
   return (
     <li>
@@ -94,7 +134,11 @@ function ReminderRow({ reminder }: { reminder: ReminderWithTags }) {
  * disclosure below.
  */
 export function ReminderList() {
-  const reminders = useLoaderData() as ReminderWithTags[];
+  const { reminders, giftTargets } = useLoaderData() as {
+    reminders: ReminderWithTags[];
+    giftTargets: GiftReminderTarget[];
+  };
+  const giftTargetById = new Map(giftTargets.map((t) => [t.reminderId, t]));
   // Open reminders lead, soonest due first (undated sink below); completed ones
   // keep the repo's newest-first order in the disclosure below.
   const open = reminders
@@ -115,7 +159,11 @@ export function ReminderList() {
       ) : (
         <ul>
           {open.map((reminder) => (
-            <ReminderRow key={reminder.id} reminder={reminder} />
+            <ReminderRow
+              key={reminder.id}
+              reminder={reminder}
+              giftTarget={giftTargetById.get(reminder.id)}
+            />
           ))}
         </ul>
       )}
@@ -125,7 +173,11 @@ export function ReminderList() {
           <summary>Completed ({done.length})</summary>
           <ul>
             {done.map((reminder) => (
-              <ReminderRow key={reminder.id} reminder={reminder} />
+              <ReminderRow
+                key={reminder.id}
+                reminder={reminder}
+                giftTarget={giftTargetById.get(reminder.id)}
+              />
             ))}
           </ul>
         </details>

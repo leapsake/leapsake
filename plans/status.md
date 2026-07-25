@@ -5,13 +5,14 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-24** — **Gifts slices 0–4 shipped:** a synced **self-person** singleton (the ego
+> **Updated 2026-07-25** — **Gifts slices 0–5 shipped:** a synced **self-person** singleton (the ego
 > anchor for who gave / received), **GiftIdea** (a standalone `/gifts` idea list), **GiftSuggestion**
 > (idea × recipient, authorable from either end), **Gift** (dated givings — the "Gifts given"
 > section, the "✓ given" annotation + re-gift guard) — migrations 23–26, desktop UI, cascades wired;
 > the occasion / target-date form UI is deferred — and **tags + search on gift ideas** (`gift_idea`
-> joined `tagBearerTypeSchema`, no migration; gift ideas are their own search result type).
-> **Slice 5 (the `🎁 gift` reminder loop) is next.** *Earlier
+> joined `tagBearerTypeSchema`, no migration; gift ideas are their own search result type) — and the
+> **`🎁 gift` reminder loop**, which turns "Get @Alice a gift" into a link to Alice's gifts and, once
+> done, into a logged giving. **Slice 6 (the mobile port) is next.** *Earlier
 > (2026-07-20):* **Holidays shipped on both clients** — a `@leapsake/holidays` catalog + recurrence
 > engine, three synced tables (holidays / observances / hidden_holidays), the `/holidays` browse + an
 > autocomplete for authoring observances from either end, engine wiring to `system` reminders, global
@@ -61,7 +62,7 @@
   now wired into the engine** — one `system` reminder per enabled rule, offset by `offsetDays`,
   action-phrased, and **onboarding nudges** now fill a brand-new user's empty Home (CTA-wired on
   both clients). Remaining: reminder search — [`reminders.md`](./reminders.md).
-- **Gifts** — **slices 0–4 shipped on desktop** (design: [`gifts.md`](./gifts.md); three deliberately
+- **Gifts** — **slices 0–5 shipped on desktop** (design: [`gifts.md`](./gifts.md); three deliberately
   separate tables — an idea is a thing in the world, a suggestion is idea × recipient, a giving is a
   dated event). **0 · self-person** (migration 23): a synced fixed-PK singleton pointing at the Person
   that is "you" — the ego anchor gifts need for who gave / received, and the future kinship anchor —
@@ -91,10 +92,17 @@
   facet they share with entities), navigating to the idea's edit page; a link match is a *reason*, so it
   ranks under every title match, and unlike a tag or holiday an idea never floats above equal matches,
   since it leads nothing.
-  **Deferred to a later UI increment:** the occasion picker + suggestion
-  target-date inputs — schema/core/repo support them fully and are tested, but those forms stay bare for
-  now. Mobile is the sequencing item-6 port (data already flows via shared core; mobile search drops
-  gift-idea hits until its screens exist). **Next: slice 5 (the `🎁 gift` reminder loop)** — see
+  **5 · The reminder loop** (no migration, no stored column): the engine's desired-set walk was split
+  into a pure `computeDesired` + the reconcile, so a new `listSystemReminderTargets` read names *exactly*
+  the reminders reconcile writes — the same id-convention the onboarding CTAs use, now answering "which
+  reminder is a gift one, and who for". `reminders.giftTargets` filters that to the `gift` action (both
+  dated families: a birthday's gift rule **and** a holiday observance's), and the reminder row's CTA
+  flips on completion — open → the recipient's page and its Gifts section; done → the capture form fixed
+  to that recipient and opened on a date row ("record what you gave"). Completion itself stays the plain
+  Done button; the link is offered, never a modal. **Deferred to a later UI increment:** the occasion
+  picker + suggestion target-date inputs — schema/core/repo support them fully and are tested, but those
+  forms stay bare for now. **Next: slice 6, the mobile port** (data already flows via shared core; mobile
+  search drops gift-idea hits and mobile reminder rows show no gift CTA until its screens exist) — see
   *What's next*.
 - **Testing harness** — the tiered `pnpm test` orchestration is built: `scripts/test-all.mjs`
   runs each trophy tier (static · lint · typecheck · unit+integration · driver-coverage gate)
@@ -196,13 +204,12 @@ can't ship without distributable apps. (None yet.)
   borderline Lunar New Year years are documented in `packages/holidays/src/catalog.ts`. The only
   future task is calendrical and distant: **extend both tables before ~2050**, re-deriving rather
   than extrapolating.
-- **Gifts — remaining.** Slices 0–4 (self-person, GiftIdea, GiftSuggestion, Gift, tags + search) are
-  done — see *Where things stand*. **Next: slice 5** — the `🎁 gift` reminder action deep-links to a
-  recipient's suggestions → "record what you gave" → a Gift, closing the loop that action already opens.
-  Then **6** (mobile port — faithful ports of the desktop forms, which also un-hides gift-idea search
-  hits on mobile). Also carried over: the **occasion picker + target-date UI** for suggestions and gifts
-  (data model + core already support it; the forms create bare rows for now). Design:
-  [`gifts.md`](./gifts.md).
+- **Gifts — remaining.** Slices 0–5 (self-person, GiftIdea, GiftSuggestion, Gift, tags + search, the
+  reminder loop) are done — see *Where things stand*. **Next: slice 6** — the mobile port: faithful
+  ports of the desktop gift forms, which also un-hides gift-idea search hits on mobile and lets mobile
+  reminder rows carry the same gift CTA (`reminders.giftTargets` is already in shared core). Also
+  carried over: the **occasion picker + target-date UI** for suggestions and gifts (data model + core
+  already support it; the forms create bare rows for now). Design: [`gifts.md`](./gifts.md).
 
 ### v0.2 (first post-launch feature increment)
 

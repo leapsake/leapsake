@@ -4,6 +4,7 @@ import {
   type MilestoneBearerType,
   type RemindEligibleMilestone,
   type Reminder,
+  type ReminderAction,
   type ReminderRuleInput,
   actionDefs,
   daysUntil,
@@ -195,6 +196,28 @@ interface DesiredReminder {
    * so a steady-state reconcile never rewrites it.
    */
   order?: number;
+  /**
+   * Who this reminder is about and what it asks for — present only for rows with
+   * a **person/pet** bearer (a milestone or holiday one), absent for onboarding
+   * nudges and relationship-borne milestones. Clients read it through
+   * {@link listSystemReminderTargets} to offer an action on the reminder (the
+   * `gift` one opens the recipient's gifts — plans/gifts.md sequencing 5).
+   */
+  target?: Omit<SystemReminderTarget, "id">;
+}
+
+/**
+ * What a `system` reminder is *about*: its id paired with the action that minted
+ * it and the person/pet it names. The id-convention again (see
+ * {@link ONBOARDING_REMINDERS}) — a client keys its CTA off this rather than off
+ * a stored column, so no schema field, no migration, no sync change.
+ */
+export interface SystemReminderTarget {
+  id: string;
+  action: ReminderAction;
+  /** Always a person or pet: a relationship-borne milestone carries no target. */
+  bearerType: HolidayBearerType;
+  bearerId: string;
 }
 
 /** The identity string a milestone occurrence + rule is content-addressed under,
@@ -375,15 +398,35 @@ function isWithinWindow(
  * / edited / deleted birthday reconciles at once); the caller kicks the refresh /
  * sync path when any count is non-zero, letting normal sync push the rows.
  */
-export function regenerateSystemReminders(
+export async function regenerateSystemReminders(
   deps: ReminderEngineDeps,
 ): Promise<{ created: number; updated: number; removed: number }> {
-  return computeAndReconcile(deps);
+  return reconcile(deps, await computeDesired(deps));
 }
 
-async function computeAndReconcile(
+/**
+ * What every `system` reminder that should exist today is *about* — the same
+ * walk {@link regenerateSystemReminders} reconciles against, read-only.
+ *
+ * Deliberately the **same computation**, not a parallel one: a client's CTA must
+ * light up on exactly the reminders the engine minted, and a second
+ * implementation of the id derivation or the window filter would drift the day
+ * either changed, silently dropping every CTA. Rows with no person/pet bearer
+ * (onboarding nudges, relationship-borne milestones) carry no target and are
+ * omitted here.
+ */
+export async function listSystemReminderTargets(
   deps: ReminderEngineDeps,
-): Promise<{ created: number; updated: number; removed: number }> {
+): Promise<SystemReminderTarget[]> {
+  const desired = await computeDesired(deps);
+  return [...desired.values()].flatMap((row) =>
+    row.target === undefined ? [] : [{ id: row.id, ...row.target }],
+  );
+}
+
+async function computeDesired(
+  deps: ReminderEngineDeps,
+): Promise<Map<string, DesiredReminder>> {
   const milestones = await deps.milestones.listRemindEligible();
 
   // The desired set, keyed by (deterministic) id so duplicate identities collapse.
@@ -456,6 +499,16 @@ async function computeAndReconcile(
         id,
         title,
         dueDate: dueDateMs(occ) - rule.offsetDays * DAY_MS,
+        // A relationship bearer names no single entity, so it carries no target
+        // (and in practice never reaches here — its label resolves to null).
+        target:
+          m.bearerType === "relationship"
+            ? undefined
+            : {
+                action: rule.action,
+                bearerType: m.bearerType,
+                bearerId: m.bearerId,
+              },
       });
     }
   }
@@ -520,6 +573,11 @@ async function computeAndReconcile(
             id,
             title: `${def.icon ?? ""} ${body}`.trim(),
             dueDate: dueDateMs(occ) - rule.offsetDays * DAY_MS,
+            target: {
+              action: rule.action,
+              bearerType: candidate.bearerType,
+              bearerId: candidate.bearerId,
+            },
           });
         }
       }
@@ -549,6 +607,14 @@ async function computeAndReconcile(
     }
   }
 
+  return desired;
+}
+
+/** Reconcile the store to `desired` (see {@link regenerateSystemReminders}). */
+function reconcile(
+  deps: ReminderEngineDeps,
+  desired: Map<string, DesiredReminder>,
+): Promise<{ created: number; updated: number; removed: number }> {
   return deps.transaction(async () => {
     const now = Date.now();
     let created = 0;

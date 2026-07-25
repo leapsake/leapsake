@@ -15,6 +15,7 @@ export {
   LEAD_DAYS,
   ONBOARDING_REMINDERS,
   SYSTEM_REMINDER_NAMESPACE,
+  listSystemReminderTargets,
   onboardingRouteOf,
   regenerateSystemReminders,
 } from "./engine.js";
@@ -25,4 +26,5 @@ export type {
   OnboardingRoute,
   ReminderEngineDeps,
   SystemReminderStore,
+  SystemReminderTarget,
 } from "./engine.js";

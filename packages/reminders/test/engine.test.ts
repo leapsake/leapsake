@@ -10,6 +10,7 @@ import {
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   type ReminderEngineDeps,
+  listSystemReminderTargets,
   regenerateSystemReminders,
 } from "../src/index.js";
 
@@ -359,5 +360,87 @@ describe("regenerateSystemReminders", () => {
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.activeSystem()).toHaveLength(0);
+  });
+});
+
+/**
+ * What a system reminder is *about* — the read that lets a client offer an action
+ * on it (plans/gifts.md sequencing 5 turns the `gift` one into a link to the
+ * recipient's gifts). It shares the reconcile's own walk, and the first test here
+ * is the guard on that: the targets must name the very rows reconcile wrote.
+ */
+describe("listSystemReminderTargets", () => {
+  let h: ReturnType<typeof makeHarness>;
+  beforeEach(() => {
+    h = makeHarness();
+    h.labels.set("p1", "Alice");
+  });
+
+  it("names exactly the reminders a reconcile writes", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.setSchedule("m1", [
+      { action: "wish", offsetDays: 0, enabled: true },
+      { action: "gift", offsetDays: 30, enabled: true },
+    ]);
+    await regenerateSystemReminders(h.deps);
+
+    const targets = await listSystemReminderTargets(h.deps);
+    // Every written row is accounted for, and no target names a row that isn't
+    // there — the drift guard: were the id derivation or the window filter to
+    // fork between the two walks, this fails rather than silently dropping CTAs.
+    expect(targets.map((t) => t.id).sort()).toEqual(
+      h
+        .activeSystem()
+        .map((r) => r.id)
+        .sort(),
+    );
+    expect(targets.map((t) => t.action).sort()).toEqual(["gift", "wish"]);
+    for (const target of targets) {
+      expect(target.bearerType).toBe("person");
+      expect(target.bearerId).toBe("p1");
+    }
+  });
+
+  it("keeps naming a gift reminder after it's completed", async () => {
+    // The whole point of the completed-state CTA ("record what you gave"): a
+    // manual completion doesn't change the desired set, so the target survives.
+    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.setSchedule("m1", [{ action: "gift", offsetDays: 30, enabled: true }]);
+    await regenerateSystemReminders(h.deps);
+    const [row] = h.activeSystem();
+    h.rows.set(row.id, { ...row, completedAt: Date.now() });
+
+    const targets = await listSystemReminderTargets(h.deps);
+    expect(targets.map((t) => t.id)).toEqual([row.id]);
+  });
+
+  it("omits a disabled action and a milestone outside its window", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.setSchedule("m1", [{ action: "gift", offsetDays: 0, enabled: false }]);
+    expect(await listSystemReminderTargets(h.deps)).toEqual([]);
+  });
+
+  it("carries no target for an onboarding nudge", async () => {
+    // Onboarding rows are dateless and about nobody; their CTA comes from the id
+    // convention instead (`onboardingRouteOf`), so they must not appear here.
+    h.setMilestones([]);
+    const deps: ReminderEngineDeps = {
+      ...h.deps,
+      onboarding: {
+        hasAnyEntity: async () => false,
+        isSyncConnected: async () => false,
+        hasSelf: async () => false,
+      },
+    };
+    await regenerateSystemReminders(deps);
+    expect(h.activeSystem().length).toBeGreaterThan(0);
+    expect(await listSystemReminderTargets(deps)).toEqual([]);
+  });
+
+  it("writes nothing — it is a read", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.setSchedule("m1", [{ action: "gift", offsetDays: 30, enabled: true }]);
+    await listSystemReminderTargets(h.deps);
+    expect(h.activeSystem()).toEqual([]);
   });
 });

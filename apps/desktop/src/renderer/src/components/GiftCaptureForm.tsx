@@ -141,11 +141,15 @@ export function GiftCaptureForm({
   ideaPool,
   fixedRecipient,
   recipientCandidates,
+  startWithGiving = false,
   redirectTo,
 }: {
   ideaPool: GiftIdea[];
   fixedRecipient?: PartyOption;
   recipientCandidates?: PartyOption[];
+  /** Open with one blank date row, so the form reads as "log a giving" rather
+   *  than "shortlist an idea" (the completed-gift-reminder hand-off). */
+  startWithGiving?: boolean;
   /** When set (a standalone create screen), navigate here after a save; otherwise
    *  the form stays put and revalidates in place (an inline section). */
   redirectTo?: string;
@@ -157,7 +161,9 @@ export function GiftCaptureForm({
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   // Fixed-recipient mode: the one recipient's dates live here.
-  const [fixedDates, setFixedDates] = useState<DateRow[]>([]);
+  const [fixedDates, setFixedDates] = useState<DateRow[]>(() =>
+    startWithGiving ? [newDateRow()] : [],
+  );
   // Gifts-screen mode: recipients each carry their own dates.
   const [recipients, setRecipients] = useState<RecipientEntry[]>([]);
   const [busy, setBusy] = useState(false);
@@ -180,7 +186,7 @@ export function GiftCaptureForm({
   function reset() {
     setTitle("");
     setUrl("");
-    setFixedDates([]);
+    setFixedDates(startWithGiving ? [newDateRow()] : []);
     setRecipients([]);
   }
 
