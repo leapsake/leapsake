@@ -1,6 +1,8 @@
 import type { EntityType } from "@leapsake/schema";
-import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
+import { useLoaderData } from "react-router-dom";
+import { homeCrumb } from "../components/Breadcrumbs";
+import { ConfirmDelete } from "../components/ConfirmDelete";
+import { useSubmitting } from "../lib/useSubmitting";
 
 /** One endpoint of the relationship being removed. */
 interface Partner {
@@ -22,31 +24,22 @@ export function RelationshipRowDelete() {
     partners: [Partner, Partner];
   };
   const relPath = `/relationships/${relationshipId}`;
-  const navigation = useNavigation();
-  const deleting = navigation.state === "submitting";
-
   const [a, b] = partners;
 
   return (
-    <main>
-      <Breadcrumbs
-        trail={[
-          homeCrumb,
-          { label: title, to: relPath },
-          { label: "Remove relationship" },
-        ]}
-      />
-      <h1>Remove relationship?</h1>
-      <p>
-        Remove the relationship between {a.label} and {b.label}? This removes it
-        for both of them, but does not delete either {a.label} or {b.label}.
-      </p>
-
-      <Form method="post">
-        <fieldset disabled={deleting}>
-          <button type="submit">Remove</button> <Link to={relPath}>Cancel</Link>
-        </fieldset>
-      </Form>
-    </main>
+    <ConfirmDelete
+      trail={[
+        homeCrumb,
+        { label: title, to: relPath },
+        { label: "Remove relationship" },
+      ]}
+      heading="Remove relationship?"
+      confirmLabel="Remove"
+      cancelTo={relPath}
+      submitting={useSubmitting()}
+    >
+      Remove the relationship between {a.label} and {b.label}? This removes it
+      for both of them, but does not delete either {a.label} or {b.label}.
+    </ConfirmDelete>
   );
 }

@@ -1,7 +1,9 @@
 import type { EntityType, RelationshipNeighbor } from "@leapsake/schema";
-import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
+import { useLoaderData } from "react-router-dom";
+import { homeCrumb } from "../components/Breadcrumbs";
+import { ConfirmDelete } from "../components/ConfirmDelete";
 import { entityBasePath } from "../lib/entityLabel";
+import { useSubmitting } from "../lib/useSubmitting";
 
 /** The subject entity the relationship being removed hangs off of. */
 interface Subject {
@@ -16,31 +18,22 @@ export function RelationshipDelete() {
     neighbor: RelationshipNeighbor;
   };
   const subjectPath = `${entityBasePath(subject.type)}/${subject.id}`;
-  const navigation = useNavigation();
-  const deleting = navigation.state === "submitting";
 
   return (
-    <main>
-      <Breadcrumbs
-        trail={[
-          homeCrumb,
-          { label: subject.label, to: subjectPath },
-          { label: "Remove relationship" },
-        ]}
-      />
-      <h1>Remove relationship?</h1>
-      <p>
-        Remove {neighbor.otherLabel} ({neighbor.otherRoleLabel.toLowerCase()})
-        as a relationship of {subject.label}? This does not delete{" "}
-        {neighbor.otherLabel}.
-      </p>
-
-      <Form method="post">
-        <fieldset disabled={deleting}>
-          <button type="submit">Remove</button>{" "}
-          <Link to={subjectPath}>Cancel</Link>
-        </fieldset>
-      </Form>
-    </main>
+    <ConfirmDelete
+      trail={[
+        homeCrumb,
+        { label: subject.label, to: subjectPath },
+        { label: "Remove relationship" },
+      ]}
+      heading="Remove relationship?"
+      confirmLabel="Remove"
+      cancelTo={subjectPath}
+      submitting={useSubmitting()}
+    >
+      Remove {neighbor.otherLabel} ({neighbor.otherRoleLabel.toLowerCase()}) as
+      a relationship of {subject.label}? This does not delete{" "}
+      {neighbor.otherLabel}.
+    </ConfirmDelete>
   );
 }

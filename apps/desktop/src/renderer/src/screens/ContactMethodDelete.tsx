@@ -1,6 +1,8 @@
 import { type ContactMethod, formatPostalAddress } from "@leapsake/schema";
-import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
+import { useLoaderData } from "react-router-dom";
+import { homeCrumb } from "../components/Breadcrumbs";
+import { ConfirmDelete } from "../components/ConfirmDelete";
+import { useSubmitting } from "../lib/useSubmitting";
 
 /** The person the contact method being removed hangs off of. */
 interface Subject {
@@ -24,29 +26,20 @@ export function ContactMethodDelete() {
     entry: ContactMethod;
   };
   const subjectPath = `/people/${subject.id}`;
-  const navigation = useNavigation();
-  const deleting = navigation.state === "submitting";
 
   return (
-    <main>
-      <Breadcrumbs
-        trail={[
-          homeCrumb,
-          { label: subject.label, to: subjectPath },
-          { label: "Remove contact" },
-        ]}
-      />
-      <h1>Remove contact method?</h1>
-      <p>
-        Remove {describe(entry)} from {subject.label}?
-      </p>
-
-      <Form method="post">
-        <fieldset disabled={deleting}>
-          <button type="submit">Remove</button>{" "}
-          <Link to={subjectPath}>Cancel</Link>
-        </fieldset>
-      </Form>
-    </main>
+    <ConfirmDelete
+      trail={[
+        homeCrumb,
+        { label: subject.label, to: subjectPath },
+        { label: "Remove contact" },
+      ]}
+      heading="Remove contact method?"
+      confirmLabel="Remove"
+      cancelTo={subjectPath}
+      submitting={useSubmitting()}
+    >
+      Remove {describe(entry)} from {subject.label}?
+    </ConfirmDelete>
   );
 }

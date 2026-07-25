@@ -1,28 +1,24 @@
 import type { Person, Tag } from "@leapsake/schema";
 import { fullName } from "@leapsake/schema";
-import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
+import { useLoaderData } from "react-router-dom";
+import { homeCrumb } from "../components/Breadcrumbs";
+import { ConfirmDelete } from "../components/ConfirmDelete";
+import { useSubmitting } from "../lib/useSubmitting";
 
 export function PersonDelete() {
   const { person } = useLoaderData() as { person: Person; tags: Tag[] };
   const name = fullName(person);
-  const navigation = useNavigation();
-  const deleting = navigation.state === "submitting";
+  const personPath = `/people/${person.id}`;
 
   return (
-    <main>
-      <Breadcrumbs
-        trail={[homeCrumb, { label: name, to: `/people/${person.id}` }]}
-      />
-      <h1>Delete {name}?</h1>
-      <p>Are you sure you want to delete {name}?</p>
-
-      <Form method="post">
-        <fieldset disabled={deleting}>
-          <button type="submit">Delete</button>{" "}
-          <Link to={`/people/${person.id}`}>Cancel</Link>
-        </fieldset>
-      </Form>
-    </main>
+    <ConfirmDelete
+      trail={[homeCrumb, { label: name, to: personPath }]}
+      heading={`Delete ${name}?`}
+      confirmLabel="Delete"
+      cancelTo={personPath}
+      submitting={useSubmitting()}
+    >
+      Are you sure you want to delete {name}?
+    </ConfirmDelete>
   );
 }

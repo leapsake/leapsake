@@ -3,9 +3,11 @@ import type {
   RelationshipNeighbor,
   RelationshipRole,
 } from "@leapsake/schema";
-import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import { Breadcrumbs, homeCrumb } from "../components/Breadcrumbs";
+import { useLoaderData } from "react-router-dom";
+import { homeCrumb } from "../components/Breadcrumbs";
+import { ConfirmDelete } from "../components/ConfirmDelete";
 import { entityBasePath } from "../lib/entityLabel";
+import { useSubmitting } from "../lib/useSubmitting";
 
 /** The subject entity the inferred relationship is computed for. */
 interface Subject {
@@ -19,7 +21,7 @@ interface Subject {
  * stored-edge Remove flow ({@link RelationshipDelete}) for a uniform end-user
  * experience; the backend handles it differently (recording a suppression rather
  * than soft-deleting a row), since the edge has no stored id — its identity
- * (other endpoint + base role) travels through the hidden inputs.
+ * (other endpoint + base role) travels through the hidden fields.
  */
 export function RelationshipDismiss() {
   const { subject, neighbor, role } = useLoaderData() as {
@@ -28,34 +30,27 @@ export function RelationshipDismiss() {
     role: RelationshipRole;
   };
   const subjectPath = `${entityBasePath(subject.type)}/${subject.id}`;
-  const navigation = useNavigation();
-  const removing = navigation.state === "submitting";
 
   return (
-    <main>
-      <Breadcrumbs
-        trail={[
-          homeCrumb,
-          { label: subject.label, to: subjectPath },
-          { label: "Remove relationship" },
-        ]}
-      />
-      <h1>Remove relationship?</h1>
-      <p>
-        Remove {neighbor.otherLabel} ({neighbor.otherRoleLabel.toLowerCase()})
-        as a relationship of {subject.label}? This does not delete{" "}
-        {neighbor.otherLabel}.
-      </p>
-
-      <Form method="post">
-        <input type="hidden" name="otherType" value={neighbor.otherType} />
-        <input type="hidden" name="otherId" value={neighbor.otherId} />
-        <input type="hidden" name="role" value={role} />
-        <fieldset disabled={removing}>
-          <button type="submit">Remove</button>{" "}
-          <Link to={subjectPath}>Cancel</Link>
-        </fieldset>
-      </Form>
-    </main>
+    <ConfirmDelete
+      trail={[
+        homeCrumb,
+        { label: subject.label, to: subjectPath },
+        { label: "Remove relationship" },
+      ]}
+      heading="Remove relationship?"
+      confirmLabel="Remove"
+      cancelTo={subjectPath}
+      submitting={useSubmitting()}
+      hiddenFields={{
+        otherType: neighbor.otherType,
+        otherId: neighbor.otherId,
+        role,
+      }}
+    >
+      Remove {neighbor.otherLabel} ({neighbor.otherRoleLabel.toLowerCase()}) as
+      a relationship of {subject.label}? This does not delete{" "}
+      {neighbor.otherLabel}.
+    </ConfirmDelete>
   );
 }
