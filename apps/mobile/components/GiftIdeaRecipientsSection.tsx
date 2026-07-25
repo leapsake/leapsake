@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
 import type { GiftSuggestionForIdea } from "@leapsake/core";
 import type { GiftPartyType } from "@leapsake/schema";
+import { GiftAdornmentsEditor } from "./GiftAdornmentsEditor";
+import { dateFieldsOf } from "./GiftOccasionFields";
 import { Typeahead } from "./Typeahead";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
@@ -30,6 +33,9 @@ export function GiftIdeaRecipientsSection({
   onChanged: () => void;
 }) {
   const core = useCore();
+  // The suggestion whose occasion/target-date editor is open — the same edit the
+  // recipient's own Gifts section offers, from the idea end.
+  const [editing, setEditing] = useState<string | null>(null);
 
   // Recipients already suggested drop out of the add field.
   const already = new Set(
@@ -99,13 +105,53 @@ export function GiftIdeaRecipientsSection({
             </Text>
             <View style={styles.rowMeta}>
               <View />
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => confirmRemove(suggestion)}
-              >
-                <Text style={[styles.link, styles.danger]}>Remove</Text>
-              </Pressable>
+              <View style={styles.rowActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() =>
+                    setEditing(editing === suggestion.id ? null : suggestion.id)
+                  }
+                >
+                  <Text style={styles.link}>
+                    {editing === suggestion.id ? "Close" : "Edit"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => confirmRemove(suggestion)}
+                >
+                  <Text style={[styles.link, styles.danger]}>Remove</Text>
+                </Pressable>
+              </View>
             </View>
+            {editing === suggestion.id && (
+              <GiftAdornmentsEditor
+                kind="suggestion"
+                rowId={suggestion.id}
+                recipient={{
+                  type: suggestion.recipientType,
+                  id: suggestion.recipientId,
+                }}
+                occasion={
+                  suggestion.occasionType !== null &&
+                  suggestion.occasionId !== null
+                    ? {
+                        type: suggestion.occasionType,
+                        id: suggestion.occasionId,
+                      }
+                    : null
+                }
+                date={dateFieldsOf({
+                  year: suggestion.targetYear,
+                  month: suggestion.targetMonth,
+                  day: suggestion.targetDay,
+                })}
+                onDone={() => {
+                  setEditing(null);
+                  onChanged();
+                }}
+              />
+            )}
           </View>
         ))
       )}

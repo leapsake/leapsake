@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Alert, Linking, Pressable, Text, View } from "react-native";
 import { Link } from "expo-router";
 import type {
@@ -6,7 +7,9 @@ import type {
 } from "@leapsake/core";
 import type { GiftIdea, GiftPartyType } from "@leapsake/schema";
 import { formatGiftDate, formatGiftTargetDate } from "@leapsake/schema";
+import { GiftAdornmentsEditor } from "./GiftAdornmentsEditor";
 import { GiftCaptureForm } from "./GiftCaptureForm";
+import { dateFieldsOf } from "./GiftOccasionFields";
 import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
 
@@ -50,6 +53,14 @@ export function GiftsSection({
   onChanged: () => void;
 }) {
   const core = useCore();
+  // Which row (if any) has its occasion/date editor open — one at a time, keyed
+  // by row id, so the list doesn't grow a form per entry.
+  const [editing, setEditing] = useState<string | null>(null);
+  const recipient = { type: recipientType, id: recipientId };
+  const closeEditor = () => {
+    setEditing(null);
+    onChanged();
+  };
 
   // Union suggestions + gifts into one entry per idea.
   const groups = new Map<string, IdeaGroup>();
@@ -130,20 +141,53 @@ export function GiftsSection({
                 target === "" ? null : target,
               ]);
               return (
-                <View key={s.id} style={styles.rowMeta}>
-                  <Text style={styles.muted}>
-                    Suggested{bits === "" ? "" : ` — ${bits}`}
-                  </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() =>
-                      confirmRemove(`the suggestion of ${group.title}`, () =>
-                        core.gifts.suggestions.softDelete(s.id),
-                      )
-                    }
-                  >
-                    <Text style={[styles.link, styles.danger]}>Remove</Text>
-                  </Pressable>
+                <View key={s.id}>
+                  <View style={styles.rowMeta}>
+                    <Text style={styles.muted}>
+                      Suggested{bits === "" ? "" : ` — ${bits}`}
+                    </Text>
+                    <View style={styles.rowActions}>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() =>
+                          setEditing(editing === s.id ? null : s.id)
+                        }
+                      >
+                        <Text style={styles.link}>
+                          {editing === s.id ? "Close" : "Edit"}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() =>
+                          confirmRemove(
+                            `the suggestion of ${group.title}`,
+                            () => core.gifts.suggestions.softDelete(s.id),
+                          )
+                        }
+                      >
+                        <Text style={[styles.link, styles.danger]}>Remove</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  {editing === s.id && (
+                    <GiftAdornmentsEditor
+                      kind="suggestion"
+                      rowId={s.id}
+                      recipient={recipient}
+                      occasion={
+                        s.occasionType !== null && s.occasionId !== null
+                          ? { type: s.occasionType, id: s.occasionId }
+                          : null
+                      }
+                      date={dateFieldsOf({
+                        year: s.targetYear,
+                        month: s.targetMonth,
+                        day: s.targetDay,
+                      })}
+                      onDone={closeEditor}
+                    />
+                  )}
                 </View>
               );
             })}
@@ -156,20 +200,48 @@ export function GiftsSection({
                 g.occasionLabel,
               ]);
               return (
-                <View key={g.id} style={styles.rowMeta}>
-                  <Text style={styles.muted}>
-                    ✓ Given{bits === "" ? "" : ` — ${bits}`}
-                  </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() =>
-                      confirmRemove(`the giving of ${group.title}`, () =>
-                        core.gifts.given.softDelete(g.id),
-                      )
-                    }
-                  >
-                    <Text style={[styles.link, styles.danger]}>Remove</Text>
-                  </Pressable>
+                <View key={g.id}>
+                  <View style={styles.rowMeta}>
+                    <Text style={styles.muted}>
+                      ✓ Given{bits === "" ? "" : ` — ${bits}`}
+                    </Text>
+                    <View style={styles.rowActions}>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() =>
+                          setEditing(editing === g.id ? null : g.id)
+                        }
+                      >
+                        <Text style={styles.link}>
+                          {editing === g.id ? "Close" : "Edit"}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() =>
+                          confirmRemove(`the giving of ${group.title}`, () =>
+                            core.gifts.given.softDelete(g.id),
+                          )
+                        }
+                      >
+                        <Text style={[styles.link, styles.danger]}>Remove</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  {editing === g.id && (
+                    <GiftAdornmentsEditor
+                      kind="giving"
+                      rowId={g.id}
+                      recipient={recipient}
+                      occasion={
+                        g.occasionType !== null && g.occasionId !== null
+                          ? { type: g.occasionType, id: g.occasionId }
+                          : null
+                      }
+                      date={dateFieldsOf(g)}
+                      onDone={closeEditor}
+                    />
+                  )}
                 </View>
               );
             })}

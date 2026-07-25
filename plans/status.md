@@ -15,7 +15,10 @@
 > **`🎁 gift` reminder loop**, which turns "Get @Alice a gift" into a link to Alice's gifts and, once
 > done, into a logged giving — and, in **slice 6**, the **mobile port** of all of it (a Gifts tab, the
 > capture form, the idea edit screen, the Person/Pet Gifts section, gift-idea search hits, tagged
-> ideas on a tag's page, and the same gift reminder CTA). *Earlier
+> ideas on a tag's page, and the same gift reminder CTA). The long-deferred **occasion picker +
+> target-date inputs** then landed on **both** clients, with the occasion running in reverse
+> ("Christmas" + 1941 → Dec 25) and suggestions/givings editable after the fact. **Gifts is
+> feature-complete; only a device pass on the mobile screens is outstanding.** *Earlier
 > (2026-07-20):* **Holidays shipped on both clients** — a `@leapsake/holidays` catalog + recurrence
 > engine, three synced tables (holidays / observances / hidden_holidays), the `/holidays` browse + an
 > autocomplete for authoring observances from either end, engine wiring to `system` reminders, global
@@ -114,9 +117,24 @@
   desktop's `<datalist>` there is *free text with shortcuts* — a `Typeahead` would wrongly collapse a
   brand-new title into a "chosen option" row. Mobile search now keeps gift-idea hits (they open the
   idea's edit screen), a tag's page lists its gift ideas, and mobile reminder rows carry the same
-  completion-flipping gift CTA. **Deferred to a later UI increment (both clients):** the occasion
-  picker + suggestion target-date inputs — schema/core/repo support them fully and are tested, but
-  those forms stay bare for now.
+  completion-flipping gift CTA.
+  **7 · Occasions + target dates** (the increment slices 2–3 deferred; no migration — the columns and
+  refines shipped with migrations 25/26 and nothing had ever set them). Two things it needed beyond
+  UI: `captureRecipientSchema` grew a **`suggestion` arm** (`{ occasion?, targetDate? }`) mirroring
+  `givings`, since a recipient with no givings became a bare suggestion with nowhere to put either
+  (givings win when a recipient has both — a giving is a fact, a suggestion only a candidate); and
+  two new core reads — **`gifts.occasionsFor(type, id)`**, the picker pool (the party's own milestones
+  plus the holidays they observe, labelled exactly as `resolveOccasionLabel` reads them back, narrow
+  on purpose so widening is a change inside that one function) and **`holidays.occurrencesIn(id,
+  year)`**, which runs the occasion in reverse ("Christmas" + 1941 → 1941-12-25) since neither
+  renderer can reach the recurrence resolver. It returns **every** occurrence, because a lunisolar
+  holiday can fall twice in one Gregorian year, and each is offered as a button rather than written
+  silently: the date stays the source of truth for *when*, the occasion stays a label. UI on both
+  clients: an occasion on every giving row, a collapsed "For…" disclosure on the suggestion arm so
+  the common case stays two fields, and an editor that gives `gifts.suggestions.update` /
+  `gifts.given.update` their **first callers** — reachable from the recipient's Gifts section and
+  from the idea's "Suggested for" list alike, since an occasion is about the recipient whichever end
+  you author from.
 - **Testing harness** — the tiered `pnpm test` orchestration is built: `scripts/test-all.mjs`
   runs each trophy tier (static · lint · typecheck · unit+integration · driver-coverage gate)
   and the **mobile native tier on both platforms** — per-platform `native-android` /
@@ -217,13 +235,13 @@ can't ship without distributable apps. (None yet.)
   borderline Lunar New Year years are documented in `packages/holidays/src/catalog.ts`. The only
   future task is calendrical and distant: **extend both tables before ~2050**, re-deriving rather
   than extrapolating.
-- **Gifts — remaining.** All six slices (self-person, GiftIdea, GiftSuggestion, Gift, tags + search,
-  the reminder loop, the mobile port) are done — see *Where things stand*. The mobile port is
-  **unverified on a device**: it typechecks and lints, but nothing here has been driven on a booted
-  simulator/emulator, so the gift screens want a manual pass on both platforms. The one carried-over
-  feature gap is the **occasion picker + target-date UI** for suggestions and gifts, on **both**
-  clients (data model + core already support it; the forms create bare rows for now). Design:
-  [`gifts.md`](./gifts.md).
+- **Gifts — feature-complete.** Every slice plus the occasion / target-date increment is done on both
+  clients — see *Where things stand*. **The only outstanding item is a device pass** on the mobile
+  gift screens (the port and the occasion UI both typecheck, lint, and are covered by the node suite,
+  but nothing has been driven on a booted simulator/emulator). Design: [`gifts.md`](./gifts.md).
+  Natural follow-ons, none scheduled: a note on a suggestion (deliberately omitted in v1), gift ideas
+  as the next consumer of the reconciliation substrate for near-duplicate titles, and widening
+  `gifts.occasionsFor` past the observed-holiday pool if that proves too narrow in use.
 
 ### v0.2 (first post-launch feature increment)
 
