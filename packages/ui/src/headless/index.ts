@@ -5,5 +5,12 @@
  * the web components in `../web` and are consumable by a React Native renderer
  * if one is ever added. Anything that renders an element belongs in `../web`.
  */
+export {
+  entityBasePath,
+  neighborKey,
+  neighborPath,
+  relationshipEditPath,
+  relationshipRemovePath,
+} from "./routes.js";
 export { useDebouncedSearch } from "./useDebouncedSearch.js";
 export { useTypeahead } from "./useTypeahead.js";
