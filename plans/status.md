@@ -172,11 +172,14 @@ can't ship without distributable apps. (None yet.)
   layer, the first three moved components — and **the first component-test tier the renderer has
   ever had** (`@testing-library/react` + jsdom). **Increment 1 shipped**: `Breadcrumbs` +
   `ConfirmDelete` in the package, all ten confirm-destructive screens reduced to thin containers,
-  and an app-side `useSubmitting()`. **Next: increment 2** — unify the three hand-maintained
-  combobox copies (`SearchBar`, `MultiAddCombobox`, `MentionTextField`) behind one `Combobox` +
-  a headless `useTypeahead`. Each code-moving increment is two commits (split in place, then
-  move). Design + increments: [`ui-extraction.md`](./ui-extraction.md). **Styling is a separate
-  pre-v0.1 pass, after this.**
+  and an app-side `useSubmitting()`. **Increment 2 shipped**: the three hand-maintained combobox
+  copies now share one `Combobox` + `ComboboxOptionDetail` (web) over `useTypeahead` +
+  `useDebouncedSearch` (headless), and the duplicated stylesheet is down to one copy inside the
+  package — `@leapsake/ui/headless` is now real. **Next: increment 3** — the path-builder module
+  and the read-only sections (Tags, MentionedIn, Milestones, Relationships, ContactMethods) plus
+  the `DataTable`/`Section`/`EmptyState`/`DetailList` primitives that land with them. Each
+  code-moving increment is two commits (split in place, then move). Design + increments:
+  [`ui-extraction.md`](./ui-extraction.md). **Styling is a separate pre-v0.1 pass, after this.**
 
 ### v0.2 (first post-launch feature increment)
 

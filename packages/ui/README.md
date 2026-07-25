@@ -14,7 +14,7 @@ increments: [`plans/ui-extraction.md`](../../plans/ui-extraction.md).
 | Import | Holds | Platform |
 |---|---|---|
 | `@leapsake/ui/tokens` | Design tokens as plain objects | Neutral |
-| `@leapsake/ui/headless` *(from increment 2)* | Behavior hooks with zero DOM | Neutral |
+| `@leapsake/ui/headless` | Behavior hooks with zero DOM | Neutral |
 | `@leapsake/ui/web` | DOM components | Web + Electron renderer |
 
 There is **no package root export**. Subpaths are what would let a
