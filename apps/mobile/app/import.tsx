@@ -169,6 +169,22 @@ export default function ImportScreen() {
     }
   }
 
+  /**
+   * Leave the import. The per-row flags in the review only score each incoming
+   * contact against people who already existed, so two contacts *within* one
+   * import that duplicate each other are invisible to that pass — as is a match
+   * the user chose to import anyway. Once the rows are committed, ask the
+   * detector and land on the review if it has anything. Unscoped: one import can
+   * implicate many people at once. Mirrors desktop's ImportReview `finish`.
+   */
+  async function finish() {
+    const outstanding =
+      result !== null && result.created > 0
+        ? await core.duplicates.count().catch(() => 0)
+        : 0;
+    router.replace(outstanding > 0 ? "/duplicates" : "/(tabs)/people");
+  }
+
   // ---- Terminal / non-review states -------------------------------------
 
   if (result !== null) {
@@ -206,7 +222,7 @@ export default function ImportScreen() {
           accessibilityRole="button"
           // Secondary once the self prompt is up, so "Pick yourself" leads.
           style={promptSelf ? undefined : styles.button}
-          onPress={() => router.replace("/(tabs)/people")}
+          onPress={() => void finish()}
         >
           <Text style={promptSelf ? styles.link : styles.buttonText}>Done</Text>
         </Pressable>

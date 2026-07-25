@@ -180,11 +180,44 @@ async function createRelationships(
  * and the pick-self flow can tick the current choice.
  */
 async function entityListLoader() {
-  const [entities, self] = await Promise.all([
+  const [entities, self, duplicateCount] = await Promise.all([
     window.api.views.entityList(),
     window.api.self.get(),
+    // Gates the review link: it is offered only when there is something to
+    // review, and states the count when there is.
+    window.api.duplicates.count(),
   ]);
-  return { entities, selfPersonId: self?.personId ?? null };
+  return { entities, selfPersonId: self?.personId ?? null, duplicateCount };
+}
+
+/**
+ * Duplicate candidates, either all of them or — with `?for=<personId>` — only
+ * the pairs involving that person, which is how the post-create prompt arrives.
+ * An unresolvable `for` id falls back to the unscoped list rather than 404ing:
+ * the person may have just been merged away from this very screen.
+ */
+async function duplicatesLoader({ request }: LoaderFunctionArgs) {
+  const wanted = new URL(request.url).searchParams.get("for");
+  if (wanted === null) {
+    return {
+      candidates: await window.api.duplicates.findCandidates(),
+      focus: null,
+    };
+  }
+  const [candidates, person] = await Promise.all([
+    window.api.duplicates.findFor(wanted),
+    window.api.people.get(wanted),
+  ]);
+  if (!person) {
+    return {
+      candidates: await window.api.duplicates.findCandidates(),
+      focus: null,
+    };
+  }
+  return {
+    candidates,
+    focus: { id: person.id, name: fullName(person) },
+  };
 }
 
 /** Set the self-person from the pick-self flow, then return to the list (now
@@ -210,6 +243,7 @@ async function personLoader({ params }: LoaderFunctionArgs) {
     giftSuggestions,
     giftIdeaPool,
     giftsGiven,
+    duplicateCandidates,
   ] = await Promise.all([
     window.api.views.person(id),
     window.api.reminders.mentioning("person", id),
@@ -223,6 +257,9 @@ async function personLoader({ params }: LoaderFunctionArgs) {
     // Gifts given to this person — the "Gifts given" section, and the source of
     // the suggestion list's "✓ given" annotation + re-gift guard.
     window.api.gifts.given.listForRecipient("person", id),
+    // Unresolved pairs this person is half of — both people in a pair carry the
+    // banner, so whichever one the user opens leads back to the review.
+    window.api.duplicates.findFor(id),
   ]);
   if (!view) throw new Response("Person not found", { status: 404 });
   return {
@@ -232,6 +269,7 @@ async function personLoader({ params }: LoaderFunctionArgs) {
     giftSuggestions,
     giftIdeaPool,
     giftsGiven,
+    duplicateCandidates,
   };
 }
 
@@ -950,11 +988,15 @@ async function giftCreateLoader({ request }: LoaderFunctionArgs) {
  * CTA appears on exactly the reminders it minted.
  */
 async function remindersLoader() {
-  const [reminders, giftTargets] = await Promise.all([
+  const [reminders, giftTargets, duplicatesNudgeId] = await Promise.all([
     window.api.reminders.list(),
     window.api.reminders.giftTargets(),
+    // The duplicates nudge is content-addressed on the outstanding pair set, so
+    // unlike the onboarding nudges its id can't be a static table — core
+    // recomputes it from the live pairs and the list matches on it.
+    window.api.duplicates.nudgeId(),
   ]);
-  return { reminders, giftTargets };
+  return { reminders, giftTargets, duplicatesNudgeId };
 }
 
 /** Save edits to a gift idea; a blank title is a no-op back to the list. The
@@ -1018,7 +1060,7 @@ const routes: RouteObject[] = [
         // B). The "Not the same" action records the rejection and revalidates
         // this loader in place; "Merge…" routes into the people merge confirm.
         path: "duplicates",
-        loader: () => window.api.duplicates.findCandidates(),
+        loader: duplicatesLoader,
         element: <Duplicates />,
         action: async ({ request }) => {
           const formData = await request.formData();
@@ -1097,7 +1139,16 @@ const routes: RouteObject[] = [
             person.id,
             readRelationships(formData),
           );
-          return redirect(`/people/${person.id}`);
+          // Detection runs at the moment the duplicate is created, which is the
+          // moment the user still remembers both entries and can act on them.
+          // Only when there is actually something to resolve — otherwise saving
+          // lands on the new person as it always has.
+          const matches = await window.api.duplicates.findFor(person.id);
+          return redirect(
+            matches.length > 0
+              ? `/duplicates?for=${person.id}`
+              : `/people/${person.id}`,
+          );
         },
       },
       {

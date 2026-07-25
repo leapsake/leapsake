@@ -112,6 +112,9 @@ export const API_CHANNELS = [
   "search.query",
 
   "duplicates.findCandidates",
+  "duplicates.findFor",
+  "duplicates.count",
+  "duplicates.nudgeId",
   "duplicates.reject",
 
   "import.preview",

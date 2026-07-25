@@ -8,28 +8,69 @@ const TIER_LABEL: Record<string, string> = {
   medium: "Possibly the same",
 };
 
+/** The candidates to review, plus the person the screen is scoped to (if any) —
+ *  `null` is the unscoped "review everything" view. */
+export interface DuplicatesData {
+  candidates: DuplicateCandidate[];
+  /** The just-created / just-inspected person, when arriving scoped. */
+  focus: { id: string; name: string } | null;
+}
+
 /**
  * Review duplicates — the detection surface (reconciliation Increment B). Lists
  * candidate pairs the detector proposes, each with the reasons it matched, and
  * two actions: **Merge…** (reuses the Increment A confirm flow, with the
  * duplicate preselected) and **Not the same** (records the pair so no device
  * re-nags). It only proposes; the merge itself still goes through the confirm.
+ *
+ * Two modes, one screen:
+ * - **unscoped** (`/duplicates`) — every outstanding pair, reached from the
+ *   People & Pets link, the Home nudge, or after an import;
+ * - **scoped** (`/duplicates?for=<personId>`) — only the pairs involving that
+ *   person, which is where saving a new person lands when the detector finds a
+ *   match. The scoped mode is a *prompt*, so it always offers a way onward:
+ *   resolving every pair continues automatically, and "Not now" leaves them
+ *   outstanding — the People & Pets link, the Home nudge, and the banner on both
+ *   people's pages all keep the way back open until they're resolved.
  */
 export function Duplicates() {
-  const candidates = useLoaderData() as DuplicateCandidate[];
+  const { candidates, focus } = useLoaderData() as DuplicatesData;
+  const scoped = focus !== null;
 
   return (
     <main>
       <Breadcrumbs trail={[homeCrumb]} />
-      <h1>Review duplicates</h1>
+      <h1>
+        {scoped ? "Is this someone you already have?" : "Review duplicates"}
+      </h1>
 
       {candidates.length === 0 ? (
-        <p>No possible duplicates found.</p>
+        <>
+          <p>
+            {scoped
+              ? "Nothing else looks like the same person."
+              : "No possible duplicates found."}
+          </p>
+          {scoped && <p>{<Link to={`/people/${focus.id}`}>Continue</Link>}</p>}
+        </>
       ) : (
         <>
           <p>
-            These pairs look like they might be the same person. Merge the ones
-            that are; mark the rest so they stop being suggested.
+            {scoped ? (
+              <>
+                <strong>{focus.name}</strong> looks like{" "}
+                {candidates.length === 1
+                  ? "someone already in your list"
+                  : "people already in your list"}
+                . Merge if they're the same; mark the rest so they stop being
+                suggested.
+              </>
+            ) : (
+              <>
+                These pairs look like they might be the same person. Merge the
+                ones that are; mark the rest so they stop being suggested.
+              </>
+            )}
           </p>
           <ul>
             {candidates.map((candidate) => (
@@ -39,6 +80,13 @@ export function Duplicates() {
               />
             ))}
           </ul>
+          {/* Never a dead end: the prompt is skippable, and the pairs stay
+              outstanding (and re-linked from three other surfaces) if it is. */}
+          {scoped && (
+            <p>
+              <Link to={`/people/${focus.id}`}>Not now</Link>
+            </p>
+          )}
         </>
       )}
     </main>

@@ -9,11 +9,14 @@ import { entityBasePath } from "../lib/entityLabel";
 
 export type { EntityRow };
 
-/** The list plus who "you" are — the loader resolves the self-person alongside
- *  the entities so a row can be badged and the pick-self flow can tick it. */
+/** The list, who "you" are — the loader resolves the self-person alongside the
+ *  entities so a row can be badged and the pick-self flow can tick it — and how
+ *  many duplicate pairs are outstanding, which decides whether the review link
+ *  is offered at all. */
 interface EntityListData {
   entities: EntityRow[];
   selfPersonId: string | null;
+  duplicateCount: number;
 }
 
 /**
@@ -25,9 +28,16 @@ interface EntityListData {
  * onboarding nudge or the post-import prompt): each Person row offers a "This is
  * me" button that sets the self-person. Pets can't be
  * you, so they show nothing in that mode.
+ *
+ * The duplicates link is **conditional on there being duplicates**, and states
+ * the count. It used to sit here permanently, next to the Add actions, which
+ * advertised a chore on a screen with nothing to reconcile — including a fresh
+ * install with no people at all. Detection is cheap enough to run in the loader
+ * (an in-memory pairwise pass), so the link can simply tell the truth.
  */
 export function EntityList() {
-  const { entities, selfPersonId } = useLoaderData() as EntityListData;
+  const { entities, selfPersonId, duplicateCount } =
+    useLoaderData() as EntityListData;
   const [params] = useSearchParams();
   const picking = params.get("pick") === "self";
   const fetcher = useFetcher();
@@ -41,8 +51,16 @@ export function EntityList() {
       ) : (
         <p>
           <Link to="/people/new">Add person</Link>{" "}
-          <Link to="/pets/new">Add pet</Link>{" "}
-          <Link to="/duplicates">Review duplicates</Link>
+          <Link to="/pets/new">Add pet</Link>
+          {duplicateCount > 0 && (
+            <>
+              {" "}
+              <Link to="/duplicates">
+                Review {duplicateCount} possible{" "}
+                {duplicateCount === 1 ? "duplicate" : "duplicates"}
+              </Link>
+            </>
+          )}
         </p>
       )}
 

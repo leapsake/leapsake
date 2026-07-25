@@ -17,7 +17,7 @@ import { MilestonesSection } from "../../../components/MilestonesSection";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
-import { styles } from "../../../lib/styles";
+import { colors, styles } from "../../../lib/styles";
 
 /** Render an epoch-ms timestamp in the device locale. */
 function formatTimestamp(ms: number): string {
@@ -54,6 +54,9 @@ export default function PersonDetailScreen() {
         core.gifts.suggestions.listForRecipient("person", id),
         core.gifts.given.listForRecipient("person", id),
         core.gifts.ideas.list(),
+        // Unresolved pairs this person is half of — both people in a pair carry
+        // the banner, so whichever one the user opens leads back to the review.
+        core.duplicates.findFor(id),
       ]),
     [core, id],
   );
@@ -82,6 +85,7 @@ export default function PersonDetailScreen() {
     giftSuggestions,
     giftsGiven,
     giftIdeaPool,
+    duplicateCandidates,
   ] = data;
   if (view === null) {
     return (
@@ -125,6 +129,24 @@ export default function PersonDetailScreen() {
           ),
         }}
       />
+
+      {/* Both halves of an unresolved pair carry this, so the way back to the
+          review is on whichever person the user opens. It stays until the pair
+          is merged or marked "not the same" — the only two things that take it
+          out of the candidate set. */}
+      {duplicateCandidates.length > 0 && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push(`/duplicates?for=${person.id}`)}
+          style={styles.row}
+        >
+          <Text style={[styles.link, { color: colors.accent }]}>
+            {duplicateCandidates.length === 1
+              ? "Someone else in your list looks like the same person. Review"
+              : `${duplicateCandidates.length} other people in your list look like the same person. Review`}
+          </Text>
+        </Pressable>
+      )}
 
       <DetailField label="First name" value={person.firstName} />
       <DetailField label="Middle name" value={person.middleName ?? "—"} />

@@ -164,6 +164,19 @@ export interface ReminderEngineDeps {
       bearerId: string,
     ): Promise<string | null>;
   };
+  /**
+   * The unresolved duplicate-candidate pairs — the fourth family, and the only
+   * one that is neither dated nor first-run-only.
+   *
+   * Reports just the pair **keys** (`"lower:higher"` person ids, the same
+   * canonical form the `not_a_duplicate` memory uses), never names: the nudge
+   * says how many pairs need review and links to the review screen, so it needs
+   * no potentially-encrypted label lookup. **Optional**, like `onboarding` — omit
+   * it and no duplicates row joins the set.
+   */
+  duplicates?: {
+    pairKeys(): Promise<readonly string[]>;
+  };
 }
 
 /** The entities a holiday observance can hang off. */
@@ -305,6 +318,44 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
  *  the disjoint `onboarding:<key>` name-space, so the two families never collide. */
 function onboardingId(key: string): string {
   return deterministicUuid(SYSTEM_REMINDER_NAMESPACE, `onboarding:${key}`);
+}
+
+/**
+ * The duplicates nudge's identity — content-addressed on the **set of unresolved
+ * pairs** rather than on a fixed key, which is the whole trick that makes this
+ * family work on rails built for the other three.
+ *
+ * {@link reconcile} prunes by `softDelete` and never resurrects a tombstoned id.
+ * That is exactly right for onboarding ("don't re-nag") and exactly wrong here:
+ * duplicates are not a first-run condition, and a new candidate pair can appear
+ * at any time, years in. Keying on the sorted pair list gives each distinct set
+ * of outstanding pairs its own row, so resolving one of two pairs retires the
+ * old row and mints a fresh one stating the new count — and a set that empties
+ * and later refills with *different* pairs lands on an id no tombstone holds.
+ *
+ * The one deliberate consequence: deleting the nudge outright tombstones exactly
+ * that set of pairs, so it stays gone until the set changes. That reads as a
+ * "dismiss this" gesture, which is the sensible meaning for a user-deleted row.
+ * The People & Pets link and the per-person banners are unconditional on it, so
+ * dismissal hides the nudge without hiding the work.
+ *
+ * Exported because clients resolve the nudge's CTA by id (the same id-convention
+ * as {@link ONBOARDING_REMINDERS} and {@link listSystemReminderTargets}) — but
+ * this id is not static, so `@leapsake/core` recomputes it from the live pairs.
+ */
+export function duplicatesReminderId(pairKeys: readonly string[]): string {
+  return deterministicUuid(
+    SYSTEM_REMINDER_NAMESPACE,
+    `duplicates:${[...pairKeys].sort().join(",")}`,
+  );
+}
+
+/** The Home copy for `n` unresolved candidate pairs. Kept free of `#`/`@` tokens
+ *  so the core insert-wrapper materializes no tags or mentions for it. */
+function duplicatesTitle(n: number): string {
+  return n === 1
+    ? "🔗 Two people might be the same — review"
+    : `🔗 ${n} pairs of people might be the same — review`;
 }
 
 /**
@@ -604,6 +655,24 @@ async function computeDesired(
       // `index` is the step's display priority (0 = first); realized as a
       // `createdAt` back-off below so the nudges sort in array order on Home.
       desired.set(id, { id, title: step.title, dueDate: null, order: index });
+    }
+  }
+
+  // Unresolved duplicate pairs — a fourth dateless family, one summary row for
+  // however many pairs are outstanding. Ranked below the onboarding nudges: a
+  // brand-new user should finish setting up before being sent to reconcile a
+  // list they have barely started. See {@link duplicatesReminderId} for why the
+  // id tracks the pair set rather than being a fixed key.
+  if (deps.duplicates !== undefined) {
+    const pairKeys = await deps.duplicates.pairKeys();
+    if (pairKeys.length > 0) {
+      const id = duplicatesReminderId(pairKeys);
+      desired.set(id, {
+        id,
+        title: duplicatesTitle(pairKeys.length),
+        dueDate: null,
+        order: ONBOARDING_STEPS.length,
+      });
     }
   }
 

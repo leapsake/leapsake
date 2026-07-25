@@ -110,11 +110,20 @@ export function ImportReview({
     setPhase("done");
   }
 
-  function finish() {
+  async function finish() {
     onClose();
     // Reflect the new people wherever the user is; then land on the list.
     revalidator.revalidate();
-    navigate("/people");
+    // The per-row flags above only score each incoming contact against people who
+    // already existed. Two contacts *within* one import that duplicate each other
+    // are invisible to that pass, as is a match the user chose to import anyway —
+    // so once the rows are committed, ask the detector and route to the review if
+    // it has anything. Unscoped: an import can implicate many people at once.
+    const outstanding =
+      result !== null && result.created > 0
+        ? await window.api.duplicates.count().catch(() => 0)
+        : 0;
+    navigate(outstanding > 0 ? "/duplicates" : "/people");
   }
 
   function pickSelf() {
@@ -155,7 +164,7 @@ export function ImportReview({
             </p>
           )}
           <div className={styles.actions}>
-            <button type="button" onClick={finish}>
+            <button type="button" onClick={() => void finish()}>
               Done
             </button>
           </div>

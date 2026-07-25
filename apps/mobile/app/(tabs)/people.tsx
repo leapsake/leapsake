@@ -19,6 +19,11 @@ import { colors, styles } from "../../lib/styles";
 // distinguishable in the shared list. This screen's title and "Add" actions live
 // on the tab navigator (app/(tabs)/_layout.tsx), which owns this tab's header.
 //
+// The duplicates link is **conditional on there being duplicates** and states
+// the count. It used to head this list permanently, advertising a chore even on
+// a fresh install with nobody in it; detection is a cheap in-memory pass, so the
+// header can just tell the truth. See the desktop EntityList mirror.
+//
 // `?pick=self` puts the screen in **pick-yourself** mode, which is where the
 // "🙋 Which of these is you?" onboarding nudge lands (app/(tabs)/index.tsx maps
 // it here): each Person row grows a "This is me" action that sets the
@@ -31,11 +36,18 @@ export default function PeoplePetsScreen() {
   const picking = pick === "self";
 
   const load = useCallback(
-    () => Promise.all([core.views.entityList(), core.self.get()]),
+    () =>
+      Promise.all([
+        core.views.entityList(),
+        core.self.get(),
+        // Gates the review link below: offered only when there is something to
+        // review, and it states the count when there is.
+        core.duplicates.count(),
+      ]),
     [core],
   );
   const { data, error, reload } = useFocusedData(load);
-  const [entities, self] = data ?? [null, undefined];
+  const [entities, self, duplicateCount] = data ?? [null, undefined, 0];
 
   return (
     <View style={styles.screen}>
@@ -52,11 +64,12 @@ export default function PeoplePetsScreen() {
               <Text style={[styles.row, styles.muted]}>
                 Which of these is you? Pick yourself from the list.
               </Text>
-            ) : (
+            ) : duplicateCount > 0 ? (
               <Link href="/duplicates" style={[styles.row, styles.link]}>
-                Review duplicates
+                Review {duplicateCount} possible{" "}
+                {duplicateCount === 1 ? "duplicate" : "duplicates"}
               </Link>
-            )
+            ) : null
           }
           ListEmptyComponent={
             <Text style={styles.muted}>Nobody here yet.</Text>

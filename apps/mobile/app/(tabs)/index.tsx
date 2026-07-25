@@ -76,7 +76,15 @@ export default function RemindersScreen() {
   // The rows plus which of them are `🎁 gift` reminders and who they're about, so
   // a gift reminder can offer the recipient's gifts (and, once done, logging one).
   const load = useCallback(
-    () => Promise.all([core.reminders.list(), core.reminders.giftTargets()]),
+    () =>
+      Promise.all([
+        core.reminders.list(),
+        core.reminders.giftTargets(),
+        // The duplicates nudge is content-addressed on the outstanding pair set,
+        // so unlike the onboarding nudges its id can't come from a static table —
+        // core recomputes it from the live pairs and the list matches on it.
+        core.duplicates.nudgeId(),
+      ]),
     [core],
   );
   const { data, error, reload } = useFocusedData(load);
@@ -96,7 +104,7 @@ export default function RemindersScreen() {
     );
   }
 
-  const [reminders, giftTargets] = data;
+  const [reminders, giftTargets, duplicatesNudgeId] = data;
   const giftTargetById = new Map(giftTargets.map((t) => [t.reminderId, t]));
   // Open first (soonest due first, undated sinking below), then completed —
   // completed keeps the repo's newest-first order.
@@ -115,6 +123,7 @@ export default function RemindersScreen() {
           <ReminderRow
             reminder={item}
             giftTarget={giftTargetById.get(item.id)}
+            isDuplicatesNudge={item.id === duplicatesNudgeId}
             reload={reload}
           />
         )}
@@ -126,11 +135,14 @@ export default function RemindersScreen() {
 function ReminderRow({
   reminder,
   giftTarget,
+  isDuplicatesNudge = false,
   reload,
 }: {
   reminder: ReminderWithTags;
   /** Set when this is a `🎁 gift` reminder — see {@link giftCtaFor}. */
   giftTarget?: GiftReminderTarget;
+  /** Set when this row is the duplicates nudge, which opens the review. */
+  isDuplicatesNudge?: boolean;
   reload: () => Promise<void>;
 }) {
   const core = useCore();
@@ -145,11 +157,14 @@ function ReminderRow({
   // An onboarding nudge deep-links to its target screen instead of a (nonexistent)
   // reminder detail; every other reminder taps through to its detail as before.
   const onboardingRoute = onboardingRouteOf(reminder.id);
+  // The duplicates nudge deep-links the same way, to the (unscoped) review.
   const open = () =>
     router.push(
-      onboardingRoute === null
-        ? `/reminders/${reminder.id}`
-        : ONBOARDING_PATH[onboardingRoute],
+      onboardingRoute !== null
+        ? ONBOARDING_PATH[onboardingRoute]
+        : isDuplicatesNudge
+          ? "/duplicates"
+          : `/reminders/${reminder.id}`,
     );
   // A gift reminder carries a due date of its own, so its CTA gets its own line
   // below the meta row rather than competing for that row's left slot.
@@ -199,11 +214,13 @@ function ReminderRow({
       <View style={styles.rowMeta}>
         {reminder.dueDate !== null ? (
           <Text style={styles.muted}>{formatDueIn(reminder.dueDate)}</Text>
-        ) : onboardingRoute !== null ? (
+        ) : onboardingRoute !== null || isDuplicatesNudge ? (
           // A subtle affordance that the nudge deep-links somewhere (tapping the
           // text routes there); dateless nudges have no due-in to show here.
           <Pressable accessibilityRole="button" onPress={open}>
-            <Text style={styles.link}>Get started ›</Text>
+            <Text style={styles.link}>
+              {isDuplicatesNudge ? "Review ›" : "Get started ›"}
+            </Text>
           </Pressable>
         ) : (
           <View />

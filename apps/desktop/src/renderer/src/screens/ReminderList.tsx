@@ -58,10 +58,13 @@ function giftCtaFor(
 function ReminderRow({
   reminder,
   giftTarget,
+  isDuplicatesNudge = false,
 }: {
   reminder: ReminderWithTags;
   /** Set when this is a `🎁 gift` reminder — see {@link giftCtaFor}. */
   giftTarget?: GiftReminderTarget;
+  /** Set when this row is the duplicates nudge, whose CTA opens the review. */
+  isDuplicatesNudge?: boolean;
 }) {
   const fetcher = useFetcher();
   const done = reminder.completedAt !== null;
@@ -73,9 +76,11 @@ function ReminderRow({
   const cta =
     onboardingRoute !== null
       ? ONBOARDING_CTA[onboardingRoute]
-      : giftTarget !== undefined
-        ? giftCtaFor(giftTarget, done)
-        : null;
+      : isDuplicatesNudge
+        ? { path: "/duplicates", label: "Review duplicates →" }
+        : giftTarget !== undefined
+          ? giftCtaFor(giftTarget, done)
+          : null;
 
   return (
     <li>
@@ -134,9 +139,11 @@ function ReminderRow({
  * disclosure below.
  */
 export function ReminderList() {
-  const { reminders, giftTargets } = useLoaderData() as {
+  const { reminders, giftTargets, duplicatesNudgeId } = useLoaderData() as {
     reminders: ReminderWithTags[];
     giftTargets: GiftReminderTarget[];
+    /** The id of today's duplicates nudge, or null when there are no pairs. */
+    duplicatesNudgeId: string | null;
   };
   const giftTargetById = new Map(giftTargets.map((t) => [t.reminderId, t]));
   // Open reminders lead, soonest due first (undated sink below); completed ones
@@ -163,6 +170,7 @@ export function ReminderList() {
               key={reminder.id}
               reminder={reminder}
               giftTarget={giftTargetById.get(reminder.id)}
+              isDuplicatesNudge={reminder.id === duplicatesNudgeId}
             />
           ))}
         </ul>

@@ -22,7 +22,14 @@
   hardening: H3 done; only non-v0.1-blocking items remain** (see *What's next*). Stages 3–4
   (sharing, SSR web) are post-launch. Design: [`encryption/`](./encryption/).
 - **V3 · Reconciliation (dedup & merge)** — Increments A, B, and C's merge-on-join are
-  built; only C's bulk-import dedup remains (deferred until the importer exists). Design:
+  built; only C's bulk-import dedup remains (deferred until the importer exists). The
+  review surface is now **detection-driven rather than permanently advertised**: the old
+  unconditional "Review duplicates" link on People & Pets is gone, replaced by a
+  count-stating link that appears only when pairs are outstanding; saving a person that
+  matches an existing one lands on a **scoped** review (`/duplicates?for=<id>`) that is
+  always skippable; both people in a pair carry a banner on their own page; a fourth
+  `system` reminder family puts a summary nudge on Home; and finishing an import routes to
+  the review when the commit left pairs behind. Design:
   [`packages/core/README.md`](../packages/core/README.md).
 - **Files / media** — nothing built; design invariants pinned in [`files.md`](./files.md).
   Photos are the v0.2 headline (first consumer of that design).
@@ -145,7 +152,9 @@ can't ship without distributable apps. (None yet.)
 **Client / UX** (sequenced *after* the encryption work above):
 - **Reminders — remaining work.** The entity, Home promotion, automation (birthday + per-milestone
   staggered schedules + **holidays**), `@mentions`, the compose surface (`@`/`#` pickers), and
-  onboarding-as-reminders are all done — see the *Where things stand* bullet. **Next: reminder
+  onboarding-as-reminders are all done — see the *Where things stand* bullet, and the engine now
+  carries a fourth family for the **duplicates nudge** (content-addressed on the outstanding pair
+  set, so unlike onboarding it can legitimately re-appear). **Next: reminder
   search** (reminders join `SearchResultType` the way gift ideas did, matched on title + body);
   Leapsake-defined tasks extend the same engine later, keyed off `source` + trigger identity.
 - **Holidays — done.** The lunisolar tables are sourced and extended to 2056 (`CATALOG_VERSION` 2).

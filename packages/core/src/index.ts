@@ -99,6 +99,7 @@ import {
 } from "@leapsake/schema";
 import {
   type ReminderEngineDeps,
+  duplicatesReminderId,
   listSystemReminderTargets,
   regenerateSystemReminders,
 } from "@leapsake/reminders";
@@ -611,6 +612,24 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     });
   }
 
+  /** The unresolved duplicate candidates: every scoring pass, minus the pairs a
+   *  device has already been told are not the same. The one place the exclusion
+   *  is applied — `duplicates.*` and the Home nudge both come through here. */
+  function findDuplicateCandidates(): Promise<DuplicateCandidate[]> {
+    return notADuplicate
+      .listPairs()
+      .then((pairs) => duplicates.findCandidates(pairs));
+  }
+
+  /** The same candidates as canonical `"lower:higher"` pair keys — the identity
+   *  the Home nudge is content-addressed on (names never leave this layer). */
+  async function duplicatePairKeys(): Promise<string[]> {
+    const candidates = await findDuplicateCandidates();
+    return candidates.map(({ a, b }) =>
+      a.id < b.id ? `${a.id}:${b.id}` : `${b.id}:${a.id}`,
+    );
+  }
+
   // The composition root for automated (`system`) reminders: the
   // `@leapsake/reminders` engine's ports over the real repos + this core's own
   // `resolveLabel`. Built fresh per call so "today" is re-read each time — the
@@ -721,6 +740,10 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
       resolveLabel: async (bearerType, bearerId) =>
         (await resolveLabel(bearerType, bearerId)) ?? null,
     },
+    // Unresolved duplicate pairs — the fourth family. Always supplied, for the
+    // same reason `holidays` is: an omitted port prunes (and tombstones) the
+    // nudge the last reconcile minted.
+    duplicates: { pairKeys: () => duplicatePairKeys() },
   });
 
   const regenerateSystem = (): Promise<{
@@ -767,18 +790,26 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         await regenerateSystem();
         return person;
       },
-      update: (
+      update: async (
         id: string,
         input: UpdatePersonInput,
         tagNames: string[],
-      ): Promise<Person | undefined> =>
-        driver.transaction(async () => {
-          const person = await people.update(id, input);
-          if (person) {
+      ): Promise<Person | undefined> => {
+        const person = await driver.transaction(async () => {
+          const updated = await people.update(id, input);
+          if (updated) {
             await tags.setEntityTags("person", id, tagNames);
           }
-          return person;
-        }),
+          return updated;
+        });
+        // A rename can create (or dissolve) a duplicate pair — the scorer keys on
+        // the folded name — so reconcile for the Home nudge's sake, the same way
+        // create/merge/delete do. Contact-method edits can move the pair set too;
+        // those are left to the boot/focus reconcile rather than threading this
+        // call through every contact write.
+        await regenerateSystem();
+        return person;
+      },
       // Soft-delete the person and cascade across every fact that references it.
       // The cascade removes their milestones, so reconcile afterwards to prune any
       // now-orphaned birthday reminder at once (same reason a milestone delete does
@@ -1582,12 +1613,40 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     // `people.merge` (Increment A); `reject` records the "not a duplicate" memory
     // (which syncs, so no other device re-nags the pair).
     duplicates: {
-      findCandidates: (): Promise<DuplicateCandidate[]> =>
-        notADuplicate
-          .listPairs()
-          .then((pairs) => duplicates.findCandidates(pairs)),
-      reject: (idA: string, idB: string): Promise<void> =>
-        driver.transaction(() => notADuplicate.record(idA, idB)),
+      findCandidates: findDuplicateCandidates,
+      /**
+       * The candidates involving one person — what the review screen shows when
+       * it is scoped to a just-created person, and what a person's own page asks
+       * before deciding whether to warn. A filter over the full scan rather than
+       * its own query: the scan is the same O(n²) in-memory pass either way at
+       * personal-CRM scale, and reusing it keeps the `not_a_duplicate` memory and
+       * the tier/sort rules in exactly one place.
+       */
+      findFor: async (personId: string): Promise<DuplicateCandidate[]> =>
+        (await findDuplicateCandidates()).filter(
+          (c) => c.a.id === personId || c.b.id === personId,
+        ),
+      /** How many pairs are outstanding — the count the clients gate their
+       *  "N possible duplicates" links on, without shipping the whole list. */
+      count: async (): Promise<number> =>
+        (await findDuplicateCandidates()).length,
+      /**
+       * The id of the Home nudge for today's outstanding pairs, or `null` when
+       * there are none. Clients match it against the reminder list to hang the
+       * "Review" CTA on that row — the id-convention, but recomputed rather than
+       * static because the nudge is content-addressed on the pair set (see
+       * `duplicatesReminderId`).
+       */
+      nudgeId: async (): Promise<string | null> => {
+        const keys = await duplicatePairKeys();
+        return keys.length === 0 ? null : duplicatesReminderId(keys);
+      },
+      reject: async (idA: string, idB: string): Promise<void> => {
+        await driver.transaction(() => notADuplicate.record(idA, idB));
+        // The rejected pair leaves the candidate set, so the Home nudge's
+        // content-addressed id changes (or the nudge goes away entirely).
+        await regenerateSystem();
+      },
     },
 
     // Contact import (e.g. a dropped vCard). The pure parse + format detection run
