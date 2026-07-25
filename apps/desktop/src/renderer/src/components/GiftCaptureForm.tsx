@@ -4,7 +4,7 @@ import type {
   GiftPartyType,
 } from "@leapsake/schema";
 import { type FormEvent, useId, useState } from "react";
-import { useRevalidator } from "react-router-dom";
+import { useNavigate, useRevalidator } from "react-router-dom";
 import { MultiAddCombobox } from "./MultiAddCombobox";
 
 /** A person/pet that can be a recipient — the Gifts-screen recipient picker's pool. */
@@ -141,12 +141,17 @@ export function GiftCaptureForm({
   ideaPool,
   fixedRecipient,
   recipientCandidates,
+  redirectTo,
 }: {
   ideaPool: GiftIdea[];
   fixedRecipient?: PartyOption;
   recipientCandidates?: PartyOption[];
+  /** When set (a standalone create screen), navigate here after a save; otherwise
+   *  the form stays put and revalidates in place (an inline section). */
+  redirectTo?: string;
 }) {
   const revalidator = useRevalidator();
+  const navigate = useNavigate();
   const listId = useId();
 
   const [title, setTitle] = useState("");
@@ -215,8 +220,12 @@ export function GiftCaptureForm({
         giftIdea,
         recipients: captureRecipients,
       });
-      reset();
-      revalidator.revalidate();
+      if (redirectTo !== undefined) {
+        navigate(redirectTo);
+      } else {
+        reset();
+        revalidator.revalidate();
+      }
     } catch (err) {
       setError(String(err));
     } finally {

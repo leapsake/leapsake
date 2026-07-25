@@ -20,7 +20,7 @@ export function GiftIdeaEdit() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: "Gift ideas", to: "/gifts" },
+          { label: "Gifts", to: "/gifts" },
           { label: "Edit gift idea" },
         ]}
       />

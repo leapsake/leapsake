@@ -231,6 +231,27 @@ export type GiftForRecipient = Gift & {
   occasionLabel: string | null;
 };
 
+/**
+ * A gift (a giving) joined for an idea's row in the Gifts overview: the row plus
+ * its recipient's and giver's resolved labels (giver null = unknown) and its
+ * occasion label. A gift whose recipient is gone is dropped by the reader.
+ */
+export type GiftForIdea = Gift & {
+  recipientLabel: string;
+  giverLabel: string | null;
+  occasionLabel: string | null;
+};
+
+/**
+ * One row of the Gifts overview (the `/gifts` screen, keyed by idea): an idea
+ * with everyone it's suggested for and every giving of it.
+ */
+export interface GiftIdeaOverview {
+  idea: GiftIdea;
+  suggestions: GiftSuggestionForIdea[];
+  gifts: GiftForIdea[];
+}
+
 // The scheduling layer that turns the manual one-shot sync into seamless
 // background sync: a debounced, single-flight scheduler plus a CoreApi wrapper
 // that kicks a sync after every local write. Each client wires the platform
@@ -398,6 +419,62 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
     }
     const holiday = await holidays.get(occasionId);
     return holiday ? holiday.name : null;
+  }
+
+  // An idea's suggestions joined with each recipient's current label + occasion
+  // label (a suggestion whose recipient is gone is dropped). Shared by the idea's
+  // "Suggested for" section and the Gifts overview.
+  async function giftSuggestionsForIdea(
+    ideaId: string,
+  ): Promise<GiftSuggestionForIdea[]> {
+    const rows = await giftSuggestions.listForIdea(ideaId);
+    const joined = await Promise.all(
+      rows.map(async (s) => {
+        const recipientLabel = await resolveLabel(
+          s.recipientType,
+          s.recipientId,
+        );
+        if (recipientLabel === undefined) return null;
+        return {
+          ...s,
+          recipientLabel,
+          occasionLabel: await resolveOccasionLabel(
+            s.occasionType,
+            s.occasionId,
+          ),
+        };
+      }),
+    );
+    return joined.filter((s): s is GiftSuggestionForIdea => s !== null);
+  }
+
+  // An idea's givings joined with each recipient's + giver's label and occasion
+  // label (a giving whose recipient is gone is dropped). The Gifts overview reader.
+  async function giftsForIdea(ideaId: string): Promise<GiftForIdea[]> {
+    const rows = await giftsRepo.listForIdea(ideaId);
+    const joined = await Promise.all(
+      rows.map(async (g) => {
+        const recipientLabel = await resolveLabel(
+          g.recipientType,
+          g.recipientId,
+        );
+        if (recipientLabel === undefined) return null;
+        const giverLabel =
+          g.giverType !== null && g.giverId !== null
+            ? ((await resolveLabel(g.giverType, g.giverId)) ?? null)
+            : null;
+        return {
+          ...g,
+          recipientLabel,
+          giverLabel,
+          occasionLabel: await resolveOccasionLabel(
+            g.occasionType,
+            g.occasionId,
+          ),
+        };
+      }),
+    );
+    return joined.filter((g): g is GiftForIdea => g !== null);
   }
 
   // Orient each stored row touching the subject and resolve the *other* end's
@@ -1153,31 +1230,9 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           );
         },
         // An idea's "Suggested for" section: each suggestion joined with its
-        // recipient's current label. A suggestion whose recipient is gone is
-        // dropped (defensive — the recipient cascade prevents it).
-        listForIdea: async (
-          ideaId: string,
-        ): Promise<GiftSuggestionForIdea[]> => {
-          const rows = await giftSuggestions.listForIdea(ideaId);
-          const joined = await Promise.all(
-            rows.map(async (s) => {
-              const recipientLabel = await resolveLabel(
-                s.recipientType,
-                s.recipientId,
-              );
-              if (recipientLabel === undefined) return null;
-              return {
-                ...s,
-                recipientLabel,
-                occasionLabel: await resolveOccasionLabel(
-                  s.occasionType,
-                  s.occasionId,
-                ),
-              };
-            }),
-          );
-          return joined.filter((s): s is GiftSuggestionForIdea => s !== null);
-        },
+        // recipient's current label (dropped when the recipient is gone).
+        listForIdea: (ideaId: string): Promise<GiftSuggestionForIdea[]> =>
+          giftSuggestionsForIdea(ideaId),
         create: (input: CreateGiftSuggestionInput): Promise<GiftSuggestion> =>
           driver.transaction(() => giftSuggestions.create(input)),
         update: (
@@ -1319,6 +1374,19 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           }
           return idea;
         }),
+
+      // The Gifts screen, keyed by idea: every idea with everyone it's suggested
+      // for and every giving of it. Ideas keep their newest-first list order.
+      overview: async (): Promise<GiftIdeaOverview[]> => {
+        const ideas = await giftIdeas.list();
+        return Promise.all(
+          ideas.map(async (idea) => ({
+            idea,
+            suggestions: await giftSuggestionsForIdea(idea.id),
+            gifts: await giftsForIdea(idea.id),
+          })),
+        );
+      },
     },
 
     contactMethods: {

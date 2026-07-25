@@ -13,7 +13,7 @@ export interface RecipientCandidate {
 
 /**
  * The "Suggested for" section on a gift idea's edit screen — the idea end of a
- * gift suggestion. The mirror of a recipient's "Gift ideas" field: adding a
+ * gift suggestion. The mirror of a recipient's "Gifts" section: adding a
  * recipient here writes the same suggestion row a person page would.
  */
 export function GiftIdeaRecipientsSection({

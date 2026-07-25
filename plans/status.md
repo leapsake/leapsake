@@ -74,11 +74,13 @@
   giver at the self-person), a required recipient, a plain `year`/`month`/`day` what-happened date, and an
   optional occasion, where "I gave X to Y" points the giver at the self-person. All plaintext synced rows
   on the allowlist; delete/merge cascades wired (a merge that would make a gift self-referential drops it).
-  **The three creates are one consolidated form** (`gifts.capture`, one transaction): on Person/Pet the
-  **single "Gifts" section** shows one idea-grouped list (suggestions + givings together, "✓ given" read
-  alongside, candidates leading) above a capture form — type a gift (autocompleting existing ideas) for a
-  suggestion, add date(s) to log giving(s); on the `/gifts` screen the same form also takes recipients.
-  The idea's own edit page keeps a "Suggested for" recipient manager. **Deferred to a later UI increment:** the occasion picker + suggestion
+  **The three creates are one consolidated form** (`gifts.capture`, one transaction): type a gift
+  (autocompleting existing ideas) → a suggestion; add date(s) under a recipient → giving(s); givings are
+  per-recipient. On Person/Pet the **single "Gifts" section** shows one idea-grouped list (suggestions +
+  givings together, "✓ given" read alongside, candidates leading) with the capture form inline. The
+  **`/gifts` screen** is a keyed-by-idea list (an "Add a gift" link to the standalone form, People & Pets
+  style; backed by `gifts.overview`), and the idea's own edit page keeps a "Suggested for" recipient
+  manager. **Deferred to a later UI increment:** the occasion picker + suggestion
   target-date inputs — schema/core/repo support them fully and are tested, but those forms stay bare for
   now. Mobile is the sequencing item-6 port (data already flows via shared core). **Next: slice 4 (tags on
   gift ideas + gift search)** — see *What's next*.

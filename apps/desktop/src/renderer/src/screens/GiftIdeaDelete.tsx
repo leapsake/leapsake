@@ -12,7 +12,7 @@ export function GiftIdeaDelete() {
       <Breadcrumbs
         trail={[
           homeCrumb,
-          { label: "Gift ideas", to: "/gifts" },
+          { label: "Gifts", to: "/gifts" },
           { label: "Remove gift idea" },
         ]}
       />

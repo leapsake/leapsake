@@ -41,7 +41,8 @@ import { PersonMerge } from "./screens/PersonMerge";
 import { Duplicates } from "./screens/Duplicates";
 import { GiftIdeaDelete } from "./screens/GiftIdeaDelete";
 import { GiftIdeaEdit } from "./screens/GiftIdeaEdit";
-import { GiftIdeaList } from "./screens/GiftIdeaList";
+import { GiftCreate } from "./screens/GiftCreate";
+import { GiftList } from "./screens/GiftList";
 import { MilestoneCreate } from "./screens/MilestoneCreate";
 import { MilestoneDelete } from "./screens/MilestoneDelete";
 import { MilestoneEdit } from "./screens/MilestoneEdit";
@@ -909,9 +910,9 @@ async function giftIdeaEditLoader({ params }: LoaderFunctionArgs) {
   return { idea, suggestions, candidates };
 }
 
-/** The Gifts screen: the idea list plus the people/pets pool the capture form's
- *  recipient picker draws from, loaded in parallel. */
-async function giftsListLoader() {
+/** The "Add a gift" screen: the idea pool the capture form autocompletes against
+ *  plus the people/pets pool its recipient picker draws from, loaded in parallel. */
+async function giftCreateLoader() {
   const [ideas, entities] = await Promise.all([
     window.api.gifts.ideas.list(),
     window.api.views.entityList(),
@@ -1019,10 +1020,16 @@ const routes: RouteObject[] = [
         action: reminderToggleAction,
       },
       {
-        // Gifts — the idea list + the consolidated capture form (plans/gifts.md).
+        // Gifts — the whole graph keyed by idea (plans/gifts.md). Creating is its
+        // own screen, so this stays a plain list (the People & Pets pattern).
         path: "gifts",
-        loader: giftsListLoader,
-        element: <GiftIdeaList />,
+        loader: () => window.api.gifts.overview(),
+        element: <GiftList />,
+      },
+      {
+        path: "gifts/new",
+        loader: giftCreateLoader,
+        element: <GiftCreate />,
       },
       {
         path: "gifts/:id/edit",

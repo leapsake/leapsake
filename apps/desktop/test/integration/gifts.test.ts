@@ -350,3 +350,51 @@ describe("core.gifts.capture (the consolidated create)", () => {
     expect(s?.giftIdeaId).toBe(idea.id);
   });
 });
+
+describe("core.gifts.overview (the Gifts screen, keyed by idea)", () => {
+  it("returns each idea with its suggestions and givings joined", async () => {
+    const alice = await makePerson("Alice");
+    const bob = await makePerson("Bob");
+    const me = await makePerson("Me");
+    await core.self.set(me);
+
+    // One idea suggested for Alice and Bob, and given to Alice.
+    await core.gifts.capture({
+      giftIdea: { title: "BB Gun" },
+      recipients: [
+        { party: { type: "person", id: alice } },
+        { party: { type: "person", id: bob } },
+      ],
+    });
+    await core.gifts.capture({
+      giftIdea: { title: "BB Gun" }, // exact-title reuse isn't core's job; new call
+      recipients: [
+        {
+          party: { type: "person", id: alice },
+          givings: [{ date: { year: 1941 } }],
+        },
+      ],
+    });
+
+    const overview = await core.gifts.overview();
+    const bbGun = overview.filter((o) => o.idea.title === "BB Gun");
+    // Two ideas were minted (core doesn't dedupe by title); find the suggested one.
+    const suggested = bbGun.find((o) => o.suggestions.length > 0);
+    expect(suggested?.suggestions.map((s) => s.recipientLabel).sort()).toEqual([
+      "Alice X",
+      "Bob X",
+    ]);
+    const given = bbGun.find((o) => o.gifts.length > 0);
+    expect(given?.gifts[0]?.recipientLabel).toBe("Alice X");
+    expect(given?.gifts[0]?.giverLabel).toBe("Me X");
+  });
+
+  it("lists an idea with no suggestions or gifts (a bare idea)", async () => {
+    await core.gifts.ideas.create({ title: "Socks" });
+    const overview = await core.gifts.overview();
+    expect(overview).toHaveLength(1);
+    expect(overview[0]?.idea.title).toBe("Socks");
+    expect(overview[0]?.suggestions).toEqual([]);
+    expect(overview[0]?.gifts).toEqual([]);
+  });
+});

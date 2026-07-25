@@ -25,6 +25,8 @@ export interface GiftsRepo extends Omit<EntityRepo<Gift>, "update"> {
   listForRecipient(type: GiftPartyType, id: string): Promise<Gift[]>;
   /** Gifts given BY one giver. */
   listForGiver(type: GiftPartyType, id: string): Promise<Gift[]>;
+  /** Every giving of one idea — the Gifts overview, keyed by idea. */
+  listForIdea(ideaId: string): Promise<Gift[]>;
   /** Soft-delete every gift where the entity is the giver OR the recipient. */
   removeAllForParty(type: GiftPartyType, id: string): Promise<void>;
   /** Soft-delete every gift of an idea (the idea was deleted). */
@@ -129,6 +131,13 @@ export function createGiftsRepo(driver: SqliteDriver): GiftsRepo {
       base.listWhere({
         where: "giver_type = ? AND giver_id = ?",
         params: [type, id],
+        orderBy: GIFT_ORDER,
+      }),
+
+    listForIdea: (ideaId) =>
+      base.listWhere({
+        where: "gift_idea_id = ?",
+        params: [ideaId],
         orderBy: GIFT_ORDER,
       }),
 
