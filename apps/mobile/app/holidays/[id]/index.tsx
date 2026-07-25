@@ -12,8 +12,8 @@ import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
 import { Typeahead } from "../../../components/Typeahead";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
-import { formatOccurrence } from "../../../lib/formatOccurrence";
 import { colors, styles } from "../../../lib/styles";
+import { formatOccurrence } from "@leapsake/schema";
 
 // Holiday detail, ported from desktop's HolidayView: when it next falls, the
 // dates after that, and who observes it.

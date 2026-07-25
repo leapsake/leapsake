@@ -278,17 +278,26 @@ states and their action-link targets.
 
 ### 4 — Write-capable sections
 
-**Goal:** the direct-IPC group. Needs the callback seam, so it follows 3.
+**Goal:** the direct-IPC group. Needs the callback seam, so it follows 3. Split into three
+shippable parts, because the gift cluster is far more entangled than the holiday one: it reaches
+`GiftCaptureForm` (494 lines, otherwise increment 5) and eight `window.api` methods.
 
+**4a — the write seam + Holidays (done).**
 - `src/headless/useSerializedWrites.ts` — the `inFlight` promise chain + `busy` + `error`,
-  extracted once. **Keep the `catch` semantics**: without it a single rejected write leaves the
-  chain rejected and the surface wedges silently (documented in `HolidaysSection`).
-- Convert `HolidaysSection`, `GiftsSection`, `GiftIdeaRecipientsSection`, `GiftAdornmentsEditor`,
-  `GiftOccasionFields` to injected async callbacks (`onAddObservance`, `onRemoveSuggestion`, …).
-  All `window.api` calls and `useRevalidator` move to the app-side containers.
-- Then move `PersonView`, `PetView` and `RelationshipView` (deferred from increment 3), each
-  becoming a container + presentational pair, now that every section they render lives in the
-  package.
+  extracted once. **Keep the rejection-handler semantics**: without it a single rejected write
+  leaves the chain rejected and the surface wedges silently.
+- `MultiAddCombobox` and `HolidaysSection` move; the section takes `onSetObserves` + `onChanged`.
+- `formatOccurrence` was duplicated verbatim on both clients; it moves to `@leapsake/schema`
+  beside the other formatters (the repo's convention), not to the UI package.
+
+**4b — the gift cluster.** `GiftsSection`, `GiftIdeaRecipientsSection`, `GiftAdornmentsEditor`,
+`GiftOccasionFields`, and `GiftCaptureForm` (which increment 5 would otherwise own — it comes
+along because `GiftsSection` renders it). All `window.api` calls and `useRevalidator` move to the
+app-side containers.
+
+**4c — the three view screens** (`PersonView`, `PetView`, `RelationshipView`, deferred from
+increment 3), each becoming a container + presentational pair once every section they render
+lives in the package.
 
 **Done when:** add/remove round-trips work on Person, Pet, and gift-idea screens, including the
 rapid type→Enter→type→Enter case the serialization exists for.

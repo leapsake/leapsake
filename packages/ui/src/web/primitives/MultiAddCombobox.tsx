@@ -1,10 +1,11 @@
-import { useTypeahead } from "@leapsake/ui/headless";
-import { Combobox } from "@leapsake/ui/web";
 import { type ReactNode, useState } from "react";
+import { useTypeahead } from "../../headless/useTypeahead.js";
+import { Combobox } from "./Combobox.js";
 
 /**
- * Shortest query the field acts on. Matches the floor `SearchBar` and the mobile
- * `Typeahead` use, so a one-or-two-letter name behaves the same everywhere.
+ * Shortest query the field acts on. Matches the floor the global search bar and
+ * the mobile `Typeahead` use, so a one-or-two-letter name behaves the same
+ * everywhere.
  */
 const MIN_CHARS = 2;
 
@@ -29,8 +30,8 @@ const MAX_SUGGESTIONS = 20;
  * anything picked simply stops being suggested. There is no `value` — this
  * control never holds a selection of its own.
  *
- * Unlike the other two comboboxes it neither debounces nor searches: the options
- * are already in memory, so matching is a filter over them.
+ * Unlike the search-backed comboboxes it neither debounces nor fetches: the
+ * options are already in memory, so matching is a filter over them.
  */
 export function MultiAddCombobox<T>({
   label,
@@ -56,7 +57,7 @@ export function MultiAddCombobox<T>({
   /** Richer row content; defaults to the plain label. */
   renderOption?: (option: T) => ReactNode;
   minChars?: number;
-}): React.JSX.Element {
+}) {
   const [query, setQuery] = useState("");
   // What the live region announces after a pick. Without it, a screen-reader
   // user gets no confirmation at all: the field looks unchanged because it

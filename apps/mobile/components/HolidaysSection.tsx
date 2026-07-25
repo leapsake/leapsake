@@ -2,8 +2,8 @@ import { Alert, Pressable, Text, View } from "react-native";
 import { Link } from "expo-router";
 import type { BearerHolidayCandidate } from "@leapsake/core";
 import type { ObservanceBearerType } from "@leapsake/schema";
+import { formatOccurrence } from "@leapsake/schema";
 import { useCore } from "../lib/core-context";
-import { formatOccurrence } from "../lib/formatOccurrence";
 import { styles } from "../lib/styles";
 import { Typeahead } from "./Typeahead";
 

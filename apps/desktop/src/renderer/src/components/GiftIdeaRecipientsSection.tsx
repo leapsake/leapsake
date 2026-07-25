@@ -1,10 +1,10 @@
 import type { GiftSuggestionForIdea } from "@leapsake/core";
 import type { GiftPartyType } from "@leapsake/schema";
+import { MultiAddCombobox } from "@leapsake/ui/web";
 import { useRef, useState } from "react";
 import { useRevalidator } from "react-router-dom";
 import { GiftAdornmentsEditor } from "./GiftAdornmentsEditor";
 import { dateFieldsOf } from "./GiftOccasionFields";
-import { MultiAddCombobox } from "./MultiAddCombobox";
 
 /** A person/pet the idea can be suggested for — the add field's pool. */
 export interface RecipientCandidate {

@@ -19,15 +19,15 @@ import {
   ContactMethodsSection,
   DetailList,
   GenderValue,
+  HolidaysSection,
   MentionedInSection,
   MilestonesSection,
   RelationshipsSection,
   TagsSection,
   type GenderResult,
 } from "@leapsake/ui/web";
-import { Link, useLoaderData } from "react-router-dom";
+import { Link, useLoaderData, useRevalidator } from "react-router-dom";
 import { GiftsSection } from "../components/GiftsSection";
-import { HolidaysSection } from "../components/HolidaysSection";
 import { homeCrumb } from "../lib/crumbs";
 
 /** Render an epoch-ms timestamp in the user's locale. */
@@ -63,6 +63,9 @@ export function PersonView() {
     giftsGiven: GiftForRecipient[];
     duplicateCandidates: DuplicateCandidate[];
   };
+  // The Holidays section writes directly rather than through a route action, so
+  // it re-reads this screen's loader data itself once a write lands.
+  const revalidator = useRevalidator();
 
   return (
     <main>
@@ -115,6 +118,12 @@ export function PersonView() {
         bearerType="person"
         bearerId={person.id}
         holidays={holidays}
+        onSetObserves={(holidayId, observes) =>
+          window.api.holidays.setObservers(holidayId, [
+            { bearerType: "person", bearerId: person.id, observes },
+          ])
+        }
+        onChanged={() => revalidator.revalidate()}
       />
 
       <GiftsSection

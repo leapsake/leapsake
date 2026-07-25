@@ -1,9 +1,8 @@
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
-import { Breadcrumbs } from "@leapsake/ui/web";
+import { formatOccurrence } from "@leapsake/schema";
+import { Breadcrumbs, MultiAddCombobox } from "@leapsake/ui/web";
 import { useRef, useState } from "react";
 import { Form, Link, useLoaderData, useRevalidator } from "react-router-dom";
-import { MultiAddCombobox } from "../components/MultiAddCombobox";
-import { formatOccurrence } from "./HolidayList";
 
 /**
  * One holiday: when it next falls, the dates after that, and who observes it.

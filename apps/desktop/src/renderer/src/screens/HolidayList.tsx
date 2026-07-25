@@ -1,20 +1,6 @@
 import type { HolidayListItem } from "@leapsake/core";
+import { formatOccurrence } from "@leapsake/schema";
 import { Link, useLoaderData } from "react-router-dom";
-
-/**
- * Format a `YYYY-MM-DD` occurrence for display. Parsed as calendar parts rather
- * than fed to `new Date(iso)` — that would read the string as UTC midnight and
- * render the day before for anyone west of Greenwich.
- */
-export function formatOccurrence(iso: string): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 /**
  * The holiday catalog: what Leapsake knows about, when each one next falls, and

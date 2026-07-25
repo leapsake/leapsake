@@ -167,6 +167,7 @@ export {
   HIDDEN_HOLIDAY_NAMESPACE,
   HOLIDAY_NAMESPACE,
   OBSERVANCE_NAMESPACE,
+  formatOccurrence,
   hiddenHolidayIdName,
   hiddenHolidaySchema,
   holidayIdName,

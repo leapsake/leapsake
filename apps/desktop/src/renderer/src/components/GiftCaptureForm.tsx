@@ -6,6 +6,7 @@ import type {
   GiftPartyType,
 } from "@leapsake/schema";
 import { formatGiftDate } from "@leapsake/schema";
+import { MultiAddCombobox } from "@leapsake/ui/web";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { useNavigate, useRevalidator } from "react-router-dom";
 import {
@@ -14,7 +15,6 @@ import {
   emptyDate,
   parseDateFields,
 } from "./GiftOccasionFields";
-import { MultiAddCombobox } from "./MultiAddCombobox";
 
 /** A person/pet that can be a recipient — the Gifts-screen recipient picker's pool. */
 export interface PartyOption {

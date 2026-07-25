@@ -4,8 +4,8 @@ import { Link } from "expo-router";
 import type { HolidayListItem } from "@leapsake/core";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
-import { formatOccurrence } from "../../lib/formatOccurrence";
 import { colors, styles } from "../../lib/styles";
+import { formatOccurrence } from "@leapsake/schema";
 
 // The holiday catalog, ported from desktop's HolidayList: what Leapsake knows
 // about, when each next falls, and how many people are attached. The entry point

@@ -13,4 +13,5 @@ export {
   relationshipRemovePath,
 } from "./routes.js";
 export { useDebouncedSearch } from "./useDebouncedSearch.js";
+export { useSerializedWrites } from "./useSerializedWrites.js";
 export { useTypeahead } from "./useTypeahead.js";
