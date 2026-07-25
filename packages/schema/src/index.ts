@@ -272,6 +272,7 @@ export {
   fold,
   digits,
   foldAddress,
+  foldUrl,
 } from "./search-fold.js";
 export type { HighlightMode } from "./search-fold.js";
 export { resolveMerge } from "./merge.js";

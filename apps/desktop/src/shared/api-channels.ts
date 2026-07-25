@@ -33,6 +33,8 @@ export const API_CHANNELS = [
   "tags.peopleForTag",
   "tags.petsForTag",
   "tags.remindersForTag",
+  "tags.giftIdeasForTag",
+  "tags.listForGiftIdea",
 
   "holidays.list",
   "holidays.get",

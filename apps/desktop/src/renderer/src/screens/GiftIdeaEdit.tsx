@@ -9,8 +9,9 @@ import {
 } from "../components/GiftIdeaRecipientsSection";
 
 export function GiftIdeaEdit() {
-  const { idea, suggestions, candidates } = useLoaderData() as {
+  const { idea, tagNames, suggestions, candidates } = useLoaderData() as {
     idea: GiftIdea;
+    tagNames: string;
     suggestions: GiftSuggestionForIdea[];
     candidates: RecipientCandidate[];
   };
@@ -25,7 +26,7 @@ export function GiftIdeaEdit() {
         ]}
       />
       <h1>Edit gift idea</h1>
-      <GiftIdeaForm idea={idea} />
+      <GiftIdeaForm idea={idea} tagNames={tagNames} />
 
       <GiftIdeaRecipientsSection
         ideaId={idea.id}

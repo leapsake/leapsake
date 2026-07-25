@@ -1,5 +1,10 @@
 import type { GiftIdeaOverview } from "@leapsake/core";
-import { formatGiftDate, formatGiftTargetDate } from "@leapsake/schema";
+import {
+  formatGiftDate,
+  formatGiftTargetDate,
+  tagLabel,
+} from "@leapsake/schema";
+import { Fragment } from "react";
 import { Link, useLoaderData } from "react-router-dom";
 
 const joinBits = (bits: (string | null)[]) => bits.filter(Boolean).join(", ");
@@ -24,7 +29,7 @@ export function GiftList() {
         <p>No gifts yet.</p>
       ) : (
         <ul>
-          {overview.map(({ idea, suggestions, gifts }) => (
+          {overview.map(({ idea, tags, suggestions, gifts }) => (
             <li key={idea.id}>
               <Link to={`/gifts/${idea.id}/edit`}>{idea.title}</Link>{" "}
               {idea.url !== null && (
@@ -35,6 +40,18 @@ export function GiftList() {
                 </>
               )}
               <Link to={`/gifts/${idea.id}/delete`}>Remove</Link>
+              {tags.length > 0 && (
+                <div>
+                  <small>
+                    {tags.map((tag, index) => (
+                      <Fragment key={tag.id}>
+                        {index > 0 && ", "}
+                        <Link to={`/tags/${tag.id}`}>{tagLabel(tag.name)}</Link>
+                      </Fragment>
+                    ))}
+                  </small>
+                </div>
+              )}
               {idea.notes !== null && (
                 <div>
                   <small style={{ color: "#666" }}>{idea.notes}</small>

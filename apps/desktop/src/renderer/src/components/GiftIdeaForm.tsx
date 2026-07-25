@@ -10,9 +10,12 @@ import { Form, Link, useNavigation } from "react-router-dom";
  */
 export function GiftIdeaForm({
   idea,
+  tagNames = "",
   cancelTo = "/gifts",
 }: {
   idea?: GiftIdea;
+  /** Comma-separated existing tag names; empty on create. */
+  tagNames?: string;
   /** Where Cancel returns to — the recipient's page when launched from there. */
   cancelTo?: string;
 }) {
@@ -53,6 +56,16 @@ export function GiftIdeaForm({
             rows={4}
             defaultValue={idea?.notes ?? ""}
             placeholder="the 200-shot model; she mentioned it in June"
+          />
+        </p>
+        <p>
+          <label htmlFor="gift-idea-tags">Tags</label>
+          <br />
+          <input
+            id="gift-idea-tags"
+            name="tags"
+            defaultValue={tagNames}
+            placeholder="#books #kitchen"
           />
         </p>
         <p>

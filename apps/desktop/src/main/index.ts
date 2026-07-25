@@ -147,6 +147,17 @@ function asTagNames(value: unknown): string[] {
 }
 
 /**
+ * As {@link asTagNames}, but an **omitted** list stays omitted. A gift idea's
+ * tags are an optional trailing argument where `undefined` means "leave them
+ * alone" and `[]` means "clear them" (see `gifts.ideas.update`), so coercing the
+ * absent case to `[]` here would silently wipe an idea's tags on any write that
+ * didn't mention them.
+ */
+function asOptionalTagNames(value: unknown): string[] | undefined {
+  return value === undefined ? undefined : asTagNames(value);
+}
+
+/**
  * The renderer trust boundary: the only channels that transform their raw IPC
  * args before forwarding to core. Writes Zod-parse their payload (the repo
  * validates again internally — cheap belt-and-suspenders) and reads coerce the
@@ -193,6 +204,10 @@ const boundaryParsers: Partial<Record<ApiChannel, ArgParser>> = {
     a[0],
     updatePostalInputSchema.parse(a[1]),
   ],
+  // A gift idea's tag list rides its create/update the way a Person's does; the
+  // idea payload itself is validated by the repo's own input schema.
+  "gifts.ideas.create": (a) => [a[0], asOptionalTagNames(a[1])],
+  "gifts.ideas.update": (a) => [a[0], a[1], asOptionalTagNames(a[2])],
   // Read-only global search: non-string input coerces to an empty query, which
   // the service short-circuits to no results.
   "search.query": (a) => [typeof a[0] === "string" ? a[0] : ""],

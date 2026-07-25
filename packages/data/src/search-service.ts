@@ -1,5 +1,4 @@
 import {
-  type EntityType,
   type SearchHit,
   type SearchResultType,
   digits,
@@ -7,6 +6,7 @@ import {
   foldAddress,
   formatMilestoneDate,
   formatPostalAddress,
+  foldUrl,
   normalizeEmail,
   normalizePhone,
   parseBirthdayQuery,
@@ -46,7 +46,8 @@ const key = (type: SearchResultType, id: string) => `${type}:${id}`;
 
 export interface SearchService {
   /**
-   * Find people and pets matching `term`, by name or by an owned phone/email.
+   * Find people and pets matching `term`, by name or by an owned phone/email —
+   * plus the facets that surface as themselves (tags, holidays, gift ideas).
    * Loads the active rows and matches them in memory (no SQL `LIKE`, no index),
    * resolves every hit to its owning entity, groups by `(entityType, entityId)`,
    * and returns one `SearchHit` per entity with its match reasons merged.
@@ -119,6 +120,18 @@ interface HolidayRow {
   id: string;
   name: string;
 }
+/**
+ * A gift idea, surfaced as its own navigable result and as the resolution target
+ * of a tag match (gift ideas are taggable — plans/gifts.md sequencing 4). Matched
+ * on the folded `title`, like a holiday's name, and on its `url` — the half-
+ * remembered link ("that thing from thelocalbookshop") is a real way people reach
+ * for an idea, and it's the one field here a *name* can't stand in for.
+ */
+interface GiftIdeaRow {
+  id: string;
+  title: string;
+  url: string | null;
+}
 
 /** An accumulating result row plus the keys we sort on. */
 interface Accumulator {
@@ -130,7 +143,8 @@ interface Accumulator {
 }
 
 /**
- * Global search over people and pets. Read-only cross-table aggregator in the
+ * Global search over people, pets, and the facets with their own screens (tags,
+ * holidays, gift ideas). Read-only cross-table aggregator in the
  * same shape as the other read-time fan-outs (`kinship-service`,
  * `milestone-timeline`): pull the small set of active rows and derive on read.
  */
@@ -141,6 +155,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     const emailQuery = normalizeEmail(term); // trimmed + lowercased
     const phoneQuery = normalizePhone(term); // leading "+" + digits only
     const addressQuery = foldAddress(term); // comma/whitespace-insensitive
+    const urlQuery = foldUrl(term); // scheme- and "www."-insensitive
     const tagQuery = folded.replace(/^#+/, ""); // the "#" sigil is optional here
 
     const [
@@ -153,6 +168,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       tagList,
       birthdays,
       holidays,
+      giftIdeas,
     ] = await Promise.all([
       driver.all<PersonRow>(
         "SELECT id, first_name, middle_name, last_name FROM people WHERE deleted_at IS NULL",
@@ -188,6 +204,9 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       driver.all<HolidayRow>(
         "SELECT id, name FROM holidays WHERE deleted_at IS NULL",
       ),
+      driver.all<GiftIdeaRow>(
+        "SELECT id, title, url FROM gift_ideas WHERE deleted_at IS NULL",
+      ),
     ]);
 
     const acc = new Map<string, Accumulator>();
@@ -198,7 +217,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
      */
     const titleByEntity = new Map<
       string,
-      { type: EntityType; title: string }
+      { type: SearchResultType; title: string }
     >();
 
     /**
@@ -237,7 +256,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
 
     /** Record a name match if any of `fields` matches the folded term. */
     const addNameHit = (
-      type: EntityType,
+      type: SearchResultType,
       id: string,
       title: string,
       fields: string[],
@@ -270,6 +289,28 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       titleByEntity.set(key("pet", pet.id), { type: "pet", title: pet.name });
       addNameHit("pet", pet.id, pet.name, [pet.name]);
     }
+    // Gift-idea-as-result: an idea has its own screen, so a title match surfaces
+    // as its own navigable row ("what was that BB gun link?"). Registered in
+    // titleByEntity *here*, before the tag pass below, so a gift idea also
+    // resolves as the owner of a matching tag — the one facet gift ideas share
+    // with people and pets (plans/gifts.md sequencing 4).
+    for (const idea of giftIdeas) {
+      titleByEntity.set(key("gift_idea", idea.id), {
+        type: "gift_idea",
+        title: idea.title,
+      });
+      addNameHit("gift_idea", idea.id, idea.title, [idea.title]);
+      // The link is a *reason* match, never a name one, so a URL hit sorts below
+      // every title hit and shows its "matched on …" line — the same shape as an
+      // email or address hit. An idea matching both merges into one row.
+      if (idea.url !== null && urlQuery !== "") {
+        const haystack = foldUrl(idea.url);
+        const q = quality(haystack, urlQuery);
+        if (q !== QUALITY_NONE) {
+          record("gift_idea", idea.id, idea.title, false, "link", idea.url, q);
+        }
+      }
+    }
 
     /**
      * Resolve a matched contact method to its owning entity (drop unresolvable
@@ -284,8 +325,12 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       matchedText: string,
       matchQuality: number,
     ) => {
-      const owner = titleByEntity.get(key(ownerType as EntityType, ownerId));
-      if (!owner) return; // soft-deleted / household owner, not searchable in v1
+      const owner = titleByEntity.get(
+        key(ownerType as SearchResultType, ownerId),
+      );
+      // No entry means the owner isn't searchable: soft-deleted, a household, or
+      // a bearer type with no results of its own yet (a tagged reminder).
+      if (!owner) return;
       record(
         owner.type,
         ownerId,
@@ -458,9 +503,12 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       if (a.isName !== b.isName) return a.isName ? -1 : 1;
       // 2. match-quality bucket: exact > starts-with > substring.
       if (a.bestQuality !== b.bestQuality) return a.bestQuality - b.bestQuality;
-      // 3. a result that *is* its own screen (a tag or a holiday) floats above an
-      //    equally-matching entity, so when the query best matches a tag the tag
-      //    leads, followed by its bearers — likewise for a holiday.
+      // 3. a facet that *aggregates* entities — a tag or a holiday — floats above
+      //    an equally-matching entity, so when the query best matches a tag the
+      //    tag leads, followed by its bearers; likewise for a holiday. A gift
+      //    idea is deliberately **not** here: it has its own screen but leads
+      //    nothing (the people below it aren't its members), so it takes its
+      //    place alphabetically among equal matches instead of jumping the line.
       const ownScreen = (t: SearchResultType) => t === "tag" || t === "holiday";
       const aOwn = ownScreen(a.hit.entityType);
       const bOwn = ownScreen(b.hit.entityType);

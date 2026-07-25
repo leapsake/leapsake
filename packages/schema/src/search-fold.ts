@@ -62,3 +62,16 @@ export const digits = (s: string): string => s.replace(/\D/g, "");
  */
 export const foldAddress = (s: string): string =>
   fold(s).replace(/,/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * URL fold: {@link fold} plus a stripped scheme and leading `www.`, so "amazon"
+ * matches "https://www.amazon.com/dp/…". Applied to **both** sides, which is
+ * what makes it symmetric: a bare "https" or "www" query can't match every
+ * stored link (the candidates no longer carry either), while a whole pasted URL
+ * still lines up with the stored one it came from.
+ */
+export const foldUrl = (s: string): string =>
+  fold(s)
+    .trim()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+    .replace(/^www\./, "");

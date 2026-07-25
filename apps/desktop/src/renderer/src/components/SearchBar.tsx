@@ -14,6 +14,25 @@ const MIN_QUERY_LENGTH = 2;
 const DEBOUNCE_MS = 200;
 
 /**
+ * The screen a result opens. Tags, holidays, and gift ideas target their own
+ * pages; people and pets use their type's base path. A gift idea has no
+ * read-only view on desktop, so its actionable page is the edit screen (the same
+ * choice the tag page makes for its gift-idea rows).
+ */
+function pathFor(hit: SearchHit): string {
+  switch (hit.entityType) {
+    case "tag":
+      return `/tags/${hit.entityId}`;
+    case "holiday":
+      return `/holidays/${hit.entityId}`;
+    case "gift_idea":
+      return `/gifts/${hit.entityId}/edit`;
+    default:
+      return `${entityBasePath(hit.entityType)}/${hit.entityId}`;
+  }
+}
+
+/**
  * Persistent global search, mounted in the app chrome. A WAI-ARIA combobox: the
  * input keeps focus while arrow keys move `aria-activedescendant` over the
  * results listbox, Enter navigates to the active entity, Escape clears. ⌘K (or
@@ -69,15 +88,7 @@ export function SearchBar() {
     setResults([]);
     setTerm("");
     inputRef.current?.blur(); // drop focus so the result screen takes over
-    // Tags and holidays target their own screens; entities use their type's
-    // base path.
-    const path =
-      hit.entityType === "tag"
-        ? `/tags/${hit.entityId}`
-        : hit.entityType === "holiday"
-          ? `/holidays/${hit.entityId}`
-          : `${entityBasePath(hit.entityType)}/${hit.entityId}`;
-    navigate(path);
+    navigate(pathFor(hit));
   }
 
   function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -110,7 +121,7 @@ export function SearchBar() {
         ref={inputRef}
         type="text"
         role="combobox"
-        aria-label="Search people, pets, tags, and holidays"
+        aria-label="Search people, pets, tags, holidays, and gift ideas"
         aria-expanded={open}
         aria-controls={listboxId}
         aria-activedescendant={open ? optionId(activeIndex) : undefined}

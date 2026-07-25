@@ -6,10 +6,12 @@ import {
   type MilestonesRepo,
   type PeopleRepo,
   type PetsRepo,
+  type GiftIdeasRepo,
   type SearchService,
   type SqliteDriver,
   type TagsRepo,
   createContactMethodsRepo,
+  createGiftIdeasRepo,
   createMilestonesRepo,
   createPeopleRepo,
   createPetsRepo,
@@ -29,6 +31,7 @@ let pets: PetsRepo;
 let contactMethods: ContactMethodsRepo;
 let tags: TagsRepo;
 let milestones: MilestonesRepo;
+let giftIdeas: GiftIdeasRepo;
 let search: SearchService;
 
 beforeEach(async () => {
@@ -39,6 +42,7 @@ beforeEach(async () => {
   contactMethods = createContactMethodsRepo(driver);
   tags = createTagsRepo(driver);
   milestones = createMilestonesRepo(driver);
+  giftIdeas = createGiftIdeasRepo(driver);
   search = createSearchService(driver);
 });
 
@@ -629,6 +633,140 @@ describe("searchService — holidays", () => {
   it("ignores a holiday nothing matches", async () => {
     expect(
       (await search.query("zzzzz")).some((h) => h.entityType === "holiday"),
+    ).toBe(false);
+  });
+});
+
+/**
+ * Gift ideas surface as their own navigable result, on the tag/holiday
+ * precedent — "what was that BB gun link?" is a search for the *thing*
+ * (plans/gifts.md sequencing 4). Unlike a tag or a holiday, an idea aggregates
+ * nothing, so it doesn't float above equally-matching people; unlike a holiday,
+ * it *is* reachable through its tags, since gift ideas are taggable.
+ */
+describe("searchService — gift ideas", () => {
+  it("finds a gift idea by title", async () => {
+    const idea = await giftIdeas.create({ title: "Red Ryder BB Gun" });
+    const hits = await search.query("bb gun");
+    const hit = hits.find((h) => h.entityType === "gift_idea");
+    expect(hit?.title).toBe("Red Ryder BB Gun");
+    expect(hit?.entityId).toBe(idea.id);
+  });
+
+  it("is case- and accent-insensitive, like every other facet", async () => {
+    await giftIdeas.create({ title: "Crème brûlée torch" });
+    expect(
+      (await search.query("CREME BRULEE")).some(
+        (h) => h.title === "Crème brûlée torch",
+      ),
+    ).toBe(true);
+  });
+
+  it("carries no 'matched on' reason, since it matched its own title", async () => {
+    await giftIdeas.create({ title: "Scarf" });
+    const [hit] = (await search.query("scarf")).filter(
+      (h) => h.entityType === "gift_idea",
+    );
+    expect(hit.reasons.every((r) => r.facet === "name")).toBe(true);
+  });
+
+  it("surfaces through a tag it carries, with the tag as the reason", async () => {
+    const idea = await giftIdeas.create({ title: "Wool socks" });
+    await tags.setEntityTags("gift_idea", idea.id, ["stocking"]);
+
+    const hits = await search.query("stock");
+    const hit = hits.find((h) => h.entityType === "gift_idea");
+    expect(hit?.title).toBe("Wool socks");
+    expect(hit?.reasons).toEqual([{ facet: "tag", matchedText: "stocking" }]);
+    // The tag itself leads, as it does for people and pets.
+    expect(hits[0].entityType).toBe("tag");
+  });
+
+  it("does not float above an equally-matching person, unlike a holiday", async () => {
+    // Both are starts-with name matches, so only the tiebreak decides. An idea
+    // has its own screen but leads nothing below it, so it takes its
+    // alphabetical place instead of jumping the line the way a tag/holiday does
+    // (were it floating, the idea would come first here).
+    await giftIdeas.create({ title: "Camera strap" });
+    await people.create({ firstName: "Alice", lastName: "Camera" });
+    const hits = await search.query("camer");
+    expect(hits.map((h) => h.entityType)).toEqual(["person", "gift_idea"]);
+  });
+
+  it("matches the idea's link, with the URL as the reason", async () => {
+    await giftIdeas.create({
+      title: "Red Ryder BB Gun",
+      url: "https://www.thelocalbookshop.example/bb-gun",
+    });
+    const hits = await search.query("thelocalbookshop");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({
+      entityType: "gift_idea",
+      title: "Red Ryder BB Gun",
+    });
+    expect(hits[0]?.reasons).toEqual([
+      {
+        facet: "link",
+        matchedText: "https://www.thelocalbookshop.example/bb-gun",
+      },
+    ]);
+  });
+
+  it("matches a whole pasted URL against the stored one", async () => {
+    await giftIdeas.create({
+      title: "Scarf",
+      url: "https://www.example.com/scarf",
+    });
+    // The fold strips the scheme and "www." from *both* sides, so a link pasted
+    // in either spelling still lines up with the stored one.
+    expect(
+      (await search.query("https://www.example.com/scarf")).map(
+        (h) => h.entityType,
+      ),
+    ).toEqual(["gift_idea"]);
+    expect(
+      (await search.query("example.com/scarf")).map((h) => h.entityType),
+    ).toEqual(["gift_idea"]);
+  });
+
+  it("does not let a bare scheme or 'www' match every link", async () => {
+    await giftIdeas.create({
+      title: "Scarf",
+      url: "https://www.example.com/scarf",
+    });
+    expect(await search.query("https")).toEqual([]);
+    expect(await search.query("www")).toEqual([]);
+  });
+
+  it("merges a title and link match into one row", async () => {
+    await giftIdeas.create({
+      title: "Dune",
+      url: "https://books.example/dune",
+    });
+    const hits = await search.query("dune");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.reasons).toEqual([
+      { facet: "name", matchedText: "Dune" },
+      { facet: "link", matchedText: "https://books.example/dune" },
+    ]);
+  });
+
+  it("ranks a link match below every title match", async () => {
+    // A link hit is a *reason*, never a name, so it sorts with contact-style
+    // matches — under anything whose own title matched.
+    await giftIdeas.create({ title: "Dune poster" });
+    await giftIdeas.create({
+      title: "Sandworm mug",
+      url: "https://dune.example",
+    });
+    expect(await titles("dune")).toEqual(["Dune poster", "Sandworm mug"]);
+  });
+
+  it("drops a soft-deleted idea", async () => {
+    const idea = await giftIdeas.create({ title: "Scarf" });
+    await giftIdeas.softDelete(idea.id);
+    expect(
+      (await search.query("scarf")).some((h) => h.entityType === "gift_idea"),
     ).toBe(false);
   });
 });

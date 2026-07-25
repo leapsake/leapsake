@@ -896,8 +896,9 @@ async function giftIdeaLoader({ params }: LoaderFunctionArgs) {
  */
 async function giftIdeaEditLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
-  const [idea, suggestions, entities] = await Promise.all([
+  const [idea, tags, suggestions, entities] = await Promise.all([
     window.api.gifts.ideas.get(id),
+    window.api.tags.listForGiftIdea(id),
     window.api.gifts.suggestions.listForIdea(id),
     window.api.views.entityList(),
   ]);
@@ -907,7 +908,12 @@ async function giftIdeaEditLoader({ params }: LoaderFunctionArgs) {
     id: e.id,
     label: e.label,
   }));
-  return { idea, suggestions, candidates };
+  return {
+    idea,
+    tagNames: tags.map((t) => t.name).join(", "),
+    suggestions,
+    candidates,
+  };
 }
 
 /** The "Add a gift" screen: the idea pool the capture form autocompletes against
@@ -925,11 +931,18 @@ async function giftCreateLoader() {
   return { ideas, candidates };
 }
 
-/** Save edits to a gift idea; a blank title is a no-op back to the list. */
+/** Save edits to a gift idea; a blank title is a no-op back to the list. The
+ *  form always carries the tags field, so the whole desired set goes with the
+ *  write (a Person saves its tags the same way). */
 async function giftIdeaEditAction({ request, params }: ActionFunctionArgs) {
-  const input = readGiftIdeaInput(await request.formData());
+  const formData = await request.formData();
+  const input = readGiftIdeaInput(formData);
   if (input.title === "") return redirect("/gifts");
-  await window.api.gifts.ideas.update(params.id as string, input);
+  await window.api.gifts.ideas.update(
+    params.id as string,
+    input,
+    readTags(formData),
+  );
   return redirect("/gifts");
 }
 
@@ -1397,12 +1410,13 @@ const routes: RouteObject[] = [
           const id = params.id as string;
           const tag = await window.api.tags.get(id);
           if (!tag) throw new Response("Tag not found", { status: 404 });
-          const [people, pets, reminders] = await Promise.all([
+          const [people, pets, reminders, giftIdeas] = await Promise.all([
             window.api.tags.peopleForTag(id),
             window.api.tags.petsForTag(id),
             window.api.tags.remindersForTag(id),
+            window.api.tags.giftIdeasForTag(id),
           ]);
-          return { tag, people, pets, reminders };
+          return { tag, people, pets, reminders, giftIdeas };
         },
         element: <TagView />,
       },
@@ -1412,14 +1426,16 @@ const routes: RouteObject[] = [
           const id = params.id as string;
           const tag = await window.api.tags.get(id);
           if (!tag) throw new Response("Tag not found", { status: 404 });
-          const [people, pets, reminders] = await Promise.all([
+          const [people, pets, reminders, giftIdeas] = await Promise.all([
             window.api.tags.peopleForTag(id),
             window.api.tags.petsForTag(id),
             window.api.tags.remindersForTag(id),
+            window.api.tags.giftIdeasForTag(id),
           ]);
           return {
             tag,
-            count: people.length + pets.length + reminders.length,
+            count:
+              people.length + pets.length + reminders.length + giftIdeas.length,
           };
         },
         element: <TagDelete />,

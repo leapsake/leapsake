@@ -398,3 +398,95 @@ describe("core.gifts.overview (the Gifts screen, keyed by idea)", () => {
     expect(overview[0]?.gifts).toEqual([]);
   });
 });
+
+/**
+ * Tags on gift ideas (plans/gifts.md sequencing 4): `gift_idea` joined
+ * `tagBearerTypeSchema` as one more bearer, so an idea list stays browsable once
+ * it's long. The tag set rides the idea's create/update the way a Person's does.
+ */
+describe("core.gifts.ideas — tags", () => {
+  it("saves an idea's tags with the idea itself", async () => {
+    const idea = await core.gifts.ideas.create({ title: "Wool socks" }, [
+      "stocking",
+      "warm",
+    ]);
+    expect(
+      (await core.tags.listForGiftIdea(idea.id)).map((t) => t.name).sort(),
+    ).toEqual(["stocking", "warm"]);
+  });
+
+  it("replaces the whole set on update, and clears it with an empty list", async () => {
+    const idea = await core.gifts.ideas.create({ title: "Wool socks" }, [
+      "stocking",
+    ]);
+
+    await core.gifts.ideas.update(idea.id, {}, ["warm"]);
+    expect(
+      (await core.tags.listForGiftIdea(idea.id)).map((t) => t.name),
+    ).toEqual(["warm"]);
+
+    await core.gifts.ideas.update(idea.id, {}, []);
+    expect(await core.tags.listForGiftIdea(idea.id)).toEqual([]);
+  });
+
+  it("leaves the tags alone when an update doesn't mention them", async () => {
+    // The distinction that makes the argument optional: renaming an idea must
+    // not silently drop its tags, while `[]` still means "clear them".
+    const idea = await core.gifts.ideas.create({ title: "Wool socks" }, [
+      "warm",
+    ]);
+    const renamed = await core.gifts.ideas.update(idea.id, {
+      title: "Merino socks",
+    });
+    expect(renamed?.title).toBe("Merino socks");
+    expect(
+      (await core.tags.listForGiftIdea(idea.id)).map((t) => t.name),
+    ).toEqual(["warm"]);
+  });
+
+  it("lists tagged ideas on the tag's own page", async () => {
+    const socks = await core.gifts.ideas.create({ title: "Wool socks" }, [
+      "stocking",
+    ]);
+    await core.gifts.ideas.create({ title: "Sled" }, ["outdoors"]);
+    const [tag] = await core.tags.listForGiftIdea(socks.id);
+
+    expect(
+      (await core.tags.giftIdeasForTag(tag.id)).map((i) => i.title),
+    ).toEqual(["Wool socks"]);
+  });
+
+  it("shares one tag across an idea and a person", async () => {
+    // The whole point of a shared tag: the same "#books" reaches both.
+    const person = await makePerson("Alice");
+    await core.people.update(person, {}, ["books"]);
+    const idea = await core.gifts.ideas.create({ title: "Dune" }, ["books"]);
+    const [tag] = await core.tags.listForGiftIdea(idea.id);
+
+    expect((await core.tags.peopleForTag(tag.id)).map((p) => p.id)).toEqual([
+      person,
+    ]);
+    expect((await core.tags.giftIdeasForTag(tag.id)).map((i) => i.id)).toEqual([
+      idea.id,
+    ]);
+  });
+
+  it("carries the tags into the Gifts-screen overview", async () => {
+    await core.gifts.ideas.create({ title: "Wool socks" }, ["stocking"]);
+    const [row] = await core.gifts.overview();
+    expect(row?.tags.map((t) => t.name)).toEqual(["stocking"]);
+  });
+
+  it("removes the taggings when the idea is deleted, GCing an orphaned tag", async () => {
+    const idea = await core.gifts.ideas.create({ title: "Wool socks" }, [
+      "stocking",
+    ]);
+    const [tag] = await core.tags.listForGiftIdea(idea.id);
+
+    await core.gifts.ideas.softDelete(idea.id);
+    expect(await core.tags.listForGiftIdea(idea.id)).toEqual([]);
+    expect(await core.tags.giftIdeasForTag(tag.id)).toEqual([]);
+    // Its last bearer gone, the tag itself is garbage-collected.
+    expect(await core.tags.get(tag.id)).toBeUndefined();
+  });
+});

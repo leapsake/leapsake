@@ -34,6 +34,9 @@
   display: block;
   font-size: 0.8em;
   color: #555;
+  /* A matched link is one unbreakable run — wrap it inside the listbox rather
+     than letting a long URL push past the dropdown's edge. */
+  overflow-wrap: anywhere;
 }
 
 /* Highlight the matched substring as bold rather than the browser default

@@ -1,14 +1,20 @@
 import { z } from "zod";
 
 /**
- * The entity types that can *bear* a tag — a Person or Pet today (Reminders join
- * later). A tag is a shared label an entity carries; the bearer is a polymorphic
- * `(bearerType, bearerId)` pair, so a new bearer type joins without a schema
- * change. Kept **separate** from relationship's `entityTypeSchema` (role-holders):
- * a reminder can bear a tag but can't hold a relationship role — the same reason
+ * The entity types that can *bear* a tag — a Person, Pet, Reminder, or GiftIdea.
+ * A tag is a shared label an entity carries; the bearer is a polymorphic
+ * `(bearerType, bearerId)` pair, so a new bearer type joins as **one line here**,
+ * with no migration (`gift_idea` did exactly that — plans/gifts.md sequencing 4).
+ * Kept **separate** from relationship's `entityTypeSchema` (role-holders): a
+ * reminder can bear a tag but can't hold a relationship role — the same reason
  * milestones use their own {@link milestoneBearerTypeSchema}.
  */
-export const tagBearerTypeSchema = z.enum(["person", "pet", "reminder"]);
+export const tagBearerTypeSchema = z.enum([
+  "person",
+  "pet",
+  "reminder",
+  "gift_idea",
+]);
 
 export type TagBearerType = z.infer<typeof tagBearerTypeSchema>;
 

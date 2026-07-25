@@ -51,7 +51,10 @@ export default function SearchScreen() {
     const timer = setTimeout(() => {
       void core.search.query(term).then((hits) => {
         if (token !== queryToken.current) return; // a newer query superseded this
-        setResults(hits);
+        // Gift ideas are searchable in shared core, but mobile has no gift
+        // screens yet (plans/gifts.md sequencing 6 — the mobile port), so a hit
+        // here would have nowhere to open. Drop them until those screens land.
+        setResults(hits.filter((hit) => hit.entityType !== "gift_idea"));
       });
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);

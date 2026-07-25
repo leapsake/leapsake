@@ -244,10 +244,11 @@ export type GiftForIdea = Gift & {
 
 /**
  * One row of the Gifts overview (the `/gifts` screen, keyed by idea): an idea
- * with everyone it's suggested for and every giving of it.
+ * with its tags, everyone it's suggested for, and every giving of it.
  */
 export interface GiftIdeaOverview {
   idea: GiftIdea;
+  tags: Tag[];
   suggestions: GiftSuggestionForIdea[];
   gifts: GiftForIdea[];
 }
@@ -851,6 +852,8 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         tags.listForEntity("person", personId),
       listForPet: (petId: string): Promise<Tag[]> =>
         tags.listForEntity("pet", petId),
+      listForGiftIdea: (ideaId: string): Promise<Tag[]> =>
+        tags.listForEntity("gift_idea", ideaId),
       peopleForTag: async (tagId: string): Promise<Person[]> => {
         const ids = await tags.entityIdsForTag(tagId, "person");
         const found = await Promise.all(ids.map((id) => people.get(id)));
@@ -867,6 +870,13 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         const ids = await tags.entityIdsForTag(tagId, "reminder");
         const found = await Promise.all(ids.map((id) => reminders.get(id)));
         return found.filter((r): r is Reminder => r !== undefined);
+      },
+      // As do gift ideas — a "#books" or "#kitchen" tag is how an idea list
+      // stays browsable once it's long (plans/gifts.md sequencing 4).
+      giftIdeasForTag: async (tagId: string): Promise<GiftIdea[]> => {
+        const ids = await tags.entityIdsForTag(tagId, "gift_idea");
+        const found = await Promise.all(ids.map((id) => giftIdeas.get(id)));
+        return found.filter((i): i is GiftIdea => i !== undefined);
       },
     },
 
@@ -1172,32 +1182,51 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         get: (id: string): Promise<GiftIdea | undefined> => giftIdeas.get(id),
         // Single-payload create (share-target ready): capture an idea and,
         // optionally, suggest it for zero-to-many recipients in one transaction.
-        create: ({
-          suggestFor,
-          ...ideaInput
-        }: CreateGiftIdeaInput & {
-          suggestFor?: SuggestForEntry[];
-        }): Promise<GiftIdea> =>
+        // `tagNames` rides along the same way a Person's does — the whole desired
+        // set, committed with the row (plans/gifts.md sequencing 4).
+        create: (
+          {
+            suggestFor,
+            ...ideaInput
+          }: CreateGiftIdeaInput & {
+            suggestFor?: SuggestForEntry[];
+          },
+          tagNames?: string[],
+        ): Promise<GiftIdea> =>
           driver.transaction(async () => {
             const idea = await giftIdeas.create(ideaInput);
             for (const entry of suggestFor ?? []) {
               await giftSuggestions.create({ giftIdeaId: idea.id, ...entry });
             }
+            if (tagNames) {
+              await tags.setEntityTags("gift_idea", idea.id, tagNames);
+            }
             return idea;
           }),
+        // An **omitted** `tagNames` leaves the idea's tags alone; passing the
+        // array makes them exactly that set (`[]` clears them), so a caller that
+        // only renames an idea can't silently drop its tags.
         update: (
           id: string,
           input: UpdateGiftIdeaInput,
+          tagNames?: string[],
         ): Promise<GiftIdea | undefined> =>
-          driver.transaction(() => giftIdeas.update(id, input)),
-        // Removing an idea cascades to its suggestions and gifts — nothing
-        // references a deleted idea, and a live suggestion/gift must always point
-        // at a live idea.
+          driver.transaction(async () => {
+            const idea = await giftIdeas.update(id, input);
+            if (idea && tagNames) {
+              await tags.setEntityTags("gift_idea", id, tagNames);
+            }
+            return idea;
+          }),
+        // Removing an idea cascades to its suggestions, gifts, and taggings —
+        // nothing references a deleted idea, and a live suggestion/gift must
+        // always point at a live idea.
         softDelete: (id: string): Promise<void> =>
           driver.transaction(async () => {
             await giftIdeas.softDelete(id);
             await giftSuggestions.removeAllForIdea(id);
             await giftsRepo.removeAllForIdea(id);
+            await tags.removeAllForEntity("gift_idea", id);
           }),
       },
 
@@ -1382,6 +1411,7 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
         return Promise.all(
           ideas.map(async (idea) => ({
             idea,
+            tags: await tags.listForEntity("gift_idea", idea.id),
             suggestions: await giftSuggestionsForIdea(idea.id),
             gifts: await giftsForIdea(idea.id),
           })),

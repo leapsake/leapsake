@@ -2,16 +2,19 @@ import type { EntityType } from "./relationship.js";
 
 /**
  * What a search result navigates to. Usually an **entity** (person or pet), but
- * `"tag"` and `"holiday"` results target their own screens — the facets that
- * surface as themselves rather than resolving to the entities behind them.
+ * `"tag"`, `"holiday"`, and `"gift_idea"` results target their own screens — the
+ * facets that surface as themselves rather than resolving to the entities behind
+ * them.
  *
  * A tag also resolves to the entities that carry it (ranked just below the tag).
  * A holiday deliberately does **not** resolve to the people who observe it: a
  * popular holiday has dozens of observers, and listing them all would bury every
  * other result for a query like "christmas" while duplicating what the holiday's
- * own screen already shows.
+ * own screen already shows. A gift idea resolves to nothing behind it either —
+ * it *is* the thing being searched for ("what was that BB gun link?"), and its
+ * own screen already lists who it's suggested for and every giving of it.
  */
-export type SearchResultType = EntityType | "tag" | "holiday";
+export type SearchResultType = EntityType | "tag" | "holiday" | "gift_idea";
 
 /**
  * One global-search result. Usually an **entity** (a person or pet): a match on

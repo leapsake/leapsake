@@ -1,4 +1,4 @@
-import type { Person, Pet, Reminder, Tag } from "@leapsake/schema";
+import type { GiftIdea, Person, Pet, Reminder, Tag } from "@leapsake/schema";
 import { fullName, reminderLabel, tagLabel } from "@leapsake/schema";
 import { Link, useLoaderData } from "react-router-dom";
 import { Breadcrumbs } from "../components/Breadcrumbs";
@@ -30,21 +30,26 @@ function EntityRows({
 }
 
 /**
- * Everything carrying a given tag, grouped by type. People, Pets, and Reminders
- * are all taggable; each group renders only when it has members, and an empty tag
- * shows a placeholder. Reminders have no standalone view on desktop, so a
- * reminder row opens its edit screen (its actionable page here).
+ * Everything carrying a given tag, grouped by type. People, Pets, Reminders, and
+ * Gift ideas are all taggable; each group renders only when it has members, and
+ * an empty tag shows a placeholder. Neither reminders nor gift ideas have a
+ * standalone view on desktop, so their rows open their edit screens (the
+ * actionable page for each here).
  */
 export function TagView() {
-  const { tag, people, pets, reminders } = useLoaderData() as {
+  const { tag, people, pets, reminders, giftIdeas } = useLoaderData() as {
     tag: Tag;
     people: Person[];
     pets: Pet[];
     reminders: Reminder[];
+    giftIdeas: GiftIdea[];
   };
 
   const empty =
-    people.length === 0 && pets.length === 0 && reminders.length === 0;
+    people.length === 0 &&
+    pets.length === 0 &&
+    reminders.length === 0 &&
+    giftIdeas.length === 0;
 
   return (
     <main>
@@ -91,6 +96,19 @@ export function TagView() {
               id: reminder.id,
               label: reminderLabel(reminder),
               to: `/reminders/${reminder.id}/edit`,
+            }))}
+          />
+        </>
+      )}
+
+      {giftIdeas.length > 0 && (
+        <>
+          <h2>Gift ideas</h2>
+          <EntityRows
+            rows={giftIdeas.map((idea) => ({
+              id: idea.id,
+              label: idea.title,
+              to: `/gifts/${idea.id}/edit`,
             }))}
           />
         </>
