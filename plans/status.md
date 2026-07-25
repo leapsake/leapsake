@@ -175,9 +175,12 @@ can't ship without distributable apps. (None yet.)
   and an app-side `useSubmitting()`. **Increment 2 shipped**: the three hand-maintained combobox
   copies now share one `Combobox` + `ComboboxOptionDetail` (web) over `useTypeahead` +
   `useDebouncedSearch` (headless), and the duplicated stylesheet is down to one copy inside the
-  package — `@leapsake/ui/headless` is now real. **Next: increment 3** — the path-builder module
-  and the read-only sections (Tags, MentionedIn, Milestones, Relationships, ContactMethods) plus
-  the `DataTable`/`Section`/`EmptyState`/`DetailList` primitives that land with them. Each
+  package — `@leapsake/ui/headless` is now real. **Increment 3 shipped**: the shared route
+  builders (including the relationship explicit-vs-derived branching, which a presentational
+  component had been deciding), the `Section`/`EmptyState`/`DataTable`/`DetailList` primitives,
+  and all five read-only sections. **Next: increment 4** — the write-capable sections (Holidays,
+  Gifts) onto injected async callbacks plus a `useSerializedWrites` hook, then the three view
+  screens, which were deferred from increment 3 because they render those same sections. Each
   code-moving increment is two commits (split in place, then move). Design + increments:
   [`ui-extraction.md`](./ui-extraction.md). **Styling is a separate pre-v0.1 pass, after this.**
 

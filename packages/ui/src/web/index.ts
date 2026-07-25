@@ -30,6 +30,11 @@ export {
   ComboboxOptionDetail,
   type ComboboxFieldAria,
 } from "./primitives/Combobox.js";
+export { ContactMethodsSection } from "./sections/ContactMethodsSection.js";
+export { MentionedInSection } from "./sections/MentionedInSection.js";
+export { MilestonesSection } from "./sections/MilestonesSection.js";
+export { RelationshipsSection } from "./sections/RelationshipsSection.js";
+export { TagsSection } from "./sections/TagsSection.js";
 export { DataTable, type Column } from "./primitives/DataTable.js";
 export { DetailList, type Detail } from "./primitives/DetailList.js";
 export { EmptyState, Section } from "./primitives/Section.js";

@@ -5,9 +5,9 @@ import {
   rolesForPair,
 } from "@leapsake/schema";
 import { Breadcrumbs } from "@leapsake/ui/web";
+import { entityBasePath } from "@leapsake/ui/headless";
 import { useMemo, useState } from "react";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import { entityBasePath } from "../lib/entityLabel";
 import { homeCrumb } from "../lib/crumbs";
 
 /** The subject entity the edited relationship hangs off of. */

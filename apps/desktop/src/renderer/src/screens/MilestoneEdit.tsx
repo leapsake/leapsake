@@ -4,9 +4,9 @@ import type {
   ReminderRuleInput,
 } from "@leapsake/schema";
 import { Breadcrumbs } from "@leapsake/ui/web";
+import { entityBasePath } from "@leapsake/ui/headless";
 import { useLoaderData } from "react-router-dom";
 import { MilestoneForm } from "../components/MilestoneForm";
-import { entityBasePath } from "../lib/entityLabel";
 import { homeCrumb } from "../lib/crumbs";
 
 /** The bearer entity the edited milestone hangs off of. */

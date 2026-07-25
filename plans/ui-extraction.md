@@ -267,8 +267,11 @@ stale-response guard. Delete the duplicated stylesheet.
   lands with a real consumer.
 - Migrate `TagsSection`, `MentionedInSection`, `MilestonesSection`, `RelationshipsSection`,
   `ContactMethodsSection` to props-in/paths-in.
-- Migrate the read-only screen bodies that consume them: `PersonView`, `PetView`,
-  `RelationshipView` (each becomes container + presentational pair).
+
+The **view screens** (`PersonView`, `PetView`, `RelationshipView`) were listed here and move in
+increment 4 instead: they also render `GiftsSection` and `HolidaysSection`, which don't move
+until then, so a package-side view screen would need a temporary slot API that increment 4 would
+delete. They adopt `DetailList` here while staying in the app.
 
 **Done when:** the three view screens render identically; sections have tests for their empty
 states and their action-link targets.
@@ -283,6 +286,9 @@ states and their action-link targets.
 - Convert `HolidaysSection`, `GiftsSection`, `GiftIdeaRecipientsSection`, `GiftAdornmentsEditor`,
   `GiftOccasionFields` to injected async callbacks (`onAddObservance`, `onRemoveSuggestion`, …).
   All `window.api` calls and `useRevalidator` move to the app-side containers.
+- Then move `PersonView`, `PetView` and `RelationshipView` (deferred from increment 3), each
+  becoming a container + presentational pair, now that every section they render lives in the
+  package.
 
 **Done when:** add/remove round-trips work on Person, Pet, and gift-idea screens, including the
 rapid type→Enter→type→Enter case the serialization exists for.

@@ -4,11 +4,9 @@ import type {
   MilestoneTimelineEntry,
   Relationship,
 } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
-import { Fragment } from "react";
+import { entityBasePath } from "@leapsake/ui/headless";
+import { Breadcrumbs, DetailList, MilestonesSection } from "@leapsake/ui/web";
 import { Link, useLoaderData } from "react-router-dom";
-import { MilestonesSection } from "../components/MilestonesSection";
-import { entityBasePath } from "../lib/entityLabel";
 import { homeCrumb } from "../lib/crumbs";
 
 /** One endpoint of the relationship, resolved for display. */
@@ -56,18 +54,16 @@ export function RelationshipView() {
         <Link to={`${relPath}/delete`}>Delete</Link>
       </header>
 
-      <dl>
-        {partners.map((partner) => (
-          <Fragment key={`${partner.type}:${partner.id}`}>
-            <dt>{partner.roleLabel}</dt>
-            <dd>
-              <Link to={`${entityBasePath(partner.type)}/${partner.id}`}>
-                {partner.label}
-              </Link>
-            </dd>
-          </Fragment>
-        ))}
-      </dl>
+      <DetailList
+        details={partners.map((partner) => ({
+          term: partner.roleLabel,
+          value: (
+            <Link to={`${entityBasePath(partner.type)}/${partner.id}`}>
+              {partner.label}
+            </Link>
+          ),
+        }))}
+      />
 
       <MilestonesSection
         bearerType="relationship"

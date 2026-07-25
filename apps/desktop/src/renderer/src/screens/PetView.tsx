@@ -11,14 +11,19 @@ import type {
   Reminder,
   Tag,
 } from "@leapsake/schema";
-import { Breadcrumbs, GenderValue, type GenderResult } from "@leapsake/ui/web";
+import {
+  Breadcrumbs,
+  DetailList,
+  GenderValue,
+  MentionedInSection,
+  MilestonesSection,
+  RelationshipsSection,
+  TagsSection,
+  type GenderResult,
+} from "@leapsake/ui/web";
 import { Link, useLoaderData } from "react-router-dom";
 import { GiftsSection } from "../components/GiftsSection";
 import { HolidaysSection } from "../components/HolidaysSection";
-import { MentionedInSection } from "../components/MentionedInSection";
-import { MilestonesSection } from "../components/MilestonesSection";
-import { RelationshipsSection } from "../components/RelationshipsSection";
-import { TagsSection } from "../components/TagsSection";
 import { homeCrumb } from "../lib/crumbs";
 
 /** Render an epoch-ms timestamp in the user's locale. */
@@ -61,14 +66,12 @@ export function PetView() {
         <Link to={`/pets/${pet.id}/delete`}>Delete</Link>
       </header>
 
-      <dl>
-        <dt>Name</dt>
-        <dd>{pet.name}</dd>
-        <dt>Gender</dt>
-        <dd>
-          <GenderValue gender={gender} />
-        </dd>
-      </dl>
+      <DetailList
+        details={[
+          { term: "Name", value: pet.name },
+          { term: "Gender", value: <GenderValue gender={gender} /> },
+        ]}
+      />
 
       <RelationshipsSection
         subjectType="pet"
@@ -97,12 +100,12 @@ export function PetView() {
 
       <MentionedInSection reminders={mentionedIn} />
 
-      <dl>
-        <dt>Created</dt>
-        <dd>{formatTimestamp(pet.createdAt)}</dd>
-        <dt>Updated</dt>
-        <dd>{formatTimestamp(pet.updatedAt)}</dd>
-      </dl>
+      <DetailList
+        details={[
+          { term: "Created", value: formatTimestamp(pet.createdAt) },
+          { term: "Updated", value: formatTimestamp(pet.updatedAt) },
+        ]}
+      />
     </main>
   );
 }

@@ -3,10 +3,10 @@ import type {
   RelationshipNeighbor,
 } from "@leapsake/schema";
 import { Breadcrumbs } from "@leapsake/ui/web";
+import { entityBasePath } from "@leapsake/ui/headless";
 import { useLoaderData } from "react-router-dom";
 import { MilestoneForm } from "../components/MilestoneForm";
 import type { RelationshipCandidate } from "../components/RelationshipForm";
-import { entityBasePath } from "../lib/entityLabel";
 import { homeCrumb } from "../lib/crumbs";
 
 /** The bearer entity a new milestone hangs off of. */

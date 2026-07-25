@@ -14,12 +14,16 @@ export interface Detail {
  * Pairs are emitted flat rather than wrapped in the `<div>` grouping HTML5
  * allows: that wrapper exists to give CSS something to lay out, and styling is a
  * later pass. Adding it now would change markup for no present benefit.
+ *
+ * Keyed by position, not by term: a detail list is a fixed, ordered list, and
+ * terms legitimately repeat — a relationship between two siblings shows “Sibling”
+ * twice.
  */
 export function DetailList({ details }: { details: readonly Detail[] }) {
   return (
     <dl>
-      {details.map((detail) => (
-        <Fragment key={detail.term}>
+      {details.map((detail, index) => (
+        <Fragment key={index}>
           <dt>{detail.term}</dt>
           <dd>{detail.value}</dd>
         </Fragment>

@@ -1,11 +1,11 @@
 import type { EntityType } from "@leapsake/schema";
 import { Breadcrumbs } from "@leapsake/ui/web";
+import { entityBasePath } from "@leapsake/ui/headless";
 import { useLoaderData } from "react-router-dom";
 import {
   type RelationshipCandidate,
   RelationshipForm,
 } from "../components/RelationshipForm";
-import { entityBasePath } from "../lib/entityLabel";
 import { homeCrumb } from "../lib/crumbs";
 
 /** The subject entity a new relationship hangs off of. */

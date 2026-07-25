@@ -1,5 +1,9 @@
 import type { SearchHit } from "@leapsake/schema";
-import { useDebouncedSearch, useTypeahead } from "@leapsake/ui/headless";
+import {
+  entityBasePath,
+  useDebouncedSearch,
+  useTypeahead,
+} from "@leapsake/ui/headless";
 import {
   Combobox,
   ComboboxOptionDetail,
@@ -8,7 +12,6 @@ import {
 } from "@leapsake/ui/web";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { entityBasePath } from "../lib/entityLabel";
 
 /**
  * The screen a result opens. Tags, holidays, and gift ideas target their own

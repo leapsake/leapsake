@@ -14,15 +14,20 @@ import type {
   Tag,
 } from "@leapsake/schema";
 import { fullName } from "@leapsake/schema";
-import { Breadcrumbs, GenderValue, type GenderResult } from "@leapsake/ui/web";
+import {
+  Breadcrumbs,
+  ContactMethodsSection,
+  DetailList,
+  GenderValue,
+  MentionedInSection,
+  MilestonesSection,
+  RelationshipsSection,
+  TagsSection,
+  type GenderResult,
+} from "@leapsake/ui/web";
 import { Link, useLoaderData } from "react-router-dom";
-import { ContactMethodsSection } from "../components/ContactMethodsSection";
 import { GiftsSection } from "../components/GiftsSection";
 import { HolidaysSection } from "../components/HolidaysSection";
-import { MentionedInSection } from "../components/MentionedInSection";
-import { MilestonesSection } from "../components/MilestonesSection";
-import { RelationshipsSection } from "../components/RelationshipsSection";
-import { TagsSection } from "../components/TagsSection";
 import { homeCrumb } from "../lib/crumbs";
 
 /** Render an epoch-ms timestamp in the user's locale. */
@@ -83,18 +88,14 @@ export function PersonView() {
         <Link to={`/people/${person.id}/delete`}>Delete</Link>
       </header>
 
-      <dl>
-        <dt>First name</dt>
-        <dd>{person.firstName}</dd>
-        <dt>Middle name</dt>
-        <dd>{person.middleName ?? "—"}</dd>
-        <dt>Last name</dt>
-        <dd>{person.lastName}</dd>
-        <dt>Gender</dt>
-        <dd>
-          <GenderValue gender={gender} />
-        </dd>
-      </dl>
+      <DetailList
+        details={[
+          { term: "First name", value: person.firstName },
+          { term: "Middle name", value: person.middleName ?? "—" },
+          { term: "Last name", value: person.lastName },
+          { term: "Gender", value: <GenderValue gender={gender} /> },
+        ]}
+      />
 
       <ContactMethodsSection personId={person.id} methods={contactMethods} />
 
@@ -129,12 +130,12 @@ export function PersonView() {
 
       <MentionedInSection reminders={mentionedIn} />
 
-      <dl>
-        <dt>Created</dt>
-        <dd>{formatTimestamp(person.createdAt)}</dd>
-        <dt>Updated</dt>
-        <dd>{formatTimestamp(person.updatedAt)}</dd>
-      </dl>
+      <DetailList
+        details={[
+          { term: "Created", value: formatTimestamp(person.createdAt) },
+          { term: "Updated", value: formatTimestamp(person.updatedAt) },
+        ]}
+      />
     </main>
   );
 }

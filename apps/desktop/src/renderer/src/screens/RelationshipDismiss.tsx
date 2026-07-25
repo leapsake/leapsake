@@ -4,8 +4,8 @@ import type {
   RelationshipRole,
 } from "@leapsake/schema";
 import { ConfirmDelete } from "@leapsake/ui/web";
+import { entityBasePath } from "@leapsake/ui/headless";
 import { useLoaderData } from "react-router-dom";
-import { entityBasePath } from "../lib/entityLabel";
 import { useSubmitting } from "../lib/useSubmitting";
 import { homeCrumb } from "../lib/crumbs";
 

@@ -20,6 +20,7 @@ import {
   updateMilestoneInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
+import { entityBasePath } from "@leapsake/ui/headless";
 import {
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
@@ -31,7 +32,6 @@ import { App } from "./App";
 import { ContactMethodCreate } from "./screens/ContactMethodCreate";
 import { ContactMethodDelete } from "./screens/ContactMethodDelete";
 import { ContactMethodEdit } from "./screens/ContactMethodEdit";
-import { entityBasePath } from "./lib/entityLabel";
 import { EntityList } from "./screens/EntityList";
 import { ErrorPage } from "./screens/ErrorPage";
 import { PersonCreate } from "./screens/PersonCreate";

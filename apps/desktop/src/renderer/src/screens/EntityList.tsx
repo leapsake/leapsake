@@ -1,11 +1,11 @@
 import type { EntityRow } from "@leapsake/core";
+import { entityBasePath } from "@leapsake/ui/headless";
 import {
   Link,
   useFetcher,
   useLoaderData,
   useSearchParams,
 } from "react-router-dom";
-import { entityBasePath } from "../lib/entityLabel";
 
 export type { EntityRow };
 
