@@ -19,8 +19,8 @@ it does not link against it.
 
 ## The four pieces
 
-| Module              | What it is                                                        |
-| ------------------- | ----------------------------------------------------------------- |
+| Module              | What it is                                                         |
+| ------------------- | ------------------------------------------------------------------ |
 | `transport.ts`      | The `SyncTransport` port + `createInMemoryTransport` (tests)       |
 | `http-transport.ts` | The authenticated HTTPS blind-relay adapter + the wire codec       |
 | `engine.ts`         | Seal → push → pull → decrypt → apply, routed by table to each repo |

@@ -7,12 +7,12 @@ that document specifies the phases, this package implements them.
 
 ## Surface, by custody phase
 
-| Phase                   | Exports                                                            |
-| ----------------------- | ------------------------------------------------------------------ |
-| **0** — enclave         | `ensureDeviceMasterKey`, `KeySession`                              |
-| **1–2** — password door | `enableSync`, `unlockWithPassword`, `unlockWithRecoveryKey`        |
-| Adoption & repair       | `joinAccount`, `recoverAccount`, `reauthenticate`                  |
-| Status & relinquish     | `getSyncStatus`, `clearLocalAccount`, `KEYSTORE_SECRET_IDS`        |
+| Phase                   | Exports                                                     |
+| ----------------------- | ----------------------------------------------------------- |
+| **0** — enclave         | `ensureDeviceMasterKey`, `KeySession`                       |
+| **1–2** — password door | `enableSync`, `unlockWithPassword`, `unlockWithRecoveryKey` |
+| Adoption & repair       | `joinAccount`, `recoverAccount`, `reauthenticate`           |
+| Status & relinquish     | `getSyncStatus`, `clearLocalAccount`, `KEYSTORE_SECRET_IDS` |
 
 `ensureDeviceMasterKey` is the first `KeyStore` consumer and runs between
 `runMigrations` and `createCore`, which is why it cannot live inside the core it

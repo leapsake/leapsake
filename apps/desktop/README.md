@@ -55,7 +55,7 @@ This reintroduces a native addon (the cost `node:sqlite` had let us avoid — ac
 for at-rest encryption). Two consequences:
 
 - **Electron ABI guard (automatic).** The single native `.node` carries one ABI at a
-  time, and Vitest (Node) and the app (Electron) need *different* ABIs — running one
+  time, and Vitest (Node) and the app (Electron) need _different_ ABIs — running one
   otherwise flips the binary out from under the other. `scripts/ensure-sqlite-abi.mjs`
   (repo root) re-extracts the matching prebuild (from `prebuild-install`'s cache — no
   compile) and is wired into the commands: `dev`/`start`/`rebuild` ensure the Electron

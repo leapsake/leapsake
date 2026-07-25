@@ -352,6 +352,24 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
     },
 
     /**
+     * The date(s) a holiday falls on in one Gregorian year, ISO — the reverse of
+     * reading a date off an occasion, which is what lets a gift form fill
+     * "Christmas" + 1941 in as 1941-12-25 (plans/gifts.md: the occasion runs in
+     * reverse for free).
+     *
+     * Usually one date. A lunisolar holiday can fall **twice** in one Gregorian
+     * year or not at all, so every occurrence is returned and the choice is left
+     * to the caller — the same reason the reminder engine keys occurrences on
+     * date rather than on the holiday. An unknown id returns nothing.
+     */
+    async occurrencesIn(holidayId: string, year: number): Promise<string[]> {
+      const { rows, resolver } = await loadCatalog(deps);
+      const row = rows.find((r) => r.id === holidayId);
+      if (row === undefined) return [];
+      return resolver.occurrencesFor(row.slug, year).map(isoFromCivil);
+    },
+
+    /**
      * Every person and pet as a picker row, with their current answer for this
      * holiday — the "Christmas — who do you celebrate with?" read.
      *

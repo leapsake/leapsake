@@ -22,7 +22,7 @@ of the graph.
 ## Why this is a package, not a `utils` grab-bag
 
 The membership rule is a **security boundary**, not a taxonomy: everything here is
-a codec over *non-secret* data. Nothing touches key material, so nothing here
+a codec over _non-secret_ data. Nothing touches key material, so nothing here
 needs the scrutiny [`@leapsake/crypto`](../crypto/README.md) does.
 
 That distinction was previously unreadable. These helpers lived in `crypto`, so
@@ -33,7 +33,7 @@ answered from the dependency graph. Splitting them out makes it answerable:
 depends on neither `crypto` nor anything that pulls it in, and `apps/server`
 carries `crypto` as a devDependency only.
 
-If something arrives that is pure and portable but is *not* a codec over non-secret
+If something arrives that is pure and portable but is _not_ a codec over non-secret
 bytes, it does not belong here — that is the line that keeps this from becoming a
 junk drawer.
 

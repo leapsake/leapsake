@@ -2,6 +2,8 @@ import type { GiftSuggestionForIdea } from "@leapsake/core";
 import type { GiftPartyType } from "@leapsake/schema";
 import { useRef, useState } from "react";
 import { useRevalidator } from "react-router-dom";
+import { GiftAdornmentsEditor } from "./GiftAdornmentsEditor";
+import { dateFieldsOf } from "./GiftOccasionFields";
 import { MultiAddCombobox } from "./MultiAddCombobox";
 
 /** A person/pet the idea can be suggested for — the add field's pool. */
@@ -36,6 +38,9 @@ export function GiftIdeaRecipientsSection({
   const inFlight = useRef<Promise<void>>(Promise.resolve());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The suggestion whose occasion/target-date editor is open — the same edit the
+  // recipient's own Gifts section offers, from the idea end.
+  const [editing, setEditing] = useState<string | null>(null);
 
   function run(op: () => Promise<unknown>) {
     setBusy(true);
@@ -85,12 +90,40 @@ export function GiftIdeaRecipientsSection({
               <button
                 type="button"
                 disabled={busy}
+                onClick={() => setEditing(editing === s.id ? null : s.id)}
+              >
+                {editing === s.id ? "Close" : "Edit"}
+              </button>{" "}
+              <button
+                type="button"
+                disabled={busy}
                 onClick={() =>
                   run(() => window.api.gifts.suggestions.softDelete(s.id))
                 }
               >
                 Remove
               </button>
+              {editing === s.id && (
+                <GiftAdornmentsEditor
+                  kind="suggestion"
+                  rowId={s.id}
+                  recipient={{ type: s.recipientType, id: s.recipientId }}
+                  occasion={
+                    s.occasionType !== null && s.occasionId !== null
+                      ? { type: s.occasionType, id: s.occasionId }
+                      : null
+                  }
+                  date={dateFieldsOf({
+                    year: s.targetYear,
+                    month: s.targetMonth,
+                    day: s.targetDay,
+                  })}
+                  onDone={() => {
+                    setEditing(null);
+                    revalidator.revalidate();
+                  }}
+                />
+              )}
             </li>
           ))}
         </ul>

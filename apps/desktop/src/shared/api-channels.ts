@@ -38,6 +38,7 @@ export const API_CHANNELS = [
 
   "holidays.list",
   "holidays.get",
+  "holidays.occurrencesIn",
   "holidays.listObservers",
   "holidays.listForBearer",
   "holidays.setObservers",
@@ -89,6 +90,7 @@ export const API_CHANNELS = [
   "gifts.given.update",
   "gifts.given.softDelete",
   "gifts.capture",
+  "gifts.occasionsFor",
   "gifts.overview",
 
   "contactMethods.listForOwner",

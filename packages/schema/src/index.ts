@@ -111,6 +111,7 @@ export {
   createGiftRowInputSchema,
   updateGiftInputSchema,
   giftGivingEntrySchema,
+  captureSuggestionSchema,
   captureRecipientSchema,
   captureGiftInputSchema,
   formatGiftDate,
@@ -124,6 +125,7 @@ export type {
   CreateGiftRowInput,
   UpdateGiftInput,
   GiftGivingEntry,
+  CaptureSuggestion,
   CaptureRecipient,
   CaptureGiftInput,
 } from "./gift.js";

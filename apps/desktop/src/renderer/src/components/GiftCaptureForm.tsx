@@ -1,10 +1,18 @@
+import type { GiftOccasionOption } from "@leapsake/core";
 import type {
   CaptureRecipient,
   GiftIdea,
+  GiftOccasion,
   GiftPartyType,
 } from "@leapsake/schema";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { useNavigate, useRevalidator } from "react-router-dom";
+import {
+  type DateFields,
+  GiftOccasionFields,
+  emptyDate,
+  parseDateFields,
+} from "./GiftOccasionFields";
 import { MultiAddCombobox } from "./MultiAddCombobox";
 
 /** A person/pet that can be a recipient — the Gifts-screen recipient picker's pool. */
@@ -14,114 +22,165 @@ export interface PartyOption {
   label: string;
 }
 
-/** A date row in the form (strings so empty inputs stay empty, not 0/NaN); `id`
- *  is a stable React key across adds/removes. */
-interface DateRow {
+/** One giving being authored: a what-happened date and an optional occasion.
+ *  `id` is a stable React key across adds/removes. */
+interface GivingRow {
   id: string;
-  year: string;
-  month: string;
-  day: string;
+  date: DateFields;
+  occasion: GiftOccasion | null;
 }
 
-/** A recipient in the Gifts-screen form, with *its own* dates (givings are
- *  per-recipient — a date under Alice is a gift to Alice, not to everyone). */
+/** What the "For…" disclosure holds for a recipient that ends up a *suggestion*
+ *  (no dates) — its target date and occasion. */
+interface SuggestionFields {
+  date: DateFields;
+  occasion: GiftOccasion | null;
+}
+
+/** A recipient in the Gifts-screen form, with *its own* givings (a date under
+ *  Alice is a gift to Alice, not to everyone) and its own suggestion fields. */
 interface RecipientEntry {
   option: PartyOption;
-  dates: DateRow[];
+  givings: GivingRow[];
+  suggestion: SuggestionFields;
 }
 
-const newDateRow = (): DateRow => ({
+const newGivingRow = (): GivingRow => ({
   id: crypto.randomUUID(),
-  year: "",
-  month: "",
-  day: "",
+  date: emptyDate(),
+  occasion: null,
 });
 
-/** Parse a date row into a partial date, or null when wholly blank. A lone day
- *  (no month) drops the day (the day⇒month rule). */
-function parseDateRow(
-  row: DateRow,
-): { year: number | null; month: number | null; day: number | null } | null {
-  const num = (s: string) => {
-    const n = Number(s.trim());
-    return s.trim() !== "" && Number.isInteger(n) && n > 0 ? n : null;
-  };
-  const year = num(row.year);
-  const month = num(row.month);
-  const day = month !== null ? num(row.day) : null;
-  if (year === null && month === null && day === null) return null;
-  return { year, month, day };
-}
+const newSuggestionFields = (): SuggestionFields => ({
+  date: emptyDate(),
+  occasion: null,
+});
 
-/** The non-blank date rows as capture givings. */
-function givingsOf(
-  rows: DateRow[],
-): { date: NonNullable<ReturnType<typeof parseDateRow>> }[] {
+/** The giving rows as capture givings — a row with neither a date nor an occasion
+ *  is blank and drops out. */
+function givingsOf(rows: GivingRow[]): {
+  date?: NonNullable<ReturnType<typeof parseDateFields>>;
+  occasion?: GiftOccasion | null;
+}[] {
   return rows
-    .map(parseDateRow)
-    .filter((d): d is NonNullable<typeof d> => d !== null)
-    .map((date) => ({ date }));
+    .map((row) => ({ date: parseDateFields(row.date), occasion: row.occasion }))
+    .filter((g) => g.date !== null || g.occasion !== null)
+    .map((g) => ({
+      ...(g.date === null ? {} : { date: g.date }),
+      occasion: g.occasion,
+    }));
 }
 
-/** The repeatable "Given on…" date rows — reused for the fixed recipient and for
- *  each picked recipient on the Gifts screen. */
-function DateRows({
+/** The repeatable "Given on…" rows — reused for the fixed recipient and for each
+ *  picked recipient on the Gifts screen. Each row carries its own occasion,
+ *  because givings are per-date: two Christmases are two rows. */
+function GivingRows({
   rows,
+  occasions,
   onChange,
 }: {
-  rows: DateRow[];
-  onChange: (rows: DateRow[]) => void;
+  rows: GivingRow[];
+  occasions: GiftOccasionOption[];
+  onChange: (rows: GivingRow[]) => void;
 }) {
-  const update = (id: string, patch: Partial<DateRow>) =>
+  const update = (id: string, patch: Partial<GivingRow>) =>
     onChange(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
   return (
-    <fieldset>
-      <legend>
-        Given on…{" "}
-        <small>(a date makes it a logged gift, not a suggestion)</small>
-      </legend>
+    <div>
       {rows.map((row) => (
-        <p key={row.id}>
-          <input
-            type="number"
-            min="1"
-            placeholder="Year"
-            value={row.year}
-            aria-label="Year"
-            onChange={(e) => update(row.id, { year: e.target.value })}
-          />{" "}
-          <input
-            type="number"
-            min="1"
-            max="12"
-            placeholder="Month"
-            value={row.month}
-            aria-label="Month"
-            onChange={(e) => update(row.id, { month: e.target.value })}
-          />{" "}
-          <input
-            type="number"
-            min="1"
-            max="31"
-            placeholder="Day"
-            value={row.day}
-            aria-label="Day"
-            onChange={(e) => update(row.id, { day: e.target.value })}
-          />{" "}
-          <button
-            type="button"
-            onClick={() => onChange(rows.filter((r) => r.id !== row.id))}
-          >
-            Remove date
-          </button>
-        </p>
+        <div key={row.id}>
+          <GiftOccasionFields
+            legend="Given on… (a date makes it a logged gift, not a suggestion)"
+            occasions={occasions}
+            occasion={row.occasion}
+            onOccasionChange={(occasion) => update(row.id, { occasion })}
+            date={row.date}
+            onDateChange={(date) => update(row.id, { date })}
+          />
+          <p>
+            <button
+              type="button"
+              onClick={() => onChange(rows.filter((r) => r.id !== row.id))}
+            >
+              Remove date
+            </button>
+          </p>
+        </div>
       ))}
-      <button type="button" onClick={() => onChange([...rows, newDateRow()])}>
+      <button type="button" onClick={() => onChange([...rows, newGivingRow()])}>
         + Add a date
       </button>
-    </fieldset>
+    </div>
   );
+}
+
+/**
+ * The suggestion arm's "For…" disclosure — collapsed by default so the common
+ * case (type a gift, pick a person, done) stays two fields. Only offered while
+ * the recipient has no dates: with dates it's a giving, and each giving carries
+ * its own occasion instead.
+ */
+function SuggestionDisclosure({
+  fields,
+  occasions,
+  onChange,
+}: {
+  fields: SuggestionFields;
+  occasions: GiftOccasionOption[];
+  onChange: (fields: SuggestionFields) => void;
+}) {
+  const set = fields.occasion !== null || parseDateFields(fields.date) !== null;
+  return (
+    <details open={set}>
+      <summary>For… (an occasion or a target date, optional)</summary>
+      <GiftOccasionFields
+        legend="For…"
+        occasions={occasions}
+        occasion={fields.occasion}
+        onOccasionChange={(occasion) => onChange({ ...fields, occasion })}
+        date={fields.date}
+        onDateChange={(date) => onChange({ ...fields, date })}
+      />
+    </details>
+  );
+}
+
+/**
+ * The occasions each picked recipient can name, fetched once per party and kept
+ * for the life of the form. Keyed `type:id`; an unfetched party reads as an empty
+ * list, so the pickers render (empty) rather than flicker in.
+ */
+function useOccasionPools(
+  parties: PartyOption[],
+): Map<string, GiftOccasionOption[]> {
+  const [pools, setPools] = useState<Map<string, GiftOccasionOption[]>>(
+    new Map(),
+  );
+  // Which parties have been asked for, in a ref rather than in `pools`: the
+  // effect must not re-run each time a fetch lands, or picking one recipient
+  // would re-ask for every earlier one.
+  const asked = useRef(new Set<string>());
+  const wanted = parties.map((p) => `${p.type}:${p.id}`).join(",");
+
+  useEffect(() => {
+    let active = true;
+    for (const key of wanted === "" ? [] : wanted.split(",")) {
+      if (asked.current.has(key)) continue;
+      asked.current.add(key);
+      const [type, ...rest] = key.split(":");
+      void window.api.gifts
+        .occasionsFor(type as PartyOption["type"], rest.join(":"))
+        .then((options) => {
+          if (active) setPools((prev) => new Map(prev).set(key, options));
+        });
+    }
+    return () => {
+      active = false;
+    };
+  }, [wanted]);
+
+  return pools;
 }
 
 /**
@@ -136,6 +195,11 @@ function DateRows({
  * `fixedRecipient` (Person/Pet screen) and `recipientCandidates` (Gifts screen)
  * are mutually exclusive: the former hides the recipient picker, the latter shows
  * a multi-add over people/pets.
+ *
+ * Both arms can name an **occasion** — a milestone of the recipient's or a holiday
+ * they observe. A giving carries one per date row (two Christmases are two rows);
+ * a suggestion carries one alongside its *target* date, behind a collapsed "For…"
+ * disclosure so the common case stays two fields.
  */
 export function GiftCaptureForm({
   ideaPool,
@@ -160,11 +224,13 @@ export function GiftCaptureForm({
 
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
-  // Fixed-recipient mode: the one recipient's dates live here.
-  const [fixedDates, setFixedDates] = useState<DateRow[]>(() =>
-    startWithGiving ? [newDateRow()] : [],
+  // Fixed-recipient mode: the one recipient's givings and suggestion fields.
+  const [fixedGivings, setFixedGivings] = useState<GivingRow[]>(() =>
+    startWithGiving ? [newGivingRow()] : [],
   );
-  // Gifts-screen mode: recipients each carry their own dates.
+  const [fixedSuggestion, setFixedSuggestion] =
+    useState<SuggestionFields>(newSuggestionFields);
+  // Gifts-screen mode: recipients each carry their own.
   const [recipients, setRecipients] = useState<RecipientEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -176,17 +242,25 @@ export function GiftCaptureForm({
     (c) => !chosenIds.has(`${c.type}:${c.id}`),
   );
 
-  const setRecipientDates = (key: string, dates: DateRow[]) =>
+  // One occasion pool per party in play — the fixed recipient, or everyone picked.
+  const pools = useOccasionPools(
+    fixedRecipient ? [fixedRecipient] : recipients.map((r) => r.option),
+  );
+  const poolFor = (party: PartyOption) =>
+    pools.get(`${party.type}:${party.id}`) ?? [];
+
+  const patchRecipient = (key: string, patch: Partial<RecipientEntry>) =>
     setRecipients((prev) =>
       prev.map((r) =>
-        `${r.option.type}:${r.option.id}` === key ? { ...r, dates } : r,
+        `${r.option.type}:${r.option.id}` === key ? { ...r, ...patch } : r,
       ),
     );
 
   function reset() {
     setTitle("");
     setUrl("");
-    setFixedDates(startWithGiving ? [newDateRow()] : []);
+    setFixedGivings(startWithGiving ? [newGivingRow()] : []);
+    setFixedSuggestion(newSuggestionFields());
     setRecipients([]);
   }
 
@@ -207,17 +281,24 @@ export function GiftCaptureForm({
       ? { id: match.id }
       : { title: trimmed, url: url.trim() !== "" ? url.trim() : undefined };
 
+    // Each recipient carries both arms; core reads the givings when there are
+    // any and the suggestion fields otherwise.
+    const entryFor = (
+      party: PartyOption,
+      givings: GivingRow[],
+      suggestion: SuggestionFields,
+    ): CaptureRecipient => ({
+      party: { type: party.type, id: party.id },
+      givings: givingsOf(givings),
+      suggestion: {
+        occasion: suggestion.occasion,
+        targetDate: parseDateFields(suggestion.date),
+      },
+    });
+
     const captureRecipients: CaptureRecipient[] = fixedRecipient
-      ? [
-          {
-            party: { type: fixedRecipient.type, id: fixedRecipient.id },
-            givings: givingsOf(fixedDates),
-          },
-        ]
-      : recipients.map((r) => ({
-          party: { type: r.option.type, id: r.option.id },
-          givings: givingsOf(r.dates),
-        }));
+      ? [entryFor(fixedRecipient, fixedGivings, fixedSuggestion)]
+      : recipients.map((r) => entryFor(r.option, r.givings, r.suggestion));
 
     setBusy(true);
     setError(null);
@@ -240,8 +321,8 @@ export function GiftCaptureForm({
   }
 
   const anyDates = fixedRecipient
-    ? fixedDates.length > 0
-    : recipients.some((r) => r.dates.length > 0);
+    ? fixedGivings.length > 0
+    : recipients.some((r) => r.givings.length > 0);
 
   return (
     <form onSubmit={submit}>
@@ -271,7 +352,20 @@ export function GiftCaptureForm({
         </p>
 
         {fixedRecipient ? (
-          <DateRows rows={fixedDates} onChange={setFixedDates} />
+          <>
+            {fixedGivings.length === 0 && (
+              <SuggestionDisclosure
+                fields={fixedSuggestion}
+                occasions={poolFor(fixedRecipient)}
+                onChange={setFixedSuggestion}
+              />
+            )}
+            <GivingRows
+              rows={fixedGivings}
+              occasions={poolFor(fixedRecipient)}
+              onChange={setFixedGivings}
+            />
+          </>
         ) : (
           <div>
             <MultiAddCombobox
@@ -281,7 +375,14 @@ export function GiftCaptureForm({
               getKey={(c) => `${c.type}:${c.id}`}
               getLabel={(c) => c.label}
               onPick={(c) =>
-                setRecipients((prev) => [...prev, { option: c, dates: [] }])
+                setRecipients((prev) => [
+                  ...prev,
+                  {
+                    option: c,
+                    givings: [],
+                    suggestion: newSuggestionFields(),
+                  },
+                ])
               }
             />
             {recipients.map((r) => {
@@ -303,9 +404,19 @@ export function GiftCaptureForm({
                       Remove
                     </button>
                   </legend>
-                  <DateRows
-                    rows={r.dates}
-                    onChange={(dates) => setRecipientDates(key, dates)}
+                  {r.givings.length === 0 && (
+                    <SuggestionDisclosure
+                      fields={r.suggestion}
+                      occasions={poolFor(r.option)}
+                      onChange={(suggestion) =>
+                        patchRecipient(key, { suggestion })
+                      }
+                    />
+                  )}
+                  <GivingRows
+                    rows={r.givings}
+                    occasions={poolFor(r.option)}
+                    onChange={(givings) => patchRecipient(key, { givings })}
                   />
                 </fieldset>
               );

@@ -6,7 +6,9 @@ import type { GiftIdea, GiftPartyType } from "@leapsake/schema";
 import { formatGiftDate, formatGiftTargetDate } from "@leapsake/schema";
 import { useRef, useState } from "react";
 import { Link, useRevalidator } from "react-router-dom";
+import { GiftAdornmentsEditor } from "./GiftAdornmentsEditor";
 import { GiftCaptureForm } from "./GiftCaptureForm";
+import { dateFieldsOf } from "./GiftOccasionFields";
 
 /** One gift idea's standing for this recipient: its suggestion(s), if any, and
  *  its giving(s), if any — the two tables unioned by idea for a single list. */
@@ -77,6 +79,14 @@ export function GiftsSection({
   const inFlight = useRef<Promise<void>>(Promise.resolve());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Which row (if any) has its occasion/date editor open — one at a time, keyed
+  // by row id, so the list doesn't grow a form per entry.
+  const [editing, setEditing] = useState<string | null>(null);
+  const recipient = { type: recipientType, id: recipientId };
+  const closeEditor = () => {
+    setEditing(null);
+    revalidator.revalidate();
+  };
 
   function run(op: () => Promise<unknown>) {
     setBusy(true);
@@ -138,6 +148,15 @@ export function GiftsSection({
                         type="button"
                         disabled={busy}
                         onClick={() =>
+                          setEditing(editing === s.id ? null : s.id)
+                        }
+                      >
+                        {editing === s.id ? "Close" : "Edit"}
+                      </button>{" "}
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
                           run(() =>
                             window.api.gifts.suggestions.softDelete(s.id),
                           )
@@ -145,6 +164,24 @@ export function GiftsSection({
                       >
                         Remove
                       </button>
+                      {editing === s.id && (
+                        <GiftAdornmentsEditor
+                          kind="suggestion"
+                          rowId={s.id}
+                          recipient={recipient}
+                          occasion={
+                            s.occasionType !== null && s.occasionId !== null
+                              ? { type: s.occasionType, id: s.occasionId }
+                              : null
+                          }
+                          date={dateFieldsOf({
+                            year: s.targetYear,
+                            month: s.targetMonth,
+                            day: s.targetDay,
+                          })}
+                          onDone={closeEditor}
+                        />
+                      )}
                     </li>
                   );
                 })}
@@ -162,11 +199,34 @@ export function GiftsSection({
                         type="button"
                         disabled={busy}
                         onClick={() =>
+                          setEditing(editing === g.id ? null : g.id)
+                        }
+                      >
+                        {editing === g.id ? "Close" : "Edit"}
+                      </button>{" "}
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
                           run(() => window.api.gifts.given.softDelete(g.id))
                         }
                       >
                         Remove
                       </button>
+                      {editing === g.id && (
+                        <GiftAdornmentsEditor
+                          kind="giving"
+                          rowId={g.id}
+                          recipient={recipient}
+                          occasion={
+                            g.occasionType !== null && g.occasionId !== null
+                              ? { type: g.occasionType, id: g.occasionId }
+                              : null
+                          }
+                          date={dateFieldsOf(g)}
+                          onDone={closeEditor}
+                        />
+                      )}
                     </li>
                   );
                 })}

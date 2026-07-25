@@ -3,7 +3,9 @@ import {
   type SqliteDriver,
   createCore,
   runMigrations,
+  seedHolidayCatalog,
 } from "@leapsake/core";
+import { holidayIdFor } from "@leapsake/data";
 import { type CivilDate, reminderLabel, todayCivil } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
@@ -15,6 +17,9 @@ let core: CoreApi;
 beforeEach(async () => {
   ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
+  // The bundled catalog: an occasion can point at a holiday, so these tests need
+  // real holiday rows to point at (and to observe).
+  await seedHolidayCatalog({ driver });
   core = createCore(driver);
 });
 
@@ -339,6 +344,53 @@ describe("core.gifts.capture (the consolidated create)", () => {
     expect(g?.giverLabel).toBeNull();
   });
 
+  it("carries the suggestion arm's occasion and target date onto the candidate", async () => {
+    const alice = await makePerson("Alice");
+    const christmas = holidayIdFor("christmas");
+    await core.gifts.capture({
+      giftIdea: { title: "Scarf" },
+      recipients: [
+        {
+          party: { type: "person", id: alice },
+          suggestion: {
+            occasion: { type: "holiday", id: christmas },
+            targetDate: { year: 2026, month: 12, day: 25 },
+          },
+        },
+      ],
+    });
+
+    const [s] = await core.gifts.suggestions.listForRecipient("person", alice);
+    expect(s?.occasionType).toBe("holiday");
+    expect(s?.occasionId).toBe(christmas);
+    expect(s?.occasionLabel).toBe("Christmas");
+    expect([s?.targetYear, s?.targetMonth, s?.targetDay]).toEqual([
+      2026, 12, 25,
+    ]);
+  });
+
+  it("ignores the suggestion arm when the recipient has givings", async () => {
+    const alice = await makePerson("Alice");
+    // Givings win: this recipient is a fact, not a candidate, so nothing reads
+    // the suggestion adornments and no suggestion row is written at all.
+    await core.gifts.capture({
+      giftIdea: { title: "Scarf" },
+      recipients: [
+        {
+          party: { type: "person", id: alice },
+          givings: [{ date: { year: 1941 } }],
+          suggestion: { targetDate: { year: 2026 } },
+        },
+      ],
+    });
+
+    expect(
+      await core.gifts.suggestions.listForRecipient("person", alice),
+    ).toEqual([]);
+    const [g] = await core.gifts.given.listForRecipient("person", alice);
+    expect(g?.year).toBe(1941);
+  });
+
   it("reuses an existing idea by id rather than minting a duplicate", async () => {
     const alice = await makePerson("Alice");
     const idea = await core.gifts.ideas.create({ title: "Scarf" });
@@ -349,6 +401,95 @@ describe("core.gifts.capture (the consolidated create)", () => {
     expect(await core.gifts.ideas.list()).toHaveLength(1);
     const [s] = await core.gifts.suggestions.listForRecipient("person", alice);
     expect(s?.giftIdeaId).toBe(idea.id);
+  });
+});
+
+/**
+ * The occasion pool a gift form's picker draws from (plans/gifts.md). Narrow by
+ * design: the recipient's own milestones plus the holidays they observe — never
+ * the whole catalog, which would offer "Christmas" to someone who doesn't keep it.
+ */
+describe("core.gifts.occasionsFor", () => {
+  it("offers the party's own milestones and the holidays they observe", async () => {
+    const alice = await makePerson("Alice");
+    await core.milestones.create({
+      bearerType: "person",
+      bearerId: alice,
+      kind: "birthday",
+      year: 1990,
+      month: 3,
+      day: 9,
+      note: null,
+    });
+    const christmas = holidayIdFor("christmas");
+    await core.holidays.setObservers(christmas, [
+      { bearerType: "person", bearerId: alice, observes: true },
+    ]);
+
+    const options = await core.gifts.occasionsFor("person", alice);
+    expect(options).toEqual([
+      { type: "milestone", id: expect.any(String), label: "Birthday" },
+      { type: "holiday", id: christmas, label: "Christmas" },
+    ]);
+  });
+
+  it("omits holidays the party doesn't observe", async () => {
+    const bob = await makePerson("Bob");
+    const options = await core.gifts.occasionsFor("person", bob);
+    expect(options.filter((o) => o.type === "holiday")).toEqual([]);
+  });
+
+  it("labels an occasion the way the row reads it back", async () => {
+    // The picker's label and `resolveOccasionLabel`'s must agree, or picking
+    // "Birthday" would render as something else on the saved row.
+    const alice = await makePerson("Alice");
+    const milestone = await core.milestones.create({
+      bearerType: "person",
+      bearerId: alice,
+      kind: "other",
+      year: null,
+      month: 6,
+      day: 1,
+      note: "Graduation",
+    });
+    const idea = await core.gifts.ideas.create({ title: "Pen" });
+    await core.gifts.suggestions.create({
+      giftIdeaId: idea.id,
+      recipientType: "person",
+      recipientId: alice,
+      occasion: { type: "milestone", id: milestone.id },
+    });
+
+    const [option] = await core.gifts.occasionsFor("person", alice);
+    const [suggestion] = await core.gifts.suggestions.listForRecipient(
+      "person",
+      alice,
+    );
+    expect(option?.label).toBe(suggestion?.occasionLabel);
+  });
+});
+
+/**
+ * The reverse fill (plans/gifts.md): an occasion + a year resolves back to a
+ * date, so "Christmas 1941" can fill in Dec 25 without the user counting.
+ */
+describe("core.holidays.occurrencesIn", () => {
+  it("resolves a fixed holiday's date in a given year", async () => {
+    expect(
+      await core.holidays.occurrencesIn(holidayIdFor("christmas"), 1941),
+    ).toEqual(["1941-12-25"]);
+  });
+
+  it("resolves a computed holiday's date in a given year", async () => {
+    expect(
+      await core.holidays.occurrencesIn(holidayIdFor("us-mothers-day"), 2026),
+    ).toEqual(["2026-05-10"]);
+  });
+
+  it("returns nothing for an unknown holiday", async () => {
+    expect(
+      await core.holidays.occurrencesIn(holidayIdFor("nope"), 2026),
+    ).toEqual([]);
   });
 });
 

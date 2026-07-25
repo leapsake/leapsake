@@ -65,6 +65,7 @@ import type {
   SearchHit,
   SelfPerson,
   GiftIdea,
+  GiftOccasionType,
   GiftPartyType,
   GiftSuggestion,
   Gift,
@@ -258,6 +259,23 @@ export interface GiftReminderTarget {
   reminderId: string;
   recipientType: GiftPartyType;
   recipientId: string;
+}
+
+/**
+ * One pickable occasion for a gift to or from a given party — a milestone of
+ * theirs, or a holiday they observe — already labelled the way
+ * `resolveOccasionLabel` reads it back, so the picker and the rendered row can't
+ * disagree.
+ *
+ * Deliberately **narrow**: offering the whole holiday catalog would suggest
+ * "Christmas" for someone who doesn't keep it. Widening it (to the full catalog,
+ * or to a partner's milestones) is a change inside `gifts.occasionsFor` alone —
+ * the option shape and every caller stay as they are.
+ */
+export interface GiftOccasionOption {
+  type: GiftOccasionType;
+  id: string;
+  label: string;
 }
 
 /**
@@ -1409,13 +1427,17 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
                 : null;
           }
 
-          for (const { party, givings } of input.recipients) {
+          for (const { party, givings, suggestion } of input.recipients) {
             const entries = givings ?? [];
             if (entries.length === 0) {
               await giftSuggestions.create({
                 giftIdeaId: idea.id,
                 recipientType: party.type,
                 recipientId: party.id,
+                // The candidate's adornments — "for Christmas 2026". Only this
+                // arm reads them; a recipient with givings gets each giving's own.
+                occasion: suggestion?.occasion,
+                targetDate: suggestion?.targetDate,
               });
               continue;
             }
@@ -1439,6 +1461,34 @@ export function createCore(driver: SqliteDriver, keySession?: KeySession) {
           }
           return idea;
         }),
+
+      // The occasions a gift for this party can name: their own milestones, then
+      // the holidays they observe. Both arms of the gift forms read it — a
+      // suggestion's "for Christmas" and a giving's "it was their birthday" — and
+      // it stays narrow on purpose (see {@link GiftOccasionOption}).
+      occasionsFor: async (
+        type: GiftPartyType,
+        id: string,
+      ): Promise<GiftOccasionOption[]> => {
+        const [own, holidayCandidates] = await Promise.all([
+          milestones.listForBearer(type, id),
+          holidaysApi.listForBearer(type, id),
+        ]);
+        return [
+          ...own.map((m) => ({
+            type: "milestone" as const,
+            id: m.id,
+            label: milestoneLabel(m),
+          })),
+          ...holidayCandidates
+            .filter((h) => h.observes)
+            .map((h) => ({
+              type: "holiday" as const,
+              id: h.id,
+              label: h.name,
+            })),
+        ];
+      },
 
       // The Gifts screen, keyed by idea: every idea with everyone it's suggested
       // for and every giving of it. Ideas keep their newest-first list order.

@@ -3,6 +3,7 @@ import {
   giftOccasionSchema,
   giftOccasionTypeSchema,
   giftPartyTypeSchema,
+  giftTargetDateSchema,
 } from "./gift-suggestion.js";
 import { formatMilestoneDate } from "./milestone.js";
 
@@ -160,14 +161,34 @@ export const giftGivingEntrySchema = z.object({
 export type GiftGivingEntry = z.infer<typeof giftGivingEntrySchema>;
 
 /**
+ * What a recipient's **suggestion** arm carries when it has no givings: the
+ * occasion it's for and the target date it's aimed at ("for Christmas 2026",
+ * "before her trip on the 3rd", "someday" — plans/gifts.md). The mirror of a
+ * {@link giftGivingEntrySchema}'s adornments, one arm over.
+ */
+export const captureSuggestionSchema = z.object({
+  occasion: giftOccasionSchema.nullable().optional(),
+  targetDate: giftTargetDateSchema.nullable().optional(),
+});
+
+export type CaptureSuggestion = z.infer<typeof captureSuggestionSchema>;
+
+/**
  * One recipient in a {@link captureGiftInputSchema} payload, with **its own**
  * givings — givings are per-recipient (you gave Alice one on Christmas and Bob one
  * on his birthday), never shared across the whole payload. No givings ⇒ a
  * suggestion for this recipient; one-or-more ⇒ a gift each.
+ *
+ * The two arms carry their adornments separately and neither is shared: with
+ * givings, each giving names its own date + occasion; without, {@link suggestion}
+ * names the target date + occasion of the candidate. Givings win — a recipient
+ * that has both is that many gifts, and `suggestion` is ignored, since a giving
+ * is a fact and a suggestion is only a candidate for one.
  */
 export const captureRecipientSchema = z.object({
   party: giftPartySchema,
   givings: z.array(giftGivingEntrySchema).optional(),
+  suggestion: captureSuggestionSchema.optional(),
 });
 
 export type CaptureRecipient = z.infer<typeof captureRecipientSchema>;
