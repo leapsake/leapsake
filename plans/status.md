@@ -17,8 +17,10 @@
 > capture form, the idea edit screen, the Person/Pet Gifts section, gift-idea search hits, tagged
 > ideas on a tag's page, and the same gift reminder CTA). The long-deferred **occasion picker +
 > target-date inputs** then landed on **both** clients, with the occasion running in reverse
-> ("Christmas" + 1941 → Dec 25) and suggestions/givings editable after the fact. **Gifts is
-> feature-complete; only a device pass on the mobile screens is outstanding.** *Earlier
+> ("Christmas" + 1941 → Dec 25) and suggestions/givings editable after the fact. A doc-vs-code audit
+> closed three more gaps (the re-gift guard on the add path, the mobile post-import pick-yourself
+> prompt, given ideas sinking on `/gifts`). **Gifts is feature-complete; what's left is a device pass
+> and two named follow-ons — see *What's next*.** *Earlier
 > (2026-07-20):* **Holidays shipped on both clients** — a `@leapsake/holidays` catalog + recurrence
 > engine, three synced tables (holidays / observances / hidden_holidays), the `/holidays` browse + an
 > autocomplete for authoring observances from either end, engine wiring to `system` reminders, global
@@ -236,12 +238,25 @@ can't ship without distributable apps. (None yet.)
   future task is calendrical and distant: **extend both tables before ~2050**, re-deriving rather
   than extrapolating.
 - **Gifts — feature-complete.** Every slice plus the occasion / target-date increment is done on both
-  clients — see *Where things stand*. **The only outstanding item is a device pass** on the mobile
-  gift screens (the port and the occasion UI both typecheck, lint, and are covered by the node suite,
-  but nothing has been driven on a booted simulator/emulator). Design: [`gifts.md`](./gifts.md).
-  Natural follow-ons, none scheduled: a note on a suggestion (deliberately omitted in v1), gift ideas
-  as the next consumer of the reconciliation substrate for near-duplicate titles, and widening
-  `gifts.occasionsFor` past the observed-holiday pool if that proves too narrow in use.
+  clients — see *Where things stand*. A doc-vs-code audit then closed three gaps: the **re-gift guard
+  on the add path** (the capture form now warns "⚠ Alice was already given this — Christmas 1941"
+  while you type, not just in the list below — sequencing 3's third bullet, which the annotation
+  alone never covered), the **pick-yourself prompt after a mobile import** (desktop had it; slice 0
+  calls import "a natural prompt point"), and **given ideas sinking on `/gifts`**, matching the
+  Person/Pet section. Design: [`gifts.md`](./gifts.md).
+  **Still outstanding, in order:**
+  1. **A device pass** on the mobile gift screens — everything typechecks, lints, and is covered by
+     the node suite, but nothing has been driven on a booted simulator/emulator.
+  2. **Suggestion → Reminder.** `gifts.md` says "a target date is not a nag… if the user wants to be
+     reminded, the suggestion spawns a **Reminder**" (`due_date` + an `@Ralphie` mention, existing
+     machinery). No affordance exists on either client, so a target date is currently inert — which
+     is the doc's *reasoning*, but only half of it.
+  3. **URL-first title derivation** ("derive one from the page title or host"). Both capture forms
+     require a title. Wait for the share target / browser extension that motivates it.
+  Deliberately not-v1, per the doc: received & third-party gifts (schema ready — a pure UI
+  increment), near-duplicate idea merging via the reconciliation substrate, a note on a suggestion,
+  and the kinship ego anchor. Also unscheduled: widening `gifts.occasionsFor` past the
+  observed-holiday pool if that proves too narrow in use.
 
 ### v0.2 (first post-launch feature increment)
 

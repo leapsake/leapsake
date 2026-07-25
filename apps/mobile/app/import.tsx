@@ -78,6 +78,8 @@ export default function ImportScreen() {
   const [search, setSearch] = useState("");
   const [committing, setCommitting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
+  // Whether the done screen offers "which of these is you?" — see {@link commit}.
+  const [promptSelf, setPromptSelf] = useState(false);
 
   // Read the address book once, then fetch duplicate flags. A preview failure
   // just leaves rows unflagged (the import still works).
@@ -153,7 +155,13 @@ export default function ImportScreen() {
       .filter(({ index }) => selected.has(index))
       .map(({ contact }) => ({ action: "create" as const, contact }));
     try {
-      setResult(await core.import.commit(decisions));
+      const imported = await core.import.commit(decisions);
+      setResult(imported);
+      // Import is a natural prompt point for the self-person (plans/gifts.md
+      // §Slice 0), mirroring desktop's ImportReview: offer it only when people
+      // actually landed and no self is set yet — there's now a list to pick from.
+      const self = await core.self.get().catch(() => undefined);
+      setPromptSelf(imported.created > 0 && self === undefined);
     } catch (cause) {
       Alert.alert("Import failed", String(cause));
     } finally {
@@ -182,12 +190,25 @@ export default function ImportScreen() {
             ))}
           </View>
         )}
+        {promptSelf && (
+          <View style={{ gap: 8 }}>
+            <Text style={styles.rowText}>Which of these is you?</Text>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.button}
+              onPress={() => router.replace("/(tabs)/people?pick=self")}
+            >
+              <Text style={styles.buttonText}>Pick yourself</Text>
+            </Pressable>
+          </View>
+        )}
         <Pressable
           accessibilityRole="button"
-          style={styles.button}
+          // Secondary once the self prompt is up, so "Pick yourself" leads.
+          style={promptSelf ? undefined : styles.button}
           onPress={() => router.replace("/(tabs)/people")}
         >
-          <Text style={styles.buttonText}>Done</Text>
+          <Text style={promptSelf ? styles.link : styles.buttonText}>Done</Text>
         </Pressable>
       </Screen>
     );

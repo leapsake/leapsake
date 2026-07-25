@@ -15,7 +15,15 @@ const joinBits = (bits: (string | null)[]) => bits.filter(Boolean).join(", ");
  * "Add a gift" link), so this stays a plain list — the People & Pets pattern.
  */
 export function GiftList() {
-  const overview = useLoaderData() as GiftIdeaOverview[];
+  const loaded = useLoaderData() as GiftIdeaOverview[];
+  // Ideas already given sink to the bottom, keeping the shopping list on top —
+  // the same posture the Person/Pet Gifts section takes (plans/gifts.md: "sort
+  // given ones down"). Nothing is hidden: an idea given once is still a fine
+  // idea to give again, and filtering would strand it. Within each half the
+  // repo's newest-first order stands.
+  const overview = [...loaded].sort(
+    (a, b) => (a.gifts.length > 0 ? 1 : 0) - (b.gifts.length > 0 ? 1 : 0),
+  );
 
   return (
     <main>

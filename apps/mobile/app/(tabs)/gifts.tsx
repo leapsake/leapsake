@@ -42,10 +42,19 @@ export default function GiftsScreen() {
     );
   }
 
+  // Ideas already given sink to the bottom, keeping the shopping list on top —
+  // the same posture the Person/Pet Gifts section takes (plans/gifts.md: "sort
+  // given ones down"). Nothing is hidden: an idea given once is still a fine idea
+  // to give again, and filtering would strand it. Within each half the repo's
+  // newest-first order stands.
+  const ordered = [...data].sort(
+    (a, b) => (a.gifts.length > 0 ? 1 : 0) - (b.gifts.length > 0 ? 1 : 0),
+  );
+
   return (
     <FlatList<GiftIdeaOverview>
       contentContainerStyle={styles.screen}
-      data={data}
+      data={ordered}
       keyExtractor={(row) => row.idea.id}
       ListEmptyComponent={<Text style={styles.muted}>No gifts yet.</Text>}
       renderItem={({ item: { idea, tags, suggestions, gifts } }) => (

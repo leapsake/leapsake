@@ -1,10 +1,11 @@
-import type { GiftOccasionOption } from "@leapsake/core";
+import type { GiftForRecipient, GiftOccasionOption } from "@leapsake/core";
 import type {
   CaptureRecipient,
   GiftIdea,
   GiftOccasion,
   GiftPartyType,
 } from "@leapsake/schema";
+import { formatGiftDate } from "@leapsake/schema";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { useNavigate, useRevalidator } from "react-router-dom";
 import {
@@ -147,16 +148,48 @@ function SuggestionDisclosure({
 }
 
 /**
- * The occasions each picked recipient can name, fetched once per party and kept
- * for the life of the form. Keyed `type:id`; an unfetched party reads as an empty
- * list, so the pickers render (empty) rather than flicker in.
+ * The re-gift guard (plans/gifts.md sequencing 3): what this recipient has
+ * *already been given* of the idea being typed. A giving points at the idea, so
+ * this is the same `(gift_idea_id, recipient)` read the "✓ given" annotation
+ * makes — surfaced here, at the moment it can still change the user's mind,
+ * rather than only in the list below.
+ *
+ * Phrased without a giver on purpose: what matters is that they already have one,
+ * whoever gave it.
  */
-function useOccasionPools(
-  parties: PartyOption[],
-): Map<string, GiftOccasionOption[]> {
-  const [pools, setPools] = useState<Map<string, GiftOccasionOption[]>>(
-    new Map(),
+function AlreadyGivenNotice({
+  label,
+  gifts,
+}: {
+  label: string;
+  gifts: GiftForRecipient[];
+}) {
+  if (gifts.length === 0) return null;
+  const when = gifts.map((g) => formatGiftDate(g)).filter((s) => s !== "");
+  return (
+    <p>
+      ⚠ {label} was already given this
+      {when.length > 0 ? ` — ${when.join(", ")}` : ""}.
+    </p>
   );
+}
+
+/** What the form knows about one party: the occasions it can name, and what it
+ *  has already been given (the re-gift guard's source). */
+interface PartyContext {
+  occasions: GiftOccasionOption[];
+  given: GiftForRecipient[];
+}
+
+const EMPTY_CONTEXT: PartyContext = { occasions: [], given: [] };
+
+/**
+ * Each party's context, fetched once per party and kept for the life of the form.
+ * Keyed `type:id`; an unfetched party reads as empty, so the pickers render
+ * (empty) rather than flicker in.
+ */
+function usePartyContext(parties: PartyOption[]): Map<string, PartyContext> {
+  const [pools, setPools] = useState<Map<string, PartyContext>>(new Map());
   // Which parties have been asked for, in a ref rather than in `pools`: the
   // effect must not re-run each time a fetch lands, or picking one recipient
   // would re-ask for every earlier one.
@@ -169,11 +202,16 @@ function useOccasionPools(
       if (asked.current.has(key)) continue;
       asked.current.add(key);
       const [type, ...rest] = key.split(":");
-      void window.api.gifts
-        .occasionsFor(type as PartyOption["type"], rest.join(":"))
-        .then((options) => {
-          if (active) setPools((prev) => new Map(prev).set(key, options));
-        });
+      const party = type as PartyOption["type"];
+      const id = rest.join(":");
+      void Promise.all([
+        window.api.gifts.occasionsFor(party, id),
+        window.api.gifts.given.listForRecipient(party, id),
+      ]).then(([occasions, given]) => {
+        if (active) {
+          setPools((prev) => new Map(prev).set(key, { occasions, given }));
+        }
+      });
     }
     return () => {
       active = false;
@@ -242,12 +280,13 @@ export function GiftCaptureForm({
     (c) => !chosenIds.has(`${c.type}:${c.id}`),
   );
 
-  // One occasion pool per party in play — the fixed recipient, or everyone picked.
-  const pools = useOccasionPools(
+  // One context per party in play — the fixed recipient, or everyone picked.
+  const pools = usePartyContext(
     fixedRecipient ? [fixedRecipient] : recipients.map((r) => r.option),
   );
-  const poolFor = (party: PartyOption) =>
-    pools.get(`${party.type}:${party.id}`) ?? [];
+  const contextFor = (party: PartyOption) =>
+    pools.get(`${party.type}:${party.id}`) ?? EMPTY_CONTEXT;
+  const poolFor = (party: PartyOption) => contextFor(party).occasions;
 
   const patchRecipient = (key: string, patch: Partial<RecipientEntry>) =>
     setRecipients((prev) =>
@@ -255,6 +294,22 @@ export function GiftCaptureForm({
         `${r.option.type}:${r.option.id}` === key ? { ...r, ...patch } : r,
       ),
     );
+
+  // An exact (case-insensitive) title match reuses the existing idea rather than
+  // minting a duplicate; otherwise it's a new idea. Near-duplicate *different*
+  // titles are still allowed (tolerated by design). A brand-new title can't have
+  // been given before, so the re-gift guard keys off this same match.
+  const trimmedTitle = title.trim();
+  const typedIdea =
+    trimmedTitle === ""
+      ? undefined
+      : ideaPool.find(
+          (i) => i.title.toLowerCase() === trimmedTitle.toLowerCase(),
+        );
+  const alreadyGiven = (party: PartyOption): GiftForRecipient[] =>
+    typedIdea === undefined
+      ? []
+      : contextFor(party).given.filter((g) => g.giftIdeaId === typedIdea.id);
 
   function reset() {
     setTitle("");
@@ -266,20 +321,16 @@ export function GiftCaptureForm({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const trimmed = title.trim();
-    if (trimmed === "") {
+    if (trimmedTitle === "") {
       setError("A gift needs a name.");
       return;
     }
-    // An exact (case-insensitive) title match reuses the existing idea rather than
-    // minting a duplicate; otherwise it's a new idea. Near-duplicate *different*
-    // titles are still allowed (tolerated by design).
-    const match = ideaPool.find(
-      (i) => i.title.toLowerCase() === trimmed.toLowerCase(),
-    );
-    const giftIdea = match
-      ? { id: match.id }
-      : { title: trimmed, url: url.trim() !== "" ? url.trim() : undefined };
+    const giftIdea = typedIdea
+      ? { id: typedIdea.id }
+      : {
+          title: trimmedTitle,
+          url: url.trim() !== "" ? url.trim() : undefined,
+        };
 
     // Each recipient carries both arms; core reads the givings when there are
     // any and the suggestion fields otherwise.
@@ -353,6 +404,10 @@ export function GiftCaptureForm({
 
         {fixedRecipient ? (
           <>
+            <AlreadyGivenNotice
+              label={fixedRecipient.label}
+              gifts={alreadyGiven(fixedRecipient)}
+            />
             {fixedGivings.length === 0 && (
               <SuggestionDisclosure
                 fields={fixedSuggestion}
@@ -404,6 +459,10 @@ export function GiftCaptureForm({
                       Remove
                     </button>
                   </legend>
+                  <AlreadyGivenNotice
+                    label={r.option.label}
+                    gifts={alreadyGiven(r.option)}
+                  />
                   {r.givings.length === 0 && (
                     <SuggestionDisclosure
                       fields={r.suggestion}
