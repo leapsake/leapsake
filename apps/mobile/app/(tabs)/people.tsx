@@ -1,7 +1,14 @@
 import { useCallback } from "react";
-import { ActivityIndicator, FlatList, Text, View } from "react-native";
-import { Link } from "expo-router";
-import type { EntityRow } from "@leapsake/core";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
+import { Link, useLocalSearchParams, useRouter } from "expo-router";
+import type { CoreApi, EntityRow } from "@leapsake/core";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
@@ -11,10 +18,24 @@ import { colors, styles } from "../../lib/styles";
 // own detail page. The muted "(pet)" suffix keeps the two entity types visually
 // distinguishable in the shared list. This screen's title and "Add" actions live
 // on the tab navigator (app/(tabs)/_layout.tsx), which owns this tab's header.
+//
+// `?pick=self` puts the screen in **pick-yourself** mode, which is where the
+// "🙋 Which of these is you?" onboarding nudge lands (app/(tabs)/index.tsx maps
+// it here): each Person row grows a "This is me" action that sets the
+// self-person (plans/gifts.md §Slice 0). Pets can't be you, so they offer
+// nothing in that mode. The picked person keeps a "(You)" badge afterwards — the
+// readback that the pick landed, in either mode.
 export default function PeoplePetsScreen() {
   const core = useCore();
-  const load = useCallback(() => core.views.entityList(), [core]);
-  const { data: entities, error } = useFocusedData(load);
+  const { pick } = useLocalSearchParams<{ pick?: string }>();
+  const picking = pick === "self";
+
+  const load = useCallback(
+    () => Promise.all([core.views.entityList(), core.self.get()]),
+    [core],
+  );
+  const { data, error, reload } = useFocusedData(load);
+  const [entities, self] = data ?? [null, undefined];
 
   return (
     <View style={styles.screen}>
@@ -27,28 +48,99 @@ export default function PeoplePetsScreen() {
           data={entities}
           keyExtractor={(entity) => `${entity.type}:${entity.id}`}
           ListHeaderComponent={
-            <Link href="/duplicates" style={[styles.row, styles.link]}>
-              Review duplicates
-            </Link>
+            picking ? (
+              <Text style={[styles.row, styles.muted]}>
+                Which of these is you? Pick yourself from the list.
+              </Text>
+            ) : (
+              <Link href="/duplicates" style={[styles.row, styles.link]}>
+                Review duplicates
+              </Link>
+            )
           }
           ListEmptyComponent={
             <Text style={styles.muted}>Nobody here yet.</Text>
           }
-          renderItem={({ item }) => <EntityListRow entity={item} />}
+          renderItem={({ item }) => (
+            <EntityListRow
+              entity={item}
+              isSelf={item.type === "person" && item.id === self?.personId}
+              picking={picking}
+              onReload={reload}
+            />
+          )}
         />
       )}
     </View>
   );
 }
 
-function EntityListRow({ entity }: { entity: EntityRow }) {
+/**
+ * Set the self-person, then leave pick mode so the list goes back to ordinary
+ * navigation. `reload` refreshes in place (nothing navigates here, so no refocus
+ * would fire on its own) and the badge appears on the picked row.
+ */
+async function pickSelf(
+  core: CoreApi,
+  personId: string,
+  reload: () => Promise<void>,
+  leavePickMode: () => void,
+): Promise<void> {
+  try {
+    await core.self.set(personId);
+    await reload();
+    leavePickMode();
+  } catch (e) {
+    Alert.alert("Couldn't set", String(e));
+  }
+}
+
+function EntityListRow({
+  entity,
+  isSelf,
+  picking,
+  onReload,
+}: {
+  entity: EntityRow;
+  isSelf: boolean;
+  picking: boolean;
+  onReload: () => Promise<void>;
+}) {
+  const core = useCore();
+  const router = useRouter();
+
   if (entity.type === "person") {
+    const label = (
+      <Text style={[styles.rowText, { color: colors.accent }]}>
+        {entity.label} {isSelf && <Text style={styles.muted}>(You)</Text>}
+      </Text>
+    );
+    // Outside pick mode the whole row stays one tap target, as it always has.
+    if (!picking) {
+      return (
+        <Link href={`/people/${entity.id}`} style={styles.row}>
+          {label}
+        </Link>
+      );
+    }
     return (
-      <Link href={`/people/${entity.id}`} style={styles.row}>
-        <Text style={[styles.rowText, { color: colors.accent }]}>
-          {entity.label}
-        </Text>
-      </Link>
+      <View style={[styles.row, styles.rowMeta, { marginTop: 0 }]}>
+        <Link href={`/people/${entity.id}`}>{label}</Link>
+        {/* Only a Person can be you, and there's no point offering it on the
+            row that already is. */}
+        {!isSelf && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              void pickSelf(core, entity.id, onReload, () =>
+                router.replace("/(tabs)/people"),
+              )
+            }
+          >
+            <Text style={styles.link}>This is me</Text>
+          </Pressable>
+        )}
+      </View>
     );
   }
   return (

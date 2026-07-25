@@ -28,9 +28,9 @@ import { colors, styles } from "../../lib/styles";
 const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
   "add-person": "/people/new",
   "connect-sync": "/(tabs)/settings",
-  // Pick-yourself deep-links to the People list; the tap-to-set-self affordance
-  // itself is the deferred mobile port (plans/gifts.md §Slice 0 / sequencing 6).
-  "pick-self": "/(tabs)/people",
+  // Pick-yourself deep-links to the People list in its pick mode, where each
+  // Person row offers "This is me" (plans/gifts.md §Slice 0).
+  "pick-self": "/(tabs)/people?pick=self",
 };
 
 /**
