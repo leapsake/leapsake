@@ -4,10 +4,14 @@ import type { ResolvedMention } from "./mentioning.js";
 import type { Tag } from "./tag.js";
 
 /**
- * Where a reminder came from. `user` is everything today — hand-created by the
- * person using the app. `system` is reserved for the future automated increment
- * (upcoming birthdays/holidays, Leapsake-defined tasks) so that machinery needs
- * no schema change; stored as free text, constrained here like `milestoneKind`.
+ * Where a reminder came from. `user` is hand-created by the person using the app.
+ * `system` is **engine-owned** — upcoming birthdays, per-milestone schedules,
+ * holiday observances, and the onboarding nudges — and its text is re-derived on
+ * every reconcile, which is why a `system` reminder isn't editable (completing and
+ * deleting stay open; see {@link isReminderEditable}). Having the enum from the
+ * start meant that automation needed no schema change, and Leapsake-defined tasks
+ * will extend the same engine. Stored as free text, constrained here like
+ * `milestoneKind`.
  */
 export const reminderSourceSchema = z.enum(["user", "system"]);
 

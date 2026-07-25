@@ -4,8 +4,7 @@
 > decisions, rejected alternatives, and known edge cases worked out in design discussion
 > **before** implementation. The feature is now **built on desktop** and these decisions held —
 > where the build refined one, the section says so inline (see §2.4 on observance ids). Sequencing
-> and live status belong in [`status.md`](../status.md); the reminder surface these hang off is
-> [`reminders.md`](../reminders.md); the product posture is
+> and live status belong in [`status.md`](../status.md); the product posture is
 > [`product-truths.md`](../product-truths.md).
 
 Holidays extend the automated-reminder engine (`@leapsake/reminders`) to a second family of
@@ -349,7 +348,7 @@ is the additive fix — an overlay, never an edit.
 - **SETTLED — Awareness vs. action.** **Deferred.** v1 stays scoped to per-person reminders;
   `/holidays` gives a place to see the catalog without generating work. A Home-screen strip
   remains additive (§5 keeps the door open). Original question: It would
-  fill the empty Home a new user sees (the gap [`reminders.md`](../reminders.md) calls out)
+  fill the empty Home a new user sees (a gap the onboarding nudges have since closed)
   without generating per-person work — but v1 is otherwise scoped to per-person reminders.
 - **SETTLED — The on-ramp shape.** **Holiday-centric**, and it shipped that way. But the
   *control* was then reversed: the select-all checklist over the whole address book was judged too

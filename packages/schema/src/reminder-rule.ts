@@ -138,7 +138,7 @@ export type ReminderRuleBearerType = z.infer<
  * once the user customises the schedule.
  *
  * Deliberately **plaintext** (no per-item content key), consistent with
- * reminders themselves (plans/reminders.md): reminder policy is scheduling
+ * reminders themselves: reminder policy is scheduling
  * metadata, not a share target, and is covered by whole-DB-at-rest + the
  * master-key sync seal.
  *

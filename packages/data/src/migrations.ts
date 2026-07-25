@@ -476,7 +476,7 @@ export const migrations: Migration[] = [
   {
     version: 18,
     async up(driver) {
-      // Reminders — user-generated freeform notes/tasks (plans/reminders.md), the
+      // Reminders — user-generated freeform notes/tasks, the
       // seed of the future home screen. Plaintext row (no per-item content key);
       // `#tags` ride the shared `taggings` table under bearer type "reminder".
       // `completed_at` is null until marked done (a reversible toggle); `source`
@@ -498,7 +498,7 @@ export const migrations: Migration[] = [
   {
     version: 19,
     async up(driver) {
-      // Reminders gain an optional due date (plans/reminders.md, automated
+      // Reminders gain an optional due date (automated
       // reminders). Stored as epoch-ms **UTC midnight of the civil due day** so it
       // sorts and merges like any other timestamp column, while the app treats it
       // as a whole calendar day (schema/reminder-schedule.ts). Nullable — an

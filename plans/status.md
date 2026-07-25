@@ -53,7 +53,7 @@
   typeahead, folded into one `MentionTextField` per client), and **per-milestone staggered schedules are
   now wired into the engine** — one `system` reminder per enabled rule, offset by `offsetDays`,
   action-phrased, and **onboarding nudges** now fill a brand-new user's empty Home (CTA-wired on
-  both clients). Remaining: reminder search — [`reminders.md`](./reminders.md).
+  both clients). Remaining: reminder search.
 - **Testing harness** — the tiered `pnpm test` orchestration is built: `scripts/test-all.mjs`
   runs each trophy tier (static · lint · typecheck · unit+integration · driver-coverage gate)
   and the **mobile native tier on both platforms** — per-platform `native-android` /
@@ -145,9 +145,9 @@ can't ship without distributable apps. (None yet.)
 **Client / UX** (sequenced *after* the encryption work above):
 - **Reminders — remaining work.** The entity, Home promotion, automation (birthday + per-milestone
   staggered schedules + **holidays**), `@mentions`, the compose surface (`@`/`#` pickers), and
-  onboarding-as-reminders are all done — see the *Where things stand* bullet and
-  [`reminders.md`](./reminders.md). **Next: reminder search**; Leapsake-defined tasks extend the
-  same engine later.
+  onboarding-as-reminders are all done — see the *Where things stand* bullet. **Next: reminder
+  search** (reminders join `SearchResultType` the way gift ideas did, matched on title + body);
+  Leapsake-defined tasks extend the same engine later, keyed off `source` + trigger identity.
 - **Holidays — done.** The lunisolar tables are sourced and extended to 2056 (`CATALOG_VERSION` 2).
   Every provisional date held up under verification — none were wrong — but they are now *derived*
   rather than remembered, and the horizon went from ~9 years to 30. Derivation and the two
