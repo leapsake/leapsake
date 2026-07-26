@@ -2,11 +2,12 @@ import { MessagesProvider, en } from "@leapsake/ui/messages";
 import {
   DropImportProvider,
   GiftsPortsProvider,
+  SearchBar,
   UiProvider,
 } from "@leapsake/ui/web";
 import { Link, Outlet, useNavigate, useRevalidator } from "react-router-dom";
-import { SearchBar } from "./components/SearchBar";
 import { desktopGiftsPorts } from "./lib/gifts-ports";
+import { searchEntities } from "./lib/search";
 import { commitImport, previewImport } from "./lib/import-ports";
 import { desktopUiAdapter } from "./lib/ui-adapter";
 
@@ -61,7 +62,7 @@ export function App() {
             }}
           >
             <header>
-              <SearchBar />
+              <SearchBar search={searchEntities} onNavigate={navigate} />
               <nav>
                 <Link to="/reminders">Reminders</Link>{" "}
                 <Link to="/people">People &amp; Pets</Link>{" "}

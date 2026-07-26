@@ -6,8 +6,8 @@ import {
   formatDueIn,
   isReminderEditable,
 } from "@leapsake/schema";
+import { ReminderText } from "@leapsake/ui/web";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
-import { ReminderText } from "../components/ReminderText";
 
 /**
  * The deep-link CTA each onboarding nudge (a `system` reminder whose id maps to an

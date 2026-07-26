@@ -11,6 +11,7 @@ export {
   neighborPath,
   relationshipEditPath,
   relationshipRemovePath,
+  searchHitPath,
 } from "./routes.js";
 export { useDebouncedSearch } from "./useDebouncedSearch.js";
 export { useSerializedWrites } from "./useSerializedWrites.js";

@@ -200,6 +200,14 @@ export interface Messages {
     tagsPlaceholder: string;
   };
 
+  search: {
+    fieldLabel: string;
+    placeholder: string;
+    /** Introduces why a result matched, when it wasn't the name. */
+    matchedOn: string;
+    reasonSeparator: string;
+  };
+
   import: {
     dropHint: string;
     unrecognizedHeading: string;

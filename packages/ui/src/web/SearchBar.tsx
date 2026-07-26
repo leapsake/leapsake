@@ -1,64 +1,41 @@
 import type { SearchHit } from "@leapsake/schema";
-import {
-  entityBasePath,
-  useDebouncedSearch,
-  useTypeahead,
-} from "@leapsake/ui/headless";
-import {
-  Combobox,
-  ComboboxOptionDetail,
-  highlightBirthday,
-  highlightMatch,
-} from "@leapsake/ui/web";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-
-/**
- * The screen a result opens. Tags, holidays, and gift ideas target their own
- * pages; people and pets use their type's base path. A gift idea has no
- * read-only view on desktop, so its actionable page is the edit screen (the same
- * choice the tag page makes for its gift-idea rows).
- */
-function pathFor(hit: SearchHit): string {
-  switch (hit.entityType) {
-    case "tag":
-      return `/tags/${hit.entityId}`;
-    case "holiday":
-      return `/holidays/${hit.entityId}`;
-    case "gift_idea":
-      return `/gifts/${hit.entityId}/edit`;
-    default:
-      return `${entityBasePath(hit.entityType)}/${hit.entityId}`;
-  }
-}
-
-/**
- * Module-level so its identity is stable across renders, which is what
- * `useDebouncedSearch` needs to avoid re-running its effect every render.
- */
-const searchEntities = (query: string) => window.api.search.query(query);
+import { searchHitPath } from "../headless/routes.js";
+import { useDebouncedSearch } from "../headless/useDebouncedSearch.js";
+import { useTypeahead } from "../headless/useTypeahead.js";
+import { useMessages } from "../messages/index.js";
+import { highlightBirthday, highlightMatch } from "./highlight.js";
+import { Combobox, ComboboxOptionDetail } from "./primitives/Combobox.js";
 
 /**
  * Persistent global search, mounted in the app chrome. A WAI-ARIA combobox: the
  * input keeps focus while arrow keys move `aria-activedescendant` over the
- * results listbox, Enter navigates to the active entity, Escape clears. ⌘K (or
- * Ctrl+K) focuses the input from anywhere.
+ * results listbox, Enter opens the active entity, Escape clears. ⌘K (or Ctrl+K)
+ * focuses the input from anywhere.
  *
- * The combobox mechanics live in `@leapsake/ui`; what stays here is what makes
- * this bar itself — where a hit navigates to, the ⌘K shortcut, and how a hit's
- * match reasons are rendered.
+ * Navigation arrives as `onNavigate` rather than through the `UiAdapter`: this is
+ * the only component that navigates imperatively, and the adapter is deliberately
+ * two members wide. If a second one ever needs it, promote it there instead of
+ * growing a second prop.
  */
-export function SearchBar() {
-  const navigate = useNavigate();
+export function SearchBar({
+  search,
+  onNavigate,
+}: {
+  /** Must be stable across renders — `useDebouncedSearch` holds it as a dependency. */
+  search: (query: string) => Promise<SearchHit[]>;
+  onNavigate: (href: string) => void;
+}) {
+  const m = useMessages();
   const inputRef = useRef<HTMLInputElement>(null);
   const [term, setTerm] = useState("");
 
-  const results = useDebouncedSearch({ query: term, search: searchEntities });
+  const results = useDebouncedSearch({ query: term, search });
 
   function go(hit: SearchHit) {
     setTerm("");
     inputRef.current?.blur(); // drop focus so the result screen takes over
-    navigate(pathFor(hit));
+    onNavigate(searchHitPath(hit));
   }
 
   const { open, activeIndex, listboxId, optionId, onKeyDown } = useTypeahead({
@@ -91,7 +68,7 @@ export function SearchBar() {
       optionId={optionId}
       getKey={(hit) => `${hit.entityType}:${hit.entityId}`}
       onSelect={go}
-      announcement={open ? `${results.length} results` : ""}
+      announcement={open ? m.combobox.resultCount(results.length) : ""}
       renderOption={(hit) => {
         const reasons = hit.reasons.filter((r) => r.facet !== "name");
         return (
@@ -102,10 +79,10 @@ export function SearchBar() {
             {highlightMatch(hit.title, term)}
             {reasons.length > 0 && (
               <ComboboxOptionDetail>
-                matched on{" "}
+                {m.search.matchedOn}{" "}
                 {reasons.map((r, ri) => (
                   <Fragment key={`${r.facet}:${r.matchedText}`}>
-                    {ri > 0 && ", "}
+                    {ri > 0 && m.search.reasonSeparator}
                     {r.facet === "tag" && "#"}
                     {r.facet === "birthday"
                       ? highlightBirthday(r.matchedText, term)
@@ -129,8 +106,8 @@ export function SearchBar() {
         <input
           ref={inputRef}
           type="text"
-          aria-label="Search people, pets, tags, holidays, and gift ideas"
-          placeholder="Search… (⌘K)"
+          aria-label={m.search.fieldLabel}
+          placeholder={m.search.placeholder}
           value={term}
           onChange={(e) => setTerm(e.target.value)}
           onKeyDown={onKeyDown}

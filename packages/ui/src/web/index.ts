@@ -23,6 +23,8 @@ export {
   highlightMatch,
   type HighlightMode,
 } from "./highlight.js";
+export { SearchBar } from "./SearchBar.js";
+export { ReminderText } from "./primitives/ReminderText.js";
 export { DropImportProvider } from "./import/DropImportProvider.js";
 export {
   ImportReview,

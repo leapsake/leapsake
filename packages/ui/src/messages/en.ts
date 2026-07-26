@@ -182,6 +182,13 @@ export const en: Messages = {
     tagsPlaceholder: "#Friend #Neighbor",
   },
 
+  search: {
+    fieldLabel: "Search people, pets, tags, holidays, and gift ideas",
+    placeholder: "Search… (⌘K)",
+    matchedOn: "matched on",
+    reasonSeparator: ", ",
+  },
+
   import: {
     dropHint: "Drop a contact card (.vcf) to import",
     unrecognizedHeading: "Can’t read that file",

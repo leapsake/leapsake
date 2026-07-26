@@ -1,6 +1,7 @@
 import {
   type MilestoneBearerType,
   type RelationshipNeighbor,
+  type SearchHit,
   baseRole,
 } from "@leapsake/schema";
 
@@ -77,4 +78,23 @@ export function relationshipRemovePath(
   return neighbor.origin === "explicit"
     ? `${subjectBasePath}/relationships/${neighbor.relationshipId}/delete`
     : `${subjectBasePath}/relationships/dismiss?${derivedQuery(neighbor)}`;
+}
+
+/**
+ * The screen a search result opens. Tags, holidays and gift ideas have pages of
+ * their own; people and pets use their type's base path. A gift idea has no
+ * read-only view, so its actionable page is the edit screen — the same choice the
+ * tag page makes for its gift-idea rows.
+ */
+export function searchHitPath(hit: SearchHit): string {
+  switch (hit.entityType) {
+    case "tag":
+      return `/tags/${hit.entityId}`;
+    case "holiday":
+      return `/holidays/${hit.entityId}`;
+    case "gift_idea":
+      return `/gifts/${hit.entityId}/edit`;
+    default:
+      return `${entityBasePath(hit.entityType)}/${hit.entityId}`;
+  }
 }

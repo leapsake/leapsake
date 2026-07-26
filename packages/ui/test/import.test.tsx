@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ImportReview,
+  type ImportDecision,
   type ImportOutcome,
   type ImportPreviewEntry,
 } from "../src/web/index.js";
@@ -13,7 +14,7 @@ afterEach(cleanup);
 
 const contact = (over: Partial<ParsedContact> = {}): ParsedContact =>
   ({
-    name: { firstName: "Ada", lastName: "Lovelace" },
+    name: { firstName: "Ada", middleName: null, lastName: "Lovelace" },
     displayName: "Ada Lovelace",
     emails: [],
     phones: [],
@@ -40,7 +41,7 @@ function renderReview({
   preview?: ImportPreviewEntry[];
   committed?: ImportOutcome;
 } = {}) {
-  const onCommit = vi.fn(async () => committed);
+  const onCommit = vi.fn(async (_decisions: ImportDecision[]) => committed);
   const onClose = vi.fn();
   const onDone = vi.fn();
   const onPickSelf = vi.fn();
@@ -89,13 +90,10 @@ describe("ImportReview", () => {
     });
     await act(async () => importButton().click());
 
-    expect(onCommit).toHaveBeenCalledWith([
-      { action: "create", contact: expect.objectContaining({}) as never },
-    ]);
-    const decisions = onCommit.mock.calls[0]?.[0] as unknown as {
-      contact: ParsedContact;
-    }[];
-    expect(decisions[0]?.contact.name.lastName).toBe("Byron");
+    const decisions = onCommit.mock.calls[0]?.[0];
+    expect(decisions).toHaveLength(1);
+    expect(decisions?.[0]?.action).toBe("create");
+    expect(decisions?.[0]?.contact.name.lastName).toBe("Byron");
   });
 
   it("flags a row that looks like someone already here", async () => {
@@ -118,7 +116,11 @@ describe("ImportReview", () => {
 
   it("says a row can't be imported without both names", async () => {
     renderReview({
-      contacts: [contact({ name: { firstName: "Cher", lastName: "" } })],
+      contacts: [
+        contact({
+          name: { firstName: "Cher", middleName: null, lastName: "" },
+        }),
+      ],
     });
     await flush();
 

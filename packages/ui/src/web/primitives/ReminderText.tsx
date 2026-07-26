@@ -1,11 +1,12 @@
-import { Fragment } from "react";
 import {
   type ResolvedMention,
   type Tag,
   normalizeTagName,
   splitAnnotatedText,
 } from "@leapsake/schema";
-import { Link } from "react-router-dom";
+import { Fragment } from "react";
+import { entityBasePath } from "../../headless/routes.js";
+import { useUi } from "../adapter.js";
 
 /**
  * Render freeform reminder text with its inline `#tags` linked to their tag pages
@@ -17,6 +18,8 @@ import { Link } from "react-router-dom";
  * `#token`/mention with no match — which shouldn't happen, since both are derived
  * from this very text — likewise falls back to plain text. Segment order is
  * stable, so the array index is a safe key.
+ *
+ * The text itself is user content, so nothing here comes from the catalog.
  */
 export function ReminderText({
   text,
@@ -24,24 +27,26 @@ export function ReminderText({
   mentions,
 }: {
   text: string;
-  tags: Tag[];
-  mentions: ResolvedMention[];
+  tags: readonly Tag[];
+  mentions: readonly ResolvedMention[];
 }) {
+  const { Link } = useUi();
   const tagIdByName = new Map(tags.map((tag) => [tag.normalized, tag.id]));
   const labelByTarget = new Map(
     mentions.map((m) => [`${m.targetType}:${m.targetId}`, m.label]),
   );
+
   return (
     <>
       {splitAnnotatedText(text).map((segment, i) => {
         if (segment.kind === "hashtag") {
           const id = tagIdByName.get(normalizeTagName(segment.tagName));
-          return id !== undefined ? (
-            <Link key={i} to={`/tags/${id}`}>
+          return id === undefined ? (
+            <Fragment key={i}>{segment.text}</Fragment>
+          ) : (
+            <Link key={i} href={`/tags/${id}`}>
               {segment.text}
             </Link>
-          ) : (
-            <Fragment key={i}>{segment.text}</Fragment>
           );
         }
         if (segment.kind === "mention") {
@@ -49,12 +54,11 @@ export function ReminderText({
             `${segment.targetType}:${segment.targetId}`,
           );
           if (typeof label === "string") {
-            const to =
-              segment.targetType === "person"
-                ? `/people/${segment.targetId}`
-                : `/pets/${segment.targetId}`;
             return (
-              <Link key={i} to={to}>
+              <Link
+                key={i}
+                href={`${entityBasePath(segment.targetType)}/${segment.targetId}`}
+              >
                 {label}
               </Link>
             );
