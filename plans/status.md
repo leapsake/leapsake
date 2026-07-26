@@ -183,9 +183,12 @@ can't ship without distributable apps. (None yet.)
   callbacks, and `formatOccurrence` deduplicated into `@leapsake/schema`. **4b shipped**: the
   whole gift cluster, including `GiftCaptureForm`, behind a **`GiftsPorts`** interface the app
   implements once (`lib/gifts-ports.ts`) — the first feature port in the UI package, added
-  because those components nest three deep across four screens. **Next: 4c** — the three view
-  screens, now that every section they render lives in the package. Each code-moving increment is
-  two commits (split in place, then move). Design + increments:
+  because those components nest three deep across four screens. **4c shipped**: `PersonScreen` /
+  `PetScreen` / `RelationshipScreen` moved, leaving the app's three view screens as
+  loader-reading containers (170 lines total, down from 326). **Increment 4 is complete.**
+  **Next: increment 5** — the seven forms (`FormShell` + `Field`), then 6 (the import overlay) and
+  7 (`@leapsake/view-models`, independent of the rest). Each code-moving increment is two commits
+  (split in place, then move). Design + increments:
   [`ui-extraction.md`](./ui-extraction.md). **Styling is a separate pre-v0.1 pass, after this.**
 
 ### v0.2 (first post-launch feature increment)

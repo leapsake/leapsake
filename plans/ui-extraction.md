@@ -298,9 +298,11 @@ components nest three deep across four screens, so prop-drilling would put most 
 on components that only forward them. `useRevalidator` stays in the app-side containers, reached
 through `onChanged`.
 
-**4c — the three view screens** (`PersonView`, `PetView`, `RelationshipView`, deferred from
-increment 3), each becoming a container + presentational pair once every section they render
-lives in the package.
+**4c — the three view screens (done).** `PersonScreen`, `PetScreen` and `RelationshipScreen` in
+the package; `PersonView`, `PetView` and `RelationshipView` in the app reduced to loader-reading
+containers. The screens take a breadcrumb `trail` (which route is home is a client decision) and
+a `duplicateCount` rather than core's `DuplicateCandidate[]` — the banner only ever needed the
+count.
 
 **Done when:** add/remove round-trips work on Person, Pet, and gift-idea screens, including the
 rapid type→Enter→type→Enter case the serialization exists for.

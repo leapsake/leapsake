@@ -45,6 +45,12 @@ export {
 export { GiftCaptureForm } from "./gifts/GiftCaptureForm.js";
 export { GiftsSection } from "./sections/GiftsSection.js";
 export { GiftIdeaRecipientsSection } from "./sections/GiftIdeaRecipientsSection.js";
+export { PersonScreen } from "./screens/PersonScreen.js";
+export { PetScreen } from "./screens/PetScreen.js";
+export {
+  RelationshipScreen,
+  type RelationshipPartner,
+} from "./screens/RelationshipScreen.js";
 export { ContactMethodsSection } from "./sections/ContactMethodsSection.js";
 export {
   HolidaysSection,
