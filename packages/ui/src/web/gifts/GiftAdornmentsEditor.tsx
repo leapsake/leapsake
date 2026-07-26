@@ -1,5 +1,6 @@
 import type { GiftOccasion, GiftParty } from "@leapsake/schema";
 import { useEffect, useState } from "react";
+import { useMessages } from "../../messages/index.js";
 import {
   type DateFields,
   GiftOccasionFields,
@@ -35,6 +36,7 @@ export function GiftAdornmentsEditor({
   onDone: () => void;
 }) {
   const { loadOccasions, updateSuggestion, updateGiving } = useGiftsPorts();
+  const m = useMessages();
   const [occasions, setOccasions] = useState<GiftOccasionChoice[]>([]);
   const [occasion, setOccasion] = useState<GiftOccasion | null>(
     initialOccasion,
@@ -77,20 +79,24 @@ export function GiftAdornmentsEditor({
   return (
     <div>
       <GiftOccasionFields
-        legend={kind === "suggestion" ? "For…" : "Given on…"}
+        legend={
+          kind === "suggestion"
+            ? m.giftAdornments.suggestionLegend
+            : m.giftAdornments.givingLegend
+        }
         occasions={occasions}
         occasion={occasion}
         onOccasionChange={setOccasion}
         date={date}
         onDateChange={setDate}
       />
-      {error !== null && <p>Couldn't save: {error}</p>}
+      {error !== null && <p>{m.common.saveFailed(error)}</p>}
       <p>
         <button type="button" disabled={busy} onClick={() => void save()}>
-          Save
+          {m.common.save}
         </button>{" "}
         <button type="button" disabled={busy} onClick={onDone}>
-          Cancel
+          {m.common.cancel}
         </button>
       </p>
     </div>

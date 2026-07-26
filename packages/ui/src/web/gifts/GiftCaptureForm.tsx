@@ -5,6 +5,8 @@ import type {
 } from "@leapsake/schema";
 import { formatGiftDate } from "@leapsake/schema";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { useMessages } from "../../messages/index.js";
+import type { Messages } from "../../messages/index.js";
 import { MultiAddCombobox } from "../primitives/MultiAddCombobox.js";
 import {
   type DateFields,
@@ -80,6 +82,7 @@ function GivingRows({
   occasions: readonly GiftOccasionChoice[];
   onChange: (rows: GivingRow[]) => void;
 }) {
+  const m = useMessages();
   const update = (id: string, patch: Partial<GivingRow>) =>
     onChange(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
@@ -88,7 +91,7 @@ function GivingRows({
       {rows.map((row) => (
         <div key={row.id}>
           <GiftOccasionFields
-            legend="Given on… (a date makes it a logged gift, not a suggestion)"
+            legend={m.giftCapture.givingLegend}
             occasions={occasions}
             occasion={row.occasion}
             onOccasionChange={(occasion) => update(row.id, { occasion })}
@@ -100,13 +103,13 @@ function GivingRows({
               type="button"
               onClick={() => onChange(rows.filter((r) => r.id !== row.id))}
             >
-              Remove date
+              {m.giftCapture.removeDate}
             </button>
           </p>
         </div>
       ))}
       <button type="button" onClick={() => onChange([...rows, newGivingRow()])}>
-        + Add a date
+        {m.giftCapture.addDate}
       </button>
     </div>
   );
@@ -127,12 +130,13 @@ function SuggestionDisclosure({
   occasions: readonly GiftOccasionChoice[];
   onChange: (fields: SuggestionFields) => void;
 }) {
+  const m = useMessages();
   const set = fields.occasion !== null || parseDateFields(fields.date) !== null;
   return (
     <details open={set}>
-      <summary>For… (an occasion or a target date, optional)</summary>
+      <summary>{m.giftCapture.suggestionSummary}</summary>
       <GiftOccasionFields
-        legend="For…"
+        legend={m.giftCapture.suggestionLegend}
         occasions={occasions}
         occasion={fields.occasion}
         onOccasionChange={(occasion) => onChange({ ...fields, occasion })}
@@ -156,18 +160,15 @@ function SuggestionDisclosure({
 function AlreadyGivenNotice({
   label,
   gifts,
+  m,
 }: {
   label: string;
   gifts: readonly GivenRow[];
+  m: Messages;
 }) {
   if (gifts.length === 0) return null;
   const when = gifts.map((g) => formatGiftDate(g)).filter((s) => s !== "");
-  return (
-    <p>
-      ⚠ {label} was already given this
-      {when.length > 0 ? ` — ${when.join(", ")}` : ""}.
-    </p>
-  );
+  return <p>{m.giftCapture.alreadyGiven(label, when)}</p>;
 }
 
 /** What the form knows about one party: the occasions it can name, and what it
@@ -258,6 +259,7 @@ export function GiftCaptureForm({
   onSaved: () => void;
 }) {
   const { capture } = useGiftsPorts();
+  const m = useMessages();
   const listId = useId();
 
   const [title, setTitle] = useState("");
@@ -322,7 +324,7 @@ export function GiftCaptureForm({
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (trimmedTitle === "") {
-      setError("A gift needs a name.");
+      setError(m.giftCapture.missingTitle);
       return;
     }
     const giftIdea = typedIdea
@@ -372,14 +374,14 @@ export function GiftCaptureForm({
     <form onSubmit={submit}>
       <fieldset disabled={busy}>
         <p>
-          <label htmlFor={`${listId}-title`}>Gift</label>
+          <label htmlFor={`${listId}-title`}>{m.giftCapture.giftLabel}</label>
           <br />
           <input
             id={`${listId}-title`}
             list={listId}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Red Ryder BB Gun"
+            placeholder={m.giftCapture.titlePlaceholder}
           />
           <datalist id={listId}>
             {ideaPool.map((i) => (
@@ -390,8 +392,8 @@ export function GiftCaptureForm({
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             type="url"
-            placeholder="https://… (optional)"
-            aria-label="Gift link"
+            placeholder={m.giftCapture.urlPlaceholder}
+            aria-label={m.giftCapture.urlLabel}
           />
         </p>
 
@@ -400,6 +402,7 @@ export function GiftCaptureForm({
             <AlreadyGivenNotice
               label={fixedRecipient.label}
               gifts={alreadyGiven(fixedRecipient)}
+              m={m}
             />
             {fixedGivings.length === 0 && (
               <SuggestionDisclosure
@@ -417,8 +420,8 @@ export function GiftCaptureForm({
         ) : (
           <div>
             <MultiAddCombobox
-              label="Add a person or pet to gift"
-              placeholder="For whom? (optional)"
+              label={m.giftCapture.addRecipientLabel}
+              placeholder={m.giftCapture.addRecipientPlaceholder}
               options={addableRecipients}
               getKey={(c) => `${c.type}:${c.id}`}
               getLabel={(c) => c.label}
@@ -432,6 +435,8 @@ export function GiftCaptureForm({
                   },
                 ])
               }
+              announceAdded={m.combobox.added}
+              announceCount={m.combobox.suggestionCount}
             />
             {recipients.map((r) => {
               const key = `${r.option.type}:${r.option.id}`;
@@ -449,12 +454,13 @@ export function GiftCaptureForm({
                         )
                       }
                     >
-                      Remove
+                      {m.giftCapture.removeRecipient}
                     </button>
                   </legend>
                   <AlreadyGivenNotice
                     label={r.option.label}
                     gifts={alreadyGiven(r.option)}
+                    m={m}
                   />
                   {r.givings.length === 0 && (
                     <SuggestionDisclosure
@@ -476,10 +482,14 @@ export function GiftCaptureForm({
           </div>
         )}
 
-        {error !== null && <p>Couldn't save: {error}</p>}
+        {error !== null && <p>{m.common.saveFailed(error)}</p>}
 
         <p>
-          <button type="submit">{anyDates ? "Log gift" : "Add"}</button>
+          <button type="submit">
+            {anyDates
+              ? m.giftCapture.submitGiving
+              : m.giftCapture.submitSuggestion}
+          </button>
         </p>
       </fieldset>
     </form>

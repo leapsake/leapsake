@@ -1,4 +1,5 @@
-import { type Gender, genderLabel } from "@leapsake/schema";
+import type { Gender } from "@leapsake/schema";
+import { useMessages } from "../../messages/index.js";
 
 /**
  * The Gender picker shared by the People & Pets create/edit forms. A plain
@@ -11,14 +12,16 @@ import { type Gender, genderLabel } from "@leapsake/schema";
  * JavaScript at all.
  */
 export function GenderField({ value }: { value?: Gender | null }) {
+  const m = useMessages();
+
   return (
     <label>
-      Gender{" "}
+      {m.gender.fieldLabel}{" "}
       <select name="gender" defaultValue={value ?? ""}>
-        <option value="">—</option>
-        <option value="female">{genderLabel.female}</option>
-        <option value="male">{genderLabel.male}</option>
-        <option value="nonbinary">{genderLabel.nonbinary}</option>
+        <option value="">{m.common.none}</option>
+        <option value="female">{m.gender.female}</option>
+        <option value="male">{m.gender.male}</option>
+        <option value="nonbinary">{m.gender.nonbinary}</option>
       </select>
     </label>
   );

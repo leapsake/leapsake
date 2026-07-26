@@ -1,5 +1,6 @@
 import type { GiftOccasion } from "@leapsake/schema";
 import { useEffect, useId, useState } from "react";
+import { useMessages } from "../../messages/index.js";
 import {
   type GiftOccasionChoice,
   type PartialDate,
@@ -75,6 +76,7 @@ export function GiftOccasionFields({
   onDateChange: (date: DateFields) => void;
 }) {
   const { loadOccurrences } = useGiftsPorts();
+  const m = useMessages();
   const id = useId();
   const [fills, setFills] = useState<string[]>([]);
 
@@ -116,15 +118,15 @@ export function GiftOccasionFields({
     <fieldset>
       <legend>{legend}</legend>
       <p>
-        <label htmlFor={`${id}-occasion`}>Occasion</label>{" "}
+        <label htmlFor={`${id}-occasion`}>{m.giftOccasion.occasionLabel}</label>{" "}
         <select
           id={`${id}-occasion`}
           value={keyOf(occasion)}
           onChange={(e) => pickOccasion(e.target.value)}
         >
-          <option value="">— none —</option>
+          <option value="">{m.giftOccasion.noOccasion}</option>
           {milestones.length > 0 && (
-            <optgroup label="Milestones">
+            <optgroup label={m.giftOccasion.milestoneGroup}>
               {milestones.map((o) => (
                 <option key={`${o.type}:${o.id}`} value={`${o.type}:${o.id}`}>
                   {o.label}
@@ -133,7 +135,7 @@ export function GiftOccasionFields({
             </optgroup>
           )}
           {holidays.length > 0 && (
-            <optgroup label="Holidays">
+            <optgroup label={m.giftOccasion.holidayGroup}>
               {holidays.map((o) => (
                 <option key={`${o.type}:${o.id}`} value={`${o.type}:${o.id}`}>
                   {o.label}
@@ -147,18 +149,18 @@ export function GiftOccasionFields({
         <input
           type="number"
           min="1"
-          placeholder="Year"
+          placeholder={m.giftOccasion.year}
           value={date.year}
-          aria-label="Year"
+          aria-label={m.giftOccasion.year}
           onChange={(e) => onDateChange({ ...date, year: e.target.value })}
         />{" "}
         <input
           type="number"
           min="1"
           max="12"
-          placeholder="Month"
+          placeholder={m.giftOccasion.month}
           value={date.month}
-          aria-label="Month"
+          aria-label={m.giftOccasion.month}
           onChange={(e) =>
             onDateChange({
               ...date,
@@ -172,18 +174,24 @@ export function GiftOccasionFields({
           type="number"
           min="1"
           max="31"
-          placeholder="Day"
+          placeholder={m.giftOccasion.day}
           value={date.day}
-          aria-label="Day"
+          aria-label={m.giftOccasion.day}
           disabled={date.month.trim() === ""}
           onChange={(e) => onDateChange({ ...date, day: e.target.value })}
         />
       </p>
       {fills.map((iso) => {
-        const [y, m, d] = iso.split("-");
+        const [fillYear, fillMonth, fillDay] = iso.split("-");
         const already =
-          date.month === String(Number(m)) && date.day === String(Number(d));
-        if (already || y === undefined || m === undefined || d === undefined) {
+          date.month === String(Number(fillMonth)) &&
+          date.day === String(Number(fillDay));
+        if (
+          already ||
+          fillYear === undefined ||
+          fillMonth === undefined ||
+          fillDay === undefined
+        ) {
           return null;
         }
         return (
@@ -192,13 +200,13 @@ export function GiftOccasionFields({
               type="button"
               onClick={() =>
                 onDateChange({
-                  year: String(Number(y)),
-                  month: String(Number(m)),
-                  day: String(Number(d)),
+                  year: String(Number(fillYear)),
+                  month: String(Number(fillMonth)),
+                  day: String(Number(fillDay)),
                 })
               }
             >
-              Use {iso}
+              {m.giftOccasion.useDate(iso)}
             </button>
           </p>
         );

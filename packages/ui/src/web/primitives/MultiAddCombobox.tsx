@@ -30,8 +30,8 @@ const MAX_SUGGESTIONS = 20;
  * anything picked simply stops being suggested. There is no `value` — this
  * control never holds a selection of its own.
  *
- * Unlike the search-backed comboboxes it neither debounces nor fetches: the
- * options are already in memory, so matching is a filter over them.
+ * Every string it renders arrives as a prop: this is a primitive, so it knows
+ * nothing about what it is listing or which language the app speaks.
  */
 export function MultiAddCombobox<T>({
   label,
@@ -41,6 +41,8 @@ export function MultiAddCombobox<T>({
   getLabel,
   onPick,
   renderOption,
+  announceAdded,
+  announceCount,
   minChars = MIN_CHARS,
 }: {
   /** Accessible name for the input, which has no visible label of its own. */
@@ -56,12 +58,16 @@ export function MultiAddCombobox<T>({
   onPick: (option: T) => void;
   /** Richer row content; defaults to the plain label. */
   renderOption?: (option: T) => ReactNode;
+  /**
+   * What the live region says after a pick. Without it a screen-reader user gets
+   * no confirmation at all: the field looks unchanged because it deliberately
+   * stays open, and the row that was added is elsewhere in the DOM.
+   */
+  announceAdded: (label: string) => string;
+  announceCount: (count: number) => string;
   minChars?: number;
 }) {
   const [query, setQuery] = useState("");
-  // What the live region announces after a pick. Without it, a screen-reader
-  // user gets no confirmation at all: the field looks unchanged because it
-  // deliberately stays open, and the row that was added is elsewhere in the DOM.
   const [announcement, setAnnouncement] = useState("");
 
   const trimmed = query.trim().toLowerCase();
@@ -74,7 +80,7 @@ export function MultiAddCombobox<T>({
 
   function pick(option: T) {
     onPick(option);
-    setAnnouncement(`${getLabel(option)} added`);
+    setAnnouncement(announceAdded(getLabel(option)));
     // Clear the query but hold focus: the cleared value falls below `minChars`,
     // so the listbox collapses and the next name can be typed straight away.
     setQuery("");
@@ -100,9 +106,7 @@ export function MultiAddCombobox<T>({
       renderOption={(option) =>
         renderOption ? renderOption(option) : getLabel(option)
       }
-      announcement={
-        announcement || (open ? `${matches.length} suggestions` : "")
-      }
+      announcement={announcement || (open ? announceCount(matches.length) : "")}
       renderField={(aria) => (
         <input
           type="text"

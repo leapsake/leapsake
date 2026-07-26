@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 
 export interface Crumb {
@@ -15,11 +16,12 @@ export interface Crumb {
  * desktop it is People & Pets at `/people`; a client with different top-level
  * navigation would answer differently).
  */
-export function Breadcrumbs({ trail }: { trail: Crumb[] }) {
+export function Breadcrumbs({ trail }: { trail: readonly Crumb[] }) {
   const { Link } = useUi();
+  const m = useMessages();
 
   return (
-    <nav aria-label="Breadcrumb">
+    <nav aria-label={m.breadcrumbs.label}>
       {trail.map((crumb, index) => (
         <Fragment key={crumb.href ?? crumb.label}>
           {index > 0 && " / "}

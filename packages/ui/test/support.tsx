@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
+import { MessagesProvider, en } from "../src/messages/index.js";
 import { UiProvider, type UiAdapter } from "../src/web/index.js";
 
 /**
@@ -21,7 +22,15 @@ export const testAdapter: UiAdapter = {
   ),
 };
 
-/** Render a component with the adapter its `useUi()` calls expect. */
+/**
+ * Render a component with the two things every package component may reach for:
+ * the host adapter and the message catalog. Tests assert against `en`, so a
+ * changed string shows up as a failing test rather than silently passing.
+ */
 export function renderWithUi(ui: ReactElement) {
-  return render(<UiProvider adapter={testAdapter}>{ui}</UiProvider>);
+  return render(
+    <MessagesProvider messages={en}>
+      <UiProvider adapter={testAdapter}>{ui}</UiProvider>
+    </MessagesProvider>,
+  );
 }

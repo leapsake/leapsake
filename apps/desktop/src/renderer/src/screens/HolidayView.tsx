@@ -1,5 +1,6 @@
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
 import { formatOccurrence } from "@leapsake/schema";
+import { useMessages } from "@leapsake/ui/messages";
 import { Breadcrumbs, MultiAddCombobox } from "@leapsake/ui/web";
 import { useRef, useState } from "react";
 import { Form, Link, useLoaderData, useRevalidator } from "react-router-dom";
@@ -19,6 +20,9 @@ export function HolidayView() {
     candidates: HolidayObserverCandidate[];
   };
   const revalidator = useRevalidator();
+  // The screen's own copy is still English inline; these two are the shared
+  // combobox announcements, which the package no longer hardcodes.
+  const messages = useMessages();
 
   // One read serves both halves: who observes it, and who could be added.
   // Excluding current observers from the suggestions is what stops the same
@@ -126,6 +130,8 @@ export function HolidayView() {
             </>
           )}
           onPick={(c) => setObserves(c, true)}
+          announceAdded={messages.combobox.added}
+          announceCount={messages.combobox.suggestionCount}
         />
       )}
 

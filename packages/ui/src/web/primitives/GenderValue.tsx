@@ -1,4 +1,5 @@
-import { type Gender, genderLabel } from "@leapsake/schema";
+import type { Gender } from "@leapsake/schema";
+import { useMessages } from "../../messages/index.js";
 
 /**
  * A gender read from the kinship engine: the value plus how it was determined.
@@ -20,6 +21,7 @@ export interface GenderResult {
  * renders as a dash.
  */
 export function GenderValue({ gender }: { gender: GenderResult }) {
-  if (gender.value === null) return <>—</>;
-  return <>{genderLabel[gender.value]}</>;
+  const m = useMessages();
+  if (gender.value === null) return <>{m.common.none}</>;
+  return <>{m.gender[gender.value]}</>;
 }

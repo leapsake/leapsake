@@ -1,3 +1,4 @@
+import { MessagesProvider, en } from "@leapsake/ui/messages";
 import { GiftsPortsProvider, UiProvider } from "@leapsake/ui/web";
 import { Link, Outlet } from "react-router-dom";
 import { SearchBar } from "./components/SearchBar";
@@ -17,28 +18,32 @@ import { desktopUiAdapter } from "./lib/ui-adapter";
  * import from any screen (desktop only); its drop hint and review modal render as
  * overlays above the active route.
  *
- * `UiProvider` sits outermost, handing `@leapsake/ui`'s presentational components
- * this client's navigation and form primitives. It wraps the layout rather than
- * the router so every routed screen is below it.
+ * Three providers wrap the layout, so every routed screen is below them:
+ * `MessagesProvider` supplies the text `@leapsake/ui` renders (English today —
+ * an i18n library replaces the catalog, not the components), `UiProvider` this
+ * client's navigation and form primitives, and `GiftsPortsProvider` the gift
+ * reads and writes.
  */
 export function App() {
   return (
-    <UiProvider adapter={desktopUiAdapter}>
-      <GiftsPortsProvider ports={desktopGiftsPorts}>
-        <DropImportProvider>
-          <header>
-            <SearchBar />
-            <nav>
-              <Link to="/reminders">Reminders</Link>{" "}
-              <Link to="/people">People &amp; Pets</Link>{" "}
-              <Link to="/holidays">Holidays</Link>{" "}
-              <Link to="/gifts">Gifts</Link>{" "}
-              <Link to="/settings">Settings</Link>
-            </nav>
-          </header>
-          <Outlet />
-        </DropImportProvider>
-      </GiftsPortsProvider>
-    </UiProvider>
+    <MessagesProvider messages={en}>
+      <UiProvider adapter={desktopUiAdapter}>
+        <GiftsPortsProvider ports={desktopGiftsPorts}>
+          <DropImportProvider>
+            <header>
+              <SearchBar />
+              <nav>
+                <Link to="/reminders">Reminders</Link>{" "}
+                <Link to="/people">People &amp; Pets</Link>{" "}
+                <Link to="/holidays">Holidays</Link>{" "}
+                <Link to="/gifts">Gifts</Link>{" "}
+                <Link to="/settings">Settings</Link>
+              </nav>
+            </header>
+            <Outlet />
+          </DropImportProvider>
+        </GiftsPortsProvider>
+      </UiProvider>
+    </MessagesProvider>
   );
 }

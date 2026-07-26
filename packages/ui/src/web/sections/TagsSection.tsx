@@ -2,6 +2,7 @@ import type { EntityType, Tag } from "@leapsake/schema";
 import { tagLabel } from "@leapsake/schema";
 import { Fragment } from "react";
 import { entityBasePath } from "../../headless/routes.js";
+import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import { EmptyState, Section } from "../primitives/Section.js";
 
@@ -22,15 +23,16 @@ export function TagsSection({
   tags: readonly Tag[];
 }) {
   const { Link } = useUi();
+  const m = useMessages();
   const basePath = `${entityBasePath(bearerType)}/${bearerId}`;
 
   return (
     <Section
-      title="Tags"
-      actions={<Link href={`${basePath}/edit`}>Edit tags</Link>}
+      title={m.tags.title}
+      actions={<Link href={`${basePath}/edit`}>{m.tags.edit}</Link>}
     >
       {tags.length === 0 ? (
-        <EmptyState>No tags yet.</EmptyState>
+        <EmptyState>{m.tags.empty}</EmptyState>
       ) : (
         <p>
           {tags.map((tag, index) => (

@@ -2,6 +2,7 @@ import type { GiftIdea, GiftPartyType } from "@leapsake/schema";
 import { formatGiftDate, formatGiftTargetDate } from "@leapsake/schema";
 import { useState } from "react";
 import { useSerializedWrites } from "../../headless/useSerializedWrites.js";
+import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import { GiftAdornmentsEditor } from "../gifts/GiftAdornmentsEditor.js";
 import { GiftCaptureForm } from "../gifts/GiftCaptureForm.js";
@@ -22,8 +23,6 @@ interface IdeaGroup {
   suggestions: SuggestionRow[];
   gifts: GivenRow[];
 }
-
-const joinBits = (bits: (string | null)[]) => bits.filter(Boolean).join(", ");
 
 /**
  * The “Gifts” section on a Person or Pet screen. One consolidated capture form on
@@ -54,6 +53,7 @@ export function GiftsSection({
 }) {
   const { Link } = useUi();
   const { removeSuggestion, removeGiving } = useGiftsPorts();
+  const m = useMessages();
   const { busy, error, run } = useSerializedWrites({ onSuccess: onChanged });
 
   // Union suggestions + gifts into one entry per idea.
@@ -94,7 +94,7 @@ export function GiftsSection({
   };
 
   return (
-    <Section title="Gifts">
+    <Section title={m.gifts.title}>
       <GiftCaptureForm
         ideaPool={ideaPool}
         fixedRecipient={{
@@ -105,10 +105,10 @@ export function GiftsSection({
         onSaved={onChanged}
       />
 
-      {error !== null && <p>Couldn't save: {error}</p>}
+      {error !== null && <p>{m.common.saveFailed(error)}</p>}
 
       {ordered.length === 0 ? (
-        <EmptyState>No gifts yet.</EmptyState>
+        <EmptyState>{m.gifts.empty}</EmptyState>
       ) : (
         <ul>
           {ordered.map((group) => (
@@ -118,20 +118,20 @@ export function GiftsSection({
                 <>
                   {" "}
                   <a href={group.url} target="_blank" rel="noreferrer">
-                    link
+                    {m.gifts.link}
                   </a>
                 </>
               )}
               <ul>
                 {group.suggestions.map((s) => {
                   const target = formatGiftTargetDate(s);
-                  const bits = joinBits([
+                  const details = [
                     s.occasionLabel,
                     target === "" ? null : target,
-                  ]);
+                  ].filter((bit) => bit !== null);
                   return (
                     <li key={s.id}>
-                      Suggested{bits === "" ? "" : ` — ${bits}`}{" "}
+                      {m.gifts.suggested(details)}{" "}
                       <button
                         type="button"
                         disabled={busy}
@@ -139,14 +139,14 @@ export function GiftsSection({
                           setEditing(editing === s.id ? null : s.id)
                         }
                       >
-                        {editing === s.id ? "Close" : "Edit"}
+                        {editing === s.id ? m.common.close : m.common.edit}
                       </button>{" "}
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => run(() => removeSuggestion(s.id))}
                       >
-                        Remove
+                        {m.common.remove}
                       </button>
                       {editing === s.id && (
                         <GiftAdornmentsEditor
@@ -171,14 +171,16 @@ export function GiftsSection({
                 })}
                 {group.gifts.map((g) => {
                   const when = formatGiftDate(g);
-                  const bits = joinBits([
+                  const details = [
                     when === "" ? null : when,
-                    g.giverLabel !== null ? `from ${g.giverLabel}` : null,
+                    g.giverLabel === null
+                      ? null
+                      : m.gifts.fromGiver(g.giverLabel),
                     g.occasionLabel,
-                  ]);
+                  ].filter((bit) => bit !== null);
                   return (
                     <li key={g.id}>
-                      ✓ Given{bits === "" ? "" : ` — ${bits}`}{" "}
+                      {m.gifts.given(details)}{" "}
                       <button
                         type="button"
                         disabled={busy}
@@ -186,14 +188,14 @@ export function GiftsSection({
                           setEditing(editing === g.id ? null : g.id)
                         }
                       >
-                        {editing === g.id ? "Close" : "Edit"}
+                        {editing === g.id ? m.common.close : m.common.edit}
                       </button>{" "}
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => run(() => removeGiving(g.id))}
                       >
-                        Remove
+                        {m.common.remove}
                       </button>
                       {editing === g.id && (
                         <GiftAdornmentsEditor

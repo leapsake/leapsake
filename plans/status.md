@@ -185,7 +185,14 @@ can't ship without distributable apps. (None yet.)
   implements once (`lib/gifts-ports.ts`) — the first feature port in the UI package, added
   because those components nest three deep across four screens. **4c shipped**: `PersonScreen` /
   `PetScreen` / `RelationshipScreen` moved, leaving the app's three view screens as
-  loader-reading containers (170 lines total, down from 326). **Increment 4 is complete.**
+  loader-reading containers (170 lines total, down from 326). **Increment 4 is complete.** A
+  cross-cutting pass then removed **every user-visible string** from the package: primitives take
+  text as props, everything above them reads a typed catalog (`@leapsake/ui/messages`), and any
+  message taking values is a function so the catalog owns whole sentences — which killed seven
+  untranslatable concatenations (a `bearerType` spliced into an English sentence, a hand-rolled
+  plural, three fragment joins). A dedicated i18n library swaps the catalog later without
+  touching a component; `@leapsake/schema`'s label tables remain English and are the wider
+  workstream.
   **Next: increment 5** — the seven forms (`FormShell` + `Field`), then 6 (the import overlay) and
   7 (`@leapsake/view-models`, independent of the rest). Each code-moving increment is two commits
   (split in place, then move). Design + increments:

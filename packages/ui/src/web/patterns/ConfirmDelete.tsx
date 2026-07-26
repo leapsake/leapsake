@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import { Breadcrumbs, type Crumb } from "../primitives/Breadcrumbs.js";
 
@@ -43,6 +44,7 @@ export function ConfirmDelete({
   children: ReactNode;
 }) {
   const { Form, Link } = useUi();
+  const m = useMessages();
 
   return (
     <main>
@@ -57,7 +59,7 @@ export function ConfirmDelete({
           ))}
         <fieldset disabled={submitting}>
           <button type="submit">{confirmLabel}</button>{" "}
-          <Link href={cancelTo}>Cancel</Link>
+          <Link href={cancelTo}>{m.common.cancel}</Link>
         </fieldset>
       </Form>
     </main>

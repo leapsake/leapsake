@@ -8,6 +8,7 @@ import type {
   Tag,
 } from "@leapsake/schema";
 import { fullName } from "@leapsake/schema";
+import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import type { GivenRow, SuggestionRow } from "../gifts/ports.js";
 import { Breadcrumbs, type Crumb } from "../primitives/Breadcrumbs.js";
@@ -67,6 +68,7 @@ export function PersonScreen({
   onChanged: () => void;
 }) {
   const { Link } = useUi();
+  const m = useMessages();
   const name = fullName(person);
   const basePath = `/people/${person.id}`;
 
@@ -80,26 +82,29 @@ export function PersonScreen({
           take it out of the candidate set. */}
       {duplicateCount > 0 && (
         <p role="status">
-          {duplicateCount === 1
-            ? "Someone else in your list looks like the same person."
-            : `${duplicateCount} other people in your list look like the same person.`}{" "}
-          <Link href={`/duplicates?for=${person.id}`}>Review</Link>
+          {m.person.duplicates(duplicateCount)}{" "}
+          <Link href={`/duplicates?for=${person.id}`}>
+            {m.person.reviewDuplicates}
+          </Link>
         </p>
       )}
 
       <header>
         <h1>{name}</h1>
-        <Link href={`${basePath}/edit`}>Edit</Link>{" "}
-        <Link href={`${basePath}/merge`}>Merge</Link>{" "}
-        <Link href={`${basePath}/delete`}>Delete</Link>
+        <Link href={`${basePath}/edit`}>{m.common.edit}</Link>{" "}
+        <Link href={`${basePath}/merge`}>{m.person.merge}</Link>{" "}
+        <Link href={`${basePath}/delete`}>{m.common.delete}</Link>
       </header>
 
       <DetailList
         details={[
-          { term: "First name", value: person.firstName },
-          { term: "Middle name", value: person.middleName ?? "—" },
-          { term: "Last name", value: person.lastName },
-          { term: "Gender", value: <GenderValue gender={gender} /> },
+          { term: m.person.firstName, value: person.firstName },
+          {
+            term: m.person.middleName,
+            value: person.middleName ?? m.common.none,
+          },
+          { term: m.person.lastName, value: person.lastName },
+          { term: m.gender.fieldLabel, value: <GenderValue gender={gender} /> },
         ]}
       />
 
@@ -141,8 +146,8 @@ export function PersonScreen({
 
       <DetailList
         details={[
-          { term: "Created", value: formatTimestamp(person.createdAt) },
-          { term: "Updated", value: formatTimestamp(person.updatedAt) },
+          { term: m.person.created, value: formatTimestamp(person.createdAt) },
+          { term: m.person.updated, value: formatTimestamp(person.updatedAt) },
         ]}
       />
     </main>

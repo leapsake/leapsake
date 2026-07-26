@@ -14,6 +14,7 @@ increments: [`plans/ui-extraction.md`](../../plans/ui-extraction.md).
 | Import | Holds | Platform |
 |---|---|---|
 | `@leapsake/ui/tokens` | Design tokens as plain objects | Neutral |
+| `@leapsake/ui/messages` | The text catalog + its provider | Neutral |
 | `@leapsake/ui/headless` | Behavior hooks with zero DOM | Neutral |
 | `@leapsake/ui/web` | DOM components | Web + Electron renderer |
 
@@ -53,6 +54,51 @@ const adapter: UiAdapter = {
 Everything else a component needs — loaded data, `submitting`, write callbacks —
 arrives as **props**, because it is per-screen state the container already holds
 rather than ambient chrome.
+
+## Text
+
+**No component contains a user-visible string.** Text comes from one of two
+places, and which one depends on the layer:
+
+- **Primitives take text as props.** `DataTable`, `Combobox`, `MultiAddCombobox`,
+  `Section`, `ConfirmDelete` — a building block knows nothing about what it is
+  listing or which language the app speaks.
+- **Sections, screens and feature components read the catalog** via
+  `useMessages()`. Making them take text as props would just relocate the
+  hardcoded English to the caller: `PersonScreen` composes seven sections, so it
+  would forward forty-odd strings.
+
+```tsx
+import { MessagesProvider, en } from "@leapsake/ui/messages";
+
+<MessagesProvider messages={en}>{app}</MessagesProvider>;
+```
+
+**The rule that matters: a message taking values is a function, not a template
+with holes.** The catalog owns the whole sentence; a component only supplies
+data.
+
+```ts
+// the component
+{m.person.duplicates(count)}
+// the catalog decides how English says it — and how Polish would
+duplicates: (count) => count === 1 ? "Someone else…" : `${count} other people…`,
+```
+
+That is what makes a component structurally unable to assemble a sentence out of
+fragments, and it means plural rules, word order and list separators are a
+catalog concern rather than something to keep catching in review. Concatenating
+user-visible text in a component — `` `${name} (hidden)` ``, `" · with " + label`,
+`items.join(", ")` — is the specific thing this forbids.
+
+A dedicated i18n library will land eventually. Nothing here assumes which one:
+components read a plain typed object, so adopting it replaces `messages/en.ts`
+and `messages/context.tsx` and touches no component.
+
+Two things this does *not* cover, both tracked as the wider i18n workstream:
+`@leapsake/schema`'s label tables (`genderLabel`, `kindDefs`, the role labels),
+which mobile reads directly; and the strings still inline in `apps/desktop`
+screens that haven't moved into this package yet.
 
 ## Feature ports
 

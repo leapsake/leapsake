@@ -4,6 +4,7 @@ import type {
   MilestoneTimelineEntry,
 } from "@leapsake/schema";
 import { entityBasePath } from "../../headless/routes.js";
+import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import { Breadcrumbs, type Crumb } from "../primitives/Breadcrumbs.js";
 import { DetailList } from "../primitives/DetailList.js";
@@ -39,6 +40,7 @@ export function RelationshipScreen({
   milestones: readonly Milestone[];
 }) {
   const { Link } = useUi();
+  const m = useMessages();
   const relPath = `/relationships/${relationshipId}`;
 
   // The relationship's own milestones, as editable timeline entries (this page
@@ -56,8 +58,8 @@ export function RelationshipScreen({
 
       <header>
         <h1>{title}</h1>
-        <Link href={`${relPath}/edit`}>Edit roles</Link>{" "}
-        <Link href={`${relPath}/delete`}>Delete</Link>
+        <Link href={`${relPath}/edit`}>{m.relationship.editRoles}</Link>{" "}
+        <Link href={`${relPath}/delete`}>{m.common.delete}</Link>
       </header>
 
       <DetailList

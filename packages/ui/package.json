@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./headless": "./src/headless/index.ts",
+    "./messages": "./src/messages/index.ts",
     "./tokens": "./src/tokens/index.ts",
     "./web": "./src/web/index.ts"
   },

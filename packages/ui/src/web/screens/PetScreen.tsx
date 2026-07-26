@@ -6,6 +6,7 @@ import type {
   Reminder,
   Tag,
 } from "@leapsake/schema";
+import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import type { GivenRow, SuggestionRow } from "../gifts/ports.js";
 import { Breadcrumbs, type Crumb } from "../primitives/Breadcrumbs.js";
@@ -56,6 +57,7 @@ export function PetScreen({
   onChanged: () => void;
 }) {
   const { Link } = useUi();
+  const m = useMessages();
   const basePath = `/pets/${pet.id}`;
 
   return (
@@ -64,14 +66,14 @@ export function PetScreen({
 
       <header>
         <h1>{pet.name}</h1>
-        <Link href={`${basePath}/edit`}>Edit</Link>{" "}
-        <Link href={`${basePath}/delete`}>Delete</Link>
+        <Link href={`${basePath}/edit`}>{m.common.edit}</Link>{" "}
+        <Link href={`${basePath}/delete`}>{m.common.delete}</Link>
       </header>
 
       <DetailList
         details={[
-          { term: "Name", value: pet.name },
-          { term: "Gender", value: <GenderValue gender={gender} /> },
+          { term: m.pet.name, value: pet.name },
+          { term: m.gender.fieldLabel, value: <GenderValue gender={gender} /> },
         ]}
       />
 
@@ -111,8 +113,8 @@ export function PetScreen({
 
       <DetailList
         details={[
-          { term: "Created", value: formatTimestamp(pet.createdAt) },
-          { term: "Updated", value: formatTimestamp(pet.updatedAt) },
+          { term: m.pet.created, value: formatTimestamp(pet.createdAt) },
+          { term: m.pet.updated, value: formatTimestamp(pet.updatedAt) },
         ]}
       />
     </main>

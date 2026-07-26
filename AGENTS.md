@@ -67,10 +67,11 @@ packages/
                     # ciphertext. See packages/crypto/README.md.
   highlight/        # Search-match highlighting.
   ui/               # Shared presentational UI, consumed by the Electron renderer
-                    # and (later) apps/web. Three subpaths: /tokens (plain-data
-                    # design tokens), /headless (behavior hooks, no DOM), /web
-                    # (DOM components). React is a *peer* dependency. See its
-                    # README and plans/ui-extraction.md.
+                    # and (later) apps/web. Four subpaths: /tokens (plain-data
+                    # design tokens), /messages (the text catalog), /headless
+                    # (behavior hooks, no DOM), /web (DOM components). React is a
+                    # *peer* dependency. See its README and
+                    # plans/ui-extraction.md.
 AGENTS.md
 plans/                # forward-looking only — upcoming work, not past decisions
   README.md           # project map / front door
@@ -273,6 +274,27 @@ desktop form already chose `<select>` vs `<datalist>`:**
   segmented-control case appears.
 
 Prefer native elements over novel custom UI for these common cases.
+
+## User-visible text
+
+Leapsake will be localized. Two rules follow, and they apply to new UI code now
+rather than at translation time, because they are far cheaper to keep than to
+retrofit:
+
+1. **No component contains a user-visible string.** In `packages/ui`, primitives
+   take text as props and everything above them reads the catalog
+   (`@leapsake/ui/messages`). Elsewhere, keep strings at the top of a module
+   rather than inline, so the later sweep is mechanical.
+2. **Never build a sentence out of fragments.** No `` `${name} (hidden)` ``, no
+   `" · with " + label`, no `parts.join(", ")`, no `count === 1 ? … : …` in a
+   component. A message that takes values is a **function** the catalog owns, so
+   plural rules, word order and list separators belong to the language rather
+   than to render code.
+
+Dates and numbers already go through `toLocaleDateString`/`toLocaleString`; keep
+it that way. Still English and not yet covered: `@leapsake/schema`'s label tables
+(`genderLabel`, `kindDefs`, the role labels), which both clients read, and the
+`apps/desktop` screens not yet moved into `packages/ui`.
 
 ## React version policy (monorepo)
 

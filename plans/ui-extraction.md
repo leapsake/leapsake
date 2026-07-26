@@ -53,6 +53,12 @@ part of this extraction); see *Post-v0.1 doors*.
 - **Shared derivations go to `@leapsake/view-models`**, not a `utils` package. A package named
   for its shape rather than its job becomes a junk drawer and can't have a README that explains
   why it's shaped that way.
+- **No component contains a user-visible string** (decided 2026-07-25, built the same day).
+  Localization is coming, so primitives take text as props and everything above them reads a
+  typed catalog at `@leapsake/ui/messages`. A message taking values is a **function** the catalog
+  owns, which is what makes a component unable to assemble a sentence out of fragments. A
+  dedicated i18n library replaces the catalog and its provider later; no component changes.
+  Rules in `AGENTS.md` → *User-visible text*; rationale in the package README.
 
 ## Where the code is today
 

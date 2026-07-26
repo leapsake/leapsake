@@ -7,6 +7,7 @@ import {
   preferredBearerType,
 } from "@leapsake/schema";
 import { entityBasePath } from "../../headless/routes.js";
+import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import { DataTable } from "../primitives/DataTable.js";
 import { EmptyState, Section } from "../primitives/Section.js";
@@ -16,7 +17,7 @@ import { EmptyState, Section } from "../primitives/Section.js";
  * screens — the dated facts of a bearer's life. It renders a {@link
  * MilestoneTimelineEntry} list: an entry's **own** milestones are editable in
  * place (Edit / Remove), while milestones drawn from a relationship the bearer
- * participates in are shown **read-only** (labelled “· with <partner>”) with a
+ * participates in are shown **read-only** (labelled with the other party) and
  * link out to the relationship's page — its single, canonical edit surface.
  *
  * An unbound relationship-kind milestone (a Wedding stored on a Person while its
@@ -33,40 +34,40 @@ export function MilestonesSection({
   entries: readonly MilestoneTimelineEntry[];
 }) {
   const { Link } = useUi();
+  const m = useMessages();
   const basePath = `${entityBasePath(bearerType)}/${bearerId}`;
 
   return (
     <Section
-      title="Milestones"
-      actions={<Link href={`${basePath}/milestones/new`}>Add milestone</Link>}
+      title={m.milestones.title}
+      actions={
+        <Link href={`${basePath}/milestones/new`}>{m.milestones.add}</Link>
+      }
     >
       {entries.length === 0 ? (
-        <EmptyState>No milestones yet.</EmptyState>
+        <EmptyState>{m.milestones.empty}</EmptyState>
       ) : (
         <DataTable
           items={entries}
           getKey={(entry) => entry.milestone.id}
           columns={[
             {
-              header: "Milestone",
+              header: m.milestones.columnMilestone,
               cell: (entry) => {
                 const icon = kindDefs[entry.milestone.kind].icon;
-                return (
-                  <>
-                    {icon ? `${icon} ` : ""}
-                    {milestoneLabel(entry.milestone)}
-                    {entry.origin === "relationship" && entry.otherLabel
-                      ? ` · with ${entry.otherLabel}`
-                      : ""}
-                  </>
-                );
+                const label = milestoneLabel(entry.milestone);
+                const named =
+                  entry.origin === "relationship" && entry.otherLabel
+                    ? m.milestones.withPartner(label, entry.otherLabel)
+                    : label;
+                return `${icon ? `${icon} ` : ""}${named}`;
               },
             },
             {
-              header: "Date",
+              header: m.milestones.columnDate,
               cell: (entry) => {
                 const date = formatMilestoneDate(entry.milestone);
-                return date === "" ? "—" : date;
+                return date === "" ? m.common.none : date;
               },
             },
             {
@@ -76,7 +77,7 @@ export function MilestonesSection({
                 if (entry.origin === "relationship") {
                   return (
                     <Link href={`/relationships/${entry.relationshipId}`}>
-                      View
+                      {m.milestones.view}
                     </Link>
                   );
                 }
@@ -89,12 +90,16 @@ export function MilestonesSection({
                 const milestonePath = `${basePath}/milestones/${milestone.id}`;
                 return (
                   <>
-                    <Link href={`${milestonePath}/edit`}>Edit</Link>{" "}
-                    <Link href={`${milestonePath}/delete`}>Remove</Link>
+                    <Link href={`${milestonePath}/edit`}>{m.common.edit}</Link>{" "}
+                    <Link href={`${milestonePath}/delete`}>
+                      {m.common.remove}
+                    </Link>
                     {canRebind ? (
                       <>
                         {" "}
-                        <Link href={`${milestonePath}/rebind`}>Set spouse</Link>
+                        <Link href={`${milestonePath}/rebind`}>
+                          {m.milestones.setSpouse}
+                        </Link>
                       </>
                     ) : null}
                   </>

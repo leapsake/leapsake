@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { vi } from "vitest";
+import { MessagesProvider, en } from "../src/messages/index.js";
 import {
   GiftsPortsProvider,
   UiProvider,
@@ -31,8 +32,10 @@ export function fakeGiftsPorts(over: Partial<GiftsPorts> = {}): GiftsPorts {
 /** Render a gift surface with both the UI adapter and the gift ports mounted. */
 export function renderWithGifts(ui: ReactElement, ports: GiftsPorts) {
   return render(
-    <UiProvider adapter={testAdapter}>
-      <GiftsPortsProvider ports={ports}>{ui}</GiftsPortsProvider>
-    </UiProvider>,
+    <MessagesProvider messages={en}>
+      <UiProvider adapter={testAdapter}>
+        <GiftsPortsProvider ports={ports}>{ui}</GiftsPortsProvider>
+      </UiProvider>
+    </MessagesProvider>,
   );
 }

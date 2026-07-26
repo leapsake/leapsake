@@ -1,5 +1,6 @@
 import { type ObservanceBearerType, formatOccurrence } from "@leapsake/schema";
 import { useSerializedWrites } from "../../headless/useSerializedWrites.js";
+import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import { DataTable } from "../primitives/DataTable.js";
 import { MultiAddCombobox } from "../primitives/MultiAddCombobox.js";
@@ -44,6 +45,7 @@ export function HolidaysSection({
   onChanged: () => void;
 }) {
   const { Link } = useUi();
+  const m = useMessages();
   const { busy, error, run } = useSerializedWrites({ onSuccess: onChanged });
 
   const observed = holidays.filter((h) => h.observes);
@@ -56,39 +58,39 @@ export function HolidaysSection({
   const addable = holidays.filter((h) => !h.observes && !h.hidden);
 
   return (
-    <Section title="Holidays">
-      {error !== null && <p>Couldn't save: {error}</p>}
+    <Section title={m.holidays.title}>
+      {error !== null && <p>{m.common.saveFailed(error)}</p>}
 
       <MultiAddCombobox
-        label={`Add a holiday this ${bearerType} observes`}
-        placeholder="Add a holiday…"
+        label={m.holidays.addLabel(bearerType)}
+        placeholder={m.holidays.addPlaceholder}
         options={addable}
         getKey={(h) => h.id}
         getLabel={(h) => h.name}
         onPick={(h) => run(() => onSetObserves(h.id, true))}
+        announceAdded={m.combobox.added}
+        announceCount={m.combobox.suggestionCount}
       />
 
       {observed.length === 0 ? (
-        <EmptyState>No holidays yet.</EmptyState>
+        <EmptyState>{m.holidays.empty}</EmptyState>
       ) : (
         <DataTable
           items={observed}
           getKey={(holiday) => holiday.id}
           columns={[
             {
-              header: "Holiday",
-              cell: (holiday) => (
-                <>
-                  {holiday.name}
-                  {holiday.hidden && " (hidden)"}
-                </>
-              ),
+              header: m.holidays.columnHoliday,
+              cell: (holiday) =>
+                holiday.hidden
+                  ? m.holidays.hiddenName(holiday.name)
+                  : holiday.name,
             },
             {
-              header: "Next",
+              header: m.holidays.columnNext,
               cell: (holiday) =>
                 holiday.nextOccurrence === null
-                  ? "—"
+                  ? m.common.none
                   : formatOccurrence(holiday.nextOccurrence),
             },
             {
@@ -98,14 +100,14 @@ export function HolidaysSection({
                   <Link
                     href={`/holidays/${holiday.id}/observers/${bearerType}/${bearerId}`}
                   >
-                    Reminders
+                    {m.holidays.reminders}
                   </Link>{" "}
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => run(() => onSetObserves(holiday.id, false))}
                   >
-                    Remove
+                    {m.common.remove}
                   </button>
                 </>
               ),

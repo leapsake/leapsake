@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSerializedWrites } from "../../headless/useSerializedWrites.js";
+import { useMessages } from "../../messages/index.js";
 import { GiftAdornmentsEditor } from "../gifts/GiftAdornmentsEditor.js";
 import { dateFieldsOf } from "../gifts/GiftOccasionFields.js";
 import {
@@ -29,6 +30,7 @@ export function GiftIdeaRecipientsSection({
   onChanged: () => void;
 }) {
   const { createSuggestion, removeSuggestion } = useGiftsPorts();
+  const m = useMessages();
   const { busy, error, run } = useSerializedWrites({ onSuccess: onChanged });
 
   // Recipients already suggested drop out of the add field.
@@ -42,12 +44,12 @@ export function GiftIdeaRecipientsSection({
   const [editing, setEditing] = useState<string | null>(null);
 
   return (
-    <Section title="Suggested for">
-      {error !== null && <p>Couldn't save: {error}</p>}
+    <Section title={m.giftIdeaRecipients.title}>
+      {error !== null && <p>{m.common.saveFailed(error)}</p>}
 
       <MultiAddCombobox
-        label="Suggest this idea for a person or pet"
-        placeholder="Suggest for someone…"
+        label={m.giftIdeaRecipients.addLabel}
+        placeholder={m.giftIdeaRecipients.addPlaceholder}
         options={addable}
         getKey={(c) => `${c.type}:${c.id}`}
         getLabel={(c) => c.label}
@@ -60,29 +62,33 @@ export function GiftIdeaRecipientsSection({
             }),
           )
         }
+        announceAdded={m.combobox.added}
+        announceCount={m.combobox.suggestionCount}
       />
 
       {suggestions.length === 0 ? (
-        <EmptyState>Not suggested for anyone yet.</EmptyState>
+        <EmptyState>{m.giftIdeaRecipients.empty}</EmptyState>
       ) : (
         <ul>
           {suggestions.map((s) => (
             <li key={s.id}>
-              {s.recipientLabel}
-              {s.occasionLabel !== null && ` — ${s.occasionLabel}`}{" "}
+              {m.giftIdeaRecipients.recipientLine(
+                s.recipientLabel,
+                s.occasionLabel,
+              )}{" "}
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => setEditing(editing === s.id ? null : s.id)}
               >
-                {editing === s.id ? "Close" : "Edit"}
+                {editing === s.id ? m.common.close : m.common.edit}
               </button>{" "}
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => run(() => removeSuggestion(s.id))}
               >
-                Remove
+                {m.common.remove}
               </button>
               {editing === s.id && (
                 <GiftAdornmentsEditor
