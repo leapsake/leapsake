@@ -1,12 +1,13 @@
 import type { EntityType } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
+import {
+  Breadcrumbs,
+  RelationshipForm,
+  type RelationshipCandidate,
+} from "@leapsake/ui/web";
 import { entityBasePath } from "@leapsake/ui/headless";
 import { useLoaderData } from "react-router-dom";
-import {
-  type RelationshipCandidate,
-  RelationshipForm,
-} from "../components/RelationshipForm";
 import { homeCrumb } from "../lib/crumbs";
+import { useSubmitting } from "../lib/useSubmitting";
 
 /** The subject entity a new relationship hangs off of. */
 interface Subject {
@@ -35,6 +36,7 @@ export function RelationshipCreate() {
         subjectType={subject.type}
         candidates={candidates}
         cancelTo={subjectPath}
+        submitting={useSubmitting()}
       />
     </main>
   );

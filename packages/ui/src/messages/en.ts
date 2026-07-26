@@ -162,6 +162,26 @@ export const en: Messages = {
     submitGiving: "Log gift",
   },
 
+  relationshipForm: {
+    heading: "Add relationship",
+    submit: "Add",
+    name: "Name",
+    namePlaceholder: "Start typing a name",
+    role: "Role",
+    rolePlaceholder: "role",
+    note: "Note",
+    groupLegend: "Relationships",
+    addRow: "Add relationship",
+  },
+
+  personForm: {
+    tagsPlaceholder: "#Friend #Colleague",
+  },
+
+  petForm: {
+    tagsPlaceholder: "#Friend #Neighbor",
+  },
+
   giftIdeaForm: {
     title: "Title",
     titlePlaceholder: "Red Ryder BB Gun",

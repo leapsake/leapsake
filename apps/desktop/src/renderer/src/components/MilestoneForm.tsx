@@ -9,9 +9,9 @@ import {
   preferredBearerType,
   resolveReminderSchedule,
 } from "@leapsake/schema";
+import { type RelationshipCandidate } from "@leapsake/ui/web";
 import { useMemo, useState } from "react";
 import { Form, Link, useNavigation } from "react-router-dom";
-import type { RelationshipCandidate } from "./RelationshipForm";
 import { ReminderScheduleFields } from "./ReminderScheduleFields";
 import { WithWhomFields } from "./WithWhomFields";
 

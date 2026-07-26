@@ -1,8 +1,11 @@
-import { Breadcrumbs } from "@leapsake/ui/web";
+import {
+  Breadcrumbs,
+  PetForm,
+  type RelationshipCandidate,
+} from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { PetForm } from "../components/PetForm";
-import type { RelationshipCandidate } from "../components/RelationshipForm";
 import { homeCrumb } from "../lib/crumbs";
+import { useSubmitting } from "../lib/useSubmitting";
 
 export function PetCreate() {
   const candidates = useLoaderData() as RelationshipCandidate[];
@@ -15,6 +18,7 @@ export function PetCreate() {
         candidates={candidates}
         submitLabel="Add"
         cancelTo="/"
+        submitting={useSubmitting()}
       />
     </main>
   );

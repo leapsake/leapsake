@@ -25,6 +25,7 @@ export function FormShell({
   cancelTo,
   submitting,
   canSubmit = true,
+  beforeFields,
   children,
 }: {
   /** Present when this form is the whole screen. */
@@ -34,6 +35,12 @@ export function FormShell({
   submitting: boolean;
   /** False while the form's own rules say it isn't ready to send. */
   canSubmit?: boolean;
+  /**
+   * Content between the form and its fieldset — in practice, hidden inputs
+   * carrying values resolved from what the user typed. They sit outside the
+   * fieldset so disabling it can never drop them.
+   */
+  beforeFields?: ReactNode;
   children: ReactNode;
 }) {
   const { Form, Link } = useUi();
@@ -52,6 +59,7 @@ export function FormShell({
           {cancel}
         </header>
       )}
+      {beforeFields}
       <fieldset disabled={submitting}>
         {children}
         {title === undefined && (

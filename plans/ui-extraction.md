@@ -326,8 +326,11 @@ when the form is the whole screen, at the foot when the screen owns the `<h1>`) 
 `Field`/`StackedField`. `GiftIdeaForm`, `MentionTextField` (its search injected as a prop rather
 than reached for — one caller, one level, so no ports interface), and `ReminderForm`.
 
-**5b — the relationship cluster.** `RelationshipForm` + `RelationshipFields`, then `PersonForm`
-and `PetForm`, which render them.
+**5b — the relationship cluster (done).** `RelationshipForm` + `RelationshipFields`, then
+`PersonForm` and `PetForm`, which render them. `RelationshipCandidate` is declared structurally
+in the package rather than imported from `@leapsake/core`. `FormShell` grew a `beforeFields`
+slot for the hidden inputs carrying values resolved from what the user typed — they sit outside
+the fieldset so disabling it can't drop them, the same reason `ConfirmDelete`'s `hiddenFields` do.
 
 **5c — the rest.** `MilestoneForm` + `WithWhomFields` + `ReminderScheduleFields`, and
 `ContactMethodForm` (its country picker and per-kind field sets).

@@ -5,8 +5,8 @@ import {
   rolesForPair,
   spouseNeighbors,
 } from "@leapsake/schema";
+import { type RelationshipCandidate } from "@leapsake/ui/web";
 import { useEffect, useMemo, useState } from "react";
-import type { RelationshipCandidate } from "./RelationshipForm";
 
 /** The other-end role a freshly created relationship gets, defaulted by kind. */
 const DEFAULT_ROLE: Partial<Record<MilestoneKind, RelationshipRole>> = {

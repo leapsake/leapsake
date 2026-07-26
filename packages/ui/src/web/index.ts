@@ -24,6 +24,13 @@ export {
   type HighlightMode,
 } from "./highlight.js";
 export { MentionTextField } from "./fields/MentionTextField.js";
+export {
+  RelationshipFields,
+  type RelationshipCandidate,
+} from "./fields/RelationshipFields.js";
+export { PersonForm } from "./forms/PersonForm.js";
+export { PetForm } from "./forms/PetForm.js";
+export { RelationshipForm } from "./forms/RelationshipForm.js";
 export { GiftIdeaForm } from "./forms/GiftIdeaForm.js";
 export { ReminderForm } from "./forms/ReminderForm.js";
 export { ConfirmDelete } from "./patterns/ConfirmDelete.js";

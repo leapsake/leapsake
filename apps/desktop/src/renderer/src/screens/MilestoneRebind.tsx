@@ -4,10 +4,9 @@ import {
   type RelationshipNeighbor,
   milestoneLabel,
 } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
+import { Breadcrumbs, type RelationshipCandidate } from "@leapsake/ui/web";
 import { useState } from "react";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import type { RelationshipCandidate } from "../components/RelationshipForm";
 import { WithWhomFields } from "../components/WithWhomFields";
 import { homeCrumb } from "../lib/crumbs";
 

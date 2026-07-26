@@ -174,6 +174,28 @@ export interface Messages {
     submitGiving: string;
   };
 
+  relationshipForm: {
+    heading: string;
+    submit: string;
+    name: string;
+    namePlaceholder: string;
+    role: string;
+    rolePlaceholder: string;
+    note: string;
+    /** Legend for the rows embedded in a create form. */
+    groupLegend: string;
+    /** Adds another blank row to that group. */
+    addRow: string;
+  };
+
+  personForm: {
+    tagsPlaceholder: string;
+  };
+
+  petForm: {
+    tagsPlaceholder: string;
+  };
+
   giftIdeaForm: {
     title: string;
     titlePlaceholder: string;

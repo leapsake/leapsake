@@ -3,9 +3,22 @@ import {
   type RelationshipRole,
   rolesForPair,
 } from "@leapsake/schema";
-import { useState } from "react";
-import { useNavigation } from "react-router-dom";
-import type { RelationshipCandidate } from "./RelationshipForm";
+import { useId, useState } from "react";
+import { useMessages } from "../../messages/index.js";
+import { Field } from "../primitives/Field.js";
+
+/**
+ * A person or pet the subject can be related to.
+ *
+ * Declared structurally rather than imported from `@leapsake/core`, so the
+ * package stays off the data layer — core's `RelationshipCandidate` remains
+ * assignable to it.
+ */
+export interface RelationshipCandidate {
+  type: EntityType;
+  id: string;
+  label: string;
+}
 
 /** One editable relationship row's local state, keyed for stable rendering. */
 interface RelRow {
@@ -21,7 +34,8 @@ function emptyRow(): RelRow {
   return { key: nextRowKey++, entityText: "", roleText: "", note: "" };
 }
 
-function roleMap(
+/** Map each pickable role's display label back to its slug for the chosen pair. */
+export function roleMap(
   otherType: EntityType,
   subjectType: EntityType,
 ): Map<string, RelationshipRole> {
@@ -33,23 +47,29 @@ function roleMap(
 /**
  * The relationships section embedded in the People & Pets *create* forms, so an
  * entity and its relationships are saved together (e.g. a pet plus its owner in
- * one go). Each row mirrors {@link RelationshipForm}: pick the other entity and
- * its role; the subject's own role is the implied inverse. Every fully-resolved
- * row emits a hidden `relationships` input carrying a JSON blob of the resolved
- * b-side values; the create action reads them with `formData.getAll`.
+ * one go). Each row mirrors the standalone add-relationship form: pick the other
+ * entity and its role; the subject's own role is the implied inverse. Every
+ * fully-resolved row emits a hidden `relationships` input carrying a JSON blob of
+ * the resolved b-side values, which the write path reads with `formData.getAll`.
  */
 export function RelationshipFields({
   subjectType,
   candidates,
+  submitting,
   initialRows = 0,
 }: {
   subjectType: EntityType;
-  candidates: RelationshipCandidate[];
+  candidates: readonly RelationshipCandidate[];
+  submitting: boolean;
   /** How many empty rows to show up front (1 nudges owner entry on the Pet form). */
   initialRows?: number;
 }) {
-  const navigation = useNavigation();
-  const submitting = navigation.state === "submitting";
+  const m = useMessages();
+  const ids = useId();
+  const entityListId = `${ids}-entities`;
+  const personRoleListId = `${ids}-roles-person`;
+  const petRoleListId = `${ids}-roles-pet`;
+
   const [rows, setRows] = useState<RelRow[]>(() =>
     Array.from({ length: initialRows }, emptyRow),
   );
@@ -66,9 +86,9 @@ export function RelationshipFields({
 
   return (
     <fieldset disabled={submitting}>
-      <legend>Relationships</legend>
+      <legend>{m.relationshipForm.groupLegend}</legend>
 
-      <datalist id="rel-fields-entities">
+      <datalist id={entityListId}>
         {candidates.map((candidate) => (
           <option
             key={`${candidate.type}:${candidate.id}`}
@@ -76,12 +96,12 @@ export function RelationshipFields({
           />
         ))}
       </datalist>
-      <datalist id="rel-fields-roles-person">
+      <datalist id={personRoleListId}>
         {rolesForPair("person", subjectType).map((role) => (
           <option key={role.role} value={role.label} />
         ))}
       </datalist>
-      <datalist id="rel-fields-roles-pet">
+      <datalist id={petRoleListId}>
         {rolesForPair("pet", subjectType).map((role) => (
           <option key={role.role} value={role.label} />
         ))}
@@ -98,46 +118,41 @@ export function RelationshipFields({
 
         return (
           <div key={row.key}>
-            <label>
-              Name{" "}
+            <Field label={m.relationshipForm.name}>
               <input
-                list="rel-fields-entities"
+                list={entityListId}
                 value={row.entityText}
                 onChange={(event) =>
                   patchRow(row.key, { entityText: event.target.value })
                 }
-                placeholder="Start typing a name"
+                placeholder={m.relationshipForm.namePlaceholder}
               />
-            </label>{" "}
-            <label>
-              Role{" "}
+            </Field>{" "}
+            <Field label={m.relationshipForm.role}>
               <input
-                list={
-                  otherType === "pet"
-                    ? "rel-fields-roles-pet"
-                    : "rel-fields-roles-person"
-                }
+                list={otherType === "pet" ? petRoleListId : personRoleListId}
                 value={row.roleText}
                 onChange={(event) =>
                   patchRow(row.key, { roleText: event.target.value })
                 }
-                placeholder="role"
+                placeholder={m.relationshipForm.rolePlaceholder}
               />
-            </label>
+            </Field>
             {bRole === "other" && (
-              <label>
+              <>
                 {" "}
-                Note{" "}
-                <input
-                  value={row.note}
-                  onChange={(event) =>
-                    patchRow(row.key, { note: event.target.value })
-                  }
-                />
-              </label>
+                <Field label={m.relationshipForm.note}>
+                  <input
+                    value={row.note}
+                    onChange={(event) =>
+                      patchRow(row.key, { note: event.target.value })
+                    }
+                  />
+                </Field>
+              </>
             )}{" "}
             <button type="button" onClick={() => removeRow(row.key)}>
-              Remove
+              {m.common.remove}
             </button>
             {resolved && (
               <input
@@ -156,7 +171,7 @@ export function RelationshipFields({
       })}
 
       <button type="button" onClick={() => setRows((c) => [...c, emptyRow()])}>
-        Add relationship
+        {m.relationshipForm.addRow}
       </button>
     </fieldset>
   );
