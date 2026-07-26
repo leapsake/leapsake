@@ -6,8 +6,18 @@ and form submission — from an adapter the host app injects. They never read a
 router, never call `window.api`, and never own a write.
 
 The point is that `apps/web` (post-launch) is a port rather than a rewrite, and
-that desktop's UI becomes testable for the first time. Build plan and remaining
-increments: [`plans/ui-extraction.md`](../../plans/ui-extraction.md).
+that desktop's UI becomes testable for the first time. The extraction is
+**complete** — every presentational component the Electron renderer had lives
+here. Headless derivations the clients share live one package over, in
+[`@leapsake/view-models`](../view-models/README.md).
+
+## What stays with the app
+
+By design, not by omission: `router.tsx` (every loader, action and `FormData`
+parse), all `window.*` access, `Settings` (sync and key-custody UI), the recovery
+gate, the boot gate, and the error page (`useRouteError` is router-specific).
+Everything else under `apps/desktop/src/renderer/src/screens/` is a thin
+container — read the loader, render a component from here.
 
 ## Three subpaths, deliberately
 
@@ -132,6 +142,19 @@ deps.
 The pinned `react`/`react-dom` pair in `devDependencies` exists only so this
 package's own tests render against a matching pair — the workspace root hoists
 mobile's `react` alongside desktop's `react-dom`, which do not match.
+
+## Styling, and why there isn't any yet
+
+Markup moved out of the renderer **unstyled**, deliberately: changing structure
+and appearance in one pass makes a regression indistinguishable from a redesign.
+The visual pass — `tokens/` growing real values, components growing styles — is
+its own pre-v0.1 increment.
+
+It also waits on the web framework, because the CSS strategy follows from it: the
+CSS Modules used here work as-is under Vite for a source-only workspace
+dependency, while Next.js would need `transpilePackages`. The same question
+decides whether the `Form` adapter wraps React Router's `<Form>` or a server
+action.
 
 ## Tests
 

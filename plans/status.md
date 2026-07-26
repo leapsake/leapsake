@@ -5,10 +5,10 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-20** — **Holidays shipped on both clients** — a `@leapsake/holidays` catalog +
-> recurrence engine, three synced tables (holidays / observances / hidden_holidays), the `/holidays`
-> browse + an autocomplete for authoring observances from either end, engine wiring to `system`
-> reminders, global search, and a per-observance schedule editor. Delivery detail in `git log`. See
+> **Updated 2026-07-25** — **The UI extraction is finished.** `@leapsake/ui` holds every
+> presentational component the desktop renderer had, and the new `@leapsake/view-models` holds the
+> derivations desktop and mobile were each maintaining a copy of. `plans/ui-extraction.md` is
+> retired; the rationale lives in the two package READMEs, the delivery detail in `git log`. See
 > *What's next* for what remains.
 
 ## Where things stand
@@ -163,47 +163,24 @@ can't ship without distributable apps. (None yet.)
   borderline Lunar New Year years are documented in `packages/holidays/src/catalog.ts`. The only
   future task is calendrical and distant: **extend both tables before ~2050**, re-deriving rather
   than extrapolating.
-- **UI extraction — increments 0 and 1 done; 2–7 remain.** The desktop renderer can't be reused
-  (60 of 71 files import `react-router-dom`; 12 call `window.api` directly), and desktop + mobile
-  duplicate derivation logic verbatim. Two packages: `@leapsake/ui` (strictly presentational,
-  injected `Link`/`Form` adapter, the eventual design-system home) and `@leapsake/view-models`
-  (headless derivations, all three clients). **Increment 0 shipped**: the package with its three
-  subpaths, the `UiAdapter` seam (desktop implements it in `lib/ui-adapter.tsx`), a seeded token
-  layer, the first three moved components — and **the first component-test tier the renderer has
-  ever had** (`@testing-library/react` + jsdom). **Increment 1 shipped**: `Breadcrumbs` +
-  `ConfirmDelete` in the package, all ten confirm-destructive screens reduced to thin containers,
-  and an app-side `useSubmitting()`. **Increment 2 shipped**: the three hand-maintained combobox
-  copies now share one `Combobox` + `ComboboxOptionDetail` (web) over `useTypeahead` +
-  `useDebouncedSearch` (headless), and the duplicated stylesheet is down to one copy inside the
-  package — `@leapsake/ui/headless` is now real. **Increment 3 shipped**: the shared route
-  builders (including the relationship explicit-vs-derived branching, which a presentational
-  component had been deciding), the `Section`/`EmptyState`/`DataTable`/`DetailList` primitives,
-  and all five read-only sections. **Increment 4 is split into 4a/4b/4c; 4a shipped**: the
-  `useSerializedWrites` seam, `MultiAddCombobox` + `HolidaysSection` moved onto injected async
-  callbacks, and `formatOccurrence` deduplicated into `@leapsake/schema`. **4b shipped**: the
-  whole gift cluster, including `GiftCaptureForm`, behind a **`GiftsPorts`** interface the app
-  implements once (`lib/gifts-ports.ts`) — the first feature port in the UI package, added
-  because those components nest three deep across four screens. **4c shipped**: `PersonScreen` /
-  `PetScreen` / `RelationshipScreen` moved, leaving the app's three view screens as
-  loader-reading containers (170 lines total, down from 326). **Increment 4 is complete.** A
-  cross-cutting pass then removed **every user-visible string** from the package: primitives take
-  text as props, everything above them reads a typed catalog (`@leapsake/ui/messages`), and any
-  message taking values is a function so the catalog owns whole sentences — which killed seven
-  untranslatable concatenations (a `bearerType` spliced into an English sentence, a hand-rolled
-  plural, three fragment joins). A dedicated i18n library swaps the catalog later without
-  touching a component; `@leapsake/schema`'s label tables remain English and are the wider
-  workstream.
-  **Increment 5 is split 5a/5b/5c by dependency cluster; 5a shipped**: `FormShell` +
-  `Field`/`StackedField`, and the `GiftIdeaForm` / `MentionTextField` / `ReminderForm` cluster.
-  **5b and 5c shipped** — all seven forms and their field groups now live in the
-  package. **Increment 6 shipped**: the import overlay, then `SearchBar` and `ReminderText`,
-  which empties the app's `components/` entirely — every remaining `screens/` file is a thin
-  container that reads its loader and renders a package component. **`@leapsake/ui` is done**
-  (197 tests). **All that's left is increment 7**, `@leapsake/view-models`, which is independent
-  of the rest and touches mobile. **Next:**
-  then 6 (the import overlay) and 7 (`@leapsake/view-models`, independent of the rest). Each
-  code-moving increment is two commits (split in place, then move). Design + increments:
-  [`ui-extraction.md`](./ui-extraction.md). **Styling is a separate pre-v0.1 pass, after this.**
+- **UI extraction — done; `plans/ui-extraction.md` retired.** Two packages now hold what the
+  clients used to duplicate. **`@leapsake/ui`** (197 tests) holds *every* presentational component
+  the Electron renderer had, behind three seams — the two-member `UiAdapter` (`Link`/`Form`), props,
+  and a feature-ports interface where components nest deep across several screens (`GiftsPorts`) —
+  with **no user-visible string in any component** (a typed catalog at `@leapsake/ui/messages`;
+  a message taking values is a *function*, so the catalog owns whole sentences). The app's
+  `components/` is empty and every `screens/` file is a loader-reading container; what stays in
+  `apps/desktop` by design is listed in that package's README. **`@leapsake/view-models`** holds the
+  headless derivations both clients showed the same way — the gift union-and-sort, the
+  observed/addable holiday split, the reminders open/done partition, the given-sinks gift ordering,
+  and `reminderCtaOf` (the CTA *decision*; each client keeps its own routes and copy), on 21 tests.
+  Its boundary against `core`: needs repo access ⇒ `core/views.ts`, pure derivation over loaded
+  data ⇒ here.
+  Rationale lives in the two package READMEs. **Leftovers, both outside this workstream:**
+  **styling / the design system** (tokens grow real values, components grow styles — a pre-v0.1 pass,
+  and it waits on the web-framework choice, which also decides CSS Modules vs. `transpilePackages`),
+  and **i18n proper** (a library, plus `@leapsake/schema`'s English label tables, which mobile reads
+  directly — a cross-client workstream, not a UI-package task).
 
 ### v0.2 (first post-launch feature increment)
 

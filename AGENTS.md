@@ -70,8 +70,7 @@ packages/
                     # and (later) apps/web. Four subpaths: /tokens (plain-data
                     # design tokens), /messages (the text catalog), /headless
                     # (behavior hooks, no DOM), /web (DOM components). React is a
-                    # *peer* dependency. See its README and
-                    # plans/ui-extraction.md.
+                    # *peer* dependency. See its README.
   view-models/      # Headless derivations every client shows the same way
                     # (grouping, partitioning, ordering over already-loaded
                     # data). Pure functions, generic over the caller's row
@@ -370,5 +369,5 @@ reason: the desktop renderer had **no** test coverage of any kind, which is
 explicitly why three near-identical combobox implementations were left
 un-deduplicated (the header comment in
 `apps/desktop/src/renderer/src/components/MultiAddCombobox.module.css` records
-that call). They are the safety net for the UI extraction — see
-[`plans/ui-extraction.md`](plans/ui-extraction.md).
+that call). They were the safety net for the UI extraction — see
+[`packages/ui/README.md`](packages/ui/README.md).
