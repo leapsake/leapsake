@@ -5,11 +5,10 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-25** — **The UI extraction is finished.** `@leapsake/ui` holds every
+> **Updated 2026-07-26** — **The UI extraction is finished**: `@leapsake/ui` holds every
 > presentational component the desktop renderer had, and the new `@leapsake/view-models` holds the
-> derivations desktop and mobile were each maintaining a copy of. `plans/ui-extraction.md` is
-> retired; the rationale lives in the two package READMEs, the delivery detail in `git log`. See
-> *What's next* for what remains.
+> derivations desktop and mobile each kept a copy of. Rationale lives in the two package READMEs.
+> See *What's next* for what remains.
 
 ## Where things stand
 
@@ -21,68 +20,38 @@
   done** (24-word phrase recovers both loss events; UI verified on both clients). **Relay
   hardening: H3 done; only non-v0.1-blocking items remain** (see *What's next*). Stages 3–4
   (sharing, SSR web) are post-launch. Design: [`encryption/`](./encryption/).
-- **V3 · Reconciliation (dedup & merge)** — Increments A, B, and C's merge-on-join are
-  built; only C's bulk-import dedup remains (deferred until the importer exists). The
-  review surface is now **detection-driven rather than permanently advertised**: the old
-  unconditional "Review duplicates" link on People & Pets is gone, replaced by a
-  count-stating link that appears only when pairs are outstanding; saving a person that
-  matches an existing one lands on a **scoped** review (`/duplicates?for=<id>`) that is
-  always skippable; both people in a pair carry a banner on their own page; a fourth
-  `system` reminder family puts a summary nudge on Home; and finishing an import routes to
-  the review when the commit left pairs behind. Design:
+- **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
+  and the review surface is **detection-driven rather than permanently advertised** (links and
+  banners appear only while pairs are outstanding; a `system` reminder nudges from Home). Only
+  C's bulk-import dedup remains, deferred until the importer exists. Design:
   [`packages/core/README.md`](../packages/core/README.md).
 - **Files / media** — nothing built; design invariants pinned in [`files.md`](./files.md).
   Photos are the v0.2 headline (first consumer of that design).
-- **Holidays** — **built on desktop, end to end.** `@leapsake/holidays` owns the catalog and the
-  recurrence engine (fixed / nth-weekday / computed / offset / precomputed-table behind one
-  `occurrencesFor`); migration 22 adds three synced tables; the bundled catalog seeds itself
-  through the sync merge path, gated on a device-local `CATALOG_VERSION`; `/holidays` browses it
-  and an **autocomplete** answers "who do you celebrate with?" — mirrored by a Holidays section on
-  Person and Pet screens, so an observance is authorable from either end; and the reminder engine grew a
-  parallel `holidays` port that mints one `system` reminder per (observance × occurrence × enabled
-  rule), keyed on the occurrence **date** so a lunisolar holiday falling twice in one Gregorian
-  year doesn't collapse. Design: [`holidays/research.md`](./holidays/research.md) (§4's four open
-  questions are now settled there). Holidays are also **searchable** (their own result type, on the
-  `tag` precedent), and each observance has its own **reminder-schedule editor** — needed because
-  observance defaults ship with every action off. The two lunisolar tables are now **derived and
-  cross-checked** (Hanukkah from the arithmetic Hebrew calendar; Lunar New Year from true new moons
-  in UTC+8 with the leap-month rule), each verified against a second independent implementation and
-  against published dates for years already past, and both run to **2056**. **Nothing outstanding.**
-- **Reminders (home-screen surface)** — a user-generated, syncable Reminder entity (freeform
-  title/body, reversible completion, inline `#tags`, **due dates**), the **landing / Home screen on
-  both clients** (People & Pets at `/people`; inline `#tags` link to their tag page and a tag's page
-  lists its reminders). **Now populated by automation:** an `@leapsake/reminders` **birthday engine**
-  emits `source: "system"` reminders (reconciled on boot/focus *and* every milestone / person write),
-  and **`@mentions`** are a synced two-way backlink (a reminder's mention links to the person/pet; an
-  entity's page lists the reminders that mention it — birthday reminders link their own subject).
-  System reminders are engine-owned, so their text is **non-editable** (completing/deleting still
-  work). **The compose surface is complete** (an `@`-triggered People/Pets picker + a `#`-triggered tag
-  typeahead, folded into one `MentionTextField` per client), and **per-milestone staggered schedules are
-  now wired into the engine** — one `system` reminder per enabled rule, offset by `offsetDays`,
-  action-phrased, and **onboarding nudges** now fill a brand-new user's empty Home (CTA-wired on
-  both clients). Remaining: reminder search.
-- **Testing harness** — the tiered `pnpm test` orchestration is built: `scripts/test-all.mjs`
-  runs each trophy tier (static · lint · typecheck · unit+integration · driver-coverage gate)
-  and the **mobile native tier on both platforms** — per-platform `native-android` /
-  `native-ios` rows (`ready`); the still-**blocked** E2E tier is reported as ⏳ (never silently
-  skipped), as is any native platform whose device isn't booted. `pnpm test` = fast local suite
-  (skips the device tiers via a `device: true` marker); `pnpm test:all` = everything reachable.
-  The **driver-coverage forcer** gates the desktop driver file at 100% (a new driver path fails
-  until a contract case covers it). **Step 3b + the step-9 iOS half are done:** `pnpm test:native`
-  (`scripts/test-native.mjs`) is split into a platform-agnostic core + `android`/`ios` drivers;
-  it auto-detects each booted device (or `--platform=ios|android`), loads the dev-client bundle
-  (Android via an `adb` deep link; iOS via the `ios-prepare.yaml` dev-launcher reconnect, since
-  the deep link is intercepted by a SpringBoard confirm on iOS), deep-links to the `__DEV__`
-  self-test (`leapsake://dev-selftest`), and the **byte-identical** vendor-neutral Maestro flow
-  (`apps/mobile/maestro/driver-selftest.yaml`) asserts the `driver-selftest-status` element's
-  `PASS` label — non-zero exit on FAIL/ERROR. Runner exit codes 0/1/3 = PASS/FAIL/BLOCKED, which
-  the orchestrator maps to the per-platform rows. Verified on Android **and** iOS (PASS + a
-  deliberately-broken RED run; iOS also verified the un-booted-sim BLOCKED path). The script
-  fails with the exact setup command if a device / dev build / Metro isn't prepared. Owner
-  decisions landed: **Maestro** for mobile E2E, tiered+umbrella `pnpm test` shape. **The
-  crucial-flow catalog is now drafted** ([`testing/crucial-flows.md`](./testing/crucial-flows.md),
-  pending owner sign-off). Next E2E bricks: desktop macOS Playwright E2E → mobile E2E flows on the
-  same harness → iOS E2E half. Design: [`testing/`](./testing/).
+- **Holidays** — **shipped on both clients**: `@leapsake/holidays` owns the catalog and the
+  recurrence engine, three synced tables carry observances, both ends author them, they are
+  searchable, and the reminder engine mints `system` reminders per occurrence against a
+  per-observance schedule. Design: [`holidays/research.md`](./holidays/research.md) (§4's four
+  open questions are settled there). The two lunisolar tables are **derived and cross-checked**
+  and run to **2056**; the only future task is calendrical and distant — **extend them before
+  ~2050**, re-deriving rather than extrapolating (see `packages/holidays/src/catalog.ts`).
+- **Reminders (home-screen surface)** — the syncable Reminder entity, the **Home screen on both
+  clients**, `@mentions` as two-way backlinks, the `@`/`#` compose surface, and four families of
+  engine-owned `system` reminders (birthdays, per-milestone staggered schedules, holidays, the
+  duplicates nudge) plus onboarding nudges are all built. Remaining: **reminder search**.
+- **UI extraction — done.** Two packages hold what the clients used to duplicate:
+  [`@leapsake/ui`](../packages/ui/README.md) (every presentational component the desktop renderer
+  had, no user-visible string in any of them, 197 tests) and
+  [`@leapsake/view-models`](../packages/view-models/README.md) (the headless derivations both
+  clients showed the same way, 21 tests). Rationale lives in those two READMEs. Leftovers below.
+- **Testing harness** — the tiered `pnpm test` orchestration is built: `pnpm test` = fast local
+  suite, `pnpm test:all` = everything reachable, with each tier a `pnpm test:*` script and
+  **blocked** tiers reported as ⏳ rather than silently skipped. The **driver-coverage forcer**
+  gates the desktop driver file at 100%. `pnpm test:native` drives the in-app self-test through
+  Maestro on a booted Android emulator and/or iOS simulator — a terminal automated gate, verified
+  RED and GREEN on both. E2E is the one **blocked** tier; its crucial-flow catalog is drafted
+  ([`testing/crucial-flows.md`](./testing/crucial-flows.md), pending owner sign-off). Next bricks:
+  desktop macOS Playwright E2E → mobile E2E flows on the same harness → iOS E2E half. Design:
+  [`testing/`](./testing/).
 
 ## Product posture
 
@@ -150,37 +119,16 @@ can't ship without distributable apps. (None yet.)
   honoring the `not_a_duplicate` memory).
 
 **Client / UX** (sequenced *after* the encryption work above):
-- **Reminders — remaining work.** The entity, Home promotion, automation (birthday + per-milestone
-  staggered schedules + **holidays**), `@mentions`, the compose surface (`@`/`#` pickers), and
-  onboarding-as-reminders are all done — see the *Where things stand* bullet, and the engine now
-  carries a fourth family for the **duplicates nudge** (content-addressed on the outstanding pair
-  set, so unlike onboarding it can legitimately re-appear). **Next: reminder
-  search** (reminders join `SearchResultType` the way gift ideas did, matched on title + body);
-  Leapsake-defined tasks extend the same engine later, keyed off `source` + trigger identity.
-- **Holidays — done.** The lunisolar tables are sourced and extended to 2056 (`CATALOG_VERSION` 2).
-  Every provisional date held up under verification — none were wrong — but they are now *derived*
-  rather than remembered, and the horizon went from ~9 years to 30. Derivation and the two
-  borderline Lunar New Year years are documented in `packages/holidays/src/catalog.ts`. The only
-  future task is calendrical and distant: **extend both tables before ~2050**, re-deriving rather
-  than extrapolating.
-- **UI extraction — done; `plans/ui-extraction.md` retired.** Two packages now hold what the
-  clients used to duplicate. **`@leapsake/ui`** (197 tests) holds *every* presentational component
-  the Electron renderer had, behind three seams — the two-member `UiAdapter` (`Link`/`Form`), props,
-  and a feature-ports interface where components nest deep across several screens (`GiftsPorts`) —
-  with **no user-visible string in any component** (a typed catalog at `@leapsake/ui/messages`;
-  a message taking values is a *function*, so the catalog owns whole sentences). The app's
-  `components/` is empty and every `screens/` file is a loader-reading container; what stays in
-  `apps/desktop` by design is listed in that package's README. **`@leapsake/view-models`** holds the
-  headless derivations both clients showed the same way — the gift union-and-sort, the
-  observed/addable holiday split, the reminders open/done partition, the given-sinks gift ordering,
-  and `reminderCtaOf` (the CTA *decision*; each client keeps its own routes and copy), on 21 tests.
-  Its boundary against `core`: needs repo access ⇒ `core/views.ts`, pure derivation over loaded
-  data ⇒ here.
-  Rationale lives in the two package READMEs. **Leftovers, both outside this workstream:**
-  **styling / the design system** (tokens grow real values, components grow styles — a pre-v0.1 pass,
-  and it waits on the web-framework choice, which also decides CSS Modules vs. `transpilePackages`),
-  and **i18n proper** (a library, plus `@leapsake/schema`'s English label tables, which mobile reads
-  directly — a cross-client workstream, not a UI-package task).
+- **Reminder search** — reminders join `SearchResultType` the way gift ideas did, matched on
+  title + body. The last piece of the reminders surface. (Leapsake-defined tasks extend the same
+  engine later, keyed off `source` + trigger identity.)
+- **Styling / the design system** — now that the extraction is done: `@leapsake/ui/tokens` grows
+  real values and the components grow styles. Markup moved out of the renderer deliberately
+  unstyled, so this is the first pass where appearance changes at all. Partly gated on the web
+  framework, which also decides CSS Modules vs. `transpilePackages`.
+- **i18n proper** — the catalog seam is built and no component holds a string; what's missing is
+  a library, plus `@leapsake/schema`'s English label tables (`genderLabel`, `kindDefs`, the role
+  labels), which mobile reads directly. A cross-client workstream, not a UI-package task.
 
 ### v0.2 (first post-launch feature increment)
 
