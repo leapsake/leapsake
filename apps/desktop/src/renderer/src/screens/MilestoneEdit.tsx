@@ -3,11 +3,11 @@ import type {
   MilestoneBearerType,
   ReminderRuleInput,
 } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
+import { Breadcrumbs, MilestoneForm } from "@leapsake/ui/web";
 import { entityBasePath } from "@leapsake/ui/headless";
 import { useLoaderData } from "react-router-dom";
-import { MilestoneForm } from "../components/MilestoneForm";
 import { homeCrumb } from "../lib/crumbs";
+import { useSubmitting } from "../lib/useSubmitting";
 
 /** The bearer entity the edited milestone hangs off of. */
 interface Bearer {
@@ -38,6 +38,7 @@ export function MilestoneEdit() {
         milestone={milestone}
         initialSchedule={reminderSchedule}
         cancelTo={bearerPath}
+        submitting={useSubmitting()}
       />
     </main>
   );

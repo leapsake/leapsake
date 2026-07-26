@@ -1,9 +1,8 @@
 import type { HolidayDetail } from "@leapsake/core";
 import type { ReminderRuleInput } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
+import { Breadcrumbs, ReminderScheduleFields } from "@leapsake/ui/web";
 import { useState } from "react";
 import { Form, useLoaderData } from "react-router-dom";
-import { ReminderScheduleFields } from "../components/ReminderScheduleFields";
 
 /**
  * One person's reminder schedule for one holiday — "what should Leapsake remind

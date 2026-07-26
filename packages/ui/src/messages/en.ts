@@ -182,6 +182,72 @@ export const en: Messages = {
     tagsPlaceholder: "#Friend #Neighbor",
   },
 
+  contactMethodForm: {
+    addHeading: (kind) =>
+      kind === "email"
+        ? "Add email"
+        : kind === "phone"
+          ? "Add phone"
+          : "Add address",
+    editHeading: (kind) =>
+      kind === "email"
+        ? "Edit email"
+        : kind === "phone"
+          ? "Edit phone"
+          : "Edit address",
+    submitAdd: "Add",
+    label: "Label",
+    labelPlaceholder: "e.g. Home",
+    email: "Email",
+    number: "Number",
+    extension: "Extension",
+    optional: "optional",
+    country: "Country",
+    smsCapable: "Can receive texts (SMS)",
+    line1: "Address line 1",
+    line1Placeholder: "Street or PO box",
+    line2: "Address line 2",
+    line2Placeholder: "Apt / unit / suite",
+    locality: "City / town",
+    region: "State / province / county",
+    postalCode: "Postal code",
+  },
+
+  reminderSchedule: {
+    legend: "Reminders",
+    on: "On",
+    action: "Reminder action",
+    label: "Reminder label",
+    labelPlaceholder: "e.g. Send flowers",
+    daysBefore: "Days before",
+    daysBeforeSuffix: "days before",
+    add: "Add reminder",
+    emptyForMilestone: "No reminders for this milestone.",
+  },
+
+  withWhom: {
+    person: "Person",
+    unknownPlaceholder: "Leave blank if unknown",
+    whichRelationship: "Which relationship?",
+    relationship: "Relationship",
+    rolePlaceholder: "Friend",
+  },
+
+  milestoneForm: {
+    addHeading: "Add milestone",
+    editHeading: "Edit milestone",
+    submitAdd: "Add",
+    kind: "Kind",
+    month: "Month",
+    day: "Day",
+    year: "Year",
+    label: "Label",
+    labelPlaceholder: "e.g. Adoption day",
+    noteLabel: "Note",
+    notePlaceholder: "optional",
+    dayNeedsMonth: "Pick a month before a day, or clear the day.",
+  },
+
   giftIdeaForm: {
     title: "Title",
     titlePlaceholder: "Red Ryder BB Gun",

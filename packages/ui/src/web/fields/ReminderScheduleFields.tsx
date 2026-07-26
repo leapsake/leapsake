@@ -4,6 +4,8 @@ import {
   actionDefs,
   reminderActionSchema,
 } from "@leapsake/schema";
+import { useMessages } from "../../messages/index.js";
+import { Field } from "../primitives/Field.js";
 
 /** The action options in registry order, for the per-row picker. */
 const ACTIONS = reminderActionSchema.options;
@@ -25,13 +27,14 @@ const ACTIONS = reminderActionSchema.options;
 export function ReminderScheduleFields({
   value,
   onChange,
-  emptyText = "No reminders for this milestone.",
+  emptyText,
 }: {
-  value: ReminderRuleInput[];
+  value: readonly ReminderRuleInput[];
   onChange: (next: ReminderRuleInput[]) => void;
   /** Copy for the no-rules case; defaults to the milestone wording. */
   emptyText?: string;
 }) {
+  const m = useMessages();
   const update = (index: number, patch: Partial<ReminderRuleInput>) =>
     onChange(
       value.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)),
@@ -46,9 +49,9 @@ export function ReminderScheduleFields({
 
   return (
     <fieldset>
-      <legend>Reminders</legend>
+      <legend>{m.reminderSchedule.legend}</legend>
       {value.length === 0 ? (
-        <p>{emptyText}</p>
+        <p>{emptyText ?? m.reminderSchedule.emptyForMilestone}</p>
       ) : (
         <ul>
           {value.map((rule, i) => (
@@ -60,10 +63,10 @@ export function ReminderScheduleFields({
                   checked={rule.enabled}
                   onChange={(e) => update(i, { enabled: e.target.checked })}
                 />{" "}
-                On
+                {m.reminderSchedule.on}
               </label>{" "}
               <select
-                aria-label="Reminder action"
+                aria-label={m.reminderSchedule.action}
                 value={rule.action}
                 onChange={(e) => {
                   const action = e.target.value as ReminderAction;
@@ -83,10 +86,10 @@ export function ReminderScheduleFields({
               </select>{" "}
               {rule.action === "other" && (
                 <input
-                  aria-label="Reminder label"
+                  aria-label={m.reminderSchedule.label}
                   value={rule.label ?? ""}
                   onChange={(e) => update(i, { label: e.target.value })}
-                  placeholder="e.g. Send flowers"
+                  placeholder={m.reminderSchedule.labelPlaceholder}
                   required
                 />
               )}{" "}
@@ -94,7 +97,7 @@ export function ReminderScheduleFields({
                 <input
                   type="number"
                   min={0}
-                  aria-label="Days before"
+                  aria-label={m.reminderSchedule.daysBefore}
                   value={rule.offsetDays}
                   onChange={(e) =>
                     update(i, {
@@ -105,17 +108,17 @@ export function ReminderScheduleFields({
                     })
                   }
                 />{" "}
-                days before
+                {m.reminderSchedule.daysBeforeSuffix}
               </label>{" "}
               <button type="button" onClick={() => remove(i)}>
-                Remove
+                {m.common.remove}
               </button>
             </li>
           ))}
         </ul>
       )}
       <button type="button" onClick={add}>
-        Add reminder
+        {m.reminderSchedule.add}
       </button>
     </fieldset>
   );

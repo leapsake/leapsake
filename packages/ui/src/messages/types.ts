@@ -1,4 +1,8 @@
-import type { GiftPartyType, ObservanceBearerType } from "@leapsake/schema";
+import type {
+  ContactMethodKind,
+  GiftPartyType,
+  ObservanceBearerType,
+} from "@leapsake/schema";
 
 /**
  * Every user-visible string the package renders.
@@ -194,6 +198,63 @@ export interface Messages {
 
   petForm: {
     tagsPlaceholder: string;
+  };
+
+  contactMethodForm: {
+    /** “Add email” / “Add phone” / “Add address” — one whole heading per kind. */
+    addHeading: (kind: ContactMethodKind) => string;
+    editHeading: (kind: ContactMethodKind) => string;
+    submitAdd: string;
+    label: string;
+    labelPlaceholder: string;
+    email: string;
+    number: string;
+    extension: string;
+    optional: string;
+    country: string;
+    smsCapable: string;
+    line1: string;
+    line1Placeholder: string;
+    line2: string;
+    line2Placeholder: string;
+    locality: string;
+    region: string;
+    postalCode: string;
+  };
+
+  reminderSchedule: {
+    legend: string;
+    on: string;
+    action: string;
+    label: string;
+    labelPlaceholder: string;
+    daysBefore: string;
+    daysBeforeSuffix: string;
+    add: string;
+    emptyForMilestone: string;
+  };
+
+  withWhom: {
+    person: string;
+    unknownPlaceholder: string;
+    whichRelationship: string;
+    relationship: string;
+    rolePlaceholder: string;
+  };
+
+  milestoneForm: {
+    addHeading: string;
+    editHeading: string;
+    submitAdd: string;
+    kind: string;
+    month: string;
+    day: string;
+    year: string;
+    label: string;
+    labelPlaceholder: string;
+    noteLabel: string;
+    notePlaceholder: string;
+    dayNeedsMonth: string;
   };
 
   giftIdeaForm: {

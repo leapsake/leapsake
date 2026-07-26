@@ -4,10 +4,10 @@ import type {
   PhoneNumber,
   PostalAddress,
 } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
+import { Breadcrumbs, ContactMethodForm } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { ContactMethodForm } from "../components/ContactMethodForm";
 import { homeCrumb } from "../lib/crumbs";
+import { useSubmitting } from "../lib/useSubmitting";
 
 /** The person the edited contact method hangs off of. */
 interface Subject {
@@ -32,7 +32,12 @@ export function ContactMethodEdit() {
           { label: "Edit contact" },
         ]}
       />
-      <ContactMethodForm kind={kind} method={method} cancelTo={subjectPath} />
+      <ContactMethodForm
+        kind={kind}
+        method={method}
+        cancelTo={subjectPath}
+        submitting={useSubmitting()}
+      />
     </main>
   );
 }

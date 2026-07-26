@@ -2,11 +2,15 @@ import type {
   MilestoneBearerType,
   RelationshipNeighbor,
 } from "@leapsake/schema";
-import { Breadcrumbs, type RelationshipCandidate } from "@leapsake/ui/web";
+import {
+  Breadcrumbs,
+  MilestoneForm,
+  type RelationshipCandidate,
+} from "@leapsake/ui/web";
 import { entityBasePath } from "@leapsake/ui/headless";
 import { useLoaderData } from "react-router-dom";
-import { MilestoneForm } from "../components/MilestoneForm";
 import { homeCrumb } from "../lib/crumbs";
+import { useSubmitting } from "../lib/useSubmitting";
 
 /** The bearer entity a new milestone hangs off of. */
 interface Bearer {
@@ -39,6 +43,7 @@ export function MilestoneCreate() {
         candidates={candidates}
         neighbors={neighbors}
         cancelTo={bearerPath}
+        submitting={useSubmitting()}
       />
     </main>
   );

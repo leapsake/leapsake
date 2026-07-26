@@ -1,8 +1,8 @@
 import type { ContactMethodKind } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
+import { Breadcrumbs, ContactMethodForm } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { ContactMethodForm } from "../components/ContactMethodForm";
 import { homeCrumb } from "../lib/crumbs";
+import { useSubmitting } from "../lib/useSubmitting";
 
 /** The person a new contact method hangs off of. */
 interface Subject {
@@ -26,7 +26,11 @@ export function ContactMethodCreate() {
           { label: "Add contact" },
         ]}
       />
-      <ContactMethodForm kind={kind} cancelTo={subjectPath} />
+      <ContactMethodForm
+        kind={kind}
+        cancelTo={subjectPath}
+        submitting={useSubmitting()}
+      />
     </main>
   );
 }

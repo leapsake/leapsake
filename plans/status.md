@@ -195,8 +195,8 @@ can't ship without distributable apps. (None yet.)
   workstream.
   **Increment 5 is split 5a/5b/5c by dependency cluster; 5a shipped**: `FormShell` +
   `Field`/`StackedField`, and the `GiftIdeaForm` / `MentionTextField` / `ReminderForm` cluster.
-  **5b shipped** (`RelationshipForm` + `RelationshipFields`, `PersonForm`, `PetForm`). **Next:
-  5c** (`MilestoneForm` + `WithWhomFields` + `ReminderScheduleFields`, and `ContactMethodForm`),
+  **5b and 5c shipped** — all seven forms and their field groups now live in the
+  package; only `SearchBar` and `ReminderText` remain under the app's `components/`. **Next:**
   then 6 (the import overlay) and 7 (`@leapsake/view-models`, independent of the rest). Each
   code-moving increment is two commits (split in place, then move). Design + increments:
   [`ui-extraction.md`](./ui-extraction.md). **Styling is a separate pre-v0.1 pass, after this.**

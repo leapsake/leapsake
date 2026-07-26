@@ -4,10 +4,13 @@ import {
   type RelationshipNeighbor,
   milestoneLabel,
 } from "@leapsake/schema";
-import { Breadcrumbs, type RelationshipCandidate } from "@leapsake/ui/web";
+import {
+  Breadcrumbs,
+  WithWhomFields,
+  type RelationshipCandidate,
+} from "@leapsake/ui/web";
 import { useState } from "react";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
-import { WithWhomFields } from "../components/WithWhomFields";
 import { homeCrumb } from "../lib/crumbs";
 
 /** The Person whose unbound milestone is being linked to a relationship. */

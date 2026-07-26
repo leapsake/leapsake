@@ -332,8 +332,12 @@ in the package rather than imported from `@leapsake/core`. `FormShell` grew a `b
 slot for the hidden inputs carrying values resolved from what the user typed — they sit outside
 the fieldset so disabling it can't drop them, the same reason `ConfirmDelete`'s `hiddenFields` do.
 
-**5c — the rest.** `MilestoneForm` + `WithWhomFields` + `ReminderScheduleFields`, and
-`ContactMethodForm` (its country picker and per-kind field sets).
+**5c — the rest (done).** `MilestoneForm` + `WithWhomFields` + `ReminderScheduleFields`, and
+`ContactMethodForm` (its country picker and per-kind field sets). Increment 5 is complete: all
+seven forms and every field group they use now live in the package. Two components remain in
+`apps/desktop/src/renderer/src/components/` — `SearchBar` (app chrome, and the only thing left
+that reads `useNavigate`) and `ReminderText` (rendered by `ReminderList`, which hasn't moved).
+Both are candidates for a later increment; neither is a form.
 
 **Done when:** every create/edit path saves correctly, and the forms still submit with JS
 disabled in the Electron devtools (the no-JS floor rehearsal — cheap here, load-bearing for web).

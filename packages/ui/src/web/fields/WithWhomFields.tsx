@@ -5,8 +5,10 @@ import {
   rolesForPair,
   spouseNeighbors,
 } from "@leapsake/schema";
-import { type RelationshipCandidate } from "@leapsake/ui/web";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { useMessages } from "../../messages/index.js";
+import { Field } from "../primitives/Field.js";
+import { type RelationshipCandidate } from "./RelationshipFields.js";
 
 /** The other-end role a freshly created relationship gets, defaulted by kind. */
 const DEFAULT_ROLE: Partial<Record<MilestoneKind, RelationshipRole>> = {
@@ -43,15 +45,22 @@ export function WithWhomFields({
   onReadyChange,
 }: {
   kind: MilestoneKind;
-  candidates: RelationshipCandidate[];
-  neighbors: RelationshipNeighbor[];
+  candidates: readonly RelationshipCandidate[];
+  neighbors: readonly RelationshipNeighbor[];
   allowUnbound: boolean;
   onReadyChange: (ready: boolean) => void;
 }) {
+  const m = useMessages();
+  const ids = useId();
+  const candidateListId = `${ids}-candidates`;
+  const roleListId = `${ids}-roles`;
+
   // Seed a Wedding from the lone explicit spouse edge, if there is exactly one.
   const inferredOther = useMemo(() => {
     if (kind !== "wedding") return "";
-    const spouses = spouseNeighbors(neighbors);
+    // Copied because the schema helper takes a mutable array; the prop is
+    // readonly so callers can pass loader data straight through.
+    const spouses = spouseNeighbors([...neighbors]);
     return spouses.length === 1 ? spouses[0].otherLabel : "";
   }, [kind, neighbors]);
 
@@ -129,21 +138,22 @@ export function WithWhomFields({
       <input type="hidden" name="withId" value={selectedOther?.id ?? ""} />
       <input type="hidden" name="relRole" value={createRole} />
 
-      <label>
-        Person{" "}
+      <Field label={m.withWhom.person}>
         <input
-          list="with-whom-candidates"
+          list={candidateListId}
           value={otherText}
           onChange={(event) => {
             setOtherText(event.target.value);
             setChosenRelId("");
           }}
           placeholder={
-            allowUnbound ? "Leave blank if unknown" : "Start typing a name"
+            allowUnbound
+              ? m.withWhom.unknownPlaceholder
+              : m.relationshipForm.namePlaceholder
           }
         />
-      </label>
-      <datalist id="with-whom-candidates">
+      </Field>
+      <datalist id={candidateListId}>
         {candidates.map((candidate) => (
           <option
             key={`${candidate.type}:${candidate.id}`}
@@ -153,35 +163,35 @@ export function WithWhomFields({
       </datalist>
 
       {existing.length > 1 && (
-        <label>
+        <>
           {" "}
-          Which relationship?{" "}
-          <select
-            value={chosenRelId || existing[0].relationshipId}
-            onChange={(event) => setChosenRelId(event.target.value)}
-          >
-            {existing.map((n) => (
-              <option key={n.relationshipId} value={n.relationshipId}>
-                {n.otherRoleLabel}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Field label={m.withWhom.whichRelationship}>
+            <select
+              value={chosenRelId || existing[0].relationshipId}
+              onChange={(event) => setChosenRelId(event.target.value)}
+            >
+              {existing.map((n) => (
+                <option key={n.relationshipId} value={n.relationshipId}>
+                  {n.otherRoleLabel}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </>
       )}
 
       {kind === "met" && selectedOther && existing.length === 0 && (
         <>
-          <label>
-            {" "}
-            Relationship{" "}
+          {" "}
+          <Field label={m.withWhom.relationship}>
             <input
-              list="with-whom-roles"
+              list={roleListId}
               value={roleText}
               onChange={(event) => setRoleText(event.target.value)}
-              placeholder="Friend"
+              placeholder={m.withWhom.rolePlaceholder}
             />
-          </label>
-          <datalist id="with-whom-roles">
+          </Field>
+          <datalist id={roleListId}>
             {rolesForPair(selectedOther.type, "person").map((r) => (
               <option key={r.role} value={r.label} />
             ))}
