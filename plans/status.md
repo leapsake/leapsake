@@ -5,10 +5,14 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-26** — **The UI extraction is finished**: `@leapsake/ui` holds every
+> **Updated 2026-07-26** — **Next up is the local-custody decision** (see *What's next* →
+> *Local custody*): pre-v0.1 is the last cheap moment to settle whether local-only use grows a
+> password + login, and the answer reshapes `launch.md` Increments 2–3. Options and a
+> recommendation are in [`encryption/local-custody-options.md`](./encryption/local-custody-options.md);
+> `model.md` and `product-truths.md` have been made **neutral** on it (they no longer presume
+> the no-password answer). Also: **the UI extraction is finished** — `@leapsake/ui` holds every
 > presentational component the desktop renderer had, and the new `@leapsake/view-models` holds the
-> derivations desktop and mobile each kept a copy of. Rationale lives in the two package READMEs.
-> See *What's next* for what remains.
+> derivations desktop and mobile each kept a copy of; rationale lives in the two package READMEs.
 
 ## Where things stand
 
@@ -17,7 +21,8 @@
   [`../AGENTS.md`](../AGENTS.md) and the package READMEs.)
 - **V3 · Encryption + sync** — **Stages 1 (zero-knowledge sync) and 2 (at-rest) are done on
   both clients**, verified over the wire and on-disk. **The recovery-phrase increment is
-  done** (24-word phrase recovers both loss events; UI verified on both clients). **Relay
+  done** (24-word phrase recovers both loss events; UI verified on both clients) — though the
+  phrase's *role* is under review, see *What's next* → *Local custody*. **Relay
   hardening: H3 done; only non-v0.1-blocking items remain** (see *What's next*). Stages 3–4
   (sharing, SSR web) are post-launch. Design: [`encryption/`](./encryption/).
 - **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
@@ -70,6 +75,42 @@ the work they imply.
 
 ### Pre-v0.1 (toward initial launch)
 
+> **Order matters here.** Picking up work cold? Take them in this order:
+> **1.** Local custody — *decide*, then build (below; blocks `launch.md` Increments 2–4).
+> **2.** `launch.md` Increment 1's leftovers — trivial, unblocked, permanent-if-wrong (versions,
+> credential gitignores). Can be done in parallel with 1.
+> **3.** The rest of `launch.md` in its own numbered order, once 1 is resolved.
+> **4.** Everything else in this section — genuinely interleavable as capacity allows, no
+> dependencies between them.
+>
+> Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
+
+**⇒ Local custody — decide first, it reshapes what follows.**
+
+- **The decision: does local-only use grow a password + login?** Today single-device use has
+  no password, and a 24-word recovery phrase is the *only* fallback when the OS keychain is
+  lost — an unfamiliar ritual guarding an active data-loss path. Options, costs, and a
+  recommendation (**E — deferred local signup, invited once the user has data to lose**) are in
+  [`encryption/local-custody-options.md`](./encryption/local-custody-options.md).
+  `model.md` §1/§6/§7/§7.1 and `product-truths.md` were made neutral on 2026-07-26 so the doc
+  set no longer presumes the answer.
+- **Why it leads:** `launch.md` Increment 2 (the recovery-phrase nudge) is a *consequence* of
+  the current answer, so building it first risks building it twice. Increment 3 (verify
+  restore-from-backup) also changes shape — under E the at-rest sidecar gains a second door,
+  and both doors need an end-to-end restore proof.
+- **Then build it**, whichever option wins. Under E the work concentrates in the
+  **pre-database boot path** on both clients (`apps/desktop/src/main/db/open.ts`,
+  `apps/mobile/lib/core-context.tsx`) — a password-wrapped `db-key` sidecar beside the
+  recovery one. Most of the surrounding flow already exists: `enableSync` already takes
+  `username`/`relayUrl` as optional (local-before-relay accounts), `enableSync`/`joinAccount`
+  already *is* sign-up/log-in, and the onboarding-nudge engine already computes the trigger.
+- **Open sub-questions** (settle with the decision, not after): session lifetime + its
+  Settings dial and the "never expires" warning; whether mobile unlocks by biometrics with a
+  password floor; and the recovery phrase's surviving role (mint at first launch either way —
+  it seals the sidecar — but surface it when?).
+- **Blocks:** `launch.md` Increments 2, 3, and therefore 4 (the first closed-test upload puts
+  real data in ≥12 testers' hands — do not ship custody churn to them afterwards).
+
 **Encryption + sync:**
 
 - **Relay hardening.** **H3 is complete for v0.1** — session tokens + both TLS paths
@@ -88,11 +129,13 @@ the work they imply.
   exit-strategy answer: user-initiated, client-side (the client already holds plaintext),
   people + contact methods first. Cheap, and it doubles as groundwork for the future
   CardDAV surface and the importer increment.
-- **Restore-from-file-backup flow — verify + document.** At-rest encryption made the local
-  file opaque to generic backup tools; the intended story is "copied `leapsake.db` +
-  `leapsake.db.recovery` + the phrase on a fresh machine boots through `RecoveryGate`."
-  Confirm it actually works end-to-end, then document it as *the* local backup answer
-  (local-only users have no other one).
+- **Restore-from-file-backup flow — verify + document.** *(Sequenced after the local-custody
+  decision above, which changes its shape.)* At-rest encryption made the local file opaque to
+  generic backup tools; the intended story is "copied `leapsake.db` + `leapsake.db.recovery` +
+  the phrase on a fresh machine boots through `RecoveryGate`." Confirm it actually works
+  end-to-end, then document it as *the* local backup answer (local-only users have no other
+  one). It is also the honest limit of any local password: an account protects **access**, a
+  backup protects against **losing the device** — two different promises.
 - **CK revocation / GC on entity delete** (sync-era cleanup; stops orphaned keys).
 - **True background-fetch sync + a configurable sync-interval UI.**
 
@@ -107,7 +150,13 @@ and boring to run):
   ever moves backends.
 
 **Distribution (launch-gating)** — code signing, macOS notarization, auto-update; v0.1
-can't ship without distributable apps. (None yet.)
+can't ship without distributable apps. (None yet.) Plan + increments:
+[`launch.md`](./launch.md). **Increment 1 is partly done already** — bundle IDs are
+`com.leapsake.app`; the leftovers are trivial and unblocked by anything above (versions are
+still `0.0.0` in all four `package.json`s, and `.gitignore` carries none of the credential
+shapes Increments 4/7 introduce — `*.p12`, `AuthKey_*.p8`, `*.mobileprovision`, `*.jks`,
+`*.keystore`, `credentials.json`). Do that now; **Increments 2–4 wait on the custody
+decision.**
 
 **Reconciliation** (quality; can land pre- or post-launch as capacity allows):
 - **Fuzzy / typo-tolerant name matching** — the scorer's reserved `"low"` tier via

@@ -33,7 +33,9 @@ mental model, not leak through it.
 - A **client** hosts **one unauthenticated user OR multiple authenticated users** — never
   multiple *unauthenticated* users on one client.
 - A user must be **authenticated to sync** across clients. Single-device / local-only use
-  needs no account (and stays fully layperson-complete).
+  needs **no account to get started**, and stays fully layperson-complete. (Whether a
+  *local* account is later invited — never required at first run — is open:
+  [`encryption/local-custody-options.md`](./encryption/local-custody-options.md).)
 - An authenticated user can **share certain data structures** with another user who **may or
   may not be authenticated** (authenticated recipient = wrap the item key for their public
   key; unauthenticated recipient = capability link with the key in the URL `#fragment`).
@@ -41,10 +43,13 @@ mental model, not leak through it.
   grain that pulls in Milestones, Contact Methods, and Relationships. **Finer per-structure
   granularity is a future iteration.** (Reminders are *not* a share target.)
 - A user can **decide whether their data is encrypted — default encrypted.**
-- A user should **not have to manage multiple accounts / passwords / recovery keys** when
-  using a single device or a single relay. (Account identity is currently per-relay; using
-  multiple relays may still mean multiple credentials — see cross-relay reconciliation in
-  `status.md` Open questions.)
+- A user should **not have to manage multiple accounts** when using a single device or a
+  single relay — **one identity, one credential set**. A credential *set* is a password
+  plus its recovery backstop, which is the familiar arrangement (Proton, Bitwarden), not a
+  violation of this line; what it forbids is juggling several independent accounts or
+  several coequal secrets. (Account identity is currently per-relay; using multiple relays
+  may still mean multiple credentials — see cross-relay reconciliation in `status.md` Open
+  questions.)
 - **The relay is set per authenticated user/account, not per client.**
 - An authenticated user can **"log out" of a client, which removes their data from that
   client** (their data remains safe on the relay / their other clients).

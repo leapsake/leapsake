@@ -19,6 +19,7 @@ oracle [`../status.md`](../status.md)** (all workstreams).
 | [`sync.md`](./sync.md) | The `SyncTransport` transport seam, the merge model, the account-bootstrap channel + the join-scheme decision, and the **P2P-is-a-deferred-adapter** decision. | When building sync, the relay, or evaluating P2P. |
 | [`security-review.md`](./security-review.md) | The recorded design review of the key hierarchy and relay auth: how the constructions hold the model's properties + the residual risks accepted. Pinned params live in [`packages/crypto/README.md`](../../packages/crypto/README.md). | When touching the KDF / password door, or before an external audit. |
 | [`security-findings.md`](./security-findings.md) | The adversarial "poke holes" review of the *shipped* code + relay: a severity-ranked backlog of concrete attacks (offline crack oracle, unthrottled login, convergence DoS) with mitigations. | Before hardening the relay / KDF, or picking up a security fix. |
+| [`local-custody-options.md`](./local-custody-options.md) | **OPEN decision** — should local-only use grow a password + login, instead of a recovery phrase as the sole fallback? Options A–E, costs, and a recommendation. Retires into `model.md` §5–7 once decided. | Before touching onboarding, `RecoveryGate`, or `launch.md` Increments 2–4. |
 
 ## The one rule that keeps these from drifting
 

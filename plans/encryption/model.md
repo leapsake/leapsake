@@ -22,8 +22,10 @@
 ## 1. Goals
 
 - **Offline-first, single-device-complete.** The app works fully on one device with
-  **no account, no password, and no sync.** Sync is opt-in; nothing about the
-  privacy model may require a server to use Leapsake.
+  **no account, no password, and no sync *required to start*.** Sync is opt-in; nothing
+  about the privacy model may require a server to use Leapsake. (Whether a *local*
+  account/password is later **invited** — never demanded — is a separate, open question:
+  [`local-custody-options.md`](./local-custody-options.md).)
 - **Default to the safest practice; let the user choose otherwise.** A core product
   theme: *default to the practices that protect and respect the user, but give them
   control to use their data how they want.* Security is a **configurable dial**, set
@@ -166,10 +168,13 @@ passphrase = unrecoverable data** — no "forgot password" reset (the Proton /
 1Password "we genuinely cannot help you" problem). So recovery must be **designed
 deliberately**, not bolted on:
 
-- **Recovery key** (default) — a random high-entropy code generated **once at
-  onboarding**, shown to the user to store (password manager / paper). It is another
+- **Recovery key** (default) — a random high-entropy code generated **once, at first
+  launch**, shown to the user to store (password manager / paper). It is another
   wrapping of the master key, so a lost passphrase ≠ lost data *if* the recovery key
-  was kept.
+  was kept. *Minting* it early is load-bearing (it seals the at-rest sidecar, so a
+  fallback exists from the first run); **when it is surfaced** — immediately, or deferred
+  to a later account-creation step where it reads as the familiar forgot-password
+  backstop — is open ([`local-custody-options.md`](./local-custody-options.md)).
 - **Server-escrow recovery** (opt-in, Tier 1) — wrap a copy of the master key under a
   server-held key so email/password reset works. This is the same act as dialing to
   Tier 1; it trades zero-knowledge for recoverability, with informed consent.
@@ -186,16 +191,22 @@ Each line is a settled decision; the section it points to has the reasoning.
   is the **at-rest** property, which lands in **Stage 2** ([`status.md`](../status.md)); the Stage-1 core's
   privacy win is zero-knowledge **sync** (§2), and the local file stays
   plaintext-and-queryable — as today — until Stage 2.)*
-- **Single-device is first-class; sync is fully optional** — onboarding must **not**
-  force account/passphrase setup. A passphrase is required **only** when the user
-  opts into sync / a 2nd device, never just to start using Leapsake. Flow in §7.1.
+- **Single-device is first-class; sync is fully optional** — **first-run onboarding must
+  not force account/passphrase setup.** The binding constraint is *at first run*: nothing
+  may stand between opening the app and using it. It does **not** forbid inviting an
+  account later, once the user has data to protect — see
+  [`local-custody-options.md`](./local-custody-options.md). A passphrase is required for
+  sync / a 2nd device; whether one is also offered locally is open. Flow in §7.1.
 - **Passphrase is the default** secret for zero-knowledge multi-device — de-facto and
   universally understood. Requiring it for multi-device is **accepted** (impossible
   otherwise — §5).
 - **Passkeys are optional, added later** — not the default. The KEK layer (§4) makes
   adding one a non-migrating change (one more wrapping of the master key).
-- **Recovery key generated once at onboarding**, at every tier; the enclave caches
-  the unlock so the passphrase isn't re-typed each launch (§6).
+- **Recovery key generated once**, at every tier — minted at first launch so a fallback
+  always exists, though *when it is shown to the user* is an onboarding question (§6,
+  [`local-custody-options.md`](./local-custody-options.md)). The enclave caches the unlock
+  so a passphrase isn't re-typed **every** launch; a bounded session lifetime over that
+  cache is compatible with this and is an open design question, not a contradiction.
 - **SSR web app is in scope and vital** for accessibility; a heavy-JS SPA must **not**
   be required (§10). Server-side decryption for SSR / Alexa / CardDAV is **accepted**,
   minimizing what the server knows (§9).
@@ -209,10 +220,13 @@ or starts fresh (does not).
 | Answer | Means | What happens |
 |---|---|---|
 | **Yes** | a 2nd+ device | configure **sync** against the existing account → prompt for the **passphrase** (the multi-device secret — §5) |
-| **No** | fresh install | **single-device** on this device → straight into the app with the **enclave key**; recovery key shown once (§6); **no passphrase** |
+| **No** | fresh install | **single-device** on this device → straight into the app with the **enclave key**; **no passphrase at first run** |
 
-A passphrase is never required to *start* using Leapsake on one device — only to
-*sync*.
+A passphrase is never required to *start* using Leapsake on one device. What happens
+*after* first run — whether the app later invites a local account, and when the recovery
+key is surfaced — is an open decision, not settled here:
+[`local-custody-options.md`](./local-custody-options.md). This table constrains the
+**first-run** branch only.
 
 ## 8. Encryption at rest, and the `node:sqlite` tension
 

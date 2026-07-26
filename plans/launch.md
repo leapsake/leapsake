@@ -8,6 +8,15 @@
 >
 > **This is a plan, not a status board.** As increments land, record them in
 > [`status.md`](./status.md) and keep this stable.
+>
+> ⚠️ **Increments 2–3 are ON HOLD pending an open decision (as of 2026-07-26).** Whether
+> local-only use grows a password + login is being decided in
+> [`encryption/local-custody-options.md`](./encryption/local-custody-options.md); the
+> recommendation there (**Option E**) would replace Increment 2's nudge with a deferred
+> signup flow and reshape Increment 3. **Do not build 2 or 3 as written below** until that
+> doc is resolved — and since 4 must not ship custody churn to real testers, 4 waits too.
+> Increment 1 is unaffected and can proceed now. See [`status.md`](./status.md) →
+> *What's next* → *Local custody*.
 
 ## 1. The decisions this plan encodes (settled 2026-07-21)
 
@@ -116,6 +125,14 @@ the old one — uninstall them and rebuild the dev client before running `pnpm t
 
 ### Increment 2 — Recovery-phrase onboarding nudge
 
+> ⚠️ **ON HOLD — shape under review.** The nudge below is a *consequence* of local-only use
+> having no password. If that premise changes (see
+> [`encryption/local-custody-options.md`](./encryption/local-custody-options.md), recommending
+> **Option E**), this increment becomes "deferred local signup" instead — a nudge that invites
+> account creation once the user has data, rather than one that teaches a recovery phrase.
+> Same trigger and same nudge machinery; different destination, and **S → M–L** in size.
+> Decide before building.
+
 **Value:** closes a data-loss path that exists *today*, independent of the org move.
 
 Reveal is already available whether or not sync is on — the gap is purely that nothing
@@ -132,6 +149,12 @@ re-surfacing, satisfied when the phrase has been revealed.
 clears it; it survives relaunch until satisfied. Both clients.
 
 ### Increment 3 — Verify + document restore-from-backup
+
+> ⚠️ **ON HOLD — scope depends on Increment 2's outcome.** Under Option E the at-rest sidecar
+> gains a **second door** (password as well as phrase), so the verification below doubles:
+> each door needs its own end-to-end restore proof plus its own negative case. The increment
+> still happens either way — it just gets bigger. See
+> [`encryption/local-custody-options.md`](./encryption/local-custody-options.md).
 
 **Value:** the answer to "how do I back up Leapsake?", which local-only users — the majority
 at v0.1, since sync requires self-hosting — currently do not have. **Hard prerequisite of
@@ -298,5 +321,7 @@ Pre-flight, in order (git history is public *forever* — this precedes the flip
 
 The pre-v0.1 items already in [`status.md`](./status.md) — vCard export, CK revocation/GC,
 background-fetch sync, relay disposability, reminder search — are untouched by this plan and
-can interleave as capacity allows. The **lunisolar holiday tables** were on this list as the one
+can interleave as capacity allows. (The **local-custody decision** is the one exception added
+since: it does not change this plan's shape, but it holds Increments 2–4 — see the banner at
+the top.) The **lunisolar holiday tables** were on this list as the one
 launch-blocking exception; they closed on 2026-07-23 (derived, cross-checked, extended to 2056).
