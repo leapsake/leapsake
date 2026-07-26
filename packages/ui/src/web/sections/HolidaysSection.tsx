@@ -1,4 +1,5 @@
 import { type ObservanceBearerType, formatOccurrence } from "@leapsake/schema";
+import { splitBearerHolidays } from "@leapsake/view-models";
 import { useSerializedWrites } from "../../headless/useSerializedWrites.js";
 import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
@@ -48,14 +49,9 @@ export function HolidaysSection({
   const m = useMessages();
   const { busy, error, run } = useSerializedWrites({ onSuccess: onChanged });
 
-  const observed = holidays.filter((h) => h.observes);
-  // Hidden holidays are excluded from *suggestions* because offering one would
-  // be offering a no-op — a hidden holiday generates no reminders, so adding an
-  // observance to it would appear to do nothing. The browse list deliberately
-  // differs: that is where a user goes to unhide one, so filtering them out
-  // there would strand them. A hidden holiday already observed still shows in
-  // the list below, marked, or the state would be unexplainable.
-  const addable = holidays.filter((h) => !h.observes && !h.hidden);
+  // What this bearer keeps, and what it can still be offered — hidden holidays
+  // are deliberately absent from the second (see {@link splitBearerHolidays}).
+  const { observed, addable } = splitBearerHolidays(holidays);
 
   return (
     <Section title={m.holidays.title}>

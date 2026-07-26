@@ -15,7 +15,8 @@
   "dependencies": {
     "@leapsake/contact-import": "workspace:*",
     "@leapsake/highlight": "workspace:*",
-    "@leapsake/schema": "workspace:*"
+    "@leapsake/schema": "workspace:*",
+    "@leapsake/view-models": "workspace:*"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.2",

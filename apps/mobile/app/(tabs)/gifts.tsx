@@ -7,6 +7,7 @@ import {
   formatGiftTargetDate,
   tagLabel,
 } from "@leapsake/schema";
+import { sortIdeasGivenLast } from "@leapsake/view-models";
 import { GiftLink } from "../../components/GiftsSection";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
@@ -42,14 +43,8 @@ export default function GiftsScreen() {
     );
   }
 
-  // Ideas already given sink to the bottom, keeping the shopping list on top —
-  // the same posture the Person/Pet Gifts section takes. Nothing is hidden: an
-  // idea given once is still a fine idea
-  // to give again, and filtering would strand it. Within each half the repo's
-  // newest-first order stands.
-  const ordered = [...data].sort(
-    (a, b) => (a.gifts.length > 0 ? 1 : 0) - (b.gifts.length > 0 ? 1 : 0),
-  );
+  // Ideas already given sink to the bottom, keeping the shopping list on top.
+  const ordered = sortIdeasGivenLast(data);
 
   return (
     <FlatList<GiftIdeaOverview>

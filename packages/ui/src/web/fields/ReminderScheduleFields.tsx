@@ -5,7 +5,6 @@ import {
   reminderActionSchema,
 } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
-import { Field } from "../primitives/Field.js";
 
 /** The action options in registry order, for the per-row picker. */
 const ACTIONS = reminderActionSchema.options;

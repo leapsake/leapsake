@@ -3,6 +3,7 @@ import { Link } from "expo-router";
 import type { BearerHolidayCandidate } from "@leapsake/core";
 import type { ObservanceBearerType } from "@leapsake/schema";
 import { formatOccurrence } from "@leapsake/schema";
+import { splitBearerHolidays } from "@leapsake/view-models";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 import { Typeahead } from "./Typeahead";
@@ -30,13 +31,9 @@ export function HolidaysSection({
 }) {
   const core = useCore();
 
-  const observed = holidays.filter((h) => h.observes);
-  // Hidden holidays are excluded from *suggestions* because offering one would
-  // be offering a no-op — a hidden holiday generates no reminders. The browse
-  // list deliberately differs: that is where a user goes to unhide one. A hidden
-  // holiday already observed still shows below, marked, or the state would be
-  // unexplainable.
-  const addable = holidays.filter((h) => !h.observes && !h.hidden);
+  // What this bearer keeps, and what it can still be offered — hidden holidays
+  // are deliberately absent from the second (see `splitBearerHolidays`).
+  const { observed, addable } = splitBearerHolidays(holidays);
 
   function setObserves(holidayId: string, observes: boolean) {
     core.holidays

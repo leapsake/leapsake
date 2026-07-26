@@ -62,6 +62,9 @@ importers:
       '@leapsake/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@leapsake/view-models':
+        specifier: workspace:*
+        version: link:../../packages/view-models
       better-sqlite3-multiple-ciphers:
         specifier: ^12.11.1
         version: 12.11.1
@@ -117,6 +120,9 @@ importers:
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@leapsake/view-models':
+        specifier: workspace:*
+        version: link:../../packages/view-models
       '@react-native-picker/picker':
         specifier: 2.11.4
         version: 2.11.4(react-native@0.85.3(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
@@ -354,6 +360,9 @@ importers:
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema
+      '@leapsake/view-models':
+        specifier: workspace:*
+        version: link:../view-models
     devDependencies:
       '@testing-library/react':
         specifier: ^16.3.2
@@ -6640,7 +6649,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

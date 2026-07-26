@@ -8,27 +8,24 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import {
-  type GiftReminderTarget,
-  type OnboardingRoute,
-  onboardingRouteOf,
-} from "@leapsake/core";
+import type { GiftReminderTarget, OnboardingRoute } from "@leapsake/core";
 import {
   type ReminderWithTags,
-  compareReminderDue,
   formatDueIn,
   reminderLabel,
 } from "@leapsake/schema";
+import {
+  type ReminderCta,
+  partitionReminders,
+  reminderCtaOf,
+} from "@leapsake/view-models";
 import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
 
-/**
- * Each onboarding nudge's abstract {@link OnboardingRoute} mapped to this client's
- * own expo-router path — the tap target its row deep-links to. Looked up by id via
- * {@link onboardingRouteOf}; a non-onboarding reminder taps through to its detail.
- */
+/** Each onboarding nudge's abstract {@link OnboardingRoute} as this client's own
+ *  expo-router path — the tap target its row deep-links to. */
 const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
   "add-person": "/people/new",
   "connect-sync": "/(tabs)/settings",
@@ -38,28 +35,22 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
 };
 
 /**
- * The path a `🎁 gift` reminder's CTA points at, which flips on completion — the
- * loop the reminder itself opens. **Open:** the recipient's own page,
- * whose Gifts section lists what's already suggested for them (and what they've
- * been given, so you don't repeat yourself). **Done:** the capture form fixed to
- * that recipient, to record what you actually gave.
- *
- * Completion is deliberately left as the plain Done action rather than growing a
- * modal: nothing else in reminders interrupts that path, and a link the user can
- * take or ignore respects a "done" that meant "handled, nothing to log".
+ * A `🎁 gift` reminder's CTA in this client's terms — the path plus its copy.
+ * The target flips once the reminder is done (see `reminderCtaOf`, which holds
+ * the *why*): from the recipient's own page to the capture form fixed to them.
  */
-function giftCtaFor(
-  target: GiftReminderTarget,
-  done: boolean,
-): { path: string; label: string } {
-  const party = `${target.recipientType}:${target.recipientId}`;
-  return done
+function giftCtaFor(cta: Extract<ReminderCta, { kind: "gift" }>): {
+  path: string;
+  label: string;
+} {
+  const party = `${cta.recipientType}:${cta.recipientId}`;
+  return cta.action === "record-giving"
     ? {
         path: `/gifts/new?recipient=${encodeURIComponent(party)}`,
         label: "Record what you gave ›",
       }
     : {
-        path: `${target.recipientType === "pet" ? "/pets" : "/people"}/${target.recipientId}`,
+        path: `${cta.recipientType === "pet" ? "/pets" : "/people"}/${cta.recipientId}`,
         label: "See their gifts ›",
       };
 }
@@ -106,12 +97,9 @@ export default function RemindersScreen() {
 
   const [reminders, giftTargets, duplicatesNudgeId] = data;
   const giftTargetById = new Map(giftTargets.map((t) => [t.reminderId, t]));
-  // Open first (soonest due first, undated sinking below), then completed —
-  // completed keeps the repo's newest-first order.
-  const ordered = [
-    ...reminders.filter((r) => r.completedAt === null).sort(compareReminderDue),
-    ...reminders.filter((r) => r.completedAt !== null),
-  ];
+  // Open first, then completed — one flat list for the FlatList.
+  const { open, done } = partitionReminders(reminders);
+  const ordered = [...open, ...done];
 
   return (
     <View style={styles.screen}>
@@ -154,22 +142,25 @@ function ReminderRow({
   // Title leads; the body shows underneath as details. With no title the body
   // *is* the heading, so it isn't repeated below.
   const heading = reminder.title ?? reminder.body ?? "";
-  // An onboarding nudge deep-links to its target screen instead of a (nonexistent)
+  const cta = reminderCtaOf(reminder, { giftTarget, isDuplicatesNudge });
+  // A nudge deep-links to the screen it asks for, instead of to a (nonexistent)
   // reminder detail; every other reminder taps through to its detail as before.
-  const onboardingRoute = onboardingRouteOf(reminder.id);
-  // The duplicates nudge deep-links the same way, to the (unscoped) review.
   const open = () =>
     router.push(
-      onboardingRoute !== null
-        ? ONBOARDING_PATH[onboardingRoute]
-        : isDuplicatesNudge
-          ? "/duplicates"
-          : `/reminders/${reminder.id}`,
+      cta === null
+        ? `/reminders/${reminder.id}`
+        : cta.kind === "onboarding"
+          ? ONBOARDING_PATH[cta.route]
+          : cta.kind === "duplicates"
+            ? "/duplicates"
+            : `/reminders/${reminder.id}`,
     );
   // A gift reminder carries a due date of its own, so its CTA gets its own line
   // below the meta row rather than competing for that row's left slot.
-  const giftCta =
-    giftTarget === undefined ? null : giftCtaFor(giftTarget, done);
+  const giftCta = cta !== null && cta.kind === "gift" ? giftCtaFor(cta) : null;
+  // The other two kinds are dateless, so they show their affordance in the meta
+  // row's left slot where a due-in would otherwise sit.
+  const nudgeCta = cta !== null && cta.kind !== "gift" ? cta : null;
 
   function toggle() {
     core.reminders.setCompleted(reminder.id, !done).then(
@@ -214,12 +205,12 @@ function ReminderRow({
       <View style={styles.rowMeta}>
         {reminder.dueDate !== null ? (
           <Text style={styles.muted}>{formatDueIn(reminder.dueDate)}</Text>
-        ) : onboardingRoute !== null || isDuplicatesNudge ? (
+        ) : nudgeCta !== null ? (
           // A subtle affordance that the nudge deep-links somewhere (tapping the
           // text routes there); dateless nudges have no due-in to show here.
           <Pressable accessibilityRole="button" onPress={open}>
             <Text style={styles.link}>
-              {isDuplicatesNudge ? "Review ›" : "Get started ›"}
+              {nudgeCta.kind === "duplicates" ? "Review ›" : "Get started ›"}
             </Text>
           </Pressable>
         ) : (

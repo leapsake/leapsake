@@ -1,20 +1,19 @@
-import type { GiftReminderTarget } from "@leapsake/core";
-import { type OnboardingRoute, onboardingRouteOf } from "@leapsake/core";
+import type { GiftReminderTarget, OnboardingRoute } from "@leapsake/core";
 import {
   type ReminderWithTags,
-  compareReminderDue,
   formatDueIn,
   isReminderEditable,
 } from "@leapsake/schema";
 import { ReminderText } from "@leapsake/ui/web";
+import {
+  type ReminderCta,
+  partitionReminders,
+  reminderCtaOf,
+} from "@leapsake/view-models";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
 
-/**
- * The deep-link CTA each onboarding nudge (a `system` reminder whose id maps to an
- * {@link OnboardingRoute}) renders — the abstract route mapped to this client's own
- * router path plus its button copy. Looked up by id via {@link onboardingRouteOf};
- * a non-onboarding reminder returns null and shows no CTA.
- */
+/** Each onboarding nudge's abstract {@link OnboardingRoute} as this client's own
+ *  router path plus its link copy. */
 const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
   {
     "add-person": { path: "/people/new", label: "Add person →" },
@@ -23,30 +22,30 @@ const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
   };
 
 /**
- * The path a `🎁 gift` reminder's CTA points at, which flips on completion — the
- * loop the reminder itself opens. **Open:** the recipient's own page,
- * whose Gifts section lists what's already suggested for them (and what they've
- * been given, so you don't repeat yourself). **Done:** the capture form fixed to
- * that recipient, to record what you actually gave.
- *
- * Completion is deliberately left as the plain Done button rather than growing a
- * modal: nothing else in reminders interrupts that path, and a link the user can
- * take or ignore respects a "done" that meant "handled, nothing to log".
+ * A reminder's CTA decision (see {@link reminderCtaOf}, which holds the *why* of
+ * each) rendered in this client's terms: a react-router path plus its copy. A
+ * gift CTA's target flips once the reminder is done — from the recipient's own
+ * page to the capture form fixed to them, to log what was actually given.
  */
-function giftCtaFor(
-  target: GiftReminderTarget,
-  done: boolean,
-): { path: string; label: string } {
-  const party = `${target.recipientType}:${target.recipientId}`;
-  return done
-    ? {
-        path: `/gifts/new?recipient=${encodeURIComponent(party)}`,
-        label: "Record what you gave →",
-      }
-    : {
-        path: `${target.recipientType === "pet" ? "/pets" : "/people"}/${target.recipientId}`,
-        label: "See their gifts →",
-      };
+function ctaLinkFor(cta: ReminderCta): { path: string; label: string } {
+  switch (cta.kind) {
+    case "onboarding":
+      return ONBOARDING_CTA[cta.route];
+    case "duplicates":
+      return { path: "/duplicates", label: "Review duplicates →" };
+    case "gift": {
+      const party = `${cta.recipientType}:${cta.recipientId}`;
+      return cta.action === "record-giving"
+        ? {
+            path: `/gifts/new?recipient=${encodeURIComponent(party)}`,
+            label: "Record what you gave →",
+          }
+        : {
+            path: `${cta.recipientType === "pet" ? "/pets" : "/people"}/${cta.recipientId}`,
+            label: "See their gifts →",
+          };
+    }
+  }
 }
 
 /**
@@ -70,17 +69,10 @@ function ReminderRow({
   const done = reminder.completedAt !== null;
   const strike = done ? { textDecoration: "line-through" as const } : undefined;
   const heading = reminder.title ?? reminder.body ?? "";
-  // Onboarding nudges deep-link to their target screen; a non-onboarding reminder
-  // (milestone / user) has no route and shows no CTA.
-  const onboardingRoute = onboardingRouteOf(reminder.id);
-  const cta =
-    onboardingRoute !== null
-      ? ONBOARDING_CTA[onboardingRoute]
-      : isDuplicatesNudge
-        ? { path: "/duplicates", label: "Review duplicates →" }
-        : giftTarget !== undefined
-          ? giftCtaFor(giftTarget, done)
-          : null;
+  // Nudges and gift reminders deep-link somewhere; an ordinary reminder
+  // (milestone / birthday / user) has nowhere to go and shows no CTA.
+  const decision = reminderCtaOf(reminder, { giftTarget, isDuplicatesNudge });
+  const cta = decision === null ? null : ctaLinkFor(decision);
 
   return (
     <li>
@@ -146,12 +138,8 @@ export function ReminderList() {
     duplicatesNudgeId: string | null;
   };
   const giftTargetById = new Map(giftTargets.map((t) => [t.reminderId, t]));
-  // Open reminders lead, soonest due first (undated sink below); completed ones
-  // keep the repo's newest-first order in the disclosure below.
-  const open = reminders
-    .filter((r) => r.completedAt === null)
-    .sort(compareReminderDue);
-  const done = reminders.filter((r) => r.completedAt !== null);
+  // Open reminders lead; completed ones collapse into the disclosure below.
+  const { open, done } = partitionReminders(reminders);
 
   return (
     <main>

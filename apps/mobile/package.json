@@ -18,6 +18,7 @@
     "@leapsake/data": "workspace:*",
     "@leapsake/highlight": "workspace:*",
     "@leapsake/schema": "workspace:*",
+    "@leapsake/view-models": "workspace:*",
     "@react-native-picker/picker": "2.11.4",
     "expo": "^56.0.11",
     "expo-clipboard": "~56.0.4",
