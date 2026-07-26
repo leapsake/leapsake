@@ -180,11 +180,12 @@ can't ship without distributable apps. (None yet.)
   component had been deciding), the `Section`/`EmptyState`/`DataTable`/`DetailList` primitives,
   and all five read-only sections. **Increment 4 is split into 4a/4b/4c; 4a shipped**: the
   `useSerializedWrites` seam, `MultiAddCombobox` + `HolidaysSection` moved onto injected async
-  callbacks, and `formatOccurrence` deduplicated into `@leapsake/schema`. **Next: 4b** — the gift
-  cluster (`GiftsSection`, `GiftIdeaRecipientsSection`, `GiftAdornmentsEditor`,
-  `GiftOccasionFields`, and `GiftCaptureForm`, which comes along because GiftsSection renders it),
-  then **4c**, the three view screens. Each code-moving increment is two commits (split in place,
-  then move). Design + increments:
+  callbacks, and `formatOccurrence` deduplicated into `@leapsake/schema`. **4b shipped**: the
+  whole gift cluster, including `GiftCaptureForm`, behind a **`GiftsPorts`** interface the app
+  implements once (`lib/gifts-ports.ts`) — the first feature port in the UI package, added
+  because those components nest three deep across four screens. **Next: 4c** — the three view
+  screens, now that every section they render lives in the package. Each code-moving increment is
+  two commits (split in place, then move). Design + increments:
   [`ui-extraction.md`](./ui-extraction.md). **Styling is a separate pre-v0.1 pass, after this.**
 
 ### v0.2 (first post-launch feature increment)

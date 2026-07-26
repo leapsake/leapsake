@@ -30,6 +30,21 @@ export {
   ComboboxOptionDetail,
   type ComboboxFieldAria,
 } from "./primitives/Combobox.js";
+export {
+  GiftsPortsProvider,
+  useGiftsPorts,
+  type GiftCaptureInput,
+  type GiftOccasionChoice,
+  type GiftsPorts,
+  type GivenRow,
+  type IdeaSuggestionRow,
+  type PartialDate,
+  type PartyOption,
+  type SuggestionRow,
+} from "./gifts/ports.js";
+export { GiftCaptureForm } from "./gifts/GiftCaptureForm.js";
+export { GiftsSection } from "./sections/GiftsSection.js";
+export { GiftIdeaRecipientsSection } from "./sections/GiftIdeaRecipientsSection.js";
 export { ContactMethodsSection } from "./sections/ContactMethodsSection.js";
 export {
   HolidaysSection,

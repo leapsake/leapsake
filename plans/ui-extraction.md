@@ -290,10 +290,13 @@ shippable parts, because the gift cluster is far more entangled than the holiday
 - `formatOccurrence` was duplicated verbatim on both clients; it moves to `@leapsake/schema`
   beside the other formatters (the repo's convention), not to the UI package.
 
-**4b — the gift cluster.** `GiftsSection`, `GiftIdeaRecipientsSection`, `GiftAdornmentsEditor`,
-`GiftOccasionFields`, and `GiftCaptureForm` (which increment 5 would otherwise own — it comes
-along because `GiftsSection` renders it). All `window.api` calls and `useRevalidator` move to the
-app-side containers.
+**4b — the gift cluster (done).** `GiftsSection`, `GiftIdeaRecipientsSection`,
+`GiftAdornmentsEditor`, `GiftOccasionFields`, and `GiftCaptureForm` (which increment 5 would
+otherwise own — it comes along because `GiftsSection` renders it). Their nine reads and writes
+arrive through a **`GiftsPorts`** interface the app implements once, rather than as props: the
+components nest three deep across four screens, so prop-drilling would put most of the functions
+on components that only forward them. `useRevalidator` stays in the app-side containers, reached
+through `onChanged`.
 
 **4c — the three view screens** (`PersonView`, `PetView`, `RelationshipView`, deferred from
 increment 3), each becoming a container + presentational pair once every section they render

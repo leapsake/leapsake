@@ -54,6 +54,26 @@ Everything else a component needs — loaded data, `submitting`, write callbacks
 arrives as **props**, because it is per-screen state the container already holds
 rather than ambient chrome.
 
+## Feature ports
+
+One exception to “everything else is a prop”: a feature whose components nest
+several levels deep and appear on several screens gets a **ports interface** the
+app implements once, in the shape of `SqliteDriver` / `KeyStore` / `ImportPorts`
+elsewhere in the repo.
+
+`GiftsPorts` is the first. Gift components appear on four screens (a person, a
+pet, the gift-idea editor, the standalone create screen) and nest three deep, so
+threading nine reads and writes through as props would put most of them on
+components that only forward them. The app supplies one implementation:
+
+```tsx
+<GiftsPortsProvider ports={desktopGiftsPorts}>{app}</GiftsPortsProvider>
+```
+
+The bar for adding another is that shape — deep nesting *and* several entry
+points. A section with one write takes a callback prop instead (`HolidaysSection`
+takes `onSetObserves`).
+
 ## React is a peer dependency
 
 Never a direct one. Desktop and mobile run deliberately different React versions
