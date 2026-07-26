@@ -6,13 +6,11 @@ import {
   insertHashtag,
   insertMention,
 } from "@leapsake/schema";
-import { useDebouncedSearch, useTypeahead } from "@leapsake/ui/headless";
-import {
-  Combobox,
-  ComboboxOptionDetail,
-  highlightMatch,
-} from "@leapsake/ui/web";
+import { useDebouncedSearch } from "../../headless/useDebouncedSearch.js";
+import { useTypeahead } from "../../headless/useTypeahead.js";
 import { Fragment, useCallback, useRef, useState } from "react";
+import { highlightMatch } from "../highlight.js";
+import { Combobox, ComboboxOptionDetail } from "../primitives/Combobox.js";
 
 /**
  * A controlled text field (single-line `input` or `multiline` `textarea`) with a
@@ -31,7 +29,7 @@ import { Fragment, useCallback, useRef, useState } from "react";
  * typing.
  *
  * Controlled (so a token can be spliced in) but still carries `name`, so the
- * reminder route action keeps reading it from `FormData` unchanged. The listbox,
+ * write path keeps reading it from `FormData` unchanged. The listbox,
  * keyboard handling and debounce come from `@leapsake/ui`; what stays here is the
  * caret work — finding the fragment under the cursor and splicing the token back
  * in.
@@ -40,18 +38,23 @@ export function MentionTextField({
   name,
   value,
   onChange,
+  search,
   multiline,
   rows,
   placeholder,
-  id,
 }: {
   name: string;
   value: string;
   onChange: (value: string) => void;
+  /**
+   * Look up people, pets and tags for the picker. Injected rather than reached
+   * for, and it must be stable (a module-level function, or `useCallback`) —
+   * `useDebouncedSearch` takes it as an effect dependency.
+   */
+  search: (query: string) => Promise<SearchHit[]>;
   multiline?: boolean;
   rows?: number;
   placeholder?: string;
-  id?: string;
 }) {
   const fieldRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
 
@@ -84,23 +87,21 @@ export function MentionTextField({
   // The `#tag` picker keeps only tag hits; the `@mention` picker excludes them
   // (mentions only reference people/pets). Memoised on `mode`, because
   // `useDebouncedSearch` re-runs whenever this function's identity changes.
-  const search = useCallback(
+  const searchForMode = useCallback(
     (query: string) =>
-      window.api.search
-        .query(query)
-        .then((hits) =>
-          hits.filter((hit) =>
-            mode === "hashtag"
-              ? hit.entityType === "tag"
-              : hit.entityType !== "tag",
-          ),
+      search(query).then((hits) =>
+        hits.filter((hit) =>
+          mode === "hashtag"
+            ? hit.entityType === "tag"
+            : hit.entityType !== "tag",
         ),
-    [mode],
+      ),
+    [mode, search],
   );
 
   const results = useDebouncedSearch({
     query: activeQuery ?? "",
-    search,
+    search: searchForMode,
     enabled: activeQuery !== null && !suppressed,
   });
 
@@ -195,7 +196,6 @@ export function MentionTextField({
       renderField={(aria) => {
         const shared = {
           ref: fieldRef,
-          id,
           name,
           value,
           placeholder,

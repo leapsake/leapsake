@@ -2,12 +2,13 @@ import type { GiftSuggestionForIdea } from "@leapsake/core";
 import type { GiftIdea } from "@leapsake/schema";
 import {
   Breadcrumbs,
+  GiftIdeaForm,
   GiftIdeaRecipientsSection,
   type PartyOption,
 } from "@leapsake/ui/web";
 import { useLoaderData, useRevalidator } from "react-router-dom";
-import { GiftIdeaForm } from "../components/GiftIdeaForm";
 import { homeCrumb } from "../lib/crumbs";
+import { useSubmitting } from "../lib/useSubmitting";
 
 export function GiftIdeaEdit() {
   const { idea, tagNames, suggestions, candidates } = useLoaderData() as {
@@ -30,7 +31,11 @@ export function GiftIdeaEdit() {
         ]}
       />
       <h1>Edit gift idea</h1>
-      <GiftIdeaForm idea={idea} tagNames={tagNames} />
+      <GiftIdeaForm
+        idea={idea}
+        tagNames={tagNames}
+        submitting={useSubmitting()}
+      />
 
       <GiftIdeaRecipientsSection
         ideaId={idea.id}

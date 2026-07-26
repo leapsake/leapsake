@@ -193,9 +193,12 @@ can't ship without distributable apps. (None yet.)
   plural, three fragment joins). A dedicated i18n library swaps the catalog later without
   touching a component; `@leapsake/schema`'s label tables remain English and are the wider
   workstream.
-  **Next: increment 5** — the seven forms (`FormShell` + `Field`), then 6 (the import overlay) and
-  7 (`@leapsake/view-models`, independent of the rest). Each code-moving increment is two commits
-  (split in place, then move). Design + increments:
+  **Increment 5 is split 5a/5b/5c by dependency cluster; 5a shipped**: `FormShell` +
+  `Field`/`StackedField`, and the `GiftIdeaForm` / `MentionTextField` / `ReminderForm` cluster.
+  **Next: 5b** (`RelationshipForm` + `RelationshipFields`, then `PersonForm`/`PetForm`), then
+  **5c** (`MilestoneForm` + `WithWhomFields` + `ReminderScheduleFields`, and `ContactMethodForm`),
+  then 6 (the import overlay) and 7 (`@leapsake/view-models`, independent of the rest). Each
+  code-moving increment is two commits (split in place, then move). Design + increments:
   [`ui-extraction.md`](./ui-extraction.md). **Styling is a separate pre-v0.1 pass, after this.**
 
 ### v0.2 (first post-launch feature increment)

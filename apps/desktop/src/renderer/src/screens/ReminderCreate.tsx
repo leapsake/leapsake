@@ -1,6 +1,7 @@
-import { Breadcrumbs } from "@leapsake/ui/web";
-import { ReminderForm } from "../components/ReminderForm";
+import { Breadcrumbs, ReminderForm } from "@leapsake/ui/web";
 import { homeCrumb } from "../lib/crumbs";
+import { searchEntities } from "../lib/search";
+import { useSubmitting } from "../lib/useSubmitting";
 
 export function ReminderCreate() {
   return (
@@ -13,7 +14,7 @@ export function ReminderCreate() {
         ]}
       />
       <h1>Add reminder</h1>
-      <ReminderForm />
+      <ReminderForm search={searchEntities} submitting={useSubmitting()} />
     </main>
   );
 }

@@ -315,13 +315,22 @@ rapid type→Enter→type→Enter case the serialization exists for.
 
 ### 5 — Forms
 
-- `src/web/patterns/FormShell.tsx` (header + submit/cancel + `<fieldset disabled>`) and
-  `primitives/Field.tsx` (the labeled input/select row).
-- Migrate `PersonForm`, `PetForm`, `MilestoneForm`, `GiftIdeaForm`, `ReminderForm`,
-  `ContactMethodForm`, `RelationshipForm`, `RelationshipFields`, `WithWhomFields`,
-  `ReminderScheduleFields`, `GiftCaptureForm` (largest at 494 lines — consider splitting it
-  across two commits).
-- Field `name`s must stay byte-identical: `router.tsx`'s actions read them from `FormData`.
+Split by dependency cluster: each form drags its field groups with it, so they move together.
+(`GiftCaptureForm` already moved with the gift cluster in 4b.)
+
+Field `name`s must stay byte-identical throughout: `router.tsx`'s actions read them from
+`FormData`.
+
+**5a — the shell + the mention cluster (done).** `FormShell` (both layouts: actions in a header
+when the form is the whole screen, at the foot when the screen owns the `<h1>`) and
+`Field`/`StackedField`. `GiftIdeaForm`, `MentionTextField` (its search injected as a prop rather
+than reached for — one caller, one level, so no ports interface), and `ReminderForm`.
+
+**5b — the relationship cluster.** `RelationshipForm` + `RelationshipFields`, then `PersonForm`
+and `PetForm`, which render them.
+
+**5c — the rest.** `MilestoneForm` + `WithWhomFields` + `ReminderScheduleFields`, and
+`ContactMethodForm` (its country picker and per-kind field sets).
 
 **Done when:** every create/edit path saves correctly, and the forms still submit with JS
 disabled in the Electron devtools (the no-JS floor rehearsal — cheap here, load-bearing for web).

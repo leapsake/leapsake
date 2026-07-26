@@ -174,6 +174,25 @@ export interface Messages {
     submitGiving: string;
   };
 
+  giftIdeaForm: {
+    title: string;
+    titlePlaceholder: string;
+    url: string;
+    urlPlaceholder: string;
+    notes: string;
+    notesPlaceholder: string;
+    tags: string;
+    tagsPlaceholder: string;
+  };
+
+  reminderForm: {
+    title: string;
+    titlePlaceholder: string;
+    details: string;
+    detailsPlaceholder: string;
+    dueDate: string;
+  };
+
   person: {
     merge: string;
     firstName: string;

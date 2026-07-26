@@ -162,6 +162,26 @@ export const en: Messages = {
     submitGiving: "Log gift",
   },
 
+  giftIdeaForm: {
+    title: "Title",
+    titlePlaceholder: "Red Ryder BB Gun",
+    url: "Link",
+    urlPlaceholder: "https://…",
+    notes: "Notes",
+    notesPlaceholder: "the 200-shot model; she mentioned it in June",
+    tags: "Tags",
+    tagsPlaceholder: "#books #kitchen",
+  },
+
+  reminderForm: {
+    title: "Title",
+    titlePlaceholder: "Call mom",
+    details: "Details",
+    detailsPlaceholder:
+      "Type @ to mention someone; add #tags inline, e.g. ask about the trip #family",
+    dueDate: "Due date",
+  },
+
   person: {
     merge: "Merge",
     firstName: "First name",

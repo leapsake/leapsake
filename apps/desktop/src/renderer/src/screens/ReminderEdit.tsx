@@ -1,8 +1,9 @@
 import type { Reminder } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
+import { Breadcrumbs, ReminderForm } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
-import { ReminderForm } from "../components/ReminderForm";
 import { homeCrumb } from "../lib/crumbs";
+import { searchEntities } from "../lib/search";
+import { useSubmitting } from "../lib/useSubmitting";
 
 export function ReminderEdit() {
   const reminder = useLoaderData() as Reminder;
@@ -17,7 +18,11 @@ export function ReminderEdit() {
         ]}
       />
       <h1>Edit reminder</h1>
-      <ReminderForm reminder={reminder} />
+      <ReminderForm
+        reminder={reminder}
+        search={searchEntities}
+        submitting={useSubmitting()}
+      />
     </main>
   );
 }
