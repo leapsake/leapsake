@@ -368,6 +368,15 @@ importers:
         specifier: ^29.1.1
         version: 29.1.1(@noble/hashes@2.2.0)
 
+  packages/view-models:
+    dependencies:
+      '@leapsake/reminders':
+        specifier: workspace:*
+        version: link:../reminders
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
+
 packages:
 
   '@adobe/css-tools@4.5.0':

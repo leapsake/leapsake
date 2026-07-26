@@ -72,6 +72,11 @@ packages/
                     # (behavior hooks, no DOM), /web (DOM components). React is a
                     # *peer* dependency. See its README and
                     # plans/ui-extraction.md.
+  view-models/      # Headless derivations every client shows the same way
+                    # (grouping, partitioning, ordering over already-loaded
+                    # data). Pure functions, generic over the caller's row
+                    # types; no repo access — that stays in core/views.ts.
+                    # See its README.
 AGENTS.md
 plans/                # forward-looking only — upcoming work, not past decisions
   README.md           # project map / front door
@@ -80,7 +85,7 @@ plans/                # forward-looking only — upcoming work, not past decisio
 ```
 
 Per-package architecture rationale (the "why this package is shaped this way") lives in each
-package's own `README.md` — `packages/{schema,data,sync,key-custody,core,crypto,bytes}`,
+package's own `README.md` — `packages/{schema,data,sync,key-custody,core,crypto,bytes,ui,view-models}`,
 `apps/{desktop,server}`.
 
 ## Data Model
