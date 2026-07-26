@@ -19,6 +19,7 @@ import {
   ContactMethodsSection,
   DetailList,
   GenderValue,
+  GiftsSection,
   HolidaysSection,
   MentionedInSection,
   MilestonesSection,
@@ -27,7 +28,6 @@ import {
   type GenderResult,
 } from "@leapsake/ui/web";
 import { Link, useLoaderData, useRevalidator } from "react-router-dom";
-import { GiftsSection } from "../components/GiftsSection";
 import { homeCrumb } from "../lib/crumbs";
 
 /** Render an epoch-ms timestamp in the user's locale. */
@@ -133,6 +133,7 @@ export function PersonView() {
         suggestions={giftSuggestions}
         gifts={giftsGiven}
         ideaPool={giftIdeaPool}
+        onChanged={() => revalidator.revalidate()}
       />
 
       <TagsSection bearerType="person" bearerId={person.id} tags={tags} />

@@ -1,12 +1,12 @@
 import type { GiftSuggestionForIdea } from "@leapsake/core";
 import type { GiftIdea } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
-import { useLoaderData } from "react-router-dom";
-import { GiftIdeaForm } from "../components/GiftIdeaForm";
 import {
+  Breadcrumbs,
   GiftIdeaRecipientsSection,
-  type RecipientCandidate,
-} from "../components/GiftIdeaRecipientsSection";
+  type PartyOption,
+} from "@leapsake/ui/web";
+import { useLoaderData, useRevalidator } from "react-router-dom";
+import { GiftIdeaForm } from "../components/GiftIdeaForm";
 import { homeCrumb } from "../lib/crumbs";
 
 export function GiftIdeaEdit() {
@@ -14,8 +14,11 @@ export function GiftIdeaEdit() {
     idea: GiftIdea;
     tagNames: string;
     suggestions: GiftSuggestionForIdea[];
-    candidates: RecipientCandidate[];
+    candidates: PartyOption[];
   };
+  // The section writes directly rather than through a route action, so it
+  // re-reads this screen's loader data itself once a write lands.
+  const revalidator = useRevalidator();
 
   return (
     <main>
@@ -33,6 +36,7 @@ export function GiftIdeaEdit() {
         ideaId={idea.id}
         suggestions={suggestions}
         candidates={candidates}
+        onChanged={() => revalidator.revalidate()}
       />
     </main>
   );

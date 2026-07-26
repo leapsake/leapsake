@@ -1,7 +1,8 @@
-import { UiProvider } from "@leapsake/ui/web";
+import { GiftsPortsProvider, UiProvider } from "@leapsake/ui/web";
 import { Link, Outlet } from "react-router-dom";
 import { SearchBar } from "./components/SearchBar";
 import { DropImportProvider } from "./import/DropImportProvider";
+import { desktopGiftsPorts } from "./lib/gifts-ports";
 import { desktopUiAdapter } from "./lib/ui-adapter";
 
 /**
@@ -23,18 +24,21 @@ import { desktopUiAdapter } from "./lib/ui-adapter";
 export function App() {
   return (
     <UiProvider adapter={desktopUiAdapter}>
-      <DropImportProvider>
-        <header>
-          <SearchBar />
-          <nav>
-            <Link to="/reminders">Reminders</Link>{" "}
-            <Link to="/people">People &amp; Pets</Link>{" "}
-            <Link to="/holidays">Holidays</Link> <Link to="/gifts">Gifts</Link>{" "}
-            <Link to="/settings">Settings</Link>
-          </nav>
-        </header>
-        <Outlet />
-      </DropImportProvider>
+      <GiftsPortsProvider ports={desktopGiftsPorts}>
+        <DropImportProvider>
+          <header>
+            <SearchBar />
+            <nav>
+              <Link to="/reminders">Reminders</Link>{" "}
+              <Link to="/people">People &amp; Pets</Link>{" "}
+              <Link to="/holidays">Holidays</Link>{" "}
+              <Link to="/gifts">Gifts</Link>{" "}
+              <Link to="/settings">Settings</Link>
+            </nav>
+          </header>
+          <Outlet />
+        </DropImportProvider>
+      </GiftsPortsProvider>
     </UiProvider>
   );
 }

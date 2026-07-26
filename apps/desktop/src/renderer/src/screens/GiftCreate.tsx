@@ -1,10 +1,10 @@
 import type { GiftIdea } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
-import { Link, useLoaderData } from "react-router-dom";
 import {
+  Breadcrumbs,
   GiftCaptureForm,
   type PartyOption,
-} from "../components/GiftCaptureForm";
+} from "@leapsake/ui/web";
+import { Link, useLoaderData, useNavigate } from "react-router-dom";
 import { homeCrumb } from "../lib/crumbs";
 
 /**
@@ -23,6 +23,7 @@ export function GiftCreate() {
     candidates: PartyOption[];
     fixedRecipient?: PartyOption;
   };
+  const navigate = useNavigate();
 
   return (
     <main>
@@ -46,7 +47,9 @@ export function GiftCreate() {
           fixedRecipient === undefined ? candidates : undefined
         }
         startWithGiving={fixedRecipient !== undefined}
-        redirectTo="/gifts"
+        // A standalone create screen is done once it saves, so it returns to the
+        // list; the inline sections stay put and re-read instead.
+        onSaved={() => navigate("/gifts")}
       />
       <p>
         <Link to="/gifts">Cancel</Link>
