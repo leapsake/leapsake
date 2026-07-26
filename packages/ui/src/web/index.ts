@@ -23,6 +23,14 @@ export {
   highlightMatch,
   type HighlightMode,
 } from "./highlight.js";
+export { DropImportProvider } from "./import/DropImportProvider.js";
+export {
+  ImportReview,
+  type ImportDecision,
+  type ImportDuplicateMatch,
+  type ImportOutcome,
+  type ImportPreviewEntry,
+} from "./import/ImportReview.js";
 export { MentionTextField } from "./fields/MentionTextField.js";
 export {
   RelationshipFields,

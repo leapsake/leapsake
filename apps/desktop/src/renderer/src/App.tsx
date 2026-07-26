@@ -1,9 +1,13 @@
 import { MessagesProvider, en } from "@leapsake/ui/messages";
-import { GiftsPortsProvider, UiProvider } from "@leapsake/ui/web";
-import { Link, Outlet } from "react-router-dom";
+import {
+  DropImportProvider,
+  GiftsPortsProvider,
+  UiProvider,
+} from "@leapsake/ui/web";
+import { Link, Outlet, useNavigate, useRevalidator } from "react-router-dom";
 import { SearchBar } from "./components/SearchBar";
-import { DropImportProvider } from "./import/DropImportProvider";
 import { desktopGiftsPorts } from "./lib/gifts-ports";
+import { commitImport, previewImport } from "./lib/import-ports";
 import { desktopUiAdapter } from "./lib/ui-adapter";
 
 /**
@@ -14,22 +18,48 @@ import { desktopUiAdapter } from "./lib/ui-adapter";
  * plus Settings, which isn't reachable from any entity. Within People & Pets,
  * deeper navigation is handled by that list and breadcrumbs.
  *
- * `DropImportProvider` wraps the whole layout so a contact file can be dropped to
- * import from any screen (desktop only); its drop hint and review modal render as
- * overlays above the active route.
- *
- * Three providers wrap the layout, so every routed screen is below them:
+ * Four providers wrap the layout, so every routed screen is below them:
  * `MessagesProvider` supplies the text `@leapsake/ui` renders (English today —
  * an i18n library replaces the catalog, not the components), `UiProvider` this
- * client's navigation and form primitives, and `GiftsPortsProvider` the gift
- * reads and writes.
+ * client's navigation and form primitives, `GiftsPortsProvider` the gift reads
+ * and writes, and `DropImportProvider` the window-wide drop target whose hint and
+ * review modal render as overlays above the active route.
  */
 export function App() {
+  const navigate = useNavigate();
+  const revalidator = useRevalidator();
+
   return (
     <MessagesProvider messages={en}>
       <UiProvider adapter={desktopUiAdapter}>
         <GiftsPortsProvider ports={desktopGiftsPorts}>
-          <DropImportProvider>
+          <DropImportProvider
+            onPreview={previewImport}
+            onCommit={commitImport}
+            onDone={(outcome) => {
+              // Reflect the new people wherever the user is; then land on the
+              // list — or on the duplicate review, when the import left pairs
+              // behind. The per-row flags only score each incoming contact
+              // against people who already existed, so two contacts *within* one
+              // import that duplicate each other are invisible to that pass, as
+              // is a match the user chose to import anyway.
+              revalidator.revalidate();
+              if (outcome.created === 0) {
+                navigate("/people");
+                return;
+              }
+              void window.api.duplicates
+                .count()
+                .catch(() => 0)
+                .then((outstanding) =>
+                  navigate(outstanding > 0 ? "/duplicates" : "/people"),
+                );
+            }}
+            onPickSelf={() => {
+              revalidator.revalidate();
+              navigate("/people?pick=self");
+            }}
+          >
             <header>
               <SearchBar />
               <nav>

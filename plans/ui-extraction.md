@@ -342,12 +342,16 @@ Both are candidates for a later increment; neither is a form.
 **Done when:** every create/edit path saves correctly, and the forms still submit with JS
 disabled in the Electron devtools (the no-JS floor rehearsal — cheap here, load-bearing for web).
 
-### 6 — The import overlay
+### 6 — The import overlay (done)
 
-- Move `DropImportProvider` + `ImportOverlay.module.css` to `@leapsake/ui/web` essentially
-  unchanged (it is already DOM-only and framework-free).
-- Convert `ImportReview` to injected `onPreview`/`onCommit` callbacks; `useNavigate` and
-  `useRevalidator` stay in the app container.
+- `DropImportProvider` + `ImportOverlay.module.css` moved essentially unchanged, as expected —
+  it was already DOM-only and framework-free.
+- `ImportReview` takes injected `onPreview`/`onCommit`, plus `onDone`/`onPickSelf` for the two
+  decisions that are really about routing. `useNavigate`/`useRevalidator` stay in `App.tsx`.
+- `onCommit` returns an `ImportOutcome` carrying `offerPickSelf`: whether a self-person is
+  already set is the app's knowledge, not the review's.
+- The package took a dependency on `@leapsake/contact-import` (pure, schema-tier) rather than
+  re-declaring `ParsedContact`, which is far too large to restate structurally.
 
 **Done when:** dropping a `.vcf` on the desktop app still previews, flags duplicates, and commits.
 

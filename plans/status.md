@@ -196,7 +196,9 @@ can't ship without distributable apps. (None yet.)
   **Increment 5 is split 5a/5b/5c by dependency cluster; 5a shipped**: `FormShell` +
   `Field`/`StackedField`, and the `GiftIdeaForm` / `MentionTextField` / `ReminderForm` cluster.
   **5b and 5c shipped** — all seven forms and their field groups now live in the
-  package; only `SearchBar` and `ReminderText` remain under the app's `components/`. **Next:**
+  package; only `SearchBar` and `ReminderText` remain under the app's `components/`. **Increment
+  6 shipped**: the import overlay (`DropImportProvider` + `ImportReview`) moved, with the
+  post-commit routing left to `App.tsx`. **Next:**
   then 6 (the import overlay) and 7 (`@leapsake/view-models`, independent of the rest). Each
   code-moving increment is two commits (split in place, then move). Design + increments:
   [`ui-extraction.md`](./ui-extraction.md). **Styling is a separate pre-v0.1 pass, after this.**

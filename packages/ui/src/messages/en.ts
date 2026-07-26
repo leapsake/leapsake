@@ -182,6 +182,51 @@ export const en: Messages = {
     tagsPlaceholder: "#Friend #Neighbor",
   },
 
+  import: {
+    dropHint: "Drop a contact card (.vcf) to import",
+    unrecognizedHeading: "Can’t read that file",
+    unrecognizedBody: (filename) =>
+      `Leapsake can only import contact cards (.vcf) right now, and ${filename} doesn’t look like one.`,
+    acknowledge: "OK",
+    reviewHeading: "Import contacts",
+    reviewIntro: (count) =>
+      count === 1
+        ? "Found 1 contact in the dropped file. Review what will be imported, then confirm."
+        : `Found ${count} contacts in the dropped file. Review what will be imported, then confirm.`,
+    importCount: (count) => `Import ${count}`,
+    importing: "Importing…",
+    skip: "Skip",
+    include: "Include",
+    needsName: "Needs a first and last name before it can be imported.",
+    duplicateWarning: (tier, name, reasons) => {
+      const label =
+        tier === "high"
+          ? "Very likely already in Leapsake"
+          : tier === "medium"
+            ? "Possibly already in Leapsake"
+            : tier;
+      return `${label}: matches ${name} (${reasons.join("; ")}). Skip to avoid a duplicate.`;
+    },
+    notImported: (properties) => `Not imported: ${list(properties)}`,
+    labelledValue: (label, value) => `${label}: ${value}`,
+    birthday: (formatted) => `Birthday: ${formatted}`,
+    detailLine: (bits) => bits.join(" · "),
+    completeHeading: "Import complete",
+    completeSummary: (created, skipped) => {
+      const people = created === 1 ? "1 person" : `${created} people`;
+      return skipped > 0
+        ? `Imported ${people}, skipped ${skipped}.`
+        : `Imported ${people}.`;
+    },
+    failedCount: (count) =>
+      count === 1 ? "Couldn’t import 1:" : `Couldn’t import ${count}:`,
+    failedRow: (name, message) => `${name} — ${message}`,
+    unnamedContact: "Unnamed contact",
+    whichIsYou: "Which of these is you?",
+    pickYourself: "Pick yourself",
+    done: "Done",
+  },
+
   contactMethodForm: {
     addHeading: (kind) =>
       kind === "email"

@@ -4,18 +4,26 @@ import {
   parseVCards,
 } from "@leapsake/contact-import";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useMessages } from "../../messages/index.js";
 import styles from "./ImportOverlay.module.css";
-import { ImportReview } from "./ImportReview";
+import {
+  ImportReview,
+  type ImportDecision,
+  type ImportOutcome,
+  type ImportPreviewEntry,
+} from "./ImportReview.js";
 
 /**
- * The desktop contact-import entry point: a window-wide drag-and-drop target so a
- * contact file can be dropped **on any screen, at any time**. It reads the dropped
- * file in the renderer (HTML5 drop hands us a real `File`), detects and parses it
- * with the pure `@leapsake/contact-import` package — no IPC yet — and opens the
- * review modal; only the reviewed commit crosses to the main process. A dropped
- * file that isn't a recognised contact card gets a friendly notice rather than a
- * silent no-op (the "recognise it / ask if unsure" requirement); the discriminated
- * parse result is the seam where more formats slot in later.
+ * A window-wide drag-and-drop target, so a contact file can be dropped **on any
+ * screen, at any time**. The file is read and parsed here — HTML5 drop hands over
+ * a real `File`, and `@leapsake/contact-import` is pure — so nothing leaves the
+ * client until the user confirms the review. A dropped file that isn't a
+ * recognised contact card gets a friendly notice rather than a silent no-op (the
+ * “recognise it / ask if unsure” requirement); the discriminated parse result is
+ * the seam where more formats slot in later.
+ *
+ * Nothing here is Electron-specific: it is HTML5 drag-and-drop and a pure parser,
+ * so the same provider works in a browser.
  */
 
 type ImportState =
@@ -28,7 +36,22 @@ function dragHasFiles(e: DragEvent): boolean {
   return Array.from(e.dataTransfer?.types ?? []).includes("Files");
 }
 
-export function DropImportProvider({ children }: { children: ReactNode }) {
+export function DropImportProvider({
+  onPreview,
+  onCommit,
+  onDone,
+  onPickSelf,
+  children,
+}: {
+  onPreview: (
+    contacts: readonly ParsedContact[],
+  ) => Promise<ImportPreviewEntry[]>;
+  onCommit: (decisions: ImportDecision[]) => Promise<ImportOutcome>;
+  onDone: (outcome: ImportOutcome) => void;
+  onPickSelf: () => void;
+  children: ReactNode;
+}) {
+  const m = useMessages();
   const [dragging, setDragging] = useState(false);
   const [state, setState] = useState<ImportState>({ kind: "idle" });
   // Enter/leave fire per descendant element, so count depth to avoid the hint
@@ -92,13 +115,22 @@ export function DropImportProvider({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      {dragging && (
-        <div className={styles.dropHint}>
-          Drop a contact card (.vcf) to import
-        </div>
-      )}
+      {dragging && <div className={styles.dropHint}>{m.import.dropHint}</div>}
       {state.kind === "reviewing" && (
-        <ImportReview contacts={state.contacts} onClose={close} />
+        <ImportReview
+          contacts={state.contacts}
+          onPreview={onPreview}
+          onCommit={onCommit}
+          onClose={close}
+          onDone={(outcome) => {
+            close();
+            onDone(outcome);
+          }}
+          onPickSelf={() => {
+            close();
+            onPickSelf();
+          }}
+        />
       )}
       {state.kind === "unrecognized" && (
         <div className={styles.backdrop} onClick={close}>
@@ -106,14 +138,11 @@ export function DropImportProvider({ children }: { children: ReactNode }) {
             className={`${styles.dialog} ${styles.notice}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2>Can’t read that file</h2>
-            <p>
-              Leapsake can only import contact cards (<code>.vcf</code>) right
-              now, and <strong>{state.filename}</strong> doesn’t look like one.
-            </p>
+            <h2>{m.import.unrecognizedHeading}</h2>
+            <p>{m.import.unrecognizedBody(state.filename)}</p>
             <div className={styles.actions}>
               <button type="button" onClick={close}>
-                OK
+                {m.import.acknowledge}
               </button>
             </div>
           </div>

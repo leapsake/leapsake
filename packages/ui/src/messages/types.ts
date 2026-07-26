@@ -200,6 +200,38 @@ export interface Messages {
     tagsPlaceholder: string;
   };
 
+  import: {
+    dropHint: string;
+    unrecognizedHeading: string;
+    unrecognizedBody: (filename: string) => string;
+    acknowledge: string;
+    reviewHeading: string;
+    reviewIntro: (count: number) => string;
+    importCount: (count: number) => string;
+    importing: string;
+    skip: string;
+    include: string;
+    needsName: string;
+    /** Why an incoming contact looks like someone already here. */
+    duplicateWarning: (
+      tier: string,
+      name: string,
+      reasons: readonly string[],
+    ) => string;
+    notImported: (properties: readonly string[]) => string;
+    labelledValue: (label: string, value: string) => string;
+    birthday: (formatted: string) => string;
+    detailLine: (bits: readonly string[]) => string;
+    completeHeading: string;
+    completeSummary: (created: number, skipped: number) => string;
+    failedCount: (count: number) => string;
+    failedRow: (name: string, message: string) => string;
+    unnamedContact: string;
+    whichIsYou: string;
+    pickYourself: string;
+    done: string;
+  };
+
   contactMethodForm: {
     /** “Add email” / “Add phone” / “Add address” — one whole heading per kind. */
     addHeading: (kind: ContactMethodKind) => string;

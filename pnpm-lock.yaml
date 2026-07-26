@@ -345,6 +345,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@leapsake/contact-import':
+        specifier: workspace:*
+        version: link:../contact-import
       '@leapsake/highlight':
         specifier: workspace:*
         version: link:../highlight
