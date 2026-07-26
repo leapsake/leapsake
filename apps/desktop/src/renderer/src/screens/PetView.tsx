@@ -11,26 +11,11 @@ import type {
   Reminder,
   Tag,
 } from "@leapsake/schema";
-import {
-  Breadcrumbs,
-  DetailList,
-  GenderValue,
-  GiftsSection,
-  HolidaysSection,
-  MentionedInSection,
-  MilestonesSection,
-  RelationshipsSection,
-  TagsSection,
-  type GenderResult,
-} from "@leapsake/ui/web";
-import { Link, useLoaderData, useRevalidator } from "react-router-dom";
+import { PetScreen, type GenderResult } from "@leapsake/ui/web";
+import { useLoaderData, useRevalidator } from "react-router-dom";
 import { homeCrumb } from "../lib/crumbs";
 
-/** Render an epoch-ms timestamp in the user's locale. */
-function formatTimestamp(ms: number): string {
-  return new Date(ms).toLocaleString();
-}
-
+/** The route container for a pet's page — see {@link PersonView} for the shape. */
 export function PetView() {
   const {
     pet,
@@ -55,71 +40,27 @@ export function PetView() {
     giftIdeaPool: GiftIdea[];
     giftsGiven: GiftForRecipient[];
   };
-  // The Holidays section writes directly rather than through a route action, so
-  // it re-reads this screen's loader data itself once a write lands.
   const revalidator = useRevalidator();
 
   return (
-    <main>
-      <Breadcrumbs trail={[homeCrumb]} />
-
-      <header>
-        <h1>{pet.name}</h1>
-        <Link to={`/pets/${pet.id}/edit`}>Edit</Link>{" "}
-        <Link to={`/pets/${pet.id}/delete`}>Delete</Link>
-      </header>
-
-      <DetailList
-        details={[
-          { term: "Name", value: pet.name },
-          { term: "Gender", value: <GenderValue gender={gender} /> },
-        ]}
-      />
-
-      <RelationshipsSection
-        subjectType="pet"
-        subjectId={pet.id}
-        relationships={relationships}
-      />
-
-      <MilestonesSection
-        bearerType="pet"
-        bearerId={pet.id}
-        entries={timeline}
-      />
-
-      <HolidaysSection
-        bearerType="pet"
-        bearerId={pet.id}
-        holidays={holidays}
-        onSetObserves={(holidayId, observes) =>
-          window.api.holidays.setObservers(holidayId, [
-            { bearerType: "pet", bearerId: pet.id, observes },
-          ])
-        }
-        onChanged={() => revalidator.revalidate()}
-      />
-
-      <GiftsSection
-        recipientType="pet"
-        recipientId={pet.id}
-        recipientLabel={pet.name}
-        suggestions={giftSuggestions}
-        gifts={giftsGiven}
-        ideaPool={giftIdeaPool}
-        onChanged={() => revalidator.revalidate()}
-      />
-
-      <TagsSection bearerType="pet" bearerId={pet.id} tags={tags} />
-
-      <MentionedInSection reminders={mentionedIn} />
-
-      <DetailList
-        details={[
-          { term: "Created", value: formatTimestamp(pet.createdAt) },
-          { term: "Updated", value: formatTimestamp(pet.updatedAt) },
-        ]}
-      />
-    </main>
+    <PetScreen
+      trail={[homeCrumb]}
+      pet={pet}
+      gender={gender}
+      tags={tags}
+      relationships={relationships}
+      timeline={timeline}
+      mentionedIn={mentionedIn}
+      holidays={holidays}
+      giftSuggestions={giftSuggestions}
+      giftsGiven={giftsGiven}
+      giftIdeaPool={giftIdeaPool}
+      onSetObserves={(holidayId, observes) =>
+        window.api.holidays.setObservers(holidayId, [
+          { bearerType: "pet", bearerId: pet.id, observes },
+        ])
+      }
+      onChanged={() => revalidator.revalidate()}
+    />
   );
 }

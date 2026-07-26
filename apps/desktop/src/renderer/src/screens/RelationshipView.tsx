@@ -1,75 +1,24 @@
-import type {
-  EntityType,
-  Milestone,
-  MilestoneTimelineEntry,
-  Relationship,
-} from "@leapsake/schema";
-import { entityBasePath } from "@leapsake/ui/headless";
-import { Breadcrumbs, DetailList, MilestonesSection } from "@leapsake/ui/web";
-import { Link, useLoaderData } from "react-router-dom";
+import type { Milestone, Relationship } from "@leapsake/schema";
+import { RelationshipScreen, type RelationshipPartner } from "@leapsake/ui/web";
+import { useLoaderData } from "react-router-dom";
 import { homeCrumb } from "../lib/crumbs";
 
-/** One endpoint of the relationship, resolved for display. */
-interface Partner {
-  type: EntityType;
-  id: string;
-  label: string;
-  roleLabel: string;
-}
-
-/**
- * A relationship's detail page — the canonical home for managing the
- * relationship's milestones (Wedding, First Date, Met). The same milestones also
- * surface read-only on each partner's timeline (see {@link MilestonesSection}),
- * but they are added/edited/removed here. Editing the roles or deleting the
- * relationship reuses the subject-scoped relationship screens, addressed through
- * the first endpoint.
- */
+/** The route container for a relationship's detail page. */
 export function RelationshipView() {
   const { relationship, partners, title, milestones } = useLoaderData() as {
     relationship: Relationship;
-    partners: Partner[];
+    partners: RelationshipPartner[];
     title: string;
     milestones: Milestone[];
   };
 
-  // The relationship's own milestones, as editable timeline entries (this page
-  // is where they're managed).
-  const entries: MilestoneTimelineEntry[] = milestones.map((milestone) => ({
-    milestone,
-    origin: "own",
-    relationshipId: null,
-    otherLabel: null,
-  }));
-
-  const relPath = `/relationships/${relationship.id}`;
-
   return (
-    <main>
-      <Breadcrumbs trail={[homeCrumb]} />
-
-      <header>
-        <h1>{title}</h1>
-        <Link to={`${relPath}/edit`}>Edit roles</Link>{" "}
-        <Link to={`${relPath}/delete`}>Delete</Link>
-      </header>
-
-      <DetailList
-        details={partners.map((partner) => ({
-          term: partner.roleLabel,
-          value: (
-            <Link to={`${entityBasePath(partner.type)}/${partner.id}`}>
-              {partner.label}
-            </Link>
-          ),
-        }))}
-      />
-
-      <MilestonesSection
-        bearerType="relationship"
-        bearerId={relationship.id}
-        entries={entries}
-      />
-    </main>
+    <RelationshipScreen
+      trail={[homeCrumb]}
+      relationshipId={relationship.id}
+      title={title}
+      partners={partners}
+      milestones={milestones}
+    />
   );
 }
