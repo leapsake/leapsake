@@ -16,10 +16,11 @@
 
 | Key | Type | Created by | Purpose |
 |---|---|---|---|
-| **Master key (MK)** | symmetric | client, once per account | the root; wraps everything below. Never derived from the passphrase (§4). |
+| **Master key (MK)** | symmetric | client, at **account creation** (Phase 0.5) | the root; wraps everything below. Never derived from the password (§4). |
 | **Enclave key** | symmetric, OS-held | OS keychain / Secure Enclave | a device's local unlock path for MK; also gates the at-rest DB. |
-| **Recovery key (RK)** | symmetric, high-entropy | client, once at onboarding | an out-of-band unlock path for MK; user-held, never stored by us. |
-| **KEK** | symmetric | `Argon2id(passphrase, salt)` | the passphrase unlock path for MK; **only exists once sync is enabled.** |
+| **db-key** | symmetric | client, at account creation | the whole-DB at-rest key (§8); read from a sidecar *before* the store opens. |
+| **Recovery key (RK)** | symmetric, high-entropy | client, at account creation | an out-of-band unlock path for MK **and** db-key; user-held, never stored by us. |
+| **KEK** | symmetric | `Argon2id(password, salt)` | the password unlock path for MK and db-key; **exists from account creation, relay or not.** |
 | **Auth verifier** | opaque token | separate derivation from passphrase | what the server stores to authenticate login — reveals nothing about the KEK (§9.3). |
 | **Account keypair** | X25519 + Ed25519 | client, at account creation | public key published to a directory; private key (MK-wrapped) unwraps shares sent to you. |
 | **Content key (CK)** | symmetric, per item | client, per shareable unit | encrypts one item/blob; wrapped for each principal that may read it. |
@@ -33,89 +34,112 @@ rest, and never holds the passphrase, KEK, or RK at all.
 > plan: **Phases 0–2 and 3a are the Stage-1 zero-knowledge core**; **Phase 3b**
 > (authenticated share) and **Phase 4a** (constrained principal) are **Stage 3**;
 > **Phase 4b** (SSR session) is **Stage 4**. Whole-DB **at-rest** encryption is
-> **Stage 2** and touches only the *enclave* path. Every phase is written in full
-> below; staging changes only *when* each ships, not the mechanism — so the Stage-1
-> phases create the *minimum* key material (symmetric only; no account keypair, no
-> recovery key until sync), and later stages only *add* wrappings.
+> **Stage 2**. Every phase is written in full below; staging changes only *when* each
+> ships, not the mechanism — so the Stage-1 phases create the *minimum* key material
+> (symmetric only; no account keypair), and later stages only *add* wrappings.
+>
+> ⚠️ **Rewritten 2026-07-26 for "encryption follows custody" (model.md §7.2).** The
+> pivotal change: **Phase 0 now creates no keys whatsoever**, and everything the old
+> Phase 0 did has moved into the new **Phase 0.5 — Create an account**. If you are
+> holding an older mental model in which first launch mints a master key, drop it.
 
 ---
 
 ## Phase 0 — First launch, fresh install ("Already using Leapsake?" → **No**) — *Stage 1*
 
-A single device, no account, no server, no passphrase (§7.1). **No key ceremony at
-all** — straight into the app.
+A single device, no account, no server, no password (§7.1, §7.2). **No key ceremony and
+no keys** — straight into the app.
 
-- **Prompt:** one question — "Already using Leapsake?" → **No** → straight into the
-  app. *No passphrase, and no recovery key shown yet* — until sync exists there is no
-  remote copy for a recovery key to restore, so it would protect nothing; it is
-  generated at sync-enable (Phase 1) instead.
-- **Keys created (all on-device):**
-  - **MK** — random.
-  - **Enclave key** — minted in / by the OS keychain.
-  - *(Deferred to **Stage 2**, [`status.md`](../status.md): the **at-rest DB key**, §8. Until
-    then the local file is plaintext-and-queryable, as today; the Stage-1 privacy win
-    is zero-knowledge **sync**, not on-disk encryption.)*
-- **Stored:**
-  - `wrap(MK, enclave key)` → device keychain/app store.
-  - **Enclave key** → Secure Enclave / keychain.
-- **Trust boundary:** entirely on-device. **No server exists in this phase**; nothing
-  leaves the machine. The account keypair, KEK, auth verifier, and recovery key do
-  **not** exist yet — each is deferred to the phase (and stage) where it first means
-  something.
+- **Prompt:** one question — "Already using Leapsake?" → **No** → straight into the app.
+- **Keys created: none.** Not a master key, not an enclave key, not a db-key, not a
+  recovery key. The OS keychain stays empty.
+- **Store:** `stores/local/leapsake.db`, **plaintext and queryable** (an *Open* store,
+  model.md §7.2). All three encryption layers of §2 are inactive.
+- **Trust boundary:** entirely on-device; no server exists in this phase, and nothing
+  leaves the machine.
 
-> **Key ledger after Phase 0:** MK (enclave-wrapped, on one device — a *single* unlock
-> door, so losing the device loses the data, which is true with or without a recovery
-> key when no backup exists), enclave key (OS). No account, no passphrase, no recovery
-> key, no network.
+> **Key ledger after Phase 0:** *empty.* No keys anywhere, so there is nothing to lose —
+> wiping the OS keychain costs this user nothing, and the file opens on any device it is
+> copied to. That is the whole point of the state (model.md §7.2): the protection a
+> user-less key would add is small, and the data-loss path it creates is not.
 
 ---
 
-## Phase 1 — Enable sync (promote the single device to an account) — *Stage 1*
+## Phase 0.5 — Create an account (the moment custody begins) — *Stage 1*
 
-The precondition for *any* second device. This is the step that first introduces a
-passphrase and a server (§5: "a passphrase is required only when you opt into sync"),
-**and** the moment the recovery key is finally generated (it now has a remote copy to
-restore).
+**The pivotal phase**, and the one that has no analogue in the old sequence. It is
+reached from the Home invitation once the user has data worth protecting, or from
+Settings whenever they choose. It is **fully local** — no relay, no email, nothing sent.
+This single step moves the client from Tier 3 to Tier 2 (model.md §5) and turns on
+encryption layers 1 and 3.
 
-- **Prompt:** choose a **passphrase**; **generate and show the RK once** ("save this;
-  it's your way back if you forget the passphrase"); an explicit consent screen for
-  *what the server will store* (ciphertext + wrapped keys + the verifier).
-- **Keys created:**
-  - **RK** — random, high-entropy, displayed once (moved here from Phase 0).
-  - **KEK** = `Argon2id(passphrase, salt)` — derived client-side.
-  - **Auth verifier** — a *separate* derivation from the passphrase (§9.3 split).
-  - *(Deferred to **Stage 3**, [`status.md`](../status.md): the **account keypair** and its
-    published public key. They serve sharing *to other people*, not multi-device sync,
-    so they wait until authenticated sharing — Phase 3b. The Stage-1 sync core is
-    symmetric-only.)*
-- **Re-wrapping (no data re-encryption — the point of the KEK layer, §4):**
-  - Add `wrap(MK, KEK)` and `wrap(MK, RK)` as *new* unlock paths, alongside the
-    existing enclave wrapping.
+- **Prompt:** choose a **username + password**; then the **recovery phrase, shown once**,
+  framed as the forgot-password backstop. Copy must promise *access*, not device safety
+  (model.md §7.2.1).
+- **Keys created (all on-device):**
+  - **MK** — random.
+  - **Enclave key** — minted in / by the OS keychain; `wrap(MK, enclave)` persisted.
+  - **db-key** — the whole-DB at-rest key (§8).
+  - **RK** — random, high-entropy; the 24 words encode it.
+  - **KEK** = `Argon2id(password, salt)`; plus the **auth verifier**, a *separate*
+    derivation (§9.3) — minted now even though no relay exists yet, so binding one later
+    adds no new ritual.
+- **Wrappings created:** `wrap(MK, enclave)`, `wrap(MK, KEK)`, `wrap(MK, RK)` inside the
+  store; and beside the store, the two **db-key sidecars** — `seal(db-key, RK)` and
+  `seal(db-key, KEK)`. The sidecars are separate files by necessity: they are read
+  *before* the database can be opened.
+- **Data migration:** the Open store is converted to a Protected one and the plaintext
+  original destroyed (model.md §8.1), then layer-3 fields are sealed.
+- **Trust boundary:** still entirely on-device. Nothing has touched a network.
+
+> **Key ledger after Phase 0.5:** MK reachable by enclave, password, or phrase. db-key
+> reachable by enclave, password, or phrase. The user now holds two secrets — one chosen,
+> one generated — and the OS keychain is no longer a single point of failure.
+
+---
+
+## Phase 1 — Bind the account to a relay (enable sync) — *Stage 1*
+
+The precondition for *any* second device. Because Phase 0.5 already minted the password
+door, the recovery key, and the auth verifier, this phase creates **no new key material
+at all** — it only publishes what already exists. That is the payoff of converging local
+and synced custody.
+
+- **Prompt:** a relay URL, and an explicit consent screen for *what the server will store*
+  (ciphertext + wrapped keys + the verifier).
+- **Keys created:** none.
 - **Stored:**
-  - **Server:** the `Argon2id` salt (public), the **auth verifier**, and
-    `wrap(MK, KEK)`. All ciphertext except salt + verifier.
-  - **Client:** `wrap(MK, RK)` on device; plus it can now reach the server.
+  - **Server:** the `Argon2id` salt (public), the **auth verifier**, `wrap(MK, KEK)`, and
+    the recovery escrow. All ciphertext except salt + verifier.
   - **RK** → *not stored by us* — the user holds it.
-- **Trust boundary — the first one that crosses the network.** The server now holds a
+- **Trust boundary — the first one that crosses the network.** The server holds a
   *wrapped* MK and a verifier. It **cannot** derive the KEK (Argon2id is one-way; the
   verifier is a different derivation), so it cannot unwrap MK. **Zero-knowledge holds.**
-  This is the moment the §9.3 "two values from one passphrase" rule earns its keep.
+  This is the moment the §9.3 "two values from one password" rule earns its keep, and the
+  moment encryption layer 2 (§2) starts doing work.
+- **Username collision:** the relay is authoritative over usernames, so a locally-chosen
+  one may already be taken (the relay answers `409`). Binding must therefore be able to
+  *rename* the account. See `status.md` → Open questions for the unsettled half (telling
+  "two accounts that should be merged" apart from "two genuinely different people").
 
-> **Key ledger after Phase 1:** MK now has *three* unlock paths (enclave, RK, KEK).
-> Server holds `wrap(MK, KEK)` + verifier + salt. Passphrase/KEK/RK/MK never leave the
-> client in the clear. (No account public key yet — that's Stage 3.)
+> **Key ledger after Phase 1:** unchanged from 0.5, plus the server's copy of
+> `wrap(MK, KEK)` + verifier + salt. Password/KEK/RK/MK never leave the client in the
+> clear. (No account public key yet — that's Stage 3.)
 
 ---
 
 ## Phase 2 — Add a second device ("Already using Leapsake?" → **Yes**) — *Stage 1*
 
-The new device joins the account established in Phase 1. It consumes the passphrase
+The new device joins the account established in Phase 1. It consumes the password
 unlock path; it never needs the RK or the first device's enclave key.
 
-- **Prompt:** sign in (account id / email) + **passphrase**. *(tvOS/low-input
-  variant: device-link by QR from the phone instead of typing — §13.)*
+**Its store is created encrypted from byte one** — a joining device knows the account
+exists before it writes a row, so it never passes through the Open state (model.md §7.1).
+
+- **Prompt:** sign in (username) + **password**. *(tvOS/low-input variant: device-link by
+  QR from the phone instead of typing — §13.)*
 - **Flow:**
-  1. Device derives the **auth verifier** from the passphrase → authenticates.
+  1. Device derives the **auth verifier** from the password → authenticates.
   2. Server returns `wrap(MK, KEK)` (ciphertext). *(Stage 3 adds
      `wrap(account_private, MK)` to this return.)*
   3. Device derives **KEK** locally, unwraps **MK** into memory. *(Stage 3 adds:
@@ -208,7 +232,11 @@ tables — all "ciphertext + a bag of wrapped keys," exactly §3:
 - a **share/access-policy** table (`expiresAt`, `maxVisits`, `allowedUserIds`,
   revocation) — Phase 3–4.
 
+…plus, from Phase 0.5, an **on-device account roster** that is *not* a table at all — it
+lives outside every store, unencrypted, because it must be readable before any store can
+be opened (model.md §7.4).
+
 Open questions this sequence does **not** resolve, deferred to design time per status.md:
-the **public-key directory** trust model (Phase 3b), **Tier 1** server-escrow as an
-extra MK wrapping (a variant of Phase 1), and the **at-rest engine** choice on desktop
-(orthogonal to this whole sequence — it only ever touches the *enclave* path, §8).
+the **public-key directory** trust model (Phase 3b), **Tier 1** server-escrow as an extra
+MK wrapping (a variant of Phase 1), and **username reconciliation** when a locally-chosen
+username collides on a relay (Phase 1).

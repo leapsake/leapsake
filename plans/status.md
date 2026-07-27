@@ -5,12 +5,15 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-26** — **Next up is the local-custody decision** (see *What's next* →
-> *Local custody*): pre-v0.1 is the last cheap moment to settle whether local-only use grows a
-> password + login, and the answer reshapes `launch.md` Increments 2–3. Options and a
-> recommendation are in [`encryption/local-custody-options.md`](./encryption/local-custody-options.md);
-> `model.md` and `product-truths.md` have been made **neutral** on it (they no longer presume
-> the no-password answer). Also: **the UI extraction is finished** — `@leapsake/ui` holds every
+> **Updated 2026-07-26** — **The local-custody decision is made: encryption follows
+> custody.** First launch will mint no keys and leave the store plaintext; creating an
+> account (username + password) is the single act that turns encryption on, and the recovery
+> phrase becomes its forgot-password backstop instead of a first-run ritual. The model is in
+> [`encryption/model.md`](./encryption/model.md) §7.2–7.4, the key lifecycle in
+> [`custody-sequence.md`](./encryption/custody-sequence.md) (Phase 0 now creates *nothing*;
+> new Phase 0.5 creates everything), and the build order below. `local-custody-options.md`
+> is **retired** — it existed to be decided, and it was; the reasoning that survives lives in
+> `model.md`. Also: **the UI extraction is finished** — `@leapsake/ui` holds every
 > presentational component the desktop renderer had, and the new `@leapsake/view-models` holds the
 > derivations desktop and mobile each kept a copy of; rationale lives in the two package READMEs.
 
@@ -85,31 +88,53 @@ the work they imply.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decide first, it reshapes what follows.**
+**⇒ Local custody — decided 2026-07-26; now build it. It leads everything else.**
 
-- **The decision: does local-only use grow a password + login?** Today single-device use has
-  no password, and a 24-word recovery phrase is the *only* fallback when the OS keychain is
-  lost — an unfamiliar ritual guarding an active data-loss path. Options, costs, and a
-  recommendation (**E — deferred local signup, invited once the user has data to lose**) are in
-  [`encryption/local-custody-options.md`](./encryption/local-custody-options.md).
-  `model.md` §1/§6/§7/§7.1 and `product-truths.md` were made neutral on 2026-07-26 so the doc
-  set no longer presumes the answer.
-- **Why it leads:** `launch.md` Increment 2 (the recovery-phrase nudge) is a *consequence* of
-  the current answer, so building it first risks building it twice. Increment 3 (verify
-  restore-from-backup) also changes shape — under E the at-rest sidecar gains a second door,
-  and both doors need an end-to-end restore proof.
-- **Then build it**, whichever option wins. Under E the work concentrates in the
-  **pre-database boot path** on both clients (`apps/desktop/src/main/db/open.ts`,
-  `apps/mobile/lib/core-context.tsx`) — a password-wrapped `db-key` sidecar beside the
-  recovery one. Most of the surrounding flow already exists: `enableSync` already takes
-  `username`/`relayUrl` as optional (local-before-relay accounts), `enableSync`/`joinAccount`
-  already *is* sign-up/log-in, and the onboarding-nudge engine already computes the trigger.
-- **Open sub-questions** (settle with the decision, not after): session lifetime + its
-  Settings dial and the "never expires" warning; whether mobile unlocks by biometrics with a
-  password floor; and the recovery phrase's surviving role (mint at first launch either way —
-  it seals the sidecar — but surface it when?).
-- **Blocks:** `launch.md` Increments 2, 3, and therefore 4 (the first closed-test upload puts
-  real data in ≥12 testers' hands — do not ship custody churn to them afterwards).
+**The decision: encryption follows custody.** First launch mints no keys and writes a
+plaintext store; creating an account (username + password) turns on encryption, mints the
+recovery phrase, and converts the store. Full model: [`encryption/model.md`](./encryption/model.md)
+§7.2 (states), §7.3 (lock/log out), §7.4 (per-user stores), §8.1 (the conversion pattern);
+lifecycle in [`custody-sequence.md`](./encryption/custody-sequence.md) Phases 0 → 0.5 → 1.
+
+**Why it leads:** it changes what a fresh install does with real data, and `launch.md`
+Increments 2–4 are all consequences of it. It also **defuses `launch.md` §2's central
+hazard** — the Team-ID change that would have dropped every user into `RecoveryGate` costs
+an accountless user nothing (no keys to lose) and costs an account holder a password entry.
+
+**Build order** — each slice is independently shippable:
+
+1. **Don't create keys at first launch.** Both clients' boot paths
+   (`apps/desktop/src/main/db/open.ts`, `apps/mobile/lib/core-context.tsx`) currently mint a
+   db-key and call `ensureDeviceMasterKey` unconditionally. Make both conditional on an
+   account existing, and open the store plaintext when none does. `createCore(driver,
+   keySession?)` already accepts an absent key session, and `milestones-repo.ts` already
+   stores plaintext without a cipher — so the keyless mode is a supported path, not new code.
+   Keep the existing encrypted-store branches working untouched (dev installs are encrypted).
+2. **Per-account store paths** (`stores/<accountId>/…` + the roster, `model.md` §7.4) —
+   do it in the same pass as 1, while there is exactly one store to move. Cheap now,
+   expensive later.
+3. **The account-creation flow**: username + password → mint keys → convert the store
+   (§8.1) → show the phrase once. Reachable from the Home invitation and from Settings; the
+   two entry points run the *same* flow. Much of the surrounding machinery exists —
+   `enableSync` already takes `username`/`relayUrl` as optional (local-before-relay
+   accounts), `enableSync`/`joinAccount` already *is* sign-up/log-in, and the
+   onboarding-nudge engine already computes the trigger signal.
+4. **The password door on the db-key sidecar** — `seal(db-key, KEK)` beside the recovery
+   one, consumed in the pre-database boot path on both platforms. This is the most delicate
+   code in the app and it now has two doors to prove (see Increment 3 in `launch.md`).
+5. **Lock** (`model.md` §7.3) — a real re-lock, not theater, plus the bounded session over
+   the enclave cache. Prerequisite for the session dial and for "log out" to mean anything.
+
+**Verify before relying on it:** that mobile's SQLCipher build opens a plaintext database
+and runs the attach-and-copy conversion (`model.md` §8.1 — desktop is verified, mobile is
+not). Use the in-app self-test. If it can't, slice 3's mobile half needs a different shape.
+
+**Open sub-questions** (see also *Open questions* below): session lifetime, its Settings
+dial, and the "never expires" warning; whether mobile unlocks by biometrics with a password
+floor for true expiry; and the username-collision question when a local account binds a relay.
+
+**Blocks:** `launch.md` Increments 2, 3, and therefore 4 (the first closed-test upload puts
+real data in ≥12 testers' hands — do not ship custody churn to them afterwards).
 
 **Encryption + sync:**
 
@@ -129,13 +154,15 @@ the work they imply.
   exit-strategy answer: user-initiated, client-side (the client already holds plaintext),
   people + contact methods first. Cheap, and it doubles as groundwork for the future
   CardDAV surface and the importer increment.
-- **Restore-from-file-backup flow — verify + document.** *(Sequenced after the local-custody
-  decision above, which changes its shape.)* At-rest encryption made the local file opaque to
-  generic backup tools; the intended story is "copied `leapsake.db` + `leapsake.db.recovery` +
-  the phrase on a fresh machine boots through `RecoveryGate`." Confirm it actually works
-  end-to-end, then document it as *the* local backup answer (local-only users have no other
-  one). It is also the honest limit of any local password: an account protects **access**, a
-  backup protects against **losing the device** — two different promises.
+- **Restore-from-file-backup flow — verify + document.** *(Sequenced after the custody work
+  above, which gives the sidecar a second door.)* At-rest encryption made the local file
+  opaque to generic backup tools; the intended story is "copied `leapsake.db` +
+  `leapsake.db.recovery` + the password (or phrase) on a fresh machine boots through
+  `RecoveryGate`." Confirm it works end-to-end **per door**, then document it as *the* local
+  backup answer. Note an **Open** store needs no ceremony at all — the file just opens — so
+  this concerns account holders only. It is also the honest limit of a local password: an
+  account protects **access**, a backup protects against **losing the device** — two
+  different promises, and the account-creation copy must say so (`model.md` §7.2.1).
 - **CK revocation / GC on entity delete** (sync-era cleanup; stops orphaned keys).
 - **True background-fetch sync + a configurable sync-interval UI.**
 
@@ -228,6 +255,22 @@ decision.**
   `leapsake://dev-clear-dbkey` (simulate keychain loss).
 
 ## Open questions
+
+**Custody** (live — these sit alongside the build order above, not behind it):
+- **Username collision when a local account binds a relay.** A locally-chosen username may
+  already exist on the relay (it answers `409`). Two cases hide behind one error and want
+  different UX: *"this is me, I made a second account by accident and want them merged"* vs.
+  *"different person, I just need a different handle."* Renaming is the easy half and should
+  ship with relay binding. Merging is the hard half — note that the machinery partly exists
+  (`reconcileOnJoin` surfaces overlapping people after a join and deliberately does **not**
+  auto-merge, leaving it to the duplicate-review surface), so "join the existing account and
+  review the duplicates" may be the whole answer for v0.1. Decide before relay binding ships.
+- **Session lifetime and its dial** — default length, the Settings control, and what the
+  "never expires" warning says. Bound to **Lock** (`model.md` §7.3).
+- **Biometrics on mobile** — Face ID / Touch ID as the everyday unlock, with a true session
+  expiry still demanding the password so the credential gets rehearsed.
+- **Auto-purge an idle logged-in device?** The counterweight to "encrypted data sitting on a
+  device indefinitely." Safe default plus a dial, or not worth the complexity — undecided.
 
 **Encryption** (each tied to a not-yet-started stage):
 - Asymmetric scheme (X25519/Ed25519) — reviewed when **Stage 3** needs it; plus an

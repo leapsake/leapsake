@@ -23,9 +23,12 @@
 
 - **Offline-first, single-device-complete.** The app works fully on one device with
   **no account, no password, and no sync *required to start*.** Sync is opt-in; nothing
-  about the privacy model may require a server to use Leapsake. (Whether a *local*
-  account/password is later **invited** — never demanded — is a separate, open question:
-  [`local-custody-options.md`](./local-custody-options.md).)
+  about the privacy model may require a server to use Leapsake.
+- **Encryption follows custody** *(decided 2026-07-26 — §7.2)*. Leapsake encrypts as soon
+  as the user holds a secret that can open the encryption, and not before. A brand-new
+  install with no account is **plaintext on disk and mints no keys at all**; creating an
+  account (username + password) is the single act that turns encryption on. The reason is
+  in §7.2: a key the user does not hold protects little and can lose everything.
 - **Default to the safest practice; let the user choose otherwise.** A core product
   theme: *default to the practices that protect and respect the user, but give them
   control to use their data how they want.* Security is a **configurable dial**, set
@@ -44,19 +47,40 @@
   with revocable, time-/visit-limited, and authenticated-only links. The aim is
   Google-Drive-grade empowerment on top of a zero-knowledge default.
 
-## 2. Two separable problems
+## 2. Three separable layers — know which one is doing the work
 
-These are distinct, have different best solutions and costs, and can ship
-independently. Do not conflate them:
+Leapsake encrypts in three distinct places. They have different jobs, different costs,
+and ship independently. **Conflating them is the most common way to reason wrongly about
+this system**, so they are named up front and referred to by name throughout.
 
-1. **Encryption at rest** — the on-device SQLite file is unreadable/unqueryable
-   without a client-held key.
-2. **Zero-knowledge sync & sharing** — the server (and anyone in transit) only ever
-   sees ciphertext it cannot decrypt.
+| Layer | What it protects | Key | Answers |
+|---|---|---|---|
+| **1 · File lock** | the whole `leapsake.db` file on this device | `db-key`, whole-DB (§8) | *"someone has my disk"* |
+| **2 · Sync envelope** | every row that leaves the device | `seal(json(row), MK)` under the master key | *"the relay can't read my data"* |
+| **3 · Per-item content keys** | one item at a time, inside the DB | random CK per item, `wrap(CK, MK)` (§3) | *"you may read **this**, not everything"* |
 
-(2) is the high-value, hard-to-retrofit privacy property. (1) is mostly about device
-theft / other-process access and is the piece that fights our `node:sqlite` choice
-(§8).
+Three consequences worth internalizing:
+
+- **Layer 1 does nothing for sync.** Sync ships rows over HTTP, not the file. Turning the
+  file lock off would not expose one byte to a relay; turning it on protects nothing that
+  leaves the device. This is the piece that fights our `node:sqlite` choice (§8), and it is
+  mostly about device theft / other-process access.
+- **Layer 2 is what makes the relay blind, and it is the high-value, hard-to-retrofit
+  property.** Every synced row is sealed *whole* under MK before it is pushed
+  (`packages/sync/src/engine.ts`), so the relay stores opaque blobs for people, milestones,
+  contact methods — everything, not just fields marked sensitive.
+- **Layer 3's only unique job is sharing.** Because layer 2 already seals whole rows, a
+  per-item key adds **no confidentiality against the relay** today. What it adds is
+  *granularity*: you cannot hand a friend (or Alexa, or a hosted link) access to one
+  contact if everything is sealed under your single master key — you need a per-item key
+  you can re-wrap for them (§11, Stage 3).
+
+> **Honest note on layer 3's current state.** Exactly one field uses it — `milestone.note`
+> — and on sync that note is *decrypted on collect and re-sealed under the receiving
+> device's own content key*, so the wire is protected by layer 2 either way. Layer 3 is
+> therefore **not load-bearing for v0.1 confidentiality**; it is the Stage-3 mechanism
+> proving itself early on a real entity, and it is kept for that reason. Do not cite it as
+> the thing keeping the relay honest — that is layer 2.
 
 ## 3. The unifying mechanism: per-item keys + key wrapping
 
@@ -131,9 +155,15 @@ together.
 
 | Tier | Master key custody | Server can read? | Recovery | Enables |
 |---|---|---|---|---|
-| **2 — Zero-knowledge** (default) | passphrase / recovery / enclave only | **No** | recovery key only (lose passphrase **and** recovery key → data gone) | strongest privacy |
+| **3 — No custody** (first run) | **there is no master key** — nothing is encrypted | n/a (cannot sync) | n/a — nothing to recover *from* | zero-setup evaluation of the app (§7.2) |
+| **2 — Zero-knowledge** (default once an account exists) | password / recovery / enclave only | **No** | recovery phrase only (lose password **and** phrase → data gone) | strongest privacy |
 | **1 — Recoverable** | *also* wrapped under a server-held key | **Yes** | email / password reset | "encrypted SaaS" convenience |
 | **0 — Open** | server holds key / no envelope | **Yes** | trivial | server-side compute: search, SSR, Alexa |
+
+Tier 3 is not a weaker *encryption* setting — it is the **absence of custody**, and it
+exists only before the user has created an account. Moving 3 → 2 is the one transition
+that is not "add another wrapping": it mints the keys and rewrites the database (§8.1).
+Every other transition is additive, as below.
 
 Dialing down = **adding another wrapping** of the master key (under a server key).
 Dialing up = removing it and rotating. Same mechanism; the per-item content-key
@@ -168,13 +198,16 @@ passphrase = unrecoverable data** — no "forgot password" reset (the Proton /
 1Password "we genuinely cannot help you" problem). So recovery must be **designed
 deliberately**, not bolted on:
 
-- **Recovery key** (default) — a random high-entropy code generated **once, at first
-  launch**, shown to the user to store (password manager / paper). It is another
-  wrapping of the master key, so a lost passphrase ≠ lost data *if* the recovery key
-  was kept. *Minting* it early is load-bearing (it seals the at-rest sidecar, so a
-  fallback exists from the first run); **when it is surfaced** — immediately, or deferred
-  to a later account-creation step where it reads as the familiar forgot-password
-  backstop — is open ([`local-custody-options.md`](./local-custody-options.md)).
+- **Recovery key** (default) — a random high-entropy code (surfaced as a 24-word phrase),
+  generated **at account creation — never before** — and shown once, right there, as the
+  *forgot-password backstop*. It is another wrapping of the master key, so a lost password
+  ≠ lost data *if* the phrase was kept.
+  > **This replaces the earlier "mint it at first launch" rule** *(reversed 2026-07-26)*.
+  > That rule existed because the recovery key sealed the at-rest sidecar, so a keyless
+  > user needed one from the first run. Under §7.2 a keyless user has **no sidecar and no
+  > db-key**, so there is nothing to seal and nothing to fall back *from*. Minting a phrase
+  > before an account now protects nothing and creates the exact ritual it was meant to
+  > justify.
 - **Server-escrow recovery** (opt-in, Tier 1) — wrap a copy of the master key under a
   server-held key so email/password reset works. This is the same act as dialing to
   Tier 1; it trades zero-knowledge for recoverability, with informed consent.
@@ -186,55 +219,158 @@ deliberately**, not bolted on:
 
 Each line is a settled decision; the section it points to has the reasoning.
 
-- **Encrypted by default, never plaintext** — even on a single device, where the
-  **enclave holds the key and no passphrase is needed** (§5, §6). *(Sequencing: this
-  is the **at-rest** property, which lands in **Stage 2** ([`status.md`](../status.md)); the Stage-1 core's
-  privacy win is zero-knowledge **sync** (§2), and the local file stays
-  plaintext-and-queryable — as today — until Stage 2.)*
+- **Encryption follows custody** *(decided 2026-07-26, reversing "encrypted by default,
+  never plaintext")* — the app encrypts once the user holds a secret that opens it, and
+  not before. First run mints **no keys and encrypts nothing**; creating an account turns
+  on all three layers of §2 at once. Reasoning and the full state table: §7.2.
 - **Single-device is first-class; sync is fully optional** — **first-run onboarding must
-  not force account/passphrase setup.** The binding constraint is *at first run*: nothing
+  not force account/password setup.** The binding constraint is *at first run*: nothing
   may stand between opening the app and using it. It does **not** forbid inviting an
-  account later, once the user has data to protect — see
-  [`local-custody-options.md`](./local-custody-options.md). A passphrase is required for
-  sync / a 2nd device; whether one is also offered locally is open. Flow in §7.1.
+  account later, once the user has data to protect — that invitation is exactly how
+  encryption gets turned on (§7.2). A password is required for sync / a 2nd device.
+  Flow in §7.1.
 - **Passphrase is the default** secret for zero-knowledge multi-device — de-facto and
   universally understood. Requiring it for multi-device is **accepted** (impossible
   otherwise — §5).
 - **Passkeys are optional, added later** — not the default. The KEK layer (§4) makes
   adding one a non-migrating change (one more wrapping of the master key).
-- **Recovery key generated once**, at every tier — minted at first launch so a fallback
-  always exists, though *when it is shown to the user* is an onboarding question (§6,
-  [`local-custody-options.md`](./local-custody-options.md)). The enclave caches the unlock
-  so a passphrase isn't re-typed **every** launch; a bounded session lifetime over that
-  cache is compatible with this and is an open design question, not a contradiction.
+- **Recovery key generated once — at account creation, not at first launch** (§6). It is
+  shown exactly once, in the signup flow, framed as the forgot-password backstop. The
+  enclave caches the unlock so a password isn't re-typed **every** launch; a bounded
+  session lifetime over that cache is compatible with this and is the mechanism behind
+  **Lock** (§7.3).
 - **SSR web app is in scope and vital** for accessibility; a heavy-JS SPA must **not**
   be required (§10). Server-side decryption for SSR / Alexa / CardDAV is **accepted**,
   minimizing what the server knows (§9).
 
 ### 7.1 First-launch onboarding — the "Already using Leapsake?" branch
 
-One prompt on first launch decides the path. **Encryption is on either way**; the
-only question is whether this device joins an existing account (needs the passphrase)
-or starts fresh (does not).
+One prompt on first launch decides the path. The two branches now differ in **custody**,
+not only in sync:
 
 | Answer | Means | What happens |
 |---|---|---|
-| **Yes** | a 2nd+ device | configure **sync** against the existing account → prompt for the **passphrase** (the multi-device secret — §5) |
-| **No** | fresh install | **single-device** on this device → straight into the app with the **enclave key**; **no passphrase at first run** |
+| **Yes** | a 2nd+ device | log in to the existing account → prompt for **username + password** → the store is created **encrypted from byte one**; nothing is ever written plaintext |
+| **No** | fresh install | straight into the app with **no keys and no encryption** (Tier 3, §5). An account is *invited* later (§7.2), never demanded |
 
-A passphrase is never required to *start* using Leapsake on one device. What happens
-*after* first run — whether the app later invites a local account, and when the recovery
-key is surfaced — is an open decision, not settled here:
-[`local-custody-options.md`](./local-custody-options.md). This table constrains the
-**first-run** branch only.
+A password is never required to *start* using Leapsake on one device. The "No" branch is
+the only path that ever writes a plaintext store, and it stops being plaintext the moment
+the user creates an account.
+
+### 7.2 Custody states — the two ways a client can exist *(decided 2026-07-26)*
+
+**The reasoning.** The old default encrypted the file at first launch under a key held
+only by the OS keychain. That trade was bad in both directions: it bought little (it
+guards a copied file, which platform full-disk encryption largely covers already) and it
+cost a lot (if the keychain is ever lost — OS reinstall, migration, repair, or the Team-ID
+change in [`../launch.md`](../launch.md) §2 — the *only* way back was a 24-word phrase the
+user had never been asked to save). A key the user does not hold protects little and can
+lose everything. So: **no custody, no encryption.**
+
+| | **Open** | **Protected** |
+|---|---|---|
+| **Custody** | none | username + password, with a recovery phrase as the backstop |
+| **Created** | at first launch, silently | when the user creates their account (§7.2.1) |
+| **Store on disk** | plaintext, queryable | encrypted (layer 1) |
+| **Keys in the OS keychain** | **none at all** | db-key, master key, recovery key |
+| **Layers active (§2)** | none | 1, 3, and 2 once relay-bound |
+| **Sync / sharing** | impossible — there is no MK to seal under | available; binding a relay is a further step |
+| **OS keychain wiped** | **nothing is lost** — the file just opens | password opens it; phrase is the backstop |
+| **Tier (§5)** | 3 | 2 |
+
+Only two states, and **relay-bound is not a third** — it is a Protected account that has
+also registered with a relay. This matters: local-only and synced users have *identical*
+custody, so "start syncing later" adds a relay binding rather than a new ritual.
+
+#### 7.2.1 Creating an account is the act that turns encryption on
+
+There is **one** operation, reachable from two places — the Home invitation once the user
+has data to lose, and a Settings control for anyone who wants it sooner. Both run the same
+flow, and it is fully local: no relay, no email, nothing leaves the device.
+
+1. Choose a **username + password**. The username is a login handle, and is what later
+   allows several accounts to share one client (§7.4).
+2. Mint db-key, master key, and recovery key; write the password- and recovery-wrapped
+   sidecars beside the store.
+3. **Convert the Open store to Protected** (§8.1) and destroy the plaintext original.
+4. Show the **recovery phrase once**, as the forgot-password backstop.
+
+> **The copy must promise access, not safety.** A local account protects against *this
+> device losing its security settings*; it does **not** protect against a lost or broken
+> device. Say so in the flow, and point at sync or a file backup for that. Getting this
+> wrong borrows the user's SaaS instincts and then violates them on the worst day.
+
+**The honest limit of converting late.** Data typed before the account existed was written
+to disk in the clear. The conversion writes a *new* encrypted file and deletes the
+original, so no plaintext survives inside the live database — but deleted bytes can linger
+in free space, and on SSDs cannot be reliably erased. **Accepted** (owner, 2026-07-26): the
+window is small, it requires physical access to the disk to exploit, and the alternative is
+the data-loss path above. It is stated in §12 rather than glossed.
+
+### 7.3 Lock, make-local, log out — three different things *(decided 2026-07-26)*
+
+These are routinely conflated and must not be. One of them destroys data.
+
+| Operation | For whom | Data on this device | Custody |
+|---|---|---|---|
+| **Lock** | anyone Protected | stays, encrypted, closed until the password is re-entered | unchanged |
+| **Make local-only** | a synced user leaving the relay | **stays** | stays; the relay binding is removed |
+| **Log out** | a synced user | **purged from this device** | removed from this device |
+
+- **Lock is the local-only user's "log out."** A local-only account has no second copy, so
+  purging it destroys the only one. Offering a button labelled "log out" that silently
+  means "delete everything forever" is indefensible. Deleting a local-only store is a
+  separate, explicitly-worded, hard-confirmed *Delete* action — never the logout affordance.
+- **Lock is also the answer to "encrypted data sitting on a device forever."** It is the
+  same bounded-session mechanism as §7 — expiry drops the unlocked state and gates the UI,
+  and an idle device closes itself. Expiry must be a *real* re-lock, not theater: the
+  keychain still holds db-key, so relaunching must not walk straight past it.
+- **Make local-only is what is built today** (`clearLocalAccount` — it revokes the password
+  and recovery doors, keeps the enclave door and all data). Under this model it should keep
+  the password door too, since a Protected store still needs one; only the relay binding
+  goes.
+- **Logging out the last device is the dangerous case.** The relay holds an encrypted copy,
+  but [`sync.md`](./sync.md) §2 designs the relay as **disposable** — devices self-heal it,
+  so it is explicitly *not* a backup. Logging out everywhere therefore risks leaving the
+  only copy somewhere designed to be expendable. The client must detect it (the relay knows
+  the registered device count) and treat it as a distinct, stronger confirmation that
+  offers an export first — not the ordinary logout dialog.
+
+### 7.4 One store per user, not one store per client *(direction, 2026-07-26)*
+
+A client holds **one Open store or many Protected ones** — the same shape
+[`../product-truths.md`](../product-truths.md) already states for users ("one
+unauthenticated user OR multiple authenticated users"). Each account gets its **own
+encrypted database file**, which is what makes both delta #1 (per-user isolation) and
+"log out = purge" (§7.3) clean rather than surgical:
+
+```
+<userData>/stores/
+  local/leapsake.db                  ← the Open store (plaintext), before any account
+  <accountId>/leapsake.db            ← one encrypted store per account on this client
+  <accountId>/leapsake.db.recovery   ← its sidecars (recovery + password doors)
+<userData>/accounts.json             ← the roster: which accounts exist on this client
+```
+
+- **Creating an account** writes `stores/<accountId>/` and removes `stores/local/`.
+- **Logging out** deletes `stores/<accountId>/` and its roster entry. Nothing to sift.
+- **The roster must be readable before any store opens** (you cannot enumerate accounts
+  from inside files you cannot decrypt), so it is **unencrypted** and leaks the usernames
+  present on the device. Accepted and unavoidable — a login picker has to render.
+
+The per-account path is the load-bearing part. It is cheap now and expensive once real
+users have data, so **new work must not assume a single fixed database path**, even while
+only one store exists.
 
 ## 8. Encryption at rest, and the `node:sqlite` tension
 
-> **Stage 2 ([`status.md`](../status.md)) — now in v0.1 launch scope.** At-rest was **not**
-> in the Stage-1 core (Stage 1 shipped the high-value sync envelope first, §2); it is the
-> **next encryption increment**. **Decided:** at-rest is worth a backend swap — the
-> `node:sqlite` preference (chosen to stay native-module-free) **yields** to it. Until it
-> ships the local file is plaintext-and-queryable, as today. The shape below is the target.
+> **Stage 2 ([`status.md`](../status.md)) — shipped on both clients.** At-rest was **not**
+> in the Stage-1 core (Stage 1 shipped the high-value sync envelope first, §2). **Decided:**
+> at-rest was worth a backend swap — the `node:sqlite` preference (chosen to stay
+> native-module-free) **yielded** to it: desktop runs
+> `better-sqlite3-multiple-ciphers`, mobile runs `expo-sqlite` with `useSQLCipher`. Under
+> §7.2 this layer is now **conditional on custody** — it protects a Protected store and is
+> simply absent from an Open one.
 
 The right shape is **whole-database encryption** (SQLCipher-style: the file on disk is
 ciphertext, the engine decrypts pages into memory as you query, a key is supplied at
@@ -258,11 +394,44 @@ backend is "a one-adapter swap" — an encrypted backend is the same kind of swa
 before relying on it), plausibly a config + key-supply change rather than a new
 engine.
 
-At-rest and per-item keys **compose cleanly and are orthogonal**:
+At-rest and per-item keys **compose cleanly and are orthogonal** — they are layers 1 and 3
+of §2, and neither is what protects sync (that is layer 2).
 
-- **At-rest:** a whole-DB key (device enclave) protects the local *file*.
-- **Sync/sharing:** per-item content keys (wrapped under master / recipient keys)
-  live *inside* the decrypted DB and are the E2EE envelope.
+### 8.1 Converting an Open store to Protected — one pattern, both platforms
+
+Account creation (§7.2.1) has to turn a plaintext database into an encrypted one. The two
+platforms' *native* shortcuts are mirror images, and **neither works on the other**
+(verified 2026-07-26 against the shipped desktop engine):
+
+| | `PRAGMA rekey` from plaintext | `sqlcipher_export()` |
+|---|---|---|
+| **Desktop** — `better-sqlite3-multiple-ciphers@12` | ✅ works | ❌ function does not exist (nor `sqlite3mc_export`/`sqlite3mc_vacuum`) |
+| **Mobile** — `expo-sqlite` + SQLCipher | ❌ SQLCipher refuses to rekey a plaintext DB | ✅ the documented route |
+
+So **use neither.** The portable pattern uses only ordinary SQL and is what
+`sqlcipher_export` does internally — verified working end-to-end on desktop (tables, rows,
+and indexes preserved; the output genuinely ciphertext on disk):
+
+1. Open the plaintext store.
+2. **Pin the cipher first** — `PRAGMA cipher='sqlcipher'` *before* the attach, or the new
+   file is written with the library's default cipher and later fails to open with the
+   misleading `file is not a database`. This bit is easy to get wrong and hard to diagnose.
+3. `ATTACH` a new keyed (encrypted) file.
+4. Copy schema then rows across, reading the definitions from `sqlite_master`.
+5. Detach, close, move the new file into `stores/<accountId>/`, **delete the plaintext
+   original** — including any `.plaintext.bak` (see below).
+6. Re-seal the layer-3 fields (today just `milestone.note`) through the now-existing
+   content cipher, nulling their plaintext columns.
+
+> **The existing `<db>.plaintext.bak` must not survive this path.** Desktop's legacy
+> pre-Stage-2 upgrade (`plaintext-migration.ts`) deliberately keeps that backup as a safety
+> net for a one-time migration. On the account-creation path it is a plaintext copy of
+> exactly what the user just asked to encrypt, so it is a footgun, not a net.
+
+**Still to verify on device:** that expo-sqlite's SQLCipher build (a) opens/creates a
+plaintext database when no key is supplied, and (b) runs the attach-and-copy above. Both
+are documented SQLCipher behavior; both are load-bearing enough not to take on faith. The
+in-app self-test (`leapsake://dev-selftest`) is the natural place to prove it.
 
 ## 9. Zero-knowledge sync, and safe server-side decryption
 
@@ -411,7 +580,17 @@ State these explicitly; they are conscious decisions, not gaps:
 - **Metadata still leaks** to the server: who shares with whom, when, blob sizes,
   record counts, sync timing. Hiding metadata is a much larger project; **out of
   scope** for V3.
-- **Lost passphrase + lost recovery key = unrecoverable data** at Tier 2 (§6).
+- **Lost password + lost recovery phrase = unrecoverable data** at Tier 2 (§6).
+- **Before an account exists, nothing on disk is encrypted** (§7.2). An Open store is a
+  readable SQLite file, exactly like most local-first apps, and is covered only by the
+  platform's own full-disk encryption. This is a deliberate trade against a worse failure
+  (§7.2's reasoning), not an oversight.
+- **Data written before an account may leave traces after conversion** (§7.2.1). The live
+  database is rewritten and the plaintext original deleted, but deleted bytes can linger in
+  free space and are not reliably erasable on SSDs.
+- **The on-device account roster is unencrypted** (§7.4) — the usernames present on a
+  client are readable without any key, because the login picker must render before
+  anything is unlocked.
 
 ## 13. Clients are "principals you wrap keys to" — the `KeyStore` port
 

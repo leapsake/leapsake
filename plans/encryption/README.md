@@ -19,7 +19,15 @@ oracle [`../status.md`](../status.md)** (all workstreams).
 | [`sync.md`](./sync.md) | The `SyncTransport` transport seam, the merge model, the account-bootstrap channel + the join-scheme decision, and the **P2P-is-a-deferred-adapter** decision. | When building sync, the relay, or evaluating P2P. |
 | [`security-review.md`](./security-review.md) | The recorded design review of the key hierarchy and relay auth: how the constructions hold the model's properties + the residual risks accepted. Pinned params live in [`packages/crypto/README.md`](../../packages/crypto/README.md). | When touching the KDF / password door, or before an external audit. |
 | [`security-findings.md`](./security-findings.md) | The adversarial "poke holes" review of the *shipped* code + relay: a severity-ranked backlog of concrete attacks (offline crack oracle, unthrottled login, convergence DoS) with mitigations. | Before hardening the relay / KDF, or picking up a security fix. |
-| [`local-custody-options.md`](./local-custody-options.md) | **OPEN decision** — should local-only use grow a password + login, instead of a recovery phrase as the sole fallback? Options A–E, costs, and a recommendation. Retires into `model.md` §5–7 once decided. | Before touching onboarding, `RecoveryGate`, or `launch.md` Increments 2–4. |
+
+> **Decided 2026-07-26 — "encryption follows custody."** First launch mints **no keys** and
+> leaves the store plaintext; creating an account (username + password) is the single act
+> that turns encryption on, and the recovery phrase is its forgot-password backstop rather
+> than a first-run ritual. This reverses the former "encrypted by default, never plaintext"
+> line. It lives in [`model.md`](./model.md) §7.2–7.4 (states, lock/log out, per-user
+> stores) and §8.1 (converting a store), with the lifecycle in
+> [`custody-sequence.md`](./custody-sequence.md) Phases 0 → 0.5 → 1. The options doc that
+> carried this decision (`local-custody-options.md`) is retired — see `git log`.
 
 ## The one rule that keeps these from drifting
 
@@ -30,6 +38,12 @@ status edit.
 
 ## The 60-second summary
 
+- **Three layers, different jobs** (`model.md` §2): the **file lock** protects the database
+  on this device, the **sync envelope** (`seal(row, MK)`) is what makes the relay blind, and
+  **per-item content keys** exist for *sharing granularity*. Know which one you mean — the
+  relay is kept honest by the envelope, not by the per-item keys.
+- **Encryption follows custody** (`model.md` §7.2): no account → no keys → plaintext store;
+  account → all layers on, with the password as the way back in.
 - **Envelope encryption** (`model.md` §3): every shareable item gets a random **content
   key**, which is **wrapped** for whichever principals may read it (the owner's master
   key, a recipient's public key, a URL fragment, a constrained server). The server only

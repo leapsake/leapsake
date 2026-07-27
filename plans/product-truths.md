@@ -31,18 +31,31 @@ mental model, not leak through it.
 
 - A **user** uses Leapsake on **one-to-many clients**.
 - A **client** hosts **one unauthenticated user OR multiple authenticated users** — never
-  multiple *unauthenticated* users on one client.
+  multiple *unauthenticated* users on one client. **Each authenticated user gets their own
+  encrypted database file**; the unauthenticated user gets an unencrypted one
+  ([`encryption/model.md`](./encryption/model.md) §7.4).
 - A user must be **authenticated to sync** across clients. Single-device / local-only use
-  needs **no account to get started**, and stays fully layperson-complete. (Whether a
-  *local* account is later invited — never required at first run — is open:
-  [`encryption/local-custody-options.md`](./encryption/local-custody-options.md).)
+  needs **no account to get started**, and stays fully layperson-complete. An account is
+  **invited** once there is data worth protecting — never required at first run.
 - An authenticated user can **share certain data structures** with another user who **may or
   may not be authenticated** (authenticated recipient = wrap the item key for their public
   key; unauthenticated recipient = capability link with the key in the URL `#fragment`).
 - **Shareable data:** People and Pets first; for v0.1 it's acceptable to share at the coarser
   grain that pulls in Milestones, Contact Methods, and Relationships. **Finer per-structure
   granularity is a future iteration.** (Reminders are *not* a share target.)
-- A user can **decide whether their data is encrypted — default encrypted.**
+- **Encryption follows custody** *(decided 2026-07-26)*. Creating an account — username +
+  password — is the single act that turns encryption on. Before that the app holds **no
+  keys at all** and the local database is plaintext; after it, everything is encrypted and
+  the user holds the way in. Rationale and the full state table:
+  [`encryption/model.md`](./encryption/model.md) §7.2.
+  - The user still **decides**: the account can be created whenever they like, and the
+    invitation is a nudge, never a wall.
+  - **We do not encrypt under a key the user does not hold.** That is what the old default
+    did, and it bought little while risking everything — the failure it created (lose the
+    OS keychain, lose the data, with only an unsaved 24-word phrase as the way back) was
+    worse than the exposure it prevented.
+  - The **recovery phrase is a backstop, not a ritual**: created with the account, shown
+    once, in the role every SaaS user already understands — *forgot password*.
 - A user should **not have to manage multiple accounts** when using a single device or a
   single relay — **one identity, one credential set**. A credential *set* is a password
   plus its recovery backstop, which is the familiar arrangement (Proton, Bitwarden), not a
@@ -51,24 +64,39 @@ mental model, not leak through it.
   may still mean multiple credentials — see cross-relay reconciliation in `status.md` Open
   questions.)
 - **The relay is set per authenticated user/account, not per client.**
-- An authenticated user can **"log out" of a client, which removes their data from that
-  client** (their data remains safe on the relay / their other clients).
+- **Three distinct exits, never conflated** (`encryption/model.md` §7.3) — one of them
+  destroys data, so they must not share a button or a word:
+  - **Lock** — close the store; the password reopens it. Nothing is deleted. This is the
+    *only* "sign out"-shaped action a **local-only** user gets, because purging their store
+    would destroy the only copy in existence.
+  - **Make local-only** — leave the relay, keep everything on this device.
+  - **Log out** — for a synced user: **removes their data from that client**, because it
+    still exists on the relay and their other clients.
+- **Logging out of the last device is treated as dangerous**, not routine. The relay is
+  designed to be disposable (`encryption/sync.md` §2), so it is not a backup: the client
+  detects the last-device case and asks for an export first.
 
 ## Deltas vs. the current build (future, none v0.1-blocking)
 
-The model above describes the intended destination. Three parts are *not yet* how the code
+The model above describes the intended destination. These parts are *not yet* how the code
 works, and are called out so they're conscious deferrals, not surprises:
 
-1. **Multiple authenticated users per client + per-user data isolation.** Today a client is
-   implicitly single-user: one keyed SQLite file, one whole-DB key in the enclave. Hosting
-   several users on one client needs **separately-keyed per-user stores** so data can't bleed
-   and can be purged independently. This is a *global* concern across every entity — new
-   entities should not special-case it, only avoid fighting it (plain syncable rows do).
-2. **User-toggleable encryption (default on).** The current design is *always* zero-knowledge.
-   Opt-**out** is a trust-model fork (trades end-to-end encryption for server-side features
-   like server-side search), not a free dial. This argues against per-field content-key
-   encryption on new entities; encryption trends toward a user-level **layer** choice.
-3. **"Log out = purge from this client"** diverges from the built **Disconnect account**,
-   which deliberately *keeps* local data (revokes the password/recovery doors, retains the
-   enclave master key → local-only). Both should coexist; the purge becomes mandatory once a
-   client hosts multiple users (delta 1).
+1. **Encryption follows custody.** The code still does the opposite: it mints a master key
+   and a db-key at first launch and encrypts immediately, with no account. Closing this is
+   **pre-v0.1 and leads the queue** — see [`status.md`](./status.md) → *What's next*. It is
+   the one delta here that is launch-blocking, because it changes what real testers'
+   devices do with real data.
+2. **Multiple authenticated users per client + per-user data isolation.** Today a client is
+   implicitly single-user: one SQLite file at a fixed path. Hosting several users needs
+   **one store per account** (`encryption/model.md` §7.4) so data can't bleed and can be
+   purged independently. Not v0.1, but **the per-account path is**: new work must not assume
+   a single fixed database path, because retrofitting that after users have data is exactly
+   the expensive class of change worth avoiding.
+3. **Log out vs. lock vs. make-local.** Only one of the three exists today
+   (`clearLocalAccount` = *make local-only*). **Lock** and a purging **log out** are both
+   unbuilt, and lock is the prerequisite for bounded sessions.
+4. **User-toggleable encryption beyond custody.** Opting *out* while holding an account —
+   trading end-to-end encryption for server-side features like server-side search — is a
+   trust-model fork, not a free dial. Distinct from delta 1, which is about the accountless
+   state. This argues against per-field content-key encryption on new entities; encryption
+   trends toward a user-level **layer** choice.

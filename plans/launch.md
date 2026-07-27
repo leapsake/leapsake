@@ -9,14 +9,11 @@
 > **This is a plan, not a status board.** As increments land, record them in
 > [`status.md`](./status.md) and keep this stable.
 >
-> ⚠️ **Increments 2–3 are ON HOLD pending an open decision (as of 2026-07-26).** Whether
-> local-only use grows a password + login is being decided in
-> [`encryption/local-custody-options.md`](./encryption/local-custody-options.md); the
-> recommendation there (**Option E**) would replace Increment 2's nudge with a deferred
-> signup flow and reshape Increment 3. **Do not build 2 or 3 as written below** until that
-> doc is resolved — and since 4 must not ship custody churn to real testers, 4 waits too.
-> Increment 1 is unaffected and can proceed now. See [`status.md`](./status.md) →
-> *What's next* → *Local custody*.
+> ✅ **The custody decision that held Increments 2–3 is made (2026-07-26): encryption
+> follows custody** (`encryption/model.md` §7.2). Both increments are rewritten below to
+> match, and §2's hazard is substantially defused — see the note there. The custody work
+> itself is sequenced in [`status.md`](./status.md) → *What's next* → *Local custody*, and
+> Increment 2 depends on it.
 
 ## 1. The decisions this plan encodes (settled 2026-07-21)
 
@@ -44,22 +41,32 @@ move key custody:
   (`$(AppIdentifierPrefix)com.leapsake.app`). New team, new prefix, existing items
   unreachable.
 
-So on the day of the org move, **every user's enclave key becomes unreadable and they boot
-into `RecoveryGate`.** That is survivable — it is exactly what `RecoveryGate` and the
-24-word phrase exist for — but only if the phrase is *actually in the user's hands*.
+So on the day of the org move, **every user's enclave key becomes unreadable.** What that
+costs depends entirely on the custody model — which is why this section used to be alarming
+and now mostly isn't:
 
-Two things follow, and both are increments below rather than footnotes:
+| The user is… | What the org move costs them |
+|---|---|
+| **Open** (no account — the common case at v0.1) | **nothing.** There are no keys to lose; the store is plaintext and simply opens |
+| **Protected** (has an account) | one password entry at the recovery gate; the phrase is needed only if they have forgotten that too |
 
-1. **The phrase must be nudged, not merely available** (Increment 2). Today reveal is
-   on-demand only (`Settings.tsx:1021`), so a local-only user who never visits that section
-   has nothing to type into the gate. Under individual-first that is a data-loss path, not
-   an inconvenience.
+> **This is the single strongest practical argument for "encryption follows custody"**
+> (`encryption/model.md` §7.2), and it was found here. Under the old default the org move
+> dropped *every* user into a 24-word-phrase gate, for a phrase they had never been asked to
+> save. Under the new one it is a login prompt for the users who have a login, and a no-op
+> for everyone else.
+
+Two things still follow, and both are increments below rather than footnotes:
+
+1. **Custody must exist before real testers do** (Increment 2, plus the build order in
+   [`status.md`](./status.md)). The goal is no longer "teach the phrase harder" — it is that
+   an account holder has a password to type and an accountless user has nothing to lose.
 2. **The recovery path must be verified end to end before shipping** (Increment 3), because
-   the whole strategy leans on it.
+   the whole strategy leans on it — now across *two* doors.
 
 Note this hazard is not unique to the transfer — OS reinstall, machine migration, or any
-`safeStorage` failure triggers the same gate today. The org move only makes it fire for
-everyone at once, deterministically. Fixing it is worth doing regardless.
+`safeStorage` failure triggers the same gate. The org move only makes it fire for everyone
+at once, deterministically. Fixing it is worth doing regardless.
 
 **Corollary: keep the org move early.** Blast radius scales with user count at transition.
 
@@ -123,50 +130,59 @@ clean.
 the old one — uninstall them and rebuild the dev client before running `pnpm test:native`.
 `scheme: "leapsake"` is unchanged, so the `leapsake://` deep links still route.
 
-### Increment 2 — Recovery-phrase onboarding nudge
+### Increment 2 — The account invitation on Home
 
-> ⚠️ **ON HOLD — shape under review.** The nudge below is a *consequence* of local-only use
-> having no password. If that premise changes (see
-> [`encryption/local-custody-options.md`](./encryption/local-custody-options.md), recommending
-> **Option E**), this increment becomes "deferred local signup" instead — a nudge that invites
-> account creation once the user has data, rather than one that teaches a recovery phrase.
-> Same trigger and same nudge machinery; different destination, and **S → M–L** in size.
-> Decide before building.
+> **Depends on** the custody build order in [`status.md`](./status.md) → *What's next* →
+> *Local custody* (slices 1–3). This increment is only the *invitation*; the flow it opens
+> is built there.
 
-**Value:** closes a data-loss path that exists *today*, independent of the org move.
+**Value:** gets users from Open to Protected — which is what closes the data-loss path,
+rather than teaching a phrase to guard it.
 
-Reveal is already available whether or not sync is on — the gap is purely that nothing
-prompts. Use the **onboarding-as-reminders** surface that already ships and is CTA-wired on
-both clients: a "Save your recovery phrase" onboarding reminder linking into the Settings
-section.
+Use the **onboarding-as-reminders** surface that already ships and is CTA-wired on both
+clients, and the trigger the nudge engine already computes: **the user has data and has no
+account.** Fire it early — the first person added — since that is exactly when the exposed
+window opens.
 
-**Design constraint:** a nudge, never a wall. A forced phrase-saving gate at first run
-violates the layperson/no-hoops principle in
-[`product-truths.md`](./product-truths.md) and `encryption/model.md` §1. Dismissible,
-re-surfacing, satisfied when the phrase has been revealed.
+**Copy must promise access, not safety** (`encryption/model.md` §7.2.1). A local account
+does *not* protect against a dead SSD, and users will hear that it does unless the wording
+is precise:
 
-**Acceptance:** a brand-new local-only profile sees the nudge on Home; revealing the phrase
-clears it; it survives relaunch until satisfied. Both clients.
+> 🔐 **Create your account so you never lose access to your data. It's free.**
+
+**Design constraint:** a nudge, never a wall — dismissible, re-surfacing, and permanently
+satisfied once an account exists. A forced setup at first run violates the layperson/no-hoops
+principle in [`product-truths.md`](./product-truths.md) and `encryption/model.md` §1, and
+would forfeit the zero-setup first run that is the point of the Open state.
+
+**Acceptance:** a brand-new profile sees no custody UI at all until it has data; then the
+invitation appears on Home; completing signup clears it permanently and leaves the store
+encrypted with the plaintext original gone; dismissing it re-surfaces later. Both clients.
 
 ### Increment 3 — Verify + document restore-from-backup
 
-> ⚠️ **ON HOLD — scope depends on Increment 2's outcome.** Under Option E the at-rest sidecar
-> gains a **second door** (password as well as phrase), so the verification below doubles:
-> each door needs its own end-to-end restore proof plus its own negative case. The increment
-> still happens either way — it just gets bigger. See
-> [`encryption/local-custody-options.md`](./encryption/local-custody-options.md).
+> **Grew with the custody decision:** the at-rest sidecar now has **two doors** (password
+> and phrase), so each needs its own end-to-end restore proof *and* its own negative case.
 
 **Value:** the answer to "how do I back up Leapsake?", which local-only users — the majority
 at v0.1, since sync requires self-hosting — currently do not have. **Hard prerequisite of
 the individual-first strategy** (§2).
 
-Already on the pre-v0.1 list as "verify + document." Confirm the intended story end to end:
-copy `leapsake.db` + `leapsake.db.recovery` to a fresh machine, boot, pass `RecoveryGate`
-with the phrase, read the data. Then write it up as *the* backup answer.
+Confirm the intended story end to end on a fresh machine, per custody state:
 
-**Acceptance:** a documented, reproducible restore on a clean macOS user account. Include
-the negative case (wrong phrase rejected). If it does **not** work, this becomes a build
-increment and everything downstream waits — which is exactly why it runs early and cheap.
+- **Open store** — copy `leapsake.db`, boot, read the data. No ceremony, no keys.
+- **Protected store, password door** — copy the store + sidecars, boot, pass the gate with
+  the password.
+- **Protected store, phrase door** — same, with the recovery phrase; then confirm it forces
+  setting a new password afterwards.
+- **Negative cases** — wrong password and wrong phrase both rejected, neither corrupting.
+
+Then write it up as *the* backup answer, including the honest limit: an account protects
+**access**, a backup protects against **losing the device**.
+
+**Acceptance:** a documented, reproducible restore on a clean macOS user account covering
+all four cases above. If any door does **not** work, this becomes a build increment and
+everything downstream waits — which is exactly why it runs early and cheap.
 
 ### Increment 4 — Mobile EAS pipeline + first closed-test upload
 

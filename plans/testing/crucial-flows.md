@@ -33,6 +33,15 @@ correction to the earlier flow sketch:
 > (enable-sync writes/reads the keystore) and Flow 6b (the at-rest `RecoveryGate`, which fires
 > precisely when the OS key store was reset). Named here so no harness author re-invents a
 > passphrase wall the app doesn't have.
+>
+> ⚠️ **This paragraph has a shelf life** (noted 2026-07-26). The custody decision in
+> [`../encryption/model.md`](../encryption/model.md) §7.2–7.3 makes a **lock/unlock journey
+> real** — for account holders — and adds two flows this catalog does not yet cover:
+> **account creation** (plaintext store → encrypted, plus the phrase shown once) and **lock →
+> password → unlock**. It also changes Flow 6's premise: an accountless user will have no
+> phrase and no `RecoveryGate` at all. Revisit when the custody slices land
+> ([`../status.md`](../status.md) → *Local custody*); until then the paragraph above is still
+> accurate to the shipped app.
 
 ## The selector problem (must resolve before the first harness)
 
