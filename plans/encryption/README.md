@@ -4,30 +4,29 @@ This folder holds the **design** for how Leapsake protects, shares, and syncs us
 the stable "why," not the status. **For what's built and what's next, see the single status
 oracle [`../status.md`](../status.md)** (all workstreams).
 
-> **Why this is still a subdirectory.** Most of these docs describe **unbuilt** stages
-> (at-rest, asymmetric sharing, SSR) and so still earn their own space. As Stage 1 ships and
-> Stages 2–4 are designed-and-done, this should collapse toward a single flat
-> `plans/encryption.md` — the same flattening already done for reconciliation.
+> **Four docs, four questions.** Consolidated 2026-07-27 from six — `custody-sequence.md`
+> folded into `model.md` §7.5 (it had become the same story told twice) and
+> `local-custody-options.md` retired once its decision was made. If you find yourself
+> wanting a fifth doc for a custody or auth question, it belongs in `model.md` §7 instead:
+> **one place says how auth and encryption work.**
 
 ## Read in this order
 
 | Doc | What it is | When to read it |
 |---|---|---|
-| [`model.md`](./model.md) | The stable conceptual model and locked decisions — the envelope/key-hierarchy *why*, the trust boundary, the honest limits. | To understand *why* the system is shaped this way. |
+| [`model.md`](./model.md) | The conceptual model and the locked decisions — the three layers, the envelope/key hierarchy, **all of custody** (§7: states, exits, store layout, key lifecycle), the trust boundary, the honest limits. | Always start here. Mandatory before touching onboarding, the boot path, or key handling. |
 | [`schema.md`](./schema.md) | The concrete key tables (`content_key`, `key_wrap`, `account`, `device`, `share`). Reference. | When touching the schema or the `packages/data` repos. |
-| [`custody-sequence.md`](./custody-sequence.md) | The key lifecycle, step by step (first launch → enable sync → second device → share → constrained principal), with a per-phase key ledger. Reference. | When wiring onboarding / account / device bootstrap. |
 | [`sync.md`](./sync.md) | The `SyncTransport` transport seam, the merge model, the account-bootstrap channel + the join-scheme decision, and the **P2P-is-a-deferred-adapter** decision. | When building sync, the relay, or evaluating P2P. |
 | [`security-review.md`](./security-review.md) | The recorded design review of the key hierarchy and relay auth: how the constructions hold the model's properties + the residual risks accepted. Pinned params live in [`packages/crypto/README.md`](../../packages/crypto/README.md). | When touching the KDF / password door, or before an external audit. |
 | [`security-findings.md`](./security-findings.md) | The adversarial "poke holes" review of the *shipped* code + relay: a severity-ranked backlog of concrete attacks (offline crack oracle, unthrottled login, convergence DoS) with mitigations. | Before hardening the relay / KDF, or picking up a security fix. |
 
-> **Decided 2026-07-26 — "encryption follows custody."** First launch mints **no keys** and
-> leaves the store plaintext; creating an account (username + password) is the single act
-> that turns encryption on, and the recovery phrase is its forgot-password backstop rather
-> than a first-run ritual. This reverses the former "encrypted by default, never plaintext"
-> line. It lives in [`model.md`](./model.md) §7.2–7.4 (states, lock/log out, per-user
-> stores) and §8.1 (converting a store), with the lifecycle in
-> [`custody-sequence.md`](./custody-sequence.md) Phases 0 → 0.5 → 1. The options doc that
-> carried this decision (`local-custody-options.md`) is retired — see `git log`.
+> **Decided 2026-07-26/27 — "encryption follows custody."** First launch mints **no keys**
+> and leaves the store plaintext; creating an account (**username + password, required**) is
+> the single act that turns encryption on, and the recovery phrase is its forgot-password
+> backstop rather than a first-run ritual. This reverses the former "encrypted by default,
+> never plaintext" line. All of it lives in [`model.md`](./model.md) §7 — §7.2 states, §7.2.1
+> the flow, §7.3 Locked/Sign out/Forget account, §7.4 one store per account, §7.5 the key
+> lifecycle — plus §8.1 for converting a store. **Build order: [`../status.md`](../status.md).**
 
 ## The one rule that keeps these from drifting
 

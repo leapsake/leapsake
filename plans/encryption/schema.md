@@ -1,10 +1,18 @@
 # Leapsake — Encryption Schema (wrapped-key & per-item-key tables)
 
 > **Reference doc — the key tables.** This is the concrete schema behind
-> [`model.md`](./model.md) and [`custody-sequence.md`](./custody-sequence.md). For
+> [`model.md`](./model.md): it turns §7.5's per-phase **key ledger** into tables. For
 > *what is built vs. design* and *which table group ships in which stage*, see
-> [`status.md`](../status.md) — this doc no longer restates build status. It turns the
-> custody sequence's per-phase **Key ledger** into tables.
+> [`status.md`](../status.md) — this doc no longer restates build status.
+>
+> ⚠️ **Two corrections you must not be misled by** (2026-07-27):
+> 1. **`principal_kind` is `password`, not `passphrase`.** The enum value was renamed in code
+>    long ago; the tables below still said the old name in places. `password` is correct.
+> 2. **These tables exist only in a *Protected* store.** Under "encryption follows custody"
+>    (`model.md` §7.2) an **Open** store — a fresh install with no account — has no keys, so
+>    `key_wrap` and `content_key` are empty and `account`/`device` have no rows. The tables
+>    are created by migration either way; they are simply unpopulated. Any code reading them
+>    must treat "no rows" as a normal state, not a corrupt one.
 >
 > **Approach 1 (schema-first, sync-deferred).** All table groups are drafted now,
 > modeled against the sync-safe primitives (`AGENTS.md`; UUID PKs, epoch-ms
@@ -37,7 +45,7 @@ stored — a key exists in the DB only as the set of its wrappings.
 
 > **Stage-1 core vs. later ([`status.md`](../status.md)).** The **Stage-1 zero-knowledge
 > core** needs only: `content_key`; `key_wrap` with `principal_kind ∈ {enclave,
-> passphrase, recovery, master}`; `share` with `kind = 'capability'`; `account` *minus*
+> password, recovery, master}`; `share` with `kind = 'capability'`; `account` *minus*
 > its `public_key` (just `kdf_salt` + `auth_verifier`); and `device`. Everything else
 > is **additive — it only adds rows or enum values, never alters these tables** (the §1
 > append/revoke property): `account.public_key` + the `server_principal` table +
@@ -46,7 +54,7 @@ stored — a key exists in the DB only as the set of its wrappings.
 > can be created in full now without committing to those stages — they light up as the
 > values start being written.
 
-### 2.1 `account` — identity *(custody Phase 1)*
+### 2.1 `account` — identity *(custody Phase 0.5)*
 One row per account. Holds only the *public* and *derivable-but-blind* material.
 
 ```sql
@@ -106,7 +114,17 @@ CREATE UNIQUE INDEX content_key_entity_active
 Every `content_key` has **at least** one `key_wrap` row — `wrap(CK, MK)` — so the owner
 can always read it.
 
-### 2.4 `key_wrap` — the universal envelope *(custody Phases 0–4)*
+> ⚠️ **This index encodes a scoping assumption that v0.2 sharing breaks.** It enforces *one
+> CK per entity*, but a shared photo album wants one CK per **sharing unit** spanning many
+> rows and blobs — which is what `model.md` §3 actually says ("every shareable *unit*") and
+> what §2.2's guardrail 3 flags. Changing it is a migration, not a re-encryption, so it is
+> survivable — but check it *before* building photos, not during.
+>
+> **Also note (2026-07-27):** `milestone.note` is being removed as a content-key consumer
+> (`model.md` §2.1). After that migration, `content_key` is legitimately **empty in every
+> store** until photos land. Empty is correct, not broken.
+
+### 2.4 `key_wrap` — the universal envelope *(custody Phases 0.5–4)*
 The heart of the schema. "The server stores ciphertext plus a small bag of *wrapped*
 keys per item" (`model.md` §3) **is** this table. The "wrapped-MK store" is just
 `WHERE wrapped_kind = 'master'`.
@@ -134,10 +152,10 @@ CREATE UNIQUE INDEX key_wrap_active
 
 | `principal_kind` | `principal_ref` | Used for | Phase |
 |---|---|---|---|
-| `enclave` | `device.id` | a device's local unlock of MK | 0, 2 |
-| `recovery` | — | the recovery-key unlock of MK | 1 |
-| `passphrase` | — | the KEK unlock of MK | 1 |
-| `master` | — | anything wrapped under MK (account private key; owner's copy of every CK) | 1, 3 |
+| `enclave` | `device.id` | a device's local unlock of MK | 0.5, 2 |
+| `recovery` | — | the recovery-key unlock of MK | 0.5 |
+| `password` | — | the KEK unlock of MK | 0.5 |
+| `master` | — | anything wrapped under MK (account private key; owner's copy of every CK) | 0.5, 3 |
 | `recipient` | `account.id` | authenticated share to another user's public key | 3b |
 | `server_principal` | `server_principal.id` | constrained reader (Alexa / CardDAV / hosted link) | 4a |
 | `session` | session id | transient SSR `wrap(MK, session key)` | 4b |

@@ -53,6 +53,21 @@ over an untrusted pipe — content addressing even suits P2P swarming). See `mod
 - **Hosting economics** — ciphertext blobs can't be cross-user deduped/compressed; quotas + the
   registration-token seam become load-bearing in the paid-relay era.
 
+## The sharing question that shapes the schema *(raised 2026-07-27)*
+
+A shared album is **bytes plus rows** — timestamps, location, and "who is in this photo."
+That has two consequences worth deciding before the `file` schema is written, because both
+are easy to foreclose by accident:
+
+- **CK scoping.** `content_key` currently enforces *one CK per entity*. An album is a
+  sharing unit spanning many rows *and* blobs, which wants one CK per **unit**. A migration,
+  not a re-encryption — but check it first (`encryption/model.md` §2.2, `schema.md` §2.3).
+- **People tags — unsolved, and a data-model question rather than a crypto one.** "Who is in
+  this photo" points at a Person row the recipient may have no right to read. Sharing an
+  album with tags either leaks a contact reference or needs a **projection**: share the name,
+  not the person record. **Do not let the file schema assume a shared album can dereference
+  the owner's People rows.** Decide the projection when photos are designed.
+
 ## Open questions (decide at build time)
 
 - **Chunk format** — size, AEAD framing, existing streaming format (age/STREAM) vs. in-house seal

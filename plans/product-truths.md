@@ -64,17 +64,21 @@ mental model, not leak through it.
   may still mean multiple credentials — see cross-relay reconciliation in `status.md` Open
   questions.)
 - **The relay is set per authenticated user/account, not per client.**
-- **Three distinct exits, never conflated** (`encryption/model.md` §7.3) — one of them
-  destroys data, so they must not share a button or a word:
-  - **Lock** — close the store; the password reopens it. Nothing is deleted. This is the
-    *only* "sign out"-shaped action a **local-only** user gets, because purging their store
-    would destroy the only copy in existence.
-  - **Make local-only** — leave the relay, keep everything on this device.
-  - **Log out** — for a synced user: **removes their data from that client**, because it
-    still exists on the relay and their other clients.
-- **Logging out of the last device is treated as dangerous**, not routine. The relay is
-  designed to be disposable (`encryption/sync.md` §2), so it is not a backup: the client
-  detects the last-device case and asks for an export first.
+- **One state and two actions, never conflated** (`encryption/model.md` §7.3) — one of them
+  destroys data, so they must not share a word:
+  - **Locked** is a *state*, not a button: the store is closed and the password reopens it.
+    The app enters it on your behalf when idle; you reach it by signing out.
+  - **Sign out** — behaves **identically for local-only and synced users**. Both get the same
+    promise: *nobody can see my data on this device anymore.*
+  - **Forget account** — removes this account and its data from this device. Named as
+    removal so it can never be mistaken for signing out.
+  - (**Make local-only** — leave the relay, keep the data — is a third, non-destructive
+    action, and the one that exists today.)
+- **Forgetting the last device is treated as deletion unless a server durably holds a copy.**
+  The relay is designed to be disposable (`encryption/sync.md` §2), and **not every relay
+  will offer backup** — someone has to host it. So backup is a **relay capability** the
+  client asks about, and **absent an answer, assume none**: word it as "Delete all data on
+  this device" and offer an export first.
 
 ## Deltas vs. the current build (future, none v0.1-blocking)
 
@@ -92,9 +96,10 @@ works, and are called out so they're conscious deferrals, not surprises:
    purged independently. Not v0.1, but **the per-account path is**: new work must not assume
    a single fixed database path, because retrofitting that after users have data is exactly
    the expensive class of change worth avoiding.
-3. **Log out vs. lock vs. make-local.** Only one of the three exists today
-   (`clearLocalAccount` = *make local-only*). **Lock** and a purging **log out** are both
-   unbuilt, and lock is the prerequisite for bounded sessions.
+3. **Sign out vs. Forget account vs. make-local.** Only *make local-only* exists today
+   (`clearLocalAccount`). **Sign out** and **Forget account** are unbuilt and are v0.1 scope;
+   **automatic** locking on idle is deliberately **v0.2** (owner, 2026-07-27) — the
+   deliberate half is cheap, the session machinery is not.
 4. **User-toggleable encryption beyond custody.** Opting *out* while holding an account —
    trading end-to-end encryption for server-side features like server-side search — is a
    trust-model fork, not a free dial. Distinct from delta 1, which is about the accountless

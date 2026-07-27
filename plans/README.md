@@ -25,7 +25,7 @@ client-agnostic data/core layer underneath all clients.
 | **Ship v0.1 — packaging, signing, stores, the release gate** | [`launch.md`](./launch.md) — the distribution plan + its increments |
 | **See what is decided vs. still open** | [`status.md`](./status.md) → *What's next* (ordered) and *Open questions*. Open **decisions** get their own doc and are listed in their workstream's README — there are none open right now |
 | **Understand how key custody works (or is changing)** | [`encryption/model.md`](./encryption/model.md) §7.2–7.4 — "encryption follows custody", decided 2026-07-26. Read it before touching onboarding, the boot path, `RecoveryGate`, or anything that assumes a key exists |
-| Understand the encryption / privacy / sync design | [`encryption/`](./encryption/) — start at its `README.md` (then `model.md`, `sync.md`, `schema.md`, `custody-sequence.md`) |
+| Understand the encryption / privacy / sync design | [`encryption/`](./encryption/) — start at its `README.md` (then `model.md`, `sync.md`, `schema.md`) |
 | Understand the file/media (photos v0.2) design | [`files.md`](./files.md) — the encrypted-blob invariants, pinned before build |
 | Know why the SQLite native-ABI dance exists (and how it ends) | [`sqlite-abi-napi.md`](./sqlite-abi-napi.md) — watch-item, blocked on the fork |
 | Understand the holidays design | [`holidays/research.md`](./holidays/research.md) — the catalog/observance/rule layering + decisions, pinned before build |

@@ -5,16 +5,15 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-26** — **The local-custody decision is made: encryption follows
-> custody.** First launch will mint no keys and leave the store plaintext; creating an
-> account (username + password) is the single act that turns encryption on, and the recovery
-> phrase becomes its forgot-password backstop instead of a first-run ritual. The model is in
-> [`encryption/model.md`](./encryption/model.md) §7.2–7.4, the key lifecycle in
-> [`custody-sequence.md`](./encryption/custody-sequence.md) (Phase 0 now creates *nothing*;
-> new Phase 0.5 creates everything), and the build order below. `local-custody-options.md`
-> is **retired** — it existed to be decided, and it was; the reasoning that survives lives in
-> `model.md`. Also: **the UI extraction is finished** — `@leapsake/ui` holds every
-> presentational component the desktop renderer had, and the new `@leapsake/view-models` holds the
+> **Updated 2026-07-27** — **Custody is decided and is the next thing to build: "encryption
+> follows custody."** First launch will mint no keys and leave the store plaintext; creating
+> an account (username + password) is the single act that turns encryption on. A complete,
+> cold-start build plan is below under *What's next* → **Local custody**; the model is
+> [`encryption/model.md`](./encryption/model.md) §7. The encryption docs were **consolidated
+> from six to four** the same day — `custody-sequence.md` folded into `model.md` §7.5 and
+> `local-custody-options.md` retired — so that **one place says how auth and encryption
+> work**. Also: **the UI extraction is finished** — `@leapsake/ui` holds every presentational
+> component the desktop renderer had, and the new `@leapsake/view-models` holds the
 > derivations desktop and mobile each kept a copy of; rationale lives in the two package READMEs.
 
 ## Where things stand
@@ -24,10 +23,12 @@
   [`../AGENTS.md`](../AGENTS.md) and the package READMEs.)
 - **V3 · Encryption + sync** — **Stages 1 (zero-knowledge sync) and 2 (at-rest) are done on
   both clients**, verified over the wire and on-disk. **The recovery-phrase increment is
-  done** (24-word phrase recovers both loss events; UI verified on both clients) — though the
-  phrase's *role* is under review, see *What's next* → *Local custody*. **Relay
+  done** (24-word phrase recovers both loss events; UI verified on both clients). **Relay
   hardening: H3 done; only non-v0.1-blocking items remain** (see *What's next*). Stages 3–4
   (sharing, SSR web) are post-launch. Design: [`encryption/`](./encryption/).
+  > ⚠️ **The shipped custody behavior is being deliberately changed** — today both clients
+  > mint keys and encrypt at first launch, with no account. That is the *old* model. See
+  > *What's next* → **Local custody**; do not treat the current boot path as the target.
 - **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
   and the review surface is **detection-driven rather than permanently advertised** (links and
   banners appear only while pairs are outstanding; a `system` reminder nudges from Home). Only
@@ -79,59 +80,108 @@ the work they imply.
 ### Pre-v0.1 (toward initial launch)
 
 > **Order matters here.** Picking up work cold? Take them in this order:
-> **1.** Local custody — *decide*, then build (below; blocks `launch.md` Increments 2–4).
+> **1.** **Local custody — the block immediately below.** It is decided and specified; start
+> at its slice 1. Blocks `launch.md` Increments 2–4.
 > **2.** `launch.md` Increment 1's leftovers — trivial, unblocked, permanent-if-wrong (versions,
 > credential gitignores). Can be done in parallel with 1.
-> **3.** The rest of `launch.md` in its own numbered order, once 1 is resolved.
+> **3.** The rest of `launch.md` in its own numbered order, once 1 is built.
 > **4.** Everything else in this section — genuinely interleavable as capacity allows, no
 > dependencies between them.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decided 2026-07-26; now build it. It leads everything else.**
+**⇒ Local custody — decided 2026-07-26/27; now build it. It leads everything else.**
 
-**The decision: encryption follows custody.** First launch mints no keys and writes a
-plaintext store; creating an account (username + password) turns on encryption, mints the
-recovery phrase, and converts the store. Full model: [`encryption/model.md`](./encryption/model.md)
-§7.2 (states), §7.3 (lock/log out), §7.4 (per-user stores), §8.1 (the conversion pattern);
-lifecycle in [`custody-sequence.md`](./encryption/custody-sequence.md) Phases 0 → 0.5 → 1.
+*Starting cold? This block is written to be enough on its own. Read it, then
+[`encryption/model.md`](./encryption/model.md) §7 (custody, end to end) and §8.1 (converting
+a store). Those two are the whole design; you should not need another doc.*
 
-**Why it leads:** it changes what a fresh install does with real data, and `launch.md`
-Increments 2–4 are all consequences of it. It also **defuses `launch.md` §2's central
-hazard** — the Team-ID change that would have dropped every user into `RecoveryGate` costs
-an accountless user nothing (no keys to lose) and costs an account holder a password entry.
+#### The decision, in five lines
 
-**Build order** — each slice is independently shippable:
+Leapsake **encrypts once the user holds a secret that opens it, and not before.**
 
-1. **Don't create keys at first launch.** Both clients' boot paths
-   (`apps/desktop/src/main/db/open.ts`, `apps/mobile/lib/core-context.tsx`) currently mint a
-   db-key and call `ensureDeviceMasterKey` unconditionally. Make both conditional on an
-   account existing, and open the store plaintext when none does. `createCore(driver,
-   keySession?)` already accepts an absent key session, and `milestones-repo.ts` already
-   stores plaintext without a cipher — so the keyless mode is a supported path, not new code.
-   Keep the existing encrypted-store branches working untouched (dev installs are encrypted).
-2. **Per-account store paths** (`stores/<accountId>/…` + the roster, `model.md` §7.4) —
-   do it in the same pass as 1, while there is exactly one store to move. Cheap now,
-   expensive later.
-3. **The account-creation flow**: username + password → mint keys → convert the store
-   (§8.1) → show the phrase once. Reachable from the Home invitation and from Settings; the
-   two entry points run the *same* flow. Much of the surrounding machinery exists —
-   `enableSync` already takes `username`/`relayUrl` as optional (local-before-relay
-   accounts), `enableSync`/`joinAccount` already *is* sign-up/log-in, and the
-   onboarding-nudge engine already computes the trigger signal.
-4. **The password door on the db-key sidecar** — `seal(db-key, KEK)` beside the recovery
-   one, consumed in the pre-database boot path on both platforms. This is the most delicate
-   code in the app and it now has two doors to prove (see Increment 3 in `launch.md`).
-5. **Lock** (`model.md` §7.3) — a real re-lock, not theater, plus the bounded session over
-   the enclave cache. Prerequisite for the session dial and for "log out" to mean anything.
+- **First launch mints no keys at all** — no db-key, no master key, no recovery phrase, no
+  sidecar. The OS keychain stays empty and the store is plaintext. (`model.md` §7.2, "Open")
+- **Creating an account — username + password, both required — is the single act that turns
+  encryption on**: it mints every key, converts the store to encrypted, and shows the
+  recovery phrase once as the *forgot-password* backstop. (§7.2.1, "Protected")
+- A device **joining an existing account** never passes through Open — it is encrypted from
+  byte one. (§7.1)
+- **Why:** a key held only by the OS keychain guards little that platform disk encryption
+  doesn't already cover, while creating a real data-loss path — lose the keychain, lose
+  everything, with only an unsaved 24-word phrase as the way back.
 
-**Verify before relying on it:** that mobile's SQLCipher build opens a plaintext database
-and runs the attach-and-copy conversion (`model.md` §8.1 — desktop is verified, mobile is
-not). Use the in-app self-test. If it can't, slice 3's mobile half needs a different shape.
+**Why it leads everything:** it changes what a fresh install does with real data, and
+`launch.md` Increments 2–4 are all consequences. It also **defuses `launch.md` §2's central
+hazard** — the Team-ID change on the org move, which would have dropped *every* user into a
+recovery-phrase gate, now costs an accountless user nothing and an account holder one
+password entry.
 
-**Open sub-questions** (see also *Open questions* below): session lifetime, its Settings
-dial, and the "never expires" warning; whether mobile unlocks by biometrics with a password
-floor for true expiry; and the username-collision question when a local account binds a relay.
+#### What the code does today (all of this is the *old* model)
+
+| Where | What it does now | What it must do |
+|---|---|---|
+| `apps/desktop/src/main/db/open.ts` | mints a db-key and encrypts unconditionally | mint nothing when there is no account; open the plaintext store |
+| `apps/mobile/lib/core-context.tsx` (~line 300–360) | the same, mirrored | the same |
+| `packages/key-custody/src/session.ts` → `ensureDeviceMasterKey` | called at every boot | called only at account creation |
+| `packages/data/src/milestones-repo.ts` | seals `note` under a content key | stop — see slice 5 |
+| store path | one fixed `leapsake.db` | `stores/<accountId>/…`, or `stores/local/…` when Open (§7.4) |
+
+Two things already support the keyless mode, so it is **not** new code:
+`createCore(driver, keySession?)` takes the key session as *optional*, and the milestones
+repo already stores plaintext when no cipher is wired.
+
+#### Build order — each slice independently shippable
+
+1. **Mint no keys at first launch.** Make both boot paths conditional on an account
+   existing; open plaintext when none does. **Leave the existing encrypted-store branches
+   working untouched** — dev installs are already encrypted and must keep opening.
+   *Acceptance:* a fresh profile creates zero keychain entries and a readable plaintext
+   `leapsake.db`; an existing encrypted profile still opens normally.
+2. **Per-account store paths** + the unencrypted roster (§7.4). **Do this in the same pass as
+   1**, while exactly one store exists to move. Cheap now, expensive after users have data.
+   *Acceptance:* the path is derived, never hardcoded; the roster renders without opening any
+   store.
+3. **The account-creation flow** — username + password → mint keys → convert the store
+   (§8.1) → show the phrase once. One flow, two entry points (the Home invitation and
+   Settings). Much of it exists: `enableSync` already takes `username`/`relayUrl` as
+   optional, `enableSync`/`joinAccount` already *is* sign-up/log-in, and the onboarding-nudge
+   engine already computes the trigger. **The copy must promise *access*, not safety**
+   (§7.2.1) — an account does not protect against a dead SSD.
+   *Acceptance:* plaintext store in, encrypted store out, plaintext original **and** any
+   `.plaintext.bak` gone, phrase shown exactly once.
+4. **The password door on the db-key sidecar** — `seal(db-key, KEK)` beside the recovery one,
+   consumed in the pre-database boot path on both platforms. **This is the most delicate code
+   in the app**; both doors need an end-to-end restore proof plus a negative case
+   (`launch.md` Increment 3).
+5. **Remove `milestone.note` as a content-key consumer** (`model.md` §2.1) — drop the
+   `(note, note_ciphertext)` split and the decrypt-on-collect / re-seal-on-apply path, migrate
+   existing notes back to plaintext. **Keep** `content_key`, `createContentCipher`, and
+   `EncryptedRecord.wrappedKey` — photos need them (`files.md`). Doing this *before* slice 3
+   removes an entire axis from the conversion.
+6. **Sign out + Forget account** (§7.3). Sign out closes the store; Forget account removes it
+   and its roster entry. On the **last device**, ask the relay whether it keeps a durable copy
+   and, absent an answer, word it as "Delete all data on this device" and offer an export
+   first (§7.3.1).
+
+**Explicitly v0.2, not v0.1** *(owner, 2026-07-27)*: **automatic** locking on idle and the
+bounded session. The deliberate half (slice 6) is cheap; a real session needs mid-session
+re-lock in the desktop main process and mobile's bootstrap, and must not be theater since the
+keychain still holds the db-key. Not a one-way door — it sits on the same password door.
+
+#### Before you rely on it
+
+**Verified (2026-07-27, desktop):** the portable plaintext→encrypted conversion in §8.1 —
+attach a keyed file, copy schema and rows via `sqlite_master`, delete the original. Tables,
+rows and indexes survive. Neither platform's *native* shortcut is portable: desktop's engine
+has `PRAGMA rekey` but **no** `sqlcipher_export`; SQLCipher has the reverse. **Pin
+`PRAGMA cipher='sqlcipher'` before the ATTACH** or the new file gets the default cipher and
+fails later with a misleading `file is not a database`.
+
+**Unverified — check first, on device:** that mobile's expo-sqlite SQLCipher build (a)
+opens/creates a plaintext database when no key is supplied, and (b) runs that attach-and-copy.
+Both are documented SQLCipher behavior; both are load-bearing. Use `leapsake://dev-selftest`.
+If either fails, slice 3's mobile half needs a different shape.
 
 **Blocks:** `launch.md` Increments 2, 3, and therefore 4 (the first closed-test upload puts
 real data in ≥12 testers' hands — do not ship custody churn to them afterwards).
@@ -182,8 +232,8 @@ can't ship without distributable apps. (None yet.) Plan + increments:
 `com.leapsake.app`; the leftovers are trivial and unblocked by anything above (versions are
 still `0.0.0` in all four `package.json`s, and `.gitignore` carries none of the credential
 shapes Increments 4/7 introduce — `*.p12`, `AuthKey_*.p8`, `*.mobileprovision`, `*.jks`,
-`*.keystore`, `credentials.json`). Do that now; **Increments 2–4 wait on the custody
-decision.**
+`*.keystore`, `credentials.json`). Do that now; **Increments 2–4 wait on the custody *build***
+(the decision itself is settled).
 
 **Reconciliation** (quality; can land pre- or post-launch as capacity allows):
 - **Fuzzy / typo-tolerant name matching** — the scorer's reserved `"low"` tier via
@@ -265,12 +315,12 @@ decision.**
   (`reconcileOnJoin` surfaces overlapping people after a join and deliberately does **not**
   auto-merge, leaving it to the duplicate-review surface), so "join the existing account and
   review the duplicates" may be the whole answer for v0.1. Decide before relay binding ships.
-- **Session lifetime and its dial** — default length, the Settings control, and what the
-  "never expires" warning says. Bound to **Lock** (`model.md` §7.3).
-- **Biometrics on mobile** — Face ID / Touch ID as the everyday unlock, with a true session
-  expiry still demanding the password so the credential gets rehearsed.
-- **Auto-purge an idle logged-in device?** The counterweight to "encrypted data sitting on a
-  device indefinitely." Safe default plus a dial, or not worth the complexity — undecided.
+- **Relay backup capability** — the protocol shape for a relay advertising whether it keeps a
+  durable copy (`model.md` §7.3.1). Needed before *Forget account* can pick its wording; the
+  safe default (assume none) means it does not block v0.1.
+- *(Deferred with automatic locking, v0.2)* **session lifetime and its dial**; **biometrics
+  on mobile** as the everyday unlock with a true expiry still demanding the password;
+  **auto-purge of an idle logged-in device**.
 
 **Encryption** (each tied to a not-yet-started stage):
 - Asymmetric scheme (X25519/Ed25519) — reviewed when **Stage 3** needs it; plus an

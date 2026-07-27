@@ -14,10 +14,14 @@
 > The KEK layer (§4) is what makes that staging cheap: every later capability is *one
 > more wrapping of the master key, with no re-encryption of existing data.*
 >
-> **Companion docs:** [`schema.md`](./schema.md) (the key tables),
-> [`custody-sequence.md`](./custody-sequence.md) (the key lifecycle, step by step),
-> [`sync.md`](./sync.md) (the transport seam + merge model + the P2P decision). Start
-> at [`README.md`](./README.md) if you're new to this folder.
+> **This doc owns custody end to end** — the states (§7.2), the exits (§7.3), the store
+> layout (§7.4), and the key lifecycle phase by phase (§7.5). If you are touching
+> onboarding, the boot path, or anything that assumes a key exists, §7 is the section.
+>
+> **Companion docs:** [`schema.md`](./schema.md) (the key tables — §7.5's ledger as SQL),
+> [`sync.md`](./sync.md) (the transport seam + merge model + the P2P decision),
+> [`security-review.md`](./security-review.md) + [`security-findings.md`](./security-findings.md)
+> (the audits). Start at [`README.md`](./README.md) if you're new to this folder.
 
 ## 1. Goals
 
@@ -75,12 +79,54 @@ Three consequences worth internalizing:
   contact if everything is sealed under your single master key — you need a per-item key
   you can re-wrap for them (§11, Stage 3).
 
-> **Honest note on layer 3's current state.** Exactly one field uses it — `milestone.note`
-> — and on sync that note is *decrypted on collect and re-sealed under the receiving
-> device's own content key*, so the wire is protected by layer 2 either way. Layer 3 is
-> therefore **not load-bearing for v0.1 confidentiality**; it is the Stage-3 mechanism
-> proving itself early on a real entity, and it is kept for that reason. Do not cite it as
-> the thing keeping the relay honest — that is layer 2.
+#### 2.1 Layer 3 keeps its mechanism and loses its only user *(decided 2026-07-27)*
+
+Today exactly one field uses layer 3 — `milestone.note` — and it earns nothing. Layer 2
+already seals the whole row containing that note, and on sync the note is *decrypted on
+collect and re-sealed under the receiving device's own key*, so the wrapped key never even
+travels. It is also **not a rehearsal for photos**, which is the reason it was worth
+keeping: those are two different patterns that merely share primitives.
+
+| | What the CK encrypts | Where the wrapped CK goes |
+|---|---|---|
+| **Photo (v0.2)** | bytes in a blob *outside* the database | on the wire, in `EncryptedRecord.wrappedKey` |
+| **`milestone.note` (today)** | a field *inside* the database | nowhere — re-sealed per device |
+
+**So: drop `milestone.note` as a consumer; keep the mechanism.** Concretely, remove the
+`(note, note_ciphertext)` split and the decrypt-on-collect / re-seal-on-apply path, and
+migrate existing notes back to the plaintext column. Keep `content_key`,
+`createContentCipher`, and the reserved `wrappedKey` slot untouched. The immediate payoff is
+that a whole axis disappears from the custody work: layer 3 no longer has to behave
+correctly in both custody states, and step 6 of the §8.1 conversion vanishes. Only dev
+installs hold encrypted notes today, so the migration is nearly free now and will not be
+later.
+
+> **Do not read this as "layer 3 is speculative."** It is the *only* layer that can protect
+> a photo, because a blob living outside the database is reachable by neither layer 1 nor
+> layer 2 — [`../files.md`](../files.md) invariant #2 is built on it. It is also the only
+> layer that can express "you may read *this album* and nothing else."
+
+#### 2.2 Four guardrails so v0.2 sharing stays possible
+
+A shared album is **bytes plus rows** — timestamps, location, and "who is in this photo."
+So per-item keys must work for rows, not only blobs. None of that is v0.1 work; all of it
+is easy to foreclose by accident, so it is pinned here:
+
+1. **`EncryptedRecord.wrappedKey` stays** — reserved, unused, and specifically *not*
+   deleted as dead-code cleanup. It is the hook that lets a row be sealed under a per-item
+   key instead of directly under MK.
+2. **Sealing a row under a CK must be a per-repo choice, not a global engine mode** — some
+   rows shareable, some not, within the same push.
+3. **CK scoping is a real mismatch, check it before v0.2.** `content_key` currently enforces
+   *one CK per entity* (the `content_key_entity_active` unique index), but a shared album
+   wants one CK per **sharing unit** spanning many rows and blobs — which is what §3
+   actually says ("every shareable *unit*"). Changing it is a migration, not a
+   re-encryption, so it is survivable; discovering it mid-build is not.
+4. **People tags are the unsolved one, and it is a data-model question, not a crypto one.**
+   "Who is in this photo" points at a Person row the recipient may have no right to read.
+   Sharing an album with tags either leaks a contact reference or needs a **projection**
+   (share the name, not the person record). Decide it when photos are designed; do not let
+   the file schema assume a shared album can dereference the owner's People rows.
 
 ## 3. The unifying mechanism: per-item keys + key wrapping
 
@@ -284,6 +330,19 @@ custody, so "start syncing later" adds a relay binding rather than a new ritual.
 
 #### 7.2.1 Creating an account is the act that turns encryption on
 
+**Username + password is required to turn encryption on** *(decided 2026-07-27)*. The
+alternative considered and rejected was a phrase-only "accountless encryption": it makes the
+recovery phrase the *primary* credential — reviving the exact unfamiliar ritual this decision
+exists to demote — leaves one door instead of two, and terminates at a password anyway the
+moment the user wants sync, having added a third custody state and a second conversion to
+the boot path on the way.
+
+> **The word, not the mechanism, is the thing to soften.** A username and password stored
+> only on this device is *accountless* in every sense a user cares about: no email, no
+> server, nothing transmitted, nobody to notify. "Account" is our vocabulary. If it reads as
+> too heavy for something that never leaves the laptop, change the label — "Protect your
+> data", "Set up your login" — not the mechanism.
+
 There is **one** operation, reachable from two places — the Home invitation once the user
 has data to lose, and a Settings control for anyone who wants it sooner. Both run the same
 flow, and it is fully local: no relay, no email, nothing leaves the device.
@@ -307,34 +366,61 @@ in free space, and on SSDs cannot be reliably erased. **Accepted** (owner, 2026-
 window is small, it requires physical access to the disk to exploit, and the alternative is
 the data-loss path above. It is stated in §12 rather than glossed.
 
-### 7.3 Lock, make-local, log out — three different things *(decided 2026-07-26)*
+### 7.3 Locked, Sign out, Forget account *(decided 2026-07-27)*
 
-These are routinely conflated and must not be. One of them destroys data.
+Three concepts, no overlap. **One state, two actions.**
 
-| Operation | For whom | Data on this device | Custody |
-|---|---|---|---|
-| **Lock** | anyone Protected | stays, encrypted, closed until the password is re-entered | unchanged |
-| **Make local-only** | a synced user leaving the relay | **stays** | stays; the relay binding is removed |
-| **Log out** | a synced user | **purged from this device** | removed from this device |
+| | What it is |
+|---|---|
+| **Locked** | a **state** — the store is closed and the password reopens it. Reached automatically (idle / session expiry) or deliberately |
+| **Sign out** | a user **action** → the Locked state. *Identical for local-only and synced users* |
+| **Forget account** | a user **action** → this account and its data are removed from this device |
 
-- **Lock is the local-only user's "log out."** A local-only account has no second copy, so
-  purging it destroys the only one. Offering a button labelled "log out" that silently
-  means "delete everything forever" is indefensible. Deleting a local-only store is a
-  separate, explicitly-worded, hard-confirmed *Delete* action — never the logout affordance.
-- **Lock is also the answer to "encrypted data sitting on a device forever."** It is the
-  same bounded-session mechanism as §7 — expiry drops the unlocked state and gates the UI,
-  and an idle device closes itself. Expiry must be a *real* re-lock, not theater: the
-  keychain still holds db-key, so relaunching must not walk straight past it.
-- **Make local-only is what is built today** (`clearLocalAccount` — it revokes the password
-  and recovery doors, keeps the enclave door and all data). Under this model it should keep
-  the password door too, since a Protected store still needs one; only the relay binding
-  goes.
-- **Logging out the last device is the dangerous case.** The relay holds an encrypted copy,
-  but [`sync.md`](./sync.md) §2 designs the relay as **disposable** — devices self-heal it,
-  so it is explicitly *not* a backup. Logging out everywhere therefore risks leaving the
-  only copy somewhere designed to be expendable. The client must detect it (the relay knows
-  the registered device count) and treat it as a distinct, stronger confirmation that
-  offers an export first — not the ordinary logout dialog.
+The reason this shape is right: **Sign out does not have to behave differently by custody
+state.** Both users get the same promise — *nobody can see my data on this device anymore* —
+and the only difference (whether the bytes remain, encrypted) is invisible to that intent.
+One honest line covers it for a local-only user: *"Your data stays on this device,
+encrypted. You'll need your password to get back in."*
+
+Purging lives entirely in **Forget account**, which is named as removal so it can never be
+mistaken for signing out. "Make local-only" — leaving the relay while keeping the data — is
+what `clearLocalAccount` already does; it is a third, non-destructive action and should keep
+the password door (a Protected store still needs one), dropping only the relay binding.
+
+> **Do not invent a "Lock" button.** Locked is a state, not an affordance. The app enters it
+> on your behalf when idle; the user reaches it by signing out.
+
+**v0.1 ships the deliberate half only** *(scope decision, owner, 2026-07-27)*. Sign out and
+Forget account are cheap — close or delete the store. **Automatic** locking is not: a real
+session needs mid-session re-lock in the desktop main process and mobile's bootstrap, and it
+must be a genuine re-lock rather than theater, since the keychain still holds the db-key and
+a relaunch would otherwise walk straight past it. That is deferred to v0.2. Nothing about it
+is a one-way door — the session sits on top of the same password door either way.
+
+#### 7.3.1 Forgetting the last device — ask the relay, assume the worst
+
+Forgetting an account on its **last remaining device** is functionally a deletion *unless
+some server durably holds a copy*. Two facts make this sharper than it first looks:
+
+- [`sync.md`](./sync.md) §2 designs the relay to be **disposable** — devices self-heal it —
+  so a relay is explicitly *not* a backup.
+- **Not every relay will offer backup.** Someone has to host that data; a self-hoster may
+  choose to, and many will not. It is a property of *who is hosting*, so it is a **relay
+  capability**, not an account setting.
+
+Therefore the client **asks** rather than assumes: the relay advertises whether it retains a
+durable copy, and **absent that advertisement, assume it does not.** Defaulting to "no"
+fails safely — the worst case is over-warning.
+
+| Durable server copy | What Forget account means here | How to say it |
+|---|---|---|
+| **No** (default, and today always) | the last copy is destroyed | word it as **"Delete all data on this device"**, hard-confirm, and offer an export first |
+| **Yes** (a relay that opts in) | ordinary — sign back in and re-pull | the normal Forget confirmation |
+
+Build this as a *check*, not a hardcoded string: when server-side backup ships, alarming copy
+must stop appearing on its own rather than being hunted down. The capability should also be
+**visible** — "This server does not keep a backup of your data" is honest for self-hosters
+and a real differentiator for the eventual paid relay.
 
 ### 7.4 One store per user, not one store per client *(direction, 2026-07-26)*
 
@@ -342,7 +428,7 @@ A client holds **one Open store or many Protected ones** — the same shape
 [`../product-truths.md`](../product-truths.md) already states for users ("one
 unauthenticated user OR multiple authenticated users"). Each account gets its **own
 encrypted database file**, which is what makes both delta #1 (per-user isolation) and
-"log out = purge" (§7.3) clean rather than surgical:
+**Forget account** (§7.3) clean rather than surgical:
 
 ```
 <userData>/stores/
@@ -361,6 +447,86 @@ encrypted database file**, which is what makes both delta #1 (per-user isolation
 The per-account path is the load-bearing part. It is cheap now and expensive once real
 users have data, so **new work must not assume a single fixed database path**, even while
 only one store exists.
+
+### 7.5 The key lifecycle, phase by phase
+
+*(Absorbed from the former `custody-sequence.md`, 2026-07-27 — it had become the same story
+told twice. The per-phase **key ledger** is the part worth keeping: it makes the schema
+readable straight off the sequence.)*
+
+Every key in play, and who makes it:
+
+| Key | Created by | Purpose |
+|---|---|---|
+| **Master key (MK)** | client, at account creation | the root; wraps everything below. Never derived from the password (§4) |
+| **Enclave key** | OS keychain / Secure Enclave | a device's local unlock path for MK |
+| **db-key** | client, at account creation | the whole-DB at-rest key (§8); read from a sidecar *before* the store opens |
+| **Recovery key (RK)** | client, at account creation | out-of-band unlock for MK **and** db-key; the 24 words encode it; user-held, never stored by us |
+| **KEK** | `Argon2id(password, salt)` | the password unlock path for MK and db-key |
+| **Auth verifier** | separate derivation from the password | what a relay stores to authenticate login — reveals nothing about the KEK (§9.3) |
+| **Content key (CK)** | client, per shareable unit | encrypts one item/blob; wrapped for each principal that may read it (§3) |
+| **Account keypair** | client, Stage 3 | public key published to a directory; private key (MK-wrapped) opens shares sent to you |
+| **Principal keypair** | per server integration | a constrained reader (Alexa / CardDAV / hosted link) you wrap *specific* CKs to (§9.2) |
+| **Session key** | server, at SSR login | wraps MK for one trusted SSR session (§9.2 Scenario 1) |
+
+The **invariant** through every phase: a server never holds an *unwrapped* MK at rest, and
+never holds the password, KEK, or RK at all.
+
+**Phase 0 — First launch, fresh install.** No prompt beyond "Already using Leapsake?" → No.
+**No keys are created — the OS keychain stays empty** — and the store is written plaintext.
+All three layers of §2 are inactive; nothing leaves the machine.
+> *Ledger: empty.* Wiping the keychain costs this user nothing, and the file opens anywhere
+> it is copied. That is the point (§7.2).
+
+**Phase 0.5 — Create an account.** The pivotal phase (§7.2.1), reached from the Home
+invitation or Settings. Fully local. Mints **MK, enclave key, db-key, RK, KEK, and the auth
+verifier** — the verifier now, though no relay exists, so binding one later adds no new
+ritual. Persists `wrap(MK, enclave)`, `wrap(MK, KEK)`, `wrap(MK, RK)` inside the store, and
+beside it the two **db-key sidecars**, `seal(db-key, RK)` and `seal(db-key, KEK)`. Sidecars
+are separate files by necessity: they are read *before* the database can open. Then converts
+the store (§8.1) and destroys the plaintext original.
+> *Ledger:* MK and db-key each reachable by enclave, password, or phrase. The user holds two
+> secrets — one chosen, one generated — and the keychain is no longer a single point of
+> failure.
+
+**Phase 1 — Bind the account to a relay.** Because 0.5 already minted the password door, the
+recovery key, and the verifier, this phase creates **no new key material at all** — it only
+publishes what exists. That convergence of local and synced custody is the payoff. The relay
+receives the salt (public), the auth verifier, `wrap(MK, KEK)`, and the recovery escrow. It
+**cannot** derive the KEK, so it cannot unwrap MK: zero-knowledge holds, and this is where
+encryption layer 2 starts working. The relay is authoritative over usernames, so binding must
+be able to **rename** (see `status.md` → Open questions).
+> *Ledger:* unchanged from 0.5, plus the relay's copy of `wrap(MK, KEK)` + verifier + salt.
+
+**Phase 2 — Add a second device.** Joins the account by username + password; it consumes the
+password door and never needs the RK or device 1's enclave key. **Its store is created
+encrypted from byte one** — a joining device knows the account exists before it writes a row,
+so it never passes through the Open state (§7.1). It derives the verifier → authenticates →
+receives `wrap(MK, KEK)` → derives the KEK locally → unwraps MK into memory → mints its *own*
+enclave key and db-key, adds `wrap(MK, device-2 enclave)`, and caches the unlock.
+> *Ledger:* MK reachable from either device's enclave, the RK, or the KEK. Two devices, one
+> account, relay still blind.
+
+**Phase 3 — Create a share** *(Stage 1 for capability links; Stage 3 for authenticated)*.
+Every shareable unit owns a CK; sharing is *wrapping that CK for a new reader*. **Capability
+link** (default): the CK rides the URL `#fragment`, which is never sent to the server, so
+there is deliberately **no** stored wrap — that absence is what makes it zero-knowledge.
+**Authenticated share:** fetch the recipient's public key from the directory and store
+`wrap(CK, recipient_public)`. Revocation is the server refusing to serve the blob (§12), not
+math.
+
+**Phase 4 — Grant a constrained principal** *(Stage 3–4)*. For clients that cannot do
+client-side crypto. **Preferred (4a):** wrap *only the specific CKs* a principal needs under
+its dedicated keypair — never MK — so the blast radius is exactly those items and revoking is
+deleting that wrapped-key set. **Heavier (4b):** the trusted SSR session, where the server
+transiently unwraps MK per request (§9.2 Scenario 1), reserved for the no-JS floor.
+
+What falls out for the schema — see [`schema.md`](./schema.md), which turns this ledger into
+tables: a wrapped-key store (`key_wrap`, one row per unlock path or grant), an
+account/identity table, a device registration table, a per-item content-key registry, and a
+share/access-policy table. Plus one thing that is deliberately **not** a table: the
+**on-device account roster** (§7.4), which lives outside every store, unencrypted, because it
+must be readable before any store can be opened.
 
 ## 8. Encryption at rest, and the `node:sqlite` tension
 
