@@ -586,8 +586,11 @@ and indexes preserved; the output genuinely ciphertext on disk):
 4. Copy schema then rows across, reading the definitions from `sqlite_master`.
 5. Detach, close, move the new file into `stores/<accountId>/`, **delete the plaintext
    original** — including any `.plaintext.bak` (see below).
-6. Re-seal the layer-3 fields (today just `milestone.note`) through the now-existing
-   content cipher, nulling their plaintext columns.
+6. ~~Re-seal the layer-3 fields through the now-existing content cipher.~~ **This step should
+   not exist by the time you build this.** `milestone.note` is being dropped as a content-key
+   consumer (§2.1) *before* the conversion is written — deliberately, so the conversion never
+   grows a re-seal pass it would only have to delete. If layer 3 has a domain consumer again
+   when you get here, something was built out of order: check `../status.md`.
 
 > **The existing `<db>.plaintext.bak` must not survive this path.** Desktop's legacy
 > pre-Stage-2 upgrade (`plaintext-migration.ts`) deliberately keeps that backup as a safety

@@ -124,7 +124,7 @@ password entry.
 | `apps/desktop/src/main/db/open.ts` | mints a db-key and encrypts unconditionally | mint nothing when there is no account; open the plaintext store |
 | `apps/mobile/lib/core-context.tsx` (~line 300–360) | the same, mirrored | the same |
 | `packages/key-custody/src/session.ts` → `ensureDeviceMasterKey` | called at every boot | called only at account creation |
-| `packages/data/src/milestones-repo.ts` | seals `note` under a content key | stop — see slice 5 |
+| `packages/data/src/milestones-repo.ts` | seals `note` under a content key | stop — see slice 3 |
 | store path | one fixed `leapsake.db` | `stores/<accountId>/…`, or `stores/local/…` when Open (§7.4) |
 
 Two things already support the keyless mode, so it is **not** new code:
@@ -142,7 +142,16 @@ repo already stores plaintext when no cipher is wired.
    1**, while exactly one store exists to move. Cheap now, expensive after users have data.
    *Acceptance:* the path is derived, never hardcoded; the roster renders without opening any
    store.
-3. **The account-creation flow** — username + password → mint keys → convert the store
+3. **Remove `milestone.note` as a content-key consumer** (`model.md` §2.1) — drop the
+   `(note, note_ciphertext)` split and the decrypt-on-collect / re-seal-on-apply path, migrate
+   existing notes back to plaintext. **Keep** `content_key`, `createContentCipher`, and
+   `EncryptedRecord.wrappedKey` — photos need them (`files.md`).
+   **Deliberately ahead of slice 4:** it *removes* a step from the store conversion rather
+   than adding one to migrate. Do it after and slice 4 has to carry a re-seal pass it will
+   then delete.
+   *Acceptance:* notes readable as plaintext on both clients; `content_key` empty; the sync
+   round-trip still converges.
+4. **The account-creation flow** — username + password → mint keys → convert the store
    (§8.1) → show the phrase once. One flow, two entry points (the Home invitation and
    Settings). Much of it exists: `enableSync` already takes `username`/`relayUrl` as
    optional, `enableSync`/`joinAccount` already *is* sign-up/log-in, and the onboarding-nudge
@@ -150,15 +159,10 @@ repo already stores plaintext when no cipher is wired.
    (§7.2.1) — an account does not protect against a dead SSD.
    *Acceptance:* plaintext store in, encrypted store out, plaintext original **and** any
    `.plaintext.bak` gone, phrase shown exactly once.
-4. **The password door on the db-key sidecar** — `seal(db-key, KEK)` beside the recovery one,
+5. **The password door on the db-key sidecar** — `seal(db-key, KEK)` beside the recovery one,
    consumed in the pre-database boot path on both platforms. **This is the most delicate code
    in the app**; both doors need an end-to-end restore proof plus a negative case
    (`launch.md` Increment 3).
-5. **Remove `milestone.note` as a content-key consumer** (`model.md` §2.1) — drop the
-   `(note, note_ciphertext)` split and the decrypt-on-collect / re-seal-on-apply path, migrate
-   existing notes back to plaintext. **Keep** `content_key`, `createContentCipher`, and
-   `EncryptedRecord.wrappedKey` — photos need them (`files.md`). Doing this *before* slice 3
-   removes an entire axis from the conversion.
 6. **Sign out + Forget account** (§7.3). Sign out closes the store; Forget account removes it
    and its roster entry. On the **last device**, ask the relay whether it keeps a durable copy
    and, absent an answer, word it as "Delete all data on this device" and offer an export
@@ -181,7 +185,7 @@ fails later with a misleading `file is not a database`.
 **Unverified — check first, on device:** that mobile's expo-sqlite SQLCipher build (a)
 opens/creates a plaintext database when no key is supplied, and (b) runs that attach-and-copy.
 Both are documented SQLCipher behavior; both are load-bearing. Use `leapsake://dev-selftest`.
-If either fails, slice 3's mobile half needs a different shape.
+If either fails, slice 4's mobile half needs a different shape.
 
 **Blocks:** `launch.md` Increments 2, 3, and therefore 4 (the first closed-test upload puts
 real data in ≥12 testers' hands — do not ship custody churn to them afterwards).
