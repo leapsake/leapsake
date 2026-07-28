@@ -56,6 +56,19 @@ const sync = {
     relayUrl: string;
   }): Promise<{ duplicateCount: number }> =>
     ipcRenderer.invoke("sync:recover", args),
+  /**
+   * Create an account on this device (model.md §7.2.1) — the act that turns
+   * encryption on. Fully local. Resolves with the 24-word recovery phrase for its
+   * one-time reveal; call {@link relaunch} once the user has dismissed it, since
+   * the store was converted underneath this process.
+   */
+  createAccount: (args: {
+    username: string;
+    password: string;
+  }): Promise<{ accountId: string; recoveryPhrase: string }> =>
+    ipcRenderer.invoke("account:create", args),
+  /** Restart into the newly-encrypted store. */
+  relaunch: (): Promise<void> => ipcRenderer.invoke("app:relaunch"),
   syncNow: (): Promise<{ at: number }> => ipcRenderer.invoke("sync:now"),
   /**
    * Re-authenticate this device after the account password was reset on another

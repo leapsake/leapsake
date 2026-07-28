@@ -1,6 +1,7 @@
 import * as SQLite from "expo-sqlite";
 import { generateKey, rawKeyLiteral } from "@leapsake/crypto";
 import type { TestApi } from "@leapsake/data/testing";
+import { convertStoreToEncrypted } from "../db/convert-store";
 
 /**
  * The **custody** self-test: proves on-device the two expo-sqlite behaviors that
@@ -33,6 +34,16 @@ function scratchName(label: string): string {
  *  (it resolves relative paths against the process CWD, not the SQLite folder). */
 function scratchPath(name: string): string {
   return `${SQLite.defaultDatabaseDirectory}/${name}`;
+}
+
+/** Delete a scratch database, ignoring "not found" — cleanup must never mask the
+ *  failure that caused it. */
+async function discard(name: string): Promise<void> {
+  try {
+    await SQLite.deleteDatabaseAsync(name);
+  } catch {
+    // never created, or already gone
+  }
 }
 
 /** Whether `fn` rejects — the shape both "refuses to open" negatives assert. */
@@ -172,6 +183,65 @@ export function runCustodySelfTest(t: TestApi): void {
         await dbTwo.closeAsync();
         await SQLite.deleteDatabaseAsync(one);
         await SQLite.deleteDatabaseAsync(two);
+      }
+    });
+  });
+
+  // The production converter, not a re-implementation of it — the sequence above
+  // proves the *engine* supports the pattern; this proves the code we ship uses it
+  // correctly, including the two things a hand-rolled copy silently drops.
+  describe("custody: the shipped store converter", () => {
+    it("carries data, indexes and the migration watermark into a keyed store", async () => {
+      const from = scratchName("prod-src");
+      const to = `stores/acct-${crypto.randomUUID()}/leapsake.db`;
+      const key = generateKey();
+
+      const source = await SQLite.openDatabaseAsync(from);
+      await source.execAsync(`
+        CREATE TABLE person (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE INDEX person_by_name ON person (name);
+        PRAGMA user_version = 27;
+      `);
+      await source.runAsync(
+        "INSERT INTO person (id, name) VALUES (1, ?)",
+        "Ada",
+      );
+      await source.closeAsync();
+
+      try {
+        await convertStoreToEncrypted({ fromName: from, toName: to, key });
+
+        const target = await SQLite.openDatabaseAsync(to);
+        await target.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+        const row = await target.getFirstAsync<{ name: string }>(
+          "SELECT name FROM person WHERE id = 1",
+        );
+        expect(row?.name).toBe("Ada");
+        const index = await target.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'person_by_name'",
+        );
+        expect(index?.name).toBe("person_by_name");
+        // Without this the next boot re-runs every migration against live tables.
+        const version = await target.getFirstAsync<{ user_version: number }>(
+          "PRAGMA user_version",
+        );
+        expect(version?.user_version).toBe(27);
+        await target.closeAsync();
+
+        // The source is deliberately still there — it dies only once the roster
+        // names the replacement (see the converter's doc comment).
+        const stillThere = await SQLite.openDatabaseAsync(from);
+        const original = await stillThere.getFirstAsync<{ name: string }>(
+          "SELECT name FROM person WHERE id = 1",
+        );
+        expect(original?.name).toBe("Ada");
+        await stillThere.closeAsync();
+      } finally {
+        // Tolerant on purpose: a `finally` that throws replaces the real failure
+        // with a cleanup error, which is exactly how this case first hid an
+        // ATTACH failure behind "database not found".
+        await discard(from);
+        await discard(to);
       }
     });
   });

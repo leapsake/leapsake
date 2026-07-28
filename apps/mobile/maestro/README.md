@@ -3,7 +3,7 @@
 This directory holds the **blackbox harness** for the mobile driver-contract self-test
 (testing backlog **step 3b**; see [`plans/testing/`](../../../plans/testing/)). It drives
 the in-app self-test on an emulator/simulator and asserts **PASS** from the command line,
-so the mobile driver leg is a *terminal, automated* gate — not a human opening
+so the mobile driver leg is a _terminal, automated_ gate — not a human opening
 `leapsake://dev-selftest` and reading the screen (principle #1: automate over manual).
 
 - **`driver-selftest.yaml`** — the Maestro flow: deep-link to the self-test route, wait
@@ -19,7 +19,7 @@ so the mobile driver leg is a *terminal, automated* gate — not a human opening
   the bundle with an `adb` deep link; on iOS that deep link is intercepted by a
   SpringBoard "Open in Leapsake?" confirm and ignored, so this flow instead reconnects
   through the dev-launcher's last dev server (set by `pnpm --filter @leapsake/mobile
-  ios`), clears any SpringBoard/dev-menu overlay, and waits for the People tab. The
+ios`), clears any SpringBoard/dev-menu overlay, and waits for the People tab. The
   runner invokes it; you don't run it directly. It does **not** touch `driver-selftest.yaml`.
 
 ## Run it
@@ -37,7 +37,7 @@ device isn't booted (or whose toolchain is absent) prints as **BLOCKED**, never 
 skipped. It **assumes a prepared environment** and fails with the exact command to run if
 a piece is missing. Exit codes: `0` = at least one platform passed and none failed; `1` =
 a booted device went RED or its env is broken (Metro down / app not installed); `3` =
-nothing reachable here (no device booted / toolchain absent) — *blocked*, not a failure.
+nothing reachable here (no device booted / toolchain absent) — _blocked_, not a failure.
 
 One-time / per-session setup, Android:
 
@@ -103,7 +103,7 @@ as Android.
 
 ### When the prepare step can't find the dev server
 
-`ios-prepare.yaml` reconnects through the dev-launcher's *remembered* server. That memory
+`ios-prepare.yaml` reconnects through the dev-launcher's _remembered_ server. That memory
 is not always there — a simulator that has been shut down, or a dev client that was
 terminated while on the launcher screen, can come back to **"No development servers
 found"**, at which point `pnpm test:native` fails with "the app's home screen never
@@ -120,7 +120,7 @@ launcher.
 ### Editing a test? The deep link does not reload the bundle
 
 `leapsake://dev-selftest` re-opens the route against the **already-loaded** bundle, so a
-source edit does not take effect and the screen re-runs the *old* suite — which looks
+source edit does not take effect and the screen re-runs the _old_ suite — which looks
 exactly like a passing run of the new one. Force a fresh bundle between edits:
 
 ```

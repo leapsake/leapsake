@@ -25,7 +25,7 @@ import {
   clearLocalAccount,
   createCore,
   createSyncScheduler,
-  enableSync,
+  createLocalAccount,
   ensureDeviceMasterKey,
   getAutoSync,
   getSyncStatus,
@@ -57,7 +57,12 @@ import {
 import {
   createAccountRoster,
   resolveActiveStore,
+  storePath,
 } from "@leapsake/store-layout";
+import {
+  convertStoreToEncrypted,
+  destroyPlaintextStore,
+} from "../db/convert-store";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 import { deleteAccountRoster, sqliteRosterStorage } from "../db/roster-storage";
 import {
@@ -467,26 +472,50 @@ export function CoreProvider({ children }: { children: ReactNode }) {
               `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
             );
           }
-          const { account, recoveryKey, bootstrap } = await enableSync({
-            keyStore,
-            driver,
-            password,
-            username,
-            relayUrl,
-            platform: Platform.OS,
-          });
+          // Enabling sync **is** creating an account that also binds a relay, so
+          // it runs the full flow (model.md §7.2.1): mint the keys, publish to the
+          // relay, then convert this device's plaintext store to encrypted. Before
+          // this it created the account and left the store plaintext — a
+          // half-Protected state §7.2 does not have.
+          const { accountId, recoveryPhrase, dbKey, bootstrap } =
+            await createLocalAccount({
+              keyStore,
+              driver,
+              password,
+              username,
+              relayUrl,
+              platform: Platform.OS,
+            });
           try {
             await registerAccountWithRelay({ relayUrl, bootstrap });
           } catch (cause) {
             // Don't leave a half-enabled account behind if the relay rejects it.
+            // Nothing on disk has moved yet, so this restores the exact prior state.
             await clearLocalAccount({ driver });
             throw new Error(relayErrorMessage(cause, relayUrl), { cause });
           }
-          void scheduler.current?.autoTrigger(); // push this device's data right away
-          return {
-            accountId: account.id,
-            recoveryKey: encodeRecoveryPhrase(recoveryKey),
-          };
+
+          // The irreversible half, in the order that survives a crash at any
+          // point: convert (original kept) → roster → destroy the original.
+          scheduler.current?.stop();
+          await driver.close?.();
+          await convertStoreToEncrypted({
+            fromName: activeStore.path,
+            toName: storePath(accountId),
+            key: dbKey,
+          });
+          await createAccountRoster(sqliteRosterStorage()).add({
+            id: accountId,
+            username,
+            createdAt: new Date().toISOString(),
+          });
+          await destroyPlaintextStore(activeStore.path);
+
+          // The store this bootstrap opened no longer exists; re-run the effect so
+          // every screen ends up on the encrypted one (the same in-place restart
+          // factory reset uses, since mobile has no relaunch primitive).
+          setResetVersion((v) => v + 1);
+          return { accountId, recoveryKey: recoveryPhrase };
         },
         async join({ username, password, relayUrl }) {
           let session: KeySession;

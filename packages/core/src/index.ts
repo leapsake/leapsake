@@ -151,6 +151,7 @@ export type {
 // alone, with no enclave involved.
 export {
   ensureDeviceMasterKey,
+  createLocalAccount,
   enableSync,
   joinAccount,
   recoverAccount,

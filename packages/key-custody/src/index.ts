@@ -28,6 +28,7 @@
  * which a real `HttpSyncTransport` satisfies structurally. So custody never
  * imports `@leapsake/sync`, and the two stay independently testable.
  */
+export { createLocalAccount } from "./create-account.js";
 export {
   KEYSTORE_SECRET_IDS,
   clearLocalAccount,

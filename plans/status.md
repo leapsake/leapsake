@@ -5,16 +5,17 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-27** — **Custody is decided and is the next thing to build: "encryption
-> follows custody."** First launch will mint no keys and leave the store plaintext; creating
-> an account (username + password) is the single act that turns encryption on. A complete,
-> cold-start build plan is below under *What's next* → **Local custody**; the model is
-> [`encryption/model.md`](./encryption/model.md) §7. The encryption docs were **consolidated
-> from six to four** the same day — `custody-sequence.md` folded into `model.md` §7.5 and
-> `local-custody-options.md` retired — so that **one place says how auth and encryption
-> work**. Also: **the UI extraction is finished** — `@leapsake/ui` holds every presentational
-> component the desktop renderer had, and the new `@leapsake/view-models` holds the
-> derivations desktop and mobile each kept a copy of; rationale lives in the two package READMEs.
+> **Updated 2026-07-28** — **"Encryption follows custody" is now the shipped behavior on both
+> clients.** First launch mints **no keys** and leaves the store plaintext; creating an
+> account (username + password) is the single act that turns encryption on, converting the
+> store as it goes. **Slices 1–4 of the custody build are done; slice 5 — the password door on
+> the db-key sidecar — is next**, and is the block below under *What's next* → **Local
+> custody**. The model is [`encryption/model.md`](./encryption/model.md) §7.
+>
+> Also standing: the encryption docs are **consolidated to four** (`custody-sequence.md` folded
+> into `model.md` §7.5, `local-custody-options.md` retired), and **the UI extraction is
+> finished** — `@leapsake/ui` holds every presentational component the desktop renderer had,
+> `@leapsake/view-models` the derivations both clients duplicated; rationale in those READMEs.
 
 ## Where things stand
 
@@ -26,9 +27,11 @@
   done** (24-word phrase recovers both loss events; UI verified on both clients). **Relay
   hardening: H3 done; only non-v0.1-blocking items remain** (see *What's next*). Stages 3–4
   (sharing, SSR web) are post-launch. Design: [`encryption/`](./encryption/).
-  > ⚠️ **The shipped custody behavior is being deliberately changed** — today both clients
-  > mint keys and encrypt at first launch, with no account. That is the *old* model. See
-  > *What's next* → **Local custody**; do not treat the current boot path as the target.
+  > ✅ **Custody was rebuilt 2026-07-27/28 and the boot path *is* the target model now.**
+  > A fresh install is **Open**: no keys anywhere, a plaintext store at `stores/local/`.
+  > Creating an account mints every key and converts the store to `stores/<accountId>/`.
+  > Slices 1–4 of the build order below are done; **slice 5 is next**. Any install predating
+  > this must be recreated (pre-v0.1 latitude) — there is no compatibility path.
 - **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
   and the review surface is **detection-driven rather than permanently advertised** (links and
   banners appear only while pairs are outstanding; a `system` reminder nudges from Home). Only
@@ -80,8 +83,8 @@ the work they imply.
 ### Pre-v0.1 (toward initial launch)
 
 > **Order matters here.** Picking up work cold? Take them in this order:
-> **1.** **Local custody — the block immediately below.** Slices 1–2 are **built**; start at
-> **slice 3**. Blocks `launch.md` Increments 2–4.
+> **1.** **Local custody — the block immediately below.** Slices 1–4 are **built**; start at
+> **slice 5**. Blocks `launch.md` Increments 2–4.
 > **2.** `launch.md` Increment 1's leftovers — trivial, unblocked, permanent-if-wrong (versions,
 > credential gitignores). Can be done in parallel with 1.
 > **3.** The rest of `launch.md` in its own numbered order, once 1 is built.
@@ -90,7 +93,8 @@ the work they imply.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decided 2026-07-26/27. Slices 1–2 built; slice 3 is next.**
+**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/28. Slices 1–4 done; slice 5 is
+next.**
 
 > **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
 > are fine.** There are no real users, so a migration is only worth writing when it is
@@ -121,7 +125,10 @@ hazard** — the Team-ID change on the org move, which would have dropped *every
 recovery-phrase gate, now costs an accountless user nothing and an account holder one
 password entry.
 
-#### What the code does today (all of this is the *old* model)
+#### What changed, and where it lives now
+
+Every row below was the *old* model and is now rebuilt. Kept as a map of the seams a fresh
+reader will meet.
 
 | Where | What it does now | What it must do |
 |---|---|---|
@@ -131,9 +138,18 @@ password entry.
 | ~~`packages/data/src/milestones-repo.ts`~~ | ✅ **done (slice 3)** — `note` is a plain column; no cipher, no codec | — |
 | ~~store path~~ | ✅ **done (slice 2)** — derived by `@leapsake/store-layout`; `stores/<accountId>/…`, or `stores/local/…` when Open | — |
 
-Two things already support the keyless mode, so it is **not** new code:
-`createCore(driver, keySession?)` takes the key session as *optional*, and the milestones
-repo already stores plaintext when no cipher is wired.
+Add to that map: [`@leapsake/store-layout`](../packages/store-layout/README.md) (the roster,
+the per-account paths, and `resolveActiveStore`), `createLocalAccount`
+(`@leapsake/key-custody`), and each client's converter + account-creation flow
+(`apps/desktop/src/main/db/convert-store.ts` + `create-account-flow.ts`;
+`apps/mobile/db/convert-store.ts`, wired inside `core-context.tsx`).
+
+> **`createCore(driver, keySession?)` no longer reads its key session at all.** `milestone.note`
+> was layer 3's only consumer and was retired in slice 3, so **no repo needs a key**. The
+> parameter and the clients' "rebuild the core around the adopted MK on join" plumbing are
+> therefore currently inert. Left in place on purpose — photos (v0.2) are layer 3's real
+> consumer — but if you are touching the join/recover flows, know that the rebuild is a no-op
+> today and could be simplified along with them.
 
 #### Build order — each slice independently shippable
 
@@ -161,13 +177,9 @@ repo already stores plaintext when no cipher is wired.
 > branches now **refuse** a store in the wrong custody state instead of converting it.
 > **An install predating the custody work must be recreated.**
 >
-> ⚠️ **Known gap slices 1–2 open, and slice 4 closes.** `enableSync` on an **Open** store
-> still succeeds: it mints the keys and writes the account rows, but the store stays
-> plaintext and nothing is added to the roster — a half-Protected state §7.2 does not have.
-> It is not reachable from a dev install (those are legacy → Protected) and it is exactly
-> what slice 4's flow replaces, so it was left rather than guarded — guarding it would
-> disable sync testing on fresh profiles for no lasting benefit. **Do not ship without
-> slice 4.**
+> ✅ **The half-Protected gap these slices opened is closed by slice 4** — `enableSync` now
+> converts the store like every other account creation, so there is no longer a path that
+> mints keys and leaves the store plaintext.
 3. ✅ **Remove `milestone.note` as a content-key consumer** — *done 2026-07-28 (migration 27).*
 
 > **Slice 3 is built.** `note` is an ordinary plaintext column: the
@@ -187,18 +199,85 @@ repo already stores plaintext when no cipher is wired.
 > post-key pass: **a dev profile that wrote milestone notes while holding a key loses those
 > notes.** Everything else about the row survives.
 
-4. **⇐ START HERE. The account-creation flow** — username + password → mint keys → convert the store
-   (§8.1) → show the phrase once. One flow, two entry points (the Home invitation and
-   Settings). Much of it exists: `enableSync` already takes `username`/`relayUrl` as
-   optional, `enableSync`/`joinAccount` already *is* sign-up/log-in, and the onboarding-nudge
-   engine already computes the trigger. **The copy must promise *access*, not safety**
-   (§7.2.1) — an account does not protect against a dead SSD.
-   *Acceptance:* plaintext store in, encrypted store out, plaintext original **and** any
-   `.plaintext.bak` gone, phrase shown exactly once.
-5. **The password door on the db-key sidecar** — `seal(db-key, KEK)` beside the recovery one,
-   consumed in the pre-database boot path on both platforms. **This is the most delicate code
-   in the app**; both doors need an end-to-end restore proof plus a negative case
-   (`launch.md` Increment 3).
+4. ✅ **The account-creation flow** — *done 2026-07-28, both clients.*
+
+> **Slice 4 is built.** `createLocalAccount` (`@leapsake/key-custody`) mints every key —
+> including the **db-key**, which nothing minted while Open — and writes the account rows
+> into the still-plaintext store, because the conversion copies whatever it finds. Each
+> client then runs the irreversible half in the one order that survives a crash at any
+> point:
+>
+> **convert (original kept) → roster entry → destroy the original.**
+>
+> Deleting inside the conversion would open the single window where the original is gone
+> and nothing yet points at its replacement. A Protected boot that still finds an Open
+> store sweeps it, closing the remaining gap. Three conversion details are load-bearing and
+> pinned by tests: the cipher pin **before** the ATTACH, carrying `user_version` across
+> (ATTACH does not, and losing it re-runs every migration against live tables), and tables
+> before indexes.
+>
+> **`sync:enable` now runs the same flow**, which closes the half-Protected gap slices 1–2
+> opened: enabling sync *is* creating an account that also binds a relay, so it converts the
+> store too. Relay registration happens **before** the conversion, so a taken username or an
+> unreachable relay rolls back with nothing on disk moved.
+>
+> *Acceptance met:* plaintext store in, encrypted store out, original gone, phrase shown
+> once. (`.plaintext.bak` cannot exist — the code that wrote it went with
+> `migratePlaintextDatabase` — and a test asserts its absence anyway, since §8.1 names it.)
+>
+> **Found on device, worth remembering:** `ATTACH` will not create the
+> `stores/<accountId>/` directory — SQLite never makes directories. Desktop calls
+> `mkdirSync`; mobile has no filesystem dependency, so the converter opens (and closes) the
+> destination by name first, since expo-sqlite *does* create intermediate directories on
+> open. Without it the ATTACH fails with "unable to open database file". This only surfaced
+> because the shipped converter is exercised on-device by the custody self-test — and it
+> was briefly hidden by a `finally` whose cleanup error replaced the real one.
+>
+> ⚠️ **Not verified: the desktop UI itself.** The main-process flow has integration
+> coverage, and the mobile converter is exercised on-device by the custody self-test, but
+> the new Settings section and the reveal → relaunch step were never driven in a running
+> app (screen capture is unavailable in the agent shell, and E2E is still the blocked
+> tier). **Click through account creation once on each client before trusting it.**
+5. **⇐ START HERE. The password door on the db-key sidecar** — `seal(db-key, KEK)` beside the
+   recovery one, consumed in the pre-database boot path on both platforms. **This is the most
+   delicate code in the app**; both doors need an end-to-end restore proof plus a negative
+   case (`launch.md` Increment 3).
+
+> **What slice 5 is for.** A **Protected** store's db-key lives only in the OS keychain, with
+> exactly one way back if that keychain is lost: the 24-word recovery phrase. Slice 4 gave
+> every account holder a password — but that password currently opens nothing at the
+> *pre-database* layer, so a keychain wipe still demands the phrase. Slice 5 adds the second
+> door, which is what makes `launch.md` §2's org-move cost "one password entry" rather than
+> "find the phrase you never saved". §7.5 Phase 0.5 already specifies both sidecars; only the
+> recovery one is built.
+>
+> **The shape, concretely.**
+> - Today: `sealDbKeyForRecovery(dbKey, recoveryKey)` → `<db>.recovery`, opened by
+>   `openDbKeyFromRecovery` (`packages/crypto/src/recovery.ts`; a magic prefix + `wrapKey`).
+>   Add the sibling `seal(db-key, KEK)`, where the KEK is `deriveKeyMaterial(password, salt)`
+>   — the same derivation `enableSync`/`createLocalAccount` already use.
+> - **The salt problem is the crux.** `deriveKeyMaterial` needs the account's `kdfSalt`, which
+>   lives in the `account` table — *inside the database this key is needed to open*. So the
+>   password sidecar must carry its own salt (public by design, `model.md` §7.5), or the boot
+>   path cannot derive anything. Decide this before writing code.
+> - Written at account creation (slice 4's flow, alongside the recovery sidecar) and refreshed
+>   on password change. **Both clients**: desktop `apps/desktop/src/main/db/open.ts` case 3,
+>   mobile the equivalent branch in `core-context.tsx`.
+> - The boot UI already exists for the phrase (`RecoveryGate` on desktop, the parked
+>   `requestRecoveryPhrase` promise on mobile) — this needs the password variant beside it.
+>
+> **Why it is called delicate.** It runs *before* the database opens, so a bug is not a failed
+> query — it is an app that cannot start and data that cannot be reached. The existing
+> recovery door has the shape to copy, including its loop-until-correct prompt.
+>
+> *Acceptance:* on a wiped keychain, an encrypted store reopens from **the password alone**
+> and, separately, from **the phrase alone**; a wrong password and a wrong phrase each fail
+> without consuming or corrupting the sidecars. `apps/desktop/test/open.test.ts` has the
+> per-door pattern to extend.
+>
+> **Related, sequenced right after:** *Restore-from-file-backup — verify + document* in the
+> **Encryption + sync** list below. It is the same two doors exercised on a fresh machine, and
+> it was explicitly waiting on this slice.
 6. **Sign out + Forget account** (§7.3). Sign out closes the store; Forget account removes it
    and its roster entry. On the **last device**, ask the relay whether it keeps a durable copy
    and, absent an answer, word it as "Delete all data on this device" and offer an export
@@ -211,22 +290,24 @@ keychain still holds the db-key. Not a one-way door — it sits on the same pass
 
 #### Before you rely on it
 
-**Verified (2026-07-27, desktop):** the portable plaintext→encrypted conversion in §8.1 —
-attach a keyed file, copy schema and rows via `sqlite_master`, delete the original. Tables,
-rows and indexes survive. Neither platform's *native* shortcut is portable: desktop's engine
-has `PRAGMA rekey` but **no** `sqlcipher_export`; SQLCipher has the reverse. **Pin
-`PRAGMA cipher='sqlcipher'` before the ATTACH** or the new file gets the default cipher and
-fails later with a misleading `file is not a database`.
+**The conversion is built and gated, not merely verified.** Desktop's lives in
+`apps/desktop/src/main/db/convert-store.ts` (8 tests, against the real app schema); mobile's
+in `apps/mobile/db/convert-store.ts`, exercised **on device** by
+`apps/mobile/test/custody-selftest.ts`, which runs beside the driver contract under
+`pnpm test:native` (20 cases total, each positive paired with its negative; confirmed RED by
+sabotage before being trusted GREEN).
 
-**Verified (2026-07-27, iOS simulator):** mobile's expo-sqlite SQLCipher build (a)
-creates and reopens a plaintext database when no key is supplied, and (b) runs that
-attach-and-copy with schema, rows and indexes intact. **Slice 4's mobile half needs no
-different shape, and slice 1's keyless boot is sound.** The proof is now a permanent gate,
-not a one-off: `apps/mobile/test/custody-selftest.ts` runs beside the driver contract under
-`pnpm test:native` (5 cases, each positive paired with its negative; confirmed RED by
-sabotage before being trusted GREEN). One correction to `model.md` §8.1: the
-`PRAGMA cipher='sqlcipher'` pin is a **desktop-only** requirement — a verified no-op on
-mobile, kept only for symmetry.
+What that gate is protecting, in case you change the conversion:
+- Neither engine's *native* shortcut is portable — desktop has `PRAGMA rekey` but **no**
+  `sqlcipher_export`, SQLCipher the reverse — hence the ordinary-SQL ATTACH + copy on both.
+- **Pin `PRAGMA cipher='sqlcipher'` before the ATTACH.** Load-bearing on **desktop only**; a
+  verified no-op on mobile (SQLCipher has one cipher), kept for symmetry. Skip it on desktop
+  and the file gets the default cipher, failing later with a misleading `file is not a
+  database`.
+- **Carry `user_version` across** — ATTACH does not, and losing it re-runs every migration
+  against tables that already exist.
+- **`ATTACH` never creates directories.** Desktop `mkdirSync`s; mobile opens the destination
+  by name first, since expo-sqlite creates intermediate directories on open.
 
 **Blocks:** `launch.md` Increments 2, 3, and therefore 4 (the first closed-test upload puts
 real data in ≥12 testers' hands — do not ship custody churn to them afterwards).
@@ -346,8 +427,21 @@ shapes Increments 4/7 introduce — `*.p12`, `AuthKey_*.p8`, `*.mobileprovision`
   `ELECTRON_RENDERER_URL=http://localhost:5173 "$(node -p 'require("electron")')" apps/desktop --user-data-dir=<fresh-dir>` —
   each distinct `--user-data-dir` is a separate "device".
 - **Mobile dev client:** `pnpm --filter @leapsake/mobile ios` (native SQLCipher build; Expo
-  Go can't host it). `__DEV__` deep links: `leapsake://dev-selftest` (driver contract),
-  `leapsake://dev-clear-dbkey` (simulate keychain loss).
+  Go can't host it). `__DEV__` deep links: `leapsake://dev-selftest` (driver contract +
+  custody suite), `leapsake://dev-clear-dbkey` (simulate keychain loss). Editing a self-test
+  needs a bundle reload, not just the deep link — see
+  [`apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md).
+
+> ⚠️ **Running the desktop dev app flips the native SQLite binary to the Electron ABI.** The
+> failure is delayed and misleading: a bare `require()` still succeeds, but the next `vitest`
+> run dies with dozens of *"Worker exited unexpectedly"* rather than an ABI error. Restore the
+> Node build by extracting the cached prebuild — **not** with `prebuild-install --force`,
+> which can clear the cache before its own download is killed:
+> ```
+> cd node_modules/better-sqlite3-multiple-ciphers
+> tar -xzf ~/.npm/_prebuilds/*better-sqlite3-multiple-ciphers-*-node-v137-darwin-arm64.tar.gz
+> ```
+> Already known for `build` and `check:bundle`; `dev` does it too (confirmed 2026-07-28).
 
 ## Open questions
 

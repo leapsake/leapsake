@@ -60,14 +60,15 @@ export function Settings() {
 
   useEffect(refreshStatus, []);
 
-  // One-time reveal takes over the screen until acknowledged.
+  // One-time reveal takes over the screen until acknowledged. Creating an
+  // account converted the store underneath this process, so "Done" restarts into
+  // the encrypted one rather than returning to a screen backed by a closed handle.
   if (recoveryKey !== null) {
     return (
       <RecoveryKeyReveal
         recoveryKey={recoveryKey}
         onDone={() => {
-          setRecoveryKey(null);
-          refreshStatus();
+          void window.sync.relaunch();
         }}
       />
     );
@@ -91,7 +92,11 @@ export function Settings() {
           onCleared={refreshStatus}
         />
       ) : (
-        <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
+        <>
+          <CreateAccount onCreated={setRecoveryKey} />
+          <hr />
+          <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
+        </>
       )}
 
       <hr />
@@ -344,6 +349,110 @@ function DisconnectAccount({ onCleared }: { onCleared: () => void }) {
       </p>
       {error !== null && <p role="alert">{error}</p>}
     </>
+  );
+}
+
+/**
+ * **Create an account on this device** (`model.md` §7.2.1) — the act that turns
+ * encryption on. Entirely local: no relay, no email, nothing transmitted.
+ *
+ * The copy here is load-bearing, and the design is explicit about it in two ways:
+ *
+ * 1. **Promise access, not safety.** An account protects against *this device
+ *    losing its security settings*; it does nothing about a lost or broken
+ *    device. Borrowing the user's SaaS instincts and then violating them on the
+ *    worst day is the failure mode to avoid, so backups are named here rather
+ *    than implied.
+ * 2. **"Account" is our vocabulary, not the user's.** A username and password
+ *    that never leave the laptop are *accountless* in every sense a user cares
+ *    about. The heading softens the word; the mechanism is unchanged.
+ */
+function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    if (username.trim() === "") {
+      setError("Choose a username.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("The passwords don't match.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { recoveryPhrase } = await window.sync.createAccount({
+        username,
+        password,
+      });
+      onCreated(recoveryPhrase);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Couldn't create the account.",
+      );
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section>
+      <h3>Protect your data</h3>
+      <p>
+        Right now anyone with access to this computer can read your Leapsake
+        data. Setting up a username and password encrypts it on this device.
+      </p>
+      <p>
+        This stays on this computer — there's no email, no server, and nothing
+        is sent anywhere.{" "}
+        <strong>It protects access to your data, not the data itself:</strong>{" "}
+        if this computer is lost or breaks, a password won't bring your data
+        back. Set up sync or keep a backup for that.
+      </p>
+      <form onSubmit={(event) => void onSubmit(event)}>
+        <p>
+          <label>
+            Username{" "}
+            <input
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              autoComplete="username"
+            />
+          </label>
+        </p>
+        <p>
+          <label>
+            Password{" "}
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+        </p>
+        <p>
+          <label>
+            Confirm password{" "}
+            <input
+              type="password"
+              value={confirm}
+              onChange={(event) => setConfirm(event.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+        </p>
+        {error !== null && <p role="alert">{error}</p>}
+        <button type="submit" disabled={busy}>
+          {busy ? "Encrypting your data…" : "Protect my data"}
+        </button>
+      </form>
+    </section>
   );
 }
 

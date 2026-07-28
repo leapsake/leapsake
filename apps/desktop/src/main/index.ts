@@ -1,8 +1,10 @@
 import { join } from "node:path";
 import {
+  OPEN_STORE_SLOT,
   ROSTER_PATH,
   createAccountRoster,
   resolveActiveStore,
+  storePath,
 } from "@leapsake/store-layout";
 import {
   type CoreApi,
@@ -12,7 +14,6 @@ import {
   clearLocalAccount,
   createCore,
   createSyncScheduler,
-  enableSync,
   ensureDeviceMasterKey,
   getAutoSync,
   getSyncStatus,
@@ -63,9 +64,12 @@ import {
   type ArgParser,
   registerCoreHandlers,
 } from "../shared/ipc-bridge.js";
+import { destroyPlaintextStore } from "./db/convert-store.js";
+import { createAccountOnThisDevice } from "./db/create-account-flow.js";
 import { factoryResetFiles } from "./db/factory-reset.js";
 import { openAppDatabase } from "./db/open.js";
 import { jsonFileStorage } from "./db/roster-storage.js";
+import { storeFileState } from "./db/sqlite-header.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
 // The shared SQLite driver, assigned once in whenReady. Module-scoped so the
@@ -342,28 +346,38 @@ function registerSyncIpc(opts: {
           `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
         );
       }
-      const { account, recoveryKey, bootstrap } = await enableSync({
+      // Enabling sync **is** creating an account that also binds a relay, so it
+      // runs the same flow as the local-only path (model.md §7.2.1): the store is
+      // converted to encrypted here too. Before this it created the account and
+      // left the store plaintext — a half-Protected state §7.2 does not have.
+      scheduler?.stop();
+      const { accountId, recoveryPhrase } = await createAccountOnThisDevice({
         keyStore,
         driver,
-        password,
+        roster: createAccountRoster(
+          jsonFileStorage(join(userDataPath, ROSTER_PATH)),
+        ),
+        userDataPath,
         username,
+        password,
         relayUrl,
-        platform: "desktop",
+        // Registering is the second half of enabling; a failure (server down,
+        // username taken) rolls the account back before anything on disk moves.
+        registerWithRelay: async (bootstrap) => {
+          try {
+            await registerAccountWithRelay({ relayUrl, bootstrap });
+          } catch (cause) {
+            throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+          }
+        },
+        closeStore: async () => {
+          await driver.close?.();
+        },
       });
-      // Registering with the relay is the second half of enabling; if it fails
-      // (server down, username taken) roll the local account back so the user
-      // can retry cleanly instead of being stuck half-enabled.
-      try {
-        await registerAccountWithRelay({ relayUrl, bootstrap });
-      } catch (cause) {
-        await clearLocalAccount({ driver });
-        throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-      }
-      void scheduler?.autoTrigger(); // push the first device's data right away
-      return {
-        accountId: account.id,
-        recoveryKey: encodeRecoveryPhrase(recoveryKey),
-      };
+      // The store was converted underneath this process, so the renderer shows
+      // the phrase and then calls `app:relaunch`; the first sync happens on the
+      // next boot rather than against a closed handle.
+      return { accountId, recoveryKey: recoveryPhrase };
     },
   );
 
@@ -522,6 +536,53 @@ function registerSyncIpc(opts: {
   // unchanged, so the core needs no rebuild.
   ipcMain.handle("sync:clear", () => clearLocalAccount({ driver }));
 
+  // **Create an account on this device** (model.md §7.2.1) — the act that turns
+  // encryption on. Fully local: no relay, no email, nothing leaves the machine.
+  // Returns the recovery phrase for its one-time reveal; the renderer relaunches
+  // once the user has acknowledged it.
+  //
+  // The store handle is closed and the file converted underneath us, so this
+  // process cannot keep serving the old driver afterwards — the renderer calls
+  // `app:relaunch` when the reveal is dismissed. Until then every core IPC would
+  // be operating on a closed handle, which is why the reveal is modal.
+  ipcMain.handle(
+    "account:create",
+    async (_event, args: { username?: unknown; password?: unknown }) => {
+      const username = requireText(args?.username, "Username");
+      const password = args?.password;
+      if (
+        typeof password !== "string" ||
+        password.length < MIN_PASSWORD_LENGTH
+      ) {
+        throw new Error(
+          `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        );
+      }
+      scheduler?.stop();
+      const { accountId, recoveryPhrase } = await createAccountOnThisDevice({
+        keyStore,
+        driver,
+        roster: createAccountRoster(
+          jsonFileStorage(join(userDataPath, ROSTER_PATH)),
+        ),
+        userDataPath,
+        username,
+        password,
+        closeStore: async () => {
+          await driver.close?.();
+        },
+      });
+      return { accountId, recoveryPhrase };
+    },
+  );
+
+  // Restart into the newly-encrypted store. Separate from account:create so the
+  // recovery phrase can be shown *before* the process goes away.
+  ipcMain.handle("app:relaunch", () => {
+    app.relaunch();
+    app.exit(0);
+  });
+
   // Factory reset: erase everything and reopen as a first-run install. Unlike
   // sync:clear (which keeps the data and master key), this deletes the encrypted
   // DB, the recovery sidecar, and every keystore secret, then relaunches so the
@@ -620,6 +681,17 @@ void app.whenReady().then(async () => {
     jsonFileStorage(join(userData, ROSTER_PATH)),
   );
   const activeStore = resolveActiveStore({ accounts: await roster.list() });
+
+  // A Protected launch that still finds an Open store crashed part-way through
+  // account creation, after the roster entry but before the original was
+  // destroyed. The leftover is a plaintext copy of exactly the data the user
+  // asked to encrypt, so sweep it (create-account-flow.ts).
+  if (activeStore.custody === "protected") {
+    const strandedOpenStore = join(userData, storePath(OPEN_STORE_SLOT));
+    if (storeFileState(strandedOpenStore) !== "absent") {
+      destroyPlaintextStore(strandedOpenStore);
+    }
+  }
   const dbPath = join(userData, activeStore.path);
 
   // The renderer (and its recovery gate) need a window before the DB is opened,
