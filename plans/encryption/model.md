@@ -597,10 +597,20 @@ and indexes preserved; the output genuinely ciphertext on disk):
 > net for a one-time migration. On the account-creation path it is a plaintext copy of
 > exactly what the user just asked to encrypt, so it is a footgun, not a net.
 
-**Still to verify on device:** that expo-sqlite's SQLCipher build (a) opens/creates a
-plaintext database when no key is supplied, and (b) runs the attach-and-copy above. Both
-are documented SQLCipher behavior; both are load-bearing enough not to take on faith. The
-in-app self-test (`leapsake://dev-selftest`) is the natural place to prove it.
+**Verified on device (2026-07-27, iOS simulator):** expo-sqlite's SQLCipher build (a)
+creates *and reopens across connections* a plaintext database when no key is supplied, and
+(b) runs the attach-and-copy above — schema, rows and indexes all survive, and the output
+refuses a keyless read. Both halves are pinned by the custody suite in
+`apps/mobile/test/custody-selftest.ts`, which runs beside the driver contract under
+`pnpm test:native`, and each positive is paired with the negative that keeps it
+non-vacuous. Confirmed RED by sabotage before being trusted GREEN.
+
+> **One correction to step 2, mobile only:** `PRAGMA cipher='sqlcipher'` is a **no-op on
+> mobile** — SQLCipher has exactly one cipher, and the conversion was verified to pass
+> without it. The pin is a *desktop* requirement, where
+> `better-sqlite3-multiple-ciphers` supports several and silently writes the default one.
+> It stays in both platforms' sequence so the conversion reads identically; just don't go
+> hunting for a mobile bug it isn't causing.
 
 ## 9. Zero-knowledge sync, and safe server-side decryption
 

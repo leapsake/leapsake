@@ -182,10 +182,15 @@ has `PRAGMA rekey` but **no** `sqlcipher_export`; SQLCipher has the reverse. **P
 `PRAGMA cipher='sqlcipher'` before the ATTACH** or the new file gets the default cipher and
 fails later with a misleading `file is not a database`.
 
-**Unverified — check first, on device:** that mobile's expo-sqlite SQLCipher build (a)
-opens/creates a plaintext database when no key is supplied, and (b) runs that attach-and-copy.
-Both are documented SQLCipher behavior; both are load-bearing. Use `leapsake://dev-selftest`.
-If either fails, slice 4's mobile half needs a different shape.
+**Verified (2026-07-27, iOS simulator):** mobile's expo-sqlite SQLCipher build (a)
+creates and reopens a plaintext database when no key is supplied, and (b) runs that
+attach-and-copy with schema, rows and indexes intact. **Slice 4's mobile half needs no
+different shape, and slice 1's keyless boot is sound.** The proof is now a permanent gate,
+not a one-off: `apps/mobile/test/custody-selftest.ts` runs beside the driver contract under
+`pnpm test:native` (5 cases, each positive paired with its negative; confirmed RED by
+sabotage before being trusted GREEN). One correction to `model.md` §8.1: the
+`PRAGMA cipher='sqlcipher'` pin is a **desktop-only** requirement — a verified no-op on
+mobile, kept only for symmetry.
 
 **Blocks:** `launch.md` Increments 2, 3, and therefore 4 (the first closed-test upload puts
 real data in ≥12 testers' hands — do not ship custody churn to them afterwards).

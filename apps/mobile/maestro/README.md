@@ -100,3 +100,33 @@ through the dev-launcher instead. Per-session iOS setup:
 dev-launcher/SpringBoard/dev-menu overlay, and waits for the People tab), runs the
 self-test flow with `maestro --udid <sim>`, and propagates its exit code — the same shape
 as Android.
+
+### When the prepare step can't find the dev server
+
+`ios-prepare.yaml` reconnects through the dev-launcher's *remembered* server. That memory
+is not always there — a simulator that has been shut down, or a dev client that was
+terminated while on the launcher screen, can come back to **"No development servers
+found"**, at which point `pnpm test:native` fails with "the app's home screen never
+appeared" no matter how many times you re-run it. Reconnect explicitly, by URL:
+
+```
+xcrun simctl openurl <udid> "exp+leapsake://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+```
+
+Then run the flow directly (`maestro --udid <udid> test driver-selftest.yaml`) rather than
+through `pnpm test:native`, whose prepare step `launchApp`s cold and can land back on the
+launcher.
+
+### Editing a test? The deep link does not reload the bundle
+
+`leapsake://dev-selftest` re-opens the route against the **already-loaded** bundle, so a
+source edit does not take effect and the screen re-runs the *old* suite — which looks
+exactly like a passing run of the new one. Force a fresh bundle between edits:
+
+```
+xcrun simctl terminate <udid> com.leapsake.app
+xcrun simctl openurl <udid> "exp+leapsake://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+```
+
+This bites hardest when deliberately breaking a case to confirm it goes RED: without the
+reload the sabotage appears to pass, and a genuinely vacuous suite would read as verified.

@@ -2,6 +2,7 @@ import * as SQLite from "expo-sqlite";
 import { generateKey, rawKeyLiteral } from "@leapsake/crypto";
 import { runDriverContract } from "@leapsake/data/testing";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
+import { runCustodySelfTest } from "./custody-selftest";
 import { type CaseResult, createCollectingTestApi } from "./test-api";
 
 /**
@@ -44,10 +45,18 @@ function makeExpoTestDriver() {
   };
 }
 
-/** Register the contract against the real driver and execute it, returning a
- *  pass/fail result per case for the self-test screen to render. */
+/**
+ * Register both native suites against the real engine and execute them, returning a
+ * pass/fail result per case for the self-test screen to render.
+ *
+ * Two suites share one run (and so one PASS/FAIL banner, one `pnpm test:native`
+ * gate): the driver contract, which pins the `SqliteDriver` port, and the custody
+ * suite, which pins the *engine* behaviors the custody work assumes — keyless opens
+ * and the §8.1 conversion. Both are things only a device can answer.
+ */
 export async function runDriverContractSelfTest(): Promise<CaseResult[]> {
   const { api, run } = createCollectingTestApi();
   runDriverContract(api, makeExpoTestDriver);
+  runCustodySelfTest(api);
   return run();
 }
