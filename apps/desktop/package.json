@@ -19,6 +19,7 @@
     "@leapsake/data": "workspace:*",
     "@leapsake/highlight": "workspace:*",
     "@leapsake/schema": "workspace:*",
+    "@leapsake/store-layout": "workspace:*",
     "@leapsake/sync": "workspace:*",
     "@leapsake/ui": "workspace:*",
     "@leapsake/view-models": "workspace:*",

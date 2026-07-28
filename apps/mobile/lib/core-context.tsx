@@ -54,7 +54,12 @@ import {
   rawKeyLiteral,
   sealDbKeyForRecovery,
 } from "@leapsake/crypto";
+import {
+  createAccountRoster,
+  resolveActiveStore,
+} from "@leapsake/store-layout";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
+import { deleteAccountRoster, sqliteRosterStorage } from "../db/roster-storage";
 import {
   deleteRecoverySidecar,
   readRecoverySidecar,
@@ -311,18 +316,41 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // The same keystore instance that backs the enable-sync door below.
       const keyStore = secureStoreKeyStore();
 
-      // At-rest encryption (Stage 2): the whole-DB key is minted once and held
-      // only in the OS enclave; the on-disk file is ciphertext. Resolve it now,
-      // before opening the DB. Three cases (mirrors desktop's open.ts):
+      // Which store, and in which custody state (model.md §7.2/§7.4) — settled
+      // before anything is opened, because it decides whether a key is even
+      // involved. Mirrors desktop's bootstrap; the mobile difference is only how
+      // the facts are gathered, since there is no filesystem to stat.
+      const existingDbKey = await keyStore.getSecret(DATABASE_KEY);
+      const sidecar = await readRecoverySidecar();
+      const activeStore = resolveActiveStore({
+        accounts: await createAccountRoster(sqliteRosterStorage()).list(),
+        // A pre-custody install always encrypted, and every one of its launches
+        // left both of these behind. Either alone is enough: the db-key is the
+        // normal signal, and the sidecar covers the case the db-key's absence
+        // actually means — a wiped keychain over surviving encrypted data, which
+        // must reach the recovery prompt below rather than be read as "no account".
+        legacyStorePresent:
+          existingDbKey !== undefined || sidecar !== undefined,
+      });
+
+      // At-rest encryption (Stage 2), now conditional on custody: a Protected
+      // store's whole-DB key is held only in the OS enclave and the file is
+      // ciphertext. Three cases (mirrors desktop's open.ts):
       //  1. enclave holds it → use it;
       //  2. no key + a recovery sidecar survives → the enclave was wiped: recover
       //     the key from the sidecar via the typed phrase (the only way back);
-      //  3. no key + no sidecar → a fresh install: mint one.
-      let dbKey = await keyStore.getSecret(DATABASE_KEY);
+      //  3. no key + no sidecar → mint one.
+      // An **Open** store skips all of it: no account, so no key exists and none
+      // is made — the OS keychain is never touched.
+      let dbKey =
+        activeStore.custody === "protected" ? existingDbKey : undefined;
       let recoverySecret: Uint8Array | undefined;
-      const sidecar = await readRecoverySidecar();
 
-      if (dbKey === undefined && sidecar !== undefined) {
+      if (
+        activeStore.custody === "protected" &&
+        dbKey === undefined &&
+        sidecar !== undefined
+      ) {
         let attemptError: string | undefined;
         for (;;) {
           const phrase = await requestRecoveryPhrase(attemptError);
@@ -338,26 +366,40 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         await keyStore.setSecret(DATABASE_KEY, dbKey);
         setRecoveryPrompt(null);
       }
-      if (dbKey === undefined) dbKey = await ensureDatabaseKey(keyStore);
+      if (activeStore.custody === "protected" && dbKey === undefined)
+        dbKey = await ensureDatabaseKey(keyStore);
 
-      const db = await SQLite.openDatabaseAsync("leapsake.db");
+      // The path is derived (§7.4), never a fixed `leapsake.db`. expo-sqlite
+      // accepts the nested name and creates the directory — verified on device by
+      // the custody self-test.
+      const db = await SQLite.openDatabaseAsync(activeStore.path);
       const driver = expoSqliteDriver(db);
       // SQLCipher requires `PRAGMA key` to precede all DB access, so supply it as
-      // the very first statement on the fresh connection, before migrations.
-      await driver.exec(`PRAGMA key = "${rawKeyLiteral(dbKey)}"`);
+      // the very first statement on the fresh connection, before migrations. An
+      // Open store supplies none at all and opens as ordinary plaintext SQLite.
+      if (dbKey !== undefined)
+        await driver.exec(`PRAGMA key = "${rawKeyLiteral(dbKey)}"`);
       await runMigrations(driver);
       // The bundled holiday catalog, applied only when this install hasn't seen
       // this bundle yet. Cheap no-op on every launch after the first.
       await seedHolidayCatalog({ driver });
-      keySession.current = await ensureDeviceMasterKey({ keyStore, driver });
+      // Custody Phase 0.5, not Phase 0: the master key is minted by account
+      // creation, so an Open store runs the core with no key session at all.
+      keySession.current =
+        activeStore.custody === "protected"
+          ? await ensureDeviceMasterKey({ keyStore, driver })
+          : null;
 
       // Refresh the recovery sidecar to the *current* enclave recovery key on
       // every launch (not just when missing), so it stays in step if the key was
-      // later adopted — e.g. after recovering an account.
-      if (recoverySecret === undefined)
-        recoverySecret = await ensureRecoveryKey(keyStore);
-      else await keyStore.setSecret(RECOVERY_KEY, recoverySecret);
-      await writeRecoverySidecar(sealDbKeyForRecovery(dbKey, recoverySecret));
+      // later adopted — e.g. after recovering an account. An Open store has no
+      // db-key to seal and so has no sidecar.
+      if (dbKey !== undefined) {
+        if (recoverySecret === undefined)
+          recoverySecret = await ensureRecoveryKey(keyStore);
+        else await keyStore.setSecret(RECOVERY_KEY, recoverySecret);
+        await writeRecoverySidecar(sealDbKeyForRecovery(dbKey, recoverySecret));
+      }
 
       const notifyActivity = (payload: {
         at?: number;
@@ -406,7 +448,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       });
 
       const bootedCore = withSyncKick(
-        createCore(driver, keySession.current),
+        // `null` is this ref's "no session"; `createCore` takes the key session as
+        // optional, which is what lets an Open store run without one at all.
+        createCore(driver, keySession.current ?? undefined),
         () => scheduler.current?.kick(),
       );
       coreRef.current = bootedCore;
@@ -560,16 +604,22 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         async factoryReset() {
           // Show the loading state first so the wiped core is never rendered,
           // then tear everything down: stop background sync, close the DB handle,
-          // delete the encrypted DB + recovery sidecar, and clear every keystore
-          // secret. Bumping resetVersion re-runs the bootstrap effect, which finds
-          // no key + no DB and takes the fresh-install path (mint a key, migrate an
-          // empty DB) — landing on a clean app without a relaunch.
+          // delete the store + recovery sidecar + account roster, and clear every
+          // keystore secret. Bumping resetVersion re-runs the bootstrap effect,
+          // which now finds no roster, no key and no store, and so takes the
+          // *Open* path — a plaintext store and no keys at all (model.md §7.2).
+          //
+          // Clearing the roster is what makes that true. Left behind, it would
+          // send the next boot looking for the store of an account the user had
+          // just erased and mint a fresh key over an empty encrypted database,
+          // landing them back in a Protected state.
           setCore(null);
           setSync(null);
           scheduler.current?.stop();
           await driver.close?.();
-          await SQLite.deleteDatabaseAsync("leapsake.db");
+          await SQLite.deleteDatabaseAsync(activeStore.path);
           await deleteRecoverySidecar();
+          await deleteAccountRoster();
           for (const id of KEYSTORE_SECRET_IDS) {
             await keyStore.deleteSecret(id);
           }

@@ -1,4 +1,11 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
+import {
+  LEGACY_STORE_PATH,
+  ROSTER_PATH,
+  createAccountRoster,
+  resolveActiveStore,
+} from "@leapsake/store-layout";
 import {
   type CoreApi,
   type KeySession,
@@ -60,6 +67,7 @@ import {
 } from "../shared/ipc-bridge.js";
 import { factoryResetFiles } from "./db/factory-reset.js";
 import { openAppDatabase } from "./db/open.js";
+import { jsonFileStorage } from "./db/roster-storage.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
 // The shared SQLite driver, assigned once in whenReady. Module-scoped so the
@@ -293,8 +301,10 @@ function registerSyncIpc(opts: {
   keyStore: KeyStore;
   dbPath: string;
   keystorePath: string;
+  /** `userData` — factory reset clears the roster and `stores/` beneath it. */
+  userDataPath: string;
 }): void {
-  const { keyStore, dbPath, keystorePath } = opts;
+  const { keyStore, dbPath, keystorePath, userDataPath } = opts;
 
   ipcMain.handle("sync:status", () => getSyncStatus({ driver }));
 
@@ -523,7 +533,7 @@ function registerSyncIpc(opts: {
   // handle + key material) down for real.
   ipcMain.handle("app:factoryReset", async () => {
     await driver.close?.();
-    factoryResetFiles({ dbPath, keystorePath });
+    factoryResetFiles({ dbPath, keystorePath, userDataPath });
     app.relaunch();
     app.exit(0);
   });
@@ -603,24 +613,47 @@ function requestRecoveryPhrase({ error }: { error?: string }): Promise<string> {
 
 void app.whenReady().then(async () => {
   const userData = app.getPath("userData");
-  const dbPath = join(userData, "leapsake.db");
+
+  // Which store, and in which custody state (model.md §7.2/§7.4). Both answers
+  // come from the roster + a legacy-store probe, and both must be settled before
+  // anything is opened — the roster is readable precisely because it lives outside
+  // every store. `dbPath` is *derived*, never a fixed `leapsake.db`.
+  const roster = createAccountRoster(
+    jsonFileStorage(join(userData, ROSTER_PATH)),
+  );
+  const activeStore = resolveActiveStore({
+    accounts: await roster.list(),
+    legacyStorePresent: existsSync(join(userData, LEGACY_STORE_PATH)),
+  });
+  const dbPath = join(userData, activeStore.path);
 
   // The renderer (and its recovery gate) need a window before the DB is opened,
   // and the boot IPC must be live before the renderer queries it.
   registerBootIpc();
   mainWindow = createWindow();
 
-  // Open the at-rest DB: enclave key on a normal launch, mint on a fresh/plaintext
-  // launch, or recover from the `.recovery` sidecar via a typed phrase if the
-  // enclave was wiped (open.ts). The prompt is hosted by the renderer's gate.
+  // Open the store in that state: plaintext and keyless when Open; when Protected,
+  // the enclave key on a normal launch, minting on a fresh launch, or recovery from
+  // the `.recovery` sidecar via a typed phrase if the enclave was wiped (open.ts).
+  // The prompt is hosted by the renderer's gate.
   const keystorePath = join(userData, "keystore.json");
   const keyStore = safeStorageKeyStore(keystorePath);
-  driver = await openAppDatabase({ dbPath, keyStore, requestRecoveryPhrase });
+  driver = await openAppDatabase({
+    dbPath,
+    custody: activeStore.custody,
+    keyStore,
+    requestRecoveryPhrase,
+  });
   await runMigrations(driver);
   // The bundled holiday catalog, applied only when this install hasn't seen this
   // bundle yet. Cheap no-op on every launch after the first.
   await seedHolidayCatalog({ driver });
-  keySession = await ensureDeviceMasterKey({ keyStore, driver });
+  // Custody Phase 0.5, not Phase 0: the master key is minted by account creation,
+  // so an Open store has no key session at all and `createCore` runs without one.
+  keySession =
+    activeStore.custody === "protected"
+      ? await ensureDeviceMasterKey({ keyStore, driver })
+      : undefined;
 
   // Seamless background sync: the run thunk is the "is sync even enabled" guard
   // (a quiet no-op until an account is set up and relay-bound), reading the
@@ -661,7 +694,7 @@ void app.whenReady().then(async () => {
     if (activeCore === undefined) throw new Error("Core is not initialized.");
     return activeCore;
   });
-  registerSyncIpc({ keyStore, dbPath, keystorePath });
+  registerSyncIpc({ keyStore, dbPath, keystorePath, userDataPath: userData });
 
   scheduler.start(); // backstop interval
   void regenerateSystemReminders(); // populate today's birthdays atop Home

@@ -56,6 +56,9 @@ importers:
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@leapsake/store-layout':
+        specifier: workspace:*
+        version: link:../../packages/store-layout
       '@leapsake/sync':
         specifier: workspace:*
         version: link:../../packages/sync
@@ -120,6 +123,9 @@ importers:
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@leapsake/store-layout':
+        specifier: workspace:*
+        version: link:../../packages/store-layout
       '@leapsake/view-models':
         specifier: workspace:*
         version: link:../../packages/view-models
@@ -333,6 +339,8 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
+
+  packages/store-layout: {}
 
   packages/sync:
     dependencies:
@@ -6649,9 +6657,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

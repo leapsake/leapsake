@@ -126,6 +126,56 @@ export function runCustodySelfTest(t: TestApi): void {
     });
   });
 
+  describe("custody: per-account store paths (§7.4)", () => {
+    // §7.4 puts each account's store in its own directory (`stores/<id>/`). Desktop
+    // gets that from `mkdir -p`; mobile has no filesystem dependency and passes a
+    // *name* to expo-sqlite, so whether a nested name works at all — and whether
+    // the intermediate directory is created for us — decides the mobile layout.
+    //
+    // Note `deleteDatabaseAsync` removes the file but not the directory, so these
+    // cases leave an empty `stores/<uuid>/` behind in the app sandbox. Harmless
+    // (dev builds only, and the app never enumerates that directory), but it is why
+    // a self-tested simulator accumulates them.
+    it("opens a store under a nested, per-account name", async () => {
+      const account = `acct-${crypto.randomUUID()}`;
+      const name = `stores/${account}/leapsake.db`;
+      const db = await SQLite.openDatabaseAsync(name);
+      try {
+        await db.execAsync("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)");
+        await db.runAsync("INSERT INTO t (id, v) VALUES (1, ?)", "nested");
+        const row = await db.getFirstAsync<{ v: string }>(
+          "SELECT v FROM t WHERE id = 1",
+        );
+        expect(row?.v).toBe("nested");
+      } finally {
+        await db.closeAsync();
+        await SQLite.deleteDatabaseAsync(name);
+      }
+    });
+
+    // Two accounts must be genuinely separate databases, not one shared file.
+    it("keeps two accounts' stores isolated", async () => {
+      const one = `stores/acct-${crypto.randomUUID()}/leapsake.db`;
+      const two = `stores/acct-${crypto.randomUUID()}/leapsake.db`;
+      const dbOne = await SQLite.openDatabaseAsync(one);
+      const dbTwo = await SQLite.openDatabaseAsync(two);
+      try {
+        await dbOne.execAsync("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+        await dbOne.runAsync("INSERT INTO t (id) VALUES (1)");
+        await dbTwo.execAsync("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+        const countTwo = await dbTwo.getFirstAsync<{ n: number }>(
+          "SELECT COUNT(*) AS n FROM t",
+        );
+        expect(countTwo?.n).toBe(0);
+      } finally {
+        await dbOne.closeAsync();
+        await dbTwo.closeAsync();
+        await SQLite.deleteDatabaseAsync(one);
+        await SQLite.deleteDatabaseAsync(two);
+      }
+    });
+  });
+
   describe("custody: the portable plaintext → encrypted conversion (§8.1)", () => {
     it("copies schema, rows and indexes into a keyed database", async () => {
       const sourceName = scratchName("convert-src");

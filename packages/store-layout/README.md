@@ -1,0 +1,62 @@
+# @leapsake/store-layout
+
+**Where this client keeps its stores, and which one to open.** This package owns the
+on-device layout that *"encryption follows custody"* requires
+([`plans/encryption/model.md`](../../plans/encryption/model.md) §7.2, §7.4): the account
+**roster**, the **per-account store paths**, and the pure decision of whether a launch is
+**Open** or **Protected**.
+
+| State         | Account | Keys in the OS keychain | Store on disk        |
+| ------------- | ------- | ----------------------- | -------------------- |
+| **Open**      | none    | **none at all**         | plaintext, queryable |
+| **Protected** | yes     | db-key, master, recovery | encrypted            |
+
+## Why it is its own package
+
+It is read on the **boot path, before anything is opened** — the roster is what tells a
+launch whether to mint keys at all. That forces two properties:
+
+- **No filesystem, no crypto.** Everything is either a pure string derivation or logic
+  over an injected `RosterStorage` port. Desktop backs that port with a JSON file under
+  `userData`; mobile has no general filesystem dependency and backs it with an
+  unencrypted SQLite database (the same shape as its recovery sidecar); tests use memory.
+- **It cannot import `core`.** Core is composed *after* the store is open, so anything on
+  this side of that line has to stand alone.
+
+## Surface
+
+| Export                       | What it answers                                              |
+| ---------------------------- | ------------------------------------------------------------ |
+| `resolveActiveStore`         | Open or Protected, and which store — the whole custody decision |
+| `storePath` / `storeDir`     | where one account's store lives, relative to the app-data root |
+| `createAccountRoster`        | which accounts exist on this device                          |
+| `ROSTER_PATH`                | where the roster itself lives                                 |
+| `LEGACY_STORE_PATH`          | the pre-custody store location, kept openable                 |
+| `OPEN_STORE_SLOT`            | the reserved slot the one plaintext store occupies            |
+
+## The rules worth knowing
+
+**Nothing outside this package should spell out a store path.** The design's load-bearing
+line is *"new work must not assume a single fixed database path"* — cheap to honor now,
+expensive once real users have data. `paths.ts` is the only place the string
+`leapsake.db` appears.
+
+**The roster is unencrypted, and that is not an oversight.** You cannot enumerate accounts
+from inside files you cannot decrypt, so it necessarily leaks the usernames present on the
+device. Accepted and unavoidable: a login picker has to render.
+
+**A corrupt roster degrades to empty rather than throwing.** It is parsed before any UI
+exists to report an error, so a boot crash would be unrecoverable while "no accounts"
+merely opens the Open store. The stores themselves are untouched either way — only the
+*index* of them is lost.
+
+**A pre-custody store keeps opening in place.** Builds before this change encrypted
+unconditionally, so such a file's key is in the OS keychain. `resolveActiveStore` reports
+it as Protected at the legacy path rather than migrating it: moving an encrypted file
+whose only key lives in a keychain is a data-loss risk taken for tidiness.
+
+## What is deliberately *not* here
+
+Minting keys, converting a plaintext store to an encrypted one (§8.1), and the
+account-creation flow. This package decides *which* store and *whether* it is encrypted;
+`@leapsake/key-custody` and the clients' boot paths do the work that follows.

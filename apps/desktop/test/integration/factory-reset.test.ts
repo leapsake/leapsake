@@ -77,6 +77,7 @@ describe("factory reset → fresh install round-trip", () => {
     // First run: mint a key, migrate, and store some data.
     const driver = await openAppDatabase({
       dbPath,
+      custody: "protected",
       keyStore,
       requestRecoveryPhrase,
     });
@@ -97,6 +98,7 @@ describe("factory reset → fresh install round-trip", () => {
     // Next run: no key + no file → fresh install. New key, empty migrated DB.
     const reopened = await openAppDatabase({
       dbPath,
+      custody: "protected",
       keyStore: freshKeyStore,
       requestRecoveryPhrase,
     });

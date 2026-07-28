@@ -9,11 +9,103 @@ import {
 } from "@leapsake/crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openAppDatabase } from "../src/main/db/open.js";
+import { isPlaintextSqlite } from "../src/main/db/plaintext-migration.js";
 
 /** A recovery-phrase prompt that always returns the given phrase. */
 const give = (phrase: string) => () => Promise.resolve(phrase);
 /** A prompt that should never be called (asserts no recovery was needed). */
 const never = () => Promise.reject(new Error("unexpected recovery prompt"));
+
+/**
+ * The Open custody state (`model.md` §7.2): no account, so no keys anywhere and a
+ * plaintext store. These are slice 1's acceptance — "a fresh profile creates zero
+ * keychain entries and a readable plaintext store" — expressed as tests.
+ */
+describe("openAppDatabase — Open (no account)", () => {
+  let dir: string;
+  let dbPath: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "leapsake-open-none-"));
+    // Exercises the per-account layout (§7.4): the directory does not exist yet.
+    dbPath = join(dir, "stores", "local", "leapsake.db");
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("touches the keychain not at all", async () => {
+    const keyStore = createInMemoryKeyStore();
+    const driver = await openAppDatabase({
+      dbPath,
+      custody: "open",
+      keyStore,
+      requestRecoveryPhrase: never,
+    });
+    await driver.exec("CREATE TABLE t(x)");
+
+    // The whole point of the decision: no db-key, no recovery key, no sidecar,
+    // so losing the keychain costs this user nothing.
+    expect(await keyStore.getSecret(DATABASE_KEY)).toBeUndefined();
+    expect(await keyStore.getSecret(RECOVERY_KEY)).toBeUndefined();
+    expect(existsSync(`${dbPath}.recovery`)).toBe(false);
+  });
+
+  it("writes a genuinely plaintext file, readable without any key", async () => {
+    const driver = await openAppDatabase({
+      dbPath,
+      custody: "open",
+      keyStore: createInMemoryKeyStore(),
+      requestRecoveryPhrase: never,
+    });
+    await driver.exec("CREATE TABLE t(x); INSERT INTO t VALUES (7)");
+    await driver.close?.();
+
+    // Not merely "it opened" — the bytes on disk are an unencrypted SQLite file.
+    expect(isPlaintextSqlite(dbPath)).toBe(true);
+
+    const reopened = await openAppDatabase({
+      dbPath,
+      custody: "open",
+      keyStore: createInMemoryKeyStore(),
+      requestRecoveryPhrase: never,
+    });
+    expect((await reopened.get<{ x: number }>("SELECT x FROM t"))?.x).toBe(7);
+  });
+
+  it("creates the per-account store directory on first launch", async () => {
+    await openAppDatabase({
+      dbPath,
+      custody: "open",
+      keyStore: createInMemoryKeyStore(),
+      requestRecoveryPhrase: never,
+    });
+    expect(existsSync(dbPath)).toBe(true);
+  });
+
+  // Refusing beats the two silent alternatives: a keyless open of ciphertext dies
+  // deep in the first query with "file is not a database", and starting a fresh
+  // store beside it would show the user an empty app with their data still there.
+  it("refuses an encrypted file rather than opening or replacing it", async () => {
+    const keyStore = createInMemoryKeyStore();
+    await openAppDatabase({
+      dbPath,
+      custody: "protected",
+      keyStore,
+      requestRecoveryPhrase: never,
+    });
+
+    await expect(
+      openAppDatabase({
+        dbPath,
+        custody: "open",
+        keyStore: createInMemoryKeyStore(),
+        requestRecoveryPhrase: never,
+      }),
+    ).rejects.toThrow(/encrypted, but no account was found/);
+  });
+});
 
 describe("openAppDatabase", () => {
   let dir: string;
@@ -32,6 +124,7 @@ describe("openAppDatabase", () => {
     const keyStore = createInMemoryKeyStore();
     const driver = await openAppDatabase({
       dbPath,
+      custody: "protected",
       keyStore,
       requestRecoveryPhrase: never,
     });
@@ -47,6 +140,7 @@ describe("openAppDatabase", () => {
     const keyStore = createInMemoryKeyStore();
     let driver = await openAppDatabase({
       dbPath,
+      custody: "protected",
       keyStore,
       requestRecoveryPhrase: never,
     });
@@ -58,6 +152,7 @@ describe("openAppDatabase", () => {
     const wiped = createInMemoryKeyStore();
     driver = await openAppDatabase({
       dbPath,
+      custody: "protected",
       keyStore: wiped,
       requestRecoveryPhrase: give(phrase),
     });
@@ -71,7 +166,12 @@ describe("openAppDatabase", () => {
 
   it("re-prompts until a correct phrase is supplied", async () => {
     const keyStore = createInMemoryKeyStore();
-    await openAppDatabase({ dbPath, keyStore, requestRecoveryPhrase: never });
+    await openAppDatabase({
+      dbPath,
+      custody: "protected",
+      keyStore,
+      requestRecoveryPhrase: never,
+    });
     const recoveryKey = (await keyStore.getSecret(RECOVERY_KEY)) as Uint8Array;
     const good = encodeRecoveryPhrase(recoveryKey);
     const wrong = encodeRecoveryPhrase(new Uint8Array(32).fill(9));
@@ -81,6 +181,7 @@ describe("openAppDatabase", () => {
     let attempt = 0;
     await openAppDatabase({
       dbPath,
+      custody: "protected",
       keyStore: wiped,
       requestRecoveryPhrase: ({ error }) => {
         errors.push(error);
@@ -99,6 +200,7 @@ describe("openAppDatabase", () => {
     const seeded = createInMemoryKeyStore();
     await openAppDatabase({
       dbPath,
+      custody: "protected",
       keyStore: seeded,
       requestRecoveryPhrase: never,
     });
@@ -107,6 +209,7 @@ describe("openAppDatabase", () => {
     await expect(
       openAppDatabase({
         dbPath,
+        custody: "protected",
         keyStore: createInMemoryKeyStore(),
         requestRecoveryPhrase: never,
       }),
@@ -115,12 +218,22 @@ describe("openAppDatabase", () => {
 
   it("writes a sidecar for an existing Stage-2 install that lacks one", async () => {
     const keyStore = createInMemoryKeyStore();
-    await openAppDatabase({ dbPath, keyStore, requestRecoveryPhrase: never });
+    await openAppDatabase({
+      dbPath,
+      custody: "protected",
+      keyStore,
+      requestRecoveryPhrase: never,
+    });
     // Drop the sidecar but keep the enclave key (the pre-feature state).
     rmSync(`${dbPath}.recovery`);
     expect(existsSync(`${dbPath}.recovery`)).toBe(false);
 
-    await openAppDatabase({ dbPath, keyStore, requestRecoveryPhrase: never });
+    await openAppDatabase({
+      dbPath,
+      custody: "protected",
+      keyStore,
+      requestRecoveryPhrase: never,
+    });
     expect(existsSync(`${dbPath}.recovery`)).toBe(true);
   });
 });

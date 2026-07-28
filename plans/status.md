@@ -121,11 +121,11 @@ password entry.
 
 | Where | What it does now | What it must do |
 |---|---|---|
-| `apps/desktop/src/main/db/open.ts` | mints a db-key and encrypts unconditionally | mint nothing when there is no account; open the plaintext store |
-| `apps/mobile/lib/core-context.tsx` (~line 300–360) | the same, mirrored | the same |
-| `packages/key-custody/src/session.ts` → `ensureDeviceMasterKey` | called at every boot | called only at account creation |
+| ~~`apps/desktop/src/main/db/open.ts`~~ | ✅ **done (slice 1)** — takes `custody`; Open mints nothing and opens plaintext | — |
+| ~~`apps/mobile/lib/core-context.tsx`~~ | ✅ **done (slice 1)** — the same, mirrored | — |
+| ~~`ensureDeviceMasterKey`~~ | ✅ **done (slice 1)** — called only for a Protected store | — |
 | `packages/data/src/milestones-repo.ts` | seals `note` under a content key | stop — see slice 3 |
-| store path | one fixed `leapsake.db` | `stores/<accountId>/…`, or `stores/local/…` when Open (§7.4) |
+| ~~store path~~ | ✅ **done (slice 2)** — derived by `@leapsake/store-layout`; `stores/<accountId>/…`, or `stores/local/…` when Open | — |
 
 Two things already support the keyless mode, so it is **not** new code:
 `createCore(driver, keySession?)` takes the key session as *optional*, and the milestones
@@ -133,16 +133,29 @@ repo already stores plaintext when no cipher is wired.
 
 #### Build order — each slice independently shippable
 
-1. **Mint no keys at first launch.** Make both boot paths conditional on an account
-   existing; open plaintext when none does. **Leave the existing encrypted-store branches
-   working untouched** — dev installs are already encrypted and must keep opening.
-   *Acceptance:* a fresh profile creates zero keychain entries and a readable plaintext
-   `leapsake.db`; an existing encrypted profile still opens normally.
-2. **Per-account store paths** + the unencrypted roster (§7.4). **Do this in the same pass as
-   1**, while exactly one store exists to move. Cheap now, expensive after users have data.
-   *Acceptance:* the path is derived, never hardcoded; the roster renders without opening any
-   store.
-3. **Remove `milestone.note` as a content-key consumer** (`model.md` §2.1) — drop the
+1. ✅ **Mint no keys at first launch** — *done 2026-07-27, both clients.*
+2. ✅ **Per-account store paths** + the unencrypted roster (§7.4) — *done 2026-07-27, in the
+   same pass as 1, as planned.*
+
+> **Slices 1 + 2 are built.** [`@leapsake/store-layout`](../packages/store-layout/README.md)
+> owns the whole decision: the roster, the per-account paths, and the pure
+> `resolveActiveStore` that answers *Open or Protected* before anything is opened. Both boot
+> paths consume it, `ensureDeviceMasterKey` now runs only for a Protected store, and both
+> factory resets clear the roster (leaving it behind would reboot into an account the user
+> just erased). A **pre-custody store keeps opening in place** rather than being migrated —
+> moving an encrypted file whose only key lives in a keychain is a data-loss risk taken for
+> tidiness. Verified: a fresh profile creates zero keychain entries and a plaintext store on
+> both clients, and mobile's per-account nested paths work on device. Nothing yet *writes* a
+> roster entry — that is slice 4's job — so every fresh install is Open, by design.
+>
+> ⚠️ **Known gap slices 1–2 open, and slice 4 closes.** `enableSync` on an **Open** store
+> still succeeds: it mints the keys and writes the account rows, but the store stays
+> plaintext and nothing is added to the roster — a half-Protected state §7.2 does not have.
+> It is not reachable from a dev install (those are legacy → Protected) and it is exactly
+> what slice 4's flow replaces, so it was left rather than guarded — guarding it would
+> disable sync testing on fresh profiles for no lasting benefit. **Do not ship without
+> slice 4.**
+3. **⇐ START HERE. Remove `milestone.note` as a content-key consumer** (`model.md` §2.1) — drop the
    `(note, note_ciphertext)` split and the decrypt-on-collect / re-seal-on-apply path, migrate
    existing notes back to plaintext. **Keep** `content_key`, `createContentCipher`, and
    `EncryptedRecord.wrappedKey` — photos need them (`files.md`).

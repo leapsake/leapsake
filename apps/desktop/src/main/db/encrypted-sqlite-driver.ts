@@ -59,10 +59,27 @@ export function openEncryptedDatabase(
 }
 
 /**
- * Wrap an opened, keyed {@link EncryptedDatabase} as a {@link SqliteDriver}. The
- * body mirrors `nodeSqliteDriver`: `better-sqlite3` binds the same value shapes
+ * Open `path` **without a key** — the Open custody state (`model.md` §7.2), where
+ * no account exists, so no key exists to open it with and the file is an ordinary
+ * plaintext SQLite database.
+ *
+ * Deliberately not a variant of {@link openEncryptedDatabase}: there is no key to
+ * apply and no wrong-key case to convert into a clear error, and keeping the two
+ * doors separate means the encrypted path cannot silently degrade to this one.
+ */
+export function openPlaintextDatabase(path: string): EncryptedDatabase {
+  return new Database(path);
+}
+
+/**
+ * Wrap an opened {@link EncryptedDatabase} as a {@link SqliteDriver}. The body
+ * mirrors `nodeSqliteDriver`: `better-sqlite3` binds the same value shapes
  * (numbers, strings, `Uint8Array` → BLOB, `null`) and returns BLOBs as `Buffer`
  * (a `Uint8Array` subclass), so the repos above the port are unaffected.
+ *
+ * The name records the backend, not the file: this wraps any handle from this
+ * engine, keyed (Protected) or not (Open). Encryption is applied at *open* time —
+ * by which opener was used — never here.
  */
 export function encryptedSqliteDriver(db: EncryptedDatabase): SqliteDriver {
   return {
