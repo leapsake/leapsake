@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  LEGACY_STORE_PATH,
   type RosterEntry,
   type RosterStorage,
   createAccountRoster,
@@ -88,19 +87,15 @@ describe("account roster", () => {
 });
 
 describe("resolveActiveStore", () => {
-  it("opens plaintext when there is no account and no legacy store", () => {
-    expect(
-      resolveActiveStore({ accounts: [], legacyStorePresent: false }),
-    ).toEqual({ custody: "open", path: storePath("local") });
+  it("opens plaintext when no account exists", () => {
+    expect(resolveActiveStore({ accounts: [] })).toEqual({
+      custody: "open",
+      path: storePath("local"),
+    });
   });
 
   it("is Protected at the account's own path once an account exists", () => {
-    expect(
-      resolveActiveStore({
-        accounts: [entry("acct-1")],
-        legacyStorePresent: false,
-      }),
-    ).toEqual({
+    expect(resolveActiveStore({ accounts: [entry("acct-1")] })).toEqual({
       custody: "protected",
       path: storePath("acct-1"),
       accountId: "acct-1",
@@ -110,7 +105,6 @@ describe("resolveActiveStore", () => {
   it("picks the requested account when the device holds several", () => {
     const resolved = resolveActiveStore({
       accounts: [entry("a1"), entry("a2")],
-      legacyStorePresent: false,
       activeAccountId: "a2",
     });
     expect(resolved.custody).toBe("protected");
@@ -120,27 +114,9 @@ describe("resolveActiveStore", () => {
   it("falls back to the first account when the requested one is gone", () => {
     const resolved = resolveActiveStore({
       accounts: [entry("a1"), entry("a2")],
-      legacyStorePresent: false,
       activeAccountId: "vanished",
     });
     expect(resolved.path).toBe(storePath("a1"));
-  });
-
-  // A pre-custody install encrypted unconditionally, so its store's key is in the
-  // OS keychain: it must keep opening as Protected, in place, or the user's data
-  // silently disappears behind a new empty Open store.
-  it("keeps a pre-custody store opening as Protected, in place", () => {
-    expect(
-      resolveActiveStore({ accounts: [], legacyStorePresent: true }),
-    ).toEqual({ custody: "protected", path: LEGACY_STORE_PATH });
-  });
-
-  it("prefers a rostered account over a leftover legacy store", () => {
-    const resolved = resolveActiveStore({
-      accounts: [entry("acct-1")],
-      legacyStorePresent: true,
-    });
-    expect(resolved.path).toBe(storePath("acct-1"));
   });
 
   // The Open slot is a reserved name, not an account id; ids are UUIDs, so the

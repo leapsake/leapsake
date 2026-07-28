@@ -5,14 +5,13 @@ import { DATABASE_KEY, createInMemoryKeyStore } from "@leapsake/crypto";
 import { runMigrations } from "@leapsake/core";
 import { createPeopleRepo } from "@leapsake/data";
 import {
-  LEGACY_STORE_PATH,
   ROSTER_PATH,
   createAccountRoster,
   resolveActiveStore,
 } from "@leapsake/store-layout";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openAppDatabase } from "../../src/main/db/open.js";
-import { isPlaintextSqlite } from "../../src/main/db/plaintext-migration.js";
+import { storeFileState } from "../../src/main/db/sqlite-header.js";
 import { jsonFileStorage } from "../../src/main/db/roster-storage.js";
 
 /**
@@ -32,10 +31,7 @@ async function resolveBoot(userData: string) {
   const roster = createAccountRoster(
     jsonFileStorage(join(userData, ROSTER_PATH)),
   );
-  const activeStore = resolveActiveStore({
-    accounts: await roster.list(),
-    legacyStorePresent: existsSync(join(userData, LEGACY_STORE_PATH)),
-  });
+  const activeStore = resolveActiveStore({ accounts: await roster.list() });
   return { roster, activeStore, dbPath: join(userData, activeStore.path) };
 }
 
@@ -77,7 +73,7 @@ describe("custody boot decision", () => {
     // Zero keychain entries, and the file is plaintext on disk.
     expect(await keyStore.getSecret(DATABASE_KEY)).toBeUndefined();
     expect(existsSync(`${dbPath}.recovery`)).toBe(false);
-    expect(isPlaintextSqlite(dbPath)).toBe(true);
+    expect(storeFileState(dbPath)).toBe("plaintext");
   });
 
   it("keeps the Open store across launches without ever minting a key", async () => {
@@ -111,42 +107,67 @@ describe("custody boot decision", () => {
     expect(await keyStore.getSecret(DATABASE_KEY)).toBeUndefined();
   });
 
-  // The constraint the build order calls out explicitly: dev installs are already
-  // encrypted at the old path and must keep opening. Getting this wrong doesn't
-  // error — it silently shows the user an empty app beside their real data.
-  it("a pre-custody encrypted profile still opens, in place", async () => {
+  // The pre-custody legacy branch was removed once dev installs became
+  // recreatable (owner, 2026-07-27). What replaced it is a *refusal*: a store in
+  // the wrong custody state is reported, never silently converted or shadowed by
+  // a fresh empty one.
+  it("refuses an encrypted store when no account claims it", async () => {
     const keyStore = createInMemoryKeyStore();
-    const legacyPath = join(userData, LEGACY_STORE_PATH);
+    const openPath = join(userData, "stores", "local", "leapsake.db");
 
-    // Seed a pre-custody install: encrypted, at the bare `leapsake.db` path.
+    // Seed an encrypted store where the Open store would live.
     const seeded = await openAppDatabase({
-      dbPath: legacyPath,
+      dbPath: openPath,
       custody: "protected",
       keyStore,
       requestRecoveryPhrase: never,
     });
-    await runMigrations(seeded);
-    await createPeopleRepo(seeded).create({
-      firstName: "Ada",
-      lastName: "Lovelace",
-    });
+    // Write, so the file is a real encrypted database rather than the 0-byte
+    // placeholder SQLite leaves before the first write.
+    await seeded.exec("CREATE TABLE t(x)");
     await seeded.close?.();
-    expect(isPlaintextSqlite(legacyPath)).toBe(false);
 
-    // Boot under the new layout: it must find that store, not start a new one.
     const { activeStore, dbPath } = await resolveBoot(userData);
-    expect(activeStore.custody).toBe("protected");
-    expect(dbPath).toBe(legacyPath);
+    expect(activeStore.custody).toBe("open");
+    await expect(
+      openAppDatabase({
+        dbPath,
+        custody: activeStore.custody,
+        keyStore,
+        requestRecoveryPhrase: never,
+      }),
+    ).rejects.toThrow(/encrypted, but no account was found/);
+  });
 
-    const driver = await openAppDatabase({
+  // The mirror case: an account exists, but its store was never converted.
+  it("refuses a plaintext store that an account claims", async () => {
+    const { roster } = await resolveBoot(userData);
+    await roster.add({
+      id: "acct-1",
+      username: "ada",
+      createdAt: "2026-07-27T00:00:00.000Z",
+    });
+    const { activeStore, dbPath } = await resolveBoot(userData);
+
+    // Write a plaintext store at the account's path — the state a half-finished
+    // account creation would leave behind.
+    const plaintext = await openAppDatabase({
       dbPath,
-      custody: activeStore.custody,
-      keyStore,
+      custody: "open",
+      keyStore: createInMemoryKeyStore(),
       requestRecoveryPhrase: never,
     });
-    const people = await createPeopleRepo(driver).list();
-    expect(people.length).toBe(1);
-    expect(people[0].firstName).toBe("Ada");
+    await plaintext.exec("CREATE TABLE t(x)");
+    await plaintext.close?.();
+
+    await expect(
+      openAppDatabase({
+        dbPath,
+        custody: activeStore.custody,
+        keyStore: createInMemoryKeyStore(),
+        requestRecoveryPhrase: never,
+      }),
+    ).rejects.toThrow(/unencrypted/);
   });
 
   it("opens a rostered account's own store, not the Open one", async () => {

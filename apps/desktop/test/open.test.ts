@@ -9,7 +9,7 @@ import {
 } from "@leapsake/crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openAppDatabase } from "../src/main/db/open.js";
-import { isPlaintextSqlite } from "../src/main/db/plaintext-migration.js";
+import { storeFileState } from "../src/main/db/sqlite-header.js";
 
 /** A recovery-phrase prompt that always returns the given phrase. */
 const give = (phrase: string) => () => Promise.resolve(phrase);
@@ -63,7 +63,7 @@ describe("openAppDatabase — Open (no account)", () => {
     await driver.close?.();
 
     // Not merely "it opened" — the bytes on disk are an unencrypted SQLite file.
-    expect(isPlaintextSqlite(dbPath)).toBe(true);
+    expect(storeFileState(dbPath)).toBe("plaintext");
 
     const reopened = await openAppDatabase({
       dbPath,
@@ -89,12 +89,16 @@ describe("openAppDatabase — Open (no account)", () => {
   // store beside it would show the user an empty app with their data still there.
   it("refuses an encrypted file rather than opening or replacing it", async () => {
     const keyStore = createInMemoryKeyStore();
-    await openAppDatabase({
+    const seeded = await openAppDatabase({
       dbPath,
       custody: "protected",
       keyStore,
       requestRecoveryPhrase: never,
     });
+    // Write, so the file is a real encrypted database rather than the 0-byte
+    // placeholder SQLite leaves before the first write.
+    await seeded.exec("CREATE TABLE t(x)");
+    await seeded.close?.();
 
     await expect(
       openAppDatabase({
@@ -166,12 +170,14 @@ describe("openAppDatabase", () => {
 
   it("re-prompts until a correct phrase is supplied", async () => {
     const keyStore = createInMemoryKeyStore();
-    await openAppDatabase({
+    const seeded = await openAppDatabase({
       dbPath,
       custody: "protected",
       keyStore,
       requestRecoveryPhrase: never,
     });
+    await seeded.exec("CREATE TABLE t(x)");
+    await seeded.close?.();
     const recoveryKey = (await keyStore.getSecret(RECOVERY_KEY)) as Uint8Array;
     const good = encodeRecoveryPhrase(recoveryKey);
     const wrong = encodeRecoveryPhrase(new Uint8Array(32).fill(9));
@@ -197,13 +203,15 @@ describe("openAppDatabase", () => {
 
   it("fails clearly when the enclave is wiped and no sidecar exists", async () => {
     // An encrypted DB with no sidecar (a pre-feature Stage-2 file) + no enclave.
-    const seeded = createInMemoryKeyStore();
-    await openAppDatabase({
+    const seededStore = createInMemoryKeyStore();
+    const seeded = await openAppDatabase({
       dbPath,
       custody: "protected",
-      keyStore: seeded,
+      keyStore: seededStore,
       requestRecoveryPhrase: never,
     });
+    await seeded.exec("CREATE TABLE t(x)");
+    await seeded.close?.();
     rmSync(`${dbPath}.recovery`);
 
     await expect(

@@ -318,20 +318,12 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
       // Which store, and in which custody state (model.md §7.2/§7.4) — settled
       // before anything is opened, because it decides whether a key is even
-      // involved. Mirrors desktop's bootstrap; the mobile difference is only how
-      // the facts are gathered, since there is no filesystem to stat.
-      const existingDbKey = await keyStore.getSecret(DATABASE_KEY);
-      const sidecar = await readRecoverySidecar();
+      // involved. The roster is the whole answer, exactly as on desktop.
       const activeStore = resolveActiveStore({
         accounts: await createAccountRoster(sqliteRosterStorage()).list(),
-        // A pre-custody install always encrypted, and every one of its launches
-        // left both of these behind. Either alone is enough: the db-key is the
-        // normal signal, and the sidecar covers the case the db-key's absence
-        // actually means — a wiped keychain over surviving encrypted data, which
-        // must reach the recovery prompt below rather than be read as "no account".
-        legacyStorePresent:
-          existingDbKey !== undefined || sidecar !== undefined,
       });
+      const existingDbKey = await keyStore.getSecret(DATABASE_KEY);
+      const sidecar = await readRecoverySidecar();
 
       // At-rest encryption (Stage 2), now conditional on custody: a Protected
       // store's whole-DB key is held only in the OS enclave and the file is

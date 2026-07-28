@@ -1,4 +1,4 @@
-import { LEGACY_STORE_PATH, OPEN_STORE_SLOT, storePath } from "./paths.js";
+import { OPEN_STORE_SLOT, storePath } from "./paths.js";
 import type { RosterEntry } from "./roster.js";
 
 /**
@@ -27,48 +27,39 @@ export type ActiveStore =
     };
 
 /**
- * Resolve the store to open.
+ * Resolve the store to open. **The roster is the whole answer**: an account
+ * exists, or it does not.
  *
- * The three cases, in priority order:
+ * - **An account is in the roster** → Protected, at that account's own path.
+ *   `activeAccountId` picks among several (the login picker's job); with none
+ *   given the first account wins, which is the whole story while a client holds
+ *   exactly one.
+ * - **No account** → Open: no keys, a plaintext store.
  *
- * 1. **An account is in the roster** → Protected, at that account's own path.
- *    `activeAccountId` picks among several (the login picker's job); with none
- *    given the first account wins, which is the whole story while a client holds
- *    exactly one.
- * 2. **No account, but a pre-custody store exists** → Protected, at the legacy
- *    path. Builds before this change encrypted unconditionally, so that file's
- *    key is in the OS keychain and it must keep opening exactly as it did. It is
- *    deliberately *not* migrated into `stores/`: moving an encrypted file whose
- *    only key lives in a keychain is a data-loss risk taken for tidiness, and the
- *    path is derived here rather than hardcoded at the call site either way.
- * 3. **Neither** → Open. A genuinely fresh install: no keys, plaintext store.
- *
- * Note the roster wins over a legacy store. Once an account exists, the legacy
- * file is either already converted or is a leftover, and in both cases the
- * account's own store is the live one.
+ * There is deliberately **no third case for a pre-custody store.** Builds before
+ * the custody work encrypted unconditionally at a bare `leapsake.db`, and this
+ * function briefly detected that file and kept opening it in place. That branch
+ * was removed once it was settled that pre-v0.1 breaking changes are acceptable
+ * (owner, 2026-07-27): it existed only to spare dev profiles a recreate, and it
+ * cost a compatibility path in the most delicate code in the app — including a
+ * mobile heuristic that had to infer "a store is encrypted" from the presence of
+ * a key or a sidecar. **An install predating the custody work must be recreated.**
  */
 export function resolveActiveStore(opts: {
   accounts: readonly RosterEntry[];
-  /** Whether a pre-custody `leapsake.db` sits at the app-data root. */
-  legacyStorePresent: boolean;
   /** Which account to open when the device holds more than one. */
   activeAccountId?: string;
 }): ActiveStore {
-  const { accounts, legacyStorePresent, activeAccountId } = opts;
+  const { accounts, activeAccountId } = opts;
 
-  if (accounts.length > 0) {
-    const account =
-      accounts.find((a) => a.id === activeAccountId) ?? accounts[0];
-    return {
-      custody: "protected",
-      path: storePath(account.id),
-      accountId: account.id,
-    };
+  if (accounts.length === 0) {
+    return { custody: "open", path: storePath(OPEN_STORE_SLOT) };
   }
 
-  if (legacyStorePresent) {
-    return { custody: "protected", path: LEGACY_STORE_PATH };
-  }
-
-  return { custody: "open", path: storePath(OPEN_STORE_SLOT) };
+  const account = accounts.find((a) => a.id === activeAccountId) ?? accounts[0];
+  return {
+    custody: "protected",
+    path: storePath(account.id),
+    accountId: account.id,
+  };
 }

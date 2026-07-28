@@ -23,14 +23,6 @@ const STORES_DIR = "stores";
  */
 export const OPEN_STORE_SLOT = "local";
 
-/**
- * The pre-custody store location: a bare `leapsake.db` beside the keystore, which
- * is where every build before the custody work put its (always-encrypted) store.
- * Installs predating that change keep opening from here — see
- * {@link resolveActiveStore}. Nothing new is ever written to this path.
- */
-export const LEGACY_STORE_PATH = STORE_FILE;
-
 /** The directory for one account's store, relative to the app-data root. */
 export function storeDir(slot: string): string {
   return `${STORES_DIR}/${slot}`;

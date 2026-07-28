@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import Database from "better-sqlite3-multiple-ciphers";
 import {
   DATABASE_KEY,
   type KeyStore,
@@ -14,12 +15,8 @@ import type { SqliteDriver } from "@leapsake/data";
 import {
   encryptedSqliteDriver,
   openEncryptedDatabase,
-  openPlaintextDatabase,
 } from "./encrypted-sqlite-driver.js";
-import {
-  isPlaintextSqlite,
-  migratePlaintextDatabase,
-} from "./plaintext-migration.js";
+import { storeFileState } from "./sqlite-header.js";
 
 /**
  * Open the app's at-rest database in the custody state this launch is actually in
@@ -32,12 +29,12 @@ import {
  * while creating a real data-loss path, so we no longer create one.
  *
  * **Protected** (`custody: "protected"`) — an account exists, so every key exists
- * and the file is ciphertext. Unchanged from the pre-custody behavior, with the
- * recovery escape hatch (§6) intact, and resolving three cases:
+ * and the file is ciphertext, with the recovery escape hatch (§6) intact. Three
+ * cases:
  *
  * 1. **Enclave holds the key** (every normal launch) — read it and open.
- * 2. **No enclave key, no/plaintext file** — mint the key and open (re-keying a
- *    plaintext file in place first).
+ * 2. **No enclave key and no file** — mint the key and create the store encrypted
+ *    (a device joining an existing account, §7.1: encrypted from byte one).
  * 3. **No enclave key, but an encrypted file *and* its recovery sidecar exist**
  *    (the OS keychain was wiped while the data survived) — prompt for the recovery
  *    phrase, unwrap the db-key from the sidecar, restore it (and the recovery key)
@@ -70,7 +67,7 @@ export async function openAppDatabase(opts: {
   let dbKey = await keyStore.getSecret(DATABASE_KEY);
   let recoveryKey: Uint8Array | undefined;
 
-  if (dbKey === undefined && isEncryptedDatabase(dbPath)) {
+  if (dbKey === undefined && storeFileState(dbPath) === "encrypted") {
     // Case 3: the enclave is gone but the encrypted file survives. We can only
     // reopen it via the recovery sidecar — without one there is no way in.
     if (!existsSync(sidecarPath)) {
@@ -95,10 +92,21 @@ export async function openAppDatabase(opts: {
     await keyStore.setSecret(DATABASE_KEY, dbKey);
   }
 
-  // Cases 1 & 2: read the enclave key, minting one on a fresh/plaintext launch.
+  // Cases 1 & 2: read the enclave key, minting one for a store that does not
+  // exist yet.
   if (dbKey === undefined) dbKey = await ensureDatabaseKey(keyStore);
 
-  migratePlaintextDatabase(dbPath, dbKey);
+  // A *plaintext* file here is not something to silently fix. Until this change,
+  // the boot path re-keyed it in place (the pre-Stage-2 upgrade, which also left a
+  // `.plaintext.bak` §8.1 explicitly forbids). Under *encryption follows custody*
+  // the only legitimate plaintext→encrypted conversion is the deliberate one at
+  // account creation (§8.1), so anything else is a mismatch worth reporting.
+  if (storeFileState(dbPath) === "plaintext") {
+    throw new Error(
+      "The store for this account is unencrypted. It was not converted when the " +
+        "account was created, so it cannot be opened as an encrypted store.",
+    );
+  }
   const db = openEncryptedDatabase(dbPath, dbKey);
 
   // Refresh the recovery sidecar to the *current* enclave recovery key on every
@@ -125,16 +133,13 @@ export async function openAppDatabase(opts: {
  * present the user with an empty app and no hint their data still exists.
  */
 function openPlaintextStore(dbPath: string): SqliteDriver {
-  if (existsSync(dbPath) && !isPlaintextSqlite(dbPath)) {
+  if (storeFileState(dbPath) === "encrypted") {
     throw new Error(
       "The store at this location is encrypted, but no account was found for " +
         "it. Its account may be missing from this device's roster.",
     );
   }
-  return encryptedSqliteDriver(openPlaintextDatabase(dbPath));
-}
-
-/** Whether `path` is an existing, already-encrypted database (not plaintext). */
-function isEncryptedDatabase(path: string): boolean {
-  return existsSync(path) && !isPlaintextSqlite(path);
+  // No key applied — an ordinary SQLite file. The driver wrapper is shared with
+  // the encrypted path; encryption is decided at open time, never in the wrapper.
+  return encryptedSqliteDriver(new Database(dbPath));
 }

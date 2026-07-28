@@ -59,19 +59,6 @@ export function openEncryptedDatabase(
 }
 
 /**
- * Open `path` **without a key** — the Open custody state (`model.md` §7.2), where
- * no account exists, so no key exists to open it with and the file is an ordinary
- * plaintext SQLite database.
- *
- * Deliberately not a variant of {@link openEncryptedDatabase}: there is no key to
- * apply and no wrong-key case to convert into a clear error, and keeping the two
- * doors separate means the encrypted path cannot silently degrade to this one.
- */
-export function openPlaintextDatabase(path: string): EncryptedDatabase {
-  return new Database(path);
-}
-
-/**
  * Wrap an opened {@link EncryptedDatabase} as a {@link SqliteDriver}. The body
  * mirrors `nodeSqliteDriver`: `better-sqlite3` binds the same value shapes
  * (numbers, strings, `Uint8Array` → BLOB, `null`) and returns BLOBs as `Buffer`

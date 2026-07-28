@@ -152,6 +152,15 @@ repo already stores plaintext when no cipher is wired.
 > both clients, and mobile's per-account nested paths work on device. Nothing yet *writes* a
 > roster entry — that is slice 4's job — so every fresh install is Open, by design.
 >
+> **Simplified 2026-07-28, ahead of slice 4** (owner: pre-v0.1 breaking changes are fine):
+> the **pre-custody compatibility branch is gone**. `resolveActiveStore` is now purely
+> *"does the roster hold an account?"* — no legacy path, and, on mobile, no heuristic
+> inferring "encrypted" from a stray key or sidecar. Desktop's `migratePlaintextDatabase`
+> (the pre-Stage-2 in-place re-key, which also wrote the `.plaintext.bak` §8.1 forbids) went
+> with it: the only legitimate plaintext→encrypted conversion is slice 4's. Both boot
+> branches now **refuse** a store in the wrong custody state instead of converting it.
+> **An install predating the custody work must be recreated.**
+>
 > ⚠️ **Known gap slices 1–2 open, and slice 4 closes.** `enableSync` on an **Open** store
 > still succeeds: it mints the keys and writes the account rows, but the store stays
 > plaintext and nothing is added to the roster — a half-Protected state §7.2 does not have.

@@ -12,13 +12,7 @@
  * on desktop (a JSON file under `userData`), on mobile (no general filesystem
  * dependency), and in tests (a temp dir or an in-memory port).
  */
-export {
-  LEGACY_STORE_PATH,
-  OPEN_STORE_SLOT,
-  ROSTER_PATH,
-  storeDir,
-  storePath,
-} from "./paths.js";
+export { OPEN_STORE_SLOT, ROSTER_PATH, storeDir, storePath } from "./paths.js";
 export {
   type AccountRoster,
   type RosterEntry,

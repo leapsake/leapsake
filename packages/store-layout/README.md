@@ -31,7 +31,6 @@ launch whether to mint keys at all. That forces two properties:
 | `storePath` / `storeDir`     | where one account's store lives, relative to the app-data root |
 | `createAccountRoster`        | which accounts exist on this device                          |
 | `ROSTER_PATH`                | where the roster itself lives                                 |
-| `LEGACY_STORE_PATH`          | the pre-custody store location, kept openable                 |
 | `OPEN_STORE_SLOT`            | the reserved slot the one plaintext store occupies            |
 
 ## The rules worth knowing
@@ -50,10 +49,18 @@ exists to report an error, so a boot crash would be unrecoverable while "no acco
 merely opens the Open store. The stores themselves are untouched either way — only the
 *index* of them is lost.
 
-**A pre-custody store keeps opening in place.** Builds before this change encrypted
-unconditionally, so such a file's key is in the OS keychain. `resolveActiveStore` reports
-it as Protected at the legacy path rather than migrating it: moving an encrypted file
-whose only key lives in a keychain is a data-loss risk taken for tidiness.
+**There is no pre-custody compatibility path, deliberately.** Builds before the custody
+work encrypted unconditionally at a bare `leapsake.db`. `resolveActiveStore` briefly
+detected and kept opening that file; the branch was removed once it was settled that
+pre-v0.1 breaking changes are acceptable (owner, 2026-07-27). It bought only "a dev profile
+need not be recreated" and cost a compatibility path through the most delicate code in the
+app — including a mobile heuristic that inferred *"a store is encrypted"* from the presence
+of a key or a sidecar. **An install predating the custody work must be recreated.**
+
+**A store in the wrong custody state is refused, never silently fixed.** Encrypted where an
+Open store belongs, or plaintext where an account's store belongs, both raise. The
+alternative — converting on the fly — is what the old boot path did, and it is precisely
+what §8.1 reserves for the deliberate conversion at account creation.
 
 ## What is deliberately *not* here
 

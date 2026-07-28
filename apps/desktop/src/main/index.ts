@@ -1,7 +1,5 @@
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
-  LEGACY_STORE_PATH,
   ROSTER_PATH,
   createAccountRoster,
   resolveActiveStore,
@@ -615,16 +613,13 @@ void app.whenReady().then(async () => {
   const userData = app.getPath("userData");
 
   // Which store, and in which custody state (model.md §7.2/§7.4). Both answers
-  // come from the roster + a legacy-store probe, and both must be settled before
-  // anything is opened — the roster is readable precisely because it lives outside
-  // every store. `dbPath` is *derived*, never a fixed `leapsake.db`.
+  // come from the roster, which must be read before anything is opened — it is
+  // readable precisely because it lives outside every store. `dbPath` is
+  // *derived*, never a fixed `leapsake.db`.
   const roster = createAccountRoster(
     jsonFileStorage(join(userData, ROSTER_PATH)),
   );
-  const activeStore = resolveActiveStore({
-    accounts: await roster.list(),
-    legacyStorePresent: existsSync(join(userData, LEGACY_STORE_PATH)),
-  });
+  const activeStore = resolveActiveStore({ accounts: await roster.list() });
   const dbPath = join(userData, activeStore.path);
 
   // The renderer (and its recovery gate) need a window before the DB is opened,
