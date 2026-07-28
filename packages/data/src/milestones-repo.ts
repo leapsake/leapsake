@@ -9,72 +9,12 @@ import {
   milestoneSchema,
   updateMilestoneInputSchema,
 } from "@leapsake/schema";
-import type { ContentCipher } from "./content-cipher.js";
 import type { SqliteDriver } from "./driver.js";
 import {
   type EntityRepo,
   createEntityRepo,
   softDeleteWhere,
 } from "./entity-repo.js";
-
-/** The entity type under which a milestone's content key is registered. */
-const MILESTONE_ENTITY = "milestone";
-
-/** The `milestones` table row, exactly as stored (snake_case columns). */
-interface MilestoneRow {
-  id: string;
-  kind: string;
-  bearer_type: string;
-  bearer_id: string;
-  year: number | null;
-  month: number | null;
-  day: number | null;
-  note: string | null;
-  note_ciphertext: Uint8Array | null;
-  created_at: number;
-  updated_at: number;
-  deleted_at: number | null;
-}
-
-/**
- * Map a raw DB row to a validated `Milestone`, decrypting `note` when it is
- * stored as ciphertext. A row written by a key-bearing client carries
- * `note_ciphertext` and a null plaintext `note`; a legacy (pre-encryption) row
- * carries the reverse, so we fall back to the plaintext column unchanged.
- */
-async function toMilestone(
-  row: MilestoneRow,
-  cipher: ContentCipher | undefined,
-): Promise<Milestone> {
-  let note = row.note;
-  if (row.note_ciphertext !== null) {
-    if (cipher === undefined) {
-      throw new Error(
-        `milestone ${row.id} has an encrypted note but no key is wired`,
-      );
-    }
-    // node:sqlite hands BLOBs back as a Buffer; normalize to a plain Uint8Array
-    // for the crypto primitives (mirrors key-wrap-repo).
-    note = await cipher.openField(
-      MILESTONE_ENTITY,
-      row.id,
-      Uint8Array.from(row.note_ciphertext),
-    );
-  }
-  return milestoneSchema.parse({
-    id: row.id,
-    kind: row.kind,
-    bearerType: row.bearer_type,
-    bearerId: row.bearer_id,
-    year: row.year,
-    month: row.month,
-    day: row.day,
-    note,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    deletedAt: row.deleted_at,
-  });
-}
 
 export interface MilestonesRepo extends EntityRepo<Milestone> {
   create(input: CreateMilestoneInput): Promise<Milestone>;
@@ -131,70 +71,26 @@ export interface MilestonesRepo extends EntityRepo<Milestone> {
  * so it runs unchanged on desktop and mobile. Reads exclude soft-deleted rows
  * and writes never hard-delete.
  *
- * When a {@link ContentCipher} is supplied (a client with an unlocked key), the
- * free-text `note` is encrypted at rest under the milestone's per-item content
- * key: writes store the sealed bytes in `note_ciphertext` and null the plaintext
- * `note` column; reads decrypt transparently, so the `Milestone` shape callers
- * see is unchanged. Without a cipher the repo stores and returns plaintext, as
- * before — keeping every existing (keyless) caller working.
+ * **`note` is plaintext inside the store** *(2026-07-27)*. It was briefly the one
+ * domain field sealed under a per-item content key (encryption `model.md` §2.1),
+ * which is why this repo used to carry a `(note, note_ciphertext)` split and a
+ * custom codec. Under *encryption follows custody* (§7.2) that layer bought
+ * nothing a domain field wants: an **Open** store has no key to seal with, and a
+ * **Protected** store is already whole-file ciphertext at rest, so per-item
+ * sealing only added a second, device-local key to keep in step across sync.
+ *
+ * Layer 3 itself is **not** gone — `content_key`, `createContentCipher`, and
+ * `EncryptedRecord.wrappedKey` remain, because photos are its real consumer
+ * (`plans/files.md`). It simply has no *domain-field* consumer today, which is
+ * why this repo is now ordinary: no cipher, no codec, just the default
+ * snake_case mapping every other entity uses.
  */
-export function createMilestonesRepo(
-  driver: SqliteDriver,
-  cipher?: ContentCipher,
-): MilestonesRepo {
-  /**
-   * Split a note into the `(note, note_ciphertext)` column pair to persist:
-   * ciphertext (plaintext nulled) when a cipher is wired and the note is set,
-   * otherwise plaintext (ciphertext nulled). Writing both columns every time
-   * means clearing a note clears both, and an updated legacy row upgrades to
-   * ciphertext.
-   */
-  async function noteColumns(
-    id: string,
-    note: string | null,
-  ): Promise<[string | null, Uint8Array | null]> {
-    if (cipher !== undefined && note !== null) {
-      return [null, await cipher.sealField(MILESTONE_ENTITY, id, note)];
-    }
-    return [note, null];
-  }
-
-  // The one entity whose on-wire shape differs from its on-disk shape, so it
-  // needs a `codec` rather than the default snake_case rename: `note` is
-  // decrypted on the way out (it rides as plaintext *inside* the master-key
-  // seal, never as content-key ciphertext the peer can't open) and re-sealed
-  // under *this* device's own content key on the way in — so content_key /
-  // key_wrap rows stay device-local and never sync (model.md §3). The codec is
-  // the only thing milestones add over the standard CRUD: `createEntityRepo`'s
-  // insert/get/list/update route through `toRow`/`fromRow`, so encryption is
-  // transparent. (A soft-deleted milestone leaves its content_key + key_wrap
-  // rows in place — harmless, since the ciphertext they protect is gone too;
-  // key GC is a later sync-era concern.)
+export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
   const base = createEntityRepo<Milestone>({
     driver,
     table: "milestones",
     schema: milestoneSchema,
     orderBy: "year, month, day",
-    codec: {
-      fromRow: (raw) => toMilestone(raw as unknown as MilestoneRow, cipher),
-      toRow: async (m) => {
-        const [note, noteCiphertext] = await noteColumns(m.id, m.note);
-        return {
-          id: m.id,
-          kind: m.kind,
-          bearer_type: m.bearerType,
-          bearer_id: m.bearerId,
-          year: m.year,
-          month: m.month,
-          day: m.day,
-          note,
-          note_ciphertext: noteCiphertext,
-          created_at: m.createdAt,
-          updated_at: m.updatedAt,
-          deleted_at: m.deletedAt,
-        };
-      },
-    },
   });
 
   return {
@@ -203,8 +99,7 @@ export function createMilestonesRepo(
     async create(input) {
       const parsed = createMilestoneInputSchema.parse(input);
       const now = Date.now();
-      // The codec seals `note` on the way to disk; hand `insert` the plaintext
-      // domain row (it re-validates the day⇒month / bearer-type rules).
+      // `insert` re-validates the day⇒month / bearer-type rules.
       return base.insert({
         id: crypto.randomUUID(),
         kind: parsed.kind,
@@ -231,10 +126,11 @@ export function createMilestonesRepo(
       }),
 
     async listRemindEligible() {
-      // A direct plaintext read (not through the codec) — it selects only the
-      // non-encrypted columns, so it stays cipher-free and can't accidentally
-      // surface `note`. `kind`/`bearer_type` are our own constrained values, so
-      // they're cast to their domain unions without a re-parse.
+      // A direct, narrow read: it selects only the columns the reminder engine
+      // needs and so never surfaces `note` — worth keeping now that `note` is
+      // plaintext, since the engine has no business reading it either way.
+      // `kind`/`bearer_type` are our own constrained values, so they're cast to
+      // their domain unions without a re-parse.
       const rows = await driver.all<{
         id: string;
         kind: string;

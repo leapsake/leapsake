@@ -79,7 +79,18 @@ Three consequences worth internalizing:
   contact if everything is sealed under your single master key — you need a per-item key
   you can re-wrap for them (§11, Stage 3).
 
-#### 2.1 Layer 3 keeps its mechanism and loses its only user *(decided 2026-07-27)*
+#### 2.1 Layer 3 keeps its mechanism and loses its only user *(decided 2026-07-27; **done 2026-07-28**)*
+
+> ✅ **Built — migration 27.** `milestone.note` is a plain column; `createMilestonesRepo`
+> takes no cipher and `syncableRepos` no longer takes a master key, because no repo is
+> anything but plaintext-row. `content_key`, `key_wrap`, `createContentCipher`, and
+> `EncryptedRecord.wrappedKey` are all untouched, awaiting photos.
+>
+> One correction to the paragraph below: *"migrate existing notes back to the plaintext
+> column"* is **not possible** and was not done. Migrations run before the key session
+> exists — the very reason migration 12 could only upgrade rows lazily — so migration 27
+> cannot decrypt what it drops. A note written while a key was held is lost with the column.
+> Accepted pre-v0.1 (dev profiles only) rather than solved with a two-phase post-key pass.
 
 Today exactly one field uses layer 3 — `milestone.note` — and it earns nothing. Layer 2
 already seals the whole row containing that note, and on sync the note is *decrypted on
@@ -586,11 +597,11 @@ and indexes preserved; the output genuinely ciphertext on disk):
 4. Copy schema then rows across, reading the definitions from `sqlite_master`.
 5. Detach, close, move the new file into `stores/<accountId>/`, **delete the plaintext
    original** — including any `.plaintext.bak` (see below).
-6. ~~Re-seal the layer-3 fields through the now-existing content cipher.~~ **This step should
-   not exist by the time you build this.** `milestone.note` is being dropped as a content-key
-   consumer (§2.1) *before* the conversion is written — deliberately, so the conversion never
-   grows a re-seal pass it would only have to delete. If layer 3 has a domain consumer again
-   when you get here, something was built out of order: check `../status.md`.
+6. ~~Re-seal the layer-3 fields through the now-existing content cipher.~~ **This step does not
+   exist.** `milestone.note` was dropped as a content-key consumer (§2.1) on 2026-07-28,
+   *before* this conversion was written — deliberately, so it never grew a re-seal pass it
+   would only have to delete. Layer 3 has **no domain consumer**; if one exists when you get
+   here, something was built out of order: check `../status.md`.
 
 > **The existing `<db>.plaintext.bak` must not survive this path.** Desktop's legacy
 > pre-Stage-2 upgrade (`plaintext-migration.ts`) deliberately keeps that backup as a safety

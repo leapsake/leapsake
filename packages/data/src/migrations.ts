@@ -797,6 +797,31 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 27,
+    async up(driver) {
+      // Retire `milestone.note` as a per-item-content-key consumer (encryption
+      // `model.md` §2.1), reverting migration 12. Under *encryption follows
+      // custody* (§7.2) layer 3 bought a domain field nothing: an **Open** store
+      // has no key to seal with, and a **Protected** store is already whole-file
+      // ciphertext at rest. `note` is a plain TEXT column again.
+      //
+      // **This drops any note that was stored as ciphertext.** Migrations run
+      // *before* the key session exists — that is why migration 12 could only
+      // leave legacy rows to upgrade lazily — so this step cannot decrypt what it
+      // is removing, and the plaintext `note` of such a row is NULL. Accepted
+      // deliberately: pre-v0.1 there are no real users, and the only affected
+      // installs are dev profiles with an unlocked key, which are cheaper to
+      // recreate than a two-phase post-key migration is to write and maintain.
+      //
+      // Layer 3 itself stays — `content_key`, `key_wrap`, and
+      // `createContentCipher` are untouched, because photos are its real
+      // consumer (`plans/files.md`). Existing `content_key` rows for milestones
+      // are left as harmless orphans; the ciphertext they protected is gone, and
+      // key GC is a tracked sync-era concern.
+      await driver.exec(`ALTER TABLE milestones DROP COLUMN note_ciphertext;`);
+    },
+  },
 ];
 
 /**

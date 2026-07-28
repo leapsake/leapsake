@@ -6,7 +6,6 @@ import {
   type SyncableRepo,
   createAccountRepo,
   createContactMethodsRepo,
-  createContentCipher,
   createDismissalsRepo,
   createGiftIdeasRepo,
   createGiftSuggestionsRepo,
@@ -47,21 +46,21 @@ import {
  * `device`) are *absent by construction*, which is what keeps sync
  * zero-knowledge (model.md §3). A guard test pins this exact set.
  *
- * `milestones` takes a {@link createContentCipher} so its encrypted `note`
- * decrypts on collect and re-seals under the receiving device's own content key
- * on apply (the device-local-key invariant); every other repo is plaintext-row.
+ * **Every repo here is plaintext-row**, which is why this takes no key at all.
+ * `milestones` used to be handed a content cipher so its sealed `note` decrypted
+ * on collect and re-sealed under the receiving device's own content key on apply;
+ * that field was retired as a layer-3 consumer on 2026-07-27 (migration 27),
+ * removing the one place a device-local key had to be unwound mid-sync. The rows
+ * are still protected on the wire — by the master-key *envelope* (layer 2), which
+ * the engine applies, not the repos.
  */
-export function syncableRepos(
-  driver: SqliteDriver,
-  masterKey: Uint8Array,
-): SyncableRepo<SyncRow>[] {
-  const cipher = createContentCipher({ driver, masterKey });
+export function syncableRepos(driver: SqliteDriver): SyncableRepo<SyncRow>[] {
   const tags = createTagsRepo(driver);
   const contactMethods = createContactMethodsRepo(driver);
   return [
     createPeopleRepo(driver),
     createPetsRepo(driver),
-    createMilestonesRepo(driver, cipher),
+    createMilestonesRepo(driver),
     createRelationshipsRepo(driver),
     createDismissalsRepo(driver),
     createNotADuplicateRepo(driver),
@@ -119,7 +118,7 @@ export function createAccountSyncEngine(opts: {
   return createSyncEngine({
     transport,
     masterKey,
-    repos: syncableRepos(driver, masterKey),
+    repos: syncableRepos(driver),
     syncState: createSyncStateRepo(driver),
   });
 }

@@ -26,7 +26,6 @@ import {
   type SqliteDriver,
   type SyncableRepo,
   createAccountRepo,
-  createContentCipher,
   createMilestonesRepo,
   createPeopleRepo,
   createSyncStateRepo,
@@ -77,12 +76,11 @@ async function makeDevice(): Promise<Device> {
   const db = new DatabaseSync(":memory:");
   const driver = nodeSqliteDriver(db);
   await runMigrations(driver);
-  const cipher = createContentCipher({ driver, masterKey: MK });
   return {
     db,
     driver,
     people: createPeopleRepo(driver),
-    milestones: createMilestonesRepo(driver, cipher),
+    milestones: createMilestonesRepo(driver),
   };
 }
 
@@ -115,11 +113,10 @@ function blankDevice() {
 }
 
 /** The domain repos for a device once its master key is known. */
-function reposFor(driver: SqliteDriver, masterKey: Uint8Array) {
-  const cipher = createContentCipher({ driver, masterKey });
+function reposFor(driver: SqliteDriver) {
   return {
     people: createPeopleRepo(driver),
-    milestones: createMilestonesRepo(driver, cipher),
+    milestones: createMilestonesRepo(driver),
   };
 }
 
@@ -246,7 +243,10 @@ describe("blind HTTPS relay (server + adapter)", () => {
     expect(second.applied).toBe(0);
   });
 
-  it("round-trips an encrypted milestone note; content keys never leave the device", async () => {
+  // `milestone.note` stopped being a per-item-content-key consumer on 2026-07-27
+  // (migration 27). The relay-facing guarantee is unchanged and still worth
+  // pinning: the note round-trips through a blind relay, and no key row follows.
+  it("round-trips a milestone note through the relay; no key row follows", async () => {
     const milestone = await A.milestones.create({
       kind: "birthday",
       bearerType: "person",
@@ -262,12 +262,14 @@ describe("blind HTTPS relay (server + adapter)", () => {
     expect(onB).toEqual(milestone);
     expect(onB?.note).toBe("secret picnic");
 
-    // B decrypts under its *own* content key, minted on apply — it holds exactly
-    // one content wrap, and no key_wrap row ever crossed the wire.
-    const bWraps = await B.driver.all<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM key_wrap WHERE wrapped_kind = 'content' AND deleted_at IS NULL",
-    );
-    expect(bWraps[0].n).toBe(1);
+    // No content wrap exists on either side any more, and none ever crossed the
+    // wire — the regression guard that layer 3 has not crept back into a field.
+    for (const device of [A, B]) {
+      const wraps = await device.driver.all<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM key_wrap WHERE wrapped_kind = 'content' AND deleted_at IS NULL",
+      );
+      expect(wraps[0].n).toBe(0);
+    }
   });
 
   it("stores only ciphertext + sync metadata (the relay is blind)", async () => {
@@ -488,7 +490,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     // --- Device 1: enable, register, create a person + sealed note, push. ---
     const d1 = blankDevice();
     const { masterKey: mk1 } = await enableAndRegister(d1);
-    const d1Repos = reposFor(d1.driver, mk1);
+    const d1Repos = reposFor(d1.driver);
     const ada = await d1Repos.people.create({
       firstName: "Ada",
       lastName: "Lovelace",
@@ -531,7 +533,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
 
     // --- Device 2 syncs and reads device 1's data, decrypted. ---
     const d2Account = await createAccountRepo(d2.driver).getSingleton();
-    const d2Repos = reposFor(d2.driver, session.masterKey);
+    const d2Repos = reposFor(d2.driver);
     await createSyncEngine({
       transport: createHttpSyncTransport({
         baseUrl,
@@ -592,7 +594,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       recoveryVerifier: bootstrap.recoveryVerifier,
     });
     const phrase = encodeRecoveryPhrase(recoveryKey);
-    const ada = await reposFor(d1.driver, mk.masterKey).people.create({
+    const ada = await reposFor(d1.driver).people.create({
       firstName: "Ada",
       lastName: "Lovelace",
     });
@@ -617,9 +619,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
 
     // Device 2 syncs and reads device 1's data, decrypted.
     await runAccountSync({ driver: d2.driver, masterKey: session.masterKey });
-    expect(
-      await reposFor(d2.driver, session.masterKey).people.get(ada.id),
-    ).toEqual(ada);
+    expect(await reposFor(d2.driver).people.get(ada.id)).toEqual(ada);
 
     // The newly-set password now unlocks MK locally (the reset took on the relay
     // and the local password door was laid down).
@@ -686,7 +686,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       recoveryVerifier: bootstrap.recoveryVerifier,
     });
     const phrase = encodeRecoveryPhrase(recoveryKey);
-    const ada = await reposFor(d1.driver, mk.masterKey).people.create({
+    const ada = await reposFor(d1.driver).people.create({
       firstName: "Ada",
       lastName: "Lovelace",
     });
@@ -707,9 +707,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       platform: "mobile",
     });
     await runAccountSync({ driver: d2.driver, masterKey: d2session.masterKey });
-    expect(
-      await reposFor(d2.driver, d2session.masterKey).people.get(ada.id),
-    ).toEqual(ada);
+    expect(await reposFor(d2.driver).people.get(ada.id)).toEqual(ada);
 
     // --- Device 3: recover from the phrase, which resets the account password —
     //     the event that strands device 2's credential. ---
@@ -752,15 +750,13 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       driver: d2.driver,
       password: NEW_PASSWORD,
     });
-    const grace = await reposFor(d3.driver, d3session.masterKey).people.create({
+    const grace = await reposFor(d3.driver).people.create({
       firstName: "Grace",
       lastName: "Hopper",
     });
     await runAccountSync({ driver: d3.driver, masterKey: d3session.masterKey });
     await runAccountSync({ driver: d2.driver, masterKey: d2session.masterKey });
-    expect(
-      await reposFor(d2.driver, d2session.masterKey).people.get(grace.id),
-    ).toEqual(grace);
+    expect(await reposFor(d2.driver).people.get(grace.id)).toEqual(grace);
 
     d1.db.close();
     d2.db.close();

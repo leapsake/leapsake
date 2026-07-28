@@ -12,7 +12,6 @@ import {
   type SyncableRepo,
   type TagsRepo,
   createContactMethodsRepo,
-  createContentCipher,
   createDismissalsRepo,
   createMilestonesRepo,
   createNotADuplicateRepo,
@@ -38,9 +37,8 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
  * ever carries ciphertext + metadata, and `resolveMerge` (whole-row LWW)
  * reconciles on apply. Proves the people core (create propagation, LWW
  * convergence, tombstone + resurrection, idempotent re-pull, the lost-update
- * window) and that the same per-table pattern now covers every other entity —
- * including the encrypted `milestone.note`, whose content keys never leave the
- * device, and the join/edge tables (taggings, relationships, dismissals).
+ * window) and that the same per-table pattern covers every other entity, including
+ * the join/edge tables (taggings, relationships, dismissals).
  */
 
 // A fixed 32-byte master key shared by both devices (one account, two devices).
@@ -63,13 +61,12 @@ interface Device {
 async function makeDevice(): Promise<Device> {
   const { driver, cleanup } = makeEncryptedTestDriver();
   await runMigrations(driver);
-  const cipher = createContentCipher({ driver, masterKey: MK });
   return {
     cleanup,
     driver,
     people: createPeopleRepo(driver),
     pets: createPetsRepo(driver),
-    milestones: createMilestonesRepo(driver, cipher),
+    milestones: createMilestonesRepo(driver),
     relationships: createRelationshipsRepo(driver),
     dismissals: createDismissalsRepo(driver),
     notADuplicate: createNotADuplicateRepo(driver),
@@ -458,7 +455,12 @@ describe("sync engine (all entities, in-memory transport)", () => {
     expect(onA?.gender).toBe("male");
   });
 
-  it("syncs an encrypted milestone note while content keys never leave the device", async () => {
+  // `milestone.note` was layer 3's only domain-field consumer until 2026-07-27
+  // (migration 27). What still matters is what always mattered: the note reaches
+  // the peer, and the *cleartext* envelope never carries it — that is layer 2's
+  // job, and it is unchanged. The two device-local key tables must stay off the
+  // wire whether or not a domain field uses them.
+  it("syncs a milestone note without leaking it, or any key, to the transport", async () => {
     const engineA = engineFor(A);
     const engineB = engineFor(B);
 
@@ -488,17 +490,18 @@ describe("sync engine (all entities, in-memory transport)", () => {
 
     await engineB.pull(0);
 
-    // B decrypts the note under its own device-local content key.
     const onB = await B.milestones.get(milestone.id);
     expect(onB).toEqual(milestone);
     expect(onB?.note).toBe("secret picnic");
 
-    // The content key B uses is its own (minted on apply), never synced: B holds
-    // exactly one content wrap, and A's wrap was never pushed over the transport.
-    const bWraps = await B.driver.all<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM key_wrap WHERE wrapped_kind = 'content' AND deleted_at IS NULL",
-    );
-    expect(bWraps[0].n).toBe(1);
+    // No content key is minted on either side any more — the regression guard
+    // that layer 3 has not crept back into a domain field.
+    for (const device of [A, B]) {
+      const wraps = await device.driver.all<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM key_wrap WHERE wrapped_kind = 'content' AND deleted_at IS NULL",
+      );
+      expect(wraps[0].n).toBe(0);
+    }
   });
 
   it("propagates a tag together with its tagging (join resolves on the peer)", async () => {

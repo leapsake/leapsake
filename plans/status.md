@@ -80,8 +80,8 @@ the work they imply.
 ### Pre-v0.1 (toward initial launch)
 
 > **Order matters here.** Picking up work cold? Take them in this order:
-> **1.** **Local custody — the block immediately below.** It is decided and specified; start
-> at its slice 1. Blocks `launch.md` Increments 2–4.
+> **1.** **Local custody — the block immediately below.** Slices 1–2 are **built**; start at
+> **slice 3**. Blocks `launch.md` Increments 2–4.
 > **2.** `launch.md` Increment 1's leftovers — trivial, unblocked, permanent-if-wrong (versions,
 > credential gitignores). Can be done in parallel with 1.
 > **3.** The rest of `launch.md` in its own numbered order, once 1 is built.
@@ -90,7 +90,11 @@ the work they imply.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decided 2026-07-26/27; now build it. It leads everything else.**
+**⇒ Local custody — decided 2026-07-26/27. Slices 1–2 built; slice 3 is next.**
+
+> **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
+> are fine.** There are no real users, so a migration is only worth writing when it is
+> genuinely cheaper than "delete the profile and relaunch". Prefer the simpler code.
 
 *Starting cold? This block is written to be enough on its own. Read it, then
 [`encryption/model.md`](./encryption/model.md) §7 (custody, end to end) and §8.1 (converting
@@ -124,7 +128,7 @@ password entry.
 | ~~`apps/desktop/src/main/db/open.ts`~~ | ✅ **done (slice 1)** — takes `custody`; Open mints nothing and opens plaintext | — |
 | ~~`apps/mobile/lib/core-context.tsx`~~ | ✅ **done (slice 1)** — the same, mirrored | — |
 | ~~`ensureDeviceMasterKey`~~ | ✅ **done (slice 1)** — called only for a Protected store | — |
-| `packages/data/src/milestones-repo.ts` | seals `note` under a content key | stop — see slice 3 |
+| ~~`packages/data/src/milestones-repo.ts`~~ | ✅ **done (slice 3)** — `note` is a plain column; no cipher, no codec | — |
 | ~~store path~~ | ✅ **done (slice 2)** — derived by `@leapsake/store-layout`; `stores/<accountId>/…`, or `stores/local/…` when Open | — |
 
 Two things already support the keyless mode, so it is **not** new code:
@@ -155,16 +159,26 @@ repo already stores plaintext when no cipher is wired.
 > what slice 4's flow replaces, so it was left rather than guarded — guarding it would
 > disable sync testing on fresh profiles for no lasting benefit. **Do not ship without
 > slice 4.**
-3. **⇐ START HERE. Remove `milestone.note` as a content-key consumer** (`model.md` §2.1) — drop the
-   `(note, note_ciphertext)` split and the decrypt-on-collect / re-seal-on-apply path, migrate
-   existing notes back to plaintext. **Keep** `content_key`, `createContentCipher`, and
-   `EncryptedRecord.wrappedKey` — photos need them (`files.md`).
-   **Deliberately ahead of slice 4:** it *removes* a step from the store conversion rather
-   than adding one to migrate. Do it after and slice 4 has to carry a re-seal pass it will
-   then delete.
-   *Acceptance:* notes readable as plaintext on both clients; `content_key` empty; the sync
-   round-trip still converges.
-4. **The account-creation flow** — username + password → mint keys → convert the store
+3. ✅ **Remove `milestone.note` as a content-key consumer** — *done 2026-07-28 (migration 27).*
+
+> **Slice 3 is built.** `note` is an ordinary plaintext column: the
+> `(note, note_ciphertext)` split, the decrypt-on-collect / re-seal-on-apply path, and the
+> repo's custom codec are all gone — `createMilestonesRepo(driver)` takes no cipher, and
+> `syncableRepos(driver)` no longer takes a master key, since **no repo is anything but
+> plaintext-row now**. Layer 3 is untouched (`content_key`, `key_wrap`,
+> `createContentCipher`, `EncryptedRecord.wrappedKey` all remain for photos); it simply has
+> no domain-field consumer. Guard tests pin that: after a create with a key session wired,
+> `content_key` and `key_wrap` are **empty**, and the sync + relay round-trips still converge
+> with the note intact and absent from the cleartext envelope.
+>
+> ⚠️ **The migration cannot preserve an encrypted note, and does not try.** Migrations run
+> *before* the key session exists — the reason migration 12 could only upgrade rows lazily —
+> so migration 27 cannot decrypt what it drops, and such a row's plaintext `note` is NULL.
+> Under the pre-v0.1 latitude above this is accepted rather than solved with a two-phase
+> post-key pass: **a dev profile that wrote milestone notes while holding a key loses those
+> notes.** Everything else about the row survives.
+
+4. **⇐ START HERE. The account-creation flow** — username + password → mint keys → convert the store
    (§8.1) → show the phrase once. One flow, two entry points (the Home invitation and
    Settings). Much of it exists: `enableSync` already takes `username`/`relayUrl` as
    optional, `enableSync`/`joinAccount` already *is* sign-up/log-in, and the onboarding-nudge

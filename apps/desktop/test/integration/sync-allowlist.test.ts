@@ -1,4 +1,3 @@
-import { generateKey } from "@leapsake/crypto";
 import { runMigrations } from "@leapsake/data";
 import { syncableRepos } from "@leapsake/core";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -18,7 +17,7 @@ describe("syncableRepos — the canonical allowlist", () => {
   beforeEach(async () => {
     const { driver, cleanup } = makeEncryptedTestDriver();
     await runMigrations(driver);
-    tables = syncableRepos(driver, generateKey())
+    tables = syncableRepos(driver)
       .map((repo) => repo.table)
       .sort();
     cleanup();

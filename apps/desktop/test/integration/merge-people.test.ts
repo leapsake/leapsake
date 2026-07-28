@@ -287,10 +287,9 @@ describe("createCore — mergePeople converges over sync", () => {
   async function replicate(
     from: SqliteDriver,
     to: SqliteDriver,
-    key: Uint8Array,
   ): Promise<void> {
-    const dst = new Map(syncableRepos(to, key).map((r) => [r.table, r]));
-    for (const repo of syncableRepos(from, key)) {
+    const dst = new Map(syncableRepos(to).map((r) => [r.table, r]));
+    for (const repo of syncableRepos(from)) {
       const target = dst.get(repo.table);
       if (target === undefined) continue;
       for (const row of await repo.listChangedSince(0)) {
@@ -300,8 +299,6 @@ describe("createCore — mergePeople converges over sync", () => {
   }
 
   it("replicates the re-points and the loser tombstone to a second device", async () => {
-    const key = new Uint8Array(32); // a fixed account master key for both devices
-
     const { driver: driver2, cleanup: cleanup2 } = makeEncryptedTestDriver();
     await runMigrations(driver2);
     const core2 = createCore(driver2);
@@ -329,11 +326,11 @@ describe("createCore — mergePeople converges over sync", () => {
     });
 
     // Device 2 catches up, then device 1 merges and syncs again.
-    await replicate(driver, driver2, key);
+    await replicate(driver, driver2);
     expect(await core2.people.get(bob.id)).toBeDefined();
 
     await core.people.merge(jane.id, bob.id);
-    await replicate(driver, driver2, key);
+    await replicate(driver, driver2);
 
     // The merge converged on device 2 with no merge-specific sync code: the
     // tombstone and the re-pointed edge both arrived as ordinary row changes.
