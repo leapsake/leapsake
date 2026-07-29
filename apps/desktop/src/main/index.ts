@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import {
+  type AccountRoster,
   OPEN_STORE_SLOT,
   ROSTER_PATH,
   createAccountRoster,
@@ -64,6 +65,7 @@ import {
   type ArgParser,
   registerCoreHandlers,
 } from "../shared/ipc-bridge.js";
+import { adoptAccountOnThisDevice } from "./db/adopt-account-flow.js";
 import { destroyPlaintextStore } from "./db/convert-store.js";
 import { createAccountOnThisDevice } from "./db/create-account-flow.js";
 import { factoryResetFiles } from "./db/factory-reset.js";
@@ -132,6 +134,15 @@ function setActiveCore(session: KeySession | undefined): void {
 }
 
 /**
+ * This device's account roster — the unencrypted file that decides which store is
+ * active and whether it is encrypted. Built per call rather than held, so it always
+ * reflects a conversion that happened since the last read.
+ */
+function deviceRoster(): AccountRoster {
+  return createAccountRoster(jsonFileStorage(join(userDataPath, ROSTER_PATH)));
+}
+
+/**
  * Open this device's store — whichever one the roster points at — and rebuild
  * everything that hangs off it: the driver, the migrations, the key session, and
  * the live core. The boot path's whole database half, extracted so it can run a
@@ -156,10 +167,9 @@ async function openActiveStore(): Promise<void> {
   // come from the roster, which must be read before anything is opened — it is
   // readable precisely because it lives outside every store. `dbPath` is
   // *derived*, never a fixed `leapsake.db`.
-  const roster = createAccountRoster(
-    jsonFileStorage(join(userDataPath, ROSTER_PATH)),
-  );
-  const activeStore = resolveActiveStore({ accounts: await roster.list() });
+  const activeStore = resolveActiveStore({
+    accounts: await deviceRoster().list(),
+  });
 
   // A Protected launch that still finds an Open store crashed part-way through
   // account creation, after the roster entry but before the original was
@@ -262,13 +272,42 @@ async function restoreLiveStore(): Promise<void> {
  * of them can quietly skip it.
  *
  * `dbPath` is read at call time, so this always lands beside whichever store is
- * live — including after account creation swaps it for the converted one. Core
- * skips calling it entirely while a store is still Open (see
+ * live. Core skips calling it entirely while a store has no db-key (see
  * `sealPasswordDoorIfProtected`), so this never writes a door onto a plaintext
  * store.
+ *
+ * ⚠️ **Not for the paths that convert the store.** Account creation, join and
+ * recovery all seal a door for a store that does not exist yet, so `dbPath` is the
+ * wrong answer while they run — it still names the Open store they are about to
+ * delete. Those flows capture the bytes and write them at the converted path
+ * instead (`create-account-flow.ts`, `adopt-account-flow.ts`).
  */
 async function writeThisDevicePasswordDoor(sidecar: Uint8Array): Promise<void> {
   writeSidecar(passwordSidecarPath(dbPath), sidecar);
+}
+
+/**
+ * Reconcile this device's pre-existing local people against the account it just
+ * adopted: pull first, then report how many possible duplicates that surfaced so
+ * the renderer can prompt the user to review them (no auto-merge).
+ *
+ * Runs *after* the store swap, against the re-opened handles — the join wrote the
+ * account master key into the enclave, so the reopen's `ensureDeviceMasterKey`
+ * hands back that same key. Best-effort: a reconcile failure must never fail an
+ * otherwise-good join.
+ */
+async function reconcileAfterAdopt(): Promise<number> {
+  if (activeCore === undefined || keySession === undefined) return 0;
+  try {
+    const { duplicateCount } = await reconcileOnJoin({
+      driver,
+      masterKey: keySession.masterKey,
+      core: activeCore,
+    });
+    return duplicateCount;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -512,9 +551,7 @@ function registerSyncIpc(): void {
         createAccountOnThisDevice({
           keyStore,
           driver,
-          roster: createAccountRoster(
-            jsonFileStorage(join(userDataPath, ROSTER_PATH)),
-          ),
+          roster: deviceRoster(),
           userDataPath,
           username,
           password,
@@ -540,9 +577,11 @@ function registerSyncIpc(): void {
     },
   );
 
-  // Join an existing account from this fresh device: log in over the relay,
-  // adopt the account master key under this device's enclave, and rebuild the
-  // core around it so encrypted fields use the adopted key.
+  // Join an existing account from this fresh device: log in over the relay, adopt
+  // the account master key under this device's enclave, and convert this device's
+  // store to encrypted — a joining device is Protected from byte one (model.md
+  // §7.1). Before this it adopted the key and left the store plaintext, so every
+  // device past the first was unencrypted at rest.
   ipcMain.handle(
     "sync:join",
     async (
@@ -552,36 +591,42 @@ function registerSyncIpc(): void {
       const username = requireText(args?.username, "Username");
       const relayUrl = requireText(args?.relayUrl, "Relay URL");
       const password = requireText(args?.password, "Password");
-      try {
-        keySession = await joinAccountViaRelay({
+      // The store is converted underneath this process, so withStoreSwap re-opens
+      // the app around the new one before this resolves — and on a failure puts the
+      // app back on whichever store the roster still names.
+      await withStoreSwap(() =>
+        adoptAccountOnThisDevice({
           keyStore,
           driver,
-          relayUrl,
+          roster: deviceRoster(),
+          userDataPath,
           username,
-          password,
-          platform: "desktop",
-          writePasswordSidecar: writeThisDevicePasswordDoor,
-        });
-      } catch (cause) {
-        throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-      }
-      setActiveCore(keySession);
-      // Reconcile this device's pre-existing local people against the account:
-      // pull first, then surface how many possible duplicates the join created
-      // so the renderer can prompt the user to review them (no auto-merge).
-      // Best-effort — a reconcile failure must not fail an otherwise-good join.
-      let duplicateCount = 0;
-      try {
-        if (activeCore !== undefined) {
-          ({ duplicateCount } = await reconcileOnJoin({
-            driver,
-            masterKey: keySession.masterKey,
-            core: activeCore,
-          }));
-        }
-      } catch {
-        duplicateCount = 0;
-      }
+          adopt: async (writePasswordSidecar) => {
+            try {
+              return await joinAccountViaRelay({
+                keyStore,
+                driver,
+                relayUrl,
+                username,
+                password,
+                platform: "desktop",
+                writePasswordSidecar,
+              });
+            } catch (cause) {
+              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+            }
+          },
+          writeLivePasswordDoor: writeThisDevicePasswordDoor,
+          closeStore: async () => {
+            storeSwapping = true;
+            await driver.close?.();
+          },
+        }),
+      );
+      // Past the swap, `driver`, `keySession` and `activeCore` are the converted
+      // store's — the pre-swap handles are closed, so the reconcile has to run
+      // here rather than beside the join.
+      const duplicateCount = await reconcileAfterAdopt();
       void scheduler?.autoTrigger(); // push this device's data + pull any remainder
       return { duplicateCount };
     },
@@ -616,34 +661,40 @@ function registerSyncIpc(): void {
           `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
         );
       }
-      try {
-        keySession = await recoverAccountViaRelay({
+      // Recovering onto a fresh device converts its store exactly as joining does;
+      // the only difference is which door the relay was opened with.
+      await withStoreSwap(() =>
+        adoptAccountOnThisDevice({
           keyStore,
           driver,
-          relayUrl,
+          roster: deviceRoster(),
+          userDataPath,
           username,
-          recoveryPhrase,
-          newPassword,
-          platform: "desktop",
-          writePasswordSidecar: writeThisDevicePasswordDoor,
-        });
-      } catch (cause) {
-        throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-      }
-      setActiveCore(keySession);
-      // Same post-join reconcile: a recovering device may hold local data too.
-      let duplicateCount = 0;
-      try {
-        if (activeCore !== undefined) {
-          ({ duplicateCount } = await reconcileOnJoin({
-            driver,
-            masterKey: keySession.masterKey,
-            core: activeCore,
-          }));
-        }
-      } catch {
-        duplicateCount = 0;
-      }
+          adopt: async (writePasswordSidecar) => {
+            try {
+              return await recoverAccountViaRelay({
+                keyStore,
+                driver,
+                relayUrl,
+                username,
+                recoveryPhrase,
+                newPassword,
+                platform: "desktop",
+                writePasswordSidecar,
+              });
+            } catch (cause) {
+              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+            }
+          },
+          writeLivePasswordDoor: writeThisDevicePasswordDoor,
+          closeStore: async () => {
+            storeSwapping = true;
+            await driver.close?.();
+          },
+        }),
+      );
+      // Same post-adopt reconcile: a recovering device may hold local data too.
+      const duplicateCount = await reconcileAfterAdopt();
       void scheduler?.autoTrigger();
       return { duplicateCount };
     },
@@ -727,9 +778,7 @@ function registerSyncIpc(): void {
         createAccountOnThisDevice({
           keyStore,
           driver,
-          roster: createAccountRoster(
-            jsonFileStorage(join(userDataPath, ROSTER_PATH)),
-          ),
+          roster: deviceRoster(),
           userDataPath,
           username,
           password,

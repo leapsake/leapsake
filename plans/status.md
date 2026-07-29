@@ -9,10 +9,11 @@
 > clients.** First launch mints **no keys** and leaves the store plaintext; creating an
 > account (username + password) is the single act that turns encryption on, converting the
 > store as it goes; and a lost keychain is answered by **the password**, with the 24-word
-> phrase as the forgot-password fallback. **Slices 1–5 of the custody build are done. Slice 6
-> — converting a joined or recovered device's store — is next**, and is the block below under
-> *What's next* → **Local custody**. It closes the last path that leaves real user data in a
-> plaintext file. The model is [`encryption/model.md`](./encryption/model.md) §7.
+> phrase as the forgot-password fallback. **Slices 1–6 of the custody build are done** —
+> joining or recovering an account now converts that device's store too, so **no path leaves
+> real user data in a plaintext file any more**. **Slice 7 (sign out + forget account) is
+> next**, in the block below under *What's next* → **Local custody**. The model is
+> [`encryption/model.md`](./encryption/model.md) §7.
 >
 > Also standing: the encryption docs are **consolidated to four** (`custody-sequence.md` folded
 > into `model.md` §7.5, `local-custody-options.md` retired), and **the UI extraction is
@@ -31,11 +32,11 @@
   (sharing, SSR web) are post-launch. Design: [`encryption/`](./encryption/).
   > ✅ **Custody was rebuilt 2026-07-27/28 and the boot path *is* the target model now.**
   > A fresh install is **Open**: no keys anywhere, a plaintext store at `stores/local/`.
-  > Creating an account mints every key and converts the store to `stores/<accountId>/`, and
-  > both unlock doors — password and phrase — are built and proved on desktop.
-  > Slices 1–5 of the build order below are done; **slice 6 is next**, and until it lands a
-  > device that *joined* an account is still unencrypted at rest. Any install predating this
-  > must be recreated (pre-v0.1 latitude) — there is no compatibility path.
+  > Creating an account — **or joining/recovering one** — mints this device's db-key and
+  > converts the store to `stores/<accountId>/`, and both unlock doors, password and phrase,
+  > are built and proved on desktop for all three paths.
+  > Slices 1–6 of the build order below are done; **slice 7 is next**. Any install predating
+  > this must be recreated (pre-v0.1 latitude) — there is no compatibility path.
 - **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
   and the review surface is **detection-driven rather than permanently advertised** (links and
   banners appear only while pairs are outstanding; a `system` reminder nudges from Home). Only
@@ -87,8 +88,8 @@ the work they imply.
 ### Pre-v0.1 (toward initial launch)
 
 > **Order matters here.** Picking up work cold? Take them in this order:
-> **1.** **Local custody — the block immediately below.** Slices 1–5 are **built**; start at
-> **slice 6**. Blocks `launch.md` Increments 2–4.
+> **1.** **Local custody — the block immediately below.** Slices 1–6 are **built**; start at
+> **slice 7**. No longer blocks `launch.md` Increments 2–4.
 > **2.** `launch.md` Increment 1's last piece — **an owner decision, not a task**: the version
 > number and the build-number strategy. The machinery and the credential gitignores are built.
 > Due before Increment 4's first store upload, not before the v0.1 cut.
@@ -98,7 +99,7 @@ the work they imply.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/28. Slices 1–5 done; slice 6 is
+**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/28. Slices 1–6 done; slice 7 is
 next.**
 
 > **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
@@ -118,16 +119,15 @@ Leapsake **encrypts once the user holds a secret that opens it, and not before.*
 - **Creating an account — username + password, both required — is the single act that turns
   encryption on**: it mints every key, converts the store to encrypted, and shows the
   recovery phrase once as the *forgot-password* backstop. (§7.2.1, "Protected")
-- A device **joining an existing account** never passes through Open — it is encrypted from
-  byte one. (§7.1) ⚠️ **Specified, not yet built** — this is exactly what slice 6 below fixes,
-  and until it lands a joined device is plaintext at rest.
+- A device **joining or recovering an existing account** converts its store in the same act,
+  so it is encrypted from byte one too. (§7.1, slice 6)
 - **Why:** a key held only by the OS keychain guards little that platform disk encryption
   doesn't already cover, while creating a real data-loss path — lose the keychain, lose
   everything, with only an unsaved 24-word phrase as the way back.
 
-**Why it leads everything:** it changes what a fresh install does with real data, and
-`launch.md` Increments 2–4 are all consequences. It also **defuses `launch.md` §2's central
-hazard** — the Team-ID change on the org move, which would have dropped *every* user into a
+**Why it led everything:** it changes what a fresh install does with real data. That at-rest
+work is now finished, so `launch.md` Increments 2–4 are free to proceed. It also **defuses
+`launch.md` §2's central hazard** — the Team-ID change on the org move, which would have dropped *every* user into a
 recovery-phrase gate, now costs an accountless user nothing and an account holder one
 password entry.
 
@@ -141,6 +141,9 @@ password entry.
 - **Turning encryption on** — `createLocalAccount` (`@leapsake/key-custody`) plus each
   client's converter and flow: `apps/desktop/src/main/db/convert-store.ts` +
   `create-account-flow.ts`; `apps/mobile/db/convert-store.ts`, wired inside `core-context.tsx`.
+- **Adopting an account someone else's device created** — the join/recover counterpart, same
+  sequence: `apps/desktop/src/main/db/adopt-account-flow.ts` and mobile's `convertJoinedStore`
+  in `core-context.tsx`.
 - **The doors** — `packages/crypto/src/{recovery,password-sidecar}.ts` for the primitives,
   `sealPasswordDoor` (`@leapsake/key-custody`) for the one place a door is sealed, and each
   client's `sidecars.ts` for where the bytes land.
@@ -149,18 +152,25 @@ password entry.
 > was layer 3's only consumer and was retired in slice 3, so **no repo needs a key**. The
 > parameter and the clients' "rebuild the core around the adopted MK on join" plumbing are
 > therefore currently inert. Left in place on purpose — photos (v0.2) are layer 3's real
-> consumer — but if you are touching the join/recover flows, know that the rebuild is a no-op
-> today and could be simplified along with them.
+> consumer — and **still inert after slice 6**, which deliberately did not touch it *(owner,
+> 2026-07-28: keep the diff off the two riskiest handlers)*. On desktop the rebuild is now
+> genuinely redundant as well as inert: the store swap re-opens and rebuilds the core anyway.
+> Simplify it whenever layer 3 next gets attention.
 
 #### Build order — each slice independently shippable
 
-**Slices 1–5 are built** (2026-07-27/28, both clients). What they did, in one line each:
+**Slices 1–6 are built** (2026-07-27/28, both clients). What they did, in one line each:
 first launch mints nothing and opens plaintext (1); stores live at per-account paths behind
 an unencrypted roster (2); `milestone.note` stopped being a content-key consumer, so no repo
-needs a key (3); account creation mints every key and converts the store (4); and the
+needs a key (3); account creation mints every key and converts the store (4); the
 password opens the store at the pre-database layer, with the phrase demoted to the
-forgot-password fallback (5). The *how* is in `git log` and the code's own doc-comments; what
-survives here is only what a future reader would otherwise re-learn the hard way:
+forgot-password fallback (5); and joining or recovering an account converts that device's
+store too, so no path leaves data plaintext (6). Slice 6 was verified over CDP on three
+profiles against a live relay — a joined device and a recovered device each end up ciphertext
+at `stores/<accountId>/` with the Open store gone, the roster naming the account, both
+sidecars present, and a **wiped keychain opening from that device's own password**. The *how*
+is in `git log` and the code's own doc-comments; what survives here is only what a future
+reader would otherwise re-learn the hard way:
 
 > - **Both boot paths read the recovery key; neither mints one.** A password unlock has no
 >   recovery key — it stayed in the wiped keychain and nothing local recovers it — so minting
@@ -176,55 +186,31 @@ survives here is only what a future reader would otherwise re-learn the hard way
 >   is a required parameter on every wrapper that establishes or rotates one.
 > - **An install predating the custody work must be recreated.** `resolveActiveStore` is purely
 >   "does the roster hold an account?", both boot branches *refuse* a store in the wrong custody
->   state, and the only legitimate plaintext→encrypted conversion is account creation's.
+>   state, and the only legitimate plaintext→encrypted conversions are the three that establish
+>   an account on this device: creation, join, recovery.
 > - **Migration 27 could not preserve an encrypted `milestone.note`** and did not try — a dev
 >   profile that wrote notes while holding a key has NULL there. Accepted under the latitude
 >   above.
 > - **Mobile's Settings flow has still never been driven in a running app.** Desktop's is
->   verified over CDP through account creation, both unlock doors, and factory reset.
+>   verified over CDP through account creation, join, recovery, both unlock doors, and
+>   factory reset.
+> - **A password door is sealed *before* the store it opens exists.** Core seals it from
+>   inside `joinAccountViaRelay` / `createLocalAccount`, while the live path still names the
+>   Open store that is about to be deleted — so a writer resolving `passwordSidecarPath(dbPath)`
+>   at call time writes the door into the directory the flow then removes. Both flows instead
+>   **capture the bytes and write them at the converted path**. `writeThisDevicePasswordDoor`
+>   is for the steady state only; its doc comment says so.
+> - **`sealPasswordDoorIfProtected` skips on "no db-key", not on "Open".** That is why slice 6
+>   mints the db-key *before* the relay call rather than after — minting first is the whole
+>   mechanism by which join and recover gained a real door with no change at those call sites.
+>   `adopt-account-flow.ts` hard-fails if the door comes back unsealed, so a regression to the
+>   skip cannot ship silently.
+> - **Mobile's `enable` still has two gaps slice 6 fixed only for join/recover**: its converter
+>   has no overwrite guard (a retry after a mid-flow crash copies into a populated encrypted
+>   file), and it has no restore path if the conversion throws after `driver.close?.()`. Left
+>   alone deliberately — it is a proven path — but worth a small follow-up.
 
-6. **⇐ START HERE. Convert a joined or recovered device's store** — the gap slice 5 exposed.
-   `sync:join` and `sync:recover` adopt the account's master key but **never convert this
-   device's store**, so a device that joins an existing account stays **Open**: plaintext file,
-   no db-key, no roster entry. `model.md` §7.1 says such a device should be *encrypted from
-   byte one*; slice 4 closed this for `enableSync` only, and it went unnoticed because nothing
-   downstream needed a db-key until the password door did.
-
-> **Why it is next, above sign-out.** It is the last path that writes real user data to a
-> plaintext file. Every synced device beyond the first one is currently unencrypted at rest —
-> which is both the custody model's central promise and the thing `launch.md` Increment 4's
-> closed testers would be trusting. It also silently caps slice 5: those devices have no
-> password door because they have no lock at all, so "your password gets you back in" is today
-> only true of the device that created the account.
->
-> **The shape is already proved.** This is slice 4's irreversible half, minus the key minting:
-> **convert (original kept) → roster entry → destroy the original**, plus the two sidecars.
-> Reuse `convertStoreToEncrypted` on both clients and the ordering in
-> `apps/desktop/src/main/db/create-account-flow.ts`; read *Before you rely on it* below before
-> touching the converter. The difference from slice 4 is only *where the keys come from* — the
-> account already exists remotely, so this device mints a db-key and adopts MK rather than
-> creating either.
->
-> **Where the work lands.** Desktop: the `sync:join` / `sync:recover` handlers in
-> `apps/desktop/src/main/index.ts`, which should run the conversion inside `withStoreSwap`
-> exactly as `account:create` does — that already re-opens the app around the new store, so
-> no relaunch and no dead-driver window. Mobile: the `join` / `recover` members of the
-> `setSync({…})` object in `apps/mobile/lib/core-context.tsx`, following its `enable` member
-> line for line, including the `setResetVersion` bump that re-runs the bootstrap in place.
-> Note that both clients' "rebuild the core around the adopted MK" plumbing is inert today
-> (see the `createCore` note above) and could be simplified in the same pass.
->
-> **What falls out for free.** `sealPasswordDoorIfProtected` (`packages/core/src/sync.ts`)
-> already skips while a store is Open and starts writing a real door the moment one converts,
-> so join and recover gain the password door with no change at those call sites. A guard test
-> should pin that it is no longer skipping.
->
-> *Acceptance:* after a join and after a recovery, the store is ciphertext at
-> `stores/<accountId>/`, the Open store is gone, the roster holds the account, and **both**
-> sidecars exist — the same assertions slice 4 already makes, applied to two more paths. Then
-> a wiped keychain on the joined device opens from its own password.
-
-7. **Sign out + Forget account** (§7.3). Sign out closes the store; Forget account removes it
+7. **⇐ START HERE. Sign out + Forget account** (§7.3). Sign out closes the store; Forget account removes it
    and its roster entry. On the **last device**, ask the relay whether it keeps a durable copy
    and, absent an answer, word it as "Delete all data on this device" and offer an export
    first (§7.3.1).
@@ -271,8 +257,10 @@ What that gate is protecting, in case you change the conversion:
 - **`ATTACH` never creates directories.** Desktop `mkdirSync`s; mobile opens the destination
   by name first, since expo-sqlite creates intermediate directories on open.
 
-**Blocks:** `launch.md` Increments 2, 3, and therefore 4 (the first closed-test upload puts
-real data in ≥12 testers' hands — do not ship custody churn to them afterwards).
+**No longer blocks `launch.md` Increments 2–4.** The at-rest half of custody is complete on
+every path, so the first closed-test upload would not be putting testers' real data in a
+plaintext file. Slices 7–8 are user-facing surface, not on-disk churn, and can land alongside
+the distribution work rather than ahead of it.
 
 **Encryption + sync:**
 
@@ -293,7 +281,8 @@ real data in ≥12 testers' hands — do not ship custody churn to them afterwar
   people + contact methods first. Cheap, and it doubles as groundwork for the future
   CardDAV surface and the importer increment.
 - **Restore-from-file-backup flow — verify + document.** ⇐ **now unblocked** — slice 5 built
-  the second door, and both are proved on desktop against a wiped keychain; what remains is
+  the second door, and both are proved on desktop against a wiped keychain, on created,
+  joined and recovered devices alike; what remains is
   the same exercise on a *fresh machine*, plus writing it up. At-rest encryption made the local file
   opaque to generic backup tools; the intended story is "copied `leapsake.db` +
   `leapsake.db.recovery` + the password (or phrase) on a fresh machine boots through
@@ -327,8 +316,8 @@ is deliberately still `0.0.0`. Two constraints on that choice: it must be settle
 **Increment 4's first store upload**, not before the v0.1.0 cut, and it needs a build-number
 strategy (`ios.buildNumber` / `android.versionCode` exist nowhere yet — EAS can auto-increment
 them). Store version strings are permanent and monotonic per store record, which is the whole
-reason this sits in Increment 1. **Increments 2–4 wait on the custody *build*** (the decision
-itself is settled).
+reason this sits in Increment 1. **Increments 2–4 no longer wait on custody** — the at-rest
+build finished with slice 6.
 
 **Reconciliation** (quality; can land pre- or post-launch as capacity allows):
 - **Fuzzy / typo-tolerant name matching** — the scorer's reserved `"low"` tier via

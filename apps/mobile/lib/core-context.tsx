@@ -132,9 +132,10 @@ export interface SyncApi {
   }): Promise<{ accountId: string; recoveryKey: string }>;
   /**
    * Log in to an existing account on a second device: fetch + unwrap the master
-   * key, adopt it under this device's enclave, and **swap the live core in
-   * place** so every screen reads the adopted-MK core (the in-process analogue
-   * of desktop's getter/`Proxy` core swap).
+   * key, adopt it under this device's enclave, and **convert this device's store
+   * to encrypted** — a joining device is Protected from byte one (`model.md`
+   * §7.1). The conversion re-runs the bootstrap in place, so screens end up on the
+   * new store the same way account creation moves them.
    */
   join(args: {
     username: string;
@@ -146,7 +147,8 @@ export interface SyncApi {
   /**
    * Recover an existing account on this device from the recovery phrase (forgot
    * password, `model.md` §6): unwrap MK from the relay's recovery escrow, set a
-   * new password, adopt MK under this device's enclave, and swap the live core in.
+   * new password, adopt MK under this device's enclave, and convert this device's
+   * store exactly as {@link SyncApi.join} does.
    */
   recover(args: {
     username: string;
@@ -503,6 +505,62 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       scheduler.current.start(); // backstop interval
       void regenerateSystemReminders(bootedCore); // birthdays atop Home
       void scheduler.current.autoTrigger(); // initial sync (skipped if auto off)
+      /**
+       * Convert this device's Open store to the account it has just joined or
+       * recovered (`model.md` §7.1) — the local half of adopting an account, and
+       * the same irreversible sequence `enable` runs: **convert (original kept) →
+       * roster → destroy the original.**
+       *
+       * The password door needs no step: the db-key is minted before the relay
+       * call, so core's `sealPasswordDoorIfProtected` no longer skips and has
+       * already written it through `writePasswordSidecar`. Nor does the recovery
+       * door — the Protected boot path seals it on every launch.
+       *
+       * Always ends by re-running the bootstrap, success or failure. On success it
+       * resolves Protected and opens the converted store; on failure the roster is
+       * untouched, so it resolves Open and re-opens the plaintext original that
+       * the conversion deliberately left in place.
+       */
+      const convertJoinedStore = async (
+        accountId: string,
+        username: string,
+      ) => {
+        const dbKey = await keyStore.getSecret(DATABASE_KEY);
+        if (dbKey === undefined) {
+          throw new Error("This device has no database key to convert with.");
+        }
+        const roster = createAccountRoster(sqliteRosterStorage());
+        scheduler.current?.stop();
+        await driver.close?.();
+        try {
+          // A destination left by an earlier attempt that crashed before its roster
+          // entry is claimed by nobody, so it is discardable — and clearing it is
+          // what lets a retry convert into an empty file rather than a populated one.
+          // Usually there is nothing there, and `deleteDatabaseAsync` throws rather
+          // than shrugging at a missing file, so tolerate that.
+          if (!(await roster.list()).some((a) => a.id === accountId)) {
+            try {
+              await SQLite.deleteDatabaseAsync(storePath(accountId));
+            } catch {
+              // nothing stranded — the ordinary case
+            }
+          }
+          await convertStoreToEncrypted({
+            fromName: activeStore.path,
+            toName: storePath(accountId),
+            key: dbKey,
+          });
+          await roster.add({
+            id: accountId,
+            username,
+            createdAt: new Date().toISOString(),
+          });
+          await destroyPlaintextStore(activeStore.path);
+        } finally {
+          setResetVersion((v) => v + 1);
+        }
+      };
+
       // The enable-sync surface closes over the *booted* driver + keystore, so it
       // never re-opens the DB or re-creates the keystore (custody Phase 1).
       setSync({
@@ -576,6 +634,14 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           return { accountId, recoveryKey: recoveryPhrase };
         },
         async join({ username, password, relayUrl }) {
+          const wasOpen = activeStore.custody === "open";
+          // This device's own at-rest key, minted *before* the relay call: core
+          // seals the password door from inside `joinAccountViaRelay`, and its
+          // `sealPasswordDoorIfProtected` skips while there is no db-key to seal.
+          // Minting first is what turns that skip into a real door, with no change
+          // at the call site. Safe while Open — custody is decided purely by the
+          // roster, and the Open boot branch ignores a db-key entirely.
+          if (wasOpen) await ensureDatabaseKey(keyStore);
           let session: KeySession;
           try {
             session = await joinAccountViaRelay({
@@ -614,6 +680,18 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           } catch {
             duplicateCount = 0;
           }
+          if (wasOpen) {
+            // Encrypt this device from byte one. The bootstrap this re-runs kicks
+            // its own sync, so nothing is triggered here.
+            const { accountId } = await getSyncStatus({ driver });
+            if (accountId === undefined) {
+              throw new Error(
+                "Joining did not record an account on this store.",
+              );
+            }
+            await convertJoinedStore(accountId, username);
+            return { duplicateCount };
+          }
           void scheduler.current?.autoTrigger(); // push this device's data + pull remainder
           return { duplicateCount };
         },
@@ -623,6 +701,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
               `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
             );
           }
+          const wasOpen = activeStore.custody === "open";
+          // Same reason as join: mint before the relay call so core's password door
+          // is sealed rather than skipped.
+          if (wasOpen) await ensureDatabaseKey(keyStore);
           let session: KeySession;
           try {
             session = await recoverAccountViaRelay({
@@ -654,6 +736,16 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             }));
           } catch {
             duplicateCount = 0;
+          }
+          if (wasOpen) {
+            const { accountId } = await getSyncStatus({ driver });
+            if (accountId === undefined) {
+              throw new Error(
+                "Recovering did not record an account on this store.",
+              );
+            }
+            await convertJoinedStore(accountId, username);
+            return { duplicateCount };
           }
           void scheduler.current?.autoTrigger();
           return { duplicateCount };

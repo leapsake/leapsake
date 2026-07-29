@@ -1,7 +1,10 @@
 import * as SQLite from "expo-sqlite";
 import { generateKey, rawKeyLiteral } from "@leapsake/crypto";
 import type { TestApi } from "@leapsake/data/testing";
-import { convertStoreToEncrypted } from "../db/convert-store";
+import {
+  convertStoreToEncrypted,
+  destroyPlaintextStore,
+} from "../db/convert-store";
 
 /**
  * The **custody** self-test: proves on-device the two expo-sqlite behaviors that
@@ -240,6 +243,114 @@ export function runCustodySelfTest(t: TestApi): void {
         // Tolerant on purpose: a `finally` that throws replaces the real failure
         // with a cleanup error, which is exactly how this case first hid an
         // ATTACH failure behind "database not found".
+        await discard(from);
+        await discard(to);
+      }
+    });
+  });
+
+  /**
+   * Joining or recovering an account runs the same irreversible sequence account
+   * creation does — **convert (original kept) → roster → destroy the original** —
+   * so that a device past the first is encrypted at rest too (`model.md` §7.1).
+   *
+   * The relay half can't run here, so these cover the two steps that touch this
+   * device's files: that the converted store genuinely refuses a keyless read, and
+   * that destroying the original leaves nothing plaintext behind. Scratch names
+   * only — the real roster and sidecar helpers use fixed database names, and a
+   * self-test must not rewrite the custody state of the device it runs on.
+   */
+  describe("custody: a joined device's store", () => {
+    it("ends up ciphertext, with the plaintext original destroyed", async () => {
+      const from = scratchName("join-src");
+      const to = `stores/joined-${crypto.randomUUID()}/leapsake.db`;
+      const key = generateKey();
+
+      const source = await SQLite.openDatabaseAsync(from);
+      await source.execAsync(
+        "CREATE TABLE person (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+      );
+      await source.runAsync(
+        "INSERT INTO person (id, name) VALUES (1, ?)",
+        "Grace",
+      );
+      await source.closeAsync();
+
+      try {
+        await convertStoreToEncrypted({ fromName: from, toName: to, key });
+        // The step join used to skip entirely: without it the device keeps a
+        // plaintext copy of everything it just encrypted.
+        await destroyPlaintextStore(from);
+
+        // The paired negative — the target is only "encrypted" if a keyless
+        // connection genuinely cannot read it.
+        expect(
+          await rejects(async () => {
+            const keyless = await SQLite.openDatabaseAsync(to);
+            try {
+              return await keyless.getFirstAsync("SELECT name FROM person");
+            } finally {
+              await keyless.closeAsync();
+            }
+          }),
+        ).toBe(true);
+
+        const target = await SQLite.openDatabaseAsync(to);
+        await target.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+        const row = await target.getFirstAsync<{ name: string }>(
+          "SELECT name FROM person WHERE id = 1",
+        );
+        expect(row?.name).toBe("Grace");
+        await target.closeAsync();
+
+        // Re-opening the destroyed name gives a *new, empty* database rather than
+        // the old rows — expo-sqlite creates on open, so "gone" reads as "no table".
+        const reopened = await SQLite.openDatabaseAsync(from);
+        const survivor = await reopened.getFirstAsync<{ n: number }>(
+          "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'person'",
+        );
+        expect(survivor?.n).toBe(0);
+        await reopened.closeAsync();
+      } finally {
+        await discard(from);
+        await discard(to);
+      }
+    });
+
+    // A crash between the conversion and the roster entry leaves an encrypted
+    // store nobody claims. Mobile's converter has no overwrite guard, so the retry
+    // clears the stranded file first — without that it copies into a populated
+    // database and the rows arrive twice.
+    it("clears a stranded destination before converting again", async () => {
+      const from = scratchName("retry-src");
+      const to = `stores/retry-${crypto.randomUUID()}/leapsake.db`;
+      const key = generateKey();
+
+      const source = await SQLite.openDatabaseAsync(from);
+      await source.execAsync(
+        "CREATE TABLE person (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+      );
+      await source.runAsync(
+        "INSERT INTO person (id, name) VALUES (1, ?)",
+        "Grace",
+      );
+      await source.closeAsync();
+
+      try {
+        // The stranded leftover of an attempt that crashed before its roster entry.
+        await convertStoreToEncrypted({ fromName: from, toName: to, key });
+
+        await discard(to); // what the retry does when no roster entry claims it
+        await convertStoreToEncrypted({ fromName: from, toName: to, key });
+
+        const target = await SQLite.openDatabaseAsync(to);
+        await target.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+        const count = await target.getFirstAsync<{ n: number }>(
+          "SELECT COUNT(*) AS n FROM person",
+        );
+        expect(count?.n).toBe(1);
+        await target.closeAsync();
+      } finally {
         await discard(from);
         await discard(to);
       }
