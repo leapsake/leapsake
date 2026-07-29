@@ -10,7 +10,9 @@ import { ROSTER_PATH } from "@leapsake/store-layout";
  *
  * Deletes, all under the app's `userData`:
  *  - the active store and its SQLite WAL/SHM sidecars,
- *  - the `<db>.recovery` file that wraps the db-key under the recovery phrase,
+ *  - both db-key sidecars — `<db>.recovery` (wrapped under the recovery phrase)
+ *    and `<db>.password` (wrapped under the password-derived KEK). Leaving either
+ *    would strand a door onto a key that no longer opens anything,
  *  - the whole `stores/` tree, so no other account's store is left orphaned,
  *  - the account **roster** (`model.md` §7.4), and
  *  - `keystore.json` (+ its atomic-write `.tmp`), which holds every keystore
@@ -39,6 +41,7 @@ export function factoryResetFiles(opts: {
     `${dbPath}-wal`,
     `${dbPath}-shm`,
     `${dbPath}.recovery`,
+    `${dbPath}.password`,
     keystorePath,
     `${keystorePath}.tmp`,
     ...(userDataPath === undefined

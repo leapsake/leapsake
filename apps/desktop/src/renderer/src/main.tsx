@@ -36,10 +36,14 @@ function Root() {
     "starting",
   );
   const [error, setError] = useState<string | undefined>();
+  // Which unlock doors this store has, so the gate offers the password when there
+  // is one and the phrase alone when there isn't (encryption `model.md` §7.5).
+  const [doors, setDoors] = useState({ password: false, phrase: true });
 
   useEffect(() => {
-    const offNeeded = window.boot.onRecoveryNeeded((err) => {
+    const offNeeded = window.boot.onUnlockNeeded(({ error: err, doors: d }) => {
       setError(err);
+      setDoors(d);
       setPhase("recovering");
     });
     const offReady = window.boot.onReady(() => {
@@ -52,6 +56,7 @@ function Root() {
       if (s.phase === "ready") appRouter ??= createAppRouter();
       setPhase(s.phase);
       setError(s.error);
+      setDoors(s.doors);
     });
     return () => {
       offNeeded();
@@ -61,7 +66,8 @@ function Root() {
 
   if (phase === "ready" && appRouter !== undefined)
     return <RouterProvider router={appRouter} />;
-  if (phase === "recovering") return <RecoveryGate error={error} />;
+  if (phase === "recovering")
+    return <RecoveryGate error={error} doors={doors} />;
   return null; // brief "starting" flash; the DB usually opens immediately
 }
 

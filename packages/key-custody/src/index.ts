@@ -10,7 +10,9 @@
  * - **Phases 1–2, the password door** — {@link enableSync} adds the password and
  *   recovery wrappings of MK; {@link unlockWithPassword} and
  *   {@link unlockWithRecoveryKey} open it again from the password or the recovery
- *   phrase alone, with no enclave involved.
+ *   phrase alone, with no enclave involved. {@link sealPasswordDoor} is the same
+ *   door one layer down, on the *at-rest* db-key: the sidecar read before the
+ *   database can open at all.
  * - **Adoption and repair** — {@link joinAccount} (a second device),
  *   {@link recoverAccount} (a forgotten password), {@link reauthenticate} (a
  *   password changed elsewhere).
@@ -29,6 +31,7 @@
  * imports `@leapsake/sync`, and the two stay independently testable.
  */
 export { createLocalAccount } from "./create-account.js";
+export { sealPasswordDoor } from "./password-door.js";
 export {
   KEYSTORE_SECRET_IDS,
   clearLocalAccount,

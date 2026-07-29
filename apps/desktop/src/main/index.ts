@@ -67,8 +67,13 @@ import {
 import { destroyPlaintextStore } from "./db/convert-store.js";
 import { createAccountOnThisDevice } from "./db/create-account-flow.js";
 import { factoryResetFiles } from "./db/factory-reset.js";
-import { openAppDatabase } from "./db/open.js";
+import {
+  type UnlockAnswer,
+  type UnlockRequest,
+  openAppDatabase,
+} from "./db/open.js";
 import { jsonFileStorage } from "./db/roster-storage.js";
+import { passwordSidecarPath, writeSidecar } from "./db/sidecars.js";
 import { storeFileState } from "./db/sqlite-header.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
@@ -176,7 +181,7 @@ async function openActiveStore(): Promise<void> {
     dbPath,
     custody: activeStore.custody,
     keyStore,
-    requestRecoveryPhrase,
+    requestUnlock,
   });
   await runMigrations(driver);
   // The bundled holiday catalog, applied only when this install hasn't seen this
@@ -249,6 +254,21 @@ async function withStoreSwap<T>(operation: () => Promise<T>): Promise<T> {
 async function restoreLiveStore(): Promise<void> {
   if (storeSwapping) await reopenActiveStore();
   else scheduler?.start();
+}
+
+/**
+ * Persist this device's at-rest **password door** beside the store it opens — the
+ * {@link PasswordDoorWriter} every credential-establishing path is handed, so none
+ * of them can quietly skip it.
+ *
+ * `dbPath` is read at call time, so this always lands beside whichever store is
+ * live — including after account creation swaps it for the converted one. Core
+ * skips calling it entirely while a store is still Open (see
+ * `sealPasswordDoorIfProtected`), so this never writes a door onto a plaintext
+ * store.
+ */
+async function writeThisDevicePasswordDoor(sidecar: Uint8Array): Promise<void> {
+  writeSidecar(passwordSidecarPath(dbPath), sidecar);
 }
 
 /**
@@ -540,6 +560,7 @@ function registerSyncIpc(): void {
           username,
           password,
           platform: "desktop",
+          writePasswordSidecar: writeThisDevicePasswordDoor,
         });
       } catch (cause) {
         throw new Error(relayErrorMessage(cause, relayUrl), { cause });
@@ -604,6 +625,7 @@ function registerSyncIpc(): void {
           recoveryPhrase,
           newPassword,
           platform: "desktop",
+          writePasswordSidecar: writeThisDevicePasswordDoor,
         });
       } catch (cause) {
         throw new Error(relayErrorMessage(cause, relayUrl), { cause });
@@ -637,7 +659,12 @@ function registerSyncIpc(): void {
     );
     const { relayUrl } = await getSyncStatus({ driver });
     try {
-      await reauthenticateViaRelay({ keyStore, driver, password });
+      await reauthenticateViaRelay({
+        keyStore,
+        driver,
+        password,
+        writePasswordSidecar: writeThisDevicePasswordDoor,
+      });
     } catch (cause) {
       throw new Error(relayErrorMessage(cause, relayUrl ?? ""), { cause });
     }
@@ -785,35 +812,51 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-// --- Boot gate (at-rest recovery, model.md §6). ----------------------------
-// The renderer mounts before the DB is open so it can host the recovery prompt
-// when this device's enclave key is gone but the encrypted file + sidecar
-// survive. `requestRecoveryPhrase` (passed into openAppDatabase) parks until the
-// renderer submits a phrase; a wrong phrase loops back here with an error.
+// --- Boot gate (at-rest unlock, model.md §6 / §7.5). -----------------------
+// The renderer mounts before the DB is open so it can host the unlock prompt when
+// this device's enclave key is gone but the encrypted file + a sidecar survive.
+// `requestUnlock` (passed into openAppDatabase) parks until the renderer submits a
+// secret; a wrong one loops back here with an error and the gate re-prompts.
 
 type BootPhase = "starting" | "recovering" | "ready";
 let bootPhase: BootPhase = "starting";
 let bootError: string | undefined;
+/** Which doors the store being opened actually has, for the gate to offer. */
+let bootDoors: UnlockRequest["doors"] = { password: false, phrase: false };
 let mainWindow: BrowserWindow | undefined;
-let recoveryPhraseResolver: ((phrase: string) => void) | undefined;
+let unlockResolver: ((answer: UnlockAnswer) => void) | undefined;
 
 function registerBootIpc(): void {
-  ipcMain.handle("boot:status", () => ({ phase: bootPhase, error: bootError }));
-  ipcMain.handle("boot:recovery", (_event, phrase: unknown) => {
-    if (typeof phrase === "string" && recoveryPhraseResolver !== undefined) {
-      const resolve = recoveryPhraseResolver;
-      recoveryPhraseResolver = undefined;
-      resolve(phrase);
+  ipcMain.handle("boot:status", () => ({
+    phase: bootPhase,
+    error: bootError,
+    doors: bootDoors,
+  }));
+  ipcMain.handle("boot:unlock", (_event, answer: unknown) => {
+    // Validate here rather than trusting the renderer: this is the one input that
+    // reaches key material before anything else in the app is alive.
+    const door = (answer as UnlockAnswer | undefined)?.door;
+    const secret = (answer as UnlockAnswer | undefined)?.secret;
+    if (
+      (door !== "password" && door !== "phrase") ||
+      typeof secret !== "string" ||
+      unlockResolver === undefined
+    ) {
+      return;
     }
+    const resolve = unlockResolver;
+    unlockResolver = undefined;
+    resolve({ door, secret });
   });
 }
 
-function requestRecoveryPhrase({ error }: { error?: string }): Promise<string> {
+function requestUnlock({ error, doors }: UnlockRequest): Promise<UnlockAnswer> {
   bootPhase = "recovering";
   bootError = error;
-  mainWindow?.webContents.send("boot:recovery-needed", error);
-  return new Promise<string>((resolve) => {
-    recoveryPhraseResolver = resolve;
+  bootDoors = doors;
+  mainWindow?.webContents.send("boot:unlock-needed", { error, doors });
+  return new Promise<UnlockAnswer>((resolve) => {
+    unlockResolver = resolve;
   });
 }
 

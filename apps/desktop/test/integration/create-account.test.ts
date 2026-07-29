@@ -55,7 +55,7 @@ async function openStoreWithData(): Promise<{
     dbPath: path,
     custody: "open",
     keyStore,
-    requestRecoveryPhrase: never,
+    requestUnlock: never,
   });
   await runMigrations(driver);
   await createPeopleRepo(driver).create({
@@ -139,7 +139,7 @@ describe("account creation", () => {
       dbPath: join(userData, resolved.path),
       custody: resolved.custody,
       keyStore,
-      requestRecoveryPhrase: never,
+      requestUnlock: never,
     });
     await runMigrations(reopened); // a no-op if user_version came across
 
@@ -162,7 +162,7 @@ describe("account creation", () => {
       dbPath: encryptedPath,
       custody: "protected",
       keyStore,
-      requestRecoveryPhrase: never,
+      requestUnlock: never,
     });
     await reopened.close?.();
     expect(existsSync(`${encryptedPath}.recovery`)).toBe(true);

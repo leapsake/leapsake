@@ -57,7 +57,7 @@ describe("factoryResetFiles", () => {
   });
 });
 
-const requestRecoveryPhrase = () =>
+const requestUnlock = () =>
   Promise.reject(new Error("should not prompt on a fresh install"));
 
 describe("factory reset → fresh install round-trip", () => {
@@ -80,7 +80,7 @@ describe("factory reset → fresh install round-trip", () => {
       dbPath,
       custody: "protected",
       keyStore,
-      requestRecoveryPhrase,
+      requestUnlock,
     });
     await runMigrations(driver);
     await createPeopleRepo(driver).create({
@@ -101,7 +101,7 @@ describe("factory reset → fresh install round-trip", () => {
       dbPath,
       custody: "protected",
       keyStore: freshKeyStore,
-      requestRecoveryPhrase,
+      requestUnlock,
     });
     await runMigrations(reopened);
     expect(await createPeopleRepo(reopened).list()).toEqual([]);

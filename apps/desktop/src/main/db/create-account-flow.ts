@@ -16,6 +16,7 @@ import {
   convertStoreToEncrypted,
   destroyPlaintextStore,
 } from "./convert-store.js";
+import { passwordSidecarPath, writeSidecar } from "./sidecars.js";
 import { storeFileState } from "./sqlite-header.js";
 
 /**
@@ -64,7 +65,7 @@ export async function createAccountOnThisDevice(opts: {
 
   // 1. Keys + account rows, written into the store while it is still plaintext —
   //    the conversion copies whatever is there, so these must precede it.
-  const { accountId, recoveryPhrase, dbKey, bootstrap } =
+  const { accountId, recoveryPhrase, dbKey, passwordSidecar, bootstrap } =
     await createLocalAccount({
       keyStore,
       driver,
@@ -105,6 +106,13 @@ export async function createAccountOnThisDevice(opts: {
     toPath: encryptedPath,
     key: dbKey,
   });
+
+  // 2b. The password door, beside the store it opens. Written after the
+  //     conversion because that is when its destination exists, and *before* the
+  //     roster entry so a device that is Protected from the next boot onward has
+  //     both doors from the same moment. The recovery sidecar needs no step here:
+  //     the Protected boot path seals it on every launch.
+  writeSidecar(passwordSidecarPath(encryptedPath), passwordSidecar);
 
   // 3. Point the roster at the new store. Past this line the device is Protected.
   await roster.add({

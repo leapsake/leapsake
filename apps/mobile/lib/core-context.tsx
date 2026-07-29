@@ -49,8 +49,8 @@ import {
   decodeRecoveryPhrase,
   encodeRecoveryPhrase,
   ensureDatabaseKey,
-  ensureRecoveryKey,
   openDbKeyFromRecovery,
+  openDbKeyWithPassword,
   rawKeyLiteral,
   readRecoveryKey,
   sealDbKeyForRecovery,
@@ -67,10 +67,12 @@ import {
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 import { deleteAccountRoster, sqliteRosterStorage } from "../db/roster-storage";
 import {
-  deleteRecoverySidecar,
+  deleteSidecars,
+  readPasswordSidecar,
   readRecoverySidecar,
+  writePasswordSidecar,
   writeRecoverySidecar,
-} from "../db/recovery-sidecar";
+} from "../db/sidecars";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 
 /**
@@ -206,6 +208,12 @@ export interface SyncApi {
 // expo-sqlite, then `createCore`. Every screen reads the ready CoreApi via
 // `useCore()` and calls it in-process — no IPC, unlike desktop.
 const CoreContext = createContext<CoreApi | null>(null);
+
+/** The secret the user typed at the unlock gate, and which door they used. */
+interface UnlockAnswer {
+  door: "password" | "phrase";
+  secret: string;
+}
 const SyncContext = createContext<SyncApi | null>(null);
 // A monotonically-increasing counter bumped whenever a background-sync pull
 // applies remote changes. `useFocusedData` depends on it, so a bump re-runs the
@@ -245,13 +253,16 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   const [core, setCore] = useState<CoreApi | null>(null);
   const [sync, setSync] = useState<SyncApi | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // The boot-time at-rest recovery prompt (model.md §6): set when this device's
-  // enclave key is gone but the recovery sidecar survives, so the user must type
-  // their phrase before the DB can open. `resolve` feeds the typed phrase back to
-  // the awaiting bootstrap; a wrong phrase re-sets this with an `error`.
+  // The boot-time at-rest unlock prompt (model.md §6, §7.5): set when this
+  // device's enclave key is gone but a sidecar survives, so the user must supply
+  // a secret before the DB can open. `doors` says which are available — the
+  // password leads, the phrase is the forgot-password fallback. `resolve` feeds
+  // the answer back to the awaiting bootstrap; a wrong one re-sets this with an
+  // `error`.
   const [recoveryPrompt, setRecoveryPrompt] = useState<{
     error?: string;
-    resolve: (phrase: string) => void;
+    doors: { password: boolean; phrase: boolean };
+    resolve: (answer: UnlockAnswer) => void;
   } | null>(null);
   // Reactive invalidation: bumped whenever a sync pull applied changes, so the
   // focused screen (via `useFocusedData` → `useDataVersion`) re-reads in place.
@@ -312,10 +323,15 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Park the bootstrap on the recovery gate until the user submits a phrase.
-    const requestRecoveryPhrase = (attemptError?: string) =>
-      new Promise<string>((resolve) =>
-        setRecoveryPrompt({ error: attemptError, resolve }),
+    // Park the bootstrap on the unlock gate until the user submits a secret. The
+    // gate is told which doors this store has, so it can lead with the password
+    // and only offer the phrase as the forgot-password fallback (§7.5).
+    const requestUnlock = (
+      doors: { password: boolean; phrase: boolean },
+      attemptError?: string,
+    ) =>
+      new Promise<UnlockAnswer>((resolve) =>
+        setRecoveryPrompt({ error: attemptError, doors, resolve }),
       );
 
     (async () => {
@@ -329,14 +345,16 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         accounts: await createAccountRoster(sqliteRosterStorage()).list(),
       });
       const existingDbKey = await keyStore.getSecret(DATABASE_KEY);
-      const sidecar = await readRecoverySidecar();
+      const recoverySidecar = await readRecoverySidecar();
+      const passwordSidecar = await readPasswordSidecar();
 
       // At-rest encryption (Stage 2), now conditional on custody: a Protected
       // store's whole-DB key is held only in the OS enclave and the file is
       // ciphertext. Three cases (mirrors desktop's open.ts):
       //  1. enclave holds it → use it;
-      //  2. no key + a recovery sidecar survives → the enclave was wiped: recover
-      //     the key from the sidecar via the typed phrase (the only way back);
+      //  2. no key + a sidecar survives → the enclave was wiped: recover the key
+      //     through one of the two doors (password first, phrase as the
+      //     forgot-password fallback — §7.5 Phase 0.5);
       //  3. no key + no sidecar → mint one.
       // An **Open** store skips all of it: no account, so no key exists and none
       // is made — the OS keychain is never touched.
@@ -347,18 +365,36 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       if (
         activeStore.custody === "protected" &&
         dbKey === undefined &&
-        sidecar !== undefined
+        (recoverySidecar !== undefined || passwordSidecar !== undefined)
       ) {
+        const doors = {
+          password: passwordSidecar !== undefined,
+          phrase: recoverySidecar !== undefined,
+        };
         let attemptError: string | undefined;
         for (;;) {
-          const phrase = await requestRecoveryPhrase(attemptError);
+          const answer = await requestUnlock(doors, attemptError);
           try {
-            recoverySecret = decodeRecoveryPhrase(phrase);
-            dbKey = openDbKeyFromRecovery(sidecar, recoverySecret);
+            if (answer.door === "password" && passwordSidecar !== undefined) {
+              dbKey = openDbKeyWithPassword(passwordSidecar, answer.secret);
+            } else if (
+              answer.door === "phrase" &&
+              recoverySidecar !== undefined
+            ) {
+              // Hold the recovery key: it is also this device's enclave copy,
+              // restored below. A password unlock cannot recover it.
+              recoverySecret = decodeRecoveryPhrase(answer.secret);
+              dbKey = openDbKeyFromRecovery(recoverySidecar, recoverySecret);
+            } else {
+              throw new Error("That door is not available on this device.");
+            }
             break;
           } catch {
             recoverySecret = undefined;
-            attemptError = "That recovery phrase doesn't open this database.";
+            attemptError =
+              answer.door === "password"
+                ? "That password doesn't open this database."
+                : "That recovery phrase doesn't open this database.";
           }
         }
         await keyStore.setSecret(DATABASE_KEY, dbKey);
@@ -392,11 +428,22 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // every launch (not just when missing), so it stays in step if the key was
       // later adopted — e.g. after recovering an account. An Open store has no
       // db-key to seal and so has no sidecar.
+      //
+      // **Read, never mint** (mirrors desktop's open.ts). A *password* unlock
+      // leaves this device without the recovery key — it stayed in the enclave
+      // that was wiped, and nothing local can recover it — so minting here would
+      // seal this door under a fresh key and silently invalidate the 24 words the
+      // user wrote down. Nothing needs minting at boot: account creation, join,
+      // and recovery each establish the recovery key before a store is opened.
       if (dbKey !== undefined) {
         if (recoverySecret === undefined)
-          recoverySecret = await ensureRecoveryKey(keyStore);
+          recoverySecret = await readRecoveryKey(keyStore);
         else await keyStore.setSecret(RECOVERY_KEY, recoverySecret);
-        await writeRecoverySidecar(sealDbKeyForRecovery(dbKey, recoverySecret));
+        if (recoverySecret !== undefined) {
+          await writeRecoverySidecar(
+            sealDbKeyForRecovery(dbKey, recoverySecret),
+          );
+        }
       }
 
       const notifyActivity = (payload: {
@@ -478,15 +525,20 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // relay, then convert this device's plaintext store to encrypted. Before
           // this it created the account and left the store plaintext — a
           // half-Protected state §7.2 does not have.
-          const { accountId, recoveryPhrase, dbKey, bootstrap } =
-            await createLocalAccount({
-              keyStore,
-              driver,
-              password,
-              username,
-              relayUrl,
-              platform: Platform.OS,
-            });
+          const {
+            accountId,
+            recoveryPhrase,
+            dbKey: newDbKey,
+            passwordSidecar: newPasswordSidecar,
+            bootstrap,
+          } = await createLocalAccount({
+            keyStore,
+            driver,
+            password,
+            username,
+            relayUrl,
+            platform: Platform.OS,
+          });
           try {
             await registerAccountWithRelay({ relayUrl, bootstrap });
           } catch (cause) {
@@ -503,8 +555,13 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           await convertStoreToEncrypted({
             fromName: activeStore.path,
             toName: storePath(accountId),
-            key: dbKey,
+            key: newDbKey,
           });
+          // The password door for the store that now exists. Written before the
+          // roster entry, so a device that is Protected from the next boot onward
+          // has both doors from the same moment. The recovery door needs no step
+          // here — the Protected boot path seals it on every launch.
+          await writePasswordSidecar(newPasswordSidecar);
           await createAccountRoster(sqliteRosterStorage()).add({
             id: accountId,
             username,
@@ -524,6 +581,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             session = await joinAccountViaRelay({
               keyStore,
               driver,
+              writePasswordSidecar,
               relayUrl,
               username,
               password,
@@ -570,6 +628,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             session = await recoverAccountViaRelay({
               keyStore,
               driver,
+              writePasswordSidecar,
               relayUrl,
               username,
               recoveryPhrase,
@@ -614,7 +673,12 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         async reauthenticate(password) {
           const { relayUrl } = await getSyncStatus({ driver });
           try {
-            await reauthenticateViaRelay({ keyStore, driver, password });
+            await reauthenticateViaRelay({
+              keyStore,
+              driver,
+              password,
+              writePasswordSidecar,
+            });
           } catch (cause) {
             throw new Error(relayErrorMessage(cause, relayUrl ?? ""), {
               cause,
@@ -640,7 +704,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           scheduler.current?.stop();
           await driver.close?.();
           await SQLite.deleteDatabaseAsync(activeStore.path);
-          await deleteRecoverySidecar();
+          await deleteSidecars();
           await deleteAccountRoster();
           for (const id of KEYSTORE_SECRET_IDS) {
             await keyStore.deleteSecret(id);
@@ -693,6 +757,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     return (
       <RecoveryGate
         error={recoveryPrompt.error}
+        doors={recoveryPrompt.doors}
         onSubmit={recoveryPrompt.resolve}
       />
     );
@@ -718,21 +783,37 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * The boot-time at-rest recovery prompt (encryption `model.md` §6), the mobile
- * counterpart to desktop's `RecoveryGate`. Shown before the app loads when the
- * enclave key is missing but the recovery sidecar survives; the typed phrase is
- * fed back to the awaiting bootstrap, which unwraps the whole-DB key and reopens
- * the file. A wrong phrase comes back as `error`, re-enabling the form.
+ * The boot-time at-rest **unlock gate** (encryption `model.md` §6, §7.5), the
+ * mobile counterpart to desktop's `RecoveryGate`. Shown before the app loads when
+ * the enclave key is missing but a sidecar survives; the typed secret is fed back
+ * to the awaiting bootstrap, which unwraps the whole-DB key and reopens the file.
+ * A wrong secret comes back as `error`, re-enabling the form.
+ *
+ * **The password is the primary door.** Someone who remembers their password
+ * should never be sent hunting for 24 words they may never have written down, so
+ * the phrase sits behind a "forgot your password?" action. Only the doors this
+ * store actually has are offered.
  */
 function RecoveryGate({
   error,
+  doors,
   onSubmit,
 }: {
   error?: string;
-  onSubmit: (phrase: string) => void;
+  doors: { password: boolean; phrase: boolean };
+  onSubmit: (answer: UnlockAnswer) => void;
 }) {
-  const [phrase, setPhrase] = useState("");
+  // Which door is showing, and whether the *user* picked it. Prefer the password
+  // whenever this store has one; the phrase is the forgot-password fallback, so
+  // leading with it would be backwards.
+  const [door, setDoor] = useState<"password" | "phrase">("password");
+  const [chosen, setChosen] = useState(false);
+  const [secret, setSecret] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!chosen) setDoor(doors.password ? "password" : "phrase");
+  }, [chosen, doors.password]);
 
   // A new error means the last attempt failed — let the user try again.
   useEffect(() => {
@@ -740,9 +821,15 @@ function RecoveryGate({
   }, [error]);
 
   function submit() {
-    if (phrase.trim() === "") return;
+    if (secret.trim() === "") return;
     setSubmitting(true);
-    onSubmit(phrase);
+    onSubmit({ door, secret });
+  }
+
+  function switchTo(next: "password" | "phrase") {
+    setChosen(true);
+    setDoor(next);
+    setSecret("");
   }
 
   return (
@@ -750,19 +837,34 @@ function RecoveryGate({
       <Text style={styles.gateTitle}>Restore access to your data</Text>
       <Text style={styles.gateBody}>
         This device's key is missing — its secure storage was likely reset — but
-        your encrypted data is still here. Enter your recovery phrase to unlock
-        it.
+        your data is still here.{" "}
+        {door === "password"
+          ? "Enter your password to unlock it."
+          : "Enter your recovery phrase to unlock it."}
       </Text>
-      <TextInput
-        value={phrase}
-        onChangeText={setPhrase}
-        editable={!submitting}
-        multiline
-        autoCapitalize="none"
-        autoCorrect={false}
-        placeholder="Enter your 24-word recovery phrase…"
-        style={styles.gateInput}
-      />
+      {door === "password" ? (
+        <TextInput
+          value={secret}
+          onChangeText={setSecret}
+          editable={!submitting}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="Your password"
+          style={styles.gateInput}
+        />
+      ) : (
+        <TextInput
+          value={secret}
+          onChangeText={setSecret}
+          editable={!submitting}
+          multiline
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="Enter your 24-word recovery phrase…"
+          style={styles.gateInput}
+        />
+      )}
       {error !== undefined && <Text style={styles.error}>{error}</Text>}
       <Pressable
         style={[styles.gateButton, submitting && { opacity: 0.5 }]}
@@ -773,6 +875,18 @@ function RecoveryGate({
           {submitting ? "Checking…" : "Unlock"}
         </Text>
       </Pressable>
+      {door === "password" && doors.phrase && (
+        <Pressable onPress={() => switchTo("phrase")}>
+          <Text style={styles.gateLink}>
+            Forgot your password? Use your 24-word recovery phrase
+          </Text>
+        </Pressable>
+      )}
+      {door === "phrase" && doors.password && (
+        <Pressable onPress={() => switchTo("password")}>
+          <Text style={styles.gateLink}>Use your password instead</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -820,5 +934,11 @@ const styles = StyleSheet.create({
   gateButtonText: {
     color: "#fff",
     fontWeight: "600",
+  },
+  /** The secondary door, deliberately quieter than the primary Unlock button. */
+  gateLink: {
+    marginTop: 16,
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
 });

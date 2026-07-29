@@ -39,6 +39,14 @@ import { createRelayStore } from "../src/store.js";
 import { nodeSqliteDriver } from "./node-sqlite-driver.js";
 
 /**
+ * These tests exercise the **relay protocol**, not at-rest storage: their drivers
+ * are plain in-memory SQLite with no encrypted store and no db-key, so there is no
+ * password door to persist. The port is required at the type level precisely so a
+ * real client cannot forget it; here it is deliberately a sink.
+ */
+const discardSidecar = () => Promise.resolve();
+
+/**
  * End-to-end sync over the **real** blind HTTPS relay (plans/encryption/sync.md
  * §2). Two devices, one account, talk through `createHttpSyncTransport` to a live
  * `createRelayServer` on an ephemeral port. Mirrors the in-memory transport's
@@ -606,6 +614,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
     const NEW_PASSWORD = "a brand new battery horse staple";
     const session = await recoverAccountViaRelay({
+      writePasswordSidecar: discardSidecar,
       keyStore: d2.keyStore,
       driver: d2.driver,
       relayUrl: baseUrl,
@@ -644,6 +653,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     const wrongPhrase = encodeRecoveryPhrase(new Uint8Array(32).fill(1));
     await expect(
       recoverAccountViaRelay({
+        writePasswordSidecar: discardSidecar,
         keyStore: d2.keyStore,
         driver: d2.driver,
         relayUrl: baseUrl,
@@ -716,6 +726,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     await ensureDeviceMasterKey({ keyStore: d3.keyStore, driver: d3.driver });
     const NEW_PASSWORD = "a brand new battery horse staple";
     const d3session = await recoverAccountViaRelay({
+      writePasswordSidecar: discardSidecar,
       keyStore: d3.keyStore,
       driver: d3.driver,
       relayUrl: baseUrl,
@@ -734,6 +745,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     // mutation (the account row keeps its stale — and still-wrong — credential).
     await expect(
       reauthenticateViaRelay({
+        writePasswordSidecar: discardSidecar,
         keyStore: d2.keyStore,
         driver: d2.driver,
         password: "not the new password",
@@ -746,6 +758,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     // Device 2 re-authenticates with the new password — the MK is untouched — and
     // resumes syncing: it pulls a person device 3 pushes after the reset.
     await reauthenticateViaRelay({
+      writePasswordSidecar: discardSidecar,
       keyStore: d2.keyStore,
       driver: d2.driver,
       password: NEW_PASSWORD,

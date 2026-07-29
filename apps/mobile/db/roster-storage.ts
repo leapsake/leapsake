@@ -4,7 +4,7 @@ import type { RosterStorage } from "@leapsake/store-layout";
 /**
  * The mobile {@link RosterStorage}: the account roster (`model.md` §7.4) in a
  * **separate, unencrypted** expo-sqlite database — the same shape, and for the same
- * reason, as the recovery sidecar next door (`recovery-sidecar.ts`). Mobile has no
+ * reason, as the db-key sidecars next door (`sidecars.ts`). Mobile has no
  * general filesystem dependency, so where desktop writes `accounts.json`, this
  * writes one row.
  *

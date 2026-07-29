@@ -4,6 +4,7 @@ import {
   ensureDatabaseKey,
 } from "@leapsake/crypto";
 import type { SqliteDriver } from "@leapsake/data";
+import { sealPasswordDoor } from "./password-door.js";
 import { type AccountBootstrap, enableSync } from "./session.js";
 
 /**
@@ -35,8 +36,8 @@ import { type AccountBootstrap, enableSync } from "./session.js";
  * Returned so the caller can show it **exactly once**, framed as the
  * *forgot-password* backstop (§7.2.1). It is not a second copy of the data and
  * must not be sold as one: an account protects **access**, not against a dead
- * SSD. The phrase can be revealed again later from Settings, so this is a
- * convenience, not the only chance.
+ * SSD. Treat the reveal as the user's **only** chance to record it — the Settings
+ * reveal is being retired in favour of a re-auth-gated rotation.
  */
 export async function createLocalAccount(opts: {
   keyStore: KeyStore;
@@ -58,6 +59,14 @@ export async function createLocalAccount(opts: {
   recoveryPhrase: string;
   /** The at-rest key the caller must convert the store under. */
   dbKey: Uint8Array;
+  /**
+   * The **password door** sidecar for this device (`sealPasswordDoor`), returned
+   * rather than written because its destination does not exist yet: the caller is
+   * about to convert the store to a *new* path, and the sidecar belongs beside the
+   * converted file. Write it once the conversion lands — a Protected store without
+   * it can only ever be reopened with the recovery phrase.
+   */
+  passwordSidecar: Uint8Array;
   /** What a relay needs if this account is being bound to one. */
   bootstrap: AccountBootstrap;
 }> {
@@ -81,10 +90,21 @@ export async function createLocalAccount(opts: {
   // Minted here, not at boot: this is the moment the store stops being plaintext.
   const dbKey = await ensureDatabaseKey(keyStore);
 
+  // Both doors onto that key are minted in the same breath (§7.5 Phase 0.5). The
+  // recovery one is sealed by the boot path, which holds the recovery key on every
+  // Protected launch; the password one can only be sealed here, because this is the
+  // last moment the password is in hand.
+  const passwordSidecar = await sealPasswordDoor({
+    keyStore,
+    driver,
+    password,
+  });
+
   return {
     accountId: account.id,
     recoveryPhrase: encodeRecoveryPhrase(recoveryKey),
     dbKey,
+    passwordSidecar,
     bootstrap,
   };
 }

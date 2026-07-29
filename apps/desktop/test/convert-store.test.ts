@@ -44,7 +44,7 @@ async function seedOpenStore(): Promise<void> {
     dbPath: fromPath,
     custody: "open",
     keyStore: createInMemoryKeyStore(),
-    requestRecoveryPhrase: never,
+    requestUnlock: never,
   });
   await runMigrations(driver);
   await createPeopleRepo(driver).create({
@@ -101,7 +101,7 @@ describe("convertStoreToEncrypted", () => {
       dbPath: toPath,
       custody: "protected",
       keyStore,
-      requestRecoveryPhrase: never,
+      requestUnlock: never,
     });
     await runMigrations(driver); // must be a no-op, not a re-run
     expect((await createPeopleRepo(driver).list()).length).toBe(1);

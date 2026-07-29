@@ -152,6 +152,7 @@ export type {
 export {
   ensureDeviceMasterKey,
   createLocalAccount,
+  sealPasswordDoor,
   enableSync,
   joinAccount,
   recoverAccount,
@@ -185,6 +186,7 @@ export {
   reconcileOnJoin,
   selectJoinDuplicates,
   type JoinReconcileResult,
+  type PasswordDoorWriter,
   getAutoSync,
   setAutoSync,
 } from "./sync.js";

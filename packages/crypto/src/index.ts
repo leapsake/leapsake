@@ -24,6 +24,10 @@ export {
   openDbKeyFromRecovery,
 } from "./recovery.js";
 export {
+  sealDbKeyForPassword,
+  openDbKeyWithPassword,
+} from "./password-sidecar.js";
+export {
   RECOVERY_PHRASE_WORDS,
   encodeRecoveryPhrase,
   decodeRecoveryPhrase,

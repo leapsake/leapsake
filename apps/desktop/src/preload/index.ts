@@ -126,25 +126,44 @@ contextBridge.exposeInMainWorld("sync", sync);
 
 export type Sync = typeof sync;
 
+/** Which doors the store being unlocked actually offers (`model.md` §7.5). */
+export interface UnlockDoors {
+  password: boolean;
+  phrase: boolean;
+}
+
 /**
  * The **boot gate** bridge: the renderer mounts before the database is open, so
- * it can host the at-rest recovery prompt when this device's enclave key is gone
- * but the encrypted file + recovery sidecar survive (encryption `model.md` §6).
- * `status` is the race-safe initial read (an event may fire before the renderer
- * subscribes); `onRecoveryNeeded` carries the previous attempt's error on a retry;
- * `onReady` fires once the core is fully initialized and the app may render.
+ * it can host the at-rest unlock prompt when this device's enclave key is gone
+ * but the encrypted file + a sidecar survive (encryption `model.md` §6, §7.5).
+ *
+ * The gate has two doors — the account **password** (primary) and the 24-word
+ * **recovery phrase** (the forgot-password fallback) — and is told which ones this
+ * store actually has, since a store written before the password door shipped only
+ * offers the phrase. `status` is the race-safe initial read (an event may fire
+ * before the renderer subscribes); `onUnlockNeeded` carries the previous attempt's
+ * error on a retry; `onReady` fires once the core is initialized and the app may
+ * render.
  */
 const boot = {
   status: (): Promise<{
     phase: "starting" | "recovering" | "ready";
     error?: string;
+    doors: UnlockDoors;
   }> => ipcRenderer.invoke("boot:status"),
-  submitRecoveryPhrase: (phrase: string): Promise<void> =>
-    ipcRenderer.invoke("boot:recovery", phrase),
-  onRecoveryNeeded: (listener: (error?: string) => void): (() => void) => {
-    const handler = (_event: unknown, error?: string) => listener(error);
-    ipcRenderer.on("boot:recovery-needed", handler);
-    return () => ipcRenderer.removeListener("boot:recovery-needed", handler);
+  submitUnlock: (answer: {
+    door: "password" | "phrase";
+    secret: string;
+  }): Promise<void> => ipcRenderer.invoke("boot:unlock", answer),
+  onUnlockNeeded: (
+    listener: (payload: { error?: string; doors: UnlockDoors }) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: unknown,
+      payload: { error?: string; doors: UnlockDoors },
+    ) => listener(payload);
+    ipcRenderer.on("boot:unlock-needed", handler);
+    return () => ipcRenderer.removeListener("boot:unlock-needed", handler);
   },
   onReady: (listener: () => void): (() => void) => {
     const handler = () => listener();

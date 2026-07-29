@@ -57,7 +57,7 @@ describe("custody boot decision", () => {
       dbPath,
       custody: activeStore.custody,
       keyStore,
-      requestRecoveryPhrase: never,
+      requestUnlock: never,
     });
     await runMigrations(driver);
 
@@ -84,7 +84,7 @@ describe("custody boot decision", () => {
       dbPath: first.dbPath,
       custody: first.activeStore.custody,
       keyStore,
-      requestRecoveryPhrase: never,
+      requestUnlock: never,
     });
     await runMigrations(driver);
     await createPeopleRepo(driver).create({
@@ -101,7 +101,7 @@ describe("custody boot decision", () => {
       dbPath: second.dbPath,
       custody: second.activeStore.custody,
       keyStore,
-      requestRecoveryPhrase: never,
+      requestUnlock: never,
     });
     expect((await createPeopleRepo(driver).list()).length).toBe(1);
     expect(await keyStore.getSecret(DATABASE_KEY)).toBeUndefined();
@@ -120,7 +120,7 @@ describe("custody boot decision", () => {
       dbPath: openPath,
       custody: "protected",
       keyStore,
-      requestRecoveryPhrase: never,
+      requestUnlock: never,
     });
     // Write, so the file is a real encrypted database rather than the 0-byte
     // placeholder SQLite leaves before the first write.
@@ -134,7 +134,7 @@ describe("custody boot decision", () => {
         dbPath,
         custody: activeStore.custody,
         keyStore,
-        requestRecoveryPhrase: never,
+        requestUnlock: never,
       }),
     ).rejects.toThrow(/encrypted, but no account was found/);
   });
@@ -155,7 +155,7 @@ describe("custody boot decision", () => {
       dbPath,
       custody: "open",
       keyStore: createInMemoryKeyStore(),
-      requestRecoveryPhrase: never,
+      requestUnlock: never,
     });
     await plaintext.exec("CREATE TABLE t(x)");
     await plaintext.close?.();
@@ -165,7 +165,7 @@ describe("custody boot decision", () => {
         dbPath,
         custody: activeStore.custody,
         keyStore: createInMemoryKeyStore(),
-        requestRecoveryPhrase: never,
+        requestUnlock: never,
       }),
     ).rejects.toThrow(/unencrypted/);
   });

@@ -1,5 +1,9 @@
 import type { SyncRow } from "@leapsake/schema";
-import { type KeyStore, decodeRecoveryPhrase } from "@leapsake/crypto";
+import {
+  DATABASE_KEY,
+  type KeyStore,
+  decodeRecoveryPhrase,
+} from "@leapsake/crypto";
 import {
   type DuplicateCandidate,
   type SqliteDriver,
@@ -36,7 +40,47 @@ import {
   joinAccount,
   reauthenticate,
   recoverAccount,
+  sealPasswordDoor,
 } from "@leapsake/key-custody";
+
+/**
+ * Persist this device's at-rest **password door** sidecar (`model.md` §7.5 Phase
+ * 0.5). Injected rather than done here because *where* it lives is platform
+ * specific — a file beside the store on desktop, a row in the unencrypted sidecar
+ * database on mobile — while *when* it must be written is not, and that is the
+ * part worth centralising.
+ *
+ * It is **required** on every wrapper that establishes or rotates a password, so
+ * a client cannot quietly skip one and leave that device reachable only by the
+ * recovery phrase. That failure would be invisible until the keychain was lost.
+ */
+export type PasswordDoorWriter = (sidecar: Uint8Array) => Promise<void>;
+
+/**
+ * Seal + persist this device's password door, **if this device has a store to put
+ * a door on**.
+ *
+ * ⚠️ The guard is not defensive coding; it is a live gap. `joinAccount` and
+ * `recoverAccount` adopt the account's master key but do **not** convert this
+ * device's store the way account creation does, so a joined device is still
+ * **Open** — plaintext, no db-key, no roster entry (`model.md` §7.1 says it should
+ * be encrypted from byte one; it isn't yet). With no db-key there is nothing to
+ * seal, and `sealPasswordDoor` would throw and fail an otherwise-good join.
+ *
+ * So: seal when the store is genuinely Protected, skip when it is not. The day
+ * join and recover convert, every one of these paths starts writing a real door
+ * with no change here.
+ */
+async function sealPasswordDoorIfProtected(opts: {
+  keyStore: KeyStore;
+  driver: SqliteDriver;
+  password: string;
+  write: PasswordDoorWriter;
+}): Promise<void> {
+  const { keyStore, driver, password, write } = opts;
+  if ((await keyStore.getSecret(DATABASE_KEY)) === undefined) return;
+  await write(await sealPasswordDoor({ keyStore, driver, password }));
+}
 
 /**
  * Build the **canonical sync allowlist** — every `SyncableRepo` that may leave
@@ -195,7 +239,7 @@ export async function registerAccountWithRelay(opts: {
  * enclave. Returns the unlocked {@link KeySession} so the caller rebuilds `core`.
  * Keeps the HTTP transport construction in core; the app passes only coordinates.
  */
-export function joinAccountViaRelay(opts: {
+export async function joinAccountViaRelay(opts: {
   keyStore: KeyStore;
   driver: SqliteDriver;
   relayUrl: string;
@@ -203,10 +247,21 @@ export function joinAccountViaRelay(opts: {
   password: string;
   label?: string;
   platform?: string;
+  /** Persist this device's at-rest password door — see {@link PasswordDoorWriter}. */
+  writePasswordSidecar: PasswordDoorWriter;
 }): Promise<KeySession> {
-  const { relayUrl, ...rest } = opts;
+  const { relayUrl, writePasswordSidecar, ...rest } = opts;
   const transport = createHttpSyncTransport({ baseUrl: relayUrl });
-  return joinAccount({ ...rest, relayUrl, transport });
+  const session = await joinAccount({ ...rest, relayUrl, transport });
+  // A device holds its *own* db-key, so device 1's sidecar is meaningless here —
+  // this device needs its own door.
+  await sealPasswordDoorIfProtected({
+    keyStore: opts.keyStore,
+    driver: opts.driver,
+    password: opts.password,
+    write: writePasswordSidecar,
+  });
+  return session;
 }
 
 /**
@@ -218,7 +273,7 @@ export function joinAccountViaRelay(opts: {
  * resets the password, and adopts MK + the recovery key on this device. Returns
  * the unlocked {@link KeySession} so the caller rebuilds `core`.
  */
-export function recoverAccountViaRelay(opts: {
+export async function recoverAccountViaRelay(opts: {
   keyStore: KeyStore;
   driver: SqliteDriver;
   relayUrl: string;
@@ -227,11 +282,27 @@ export function recoverAccountViaRelay(opts: {
   newPassword: string;
   label?: string;
   platform?: string;
+  /** Persist this device's at-rest password door — see {@link PasswordDoorWriter}. */
+  writePasswordSidecar: PasswordDoorWriter;
 }): Promise<KeySession> {
-  const { relayUrl, recoveryPhrase, ...rest } = opts;
+  const { relayUrl, recoveryPhrase, writePasswordSidecar, ...rest } = opts;
   const recoveryKey = decodeRecoveryPhrase(recoveryPhrase);
   const transport = createHttpSyncTransport({ baseUrl: relayUrl });
-  return recoverAccount({ ...rest, relayUrl, recoveryKey, transport });
+  const session = await recoverAccount({
+    ...rest,
+    relayUrl,
+    recoveryKey,
+    transport,
+  });
+  // A recovery sets a *new* password against a *new* salt: every input to the door
+  // just changed, so seal it now or this device is phrase-only forever.
+  await sealPasswordDoorIfProtected({
+    keyStore: opts.keyStore,
+    driver: opts.driver,
+    password: opts.newPassword,
+    write: writePasswordSidecar,
+  });
+  return session;
 }
 
 /**
@@ -278,8 +349,10 @@ export async function reauthenticateViaRelay(opts: {
   keyStore: KeyStore;
   driver: SqliteDriver;
   password: string;
+  /** Persist this device's at-rest password door — see {@link PasswordDoorWriter}. */
+  writePasswordSidecar: PasswordDoorWriter;
 }): Promise<void> {
-  const { keyStore, driver, password } = opts;
+  const { keyStore, driver, password, writePasswordSidecar } = opts;
   const account = await createAccountRepo(driver).getSingleton();
   if (account === undefined) {
     throw new Error("Sync is not enabled for this store.");
@@ -289,6 +362,17 @@ export async function reauthenticateViaRelay(opts: {
   }
   const transport = createHttpSyncTransport({ baseUrl: account.relayUrl });
   await reauthenticate({ keyStore, driver, transport, password });
+  // The subtle one. `reauthenticate` has just rotated this account's salt and
+  // password key-wrap, which leaves the existing sidecar sealed under the *old*
+  // password — a door that still looks present and would refuse the password the
+  // user now has, discovered only on the day the keychain is gone. Re-seal after
+  // the credential transaction, so the salt read here is the rotated one.
+  await sealPasswordDoorIfProtected({
+    keyStore,
+    driver,
+    password,
+    write: writePasswordSidecar,
+  });
 }
 
 /**
