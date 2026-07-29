@@ -221,7 +221,24 @@ runner's exit code 0→PASS, 3→BLOCKED, else→FAIL.
   setup command if one is missing, or exits 3 (BLOCKED) if no device/toolchain is present (see
   `apps/mobile/maestro/README.md`). It is a `device` tier: `pnpm test` (fast loop) skips it;
   `pnpm test:all` runs it.
-- `pnpm test:e2e` — reports BLOCKED until the crucial-flow catalog exists.
+- `pnpm test:versions` — one version across every manifest (`scripts/set-version.mjs
+  --check`). Cheap, but it catches a bump that missed a manifest, which is otherwise
+  invisible until an artifact ships with the wrong number and a store record is burned.
+- `pnpm test:e2e` — reports BLOCKED until the harness exists. The flow catalog it will
+  implement is drafted: [`plans/testing/crucial-flows.md`](./plans/testing/crucial-flows.md).
+
+> ⚠️ **`pnpm test` cannot complete in a sandboxed agent shell**, and the failure looks like
+> a broken repo rather than a missing network. `test:node` and `test:coverage` both start
+> with `scripts/ensure-sqlite-abi.mjs`, which shells out to `prebuild-install` — a network
+> fetch. Sandboxed, it is **SIGKILLed mid-run**, which can *delete* the native binary on its
+> way out. Both tiers then FAIL while the static tiers pass.
+>
+> Run the tiers that don't need the native module (`pnpm exec node scripts/test-all.mjs
+> --only=format,lint,typecheck,versions`), and run Vitest **directly** — `pnpm exec vitest
+> run` — after restoring the binary from the local prebuild cache with the `tar` command in
+> [`plans/status.md`](./plans/status.md) → *Dev harness*. Never "fix" `ensure-sqlite-abi.mjs`
+> to work around this: it is correct, and on a developer machine with network `pnpm test`
+> runs the whole trophy as designed.
 
 **tsconfig-include invariant**: a new test directory must sit under some project
 tsconfig's `include`, or its type errors go unchecked (`pnpm test:types` only

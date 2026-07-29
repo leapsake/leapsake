@@ -89,8 +89,9 @@ the work they imply.
 > **Order matters here.** Picking up work cold? Take them in this order:
 > **1.** **Local custody — the block immediately below.** Slices 1–5 are **built**; start at
 > **slice 6**. Blocks `launch.md` Increments 2–4.
-> **2.** `launch.md` Increment 1's leftovers — trivial, unblocked, permanent-if-wrong (versions,
-> credential gitignores). Can be done in parallel with 1.
+> **2.** `launch.md` Increment 1's last piece — **an owner decision, not a task**: the version
+> number and the build-number strategy. The machinery and the credential gitignores are built.
+> Due before Increment 4's first store upload, not before the v0.1 cut.
 > **3.** The rest of `launch.md` in its own numbered order, once 1 is built.
 > **4.** Everything else in this section — genuinely interleavable as capacity allows, no
 > dependencies between them.
@@ -203,6 +204,15 @@ survives here is only what a future reader would otherwise re-learn the hard way
 > touching the converter. The difference from slice 4 is only *where the keys come from* — the
 > account already exists remotely, so this device mints a db-key and adopts MK rather than
 > creating either.
+>
+> **Where the work lands.** Desktop: the `sync:join` / `sync:recover` handlers in
+> `apps/desktop/src/main/index.ts`, which should run the conversion inside `withStoreSwap`
+> exactly as `account:create` does — that already re-opens the app around the new store, so
+> no relaunch and no dead-driver window. Mobile: the `join` / `recover` members of the
+> `setSync({…})` object in `apps/mobile/lib/core-context.tsx`, following its `enable` member
+> line for line, including the `setResetVersion` bump that re-runs the bootstrap in place.
+> Note that both clients' "rebuild the core around the adopted MK" plumbing is inert today
+> (see the `createCore` note above) and could be simplified in the same pass.
 >
 > **What falls out for free.** `sealPasswordDoorIfProtected` (`packages/core/src/sync.ts`)
 > already skips while a store is Open and starts writing a real door the moment one converts,
@@ -385,6 +395,18 @@ itself is settled).
 - **Extra desktop instances** (no single-instance lock): from repo root,
   `ELECTRON_RENDERER_URL=http://localhost:5173 "$(node -p 'require("electron")')" apps/desktop --user-data-dir=<fresh-dir>` —
   each distinct `--user-data-dir` is a separate "device".
+- **Driving the desktop app without a harness** (how custody slices 4 and 5 were actually
+  verified, and the only way to prove a *user-visible* desktop change until the E2E tier
+  exists). Add `--remote-debugging-port=9333` to the command above, then talk CDP to the
+  renderer: `curl -s localhost:9333/json` gives the page's `webSocketDebuggerUrl`, and
+  `Runtime.evaluate` over that socket runs anything in the renderer — `window.api.*`,
+  `window.sync.*`, `window.boot.*`, or DOM clicks. Node 22+ has a built-in `WebSocket`, so
+  the driver is ~40 lines and needs no dependency. Pair it with **out-of-band assertions on
+  the profile directory** — the store's first 16 bytes (`SQLite format 3\0` or not),
+  `keystore.json`'s key list, `accounts.json`, the sidecars — since custody's defining
+  properties are invisible on screen. React inputs need the native value setter plus an
+  `input` event to register; `location.reload()` picks up an HMR'd renderer change without
+  restarting the app. Deleting `keystore.json` between launches simulates keychain loss.
 - **Mobile dev client:** `pnpm --filter @leapsake/mobile ios` (native SQLCipher build; Expo
   Go can't host it). `__DEV__` deep links: `leapsake://dev-selftest` (driver contract +
   custody suite), `leapsake://dev-clear-dbkey` (simulate keychain loss). Editing a self-test
@@ -401,6 +423,16 @@ itself is settled).
 > tar -xzf ~/.npm/_prebuilds/*better-sqlite3-multiple-ciphers-*-node-v137-darwin-arm64.tar.gz
 > ```
 > Already known for `build` and `check:bundle`; `dev` does it too (confirmed 2026-07-28).
+> **Which ABI is installed is a file-size check**, since both builds share a name and the
+> tarballs preserve mtimes: `2217120` bytes = Node, `2217808` = Electron.
+>
+> ⚠️ **In a sandboxed agent shell, `pnpm test` cannot finish** — `test:node` and
+> `test:coverage` run `ensure-sqlite-abi.mjs`, whose `prebuild-install` needs network and is
+> SIGKILLed, sometimes taking the binary with it. Restore with the `tar` above and run
+> `pnpm exec vitest run` directly; the static tiers run via
+> `node scripts/test-all.mjs --only=format,lint,typecheck,versions`. The script is correct —
+> do not "fix" it. Also observed: the binary has flipped to the Electron ABI **without** the
+> dev app being run in that session, so check the size before trusting a green run.
 
 ## Open questions
 
