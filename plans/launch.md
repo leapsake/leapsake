@@ -120,12 +120,20 @@ half-built if the next one is deferred.
 **Value:** closes the only permanent, free-to-fix decision on the board.
 
 - Pick the real `version` (currently `0.0.0`) and the versioning scheme for both clients.
-- **Preemptively** gitignore the credential shapes Increments 4/7 will introduce: `*.p12`,
-  `AuthKey_*.p8`, `*.mobileprovision`, `*.jks`, `*.keystore`, `credentials.json`. Cheaper
-  than a history rewrite.
+  The *mechanism* is built — `scripts/set-version.mjs` writes every manifest and gates
+  agreement as the `test:versions` tier — so this is now purely the decision. Two parts to
+  it: the number, and a **build-number strategy** (`ios.buildNumber` / `android.versionCode`,
+  which exist nowhere yet; EAS can auto-increment them in Increment 4). The real deadline is
+  **Increment 4's first store upload**, not the v0.1.0 cut: store version strings are
+  permanent and monotonic per store record, and stores reject non-numeric strings, so
+  `0.0.0` and `0.1.0-dev` are both unusable there.
+- ✅ **Done:** the credential shapes Increments 4/7 introduce (`*.p12`, `AuthKey_*.p8`,
+  `*.mobileprovision`, `*.jks`, `*.keystore`, `credentials.json`) are gitignored at the root,
+  preemptively — cheaper than a history rewrite, and the history goes public in Increment 10.
 
-**Acceptance:** fresh dev install on both platforms under `com.leapsake.app`; `git status`
-clean.
+**Acceptance:** fresh dev install on **iOS and Android** under `com.leapsake.app` (desktop is
+a separate identity, `com.leapsake.desktop`, set in Increment 5 — see the identity table in
+§1); `git status` clean.
 **Note:** the new ID is a new app identity, so existing dev installs hold orphaned data under
 the old one — uninstall them and rebuild the dev client before running `pnpm test:native`.
 `scheme: "leapsake"` is unchanged, so the `leapsake://` deep links still route.

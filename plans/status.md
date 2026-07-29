@@ -380,12 +380,18 @@ and boring to run):
 
 **Distribution (launch-gating)** — code signing, macOS notarization, auto-update; v0.1
 can't ship without distributable apps. (None yet.) Plan + increments:
-[`launch.md`](./launch.md). **Increment 1 is partly done already** — bundle IDs are
-`com.leapsake.app`; the leftovers are trivial and unblocked by anything above (versions are
-still `0.0.0` in all four `package.json`s, and `.gitignore` carries none of the credential
-shapes Increments 4/7 introduce — `*.p12`, `AuthKey_*.p8`, `*.mobileprovision`, `*.jks`,
-`*.keystore`, `credentials.json`). Do that now; **Increments 2–4 wait on the custody *build***
-(the decision itself is settled).
+[`launch.md`](./launch.md). **Increment 1 is down to one owner decision** — the mobile bundle
+IDs are `com.leapsake.app` (desktop's `com.leapsake.desktop` arrives with electron-builder in
+Increment 5), the credential gitignores are in, and the version *machinery* is built:
+`scripts/set-version.mjs <version>` writes all 18 manifests, `--check` runs as the
+`test:versions` tier, and mobile's `expo.version` is derived from its `package.json` via
+`app.config.ts` so it can no longer drift. **What's left is picking the scheme** — everything
+is deliberately still `0.0.0`. Two constraints on that choice: it must be settled before
+**Increment 4's first store upload**, not before the v0.1.0 cut, and it needs a build-number
+strategy (`ios.buildNumber` / `android.versionCode` exist nowhere yet — EAS can auto-increment
+them). Store version strings are permanent and monotonic per store record, which is the whole
+reason this sits in Increment 1. **Increments 2–4 wait on the custody *build*** (the decision
+itself is settled).
 
 **Reconciliation** (quality; can land pre- or post-launch as capacity allows):
 - **Fuzzy / typo-tolerant name matching** — the scorer's reserved `"low"` tier via
