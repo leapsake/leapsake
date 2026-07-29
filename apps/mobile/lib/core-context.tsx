@@ -52,6 +52,7 @@ import {
   ensureRecoveryKey,
   openDbKeyFromRecovery,
   rawKeyLiteral,
+  readRecoveryKey,
   sealDbKeyForRecovery,
 } from "@leapsake/crypto";
 import {
@@ -648,8 +649,20 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           coreRef.current = null;
           setResetVersion((v) => v + 1);
         },
-        revealRecoveryPhrase: async () =>
-          encodeRecoveryPhrase(await ensureRecoveryKey(keyStore)),
+        // Reads, never mints. Minting here would give an accountless device a
+        // keychain entry it is defined not to have (model.md §7.2) and show 24
+        // words that unlock nothing — while Open there is no db-key to wrap and
+        // no sidecar to open. Settings hides the surface until an account
+        // exists; this refuses if it is ever reached another way.
+        revealRecoveryPhrase: async () => {
+          const recoveryKey = await readRecoveryKey(keyStore);
+          if (recoveryKey === undefined) {
+            throw new Error(
+              "This device has no recovery phrase. Create an account to protect your data.",
+            );
+          }
+          return encodeRecoveryPhrase(recoveryKey);
+        },
         getAutoSync: () => getAutoSync({ driver }),
         async setAutoSync(enabled) {
           await setAutoSync({ driver, enabled });

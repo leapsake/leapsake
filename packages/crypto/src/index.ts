@@ -19,6 +19,7 @@ export {
 export {
   RECOVERY_KEY,
   ensureRecoveryKey,
+  readRecoveryKey,
   sealDbKeyForRecovery,
   openDbKeyFromRecovery,
 } from "./recovery.js";

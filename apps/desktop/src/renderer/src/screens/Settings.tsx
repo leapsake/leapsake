@@ -100,8 +100,12 @@ export function Settings() {
         </>
       )}
 
-      <hr />
-      <RecoveryPhraseSection />
+      {status?.enabled === true && (
+        <>
+          <hr />
+          <RecoveryPhraseSection />
+        </>
+      )}
 
       <hr />
       <FactoryReset syncEnabled={status?.enabled ?? false} />
@@ -1144,9 +1148,18 @@ function FactoryReset({ syncEnabled }: { syncEnabled: boolean }) {
 }
 
 /**
- * On-demand recovery-phrase reveal, available whether or not sync is on (the
- * phrase also unlocks the local file if this device's key is ever lost —
- * `model.md` §6). Hidden behind a button so the words aren't shown unprompted.
+ * On-demand recovery-phrase reveal — **only rendered once an account exists.**
+ *
+ * An Open device has no phrase: no db-key to wrap, no sidecar to open, nothing in
+ * the keychain (`model.md` §7.2). Offering the button there was a relic of the
+ * old "encrypted by default" stance, and pressing it *minted* a recovery key,
+ * quietly breaking the invariant that first launch creates no key material.
+ *
+ * This surface is itself on the way out: the phrase is to be shown once at
+ * account creation and never again, with a re-auth-gated **rotation** as the only
+ * way to get a new one. That removal waits for the password door (custody slice
+ * 5), because until it exists the phrase is the *only* way back into the file
+ * after a keychain wipe, and hiding a sole door is how mislaid becomes lost.
  */
 function RecoveryPhraseSection() {
   const [phrase, setPhrase] = useState<string | null>(null);

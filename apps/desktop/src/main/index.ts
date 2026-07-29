@@ -33,7 +33,7 @@ import {
 import {
   type KeyStore,
   encodeRecoveryPhrase,
-  ensureRecoveryKey,
+  readRecoveryKey,
 } from "@leapsake/crypto";
 import {
   createEmailInputSchema,
@@ -735,17 +735,26 @@ function registerSyncIpc(): void {
     mainWindow?.webContents.reload();
   });
 
-  // The per-client "Sync automatically" preference (default on). Read at render
-  // time for the Settings toggle; the setter persists it *and* flips the live
-  // scheduler so the change takes effect immediately (and survives a restart).
-  // Reveal this device's recovery phrase on demand (it lives in the enclave, so
-  // it can be shown any time — not just the one-time enable reveal). The escape
-  // hatch back into both the local file and a synced account (model.md §6).
+  // Reveal this device's recovery phrase — the escape hatch back into both the
+  // local file and a synced account (model.md §6). **Reads, never mints.** It
+  // used to call `ensureRecoveryKey`, so an accountless device that pressed the
+  // button silently gained a keychain entry it is defined not to have (§7.2) and
+  // was shown 24 words that unlock nothing: while Open there is no db-key to wrap
+  // and no sidecar to open. Settings now hides the surface entirely until an
+  // account exists, and this refuses if it is ever reached another way.
   ipcMain.handle("sync:revealRecoveryPhrase", async () => {
-    const recoveryKey = await ensureRecoveryKey(keyStore);
+    const recoveryKey = await readRecoveryKey(keyStore);
+    if (recoveryKey === undefined) {
+      throw new Error(
+        "This device has no recovery phrase. Create an account to protect your data.",
+      );
+    }
     return encodeRecoveryPhrase(recoveryKey);
   });
 
+  // The per-client "Sync automatically" preference (default on). Read at render
+  // time for the Settings toggle; the setter persists it *and* flips the live
+  // scheduler so the change takes effect immediately (and survives a restart).
   ipcMain.handle("sync:getAutoSync", () => getAutoSync({ driver }));
   ipcMain.handle("sync:setAutoSync", async (_event, enabled: unknown) => {
     const next = enabled === true;

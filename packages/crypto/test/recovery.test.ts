@@ -5,6 +5,7 @@ import {
   RECOVERY_KEY,
   ensureRecoveryKey,
   openDbKeyFromRecovery,
+  readRecoveryKey,
   sealDbKeyForRecovery,
 } from "../src/recovery.js";
 
@@ -16,6 +17,22 @@ describe("ensureRecoveryKey", () => {
     expect(first).toHaveLength(32);
     expect(second).toEqual(first);
     expect(await store.getSecret(RECOVERY_KEY)).toEqual(first);
+  });
+});
+
+describe("readRecoveryKey", () => {
+  // The whole reason this exists: an Open device must stay keyless no matter who
+  // asks. Reading has to be a question, not an instruction (model.md §7.2).
+  it("returns undefined for a keyless device and mints nothing", async () => {
+    const store = createInMemoryKeyStore();
+    expect(await readRecoveryKey(store)).toBeUndefined();
+    expect(await store.getSecret(RECOVERY_KEY)).toBeUndefined();
+  });
+
+  it("returns the existing key once one has been minted", async () => {
+    const store = createInMemoryKeyStore();
+    const minted = await ensureRecoveryKey(store);
+    expect(await readRecoveryKey(store)).toEqual(minted);
   });
 });
 

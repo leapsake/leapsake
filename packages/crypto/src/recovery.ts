@@ -37,6 +37,23 @@ export async function ensureRecoveryKey(
 }
 
 /**
+ * Read the recovery key **without minting one** — `undefined` when this device
+ * has none. The read-only sibling of {@link ensureRecoveryKey}, and the one to
+ * reach for outside the paths that are *entitled* to create key material.
+ *
+ * The distinction is load-bearing under *encryption follows custody*
+ * (`model.md` §7.2): an **Open** device holds no keys at all, and minting one
+ * behind the user's back — as a "show me my recovery phrase" button did — both
+ * breaks that invariant and hands them 24 words that unlock nothing, since there
+ * is no db-key to wrap and no sidecar to open. Only account creation mints.
+ */
+export async function readRecoveryKey(
+  keyStore: KeyStore,
+): Promise<Uint8Array | undefined> {
+  return keyStore.getSecret(RECOVERY_KEY);
+}
+
+/**
  * Magic prefix on the db-key recovery sidecar, so the blob is self-identifying and
  * the format can rev later. `LSKR` = Leapsake Recovery; `1` = version 1.
  */
