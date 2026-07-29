@@ -435,8 +435,25 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // SQLCipher requires `PRAGMA key` to precede all DB access, so supply it as
       // the very first statement on the fresh connection, before migrations. An
       // Open store supplies none at all and opens as ordinary plaintext SQLite.
-      if (dbKey !== undefined)
+      //
+      // Then force a read of page 1 to prove the key actually opens this file,
+      // matching desktop's `openEncryptedDatabase` and the check the converter
+      // already runs on its output. Applying a key never fails on its own — the
+      // first *read* does — so without this a wrong or stale key surfaces from
+      // somewhere inside `runMigrations` as SQLCipher's "file is not a database",
+      // which names neither the cause nor the key. Failing here says what is
+      // wrong, at the moment it becomes wrong.
+      if (dbKey !== undefined) {
         await driver.exec(`PRAGMA key = "${rawKeyLiteral(dbKey)}"`);
+        try {
+          await driver.get("PRAGMA user_version");
+        } catch (cause) {
+          throw new Error(
+            "Failed to open the encrypted database — wrong or missing key.",
+            { cause },
+          );
+        }
+      }
       await runMigrations(driver);
       // The bundled holiday catalog, applied only when this install hasn't seen
       // this bundle yet. Cheap no-op on every launch after the first.

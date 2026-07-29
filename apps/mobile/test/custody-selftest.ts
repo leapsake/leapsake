@@ -138,6 +138,37 @@ export function runCustodySelfTest(t: TestApi): void {
         await SQLite.deleteDatabaseAsync(name);
       }
     });
+
+    // The behavior the boot path's verification read depends on: applying a key
+    // **never fails on its own**, even a wrong one — SQLCipher only objects when
+    // something actually reads page 1. That is why the bootstrap follows
+    // `PRAGMA key` with a `PRAGMA user_version` instead of trusting the apply:
+    // without it a wrong key would surface later, from inside migrations, as
+    // "file is not a database".
+    it("accepts a wrong key silently, and fails only on the first read", async () => {
+      const name = scratchName("wrongkey");
+      const keyed = await SQLite.openDatabaseAsync(name);
+      await keyed.execAsync(`PRAGMA key = "${rawKeyLiteral(generateKey())}"`);
+      await keyed.execAsync("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+      await keyed.closeAsync();
+
+      const wrong = await SQLite.openDatabaseAsync(name);
+      try {
+        // Applying the wrong key reports nothing…
+        expect(
+          await rejects(() =>
+            wrong.execAsync(`PRAGMA key = "${rawKeyLiteral(generateKey())}"`),
+          ),
+        ).toBe(false);
+        // …and the page-1 read is what catches it.
+        expect(
+          await rejects(() => wrong.getFirstAsync("PRAGMA user_version")),
+        ).toBe(true);
+      } finally {
+        await wrong.closeAsync();
+        await SQLite.deleteDatabaseAsync(name);
+      }
+    });
   });
 
   describe("custody: per-account store paths (§7.4)", () => {
