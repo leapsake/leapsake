@@ -1,14 +1,6 @@
-import type { SyncStatus } from "@leapsake/core";
+import { MIN_PASSWORD_LENGTH, type SyncStatus } from "@leapsake/core";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-
-/**
- * Mirror of the main process's `MIN_PASSWORD_LENGTH` boundary check — keep the
- * two in step. This password derives the encryption key for a zero-knowledge
- * store with no server-side reset, so the floor is deliberately higher than a
- * typical login (see security-review.md).
- */
-const MIN_PASSWORD_LENGTH = 12;
 
 /** Prefilled relay origin for local development (apps/server defaults to :4000). */
 const DEFAULT_RELAY_URL = "http://localhost:4000";
@@ -422,33 +414,49 @@ function AccountEnabled({
         {status.relayUrl !== undefined && <>Relay {status.relayUrl}. </>}
         Account created {new Date(status.createdAt ?? 0).toLocaleString()}.
       </p>
-      {status.relayUrl !== undefined && autoSync !== null && (
+      {/*
+        No relay means an account created locally (`CreateAccount` below), which
+        has nothing to sync to. The controls are not shown rather than shown and
+        failing: every one of them ended in "Sync is not enabled for this store."
+      */}
+      {status.relayUrl === undefined ? (
         <p>
-          <label>
-            <input
-              type="checkbox"
-              checked={autoSync}
-              onChange={(event) => void toggleAutoSync(event.target.checked)}
-            />{" "}
-            Sync automatically
-          </label>
-          {!autoSync && (
-            <>
-              {" "}
-              <small>
-                Changes sync only when you press “Sync now” on this device.
-              </small>
-            </>
-          )}
+          This account is on this computer only. Nothing is sent anywhere, so
+          nothing here needs syncing.
         </p>
-      )}
-      <p>
-        <button type="button" onClick={syncNow} disabled={syncing}>
-          {syncing ? "Syncing…" : "Sync now"}
-        </button>
-      </p>
-      {lastSynced !== null && (
-        <p>Last synced {new Date(lastSynced).toLocaleTimeString()}.</p>
+      ) : (
+        <>
+          {autoSync !== null && (
+            <p>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={autoSync}
+                  onChange={(event) =>
+                    void toggleAutoSync(event.target.checked)
+                  }
+                />{" "}
+                Sync automatically
+              </label>
+              {!autoSync && (
+                <>
+                  {" "}
+                  <small>
+                    Changes sync only when you press “Sync now” on this device.
+                  </small>
+                </>
+              )}
+            </p>
+          )}
+          <p>
+            <button type="button" onClick={syncNow} disabled={syncing}>
+              {syncing ? "Syncing…" : "Sync now"}
+            </button>
+          </p>
+          {lastSynced !== null && (
+            <p>Last synced {new Date(lastSynced).toLocaleTimeString()}.</p>
+          )}
+        </>
       )}
       {error !== null && <p role="alert">{error}</p>}
       {needsReauth && (

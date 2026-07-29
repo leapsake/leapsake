@@ -166,6 +166,7 @@ export {
   lockThisDevice,
   STORE_DOOR_SECRET_IDS,
   KEYSTORE_SECRET_IDS,
+  MIN_PASSWORD_LENGTH,
   type KeySession,
   type UnlockedMasterKey,
   type SyncStatus,

@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import * as SQLite from "expo-sqlite";
 import {
+  type AccountBootstrap,
   type CoreApi,
   type KeySession,
   type PasswordDoorWriter,
@@ -36,6 +37,7 @@ import {
   KEYSTORE_SECRET_IDS,
   lockThisDevice,
   lookupAccount,
+  MIN_PASSWORD_LENGTH,
   reauthenticateViaRelay,
   recoverAccountViaRelay,
   reconcileOnJoin,
@@ -75,14 +77,6 @@ import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 import { forgetAccountOnThisDevice } from "./forget-account";
 
 /**
- * Mirror of the desktop main process's `MIN_PASSWORD_LENGTH` boundary check.
- * This password derives the encryption key for a zero-knowledge store with no
- * server-side reset, so the floor is deliberately higher than a typical login
- * (see security-review.md).
- */
-const MIN_PASSWORD_LENGTH = 12;
-
-/**
  * Translate a relay/transport failure into copy a user can act on — the mobile
  * mirror of desktop's `relayErrorMessage` (`apps/desktop/src/main/index.ts`).
  */
@@ -117,6 +111,23 @@ export interface SyncApi {
    * prelogin a join already does, exposing nothing new.
    */
   lookup(username: string, relayUrl: string): Promise<boolean>;
+  /**
+   * **Create an account on this device** (`model.md` §7.2.1) — the act that
+   * turns encryption on, with **no relay involved**: nothing leaves the phone.
+   * The mobile counterpart of desktop's `window.sync.createAccount`.
+   *
+   * Under *encryption follows custody* an account is the only thing that
+   * encrypts the store, so without this a mobile-only user who doesn't want
+   * sync could never have one — the store would stay plaintext forever. That is
+   * the whole reason this exists separately from {@link SyncApi.enable}, which
+   * is the same act **plus** binding a relay.
+   *
+   * Returns the one-time recovery phrase for its single reveal.
+   */
+  createAccount(args: {
+    username: string;
+    password: string;
+  }): Promise<{ accountId: string; recoveryKey: string }>;
   /**
    * Establish a new account + portable password door **and register its
    * bootstrap ciphertext with the relay**, returning the one-time recovery key
@@ -662,6 +673,87 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       };
 
       /**
+       * **Account creation, end to end** (`model.md` §7.2.1) — the single act
+       * that turns encryption on, and the mobile counterpart of desktop's
+       * `createAccountOnThisDevice`. Mints every key into the still-plaintext
+       * store, optionally publishes the account to a relay, then hands the
+       * irreversible half to {@link adoptStoreForAccount}.
+       *
+       * **The relay is optional, and that is the point.** Creating an account
+       * locally and creating one that also binds a relay differ by exactly one
+       * step — so they share this rather than existing as two sequences that
+       * have to be kept in step. Desktop has had both since custody slice 4;
+       * mobile only ever had the relay-bound one, which left a phone-only user
+       * with no way to encrypt at all.
+       */
+      const createAccountHere = async (opts: {
+        username: string;
+        password: string;
+        /** Recorded on the account when this act also binds a relay (§7.5 Phase 1). */
+        relayUrl?: string;
+        /**
+         * Publish the account to its relay. Called **before** the store is
+         * converted, so a rejected registration (a taken username, an
+         * unreachable relay) rolls the account back and leaves the device
+         * exactly as it was — still Open, still plaintext, nothing on disk to
+         * undo.
+         */
+        registerWithRelay?: (bootstrap: AccountBootstrap) => Promise<void>;
+      }): Promise<{ accountId: string; recoveryKey: string }> => {
+        const { username, password, relayUrl, registerWithRelay } = opts;
+        if (password.length < MIN_PASSWORD_LENGTH) {
+          throw new Error(
+            `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+          );
+        }
+        // Creating an account is an **Open** device's act, as it is on desktop
+        // (`create-account-flow.ts`). The converter would refuse the encrypted
+        // source anyway, but only after an account had been registered on a
+        // relay — so say so before anything leaves the device.
+        if (activeStore.custody !== "open") {
+          throw new Error(
+            "This device already holds an account. Forget it before creating another.",
+          );
+        }
+        const {
+          accountId,
+          recoveryPhrase,
+          dbKey: newDbKey,
+          passwordSidecar: newPasswordSidecar,
+          bootstrap,
+        } = await createLocalAccount({
+          keyStore,
+          driver,
+          password,
+          username,
+          relayUrl,
+          platform: Platform.OS,
+        });
+        if (registerWithRelay !== undefined) {
+          try {
+            await registerWithRelay(bootstrap);
+          } catch (cause) {
+            // Don't leave a half-enabled account behind if the relay rejects
+            // it. Nothing on disk has moved yet, so this restores the exact
+            // prior state.
+            await clearLocalAccount({ driver });
+            throw cause;
+          }
+        }
+        // The irreversible half — the same shared sequence join and recover run.
+        // It re-runs the bootstrap on its way out (the store this one opened no
+        // longer exists), which is also how a failure mid-conversion lands back
+        // on the plaintext original rather than on a closed driver.
+        await adoptStoreForAccount({
+          accountId,
+          username,
+          dbKey: newDbKey,
+          passwordDoor: newPasswordSidecar,
+        });
+        return { accountId, recoveryKey: recoveryPhrase };
+      };
+
+      /**
        * The {@link PasswordDoorWriter} for the **steady state** — a device whose
        * store already sits at its account's path, re-sealing its door after a
        * password change (`reauthenticate`). Mirrors desktop's
@@ -691,60 +783,25 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             throw new Error(relayErrorMessage(cause, relayUrl), { cause });
           }
         },
-        async enable({ username, password, relayUrl }) {
-          if (password.length < MIN_PASSWORD_LENGTH) {
-            throw new Error(
-              `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-            );
-          }
-          // Creating an account is an **Open** device's act, as it is on desktop
-          // (`create-account-flow.ts`). The converter would refuse the encrypted
-          // source anyway, but only after an account had been registered on a relay
-          // — so say so before anything leaves the device.
-          if (activeStore.custody !== "open") {
-            throw new Error(
-              "This device already holds an account. Forget it before creating another.",
-            );
-          }
+        createAccount: ({ username, password }) =>
+          createAccountHere({ username, password }),
+        enable({ username, password, relayUrl }) {
           // Enabling sync **is** creating an account that also binds a relay, so
-          // it runs the full flow (model.md §7.2.1): mint the keys, publish to the
-          // relay, then convert this device's plaintext store to encrypted. Before
-          // this it created the account and left the store plaintext — a
-          // half-Protected state §7.2 does not have.
-          const {
-            accountId,
-            recoveryPhrase,
-            dbKey: newDbKey,
-            passwordSidecar: newPasswordSidecar,
-            bootstrap,
-          } = await createLocalAccount({
-            keyStore,
-            driver,
+          // it is the local act plus one step (model.md §7.2.1). The relay half
+          // is a callback rather than a branch so the failure it owns — a taken
+          // username, an unreachable host — is worded here, where the URL is.
+          return createAccountHere({
+            username,
             password,
-            username,
             relayUrl,
-            platform: Platform.OS,
+            registerWithRelay: async (bootstrap) => {
+              try {
+                await registerAccountWithRelay({ relayUrl, bootstrap });
+              } catch (cause) {
+                throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+              }
+            },
           });
-          try {
-            await registerAccountWithRelay({ relayUrl, bootstrap });
-          } catch (cause) {
-            // Don't leave a half-enabled account behind if the relay rejects it.
-            // Nothing on disk has moved yet, so this restores the exact prior state.
-            await clearLocalAccount({ driver });
-            throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-          }
-
-          // The irreversible half — the same shared sequence join and recover run.
-          // It re-runs the bootstrap on its way out (the store this one opened no
-          // longer exists), which is also how a failure mid-conversion lands back
-          // on the plaintext original rather than on a closed driver.
-          await adoptStoreForAccount({
-            accountId,
-            username,
-            dbKey: newDbKey,
-            passwordDoor: newPasswordSidecar,
-          });
-          return { accountId, recoveryKey: recoveryPhrase };
         },
         async join({ username, password, relayUrl }) {
           const wasOpen = activeStore.custody === "open";

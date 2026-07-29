@@ -38,6 +38,7 @@ export { STORE_DOOR_SECRET_IDS, lockThisDevice } from "./lock.js";
 export { sealPasswordDoor } from "./password-door.js";
 export {
   KEYSTORE_SECRET_IDS,
+  MIN_PASSWORD_LENGTH,
   clearLocalAccount,
   enableSync,
   ensureDeviceMasterKey,

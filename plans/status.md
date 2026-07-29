@@ -6,16 +6,17 @@
 > not here. Design docs never restate status; this file never restates design.
 >
 > **Updated 2026-07-29** — **"Encryption follows custody" is now the shipped behavior on both
-> clients**, and **slices 1–7b of the custody build are done on both**. First launch
+> clients**, and **slices 1–7c of the custody build are done on both**. First launch
 > mints **no keys** and leaves the store plaintext; creating an
 > account (username + password) is the single act that turns encryption on, converting the
 > store as it goes; and a lost keychain is answered by **the password**, with the 24-word
 > phrase as the forgot-password fallback. Joining or recovering an account converts that
 > device's store too, so **no path leaves real user data in a plaintext file any more**;
-> signing out and forgetting an account are both real; and **mobile's unlock doors are now
-> per-account**, closing the latent data-loss asymmetry with desktop. **7c is next** — the
-> larger asymmetry: mobile cannot create an account without a relay, so a mobile-only user
-> cannot encrypt at all. See the block
+> signing out and forgetting an account are both real; mobile's unlock doors are
+> per-account; and **a phone can now create an account with no relay at all**, so a
+> mobile-only user can encrypt — the last custody *capability* gap between the clients is
+> closed. **Slice 8 is next** (retire the Settings recovery-phrase reveal in favour of a
+> re-auth-gated rotation). See the block
 > below under *What's next* → **Local custody**. The model is
 > [`encryption/model.md`](./encryption/model.md) §7.
 >
@@ -39,7 +40,7 @@
   > Creating an account — **or joining/recovering one** — mints this device's db-key and
   > converts the store to `stores/<accountId>/`, and both unlock doors, password and phrase,
   > are built and proved on desktop for all three paths.
-  > Slices 1–7b of the build order below are done on both clients; **7c is next**. Any
+  > Slices 1–7c of the build order below are done on both clients; **slice 8 is next**. Any
   > install predating this must be recreated (pre-v0.1 latitude) — no compatibility path.
 - **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
   and the review surface is **detection-driven rather than permanently advertised** (links and
@@ -92,10 +93,9 @@ the work they imply.
 ### Pre-v0.1 (toward initial launch)
 
 > **Order matters here.** Picking up work cold? Take them in this order:
-> **1.** **Local custody — the block immediately below.** Slices 1–7b are **built on both
-> clients**; start at **7c** (a local-only account on mobile — which carries an owner call on
-> whether it is v0.1-blocking, and leads the queue if it is), then slice 8. No longer blocks
-> `launch.md` Increments 2–4.
+> **1.** **Local custody — the block immediately below.** Slices 1–7c are **built on both
+> clients**; start at **slice 8** (retire the Settings recovery-phrase reveal). No longer
+> blocks `launch.md` Increments 2–4.
 > **2.** `launch.md` Increment 1's last piece — **an owner decision, not a task**: the version
 > number and the build-number strategy. The machinery and the credential gitignores are built.
 > Due before Increment 4's first store upload, not before the v0.1 cut.
@@ -105,8 +105,8 @@ the work they imply.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/29. Slices 1–7b done on both
-clients; 7c is next, then 8.**
+**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/29. Slices 1–7c done on both
+clients; slice 8 is next.**
 
 > **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
 > are fine.** There are no real users, so a migration is only worth writing when it is
@@ -146,7 +146,9 @@ password entry.
   `apps/mobile/lib/core-context.tsx`, including the two unlock doors.
 - **Turning encryption on** — `createLocalAccount` (`@leapsake/key-custody`) plus each
   client's converter and flow: `apps/desktop/src/main/db/convert-store.ts` +
-  `create-account-flow.ts`; `apps/mobile/db/convert-store.ts`, wired inside `core-context.tsx`.
+  `create-account-flow.ts`; `apps/mobile/db/convert-store.ts`, wired inside
+  `core-context.tsx`'s `createAccountHere`. On both clients the relay is **optional** at
+  that call — with it the act also binds a relay, without it the account is local only.
 - **Adopting an account someone else's device created** — the join/recover counterpart, same
   sequence: `apps/desktop/src/main/db/adopt-account-flow.ts`, and on mobile the *same*
   `adoptStoreForAccount` creation uses (`core-context.tsx`).
@@ -283,9 +285,11 @@ reader would otherwise re-learn the hard way:
    > - **Mobile's doors were device-scoped, not per-account** — fixed by **slice 7b** below.
    > - **Mobile UX papercut, not fixed:** on the last-device confirmation the keyboard covers
    >   the "Delete all data" button; the screen scrolls, so it is reachable, but it wants a
-   >   `KeyboardAvoidingView`. Confirmed still live 2026-07-29 — it is also the one step of
-   >   the custody cycle a Maestro flow cannot drive without dismissing the keyboard first,
-   >   so it will need fixing before this cycle can become an E2E flow.
+   >   `KeyboardAvoidingView`. Confirmed still live 2026-07-29 — it is the one step of
+   >   the custody cycle a Maestro flow cannot drive, and **dismissing the keyboard first is
+   >   not enough**: the layout reflows as the keyboard goes, so the tap lands on whatever
+   >   moved under it (the tab bar, in practice). Fix the screen before trying to make this
+   >   cycle an E2E flow; there is no harness-side workaround worth having.
 
 7b. **Per-account db-key doors on mobile** — ✅ **DONE 2026-07-29**, driven end to end on a
    booted iOS simulator against a live relay. Both doors now live at
@@ -354,38 +358,74 @@ reader would otherwise re-learn the hard way:
    store, both doors. The self-test grew six cases (30/30 on device), including the
    regression itself: two accounts' doors, one destroyed, the other's still readable.
 
-7c. **A local-only account on mobile — encryption without a relay** *(gap found 2026-07-28;
-   **needs an owner call on whether it is v0.1-blocking**, see below)*.
+7c. **A local-only account on mobile — encryption without a relay** — ✅ **DONE 2026-07-29**,
+   driven end to end on a booted iOS simulator (both the new local path *and* the
+   relay-bound one, against a live relay). The owner call this carried — *is shipping v0.1
+   with mobile-only users unable to encrypt acceptable?* — is moot: it was cheap enough to
+   build, so it was. **Mobile now mirrors desktop**: `SyncApi.createAccount({username,
+   password})` is the counterpart of `window.sync.createAccount`, nothing leaves the phone,
+   and Settings offers it as "Protect your data" above the relay-bound "Sync across
+   devices" — the same two-section layout, and deliberately the same copy, which promises
+   **access, not safety** (§7.2.1).
 
-   Desktop can create an account with **no relay at all** (`account:create` →
-   `createAccountOnThisDevice`, nothing leaves the machine). Mobile cannot: `SyncApi.enable`
-   takes `relayUrl` as a **required** parameter and always calls `registerAccountWithRelay`
-   (`apps/mobile/lib/core-context.tsx`), and Settings only reaches account creation through
-   the relay-bound signup step.
+   What made it worth doing rather than deferring: under *encryption follows custody* an
+   account is the only thing that turns encryption on, so a phone-only user who did not
+   want sync stayed on a plaintext Open store **permanently** while a desktop user in the
+   same position could be private without a server. That was the last custody *capability*
+   gap between the clients, and it ran against
+   [`product-truths.md`](./product-truths.md), which states local-only use as supported.
 
-   **Why it matters more than it looks.** Under *encryption follows custody* (§7.2), an
-   account is the only thing that turns encryption on. So a mobile-only user who does not
-   want sync cannot get an encrypted store **at all** — they stay on a plaintext Open store
-   permanently. Desktop users can be private without a server; mobile users currently cannot.
-   That runs against [`product-truths.md`](./product-truths.md), which states single-device /
-   local-only use as supported, and it is the largest remaining custody asymmetry between the
-   clients — larger than 7b, because it is a *capability* gap rather than an internal one.
+   > - **The two creation paths are now one sequence plus one step.** `createAccountHere`
+   >   (`core-context.tsx`) takes an optional `relayUrl` and an optional
+   >   `registerWithRelay` callback — the shape of desktop's `createAccountOnThisDevice` —
+   >   and `createAccount` / `enable` are thin wrappers over it. So the local path inherits
+   >   7b's `adoptStoreForAccount` wholesale: per-account doors, both converter guards, the
+   >   restore-on-failure path, the leftover-Open-store sweep. **Nothing custody-shaped was
+   >   written for this slice**, which was the point.
+   > - **The relay half stayed a callback rather than a branch** so the errors it owns (a
+   >   taken username, an unreachable host) are still worded where the URL is in scope.
+   >   The rollback on a rejected registration is unchanged and still runs before anything
+   >   on disk moves.
+   > - **Desktop's flow file was *not* moved into a package**, and shouldn't be. It is
+   >   `node:fs` all the way down (`rmSync`, path joins, a 16-byte file-header read) where
+   >   mobile is async expo-sqlite database *names*; sharing it would mean injecting five
+   >   ports to save a dozen lines. What genuinely is shared already was:
+   >   `createLocalAccount` (`@leapsake/key-custody`) does the key half for both.
+   > - **`MIN_PASSWORD_LENGTH` now exists once** — `@leapsake/key-custody`, re-exported
+   >   through `@leapsake/core`. It had four hand-synced copies (desktop main, desktop
+   >   renderer, mobile provider, mobile Settings), each with a "keep them in step" comment,
+   >   and this slice would have added a fifth.
+   > - **A relay-less account no longer shows dead sync controls** (fixed on *both*
+   >   clients). "Sync now", the auto-sync switch and the last-synced line were rendered
+   >   unconditionally, and on an account with no relay every one of them ended in "Sync is
+   >   not enabled for this store." Desktop had this wart from the moment it could create
+   >   local accounts; making them reachable on mobile is what made it worth fixing.
+   > - **Binding a relay to an existing local account is still not built on either client**,
+   >   and this makes that gap reachable by many more users. It is gated on the
+   >   username-collision question (Open questions, below) — decide it before relay binding
+   >   ships.
 
-   **The owner call:** is shipping v0.1 with mobile-only users unable to encrypt acceptable?
-   If not, this is launch-blocking and should lead the queue rather than follow 7b.
+   **How it was verified** (iOS simulator, with out-of-band assertions on the app container,
+   since custody's defining properties are invisible on screen): fresh install → Open, a
+   plaintext `stores/local/leapsake.db`, empty roster → "Protect my data" with **no relay
+   anywhere in the flow** → the one-time 24-word phrase appears → `stores/<id>/leapsake.db`
+   is ciphertext, `stores/local` is gone, the roster names the account, and
+   `stores/<id>/doors.db` holds **both** rows (password 124 B, recovery 104 B) → the
+   account surface says "on this device only" with no sync controls → sign out → gate
+   raised → wrong password refused → **password unlock, which can only have come from the
+   per-account door a flow that never contacted a relay wrote**. Then, on a fresh install,
+   the relay-bound path through the same helper: create via `Sync across devices` against a
+   live relay → ciphertext store, both doors, roster entry, and the relay holding the
+   account plus 18 records.
 
-   **The work is mostly UI, not custody.** `createLocalAccount` already takes `relayUrl` as
-   optional and is already shared; desktop's flow is the reference. Mobile needs a
-   create-account entry point that does not ask for a relay, and `enable`'s relay half made
-   conditional — and it should route through `adoptStoreForAccount`, the one conversion helper
-   7b left behind, so it inherits the per-account doors and the guards rather than growing a
-   fourth copy of that sequence.
-
-   > Two things to keep straight while building it: the username-collision question (Open
-   > questions, below) applies the moment a local account later binds a relay, which is
-   > exactly what this makes reachable on mobile; and desktop's copy for this act is already
-   > written to promise **access, not safety** (§7.2.1) — mobile should reuse that framing
-   > rather than invent its own.
+   > **Harness notes for whoever drives this next.** Maestro cannot type into a
+   > `textContentType="newPassword"` field while the simulator's **AutoFill Passwords** is
+   > on — iOS's "Automatic Strong Password" cover view swallows the keystrokes and the form
+   > fails its own length check. Turn it off in the simulator's Settings → *AutoFill &
+   > Passwords* (done on this machine's iPhone 16 Pro sim). Also: Maestro text selectors are
+   > **full-match**, so the tab bar wants `.*Settings.*`; `hideKeyboard` fails on secure
+   > fields (`pressKey: Enter`, or a tap on static text, works); and with both account forms
+   > on screen every duplicated label ("Username", "Password") needs an explicit `index`.
 
 8. **Retire the Settings recovery-phrase reveal** *(owner, 2026-07-28)*. The phrase is to be
    **shown once at account creation and never again**; the only later route is a
@@ -612,6 +652,9 @@ build finished with slice 6.
   (`reconcileOnJoin` surfaces overlapping people after a join and deliberately does **not**
   auto-merge, leaving it to the duplicate-review surface), so "join the existing account and
   review the duplicates" may be the whole answer for v0.1. Decide before relay binding ships.
+  **Weightier since slice 7c** (2026-07-29): a local-only account is now one tap away on
+  *both* clients, so the population that could later want to bind one to a relay is no
+  longer desktop-only — while binding itself remains unbuilt on either client.
 - **Relay backup capability** — the protocol shape for a relay advertising whether it keeps a
   durable copy (`model.md` §7.3.1). The **client half is built** (`fetchRelayCapabilities`,
   `@leapsake/sync`): it GETs `/capabilities`, reads a literal `durableBackup: true`, and

@@ -22,6 +22,7 @@ import {
   joinAccountViaRelay,
   lockThisDevice,
   lookupAccount,
+  MIN_PASSWORD_LENGTH,
   reauthenticateViaRelay,
   recoverAccountViaRelay,
   reconcileOnJoin,
@@ -460,16 +461,6 @@ function registerIpc(getCore: () => CoreApi): void {
       ipcMain.handle(channel, (_event, ...args) => handler(args)),
   });
 }
-
-/**
- * Shortest password we'll let enable an account (kept in step with the UI's
- * `MIN_PASSWORD_LENGTH`). This password derives the KEK that protects the master
- * key in a *zero-knowledge* store, so its strength is the encryption strength —
- * and there is no server-side reset to fall back on. We enforce a 12-character
- * floor (length over complexity, per NIST) and the UI nudges toward a passphrase;
- * the recovery key is the real backstop (see security-review.md).
- */
-const MIN_PASSWORD_LENGTH = 12;
 
 /** Reject a missing/blank string field from the renderer trust boundary. */
 function requireText(value: unknown, field: string): string {

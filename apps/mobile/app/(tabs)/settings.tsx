@@ -9,16 +9,9 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { Link } from "expo-router";
-import type { SyncStatus } from "@leapsake/core";
+import { MIN_PASSWORD_LENGTH, type SyncStatus } from "@leapsake/core";
 import { useCore, useSync } from "../../lib/core-context";
 import { colors, styles } from "../../lib/styles";
-
-/**
- * Mirror of the core's `MIN_PASSWORD_LENGTH` boundary check — keep them in step.
- * This password derives the encryption key for a zero-knowledge store with no
- * server-side reset, so the floor is deliberately higher than a typical login.
- */
-const MIN_PASSWORD_LENGTH = 12;
 
 /** Prefilled relay origin for local development (apps/server defaults to :4000). */
 const DEFAULT_RELAY_URL = "http://localhost:4000";
@@ -97,7 +90,10 @@ export default function SettingsScreen() {
           onReviewed={() => setReviewCount(0)}
         />
       ) : (
-        <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
+        <>
+          <CreateAccount onCreated={setRecoveryKey} />
+          <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
+        </>
       )}
       {/*
         The two ways to be rid of what is on this device, one per custody state
@@ -216,31 +212,46 @@ function AccountEnabled({
         {status.relayUrl !== undefined && ` Relay ${status.relayUrl}.`} Account
         created {new Date(status.createdAt ?? 0).toLocaleString()}.
       </Text>
-      {status.relayUrl !== undefined && autoSync !== null && (
+      {/*
+        No relay means an account created locally (`sync.createAccount`), which
+        is now reachable on this client too. It has nothing to sync to, so the
+        sync controls are not shown rather than shown and failing: every one of
+        them would have ended in "Sync is not enabled for this store."
+      */}
+      {status.relayUrl === undefined ? (
+        <Text style={styles.muted}>
+          This account is on this device only. Nothing is sent anywhere, so
+          nothing here needs syncing.
+        </Text>
+      ) : (
         <>
-          <View style={styles.rowMeta}>
-            <Text style={styles.fieldValue}>Sync automatically</Text>
-            <Switch
-              value={autoSync}
-              onValueChange={(next) => void toggleAutoSync(next)}
-            />
-          </View>
-          {!autoSync && (
+          {autoSync !== null && (
+            <>
+              <View style={styles.rowMeta}>
+                <Text style={styles.fieldValue}>Sync automatically</Text>
+                <Switch
+                  value={autoSync}
+                  onValueChange={(next) => void toggleAutoSync(next)}
+                />
+              </View>
+              {!autoSync && (
+                <Text style={styles.muted}>
+                  Changes sync only when you tap “Sync now” on this device.
+                </Text>
+              )}
+            </>
+          )}
+          <Pressable style={styles.button} disabled={syncing} onPress={syncNow}>
+            <Text style={styles.buttonText}>
+              {syncing ? "Syncing…" : "Sync now"}
+            </Text>
+          </Pressable>
+          {lastSynced !== null && (
             <Text style={styles.muted}>
-              Changes sync only when you tap “Sync now” on this device.
+              Last synced {new Date(lastSynced).toLocaleTimeString()}.
             </Text>
           )}
         </>
-      )}
-      <Pressable style={styles.button} disabled={syncing} onPress={syncNow}>
-        <Text style={styles.buttonText}>
-          {syncing ? "Syncing…" : "Sync now"}
-        </Text>
-      </Pressable>
-      {lastSynced !== null && (
-        <Text style={styles.muted}>
-          Last synced {new Date(lastSynced).toLocaleTimeString()}.
-        </Text>
       )}
       {error !== null && (
         <Text style={styles.danger} accessibilityRole="alert">
@@ -269,6 +280,125 @@ function AccountEnabled({
           </Pressable>
         </View>
       )}
+    </View>
+  );
+}
+
+/**
+ * **Create an account on this device** (`model.md` §7.2.1) — the act that turns
+ * encryption on. Entirely local: no relay, no email, nothing transmitted. The
+ * mobile mirror of desktop's `CreateAccount`, down to the copy, which is
+ * load-bearing in two ways worth keeping identical across the clients:
+ *
+ * 1. **Promise access, not safety.** An account protects against *this device
+ *    losing its security settings*; it does nothing about a lost or broken
+ *    phone. Borrowing the user's SaaS instincts and then violating them on the
+ *    worst day is the failure mode to avoid, so backups are named rather than
+ *    implied.
+ * 2. **"Account" is our vocabulary, not the user's.** A username and password
+ *    that never leave the phone are *accountless* in every sense a user cares
+ *    about. The heading softens the word; the mechanism is unchanged.
+ *
+ * Until this existed, mobile reached account creation only through the
+ * relay-bound signup step below — so a phone-only user who didn't want sync had
+ * no way to encrypt their store at all, while a desktop user did.
+ */
+function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
+  const sync = useSync();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit() {
+    setError(null);
+    if (username.trim() === "") {
+      setError("Choose a username.");
+      return;
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (password !== confirm) {
+      setError("The passwords don't match.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { recoveryKey } = await sync.createAccount({ username, password });
+      onCreated(recoveryKey);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Couldn't create the account.",
+      );
+      setBusy(false);
+    }
+  }
+
+  const hint = passwordHint(password);
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Protect your data</Text>
+      <Text style={styles.muted}>
+        Right now anyone who can unlock this phone can read your Leapsake data.
+        Setting up a username and password encrypts it on this device.
+      </Text>
+      <Text style={styles.muted}>
+        This stays on this phone — there's no email, no server, and nothing is
+        sent anywhere. It protects access to your data, not the data itself: if
+        this phone is lost or breaks, a password won't bring your data back. Set
+        up sync or keep a backup for that.
+      </Text>
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Username</Text>
+        <TextInput
+          style={styles.input}
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+          autoComplete="username"
+        />
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Password</Text>
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          autoComplete="new-password"
+          textContentType="newPassword"
+        />
+        {hint !== "" && <Text style={styles.muted}>{hint}</Text>}
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Confirm password</Text>
+        <TextInput
+          style={styles.input}
+          value={confirm}
+          onChangeText={setConfirm}
+          secureTextEntry
+          autoComplete="new-password"
+          textContentType="newPassword"
+        />
+      </View>
+      {error !== null && (
+        <Text style={styles.danger} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
+      <Pressable
+        style={[styles.button, busy && { opacity: 0.5 }]}
+        disabled={busy}
+        onPress={() => void onSubmit()}
+      >
+        <Text style={styles.buttonText}>
+          {busy ? "Encrypting your data…" : "Protect my data"}
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -338,9 +468,13 @@ function SyncSetup({
   // Step 1: identity.
   return (
     <View style={styles.section}>
+      {/* A heading only step 1 needs: it is what tells this apart from the
+          local "Protect your data" section directly above. The steps it routes
+          to name themselves. */}
+      <Text style={styles.sectionTitle}>Sync across devices</Text>
       <Text style={styles.muted}>
         Enter a username and relay. We'll check whether that account exists,
-        then help you create it or log in.
+        then help you create it or log in. This also encrypts this device.
       </Text>
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Username</Text>

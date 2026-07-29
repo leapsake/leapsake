@@ -33,6 +33,19 @@ export interface KeySession {
   masterKey: Uint8Array;
 }
 
+/**
+ * The minimum length of an account password, and the one place it is defined.
+ *
+ * Deliberately higher than a typical login floor: this password derives the KEK
+ * that protects the master key **and**, through {@link sealPasswordDoor}, the
+ * at-rest db-key — in a zero-knowledge design with no server-side reset, so an
+ * offline guess against a weak one is the whole attack. It lives here because
+ * this file holds every path that consumes a password (create, recover,
+ * re-authenticate, unlock), and it is re-exported through `@leapsake/core` so
+ * both clients check the same number instead of keeping four copies in step.
+ */
+export const MIN_PASSWORD_LENGTH = 12;
+
 /** KeyStore id holding this device's stable UUID (UTF-8 bytes). */
 const DEVICE_ID_KEY = "device-id";
 /** KeyStore id holding this device's 32-byte enclave secret. */
