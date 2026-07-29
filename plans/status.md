@@ -14,7 +14,9 @@
 > clients** — joining or recovering an account converts that device's store too, so **no path
 > leaves real user data in a plaintext file any more**, and signing out or forgetting an
 > account are both real. **Slice 7b is next** — per-account db-key doors on mobile, closing a
-> latent data-loss asymmetry with desktop. See the block
+> latent data-loss asymmetry with desktop — followed by **7c**, which closes the larger one:
+> mobile cannot create an account without a relay, so a mobile-only user cannot encrypt at
+> all. See the block
 > below under *What's next* → **Local custody**. The model is
 > [`encryption/model.md`](./encryption/model.md) §7.
 >
@@ -92,8 +94,9 @@ the work they imply.
 
 > **Order matters here.** Picking up work cold? Take them in this order:
 > **1.** **Local custody — the block immediately below.** Slices 1–7 are **built on both
-> clients**; start at **slice 7b** (per-account db-key doors on mobile), then slice 8. No
-> longer blocks `launch.md` Increments 2–4.
+> clients**; start at **slice 7b** (per-account db-key doors on mobile), then **7c** (a
+> local-only account on mobile — which carries an owner call on whether it is v0.1-blocking,
+> and leads the queue if it is), then slice 8. No longer blocks `launch.md` Increments 2–4.
 > **2.** `launch.md` Increment 1's last piece — **an owner decision, not a task**: the version
 > number and the build-number strategy. The machinery and the credential gitignores are built.
 > Due before Increment 4's first store upload, not before the v0.1 cut.
@@ -104,7 +107,7 @@ the work they imply.
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
 **⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/28. Slices 1–7 done on both
-clients; slice 7b is next, then 8.**
+clients; 7b is next, then 7c, then 8.**
 
 > **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
 > are fine.** There are no real users, so a migration is only worth writing when it is
@@ -331,6 +334,38 @@ reader would otherwise re-learn the hard way:
    > `recovery-key` are fixed ids on *both* clients), and a login picker (`resolveActiveStore`
    > takes `activeAccountId`; nothing passes it). Desktop is one-for-three; this takes mobile
    > from zero to one.
+
+7c. **A local-only account on mobile — encryption without a relay** *(gap found 2026-07-28;
+   **needs an owner call on whether it is v0.1-blocking**, see below)*.
+
+   Desktop can create an account with **no relay at all** (`account:create` →
+   `createAccountOnThisDevice`, nothing leaves the machine). Mobile cannot: `SyncApi.enable`
+   takes `relayUrl` as a **required** parameter and always calls `registerAccountWithRelay`
+   (`apps/mobile/lib/core-context.tsx`), and Settings only reaches account creation through
+   the relay-bound signup step.
+
+   **Why it matters more than it looks.** Under *encryption follows custody* (§7.2), an
+   account is the only thing that turns encryption on. So a mobile-only user who does not
+   want sync cannot get an encrypted store **at all** — they stay on a plaintext Open store
+   permanently. Desktop users can be private without a server; mobile users currently cannot.
+   That runs against [`product-truths.md`](./product-truths.md), which states single-device /
+   local-only use as supported, and it is the largest remaining custody asymmetry between the
+   clients — larger than 7b, because it is a *capability* gap rather than an internal one.
+
+   **The owner call:** is shipping v0.1 with mobile-only users unable to encrypt acceptable?
+   If not, this is launch-blocking and should lead the queue rather than follow 7b.
+
+   **The work is mostly UI, not custody.** `createLocalAccount` already takes `relayUrl` as
+   optional and is already shared; desktop's flow is the reference. Mobile needs a
+   create-account entry point that does not ask for a relay, and `enable`'s relay half made
+   conditional. Sequence it **after 7b**, so the new path inherits the per-account door
+   pattern from birth instead of being converted right after it lands.
+
+   > Two things to keep straight while building it: the username-collision question (Open
+   > questions, below) applies the moment a local account later binds a relay, which is
+   > exactly what this makes reachable on mobile; and desktop's copy for this act is already
+   > written to promise **access, not safety** (§7.2.1) — mobile should reuse that framing
+   > rather than invent its own.
 
 8. **Retire the Settings recovery-phrase reveal** *(owner, 2026-07-28)*. The phrase is to be
    **shown once at account creation and never again**; the only later route is a

@@ -171,7 +171,10 @@ surface no lower tier reaches).
 - **Harness note:** desktop offers a local-only account (no relay). Mobile today reaches account
   creation only through the relay-bound signup path, so on mobile this flow runs as Flow 6's
   signup step until a local-only entry exists there. Same journey, different entry point — the
-  assertions above are unchanged.
+  assertions above are unchanged. **That is a product gap, not just a harness one** — under
+  *encryption follows custody* it means a mobile-only user cannot encrypt at all — and it is
+  tracked as **slice 7c** in [`../status.md`](../status.md). Fold this note back in when 7c
+  lands and the entry points converge.
 
 ### Flow 5 — Reminder with an `@mention` and a `#tag` (Home round-trip)
 

@@ -82,10 +82,11 @@ mental model, not leak through it.
   client asks about, and **absent an answer, assume none**: word it as "Delete all data on
   this device" and offer an export first.
 
-## Deltas vs. the current build (future, none v0.1-blocking)
+## Deltas vs. the current build
 
 The model above describes the intended destination. These parts are *not yet* how the code
-works, and are called out so they're conscious deferrals, not surprises:
+works, and are called out so they're conscious deferrals, not surprises. **Most are not
+v0.1-blocking; #3 may be** — it carries an open owner call.
 
 1. ~~**Encryption follows custody.**~~ **Closed 2026-07-27/28.** First launch now mints no
    keys and opens a plaintext store; creating, joining, or recovering an account is what
@@ -96,11 +97,15 @@ works, and are called out so they're conscious deferrals, not surprises:
    purged independently. Not v0.1, but **the per-account path is**: new work must not assume
    a single fixed database path, because retrofitting that after users have data is exactly
    the expensive class of change worth avoiding.
-3. **Sign out vs. Forget account.** Both are **built on desktop** (2026-07-28) and are the
-   only two actions here now — *make local-only* was cut, per the bullet above. Mobile is
-   the remaining half. **Automatic** locking on idle stays deliberately **v0.2** (owner,
-   2026-07-27) — the deliberate half is cheap, the session machinery is not.
-4. **User-toggleable encryption beyond custody.** Opting *out* while holding an account —
+3. **A local-only account is desktop-only.** The model above treats single-device use as
+   first-class, but mobile can only create an account by binding a relay, so a mobile-only
+   user cannot turn encryption on at all. Tracked as **slice 7c** in [`status.md`](./status.md),
+   which carries the owner call on whether it is v0.1-blocking.
+4. ~~**Sign out vs. Forget account.**~~ **Closed 2026-07-28**, both clients. They are the
+   only two actions here now — *make local-only* was cut, per the bullet above. **Automatic**
+   locking on idle stays deliberately **v0.2** (owner, 2026-07-27) — the deliberate half is
+   cheap, the session machinery is not.
+5. **User-toggleable encryption beyond custody.** Opting *out* while holding an account —
    trading end-to-end encryption for server-side features like server-side search — is a
    trust-model fork, not a free dial. Distinct from delta 1, which is about the accountless
    state. This argues against per-field content-key encryption on new entities; encryption
