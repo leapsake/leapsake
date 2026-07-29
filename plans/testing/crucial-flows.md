@@ -1,10 +1,11 @@
 # Leapsake — The Crucial-Flow Catalog (the E2E keystone)
 
-> **Draft for owner sign-off (2026-07-18).** The single, *tool-agnostic* list of user
-> journeys that **every platform's E2E harness implements against the built app**. It is the
-> analog, one tier up, of the driver-contract keystone — authored once in plain language so
-> Maestro (mobile), Playwright/Electron (desktop), and any future harness encode the *same*
-> journeys and can't drift. Keeping it separate from any one tool is the core anti-lock-in move
+> **Draft for owner sign-off** (first drafted 2026-07-18; **rewritten 2026-07-28** against the
+> *encryption follows custody* model). The single, *tool-agnostic* list of user journeys that
+> **every platform's E2E harness implements against the built app**. It is the analog, one tier
+> up, of the driver-contract keystone — authored once in plain language so Maestro (mobile),
+> Playwright/Electron (desktop), and any future harness encode the *same* journeys and can't
+> drift. Keeping it separate from any one tool is the core anti-lock-in move
 > ([`strategy.md`](./strategy.md#vendor-neutrality-two-layers-kept-apart)).
 >
 > Read [`strategy.md` §3](./strategy.md#3-native-platform-e2e-the-release-gate-policy)
@@ -21,27 +22,45 @@ the journeys those tiers *can't* — the ones that only exist once real UI, real
 and (for sync) two real devices are wired together. A simulator/emulator/VM is the accepted
 approximation ([`strategy.md` §3](./strategy.md#3-native-platform-e2e-the-release-gate-policy)).
 
-**This catalog is authored against the app as actually built**, which forced one substantive
-correction to the earlier flow sketch:
+**This catalog is authored against the app as actually built.** Two consequences a harness
+author will otherwise get wrong:
 
-> **There is no per-launch local passphrase to "lock/unlock."** The local database key lives in
-> OS secure storage (macOS Keychain · iOS/Android secure store) and auto-opens the DB on every
-> launch — first run included. A passphrase enters the product in exactly two places: **enabling
-> sync** (register/join an account — wraps the master key under the password) and **recovery**
-> (the 24-word phrase). So the strawman's flow #2 ("set a passphrase, lock, unlock") does not map
-> to a real journey. The **key store** it meant to exercise is instead covered by Flow 5
-> (enable-sync writes/reads the keystore) and Flow 6b (the at-rest `RecoveryGate`, which fires
-> precisely when the OS key store was reset). Named here so no harness author re-invents a
-> passphrase wall the app doesn't have.
->
-> ⚠️ **This paragraph has a shelf life** (noted 2026-07-26). The custody decision in
-> [`../encryption/model.md`](../encryption/model.md) §7.2–7.3 makes a **lock/unlock journey
-> real** — for account holders — and adds two flows this catalog does not yet cover:
-> **account creation** (plaintext store → encrypted, plus the phrase shown once) and **lock →
-> password → unlock**. It also changes Flow 6's premise: an accountless user will have no
-> phrase and no `RecoveryGate` at all. Revisit when the custody slices land
-> ([`../status.md`](../status.md) → *Local custody*); until then the paragraph above is still
-> accurate to the shipped app.
+> **There is no per-launch passphrase wall, and a fresh install has no secrets at all.**
+> Under *encryption follows custody* ([`../encryption/model.md`](../encryption/model.md) §7.2),
+> a first launch is **Open**: it mints no keys, leaves the OS key store empty, and opens a
+> **plaintext** store. **Creating an account — username + password — is the single act that
+> turns encryption on**, converting the store as it goes and showing the 24-word recovery
+> phrase once. A device *joining* an existing account never passes through Open; it is
+> encrypted from byte one. So the journey to exercise is not "set a passphrase, lock, unlock"
+> — it is **Open → account → Protected** (Flow 4), plus the two doors that reopen a Protected
+> store when the OS key store is lost (Flow 7).
+
+> **The recovery phrase is shown once and is never re-viewable.** There is no
+> "reveal my phrase" surface in Settings — an account holder who loses the phrase rotates to a
+> new one behind re-auth (a later increment), and no flow may assume the phrase can be re-read
+> after account creation. **Every flow that needs the phrase must capture it at the moment it
+> is shown** (Flow 4 or Flow 6) and carry it forward. This is the single most likely way to
+> write a flow that passes today and rots tomorrow.
+
+## Asserting on custody: the one deliberate exception to "assert on screen"
+
+Custody's defining properties are **invisible**. "The store is ciphertext", "the key store is
+empty", "the plaintext original is gone" cannot be read off any screen, and a flow that only
+checks the UI would pass against an app that encrypted nothing. So the custody flows (1, 4, 6,
+7) are permitted a **bounded set of out-of-band assertions against the test profile on disk**:
+
+| Check | How | Meaning |
+|---|---|---|
+| Store custody | first 16 bytes are SQLite's `SQLite format 3\0` magic, or are not | plaintext vs. encrypted — the same test the app's own `storeFileState` makes |
+| Key material | count/keys of the profile's OS key store (desktop `keystore.json`; mobile the secure store) | Open holds **zero**; Protected holds the db-key, enclave secret, recovery key, device id |
+| Store location | the store's path within the profile | `stores/local/` when Open, `stores/<accountId>/` when Protected |
+| Roster | `accounts.json` | zero accounts when Open, exactly one after creation |
+| Sidecar | `<db>.recovery` (and, once slice 5 lands, the password sidecar) presence | the doors Flow 7 exercises exist |
+
+**Rules, so this stays an exception and not a habit.** These are *file existence and shape*
+checks only — never open the store, never decrypt, never call into app code. They are permitted
+only in the flows named above, and only **in addition to** an on-screen assertion, never instead
+of one. Every other flow asserts purely on visible text.
 
 ## The selector problem (must resolve before the first harness)
 
@@ -60,35 +79,41 @@ implemented, not upfront):
 | Anchor token | Marks | Used by |
 |---|---|---|
 | `home-empty` | Reminders/Home empty-state reached, boot done | Flow 1 |
-| `home-ready` | Home rendered with content | Flows 4, 5, 8 |
-| `sync-status` | sync state text (its label = `off`/`syncing`/`synced`/`error`) | Flow 5 |
-| `recovery-phrase` | the 24-word phrase display (label = the words) | Flow 6 |
-| `recovery-gate` | the at-rest `RecoveryGate` screen is up | Flow 6b |
+| `home-ready` | Home rendered with content | Flows 5, 6 |
+| `sync-status` | sync state text (its label = `off`/`syncing`/`synced`/`error`) | Flow 6 |
+| `recovery-phrase` | the one-time 24-word phrase display (label = the words) | Flows 4, 6, 7 |
+| `recovery-gate` | the at-rest boot gate is up | Flow 7 |
 
-Keep this list *small and shared*; everything else asserts on real on-screen labels ("People &
-Pets", "Factory reset", "Save your recovery phrase", the person's name, the milestone note).
+The gate hosts two doors (password, phrase); one anchor covers it and the flows target each door
+by its visible label. Keep this list *small and shared*; everything else asserts on real
+on-screen labels ("People & Pets", "Factory reset", "Save your recovery phrase", "Unlock", the
+person's name, the milestone note).
 
 ---
 
 ## Core catalog — the v0.1 release gate
 
-Six flows. Each must run **automated and green** on **iOS + Android + macOS** before v0.1
+Seven flows (Flow 7 has three variants). Each must run **automated and green** on **iOS +
+Android + macOS** before v0.1
 ([`strategy.md` §3](./strategy.md#host-matrix-and-v01-scope)). Windows/Linux implement the *same* list later, no changes. Columns:
 **Devices** (single vs. the two-instance sync pair), and **Uniquely exercises** (why E2E — the
 surface no lower tier reaches).
 
-### Flow 1 — First run reaches a usable empty state
+### Flow 1 — First run reaches a usable empty state, and mints nothing
 
-- **Intent:** a fresh install boots all the way to a usable screen with no data — no crash, no
-  stuck gate.
-- **Preconditions:** clean install, empty OS secure store (no prior enclave key), no DB file.
+- **Intent:** a fresh install boots all the way to a usable screen with no data, no account,
+  and **no key material anywhere** — no crash, no stuck gate, no ceremony.
+- **Preconditions:** clean install: empty OS key store, no store file, no roster.
 - **Steps:** launch the built app; wait for boot to settle.
-- **Assert:** the Reminders/Home screen is shown in its empty state (`home-empty`); the top nav
-  offers **People & Pets** and **Settings**. No `RecoveryGate`.
+- **Assert (on screen):** the Reminders/Home screen is shown in its empty state (`home-empty`);
+  the top nav offers **People & Pets** and **Settings**. No `recovery-gate`. Settings offers to
+  create an account and shows **no** recovery-phrase surface.
+- **Assert (out of band):** the store is **plaintext** and sits at `stores/local/`; the OS key
+  store holds **zero** Leapsake entries; the roster holds zero accounts; no `.recovery` sidecar.
 - **Devices:** single.
-- **Uniquely exercises:** the real boot chain end-to-end — OS secure-store *write* of a new
-  enclave key, encrypted DB creation, migrations, and the at-rest open path — none of which the
-  Node tiers run (they inject a temp-file driver).
+- **Uniquely exercises:** the Open boot path, whose defining property is an *absence* — and an
+  absence no lower tier can prove, because they all inject a fake key store. This is the flow
+  that would catch a regression re-introducing first-launch key minting.
 
 ### Flow 2 — Create a person and a relationship
 
@@ -99,29 +124,60 @@ surface no lower tier reaches).
 - **Assert:** both appear in **People & Pets**; opening Ada shows the relationship to Augustus
   with the chosen role rendered.
 - **Devices:** single.
-- **Uniquely exercises:** the renderer form → IPC/core → repo → encrypted write → re-read →
-  render loop through the *real* UI (the whole renderer/component layer that has **no** test
-  today at any tier).
+- **Uniquely exercises:** the renderer form → IPC/core → repo → write → re-read → render loop
+  through the *real* UI (the whole renderer/component layer that has **no** test today at any
+  tier).
 
 ### Flow 3 — Record a milestone
 
-- **Intent:** the encrypted per-item content-key path, end to end, as a user sees it.
+- **Intent:** a rich write that must survive a real restart.
 - **Preconditions:** at least one person (Flow 2).
 - **Steps:** open a person; add a milestone with a date and a note ("Met at the Analytical
   Engine talk").
 - **Assert:** the milestone and its note render on the person's timeline; relaunch (or navigate
   away and back) and the note still reads correctly.
 - **Devices:** single.
-- **Uniquely exercises:** the per-item content-key encrypt→store→fetch→decrypt→render path in
-  the production runtime — the relaunch assertion proves the content key round-trips through real
-  storage, not just an in-memory session.
+- **Uniquely exercises:** write→store→relaunch→read through real storage in the production
+  runtime, rather than an in-memory session.
+- **Note:** the note is an ordinary **plaintext column** — the per-item content-key path has no
+  domain-field consumer today. Layer 3 returns with photos (v0.2) and gets its own flow then;
+  do not write this flow as if it proves content-key encryption.
 
-### Flow 4 — Reminder with an `@mention` and a `#tag` (Home round-trip)
+### Flow 4 — Create an account: the act that turns encryption on
 
-- **Intent:** the newest and most UI-dense surface — the Home screen plus the mention/tag
-  authoring pickers and their two-way backlinks — which currently has **zero** automated
-  coverage below E2E (the pure helpers are unit-tested in `packages/schema`, but
-  `MentionTextField` / `ReminderForm` on both clients are not).
+- **Intent:** the custody keystone — an Open store with real data becomes a Protected one,
+  in place, without losing a row and without the app falling over as its own store is replaced
+  underneath it.
+- **Preconditions:** an Open store **with data** (Flows 1–3). Converting an empty store proves
+  nothing; the data is the point.
+- **Steps:** Settings → create an account → username + password (≥12 chars) → submit. The
+  24-word phrase is shown once; **capture it** (every later recovery flow depends on this
+  capture — it cannot be re-read); tick **I've saved my recovery phrase** → **Done**.
+- **Assert (on screen):** the phrase renders as 24 words (`recovery-phrase`); while it is up the
+  app chrome is **not** reachable, so it cannot be dismissed by an accidental navigation; after
+  **Done** the app **continues in place — no restart, no blank window** — and Ada plus her
+  milestone from Flows 2–3 are still on screen and still readable; Settings now reports the
+  account; the phrase is **not** offered anywhere again.
+- **Assert (out of band):** the store is now **ciphertext** at `stores/<accountId>/`; the Open
+  store at `stores/local/` is **gone**; the roster holds exactly one account; the OS key store
+  now holds the db-key, enclave secret, recovery key and device id; the `.recovery` sidecar
+  exists.
+- **Devices:** single.
+- **Uniquely exercises:** the plaintext→encrypted conversion of a *live* store with real rows,
+  driven through the real UI, plus the OS key store's transition from empty to populated. Both
+  clients' converters are covered a tier down; what only E2E proves is that the **running app**
+  survives its own store being swapped and remains usable immediately afterwards.
+- **Harness note:** desktop offers a local-only account (no relay). Mobile today reaches account
+  creation only through the relay-bound signup path, so on mobile this flow runs as Flow 6's
+  signup step until a local-only entry exists there. Same journey, different entry point — the
+  assertions above are unchanged.
+
+### Flow 5 — Reminder with an `@mention` and a `#tag` (Home round-trip)
+
+- **Intent:** the most UI-dense surface — the Home screen plus the mention/tag authoring pickers
+  and their two-way backlinks — which has **zero** automated coverage below E2E (the pure
+  helpers are unit-tested in `packages/schema`, but `MentionTextField` / `ReminderForm` on both
+  clients are not).
 - **Preconditions:** at least one person (Flow 2), e.g. Ada.
 - **Steps:** create a reminder; in the body, trigger the `@` picker and mention Ada, and type a
   `#birthday` tag; save.
@@ -133,51 +189,71 @@ surface no lower tier reaches).
   insertion) and the synced backlink rendered on the entity page — interaction + cross-screen
   navigation that a repo test can't assert.
 
-### Flow 5 — Enable sync and pair a second device
+### Flow 6 — Enable sync and pair a second device
 
 - **Intent:** the multi-device join that integration tests can only approximate (they wire two
   engines to one in-process relay; this drives two *real app instances* through the real UI and
   key store).
 - **Preconditions:** a reachable relay (local/self-hosted — the execution layer is swappable,
-  [`strategy.md` §3](./strategy.md#vendor-neutrality-two-layers-kept-apart)); Device A holds data (run Flows 2–3 first).
+  [`strategy.md` §3](./strategy.md#vendor-neutrality-two-layers-kept-apart)); Device A holds data (run Flows 2–3 first) and is still **Open**.
 - **Steps:** **Device A** → Settings → **Set up or log in to sync** → register a username +
-  password (≥12 chars). **Device B** (fresh install) → Settings → same entry → log in with that
-  username + password.
-- **Assert:** A's `sync-status` reaches `synced`; on **B**, the person and milestone A created
-  appear on screen after convergence.
+  password (≥12 chars); **capture the phrase** shown once. **Device B** (fresh install) →
+  Settings → same entry → log in with that username + password.
+- **Assert (on screen):** A's `sync-status` reaches `synced`; on **B**, the person and milestone
+  A created appear on screen after convergence.
+- **Assert (out of band):** enabling sync **is** account creation that also binds a relay, so
+  **Flow 4's out-of-band assertions apply to Device A unchanged** — its store converted, its
+  Open store is gone, its roster and key store are populated. Device B never passes through
+  Open: it is encrypted from byte one, with no plaintext store ever written.
 - **Devices:** **two instances** (two emulators/sims, or two macOS app instances with separate
   data dirs).
-- **Uniquely exercises:** OS secure-store *and* relay together — register wraps the master key
-  under the password and stores it; join unwraps it on a second device — plus real
-  push/pull convergence over the wire. This is the flow the strawman's "key store" concern really
-  lives in.
+- **Uniquely exercises:** OS key store *and* relay together — register wraps the master key under
+  the password and escrows it; join unwraps it on a second device and adopts the account's
+  recovery key — plus real push/pull convergence over the wire.
 
-### Flow 6 — Recovery phrase (two variants)
+### Flow 7 — The doors back in (three variants)
 
-The app has two distinct recovery journeys; **both** gate. They share the phrase but exercise
-different entry points.
+The phrase and the password are the two ways back into a Protected store; **all three variants
+gate**. Every variant carries its **negative case** — a wrong secret must be rejected visibly
+and must corrupt nothing. Leaving the negatives out is how a door that never actually checks
+anything ships green.
 
-**6a — Cross-device recovery (forgot password).**
-- **Steps:** on a synced account (Flow 5), reveal the 24-word phrase (Settings → **Recovery
-  phrase** → **Save your recovery phrase**); on a **fresh** Device C, choose recover-by-phrase,
-  enter the words, set a new password.
-- **Assert:** C reads the account's data after recovery; the *wrong* phrase is rejected with a
-  visible error (do not leave this negative case out — it's the one that proves the check is real).
+**Every variant depends on a phrase captured during Flow 4 or Flow 6.** There is no
+reveal-in-Settings to fall back on.
+
+**7a — Cross-device recovery (forgot password).**
+- **Steps:** on a synced account (Flow 6), take the phrase captured there to a **fresh** Device
+  C; choose recover-by-phrase; enter the words; set a new password.
+- **Assert:** C reads the account's data after recovery, and is forced to set a new password in
+  the process; the *wrong* phrase is rejected with a visible error before anything is written.
 - **Devices:** two (a synced account + a fresh device).
-- **Uniquely exercises:** phrase reveal UI + the relay recovery/password-reset path in the real
-  runtime.
+- **Uniquely exercises:** the relay recovery/password-reset path in the real runtime.
 
-**6b — At-rest local recovery (`RecoveryGate`).**
-- **Steps:** on a device with data, reveal + record the phrase, then simulate an OS-key-store
-  reset (the harness clears the enclave key — the `dev-clear-dbkey` route already exists for
-  exactly this) and relaunch; the boot gate shows `RecoveryGate` ("Restore access to your data");
-  enter the phrase → **Unlock**.
+**7b — At-rest local recovery, phrase door.**
+- **Steps:** on a Protected device with data, simulate an OS key-store reset (desktop: delete
+  `keystore.json` from the profile; mobile: the `dev-clear-dbkey` route) and relaunch; the boot
+  gate appears (`recovery-gate`, "Restore access to your data"); enter the phrase → **Unlock**.
 - **Assert:** the app opens to the existing data; a wrong phrase re-enables the form with an
-  error.
+  error and leaves the sidecar intact (a second attempt with the right phrase still works —
+  assert that, or the "corrupts nothing" claim is untested).
 - **Devices:** single.
-- **Uniquely exercises:** the boot-time `RecoveryGate` and the `.recovery` sidecar unwrap — the
-  local-only backup story (no lower tier boots through this gate). *This is the flow that
-  substitutes for the strawman's "unlock" — it's the only real unlock the app has.*
+- **Uniquely exercises:** the boot-time gate and the `.recovery` sidecar unwrap — the local-only
+  backup story. No lower tier boots through this gate.
+
+**7c — At-rest local recovery, password door.**
+- **Steps:** the same key-store reset, answered with the **account password** instead of the
+  phrase.
+- **Assert:** the app opens to the existing data; a wrong password re-enables the form with an
+  error and consumes nothing; afterwards the *phrase* door still works (the doors are
+  independent — prove it, since a shared-state bug here is invisible until someone needs the
+  second door).
+- **Devices:** single.
+- **Uniquely exercises:** the password sidecar in the pre-database boot path. This is the door
+  that makes an org-move Team-ID change cost one password entry instead of a phrase hunt
+  ([`../launch.md`](../launch.md) §2), and it is the most delicate code in the app: it runs
+  before the database opens, so a bug is not a failed query but an app that cannot start.
+- **Note:** this variant covers the automated half of [`../launch.md`](../launch.md)
+  Increment 3, whose manual half additionally documents restore-from-file-backup per door.
 
 ---
 
@@ -191,13 +267,21 @@ tier stays small). Listed so the owner can pull any into the gate:
   import from device contacts (`import.tsx`; `device-contacts` is unit-tested, the screen isn't).
   *Recommendation: promote at least the desktop drop path — it's a headline surface with a whole
   untested overlay.*
-- **Factory reset.** Settings → **Factory reset** → type the confirm phrase → data cleared, app
-  returns to the empty state (or re-onboards). Recent, untested at the UI level; also the natural
-  teardown between other E2E runs.
+- **Factory reset.** Settings → **Factory reset** → type the confirm phrase → data cleared, the
+  app returns **in place** to a first-run Open state (no restart), with the key store emptied and
+  the roster cleared. Recent, untested at the UI level; also the natural teardown between other
+  E2E runs, and it shares the reopen-in-place path with Flow 4 — a regression in one breaks both.
 - **Search.** Global search bar → type a person's name → result appears → navigate to them.
   Cheap, exercises the search service through the real UI.
 - **Reminder completion / due date.** Complete a reminder (reversible) and set a due date;
-  assert the state change on Home. Rounds out Flow 4's surface.
+  assert the state change on Home. Rounds out Flow 5's surface.
+- **Sign out → sign back in** (custody §7.3, once built). Sign out closes the store; signing back
+  in with the password reopens it. The deliberate half of locking; the automatic/idle half is
+  explicitly v0.2.
+- **Rotate the recovery phrase** (once built). Re-auth → new phrase shown once → the old phrase
+  no longer opens the store. Note the multi-device caveat before writing this flow: until each
+  device re-adopts the new key, the old phrase still opens *that* device's sidecar, so the
+  assertion is per-device, not per-account.
 
 ---
 
@@ -205,42 +289,48 @@ tier stays small). Listed so the owner can pull any into the gate:
 
 | Flow | macOS | Android | iOS | Win/Linux | Devices | Harness notes |
 |---|---|---|---|---|---|---|
-| 1 First run | gate | gate | gate | later | 1 | fresh install + empty keystore per run |
+| 1 First run (Open, mints nothing) | gate | gate | gate | later | 1 | fresh profile per run; asserts the key store is empty |
 | 2 Person + relationship | gate | gate | gate | later | 1 | — |
 | 3 Milestone | gate | gate | gate | later | 1 | relaunch to prove persistence |
-| 4 Reminder @/# round-trip | gate | gate | gate | later | 1 | drives the compose pickers |
-| 5 Enable sync + pair | gate | gate | gate | later | **2** | needs a relay + two instances |
-| 6a Cross-device recovery | gate | gate | gate | later | 2 | includes wrong-phrase negative |
-| 6b At-rest RecoveryGate | gate | gate | gate | later | 1 | uses `dev-clear-dbkey` to reset key |
+| 4 Create an account | gate | gate | gate | later | 1 | must run on a store **with** data; capture the phrase here |
+| 5 Reminder @/# round-trip | gate | gate | gate | later | 1 | drives the compose pickers |
+| 6 Enable sync + pair | gate | gate | gate | later | **2** | needs a relay + two instances; Flow 4's assertions apply to A |
+| 7a Cross-device recovery | gate | gate | gate | later | 2 | includes wrong-phrase negative |
+| 7b At-rest, phrase door | gate | gate | gate | later | 1 | key-store reset: delete `keystore.json` / `dev-clear-dbkey` |
+| 7c At-rest, password door | gate | gate | gate | later | 1 | same reset, password answer; prove both doors independent |
 
 "gate" = must be green before v0.1 on that platform ([`strategy.md` §3](./strategy.md#host-matrix-and-v01-scope): iOS + Android + macOS).
 Windows/Linux run the identical list once a host exists (deferred, blocked-not-waived).
 
 ## Open decisions for owner sign-off
 
-1. **Catalog membership.** Confirm the six core flows; decide which (if any) **extended** flows
-   are promoted into the v0.1 gate (leaning: promote desktop **contact-import drop**).
+1. **Catalog membership.** Confirm the seven core flows; decide which (if any) **extended** flows
+   are promoted into the v0.1 gate (leaning: promote desktop **contact-import drop**, and
+   **factory reset** now that it shares the reopen-in-place path with Flow 4).
 2. **Selector convention.** Approve the minimal stable-anchor set + the shared `testID` /
    `data-testid` token scheme (above), or mandate pure visible-text assertions.
-3. **Flow-4 inclusion.** Confirm adding the reminder/mention/tag round-trip — it's *not* in the
-   strawman but it's the newest, most UI-heavy untested surface, so it earns strong E2E value.
-   Trim if the owner considers reminders not yet launch-critical.
-4. **Two-instance harness shape.** How Flows 5/6a run two instances locally: two emulators/sims,
-   or one device + a headless second core. This is the one real infrastructure question the sync
-   flows raise; settle before implementing them (Flows 1–4, 6b are single-instance and can land
-   first).
-5. **Relay for E2E.** Which relay the sync flows point at (an ephemeral local `@leapsake/server`
+3. **The out-of-band custody assertions.** Approve the bounded file/key-store checks in the table
+   above, or rule that E2E asserts only on screen — in which case say explicitly which lower tier
+   owns "the store is actually ciphertext", because today no tier proves it against the built app.
+4. **Flow-5 inclusion.** Confirm the reminder/mention/tag round-trip — the newest, most UI-heavy
+   untested surface. Trim if reminders are not yet launch-critical.
+5. **Two-instance harness shape.** How Flows 6/7a run two instances locally: two emulators/sims,
+   or one device + a headless second core. The one real infrastructure question the sync flows
+   raise; settle before implementing them (Flows 1–5, 7b, 7c are single-instance and land first).
+6. **Relay for E2E.** Which relay the sync flows point at (an ephemeral local `@leapsake/server`
    boot per run is the vendor-neutral default; confirm).
 
 ## Recommended implementation order
 
 Single-instance flows first (they need no relay and no second device), on the cheapest host:
 
-1. **Flows 1–4 + 6b on macOS (Playwright/Electron)** — fully local, unblocked today. Proves the
-   catalog and the harness before any two-instance work.
+1. **Flows 1–5 + 7b, 7c on macOS (Playwright/Electron)** — fully local, unblocked once the
+   password door exists. Proves the catalog and the harness before any two-instance work. Take
+   **1 → 4** as a single arc: Flow 4 needs Flows 1–3's data, and together they are the whole
+   custody story.
 2. **The same flows on Android, then iOS** — reusing the Maestro harness that already runs the
    driver self-test.
-3. **Flows 5 + 6a (two-instance sync/recovery)** last on each platform — they carry the relay +
+3. **Flows 6 + 7a (two-instance sync/recovery)** last on each platform — they carry the relay +
    second-device infrastructure, so land them once the single-instance catalog is green.
 
-Closing Flows 1–6 on macOS + Android + iOS **is** the v0.1 E2E gate.
+Closing Flows 1–7 on macOS + Android + iOS **is** the v0.1 E2E gate.

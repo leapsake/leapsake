@@ -224,9 +224,10 @@ substance of the release gate.
   [`strategy.md`](./testing/strategy.md#vendor-neutrality-two-layers-kept-apart).
 - Target the **packaged artifact** from Increment 5, not `out/` — this is why packaging
   comes first and why no harness rework is needed later.
-- Implement catalog Flows **1, 2, 3, 4, 6b** ([`crucial-flows.md`](./testing/crucial-flows.md)).
+- Implement catalog Flows **1–5, 7b, 7c** ([`crucial-flows.md`](./testing/crucial-flows.md)) —
+  the single-instance set. Flows 1–4 are one arc (Flow 4 converts the store Flows 1–3 filled).
 - Add the minimal `data-testid` anchor set *as flows need them*, not upfront.
-- Per-flow profile isolation via `--user-data-dir`; simulate keystore loss for 6b by
+- Per-flow profile isolation via `--user-data-dir`; simulate keystore loss for 7b/7c by
   **deleting `keystore.json`** from the test profile — no `dev-clear-dbkey` route needed on
   desktop, and no test-only surface in production main.
 - Flip the `e2e` tier in `scripts/test-all.mjs` from `blocked` to `ready`.
@@ -293,7 +294,7 @@ Pre-flight, in order (git history is public *forever* — this precedes the flip
   finding reads very differently from a fixed one.
 - After flipping: a GitHub Actions workflow for **PR checks only**, calling the same scripts.
   The *release* gate stays local — hosted runners can't provide a real unlocked keychain, and
-  mocking it would gut Flows 1, 5, and 6b.
+  mocking it would gut Flows 1, 4, 6, and 7.
 
 **Acceptance:** repo public with a clean history scan; Actions green on a PR.
 
@@ -310,7 +311,7 @@ Pre-flight, in order (git history is public *forever* — this precedes the flip
 
 ## 6. Deferred / decide-before-committing
 
-- **Two-instance E2E (Flows 5, 6a).** [`crucial-flows.md`](./testing/crucial-flows.md) gates
+- **Two-instance E2E (Flows 6, 7a).** [`crucial-flows.md`](./testing/crucial-flows.md) gates
   these for v0.1: two app instances plus an ephemeral relay. On desktop this is tractable
   (separate `--user-data-dir`s, local `@leapsake/server`). Own increment after 9.
 - **Windows / Linux.** Out of scope, matching the E2E host policy — blocked, not waived.
@@ -327,7 +328,7 @@ Pre-flight, in order (git history is public *forever* — this precedes the flip
    + the existing driver self-test plus a smoke subset on mobile* for v0.1, with the full
    mobile catalog as a fast-follow. **Leaning (b)** — but it is a deliberate amendment to a
    written gate, so it needs your call rather than a quiet reinterpretation.
-2. **Flows 5/6a in the v0.1 gate or fast-follow?** Follows from (1).
+2. **Flows 6/7a in the v0.1 gate or fast-follow?** Follows from (1).
 3. **Auto-update before or after going public?** Public-first is simpler; interim tokens
    work if you want updates sooner.
 4. **Play closed-test tester recruitment** — 12 real humans for 14 continuous days is a real
