@@ -100,19 +100,31 @@ export function Settings() {
         </>
       )}
 
-      {status?.enabled === true && (
-        <>
-          <hr />
-          <RecoveryPhraseSection />
-          <hr />
-          <SignOut />
-          <hr />
-          <ForgetAccount />
-        </>
-      )}
-
-      <hr />
-      <FactoryReset syncEnabled={status?.enabled ?? false} />
+      {/*
+        The two ways to be rid of what is on this device, one per custody state
+        (`model.md` §7.2). They are the *same act* wearing the name that fits:
+        with an account, "Forget account" removes it and its store; without one
+        there is no account to forget, so the accountless wipe is the only shape
+        the action can take. Showing both at once was showing one act twice —
+        they land in the identical place (an accountless device with a fresh
+        empty store), and the differences that remain are invisible to a user.
+      */}
+      {status !== null &&
+        (status.enabled ? (
+          <>
+            <hr />
+            <RecoveryPhraseSection />
+            <hr />
+            <SignOut />
+            <hr />
+            <ForgetAccount />
+          </>
+        ) : (
+          <>
+            <hr />
+            <FactoryReset />
+          </>
+        ))}
     </main>
   );
 }
@@ -1259,15 +1271,19 @@ function RecoveryPhraseWords({ phrase }: { phrase: string }) {
 
 /**
  * Factory reset: erase everything on this device and reopen as a fresh install.
- * Far more destructive than {@link DisconnectAccount} — it deletes all data, the
- * encryption keys, and the recovery phrase — so it is gated behind a
- * type-to-confirm step (the "Erase everything" button stays disabled until the
- * user types {@link FACTORY_RESET_PHRASE}). The copy is honest about whether the
- * data is recoverable: synced accounts survive in the account/other devices, but
- * an unsynced store is gone for good. The main process reopens the app around a
- * fresh store and reloads this renderer, so there is no completion state to render.
+ *
+ * **Shown only while this device is Open** (`model.md` §7.2) — with an account,
+ * {@link ForgetAccount} is the same act under the name that fits, and offering
+ * both was offering one act twice. That is also why this no longer branches its
+ * copy on whether sync is set up: an Open device has no account, so the data
+ * here is by definition the only copy, and "erase" means exactly what it says.
+ *
+ * Gated behind a type-to-confirm step (the button stays disabled until the user
+ * types {@link FACTORY_RESET_PHRASE}) because nothing about it is recoverable.
+ * The main process reopens the app around a fresh store and reloads this
+ * renderer, so there is no completion state to render.
  */
-function FactoryReset({ syncEnabled }: { syncEnabled: boolean }) {
+function FactoryReset() {
   const [confirming, setConfirming] = useState(false);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -1300,8 +1316,7 @@ function FactoryReset({ syncEnabled }: { syncEnabled: boolean }) {
         <h2>Factory reset</h2>
         <p>
           Erase everything on this device and start over — all people, pets,
-          reminders, and settings, plus the encryption keys and recovery phrase.
-          The app restarts as if newly installed.
+          reminders, and settings. The app starts as if newly installed.
         </p>
         <p>
           <button type="button" onClick={() => setConfirming(true)}>
@@ -1316,10 +1331,9 @@ function FactoryReset({ syncEnabled }: { syncEnabled: boolean }) {
     <>
       <h2>Factory reset</h2>
       <p>
-        <strong>This permanently erases all data on this device.</strong>{" "}
-        {syncEnabled
-          ? "Your synced data stays in your account and on your other devices, but this device will be wiped and signed out."
-          : "Sync is not set up, so this data cannot be recovered afterward."}
+        <strong>This permanently erases all data on this device.</strong> There
+        is no account holding a copy, so this data cannot be recovered
+        afterward.
       </p>
       <p>
         Type <strong>{FACTORY_RESET_PHRASE}</strong> to confirm.
