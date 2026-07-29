@@ -11,6 +11,19 @@ out/
 *.db-wal
 *.db-shm
 
+# Signing credentials — never commit. Listed before the pipelines that produce them
+# (plans/launch.md Increments 4 and 7) because a key committed once is in the history
+# forever, and this repo goes public (Increment 10). Kept at the root rather than per
+# app: a downloaded credential lands wherever the person happened to be, and these
+# patterns match at any depth. If one is ever committed anyway, the fix is to *rotate
+# the credential* — a history rewrite alone does not reach forks, clones, or CI caches.
+*.p12
+AuthKey_*.p8
+*.mobileprovision
+*.jks
+*.keystore
+credentials.json
+
 *.swp
 *.swo
 

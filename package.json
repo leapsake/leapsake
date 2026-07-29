@@ -17,6 +17,7 @@
     "test:format": "oxfmt --check . '!**/*.md'",
     "test:lint": "oxlint",
     "test:types": "pnpm -r typecheck",
+    "test:versions": "node scripts/set-version.mjs --check",
     "test:node": "node scripts/ensure-sqlite-abi.mjs node && vitest run",
     "test:coverage": "node scripts/ensure-sqlite-abi.mjs node && vitest run --config vitest.coverage.config.ts",
     "test:unit": "node scripts/ensure-sqlite-abi.mjs node && vitest run packages",

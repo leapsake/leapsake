@@ -2,7 +2,6 @@
   "expo": {
     "name": "Leapsake",
     "slug": "leapsake",
-    "version": "0.0.0",
     "orientation": "portrait",
     "scheme": "leapsake",
     "userInterfaceStyle": "automatic",
