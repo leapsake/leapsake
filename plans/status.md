@@ -286,6 +286,24 @@ the per-account paths, and `resolveActiveStore`), `createLocalAccount`
 > **Related, sequenced right after:** *Restore-from-file-backup — verify + document* in the
 > **Encryption + sync** list below. It is the same two doors exercised on a fresh machine, and
 > it was explicitly waiting on this slice.
+>
+> **Fold into this slice: retire the Settings recovery-phrase reveal** *(owner, 2026-07-28)*.
+> The phrase is to be **shown once at account creation and never again**; the only later route
+> is a **re-auth-gated rotation** that mints a new phrase, shows it once, and retires the old.
+> The Open half shipped 2026-07-28 (the section is hidden with no account, and the handler
+> reads instead of minting); **removing it for account holders waits for the password door**,
+> because until that exists the phrase is the *only* way back into the file after a keychain
+> wipe, and hiding a sole door turns "mislaid" into "lost".
+>
+> Two things to know before building the rotation, neither of which blocks slice 5:
+> - **Rotation is never a recovery tool.** It needs the password, and the phrase exists for
+>   when the password is gone. Its real job is compromise response ("my phrase leaked"), and
+>   the copy should say so.
+> - **"Invalidates the old phrase" is not yet true on a multi-device account.** One account has
+>   one recovery key, but each device's `<db>.recovery` sidecar is sealed with that device's own
+>   db-key, so a rotating device cannot re-seal its peers. The old phrase keeps opening *their*
+>   files until each re-adopts — which is the per-device re-adopt-and-re-seal work parked under
+>   *Device management* (post-launch). Ship rotation scoped honestly, or after that.
 6. **Sign out + Forget account** (§7.3). Sign out closes the store; Forget account removes it
    and its roster entry. On the **last device**, ask the relay whether it keeps a durable copy
    and, absent an answer, word it as "Delete all data on this device" and offer an export
