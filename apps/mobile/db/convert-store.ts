@@ -18,6 +18,11 @@ import { rawKeyLiteral } from "@leapsake/crypto";
  * only after the roster names the replacement, so a crash mid-flow always leaves a
  * launchable device. `user_version` is carried across explicitly — ATTACH does not
  * copy it, and losing it would re-run every migration against existing tables.
+ *
+ * Both of desktop's guards are enforced here too, via {@link storeState} rather
+ * than desktop's file-header read. The destination one is the one that matters:
+ * without it a retry after a crash mid-flow copies every row into a store that
+ * already holds them, and the user's data arrives twice.
  */
 export async function convertStoreToEncrypted(opts: {
   fromName: string;
@@ -26,12 +31,21 @@ export async function convertStoreToEncrypted(opts: {
 }): Promise<void> {
   const { fromName, toName, key } = opts;
 
-  // `ATTACH` will not create the `stores/<accountId>/` directory — SQLite never
-  // makes directories, and this is where desktop calls `mkdirSync`. expo-sqlite
-  // *does* create intermediate directories when it opens a database by name, so
-  // opening the destination once (and closing it) is the mobile `mkdir -p`.
-  // Without this the ATTACH fails with "unable to open database file".
-  await (await SQLite.openDatabaseAsync(toName)).closeAsync();
+  if ((await storeState(fromName)) === "encrypted") {
+    throw new Error(
+      "Refusing to convert: the source store is not a plaintext database.",
+    );
+  }
+  // Note this also performs the mobile `mkdir -p`: `ATTACH` will not create the
+  // `stores/<accountId>/` directory (SQLite never makes directories — this is
+  // where desktop calls `mkdirSync`), but expo-sqlite *does* create intermediate
+  // directories when it opens a database by name, which `storeState` just did.
+  // Without that the ATTACH fails with "unable to open database file".
+  if ((await storeState(toName)) !== "empty") {
+    throw new Error(
+      "Refusing to convert: a store already exists at the destination.",
+    );
+  }
 
   const source = await SQLite.openDatabaseAsync(fromName);
   try {
@@ -89,6 +103,41 @@ export async function convertStoreToEncrypted(opts: {
     await check.getFirstAsync("PRAGMA user_version");
   } finally {
     await check.closeAsync();
+  }
+}
+
+/**
+ * What is sitting at a store name, as far as this device can tell — mobile's
+ * counterpart to desktop's `storeFileState` (`main/db/sqlite-header.ts`).
+ *
+ * Desktop reads the 16-byte SQLite header and can therefore distinguish *absent*
+ * from *empty*. **expo-sqlite exposes no raw file access at all**, so we ask the
+ * engine instead: open with no key and count `sqlite_master`. That answers the
+ * question the guards actually need — *is it safe to write a fresh store here* —
+ * with two consequences worth knowing before relying on it:
+ *
+ * - **`absent` and `empty` are one answer.** Opening a name creates the file (and
+ *   its directories), so asking is not free of side effects. Harmless: an empty
+ *   database and no database are equally safe to convert into.
+ * - **`encrypted` means "not readable without a key"**, which is also what a
+ *   corrupt file looks like. Both are equally unsafe to write over, so the guards
+ *   treat them the same.
+ */
+export async function storeState(
+  name: string,
+): Promise<"empty" | "plaintext" | "encrypted"> {
+  const db = await SQLite.openDatabaseAsync(name);
+  try {
+    const row = await db.getFirstAsync<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM sqlite_master",
+    );
+    return (row?.n ?? 0) === 0 ? "empty" : "plaintext";
+  } catch {
+    // SQLCipher refuses the read rather than the open (see the custody self-test),
+    // so a throw here is the signal that a key would be needed.
+    return "encrypted";
+  } finally {
+    await db.closeAsync();
   }
 }
 

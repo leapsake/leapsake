@@ -5,18 +5,17 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-28** — **"Encryption follows custody" is now the shipped behavior on both
-> clients**, and **slice 7 (sign out + forget account) is done on both**. First launch
+> **Updated 2026-07-29** — **"Encryption follows custody" is now the shipped behavior on both
+> clients**, and **slices 1–7b of the custody build are done on both**. First launch
 > mints **no keys** and leaves the store plaintext; creating an
 > account (username + password) is the single act that turns encryption on, converting the
 > store as it goes; and a lost keychain is answered by **the password**, with the 24-word
-> phrase as the forgot-password fallback. **Slices 1–7 of the custody build are done on both
-> clients** — joining or recovering an account converts that device's store too, so **no path
-> leaves real user data in a plaintext file any more**, and signing out or forgetting an
-> account are both real. **Slice 7b is next** — per-account db-key doors on mobile, closing a
-> latent data-loss asymmetry with desktop — followed by **7c**, which closes the larger one:
-> mobile cannot create an account without a relay, so a mobile-only user cannot encrypt at
-> all. See the block
+> phrase as the forgot-password fallback. Joining or recovering an account converts that
+> device's store too, so **no path leaves real user data in a plaintext file any more**;
+> signing out and forgetting an account are both real; and **mobile's unlock doors are now
+> per-account**, closing the latent data-loss asymmetry with desktop. **7c is next** — the
+> larger asymmetry: mobile cannot create an account without a relay, so a mobile-only user
+> cannot encrypt at all. See the block
 > below under *What's next* → **Local custody**. The model is
 > [`encryption/model.md`](./encryption/model.md) §7.
 >
@@ -40,7 +39,7 @@
   > Creating an account — **or joining/recovering one** — mints this device's db-key and
   > converts the store to `stores/<accountId>/`, and both unlock doors, password and phrase,
   > are built and proved on desktop for all three paths.
-  > Slices 1–7 of the build order below are done on both clients; **7b is next**. Any
+  > Slices 1–7b of the build order below are done on both clients; **7c is next**. Any
   > install predating this must be recreated (pre-v0.1 latitude) — no compatibility path.
 - **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
   and the review surface is **detection-driven rather than permanently advertised** (links and
@@ -93,10 +92,10 @@ the work they imply.
 ### Pre-v0.1 (toward initial launch)
 
 > **Order matters here.** Picking up work cold? Take them in this order:
-> **1.** **Local custody — the block immediately below.** Slices 1–7 are **built on both
-> clients**; start at **slice 7b** (per-account db-key doors on mobile), then **7c** (a
-> local-only account on mobile — which carries an owner call on whether it is v0.1-blocking,
-> and leads the queue if it is), then slice 8. No longer blocks `launch.md` Increments 2–4.
+> **1.** **Local custody — the block immediately below.** Slices 1–7b are **built on both
+> clients**; start at **7c** (a local-only account on mobile — which carries an owner call on
+> whether it is v0.1-blocking, and leads the queue if it is), then slice 8. No longer blocks
+> `launch.md` Increments 2–4.
 > **2.** `launch.md` Increment 1's last piece — **an owner decision, not a task**: the version
 > number and the build-number strategy. The machinery and the credential gitignores are built.
 > Due before Increment 4's first store upload, not before the v0.1 cut.
@@ -106,8 +105,8 @@ the work they imply.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/28. Slices 1–7 done on both
-clients; 7b is next, then 7c, then 8.**
+**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/29. Slices 1–7b done on both
+clients; 7c is next, then 8.**
 
 > **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
 > are fine.** There are no real users, so a migration is only worth writing when it is
@@ -149,11 +148,12 @@ password entry.
   client's converter and flow: `apps/desktop/src/main/db/convert-store.ts` +
   `create-account-flow.ts`; `apps/mobile/db/convert-store.ts`, wired inside `core-context.tsx`.
 - **Adopting an account someone else's device created** — the join/recover counterpart, same
-  sequence: `apps/desktop/src/main/db/adopt-account-flow.ts` and mobile's `convertJoinedStore`
-  in `core-context.tsx`.
+  sequence: `apps/desktop/src/main/db/adopt-account-flow.ts`, and on mobile the *same*
+  `adoptStoreForAccount` creation uses (`core-context.tsx`).
 - **The doors** — `packages/crypto/src/{recovery,password-sidecar}.ts` for the primitives,
-  `sealPasswordDoor` (`@leapsake/key-custody`) for the one place a door is sealed, and each
-  client's `sidecars.ts` for where the bytes land.
+  `sealPasswordDoor` (`@leapsake/key-custody`) for the one place a door is sealed, and for
+  where the bytes land: desktop's `main/db/sidecars.ts` (files beside the store) and mobile's
+  `db/doors.ts` (`stores/<accountId>/doors.db`).
 
 > **`createCore(driver, keySession?)` no longer reads its key session at all.** `milestone.note`
 > was layer 3's only consumer and was retired in slice 3, so **no repo needs a key**. The
@@ -194,14 +194,14 @@ reader would otherwise re-learn the hard way:
 > - **An install predating the custody work must be recreated.** `resolveActiveStore` is purely
 >   "does the roster hold an account?", and the only legitimate plaintext→encrypted conversions
 >   are the three that establish an account on this device: creation, join, recovery.
->   **The refusal guards for a store in the wrong custody state are desktop-only**, which this
->   note previously claimed of both clients *(corrected 2026-07-28)*. Desktop's `open.ts` throws
->   on a Protected store whose file is plaintext, and on an Open store whose file is encrypted,
->   because `storeFileState` can read the 16-byte SQLite header. **Mobile cannot make that
->   check at all** — expo-sqlite exposes no raw file access — so it opens with or without a key
->   and lets the engine object. A mobile guard has to take a different form (e.g. asking
->   SQLCipher, rather than reading bytes); until it exists, a mobile store in a mismatched
->   custody state fails later and less clearly than desktop's.
+>   **The refusal guards for a store in the wrong custody state are still desktop-only at the
+>   *boot* path** *(corrected 2026-07-28; narrowed 2026-07-29)*. Desktop's `open.ts` throws on a
+>   Protected store whose file is plaintext, and on an Open store whose file is encrypted,
+>   because `storeFileState` reads the 16-byte SQLite header. Mobile has no raw file access, so
+>   slice 7b built the guard the other way round — `storeState` **asks the engine** (open
+>   keyless, count `sqlite_master`) — but wired it only into the *converter*, which is where a
+>   mismatch destroys data. Mobile's boot still opens with or without a key and lets the engine
+>   object; the piece now available and unused is `storeState` itself.
 > - **Migration 27 could not preserve an encrypted `milestone.note`** and did not try — a dev
 >   profile that wrote notes while holding a key has NULL there. Accepted under the latitude
 >   above.
@@ -219,10 +219,10 @@ reader would otherwise re-learn the hard way:
 >   mechanism by which join and recover gained a real door with no change at those call sites.
 >   `adopt-account-flow.ts` hard-fails if the door comes back unsealed, so a regression to the
 >   skip cannot ship silently.
-> - **Mobile's `enable` still has two gaps slice 6 fixed only for join/recover**: its converter
->   has no overwrite guard (a retry after a mid-flow crash copies into a populated encrypted
->   file), and it has no restore path if the conversion throws after `driver.close?.()`. Left
->   alone deliberately — it is a proven path — but worth a small follow-up.
+> - **Mobile's `enable` had two gaps slice 6 fixed only for join/recover** — no overwrite
+>   guard, and no restore path if the conversion threw after `driver.close?.()`. **Closed in
+>   slice 7b**, which gave all three flows one shared conversion helper rather than three
+>   copies.
 
 7. **Sign out + Forget account** (§7.3) — ✅ **DONE on both clients, 2026-07-28**, desktop
    verified over CDP and mobile driven on a booted iOS simulator with Maestro.
@@ -280,60 +280,79 @@ reader would otherwise re-learn the hard way:
    > - **The gate copy no longer names a cause.** It asserted "its secure storage was likely
    >   reset", which reads as an alarming malfunction to someone who just signed out
    >   deliberately. Both clients now mention both routes in.
-   > - **Mobile's doors are device-scoped, not per-account** — see **slice 7b** below, which
-   >   is queued to fix exactly this.
+   > - **Mobile's doors were device-scoped, not per-account** — fixed by **slice 7b** below.
    > - **Mobile UX papercut, not fixed:** on the last-device confirmation the keyboard covers
    >   the "Delete all data" button; the screen scrolls, so it is reachable, but it wants a
-   >   `KeyboardAvoidingView`.
+   >   `KeyboardAvoidingView`. Confirmed still live 2026-07-29 — it is also the one step of
+   >   the custody cycle a Maestro flow cannot drive without dismissing the keyboard first,
+   >   so it will need fixing before this cycle can become an E2E flow.
 
-7b. **⇐ START HERE. Per-account db-key doors on mobile** *(owner, 2026-07-28 — parity with
-   desktop)*. Mobile keeps both doors in **one** unencrypted sidecar database
-   (`apps/mobile/db/sidecars.ts`: `leapsake-recovery.db`, two tables, each pinned to a single
-   row by `CHECK (id = 1)`). Desktop keeps them as files **named after the store**
-   (`<dbPath>.password`, `<dbPath>.recovery`), so they scope themselves per account.
+7b. **Per-account db-key doors on mobile** — ✅ **DONE 2026-07-29**, driven end to end on a
+   booted iOS simulator against a live relay. Both doors now live at
+   `stores/<accountId>/doors.db` (`apps/mobile/db/doors.ts`), in the account's own directory,
+   the way desktop's `<dbPath>.password` / `<dbPath>.recovery` have always scoped themselves.
+   The device-scoped `leapsake-recovery.db` and its two `CHECK (id = 1)` tables are gone —
+   **the format was broken, not migrated** (pre-v0.1 latitude), so any install predating this
+   must forget its account and create it again.
 
-   **Why this is a bug and not just an asymmetry.** `deleteDoors()` drops the pair for the
-   whole *device*, so the first time a device holds two accounts, forgetting one silently
-   destroys the other's password **and** recovery doors. Nothing fails at the time; it
-   surfaces much later, when that account's keychain is wiped and there is no way back in.
-   It is unreachable today only because the keystore has a single `db-key` slot, which is
-   also why it went unnoticed.
+   What made it a bug rather than an asymmetry: `deleteDoors()` dropped the pair for the whole
+   *device*, so the first device to hold two accounts would have had forgetting one silently
+   destroy the other's password **and** recovery doors — silent then, unrecoverable later.
+   *(Archaeology, so the shape is not reintroduced: both schemes were written in `8e5e58a`
+   when a device had one store at a fixed `leapsake.db`; desktop derived its path from the
+   store, mobile used a constant. Custody slice 2 moved stores to `stores/<accountId>/` and
+   desktop's followed for free. Slice 5 doubled it by copying each client's existing shape.)*
 
-   **How it happened** *(archaeology, so the same shape is not reintroduced)*: both schemes
-   were written in `8e5e58a` (the recovery-phrase increment), when a device had exactly one
-   store at a fixed `leapsake.db`. Desktop's sidecar path was **derived from the store path**;
-   mobile's was a **constant**. The two were indistinguishable until custody slice 2 moved
-   stores to `stores/<accountId>/` — at which point desktop's followed the store for free and
-   mobile's did not. Slice 5 then added the password door by copying each client's existing
-   shape, doubling the asymmetry without anyone deciding to.
+   Bundled in, as that slice's notes asked: **mobile's converter has both of desktop's guards**
+   now, and `enable`, `join` and `recover` share **one** conversion helper
+   (`adoptStoreForAccount`) instead of three copies — so the restore-on-failure path exists for
+   all three rather than only join/recover.
 
-   **The work is mostly not in the storage layer.** `enable`, `join`, and `recover` hand
-   `writePasswordSidecar` straight into core (`core-context.tsx` — three sites), and core
-   calls it from *inside* `joinAccountViaRelay` / `createLocalAccount`, at a moment when the
-   account id is not in that scope and the store has not been converted. A per-account writer
-   has no destination to resolve. **Desktop already solved this**: capture the bytes and write
-   them at the converted path afterwards (`create-account-flow.ts`, `adopt-account-flow.ts`,
-   and the note above about `writeThisDevicePasswordDoor` being steady-state only). Mobile
-   adopting that pattern is the bulk of the change — and is a parity win in its own right.
+   > - **Mobile cannot read a file header, so it asks the engine.** `storeState`
+   >   (`db/convert-store.ts`) opens keyless and counts `sqlite_master`: an unreadable file is
+   >   `encrypted`, an empty one is `empty`. That is the mobile answer to desktop's
+   >   `storeFileState`, and it is what the overwrite guard is built on. Two consequences:
+   >   *absent* and *empty* are one answer (asking creates the file — which doubles as the
+   >   `mkdir -p` the ATTACH needs), and "corrupt" reads as "encrypted". Both are the safe way
+   >   round for a guard that only ever refuses.
+   > - **The password door is captured from core, never written by it** — mobile now does what
+   >   desktop already did. Core seals it inside `createLocalAccount` / `joinAccountViaRelay`,
+   >   where the account id is not in scope and the store is still the Open one the flow is
+   >   about to delete. `writeThisDevicePasswordDoor` is the steady-state writer only
+   >   (`reauthenticate`), and it throws rather than guessing when there is no account.
+   > - **`enable` now refuses on a Protected device** before it registers anything with a
+   >   relay, as desktop's `create-account-flow.ts` does. The converter would refuse anyway,
+   >   but only after an account existed on a server.
+   > - **A failed `destroyPlaintextStore` must not fail the flow.** Found by driving it:
+   >   the delete at the end of account creation *does not reliably take on iOS*, and because
+   >   it threw out of `enable`, the user was never shown their one-time 24-word phrase —
+   >   trading the forgot-password backstop for a leftover file. It is now best-effort, and
+   >   **the Protected boot path sweeps a leftover Open store** the way desktop's has all
+   >   along. Verified both halves on device: with the sweep in, `stores/local/leapsake.db` is
+   >   gone and the phrase screen appears.
+   > - **The unlock gate could wedge on a second wrong password.** It reset its "Checking…"
+   >   state from a `useEffect` keyed on the error *string*, and two identical failures are
+   >   one unchanging string — so the button never came back and force-quitting was the only
+   >   way out, exactly when someone is trying hardest to get in. Keyed on the prompt's
+   >   `resolve` identity now. Also found by driving it, not by reading it.
+   > - **It does not make mobile multi-account, and should not be sold as that.** Multi-account
+   >   needs three things: per-account doors, **per-account keystore slots** (`db-key` and
+   >   `recovery-key` are fixed ids on *both* clients), and a login picker (`resolveActiveStore`
+   >   takes `activeAccountId`; nothing passes it). Desktop is one-for-three; this takes mobile
+   >   from zero to one.
+   > - **A pre-7b install keeps a stale `leapsake-recovery.db`** in the app's SQLite directory:
+   >   inert (it seals a db-key for a store that no longer exists) and never read again, but
+   >   nothing sweeps it. Not worth a migration under the latitude above.
 
-   Recommended shape:
-   - **Scope structurally, not with a `WHERE`**: put them at `stores/<accountId>/doors.db`,
-     in the account's own directory, mirroring desktop. A call site can forget a predicate; it
-     cannot forget a path. Nested database names are already proved on device by the custody
-     self-test.
-   - **Bundle the two `enable` gaps** parked in slice 6's notes (no overwrite guard; no
-     restore path if the conversion throws after `driver.close?.()`). Same three flows —
-     restructure them once, not twice.
-   - **Break the format, do not migrate it.** Pre-v0.1 latitude applies, and the sidecar is
-     the one file where a bad migration is unrecoverable: it must stay readable to be useful.
-   - **Do it before slice 8.** Rotation writes the recovery sidecar; if doors are still
-     device-scoped then, rotation inherits the assumption and adds another site to convert.
-
-   > **It does not make mobile multi-account, and should not be sold as that.** Multi-account
-   > needs three things: per-account doors, **per-account keystore slots** (`db-key` and
-   > `recovery-key` are fixed ids on *both* clients), and a login picker (`resolveActiveStore`
-   > takes `activeAccountId`; nothing passes it). Desktop is one-for-three; this takes mobile
-   > from zero to one.
+   **How it was verified** (iOS simulator + a local relay, with out-of-band assertions on the
+   app container, since custody's defining properties are invisible on screen): Open → create
+   account → `stores/<id>/leapsake.db` is ciphertext, `stores/<id>/doors.db` is plaintext and
+   holds both rows, `stores/local` is empty, the roster names the account → sign out → gate
+   raised → wrong password refused (twice, non-wedging) → **password unlock, which can only
+   have come from the new per-account door** → forget account → that directory is emptied of
+   *both* files and the roster is `[]` → create a second account → phrase shown, ciphertext
+   store, both doors. The self-test grew six cases (30/30 on device), including the
+   regression itself: two accounts' doors, one destroyed, the other's still readable.
 
 7c. **A local-only account on mobile — encryption without a relay** *(gap found 2026-07-28;
    **needs an owner call on whether it is v0.1-blocking**, see below)*.
@@ -358,8 +377,9 @@ reader would otherwise re-learn the hard way:
    **The work is mostly UI, not custody.** `createLocalAccount` already takes `relayUrl` as
    optional and is already shared; desktop's flow is the reference. Mobile needs a
    create-account entry point that does not ask for a relay, and `enable`'s relay half made
-   conditional. Sequence it **after 7b**, so the new path inherits the per-account door
-   pattern from birth instead of being converted right after it lands.
+   conditional — and it should route through `adoptStoreForAccount`, the one conversion helper
+   7b left behind, so it inherits the per-account doors and the guards rather than growing a
+   fourth copy of that sequence.
 
    > Two things to keep straight while building it: the username-collision question (Open
    > questions, below) applies the moment a local account later binds a relay, which is
@@ -394,8 +414,10 @@ keychain still holds the db-key. Not a one-way door — it sits on the same pass
 `apps/desktop/src/main/db/convert-store.ts` (8 tests, against the real app schema); mobile's
 in `apps/mobile/db/convert-store.ts`, exercised **on device** by
 `apps/mobile/test/custody-selftest.ts`, which runs beside the driver contract under
-`pnpm test:native` (20 cases total, each positive paired with its negative; confirmed RED by
-sabotage before being trusted GREEN).
+`pnpm test:native` (**30 cases** total, each positive paired with its negative; confirmed RED by
+sabotage before being trusted GREEN). Since slice 7b it also drives the shipped `accountDoors`
+directly — it takes a slot, so a scratch account id proves the per-account scoping without
+touching the custody state of the device it runs on.
 
 What that gate is protecting, in case you change the conversion:
 - Neither engine's *native* shortcut is portable — desktop has `PRAGMA rekey` but **no**
@@ -407,7 +429,11 @@ What that gate is protecting, in case you change the conversion:
 - **Carry `user_version` across** — ATTACH does not, and losing it re-runs every migration
   against tables that already exist.
 - **`ATTACH` never creates directories.** Desktop `mkdirSync`s; mobile opens the destination
-  by name first, since expo-sqlite creates intermediate directories on open.
+  by name first, since expo-sqlite creates intermediate directories on open — which its
+  destination guard (`storeState`) now does as a side effect, so the two are one step.
+- **Both refuse an occupied destination and an already-encrypted source.** Desktop reads the
+  file header; mobile asks the engine. The destination guard is the one that matters: without
+  it a retry after a mid-flow crash copies every row into a store that already holds them.
 
 **No longer blocks `launch.md` Increments 2–4.** The at-rest half of custody is complete on
 every path, so the first closed-test upload would not be putting testers' real data in a

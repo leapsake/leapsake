@@ -4,7 +4,9 @@ import type { TestApi } from "@leapsake/data/testing";
 import {
   convertStoreToEncrypted,
   destroyPlaintextStore,
+  storeState,
 } from "../db/convert-store";
+import { accountDoors, doorsPath } from "../db/doors";
 
 /**
  * The **custody** self-test: proves on-device the two expo-sqlite behaviors that
@@ -249,29 +251,60 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    // The doors live in one device-scoped database (`db/sidecars.ts`), so forget
-    // drops the pair rather than one account's. Proving the delete works matters
-    // for the same reason as above: a door outliving the store it opened is how
-    // "deleted" quietly becomes "still openable".
-    it("deletes the shared sidecar database", async () => {
-      const name = `sidecars-${crypto.randomUUID()}.db`;
-      const db = await SQLite.openDatabaseAsync(name);
-      await db.execAsync("CREATE TABLE sidecar (id INTEGER PRIMARY KEY)");
-      await db.runAsync("INSERT INTO sidecar (id) VALUES (1)");
-      await db.closeAsync();
-
-      await SQLite.deleteDatabaseAsync(name);
-
-      const reopened = await SQLite.openDatabaseAsync(name);
+    // **Forget account** must take that account's doors and no others. These drive
+    // the shipped `accountDoors` rather than a re-implementation — it takes a slot,
+    // so a scratch account id keeps the device's own custody state untouched.
+    //
+    // A door outliving the store it opened is how "deleted" quietly becomes "still
+    // openable"; a door *dying with a store that was not deleted* is the bug slice
+    // 7b fixed, and is the case below it.
+    it("destroys one account's doors", async () => {
+      const account = `acct-${crypto.randomUUID()}`;
+      const doors = accountDoors(account);
       try {
-        const table = await reopened.getFirstAsync<{ name: string }>(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sidecar'",
-        );
-        expect(table).toBe(null);
+        await doors.writePassword(Uint8Array.from([1, 2, 3]));
+        await doors.writeRecovery(Uint8Array.from([4, 5, 6]));
+        expect((await doors.readPassword())?.length).toBe(3);
+
+        await doors.destroy();
+
+        // Re-reading recreates an *empty* doors database rather than returning the
+        // blobs — without this a delete that quietly did nothing would still pass.
+        expect(await doors.readPassword()).toBe(undefined);
+        expect(await doors.readRecovery()).toBe(undefined);
       } finally {
-        await reopened.closeAsync();
-        await SQLite.deleteDatabaseAsync(name);
+        await doors.destroy();
       }
+    });
+
+    // The regression this slice exists for. Both doors used to live in one
+    // device-scoped database, so forgetting either account destroyed the other's
+    // password *and* recovery door — silent at the time, and unrecoverable later,
+    // when that account's keychain was wiped and neither door was there.
+    it("keeps one account's doors when another's are destroyed", async () => {
+      const kept = accountDoors(`acct-${crypto.randomUUID()}`);
+      const forgotten = accountDoors(`acct-${crypto.randomUUID()}`);
+      try {
+        await kept.writePassword(Uint8Array.from([1, 1, 1]));
+        await forgotten.writePassword(Uint8Array.from([2, 2, 2]));
+
+        await forgotten.destroy();
+
+        expect(Array.from((await kept.readPassword()) ?? [])).toEqual([
+          1, 1, 1,
+        ]);
+        expect(await forgotten.readPassword()).toBe(undefined);
+      } finally {
+        await kept.destroy();
+        await forgotten.destroy();
+      }
+    });
+
+    // Doors sit *inside* the store's own directory, which is what makes the case
+    // above structural rather than a matter of passing the right predicate.
+    it("puts a doors database in its account's store directory", () => {
+      const account = `acct-${crypto.randomUUID()}`;
+      expect(doorsPath(account)).toBe(`stores/${account}/doors.db`);
     });
   });
 
@@ -402,10 +435,11 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    // A crash between the conversion and the roster entry leaves an encrypted
-    // store nobody claims. Mobile's converter has no overwrite guard, so the retry
-    // clears the stranded file first — without that it copies into a populated
-    // database and the rows arrive twice.
+    // A crash between the conversion and the roster entry leaves an encrypted store
+    // nobody claims. The retry clears the stranded file first, because the
+    // converter's overwrite guard (the case after this one) now refuses to write
+    // into it — and before that guard existed, the retry copied every row into a
+    // populated database and the user's data arrived twice.
     it("clears a stranded destination before converting again", async () => {
       const from = scratchName("retry-src");
       const to = `stores/retry-${crypto.randomUUID()}/leapsake.db`;
@@ -435,6 +469,100 @@ export function runCustodySelfTest(t: TestApi): void {
         );
         expect(count?.n).toBe(1);
         await target.closeAsync();
+      } finally {
+        await discard(from);
+        await discard(to);
+      }
+    });
+
+    /**
+     * The converter's two guards — mobile's answer to desktop's `storeFileState`,
+     * which reads the SQLite file header directly. expo-sqlite exposes no raw file
+     * access, so `storeState` asks the engine instead (open keyless, count
+     * `sqlite_master`); these prove that substitute actually distinguishes the three
+     * states, on the engine we ship, rather than in principle.
+     */
+    it("tells an empty, a plaintext and an encrypted store apart", async () => {
+      const empty = scratchName("state-empty");
+      const plain = scratchName("state-plain");
+      const keyed = scratchName("state-keyed");
+      try {
+        expect(await storeState(empty)).toBe("empty");
+
+        const plainDb = await SQLite.openDatabaseAsync(plain);
+        await plainDb.execAsync("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+        await plainDb.closeAsync();
+        expect(await storeState(plain)).toBe("plaintext");
+
+        const keyedDb = await SQLite.openDatabaseAsync(keyed);
+        await keyedDb.execAsync(
+          `PRAGMA key = "${rawKeyLiteral(generateKey())}"`,
+        );
+        await keyedDb.execAsync("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+        await keyedDb.closeAsync();
+        expect(await storeState(keyed)).toBe("encrypted");
+      } finally {
+        await discard(empty);
+        await discard(plain);
+        await discard(keyed);
+      }
+    });
+
+    it("refuses to convert into a store that already holds data", async () => {
+      const from = scratchName("guard-src");
+      const to = `stores/guard-${crypto.randomUUID()}/leapsake.db`;
+      const key = generateKey();
+
+      const source = await SQLite.openDatabaseAsync(from);
+      await source.execAsync(
+        "CREATE TABLE person (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+      );
+      await source.runAsync(
+        "INSERT INTO person (id, name) VALUES (1, ?)",
+        "Ada",
+      );
+      await source.closeAsync();
+
+      try {
+        await convertStoreToEncrypted({ fromName: from, toName: to, key });
+        // The retry that would otherwise double every row.
+        expect(
+          await rejects(() =>
+            convertStoreToEncrypted({ fromName: from, toName: to, key }),
+          ),
+        ).toBe(true);
+
+        // …and it refused *before* writing: the first conversion's rows are intact
+        // and un-duplicated, which is the property the guard is protecting.
+        const target = await SQLite.openDatabaseAsync(to);
+        await target.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+        const count = await target.getFirstAsync<{ n: number }>(
+          "SELECT COUNT(*) AS n FROM person",
+        );
+        expect(count?.n).toBe(1);
+        await target.closeAsync();
+      } finally {
+        await discard(from);
+        await discard(to);
+      }
+    });
+
+    it("refuses to convert a store that is already encrypted", async () => {
+      const from = scratchName("guard-enc-src");
+      const to = `stores/guard-${crypto.randomUUID()}/leapsake.db`;
+      const key = generateKey();
+
+      const source = await SQLite.openDatabaseAsync(from);
+      await source.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+      await source.execAsync("CREATE TABLE person (id INTEGER PRIMARY KEY)");
+      await source.closeAsync();
+
+      try {
+        expect(
+          await rejects(() =>
+            convertStoreToEncrypted({ fromName: from, toName: to, key }),
+          ),
+        ).toBe(true);
       } finally {
         await discard(from);
         await discard(to);

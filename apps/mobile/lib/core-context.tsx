@@ -20,6 +20,7 @@ import * as SQLite from "expo-sqlite";
 import {
   type CoreApi,
   type KeySession,
+  type PasswordDoorWriter,
   type SyncScheduler,
   type SyncStatus,
   clearLocalAccount,
@@ -59,6 +60,7 @@ import {
 } from "@leapsake/crypto";
 import {
   createAccountRoster,
+  OPEN_STORE_SLOT,
   resolveActiveStore,
   storePath,
 } from "@leapsake/store-layout";
@@ -66,15 +68,9 @@ import {
   convertStoreToEncrypted,
   destroyPlaintextStore,
 } from "../db/convert-store";
+import { accountDoors } from "../db/doors";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 import { deleteAccountRoster, sqliteRosterStorage } from "../db/roster-storage";
-import {
-  deleteSidecars,
-  readPasswordSidecar,
-  readRecoverySidecar,
-  writePasswordSidecar,
-  writeRecoverySidecar,
-} from "../db/sidecars";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 import { forgetAccountOnThisDevice } from "./forget-account";
 
@@ -369,8 +365,38 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         accounts: await createAccountRoster(sqliteRosterStorage()).list(),
       });
       const existingDbKey = await keyStore.getSecret(DATABASE_KEY);
-      const recoverySidecar = await readRecoverySidecar();
-      const passwordSidecar = await readPasswordSidecar();
+
+      // This store's two db-key doors, which live *in its own directory* (§7.5,
+      // `db/doors.ts`) — so they are as per-account as the store is, and forgetting
+      // one account cannot take another's doors with it. An **Open** store has no
+      // db-key to seal and therefore no doors at all: naming them here would only
+      // create an empty database beside a store that needs none.
+      const doors =
+        activeStore.custody === "protected" &&
+        activeStore.accountId !== undefined
+          ? accountDoors(activeStore.accountId)
+          : undefined;
+      const recoverySidecar = await doors?.readRecovery();
+      const passwordSidecar = await doors?.readPassword();
+
+      // **The boot-time sweep** (desktop's `destroyPlaintextStore` doc comment says
+      // the same of its own): a Protected launch that still finds an Open store is
+      // one whose conversion could not delete the original — a plaintext copy of
+      // data the user has already asked to encrypt. Verified on device 2026-07-29:
+      // the delete at the end of account creation does *not* reliably take on
+      // iOS — the file was still there, full schema and all — so this is not a
+      // theoretical crash-recovery path, it is the one that actually runs.
+      //
+      // Safe by construction: an Open store is only ever the pre-conversion one
+      // once the roster names an account, and this launch is opening a different
+      // file entirely.
+      if (activeStore.custody === "protected") {
+        try {
+          await destroyPlaintextStore(storePath(OPEN_STORE_SLOT));
+        } catch {
+          // Nothing to sweep — the ordinary case.
+        }
+      }
 
       // At-rest encryption (Stage 2), now conditional on custody: a Protected
       // store's whole-DB key is held only in the OS enclave and the file is
@@ -476,12 +502,12 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // seal this door under a fresh key and silently invalidate the 24 words the
       // user wrote down. Nothing needs minting at boot: account creation, join,
       // and recovery each establish the recovery key before a store is opened.
-      if (dbKey !== undefined) {
+      if (dbKey !== undefined && doors !== undefined) {
         if (recoverySecret === undefined)
           recoverySecret = await readRecoveryKey(keyStore);
         else await keyStore.setSecret(RECOVERY_KEY, recoverySecret);
         if (recoverySecret !== undefined) {
-          await writeRecoverySidecar(
+          await doors.writeRecovery(
             sealDbKeyForRecovery(dbKey, recoverySecret),
           );
         }
@@ -545,59 +571,113 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       void regenerateSystemReminders(bootedCore); // birthdays atop Home
       void scheduler.current.autoTrigger(); // initial sync (skipped if auto off)
       /**
-       * Convert this device's Open store to the account it has just joined or
-       * recovered (`model.md` §7.1) — the local half of adopting an account, and
-       * the same irreversible sequence `enable` runs: **convert (original kept) →
-       * roster → destroy the original.**
+       * **Turn this device's Open store into an account's encrypted one** — the
+       * irreversible half of every path that establishes an account here: creating
+       * one (§7.2.1), and joining or recovering one that already exists (§7.1).
+       * All three run the identical sequence, which is why they share this:
        *
-       * The password door needs no step: the db-key is minted before the relay
-       * call, so core's `sealPasswordDoorIfProtected` no longer skips and has
-       * already written it through `writePasswordSidecar`. Nor does the recovery
-       * door — the Protected boot path seals it on every launch.
+       * > **convert (original kept) → password door → roster entry → destroy the
+       * > original.**
        *
-       * Always ends by re-running the bootstrap, success or failure. On success it
+       * The order is chosen for what a crash *between* two steps leaves behind (the
+       * table in `db/convert-store.ts`), and it matches desktop's
+       * `create-account-flow.ts` / `adopt-account-flow.ts` step for step. Two
+       * things about it are load-bearing:
+       *
+       * - **The password door is written here, not by core.** Core seals it from
+       *   inside `createLocalAccount` / `joinAccountViaRelay`, at a moment when the
+       *   account id is not in scope and the store still lives at the Open path
+       *   that this function is about to delete — so a writer resolving its own
+       *   destination would put the door in the directory the flow then removes.
+       *   Every caller captures the bytes instead and hands them here, where the
+       *   converted store's own directory exists. Desktop does exactly this.
+       * - **The recovery door needs no step at all**: the Protected boot path this
+       *   ends by re-running seals it on every launch.
+       *
+       * Always ends by re-running the bootstrap, success *or* failure. On success it
        * resolves Protected and opens the converted store; on failure the roster is
-       * untouched, so it resolves Open and re-opens the plaintext original that
-       * the conversion deliberately left in place.
+       * untouched, so it resolves Open and re-opens the plaintext original the
+       * conversion deliberately left in place — which is what keeps a mid-flow
+       * throw from stranding the app on a driver this already closed.
        */
-      const convertJoinedStore = async (
-        accountId: string,
-        username: string,
-      ) => {
-        const dbKey = await keyStore.getSecret(DATABASE_KEY);
-        if (dbKey === undefined) {
-          throw new Error("This device has no database key to convert with.");
-        }
+      const adoptStoreForAccount = async (opts: {
+        accountId: string;
+        username: string;
+        /** This device's at-rest key — minted by creation, or before the relay call. */
+        dbKey: Uint8Array;
+        /** `seal(db-key, KEK)`, captured from core rather than written by it. */
+        passwordDoor: Uint8Array;
+      }) => {
+        const { accountId, username, dbKey, passwordDoor } = opts;
         const roster = createAccountRoster(sqliteRosterStorage());
+        const target = storePath(accountId);
+        const targetDoors = accountDoors(accountId);
         scheduler.current?.stop();
         await driver.close?.();
         try {
           // A destination left by an earlier attempt that crashed before its roster
           // entry is claimed by nobody, so it is discardable — and clearing it is
-          // what lets a retry convert into an empty file rather than a populated one.
-          // Usually there is nothing there, and `deleteDatabaseAsync` throws rather
-          // than shrugging at a missing file, so tolerate that.
+          // what lets a retry convert into an empty file rather than trip the
+          // converter's overwrite guard. Its doors go with it: they seal a key for
+          // a store that is about to be replaced. Usually there is nothing there,
+          // and `deleteDatabaseAsync` throws rather than shrugging at a missing
+          // file, so tolerate that.
           if (!(await roster.list()).some((a) => a.id === accountId)) {
             try {
-              await SQLite.deleteDatabaseAsync(storePath(accountId));
+              await SQLite.deleteDatabaseAsync(target);
             } catch {
               // nothing stranded — the ordinary case
             }
+            await targetDoors.destroy();
           }
           await convertStoreToEncrypted({
             fromName: activeStore.path,
-            toName: storePath(accountId),
+            toName: target,
             key: dbKey,
           });
+          // Beside the store it opens, and *before* the roster entry — so a device
+          // that is Protected from the next boot onward has had both from the same
+          // moment.
+          await targetDoors.writePassword(passwordDoor);
           await roster.add({
             id: accountId,
             username,
             createdAt: new Date().toISOString(),
           });
-          await destroyPlaintextStore(activeStore.path);
+
+          // Past the roster entry the account **is** established, so nothing here
+          // may throw: a caller that sees this fail treats the whole act as failed,
+          // and `enable`'s does that by never showing the one-time recovery phrase
+          // — trading a 24-word backstop for a leftover file. Observed on device
+          // 2026-07-29, which is how this was found: the delete does not reliably
+          // take on iOS. The Protected boot path this re-runs sweeps the leftover.
+          try {
+            await destroyPlaintextStore(activeStore.path);
+          } catch {
+            // Swept on the next launch, a few lines below where custody resolves.
+          }
         } finally {
           setResetVersion((v) => v + 1);
         }
+      };
+
+      /**
+       * The {@link PasswordDoorWriter} for the **steady state** — a device whose
+       * store already sits at its account's path, re-sealing its door after a
+       * password change (`reauthenticate`). Mirrors desktop's
+       * `writeThisDevicePasswordDoor`.
+       *
+       * Deliberately *not* for the three flows that establish an account: while
+       * those run, the door's destination does not exist yet. They capture the
+       * bytes and hand them to {@link adoptStoreForAccount}.
+       */
+      const writeThisDevicePasswordDoor: PasswordDoorWriter = async (bytes) => {
+        if (doors === undefined) {
+          throw new Error(
+            "This device has no account to seal a password door for.",
+          );
+        }
+        await doors.writePassword(bytes);
       };
 
       // The enable-sync surface closes over the *booted* driver + keystore, so it
@@ -615,6 +695,15 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           if (password.length < MIN_PASSWORD_LENGTH) {
             throw new Error(
               `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+            );
+          }
+          // Creating an account is an **Open** device's act, as it is on desktop
+          // (`create-account-flow.ts`). The converter would refuse the encrypted
+          // source anyway, but only after an account had been registered on a relay
+          // — so say so before anything leaves the device.
+          if (activeStore.custody !== "open") {
+            throw new Error(
+              "This device already holds an account. Forget it before creating another.",
             );
           }
           // Enabling sync **is** creating an account that also binds a relay, so
@@ -645,31 +734,16 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             throw new Error(relayErrorMessage(cause, relayUrl), { cause });
           }
 
-          // The irreversible half, in the order that survives a crash at any
-          // point: convert (original kept) → roster → destroy the original.
-          scheduler.current?.stop();
-          await driver.close?.();
-          await convertStoreToEncrypted({
-            fromName: activeStore.path,
-            toName: storePath(accountId),
-            key: newDbKey,
-          });
-          // The password door for the store that now exists. Written before the
-          // roster entry, so a device that is Protected from the next boot onward
-          // has both doors from the same moment. The recovery door needs no step
-          // here — the Protected boot path seals it on every launch.
-          await writePasswordSidecar(newPasswordSidecar);
-          await createAccountRoster(sqliteRosterStorage()).add({
-            id: accountId,
+          // The irreversible half — the same shared sequence join and recover run.
+          // It re-runs the bootstrap on its way out (the store this one opened no
+          // longer exists), which is also how a failure mid-conversion lands back
+          // on the plaintext original rather than on a closed driver.
+          await adoptStoreForAccount({
+            accountId,
             username,
-            createdAt: new Date().toISOString(),
+            dbKey: newDbKey,
+            passwordDoor: newPasswordSidecar,
           });
-          await destroyPlaintextStore(activeStore.path);
-
-          // The store this bootstrap opened no longer exists; re-run the effect so
-          // every screen ends up on the encrypted one (the same in-place restart
-          // factory reset uses, since mobile has no relaunch primitive).
-          setResetVersion((v) => v + 1);
           return { accountId, recoveryKey: recoveryPhrase };
         },
         async join({ username, password, relayUrl }) {
@@ -681,12 +755,18 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // at the call site. Safe while Open — custody is decided purely by the
           // roster, and the Open boot branch ignores a db-key entirely.
           if (wasOpen) await ensureDatabaseKey(keyStore);
+          // Capture the door core seals rather than letting it write: while this
+          // runs the store is still the Open one, which the conversion below
+          // deletes. See {@link adoptStoreForAccount}.
+          let passwordDoor: Uint8Array | undefined;
           let session: KeySession;
           try {
             session = await joinAccountViaRelay({
               keyStore,
               driver,
-              writePasswordSidecar,
+              writePasswordSidecar: async (bytes) => {
+                passwordDoor = bytes;
+              },
               relayUrl,
               username,
               password,
@@ -694,6 +774,15 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             });
           } catch (cause) {
             throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+          }
+          // With a db-key in hand `sealPasswordDoorIfProtected` cannot legitimately
+          // skip, so an unsealed door means that contract broke. Fail here, before
+          // anything on disk moves, rather than hand the user a device only its
+          // 24-word phrase can open.
+          if (passwordDoor === undefined) {
+            throw new Error(
+              "Joining did not seal this device's password door; refusing to convert the store.",
+            );
           }
           // Adopt the account's master key everywhere: rebuild the core (wrapped
           // so writes keep kicking) on the adopted session and swap it in place
@@ -728,9 +817,23 @@ export function CoreProvider({ children }: { children: ReactNode }) {
                 "Joining did not record an account on this store.",
               );
             }
-            await convertJoinedStore(accountId, username);
+            const dbKey = await keyStore.getSecret(DATABASE_KEY);
+            if (dbKey === undefined) {
+              throw new Error(
+                "This device has no database key to convert with.",
+              );
+            }
+            await adoptStoreForAccount({
+              accountId,
+              username,
+              dbKey,
+              passwordDoor,
+            });
             return { duplicateCount };
           }
+          // Already Protected: the store is where it belongs, so the freshly sealed
+          // door belongs in its account's own directory.
+          await writeThisDevicePasswordDoor(passwordDoor);
           void scheduler.current?.autoTrigger(); // push this device's data + pull remainder
           return { duplicateCount };
         },
@@ -744,12 +847,16 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // Same reason as join: mint before the relay call so core's password door
           // is sealed rather than skipped.
           if (wasOpen) await ensureDatabaseKey(keyStore);
+          // Captured, not written — same reason as join.
+          let passwordDoor: Uint8Array | undefined;
           let session: KeySession;
           try {
             session = await recoverAccountViaRelay({
               keyStore,
               driver,
-              writePasswordSidecar,
+              writePasswordSidecar: async (bytes) => {
+                passwordDoor = bytes;
+              },
               relayUrl,
               username,
               recoveryPhrase,
@@ -758,6 +865,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             });
           } catch (cause) {
             throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+          }
+          if (passwordDoor === undefined) {
+            throw new Error(
+              "Recovering did not seal this device's password door; refusing to convert the store.",
+            );
           }
           // Adopt the recovered master key everywhere, like join.
           keySession.current = session;
@@ -783,9 +895,21 @@ export function CoreProvider({ children }: { children: ReactNode }) {
                 "Recovering did not record an account on this store.",
               );
             }
-            await convertJoinedStore(accountId, username);
+            const dbKey = await keyStore.getSecret(DATABASE_KEY);
+            if (dbKey === undefined) {
+              throw new Error(
+                "This device has no database key to convert with.",
+              );
+            }
+            await adoptStoreForAccount({
+              accountId,
+              username,
+              dbKey,
+              passwordDoor,
+            });
             return { duplicateCount };
           }
+          await writeThisDevicePasswordDoor(passwordDoor);
           void scheduler.current?.autoTrigger();
           return { duplicateCount };
         },
@@ -808,7 +932,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
               keyStore,
               driver,
               password,
-              writePasswordSidecar,
+              writePasswordSidecar: writeThisDevicePasswordDoor,
             });
           } catch (cause) {
             throw new Error(relayErrorMessage(cause, relayUrl ?? ""), {
@@ -834,7 +958,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
                 "protect your data with a password.",
             );
           }
-          if ((await readPasswordSidecar()) === undefined) {
+          if ((await doors?.readPassword()) === undefined) {
             throw new Error(
               "This device has no password door, so signing out would lock the " +
                 "data behind the recovery phrase alone.",
@@ -881,7 +1005,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             accountId,
             storeName: activeStore.path,
             deleteStore: (name) => SQLite.deleteDatabaseAsync(name),
-            deleteDoors: deleteSidecars,
+            // This account's doors only — they live in its own store directory, so
+            // a second account on this device keeps both of its own (slice 7b).
+            deleteDoors: () => accountDoors(accountId).destroy(),
           });
           keySession.current = null;
           coreRef.current = null;
@@ -890,7 +1016,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         async factoryReset() {
           // Show the loading state first so the wiped core is never rendered,
           // then tear everything down: stop background sync, close the DB handle,
-          // delete the store + recovery sidecar + account roster, and clear every
+          // delete this store, its doors and the account roster, and clear every
           // keystore secret. Bumping resetVersion re-runs the bootstrap effect,
           // which now finds no roster, no key and no store, and so takes the
           // *Open* path — a plaintext store and no keys at all (model.md §7.2).
@@ -904,7 +1030,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           scheduler.current?.stop();
           await driver.close?.();
           await SQLite.deleteDatabaseAsync(activeStore.path);
-          await deleteSidecars();
+          await doors?.destroy();
           await deleteAccountRoster();
           for (const id of KEYSTORE_SECRET_IDS) {
             await keyStore.deleteSecret(id);
@@ -1025,10 +1151,15 @@ function RecoveryGate({
     if (!chosen) setDoor(doors.password ? "password" : "phrase");
   }, [chosen, doors.password]);
 
-  // A new error means the last attempt failed — let the user try again.
-  useEffect(() => {
-    if (error !== undefined) setSubmitting(false);
-  }, [error]);
+  // A new prompt means the last attempt came back — let the user try again.
+  //
+  // Keyed on `onSubmit`, which is the awaiting bootstrap's `resolve` and is a new
+  // function for every attempt, **not** on `error`: two wrong passwords in a row
+  // produce the *same* error string, so an error-keyed effect never re-fires and
+  // the button stays on "Checking…" forever. Getting a password wrong twice is
+  // exactly when someone is trying hardest to get in, and force-quitting the app
+  // was the only way out.
+  useEffect(() => setSubmitting(false), [onSubmit]);
 
   function submit() {
     if (secret.trim() === "") return;

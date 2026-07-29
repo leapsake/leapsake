@@ -24,12 +24,12 @@ import type { AccountRoster } from "@leapsake/store-layout";
  * roster, and every keystore secret. This removes one account's slot and leaves
  * the device's identity (`device-id`, `enclave`) intact.
  *
- * > **The doors are device-scoped on mobile, not per-account.** Desktop keeps them
- * > as files beside each store, so they scope themselves; mobile keeps both in one
- * > unencrypted database keyed `id = 1` (`db/sidecars.ts`), so `deleteDoors` drops
- * > *this device's* pair rather than one account's. Correct while a device holds
- * > one account — the shape actually supported, since the keystore likewise has a
- * > single `db-key` slot — and a real constraint to revisit with the login picker.
+ * > **`deleteDoors` must drop one account's doors, not the device's.** Mobile kept
+ * > both doors in a single unencrypted database at a fixed name until custody slice
+ * > 7b, so this step silently destroyed every account's password *and* recovery
+ * > door — unreachable while a device held one account, and a lost-data incident
+ * > the first time one held two. They now live in the account's own store directory
+ * > (`db/doors.ts`), as desktop's have always lived beside the store.
  */
 export async function forgetAccountOnThisDevice(opts: {
   keyStore: KeyStore;
@@ -40,7 +40,7 @@ export async function forgetAccountOnThisDevice(opts: {
   storeName: string;
   /** Delete a store database by name (`SQLite.deleteDatabaseAsync`). */
   deleteStore: (name: string) => Promise<void>;
-  /** Drop both db-key doors (`deleteSidecars`). */
+  /** Drop this account's two db-key doors (`accountDoors(id).destroy`). */
   deleteDoors: () => Promise<void>;
 }): Promise<void> {
   const { keyStore, roster, accountId } = opts;
