@@ -16,10 +16,12 @@ import {
   createCore,
   createSyncScheduler,
   ensureDeviceMasterKey,
+  fetchRelayCapabilities,
   getAutoSync,
   getSyncStatus,
   isRelayAuthError,
   joinAccountViaRelay,
+  lockThisDevice,
   lookupAccount,
   reauthenticateViaRelay,
   recoverAccountViaRelay,
@@ -69,13 +71,18 @@ import { adoptAccountOnThisDevice } from "./db/adopt-account-flow.js";
 import { destroyPlaintextStore } from "./db/convert-store.js";
 import { createAccountOnThisDevice } from "./db/create-account-flow.js";
 import { factoryResetFiles } from "./db/factory-reset.js";
+import { forgetAccountOnThisDevice } from "./db/forget-account-flow.js";
 import {
   type UnlockAnswer,
   type UnlockRequest,
   openAppDatabase,
 } from "./db/open.js";
 import { jsonFileStorage } from "./db/roster-storage.js";
-import { passwordSidecarPath, writeSidecar } from "./db/sidecars.js";
+import {
+  passwordSidecarPath,
+  readSidecar,
+  writeSidecar,
+} from "./db/sidecars.js";
 import { storeFileState } from "./db/sqlite-header.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
@@ -224,6 +231,12 @@ async function reopenActiveStore(): Promise<void> {
   storeSwapping = false;
   scheduler?.setAutoEnabled(await getAutoSync({ driver }));
   scheduler?.start();
+  // Take the gate back down. Only sign out (model.md §7.3) actually raises it
+  // mid-session — `openActiveStore` above parks inside `requestUnlock` until the
+  // password lands, leaving the renderer on `RecoveryGate` — but announcing
+  // unconditionally is right for the other swaps too: they leave the phase at
+  // "ready", so this is a no-op the renderer ignores.
+  announceBootReady();
 }
 
 /**
@@ -792,6 +805,95 @@ function registerSyncIpc(): void {
     },
   );
 
+  // **Sign out** (model.md §7.3): close the store and forget the keys that open
+  // it, so getting back in costs the password. Locked is a *state*, not a
+  // separate mechanism — this reaches it by deleting the db-key + recovery key
+  // and re-opening, which drops the boot path into its "the enclave is gone but
+  // the encrypted file survives" case, i.e. the unlock gate the renderer already
+  // hosts. One promise for both custody kinds: *nobody can see my data on this
+  // device anymore*.
+  //
+  // The two guards are the difference between a lock and a lockout, and both
+  // refuse rather than repair, because there is no safe repair from here:
+  //  - **Open store** — no account, so no keys and no password to come back with.
+  //    Signing out would be a no-op that looks like one.
+  //  - **No password door** — the sidecar is written by every path that
+  //    establishes an account (creation, join, recovery), so its absence means a
+  //    profile predating slice 5. Locking it would leave the 24-word phrase as
+  //    the only way back, which is a support incident, not a sign out.
+  //
+  // Note this call resolves only *after* the user unlocks: `withStoreSwap`'s
+  // re-open parks inside `requestUnlock` until a secret arrives. The renderer
+  // doesn't wait on it — it switches to the gate on the `boot:unlock-needed`
+  // event — so the pending promise is invisible.
+  ipcMain.handle("account:signOut", async () => {
+    if ((await getSyncStatus({ driver })).enabled !== true) {
+      throw new Error(
+        "There is no account on this device to sign out of. Create one to " +
+          "protect your data with a password.",
+      );
+    }
+    if (readSidecar(passwordSidecarPath(dbPath)) === undefined) {
+      throw new Error(
+        "This device has no password door, so signing out would lock the data " +
+          "behind the recovery phrase alone.",
+      );
+    }
+    await withStoreSwap(async () => {
+      storeSwapping = true;
+      await driver.close?.();
+      await lockThisDevice({ keyStore });
+    });
+  });
+
+  // What the **Forget account** confirmation needs to word itself honestly
+  // (model.md §7.3.1). Forgetting an account on its last device is functionally a
+  // deletion *unless a server durably holds a copy* — so ask the relay, and treat
+  // silence as "no copy". No relay implements the endpoint today, which is exactly
+  // why this is a check and not a hardcoded warning: when server-side backup
+  // ships, the alarming copy stops appearing on its own.
+  ipcMain.handle("account:forgetInfo", async () => {
+    const { enabled, username, relayUrl } = await getSyncStatus({ driver });
+    if (enabled !== true)
+      throw new Error("There is no account on this device.");
+    const { durableBackup } = await fetchRelayCapabilities({ relayUrl });
+    return { username, relayUrl, durableBackup };
+  });
+
+  // **Forget account** (model.md §7.3): remove this account and its data from
+  // this device — the store, both db-key doors, the roster entry, and the keys
+  // that opened them. Local only; an account that exists on a relay or another
+  // device is untouched there.
+  //
+  // The roster is the authority for *which* store, not the account row: it names
+  // the directory, and it is the thing the next boot reads. With it gone the
+  // re-open resolves to Open and lands the device on a fresh plaintext store —
+  // the same state a new install is in. The renderer is then reloaded, as it is
+  // after a factory reset, because it is displaying rows that no longer exist.
+  ipcMain.handle("account:forget", async () => {
+    const active = resolveActiveStore({
+      accounts: await deviceRoster().list(),
+    });
+    const accountId =
+      active.custody === "protected" ? active.accountId : undefined;
+    if (accountId === undefined) {
+      throw new Error("There is no account on this device to forget.");
+    }
+    await withStoreSwap(() =>
+      forgetAccountOnThisDevice({
+        keyStore,
+        roster: deviceRoster(),
+        userDataPath,
+        accountId,
+        closeStore: async () => {
+          storeSwapping = true;
+          await driver.close?.();
+        },
+      }),
+    );
+    mainWindow?.webContents.reload();
+  });
+
   // Factory reset: erase everything and come back up as a first-run install.
   // Unlike sync:clear (which keeps the data and master key), this deletes the
   // store, the recovery sidecar, the roster, and every keystore secret — so the
@@ -821,8 +923,19 @@ function registerSyncIpc(): void {
   ipcMain.handle("sync:revealRecoveryPhrase", async () => {
     const recoveryKey = await readRecoveryKey(keyStore);
     if (recoveryKey === undefined) {
+      // Two different absences, and telling an account holder to "create an
+      // account" would be nonsense. Signing out clears the recovery key along
+      // with the db-key (both open the store, `lockThisDevice`), and unlocking
+      // with the **password** cannot bring it back — it lived only in the
+      // keychain that was cleared, and minting a replacement here would re-seal
+      // `<db>.recovery` under a fresh key and silently invalidate the 24 words
+      // the user wrote down. The phrase itself is unaffected and still opens the
+      // sidecar; this device simply can no longer *display* it.
       throw new Error(
-        "This device has no recovery phrase. Create an account to protect your data.",
+        (await getSyncStatus({ driver })).enabled === true
+          ? "This device can't show your recovery phrase again — it was cleared " +
+              "when you signed out. The phrase you saved still works."
+          : "This device has no recovery phrase. Create an account to protect your data.",
       );
     }
     return encodeRecoveryPhrase(recoveryKey);
@@ -897,6 +1010,16 @@ function registerBootIpc(): void {
     unlockResolver = undefined;
     resolve({ door, secret });
   });
+}
+
+/**
+ * Tell the renderer the core is live and it may render the app — the signal that
+ * ends both a cold boot's unlock gate and a mid-session sign out's.
+ */
+function announceBootReady(): void {
+  bootPhase = "ready";
+  bootError = undefined;
+  mainWindow?.webContents.send("boot:ready");
 }
 
 function requestUnlock({ error, doors }: UnlockRequest): Promise<UnlockAnswer> {
@@ -983,9 +1106,7 @@ void app.whenReady().then(async () => {
 
   // The core is live — let the gate render the app (the window was created up
   // front so any recovery prompt had somewhere to show).
-  bootPhase = "ready";
-  bootError = undefined;
-  mainWindow?.webContents.send("boot:ready");
+  announceBootReady();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

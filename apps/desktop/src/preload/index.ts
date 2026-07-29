@@ -78,6 +78,37 @@ const sync = {
     ipcRenderer.invoke("sync:reauthenticate", { password }),
   clear: (): Promise<void> => ipcRenderer.invoke("sync:clear"),
   /**
+   * **Sign out** (`model.md` §7.3): close the store and forget the keys that open
+   * it, so the password is needed to get back in. The data stays on this device,
+   * encrypted — {@link forgetAccount} is the one that removes it.
+   *
+   * Fire and forget. The main process raises the unlock gate as part of this call
+   * and the promise settles only once the user has passed it, so the caller should
+   * *not* await it before navigating: `window.boot.onUnlockNeeded` is what tells
+   * the renderer to switch, and it fires first.
+   */
+  signOut: (): Promise<void> => ipcRenderer.invoke("account:signOut"),
+  /**
+   * What the Forget-account confirmation needs to word itself (`model.md`
+   * §7.3.1). `durableBackup` is whether the relay claims to keep a copy — it is
+   * `false` whenever nobody said otherwise (no relay, unreachable relay, or the
+   * usual case of a relay that does not advertise), which is what makes forgetting
+   * the last device read as the deletion it is.
+   */
+  forgetInfo: (): Promise<{
+    username?: string;
+    relayUrl?: string;
+    durableBackup: boolean;
+  }> => ipcRenderer.invoke("account:forgetInfo"),
+  /**
+   * **Forget account** (`model.md` §7.3): remove this account, its store, and both
+   * of its unlock doors from this device, leaving it in the accountless state a
+   * fresh install is in. Local only — an account on a relay or another device is
+   * untouched there. The main process reloads this renderer once the empty store
+   * is open, so the caller has no completion state to render.
+   */
+  forgetAccount: (): Promise<void> => ipcRenderer.invoke("account:forget"),
+  /**
    * Factory reset: erase all local data, keys, and the recovery sidecar, then
    * come back up in a first-run state. Unlike {@link clear} (which keeps the data
    * and master key so sync can be re-enabled), this is unrecoverable unless the

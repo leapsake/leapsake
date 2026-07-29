@@ -40,6 +40,11 @@ export {
   encodeRecord,
 } from "./http-transport.js";
 export {
+  type RelayCapabilities,
+  NO_DURABLE_BACKUP,
+  fetchRelayCapabilities,
+} from "./relay-capabilities.js";
+export {
   type SyncScheduler,
   SYNC_INTERVAL_MS,
   SYNC_KICK_DEBOUNCE_MS,

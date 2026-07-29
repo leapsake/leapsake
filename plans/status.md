@@ -12,7 +12,8 @@
 > phrase as the forgot-password fallback. **Slices 1–6 of the custody build are done** —
 > joining or recovering an account now converts that device's store too, so **no path leaves
 > real user data in a plaintext file any more**. **Slice 7 (sign out + forget account) is
-> next**, in the block below under *What's next* → **Local custody**. The model is
+> built on desktop and verified over CDP; mobile is the remaining half.** See the block
+> below under *What's next* → **Local custody**. The model is
 > [`encryption/model.md`](./encryption/model.md) §7.
 >
 > Also standing: the encryption docs are **consolidated to four** (`custody-sequence.md` folded
@@ -88,8 +89,9 @@ the work they imply.
 ### Pre-v0.1 (toward initial launch)
 
 > **Order matters here.** Picking up work cold? Take them in this order:
-> **1.** **Local custody — the block immediately below.** Slices 1–6 are **built**; start at
-> **slice 7**. No longer blocks `launch.md` Increments 2–4.
+> **1.** **Local custody — the block immediately below.** Slices 1–6 are **built**, and
+> slice 7 is **built on desktop**; start at **slice 7's mobile half**. No longer blocks
+> `launch.md` Increments 2–4.
 > **2.** `launch.md` Increment 1's last piece — **an owner decision, not a task**: the version
 > number and the build-number strategy. The machinery and the credential gitignores are built.
 > Due before Increment 4's first store upload, not before the v0.1 cut.
@@ -99,8 +101,8 @@ the work they imply.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/28. Slices 1–6 done; slice 7 is
-next.**
+**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/28. Slices 1–6 done; slice 7 done
+on desktop, mobile next.**
 
 > **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
 > are fine.** There are no real users, so a migration is only worth writing when it is
@@ -210,12 +212,56 @@ reader would otherwise re-learn the hard way:
 >   file), and it has no restore path if the conversion throws after `driver.close?.()`. Left
 >   alone deliberately — it is a proven path — but worth a small follow-up.
 
-7. **⇐ START HERE. Sign out + Forget account** (§7.3). Sign out closes the store; Forget account removes it
-   and its roster entry. On the **last device**, ask the relay whether it keeps a durable copy
-   and, absent an answer, word it as "Delete all data on this device" and offer an export
-   first (§7.3.1).
+7. **Sign out + Forget account** (§7.3) — **desktop built + CDP-verified 2026-07-28;
+   ⇐ START HERE for the mobile half.** Sign out clears the two keystore secrets that open
+   the store (`lockThisDevice`, `@leapsake/key-custody`) and re-opens, which drops the boot
+   path into its existing unlock gate; Forget account (`forget-account-flow.ts`) removes the
+   account's store directory, both doors, its roster entry, and those same keys, landing the
+   device back in the Open state. The relay-backup check that words the last-device
+   confirmation is `fetchRelayCapabilities` (`@leapsake/sync`), which answers `false` unless a
+   relay explicitly says otherwise. Desktop was driven over CDP through the whole cycle: Open
+   → create account → sign out (gate raised, wrong password refused) → password unlock → data
+   intact → forget → plaintext Open store, roster empty → second account creates cleanly. The
+   phrase door was driven live too. **What mobile still needs** is the mirror: `lockThisDevice`
+   is client-agnostic and `forgetAccountOnThisDevice` is not (it is `node:fs` over
+   `storeDir`), so mobile needs its own file half plus the Settings surface — which,
+   per the note above, has still never been driven in a running app.
 
-8. **Retire the Settings recovery-phrase reveal** *(owner, 2026-07-28)*. The phrase is to be
+   > - **Sign out must clear the recovery key, not just the db-key.** `<db>.recovery` holds
+   >   `seal(db-key, recoveryKey)` in plain view beside the store, so a recovery key left in
+   >   the keychain reconstructs the db-key with **no user secret involved** — the file would
+   >   look locked while anything holding the keychain still opened it. Both directions of
+   >   this are pinned by sabotage-verified tests.
+   > - **It must equally *not* clear `device-id` / `enclave`.** `ensureDeviceMasterKey` keys
+   >   its lookup on the device id, so a fresh one finds no wrap row, **mints a new master
+   >   key**, and orphans every content key wrapped under the old one. Signing out and back in
+   >   has to be a no-op above the at-rest layer.
+   > - **A password unlock cannot restore the recovery key** (it lived only in the cleared
+   >   keychain, and minting one would invalidate the user's 24 words — see slice 5's note).
+   >   So after sign-out-then-password-unlock, `sync:revealRecoveryPhrase` legitimately has
+   >   nothing to show; its error now says so instead of telling an account holder to create
+   >   an account. A *phrase* unlock does restore it. Slice 8 removes that surface anyway.
+   > - **Forget removes the roster entry first, then the files.** The reverse strands a roster
+   >   naming a store whose files are gone, which sends the Protected boot path off to create a
+   >   fresh empty encrypted store — presenting the user an empty app under the account they
+   >   thought they deleted. The chosen order's only failure mode is an inert ciphertext
+   >   directory nothing can ever name again.
+   > - **Forget is deliberately not `factoryResetFiles` with fewer arguments** — that erases
+   >   the whole `stores/` tree, which on a device holding a second account would delete data
+   >   the user never asked to lose.
+   > - **`reopenActiveStore` now announces `boot:ready`.** Only `whenReady` used to, so a
+   >   mid-session re-open left the renderer stuck on the gate forever. This is what makes
+   >   sign out's return trip work at all.
+   > - **The `/capabilities` endpoint is deliberately not built.** The protocol shape is still
+   >   an owner decision (Open questions, below), so only the *client* half exists — and since
+   >   silence means "no durable copy", the alarming last-device copy is what every user sees
+   >   today, which is the correct default.
+   > - **The export offer §7.3.1 asks for is not built** — there is no exporter yet (see
+   >   *vCard/JSContact export*, below). The hard-confirm currently tells the user to copy
+   >   their `stores` folder instead, which is honest but poor. Wire the real offer when the
+   >   exporter lands.
+
+8. **⇐ NEXT after mobile. Retire the Settings recovery-phrase reveal** *(owner, 2026-07-28)*. The phrase is to be
    **shown once at account creation and never again**; the only later route is a
    **re-auth-gated rotation** that mints a new phrase, shows it once, and retires the old. The
    Open half shipped (the section is hidden with no account, and the handler reads instead of
@@ -435,8 +481,12 @@ build finished with slice 6.
   auto-merge, leaving it to the duplicate-review surface), so "join the existing account and
   review the duplicates" may be the whole answer for v0.1. Decide before relay binding ships.
 - **Relay backup capability** — the protocol shape for a relay advertising whether it keeps a
-  durable copy (`model.md` §7.3.1). Needed before *Forget account* can pick its wording; the
-  safe default (assume none) means it does not block v0.1.
+  durable copy (`model.md` §7.3.1). The **client half is built** (`fetchRelayCapabilities`,
+  `@leapsake/sync`): it GETs `/capabilities`, reads a literal `durableBackup: true`, and
+  falls back to "no" on anything else. What is undecided is the **server** side — the
+  endpoint's shape, whether it carries more than one field, and whether it is authenticated —
+  so no relay serves it and every user currently sees the last-device deletion warning. That
+  default is the safe one, so this still does not block v0.1.
 - *(Deferred with automatic locking, v0.2)* **session lifetime and its dial**; **biometrics
   on mobile** as the everyday unlock with a true expiry still demanding the password;
   **auto-purge of an idle logged-in device**.

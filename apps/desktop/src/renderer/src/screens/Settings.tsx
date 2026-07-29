@@ -104,12 +104,221 @@ export function Settings() {
         <>
           <hr />
           <RecoveryPhraseSection />
+          <hr />
+          <SignOut />
+          <hr />
+          <ForgetAccount />
         </>
       )}
 
       <hr />
       <FactoryReset syncEnabled={status?.enabled ?? false} />
     </main>
+  );
+}
+
+/**
+ * **Sign out** (`model.md` §7.3) — the one action that reaches the Locked state
+ * in v0.1.
+ *
+ * Two things it is deliberately not. It is not a *Lock* button: Locked is a
+ * state, not an affordance, and the app is meant to enter it on the user's behalf
+ * once idle locking ships (v0.2). And it is not two behaviors wearing one name —
+ * the promise is identical whether or not the account is relay-bound (*nobody can
+ * see my data on this device anymore*), so the copy never branches on it. The one
+ * difference, that the encrypted bytes remain, is stated plainly because it is the
+ * part a local-only user would otherwise worry about.
+ *
+ * No confirmation step: it is reversible with the password, and gating it behind a
+ * dialog would teach users to click through the confirmations that *do* matter.
+ */
+function SignOut() {
+  const [error, setError] = useState<string | null>(null);
+
+  function signOut() {
+    setError(null);
+    // Deliberately not awaited. The main process raises the unlock gate as part
+    // of this call and resolves only once the user has passed it, so awaiting
+    // would leave a "Signing out…" button on a screen that has already been
+    // replaced by the gate. A rejection still surfaces: it means the sign out was
+    // refused up front, and this screen is still on top.
+    window.sync.signOut().catch((cause: unknown) => {
+      setError(cause instanceof Error ? cause.message : "Couldn't sign out.");
+    });
+  }
+
+  return (
+    <>
+      <h2>Sign out</h2>
+      <p>
+        Your data stays on this device, encrypted. You’ll need your password to
+        get back in.
+      </p>
+      <p>
+        <button type="button" onClick={signOut}>
+          Sign out
+        </button>
+      </p>
+      {error !== null && <p role="alert">{error}</p>}
+    </>
+  );
+}
+
+/** The word a user must type to arm the (irreversible) account deletion. */
+const FORGET_ACCOUNT_PHRASE = "DELETE";
+
+/**
+ * **Forget account** (`model.md` §7.3) — remove this account and its data from
+ * this device. Named as removal so it can never be mistaken for signing out.
+ *
+ * The wording is **driven by a check, not hardcoded** (§7.3.1). Forgetting an
+ * account on its last remaining device is functionally a deletion unless a server
+ * durably holds a copy, so the main process asks the relay and reports
+ * `durableBackup`; absent an answer — today's universal case, since no relay
+ * advertises the capability yet — it is `false` and this shows the alarming
+ * version, hard-confirm and all. When server-side backup ships, the alarming copy
+ * stops appearing on its own rather than having to be hunted down.
+ */
+function ForgetAccount() {
+  const [info, setInfo] = useState<{
+    username?: string;
+    relayUrl?: string;
+    durableBackup: boolean;
+  } | null>(null);
+  const [typed, setTyped] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  // Read on entering the confirmation rather than on mount: it reaches out to the
+  // relay, and there is no reason to do that for every visit to Settings.
+  function beginConfirm() {
+    setError(null);
+    window.sync
+      .forgetInfo()
+      .then(setInfo)
+      .catch((cause: unknown) => {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Couldn't check this account.",
+        );
+      });
+  }
+
+  function cancel() {
+    setInfo(null);
+    setTyped("");
+    setError(null);
+  }
+
+  // A relay that keeps a durable copy makes this ordinary — sign back in and
+  // re-pull. Without one, the data on this device is the last copy.
+  const lastCopy = info !== null && !info.durableBackup;
+  const armed =
+    !lastCopy || typed.trim().toUpperCase() === FORGET_ACCOUNT_PHRASE;
+
+  async function forget() {
+    if (!armed) return;
+    setError(null);
+    setWorking(true);
+    try {
+      await window.sync.forgetAccount();
+      // Unreachable in practice: the renderer is reloaded before this resolves.
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't remove it.");
+      setWorking(false);
+    }
+  }
+
+  if (info === null) {
+    return (
+      <>
+        <h2>Forget account</h2>
+        <p>
+          Remove this account and everything in it from this device. This is not
+          signing out — the data is deleted, not locked.
+        </p>
+        <p>
+          <button type="button" onClick={beginConfirm}>
+            Forget account…
+          </button>
+        </p>
+        {error !== null && <p role="alert">{error}</p>}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h2>{lastCopy ? "Delete all data on this device" : "Forget account"}</h2>
+      {lastCopy ? (
+        <>
+          <p>
+            <strong>
+              This permanently deletes everything in{" "}
+              {info.username !== undefined ? (
+                <>the account “{info.username}”</>
+              ) : (
+                "this account"
+              )}{" "}
+              on this device.
+            </strong>{" "}
+            {info.relayUrl === undefined
+              ? "This account is only on this device, so there is no other copy."
+              : `${info.relayUrl} does not keep a backup of your data, so if this is your only device there is no other copy.`}
+          </p>
+          <p>
+            If you might want this data later, close this and copy your{" "}
+            <code>stores</code> folder somewhere safe first — Leapsake cannot
+            export it yet.
+          </p>
+          <p>
+            Type <strong>{FORGET_ACCOUNT_PHRASE}</strong> to confirm.
+          </p>
+        </>
+      ) : (
+        <p>
+          Remove{" "}
+          {info.username !== undefined ? `“${info.username}”` : "this account"}{" "}
+          from this device? {info.relayUrl} keeps a copy of your data, so you
+          can sign back in on this or another device to get it again.
+        </p>
+      )}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void forget();
+        }}
+      >
+        {lastCopy && (
+          <p>
+            <label>
+              Confirmation
+              <br />
+              <input
+                type="text"
+                value={typed}
+                autoComplete="off"
+                onChange={(event) => setTyped(event.target.value)}
+              />
+            </label>
+          </p>
+        )}
+        <p>
+          <button type="submit" disabled={!armed || working}>
+            {working
+              ? "Removing…"
+              : lastCopy
+                ? "Delete all data on this device"
+                : "Forget account"}
+          </button>{" "}
+          <button type="button" onClick={cancel} disabled={working}>
+            Cancel
+          </button>
+        </p>
+      </form>
+      {error !== null && <p role="alert">{error}</p>}
+    </>
   );
 }
 
