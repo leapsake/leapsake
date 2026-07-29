@@ -189,9 +189,16 @@ reader would otherwise re-learn the hard way:
 >   it is — each device seals its *own* db-key. The type system enforces it: `PasswordDoorWriter`
 >   is a required parameter on every wrapper that establishes or rotates one.
 > - **An install predating the custody work must be recreated.** `resolveActiveStore` is purely
->   "does the roster hold an account?", both boot branches *refuse* a store in the wrong custody
->   state, and the only legitimate plaintext→encrypted conversions are the three that establish
->   an account on this device: creation, join, recovery.
+>   "does the roster hold an account?", and the only legitimate plaintext→encrypted conversions
+>   are the three that establish an account on this device: creation, join, recovery.
+>   **The refusal guards for a store in the wrong custody state are desktop-only**, which this
+>   note previously claimed of both clients *(corrected 2026-07-28)*. Desktop's `open.ts` throws
+>   on a Protected store whose file is plaintext, and on an Open store whose file is encrypted,
+>   because `storeFileState` can read the 16-byte SQLite header. **Mobile cannot make that
+>   check at all** — expo-sqlite exposes no raw file access — so it opens with or without a key
+>   and lets the engine object. A mobile guard has to take a different form (e.g. asking
+>   SQLCipher, rather than reading bytes); until it exists, a mobile store in a mismatched
+>   custody state fails later and less clearly than desktop's.
 > - **Migration 27 could not preserve an encrypted `milestone.note`** and did not try — a dev
 >   profile that wrote notes while holding a key has NULL there. Accepted under the latitude
 >   above.
