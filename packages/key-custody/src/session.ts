@@ -152,22 +152,32 @@ export async function getSyncStatus(opts: {
 }
 
 /**
- * Disconnect this device's account: remove the account identity (account +
+ * **The account-creation rollback**: undo the account rows this device just
+ * wrote, when the step *after* them fails. Remove the account identity (account +
  * device rows) and revoke the **password** and **recovery** wrappings of the
- * master key, while **leaving the enclave wrapping — and all data — untouched.**
- * After this, {@link getSyncStatus} reports `enabled: false`, so the user can
- * {@link enableSync} again (e.g. to add the username + relay a pre-relay account
- * never had) or {@link joinAccount} a different account.
+ * master key, leaving the enclave wrapping — and all data — untouched, so the
+ * device is exactly as it was a moment earlier.
  *
- * The master key is *not* regenerated: it survives in its enclave wrapping, so
- * every per-item content key (wrapped under MK) still unwraps and encrypted
- * fields stay readable. Only the portable doors are revoked — the old password
- * and recovery key no longer unlock anything once a new {@link enableSync} mints
- * fresh ones. A no-op (does not throw) if no account is set up.
+ * Its one caller in each client is the relay-registration failure path of
+ * account creation (a taken username, an unreachable relay). That call happens
+ * *before* anything on disk moves: the store is still the plaintext Open one and
+ * no roster entry exists yet, so undoing the rows genuinely restores the prior
+ * state. A no-op (does not throw) if no account is set up.
+ *
+ * > **Not a user-facing action, and no longer reachable as one.** This used to
+ * > back a "Disconnect account from this device" button, which the custody
+ * > rebuild made incoherent: it cleared these rows but never the **roster**, and
+ * > the roster is what decides whether a store is encrypted (§7.4). A device
+ * > that pressed it stayed Protected on disk while reporting no account —
+ * > hiding Sign out and Forget account, offering "create an account" instead,
+ * > and failing that too, since creation requires a plaintext Open store. The
+ * > button was removed rather than repaired: "stop syncing but keep the data"
+ * > is a narrow want, and rebuilding it properly means deciding what the relay
+ * > does with the account, not just what this row does *(owner, 2026-07-28)*.
  *
  * Local only: it never contacts a relay, so an account already registered
- * elsewhere keeps existing on the relay and on other devices — this just detaches
- * *this* device. Re-keying/forgetting on the relay is a future concern.
+ * elsewhere keeps existing there. Re-keying/forgetting on the relay is a future
+ * concern.
  */
 export async function clearLocalAccount(opts: {
   driver: SqliteDriver;

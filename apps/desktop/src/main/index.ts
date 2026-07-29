@@ -12,7 +12,6 @@ import {
   type KeySession,
   type SqliteDriver,
   type SyncScheduler,
-  clearLocalAccount,
   createCore,
   createSyncScheduler,
   ensureDeviceMasterKey,
@@ -629,7 +628,6 @@ function registerSyncIpc(): void {
               throw new Error(relayErrorMessage(cause, relayUrl), { cause });
             }
           },
-          writeLivePasswordDoor: writeThisDevicePasswordDoor,
           closeStore: async () => {
             storeSwapping = true;
             await driver.close?.();
@@ -699,7 +697,6 @@ function registerSyncIpc(): void {
               throw new Error(relayErrorMessage(cause, relayUrl), { cause });
             }
           },
-          writeLivePasswordDoor: writeThisDevicePasswordDoor,
           closeStore: async () => {
             storeSwapping = true;
             await driver.close?.();
@@ -759,12 +756,6 @@ function registerSyncIpc(): void {
       throw error;
     }
   });
-
-  // Disconnect the account from this device: drop the account identity + the
-  // password/recovery doors, keeping the enclave-held master key and all data so
-  // the user can enable sync afresh. The held keySession (the enclave MK) is
-  // unchanged, so the core needs no rebuild.
-  ipcMain.handle("sync:clear", () => clearLocalAccount({ driver }));
 
   // **Create an account on this device** (model.md §7.2.1) — the act that turns
   // encryption on. Fully local: no relay, no email, nothing leaves the machine.
@@ -895,7 +886,7 @@ function registerSyncIpc(): void {
   });
 
   // Factory reset: erase everything and come back up as a first-run install.
-  // Unlike sync:clear (which keeps the data and master key), this deletes the
+  // Unlike account:forget (which removes one account's slot), this deletes the
   // store, the recovery sidecar, the roster, and every keystore secret — so the
   // reopen that follows resolves custody as **Open** and mints nothing, which is
   // exactly the fresh-install state (§7.2).

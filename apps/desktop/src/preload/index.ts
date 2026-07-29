@@ -76,7 +76,6 @@ const sync = {
    */
   reauthenticate: (password: string): Promise<void> =>
     ipcRenderer.invoke("sync:reauthenticate", { password }),
-  clear: (): Promise<void> => ipcRenderer.invoke("sync:clear"),
   /**
    * **Sign out** (`model.md` §7.3): close the store and forget the keys that open
    * it, so the password is needed to get back in. The data stays on this device,

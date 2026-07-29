@@ -394,9 +394,24 @@ One honest line covers it for a local-only user: *"Your data stays on this devic
 encrypted. You'll need your password to get back in."*
 
 Purging lives entirely in **Forget account**, which is named as removal so it can never be
-mistaken for signing out. "Make local-only" — leaving the relay while keeping the data — is
-what `clearLocalAccount` already does; it is a third, non-destructive action and should keep
-the password door (a Protected store still needs one), dropping only the relay binding.
+mistaken for signing out.
+
+> **"Make local-only" was cut** *(owner, 2026-07-28)*. This section used to name a third,
+> non-destructive action — leaving the relay while keeping the data — backed by
+> `clearLocalAccount`. The custody rebuild made its shipped form incoherent: it cleared the
+> account rows but never the **roster**, and the roster is what decides whether a store is
+> encrypted (§7.4), so a device that used it stayed Protected on disk while reporting no
+> account — hiding Sign out and Forget account, and offering an account-creation path that
+> then refused, since creation requires a plaintext Open store.
+>
+> It was removed rather than repaired. The want is narrow (creating a local account,
+> promoting it to a synced one, and starting out synced are all covered), and repairing it
+> is not a local edit: "drop only the relay binding" has to decide what becomes of the
+> account on the relay, whether the username is retained for re-binding, and how that
+> interacts with the username-collision question that is still open. Cheap to rebuild later
+> if the want turns out to be real. `clearLocalAccount` itself survives as what it is
+> actually good at — the rollback when relay registration fails mid-creation, before
+> anything on disk has moved.
 
 > **Do not invent a "Lock" button.** Locked is a state, not an affordance. The app enters it
 > on your behalf when idle; the user reaches it by signing out.

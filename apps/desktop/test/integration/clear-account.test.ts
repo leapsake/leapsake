@@ -15,10 +15,18 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
- * Disconnecting an account from a device (clearLocalAccount): the account
- * identity and the portable doors are removed, but the master key survives in
- * the enclave so data stays readable and sync can be set up again — the recovery
- * path for a pre-relay account that was enabled without a username/relay.
+ * `clearLocalAccount` — the **account-creation rollback**: the account identity
+ * and the portable doors are removed, but the master key survives in the enclave
+ * so data stays readable and an account can be established again.
+ *
+ * That "again" is the whole point of the tests below, and it is why this is worth
+ * covering even though no button calls it. Its one caller per client is the
+ * relay-registration failure path of account creation (a taken username, an
+ * unreachable relay), which must leave the device *exactly* as it was — able to
+ * retry immediately. The user-facing "Disconnect account" button this also used
+ * to back was removed 2026-07-28: it cleared these rows without clearing the
+ * roster, which under per-account stores left a device Protected on disk while
+ * reporting no account. See `clearLocalAccount`'s doc comment for the full story.
  */
 describe("clearLocalAccount", () => {
   let driver: SqliteDriver;

@@ -17,9 +17,10 @@
  *   {@link recoverAccount} (a forgotten password), {@link reauthenticate} (a
  *   password changed elsewhere).
  * - **Relinquish** — {@link lockThisDevice} (sign out: forget the keys that open
- *   the store, so the password is needed again), {@link clearLocalAccount} (drop
- *   the relay binding, keep the data), and {@link KEYSTORE_SECRET_IDS}, the full
- *   set of secrets a factory reset must erase.
+ *   the store, so the password is needed again) and {@link KEYSTORE_SECRET_IDS},
+ *   the full set of secrets a factory reset must erase. {@link clearLocalAccount}
+ *   sits here too, but is a *rollback* rather than a user action: it undoes the
+ *   account rows when relay registration fails mid-creation.
  *
  * It is a package rather than a `core` module because it is neither a
  * transactional write nor a view-model: it is an application service over

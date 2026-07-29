@@ -65,7 +65,7 @@ import { storeFileState } from "./sqlite-header.js";
  */
 export async function adoptAccountOnThisDevice(opts: {
   keyStore: KeyStore;
-  /** The open store. Plaintext when this device is Open, which is the usual case. */
+  /** The open store, which must be the plaintext one — joining is an Open act. */
   driver: SqliteDriver;
   roster: AccountRoster;
   userDataPath: string;
@@ -76,12 +76,6 @@ export async function adoptAccountOnThisDevice(opts: {
    * {@link PasswordDoorWriter} core should seal this device's password door with.
    */
   adopt: (writePasswordSidecar: PasswordDoorWriter) => Promise<KeySession>;
-  /**
-   * Write a password door beside the store that is live *right now*. Used only on
-   * an already-Protected device, where nothing is converted and core's door can go
-   * straight to its normal home.
-   */
-  writeLivePasswordDoor: PasswordDoorWriter;
   /** Close the store's handle; the conversion needs the file quiescent. */
   closeStore: () => Promise<void>;
 }): Promise<KeySession> {
@@ -89,12 +83,18 @@ export async function adoptAccountOnThisDevice(opts: {
 
   const openPath = join(userDataPath, storePath(OPEN_STORE_SLOT));
 
-  // An already-Protected device has nothing to convert — it reaches this path only
-  // from the awkward `sync:clear`-then-join state, where the store keeps its old
-  // account's path. Adopt and leave the files alone; re-homing a store under a
-  // second account id is a migration nobody has asked for.
+  // Joining is an **Open** device's act, and this asserts it rather than coping.
+  // There used to be a branch here that adopted in place on an already-Protected
+  // device, because "Disconnect account" could leave one reporting no account
+  // while its roster still named one; removing that button removed the only way
+  // to reach this state, since every path now writes the account row and the
+  // roster entry together. Refusing is the honest replacement: silently adopting
+  // a second account into a store still homed under the first one's id was never
+  // a state worth producing.
   if (storeFileState(openPath) !== "plaintext") {
-    return await opts.adopt(opts.writeLivePasswordDoor);
+    throw new Error(
+      "This device already holds an account. Forget it before joining another.",
+    );
   }
 
   // 1. This device's own at-rest key. Before `adopt` on purpose — see the note above.

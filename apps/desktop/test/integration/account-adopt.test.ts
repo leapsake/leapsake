@@ -198,9 +198,6 @@ function adoptOnThisDevice(
     userDataPath: userData,
     username: USERNAME,
     adopt,
-    writeLivePasswordDoor: async () => {
-      throw new Error("the live-store writer is only for a Protected device");
-    },
     closeStore: async () => {
       await driver.close?.();
     },
@@ -411,5 +408,29 @@ describe("adopting an account — the password-door guard", () => {
     expect(storeFileState(openPath)).toBe("plaintext");
     expect(await rosterFor(userData).list()).toEqual([]);
     await driver.close?.();
+  });
+});
+
+/**
+ * Joining is an **Open** device's act. There used to be a branch here that
+ * adopted in place on an already-Protected device, reachable only via the
+ * "Disconnect account" button that left a device reporting no account while its
+ * roster still named one. With that button gone the state is unreachable, and
+ * refusing is the honest replacement — adopting a second account into a store
+ * still homed under the first one's id was never worth producing.
+ */
+describe("adopting an account — the Open-device guard", () => {
+  it("refuses when this device already holds an account", async () => {
+    const { driver, path: openPath } = await openStoreWithData();
+    // Make the device Protected the way account creation does: the Open store
+    // is gone, so `storeFileState` reports "absent" rather than "plaintext".
+    await driver.close?.();
+    rmSync(dirname(openPath), { recursive: true, force: true });
+
+    await expect(
+      adoptOnThisDevice(driver, () => {
+        throw new Error("must refuse before reaching the relay");
+      }),
+    ).rejects.toThrow(/already holds an account/);
   });
 });

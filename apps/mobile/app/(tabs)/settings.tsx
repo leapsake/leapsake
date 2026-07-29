@@ -95,7 +95,6 @@ export default function SettingsScreen() {
           status={status}
           reviewCount={reviewCount}
           onReviewed={() => setReviewCount(0)}
-          onCleared={refreshStatus}
         />
       ) : (
         <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
@@ -111,12 +110,10 @@ function AccountEnabled({
   status,
   reviewCount,
   onReviewed,
-  onCleared,
 }: {
   status: SyncStatus;
   reviewCount: number;
   onReviewed: () => void;
-  onCleared: () => void;
 }) {
   const sync = useSync();
   const [lastSynced, setLastSynced] = useState<number | null>(null);
@@ -256,72 +253,6 @@ function AccountEnabled({
             </Text>
           </Pressable>
         </View>
-      )}
-      <DisconnectAccount onCleared={onCleared} />
-    </View>
-  );
-}
-
-/**
- * Disconnect the account from this device. Two-step (a confirm) because it
- * revokes the password + recovery key for this account — though the local data
- * stays readable (the master key survives in the device enclave) and sync can be
- * set up again afterward.
- */
-function DisconnectAccount({ onCleared }: { onCleared: () => void }) {
-  const sync = useSync();
-  const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [working, setWorking] = useState(false);
-
-  async function disconnect() {
-    setError(null);
-    setWorking(true);
-    try {
-      await sync.clear();
-      onCleared();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't disconnect.");
-      setWorking(false);
-    }
-  }
-
-  if (!confirming) {
-    return (
-      <Pressable
-        style={[styles.button, { backgroundColor: colors.border }]}
-        onPress={() => setConfirming(true)}
-      >
-        <Text style={styles.buttonText}>
-          Disconnect account from this device
-        </Text>
-      </Pressable>
-    );
-  }
-
-  return (
-    <View style={styles.section}>
-      <Text style={styles.muted}>
-        Remove this account from this device? Your data stays on this device and
-        you can set up sync again, but the current password and recovery key for
-        this account will no longer work.
-      </Text>
-      <Pressable style={styles.button} disabled={working} onPress={disconnect}>
-        <Text style={styles.buttonText}>
-          {working ? "Disconnecting…" : "Yes, disconnect"}
-        </Text>
-      </Pressable>
-      <Pressable
-        style={[styles.button, { backgroundColor: colors.border }]}
-        disabled={working}
-        onPress={() => setConfirming(false)}
-      >
-        <Text style={styles.buttonText}>Cancel</Text>
-      </Pressable>
-      {error !== null && (
-        <Text style={styles.danger} accessibilityRole="alert">
-          {error}
-        </Text>
       )}
     </View>
   );
@@ -916,13 +847,12 @@ function RecoveryPhraseWords({ phrase }: { phrase: string }) {
 
 /**
  * Factory reset: erase everything on this device and rebuild the app as a fresh
- * install. Far more destructive than {@link DisconnectAccount} — it deletes all
- * data, the encryption keys, and the recovery phrase — so it is gated behind a
- * type-to-confirm step (the danger-styled "Erase everything" button stays
- * disabled until the user types {@link FACTORY_RESET_PHRASE}). The copy is honest
- * about recoverability: a synced account survives elsewhere, an unsynced store is
- * gone for good. On success the provider rebuilds in place, so this screen
- * unmounts into a clean app — there is no completion state to render.
+ * install — all data, the encryption keys, and the recovery phrase — so it is
+ * gated behind a type-to-confirm step (the danger-styled "Erase everything"
+ * button stays disabled until the user types {@link FACTORY_RESET_PHRASE}). The
+ * copy is honest about recoverability: a synced account survives elsewhere, an
+ * unsynced store is gone for good. On success the provider rebuilds in place, so
+ * this screen unmounts into a clean app — there is no completion state to render.
  */
 function FactoryResetSection({ syncEnabled }: { syncEnabled: boolean }) {
   const sync = useSync();

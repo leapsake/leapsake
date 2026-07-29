@@ -72,8 +72,10 @@ mental model, not leak through it.
     promise: *nobody can see my data on this device anymore.*
   - **Forget account** — removes this account and its data from this device. Named as
     removal so it can never be mistaken for signing out.
-  - (**Make local-only** — leave the relay, keep the data — is a third, non-destructive
-    action, and the one that exists today.)
+  - (**Make local-only** — leave the relay, keep the data — *was* named here as a third,
+    non-destructive action. **Cut 2026-07-28**: its shipped form was incoherent under
+    per-account stores, the want is narrow, and repairing it needs relay-side decisions.
+    Rationale in `encryption/model.md` §7.3.)
 - **Forgetting the last device is treated as deletion unless a server durably holds a copy.**
   The relay is designed to be disposable (`encryption/sync.md` §2), and **not every relay
   will offer backup** — someone has to host it. So backup is a **relay capability** the
@@ -85,21 +87,19 @@ mental model, not leak through it.
 The model above describes the intended destination. These parts are *not yet* how the code
 works, and are called out so they're conscious deferrals, not surprises:
 
-1. **Encryption follows custody.** The code still does the opposite: it mints a master key
-   and a db-key at first launch and encrypts immediately, with no account. Closing this is
-   **pre-v0.1 and leads the queue** — see [`status.md`](./status.md) → *What's next*. It is
-   the one delta here that is launch-blocking, because it changes what real testers'
-   devices do with real data.
+1. ~~**Encryption follows custody.**~~ **Closed 2026-07-27/28.** First launch now mints no
+   keys and opens a plaintext store; creating, joining, or recovering an account is what
+   turns encryption on. This was the one launch-blocking delta here.
 2. **Multiple authenticated users per client + per-user data isolation.** Today a client is
    implicitly single-user: one SQLite file at a fixed path. Hosting several users needs
    **one store per account** (`encryption/model.md` §7.4) so data can't bleed and can be
    purged independently. Not v0.1, but **the per-account path is**: new work must not assume
    a single fixed database path, because retrofitting that after users have data is exactly
    the expensive class of change worth avoiding.
-3. **Sign out vs. Forget account vs. make-local.** Only *make local-only* exists today
-   (`clearLocalAccount`). **Sign out** and **Forget account** are unbuilt and are v0.1 scope;
-   **automatic** locking on idle is deliberately **v0.2** (owner, 2026-07-27) — the
-   deliberate half is cheap, the session machinery is not.
+3. **Sign out vs. Forget account.** Both are **built on desktop** (2026-07-28) and are the
+   only two actions here now — *make local-only* was cut, per the bullet above. Mobile is
+   the remaining half. **Automatic** locking on idle stays deliberately **v0.2** (owner,
+   2026-07-27) — the deliberate half is cheap, the session machinery is not.
 4. **User-toggleable encryption beyond custody.** Opting *out* while holding an account —
    trading end-to-end encryption for server-side features like server-side search — is a
    trust-model fork, not a free dial. Distinct from delta 1, which is about the accountless

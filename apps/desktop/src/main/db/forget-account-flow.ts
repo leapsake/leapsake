@@ -9,12 +9,11 @@ import { type AccountRoster, storeDir } from "@leapsake/store-layout";
  * *this* device. The destructive sibling of sign out, and named as removal
  * precisely so it can never be mistaken for it.
  *
- * Three actions share this neighbourhood and must stay distinct:
+ * Two actions share this neighbourhood and must stay distinct:
  *
  * | | What it removes |
  * |---|---|
  * | **Sign out** | the keys, until the password comes back (`lockThisDevice`) |
- * | **Disconnect** (`clearLocalAccount`) | the relay binding; data and doors stay |
  * | **Forget account** (here) | this account's store, doors, and roster entry |
  *
  * It is **local only** — it never contacts the relay. An account registered

@@ -90,7 +90,6 @@ export function Settings() {
           status={status}
           reviewCount={reviewCount}
           onReviewed={() => setReviewCount(0)}
-          onCleared={refreshStatus}
         />
       ) : (
         <>
@@ -339,12 +338,10 @@ function AccountEnabled({
   status,
   reviewCount,
   onReviewed,
-  onCleared,
 }: {
   status: SyncStatus;
   reviewCount: number;
   onReviewed: () => void;
-  onCleared: () => void;
 }) {
   const [lastSynced, setLastSynced] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -463,8 +460,6 @@ function AccountEnabled({
           onError={setError}
         />
       )}
-      <hr />
-      <DisconnectAccount onCleared={onCleared} />
     </>
   );
 }
@@ -518,63 +513,6 @@ function ReconnectForm({
         {working ? "Reconnecting…" : "Reconnect"}
       </button>
     </form>
-  );
-}
-
-/**
- * Disconnect the account from this device. Two-step (a confirm) because it
- * revokes the password + recovery key for this account — though the local data
- * stays readable (the master key survives in the device enclave) and sync can be
- * set up again afterward.
- */
-function DisconnectAccount({ onCleared }: { onCleared: () => void }) {
-  const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [working, setWorking] = useState(false);
-
-  async function disconnect() {
-    setError(null);
-    setWorking(true);
-    try {
-      await window.sync.clear();
-      onCleared();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't disconnect.");
-      setWorking(false);
-    }
-  }
-
-  if (!confirming) {
-    return (
-      <p>
-        <button type="button" onClick={() => setConfirming(true)}>
-          Disconnect account from this device
-        </button>
-      </p>
-    );
-  }
-
-  return (
-    <>
-      <p>
-        Remove this account from this device? Your data stays on this device and
-        you can set up sync again, but the current password and recovery key for
-        this account will no longer work.
-      </p>
-      <p>
-        <button type="button" onClick={disconnect} disabled={working}>
-          {working ? "Disconnecting…" : "Yes, disconnect"}
-        </button>{" "}
-        <button
-          type="button"
-          onClick={() => setConfirming(false)}
-          disabled={working}
-        >
-          Cancel
-        </button>
-      </p>
-      {error !== null && <p role="alert">{error}</p>}
-    </>
   );
 }
 

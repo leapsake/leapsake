@@ -166,15 +166,9 @@ export interface SyncApi {
    */
   reauthenticate(password: string): Promise<void>;
   /**
-   * Disconnect the account from this device: revoke the password + recovery
-   * doors but keep the master key in the enclave, so local data stays readable.
-   */
-  clear(): Promise<void>;
-  /**
    * Factory reset: erase all local data, the encryption keys, and the recovery
    * sidecar, then rebuild the app in place as a fresh install (there is no
-   * relaunch primitive on mobile, so this re-runs the bootstrap). Unlike
-   * {@link clear} — which keeps the data and master key — this is unrecoverable
+   * relaunch primitive on mobile, so this re-runs the bootstrap). Unrecoverable
    * unless the account was synced.
    */
   factoryReset(): Promise<void>;
@@ -778,7 +772,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           }
           await scheduler.current?.trigger();
         },
-        clear: () => clearLocalAccount({ driver }),
         async factoryReset() {
           // Show the loading state first so the wiped core is never rendered,
           // then tear everything down: stop background sync, close the DB handle,
