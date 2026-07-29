@@ -59,16 +59,14 @@ const sync = {
   /**
    * Create an account on this device (model.md §7.2.1) — the act that turns
    * encryption on. Fully local. Resolves with the 24-word recovery phrase for its
-   * one-time reveal; call {@link relaunch} once the user has dismissed it, since
-   * the store was converted underneath this process.
+   * one-time reveal, by which point the main process has already re-opened the
+   * app around the converted store — there is nothing to restart.
    */
   createAccount: (args: {
     username: string;
     password: string;
   }): Promise<{ accountId: string; recoveryPhrase: string }> =>
     ipcRenderer.invoke("account:create", args),
-  /** Restart into the newly-encrypted store. */
-  relaunch: (): Promise<void> => ipcRenderer.invoke("app:relaunch"),
   syncNow: (): Promise<{ at: number }> => ipcRenderer.invoke("sync:now"),
   /**
    * Re-authenticate this device after the account password was reset on another
@@ -81,10 +79,10 @@ const sync = {
   clear: (): Promise<void> => ipcRenderer.invoke("sync:clear"),
   /**
    * Factory reset: erase all local data, keys, and the recovery sidecar, then
-   * relaunch into a first-run state. Unlike {@link clear} (which keeps the data
+   * come back up in a first-run state. Unlike {@link clear} (which keeps the data
    * and master key so sync can be re-enabled), this is unrecoverable unless the
-   * account was synced. The app relaunches on success, so the returned promise
-   * never resolves in practice — the caller does not await a result.
+   * account was synced. The main process reloads this renderer once the fresh
+   * store is open, so the caller has no completion state to render.
    */
   factoryReset: (): Promise<void> => ipcRenderer.invoke("app:factoryReset"),
   /** Reveal this device's recovery phrase (the words back into the data). */

@@ -72,9 +72,19 @@ import { jsonFileStorage } from "./db/roster-storage.js";
 import { storeFileState } from "./db/sqlite-header.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
-// The shared SQLite driver, assigned once in whenReady. Module-scoped so the
-// core-rebuild and background-sync helpers below can reach it without threading.
+// The shared SQLite driver. Module-scoped so the core-rebuild and background-sync
+// helpers below can reach it without threading — and **reassigned** whenever the
+// store is replaced underneath a running app: account creation converts it to a
+// new file, factory reset erases it. See {@link openActiveStore}.
 let driver: SqliteDriver;
+
+// Where this device's store and key material live. `dbPath` moves with custody
+// (`stores/local/…` → `stores/<accountId>/…`), so it is re-derived on every open
+// rather than captured once; the other three are fixed for the process.
+let dbPath: string;
+let userDataPath: string;
+let keystorePath: string;
+let keyStore: KeyStore;
 
 // The unlocked device key material (custody Phase 0), passed into createCore so
 // it can encrypt sensitive fields at rest under per-item content keys. Mutable
@@ -96,6 +106,14 @@ let activeCore: CoreApi | undefined;
 // they share single-flight. Built in whenReady once the driver/keystore exist.
 let scheduler: SyncScheduler | undefined;
 
+// True from the instant the store's handle is closed for replacement until the
+// new one is open. `driver` is unusable in that window, so every entry point that
+// could fire during it checks this rather than letting better-sqlite3 raise
+// "The database connection is not open" — an error that is alarming, tells the
+// user nothing, and used to arrive from a window-focus handler while the
+// one-time recovery phrase was on screen.
+let storeSwapping = false;
+
 /**
  * Build the live core around `session` and wrap it so each local write kicks a
  * (debounced) background sync. Used at bootstrap and again after sync:join adopts
@@ -109,6 +127,131 @@ function setActiveCore(session: KeySession | undefined): void {
 }
 
 /**
+ * Open this device's store — whichever one the roster points at — and rebuild
+ * everything that hangs off it: the driver, the migrations, the key session, and
+ * the live core. The boot path's whole database half, extracted so it can run a
+ * **second** time in the same process.
+ *
+ * That re-entrancy is the point. Two operations replace the store underneath a
+ * running app — account creation (an Open store is converted to a Protected one at
+ * a new path, `model.md` §7.2.1) and factory reset (everything is erased) — and
+ * both used to be followed by `app.relaunch()`. A relaunch is a bad answer twice
+ * over: it is user-visible downtime at the worst possible moment (the recovery
+ * phrase is on screen and shown only once), and under `electron-vite dev` it
+ * *breaks the app*, because electron-vite exits with its Electron child and takes
+ * the renderer dev server with it, leaving the relaunched instance loading a dead
+ * `ELECTRON_RENDERER_URL`. Mobile never had a relaunch primitive and has always
+ * re-run its bootstrap in place; this makes desktop behave the same way.
+ *
+ * Custody is re-resolved from the roster on every call rather than remembered, so
+ * a store that changed custody since the last open is opened correctly.
+ */
+async function openActiveStore(): Promise<void> {
+  // Which store, and in which custody state (model.md §7.2/§7.4). Both answers
+  // come from the roster, which must be read before anything is opened — it is
+  // readable precisely because it lives outside every store. `dbPath` is
+  // *derived*, never a fixed `leapsake.db`.
+  const roster = createAccountRoster(
+    jsonFileStorage(join(userDataPath, ROSTER_PATH)),
+  );
+  const activeStore = resolveActiveStore({ accounts: await roster.list() });
+
+  // A Protected launch that still finds an Open store crashed part-way through
+  // account creation, after the roster entry but before the original was
+  // destroyed. The leftover is a plaintext copy of exactly the data the user
+  // asked to encrypt, so sweep it (create-account-flow.ts).
+  if (activeStore.custody === "protected") {
+    const strandedOpenStore = join(userDataPath, storePath(OPEN_STORE_SLOT));
+    if (storeFileState(strandedOpenStore) !== "absent") {
+      destroyPlaintextStore(strandedOpenStore);
+    }
+  }
+  dbPath = join(userDataPath, activeStore.path);
+
+  // Open the store in that state: plaintext and keyless when Open; when Protected,
+  // the enclave key on a normal launch, minting on a fresh launch, or recovery from
+  // the `.recovery` sidecar via a typed phrase if the enclave was wiped (open.ts).
+  // The prompt is hosted by the renderer's gate.
+  driver = await openAppDatabase({
+    dbPath,
+    custody: activeStore.custody,
+    keyStore,
+    requestRecoveryPhrase,
+  });
+  await runMigrations(driver);
+  // The bundled holiday catalog, applied only when this install hasn't seen this
+  // bundle yet. Cheap no-op on every launch after the first.
+  await seedHolidayCatalog({ driver });
+  // Custody Phase 0.5, not Phase 0: the master key is minted by account creation,
+  // so an Open store has no key session at all and `createCore` runs without one.
+  keySession =
+    activeStore.custody === "protected"
+      ? await ensureDeviceMasterKey({ keyStore, driver })
+      : undefined;
+  setActiveCore(keySession);
+}
+
+/**
+ * Re-open the store after an operation replaced it, and hand the running app back
+ * a working database. The caller has already closed the old handle (the file
+ * cannot be converted or deleted while one is open), so between that close and
+ * this call **every core IPC and the background scheduler are pointed at a dead
+ * driver** — hence the scheduler stop here, and hence keeping that window as short
+ * as an `await`.
+ *
+ * The auto-sync preference is re-read because it lives *inside* the store: the
+ * converted store carries the user's setting across, a reset store has the
+ * default, and the scheduler must follow whichever it now is.
+ */
+async function reopenActiveStore(): Promise<void> {
+  scheduler?.stop();
+  await openActiveStore();
+  storeSwapping = false;
+  scheduler?.setAutoEnabled(await getAutoSync({ driver }));
+  scheduler?.start();
+}
+
+/**
+ * Run an operation that replaces the store, and leave the app on a live store
+ * whatever happens — including when the operation throws.
+ *
+ * The two failure shapes need different answers, and {@link storeSwapping} is what
+ * distinguishes them, because it is set by the operation's own `closeStore`
+ * callback at the exact moment the handle dies. A failure *before* that (a taken
+ * username, an unreachable relay — `createAccountOnThisDevice` registers with the
+ * relay first for precisely this reason) leaves the original store open and
+ * untouched, so only the scheduler needs resuming. A failure *after* it means the
+ * handle is gone and the app must genuinely re-open — and re-resolving custody
+ * from the roster picks the right store either way: the original if the conversion
+ * never got as far as a roster entry, the converted one if it did.
+ */
+async function withStoreSwap<T>(operation: () => Promise<T>): Promise<T> {
+  scheduler?.stop();
+  try {
+    const result = await operation();
+    await restoreLiveStore(); // a failure here is real — let it surface
+    return result;
+  } catch (cause) {
+    // Restore before rethrowing, but never let a restore failure *replace* the
+    // error that actually happened — the mobile converter learned that one the
+    // hard way, with a `finally` whose cleanup error hid the real cause.
+    try {
+      await restoreLiveStore();
+    } catch (error) {
+      console.error("could not re-open the store after a failed swap:", error);
+    }
+    throw cause;
+  }
+}
+
+/** Put the app back on a live store: a genuine re-open when the handle was closed,
+ *  otherwise just resume the scheduler ticks {@link withStoreSwap} paused. */
+async function restoreLiveStore(): Promise<void> {
+  if (storeSwapping) await reopenActiveStore();
+  else scheduler?.start();
+}
+
+/**
  * Reconcile the automated (`system`) reminders — upcoming birthdays — against the
  * live core, then, only if anything actually changed, refresh the renderer in
  * place and kick a sync so the rows propagate. Called at boot and on window focus
@@ -117,7 +260,7 @@ function setActiveCore(session: KeySession | undefined): void {
  * not a sync-kicking mutation (it runs off a user write), hence the explicit kick.
  */
 async function regenerateSystemReminders(): Promise<void> {
-  if (activeCore === undefined) return;
+  if (activeCore === undefined || storeSwapping) return;
   try {
     const { created, updated, removed } =
       await activeCore.reminders.regenerateSystem();
@@ -299,15 +442,7 @@ function relayErrorMessage(cause: unknown, relayUrl: string): string {
  * the length here before deriving anything, and returns the one-time recovery
  * key **base64-encoded for display** — the raw key bytes never cross IPC.
  */
-function registerSyncIpc(opts: {
-  keyStore: KeyStore;
-  dbPath: string;
-  keystorePath: string;
-  /** `userData` — factory reset clears the roster and `stores/` beneath it. */
-  userDataPath: string;
-}): void {
-  const { keyStore, dbPath, keystorePath, userDataPath } = opts;
-
+function registerSyncIpc(): void {
   ipcMain.handle("sync:status", () => getSyncStatus({ driver }));
 
   // Prelogin existence probe for the combined sign-up / log-in flow: does this
@@ -350,33 +485,37 @@ function registerSyncIpc(opts: {
       // runs the same flow as the local-only path (model.md §7.2.1): the store is
       // converted to encrypted here too. Before this it created the account and
       // left the store plaintext — a half-Protected state §7.2 does not have.
-      scheduler?.stop();
-      const { accountId, recoveryPhrase } = await createAccountOnThisDevice({
-        keyStore,
-        driver,
-        roster: createAccountRoster(
-          jsonFileStorage(join(userDataPath, ROSTER_PATH)),
-        ),
-        userDataPath,
-        username,
-        password,
-        relayUrl,
-        // Registering is the second half of enabling; a failure (server down,
-        // username taken) rolls the account back before anything on disk moves.
-        registerWithRelay: async (bootstrap) => {
-          try {
-            await registerAccountWithRelay({ relayUrl, bootstrap });
-          } catch (cause) {
-            throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-          }
-        },
-        closeStore: async () => {
-          await driver.close?.();
-        },
-      });
-      // The store was converted underneath this process, so the renderer shows
-      // the phrase and then calls `app:relaunch`; the first sync happens on the
-      // next boot rather than against a closed handle.
+      // The store was converted underneath this process, so withStoreSwap re-opens
+      // the app around the new one before this resolves. The renderer keeps the
+      // one-time phrase on screen throughout; nothing restarts.
+      const { accountId, recoveryPhrase } = await withStoreSwap(() =>
+        createAccountOnThisDevice({
+          keyStore,
+          driver,
+          roster: createAccountRoster(
+            jsonFileStorage(join(userDataPath, ROSTER_PATH)),
+          ),
+          userDataPath,
+          username,
+          password,
+          relayUrl,
+          // Registering is the second half of enabling; a failure (server down,
+          // username taken) rolls the account back before anything on disk moves.
+          registerWithRelay: async (bootstrap) => {
+            try {
+              await registerAccountWithRelay({ relayUrl, bootstrap });
+            } catch (cause) {
+              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+            }
+          },
+          closeStore: async () => {
+            storeSwapping = true;
+            await driver.close?.();
+          },
+        }),
+      );
+      // Kick the account's first sync now, against the live handle.
+      void scheduler?.autoTrigger();
       return { accountId, recoveryKey: recoveryPhrase };
     },
   );
@@ -538,13 +677,12 @@ function registerSyncIpc(opts: {
 
   // **Create an account on this device** (model.md §7.2.1) — the act that turns
   // encryption on. Fully local: no relay, no email, nothing leaves the machine.
-  // Returns the recovery phrase for its one-time reveal; the renderer relaunches
-  // once the user has acknowledged it.
+  // Returns the recovery phrase for its one-time reveal.
   //
   // The store handle is closed and the file converted underneath us, so this
-  // process cannot keep serving the old driver afterwards — the renderer calls
-  // `app:relaunch` when the reveal is dismissed. Until then every core IPC would
-  // be operating on a closed handle, which is why the reveal is modal.
+  // reopens the app around the new store before resolving. By the time the
+  // renderer has the phrase to show, every core IPC is live again — the reveal is
+  // a screen the user leaves when ready, not a countdown to a restart.
   ipcMain.handle(
     "account:create",
     async (_event, args: { username?: unknown; password?: unknown }) => {
@@ -558,43 +696,43 @@ function registerSyncIpc(opts: {
           `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
         );
       }
-      scheduler?.stop();
-      const { accountId, recoveryPhrase } = await createAccountOnThisDevice({
-        keyStore,
-        driver,
-        roster: createAccountRoster(
-          jsonFileStorage(join(userDataPath, ROSTER_PATH)),
-        ),
-        userDataPath,
-        username,
-        password,
-        closeStore: async () => {
-          await driver.close?.();
-        },
-      });
+      const { accountId, recoveryPhrase } = await withStoreSwap(() =>
+        createAccountOnThisDevice({
+          keyStore,
+          driver,
+          roster: createAccountRoster(
+            jsonFileStorage(join(userDataPath, ROSTER_PATH)),
+          ),
+          userDataPath,
+          username,
+          password,
+          closeStore: async () => {
+            storeSwapping = true;
+            await driver.close?.();
+          },
+        }),
+      );
       return { accountId, recoveryPhrase };
     },
   );
 
-  // Restart into the newly-encrypted store. Separate from account:create so the
-  // recovery phrase can be shown *before* the process goes away.
-  ipcMain.handle("app:relaunch", () => {
-    app.relaunch();
-    app.exit(0);
-  });
-
-  // Factory reset: erase everything and reopen as a first-run install. Unlike
-  // sync:clear (which keeps the data and master key), this deletes the encrypted
-  // DB, the recovery sidecar, and every keystore secret, then relaunches so the
-  // next boot mints a fresh key over an empty DB. We close the DB handle first so
-  // the file is unlocked before it is removed, then hard-restart the process:
-  // app.relaunch queues a new instance, app.exit tears this one (and its held DB
-  // handle + key material) down for real.
+  // Factory reset: erase everything and come back up as a first-run install.
+  // Unlike sync:clear (which keeps the data and master key), this deletes the
+  // store, the recovery sidecar, the roster, and every keystore secret — so the
+  // reopen that follows resolves custody as **Open** and mints nothing, which is
+  // exactly the fresh-install state (§7.2).
+  //
+  // The DB handle is closed first so the file is unlocked before it is removed.
+  // The renderer is then reloaded rather than relaunched: it is displaying rows
+  // that no longer exist, and a reload remounts it against the empty store
+  // without the process (and, in dev, the renderer dev server) going away.
   ipcMain.handle("app:factoryReset", async () => {
-    await driver.close?.();
-    factoryResetFiles({ dbPath, keystorePath, userDataPath });
-    app.relaunch();
-    app.exit(0);
+    await withStoreSwap(async () => {
+      storeSwapping = true;
+      await driver.close?.();
+      factoryResetFiles({ dbPath, keystorePath, userDataPath });
+    });
+    mainWindow?.webContents.reload();
   });
 
   // The per-client "Sync automatically" preference (default on). Read at render
@@ -671,56 +809,18 @@ function requestRecoveryPhrase({ error }: { error?: string }): Promise<string> {
 }
 
 void app.whenReady().then(async () => {
-  const userData = app.getPath("userData");
-
-  // Which store, and in which custody state (model.md §7.2/§7.4). Both answers
-  // come from the roster, which must be read before anything is opened — it is
-  // readable precisely because it lives outside every store. `dbPath` is
-  // *derived*, never a fixed `leapsake.db`.
-  const roster = createAccountRoster(
-    jsonFileStorage(join(userData, ROSTER_PATH)),
-  );
-  const activeStore = resolveActiveStore({ accounts: await roster.list() });
-
-  // A Protected launch that still finds an Open store crashed part-way through
-  // account creation, after the roster entry but before the original was
-  // destroyed. The leftover is a plaintext copy of exactly the data the user
-  // asked to encrypt, so sweep it (create-account-flow.ts).
-  if (activeStore.custody === "protected") {
-    const strandedOpenStore = join(userData, storePath(OPEN_STORE_SLOT));
-    if (storeFileState(strandedOpenStore) !== "absent") {
-      destroyPlaintextStore(strandedOpenStore);
-    }
-  }
-  const dbPath = join(userData, activeStore.path);
+  userDataPath = app.getPath("userData");
+  keystorePath = join(userDataPath, "keystore.json");
+  keyStore = safeStorageKeyStore(keystorePath);
 
   // The renderer (and its recovery gate) need a window before the DB is opened,
   // and the boot IPC must be live before the renderer queries it.
   registerBootIpc();
   mainWindow = createWindow();
 
-  // Open the store in that state: plaintext and keyless when Open; when Protected,
-  // the enclave key on a normal launch, minting on a fresh launch, or recovery from
-  // the `.recovery` sidecar via a typed phrase if the enclave was wiped (open.ts).
-  // The prompt is hosted by the renderer's gate.
-  const keystorePath = join(userData, "keystore.json");
-  const keyStore = safeStorageKeyStore(keystorePath);
-  driver = await openAppDatabase({
-    dbPath,
-    custody: activeStore.custody,
-    keyStore,
-    requestRecoveryPhrase,
-  });
-  await runMigrations(driver);
-  // The bundled holiday catalog, applied only when this install hasn't seen this
-  // bundle yet. Cheap no-op on every launch after the first.
-  await seedHolidayCatalog({ driver });
-  // Custody Phase 0.5, not Phase 0: the master key is minted by account creation,
-  // so an Open store has no key session at all and `createCore` runs without one.
-  keySession =
-    activeStore.custody === "protected"
-      ? await ensureDeviceMasterKey({ keyStore, driver })
-      : undefined;
+  // Resolve custody, open the store, and build the core around it. The same call
+  // runs again if account creation or a factory reset replaces the store later.
+  await openActiveStore();
 
   // Seamless background sync: the run thunk is the "is sync even enabled" guard
   // (a quiet no-op until an account is set up and relay-bound), reading the
@@ -729,7 +829,7 @@ void app.whenReady().then(async () => {
   scheduler = createSyncScheduler({
     autoEnabled: await getAutoSync({ driver }),
     run: async () => {
-      if (keySession === undefined) return undefined;
+      if (keySession === undefined || storeSwapping) return undefined;
       const status = await getSyncStatus({ driver });
       if (!status.enabled || status.relayUrl === undefined) return undefined;
       return runAccountSync({ driver, masterKey: keySession.masterKey });
@@ -756,12 +856,17 @@ void app.whenReady().then(async () => {
     },
   });
 
-  setActiveCore(keySession);
+  // The core is already built (openActiveStore). Both bridges read their target
+  // through module state, so a later store swap needs no re-registration —
+  // ipcMain.handle throws on a second registration anyway.
   registerIpc(() => {
+    if (storeSwapping) {
+      throw new Error("Leapsake is updating its store. Try again in a moment.");
+    }
     if (activeCore === undefined) throw new Error("Core is not initialized.");
     return activeCore;
   });
-  registerSyncIpc({ keyStore, dbPath, keystorePath, userDataPath: userData });
+  registerSyncIpc();
 
   scheduler.start(); // backstop interval
   void regenerateSystemReminders(); // populate today's birthdays atop Home

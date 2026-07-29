@@ -60,15 +60,16 @@ export function Settings() {
 
   useEffect(refreshStatus, []);
 
-  // One-time reveal takes over the screen until acknowledged. Creating an
-  // account converted the store underneath this process, so "Done" restarts into
-  // the encrypted one rather than returning to a screen backed by a closed handle.
+  // One-time reveal takes over the screen until acknowledged. The main process
+  // has already re-opened the app around the converted store, so "Done" simply
+  // drops the phrase and returns to Settings — now reporting the new account.
   if (recoveryKey !== null) {
     return (
       <RecoveryKeyReveal
         recoveryKey={recoveryKey}
         onDone={() => {
-          void window.sync.relaunch();
+          setRecoveryKey(null);
+          refreshStatus();
         }}
       />
     );
@@ -951,8 +952,14 @@ function RecoverStep({
 }
 
 /**
- * The one-time recovery-key reveal. Irreversible: the key is never re-derivable,
- * so the user must copy it and tick the acknowledgement before continuing.
+ * The one-time recovery-key reveal. Irreversible: the phrase is shown **once** and
+ * has no reveal-it-later surface, so the user must copy it and tick the
+ * acknowledgement before continuing.
+ *
+ * Rendered as a fixed overlay rather than an ordinary screen so the app chrome
+ * (nav, search) sits behind it and cannot be clicked. Settings renders inside the
+ * router's `<Outlet />`, so without this a stray click on "Reminders" would
+ * navigate away and take the only copy of the phrase with it.
  */
 function RecoveryKeyReveal({
   recoveryKey,
@@ -964,7 +971,16 @@ function RecoveryKeyReveal({
   const [acknowledged, setAcknowledged] = useState(false);
 
   return (
-    <main>
+    <main
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1,
+        overflow: "auto",
+        background: "Canvas",
+        padding: "3rem 1rem",
+      }}
+    >
       <h1>Save your recovery phrase</h1>
       <p>
         This is shown <strong>once</strong>. Write it down or store it in a
@@ -1035,8 +1051,8 @@ function RecoveryPhraseWords({ phrase }: { phrase: string }) {
  * type-to-confirm step (the "Erase everything" button stays disabled until the
  * user types {@link FACTORY_RESET_PHRASE}). The copy is honest about whether the
  * data is recoverable: synced accounts survive in the account/other devices, but
- * an unsynced store is gone for good. The main process relaunches the app on
- * success, so there is no completion state to render.
+ * an unsynced store is gone for good. The main process reopens the app around a
+ * fresh store and reloads this renderer, so there is no completion state to render.
  */
 function FactoryReset({ syncEnabled }: { syncEnabled: boolean }) {
   const [confirming, setConfirming] = useState(false);
@@ -1052,7 +1068,7 @@ function FactoryReset({ syncEnabled }: { syncEnabled: boolean }) {
     setWorking(true);
     try {
       await window.sync.factoryReset();
-      // Unreachable in practice: the app relaunches before this resolves.
+      // Unreachable in practice: the renderer is reloaded before this resolves.
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't reset.");
       setWorking(false);

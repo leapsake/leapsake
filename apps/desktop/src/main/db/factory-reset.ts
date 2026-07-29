@@ -5,8 +5,8 @@ import { ROSTER_PATH } from "@leapsake/store-layout";
 /**
  * Erase every on-device persistence surface so the next launch is a clean
  * first-run — the file half of the desktop **factory reset** (the caller closes
- * the DB handle first and relaunches after). Kept free of Electron so it is
- * unit-testable against a temp directory.
+ * the DB handle first and re-opens the store after). Kept free of Electron so it
+ * is unit-testable against a temp directory.
  *
  * Deletes, all under the app's `userData`:
  *  - the active store and its SQLite WAL/SHM sidecars,

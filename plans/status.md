@@ -233,11 +233,19 @@ the per-account paths, and `resolveActiveStore`), `createLocalAccount`
 > because the shipped converter is exercised on-device by the custody self-test — and it
 > was briefly hidden by a `finally` whose cleanup error replaced the real one.
 >
-> ⚠️ **Not verified: the desktop UI itself.** The main-process flow has integration
-> coverage, and the mobile converter is exercised on-device by the custody self-test, but
-> the new Settings section and the reveal → relaunch step were never driven in a running
-> app (screen capture is unavailable in the agent shell, and E2E is still the blocked
-> tier). **Click through account creation once on each client before trusting it.**
+> ✅ **Desktop's UI is now verified in a running app** (2026-07-28), driven over CDP against
+> a fresh profile: Open boot with an empty keychain → data → create account → conversion →
+> 24-word reveal → Done, plus a factory reset back to Open. **Mobile's Settings flow is
+> still undriven** — click through account creation there once before trusting it.
+>
+> ⚠️ **The relaunch is gone** (2026-07-28). Account creation and factory reset now **re-open
+> the store in place** (`openActiveStore` / `withStoreSwap` in `apps/desktop/src/main/index.ts`),
+> matching what mobile always did. `app.relaunch()` was wrong twice over: it took the app away
+> while the one-time phrase was on screen, and under `electron-vite dev` it **white-screens the
+> app**, because electron-vite's `ps.on('close', process.exit)` kills the renderer dev server
+> with its Electron child, leaving the relaunched instance loading a dead
+> `ELECTRON_RENDERER_URL`. The reveal is also a fixed overlay now, so a stray click on the nav
+> can no longer discard the only copy of the phrase.
 5. **⇐ START HERE. The password door on the db-key sidecar** — `seal(db-key, KEK)` beside the
    recovery one, consumed in the pre-database boot path on both platforms. **This is the most
    delicate code in the app**; both doors need an end-to-end restore proof plus a negative

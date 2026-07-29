@@ -28,10 +28,10 @@ import { storeFileState } from "./sqlite-header.js";
  * plaintext original outlives the conversion, and dies only once the roster points
  * at its replacement.
  *
- * The caller closes the store's driver before calling and reopens (or relaunches)
- * afterwards — the file cannot be converted while a handle is writing to it, and
- * the new store is opened by the ordinary Protected boot path, which also writes
- * the recovery sidecar as it does on every launch.
+ * The caller closes the store's driver before calling and reopens afterwards — the
+ * file cannot be converted while a handle is writing to it, and the new store is
+ * opened by the ordinary Protected boot path, which also writes the recovery
+ * sidecar as it does on every launch.
  */
 export async function createAccountOnThisDevice(opts: {
   keyStore: KeyStore;

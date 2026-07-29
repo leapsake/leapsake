@@ -15,8 +15,9 @@ import { openAppDatabase } from "../../src/main/db/open.js";
  * Factory reset (desktop): the file half deletes every on-device surface, and the
  * next `openAppDatabase` then takes the fresh-install path — a new key over an
  * empty DB, "as if opening for the first time." The IPC handler that wires these
- * together (`app:factoryReset`) also relaunches the process, which is out of
- * scope for a unit test; here we verify the teardown + reopen behavior directly.
+ * together (`app:factoryReset`) additionally re-opens the store in place and
+ * reloads the renderer, which needs a running Electron app and so is out of scope
+ * here; this verifies the teardown + reopen behavior directly.
  */
 describe("factoryResetFiles", () => {
   let dir: string;
