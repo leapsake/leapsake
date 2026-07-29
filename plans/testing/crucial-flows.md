@@ -30,10 +30,11 @@ author will otherwise get wrong:
 > a first launch is **Open**: it mints no keys, leaves the OS key store empty, and opens a
 > **plaintext** store. **Creating an account — username + password — is the single act that
 > turns encryption on**, converting the store as it goes and showing the 24-word recovery
-> phrase once. A device *joining* an existing account never passes through Open; it is
-> encrypted from byte one. So the journey to exercise is not "set a passphrase, lock, unlock"
-> — it is **Open → account → Protected** (Flow 4), plus the two doors that reopen a Protected
-> store when the OS key store is lost (Flow 7).
+> phrase once. A device *joining* an existing account is **specified** never to pass through
+> Open — encrypted from byte one (§7.1) — though it does today; see Flow 6. So the journey to
+> exercise is not "set a passphrase, lock, unlock" — it is **Open → account → Protected**
+> (Flow 4), plus the two doors that reopen a Protected store when the OS key store is lost
+> (Flow 7).
 
 > **The recovery phrase is shown once and is never re-viewable.** There is no
 > "reveal my phrase" surface in Settings — an account holder who loses the phrase rotates to a
@@ -55,7 +56,7 @@ checks the UI would pass against an app that encrypted nothing. So the custody f
 | Key material | count/keys of the profile's OS key store (desktop `keystore.json`; mobile the secure store) | Open holds **zero**; Protected holds the db-key, enclave secret, recovery key, device id |
 | Store location | the store's path within the profile | `stores/local/` when Open, `stores/<accountId>/` when Protected |
 | Roster | `accounts.json` | zero accounts when Open, exactly one after creation |
-| Sidecar | `<db>.recovery` (and, once slice 5 lands, the password sidecar) presence | the doors Flow 7 exercises exist |
+| Sidecar | `<db>.recovery` **and** `<db>.password` presence | the two doors Flow 7 exercises exist |
 
 **Rules, so this stays an exception and not a habit.** These are *file existence and shape*
 checks only — never open the store, never decrypt, never call into app code. They are permitted
@@ -203,8 +204,13 @@ surface no lower tier reaches).
   A created appear on screen after convergence.
 - **Assert (out of band):** enabling sync **is** account creation that also binds a relay, so
   **Flow 4's out-of-band assertions apply to Device A unchanged** — its store converted, its
-  Open store is gone, its roster and key store are populated. Device B never passes through
-  Open: it is encrypted from byte one, with no plaintext store ever written.
+  Open store is gone, its roster and key store are populated. Device B should be the same:
+  §7.1 says a joining device is encrypted from byte one, with no plaintext store ever written.
+  > ⚠️ **This is the assertion that currently fails, and it is a product bug, not a flow bug.**
+  > `sync:join` adopts the account key but never converts this device's store, so Device B is
+  > still Open — plaintext, no db-key, no roster entry, and therefore no password door either.
+  > Custody **slice 6** closes it (`status.md`). Write the assertion as specified and expect it
+  > red until then; do not weaken it to match the bug.
 - **Devices:** **two instances** (two emulators/sims, or two macOS app instances with separate
   data dirs).
 - **Uniquely exercises:** OS key store *and* relay together — register wraps the master key under
@@ -324,8 +330,8 @@ Windows/Linux run the identical list once a host exists (deferred, blocked-not-w
 
 Single-instance flows first (they need no relay and no second device), on the cheapest host:
 
-1. **Flows 1–5 + 7b, 7c on macOS (Playwright/Electron)** — fully local, unblocked once the
-   password door exists. Proves the catalog and the harness before any two-instance work. Take
+1. **Flows 1–5 + 7b, 7c on macOS (Playwright/Electron)** — fully local and unblocked; the
+   password door is built. Proves the catalog and the harness before any two-instance work. Take
    **1 → 4** as a single arc: Flow 4 needs Flows 1–3's data, and together they are the whole
    custody story.
 2. **The same flows on Android, then iOS** — reusing the Maestro harness that already runs the

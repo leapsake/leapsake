@@ -141,7 +141,7 @@ the old one — uninstall them and rebuild the dev client before running `pnpm t
 ### Increment 2 — The account invitation on Home
 
 > **Depends on** the custody build order in [`status.md`](./status.md) → *What's next* →
-> *Local custody* (slices 1–3). This increment is only the *invitation*; the flow it opens
+> *Local custody* (slices 1–4, all built). This increment is only the *invitation*; the flow it opens
 > is built there.
 
 **Value:** gets users from Open to Protected — which is what closes the data-loss path,
@@ -171,6 +171,11 @@ encrypted with the plaintext original gone; dismissing it re-surfaces later. Bot
 
 > **Grew with the custody decision:** the at-rest sidecar now has **two doors** (password
 > and phrase), so each needs its own end-to-end restore proof *and* its own negative case.
+>
+> ✅ **Both doors are built** (custody slice 5) and proved on desktop against a wiped
+> keychain, including the negatives and the check that a password unlock leaves the recovery
+> sidecar byte-identical. What is left here is the part that machine could not prove: the
+> same exercise on a **fresh machine**, from copied files, and writing it up as the answer.
 
 **Value:** the answer to "how do I back up Leapsake?", which local-only users — the majority
 at v0.1, since sync requires self-hosting — currently do not have. **Hard prerequisite of
