@@ -188,6 +188,60 @@ export function runCustodySelfTest(t: TestApi): void {
         await SQLite.deleteDatabaseAsync(two);
       }
     });
+
+    // **Forget account** (§7.3) removes one account's store by that same nested
+    // name. Opening a nested name is proved above; *deleting* one is a separate
+    // expo-sqlite behavior, and it is the step that actually destroys user data —
+    // a silent no-op here would leave the store on disk while the roster entry
+    // said it was gone, i.e. "deleted" data still sitting in the sandbox.
+    it("deletes a store by its nested, per-account name", async () => {
+      const name = `stores/acct-${crypto.randomUUID()}/leapsake.db`;
+      const db = await SQLite.openDatabaseAsync(name);
+      await db.execAsync("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)");
+      await db.runAsync("INSERT INTO t (id, v) VALUES (1, ?)", "secret");
+      await db.closeAsync();
+
+      await SQLite.deleteDatabaseAsync(name);
+
+      // The negative that makes it non-vacuous: re-opening the same name must
+      // give a *fresh, empty* database rather than the rows we just wrote. Without
+      // this, a delete that quietly did nothing would still read as a pass.
+      const reopened = await SQLite.openDatabaseAsync(name);
+      try {
+        const table = await reopened.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 't'",
+        );
+        expect(table).toBe(null);
+      } finally {
+        await reopened.closeAsync();
+        await SQLite.deleteDatabaseAsync(name);
+      }
+    });
+
+    // The doors live in one device-scoped database (`db/sidecars.ts`), so forget
+    // drops the pair rather than one account's. Proving the delete works matters
+    // for the same reason as above: a door outliving the store it opened is how
+    // "deleted" quietly becomes "still openable".
+    it("deletes the shared sidecar database", async () => {
+      const name = `sidecars-${crypto.randomUUID()}.db`;
+      const db = await SQLite.openDatabaseAsync(name);
+      await db.execAsync("CREATE TABLE sidecar (id INTEGER PRIMARY KEY)");
+      await db.runAsync("INSERT INTO sidecar (id) VALUES (1)");
+      await db.closeAsync();
+
+      await SQLite.deleteDatabaseAsync(name);
+
+      const reopened = await SQLite.openDatabaseAsync(name);
+      try {
+        const table = await reopened.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sidecar'",
+        );
+        expect(table).toBe(null);
+      } finally {
+        await reopened.closeAsync();
+        await SQLite.deleteDatabaseAsync(name);
+      }
+    });
   });
 
   // The production converter, not a re-implementation of it — the sequence above

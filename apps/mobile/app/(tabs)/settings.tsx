@@ -99,8 +99,23 @@ export default function SettingsScreen() {
       ) : (
         <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
       )}
-      {status?.enabled === true && <RecoveryPhraseSection />}
-      <FactoryResetSection syncEnabled={status?.enabled ?? false} />
+      {/*
+        The two ways to be rid of what is on this device, one per custody state
+        (`model.md` §7.2), mirroring desktop. With an account, "Forget account"
+        removes it and its store; without one there is nothing to forget, so the
+        accountless wipe is the only shape the action can take. Showing both at
+        once was showing one act twice — they land in the identical place.
+      */}
+      {status !== null &&
+        (status.enabled ? (
+          <>
+            <RecoveryPhraseSection />
+            <SignOutSection />
+            <ForgetAccountSection />
+          </>
+        ) : (
+          <FactoryResetSection />
+        ))}
     </ScrollView>
   );
 }
@@ -846,15 +861,233 @@ function RecoveryPhraseWords({ phrase }: { phrase: string }) {
 }
 
 /**
- * Factory reset: erase everything on this device and rebuild the app as a fresh
- * install — all data, the encryption keys, and the recovery phrase — so it is
- * gated behind a type-to-confirm step (the danger-styled "Erase everything"
- * button stays disabled until the user types {@link FACTORY_RESET_PHRASE}). The
- * copy is honest about recoverability: a synced account survives elsewhere, an
- * unsynced store is gone for good. On success the provider rebuilds in place, so
- * this screen unmounts into a clean app — there is no completion state to render.
+ * **Sign out** (`model.md` §7.3) — the one action that reaches the Locked state
+ * in v0.1, and the mobile mirror of desktop's.
+ *
+ * Two things it deliberately is not. Not a *Lock* button: Locked is a state, not
+ * an affordance, and the app is meant to enter it on the user's behalf once idle
+ * locking ships (v0.2). And not two behaviors sharing a name — the promise holds
+ * whether or not the account is relay-bound (*nobody can see my data on this
+ * device anymore*), so the copy never branches on it. That the encrypted bytes
+ * remain is stated plainly, because it is the part a local-only user would
+ * otherwise worry about.
+ *
+ * No confirmation step: it is reversible with the password, and gating it would
+ * teach users to tap through the confirmations that *do* matter.
  */
-function FactoryResetSection({ syncEnabled }: { syncEnabled: boolean }) {
+function SignOutSection() {
+  const sync = useSync();
+  const [error, setError] = useState<string | null>(null);
+
+  function signOut() {
+    setError(null);
+    // Not awaited: the provider tears the core down and re-runs its bootstrap as
+    // part of this call, so this screen unmounts into the unlock gate. A
+    // rejection still lands here — it means the sign out was refused up front,
+    // and the screen is still mounted.
+    sync.signOut().catch((cause: unknown) => {
+      setError(cause instanceof Error ? cause.message : "Couldn't sign out.");
+    });
+  }
+
+  return (
+    <View style={{ marginTop: 24, gap: 8 }}>
+      <Text style={styles.title}>Sign out</Text>
+      <Text style={styles.muted}>
+        Your data stays on this device, encrypted. You’ll need your password to
+        get back in.
+      </Text>
+      <Pressable style={styles.button} onPress={signOut}>
+        <Text style={styles.buttonText}>Sign out</Text>
+      </Pressable>
+      {error !== null && (
+        <Text style={styles.danger} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+/** The word a user must type to arm the (irreversible) account deletion. */
+const FORGET_ACCOUNT_PHRASE = "DELETE";
+
+/**
+ * **Forget account** (`model.md` §7.3) — remove this account and its data from
+ * this device. Named as removal so it can never be mistaken for signing out.
+ *
+ * The wording is **driven by a check, not hardcoded** (§7.3.1): the provider asks
+ * the relay whether it keeps a durable copy and reports `durableBackup`. Absent an
+ * answer — today's universal case, since no relay advertises the capability yet —
+ * it is `false` and this shows the alarming version, hard-confirm and all. When
+ * server-side backup ships, that copy stops appearing on its own.
+ */
+function ForgetAccountSection() {
+  const sync = useSync();
+  const [info, setInfo] = useState<{
+    username?: string;
+    relayUrl?: string;
+    durableBackup: boolean;
+  } | null>(null);
+  const [typed, setTyped] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  // Read on entering the confirmation rather than on mount: it reaches out to
+  // the relay, and there is no reason to do that for every visit to Settings.
+  function beginConfirm() {
+    setError(null);
+    sync
+      .forgetInfo()
+      .then(setInfo)
+      .catch((cause: unknown) => {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Couldn't check this account.",
+        );
+      });
+  }
+
+  function cancel() {
+    setInfo(null);
+    setTyped("");
+    setError(null);
+  }
+
+  // A relay that keeps a durable copy makes this ordinary — sign back in and
+  // re-pull. Without one, the data on this device is the last copy.
+  const lastCopy = info !== null && !info.durableBackup;
+  const armed =
+    !lastCopy || typed.trim().toUpperCase() === FORGET_ACCOUNT_PHRASE;
+
+  async function forget() {
+    if (!armed) return;
+    setError(null);
+    setWorking(true);
+    try {
+      await sync.forgetAccount();
+      // The provider rebuilds in place; this screen unmounts to the fresh app.
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't remove it.");
+      setWorking(false);
+    }
+  }
+
+  if (info === null) {
+    return (
+      <View style={{ marginTop: 24, gap: 8 }}>
+        <Text style={styles.title}>Forget account</Text>
+        <Text style={styles.muted}>
+          Remove this account and everything in it from this device. This is not
+          signing out — the data is deleted, not locked.
+        </Text>
+        <Pressable
+          style={[styles.button, { backgroundColor: colors.border }]}
+          onPress={beginConfirm}
+        >
+          <Text style={styles.buttonText}>Forget account…</Text>
+        </Pressable>
+        {error !== null && (
+          <Text style={styles.danger} accessibilityRole="alert">
+            {error}
+          </Text>
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ marginTop: 24, gap: 8 }}>
+      <Text style={styles.title}>
+        {lastCopy ? "Delete all data on this device" : "Forget account"}
+      </Text>
+      <View style={styles.section}>
+        {lastCopy ? (
+          <>
+            <Text style={styles.muted}>
+              This permanently deletes everything in{" "}
+              {info.username !== undefined
+                ? `the account “${info.username}”`
+                : "this account"}{" "}
+              on this device.{" "}
+              {info.relayUrl === undefined
+                ? "This account is only on this device, so there is no other copy."
+                : `${info.relayUrl} does not keep a backup of your data, so if this is your only device there is no other copy.`}
+            </Text>
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>
+                Type {FORGET_ACCOUNT_PHRASE} to confirm
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={typed}
+                onChangeText={setTyped}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+            </View>
+          </>
+        ) : (
+          <Text style={styles.muted}>
+            Remove{" "}
+            {info.username !== undefined
+              ? `“${info.username}”`
+              : "this account"}{" "}
+            from this device? {info.relayUrl} keeps a copy of your data, so you
+            can sign back in to get it again.
+          </Text>
+        )}
+        <Pressable
+          style={[
+            styles.button,
+            lastCopy && { backgroundColor: colors.danger },
+            (!armed || working) && { opacity: 0.5 },
+          ]}
+          disabled={!armed || working}
+          onPress={forget}
+        >
+          <Text style={styles.buttonText}>
+            {working
+              ? "Removing…"
+              : lastCopy
+                ? "Delete all data"
+                : "Forget account"}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.button, { backgroundColor: colors.border }]}
+          disabled={working}
+          onPress={cancel}
+        >
+          <Text style={styles.buttonText}>Cancel</Text>
+        </Pressable>
+        {error !== null && (
+          <Text style={styles.danger} accessibilityRole="alert">
+            {error}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Factory reset: erase everything on this device and rebuild the app as a fresh
+ * install.
+ *
+ * **Shown only while this device is Open** (`model.md` §7.2) — with an account,
+ * {@link ForgetAccountSection} is the same act under the name that fits, and
+ * offering both was offering one act twice. That is also why the copy no longer
+ * branches on whether sync is set up: an Open device has no account, so this data
+ * is by definition the only copy.
+ *
+ * Gated behind a type-to-confirm step (the danger-styled button stays disabled
+ * until the user types {@link FACTORY_RESET_PHRASE}) because nothing about it is
+ * recoverable. On success the provider rebuilds in place, so this screen unmounts
+ * into a clean app — there is no completion state to render.
+ */
+function FactoryResetSection() {
   const sync = useSync();
   const [confirming, setConfirming] = useState(false);
   const [typed, setTyped] = useState("");
@@ -887,7 +1120,7 @@ function FactoryResetSection({ syncEnabled }: { syncEnabled: boolean }) {
       <Text style={styles.title}>Factory reset</Text>
       <Text style={styles.muted}>
         Erase everything on this device and start over — all people, pets,
-        reminders, and settings, plus the encryption keys and recovery phrase.
+        reminders, and settings.
       </Text>
       {!confirming ? (
         <Pressable
@@ -899,9 +1132,8 @@ function FactoryResetSection({ syncEnabled }: { syncEnabled: boolean }) {
       ) : (
         <View style={styles.section}>
           <Text style={styles.muted}>
-            {syncEnabled
-              ? "This permanently erases all data on this device. Your synced data stays in your account and on your other devices, but this device will be wiped and signed out."
-              : "This permanently erases all data on this device. Sync is not set up, so this data cannot be recovered afterward."}
+            This permanently erases all data on this device. There is no account
+            holding a copy, so this data cannot be recovered afterward.
           </Text>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>

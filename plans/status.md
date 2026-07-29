@@ -6,13 +6,14 @@
 > not here. Design docs never restate status; this file never restates design.
 >
 > **Updated 2026-07-28** — **"Encryption follows custody" is now the shipped behavior on both
-> clients.** First launch mints **no keys** and leaves the store plaintext; creating an
+> clients**, and **slice 7 (sign out + forget account) is done on both**. First launch
+> mints **no keys** and leaves the store plaintext; creating an
 > account (username + password) is the single act that turns encryption on, converting the
 > store as it goes; and a lost keychain is answered by **the password**, with the 24-word
-> phrase as the forgot-password fallback. **Slices 1–6 of the custody build are done** —
-> joining or recovering an account now converts that device's store too, so **no path leaves
-> real user data in a plaintext file any more**. **Slice 7 (sign out + forget account) is
-> built on desktop and verified over CDP; mobile is the remaining half.** See the block
+> phrase as the forgot-password fallback. **Slices 1–7 of the custody build are done on both
+> clients** — joining or recovering an account converts that device's store too, so **no path
+> leaves real user data in a plaintext file any more**, and signing out or forgetting an
+> account are both real. **Slice 8 is next.** See the block
 > below under *What's next* → **Local custody**. The model is
 > [`encryption/model.md`](./encryption/model.md) §7.
 >
@@ -36,8 +37,8 @@
   > Creating an account — **or joining/recovering one** — mints this device's db-key and
   > converts the store to `stores/<accountId>/`, and both unlock doors, password and phrase,
   > are built and proved on desktop for all three paths.
-  > Slices 1–6 of the build order below are done; **slice 7 is next**. Any install predating
-  > this must be recreated (pre-v0.1 latitude) — there is no compatibility path.
+  > Slices 1–7 of the build order below are done on both clients; **slice 8 is next**. Any
+  > install predating this must be recreated (pre-v0.1 latitude) — no compatibility path.
 - **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
   and the review surface is **detection-driven rather than permanently advertised** (links and
   banners appear only while pairs are outstanding; a `system` reminder nudges from Home). Only
@@ -89,9 +90,9 @@ the work they imply.
 ### Pre-v0.1 (toward initial launch)
 
 > **Order matters here.** Picking up work cold? Take them in this order:
-> **1.** **Local custody — the block immediately below.** Slices 1–6 are **built**, and
-> slice 7 is **built on desktop**; start at **slice 7's mobile half**. No longer blocks
-> `launch.md` Increments 2–4.
+> **1.** **Local custody — the block immediately below.** Slices 1–7 are **built on both
+> clients**; start at **slice 8** (retire the Settings recovery-phrase reveal). No longer
+> blocks `launch.md` Increments 2–4.
 > **2.** `launch.md` Increment 1's last piece — **an owner decision, not a task**: the version
 > number and the build-number strategy. The machinery and the credential gitignores are built.
 > Due before Increment 4's first store upload, not before the v0.1 cut.
@@ -101,8 +102,8 @@ the work they imply.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/28. Slices 1–6 done; slice 7 done
-on desktop, mobile next.**
+**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/28. Slices 1–7 done on both
+clients; slice 8 is next.**
 
 > **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
 > are fine.** There are no real users, so a migration is only worth writing when it is
@@ -212,8 +213,9 @@ reader would otherwise re-learn the hard way:
 >   file), and it has no restore path if the conversion throws after `driver.close?.()`. Left
 >   alone deliberately — it is a proven path — but worth a small follow-up.
 
-7. **Sign out + Forget account** (§7.3) — **desktop built + CDP-verified 2026-07-28;
-   ⇐ START HERE for the mobile half.** Sign out clears the two keystore secrets that open
+7. **Sign out + Forget account** (§7.3) — ✅ **DONE on both clients, 2026-07-28**, desktop
+   verified over CDP and mobile driven on a booted iOS simulator with Maestro.
+   Sign out clears the two keystore secrets that open
    the store (`lockThisDevice`, `@leapsake/key-custody`) and re-opens, which drops the boot
    path into its existing unlock gate; Forget account (`forget-account-flow.ts`) removes the
    account's store directory, both doors, its roster entry, and those same keys, landing the
@@ -222,10 +224,14 @@ reader would otherwise re-learn the hard way:
    relay explicitly says otherwise. Desktop was driven over CDP through the whole cycle: Open
    → create account → sign out (gate raised, wrong password refused) → password unlock → data
    intact → forget → plaintext Open store, roster empty → second account creates cleanly. The
-   phrase door was driven live too. **What mobile still needs** is the mirror: `lockThisDevice`
-   is client-agnostic and `forgetAccountOnThisDevice` is not (it is `node:fs` over
-   `storeDir`), so mobile needs its own file half plus the Settings surface — which,
-   per the note above, has still never been driven in a running app.
+   phrase door was driven live too. **Mobile mirrors it**: `lockThisDevice` is shared, and
+   `apps/mobile/lib/forget-account.ts` is the file half with its storage verbs injected (so
+   the ordering is unit-tested off-device, while the expo-sqlite deletes are proved on it).
+   **Mobile's Settings has now been driven in a running app** — the standing gap in the note
+   above is closed: on a booted iOS simulator, Open → create account → the account-holder
+   surface → sign out → gate raised → wrong password refused → password unlock → back in →
+   forget account (last-device wording, driven by a live relay that serves no
+   `/capabilities`) → back to Open. Screenshots at each step.
 
    > - **Sign out must clear the recovery key, not just the db-key.** `<db>.recovery` holds
    >   `seal(db-key, recoveryKey)` in plain view beside the store, so a recovery key left in
@@ -257,11 +263,22 @@ reader would otherwise re-learn the hard way:
    >   silence means "no durable copy", the alarming last-device copy is what every user sees
    >   today, which is the correct default.
    > - **The export offer §7.3.1 asks for is not built** — there is no exporter yet (see
-   >   *vCard/JSContact export*, below). The hard-confirm currently tells the user to copy
-   >   their `stores` folder instead, which is honest but poor. Wire the real offer when the
-   >   exporter lands.
+   >   *vCard/JSContact export*, below). The desktop hard-confirm tells the user to copy
+   >   their `stores` folder instead, which is honest but poor, and mobile cannot even say
+   >   that (no user-reachable filesystem). Wire the real offer when the exporter lands.
+   > - **The gate copy no longer names a cause.** It asserted "its secure storage was likely
+   >   reset", which reads as an alarming malfunction to someone who just signed out
+   >   deliberately. Both clients now mention both routes in.
+   > - **Mobile's doors are device-scoped, not per-account** — one unencrypted sidecar DB
+   >   keyed `id = 1` (`db/sidecars.ts`), where desktop gets per-account scoping free from
+   >   files beside each store. So mobile's forget drops *this device's* pair. Correct while
+   >   a device holds one account (the keystore has a single `db-key` slot anyway), and a
+   >   real constraint to revisit with the login picker.
+   > - **Mobile UX papercut, not fixed:** on the last-device confirmation the keyboard covers
+   >   the "Delete all data" button; the screen scrolls, so it is reachable, but it wants a
+   >   `KeyboardAvoidingView`.
 
-8. **⇐ NEXT after mobile. Retire the Settings recovery-phrase reveal** *(owner, 2026-07-28)*. The phrase is to be
+8. **⇐ START HERE. Retire the Settings recovery-phrase reveal** *(owner, 2026-07-28)*. The phrase is to be
    **shown once at account creation and never again**; the only later route is a
    **re-auth-gated rotation** that mints a new phrase, shows it once, and retires the old. The
    Open half shipped (the section is hidden with no account, and the handler reads instead of

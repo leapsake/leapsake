@@ -63,10 +63,19 @@ export function RecoveryGate({
 
   return (
     <main style={{ maxWidth: 560, margin: "3rem auto", padding: "0 1rem" }}>
-      <h1>Restore access to your data</h1>
+      {/*
+        The copy names no cause, because this gate now has two of them: the user
+        signed out deliberately (model.md §7.3), or this device's secure storage
+        was reset and took the key with it. It used to assert the second — "its
+        secure storage was likely reset" — which reads as an alarming malfunction
+        to someone who simply signed out a moment ago. Mentioning both, and
+        promising the data is still here, is true either way.
+      */}
+      <h1>Unlock your data</h1>
       <p>
-        This device's key is missing — its secure storage was likely reset — but
-        your data is still here.{" "}
+        Your data on this device is encrypted and locked — either because you
+        signed out, or because this device's secure storage was reset. It is
+        still here.{" "}
         {door === "password"
           ? "Enter your password to unlock it."
           : "Enter your recovery phrase to unlock it."}

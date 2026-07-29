@@ -27,11 +27,13 @@ import {
   createSyncScheduler,
   createLocalAccount,
   ensureDeviceMasterKey,
+  fetchRelayCapabilities,
   getAutoSync,
   getSyncStatus,
   isRelayAuthError,
   joinAccountViaRelay,
   KEYSTORE_SECRET_IDS,
+  lockThisDevice,
   lookupAccount,
   reauthenticateViaRelay,
   recoverAccountViaRelay,
@@ -74,6 +76,7 @@ import {
   writeRecoverySidecar,
 } from "../db/sidecars";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
+import { forgetAccountOnThisDevice } from "./forget-account";
 
 /**
  * Mirror of the desktop main process's `MIN_PASSWORD_LENGTH` boundary check.
@@ -165,6 +168,31 @@ export interface SyncApi {
    * been kicked; rejects with a friendly message on a wrong password.
    */
   reauthenticate(password: string): Promise<void>;
+  /**
+   * **Sign out** (`model.md` §7.3): close the store and forget the keys that open
+   * it, so the password is needed to get back in. The data stays on this device,
+   * encrypted — {@link SyncApi.forgetAccount} is the one that removes it. Rebuilds
+   * in place, landing on the unlock gate the bootstrap already hosts.
+   */
+  signOut(): Promise<void>;
+  /**
+   * What the Forget-account confirmation needs to word itself (`model.md`
+   * §7.3.1). `durableBackup` is whether the relay claims to keep a copy — `false`
+   * whenever nobody said otherwise, which is what makes forgetting the last
+   * device read as the deletion it is.
+   */
+  forgetInfo(): Promise<{
+    username?: string;
+    relayUrl?: string;
+    durableBackup: boolean;
+  }>;
+  /**
+   * **Forget account** (`model.md` §7.3): remove this account, its store, and its
+   * unlock doors from this device, leaving it in the accountless state a fresh
+   * install is in. Local only — an account on a relay or another device is
+   * untouched there.
+   */
+  forgetAccount(): Promise<void>;
   /**
    * Factory reset: erase all local data, the encryption keys, and the recovery
    * sidecar, then rebuild the app in place as a fresh install (there is no
@@ -772,6 +800,76 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           }
           await scheduler.current?.trigger();
         },
+        // **Sign out** (model.md §7.3). Mobile has no relaunch primitive, so the
+        // whole act is: forget the two keys that open this store, then re-run the
+        // bootstrap. That re-run finds the roster still naming the account
+        // (Protected) but no db-key, with both doors intact — which is exactly the
+        // gate case above, so the unlock prompt raises itself. No new mechanism.
+        //
+        // The two guards mirror desktop's, and both refuse rather than repair:
+        // an Open store has no account and no password to come back with, and a
+        // device with no password door would be locked behind the 24-word phrase
+        // alone, which is a support incident rather than a sign out.
+        async signOut() {
+          if ((await getSyncStatus({ driver })).enabled !== true) {
+            throw new Error(
+              "There is no account on this device to sign out of. Create one to " +
+                "protect your data with a password.",
+            );
+          }
+          if ((await readPasswordSidecar()) === undefined) {
+            throw new Error(
+              "This device has no password door, so signing out would lock the " +
+                "data behind the recovery phrase alone.",
+            );
+          }
+          setCore(null);
+          setSync(null);
+          scheduler.current?.stop();
+          await driver.close?.();
+          await lockThisDevice({ keyStore });
+          keySession.current = null;
+          coreRef.current = null;
+          setResetVersion((v) => v + 1);
+        },
+        async forgetInfo() {
+          const { enabled, username, relayUrl } = await getSyncStatus({
+            driver,
+          });
+          if (enabled !== true) {
+            throw new Error("There is no account on this device.");
+          }
+          const { durableBackup } = await fetchRelayCapabilities({ relayUrl });
+          return { username, relayUrl, durableBackup };
+        },
+        // **Forget account** (model.md §7.3). The roster is the authority for
+        // *which* store — it names it, and it is what the next bootstrap reads —
+        // so with the entry gone the re-run resolves Open and lands the device on
+        // a fresh plaintext store, the state a new install is in.
+        async forgetAccount() {
+          const accountId =
+            activeStore.custody === "protected"
+              ? activeStore.accountId
+              : undefined;
+          if (accountId === undefined) {
+            throw new Error("There is no account on this device to forget.");
+          }
+          setCore(null);
+          setSync(null);
+          scheduler.current?.stop();
+          await driver.close?.();
+          await forgetAccountOnThisDevice({
+            keyStore,
+            roster: createAccountRoster(sqliteRosterStorage()),
+            accountId,
+            storeName: activeStore.path,
+            deleteStore: (name) => SQLite.deleteDatabaseAsync(name),
+            deleteDoors: deleteSidecars,
+          });
+          keySession.current = null;
+          coreRef.current = null;
+          setResetVersion((v) => v + 1);
+        },
         async factoryReset() {
           // Show the loading state first so the wiped core is never rendered,
           // then tear everything down: stop background sync, close the DB handle,
@@ -806,8 +904,18 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         revealRecoveryPhrase: async () => {
           const recoveryKey = await readRecoveryKey(keyStore);
           if (recoveryKey === undefined) {
+            // Two different absences (mirrors desktop). Signing out clears the
+            // recovery key along with the db-key — both open the store — and a
+            // *password* unlock cannot bring it back: it lived only in the
+            // keychain that was cleared, and minting a replacement here would
+            // re-seal the recovery sidecar under a fresh key and silently
+            // invalidate the 24 words the user wrote down. Those words still
+            // work; this device just can no longer display them.
             throw new Error(
-              "This device has no recovery phrase. Create an account to protect your data.",
+              (await getSyncStatus({ driver })).enabled === true
+                ? "This device can't show your recovery phrase again — it was " +
+                    "cleared when you signed out. The phrase you saved still works."
+                : "This device has no recovery phrase. Create an account to protect your data.",
             );
           }
           return encodeRecoveryPhrase(recoveryKey);
@@ -919,10 +1027,18 @@ function RecoveryGate({
 
   return (
     <View style={styles.gate}>
-      <Text style={styles.gateTitle}>Restore access to your data</Text>
+      {/*
+        Names no cause, because this gate now has two (mirrors desktop's): the
+        user signed out deliberately (model.md §7.3), or this device's secure
+        storage was reset and took the key with it. Asserting the second — as
+        this used to — reads as an alarming malfunction to someone who simply
+        signed out a moment ago.
+      */}
+      <Text style={styles.gateTitle}>Unlock your data</Text>
       <Text style={styles.gateBody}>
-        This device's key is missing — its secure storage was likely reset — but
-        your data is still here.{" "}
+        Your data on this device is encrypted and locked — either because you
+        signed out, or because this device's secure storage was reset. It is
+        still here.{" "}
         {door === "password"
           ? "Enter your password to unlock it."
           : "Enter your recovery phrase to unlock it."}
