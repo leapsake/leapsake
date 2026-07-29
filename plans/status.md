@@ -13,7 +13,8 @@
 > phrase as the forgot-password fallback. **Slices 1–7 of the custody build are done on both
 > clients** — joining or recovering an account converts that device's store too, so **no path
 > leaves real user data in a plaintext file any more**, and signing out or forgetting an
-> account are both real. **Slice 8 is next.** See the block
+> account are both real. **Slice 7b is next** — per-account db-key doors on mobile, closing a
+> latent data-loss asymmetry with desktop. See the block
 > below under *What's next* → **Local custody**. The model is
 > [`encryption/model.md`](./encryption/model.md) §7.
 >
@@ -37,7 +38,7 @@
   > Creating an account — **or joining/recovering one** — mints this device's db-key and
   > converts the store to `stores/<accountId>/`, and both unlock doors, password and phrase,
   > are built and proved on desktop for all three paths.
-  > Slices 1–7 of the build order below are done on both clients; **slice 8 is next**. Any
+  > Slices 1–7 of the build order below are done on both clients; **7b is next**. Any
   > install predating this must be recreated (pre-v0.1 latitude) — no compatibility path.
 - **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
   and the review surface is **detection-driven rather than permanently advertised** (links and
@@ -91,8 +92,8 @@ the work they imply.
 
 > **Order matters here.** Picking up work cold? Take them in this order:
 > **1.** **Local custody — the block immediately below.** Slices 1–7 are **built on both
-> clients**; start at **slice 8** (retire the Settings recovery-phrase reveal). No longer
-> blocks `launch.md` Increments 2–4.
+> clients**; start at **slice 7b** (per-account db-key doors on mobile), then slice 8. No
+> longer blocks `launch.md` Increments 2–4.
 > **2.** `launch.md` Increment 1's last piece — **an owner decision, not a task**: the version
 > number and the build-number strategy. The machinery and the credential gitignores are built.
 > Due before Increment 4's first store upload, not before the v0.1 cut.
@@ -103,7 +104,7 @@ the work they imply.
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
 **⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/28. Slices 1–7 done on both
-clients; slice 8 is next.**
+clients; slice 7b is next, then 8.**
 
 > **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
 > are fine.** There are no real users, so a migration is only worth writing when it is
@@ -269,16 +270,62 @@ reader would otherwise re-learn the hard way:
    > - **The gate copy no longer names a cause.** It asserted "its secure storage was likely
    >   reset", which reads as an alarming malfunction to someone who just signed out
    >   deliberately. Both clients now mention both routes in.
-   > - **Mobile's doors are device-scoped, not per-account** — one unencrypted sidecar DB
-   >   keyed `id = 1` (`db/sidecars.ts`), where desktop gets per-account scoping free from
-   >   files beside each store. So mobile's forget drops *this device's* pair. Correct while
-   >   a device holds one account (the keystore has a single `db-key` slot anyway), and a
-   >   real constraint to revisit with the login picker.
+   > - **Mobile's doors are device-scoped, not per-account** — see **slice 7b** below, which
+   >   is queued to fix exactly this.
    > - **Mobile UX papercut, not fixed:** on the last-device confirmation the keyboard covers
    >   the "Delete all data" button; the screen scrolls, so it is reachable, but it wants a
    >   `KeyboardAvoidingView`.
 
-8. **⇐ START HERE. Retire the Settings recovery-phrase reveal** *(owner, 2026-07-28)*. The phrase is to be
+7b. **⇐ START HERE. Per-account db-key doors on mobile** *(owner, 2026-07-28 — parity with
+   desktop)*. Mobile keeps both doors in **one** unencrypted sidecar database
+   (`apps/mobile/db/sidecars.ts`: `leapsake-recovery.db`, two tables, each pinned to a single
+   row by `CHECK (id = 1)`). Desktop keeps them as files **named after the store**
+   (`<dbPath>.password`, `<dbPath>.recovery`), so they scope themselves per account.
+
+   **Why this is a bug and not just an asymmetry.** `deleteDoors()` drops the pair for the
+   whole *device*, so the first time a device holds two accounts, forgetting one silently
+   destroys the other's password **and** recovery doors. Nothing fails at the time; it
+   surfaces much later, when that account's keychain is wiped and there is no way back in.
+   It is unreachable today only because the keystore has a single `db-key` slot, which is
+   also why it went unnoticed.
+
+   **How it happened** *(archaeology, so the same shape is not reintroduced)*: both schemes
+   were written in `8e5e58a` (the recovery-phrase increment), when a device had exactly one
+   store at a fixed `leapsake.db`. Desktop's sidecar path was **derived from the store path**;
+   mobile's was a **constant**. The two were indistinguishable until custody slice 2 moved
+   stores to `stores/<accountId>/` — at which point desktop's followed the store for free and
+   mobile's did not. Slice 5 then added the password door by copying each client's existing
+   shape, doubling the asymmetry without anyone deciding to.
+
+   **The work is mostly not in the storage layer.** `enable`, `join`, and `recover` hand
+   `writePasswordSidecar` straight into core (`core-context.tsx` — three sites), and core
+   calls it from *inside* `joinAccountViaRelay` / `createLocalAccount`, at a moment when the
+   account id is not in that scope and the store has not been converted. A per-account writer
+   has no destination to resolve. **Desktop already solved this**: capture the bytes and write
+   them at the converted path afterwards (`create-account-flow.ts`, `adopt-account-flow.ts`,
+   and the note above about `writeThisDevicePasswordDoor` being steady-state only). Mobile
+   adopting that pattern is the bulk of the change — and is a parity win in its own right.
+
+   Recommended shape:
+   - **Scope structurally, not with a `WHERE`**: put them at `stores/<accountId>/doors.db`,
+     in the account's own directory, mirroring desktop. A call site can forget a predicate; it
+     cannot forget a path. Nested database names are already proved on device by the custody
+     self-test.
+   - **Bundle the two `enable` gaps** parked in slice 6's notes (no overwrite guard; no
+     restore path if the conversion throws after `driver.close?.()`). Same three flows —
+     restructure them once, not twice.
+   - **Break the format, do not migrate it.** Pre-v0.1 latitude applies, and the sidecar is
+     the one file where a bad migration is unrecoverable: it must stay readable to be useful.
+   - **Do it before slice 8.** Rotation writes the recovery sidecar; if doors are still
+     device-scoped then, rotation inherits the assumption and adds another site to convert.
+
+   > **It does not make mobile multi-account, and should not be sold as that.** Multi-account
+   > needs three things: per-account doors, **per-account keystore slots** (`db-key` and
+   > `recovery-key` are fixed ids on *both* clients), and a login picker (`resolveActiveStore`
+   > takes `activeAccountId`; nothing passes it). Desktop is one-for-three; this takes mobile
+   > from zero to one.
+
+8. **Retire the Settings recovery-phrase reveal** *(owner, 2026-07-28)*. The phrase is to be
    **shown once at account creation and never again**; the only later route is a
    **re-auth-gated rotation** that mints a new phrase, shows it once, and retires the old. The
    Open half shipped (the section is hidden with no account, and the handler reads instead of
