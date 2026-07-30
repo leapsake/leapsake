@@ -4,11 +4,10 @@ import { join } from "node:path";
 import { createInMemoryKeyStore } from "@leapsake/crypto";
 import {
   type AdoptionDoor,
-  type KeySession,
+  type BootKeySession,
   type SqliteDriver,
-  adoptAccountMasterKey,
   ensureDeviceMasterKey,
-  resyncAfterMasterKeyRepair,
+  establishKeySession,
   runMigrations,
 } from "@leapsake/core";
 import { createPeopleRepo } from "@leapsake/data";
@@ -53,17 +52,17 @@ export interface BootDevice {
     onRequest?: (doors: { password: boolean; phrase: boolean }) => void,
   ): Promise<SqliteDriver>;
   /**
-   * Re-open the way `index.ts`'s `openActiveStore` actually does, including custody
-   * slice 9's master-key repair and the resync that follows an `"adopted"`.
-   * `status` is `undefined` when no door was used (a normal launch).
+   * Re-open the way `index.ts`'s `openActiveStore` actually does: the same
+   * `establishKeySession` call, in the same place, so this harness cannot drift from
+   * the app's ordering. `established` is that call's verdict — `"degraded"` when this
+   * device could not prove the account's master key (custody slice 10).
    */
   bootAndRepair(
     answer: { door: "password" | "phrase"; secret: string },
     onRequest?: (doors: { password: boolean; phrase: boolean }) => void,
   ): Promise<{
     driver: SqliteDriver;
-    keySession: KeySession | undefined;
-    status: "adopted" | "unchanged" | undefined;
+    established: BootKeySession;
   }>;
   cleanup(): void;
 }
@@ -151,23 +150,14 @@ export function makeBootDevice(label: string): BootDevice {
         unlockedBy = door;
       });
       await runMigrations(driver);
-
-      let status: "adopted" | "unchanged" | undefined;
-      if (unlockedBy !== undefined) {
-        status = await adoptAccountMasterKey({
-          keyStore,
-          driver,
-          door: unlockedBy,
-          platform: "desktop",
-        });
-        if (status === "adopted") await resyncAfterMasterKeyRepair({ driver });
-      }
-
-      const keySession =
-        custody === "protected"
-          ? await ensureDeviceMasterKey({ keyStore, driver })
-          : undefined;
-      return { driver, keySession, status };
+      const established = await establishKeySession({
+        keyStore,
+        driver,
+        custody,
+        door: unlockedBy,
+        platform: "desktop",
+      });
+      return { driver, established };
     },
 
     cleanup() {

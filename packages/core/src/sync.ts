@@ -488,39 +488,9 @@ export async function convergeRecoveryKey(opts: {
   return "adopted";
 }
 
-/**
- * Rewind this device's sync watermarks so the next cycle re-pushes everything it
- * holds and re-reads the whole remote log. The companion to
- * `adoptAccountMasterKey`: call it when that returns `"adopted"`.
- *
- * ### Why a repair is not enough on its own
- *
- * A device whose enclave drifted onto a stray master key did not merely stop
- * syncing — it damaged the account in both directions, and neither half self-heals:
- *
- * - **Outbound**, it pushed records sealed under a key no peer holds. Peers pulled
- *   them, failed to open them, and *advanced past them* — the engine skips a bad
- *   record rather than stalling on it forever (`security-findings.md` M3). Those
- *   records will never be offered again.
- * - **Inbound**, the same skip-and-advance happened here for every peer record this
- *   device could not open.
- *
- * Fixing the key stops new damage and repairs neither. Rewinding does: re-pushed
- * records are appended to the relay's log at fresh sequence numbers, so peers pull
- * them as new, and a pull cursor of zero re-delivers everything this device
- * discarded. Both halves are safe to repeat — merge is last-write-wins on
- * `updatedAt`, so a record that survived the outage converges to itself.
- *
- * The cost is one large sync immediately after a repair, which is the right trade
- * against silently holed history.
- */
-export async function resyncAfterMasterKeyRepair(opts: {
-  driver: SqliteDriver;
-}): Promise<void> {
-  const syncState = createSyncStateRepo(opts.driver);
-  await syncState.setPushHwm(0);
-  await syncState.setPullCursor(0);
-}
+// `resyncAfterMasterKeyRepair` moved to `@leapsake/key-custody` (`boot.ts`), beside
+// `establishKeySession` — the boot sequence that decides when it runs. This package's
+// index re-exports it, so callers are unaffected.
 
 /**
  * Run one push→pull cycle for the enabled account on this store. Reads the

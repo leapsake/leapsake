@@ -570,6 +570,33 @@ enclave key and db-key, adds `wrap(MK, device-2 enclave)`, and caches the unlock
 > *Ledger:* MK reachable from either device's enclave, the RK, or the KEK. Two devices, one
 > account, relay still blind.
 
+**Degraded — a device that holds the account but cannot prove its master key** *(decided
+2026-07-29)*. Not a phase but a condition any Protected device can land in, and the answer to
+the one failure the phases above cannot design away: the db-key opens (so the store opens and
+the data is readable) while the enclave holds no MK the account would recognize — a keychain
+that was partly lost, or an unlock door whose `key_wrap` row cannot be opened. **The device
+opens anyway and syncs nothing.** Three properties define it:
+
+- **No key session.** MK is absent rather than invented, so nothing is pushed under a key no
+  peer holds, nothing is pulled that cannot be read, and the recovery-escrow catch-up cannot
+  publish a key this device cannot vouch for — the account-wide exposure §6.1 warns about.
+- **Nothing is minted.** Minting MK over an existing account is forbidden, always: a device
+  holding a stray key seals records no peer can open and discards theirs, silently, and the
+  sync engine advances past both. The refusal is the invariant; Degraded is its consequence.
+- **It is visible and has one exit** — the unlock gate. Signing out lands there, where the
+  *other* door is one action away (a phrase door is untouched by a broken password door and
+  vice versa), and the next open repairs the enclave from it and rewinds both sync watermarks
+  so the records lost in each direction are re-offered once.
+
+> *Ledger:* db-key reachable; MK reachable only from the doors, not from this enclave. Local
+> reads and writes are unaffected, and edits made while degraded reach the account after the
+> repair, because the rewind re-pushes them.
+>
+> **Why not refuse to open**, which is the tempting reading of the invariant: nothing at rest
+> is sealed under MK (§2.1), so the app is fully usable without one. Refusing would withhold a
+> person's own readable data over a cause they can neither see nor act on, while protecting
+> nothing that the missing key session does not already protect.
+
 **Phase 3 — Create a share** *(Stage 1 for capability links; Stage 3 for authenticated)*.
 Every shareable unit owns a CK; sharing is *wrapping that CK for a new reader*. **Capability
 link** (default): the CK rides the URL `#fragment`, which is never sent to the server, so

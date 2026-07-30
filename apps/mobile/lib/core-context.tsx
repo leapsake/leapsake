@@ -16,6 +16,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as SQLite from "expo-sqlite";
 import {
   type AccountBootstrap,
@@ -26,13 +27,12 @@ import {
   type RecoveryDoorWriter,
   type SyncScheduler,
   type SyncStatus,
-  adoptAccountMasterKey,
   clearLocalAccount,
   convergeRecoveryKey,
   createCore,
   createSyncScheduler,
   createLocalAccount,
-  ensureDeviceMasterKey,
+  establishKeySession,
   fetchRelayCapabilities,
   getAutoSync,
   getSyncStatus,
@@ -46,7 +46,6 @@ import {
   recoverAccountViaRelay,
   reconcileOnJoin,
   registerAccountWithRelay,
-  resyncAfterMasterKeyRepair,
   rotateRecoveryPhraseForAccount,
   runAccountSync,
   runMigrations,
@@ -265,6 +264,10 @@ const SyncContext = createContext<SyncApi | null>(null);
 // `router.revalidate()` (reactive invalidation). Defaults to 0 (no provider →
 // never invalidates, so a screen used outside CoreProvider still renders).
 const DataVersionContext = createContext(0);
+// Why this device cannot prove which master key is the account's, or null when it
+// can — the *Degraded* state (custody slice 10). Defaults to null so a screen
+// rendered outside CoreProvider reads as healthy rather than throwing.
+const CustodyDegradedContext = createContext<string | null>(null);
 
 /** Access the ready CoreApi. Throws if used outside a (loaded) CoreProvider. */
 export function useCore(): CoreApi {
@@ -293,6 +296,16 @@ export function useDataVersion(): number {
   return useContext(DataVersionContext);
 }
 
+/**
+ * Why this device syncs nothing, or null when it syncs fine: the *Degraded* state
+ * (custody slice 10, `model.md` §7.5). {@link CustodyBanner} already carries the
+ * cause and the fix app-wide, so a screen reads this only to stop offering controls
+ * that cannot work — which is what Settings does with its sync section.
+ */
+export function useCustodyDegraded(): string | null {
+  return useContext(CustodyDegradedContext);
+}
+
 export function CoreProvider({ children }: { children: ReactNode }) {
   const [core, setCore] = useState<CoreApi | null>(null);
   const [sync, setSync] = useState<SyncApi | null>(null);
@@ -308,6 +321,12 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     doors: { password: boolean; phrase: boolean };
     resolve: (answer: UnlockAnswer) => void;
   } | null>(null);
+  // Why this device cannot prove which master key is the account's, when that is
+  // the case: the *Degraded* state (custody slice 10, `model.md` §7.5). Set by every
+  // bootstrap run, so a repaired device clears it by re-opening. Unlike
+  // {@link recoveryPrompt} it does not block the app — that is the whole point — it
+  // raises a standing banner and keeps sync off.
+  const [degraded, setDegraded] = useState<string | null>(null);
   // Reactive invalidation: bumped whenever a sync pull applied changes, so the
   // focused screen (via `useFocusedData` → `useDataVersion`) re-reads in place.
   const [dataVersion, setDataVersion] = useState(0);
@@ -526,35 +545,42 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // this bundle yet. Cheap no-op on every launch after the first.
       await seedHolidayCatalog({ driver });
 
-      // A door unlock means the OS keychain was lost, which took this device's
-      // master key with it — so teach the enclave the account's own before
-      // anything reads it (custody slice 9). Ordering is load-bearing twice over:
-      // it must follow `runMigrations` (it reads `account`/`key_wrap`) and precede
-      // `ensureDeviceMasterKey`, which is what makes that call find the account's
-      // key instead of refusing.
+      // The key-custody half of the boot, in one call, exactly as desktop's
+      // `openActiveStore` does it (custody slices 9/10): repair a device that came
+      // back through an unlock door — a door unlock means the OS keychain was lost,
+      // which took this device's master key with it — finish a repair an earlier
+      // launch left half-done, and produce the key session. Ordering inside is
+      // load-bearing in both directions; that is why it is one shared function
+      // rather than a sequence each client writes out.
       //
-      // Deliberately not caught. A device that cannot establish which master key
-      // is the account's would sync divergent data invisibly; refusing to open is
-      // the honest failure while there are no real users. Softening this into a
-      // repair-and-retry is a v0.1 blocker — see plans/status.md.
-      if (unlockedBy !== undefined) {
-        const status = await adoptAccountMasterKey({
-          keyStore,
-          driver,
-          door: unlockedBy,
-          platform: Platform.OS,
-        });
-        // The device really had drifted: re-push and re-pull everything, since a
-        // stray key loses records in both directions and neither side re-offers.
-        if (status === "adopted") await resyncAfterMasterKeyRepair({ driver });
+      // It reports rather than throws. A device that cannot prove which master key
+      // is the account's is *Degraded*: the store opens and every screen works, but
+      // `keySession` stays null — already this provider's "do not sync" signal — so
+      // nothing divergent is pushed and the launch-time escrow catch-up cannot
+      // publish a key this device cannot vouch for.
+      const established = await establishKeySession({
+        keyStore,
+        driver,
+        custody: activeStore.custody,
+        door: unlockedBy,
+        platform: Platform.OS,
+      });
+      if (established.state === "degraded") {
+        console.error(
+          "this device's master key could not be re-adopted:",
+          established.cause,
+        );
       }
-
+      // A local as well as state: the sync surface built later in this same
+      // bootstrap closes over it, and the effect re-runs (via `resetVersion`) on
+      // every sign-out and reset, so it can never go stale.
+      const degradedMessage =
+        established.state === "degraded" ? established.message : null;
+      setDegraded(degradedMessage);
       // Custody Phase 0.5, not Phase 0: the master key is minted by account
       // creation, so an Open store runs the core with no key session at all.
       keySession.current =
-        activeStore.custody === "protected"
-          ? await ensureDeviceMasterKey({ keyStore, driver })
-          : null;
+        established.state === "ok" ? (established.keySession ?? null) : null;
 
       // Refresh the recovery sidecar to the *current* enclave recovery key on
       // every launch (not just when missing), so it stays in step if the key was
@@ -1049,6 +1075,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         // Route through the scheduler so the button and background syncs share
         // single-flight; a guarded skip (not enabled) surfaces as the same error.
         async syncNow() {
+          // A Degraded device skips for a completely different reason than a store
+          // with no account, and "sync is not enabled" would send the user off to
+          // create an account they already have (custody slice 10).
+          if (degradedMessage !== null) throw new Error(degradedMessage);
           const result = await scheduler.current?.trigger();
           if (result === undefined) {
             throw new Error("Sync is not enabled for this store.");
@@ -1252,10 +1282,95 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     <CoreContext.Provider value={core}>
       <SyncContext.Provider value={sync}>
         <DataVersionContext.Provider value={dataVersion}>
-          {children}
+          <CustodyDegradedContext.Provider value={degraded}>
+            {/*
+              Above `children`, so the notice is present on every screen and tab: the
+              Degraded state is a property of the device, not of one screen.
+            */}
+            {degraded !== null && (
+              <CustodyBanner
+                detail={degraded}
+                onSignOut={() => sync.signOut()}
+              />
+            )}
+            {children}
+          </CustodyDegradedContext.Provider>
         </DataVersionContext.Provider>
       </SyncContext.Provider>
     </CoreContext.Provider>
+  );
+}
+
+/**
+ * The **Degraded** state's standing notice (custody slice 10, encryption
+ * `model.md` §7.5), the mobile counterpart of desktop's `CustodyBanner`: this
+ * device's store opened and every screen works, but the device cannot prove which
+ * master key belongs to the account, so it syncs nothing until that is repaired.
+ *
+ * A banner rather than a gate, deliberately. The cause is invisible to the person it
+ * happens to — a restored phone, a reinstall, a changed signing identity — and their
+ * data is on the device and readable, so refusing to open the app (which is what
+ * slice 9 did) punishes them for something they cannot see or act on. What they do
+ * need to know is that sync has stopped, because a silent one-device island is what
+ * actually costs them work.
+ *
+ * **The way out is the unlock gate.** Signing out re-runs the bootstrap into that
+ * gate, where the *other* door is one tap away — a phrase door is untouched by a
+ * broken password door and vice versa — and the next open re-runs the repair with it.
+ */
+function CustodyBanner({
+  detail,
+  onSignOut,
+}: {
+  detail: string;
+  onSignOut: () => Promise<void>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+  // This banner sits *above* the navigator, so nothing else applies the top inset
+  // for it: without this the first line renders under the clock and the notch.
+  // Found by looking at it on a device — it reads fine in a layout tree.
+  const insets = useSafeAreaInsets();
+
+  function signOut() {
+    setSignOutError(null);
+    // The gate takes over as soon as the bootstrap re-runs, so nothing awaits this.
+    // The one refusal worth showing is "no password door" — the honest answer then
+    // is Forget account in Settings.
+    onSignOut().catch((cause: unknown) => {
+      setSignOutError(cause instanceof Error ? cause.message : String(cause));
+    });
+  }
+
+  return (
+    <View style={[styles.banner, { paddingTop: insets.top + 12 }]}>
+      <Text style={styles.bannerTitle}>⚠ Sync is paused on this device.</Text>
+      <Text style={styles.bannerBody}>
+        Your data is safe and still here. This device needs to be re-linked to
+        your account before it can sync again.
+      </Text>
+      <Pressable onPress={() => setExpanded(!expanded)}>
+        <Text style={styles.bannerLink}>
+          {expanded ? "Hide details" : "How to fix this"}
+        </Text>
+      </Pressable>
+      {expanded && (
+        <>
+          <Text style={styles.bannerBody}>
+            Sign out and unlock this device again. If you got here after
+            entering your password, use your 24-word recovery phrase this time —
+            and if you used the phrase, use your password.
+          </Text>
+          <Text style={styles.bannerDetail}>{detail}</Text>
+          <Pressable style={styles.button} onPress={signOut}>
+            <Text>Sign out and unlock</Text>
+          </Pressable>
+          {signOutError !== null && (
+            <Text style={styles.error}>{signOutError}</Text>
+          )}
+        </>
+      )}
+    </View>
   );
 }
 
@@ -1430,5 +1545,37 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: "center",
     textDecorationLine: "underline",
+  },
+  /** The Degraded-state notice ({@link CustodyBanner}) — a strip above the app. */
+  banner: {
+    backgroundColor: "#fff4e5",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0b070",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  bannerTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  bannerBody: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  bannerDetail: {
+    fontSize: 12,
+    color: "#6b5330",
+  },
+  bannerLink: {
+    fontSize: 13,
+    textDecorationLine: "underline",
+  },
+  button: {
+    borderWidth: 1,
+    borderColor: "#999",
+    borderRadius: 6,
+    padding: 10,
+    alignItems: "center",
   },
 });

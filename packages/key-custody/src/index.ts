@@ -6,7 +6,10 @@
  *
  * - **Phase 0, the enclave bootstrap** — {@link ensureDeviceMasterKey} mints or
  *   reads the device MK through the `KeyStore` port, the first thing to run after
- *   migrations and before the core exists.
+ *   migrations and before the core exists. {@link establishKeySession} is the whole
+ *   of that phase as a client should call it: the bootstrap plus the repair below,
+ *   in the one order that is safe, reporting the *Degraded* state rather than
+ *   throwing when this device cannot prove which master key is the account's.
  * - **Phases 1–2, the password door** — {@link enableSync} adds the password and
  *   recovery wrappings of MK; {@link unlockWithPassword} and
  *   {@link unlockWithRecoveryKey} open it again from the password or the recovery
@@ -39,6 +42,8 @@
  * which a real `HttpSyncTransport` satisfies structurally. So custody never
  * imports `@leapsake/sync`, and the two stay independently testable.
  */
+export { establishKeySession, resyncAfterMasterKeyRepair } from "./boot.js";
+export type { BootKeySession } from "./boot.js";
 export { createLocalAccount } from "./create-account.js";
 export { STORE_DOOR_SECRET_IDS, lockThisDevice } from "./lock.js";
 export { sealPasswordDoor } from "./password-door.js";

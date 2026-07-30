@@ -6,7 +6,8 @@
 > not here. Design docs never restate status; this file never restates design.
 >
 > **Updated 2026-07-29** — **"Encryption follows custody" is now the shipped behavior on both
-> clients, and the custody build (slices 1–9) is DONE on both.** First launch
+> clients, and the custody build (slices 1–10) is DONE on both, with no custody debt left
+> against v0.1.** First launch
 > mints **no keys** and leaves the store plaintext; creating an
 > account (username + password) is the single act that turns encryption on, converting the
 > store as it goes; and a lost keychain is answered by **the password**, with the 24-word
@@ -18,7 +19,9 @@
 > account creation and at the password-gated **rotation** that replaces it — with peer
 > devices converging on the new one at their next launch. And a device that lost its OS
 > keychain now **re-adopts the account's master key** from the door it just came through,
-> instead of silently inventing one and diverging from its peers. See the block
+> instead of silently inventing one and diverging from its peers — and when that repair
+> *cannot* succeed the device is **Degraded** rather than dead: it opens, works, and syncs
+> nothing until the user comes back through the other unlock door. See the block
 > below under *What's next* → **Local custody** for what each slice did and the traps.
 > The model is [`encryption/model.md`](./encryption/model.md) §7, and §6.1 for rotation.
 >
@@ -45,7 +48,7 @@
   > Creating an account — **or joining/recovering one** — mints this device's db-key and
   > converts the store to `stores/<accountId>/`, and both unlock doors, password and phrase,
   > are built and proved on desktop for all three paths.
-  > Slices 1–9 of the build order below are done on both clients. Any
+  > Slices 1–10 of the build order below are done on both clients. Any
   > install predating this must be recreated (pre-v0.1 latitude) — no compatibility path.
 - **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
   and the review surface is **detection-driven rather than permanently advertised** (links and
@@ -101,17 +104,16 @@ the work they imply.
 > **1.** **`launch.md` Increment 1's last piece** — **an owner decision, not a task**: the
 > version number and the build-number strategy. The machinery and the credential gitignores
 > are built; it is due before Increment 4's first store upload, not before the v0.1 cut.
-> Local custody (the block below) is **done, slices 1–9**, and blocks nothing; its one
-> remaining v0.1 debt is softening slice 9's strict posture, which is interleavable.
+> Local custody (the block below) is **done, slices 1–10**, owes v0.1 nothing, and blocks
+> nothing.
 > **2.** The rest of `launch.md` in its own numbered order, once 1 is settled.
 > **3.** Everything else in this section — genuinely interleavable as capacity allows, no
 > dependencies between them.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/29. Slices 1–9 are DONE on both
-clients. The one thing this block still owes v0.1 is softening slice 9's strict posture (see
-its notes).**
+**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/29. Slices 1–10 are DONE on both
+clients, and this block owes v0.1 nothing.**
 
 > **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
 > are fine.** There are no real users, so a migration is only worth writing when it is
@@ -149,6 +151,11 @@ password entry.
   Protected* before anything is opened.
 - **Opening it** — `apps/desktop/src/main/db/open.ts` and the mirrored branch in
   `apps/mobile/lib/core-context.tsx`, including the two unlock doors.
+- **What the boot does about keys, once the store is open** — `establishKeySession`
+  (`packages/key-custody/src/boot.ts`): the repair, the resume of a half-done repair, the key
+  session, and the *Degraded* verdict when this device cannot prove the account's master key.
+  Both clients and the desktop boot harness call this one function; the ordering inside it is
+  load-bearing in several directions and is documented there.
 - **Turning encryption on** — `createLocalAccount` (`@leapsake/key-custody`) plus each
   client's converter and flow: `apps/desktop/src/main/db/convert-store.ts` +
   `create-account-flow.ts`; `apps/mobile/db/convert-store.ts`, wired inside
@@ -573,11 +580,9 @@ reader would otherwise re-learn the hard way:
    >   Both are keyed to a device id that will never be presented again and an enclave
    >   secret that died with the keychain, so they are unmatchable rather than merely
    >   unused. Sweeping them is per-device revocation — post-launch, with a real design.
-   > - **The strict posture is a v0.1 blocker to soften** (listed under *Encryption + sync*
-   >   below). It costs nothing while there are no real users and it is far easier to reason
-   >   about, but a real person must not meet a locked app for a problem they cannot see or
-   >   act on. Today it throws out of `openActiveStore`, the way the existing custody-state
-   >   guards already do.
+   > - **The strict posture was softened by slice 10** (below), which is what closed the one
+   >   v0.1 blocker this slice opened. The refusal to *mint* is unchanged and must stay so;
+   >   what changed is that a repair which cannot succeed no longer refuses to open the app.
    > - **A stale password sidecar is refused, not worked around.** Its verifier will not
    >   match the account row, and its KEK cannot open the password wrap either. The phrase
    >   door is unaffected (it derives from the recovery key, not the password salt) and is
@@ -611,6 +616,94 @@ reader would otherwise re-learn the hard way:
    > `core-context.tsx` calls them at boot. Resolve with the mobile E2E flows — the harness
    > affordance is now in place, so it is the form that blocks, not the scenario.
 
+10. **Soften the strict posture — the Degraded state** — ✅ **DONE on both clients,
+   2026-07-29**, driven live on desktop over CDP with two profiles and a relay. This closed
+   the v0.1 blocker slice 9 opened. A repair that cannot succeed no longer refuses to open
+   the app: the device is **Degraded** — the store opens, every screen works, and it syncs
+   **nothing** until it is repaired. Design: [`encryption/model.md`](./encryption/model.md)
+   §7.5, which names it as a custody condition.
+
+   What it actually replaced was worse than "locked": desktop threw out of
+   `openActiveStore`, so `whenReady` rejected, `bootPhase` never reached `ready`, and
+   `main.tsx` rendered `null` — **a blank window, forever, with no message.** Mobile at least
+   rendered the raw error string.
+
+   The owner calls this slice carried, both settled while planning: it **opens with sync
+   paused** rather than showing an actionable lock screen (nothing at rest is sealed under MK
+   since slice 3, so the app genuinely works without a key session — and edits made while
+   degraded still reach the account, because the post-repair rewind re-pushes them); and the
+   way out **reuses sign out → the existing unlock gate**, where the other door is one click
+   away, rather than a new mid-session prompt.
+
+   Where it lives: `establishKeySession` (`packages/key-custody/src/boot.ts`) — **one** boot
+   sequence both clients and the desktop boot harness now call, where the ordering
+   *repair → resync → key session* used to be written out three times;
+   `master_key_repair_pending` in `SyncStateRepo` (no migration, `sync_state` is key/value);
+   `custodyDegraded` + `boot:status`/`boot:ready` on desktop with `screens/CustodyBanner.tsx`
+   above the router; `CustodyDegradedContext` + `useCustodyDegraded` on mobile with the banner
+   above `children` in `CoreProvider`. `resyncAfterMasterKeyRepair` moved from
+   `packages/core/src/sync.ts` to sit beside it (still re-exported from core).
+
+   > - **The flag spans adopt-then-rewind, and is set *before* the adopt.** Those are two
+   >   durable writes, and a crash between them leaves a device holding the *right* key with
+   >   its history holed — the exact damage the repair exists to undo. Setting it afterwards
+   >   would leave that window open, which is the whole reason it is durable rather than a
+   >   local variable. A later boot with no door but the flag set rewinds **conservatively**,
+   >   since `"adopted"` and `"unchanged"` are no longer distinguishable from there: one
+   >   redundant full sync converges by LWW, a missed one holes the history for good.
+   > - **`"unchanged"` must not rewind.** Every ordinary sign-out unlock returns it, so
+   >   rewinding there would charge a routine sign-out a full re-push *and* re-pull of the
+   >   account. Pinned by a test, sabotage-verified.
+   > - **Degrading must not relax `ensureDeviceMasterKey`.** Its refusal to mint over an
+   >   existing account is caught, never softened — the refusal *is* the invariant and the
+   >   banner is the consequence of honoring it. The "mints nothing while degraded" test goes
+   >   RED only when *both* halves are relaxed, which is exactly the regression to fear.
+   > - **Sync is off because there is no key session**, not because anything new blocks it —
+   >   three existing guards (`catchUpRecoveryKey`, the scheduler run thunk, mobile's
+   >   `session !== null`) already keyed on it. That is what keeps the launch-time escrow
+   >   catch-up from publishing an unprovable key and re-opening slice 8's account-wide
+   >   exposure. Asserted, not assumed.
+   > - **`sync:now` / `syncNow` had to stop saying "Sync is not enabled for this store."** on
+   >   a degraded device — it sends someone off to create an account they already have. Both
+   >   clients now report the real cause, and Settings hides the sync controls entirely, the
+   >   way it already does for a relay-less account.
+   > - **`rotateRecoveryPhrase` deliberately still works while degraded.** It takes MK from
+   >   the password door, never the enclave (slice 8's first note), so it is correct by
+   >   construction and needs no guard.
+   > - **Mobile's banner sits above the navigator, so nothing else applies the top inset** —
+   >   its first line rendered under the clock and the notch until it took
+   >   `useSafeAreaInsets` itself. Found by looking at it on a simulator; it reads fine in the
+   >   layout tree.
+
+   **How it was verified on desktop** (two profiles + a live relay over CDP): A creates a
+   relay-bound account with a person and syncs → B joins and pulls it → B is quit and **only
+   `device-id` and `enclave` are deleted from its `keystore.json`**, leaving the db-key, which
+   is a real partial keychain loss and the one route to Degraded that needs no sabotage at all
+   (no door is raised, so nothing can repair it) → B relaunches: **it opens on Home with its
+   data, the banner is on screen, `sync:now` returns the degraded message, Settings says sync
+   is paused with the controls gone, and the relay receives nothing.** A person written on B
+   while degraded stays local (the relay's record count does not move). Then the banner's
+   **"Sign out and unlock"** → gate → password → **banner gone**, and the sync that follows
+   shows the rewind in the relay's log: the joined person's record id at seq 1 (A's original
+   push) *and* again at seq 41 (B's re-push), with the degraded-era person at 42 — **and A
+   pulls it**, which is the assertion behind choosing "open" over "lock". Finally the no-op
+   path: an ordinary sign-out and password unlock leaves the relay's log untouched.
+
+   **On mobile**, the on-device suite is **36/36** (two new cases: a door that cannot be
+   repaired from leaves the state degraded, nothing minted and the flag set; and the same
+   store with the missing wrap row comes back `ok`, clearing the flag and rewinding both
+   watermarks — confirmed RED at **34/36** by restoring slice 9's throw and dropping the
+   rewind). Argon2id is kept out of them, per slice 8's note.
+
+   > ⚠️ **The mobile banner's layout was checked on a simulator; the state it reports was
+   > forced to get it on screen.** Reaching Degraded for real on mobile needs an account, and
+   > the account form still cannot be completed under Maestro (the `secureTextEntry` wall from
+   > slices 8/9), so `establishKeySession` was temporarily made to return `degraded` for the
+   > Open case, screenshotted, and reverted. What that proves is the copy, the position above
+   > the tab navigator, and the inset fix — not that a real mobile degradation reaches it. The
+   > logic is proved on device by the self-test and end to end on desktop. Same resolution as
+   > slices 8/9: the mobile E2E flows.
+
 **Explicitly v0.2, not v0.1** *(owner, 2026-07-27)*: **automatic** locking on idle and the
 bounded session. The deliberate half (slice 7) is cheap; a real session needs mid-session
 re-lock in the desktop main process and mobile's bootstrap, and must not be theater since the
@@ -622,7 +715,7 @@ keychain still holds the db-key. Not a one-way door — it sits on the same pass
 `apps/desktop/src/main/db/convert-store.ts` (8 tests, against the real app schema); mobile's
 in `apps/mobile/db/convert-store.ts`, exercised **on device** by
 `apps/mobile/test/custody-selftest.ts`, which runs beside the driver contract under
-`pnpm test:native` (**30 cases** total, each positive paired with its negative; confirmed RED by
+`pnpm test:native` (**36 cases** total, each positive paired with its negative; confirmed RED by
 sabotage before being trusted GREEN). Since slice 7b it also drives the shipped `accountDoors`
 directly — it takes a slot, so a scratch account id proves the per-account scoping without
 touching the custody state of the device it runs on.
@@ -650,14 +743,6 @@ the distribution work rather than ahead of it.
 
 **Encryption + sync:**
 
-- **Soften custody slice 9's strict posture** *(v0.1 blocker, opened 2026-07-29)*. The
-  master-key repair currently must succeed or the app refuses to open, and
-  `ensureDeviceMasterKey` refuses to mint once an account exists. That is the right default
-  with no real users and it is far easier to reason about, but a real person must not meet a
-  locked app for a problem they can neither see nor act on. Wants: a durable retry flag (the
-  shape slice 8's `recovery_escrow_pending` already uses — `sync_state` is key/value, no
-  migration), and a boot-failure surface that says something useful instead of throwing out
-  of `openActiveStore`. Detail and rationale in slice 9's notes above.
 - **Relay hardening.** **H3 is complete for v0.1** — session tokens + both TLS paths
   (Option A Caddy-in-front, Option B in-process) — as are H2, M3, proxy-aware IP, and the
   recovery throttle. Delivery detail in `git log`; findings backlog in

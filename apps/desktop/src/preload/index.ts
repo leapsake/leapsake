@@ -182,12 +182,19 @@ export interface UnlockDoors {
  * before the renderer subscribes); `onUnlockNeeded` carries the previous attempt's
  * error on a retry; `onReady` fires once the core is initialized and the app may
  * render.
+ *
+ * `degraded` is the one piece here that outlives the gate: it is set when the store
+ * opened but this device could not prove which master key is the account's (custody
+ * slice 10, `model.md` §7.5). The app is fully usable — that is the point — so the
+ * phase is still `ready`; sync is off until it is resolved, and the renderer keeps a
+ * banner up for as long as it is set.
  */
 const boot = {
   status: (): Promise<{
     phase: "starting" | "recovering" | "ready";
     error?: string;
     doors: UnlockDoors;
+    degraded?: string;
   }> => ipcRenderer.invoke("boot:status"),
   submitUnlock: (answer: {
     door: "password" | "phrase";
@@ -203,8 +210,11 @@ const boot = {
     ipcRenderer.on("boot:unlock-needed", handler);
     return () => ipcRenderer.removeListener("boot:unlock-needed", handler);
   },
-  onReady: (listener: () => void): (() => void) => {
-    const handler = () => listener();
+  onReady: (
+    listener: (payload: { degraded?: string }) => void,
+  ): (() => void) => {
+    const handler = (_event: unknown, payload?: { degraded?: string }) =>
+      listener(payload ?? {});
     ipcRenderer.on("boot:ready", handler);
     return () => ipcRenderer.removeListener("boot:ready", handler);
   },

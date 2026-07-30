@@ -58,6 +58,24 @@ export interface SyncStateRepo {
    */
   getRecoveryEscrowPending(): Promise<boolean>;
   setRecoveryEscrowPending(pending: boolean): Promise<void>;
+  /**
+   * Whether this device's key custody is **unfinished** (custody slice 10,
+   * `model.md` §7.5): set while a door unlock is re-adopting the account's master
+   * key, and left set when that repair could not complete — which is what puts the
+   * device in the *Degraded* state, syncing nothing until it is resolved.
+   *
+   * It exists because the repair is two durable steps, not one. Adopting the key
+   * commits a `key_wrap` row; rewinding the watermarks
+   * (`resyncAfterMasterKeyRepair`) is a separate write, and a crash between them
+   * leaves a device holding the *right* key with its history quietly holed — the
+   * exact damage the repair exists to undo. The flag spans the pair, so the next
+   * boot finishes it.
+   *
+   * Device-local like everything else here, and necessarily so: it is a fact about
+   * *this* device's enclave, not about the account.
+   */
+  getMasterKeyRepairPending(): Promise<boolean>;
+  setMasterKeyRepairPending(pending: boolean): Promise<void>;
 }
 
 const PUSH_HWM = "push_hwm";
@@ -65,6 +83,7 @@ const PULL_CURSOR = "pull_cursor";
 const AUTO_SYNC_DISABLED = "auto_sync_disabled";
 const HOLIDAY_CATALOG_VERSION = "holiday_catalog_version";
 const RECOVERY_ESCROW_PENDING = "recovery_escrow_pending";
+const MASTER_KEY_REPAIR_PENDING = "master_key_repair_pending";
 
 export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
   async function read(key: string): Promise<number> {
@@ -102,5 +121,11 @@ export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
       (await read(RECOVERY_ESCROW_PENDING)) === 1,
     setRecoveryEscrowPending: (pending) =>
       write(RECOVERY_ESCROW_PENDING, pending ? 1 : 0),
+    // Also not inverted: absent/0 ⇒ nothing to finish, which is the right default
+    // for every device that never lost its keychain.
+    getMasterKeyRepairPending: async () =>
+      (await read(MASTER_KEY_REPAIR_PENDING)) === 1,
+    setMasterKeyRepairPending: (pending) =>
+      write(MASTER_KEY_REPAIR_PENDING, pending ? 1 : 0),
   };
 }

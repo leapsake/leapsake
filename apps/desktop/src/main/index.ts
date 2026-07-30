@@ -13,10 +13,9 @@ import {
   type KeySession,
   type SqliteDriver,
   type SyncScheduler,
-  adoptAccountMasterKey,
   createCore,
   createSyncScheduler,
-  ensureDeviceMasterKey,
+  establishKeySession,
   convergeRecoveryKey,
   fetchRelayCapabilities,
   getAutoSync,
@@ -30,7 +29,6 @@ import {
   recoverAccountViaRelay,
   reconcileOnJoin,
   registerAccountWithRelay,
-  resyncAfterMasterKeyRepair,
   rotateRecoveryPhraseForAccount,
   runAccountSync,
   runMigrations,
@@ -110,6 +108,13 @@ let keySession: KeySession | undefined;
 export function getKeySession(): KeySession | undefined {
   return keySession;
 }
+
+// Why this device cannot prove which master key is the account's, when that is the
+// case: the *Degraded* state (custody slice 10, `model.md` §7.5). Set by every open,
+// so a repaired device clears it by re-opening, and read by the boot IPC — the
+// renderer keeps a banner up while it is set, and every sync surface refuses with
+// this message rather than the misleading "sync is not enabled for this store".
+let custodyDegraded: string | undefined;
 
 // The live core the IPC handlers forward to. Reassigned when sync:join adopts the
 // account master key; registerIpc reads it through a getter so the handlers never
@@ -211,35 +216,35 @@ async function openActiveStore(): Promise<void> {
   // bundle yet. Cheap no-op on every launch after the first.
   await seedHolidayCatalog({ driver });
 
-  // A door unlock means the OS keychain was lost, which took this device's master
-  // key with it — so teach the enclave the account's own before anything reads it
-  // (custody slice 9). This runs *before* `ensureDeviceMasterKey`, which is what
-  // makes that call find the right key instead of minting a stray one, and it runs
-  // synchronously because the launch-time escrow catch-up below would otherwise
-  // publish a stray key to the relay and make one device's problem account-wide.
+  // The key-custody half of the boot, in one call (custody slices 9/10): repair a
+  // device that came back through an unlock door — a door unlock means the OS
+  // keychain was lost, which took this device's master key with it — finish a repair
+  // an earlier boot left half-done, and produce the key session the core is built
+  // around. An Open store gets none, since the master key is minted by account
+  // creation, not here.
   //
-  // Deliberately not caught. A device that cannot establish which master key is
-  // the account's would sync divergent data invisibly, and refusing to open is the
-  // honest failure while there are no real users. Softening this into a repair-and-
-  // retry is a v0.1 blocker — see plans/status.md.
-  if (unlockedBy !== undefined) {
-    const status = await adoptAccountMasterKey({
-      keyStore,
-      driver,
-      door: unlockedBy,
-      platform: "desktop",
-    });
-    // The device really had drifted: re-push and re-pull everything, since a stray
-    // key loses records in both directions and neither side re-offers them.
-    if (status === "adopted") await resyncAfterMasterKeyRepair({ driver });
+  // It reports rather than throws: a device that cannot prove which master key is
+  // the account's is *Degraded* — the store opens and the data is readable, but
+  // `keySession` stays undefined, which is already this process's "do not sync"
+  // signal (the scheduler thunk and `catchUpRecoveryKey` both check it), so nothing
+  // divergent is pushed and no stray key can reach the relay's escrow. The renderer
+  // shows `custodyDegraded` and the way out.
+  const established = await establishKeySession({
+    keyStore,
+    driver,
+    custody: activeStore.custody,
+    door: unlockedBy,
+    platform: "desktop",
+  });
+  custodyDegraded =
+    established.state === "degraded" ? established.message : undefined;
+  keySession = established.state === "ok" ? established.keySession : undefined;
+  if (established.state === "degraded") {
+    console.error(
+      "this device's master key could not be re-adopted:",
+      established.cause,
+    );
   }
-
-  // Custody Phase 0.5, not Phase 0: the master key is minted by account creation,
-  // so an Open store has no key session at all and `createCore` runs without one.
-  keySession =
-    activeStore.custody === "protected"
-      ? await ensureDeviceMasterKey({ keyStore, driver })
-      : undefined;
   setActiveCore(keySession);
 }
 
@@ -355,6 +360,9 @@ async function writeThisDeviceRecoveryDoor(door: Uint8Array): Promise<void> {
  * and the old phrase keeps opening this device's file until there is.
  */
 async function catchUpRecoveryKey(): Promise<void> {
+  // No key session covers the Degraded device too, and load-bearingly so: this
+  // publishes `wrap(recoveryKey, MK)` to the relay, so a device whose master key is
+  // unproven must not reach it (custody slice 9's account-wide-exposure note).
   if (keySession === undefined || storeSwapping) return;
   try {
     await convergeRecoveryKey({
@@ -797,6 +805,10 @@ function registerSyncIpc(): void {
   // completion time for a "last synced" indicator; a guarded skip (sync not
   // enabled) surfaces as the same error the direct call used to throw.
   ipcMain.handle("sync:now", async () => {
+    // A Degraded device skips for a completely different reason than a store with no
+    // account, and telling it "sync is not enabled" would send the user to create an
+    // account they already have. Say what is actually wrong (custody slice 10).
+    if (custodyDegraded !== undefined) throw new Error(custodyDegraded);
     try {
       const result = await scheduler?.trigger();
       if (result === undefined) {
@@ -1040,6 +1052,7 @@ function registerBootIpc(): void {
     phase: bootPhase,
     error: bootError,
     doors: bootDoors,
+    degraded: custodyDegraded,
   }));
   ipcMain.handle("boot:unlock", (_event, answer: unknown) => {
     // Validate here rather than trusting the renderer: this is the one input that
@@ -1062,11 +1075,15 @@ function registerBootIpc(): void {
 /**
  * Tell the renderer the core is live and it may render the app — the signal that
  * ends both a cold boot's unlock gate and a mid-session sign out's.
+ *
+ * It carries `degraded` because a store can open perfectly well on a device that
+ * cannot prove its master key (custody slice 10): the app is usable, so this is
+ * still "ready", but the renderer must say so and sync must stay off.
  */
 function announceBootReady(): void {
   bootPhase = "ready";
   bootError = undefined;
-  mainWindow?.webContents.send("boot:ready");
+  mainWindow?.webContents.send("boot:ready", { degraded: custodyDegraded });
 }
 
 function requestUnlock({ error, doors }: UnlockRequest): Promise<UnlockAnswer> {

@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 import { createAppRouter } from "./router";
+import { CustodyBanner } from "./screens/CustodyBanner";
 import { RecoveryGate } from "./screens/RecoveryGate";
 
 const container = document.getElementById("root");
@@ -39,6 +40,11 @@ function Root() {
   // Which unlock doors this store has, so the gate offers the password when there
   // is one and the phrase alone when there isn't (encryption `model.md` §7.5).
   const [doors, setDoors] = useState({ password: false, phrase: true });
+  // Why this device cannot prove its master key, when that is the case: the
+  // Degraded state (custody slice 10). It rides along with "ready" rather than
+  // being a phase of its own, because the app genuinely is ready — see
+  // {@link CustodyBanner}.
+  const [degraded, setDegraded] = useState<string | undefined>();
 
   useEffect(() => {
     const offNeeded = window.boot.onUnlockNeeded(({ error: err, doors: d }) => {
@@ -46,10 +52,11 @@ function Root() {
       setDoors(d);
       setPhase("recovering");
     });
-    const offReady = window.boot.onReady(() => {
+    const offReady = window.boot.onReady((payload) => {
       // Core is live — safe to build the router now (its eager initial loader
       // will hit a registered `views.entityList`).
       appRouter ??= createAppRouter();
+      setDegraded(payload.degraded);
       setPhase("ready");
     });
     void window.boot.status().then((s) => {
@@ -57,6 +64,7 @@ function Root() {
       setPhase(s.phase);
       setError(s.error);
       setDoors(s.doors);
+      setDegraded(s.degraded);
     });
     return () => {
       offNeeded();
@@ -64,8 +72,15 @@ function Root() {
     };
   }, []);
 
+  // The banner sits above the router, not inside a screen: the state is a property
+  // of the device, so it must be true on every screen the user navigates to.
   if (phase === "ready" && appRouter !== undefined)
-    return <RouterProvider router={appRouter} />;
+    return (
+      <>
+        {degraded !== undefined && <CustodyBanner detail={degraded} />}
+        <RouterProvider router={appRouter} />
+      </>
+    );
   if (phase === "recovering")
     return <RecoveryGate error={error} doors={doors} />;
   return null; // brief "starting" flash; the DB usually opens immediately

@@ -359,6 +359,10 @@ function AccountEnabled({
   const [needsReauth, setNeedsReauth] = useState(false);
   // The per-client "Sync automatically" preference (default on). Null until loaded.
   const [autoSync, setAutoSync] = useState<boolean | null>(null);
+  // Whether this device is *Degraded* — it holds the account but cannot prove the
+  // account's master key, so it syncs nothing (custody slice 10). The boot path is
+  // the only thing that knows, hence `window.boot` rather than `window.sync`.
+  const [degraded, setDegraded] = useState(false);
 
   // Background syncs (interval / window focus / after a local write) complete out
   // of band, so subscribe to keep the "last synced" line and error current even
@@ -380,6 +384,9 @@ function AccountEnabled({
   // Load the current "Sync automatically" preference once.
   useEffect(() => {
     void window.sync.getAutoSync().then(setAutoSync);
+    void window.boot
+      .status()
+      .then((s) => setDegraded(s.degraded !== undefined));
   }, []);
 
   async function toggleAutoSync(next: boolean) {
@@ -439,6 +446,17 @@ function AccountEnabled({
         <p>
           This account is on this computer only. Nothing is sent anywhere, so
           nothing here needs syncing.
+        </p>
+      ) : degraded ? (
+        /*
+          Degraded (custody slice 10): the controls are hidden for the same reason
+          they are on a relay-less account — every one of them would fail, and
+          pressing "Sync now" to be told why is a worse way to learn it. The banner
+          at the top of the window carries the cause and the fix.
+        */
+        <p>
+          Sync is paused until this device is re-linked to your account — see
+          the notice at the top of the window.
         </p>
       ) : (
         <>

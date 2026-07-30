@@ -10,7 +10,7 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { Link } from "expo-router";
 import { MIN_PASSWORD_LENGTH, type SyncStatus } from "@leapsake/core";
-import { useCore, useSync } from "../../lib/core-context";
+import { useCore, useCustodyDegraded, useSync } from "../../lib/core-context";
 import { colors, styles } from "../../lib/styles";
 
 /** Prefilled relay origin for local development (apps/server defaults to :4000). */
@@ -143,6 +143,9 @@ function AccountEnabled({
   onReviewed: () => void;
 }) {
   const sync = useSync();
+  // Whether this device is *Degraded* — it holds the account but cannot prove the
+  // account's master key, so it syncs nothing (custody slice 10).
+  const degraded = useCustodyDegraded();
   const [lastSynced, setLastSynced] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -238,6 +241,16 @@ function AccountEnabled({
         <Text style={styles.muted}>
           This account is on this device only. Nothing is sent anywhere, so
           nothing here needs syncing.
+        </Text>
+      ) : degraded !== null ? (
+        /*
+          Degraded (custody slice 10): hidden for the same reason as on a relay-less
+          account — every control would fail, and tapping "Sync now" to be told why
+          is a worse way to learn it. The banner above carries the cause and the fix.
+        */
+        <Text style={styles.muted}>
+          Sync is paused until this device is re-linked to your account — see
+          the notice at the top of the screen.
         </Text>
       ) : (
         <>

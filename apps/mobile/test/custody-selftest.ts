@@ -15,10 +15,12 @@ import {
   adoptAccountMasterKey,
   adoptRecoveryKey,
   ensureDeviceMasterKey,
+  establishKeySession,
 } from "@leapsake/core";
 import {
   createAccountRepo,
   createKeyWrapRepo,
+  createSyncStateRepo,
   runMigrations,
 } from "@leapsake/data";
 import type { TestApi } from "@leapsake/data/testing";
@@ -893,6 +895,101 @@ export function runCustodySelfTest(t: TestApi): void {
             ensureDeviceMasterKey({ keyStore: d.keyStore, driver: d.driver }),
           ),
         ).toBe(true);
+      } finally {
+        await d.cleanup();
+      }
+    });
+
+    /**
+     * Custody slice 10 — the boot sequence that decides what those two calls mean
+     * for the app: a repair it cannot complete leaves the device **Degraded** (the
+     * store opens, nothing syncs, nothing is minted) instead of refusing to open.
+     *
+     * `custody: "protected"` is a label about the account, not about the file, so a
+     * scratch store answers the question honestly: what is under test is the
+     * sequence and its durable flag, both of which are engine-level behavior worth
+     * proving on SQLCipher under expo-sqlite.
+     */
+    it("degrades instead of throwing when a door cannot be repaired from", async () => {
+      const d = await scratchDevice();
+      try {
+        // An account with **no** recovery wrap row, so the door it is handed cannot
+        // produce the account's master key. This is the shape a device is in after a
+        // crashed password change, or a join that predated slice 9's fix.
+        await createAccountRepo(d.driver).create({
+          id: crypto.randomUUID(),
+          kdfSalt: Uint8Array.from(generateKey()),
+          authVerifier: Uint8Array.from(generateKey()),
+          kdfAlg: KDF_ALG,
+        });
+
+        const established = await establishKeySession({
+          keyStore: d.keyStore,
+          driver: d.driver,
+          custody: "protected",
+          door: { kind: "recovery", recoveryKey: generateKey() },
+        });
+
+        expect(established.state).toBe("degraded");
+        // Nothing minted: a stray master key is the damage the strict posture existed
+        // to prevent, and softening it must not reintroduce that.
+        expect(
+          await createKeyWrapRepo(d.driver).getActive({
+            wrappedKind: "master",
+            principalKind: "enclave",
+          }),
+        ).toBe(undefined);
+        // And the repair is still owed, so whichever door eventually works rewinds.
+        expect(
+          await createSyncStateRepo(d.driver).getMasterKeyRepairPending(),
+        ).toBe(true);
+      } finally {
+        await d.cleanup();
+      }
+    });
+
+    it("comes back to ok, and clears the flag, once the door works", async () => {
+      // The pairing positive: the same call on the same store, with the one thing
+      // that was missing. Without it the case above would pass on a function that
+      // degraded unconditionally.
+      const d = await scratchDevice();
+      try {
+        const accountMasterKey = generateKey();
+        const recoveryKey = generateKey();
+        await createAccountRepo(d.driver).create({
+          id: crypto.randomUUID(),
+          kdfSalt: Uint8Array.from(generateKey()),
+          authVerifier: Uint8Array.from(generateKey()),
+          kdfAlg: KDF_ALG,
+        });
+        await createKeyWrapRepo(d.driver).add({
+          wrappedKind: "master",
+          principalKind: "recovery",
+          ciphertext: wrapKey(accountMasterKey, recoveryKey),
+          alg: ALG,
+        });
+        const syncState = createSyncStateRepo(d.driver);
+        await syncState.setPushHwm(12_345);
+        await syncState.setPullCursor(678);
+
+        const established = await establishKeySession({
+          keyStore: d.keyStore,
+          driver: d.driver,
+          custody: "protected",
+          door: { kind: "recovery", recoveryKey },
+        });
+
+        expect(established.state).toBe("ok");
+        expect(
+          established.state === "ok"
+            ? Array.from(established.keySession!.masterKey).join()
+            : "",
+        ).toBe(Array.from(accountMasterKey).join());
+        expect(await syncState.getMasterKeyRepairPending()).toBe(false);
+        // A real repair rewinds both watermarks, so the records this device lost in
+        // each direction are re-offered once.
+        expect(await syncState.getPushHwm()).toBe(0);
+        expect(await syncState.getPullCursor()).toBe(0);
       } finally {
         await d.cleanup();
       }
