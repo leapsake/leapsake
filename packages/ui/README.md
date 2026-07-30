@@ -21,12 +21,12 @@ container — read the loader, render a component from here.
 
 ## Three subpaths, deliberately
 
-| Import | Holds | Platform |
-|---|---|---|
-| `@leapsake/ui/tokens` | Design tokens as plain objects | Neutral |
-| `@leapsake/ui/messages` | The text catalog + its provider | Neutral |
-| `@leapsake/ui/headless` | Behavior hooks with zero DOM | Neutral |
-| `@leapsake/ui/web` | DOM components | Web + Electron renderer |
+| Import                  | Holds                           | Platform                |
+| ----------------------- | ------------------------------- | ----------------------- |
+| `@leapsake/ui/tokens`   | Design tokens as plain objects  | Neutral                 |
+| `@leapsake/ui/messages` | The text catalog + its provider | Neutral                 |
+| `@leapsake/ui/headless` | Behavior hooks with zero DOM    | Neutral                 |
+| `@leapsake/ui/web`      | DOM components                  | Web + Electron renderer |
 
 There is **no package root export**. Subpaths are what would let a
 `./native` renderer be added later without DOM code entering a React Native
@@ -43,8 +43,16 @@ client has to implement.
 import { UiProvider, type UiAdapter } from "@leapsake/ui/web";
 
 const adapter: UiAdapter = {
-  Link: ({ href, children, ...rest }) => <Link to={href} {...rest}>{children}</Link>,
-  Form: ({ method, action, children }) => <Form method={method} action={action}>{children}</Form>,
+  Link: ({ href, children, ...rest }) => (
+    <Link to={href} {...rest}>
+      {children}
+    </Link>
+  ),
+  Form: ({ method, action, children }) => (
+    <Form method={method} action={action}>
+      {children}
+    </Form>
+  ),
 };
 
 <UiProvider adapter={adapter}>{app}</UiProvider>;
@@ -105,7 +113,7 @@ A dedicated i18n library will land eventually. Nothing here assumes which one:
 components read a plain typed object, so adopting it replaces `messages/en.ts`
 and `messages/context.tsx` and touches no component.
 
-Two things this does *not* cover, both tracked as the wider i18n workstream:
+Two things this does _not_ cover, both tracked as the wider i18n workstream:
 `@leapsake/schema`'s label tables (`genderLabel`, `kindDefs`, the role labels),
 which mobile reads directly; and the strings still inline in `apps/desktop`
 screens that haven't moved into this package yet.
@@ -126,14 +134,14 @@ components that only forward them. The app supplies one implementation:
 <GiftsPortsProvider ports={desktopGiftsPorts}>{app}</GiftsPortsProvider>
 ```
 
-The bar for adding another is that shape — deep nesting *and* several entry
+The bar for adding another is that shape — deep nesting _and_ several entry
 points. A section with one write takes a callback prop instead (`HolidaysSection`
 takes `onSetObserves`).
 
 ## React is a peer dependency
 
 Never a direct one. Desktop and mobile run deliberately different React versions
-(`AGENTS.md` → *React version policy*), and a `dependency` here would put a second
+(`AGENTS.md` → _React version policy_), and a `dependency` here would put a second
 physical React in desktop's bundle, whose module-level hook dispatcher then throws
 “Invalid hook call”. The regression guard is
 `pnpm --filter @leapsake/desktop check:bundle`; run it after touching this package's

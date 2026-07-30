@@ -22,7 +22,7 @@ to the two login endpoints only (`POST /accounts/session`, `GET /accounts/bootst
 the relay persists just `sha256(verifier)`, constant-time-compares it, and namespaces
 records by the **authenticated** identity (never the request body). Each login mints a
 random, short-lived **session token** (`Authorization: Session <token>`) that carries
-the hot `push`/`pull` path — so the raw verifier transits *once per login*, not per
+the hot `push`/`pull` path — so the raw verifier transits _once per login_, not per
 request. Sessions are in-memory and per-process (ephemeral; a restart costs each device
 one silent re-login). A bad/absent credential is `401`.
 
@@ -72,7 +72,7 @@ pnpm --filter @leapsake/server start   # node dist/index.mjs
 
 ## Deploy (self-host)
 
-Self-hosting is the v0.1 sync path. The relay is content-blind, so *running* one is
+Self-hosting is the v0.1 sync path. The relay is content-blind, so _running_ one is
 low-stakes — but it must sit behind **TLS**: never serve it on plain HTTP anywhere real
 (TLS protects the wire, including each device's one-per-login verifier). There are two
 ways to terminate TLS; they're independent and compose freely:
@@ -134,22 +134,22 @@ on the real socket IP.)
 
 All knobs are env vars, centralized in [`src/config.ts`](./src/config.ts):
 
-| Env                                   | Default     | Purpose                                                                                                                       |
-| ------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`                                | `4000`      | HTTP listen port                                                                                                             |
-| `RELAY_DB`                            | `relay.db`  | store path, or `:memory:`                                                                                                    |
-| `RELAY_TRUSTED_PROXIES`               | _(none)_    | comma-separated proxy IPs / CIDRs / `proxy-addr` presets (`loopback`, `uniquelocal`) so rate limiters see the real client IP — **set this in any Option A deploy** |
-| `RELAY_REGISTRATION_TOKEN`            | _(none)_    | if set, `POST /accounts` requires a matching `X-Registration-Token`; unset ⇒ open relay                                       |
-| `RELAY_SESSION_TTL_MS`                | `3600000`   | session-token lifetime (1h)                                                                                                   |
-| `RELAY_TLS_CERT` / `RELAY_TLS_KEY`    | _(none)_    | PEM file paths for in-process TLS (Option B); set **both** to speak HTTPS, or neither for plain HTTP behind a proxy           |
-| `RELAY_TLS_KEY_PASSPHRASE`            | _(none)_    | passphrase for an encrypted `RELAY_TLS_KEY`                                                                                   |
-| `RELAY_RATE_LIMIT_MAX` / `_WINDOW_MS` | `60` / `60000` | unauthenticated-endpoint throttle                                                                                         |
-| `RELAY_RECOVERY_RATE_LIMIT_MAX` / `_WINDOW_MS` | `10` / `60000` | recovery-endpoint throttle                                                                                       |
-| `RELAY_BOOTSTRAP_RATE_LIMIT_MAX` / `_WINDOW_MS` | `10` / `60000` | failed-login throttle (bootstrap + session)                                                                    |
+| Env                                             | Default        | Purpose                                                                                                                                                            |
+| ----------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PORT`                                          | `4000`         | HTTP listen port                                                                                                                                                   |
+| `RELAY_DB`                                      | `relay.db`     | store path, or `:memory:`                                                                                                                                          |
+| `RELAY_TRUSTED_PROXIES`                         | _(none)_       | comma-separated proxy IPs / CIDRs / `proxy-addr` presets (`loopback`, `uniquelocal`) so rate limiters see the real client IP — **set this in any Option A deploy** |
+| `RELAY_REGISTRATION_TOKEN`                      | _(none)_       | if set, `POST /accounts` requires a matching `X-Registration-Token`; unset ⇒ open relay                                                                            |
+| `RELAY_SESSION_TTL_MS`                          | `3600000`      | session-token lifetime (1h)                                                                                                                                        |
+| `RELAY_TLS_CERT` / `RELAY_TLS_KEY`              | _(none)_       | PEM file paths for in-process TLS (Option B); set **both** to speak HTTPS, or neither for plain HTTP behind a proxy                                                |
+| `RELAY_TLS_KEY_PASSPHRASE`                      | _(none)_       | passphrase for an encrypted `RELAY_TLS_KEY`                                                                                                                        |
+| `RELAY_RATE_LIMIT_MAX` / `_WINDOW_MS`           | `60` / `60000` | unauthenticated-endpoint throttle                                                                                                                                  |
+| `RELAY_RECOVERY_RATE_LIMIT_MAX` / `_WINDOW_MS`  | `10` / `60000` | recovery-endpoint throttle                                                                                                                                         |
+| `RELAY_BOOTSTRAP_RATE_LIMIT_MAX` / `_WINDOW_MS` | `10` / `60000` | failed-login throttle (bootstrap + session)                                                                                                                        |
 
 ### Backups
 
-At-rest encryption makes each *client's* store the source of truth; the relay holds only
+At-rest encryption makes each _client's_ store the source of truth; the relay holds only
 ciphertext. Losing `relay.db` costs at most one re-join per device (sync.md §2), but back
 up the `relay-data` volume anyway to avoid that friction.
 

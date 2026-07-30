@@ -9,8 +9,8 @@ app share them instead of each keeping its own copy of the same sort.
 
 Desktop and mobile were maintaining these four derivations twice, byte-for-byte in places: the
 gift idea union-and-sort, the observed/addable holiday split, the reminders open/done partition,
-and the given-sinks ordering on the Gifts screen. Duplicated *presentation* is cheap; duplicated
-*decisions* are not — the two clients can silently disagree about which gifts lead the list.
+and the given-sinks ordering on the Gifts screen. Duplicated _presentation_ is cheap; duplicated
+_decisions_ are not — the two clients can silently disagree about which gifts lead the list.
 
 ## The boundary against `packages/core`
 
@@ -31,7 +31,7 @@ well-known-id lookup behind an onboarding nudge's CTA). Never `core` or `data`.
 
 ## What stays with the client
 
-Routes and copy. `reminderCtaOf` returns the *decision* — an onboarding nudge, the duplicates
+Routes and copy. `reminderCtaOf` returns the _decision_ — an onboarding nudge, the duplicates
 nudge, or a gift reminder pointing at its recipient (flipped once done) — and each client maps
 that to its own router path and its own user-visible label, because the two routers spell the
 same screen differently and the label is translatable text.
