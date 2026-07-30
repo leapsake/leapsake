@@ -49,7 +49,13 @@ function passwordHint(password: string): string {
 export default function SettingsScreen() {
   const sync = useSync();
   const [status, setStatus] = useState<SyncStatus | null>(null);
-  const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
+  // The phrase currently on screen for its one-and-only showing — from account
+  // creation, or from the rotation that replaced it. `escrowPending` is only ever
+  // true for the latter (see {@link RecoveryPhraseSection}).
+  const [revealed, setRevealed] = useState<{
+    phrase: string;
+    escrowPending: boolean;
+  } | null>(null);
   // How many possible duplicates the most recent join surfaced — a prompt to
   // review them (0 = nothing to review). Set when a join completes.
   const [reviewCount, setReviewCount] = useState(0);
@@ -66,12 +72,13 @@ export default function SettingsScreen() {
   useEffect(refreshStatus, [sync]);
 
   // One-time reveal takes over the screen until acknowledged.
-  if (recoveryKey !== null) {
+  if (revealed !== null) {
     return (
       <RecoveryKeyReveal
-        recoveryKey={recoveryKey}
+        recoveryKey={revealed.phrase}
+        escrowPending={revealed.escrowPending}
         onDone={() => {
-          setRecoveryKey(null);
+          setRevealed(null);
           refreshStatus();
         }}
       />
@@ -91,8 +98,17 @@ export default function SettingsScreen() {
         />
       ) : (
         <>
-          <CreateAccount onCreated={setRecoveryKey} />
-          <SyncSetup onEnabled={setRecoveryKey} onJoined={onJoined} />
+          <CreateAccount
+            onCreated={(phrase) =>
+              setRevealed({ phrase, escrowPending: false })
+            }
+          />
+          <SyncSetup
+            onEnabled={(phrase) =>
+              setRevealed({ phrase, escrowPending: false })
+            }
+            onJoined={onJoined}
+          />
         </>
       )}
       {/*
@@ -105,7 +121,7 @@ export default function SettingsScreen() {
       {status !== null &&
         (status.enabled ? (
           <>
-            <RecoveryPhraseSection />
+            <RecoveryPhraseSection onRotated={setRevealed} />
             <SignOutSection />
             <ForgetAccountSection />
           </>
@@ -924,9 +940,16 @@ function RecoverStep({
  */
 function RecoveryKeyReveal({
   recoveryKey,
+  escrowPending,
   onDone,
 }: {
   recoveryKey: string;
+  /**
+   * The rotation could not reach the relay, so the account's escrow still answers
+   * to the *previous* phrase. Only ever true for a rotation — a new account has no
+   * previous phrase, and a local-only account has no escrow.
+   */
+  escrowPending: boolean;
   onDone: () => void;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
@@ -940,6 +963,14 @@ function RecoveryKeyReveal({
         lose both, your data cannot be recovered.
       </Text>
       <RecoveryPhraseWords phrase={recoveryKey} />
+      {escrowPending && (
+        <Text style={styles.danger} accessibilityRole="alert">
+          Keep your old phrase until this device next syncs. Leapsake couldn't
+          reach your relay, so recovering your account on a new device still
+          needs the old phrase. This one takes over automatically the next time
+          this device syncs.
+        </Text>
+      )}
       <View style={[styles.rowMeta, { marginTop: 0 }]}>
         <Text style={styles.fieldValue}>I've saved my recovery phrase</Text>
         <Switch value={acknowledged} onValueChange={setAcknowledged} />
@@ -958,8 +989,9 @@ function RecoveryKeyReveal({
   );
 }
 
-/** The numbered word grid + a copy button — shared by the one-time reveal and
- *  the on-demand "Reveal recovery phrase" section. */
+/** The numbered word grid + a copy button — used by the one-time reveal, which
+ *  since custody slice 8 is the *only* place a phrase is ever displayed (at
+ *  account creation, and at the rotation that replaces it). */
 function RecoveryPhraseWords({ phrase }: { phrase: string }) {
   const [copied, setCopied] = useState(false);
   const words = phrase.split(" ");
@@ -1313,33 +1345,50 @@ function FactoryResetSection() {
 }
 
 /**
- * On-demand recovery-phrase reveal — **only rendered once an account exists.**
+ * Replace the recovery phrase — **only rendered once an account exists**, and only
+ * ever a *replacement*. It used to be a "Reveal recovery phrase" button; custody
+ * slice 8 retired that (owner, 2026-07-28). The phrase is shown once at account
+ * creation and never again, so this is the one later route to holding one.
+ * Mirrors desktop's section, copy included.
  *
- * An Open device has no phrase: no db-key to wrap, no sidecar to open, nothing in
- * secure storage (`model.md` §7.2). Offering the button there was a relic of the
- * old "encrypted by default" stance, and pressing it *minted* a recovery key,
- * quietly breaking the invariant that first launch creates no key material.
+ * Two things the copy has to get right, because both are counter-intuitive:
  *
- * This surface is itself on the way out: the phrase is to be shown once at
- * account creation and never again, with a re-auth-gated **rotation** as the only
- * way to get a new one. That removal waits for the password door (custody slice
- * 5), because until it exists the phrase is the *only* way back into the file
- * after secure storage is reset, and hiding a sole door is how mislaid becomes
- * lost.
+ * - **It is not a way back in.** It requires the password, and the phrase exists
+ *   for when the password is gone. Its real job is compromise response — "my
+ *   phrase leaked" — and someone arriving here after forgetting their password
+ *   needs the unlock gate instead.
+ * - **Other devices catch up on their own**, at their next sync, rather than
+ *   instantly. Until then the old phrase still opens *their* local files.
  */
-function RecoveryPhraseSection() {
+function RecoveryPhraseSection({
+  onRotated,
+}: {
+  onRotated: (revealed: { phrase: string; escrowPending: boolean }) => void;
+}) {
   const sync = useSync();
-  const [phrase, setPhrase] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [password, setPassword] = useState("");
+  const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function reveal() {
+  async function rotate() {
+    if (password === "") return;
     setError(null);
+    setWorking(true);
     try {
-      setPhrase(await sync.revealRecoveryPhrase());
+      const { recoveryPhrase, escrowPending } =
+        await sync.rotateRecoveryPhrase(password);
+      setPassword("");
+      setConfirming(false);
+      // Straight into the same one-time reveal account creation uses: this is the
+      // only time these words are ever displayed.
+      onRotated({ phrase: recoveryPhrase, escrowPending });
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Couldn't read the phrase.",
+        cause instanceof Error ? cause.message : "Couldn't replace the phrase.",
       );
+    } finally {
+      setWorking(false);
     }
   }
 
@@ -1347,18 +1396,62 @@ function RecoveryPhraseSection() {
     <View style={{ marginTop: 24, gap: 8 }}>
       <Text style={styles.title}>Recovery phrase</Text>
       <Text style={styles.muted}>
-        Your recovery phrase is the way back into your data if you lose your
-        password or this device's secure storage is reset.
+        Your recovery phrase was shown once, when you created your account. It
+        can't be shown again — if you saved it, keep it somewhere safe.
       </Text>
-      {phrase === null ? (
-        <Pressable style={styles.button} onPress={reveal}>
-          <Text style={styles.buttonText}>Reveal recovery phrase</Text>
+      <Text style={styles.muted}>
+        If you've lost it, or think someone else has seen it, you can replace it
+        with a new one. Your old phrase stops working.
+      </Text>
+      {!confirming ? (
+        <Pressable style={styles.button} onPress={() => setConfirming(true)}>
+          <Text style={styles.buttonText}>Replace recovery phrase…</Text>
         </Pressable>
       ) : (
         <>
-          <RecoveryPhraseWords phrase={phrase} />
-          <Pressable style={styles.button} onPress={() => setPhrase(null)}>
-            <Text style={styles.buttonText}>Hide</Text>
+          <Text style={styles.muted}>
+            Enter your password to confirm. (This isn't a way back in if you've
+            forgotten it — the phrase is what covers that.)
+          </Text>
+          <Text style={styles.fieldLabel}>Password</Text>
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="current-password"
+            placeholder="Your password"
+            placeholderTextColor={colors.muted}
+          />
+          <Text style={styles.muted}>
+            Other devices on this account keep using the old phrase for their
+            own files until they next sync, then switch over on their own.
+          </Text>
+          <Pressable
+            style={[
+              styles.button,
+              (password === "" || working) && {
+                backgroundColor: colors.border,
+              },
+            ]}
+            disabled={password === "" || working}
+            onPress={() => void rotate()}
+          >
+            <Text style={styles.buttonText}>
+              {working ? "Replacing…" : "Replace phrase"}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.button, { backgroundColor: colors.border }]}
+            disabled={working}
+            onPress={() => {
+              setConfirming(false);
+              setPassword("");
+              setError(null);
+            }}
+          >
+            <Text style={styles.buttonText}>Cancel</Text>
           </Pressable>
         </>
       )}

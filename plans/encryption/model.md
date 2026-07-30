@@ -272,6 +272,43 @@ deliberately**, not bolted on:
   Shamir's Secret Sharing among trusted contacts; architecturally it is just another
   wrapping, so the model already allows it.
 
+### 6.1 The phrase is shown twice in its life, and replaced rather than revealed *(decided 2026-07-28)*
+
+There is **no way to see the phrase again.** It is displayed at account creation, and at
+the **rotation** that replaces it — nowhere else. A standing "reveal" control put a
+long-lived secret one tap from an unlocked app and still left a leaked phrase with no
+answer; rotation is that answer.
+
+Rotation is **compromise response, not recovery**. It requires the password, so it is
+useless to someone who has lost it — the phrase is what covers *that*. Say so wherever it
+is offered, or it will be found by exactly the users it cannot help.
+
+One recovery key belongs to the account, and it is fastened in four places: each device's
+db-key door, each device's `key_wrap(master, recovery)` row, each device's keychain, and
+the relay's escrow (`wrap(MK, RK)`, its inverse, and the verifier hash). A rotation moves
+all four, but not all at once:
+
+- **The rotating device moves its own three immediately**, so rotation works with no
+  network at all. This is deliberate: a security action must not be gated on connectivity.
+- **The relay's escrow follows at the next sync** when the rotation happened offline. In
+  that window the *old* phrase is still what recovers the account, so the UI must tell the
+  user to keep it until then.
+- **Peer devices converge on their own**, at their next launch: the relay already holds
+  `wrap(recoveryKey, MK)` and every device holds MK, so a peer can learn the new key
+  without the user typing anything. Until a peer converges, the old phrase still opens
+  *its* local file.
+
+Two invariants that are easy to get wrong, both learned the hard way:
+
+- **Flush before pulling.** The rotating device runs the peer catch-up too; pulling before
+  its own escrow has been flushed fetches the relay's *old* escrow and overwrites the key
+  behind a phrase already shown to the user.
+- **Rotation wraps the master key from the password door, never the enclave.** A device
+  that lost its keychain and came back through a door holds a *fresh* enclave master key
+  (the keychain held `device-id`, so a new one mints a new MK). Wrapping the phrase around
+  that key publishes an escrow the account has never seen, and no device can recover from
+  the phrase again.
+
 ## 7. Decisions locked in discussion
 
 Each line is a settled decision; the section it points to has the reasoning.

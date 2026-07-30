@@ -22,9 +22,11 @@ import {
   type CoreApi,
   type KeySession,
   type PasswordDoorWriter,
+  type RecoveryDoorWriter,
   type SyncScheduler,
   type SyncStatus,
   clearLocalAccount,
+  convergeRecoveryKey,
   createCore,
   createSyncScheduler,
   createLocalAccount,
@@ -42,6 +44,7 @@ import {
   recoverAccountViaRelay,
   reconcileOnJoin,
   registerAccountWithRelay,
+  rotateRecoveryPhraseForAccount,
   runAccountSync,
   runMigrations,
   seedHolidayCatalog,
@@ -52,7 +55,6 @@ import {
   DATABASE_KEY,
   RECOVERY_KEY,
   decodeRecoveryPhrase,
-  encodeRecoveryPhrase,
   ensureDatabaseKey,
   openDbKeyFromRecovery,
   openDbKeyWithPassword,
@@ -207,8 +209,16 @@ export interface SyncApi {
    * unless the account was synced.
    */
   factoryReset(): Promise<void>;
-  /** Reveal this device's recovery phrase (the words back into the data). */
-  revealRecoveryPhrase(): Promise<string>;
+  /**
+   * Replace this device's recovery phrase, gated on the account password
+   * (`model.md` §6). Returns the new phrase to show **once** — there is no way to
+   * see it again — and `escrowPending`, `true` when the relay could not be
+   * reached: until the next sync the *old* phrase is still what recovers the
+   * account, and the caller must say so.
+   */
+  rotateRecoveryPhrase(
+    password: string,
+  ): Promise<{ recoveryPhrase: string; escrowPending: boolean }>;
   /** Read this install's "Sync automatically" preference (default true). */
   getAutoSync(): Promise<boolean>;
   /**
@@ -545,7 +555,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           const status = await getSyncStatus({ driver });
           if (!status.enabled || status.relayUrl === undefined)
             return undefined;
-          return runAccountSync({ driver, masterKey: session.masterKey });
+          return runAccountSync({
+            keyStore,
+            driver,
+            masterKey: session.masterKey,
+          });
         },
         onResult: ({ at, applied }) =>
           notifyActivity({ at, changed: applied !== undefined && applied > 0 }),
@@ -770,6 +784,24 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           );
         }
         await doors.writePassword(bytes);
+      };
+
+      /**
+       * The {@link RecoveryDoorWriter} counterpart, for the two paths that change
+       * this device's recovery key: rotating the phrase here, and adopting a
+       * rotation performed on another device.
+       *
+       * Neither runs during a store conversion, so unlike the password writer this
+       * one has no "not for the establishing flows" caveat — `doors` already names
+       * the account's own directory whenever either can be reached.
+       */
+      const writeThisDeviceRecoveryDoor: RecoveryDoorWriter = async (bytes) => {
+        if (doors === undefined) {
+          throw new Error(
+            "This device has no account to seal a recovery door for.",
+          );
+        }
+        await doors.writeRecovery(bytes);
       };
 
       // The enable-sync surface closes over the *booted* driver + keystore, so it
@@ -1096,30 +1128,18 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           coreRef.current = null;
           setResetVersion((v) => v + 1);
         },
-        // Reads, never mints. Minting here would give an accountless device a
-        // keychain entry it is defined not to have (model.md §7.2) and show 24
-        // words that unlock nothing — while Open there is no db-key to wrap and
-        // no sidecar to open. Settings hides the surface until an account
-        // exists; this refuses if it is ever reached another way.
-        revealRecoveryPhrase: async () => {
-          const recoveryKey = await readRecoveryKey(keyStore);
-          if (recoveryKey === undefined) {
-            // Two different absences (mirrors desktop). Signing out clears the
-            // recovery key along with the db-key — both open the store — and a
-            // *password* unlock cannot bring it back: it lived only in the
-            // keychain that was cleared, and minting a replacement here would
-            // re-seal the recovery sidecar under a fresh key and silently
-            // invalidate the 24 words the user wrote down. Those words still
-            // work; this device just can no longer display them.
-            throw new Error(
-              (await getSyncStatus({ driver })).enabled === true
-                ? "This device can't show your recovery phrase again — it was " +
-                    "cleared when you signed out. The phrase you saved still works."
-                : "This device has no recovery phrase. Create an account to protect your data.",
-            );
-          }
-          return encodeRecoveryPhrase(recoveryKey);
-        },
+        // Replaces this device's phrase rather than revealing it (custody slice
+        // 8, mirroring desktop): a phrase is shown once at account creation, and
+        // rotation is the only later route to one. Gated on the password, checked
+        // locally by core — so it works on a local-only account and offline, with
+        // `escrowPending` telling the caller the relay has not been told yet.
+        rotateRecoveryPhrase: (password) =>
+          rotateRecoveryPhraseForAccount({
+            keyStore,
+            driver,
+            password,
+            writeRecoveryDoor: writeThisDeviceRecoveryDoor,
+          }),
         getAutoSync: () => getAutoSync({ driver }),
         async setAutoSync(enabled) {
           await setAutoSync({ driver, enabled });
@@ -1130,6 +1150,26 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           return () => activityListeners.current.delete(listener);
         },
       });
+
+      // Once per launch, take on a phrase rotated on another device — and, on a
+      // device that lost its recovery key at sign-out, get one back (custody slice
+      // 8, `model.md` §6). Fire-and-forget and silent on failure: it is
+      // convergence, not something the user asked for, so an unreachable relay or
+      // a local-only account simply means there is nothing to converge on yet.
+      //
+      // Last in the bootstrap because it needs `writeThisDeviceRecoveryDoor`,
+      // which is declared with the rest of the sync surface above.
+      const session = keySession.current;
+      if (session !== null && doors !== undefined) {
+        void convergeRecoveryKey({
+          keyStore,
+          driver,
+          masterKey: session.masterKey,
+          writeRecoveryDoor: writeThisDeviceRecoveryDoor,
+        }).catch((cause: unknown) => {
+          console.error("recovery-key catch-up failed:", cause);
+        });
+      }
     })().catch((e) => setError(String(e)));
 
     return () => {

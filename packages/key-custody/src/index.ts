@@ -16,6 +16,10 @@
  * - **Adoption and repair** — {@link joinAccount} (a second device),
  *   {@link recoverAccount} (a forgotten password), {@link reauthenticate} (a
  *   password changed elsewhere).
+ * - **Replacing the phrase** — {@link rotateRecoveryPhrase} (this device, gated
+ *   on the password) and {@link adoptRecoveryKey} (a peer taking on a rotation
+ *   another device performed). The phrase is shown once at account creation, so
+ *   rotation is the only later way to hold a new one.
  * - **Relinquish** — {@link lockThisDevice} (sign out: forget the keys that open
  *   the store, so the password is needed again) and {@link KEYSTORE_SECRET_IDS},
  *   the full set of secrets a factory reset must erase. {@link clearLocalAccount}
@@ -36,6 +40,12 @@
 export { createLocalAccount } from "./create-account.js";
 export { STORE_DOOR_SECRET_IDS, lockThisDevice } from "./lock.js";
 export { sealPasswordDoor } from "./password-door.js";
+export {
+  adoptRecoveryKey,
+  holdsRecoveryKey,
+  rotateRecoveryPhrase,
+} from "./rotate-recovery.js";
+export type { RecoveryDoorWriter } from "./rotate-recovery.js";
 export {
   KEYSTORE_SECRET_IDS,
   MIN_PASSWORD_LENGTH,

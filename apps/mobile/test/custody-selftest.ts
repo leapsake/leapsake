@@ -1,5 +1,15 @@
 import * as SQLite from "expo-sqlite";
-import { generateKey, rawKeyLiteral } from "@leapsake/crypto";
+import {
+  DATABASE_KEY,
+  RECOVERY_KEY,
+  createInMemoryKeyStore,
+  generateKey,
+  openDbKeyFromRecovery,
+  rawKeyLiteral,
+  sealDbKeyForRecovery,
+} from "@leapsake/crypto";
+import { adoptRecoveryKey } from "@leapsake/core";
+import { runMigrations } from "@leapsake/data";
 import type { TestApi } from "@leapsake/data/testing";
 import {
   convertStoreToEncrypted,
@@ -7,6 +17,7 @@ import {
   storeState,
 } from "../db/convert-store";
 import { accountDoors, doorsPath } from "../db/doors";
+import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 
 /**
  * The **custody** self-test: proves on-device the two expo-sqlite behaviors that
@@ -666,6 +677,128 @@ export function runCustodySelfTest(t: TestApi): void {
       } finally {
         await SQLite.deleteDatabaseAsync(sourceName);
         await SQLite.deleteDatabaseAsync(targetName);
+      }
+    });
+  });
+
+  /**
+   * Custody slice 8 — **taking on a new recovery phrase**, against the shipped
+   * `adoptRecoveryKey` and the shipped `accountDoors`, on the engine this app runs.
+   * It is the step both paths that change the key end in: a rotation performed
+   * here, and one performed on another device that this one catches up to.
+   *
+   * **Deliberately no password anywhere in this suite.** The password gate costs an
+   * Argon2id pass (19 MiB, 2 rounds) which on Hermes, unJITted, in a dev bundle,
+   * runs for *minutes* — enough to make this whole tier look hung. It is also not
+   * a mobile question: the gate and the full rotation are proved in
+   * `apps/desktop/test/integration/rotate-recovery.test.ts` and against a live
+   * relay in `apps/server/test/relay.test.ts`. What is only provable here is that
+   * the new key lands in `stores/<account>/doors.db` and reopens *this* device's
+   * db-key.
+   *
+   * Scratch throughout — an in-memory keystore and a scratch account id — so the
+   * device's own custody state is untouched, the same trick the door cases use.
+   */
+  describe("custody: adopting a new recovery key", () => {
+    /** A scratch store + doors + keystore holding a db-key, and nothing else. */
+    async function scratchDevice() {
+      const account = `acct-${crypto.randomUUID()}`;
+      const storeName = `stores/${account}/leapsake.db`;
+      const keyStore = createInMemoryKeyStore();
+      const doors = accountDoors(account);
+      const db = await SQLite.openDatabaseAsync(storeName);
+      const driver = expoSqliteDriver(db);
+      await runMigrations(driver);
+      const dbKey = generateKey();
+      await keyStore.setSecret(DATABASE_KEY, dbKey);
+      return {
+        keyStore,
+        driver,
+        doors,
+        dbKey,
+        cleanup: async () => {
+          await db.closeAsync();
+          await doors.destroy();
+          await discard(storeName);
+        },
+      };
+    }
+
+    it("re-seals the account's doors.db recovery row around the new key", async () => {
+      const d = await scratchDevice();
+      try {
+        const oldKey = generateKey();
+        const masterKey = generateKey();
+        // The starting state the boot path leaves: a door sealed under the key
+        // this device currently holds.
+        await d.doors.writeRecovery(sealDbKeyForRecovery(d.dbKey, oldKey));
+        await d.keyStore.setSecret(RECOVERY_KEY, oldKey);
+
+        const newKey = generateKey();
+        await adoptRecoveryKey({
+          keyStore: d.keyStore,
+          driver: d.driver,
+          recoveryKey: newKey,
+          masterKey,
+          writeRecoveryDoor: (bytes) => d.doors.writeRecovery(bytes),
+        });
+
+        // The row really moved, and the new key opens *this* device's db-key
+        // through it — each device seals its own, so that is the property.
+        const door = await d.doors.readRecovery();
+        expect(
+          Array.from(
+            openDbKeyFromRecovery(door ?? new Uint8Array(), newKey),
+          ).join(),
+        ).toBe(Array.from(d.dbKey).join());
+        // The keychain copy moved too; stale here and the next launch re-seals
+        // the door back under the old key, silently undoing the adoption.
+        expect(
+          Array.from((await d.keyStore.getSecret(RECOVERY_KEY)) ?? []).join(),
+        ).toBe(Array.from(newKey).join());
+
+        // The pairing negative — without it a door that was merely rewritten, or
+        // not rewritten at all, would still read as a pass.
+        let oldStillOpens = true;
+        try {
+          openDbKeyFromRecovery(door ?? new Uint8Array(), oldKey);
+        } catch {
+          oldStillOpens = false;
+        }
+        expect(oldStillOpens).toBe(false);
+      } finally {
+        await d.cleanup();
+      }
+    });
+
+    it("leaves another account's doors alone", async () => {
+      // The per-account scoping slice 7b established, on the path slice 8 added:
+      // adopting on one account must not touch a second account's door.
+      const a = await scratchDevice();
+      const b = await scratchDevice();
+      try {
+        const bKey = generateKey();
+        await b.doors.writeRecovery(sealDbKeyForRecovery(b.dbKey, bKey));
+
+        await adoptRecoveryKey({
+          keyStore: a.keyStore,
+          driver: a.driver,
+          recoveryKey: generateKey(),
+          masterKey: generateKey(),
+          writeRecoveryDoor: (bytes) => a.doors.writeRecovery(bytes),
+        });
+
+        expect(
+          Array.from(
+            openDbKeyFromRecovery(
+              (await b.doors.readRecovery()) ?? new Uint8Array(),
+              bKey,
+            ),
+          ).join(),
+        ).toBe(Array.from(b.dbKey).join());
+      } finally {
+        await a.cleanup();
+        await b.cleanup();
       }
     });
   });

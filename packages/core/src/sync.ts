@@ -3,6 +3,10 @@ import {
   DATABASE_KEY,
   type KeyStore,
   decodeRecoveryPhrase,
+  deriveRecoveryVerifier,
+  readRecoveryKey,
+  unwrapKey,
+  wrapKey,
 } from "@leapsake/crypto";
 import {
   type DuplicateCandidate,
@@ -37,9 +41,13 @@ import {
 import {
   type AccountBootstrap,
   type KeySession,
+  type RecoveryDoorWriter,
+  adoptRecoveryKey,
+  holdsRecoveryKey,
   joinAccount,
   reauthenticate,
   recoverAccount,
+  rotateRecoveryPhrase,
   sealPasswordDoor,
 } from "@leapsake/key-custody";
 
@@ -306,6 +314,181 @@ export async function recoverAccountViaRelay(opts: {
 }
 
 /**
+ * Replace this device's recovery phrase (custody slice 8, `model.md` §6): rotate
+ * the local doors through {@link rotateRecoveryPhrase}, then carry the new escrow
+ * to the relay if this account has one.
+ *
+ * **It works offline, deliberately.** A relay-bound account's escrow is what a
+ * *fresh* device recovers from, and it can only be replaced over the network — but
+ * refusing to rotate without a connection would put a security action behind
+ * connectivity, which is not the posture this app takes anywhere else. So the
+ * local half always lands, and an unreachable relay leaves the escrow **pending**
+ * for the next sync ({@link flushPendingRecoveryEscrow}) instead of failing.
+ *
+ * `escrowPending` in the result is the caller's cue to say so. Until the flush
+ * lands, the *old* phrase is still what recovers the account and the new one is
+ * not, so a user who discards the old phrase in that window and then loses this
+ * device has lost the account. The copy has to tell them to keep it until this
+ * device next syncs. `false` for a local-only account, where there is no escrow
+ * and the new phrase is live everywhere the moment it is shown.
+ */
+export async function rotateRecoveryPhraseForAccount(opts: {
+  keyStore: KeyStore;
+  driver: SqliteDriver;
+  password: string;
+  /** Persist this device's at-rest recovery door — see {@link RecoveryDoorWriter}. */
+  writeRecoveryDoor: RecoveryDoorWriter;
+}): Promise<{ recoveryPhrase: string; escrowPending: boolean }> {
+  const { keyStore, driver, password, writeRecoveryDoor } = opts;
+
+  const { recoveryPhrase, masterKey } = await rotateRecoveryPhrase({
+    keyStore,
+    driver,
+    password,
+    writeRecoveryDoor,
+  });
+
+  const account = await createAccountRepo(driver).getSingleton();
+  if (account === undefined || account.relayUrl === null) {
+    return { recoveryPhrase, escrowPending: false };
+  }
+
+  // Marked *before* the attempt, not after a failure: a crash mid-publish must
+  // still leave the flag set, or the relay keeps an escrow no one holds the
+  // phrase for.
+  const syncState = createSyncStateRepo(driver);
+  await syncState.setRecoveryEscrowPending(true);
+  try {
+    await flushPendingRecoveryEscrow({ keyStore, driver, masterKey });
+  } catch {
+    // Offline, or the relay refused. The rotation itself stands; the flush is the
+    // next sync's job.
+  }
+  return {
+    recoveryPhrase,
+    escrowPending: await syncState.getRecoveryEscrowPending(),
+  };
+}
+
+/**
+ * Carry a pending rotation's escrow to the relay — the deferred half of
+ * {@link rotateRecoveryPhraseForAccount}, run at the top of every sync cycle and
+ * before any peer catch-up. A no-op (one local flag read) when nothing is
+ * pending, which is every sync but the one after a rotation.
+ *
+ * All three recovery fields go up together, because they are one key seen three
+ * ways: the escrow a fresh device unwraps MK from, its inverse (so a
+ * password-joining device can reveal the same phrase), and the verifier hash that
+ * authenticates a recovery at all. Writing a subset would leave an account that
+ * authenticates a recovery it cannot then complete.
+ *
+ * Returns whether it published. A device that **signed out** between rotating and
+ * flushing keeps the flag set and publishes nothing: its recovery key went with
+ * the sign-out, and nothing local can reconstruct it. That is recoverable rather
+ * than stuck — unlocking with the *phrase* restores the key to the keychain, and
+ * the next sync flushes — so the flag is deliberately not cleared.
+ */
+export async function flushPendingRecoveryEscrow(opts: {
+  keyStore: KeyStore;
+  driver: SqliteDriver;
+  masterKey: Uint8Array;
+}): Promise<boolean> {
+  const { keyStore, driver, masterKey } = opts;
+  const syncState = createSyncStateRepo(driver);
+  if (!(await syncState.getRecoveryEscrowPending())) return false;
+
+  const account = await createAccountRepo(driver).getSingleton();
+  if (account === undefined || account.relayUrl === null) {
+    // Nothing to flush to — an account that was never relay-bound, or was
+    // forgotten. Clear it so the check stays honest rather than permanently armed.
+    await syncState.setRecoveryEscrowPending(false);
+    return false;
+  }
+
+  const recoveryKey = await readRecoveryKey(keyStore);
+  if (recoveryKey === undefined) return false;
+
+  const transport = createHttpSyncTransport({ baseUrl: account.relayUrl });
+  await transport.publishRecovery({
+    accountId: account.id,
+    authVerifier: Uint8Array.from(account.authVerifier),
+    wrappedRecoveryKey: wrapKey(recoveryKey, masterKey),
+    wrappedMasterKeyRecovery: wrapKey(masterKey, recoveryKey),
+    recoveryVerifier: deriveRecoveryVerifier(recoveryKey),
+  });
+  await syncState.setRecoveryEscrowPending(false);
+  return true;
+}
+
+/**
+ * Adopt a rotation another device performed — how every other device on the
+ * account ends up on one phrase without the user typing anything (custody slice
+ * 8). The relay already holds `wrap(recoveryKey, MK)` and this device already
+ * holds MK, so it can learn the new key on its own; nothing secret is added to
+ * the relay and nothing new is asked of the user.
+ *
+ * It also **re-arms a device that lost its recovery key at sign-out**. That key is
+ * cleared with the db-key (both open the store) and a password unlock cannot
+ * bring it back, so until now such a device stayed permanently phrase-less. Here
+ * it simply differs from the account's key and adopts it.
+ *
+ * ### Flush first, and never pull while pending
+ *
+ * The rotating device runs this code too. If it pulled while its own escrow was
+ * still pending, it would fetch the relay's **old** escrow and overwrite the key
+ * it had just minted — silently invalidating a phrase already shown to the user.
+ * So this flushes first and refuses to pull if the flag survives that. Both halves
+ * matter: the flush is what normally clears it, the refusal is what holds when the
+ * flush cannot.
+ *
+ * Concurrent rotations on two offline devices resolve as **last flush wins**: the
+ * loser adopts the winner's key at its next run, and the phrase it displayed stops
+ * working. Accepted — two people rotating the same account's phrase within one
+ * offline window is not a case worth a protocol for.
+ *
+ * Meant to be called **once per launch**, not per sync: it costs a relay round
+ * trip, and a rotation that lands mid-session is not urgent (the old phrase still
+ * opens this device's file until it converges).
+ */
+export async function convergeRecoveryKey(opts: {
+  keyStore: KeyStore;
+  driver: SqliteDriver;
+  masterKey: Uint8Array;
+  /** Persist this device's at-rest recovery door — see {@link RecoveryDoorWriter}. */
+  writeRecoveryDoor: RecoveryDoorWriter;
+}): Promise<"adopted" | "unchanged" | "skipped"> {
+  const { keyStore, driver, masterKey, writeRecoveryDoor } = opts;
+
+  await flushPendingRecoveryEscrow({ keyStore, driver, masterKey });
+  const syncState = createSyncStateRepo(driver);
+  if (await syncState.getRecoveryEscrowPending()) return "skipped";
+
+  const account = await createAccountRepo(driver).getSingleton();
+  if (account === undefined || account.relayUrl === null) return "skipped";
+
+  const transport = createHttpSyncTransport({ baseUrl: account.relayUrl });
+  const { wrappedRecoveryKey } = await transport.fetchBootstrap({
+    accountId: account.id,
+    authVerifier: Uint8Array.from(account.authVerifier),
+  });
+  // Absent on an account registered against a pre-unification relay: there is no
+  // account-wide key to converge on, so this device keeps its own.
+  if (wrappedRecoveryKey === undefined) return "skipped";
+
+  const recoveryKey = unwrapKey(wrappedRecoveryKey, masterKey);
+  if (await holdsRecoveryKey(keyStore, recoveryKey)) return "unchanged";
+
+  await adoptRecoveryKey({
+    keyStore,
+    driver,
+    recoveryKey,
+    masterKey,
+    writeRecoveryDoor,
+  });
+  return "adopted";
+}
+
+/**
  * Run one push→pull cycle for the enabled account on this store. Reads the
  * account singleton and its relay coordinates (`relayUrl`/`authVerifier`)
  * internally so an IPC handler stays one line. Returns the completion time for a
@@ -313,12 +496,23 @@ export async function recoverAccountViaRelay(opts: {
  * delivered, so a caller can revalidate the UI only when a pull changed
  * something. Throws if sync is not enabled, or the account is not relay-bound
  * (no `relayUrl`) — enable-sync with a relay must precede a sync.
+ *
+ * `keyStore` is required so this can flush a pending recovery-escrow rotation
+ * first — the deferred half of an offline rotation. Required rather than optional
+ * on purpose: a client that could omit it would silently leave the relay holding
+ * an escrow whose phrase nobody has, and nothing would surface that until someone
+ * tried to recover.
  */
 export async function runAccountSync(opts: {
+  keyStore: KeyStore;
   driver: SqliteDriver;
   masterKey: Uint8Array;
 }): Promise<{ at: number; applied: number }> {
-  const { driver, masterKey } = opts;
+  const { keyStore, driver, masterKey } = opts;
+  // Before the records: a rotation the user has already been shown is waiting on
+  // this, and it is one small request against a relay we are about to talk to
+  // anyway.
+  await flushPendingRecoveryEscrow({ keyStore, driver, masterKey });
   const account = await createAccountRepo(driver).getSingleton();
   if (account === undefined) {
     throw new Error("Sync is not enabled for this store.");

@@ -15,6 +15,7 @@ import {
   createCore,
   createSyncScheduler,
   ensureDeviceMasterKey,
+  convergeRecoveryKey,
   fetchRelayCapabilities,
   getAutoSync,
   getSyncStatus,
@@ -27,17 +28,14 @@ import {
   recoverAccountViaRelay,
   reconcileOnJoin,
   registerAccountWithRelay,
+  rotateRecoveryPhraseForAccount,
   runAccountSync,
   runMigrations,
   seedHolidayCatalog,
   setAutoSync,
   withSyncKick,
 } from "@leapsake/core";
-import {
-  type KeyStore,
-  encodeRecoveryPhrase,
-  readRecoveryKey,
-} from "@leapsake/crypto";
+import type { KeyStore } from "@leapsake/crypto";
 import {
   createEmailInputSchema,
   createMilestoneInputSchema,
@@ -81,6 +79,7 @@ import { jsonFileStorage } from "./db/roster-storage.js";
 import {
   passwordSidecarPath,
   readSidecar,
+  recoverySidecarPath,
   writeSidecar,
 } from "./db/sidecars.js";
 import { storeFileState } from "./db/sqlite-header.js";
@@ -297,6 +296,45 @@ async function restoreLiveStore(): Promise<void> {
  */
 async function writeThisDevicePasswordDoor(sidecar: Uint8Array): Promise<void> {
   writeSidecar(passwordSidecarPath(dbPath), sidecar);
+}
+
+/**
+ * The recovery-door counterpart of {@link writeThisDevicePasswordDoor}, handed to
+ * the two paths that change this device's recovery key: a rotation here, and
+ * adopting one performed on another device.
+ *
+ * Unlike the password door this one has no "not for the converting paths" caveat —
+ * neither caller runs during a store conversion. The boot path writes the same
+ * file from the keychain key on every launch (`open.ts`), which is what makes a
+ * missed write self-correcting rather than permanent.
+ */
+async function writeThisDeviceRecoveryDoor(door: Uint8Array): Promise<void> {
+  writeSidecar(recoverySidecarPath(dbPath), door);
+}
+
+/**
+ * Once per launch, take on a recovery phrase rotated on another device (custody
+ * slice 8) — and, on a device that lost its recovery key at sign-out, get one
+ * back. Both are the same act: the account's key differs from this device's, so
+ * this device adopts it and re-seals its own doors.
+ *
+ * Fire-and-forget, and silent on failure by design. It is a convergence step, not
+ * something the user asked for: an unreachable relay, an Open store, or a
+ * local-only account all simply mean there is nothing to converge on right now,
+ * and the old phrase keeps opening this device's file until there is.
+ */
+async function catchUpRecoveryKey(): Promise<void> {
+  if (keySession === undefined || storeSwapping) return;
+  try {
+    await convergeRecoveryKey({
+      keyStore,
+      driver,
+      masterKey: keySession.masterKey,
+      writeRecoveryDoor: writeThisDeviceRecoveryDoor,
+    });
+  } catch (error) {
+    console.error("recovery-key catch-up failed:", error);
+  }
 }
 
 /**
@@ -895,32 +933,28 @@ function registerSyncIpc(): void {
     mainWindow?.webContents.reload();
   });
 
-  // Reveal this device's recovery phrase — the escape hatch back into both the
-  // local file and a synced account (model.md §6). **Reads, never mints.** It
-  // used to call `ensureRecoveryKey`, so an accountless device that pressed the
-  // button silently gained a keychain entry it is defined not to have (§7.2) and
-  // was shown 24 words that unlock nothing: while Open there is no db-key to wrap
-  // and no sidecar to open. Settings now hides the surface entirely until an
-  // account exists, and this refuses if it is ever reached another way.
-  ipcMain.handle("sync:revealRecoveryPhrase", async () => {
-    const recoveryKey = await readRecoveryKey(keyStore);
-    if (recoveryKey === undefined) {
-      // Two different absences, and telling an account holder to "create an
-      // account" would be nonsense. Signing out clears the recovery key along
-      // with the db-key (both open the store, `lockThisDevice`), and unlocking
-      // with the **password** cannot bring it back — it lived only in the
-      // keychain that was cleared, and minting a replacement here would re-seal
-      // `<db>.recovery` under a fresh key and silently invalidate the 24 words
-      // the user wrote down. The phrase itself is unaffected and still opens the
-      // sidecar; this device simply can no longer *display* it.
-      throw new Error(
-        (await getSyncStatus({ driver })).enabled === true
-          ? "This device can't show your recovery phrase again — it was cleared " +
-              "when you signed out. The phrase you saved still works."
-          : "This device has no recovery phrase. Create an account to protect your data.",
-      );
+  // Replace this device's recovery phrase (custody slice 8, model.md §6). This
+  // handler **replaced an on-demand reveal**, which is the point of the slice: a
+  // phrase is shown once at account creation, and the only later route to one is
+  // a rotation that retires the old.
+  //
+  // The gate is the password, checked locally by core, so this works on a
+  // local-only account and offline. `escrowPending` comes back true when the relay
+  // could not be told — the renderer must pass that on, because until the next
+  // sync the *old* phrase is still what recovers the account.
+  ipcMain.handle("sync:rotateRecoveryPhrase", async (_event, args: unknown) => {
+    const { password } = (args ?? {}) as { password?: unknown };
+    // Not `requireText`: that trims, and a password is verified byte for byte
+    // against a verifier derived from what the user actually typed.
+    if (typeof password !== "string" || password === "") {
+      throw new Error("Password is required.");
     }
-    return encodeRecoveryPhrase(recoveryKey);
+    return rotateRecoveryPhraseForAccount({
+      keyStore,
+      driver,
+      password,
+      writeRecoveryDoor: writeThisDeviceRecoveryDoor,
+    });
   });
 
   // The per-client "Sync automatically" preference (default on). Read at render
@@ -1038,7 +1072,11 @@ void app.whenReady().then(async () => {
       if (keySession === undefined || storeSwapping) return undefined;
       const status = await getSyncStatus({ driver });
       if (!status.enabled || status.relayUrl === undefined) return undefined;
-      return runAccountSync({ driver, masterKey: keySession.masterKey });
+      return runAccountSync({
+        keyStore,
+        driver,
+        masterKey: keySession.masterKey,
+      });
     },
     onResult: ({ at, applied }) =>
       broadcastSyncActivity({
@@ -1077,6 +1115,7 @@ void app.whenReady().then(async () => {
   scheduler.start(); // backstop interval
   void regenerateSystemReminders(); // populate today's birthdays atop Home
   void scheduler.autoTrigger(); // initial on-launch sync (skipped if auto off)
+  void catchUpRecoveryKey(); // adopt a phrase rotated on another device
 
   // Pull the peer's edits in the moment the user returns to the app — the cheap,
   // event-driven companion to write-kicked pushes. Regenerating here too keeps a

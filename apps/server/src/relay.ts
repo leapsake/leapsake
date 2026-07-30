@@ -29,7 +29,7 @@ export type { RateLimit };
  * The blind relay — `sync.md` §2's "least clever option": an authenticated
  * HTTPS endpoint that stores and serves opaque {@link WireRecord}s ordered by an
  * opaque cursor. It can read, merge, and order *nothing* about content; it only
- * orders *delivery*. Three routes:
+ * orders *delivery*. The routes:
  *
  * - `POST /accounts`           — register `{ accountId, username, authVerifier,
  *                                kdfSalt, wrappedMasterKey }` (b64); dup username → 409.
@@ -38,6 +38,11 @@ export type { RateLimit };
  * - `GET  /accounts/bootstrap` — verifier auth; → `{ wrappedMasterKey,
  *                                wrappedRecoveryKey?, token, expiresAt }` for a joining
  *                                device (the wrapped MK, the recovery-key escrow, *and* a session).
+ * - `GET  /accounts/recovery`  — **recovery** auth; → `{ wrappedMasterKeyRecovery }`.
+ * - `POST /accounts/recovery`  — **verifier** auth; replace the recovery door after a
+ *                                phrase rotation. Same path, opposite credential — each
+ *                                door is rotated by proving the *other* one.
+ * - `POST /accounts/reset`     — **recovery** auth; replace the password door.
  * - `POST /sync/push`          — session auth; append `{ records }` to the account log.
  * - `GET  /sync/pull`          — session auth; `?since=<cursor>` → `{ records, cursor }`.
  *
@@ -93,6 +98,16 @@ const resetBodySchema = z.object({
   authVerifier: base64,
   kdfSalt: base64,
   wrappedMasterKey: base64,
+});
+
+/**
+ * Password-authenticated recovery rotation: new recovery-door material, all three
+ * fields required (a partial write would leave the account unrecoverable).
+ */
+const rotateRecoveryBodySchema = z.object({
+  wrappedRecoveryKey: base64,
+  wrappedMasterKeyRecovery: base64,
+  recoveryVerifier: base64,
 });
 
 const wireRecordSchema = z.object({
@@ -559,6 +574,43 @@ export function createRelayServer(opts: {
           account.wrappedMasterKeyRecovery,
         ),
       });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/accounts/recovery") {
+      // **Password-authed, not recovery-authed** — the one thing about this
+      // endpoint that must never be "simplified" to match its GET sibling on the
+      // same path. Rotation exists to answer a *leaked phrase*; gating it on the
+      // recovery verifier would hand whoever leaked it the power to rotate the
+      // phrase themselves and lock the owner out of their own account. Proving
+      // knowledge of the password is the whole point.
+      const accountId = authenticate(req, store);
+      if (accountId === null) {
+        // Same online-guessing surface as the other verifier-authed endpoints, so
+        // it spends the same budget (H2).
+        if (!allowBootstrap(clientIp(req))) {
+          sendJson(res, 429, { error: "rate limited" });
+          return;
+        }
+        sendJson(res, 401, { error: "unauthorized" });
+        return;
+      }
+      const parsed = rotateRecoveryBodySchema.safeParse(
+        JSON.parse((await readBody(req)) || "{}"),
+      );
+      if (!parsed.success) {
+        sendJson(res, 400, { error: "invalid request" });
+        return;
+      }
+      const { wrappedRecoveryKey, wrappedMasterKeyRecovery, recoveryVerifier } =
+        parsed.data;
+      store.setRecovery(
+        accountId,
+        base64ToBytes(wrappedRecoveryKey),
+        base64ToBytes(wrappedMasterKeyRecovery),
+        sha256(base64ToBytes(recoveryVerifier)),
+      );
+      sendJson(res, 200, { ok: true });
       return;
     }
 

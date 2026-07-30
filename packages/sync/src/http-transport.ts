@@ -144,6 +144,24 @@ export interface HttpSyncTransport extends SyncTransport {
     recoveryVerifier: Uint8Array;
   }): Promise<Uint8Array>;
   /**
+   * Bearer-authed: replace the account's **recovery** door after a phrase rotation
+   * (custody slice 8) — the escrow a fresh device recovers from, its inverse, and
+   * the verifier hash that authenticates a recovery. Authenticated with the
+   * *password* verifier, not the recovery one: a leaked phrase must not be able to
+   * rotate itself.
+   *
+   * Takes the credentials as an argument rather than reading the construction-time
+   * ones so the caller can rotate on a transport it built for the account, in the
+   * same shape {@link HttpSyncTransport.fetchBootstrap} uses.
+   */
+  publishRecovery(args: {
+    accountId: string;
+    authVerifier: Uint8Array;
+    wrappedRecoveryKey: Uint8Array;
+    wrappedMasterKeyRecovery: Uint8Array;
+    recoveryVerifier: Uint8Array;
+  }): Promise<void>;
+  /**
    * Recovery-authed: replace the account's password door (verifier, salt, and
    * `wrap(MK, KEK)`) with freshly chosen-password material. How a recovered
    * device re-establishes a working relay credential after recovery.
@@ -333,6 +351,29 @@ export function createHttpSyncTransport(opts: {
       }
       const body = (await res.json()) as { wrappedMasterKeyRecovery: string };
       return base64ToBytes(body.wrappedMasterKeyRecovery);
+    },
+
+    async publishRecovery(args) {
+      // The password verifier, in the same `Bearer <accountId>.<verifier>` form
+      // `fetchBootstrap` uses — the relay refuses a `Recovery` token here.
+      const bearer = `${args.accountId}.${bytesToBase64(args.authVerifier)}`;
+      const res = await doFetch(`${base}/accounts/recovery`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${bearer}`,
+        },
+        body: JSON.stringify({
+          wrappedRecoveryKey: bytesToBase64(args.wrappedRecoveryKey),
+          wrappedMasterKeyRecovery: bytesToBase64(
+            args.wrappedMasterKeyRecovery,
+          ),
+          recoveryVerifier: bytesToBase64(args.recoveryVerifier),
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`relay POST /accounts/recovery failed: ${res.status}`);
+      }
     },
 
     async resetCredentials(args) {

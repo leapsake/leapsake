@@ -115,9 +115,17 @@ const sync = {
    * store is open, so the caller has no completion state to render.
    */
   factoryReset: (): Promise<void> => ipcRenderer.invoke("app:factoryReset"),
-  /** Reveal this device's recovery phrase (the words back into the data). */
-  revealRecoveryPhrase: (): Promise<string> =>
-    ipcRenderer.invoke("sync:revealRecoveryPhrase"),
+  /**
+   * Replace this device's recovery phrase, gated on the account password
+   * (`model.md` §6). Returns the new phrase to show **once** — there is no way to
+   * see it again — and `escrowPending`, which is `true` when the relay could not be
+   * reached: until the next sync the *old* phrase is still what recovers the
+   * account, and the caller must say so.
+   */
+  rotateRecoveryPhrase: (
+    password: string,
+  ): Promise<{ recoveryPhrase: string; escrowPending: boolean }> =>
+    ipcRenderer.invoke("sync:rotateRecoveryPhrase", { password }),
   /** Read this install's "Sync automatically" preference (default true). */
   getAutoSync: (): Promise<boolean> => ipcRenderer.invoke("sync:getAutoSync"),
   /** Persist + apply the "Sync automatically" preference for this install. */

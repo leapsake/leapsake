@@ -4,21 +4,29 @@ import { request as httpsRequest } from "node:https";
 import type { AddressInfo } from "node:net";
 import { DatabaseSync } from "node:sqlite";
 import {
+  DATABASE_KEY,
+  RECOVERY_KEY,
   createInMemoryKeyStore,
+  deriveRecoveryVerifier,
   encodeRecoveryPhrase,
   generateKey,
   generateSalt,
 } from "@leapsake/crypto";
+import { bytesToBase64 } from "@leapsake/bytes";
 import {
+  convergeRecoveryKey,
   createCore,
   enableSync,
   ensureDeviceMasterKey,
   joinAccount,
+  joinAccountViaRelay,
   reauthenticateViaRelay,
   recoverAccountViaRelay,
   reconcileOnJoin,
+  rotateRecoveryPhraseForAccount,
   runAccountSync,
   unlockWithPassword,
+  unlockWithRecoveryKey,
 } from "@leapsake/core";
 import {
   type MilestonesRepo,
@@ -606,7 +614,11 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       firstName: "Ada",
       lastName: "Lovelace",
     });
-    await runAccountSync({ driver: d1.driver, masterKey: mk.masterKey });
+    await runAccountSync({
+      keyStore: d1.keyStore,
+      driver: d1.driver,
+      masterKey: mk.masterKey,
+    });
 
     // --- Device 2: fresh, forgot the password — has only the recovery phrase. ---
     const d2 = blankDevice();
@@ -627,7 +639,11 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     expect(session.masterKey).toEqual(mk.masterKey);
 
     // Device 2 syncs and reads device 1's data, decrypted.
-    await runAccountSync({ driver: d2.driver, masterKey: session.masterKey });
+    await runAccountSync({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      masterKey: session.masterKey,
+    });
     expect(await reposFor(d2.driver).people.get(ada.id)).toEqual(ada);
 
     // The newly-set password now unlocks MK locally (the reset took on the relay
@@ -700,7 +716,11 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       firstName: "Ada",
       lastName: "Lovelace",
     });
-    await runAccountSync({ driver: d1.driver, masterKey: mk.masterKey });
+    await runAccountSync({
+      keyStore: d1.keyStore,
+      driver: d1.driver,
+      masterKey: mk.masterKey,
+    });
 
     // --- Device 2: join by username+password, sync, read Ada. It now holds the
     //     original-password credential. ---
@@ -716,7 +736,11 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       password: PASSWORD,
       platform: "mobile",
     });
-    await runAccountSync({ driver: d2.driver, masterKey: d2session.masterKey });
+    await runAccountSync({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      masterKey: d2session.masterKey,
+    });
     expect(await reposFor(d2.driver).people.get(ada.id)).toEqual(ada);
 
     // --- Device 3: recover from the phrase, which resets the account password —
@@ -738,7 +762,11 @@ describe("multi-device login over the relay (enable → join → converge)", () 
 
     // Device 2's credential is now stale → its sync fails with a relay 401.
     await expect(
-      runAccountSync({ driver: d2.driver, masterKey: d2session.masterKey }),
+      runAccountSync({
+        keyStore: d2.keyStore,
+        driver: d2.driver,
+        masterKey: d2session.masterKey,
+      }),
     ).rejects.toThrow(/401/);
 
     // A wrong password fails at the relay's verifier check, before any local
@@ -752,7 +780,11 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       }),
     ).rejects.toThrow();
     await expect(
-      runAccountSync({ driver: d2.driver, masterKey: d2session.masterKey }),
+      runAccountSync({
+        keyStore: d2.keyStore,
+        driver: d2.driver,
+        masterKey: d2session.masterKey,
+      }),
     ).rejects.toThrow(/401/);
 
     // Device 2 re-authenticates with the new password — the MK is untouched — and
@@ -767,8 +799,16 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       firstName: "Grace",
       lastName: "Hopper",
     });
-    await runAccountSync({ driver: d3.driver, masterKey: d3session.masterKey });
-    await runAccountSync({ driver: d2.driver, masterKey: d2session.masterKey });
+    await runAccountSync({
+      keyStore: d3.keyStore,
+      driver: d3.driver,
+      masterKey: d3session.masterKey,
+    });
+    await runAccountSync({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      masterKey: d2session.masterKey,
+    });
     expect(await reposFor(d2.driver).people.get(grace.id)).toEqual(grace);
 
     d1.db.close();
@@ -785,7 +825,11 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       firstName: "Jane",
       lastName: "Doe",
     });
-    await runAccountSync({ driver: d1.driver, masterKey: mk1 });
+    await runAccountSync({
+      keyStore: d1.keyStore,
+      driver: d1.driver,
+      masterKey: mk1,
+    });
 
     // --- Device 2: fresh, but already holds its own local "Jane Doe" (a
     // distinct-id duplicate of the account's) and an unrelated "Bob Jones"
@@ -838,8 +882,16 @@ describe("multi-device login over the relay (enable → join → converge)", () 
 
     // Local data is preserved, not abandoned: B's normal sync pushes it up and
     // device 1 converges on Bob + the second Jane.
-    await runAccountSync({ driver: d2.driver, masterKey: session.masterKey });
-    await runAccountSync({ driver: d1.driver, masterKey: mk1 });
+    await runAccountSync({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      masterKey: session.masterKey,
+    });
+    await runAccountSync({
+      keyStore: d1.keyStore,
+      driver: d1.driver,
+      masterKey: mk1,
+    });
     const onD1 = (await d1People.list()).map((p) => p.id);
     expect(onD1).toContain(bob.id);
     expect(onD1).toContain(localJane.id);
@@ -847,6 +899,340 @@ describe("multi-device login over the relay (enable → join → converge)", () 
 
     d1.db.close();
     d2.db.close();
+  });
+
+  /**
+   * Custody slice 8 — replacing the recovery phrase. These are the properties the
+   * *relay* half must hold: the escrow really moves, the old phrase really stops
+   * recovering the account, and a leaked phrase cannot rotate itself.
+   *
+   * A fake db-key is planted in each keystore because these drivers are plain
+   * in-memory SQLite with no encrypted store: rotation seals a door around the
+   * db-key, and `captureDoor` is the sink that stands in for a file/row.
+   */
+  describe("recovery-phrase rotation", () => {
+    /** Enable + register, returning the material a rotation test needs. */
+    async function enableWithPhrase(device: ReturnType<typeof blankDevice>) {
+      await runMigrations(device.driver);
+      const mk = await ensureDeviceMasterKey({
+        keyStore: device.keyStore,
+        driver: device.driver,
+      });
+      const { recoveryKey, bootstrap } = await enableSync({
+        keyStore: device.keyStore,
+        driver: device.driver,
+        username: "ada",
+        password: PASSWORD,
+        relayUrl: baseUrl,
+        platform: "desktop",
+      });
+      await createHttpSyncTransport({
+        baseUrl,
+        accountId: bootstrap.accountId,
+        authVerifier: bootstrap.authVerifier,
+      }).register({
+        username: bootstrap.username ?? "",
+        kdfSalt: bootstrap.kdfSalt,
+        wrappedMasterKey: bootstrap.wrappedMasterKey,
+        wrappedRecoveryKey: bootstrap.wrappedRecoveryKey,
+        wrappedMasterKeyRecovery: bootstrap.wrappedMasterKeyRecovery,
+        recoveryVerifier: bootstrap.recoveryVerifier,
+      });
+      // Stands in for the encrypted store's key; the door writer is a sink.
+      await device.keyStore.setSecret(DATABASE_KEY, generateKey());
+      return {
+        masterKey: mk.masterKey,
+        accountId: bootstrap.accountId,
+        authVerifier: bootstrap.authVerifier,
+        oldPhrase: encodeRecoveryPhrase(recoveryKey),
+      };
+    }
+
+    /** A recovery door writer that records what it was handed. */
+    function captureDoor() {
+      const written: Uint8Array[] = [];
+      return {
+        written,
+        write: (door: Uint8Array) => {
+          written.push(door);
+          return Promise.resolve();
+        },
+      };
+    }
+
+    it("retires the old phrase for account recovery and puts the new one in its place", async () => {
+      const d1 = blankDevice();
+      const { masterKey, oldPhrase } = await enableWithPhrase(d1);
+      const door = captureDoor();
+
+      const { recoveryPhrase, escrowPending } =
+        await rotateRecoveryPhraseForAccount({
+          keyStore: d1.keyStore,
+          driver: d1.driver,
+          password: PASSWORD,
+          writeRecoveryDoor: door.write,
+        });
+
+      // The relay was reachable, so nothing is deferred, and this device's door
+      // was re-sealed around the new key.
+      expect(escrowPending).toBe(false);
+      expect(recoveryPhrase).not.toBe(oldPhrase);
+      expect(door.written).toHaveLength(1);
+
+      // The old phrase no longer authenticates a recovery at all: the relay's
+      // verifier hash moved with the escrow (401 before any unwrap).
+      const d2 = blankDevice();
+      await runMigrations(d2.driver);
+      await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+      await expect(
+        recoverAccountViaRelay({
+          writePasswordSidecar: discardSidecar,
+          keyStore: d2.keyStore,
+          driver: d2.driver,
+          relayUrl: baseUrl,
+          username: "ada",
+          recoveryPhrase: oldPhrase,
+          newPassword: "a brand new battery horse staple",
+        }),
+      ).rejects.toThrow();
+
+      // The new phrase does, and reaches the same master key — so the escrow was
+      // replaced, not merely invalidated.
+      const d3 = blankDevice();
+      await runMigrations(d3.driver);
+      await ensureDeviceMasterKey({ keyStore: d3.keyStore, driver: d3.driver });
+      const session = await recoverAccountViaRelay({
+        writePasswordSidecar: discardSidecar,
+        keyStore: d3.keyStore,
+        driver: d3.driver,
+        relayUrl: baseUrl,
+        username: "ada",
+        recoveryPhrase,
+        newPassword: "a brand new battery horse staple",
+      });
+      expect(session.masterKey).toEqual(masterKey);
+
+      d1.db.close();
+      d2.db.close();
+      d3.db.close();
+    });
+
+    it("refuses a rotation authenticated with the recovery credential", async () => {
+      // The whole point of the endpoint's password auth: whoever leaked the phrase
+      // must not be able to rotate it out from under the owner.
+      const d1 = blankDevice();
+      const { accountId } = await enableWithPhrase(d1);
+      const recoveryKey = await d1.keyStore.getSecret(RECOVERY_KEY);
+      const verifier = deriveRecoveryVerifier(
+        recoveryKey ?? new Uint8Array(32),
+      );
+
+      const res = await fetch(`${baseUrl}/accounts/recovery`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Recovery ${accountId}.${bytesToBase64(verifier)}`,
+        },
+        body: JSON.stringify({
+          wrappedRecoveryKey: bytesToBase64(new Uint8Array(48).fill(1)),
+          wrappedMasterKeyRecovery: bytesToBase64(new Uint8Array(48).fill(2)),
+          recoveryVerifier: bytesToBase64(new Uint8Array(32).fill(3)),
+        }),
+      });
+      expect(res.status).toBe(401);
+
+      d1.db.close();
+    });
+
+    it("rotates offline and flushes the escrow at the next sync", async () => {
+      const d1 = blankDevice();
+      const { masterKey, oldPhrase, accountId } = await enableWithPhrase(d1);
+      const door = captureDoor();
+
+      /** The relay's stored recovery-verifier hash — moves only with the escrow. */
+      const escrowVerifier = () =>
+        (
+          relayDb
+            .prepare(
+              "SELECT recovery_verifier_hash AS h FROM relay_account WHERE account_id = ?",
+            )
+            .get(accountId) as { h: Uint8Array }
+        ).h.toString();
+      const before = escrowVerifier();
+
+      // Offline: every relay call fails the way an unreachable host does.
+      const realFetch = globalThis.fetch;
+      globalThis.fetch = () => Promise.reject(new TypeError("fetch failed"));
+      let rotated: { recoveryPhrase: string; escrowPending: boolean };
+      try {
+        rotated = await rotateRecoveryPhraseForAccount({
+          keyStore: d1.keyStore,
+          driver: d1.driver,
+          password: PASSWORD,
+          writeRecoveryDoor: door.write,
+        });
+      } finally {
+        globalThis.fetch = realFetch;
+      }
+
+      // The local half landed anyway — that is what makes rotation offline-capable
+      // — and the caller is told the relay has not been updated.
+      expect(rotated.escrowPending).toBe(true);
+      expect(door.written).toHaveLength(1);
+      expect(
+        await createSyncStateRepo(d1.driver).getRecoveryEscrowPending(),
+      ).toBe(true);
+
+      // The relay is untouched, so recovering an account elsewhere still takes the
+      // *old* phrase — exactly why the UI must tell the user to keep it. Asserted
+      // on the stored escrow rather than by recovering: a real recovery also
+      // resets the password door, which would stale this device's credential and
+      // make the flush below fail for an unrelated reason.
+      expect(escrowVerifier()).toBe(before);
+
+      // The next sync carries it up, and the flag clears.
+      await runAccountSync({
+        keyStore: d1.keyStore,
+        driver: d1.driver,
+        masterKey,
+      });
+      expect(
+        await createSyncStateRepo(d1.driver).getRecoveryEscrowPending(),
+      ).toBe(false);
+      expect(escrowVerifier()).not.toBe(before);
+
+      // Now the old phrase is dead and the new one is the account's.
+      const d2 = blankDevice();
+      await runMigrations(d2.driver);
+      await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+      await expect(
+        recoverAccountViaRelay({
+          writePasswordSidecar: discardSidecar,
+          keyStore: d2.keyStore,
+          driver: d2.driver,
+          relayUrl: baseUrl,
+          username: "ada",
+          recoveryPhrase: oldPhrase,
+          newPassword: PASSWORD,
+        }),
+      ).rejects.toThrow();
+
+      const d3 = blankDevice();
+      await runMigrations(d3.driver);
+      await ensureDeviceMasterKey({ keyStore: d3.keyStore, driver: d3.driver });
+      const session = await recoverAccountViaRelay({
+        writePasswordSidecar: discardSidecar,
+        keyStore: d3.keyStore,
+        driver: d3.driver,
+        relayUrl: baseUrl,
+        username: "ada",
+        recoveryPhrase: rotated.recoveryPhrase,
+        newPassword: PASSWORD,
+      });
+      expect(session.masterKey).toEqual(masterKey);
+
+      d1.db.close();
+      d2.db.close();
+      d3.db.close();
+    });
+
+    it("a peer device adopts the rotation at its next launch", async () => {
+      const d1 = blankDevice();
+      const { masterKey } = await enableWithPhrase(d1);
+
+      // Device 2 joins on the original phrase-era account.
+      const d2 = blankDevice();
+      await runMigrations(d2.driver);
+      await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+      const session = await joinAccountViaRelay({
+        writePasswordSidecar: discardSidecar,
+        keyStore: d2.keyStore,
+        driver: d2.driver,
+        relayUrl: baseUrl,
+        username: "ada",
+        password: PASSWORD,
+        platform: "mobile",
+      });
+      await d2.keyStore.setSecret(DATABASE_KEY, generateKey());
+
+      // Device 1 rotates.
+      await rotateRecoveryPhraseForAccount({
+        keyStore: d1.keyStore,
+        driver: d1.driver,
+        password: PASSWORD,
+        writeRecoveryDoor: captureDoor().write,
+      });
+      const rotatedKey = await d1.keyStore.getSecret(RECOVERY_KEY);
+
+      // Device 2 converges on its own, with nothing typed and nothing pushed to
+      // it: the relay's inverse escrow plus its own MK are enough.
+      const door = captureDoor();
+      const outcome = await convergeRecoveryKey({
+        keyStore: d2.keyStore,
+        driver: d2.driver,
+        masterKey: session.masterKey,
+        writeRecoveryDoor: door.write,
+      });
+      expect(outcome).toBe("adopted");
+      expect(await d2.keyStore.getSecret(RECOVERY_KEY)).toEqual(rotatedKey);
+      expect(door.written).toHaveLength(1);
+
+      // Its *account* door moved too, so the new phrase unwraps MK here.
+      const unlocked = await unlockWithRecoveryKey({
+        driver: d2.driver,
+        recoveryKey: rotatedKey ?? new Uint8Array(32),
+      });
+      expect(unlocked.masterKey).toEqual(masterKey);
+
+      // Running again is a no-op — it compares before it writes.
+      const again = captureDoor();
+      expect(
+        await convergeRecoveryKey({
+          keyStore: d2.keyStore,
+          driver: d2.driver,
+          masterKey: session.masterKey,
+          writeRecoveryDoor: again.write,
+        }),
+      ).toBe("unchanged");
+      expect(again.written).toHaveLength(0);
+
+      d1.db.close();
+      d2.db.close();
+    });
+
+    it("never pulls a peer's key while its own rotation is still pending", async () => {
+      // The self-revert hazard: the rotating device runs the catch-up too, and a
+      // pull before its own flush would fetch the relay's *old* escrow and
+      // overwrite the key behind a phrase already shown to the user.
+      //
+      // Staged as the one case the flush cannot clear on its own: pending, but the
+      // recovery key is gone (this device signed out between rotating and
+      // syncing). The relay is reachable throughout, so a pull would succeed —
+      // which is what makes the refusal, not a network error, the thing under test.
+      const d1 = blankDevice();
+      const { masterKey } = await enableWithPhrase(d1);
+      await createSyncStateRepo(d1.driver).setRecoveryEscrowPending(true);
+      await d1.keyStore.deleteSecret(RECOVERY_KEY);
+
+      const door = captureDoor();
+      expect(
+        await convergeRecoveryKey({
+          keyStore: d1.keyStore,
+          driver: d1.driver,
+          masterKey,
+          writeRecoveryDoor: door.write,
+        }),
+      ).toBe("skipped");
+      expect(door.written).toHaveLength(0);
+      // Still pending: unlocking with the phrase later restores the key, and that
+      // sync flushes it. Clearing it here would strand the relay on a phrase
+      // nobody holds.
+      expect(
+        await createSyncStateRepo(d1.driver).getRecoveryEscrowPending(),
+      ).toBe(true);
+
+      d1.db.close();
+    });
   });
 
   it("rejects a join with the wrong password (relay 401, before any unwrap)", async () => {

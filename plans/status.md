@@ -6,19 +6,22 @@
 > not here. Design docs never restate status; this file never restates design.
 >
 > **Updated 2026-07-29** — **"Encryption follows custody" is now the shipped behavior on both
-> clients**, and **slices 1–7c of the custody build are done on both**. First launch
+> clients, and the custody build (slices 1–8) is DONE on both.** First launch
 > mints **no keys** and leaves the store plaintext; creating an
 > account (username + password) is the single act that turns encryption on, converting the
 > store as it goes; and a lost keychain is answered by **the password**, with the 24-word
 > phrase as the forgot-password fallback. Joining or recovering an account converts that
 > device's store too, so **no path leaves real user data in a plaintext file any more**;
 > signing out and forgetting an account are both real; mobile's unlock doors are
-> per-account; and **a phone can now create an account with no relay at all**, so a
-> mobile-only user can encrypt — the last custody *capability* gap between the clients is
-> closed. **Slice 8 is next** (retire the Settings recovery-phrase reveal in favour of a
-> re-auth-gated rotation). See the block
-> below under *What's next* → **Local custody**. The model is
-> [`encryption/model.md`](./encryption/model.md) §7.
+> per-account; **a phone can create an account with no relay at all**, so a
+> mobile-only user can encrypt; and the phrase is now **shown twice in its life** — at
+> account creation and at the password-gated **rotation** that replaces it — with peer
+> devices converging on the new one at their next launch. See the block
+> below under *What's next* → **Local custody** for what each slice did and the traps.
+> The model is [`encryption/model.md`](./encryption/model.md) §7, and §6.1 for rotation.
+>
+> **Next up is `launch.md`** — its Increment 1 owner decision (the version + build-number
+> scheme), then the rest of it in order. Nothing in custody blocks it.
 >
 > Also standing: the encryption docs are **consolidated to four** (`custody-sequence.md` folded
 > into `model.md` §7.5, `local-custody-options.md` retired), and **the UI extraction is
@@ -427,21 +430,124 @@ reader would otherwise re-learn the hard way:
    > fields (`pressKey: Enter`, or a tap on static text, works); and with both account forms
    > on screen every duplicated label ("Username", "Password") needs an explicit `index`.
 
-8. **Retire the Settings recovery-phrase reveal** *(owner, 2026-07-28)*. The phrase is to be
-   **shown once at account creation and never again**; the only later route is a
-   **re-auth-gated rotation** that mints a new phrase, shows it once, and retires the old. The
-   Open half shipped (the section is hidden with no account, and the handler reads instead of
-   minting); removing it for account holders was gated on the password door, which now exists.
+8. **Retire the Settings recovery-phrase reveal** — ✅ **DONE on both clients, 2026-07-29**,
+   desktop driven over CDP end to end. The reveal is gone; Settings now offers **"Replace
+   recovery phrase…"**, gated on the password and landing in the same one-time reveal
+   account creation uses. So a phrase is displayed exactly twice in its life: when the
+   account is made, and when a rotation replaces it.
+   Design: [`encryption/model.md`](./encryption/model.md) §6.1.
 
-> Two things to know before building the rotation:
-> - **Rotation is never a recovery tool.** It needs the password, and the phrase exists for
->   when the password is gone. Its real job is compromise response ("my phrase leaked"), and
->   the copy should say so.
-> - **"Invalidates the old phrase" is not yet true on a multi-device account.** One account has
->   one recovery key, but each device's `<db>.recovery` is sealed with that device's own
->   db-key, so a rotating device cannot re-seal its peers. The old phrase keeps opening *their*
->   files until each re-adopts — the per-device re-adopt-and-re-seal work parked under *Device
->   management* (post-launch). Ship rotation scoped honestly, or after that.
+   The owner calls this slice carried, both settled while planning: the relay's escrow
+   **is** rotated (otherwise the old phrase still recovers the account from any fresh
+   device — false in exactly the leaked-phrase case rotation exists for), and rotation
+   **works offline**, deferring only the escrow. The scope question the slice was parked
+   on — peers keeping the old phrase — was answered by *building* the catch-up rather than
+   wording around it: it turned out to be a pull plus a re-seal, with **no relay change at
+   all**, because `/accounts/bootstrap` already returns `wrap(recoveryKey, MK)` and every
+   device already holds MK.
+
+   Where it lives: `rotateRecoveryPhrase` + `adoptRecoveryKey` (`@leapsake/key-custody`),
+   wrapped by `rotateRecoveryPhraseForAccount` / `flushPendingRecoveryEscrow` /
+   `convergeRecoveryKey` (`packages/core/src/sync.ts`); `POST /accounts/recovery` on the
+   relay; each client's Settings section plus a door writer beside its password one.
+
+   > - **The master key must come from the password door, never the enclave.** *Found by
+   >   driving it, after the code was written and green.* A device that lost its keychain
+   >   and came back through a door holds a **fresh** enclave MK — the keychain held
+   >   `device-id`, so `ensureDeviceMasterKey` finds no wrap row and mints one. Rotating
+   >   around that key publishes an escrow keyed to a master key the account has never
+   >   seen, so **no** device can recover from the phrase again: one device's local problem
+   >   made account-wide. The password door is authoritative by construction, and its KEK
+   >   was just derived to check the password, so it costs one AEAD open. Pinned by a
+   >   sabotage-verified test.
+   > - **Flush the pending escrow before pulling a peer's key.** The rotating device runs
+   >   the catch-up too, so a pull while its own flush is outstanding fetches the relay's
+   >   *old* escrow and overwrites the key behind a phrase already shown to the user. The
+   >   catch-up flushes first *and* refuses to pull if the flag survives that — the flush is
+   >   what normally clears it, the refusal is what holds when it cannot (a device that
+   >   signed out between rotating and syncing has no recovery key to publish).
+   > - **The rotation endpoint is password-authed, not recovery-authed** — the one thing
+   >   about `POST /accounts/recovery` that must never be "simplified" to match the `GET` on
+   >   the same path. Gating it on the recovery verifier would let whoever leaked the phrase
+   >   rotate it and lock the owner out. Its negative is a test.
+   > - **Offline rotation is deferred, not queued-and-forgotten.** The local half lands, a
+   >   `sync_state` flag (`recovery_escrow_pending`, no migration — the table is key/value)
+   >   makes the next sync carry the escrow up, and the reveal screen tells the user to keep
+   >   the old phrase until then, because until the flush the old phrase is what recovers
+   >   the account and the new one is not.
+   > - **Concurrent offline rotations resolve as last-flush-wins**, and the loser's phrase
+   >   silently stops working. Accepted, not solved: two devices rotating one account's
+   >   phrase inside one offline window is not worth a protocol.
+   > - **The catch-up also re-arms a device that lost its recovery key at sign-out** — the
+   >   state slice 7's notes called permanent. It simply differs from the account's key and
+   >   adopts it.
+   > - **Keep Argon2id out of the mobile self-test.** The first draft of the on-device
+   >   cases created accounts and rotated with a password; each call is an Argon2id pass
+   >   (19 MiB, 2 rounds) and on Hermes, unJITted, in a dev bundle it runs for *minutes* —
+   >   the tier looked hung, not slow. The cases now exercise `adoptRecoveryKey` with
+   >   generated keys, which is the only genuinely mobile question (does the new key land
+   >   in `stores/<account>/doors.db` and reopen *this* device's db-key). The password gate
+   >   is platform-independent and is proved on desktop.
+
+   **How it was verified on desktop** (over CDP against a live relay, with out-of-band
+   assertions on the profile directories): create a relay-bound account → rotate with the
+   wrong password, refused with `<db>.recovery` byte-identical → rotate correctly, both the
+   local door and the relay's verifier hash move → **wipe `keystore.json`, relaunch: the
+   new phrase opens the store at the gate and the old one is refused** → stop the relay,
+   rotate offline (`escrowPending: true`, relay untouched), restart it, sync, and the
+   escrow lands → second profile joins, device 1 rotates, device 2 relaunches and adopts it
+   with nothing typed, and after its own keychain wipe **device 2 opens with the new phrase
+   and refuses the old**. The Settings form itself was driven the same way, ending on the
+   24-word one-time reveal.
+
+   **On mobile**, on a booted iOS simulator: the on-device suite is **32/32** (two new
+   `adoptRecoveryKey` cases, confirmed RED at 31/32 by sabotaging the keychain update); the
+   Settings section renders with its new copy and the form opens; and the launch-time
+   catch-up demonstrably runs (it logs on every launch — that relay had been wiped, so it
+   401s, which is the fire-and-forget path behaving correctly).
+
+   > ⚠️ **The mobile form was never *submitted* in a running app.** Maestro cannot get text
+   > into that `secureTextEntry` field: tapping it by text or by point both report COMPLETED
+   > and leave the field empty with no keyboard, so "Replace phrase" stays disabled. It is
+   > **not** the AutoFill problem slice 7c documented — tested by dropping
+   > `autoComplete="current-password"`, with no change — and the field is declared exactly
+   > like the re-auth field beside it. So the one thing unproven on mobile is the wiring
+   > from that button to `rotateRecoveryPhrase`, which is a two-line call into the core path
+   > desktop drove end to end. Worth resolving when the mobile E2E flows are built; the
+   > unlock gate's field (no `autoComplete`/`textContentType`, plus `autoCorrect={false}`)
+   > *is* drivable, which is the next thing to compare against.
+
+> **Still open after this slice:** binding a relay to an account that was rotated while
+> local-only is unaffected, but the **username-collision** question (Open questions) still
+> gates relay binding generally.
+
+**⚠️ Found while driving slice 8, and NOT fixed — a keychain loss orphans this device's
+master key** *(2026-07-29)*. It predates slice 8 and is bigger than it, so it was recorded
+rather than absorbed.
+
+The doors recover the **db-key**, so the store opens and the user is back in. Nothing
+recovers the **master key**: the wiped keychain held `device-id` and `enclave` too, so
+`ensureDeviceMasterKey` finds no `key_wrap` row for the new device id and **mints a fresh
+MK**. The device then holds a master key the account has never seen, while the account's
+real MK sits in the store's own `key_wrap` rows, reachable from the password door
+(`wrap(MK, KEK)`) or the recovery one, and simply never read.
+
+What that costs, on a device that is otherwise working normally:
+- **Sync silently diverges** — it seals records under a key no peer holds, and cannot open
+  theirs (`runAccountSync` uses the enclave MK).
+- **Every existing content key is orphaned** (layer 3 — currently unused, but photos are
+  its v0.2 consumer).
+- Slice 8 would have made it *account-wide* by publishing an escrow around the stray key;
+  that specific exposure is closed (rotation reads the password door), but the underlying
+  state is untouched.
+
+**The fix is the re-adopt step the boot path is missing**: after a door unlock, unwrap the
+account MK from the `password`/`recovery` key-wrap row and re-wrap it under the new enclave
+id, exactly as `joinAccount` step 5 does. It belongs with the per-device re-adopt work under
+*Device management* (post-launch) — but it is worth pulling forward, because unlike the rest
+of that bucket this one is reachable by an ordinary user with an ordinary OS reinstall. It
+is also why the desktop harness note below (deleting `keystore.json`) simulates something
+slightly worse than it looks.
 
 **Explicitly v0.2, not v0.1** *(owner, 2026-07-27)*: **automatic** locking on idle and the
 bounded session. The deliberate half (slice 7) is cheap; a real session needs mid-session
@@ -614,6 +720,11 @@ build finished with slice 6.
   properties are invisible on screen. React inputs need the native value setter plus an
   `input` event to register; `location.reload()` picks up an HMR'd renderer change without
   restarting the app. Deleting `keystore.json` between launches simulates keychain loss.
+  Two things learned driving slice 8: **`electron-vite dev` only HMRs the renderer**, so a
+  change under `packages/` needs the dev server restarted before an extra instance picks it
+  up (check with `grep` against `apps/desktop/out/main/index.js`); and deleting
+  `keystore.json` **also orphans this device's master key**, not just the db-key — see the
+  ⚠️ under slice 8 — so a profile used that way is no longer representative for sync.
 - **Mobile dev client:** `pnpm --filter @leapsake/mobile ios` (native SQLCipher build; Expo
   Go can't host it). `__DEV__` deep links: `leapsake://dev-selftest` (driver contract +
   custody suite), `leapsake://dev-clear-dbkey` (simulate keychain loss). Editing a self-test

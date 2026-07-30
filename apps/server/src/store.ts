@@ -73,6 +73,22 @@ export interface RelayStore {
     kdfSalt: Uint8Array,
     wrappedMasterKey: Uint8Array,
   ): void;
+  /**
+   * Replace an account's **recovery** material — all three fields at once, because
+   * they are one key seen from three angles and a partial write would leave the
+   * account unrecoverable. The password door is untouched.
+   *
+   * The mirror image of {@link RelayStore.setCredentials}: that one is
+   * recovery-authenticated and rewrites the password door; this one is
+   * password-authenticated and rewrites the recovery door. Neither can be used to
+   * seize an account with the credential it replaces.
+   */
+  setRecovery(
+    accountId: string,
+    wrappedRecoveryKey: Uint8Array,
+    wrappedMasterKeyRecovery: Uint8Array,
+    recoveryVerifierHash: Uint8Array,
+  ): void;
   /** Prelogin: resolve a username to its account id + public salt, or undefined. */
   getAccountByUsername(
     username: string,
@@ -239,6 +255,25 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
         authVerifierHash as SQLInputValue,
         kdfSalt as SQLInputValue,
         wrappedMasterKey as SQLInputValue,
+        accountId,
+      );
+    },
+
+    setRecovery(
+      accountId,
+      wrappedRecoveryKey,
+      wrappedMasterKeyRecovery,
+      recoveryVerifierHash,
+    ) {
+      db.prepare(
+        `UPDATE relay_account
+            SET wrapped_recovery_key = ?, wrapped_master_key_recovery = ?,
+                recovery_verifier_hash = ?
+          WHERE account_id = ?`,
+      ).run(
+        wrappedRecoveryKey as SQLInputValue,
+        wrappedMasterKeyRecovery as SQLInputValue,
+        recoveryVerifierHash as SQLInputValue,
         accountId,
       );
     },

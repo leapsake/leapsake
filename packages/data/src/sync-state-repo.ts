@@ -16,6 +16,8 @@ import type { SqliteDriver } from "./driver.js";
  *   *inverted* so that a missing row (= `0`) reads as **enabled**, giving the
  *   default-ON behaviour for free. `1` = the user turned automatic sync off on
  *   this install. Like the watermarks it is device-local and never replicates.
+ * - `recovery_escrow_pending` — set by an offline recovery-phrase rotation, so the
+ *   next sync carries the new escrow to the relay.
  *
  * A missing row reads as `0`, which is the documented floor for both:
  * `push(0)` collects every local row and `pull(0)` returns the whole log (see
@@ -45,12 +47,24 @@ export interface SyncStateRepo {
    */
   getHolidayCatalogVersion(): Promise<number>;
   setHolidayCatalogVersion(version: number): Promise<void>;
+  /**
+   * Whether this device has rotated its recovery phrase without yet telling the
+   * relay (custody slice 8, `model.md` §6). Rotation is deliberately offline-
+   * capable: it re-seals the local doors immediately and leaves this flag for the
+   * next sync to carry the new escrow up.
+   *
+   * Device-local like everything else here, and necessarily so — it is a fact
+   * about *this* device's outbox, not about the account.
+   */
+  getRecoveryEscrowPending(): Promise<boolean>;
+  setRecoveryEscrowPending(pending: boolean): Promise<void>;
 }
 
 const PUSH_HWM = "push_hwm";
 const PULL_CURSOR = "pull_cursor";
 const AUTO_SYNC_DISABLED = "auto_sync_disabled";
 const HOLIDAY_CATALOG_VERSION = "holiday_catalog_version";
+const RECOVERY_ESCROW_PENDING = "recovery_escrow_pending";
 
 export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
   async function read(key: string): Promise<number> {
@@ -82,5 +96,11 @@ export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
     getHolidayCatalogVersion: () => read(HOLIDAY_CATALOG_VERSION),
     setHolidayCatalogVersion: (version) =>
       write(HOLIDAY_CATALOG_VERSION, version),
+    // Not inverted, unlike `auto_sync_disabled`: absent/0 ⇒ nothing to flush is
+    // the right default for a device that has never rotated.
+    getRecoveryEscrowPending: async () =>
+      (await read(RECOVERY_ESCROW_PENDING)) === 1,
+    setRecoveryEscrowPending: (pending) =>
+      write(RECOVERY_ESCROW_PENDING, pending ? 1 : 0),
   };
 }
