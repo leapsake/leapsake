@@ -1,31 +1,14 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
 import {
   DATABASE_KEY,
   RECOVERY_KEY,
-  createInMemoryKeyStore,
   encodeRecoveryPhrase,
   equalBytes,
 } from "@leapsake/crypto";
-import {
-  type SqliteDriver,
-  ensureDeviceMasterKey,
-  lockThisDevice,
-  runMigrations,
-} from "@leapsake/core";
+import { ensureDeviceMasterKey, lockThisDevice } from "@leapsake/core";
 import { createPeopleRepo } from "@leapsake/data";
-import {
-  OPEN_STORE_SLOT,
-  ROSTER_PATH,
-  createAccountRoster,
-  resolveActiveStore,
-  storePath,
-} from "@leapsake/store-layout";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createAccountOnThisDevice } from "../../src/main/db/create-account-flow.js";
-import { openAppDatabase } from "../../src/main/db/open.js";
-import { jsonFileStorage } from "../../src/main/db/roster-storage.js";
+import { type BootDevice, makeBootDevice } from "../support/boot-device.js";
 import { storeFileState } from "../../src/main/db/sqlite-header.js";
 
 /**
@@ -39,86 +22,21 @@ import { storeFileState } from "../../src/main/db/sqlite-header.js";
  * that makes the lock theater, or clearing one that makes the unlock lossy.
  */
 const PASSWORD = "correct-horse-battery";
-const never = () => Promise.reject(new Error("unexpected recovery prompt"));
 
-let userData: string;
-let keyStore: ReturnType<typeof createInMemoryKeyStore>;
-
-const rosterFor = (dir: string) =>
-  createAccountRoster(jsonFileStorage(join(dir, ROSTER_PATH)));
+let device: BootDevice;
+let keyStore: BootDevice["keyStore"];
 
 beforeEach(() => {
-  userData = mkdtempSync(join(tmpdir(), "leapsake-signout-"));
-  keyStore = createInMemoryKeyStore();
+  device = makeBootDevice("signout");
+  keyStore = device.keyStore;
 });
 afterEach(() => {
-  rmSync(userData, { recursive: true, force: true });
+  device.cleanup();
 });
 
-/**
- * A device in the steady state sign out acts on: an account exists, the store is
- * encrypted at its per-account path, both doors are beside it, and it holds data.
- */
-async function deviceWithAccount(): Promise<{
-  accountId: string;
-  dbPath: string;
-}> {
-  const openPath = join(userData, storePath(OPEN_STORE_SLOT));
-  const driver = await openAppDatabase({
-    dbPath: openPath,
-    custody: "open",
-    keyStore,
-    requestUnlock: never,
-  });
-  await runMigrations(driver);
-  await createPeopleRepo(driver).create({
-    firstName: "Ada",
-    lastName: "Lovelace",
-  });
-  const { accountId } = await createAccountOnThisDevice({
-    keyStore,
-    driver,
-    roster: rosterFor(userData),
-    userDataPath: userData,
-    username: "ada",
-    password: PASSWORD,
-    closeStore: async () => {
-      await driver.close?.();
-    },
-  });
-
-  // The first Protected open is what writes the recovery sidecar, and it is the
-  // state the app is actually in when the user presses Sign out.
-  const dbPath = join(userData, storePath(accountId));
-  const opened = await openAppDatabase({
-    dbPath,
-    custody: "protected",
-    keyStore,
-    requestUnlock: never,
-  });
-  await ensureDeviceMasterKey({ keyStore, driver: opened });
-  await opened.close?.();
-  return { accountId, dbPath };
-}
-
-/** Re-open the way `index.ts` does, answering whatever door the gate offers. */
-async function bootWith(
-  answer: { door: "password" | "phrase"; secret: string },
-  onRequest?: (doors: { password: boolean; phrase: boolean }) => void,
-): Promise<SqliteDriver> {
-  const active = resolveActiveStore({
-    accounts: await rosterFor(userData).list(),
-  });
-  return openAppDatabase({
-    dbPath: join(userData, active.path),
-    custody: active.custody,
-    keyStore,
-    requestUnlock: ({ doors }) => {
-      onRequest?.(doors);
-      return Promise.resolve(answer);
-    },
-  });
-}
+const deviceWithAccount = () => device.deviceWithAccount(PASSWORD);
+const bootWith: BootDevice["bootWith"] = (answer, onRequest) =>
+  device.bootWith(answer, onRequest);
 
 describe("sign out", () => {
   it("closes the store behind the password, leaving the data encrypted in place", async () => {

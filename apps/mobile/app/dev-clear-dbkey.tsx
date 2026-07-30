@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { Redirect, Stack } from "expo-router";
 import { DATABASE_KEY } from "@leapsake/crypto";
+import { KEYSTORE_SECRET_IDS } from "@leapsake/core";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 import { colors, styles } from "../lib/styles";
 
@@ -9,13 +10,19 @@ import { colors, styles } from "../lib/styles";
  * Dev-only affordance to simulate OS-keychain loss for verifying single-device
  * boot recovery (`plans/status.md` → mobile scenario 8; encryption `model.md` §6).
  *
- * It deletes **only** the `db-key` secret from `expo-secure-store`, leaving the
- * `recovery-key`, the encrypted `leapsake.db`, and the `leapsake-recovery.db`
- * sidecar all intact. On the next launch the boot in `core-context.tsx` finds no
- * enclave key but a surviving sidecar (case 2) and shows the `RecoveryGate`, so
- * the recovery phrase can be exercised end-to-end. A full reinstall can't stand
- * in for this — it wipes the DB and the sidecar too, so there's nothing to
- * recover into.
+ * **Clear db-key** deletes only that secret from `expo-secure-store`, leaving the
+ * `recovery-key`, the encrypted store, and its doors all intact. On the next
+ * launch the boot in `core-context.tsx` finds no enclave key but surviving doors
+ * and shows the `RecoveryGate`, so a door can be exercised end-to-end. A full
+ * reinstall can't stand in for this — it wipes the store and the doors too, so
+ * there's nothing to recover into.
+ *
+ * **Clear everything** additionally deletes `device-id` and `enclave`, which is
+ * what an OS reinstall or a signing-identity change actually costs a user
+ * (`plans/launch.md` §2). That is the only way to reach custody slice 9's
+ * master-key repair: with the device identity intact the enclave still vouches
+ * for the right key and the repair correctly reports `"unchanged"`. It is the
+ * mobile counterpart of deleting `keystore.json` from a desktop profile.
  *
  * Reached by deep link only (`leapsake://dev-clear-dbkey`), with no link from any
  * shipping screen, and `__DEV__`-gated so it redirects home (and never deletes
@@ -35,10 +42,12 @@ type State =
 function ClearDbKey() {
   const [state, setState] = useState<State>({ kind: "idle" });
 
-  async function clear() {
+  async function clear(scope: "db-key" | "everything") {
     setState({ kind: "working" });
     try {
-      await secureStoreKeyStore().deleteSecret(DATABASE_KEY);
+      const keyStore = secureStoreKeyStore();
+      const ids = scope === "db-key" ? [DATABASE_KEY] : KEYSTORE_SECRET_IDS;
+      for (const id of ids) await keyStore.deleteSecret(id);
       setState({ kind: "done" });
     } catch (e) {
       setState({
@@ -59,6 +68,15 @@ function ClearDbKey() {
             OS-keychain loss. The encrypted database and the recovery sidecar
             are left intact, so the next launch shows the recovery-phrase gate.
           </Text>
+          <Text style={styles.rowText}>
+            <Text style={{ fontWeight: "700" }}>Clear everything</Text> also
+            deletes <Text style={{ fontWeight: "700" }}>device-id</Text> and{" "}
+            <Text style={{ fontWeight: "700" }}>enclave</Text> — the shape a
+            real OS reinstall or signing-identity change leaves, and the only
+            way to reach the master-key repair (custody slice 9). Clearing just
+            the db-key keeps this device's identity, so the next launch has
+            nothing to repair.
+          </Text>
         </View>
 
         {state.kind === "done" ? (
@@ -67,7 +85,7 @@ function ClearDbKey() {
             accessibilityLabel="CLEARED"
             style={[banner, { backgroundColor: "#1a7f37" }]}
           >
-            <Text style={bannerText}>db-key cleared</Text>
+            <Text style={bannerText}>Keychain cleared</Text>
             <Text style={[bannerText, { fontWeight: "400" }]}>
               Force-quit and relaunch the app to hit the recovery gate.
             </Text>
@@ -94,13 +112,32 @@ function ClearDbKey() {
               },
             ]}
             disabled={state.kind === "working"}
-            onPress={() => void clear()}
+            onPress={() => void clear("db-key")}
           >
             <Text style={bannerText}>
               {state.kind === "working" ? "Clearing…" : "Clear db-key"}
             </Text>
           </Pressable>
         )}
+
+        {state.kind === "idle" || state.kind === "working" ? (
+          <Pressable
+            testID="dev-clear-keychain-button"
+            style={[
+              banner,
+              {
+                backgroundColor: colors.danger,
+                opacity: state.kind === "working" ? 0.5 : 1,
+              },
+            ]}
+            disabled={state.kind === "working"}
+            onPress={() => void clear("everything")}
+          >
+            <Text style={bannerText}>
+              {state.kind === "working" ? "Clearing…" : "Clear everything"}
+            </Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
     </>
   );

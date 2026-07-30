@@ -25,7 +25,11 @@ import {
   runMigrations,
   sealPasswordDoor,
 } from "@leapsake/core";
-import { createKeyWrapRepo, createPeopleRepo } from "@leapsake/data";
+import {
+  createDeviceRepo,
+  createKeyWrapRepo,
+  createPeopleRepo,
+} from "@leapsake/data";
 import {
   OPEN_STORE_SLOT,
   ROSTER_PATH,
@@ -308,6 +312,29 @@ describe.each([
       "SELECT id FROM account LIMIT 1",
     );
     expect(account?.id).toBe(bootstrap.accountId);
+    await reopened.close?.();
+  });
+
+  // Slice 9 routed join and recover through the same enclave-adoption primitive
+  // the repair path uses, replacing two hand-written copies. Both properties that
+  // rewrite could have broken: the account's key must end up bound exactly once,
+  // and the registration that runs *after* it must still carry label/platform —
+  // `register` returns an existing row untouched, so an adoption that registered
+  // on its own behalf first would silently discard them.
+  it("binds the adopted key once and registers the device with its platform", async () => {
+    const { driver } = await openStoreWithData();
+    await run(driver);
+
+    const { driver: reopened } = await bootTheDevice();
+    const enclave = await reopened.all<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM key_wrap WHERE principal_kind = 'enclave' " +
+        "AND deleted_at IS NULL",
+    );
+    expect(enclave[0]?.n).toBe(1);
+
+    const devices = await createDeviceRepo(reopened).list();
+    expect(devices).toHaveLength(1);
+    expect(devices[0]?.platform).toBe("desktop");
     await reopened.close?.();
   });
 

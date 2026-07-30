@@ -67,6 +67,100 @@ export const KEYSTORE_SECRET_IDS = [
 ] as const;
 
 /**
+ * This device's identity in the keychain: a stable id and the enclave secret that
+ * wraps the master key under it. Minted on first read, returned unchanged after.
+ *
+ * Split out from {@link ensureDeviceMasterKey} because the two halves have very
+ * different reach. This half touches only the keychain and is therefore safe to
+ * call from a path that is *repairing* the `key_wrap` rows; the master-key half
+ * writes one, and on a device that lost its keychain that write is the bug slice 9
+ * exists to prevent (see {@link adoptAccountMasterKey}).
+ *
+ * Mint-if-missing is load-bearing for the repair, not just convenience: a wiped
+ * keychain has no enclave secret at all, so a `getSecret`-and-throw would refuse to
+ * repair exactly the device that needs it.
+ *
+ * Private on purpose — it hands back the raw enclave secret, which nothing outside
+ * this file has a reason to hold.
+ */
+async function ensureDeviceIdentity(
+  keyStore: KeyStore,
+): Promise<{ deviceId: string; enclaveKey: Uint8Array }> {
+  // Stable device id — minted once, then read back each launch.
+  let deviceId: string;
+  const storedDeviceId = await keyStore.getSecret(DEVICE_ID_KEY);
+  if (storedDeviceId === undefined) {
+    deviceId = crypto.randomUUID();
+    await keyStore.setSecret(DEVICE_ID_KEY, utf8ToBytes(deviceId));
+  } else {
+    deviceId = bytesToUtf8(storedDeviceId);
+  }
+
+  // Device enclave secret — the local unlock path for MK, held off-DB.
+  let enclaveKey = await keyStore.getSecret(ENCLAVE_KEY);
+  if (enclaveKey === undefined) {
+    enclaveKey = generateKey();
+    await keyStore.setSecret(ENCLAVE_KEY, enclaveKey);
+  }
+
+  return { deviceId, enclaveKey };
+}
+
+/**
+ * Bind `masterKey` to this device's enclave, replacing whatever was bound before:
+ * the one place a `(master, enclave, <device>)` wrap is established.
+ *
+ * Used by every path that brings an *account's* master key onto a device — joining,
+ * recovering, and repairing a device that came back through a door
+ * ({@link adoptAccountMasterKey}). Returns `"unchanged"` when the enclave already
+ * holds this key, which is the ordinary case rather than the exception: a plain
+ * sign-out keeps the device id and enclave secret, so the unlock gate is re-entered
+ * on every re-login and a blind re-wrap would churn a fresh row each time.
+ *
+ * Revoke strictly precedes add — `key_wrap_active` is a partial unique index over
+ * the live rows, so adding first collides. The pair is transactional because a
+ * crash between them would leave the device with no enclave door at all, openable
+ * only by password or phrase.
+ */
+async function adoptMasterKeyIntoEnclave(opts: {
+  keyStore: KeyStore;
+  driver: SqliteDriver;
+  masterKey: Uint8Array;
+}): Promise<{ deviceId: string; status: "adopted" | "unchanged" }> {
+  const { keyStore, driver, masterKey } = opts;
+  const { deviceId, enclaveKey } = await ensureDeviceIdentity(keyStore);
+  const keyWrapRepo = createKeyWrapRepo(driver);
+
+  const existing = await keyWrapRepo.getActive({
+    wrappedKind: "master",
+    principalKind: "enclave",
+    principalRef: deviceId,
+  });
+  if (existing !== undefined) {
+    try {
+      if (equalBytes(unwrapKey(existing.ciphertext, enclaveKey), masterKey)) {
+        return { deviceId, status: "unchanged" };
+      }
+    } catch {
+      // A row that will not open under the current enclave secret is stale, not
+      // an error: the keychain was replaced under it. Fall through and re-wrap.
+    }
+  }
+
+  await driver.transaction(async () => {
+    if (existing !== undefined) await keyWrapRepo.revoke(existing.id);
+    await keyWrapRepo.add({
+      wrappedKind: "master",
+      principalKind: "enclave",
+      principalRef: deviceId,
+      ciphertext: wrapKey(masterKey, enclaveKey),
+      alg: ALG,
+    });
+  });
+  return { deviceId, status: "adopted" };
+}
+
+/**
  * Custody Phase 0 (encryption/custody-sequence.md): make the device's master
  * key real on first launch and recover it on every launch after — the first
  * consumer of the OS {@link KeyStore}.
@@ -84,6 +178,22 @@ export const KEYSTORE_SECRET_IDS = [
  *
  * Takes a {@link SqliteDriver} (like `createCore`) so a client wires it with one
  * call between `runMigrations` and `createCore`; run migrations first.
+ *
+ * ### It refuses to mint once an account exists
+ *
+ * Minting is only ever correct on a store that has no account yet. A store that
+ * *does* have one already has a master key — the account's — reachable from the
+ * password and recovery `key_wrap` rows; minting a second one there means this
+ * device silently stops speaking the account's language, sealing records no peer
+ * can open and discarding theirs. That is not hypothetical: it is what an OS
+ * keychain loss used to do here, because a wiped keychain takes `device-id` with
+ * it and a fresh id matches no row (custody slice 9).
+ *
+ * So this throws instead, and the boot path repairs the device first — see
+ * {@link adoptAccountMasterKey}, which every door unlock now runs before reaching
+ * this function. The paths that legitimately establish an account
+ * ({@link enableSync}, {@link joinAccount}, {@link recoverAccount}) go through
+ * {@link adoptMasterKeyIntoEnclave} rather than here, so none of them trips it.
  */
 export async function ensureDeviceMasterKey(opts: {
   keyStore: KeyStore;
@@ -91,26 +201,10 @@ export async function ensureDeviceMasterKey(opts: {
 }): Promise<KeySession> {
   const { keyStore, driver } = opts;
   const keyWrapRepo = createKeyWrapRepo(driver);
+  const { deviceId, enclaveKey } = await ensureDeviceIdentity(keyStore);
 
-  // 1. Stable device id — minted once, then read back each launch.
-  let deviceId: string;
-  const storedDeviceId = await keyStore.getSecret(DEVICE_ID_KEY);
-  if (storedDeviceId === undefined) {
-    deviceId = crypto.randomUUID();
-    await keyStore.setSecret(DEVICE_ID_KEY, utf8ToBytes(deviceId));
-  } else {
-    deviceId = bytesToUtf8(storedDeviceId);
-  }
-
-  // 2. Device enclave secret — the local unlock path for MK, held off-DB.
-  let enclaveKey = await keyStore.getSecret(ENCLAVE_KEY);
-  if (enclaveKey === undefined) {
-    enclaveKey = generateKey();
-    await keyStore.setSecret(ENCLAVE_KEY, enclaveKey);
-  }
-
-  // 3. Master key — minted on first run, recovered after. The DB only ever
-  //    holds wrap(MK, enclave), never MK itself.
+  // The master key — minted on first run, recovered after. The DB only ever
+  // holds wrap(MK, enclave), never MK itself.
   const existing = await keyWrapRepo.getActive({
     wrappedKind: "master",
     principalKind: "enclave",
@@ -118,6 +212,13 @@ export async function ensureDeviceMasterKey(opts: {
   });
   if (existing !== undefined) {
     return { deviceId, masterKey: unwrapKey(existing.ciphertext, enclaveKey) };
+  }
+
+  if ((await createAccountRepo(driver).getSingleton()) !== undefined) {
+    throw new Error(
+      "This device holds an account but no enclave key for it. Its master key " +
+        "must be re-adopted from an unlock door before the store can be used.",
+    );
   }
 
   const masterKey = generateKey();
@@ -489,6 +590,123 @@ export async function unlockWithRecoveryKey(opts: {
 }
 
 /**
+ * Which door a boot came through, carrying the key material that door already
+ * derived — never the password itself.
+ *
+ * The password sidecar is sealed under the *account's* salt, so opening it yields
+ * the very KEK that wraps the master key: the boot path has already done the one
+ * expensive derivation and {@link adoptAccountMasterKey} needs no second. That is
+ * what makes the repair affordable on mobile, where an Argon2id pass on unJITted
+ * Hermes runs for minutes. It also keeps the typed password inside the unlock loop
+ * — everything downstream handles 32-byte keys.
+ */
+export type AdoptionDoor =
+  | { kind: "password"; kek: Uint8Array; authVerifier: Uint8Array }
+  | { kind: "recovery"; recoveryKey: Uint8Array };
+
+/**
+ * Custody slice 9: after a boot has come through a password or recovery door,
+ * make sure this device's enclave holds **the account's** master key.
+ *
+ * ### The problem it fixes
+ *
+ * A door unlock is, by construction, what happens when the OS keychain no longer
+ * opens the store — an OS reinstall, a new machine, or a signing-identity change
+ * (`plans/launch.md` §2). The door recovers the *db-key*, so the store opens and
+ * the user is back in. But the same wipe took `device-id` and `enclave`, so
+ * {@link ensureDeviceMasterKey} would find no wrap row for the fresh id and mint a
+ * brand-new master key. The device would then hold a key the account has never
+ * seen: it seals records no peer can open, and the sync engine skips peers' records
+ * it cannot decrypt *while advancing the cursor past them*, so both directions lose
+ * data permanently and silently.
+ *
+ * This reads the account's real master key back out of the door that was just
+ * opened and binds it to the new enclave, so `ensureDeviceMasterKey` — called
+ * immediately after — finds it and mints nothing.
+ *
+ * ### Why it is safe
+ *
+ * Nothing at rest is sealed under MK. Migration 27 retired the last content-key
+ * consumer, so MK appears only in `key_wrap` rows and in the sync envelope. The
+ * repair therefore cannot corrupt anything on disk: worst case it rewrites one row
+ * to the value it already had.
+ *
+ * ### Where it must run
+ *
+ * Between `runMigrations` and {@link ensureDeviceMasterKey}, synchronously. Not
+ * earlier: there is no driver until the store is open. Not later, and not in the
+ * background: the launch-time recovery-escrow catch-up publishes
+ * `wrap(recoveryKey, MK)` **to the relay**, so a stray key reaching it makes one
+ * device's local problem account-wide.
+ *
+ * Returns `"unchanged"` on the ordinary case — a plain sign-out keeps the device
+ * identity, so most door unlocks have nothing to repair. `"adopted"` means the
+ * device really had drifted, and the caller should also reset its sync watermarks
+ * (`resyncAfterMasterKeyRepair`) to re-push and re-pull what drifted apart.
+ *
+ * Throws rather than degrading: a device that cannot prove which master key is the
+ * account's has no business opening the store and syncing from it.
+ */
+export async function adoptAccountMasterKey(opts: {
+  keyStore: KeyStore;
+  driver: SqliteDriver;
+  door: AdoptionDoor;
+  platform?: string;
+}): Promise<"adopted" | "unchanged"> {
+  const { keyStore, driver, door, platform } = opts;
+
+  const account = await createAccountRepo(driver).getSingleton();
+  if (account === undefined) {
+    throw new Error("There is no account on this device to adopt a key for.");
+  }
+
+  let masterKey: Uint8Array;
+  if (door.kind === "password") {
+    // The sidecar carries the salt it was sealed under, so a verifier that does
+    // not match the account row means the two have drifted — a sidecar left by a
+    // crash mid password-change. Its KEK cannot open the password wrap either, so
+    // refuse here with something a reader can act on rather than one line later
+    // with an opaque AEAD failure. The phrase door is the way in: it derives from
+    // the recovery key, not the password salt, so it is unaffected.
+    if (!equalBytes(door.authVerifier, Uint8Array.from(account.authVerifier))) {
+      throw new Error(
+        "This store's password door is out of step with its account. Unlock " +
+          "with the recovery phrase instead.",
+      );
+    }
+    masterKey = await unwrapMasterKeyUnder(driver, "password", door.kek);
+  } else {
+    masterKey = await unwrapMasterKeyUnder(
+      driver,
+      "recovery",
+      door.recoveryKey,
+    );
+  }
+
+  const { deviceId, status } = await adoptMasterKeyIntoEnclave({
+    keyStore,
+    driver,
+    masterKey,
+  });
+  if (status === "adopted") {
+    // A repaired device is a new device id on the account, so register it.
+    //
+    // Two rows from before the wipe are left behind on purpose: the old `device`
+    // registration, which nothing can tell apart from a real second device, and
+    // the old enclave `key_wrap`, which is keyed to a device id that will never be
+    // presented again and whose enclave secret died with the keychain. Both are
+    // unopenable and unmatchable rather than merely unused, and sweeping them is
+    // per-device revocation — post-launch work with a real design behind it.
+    await createDeviceRepo(driver).register({
+      id: deviceId,
+      accountId: account.id,
+      platform: platform ?? null,
+    });
+  }
+  return status;
+}
+
+/**
  * Custody Phase 2 / multi-device login (encryption/multi-device-login.md): join
  * an **existing** account on a fresh device, so it converges over the relay. This
  * is the one capability that completes Stage-1 sync — `account`/`key_wrap` are
@@ -557,26 +775,29 @@ export async function joinAccount(opts: {
     relayUrl,
   });
 
-  // 5. Adopt MK under this device's enclave (custody Phase 2): revoke the
-  //    throwaway first-launch wrap and re-wrap the *account* MK, so later
-  //    launches recover the account MK from the enclave alone (no re-login).
-  const { deviceId } = await ensureDeviceMasterKey({ keyStore, driver });
-  const enclaveKey = await keyStore.getSecret(ENCLAVE_KEY);
-  if (enclaveKey === undefined) {
-    throw new Error("Device enclave secret is missing.");
-  }
-  const keyWrapRepo = createKeyWrapRepo(driver);
-  const throwaway = await keyWrapRepo.getActive({
-    wrappedKind: "master",
-    principalKind: "enclave",
-    principalRef: deviceId,
+  // 5. Adopt MK under this device's enclave (custody Phase 2): replace the
+  //    throwaway first-launch wrap with the *account* MK, so later launches
+  //    recover it from the enclave alone (no re-login).
+  const { deviceId } = await adoptMasterKeyIntoEnclave({
+    keyStore,
+    driver,
+    masterKey,
   });
-  if (throwaway !== undefined) await keyWrapRepo.revoke(throwaway.id);
-  await keyWrapRepo.add({
+
+  // 5a. Lay down the local **password** door on MK. The relay just handed us
+  //     exactly these bytes — `wrap(MK, KEK)` under the account's own salt — and
+  //     until slice 9 nothing persisted them, so a joined device could open its
+  //     store file with its password but had no local route from that password
+  //     back to the master key. That is the one thing the boot-path repair needs
+  //     after a keychain loss, and creation and recovery both write it already;
+  //     join was the odd one out. Found by driving a joined device through a
+  //     wiped keychain, not by reading the code.
+  await createKeyWrapRepo(driver).add({
     wrappedKind: "master",
-    principalKind: "enclave",
-    principalRef: deviceId,
-    ciphertext: wrapKey(masterKey, enclaveKey),
+    principalKind: "password",
+    // Copied onto a fresh array so it is ArrayBuffer-backed for the row write,
+    // as `reauthenticate` does with the same field.
+    ciphertext: Uint8Array.from(bootstrap.wrappedMasterKey),
     alg: ALG,
   });
 
@@ -590,7 +811,7 @@ export async function joinAccount(opts: {
     const recoveryKey = unwrapKey(bootstrap.wrappedRecoveryKey, masterKey);
     await keyStore.setSecret(RECOVERY_KEY, recoveryKey);
     // Lay the local `recovery` door this flow currently lacks.
-    await keyWrapRepo.add({
+    await createKeyWrapRepo(driver).add({
       wrappedKind: "master",
       principalKind: "recovery",
       ciphertext: wrapKey(masterKey, recoveryKey),
@@ -690,25 +911,12 @@ export async function recoverAccount(opts: {
 
   // 5. Adopt MK under this device's enclave, and lay down the local password +
   //    recovery doors so later launches and an on-device recovery both work.
-  const { deviceId } = await ensureDeviceMasterKey({ keyStore, driver });
-  const enclaveKey = await keyStore.getSecret(ENCLAVE_KEY);
-  if (enclaveKey === undefined) {
-    throw new Error("Device enclave secret is missing.");
-  }
+  const { deviceId } = await adoptMasterKeyIntoEnclave({
+    keyStore,
+    driver,
+    masterKey,
+  });
   const keyWrapRepo = createKeyWrapRepo(driver);
-  const throwaway = await keyWrapRepo.getActive({
-    wrappedKind: "master",
-    principalKind: "enclave",
-    principalRef: deviceId,
-  });
-  if (throwaway !== undefined) await keyWrapRepo.revoke(throwaway.id);
-  await keyWrapRepo.add({
-    wrappedKind: "master",
-    principalKind: "enclave",
-    principalRef: deviceId,
-    ciphertext: wrapKey(masterKey, enclaveKey),
-    alg: ALG,
-  });
   await keyWrapRepo.add({
     wrappedKind: "master",
     principalKind: "password",

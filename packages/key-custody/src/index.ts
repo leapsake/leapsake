@@ -15,7 +15,9 @@
  *   database can open at all.
  * - **Adoption and repair** — {@link joinAccount} (a second device),
  *   {@link recoverAccount} (a forgotten password), {@link reauthenticate} (a
- *   password changed elsewhere).
+ *   password changed elsewhere), and {@link adoptAccountMasterKey} (a device that
+ *   lost its keychain and came back through a door, whose enclave must be taught
+ *   the account's master key before anything reads it).
  * - **Replacing the phrase** — {@link rotateRecoveryPhrase} (this device, gated
  *   on the password) and {@link adoptRecoveryKey} (a peer taking on a rotation
  *   another device performed). The phrase is shown once at account creation, so
@@ -49,6 +51,7 @@ export type { RecoveryDoorWriter } from "./rotate-recovery.js";
 export {
   KEYSTORE_SECRET_IDS,
   MIN_PASSWORD_LENGTH,
+  adoptAccountMasterKey,
   clearLocalAccount,
   enableSync,
   ensureDeviceMasterKey,
@@ -62,6 +65,7 @@ export {
 export type {
   AccountBootstrap,
   AccountBootstrapChannel,
+  AdoptionDoor,
   KeySession,
   RecoveryChannel,
   SyncStatus,

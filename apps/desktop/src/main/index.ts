@@ -8,10 +8,12 @@ import {
   storePath,
 } from "@leapsake/store-layout";
 import {
+  type AdoptionDoor,
   type CoreApi,
   type KeySession,
   type SqliteDriver,
   type SyncScheduler,
+  adoptAccountMasterKey,
   createCore,
   createSyncScheduler,
   ensureDeviceMasterKey,
@@ -28,6 +30,7 @@ import {
   recoverAccountViaRelay,
   reconcileOnJoin,
   registerAccountWithRelay,
+  resyncAfterMasterKeyRepair,
   rotateRecoveryPhraseForAccount,
   runAccountSync,
   runMigrations,
@@ -193,16 +196,44 @@ async function openActiveStore(): Promise<void> {
   // the enclave key on a normal launch, minting on a fresh launch, or recovery from
   // the `.recovery` sidecar via a typed phrase if the enclave was wiped (open.ts).
   // The prompt is hosted by the renderer's gate.
+  let unlockedBy: AdoptionDoor | undefined;
   driver = await openAppDatabase({
     dbPath,
     custody: activeStore.custody,
     keyStore,
     requestUnlock,
+    onUnlocked: (door) => {
+      unlockedBy = door;
+    },
   });
   await runMigrations(driver);
   // The bundled holiday catalog, applied only when this install hasn't seen this
   // bundle yet. Cheap no-op on every launch after the first.
   await seedHolidayCatalog({ driver });
+
+  // A door unlock means the OS keychain was lost, which took this device's master
+  // key with it — so teach the enclave the account's own before anything reads it
+  // (custody slice 9). This runs *before* `ensureDeviceMasterKey`, which is what
+  // makes that call find the right key instead of minting a stray one, and it runs
+  // synchronously because the launch-time escrow catch-up below would otherwise
+  // publish a stray key to the relay and make one device's problem account-wide.
+  //
+  // Deliberately not caught. A device that cannot establish which master key is
+  // the account's would sync divergent data invisibly, and refusing to open is the
+  // honest failure while there are no real users. Softening this into a repair-and-
+  // retry is a v0.1 blocker — see plans/status.md.
+  if (unlockedBy !== undefined) {
+    const status = await adoptAccountMasterKey({
+      keyStore,
+      driver,
+      door: unlockedBy,
+      platform: "desktop",
+    });
+    // The device really had drifted: re-push and re-pull everything, since a stray
+    // key loses records in both directions and neither side re-offers them.
+    if (status === "adopted") await resyncAfterMasterKeyRepair({ driver });
+  }
+
   // Custody Phase 0.5, not Phase 0: the master key is minted by account creation,
   // so an Open store has no key session at all and `createCore` runs without one.
   keySession =

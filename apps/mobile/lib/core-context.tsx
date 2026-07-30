@@ -19,12 +19,14 @@ import {
 import * as SQLite from "expo-sqlite";
 import {
   type AccountBootstrap,
+  type AdoptionDoor,
   type CoreApi,
   type KeySession,
   type PasswordDoorWriter,
   type RecoveryDoorWriter,
   type SyncScheduler,
   type SyncStatus,
+  adoptAccountMasterKey,
   clearLocalAccount,
   convergeRecoveryKey,
   createCore,
@@ -44,6 +46,7 @@ import {
   recoverAccountViaRelay,
   reconcileOnJoin,
   registerAccountWithRelay,
+  resyncAfterMasterKeyRepair,
   rotateRecoveryPhraseForAccount,
   runAccountSync,
   runMigrations,
@@ -57,7 +60,7 @@ import {
   decodeRecoveryPhrase,
   ensureDatabaseKey,
   openDbKeyFromRecovery,
-  openDbKeyWithPassword,
+  openPasswordSidecar,
   rawKeyLiteral,
   readRecoveryKey,
   sealDbKeyForRecovery,
@@ -432,6 +435,13 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       let dbKey =
         activeStore.custody === "protected" ? existingDbKey : undefined;
       let recoverySecret: Uint8Array | undefined;
+      // Which door this launch came through, if any — the input to slice 9's
+      // master-key repair below. It carries the key material the unlock already
+      // derived, never the typed password: the sidecar is sealed under the
+      // account's own salt, so the KEK that opens the db-key is the same one that
+      // unwraps the master key, and a second Argon2id pass on Hermes runs for
+      // minutes.
+      let unlockedBy: AdoptionDoor | undefined;
 
       if (
         activeStore.custody === "protected" &&
@@ -447,7 +457,16 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           const answer = await requestUnlock(doors, attemptError);
           try {
             if (answer.door === "password" && passwordSidecar !== undefined) {
-              dbKey = openDbKeyWithPassword(passwordSidecar, answer.secret);
+              const opened = openPasswordSidecar(
+                passwordSidecar,
+                answer.secret,
+              );
+              dbKey = opened.dbKey;
+              unlockedBy = {
+                kind: "password",
+                kek: opened.kek,
+                authVerifier: opened.authVerifier,
+              };
             } else if (
               answer.door === "phrase" &&
               recoverySidecar !== undefined
@@ -456,6 +475,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
               // restored below. A password unlock cannot recover it.
               recoverySecret = decodeRecoveryPhrase(answer.secret);
               dbKey = openDbKeyFromRecovery(recoverySidecar, recoverySecret);
+              unlockedBy = { kind: "recovery", recoveryKey: recoverySecret };
             } else {
               throw new Error("That door is not available on this device.");
             }
@@ -505,6 +525,30 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // The bundled holiday catalog, applied only when this install hasn't seen
       // this bundle yet. Cheap no-op on every launch after the first.
       await seedHolidayCatalog({ driver });
+
+      // A door unlock means the OS keychain was lost, which took this device's
+      // master key with it — so teach the enclave the account's own before
+      // anything reads it (custody slice 9). Ordering is load-bearing twice over:
+      // it must follow `runMigrations` (it reads `account`/`key_wrap`) and precede
+      // `ensureDeviceMasterKey`, which is what makes that call find the account's
+      // key instead of refusing.
+      //
+      // Deliberately not caught. A device that cannot establish which master key
+      // is the account's would sync divergent data invisibly; refusing to open is
+      // the honest failure while there are no real users. Softening this into a
+      // repair-and-retry is a v0.1 blocker — see plans/status.md.
+      if (unlockedBy !== undefined) {
+        const status = await adoptAccountMasterKey({
+          keyStore,
+          driver,
+          door: unlockedBy,
+          platform: Platform.OS,
+        });
+        // The device really had drifted: re-push and re-pull everything, since a
+        // stray key loses records in both directions and neither side re-offers.
+        if (status === "adopted") await resyncAfterMasterKeyRepair({ driver });
+      }
+
       // Custody Phase 0.5, not Phase 0: the master key is minted by account
       // creation, so an Open store runs the core with no key session at all.
       keySession.current =

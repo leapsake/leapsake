@@ -1,15 +1,26 @@
 import * as SQLite from "expo-sqlite";
 import {
+  ALG,
   DATABASE_KEY,
+  KDF_ALG,
   RECOVERY_KEY,
   createInMemoryKeyStore,
   generateKey,
   openDbKeyFromRecovery,
   rawKeyLiteral,
   sealDbKeyForRecovery,
+  wrapKey,
 } from "@leapsake/crypto";
-import { adoptRecoveryKey } from "@leapsake/core";
-import { runMigrations } from "@leapsake/data";
+import {
+  adoptAccountMasterKey,
+  adoptRecoveryKey,
+  ensureDeviceMasterKey,
+} from "@leapsake/core";
+import {
+  createAccountRepo,
+  createKeyWrapRepo,
+  runMigrations,
+} from "@leapsake/data";
 import type { TestApi } from "@leapsake/data/testing";
 import {
   convertStoreToEncrypted,
@@ -799,6 +810,91 @@ export function runCustodySelfTest(t: TestApi): void {
       } finally {
         await a.cleanup();
         await b.cleanup();
+      }
+    });
+
+    /**
+     * Custody slice 9, on the engine this app runs. A device that lost its OS
+     * keychain and came back through a door has a *fresh* device identity, so
+     * `ensureDeviceMasterKey` would mint a brand-new master key and quietly stop
+     * speaking the account's language. The repair reads the account's key back out
+     * of the door and binds it to the new enclave.
+     *
+     * The recovery door, not the password one — same suite rule as above: the
+     * password gate is an Argon2id pass and is proved on desktop, while what is
+     * only provable here is that the `key_wrap` read/revoke/add cycle behaves on
+     * SQLCipher under expo-sqlite.
+     */
+    it("re-adopts the account's master key after the keychain is lost", async () => {
+      const d = await scratchDevice();
+      try {
+        // An account whose master key is reachable from its recovery door. The
+        // salt and verifier are unused on this path (no password is derived), so
+        // they are filler rather than a shortcut.
+        const accountMasterKey = generateKey();
+        const recoveryKey = generateKey();
+        await createAccountRepo(d.driver).create({
+          id: crypto.randomUUID(),
+          kdfSalt: Uint8Array.from(generateKey()),
+          authVerifier: Uint8Array.from(generateKey()),
+          kdfAlg: KDF_ALG,
+        });
+        await createKeyWrapRepo(d.driver).add({
+          wrappedKind: "master",
+          principalKind: "recovery",
+          ciphertext: wrapKey(accountMasterKey, recoveryKey),
+          alg: ALG,
+        });
+
+        const status = await adoptAccountMasterKey({
+          keyStore: d.keyStore,
+          driver: d.driver,
+          door: { kind: "recovery", recoveryKey },
+        });
+        expect(status).toBe("adopted");
+
+        // The enclave now vouches for the account's key, so the call that used to
+        // mint a stray one hands back the real one instead.
+        const session = await ensureDeviceMasterKey({
+          keyStore: d.keyStore,
+          driver: d.driver,
+        });
+        expect(Array.from(session.masterKey).join()).toBe(
+          Array.from(accountMasterKey).join(),
+        );
+
+        // The pairing negative: a second run is a no-op, so the repair replaces
+        // the binding rather than stacking a fresh row on every launch.
+        expect(
+          await adoptAccountMasterKey({
+            keyStore: d.keyStore,
+            driver: d.driver,
+            door: { kind: "recovery", recoveryKey },
+          }),
+        ).toBe("unchanged");
+      } finally {
+        await d.cleanup();
+      }
+    });
+
+    it("refuses to mint a master key once an account exists", async () => {
+      // The source guard, which is what makes the repair mandatory rather than
+      // best-effort: without an enclave door, an account store must not proceed.
+      const d = await scratchDevice();
+      try {
+        await createAccountRepo(d.driver).create({
+          id: crypto.randomUUID(),
+          kdfSalt: Uint8Array.from(generateKey()),
+          authVerifier: Uint8Array.from(generateKey()),
+          kdfAlg: KDF_ALG,
+        });
+        expect(
+          await rejects(() =>
+            ensureDeviceMasterKey({ keyStore: d.keyStore, driver: d.driver }),
+          ),
+        ).toBe(true);
+      } finally {
+        await d.cleanup();
       }
     });
   });

@@ -566,6 +566,18 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       "secret picnic",
     );
 
+    // A joined device must keep a **local** password door on MK, not just the
+    // relay's copy. Without it a keychain loss is unrecoverable here: the password
+    // sidecar reopens the store file, but nothing on the device leads from that
+    // password back to the master key, so the boot-path repair (slice 9) has
+    // nothing to read and the device is stuck. Creation and recovery both wrote
+    // this row; join did not, and it was found only by driving a joined device
+    // through a wiped keychain.
+    expect(
+      (await unlockWithPassword({ driver: d2.driver, password: PASSWORD }))
+        .masterKey,
+    ).toEqual(mk1);
+
     // The account-identity / key tables never replicate: the relay log carries
     // only domain tables, never account/device/key_wrap/content_key.
     const names = (

@@ -72,23 +72,38 @@ export function sealDbKeyForPassword(opts: {
 }
 
 /**
- * Open the whole-DB key from a sidecar blob and the typed password: read the salt
- * the blob carries, derive the KEK from it, unwrap.
+ * Open the whole-DB key from a sidecar blob and the typed password, **and hand
+ * back the derived key material** so a caller that needs more than the db-key does
+ * not pay Argon2 twice.
  *
  * This one derives internally — unlike {@link sealDbKeyForPassword} — because only
  * the blob knows which salt to use, and at boot there is nowhere else to learn it.
  * That makes each attempt cost one Argon2 pass, which is the point: it is the same
  * work an attacker must do per guess.
  *
+ * ### Why the KEK comes back out
+ *
+ * The salt in the blob is the *account's* salt (see the file header), so the KEK
+ * this derives is the very same KEK that wraps the master key in `key_wrap`. A boot
+ * that came through this door therefore already holds everything needed to unwrap
+ * the account master key, and returning it lets the caller repair a device whose
+ * enclave was lost with the keychain (custody slice 9) for the cost of one AEAD
+ * open. Re-deriving instead would mean a second 19 MiB Argon2id pass — minutes on
+ * mobile's unJITted Hermes, on the launch where the user is already waiting.
+ *
+ * `authVerifier` comes back for the same reason: comparing it against the account
+ * row's is how a caller tells a current sidecar from a stale one, and it is free
+ * here (`deriveKeyMaterial` computes both branches from the one pass).
+ *
  * Throws on a bad magic, a truncated blob, or a wrong password (AEAD fails closed).
  * Callers surface all three as "that password doesn't open this database" — the
  * distinction is not useful to a user and telling them which one failed would say
  * more than it should.
  */
-export function openDbKeyWithPassword(
+export function openPasswordSidecar(
   sidecar: Uint8Array,
   password: string,
-): Uint8Array {
+): { dbKey: Uint8Array; kek: Uint8Array; authVerifier: Uint8Array } {
   const magic = sidecar.subarray(0, SIDECAR_MAGIC.length);
   if (
     sidecar.length <= BODY_OFFSET ||
@@ -98,6 +113,20 @@ export function openDbKeyWithPassword(
     throw new Error("Unrecognized password sidecar format.");
   }
   const salt = sidecar.subarray(SIDECAR_MAGIC.length, BODY_OFFSET);
-  const { kek } = deriveKeyMaterial(password, salt);
-  return unwrapKey(sidecar.subarray(BODY_OFFSET), kek);
+  const { kek, authVerifier } = deriveKeyMaterial(password, salt);
+  return {
+    dbKey: unwrapKey(sidecar.subarray(BODY_OFFSET), kek),
+    kek,
+    authVerifier,
+  };
+}
+
+/**
+ * {@link openPasswordSidecar} for the callers that only want the db-key.
+ */
+export function openDbKeyWithPassword(
+  sidecar: Uint8Array,
+  password: string,
+): Uint8Array {
+  return openPasswordSidecar(sidecar, password).dbKey;
 }

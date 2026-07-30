@@ -8,10 +8,11 @@ import {
   decodeRecoveryPhrase,
   ensureDatabaseKey,
   openDbKeyFromRecovery,
-  openDbKeyWithPassword,
+  openPasswordSidecar,
   readRecoveryKey,
   sealDbKeyForRecovery,
 } from "@leapsake/crypto";
+import type { AdoptionDoor } from "@leapsake/core";
 import type { SqliteDriver } from "@leapsake/data";
 import {
   encryptedSqliteDriver,
@@ -74,14 +75,25 @@ export interface UnlockAnswer {
  * `requestUnlock` is injected (the caller owns the UI); it is told which doors
  * exist and the previous attempt's error, and returns the secret to try. The DB
  * mechanics here are fully unit-testable without that UI.
+ *
+ * `onUnlocked` is the other half of case 3, and only fires there. A door unlock
+ * means the keychain was lost, which means this device's *master* key is gone too —
+ * so the caller must re-adopt the account's before anything reads it
+ * (`adoptAccountMasterKey`, custody slice 9). It hands over the key material the
+ * unlock already derived rather than the typed secret: the password sidecar is
+ * sealed under the account's own salt, so the KEK that just opened the db-key is
+ * the same one that unwraps the master key, and re-deriving would mean a second
+ * Argon2id pass for nothing. The repair itself cannot happen here — there is no
+ * open database until well below this loop, let alone a migrated one.
  */
 export async function openAppDatabase(opts: {
   dbPath: string;
   custody: "open" | "protected";
   keyStore: KeyStore;
   requestUnlock: (request: UnlockRequest) => Promise<UnlockAnswer>;
+  onUnlocked?: (door: AdoptionDoor) => void;
 }): Promise<SqliteDriver> {
-  const { dbPath, custody, keyStore, requestUnlock } = opts;
+  const { dbPath, custody, keyStore, requestUnlock, onUnlocked } = opts;
 
   // Stores now live in per-account directories (§7.4), which will not exist on a
   // first launch into either state.
@@ -117,12 +129,19 @@ export async function openAppDatabase(opts: {
       });
       try {
         if (answer.door === "password" && password !== undefined) {
-          dbKey = openDbKeyWithPassword(password, answer.secret);
+          const opened = openPasswordSidecar(password, answer.secret);
+          dbKey = opened.dbKey;
+          onUnlocked?.({
+            kind: "password",
+            kek: opened.kek,
+            authVerifier: opened.authVerifier,
+          });
         } else if (answer.door === "phrase" && phrase !== undefined) {
           // Hold the recovery key: it is also this device's enclave copy, which
           // the refresh below restores. A password unlock cannot recover it.
           recoveryKey = decodeRecoveryPhrase(answer.secret);
           dbKey = openDbKeyFromRecovery(phrase, recoveryKey);
+          onUnlocked?.({ kind: "recovery", recoveryKey });
         } else {
           throw new Error("That door is not available on this device.");
         }

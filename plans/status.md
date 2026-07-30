@@ -6,7 +6,7 @@
 > not here. Design docs never restate status; this file never restates design.
 >
 > **Updated 2026-07-29** — **"Encryption follows custody" is now the shipped behavior on both
-> clients, and the custody build (slices 1–8) is DONE on both.** First launch
+> clients, and the custody build (slices 1–9) is DONE on both.** First launch
 > mints **no keys** and leaves the store plaintext; creating an
 > account (username + password) is the single act that turns encryption on, converting the
 > store as it goes; and a lost keychain is answered by **the password**, with the 24-word
@@ -16,7 +16,9 @@
 > per-account; **a phone can create an account with no relay at all**, so a
 > mobile-only user can encrypt; and the phrase is now **shown twice in its life** — at
 > account creation and at the password-gated **rotation** that replaces it — with peer
-> devices converging on the new one at their next launch. See the block
+> devices converging on the new one at their next launch. And a device that lost its OS
+> keychain now **re-adopts the account's master key** from the door it just came through,
+> instead of silently inventing one and diverging from its peers. See the block
 > below under *What's next* → **Local custody** for what each slice did and the traps.
 > The model is [`encryption/model.md`](./encryption/model.md) §7, and §6.1 for rotation.
 >
@@ -43,7 +45,7 @@
   > Creating an account — **or joining/recovering one** — mints this device's db-key and
   > converts the store to `stores/<accountId>/`, and both unlock doors, password and phrase,
   > are built and proved on desktop for all three paths.
-  > Slices 1–7c of the build order below are done on both clients; **slice 8 is next**. Any
+  > Slices 1–9 of the build order below are done on both clients. Any
   > install predating this must be recreated (pre-v0.1 latitude) — no compatibility path.
 - **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
   and the review surface is **detection-driven rather than permanently advertised** (links and
@@ -96,20 +98,20 @@ the work they imply.
 ### Pre-v0.1 (toward initial launch)
 
 > **Order matters here.** Picking up work cold? Take them in this order:
-> **1.** **Local custody — the block immediately below.** Slices 1–7c are **built on both
-> clients**; start at **slice 8** (retire the Settings recovery-phrase reveal). No longer
-> blocks `launch.md` Increments 2–4.
-> **2.** `launch.md` Increment 1's last piece — **an owner decision, not a task**: the version
-> number and the build-number strategy. The machinery and the credential gitignores are built.
-> Due before Increment 4's first store upload, not before the v0.1 cut.
-> **3.** The rest of `launch.md` in its own numbered order, once 1 is built.
-> **4.** Everything else in this section — genuinely interleavable as capacity allows, no
+> **1.** **`launch.md` Increment 1's last piece** — **an owner decision, not a task**: the
+> version number and the build-number strategy. The machinery and the credential gitignores
+> are built; it is due before Increment 4's first store upload, not before the v0.1 cut.
+> Local custody (the block below) is **done, slices 1–9**, and blocks nothing; its one
+> remaining v0.1 debt is softening slice 9's strict posture, which is interleavable.
+> **2.** The rest of `launch.md` in its own numbered order, once 1 is settled.
+> **3.** Everything else in this section — genuinely interleavable as capacity allows, no
 > dependencies between them.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/29. Slices 1–7c done on both
-clients; slice 8 is next.**
+**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/29. Slices 1–9 are DONE on both
+clients. The one thing this block still owes v0.1 is softening slice 9's strict posture (see
+its notes).**
 
 > **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
 > are fine.** There are no real users, so a migration is only worth writing when it is
@@ -521,33 +523,93 @@ reader would otherwise re-learn the hard way:
 > local-only is unaffected, but the **username-collision** question (Open questions) still
 > gates relay binding generally.
 
-**⚠️ Found while driving slice 8, and NOT fixed — a keychain loss orphans this device's
-master key** *(2026-07-29)*. It predates slice 8 and is bigger than it, so it was recorded
-rather than absorbed.
+9. **Re-adopt the account master key after a door unlock** — ✅ **DONE on both clients,
+   2026-07-29**, desktop driven over CDP against a live relay with two profiles. This was
+   the ⚠️ found while driving slice 8: the doors recovered the **db-key**, so the store
+   opened and the user was back in, but nothing recovered the **master key**. The wiped
+   keychain held `device-id` and `enclave` too, so `ensureDeviceMasterKey` found no
+   `key_wrap` row for the fresh device id and **minted a new MK** — leaving the device
+   holding a key the account had never seen while the account's real one sat in the store's
+   own `key_wrap` rows, reachable from the door the user had just opened and never read.
 
-The doors recover the **db-key**, so the store opens and the user is back in. Nothing
-recovers the **master key**: the wiped keychain held `device-id` and `enclave` too, so
-`ensureDeviceMasterKey` finds no `key_wrap` row for the new device id and **mints a fresh
-MK**. The device then holds a master key the account has never seen, while the account's
-real MK sits in the store's own `key_wrap` rows, reachable from the password door
-(`wrap(MK, KEK)`) or the recovery one, and simply never read.
+   The boot path now reads it back and binds it to the new enclave *before*
+   `ensureDeviceMasterKey` runs, so nothing is ever minted. Where it lives:
+   `adoptAccountMasterKey` (`@leapsake/key-custody`) over the private
+   `adoptMasterKeyIntoEnclave` that join and recover now share;
+   `resyncAfterMasterKeyRepair` (`packages/core/src/sync.ts`); each client's boot path
+   (`apps/desktop/src/main/index.ts`'s `openActiveStore`, `apps/mobile/lib/core-context.tsx`).
 
-What that costs, on a device that is otherwise working normally:
-- **Sync silently diverges** — it seals records under a key no peer holds, and cannot open
-  theirs (`runAccountSync` uses the enclave MK).
-- **Every existing content key is orphaned** (layer 3 — currently unused, but photos are
-  its v0.2 consumer).
-- Slice 8 would have made it *account-wide* by publishing an escrow around the stray key;
-  that specific exposure is closed (rotation reads the password door), but the underlying
-  state is untouched.
+   The owner calls this slice carried, both settled while planning: it is **strict** — the
+   repair must succeed or the app refuses to open, and `ensureDeviceMasterKey` now refuses
+   to mint at all once an account row exists — and it **heals the damage rather than only
+   stopping it**, rewinding both sync watermarks so the device re-pushes and re-pulls
+   everything once.
 
-**The fix is the re-adopt step the boot path is missing**: after a door unlock, unwrap the
-account MK from the `password`/`recovery` key-wrap row and re-wrap it under the new enclave
-id, exactly as `joinAccount` step 5 does. It belongs with the per-device re-adopt work under
-*Device management* (post-launch) — but it is worth pulling forward, because unlike the rest
-of that bucket this one is reachable by an ordinary user with an ordinary OS reinstall. It
-is also why the desktop harness note below (deleting `keystore.json`) simulates something
-slightly worse than it looks.
+   > - **Carry the KEK, not the password.** The password sidecar is sealed under the
+   >   *account's own* salt (`packages/crypto/src/password-sidecar.ts`), so the KEK that
+   >   opens the db-key at the gate is the very one that unwraps `key_wrap(master,
+   >   password)`. `openPasswordSidecar` now returns it. Re-deriving instead would cost a
+   >   second Argon2id pass — minutes on unJITted Hermes, on the launch where the user is
+   >   already waiting — and it keeps the typed password inside the unlock loop.
+   > - **The damage was two-sided, and neither half self-heals.** A stray-key device pushed
+   >   records peers could not open *and* skipped every peer record it could not open, and
+   >   `packages/sync/src/engine.ts` advances the cursor past a skipped record rather than
+   >   stalling on it (security-findings M3). So both sides lose those records permanently.
+   >   That is what the watermark rewind is for; without it slice 9 fixes the device and
+   >   leaves the account's history quietly holed.
+   > - **Ordering is load-bearing in both directions.** After `runMigrations` (it reads
+   >   `account`/`key_wrap`), before `ensureDeviceMasterKey` (which is what makes that call
+   >   find the right key), and **synchronously** — the launch-time recovery-escrow
+   >   catch-up publishes `wrap(recoveryKey, MK)` *to the relay*, so a stray key reaching it
+   >   re-opens slice 8's account-wide exposure by the back door.
+   > - **`joinAccount` never wrote a local `(master, password)` door.** *Found by driving
+   >   it, after the code was written and green* — the repair threw "No password unlock door
+   >   exists" on the joined device. The relay hands the joining device exactly those bytes
+   >   and it only persisted the *recovery* door; creation and recovery both wrote the
+   >   password one. So before this, a joined device that lost its keychain had **no local
+   >   route from its password back to the master key at all**. Now pinned by an assertion
+   >   in the relay suite's join case, confirmed RED.
+   > - **The pre-wipe `device` row and enclave `key_wrap` row are left behind**, on purpose.
+   >   Both are keyed to a device id that will never be presented again and an enclave
+   >   secret that died with the keychain, so they are unmatchable rather than merely
+   >   unused. Sweeping them is per-device revocation — post-launch, with a real design.
+   > - **The strict posture is a v0.1 blocker to soften** (listed under *Encryption + sync*
+   >   below). It costs nothing while there are no real users and it is far easier to reason
+   >   about, but a real person must not meet a locked app for a problem they cannot see or
+   >   act on. Today it throws out of `openActiveStore`, the way the existing custody-state
+   >   guards already do.
+   > - **A stale password sidecar is refused, not worked around.** Its verifier will not
+   >   match the account row, and its KEK cannot open the password wrap either. The phrase
+   >   door is unaffected (it derives from the recovery key, not the password salt) and is
+   >   the way in.
+
+   **How it was verified on desktop** (two profiles over CDP against a live relay): A
+   creates a relay-bound account, adds people, syncs → B joins and pulls them → **B's
+   `keystore.json` is deleted and B relaunches into the gate** → B unlocks with its password
+   → B writes a person, syncs, and **A reads it**; A writes one and **B reads it**.
+   Cross-device readability is the assertion that matters, since records are sealed under MK
+   and a stray key makes them mutually unreadable. The relay's log shows the rewind working
+   — the same record id at seq 1 (A's original push) and again at seq 37 (B's re-push after
+   the repair). Then the whole cycle again through the **phrase** door, after a rotation,
+   ending with A reading what the phrase-repaired device wrote. Finally the no-op path: an
+   ordinary sign-out, password unlock, data intact.
+
+   **On mobile**, the on-device suite is **34/34** (two new cases: the repair through the
+   recovery door on real SQLCipher, and the source guard; confirmed RED at 32/34 first).
+   `leapsake://dev-clear-dbkey` grew a **"Clear everything"** action that also deletes
+   `device-id` and `enclave` — the shape a real keychain loss leaves, and the mobile
+   counterpart of deleting `keystore.json`. Clearing only the db-key keeps the device
+   identity, so it can never reach the repair.
+
+   > ⚠️ **Mobile's boot repair was never driven in a running app.** The account form cannot
+   > be completed under Maestro: the **confirm-password** field takes no input (tap by text
+   > and by point both report COMPLETED and leave it empty), which is the same
+   > `secureTextEntry` wall slice 8 hit on the rotation form — and notably the *password*
+   > field beside it does accept input, so it is field-specific rather than a blanket
+   > limitation. The wiring is the same fifteen lines desktop drove end to end, and the
+   > repair primitives are proved on device by the self-test; what is unproven is only that
+   > `core-context.tsx` calls them at boot. Resolve with the mobile E2E flows — the harness
+   > affordance is now in place, so it is the form that blocks, not the scenario.
 
 **Explicitly v0.2, not v0.1** *(owner, 2026-07-27)*: **automatic** locking on idle and the
 bounded session. The deliberate half (slice 7) is cheap; a real session needs mid-session
@@ -588,6 +650,14 @@ the distribution work rather than ahead of it.
 
 **Encryption + sync:**
 
+- **Soften custody slice 9's strict posture** *(v0.1 blocker, opened 2026-07-29)*. The
+  master-key repair currently must succeed or the app refuses to open, and
+  `ensureDeviceMasterKey` refuses to mint once an account exists. That is the right default
+  with no real users and it is far easier to reason about, but a real person must not meet a
+  locked app for a problem they can neither see nor act on. Wants: a durable retry flag (the
+  shape slice 8's `recovery_escrow_pending` already uses — `sync_state` is key/value, no
+  migration), and a boot-failure surface that says something useful instead of throwing out
+  of `openActiveStore`. Detail and rationale in slice 9's notes above.
 - **Relay hardening.** **H3 is complete for v0.1** — session tokens + both TLS paths
   (Option A Caddy-in-front, Option B in-process) — as are H2, M3, proxy-aware IP, and the
   recovery throttle. Delivery detail in `git log`; findings backlog in
@@ -722,9 +792,12 @@ build finished with slice 6.
   restarting the app. Deleting `keystore.json` between launches simulates keychain loss.
   Two things learned driving slice 8: **`electron-vite dev` only HMRs the renderer**, so a
   change under `packages/` needs the dev server restarted before an extra instance picks it
-  up (check with `grep` against `apps/desktop/out/main/index.js`); and deleting
-  `keystore.json` **also orphans this device's master key**, not just the db-key — see the
-  ⚠️ under slice 8 — so a profile used that way is no longer representative for sync.
+  up (check with `grep` against `apps/desktop/out/main/index.js`). Deleting `keystore.json`
+  takes this device's **master key** as well as its db-key, which is the whole point — since
+  slice 9 the boot path repairs that from the door, so such a profile is representative
+  again, and this is how that repair is driven. A `pkill -9` of the Electron child can take
+  `out/` with it and leave the dev server serving nothing; restart the dev server if a
+  launch produces no output at all.
 - **Mobile dev client:** `pnpm --filter @leapsake/mobile ios` (native SQLCipher build; Expo
   Go can't host it). `__DEV__` deep links: `leapsake://dev-selftest` (driver contract +
   custody suite), `leapsake://dev-clear-dbkey` (simulate keychain loss). Editing a self-test

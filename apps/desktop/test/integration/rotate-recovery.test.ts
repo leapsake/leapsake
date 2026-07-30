@@ -1,13 +1,18 @@
 import {
+  ALG,
   DATABASE_KEY,
+  type KeyStore,
   RECOVERY_KEY,
   createInMemoryKeyStore,
   decodeRecoveryPhrase,
   generateKey,
   openDbKeyFromRecovery,
+  wrapKey,
 } from "@leapsake/crypto";
+import { utf8ToBytes } from "@leapsake/bytes";
 import {
   type SqliteDriver,
+  createKeyWrapRepo,
   createSyncStateRepo,
   runMigrations,
 } from "@leapsake/data";
@@ -71,6 +76,27 @@ describe("rotating the recovery phrase", () => {
       password: PASSWORD,
     });
     return { keyStore, masterKey, dbKey, phrase: recoveryPhrase };
+  }
+
+  /**
+   * Put the device into the state a keychain loss used to leave it in: a fresh
+   * device identity with its own master key, unrelated to the account's. Written
+   * directly, because `ensureDeviceMasterKey` now refuses to reach it.
+   */
+  async function strayEnclaveKey(keyStore: KeyStore): Promise<Uint8Array> {
+    const deviceId = crypto.randomUUID();
+    const enclaveKey = generateKey();
+    const strayMasterKey = generateKey();
+    await keyStore.setSecret("device-id", utf8ToBytes(deviceId));
+    await keyStore.setSecret("enclave", enclaveKey);
+    await createKeyWrapRepo(driver).add({
+      wrappedKind: "master",
+      principalKind: "enclave",
+      principalRef: deviceId,
+      ciphertext: wrapKey(strayMasterKey, enclaveKey),
+      alg: ALG,
+    });
+    return strayMasterKey;
   }
 
   it("moves the phrase in all three places, and retires the old one", async () => {
@@ -190,8 +216,11 @@ describe("rotating the recovery phrase", () => {
     for (const id of KEYSTORE_SECRET_IDS) {
       if (id !== DATABASE_KEY) await keyStore.deleteSecret(id);
     }
-    const strayMasterKey = (await ensureDeviceMasterKey({ keyStore, driver }))
-      .masterKey;
+    // Then the drift itself, written by hand. `ensureDeviceMasterKey` used to
+    // produce this state on its own and now refuses to (slice 9's source guard —
+    // see the case below), but the shape it produced is still reachable by any
+    // future path that mints around an account, so the guarantee stays pinned.
+    const strayMasterKey = await strayEnclaveKey(keyStore);
     expect(strayMasterKey).not.toEqual(masterKey);
 
     const { recoveryPhrase } = await rotateRecoveryPhraseForAccount({
@@ -212,6 +241,21 @@ describe("rotating the recovery phrase", () => {
       ).masterKey,
     ).toEqual(masterKey);
     expect(recoveryPhrase).not.toBe(phrase);
+  });
+
+  it("refuses to mint a stray master key on an account store at all", async () => {
+    // Slice 9's source guard — the cure for what the case above works around.
+    // Minting is only correct before an account exists; once one does, its master
+    // key is in `key_wrap` and a second one means this device silently stops
+    // speaking the account's language.
+    const { keyStore } = await localAccount();
+    for (const id of KEYSTORE_SECRET_IDS) {
+      if (id !== DATABASE_KEY) await keyStore.deleteSecret(id);
+    }
+
+    await expect(ensureDeviceMasterKey({ keyStore, driver })).rejects.toThrow(
+      /re-adopted from an unlock door/i,
+    );
   });
 
   it("seals an adopted key around the adopting device's own db-key", async () => {

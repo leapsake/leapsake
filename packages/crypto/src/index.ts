@@ -26,6 +26,7 @@ export {
 export {
   sealDbKeyForPassword,
   openDbKeyWithPassword,
+  openPasswordSidecar,
 } from "./password-sidecar.js";
 export {
   RECOVERY_PHRASE_WORDS,
