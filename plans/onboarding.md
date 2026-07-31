@@ -9,7 +9,7 @@
 > [`status.md`](./status.md) and keep this stable.
 >
 > Everything here assumes *encryption follows custody* (`encryption/model.md` §7.2): a fresh
-> install is **Open** (plaintext, no keys), and creating an account is the single act that
+> install is **Unauthenticated** (plaintext, no keys), and creating an account is the single act that
 > turns encryption on. The account step below is that act — read §7.2.1 for the copy
 > constraint before writing any of it.
 >
@@ -42,13 +42,13 @@ Settled 2026-07-30 unless noted.
 Findings from reading the engine and both clients. A fresh reader who skips these will rebuild
 something that exists, or design against a constraint that isn't there.
 
-1. **`hasAccount` needs no new plumbing.** `getSyncStatus({ driver }).enabled`
-   (`packages/key-custody/src/session.ts:254`) reads the account singleton *from inside the
+1. **`hasAccount` needs no new plumbing.** `getSyncStatus({ driver }).hasAccount`
+   (`packages/key-custody/src/session.ts`) reads the account singleton *from inside the
    store* and is already called one line away in core's onboarding port
    (`packages/core/src/index.ts:737`, for the stricter `relayUrl !== undefined`). No
    `createCore` signature change, no roster access, no client plumbing.
-   > ⚠️ The name is pre-custody residue: `getSyncStatus().enabled` means **"has an account"**,
-   > not "syncs" — a local-only account sets it with no relay. Worth renaming someday; not here.
+   > The field was called `enabled` until 2026-07-31, which read as "does this store sync"
+   > when it meant "does an account exist" — `relayUrl` is what answers the sync question.
 
 2. **Deleting a system reminder already means "never ask again."** Prune is a `softDelete`
    tombstone and reconcile never resurrects a tombstoned id
@@ -112,7 +112,7 @@ The steps want opposite timing:
   need not have existed.
 - **After data exists** — *create an account*. At a cold first launch it is a signup wall
   protecting an empty database, which forfeits the zero-setup first run that is the entire
-  point of the Open state (`encryption/model.md` §1).
+  point of the Unauthenticated state (`encryption/model.md` §1).
 
 **Both are already satisfied by the existing rails**, which is the finding that made the flow
 unnecessary:
@@ -253,7 +253,7 @@ hides and returns too — the generic half.
 
 > The gate-clearer for [`launch.md`](./launch.md) Increment 4.
 
-**Value:** gets users from Open to Protected, which is what closes the data-loss path.
+**Value:** gets users from Unauthenticated to Authenticated, which is what closes the data-loss path.
 
 - A fourth step on the existing rails: `hasAccount` from §2.1, a `create-account` route, both
   client CTA tables (`apps/desktop/.../ReminderList.tsx:17`, `apps/mobile/app/(tabs)/index.tsx:29`).

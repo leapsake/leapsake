@@ -9,7 +9,7 @@ import type {
 import { getSyncStatus } from "@leapsake/core";
 import {
   type AccountRoster,
-  OPEN_STORE_SLOT,
+  UNAUTHENTICATED_STORE_SLOT,
   storePath,
 } from "@leapsake/store-layout";
 import {
@@ -41,19 +41,19 @@ import { storeFileState } from "./sqlite-header.js";
  *
  * Core seals the password door from inside `joinAccountViaRelay` /
  * `recoverAccountViaRelay`, via `sealPasswordDoorIfProtected`, which deliberately
- * skips while a store has no db-key — that is how it stayed correct while Open
+ * skips while a store has no db-key — that is how it stayed correct while Unauthenticated
  * stores had no lock to seal. Minting first is therefore what turns that skip into
  * a real door, with no change at those call sites.
  *
  * Minting early is safe: custody is decided purely by the roster
- * (`resolveActiveStore`), and the Open branch of the boot path never reads a
- * db-key. A crash between the mint and the roster entry still boots Open and
+ * (`resolveActiveStore`), and the Unauthenticated branch of the boot path never reads a
+ * db-key. A crash between the mint and the roster entry still boots Unauthenticated and
  * plaintext, with a harmless unused key in the enclave that the retry reuses.
  *
  * ### Why the door's bytes are captured rather than written
  *
  * The writer the main process normally hands core resolves its path against the
- * *live* `dbPath`, which is still the Open store while `adopt` runs — so letting it
+ * *live* `dbPath`, which is still the Unauthenticated store while `adopt` runs — so letting it
  * write would put the door beside a plaintext store that is about to be deleted.
  * Capturing the bytes and writing them at the converted path is what
  * `createAccountOnThisDevice` already does with the bytes `createLocalAccount`
@@ -61,12 +61,12 @@ import { storeFileState } from "./sqlite-header.js";
  *
  * The caller closes the store's driver via `closeStore` and re-opens afterwards
  * (`withStoreSwap`): the file cannot be converted while a handle is writing to it,
- * and the new store is opened by the ordinary Protected boot path, which also seals
+ * and the new store is opened by the ordinary Authenticated boot path, which also seals
  * the recovery sidecar as it does on every launch — so this writes only one door.
  */
 export async function adoptAccountOnThisDevice(opts: {
   keyStore: KeyStore;
-  /** The open store, which must be the plaintext one — joining is an Open act. */
+  /** The open store, which must be the plaintext one — joining is an Unauthenticated act. */
   driver: SqliteDriver;
   roster: AccountRoster;
   userDataPath: string;
@@ -82,10 +82,10 @@ export async function adoptAccountOnThisDevice(opts: {
 }): Promise<KeySession> {
   const { keyStore, driver, roster, userDataPath } = opts;
 
-  const openPath = join(userDataPath, storePath(OPEN_STORE_SLOT));
+  const openPath = join(userDataPath, storePath(UNAUTHENTICATED_STORE_SLOT));
 
-  // Joining is an **Open** device's act, and this asserts it rather than coping.
-  // There used to be a branch here that adopted in place on an already-Protected
+  // Joining is an **Unauthenticated** device's act, and this asserts it rather than coping.
+  // There used to be a branch here that adopted in place on an already-Authenticated
   // device, because "Disconnect account" could leave one reporting no account
   // while its roster still named one; removing that button removed the only way
   // to reach this state, since every path now writes the account row and the
@@ -142,11 +142,11 @@ export async function adoptAccountOnThisDevice(opts: {
   });
 
   // 3b. The password door, beside the store it opens — written before the roster
-  //     entry so a device that is Protected from the next boot onward has both
+  //     entry so a device that is Authenticated from the next boot onward has both
   //     doors from the same moment.
   writeSidecar(passwordSidecarPath(encryptedPath), passwordSidecar);
 
-  // 4. Point the roster at the new store. Past this line the device is Protected.
+  // 4. Point the roster at the new store. Past this line the device is Authenticated.
   await roster.add({
     id: accountId,
     username: username ?? opts.username,

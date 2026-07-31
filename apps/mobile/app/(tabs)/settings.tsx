@@ -90,7 +90,7 @@ export default function SettingsScreen() {
       <Text style={styles.title}>Account &amp; sync</Text>
       {status === null ? (
         <Text style={styles.muted}>Loading…</Text>
-      ) : status.enabled ? (
+      ) : status.hasAccount ? (
         <AccountEnabled
           status={status}
           reviewCount={reviewCount}
@@ -119,7 +119,7 @@ export default function SettingsScreen() {
         once was showing one act twice — they land in the identical place.
       */}
       {status !== null &&
-        (status.enabled ? (
+        (status.hasAccount ? (
           <>
             <RecoveryPhraseSection onRotated={setRevealed} />
             <SignOutSection />
@@ -1267,10 +1267,10 @@ function ForgetAccountSection() {
  * Factory reset: erase everything on this device and rebuild the app as a fresh
  * install.
  *
- * **Shown only while this device is Open** (`model.md` §7.2) — with an account,
+ * **Shown only while this device is Unauthenticated** (`model.md` §7.2) — with an account,
  * {@link ForgetAccountSection} is the same act under the name that fits, and
  * offering both was offering one act twice. That is also why the copy no longer
- * branches on whether sync is set up: an Open device has no account, so this data
+ * branches on whether sync is set up: an Unauthenticated device has no account, so this data
  * is by definition the only copy.
  *
  * Gated behind a type-to-confirm step (the danger-styled button stays disabled

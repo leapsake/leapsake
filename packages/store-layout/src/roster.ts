@@ -51,7 +51,7 @@ interface RosterFile {
  *
  * **Why tolerate rather than throw:** this file is read on the boot path, before
  * any UI exists to show an error. A corrupt roster must not brick the app into an
- * unlaunchable state — reporting "no accounts" degrades to the Open path, which is
+ * unlaunchable state — reporting "no accounts" degrades to the Unauthenticated path, which is
  * recoverable, whereas a boot crash is not. The stores themselves are untouched
  * either way; only the *index* of them is lost.
  */

@@ -187,7 +187,7 @@ describe("rotating the recovery phrase", () => {
   });
 
   it("refuses when there is no db-key to seal a door around", async () => {
-    // The Open state (§7.2): an account's rows but no at-rest key is not a state
+    // The Unauthenticated state (§7.2): an account's rows but no at-rest key is not a state
     // the app reaches, and sealing a door around nothing would look like success.
     const { keyStore } = await localAccount();
     await keyStore.deleteSecret(DATABASE_KEY);

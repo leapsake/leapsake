@@ -7,18 +7,18 @@ design behind them. Shipped on both clients 2026-07-20; what remains is sequence
 
 ## Holidays are three things, and conflating them is where the design goes wrong
 
-| Layer | What it is | Where it lives |
-|---|---|---|
-| **Catalog** | "Christmas, Dec 25, Christian, US-observed" | public reference data — this package, seeded into a synced table |
-| **Observance** | "Grandma observes Hanukkah" | user data: syncable, sensitive |
-| **Rule** | "gift, 30 days before" | `reminder_rules`, which already existed |
+| Layer          | What it is                                  | Where it lives                                                   |
+| -------------- | ------------------------------------------- | ---------------------------------------------------------------- |
+| **Catalog**    | "Christmas, Dec 25, Christian, US-observed" | public reference data — this package, seeded into a synced table |
+| **Observance** | "Grandma observes Hanukkah"                 | user data: syncable, sensitive                                   |
+| **Rule**       | "gift, 30 days before"                      | `reminder_rules`, which already existed                          |
 
 **An observance is milestone-shaped**: a milestone is (bearer, kind, date), an observance is
 (bearer, holiday, date-derived-from-catalog). Both are "a recurring dated fact about a person
 that reminder rules hang off." So a rule's bearer is the **observance**, never the holiday —
 which preserves the existing `(bearerType, bearerId)` pair and makes per-person schedules fall
 out for free ("gift Alice 30 days before Christmas" but "just call Grandma day-of"). Making the
-holiday the bearer would need a third column for *which person*, plus a parallel copy of the
+holiday the bearer would need a third column for _which person_, plus a parallel copy of the
 `resolveReminderSchedule` and deterministic-id machinery.
 
 **Rejected: holidays as a `milestone` kind.** Tempting — zero engine work — but milestone kinds
@@ -44,14 +44,14 @@ identity. Both, via `deterministicUuid`:
 Observances point at a single `holidayId` with **no polymorphism and no source discriminator**,
 which is what makes "no broken observances" hold for user-defined holidays too.
 
-## Catalog rows carry the *authored* timestamp, not local write time
+## Catalog rows carry the _authored_ timestamp, not local write time
 
 This is what makes ordinary whole-row LWW correct by construction:
 
 - every device seeding catalog v3 writes byte-identical rows with identical timestamps → merges
   are no-ops;
 - a device that OTAs v4 has strictly later timestamps → v4 propagates and wins everywhere;
-- a device that seeds v3 *after* receiving v4 → v3 loses → no regression, no flapping.
+- a device that seeds v3 _after_ receiving v4 → v3 loses → no regression, no flapping.
 
 Without it, an older device's seed stamps `now`, beats a newer payload, and silently reverts it.
 
@@ -72,13 +72,13 @@ Two behaviors that must not regress:
   painful reasons, so getting this wrong is worse than an ordinary bug.
 - **Hide is non-destructive.** Suppress, never delete observances; unhiding restores everything.
 
-"Read-only" applies to the *holiday*. Observances and reminder rules hanging off it stay fully
+"Read-only" applies to the _holiday_. Observances and reminder rules hanging off it stay fully
 editable — they live on the observance.
 
 ## Slugs are fully qualified from day one; there is no `supersededBy`
 
 Real-world holidays change less than they appear to: Juneteenth becoming federal was an
-*addition*; a rule change (Memorial Day → last Monday, 1968) edits a stable slug and a
+_addition_; a rule change (Memorial Day → last Monday, 1968) edits a stable slug and a
 forward-looking reminders app does not care about historical accuracy; Columbus Day →
 Indigenous Peoples' Day is two entries observed differently by different states — a family, not a
 succession.
@@ -99,7 +99,7 @@ per entry; variants are separate entries.
 One interface — `occurrencesFor(holidayId, year) → CivilDate[]` — backed by arithmetic rules for
 fixed dates, nth-weekday, computus (Easter), offsets, and every-N-years; and by **precomputed
 date tables** for lunar/lunisolar holidays, which no arithmetic rule can carry (Islamic dates
-depend on moon *sighting* and differ by country and authority; Hebrew and Chinese calendars are
+depend on moon _sighting_ and differ by country and authority; Hebrew and Chinese calendars are
 algorithmic but heavy). Callers never learn which mechanism answered.
 
 It **degrades honestly**: past the table horizon a holiday stops producing occurrences rather
@@ -158,7 +158,7 @@ additional bulk affordance ("add everyone tagged #family"), not a return to the 
 - **An unresolvable holiday keeps its row and generates nothing.** Never throw, never prune. It
   is reachable in normal operation: `pull` applies records one at a time across paginated batches
   with no cross-table transaction, so observances and holidays arrive interleaved — and by
-  **rule-type skew**, a device whose *code* predates a recurrence type in its *data*. Data syncs;
+  **rule-type skew**, a device whose _code_ predates a recurrence type in its _data_. Data syncs;
   code does not.
 - **Seed by the stored catalog version, not by row inspection.** "Do rows exist" makes a device
   that received the catalog via sync re-seed from a stale bundle, and resurrects holidays the
@@ -173,7 +173,7 @@ additional bulk affordance ("add everyone tagged #family"), not a return to the 
 - **Keep id namespaces disjoint** — `observance:<id>:<date>:<action>` vs
   `holiday:<slug>:<date>:<action>`. Costs nothing now and keeps two doors open: person-less
   holiday reminders, and aggregate reminders.
-- **Watch the N+1.** The engine resolves occurrences and filters by window *before* hydrating
+- **Watch the N+1.** The engine resolves occurrences and filters by window _before_ hydrating
   labels; holidays multiply the candidate set (people × holidays), so that ordering must hold.
 - **The dismissal ladder is closed, and each rung means something different**: dismissing a
   reminder is "not this year" (one occurrence, because the occurrence is part of the

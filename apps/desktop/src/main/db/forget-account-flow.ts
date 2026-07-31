@@ -51,7 +51,7 @@ export async function forgetAccountOnThisDevice(opts: {
   //    what the next boot reads to decide custody — so dropping it first means
   //    the device immediately stops claiming an account it is in the middle of
   //    erasing. The reverse order is worse: a roster still naming a store whose
-  //    files are gone sends the Protected boot path off to create a *fresh empty
+  //    files are gone sends the Authenticated boot path off to create a *fresh empty
   //    encrypted store* at that path, presenting the user with an empty app under
   //    the account they thought they had deleted.
   //

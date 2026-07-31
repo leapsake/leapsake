@@ -38,11 +38,11 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-/** A realistic Open store: the true app schema, with a row in it. */
+/** A realistic Unauthenticated store: the true app schema, with a row in it. */
 async function seedOpenStore(): Promise<void> {
   const driver = await openAppDatabase({
     dbPath: fromPath,
-    custody: "open",
+    custody: "plaintext",
     keyStore: createInMemoryKeyStore(),
     requestUnlock: never,
   });
@@ -99,7 +99,7 @@ describe("convertStoreToEncrypted", () => {
     await keyStore.setSecret("db-key", key);
     const driver = await openAppDatabase({
       dbPath: toPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore,
       requestUnlock: never,
     });

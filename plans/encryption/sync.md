@@ -216,7 +216,7 @@ unique username; a second device looks the account up by username (prelogin → 
 derives the KEK from the same password, fetches the wrapped MK, and unwraps it locally. The
 relay stays blind: it holds only the public salt, `sha256(verifier)`, and the ciphertext
 wrapped key. **Accepted stance:** a username/password is required to *sync*, and — since 2026-07-27 —
-also to *encrypt at all*. It is never required **to start**: a fresh install runs Open, with
+also to *encrypt at all*. It is never required **to start**: a fresh install runs Unauthenticated, with
 no keys and a plaintext store, until the user creates an account. That account is created
 locally and a relay is bound afterwards, so by the time this bootstrap runs the password door
 and recovery key already exist and **no new key material is minted here**

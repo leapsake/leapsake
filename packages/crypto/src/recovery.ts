@@ -42,7 +42,7 @@ export async function ensureRecoveryKey(
  * reach for outside the paths that are *entitled* to create key material.
  *
  * The distinction is load-bearing under *encryption follows custody*
- * (`model.md` §7.2): an **Open** device holds no keys at all, and minting one
+ * (`model.md` §7.2): an **Unauthenticated** device holds no keys at all, and minting one
  * behind the user's back — as a "show me my recovery phrase" button did — both
  * breaks that invariant and hands them 24 words that unlock nothing, since there
  * is no db-key to wrap and no sidecar to open. Only account creation mints.

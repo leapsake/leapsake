@@ -8,8 +8,8 @@
 > ⚠️ **Two corrections you must not be misled by** (2026-07-27):
 > 1. **`principal_kind` is `password`, not `passphrase`.** The enum value was renamed in code
 >    long ago; the tables below still said the old name in places. `password` is correct.
-> 2. **These tables exist only in a *Protected* store.** Under "encryption follows custody"
->    (`model.md` §7.2) an **Open** store — a fresh install with no account — has no keys, so
+> 2. **These tables exist only in a *Authenticated* store.** Under "encryption follows custody"
+>    (`model.md` §7.2) an **Unauthenticated** store — a fresh install with no account — has no keys, so
 >    `key_wrap` and `content_key` are empty and `account`/`device` have no rows. The tables
 >    are created by migration either way; they are simply unpopulated. Any code reading them
 >    must treat "no rows" as a normal state, not a corrupt one.

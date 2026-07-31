@@ -802,8 +802,8 @@ export const migrations: Migration[] = [
     async up(driver) {
       // Retire `milestone.note` as a per-item-content-key consumer (encryption
       // `model.md` §2.1), reverting migration 12. Under *encryption follows
-      // custody* (§7.2) layer 3 bought a domain field nothing: an **Open** store
-      // has no key to seal with, and a **Protected** store is already whole-file
+      // custody* (§7.2) layer 3 bought a domain field nothing: an **Unauthenticated** store
+      // has no key to seal with, and a **Authenticated** store is already whole-file
       // ciphertext at rest. `note` is a plain TEXT column again.
       //
       // **This drops any note that was stored as ciphertext.** Migrations run

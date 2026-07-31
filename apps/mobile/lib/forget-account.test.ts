@@ -81,7 +81,7 @@ describe("forgetAccountOnThisDevice (mobile)", () => {
     expect(doorsDeleted).toBe(1);
   });
 
-  // The roster goes first so a crash lands the device Open rather than Protected
+  // The roster goes first so a crash lands the device Unauthenticated rather than Authenticated
   // and pointed at a store that is gone; the doors go after the store so a door
   // can never outlive what it opened.
   it("drops the roster entry before touching any file", async () => {

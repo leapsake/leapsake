@@ -57,7 +57,7 @@ export const STORE_DOOR_SECRET_IDS = [DATABASE_KEY, RECOVERY_KEY] as const;
  * — an account exists, and a door to re-open with exists beside the store — is the
  * caller's question, because only the caller can see the store's sidecars. Calling
  * this on a device with no password door strands the user behind a phrase-only
- * gate; on an Open store it would do nothing at all, since there are no keys.
+ * gate; on an Unauthenticated store it would do nothing at all, since there are no keys.
  */
 export async function lockThisDevice(opts: {
   keyStore: KeyStore;

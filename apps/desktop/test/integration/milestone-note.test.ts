@@ -13,7 +13,7 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
  * `milestone.note` is an **ordinary plaintext column** (migration 27, 2026-07-27).
  * It was briefly the one domain field sealed under a per-item content key; under
  * *encryption follows custody* (`model.md` §7.2) that layer bought a domain field
- * nothing — an Open store has no key to seal with, and a Protected store is
+ * nothing — an Unauthenticated store has no key to seal with, and an Authenticated store is
  * already whole-file ciphertext at rest.
  *
  * These run against the **encrypted** test driver on purpose: the file being
@@ -104,7 +104,7 @@ describe("milestone note", () => {
     expect(read?.note).toBe(NOTE);
   });
 
-  it("reads identically with no key session at all (an Open store)", async () => {
+  it("reads identically with no key session at all (an Unauthenticated store)", async () => {
     await core.milestones.create(milestoneWithNote());
     // No key session — the custody state every fresh install now starts in.
     const keyless = createCore(driver);

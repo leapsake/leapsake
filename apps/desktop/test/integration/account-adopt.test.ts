@@ -31,7 +31,7 @@ import {
   createPeopleRepo,
 } from "@leapsake/data";
 import {
-  OPEN_STORE_SLOT,
+  UNAUTHENTICATED_STORE_SLOT,
   ROSTER_PATH,
   createAccountRoster,
   resolveActiveStore,
@@ -50,7 +50,7 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
  * **Adopting an existing account** (`model.md` §7.1) — slice 6's acceptance, and
- * the sibling of `create-account.test.ts`: an Open store with real data joins (or
+ * the sibling of `create-account.test.ts`: an Unauthenticated store with real data joins (or
  * recovers) an account that already exists, and comes out encrypted, rostered, and
  * openable by *this device's own password*.
  *
@@ -170,15 +170,15 @@ afterEach(() => {
   rmSync(userData, { recursive: true, force: true });
 });
 
-/** An Open store holding one person — this device before it joins anything. */
+/** An Unauthenticated store holding one person — this device before it joins anything. */
 async function openStoreWithData(): Promise<{
   driver: SqliteDriver;
   path: string;
 }> {
-  const path = join(userData, storePath(OPEN_STORE_SLOT));
+  const path = join(userData, storePath(UNAUTHENTICATED_STORE_SLOT));
   const driver = await openAppDatabase({
     dbPath: path,
-    custody: "open",
+    custody: "plaintext",
     keyStore,
     requestUnlock: never,
   });
@@ -250,7 +250,7 @@ async function bootTheDevice(
 ): Promise<{ driver: SqliteDriver; path: string }> {
   const accounts = await rosterFor(userData).list();
   const resolved = resolveActiveStore({ accounts });
-  expect(resolved.custody).toBe("protected");
+  expect(resolved.custody).toBe("encrypted");
   expect(resolved.path).toBe(storePath(bootstrap.accountId));
   const path = join(userData, resolved.path);
   const driver = await openAppDatabase({
@@ -266,7 +266,7 @@ describe.each([
   { label: "join", run: joinFlow, password: PASSWORD },
   { label: "recover", run: recoverFlow, password: NEW_PASSWORD },
 ])("adopting an account by $label", ({ run, password }) => {
-  it("turns the Open store into an encrypted per-account store", async () => {
+  it("turns the Unauthenticated store into an encrypted per-account store", async () => {
     const { driver, path: openPath } = await openStoreWithData();
 
     await run(driver);
@@ -275,10 +275,12 @@ describe.each([
     expect(storeFileState(encryptedPath)).toBe("encrypted");
     // Acceptance: plaintext store in, encrypted store out, original gone.
     expect(existsSync(openPath)).toBe(false);
-    expect(existsSync(join(userData, "stores", OPEN_STORE_SLOT))).toBe(false);
+    expect(
+      existsSync(join(userData, "stores", UNAUTHENTICATED_STORE_SLOT)),
+    ).toBe(false);
   });
 
-  it("mints the db-key that was deliberately absent while Open", async () => {
+  it("mints the db-key that was deliberately absent while Unauthenticated", async () => {
     const { driver } = await openStoreWithData();
     expect(await keyStore.getSecret(DATABASE_KEY)).toBeUndefined();
 
@@ -287,7 +289,7 @@ describe.each([
     expect(await keyStore.getSecret(DATABASE_KEY)).toBeDefined();
   });
 
-  it("records the account in the roster, so the next boot is Protected", async () => {
+  it("records the account in the roster, so the next boot is Authenticated", async () => {
     const { driver } = await openStoreWithData();
     await run(driver);
 
@@ -295,7 +297,7 @@ describe.each([
     expect(accounts.map((a) => a.id)).toEqual([bootstrap.accountId]);
     expect(accounts[0].username).toBe("ada"); // the store's normalized form
 
-    expect(resolveActiveStore({ accounts }).custody).toBe("protected");
+    expect(resolveActiveStore({ accounts }).custody).toBe("encrypted");
   });
 
   it("leaves a store the boot path opens, with the data intact", async () => {
@@ -340,7 +342,7 @@ describe.each([
 
   // Slice 5's promise, now true on a device that never created the account: the
   // password door is sealed by the adopt, the recovery door by the first
-  // Protected open.
+  // Authenticated open.
   it("writes both unlock doors beside the converted store", async () => {
     const { driver } = await openStoreWithData();
     await run(driver);
@@ -376,7 +378,7 @@ describe.each([
 
   // A relay that refuses (wrong password, unreachable) must leave the device
   // exactly as it was — nothing on disk has moved by then.
-  it("leaves the device Open when the relay refuses", async () => {
+  it("leaves the device Unauthenticated when the relay refuses", async () => {
     const { driver, path: openPath } = await openStoreWithData();
 
     await expect(
@@ -439,17 +441,17 @@ describe("adopting an account — the password-door guard", () => {
 });
 
 /**
- * Joining is an **Open** device's act. There used to be a branch here that
- * adopted in place on an already-Protected device, reachable only via the
+ * Joining is an **Unauthenticated** device's act. There used to be a branch here that
+ * adopted in place on an already-Authenticated device, reachable only via the
  * "Disconnect account" button that left a device reporting no account while its
  * roster still named one. With that button gone the state is unreachable, and
  * refusing is the honest replacement — adopting a second account into a store
  * still homed under the first one's id was never worth producing.
  */
-describe("adopting an account — the Open-device guard", () => {
+describe("adopting an account — the Unauthenticated-device guard", () => {
   it("refuses when this device already holds an account", async () => {
     const { driver, path: openPath } = await openStoreWithData();
-    // Make the device Protected the way account creation does: the Open store
+    // Make the device Authenticated the way account creation does: the Unauthenticated store
     // is gone, so `storeFileState` reports "absent" rather than "plaintext".
     await driver.close?.();
     rmSync(dirname(openPath), { recursive: true, force: true });

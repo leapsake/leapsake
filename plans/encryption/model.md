@@ -215,7 +215,7 @@ together.
 | **3 — No custody** (first run) | **there is no master key** — nothing is encrypted | n/a (cannot sync) | n/a — nothing to recover *from* | zero-setup evaluation of the app (§7.2) |
 | **2 — Zero-knowledge** (default once an account exists) | password / recovery / enclave only | **No** | recovery phrase only (lose password **and** phrase → data gone) | strongest privacy |
 | **1 — Recoverable** | *also* wrapped under a server-held key | **Yes** | email / password reset | "encrypted SaaS" convenience |
-| **0 — Open** | server holds key / no envelope | **Yes** | trivial | server-side compute: search, SSR, Alexa |
+| **0 — Server-readable** | server holds key / no envelope | **Yes** | trivial | server-side compute: search, SSR, Alexa |
 
 Tier 3 is not a weaker *encryption* setting — it is the **absence of custody**, and it
 exists only before the user has created an account. Moving 3 → 2 is the one transition
@@ -341,21 +341,21 @@ Each line is a settled decision; the section it points to has the reasoning.
 
 *(Reconciled with the build 2026-07-31 — see the note at the end of this section.)*
 
-**There is no first-launch prompt.** Every fresh install starts **Open** (§7.2): straight
+**There is no first-launch prompt.** Every fresh install starts **Unauthenticated** (§7.2): straight
 into the app, no keys, no encryption (Tier 3, §5), nothing to decide. The "already using
 Leapsake elsewhere?" question is a **Home nudge**, ranked first among them
 ([`../onboarding.md`](../onboarding.md) §3.1) — not a gate in front of the app.
 
 That is the layperson principle (§1) taken literally: a new user cannot usefully answer a
 question about our sync topology before seeing what the app is, and asking costs the
-zero-setup first run that the Open state exists to provide.
+zero-setup first run that the Unauthenticated state exists to provide.
 
 The two answers still differ in **custody**, not only in sync:
 
 | Answer | Means | What happens |
 |---|---|---|
 | **Yes** | a 2nd+ device | join (or recover) the existing account → **username + password** → this device mints its own db-key, adopts the account master key, and **converts** its store (§8.1) |
-| **No** | fresh install | stays Open. An account is *invited* later (§7.2.1), never demanded |
+| **No** | fresh install | stays Unauthenticated. An account is *invited* later (§7.2.1), never demanded |
 
 A password is never required to *start* using Leapsake on one device.
 
@@ -375,7 +375,7 @@ a crash survivable (§8.1).
 > **What changed, and why this is not a new decision.** This section previously described
 > one first-launch prompt, with the "Yes" branch creating a store *"encrypted from byte
 > one; nothing is ever written plaintext."* The custody work of 2026-07-26/30 made every
-> store start Open and promoted it by conversion, and the first-run question became a nudge
+> store start Unauthenticated and promoted it by conversion, and the first-run question became a nudge
 > rather than a prompt. The *goal* that wording expressed — no device left plaintext at
 > rest, no user data ever written in the clear on a joining device — is met, and asserted
 > above in terms of what the build actually does.
@@ -390,7 +390,7 @@ change in [`../launch.md`](../launch.md) §2 — the *only* way back was a 24-wo
 user had never been asked to save). A key the user does not hold protects little and can
 lose everything. So: **no custody, no encryption.**
 
-| | **Open** | **Protected** |
+| | **Unauthenticated** | **Authenticated** |
 |---|---|---|
 | **Custody** | none | username + password, with a recovery phrase as the backstop |
 | **Created** | at first launch, silently | when the user creates their account (§7.2.1) |
@@ -401,9 +401,21 @@ lose everything. So: **no custody, no encryption.**
 | **OS keychain wiped** | **nothing is lost** — the file just opens | password opens it; phrase is the backstop |
 | **Tier (§5)** | 3 | 2 |
 
-Only two states, and **relay-bound is not a third** — it is a Protected account that has
+Only two states, and **relay-bound is not a third** — it is an Authenticated account that has
 also registered with a relay. This matters: local-only and synced users have *identical*
 custody, so "start syncing later" adds a relay binding rather than a new ritual.
+
+> **The state names the account, not the file** *(renamed 2026-07-31)*. Everything below
+> *Custody* in that table is a **consequence** of the row above it, not part of the
+> definition: an account exists, therefore keys exist, therefore the store is encrypted.
+> Read the table downward and it derives; read it as a list and the two get conflated.
+>
+> Why that separation is worth keeping explicit: `product-truths.md` delta 5 anticipates a
+> user **opting out of encryption while holding an account**, which severs exactly this
+> implication. When that lands, only the *Store on disk* row changes — the state itself
+> still means what it says. The file's own vocabulary is **plaintext / encrypted**
+> (`resolveActiveStore`'s `custody` discriminant), and the session's is **Locked /
+> unlocked** (§7.3). Three axes, three vocabularies; see `AGENTS.md` → *Custody vocabulary*.
 
 #### 7.2.1 Creating an account is the act that turns encryption on
 
@@ -428,7 +440,7 @@ flow, and it is fully local: no relay, no email, nothing leaves the device.
    allows several accounts to share one client (§7.4).
 2. Mint db-key, master key, and recovery key; write the password- and recovery-wrapped
    sidecars beside the store.
-3. **Convert the Open store to Protected** (§8.1) and destroy the plaintext original.
+3. **Convert the Unauthenticated store to Authenticated** (§8.1) and destroy the plaintext original.
 4. Show the **recovery phrase once**, as the forgot-password backstop.
 
 > **The copy must promise access, not safety.** A local account protects against *this
@@ -466,9 +478,9 @@ mistaken for signing out.
 > non-destructive action — leaving the relay while keeping the data — backed by
 > `clearLocalAccount`. The custody rebuild made its shipped form incoherent: it cleared the
 > account rows but never the **roster**, and the roster is what decides whether a store is
-> encrypted (§7.4), so a device that used it stayed Protected on disk while reporting no
+> encrypted (§7.4), so a device that used it stayed Authenticated on disk while reporting no
 > account — hiding Sign out and Forget account, and offering an account-creation path that
-> then refused, since creation requires a plaintext Open store.
+> then refused, since creation requires a plaintext Unauthenticated store.
 >
 > It was removed rather than repaired. The want is narrow (creating a local account,
 > promoting it to a synced one, and starting out synced are all covered), and repairing it
@@ -516,7 +528,7 @@ and a real differentiator for the eventual paid relay.
 
 ### 7.4 One store per user, not one store per client *(direction, 2026-07-26)*
 
-A client holds **one Open store or many Protected ones** — the same shape
+A client holds **one Unauthenticated store or many Authenticated ones** — the same shape
 [`../product-truths.md`](../product-truths.md) already states for users ("one
 unauthenticated user OR multiple authenticated users"). Each account gets its **own
 encrypted database file**, which is what makes both delta #1 (per-user isolation) and
@@ -524,7 +536,7 @@ encrypted database file**, which is what makes both delta #1 (per-user isolation
 
 ```
 <userData>/stores/
-  local/leapsake.db                  ← the Open store (plaintext), before any account
+  local/leapsake.db                  ← the Unauthenticated store (plaintext), before any account
   <accountId>/leapsake.db            ← one encrypted store per account on this client
   <accountId>/leapsake.db.recovery   ← its sidecars (recovery + password doors)
 <userData>/accounts.json             ← the roster: which accounts exist on this client
@@ -592,7 +604,7 @@ be able to **rename** (see `status.md` → Open questions).
 
 **Phase 2 — Add a second device.** Joins the account by username + password; it consumes the
 password door and never needs the RK or device 1's enclave key. **Its store is encrypted
-before any account data reaches it** — the device starts Open like any other, and the join
+before any account data reaches it** — the device starts Unauthenticated like any other, and the join
 converts it (§7.1) before the first sync pull, so no row ever lands in a plaintext file. It
 derives the verifier → authenticates →
 receives `wrap(MK, KEK)` → derives the KEK locally → unwraps MK into memory → mints its *own*
@@ -601,7 +613,7 @@ enclave key and db-key, adds `wrap(MK, device-2 enclave)`, and caches the unlock
 > account, relay still blind.
 
 **Degraded — a device that holds the account but cannot prove its master key** *(decided
-2026-07-29)*. Not a phase but a condition any Protected device can land in, and the answer to
+2026-07-29)*. Not a phase but a condition any Authenticated device can land in, and the answer to
 the one failure the phases above cannot design away: the db-key opens (so the store opens and
 the data is readable) while the enclave holds no MK the account would recognize — a keychain
 that was partly lost, or an unlock door whose `key_wrap` row cannot be opened. **The device
@@ -658,8 +670,8 @@ must be readable before any store can be opened.
 > at-rest was worth a backend swap — the `node:sqlite` preference (chosen to stay
 > native-module-free) **yielded** to it: desktop runs
 > `better-sqlite3-multiple-ciphers`, mobile runs `expo-sqlite` with `useSQLCipher`. Under
-> §7.2 this layer is now **conditional on custody** — it protects a Protected store and is
-> simply absent from an Open one.
+> §7.2 this layer is now **conditional on custody** — it protects an Authenticated store and is
+> simply absent from an Unauthenticated one.
 
 The right shape is **whole-database encryption** (SQLCipher-style: the file on disk is
 ciphertext, the engine decrypts pages into memory as you query, a key is supplied at
@@ -686,7 +698,7 @@ engine.
 At-rest and per-item keys **compose cleanly and are orthogonal** — they are layers 1 and 3
 of §2, and neither is what protects sync (that is layer 2).
 
-### 8.1 Converting an Open store to Protected — one pattern, both platforms
+### 8.1 Converting an Unauthenticated store to Authenticated — one pattern, both platforms
 
 Account creation (§7.2.1) has to turn a plaintext database into an encrypted one. The two
 platforms' *native* shortcuts are mirror images, and **neither works on the other**
@@ -883,7 +895,7 @@ State these explicitly; they are conscious decisions, not gaps:
   record counts, sync timing. Hiding metadata is a much larger project; **out of
   scope** for V3.
 - **Lost password + lost recovery phrase = unrecoverable data** at Tier 2 (§6).
-- **Before an account exists, nothing on disk is encrypted** (§7.2). An Open store is a
+- **Before an account exists, nothing on disk is encrypted** (§7.2). An Unauthenticated store is a
   readable SQLite file, exactly like most local-first apps, and is covered only by the
   platform's own full-disk encryption. This is a deliberate trade against a worse failure
   (§7.2's reasoning), not an oversight.

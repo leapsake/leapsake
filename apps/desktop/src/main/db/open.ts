@@ -47,19 +47,19 @@ export interface UnlockAnswer {
  * Open the app's at-rest database in the custody state this launch is actually in
  * (`model.md` §7.2 — *encryption follows custody*).
  *
- * **Open** (`custody: "open"`) — no account exists, so **no key exists**: mint
+ * **Unauthenticated** (`custody: "plaintext"`) — no account exists, so **no key exists**: mint
  * nothing, touch the keychain not at all, and open the file as plaintext. This is
  * every fresh install until the user creates an account. A key held only by the OS
  * keychain guards little that platform disk encryption doesn't already cover,
  * while creating a real data-loss path, so we no longer create one.
  *
- * **Protected** (`custody: "protected"`) — an account exists, so every key exists
+ * **Authenticated** (`custody: "encrypted"`) — an account exists, so every key exists
  * and the file is ciphertext, with the recovery escape hatch (§6) intact. Three
  * cases:
  *
  * 1. **Enclave holds the key** (every normal launch) — read it and open.
  * 2. **No enclave key and no file** — mint the key and create the store encrypted
- *    (a Protected slot with nothing in it yet; §7.1).
+ *    (an Authenticated slot with nothing in it yet; §7.1).
  * 3. **No enclave key, but an encrypted file *and* at least one sidecar exist**
  *    (the OS keychain was wiped while the data survived) — prompt for a secret,
  *    unwrap the db-key from the matching sidecar, restore it to the enclave, then
@@ -88,7 +88,7 @@ export interface UnlockAnswer {
  */
 export async function openAppDatabase(opts: {
   dbPath: string;
-  custody: "open" | "protected";
+  custody: "plaintext" | "encrypted";
   keyStore: KeyStore;
   requestUnlock: (request: UnlockRequest) => Promise<UnlockAnswer>;
   onUnlocked?: (door: AdoptionDoor) => void;
@@ -99,7 +99,7 @@ export async function openAppDatabase(opts: {
   // first launch into either state.
   mkdirSync(dirname(dbPath), { recursive: true });
 
-  if (custody === "open") return openPlaintextStore(dbPath);
+  if (custody === "plaintext") return openPlaintextStore(dbPath);
 
   const recoveryPath = recoverySidecarPath(dbPath);
 
@@ -198,9 +198,9 @@ export async function openAppDatabase(opts: {
 }
 
 /**
- * The Open store: plaintext, no keys, no sidecar.
+ * The Unauthenticated store: plaintext, no keys, no sidecar.
  *
- * The guard matters more than it looks. If a file is sitting at the Open store's
+ * The guard matters more than it looks. If a file is sitting at the Unauthenticated store's
  * path and is *not* plaintext, something is wrong — most likely a store whose
  * account was lost from the roster — and the honest move is to refuse. Opening it
  * keyless would fail deep inside the first query with SQLite's misleading

@@ -70,13 +70,13 @@ export type PasswordDoorWriter = (sidecar: Uint8Array) => Promise<void>;
  *
  * The guard is about **ordering**, not about a missing feature. It once covered a
  * real gap — `joinAccount` and `recoverAccount` adopted the account's master key
- * without converting this device's store, leaving a joined device Open with no
+ * without converting this device's store, leaving a joined device Unauthenticated with no
  * db-key to seal a door around. Custody slice 6 closed that: the clients' adopt
  * flows mint this device's db-key *before* calling in here, precisely so this
  * skip becomes a real door with no change at these call sites
  * (`apps/desktop/src/main/db/adopt-account-flow.ts` explains the ordering).
  *
- * So: seal when the store is genuinely Protected, skip when it is not — which now
+ * So: seal when the store is genuinely Authenticated, skip when it is not — which now
  * means skipping only for a store that legitimately has no key yet, never for a
  * join or a recover.
  */

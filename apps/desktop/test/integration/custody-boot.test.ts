@@ -45,11 +45,11 @@ describe("custody boot decision", () => {
     rmSync(userData, { recursive: true, force: true });
   });
 
-  it("a fresh profile is Open: no keys, a plaintext store, usable app", async () => {
+  it("a fresh profile is Unauthenticated: no keys, a plaintext store, usable app", async () => {
     const keyStore = createInMemoryKeyStore();
     const { activeStore, dbPath } = await resolveBoot(userData);
 
-    expect(activeStore.custody).toBe("open");
+    expect(activeStore.custody).toBe("plaintext");
     // Derived from the layout, not a hardcoded `leapsake.db` (§7.4).
     expect(dbPath).toBe(join(userData, "stores", "local", "leapsake.db"));
 
@@ -61,7 +61,7 @@ describe("custody boot decision", () => {
     });
     await runMigrations(driver);
 
-    // The app genuinely works in this state — the whole point of Open is that a
+    // The app genuinely works in this state — the whole point of Unauthenticated is that a
     // user can use Leapsake without ever being asked to set anything up.
     await createPeopleRepo(driver).create({
       firstName: "Ada",
@@ -76,7 +76,7 @@ describe("custody boot decision", () => {
     expect(storeFileState(dbPath)).toBe("plaintext");
   });
 
-  it("keeps the Open store across launches without ever minting a key", async () => {
+  it("keeps the Unauthenticated store across launches without ever minting a key", async () => {
     const keyStore = createInMemoryKeyStore();
 
     const first = await resolveBoot(userData);
@@ -95,7 +95,7 @@ describe("custody boot decision", () => {
 
     // Second launch: the same decision, the same store, still no keys.
     const second = await resolveBoot(userData);
-    expect(second.activeStore.custody).toBe("open");
+    expect(second.activeStore.custody).toBe("plaintext");
     expect(second.dbPath).toBe(first.dbPath);
     driver = await openAppDatabase({
       dbPath: second.dbPath,
@@ -115,10 +115,10 @@ describe("custody boot decision", () => {
     const keyStore = createInMemoryKeyStore();
     const openPath = join(userData, "stores", "local", "leapsake.db");
 
-    // Seed an encrypted store where the Open store would live.
+    // Seed an encrypted store where the Unauthenticated store would live.
     const seeded = await openAppDatabase({
       dbPath: openPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore,
       requestUnlock: never,
     });
@@ -128,7 +128,7 @@ describe("custody boot decision", () => {
     await seeded.close?.();
 
     const { activeStore, dbPath } = await resolveBoot(userData);
-    expect(activeStore.custody).toBe("open");
+    expect(activeStore.custody).toBe("plaintext");
     await expect(
       openAppDatabase({
         dbPath,
@@ -153,7 +153,7 @@ describe("custody boot decision", () => {
     // account creation would leave behind.
     const plaintext = await openAppDatabase({
       dbPath,
-      custody: "open",
+      custody: "plaintext",
       keyStore: createInMemoryKeyStore(),
       requestUnlock: never,
     });
@@ -170,7 +170,7 @@ describe("custody boot decision", () => {
     ).rejects.toThrow(/unencrypted/);
   });
 
-  it("opens a rostered account's own store, not the Open one", async () => {
+  it("opens a rostered account's own store, not the Unauthenticated one", async () => {
     const { roster } = await resolveBoot(userData);
     await roster.add({
       id: "acct-1",
@@ -179,14 +179,14 @@ describe("custody boot decision", () => {
     });
 
     const { activeStore, dbPath } = await resolveBoot(userData);
-    expect(activeStore.custody).toBe("protected");
+    expect(activeStore.custody).toBe("encrypted");
     expect(dbPath).toBe(join(userData, "stores", "acct-1", "leapsake.db"));
   });
 
-  it("survives a corrupt roster by falling back to Open", async () => {
+  it("survives a corrupt roster by falling back to Unauthenticated", async () => {
     // Written before any UI exists to report an error, so this must not throw.
     await jsonFileStorage(join(userData, ROSTER_PATH)).write("{ not json");
     const { activeStore } = await resolveBoot(userData);
-    expect(activeStore.custody).toBe("open");
+    expect(activeStore.custody).toBe("plaintext");
   });
 });

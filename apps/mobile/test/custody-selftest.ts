@@ -37,7 +37,7 @@ import { expoSqliteDriver } from "../db/expo-sqlite-driver";
  * "encryption follows custody" (`plans/encryption/model.md` §7.2) is built on, and
  * that could previously only be taken on faith from SQLCipher's documentation.
  *
- * 1. **A keyless open works.** An Open store (no account) supplies no `PRAGMA key`
+ * 1. **A keyless open works.** An Unauthenticated store (no account) supplies no `PRAGMA key`
  *    at all, so the SQLCipher build must create and reopen an ordinary plaintext
  *    database. Every boot path in the custody work depends on this.
  * 2. **The portable conversion runs** (§8.1). Account creation turns that plaintext
@@ -125,7 +125,7 @@ export function runCustodySelfTest(t: TestApi): void {
 
     // The file is only genuinely plaintext if a *second*, independent connection
     // reads it with no key — a single session could be decrypting under an implicit
-    // one. This is the case the Open store's every subsequent launch depends on.
+    // one. This is the case the Unauthenticated store's every subsequent launch depends on.
     it("reopens a keyless database keyless, across connections", async () => {
       const name = scratchName("reopen");
       const first = await SQLite.openDatabaseAsync(name);
@@ -905,7 +905,7 @@ export function runCustodySelfTest(t: TestApi): void {
      * for the app: a repair it cannot complete leaves the device **Degraded** (the
      * store opens, nothing syncs, nothing is minted) instead of refusing to open.
      *
-     * `custody: "protected"` is a label about the account, not about the file, so a
+     * `custody: "encrypted"` is a label about the account, not about the file, so a
      * scratch store answers the question honestly: what is under test is the
      * sequence and its durable flag, both of which are engine-level behavior worth
      * proving on SQLCipher under expo-sqlite.
@@ -926,7 +926,7 @@ export function runCustodySelfTest(t: TestApi): void {
         const established = await establishKeySession({
           keyStore: d.keyStore,
           driver: d.driver,
-          custody: "protected",
+          custody: "encrypted",
           door: { kind: "recovery", recoveryKey: generateKey() },
         });
 
@@ -975,7 +975,7 @@ export function runCustodySelfTest(t: TestApi): void {
         const established = await establishKeySession({
           keyStore: d.keyStore,
           driver: d.driver,
-          custody: "protected",
+          custody: "encrypted",
           door: { kind: "recovery", recoveryKey },
         });
 

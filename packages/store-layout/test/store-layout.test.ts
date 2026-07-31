@@ -65,7 +65,7 @@ describe("account roster", () => {
 
   // The roster is parsed on the boot path, before any UI exists to report an
   // error, so unreadable content must degrade to "no accounts" (recoverable, and
-  // it opens the Open store) rather than throw and leave the app unlaunchable.
+  // it opens the Unauthenticated store) rather than throw and leave the app unlaunchable.
   it("degrades to empty on corrupt content instead of throwing", async () => {
     for (const corrupt of ["", "   ", "{", "null", "[]", '{"accounts":"no"}']) {
       const roster = createAccountRoster(memoryStorage(corrupt));
@@ -89,14 +89,14 @@ describe("account roster", () => {
 describe("resolveActiveStore", () => {
   it("opens plaintext when no account exists", () => {
     expect(resolveActiveStore({ accounts: [] })).toEqual({
-      custody: "open",
+      custody: "plaintext",
       path: storePath("local"),
     });
   });
 
-  it("is Protected at the account's own path once an account exists", () => {
+  it("is Authenticated at the account's own path once an account exists", () => {
     expect(resolveActiveStore({ accounts: [entry("acct-1")] })).toEqual({
-      custody: "protected",
+      custody: "encrypted",
       path: storePath("acct-1"),
       accountId: "acct-1",
     });
@@ -107,7 +107,7 @@ describe("resolveActiveStore", () => {
       accounts: [entry("a1"), entry("a2")],
       activeAccountId: "a2",
     });
-    expect(resolved.custody).toBe("protected");
+    expect(resolved.custody).toBe("encrypted");
     expect(resolved.path).toBe(storePath("a2"));
   });
 
@@ -119,9 +119,9 @@ describe("resolveActiveStore", () => {
     expect(resolved.path).toBe(storePath("a1"));
   });
 
-  // The Open slot is a reserved name, not an account id; ids are UUIDs, so the
+  // The Unauthenticated slot is a reserved name, not an account id; ids are UUIDs, so the
   // two can never collide.
-  it("never derives the same path for the Open slot and an account", () => {
+  it("never derives the same path for the Unauthenticated slot and an account", () => {
     expect(storePath("local")).not.toBe(storePath("acct-1"));
   });
 });

@@ -13,7 +13,7 @@ import {
 import { createPeopleRepo } from "@leapsake/data";
 import {
   type AccountRoster,
-  OPEN_STORE_SLOT,
+  UNAUTHENTICATED_STORE_SLOT,
   ROSTER_PATH,
   createAccountRoster,
   resolveActiveStore,
@@ -101,10 +101,10 @@ export function makeBootDevice(label: string): BootDevice {
     roster,
 
     async deviceWithAccount(password) {
-      const openPath = join(userData, storePath(OPEN_STORE_SLOT));
+      const openPath = join(userData, storePath(UNAUTHENTICATED_STORE_SLOT));
       const driver = await openAppDatabase({
         dbPath: openPath,
-        custody: "open",
+        custody: "plaintext",
         keyStore,
         requestUnlock: never,
       });
@@ -125,12 +125,12 @@ export function makeBootDevice(label: string): BootDevice {
         },
       });
 
-      // The first Protected open is what writes the recovery sidecar, and it is
+      // The first Authenticated open is what writes the recovery sidecar, and it is
       // the state the app is actually in when the user acts on the account.
       const dbPath = join(userData, storePath(accountId));
       const opened = await openAppDatabase({
         dbPath,
-        custody: "protected",
+        custody: "encrypted",
         keyStore,
         requestUnlock: never,
       });

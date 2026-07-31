@@ -87,6 +87,47 @@ The conventions they all follow, which *are* this file's business:
 - **Value constraints (enums, partial-date rules) live in Zod, not the DB**, so the
   same portable SQL runs on both engines.
 
+## Custody vocabulary
+
+Three **independent** questions get asked about a running client. They are answered by
+three different lookups, and they have three separate vocabularies **on purpose** — an
+earlier single word ("Open") collided with the verb *open*, with an open reminder, and
+with the encryption state, and made a good default sound like a vulnerability.
+
+| Question | Vocabulary | Answered by | Lives in |
+|---|---|---|---|
+| Does an account exist on this device? | **Unauthenticated / Authenticated** | the roster on disk | `@leapsake/store-layout` |
+| Is the file on disk encrypted? | **plaintext / encrypted** | the roster, today | `resolveActiveStore`'s `custody` discriminant |
+| Can this device read its data right now? | **Locked / unlocked** | the OS keychain (is the db-key there?) | `@leapsake/key-custody` |
+
+**Do not collapse them**, even though two currently always agree:
+
+- **Authenticated ⇒ encrypted is true today, and is a consequence, not a definition.**
+  `plans/product-truths.md` delta 5 anticipates a user opting out of encryption while
+  holding an account. When that lands, the account axis is unchanged and only the file
+  axis moves. Code that asks "how do I open this file?" must read the file axis, never
+  infer it from the account.
+- **Locked is a sub-state of Authenticated, never a peer.** Sign out (`lockThisDevice`)
+  deletes exactly two keychain secrets and touches nothing else — the roster entry, the
+  account row, the encrypted file and both sidecars all survive. A signed-out device is
+  fully Authenticated and merely Locked. The reverse cannot happen: an Unauthenticated
+  device has no keys to forget, so it can never be Locked.
+- The **Degraded** state is Authenticated *and* unlocked *and* still broken (the device
+  holds its db-key but cannot prove the account's master key). If the axes were one
+  enum it would have nowhere to live.
+
+**The ELI5 test** — *can you use the app right now without typing anything?*
+Unauthenticated: yes, everything works, there is simply no lock on the door.
+Locked: no, your data is right there and sealed.
+
+**Internal names are not user-facing copy.** These words are for code and design docs.
+The UI says whatever is clearest for a layperson — "Protect your data", "Set up your
+login", "Sync across devices" — and `encryption/model.md` §7.2.1 licenses that
+explicitly. Never surface "Unauthenticated" to a user.
+
+The full design lives in `plans/encryption/model.md` §7; this section is the vocabulary
+only, so it stays true as that plan evolves.
+
 ## SqliteDriver Port
 
 Every repository is written against one small async interface

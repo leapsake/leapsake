@@ -5,7 +5,7 @@ import { unwrapKey, wrapKey } from "./wrap.js";
  * The **password door** on the at-rest db-key (`model.md` §7.5 Phase 0.5) — the
  * sibling of the recovery sidecar in `recovery.ts`, and the primary one.
  *
- * A Protected store's db-key lives in the OS keychain, and the keychain is not
+ * An Authenticated store's db-key lives in the OS keychain, and the keychain is not
  * forever: a new machine, an OS reinstall, or the Team-ID change an org move
  * brings all lose it while the data survives. Before this, the *only* way back was
  * the 24-word phrase — so a user who remembered their password and had not written

@@ -27,13 +27,13 @@ author will otherwise get wrong:
 
 > **There is no per-launch passphrase wall, and a fresh install has no secrets at all.**
 > Under *encryption follows custody* ([`../encryption/model.md`](../encryption/model.md) §7.2),
-> a first launch is **Open**: it mints no keys, leaves the OS key store empty, and opens a
+> a first launch is **Unauthenticated**: it mints no keys, leaves the OS key store empty, and opens a
 > **plaintext** store. **Creating an account — username + password — is the single act that
 > turns encryption on**, converting the store as it goes and showing the 24-word recovery
-> phrase once. A device *joining* an existing account starts Open too, and the join converts
+> phrase once. A device *joining* an existing account starts Unauthenticated too, and the join converts
 > it before any account data arrives (§7.1) — see Flow 6. So the journey to
-> exercise is not "set a passphrase, lock, unlock" — it is **Open → account → Protected**
-> (Flow 4), plus the two doors that reopen a Protected store when the OS key store is lost
+> exercise is not "set a passphrase, lock, unlock" — it is **Unauthenticated → account → Authenticated**
+> (Flow 4), plus the two doors that reopen an Authenticated store when the OS key store is lost
 > (Flow 7).
 
 > **The recovery phrase is shown once and is never re-viewable.** There is no
@@ -53,9 +53,9 @@ checks the UI would pass against an app that encrypted nothing. So the custody f
 | Check | How | Meaning |
 |---|---|---|
 | Store custody | first 16 bytes are SQLite's `SQLite format 3\0` magic, or are not | plaintext vs. encrypted — the same test the app's own `storeFileState` makes |
-| Key material | count/keys of the profile's OS key store (desktop `keystore.json`; mobile the secure store) | Open holds **zero**; Protected holds the db-key, enclave secret, recovery key, device id |
-| Store location | the store's path within the profile | `stores/local/` when Open, `stores/<accountId>/` when Protected |
-| Roster | `accounts.json` | zero accounts when Open, exactly one after creation |
+| Key material | count/keys of the profile's OS key store (desktop `keystore.json`; mobile the secure store) | Unauthenticated holds **zero**; Authenticated holds the db-key, enclave secret, recovery key, device id |
+| Store location | the store's path within the profile | `stores/local/` when Unauthenticated, `stores/<accountId>/` when Authenticated |
+| Roster | `accounts.json` | zero accounts when Unauthenticated, exactly one after creation |
 | Sidecar | `<db>.recovery` **and** `<db>.password` presence | the two doors Flow 7 exercises exist |
 
 **Rules, so this stays an exception and not a habit.** These are *file existence and shape*
@@ -112,7 +112,7 @@ surface no lower tier reaches).
 - **Assert (out of band):** the store is **plaintext** and sits at `stores/local/`; the OS key
   store holds **zero** Leapsake entries; the roster holds zero accounts; no `.recovery` sidecar.
 - **Devices:** single.
-- **Uniquely exercises:** the Open boot path, whose defining property is an *absence* — and an
+- **Uniquely exercises:** the Unauthenticated boot path, whose defining property is an *absence* — and an
   absence no lower tier can prove, because they all inject a fake key store. This is the flow
   that would catch a regression re-introducing first-launch key minting.
 
@@ -146,10 +146,10 @@ surface no lower tier reaches).
 
 ### Flow 4 — Create an account: the act that turns encryption on
 
-- **Intent:** the custody keystone — an Open store with real data becomes a Protected one,
+- **Intent:** the custody keystone — an Unauthenticated store with real data becomes an Authenticated one,
   in place, without losing a row and without the app falling over as its own store is replaced
   underneath it.
-- **Preconditions:** an Open store **with data** (Flows 1–3). Converting an empty store proves
+- **Preconditions:** an Unauthenticated store **with data** (Flows 1–3). Converting an empty store proves
   nothing; the data is the point.
 - **Steps:** Settings → create an account → username + password (≥12 chars) → submit. The
   24-word phrase is shown once; **capture it** (every later recovery flow depends on this
@@ -159,8 +159,8 @@ surface no lower tier reaches).
   **Done** the app **continues in place — no restart, no blank window** — and Ada plus her
   milestone from Flows 2–3 are still on screen and still readable; Settings now reports the
   account; the phrase is **not** offered anywhere again.
-- **Assert (out of band):** the store is now **ciphertext** at `stores/<accountId>/`; the Open
-  store at `stores/local/` is **gone**; the roster holds exactly one account; the OS key store
+- **Assert (out of band):** the store is now **ciphertext** at `stores/<accountId>/`; the
+  Unauthenticated store at `stores/local/` is **gone**; the roster holds exactly one account; the OS key store
   now holds the db-key, enclave secret, recovery key and device id; the `.recovery` sidecar
   exists.
 - **Devices:** single.
@@ -199,7 +199,7 @@ surface no lower tier reaches).
   engines to one in-process relay; this drives two *real app instances* through the real UI and
   key store).
 - **Preconditions:** a reachable relay (local/self-hosted — the execution layer is swappable,
-  [`strategy.md` §3](./strategy.md#vendor-neutrality-two-layers-kept-apart)); Device A holds data (run Flows 2–3 first) and is still **Open**.
+  [`strategy.md` §3](./strategy.md#vendor-neutrality-two-layers-kept-apart)); Device A holds data (run Flows 2–3 first) and is still **Unauthenticated**.
 - **Steps:** **Device A** → Settings → **Set up or log in to sync** → register a username +
   password (≥12 chars); **capture the phrase** shown once. **Device B** (fresh install) →
   Settings → same entry → log in with that username + password.
@@ -207,9 +207,9 @@ surface no lower tier reaches).
   A created appear on screen after convergence.
 - **Assert (out of band):** enabling sync **is** account creation that also binds a relay, so
   **Flow 4's out-of-band assertions apply to Device A unchanged** — its store converted, its
-  Open store is gone, its roster and key store are populated. Device B should be the same:
+  Unauthenticated store is gone, its roster and key store are populated. Device B should be the same:
   §7.1 requires a joining device to be encrypted at rest before any account data reaches it,
-  which the join achieves by converting B's Open store — so B ends with no plaintext store,
+  which the join achieves by converting B's Unauthenticated store — so B ends with no plaintext store,
   a db-key, a roster entry and a password door.
   > **Closed by custody slice 6** (2026-07-30). This assertion was specified red while
   > `sync:join` adopted the account key without converting the store; the client adopt flows
@@ -222,7 +222,7 @@ surface no lower tier reaches).
 
 ### Flow 7 — The doors back in (three variants)
 
-The phrase and the password are the two ways back into a Protected store; **all three variants
+The phrase and the password are the two ways back into an Authenticated store; **all three variants
 gate**. Every variant carries its **negative case** — a wrong secret must be rejected visibly
 and must corrupt nothing. Leaving the negatives out is how a door that never actually checks
 anything ships green.
@@ -239,7 +239,7 @@ reveal-in-Settings to fall back on.
 - **Uniquely exercises:** the relay recovery/password-reset path in the real runtime.
 
 **7b — At-rest local recovery, phrase door.**
-- **Steps:** on a Protected device with data, simulate an OS key-store reset (desktop: delete
+- **Steps:** on an Authenticated device with data, simulate an OS key-store reset (desktop: delete
   `keystore.json` from the profile; mobile: the `dev-clear-dbkey` route) and relaunch; the boot
   gate appears (`recovery-gate`, "Restore access to your data"); enter the phrase → **Unlock**.
 - **Assert:** the app opens to the existing data; a wrong phrase re-enables the form with an
@@ -277,7 +277,7 @@ tier stays small). Listed so the owner can pull any into the gate:
   *Recommendation: promote at least the desktop drop path — it's a headline surface with a whole
   untested overlay.*
 - **Factory reset.** Settings → **Factory reset** → type the confirm phrase → data cleared, the
-  app returns **in place** to a first-run Open state (no restart), with the key store emptied and
+  app returns **in place** to a first-run Unauthenticated state (no restart), with the key store emptied and
   the roster cleared. Recent, untested at the UI level; also the natural teardown between other
   E2E runs, and it shares the reopen-in-place path with Flow 4 — a regression in one breaks both.
 - **Search.** Global search bar → type a person's name → result appears → navigate to them.
@@ -298,7 +298,7 @@ tier stays small). Listed so the owner can pull any into the gate:
 
 | Flow | macOS | Android | iOS | Win/Linux | Devices | Harness notes |
 |---|---|---|---|---|---|---|
-| 1 First run (Open, mints nothing) | gate | gate | gate | later | 1 | fresh profile per run; asserts the key store is empty |
+| 1 First run (Unauthenticated, mints nothing) | gate | gate | gate | later | 1 | fresh profile per run; asserts the key store is empty |
 | 2 Person + relationship | gate | gate | gate | later | 1 | — |
 | 3 Milestone | gate | gate | gate | later | 1 | relaunch to prove persistence |
 | 4 Create an account | gate | gate | gate | later | 1 | must run on a store **with** data; capture the phrase here |

@@ -2,8 +2,8 @@ import * as SQLite from "expo-sqlite";
 import { rawKeyLiteral } from "@leapsake/crypto";
 
 /**
- * Convert the plaintext (**Open**) store named `fromName` into an encrypted
- * (**Protected**) store at `toName` — the mobile half of account creation
+ * Convert the plaintext (**Unauthenticated**) store named `fromName` into an encrypted
+ * (**Authenticated**) store at `toName` — the mobile half of account creation
  * (`model.md` §7.2.1, §8.1). The desktop counterpart is
  * `apps/desktop/src/main/db/convert-store.ts`, and the *pattern is deliberately
  * identical*: neither engine's native shortcut works on the other (desktop has

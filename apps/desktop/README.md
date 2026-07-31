@@ -18,7 +18,7 @@ src/
 ```
 
 **Where the data lives depends on custody.** A device with no account holds a
-*plaintext* store at `stores/local/leapsake.db` under Electron's `userData` path
+_plaintext_ store at `stores/local/leapsake.db` under Electron's `userData` path
 (`~/Library/Application Support/@leapsake/desktop/` on macOS); once an account
 exists the store is encrypted and lives at `stores/<accountId>/leapsake.db`, with
 its two unlock doors beside it as sidecar files. The roster

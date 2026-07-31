@@ -21,7 +21,7 @@ describe("ensureRecoveryKey", () => {
 });
 
 describe("readRecoveryKey", () => {
-  // The whole reason this exists: an Open device must stay keyless no matter who
+  // The whole reason this exists: an Unauthenticated device must stay keyless no matter who
   // asks. Reading has to be a question, not an instruction (model.md §7.2).
   it("returns undefined for a keyless device and mints nothing", async () => {
     const store = createInMemoryKeyStore();

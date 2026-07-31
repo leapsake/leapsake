@@ -62,7 +62,7 @@ export function doorsPath(slot: string): string {
 }
 
 /**
- * The two doors for one account (the Open slot may be named too; it never has any).
+ * The two doors for one account (the Unauthenticated slot may be named too; it never has any).
  *
  * `slot` is the account id — the same slot `storePath` names the store with, so the
  * doors and the store they open are created and destroyed together. Each call opens

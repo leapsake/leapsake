@@ -62,7 +62,7 @@ describe("re-adopting the account master key", () => {
 
   /**
    * The key session a boot produced, insisting there is one. Every case here runs on
-   * a Protected store, so a boot that came back Degraded — or with no session — is a
+   * an Authenticated store, so a boot that came back Degraded — or with no session — is a
    * failure of the case rather than something to branch on.
    */
   function expectKeySession(established: BootKeySession): KeySession {

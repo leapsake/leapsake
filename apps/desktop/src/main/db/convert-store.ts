@@ -6,8 +6,8 @@ import { openEncryptedDatabase } from "./encrypted-sqlite-driver.js";
 import { storeFileState } from "./sqlite-header.js";
 
 /**
- * Convert the plaintext (**Open**) store at `fromPath` into an encrypted
- * (**Protected**) store at `toPath`, then destroy the original — the one
+ * Convert the plaintext (**Unauthenticated**) store at `fromPath` into an encrypted
+ * (**Authenticated**) store at `toPath`, then destroy the original — the one
  * irreversible step of account creation (`model.md` §7.2.1, §8.1).
  *
  * **Why this shape and not a one-liner.** The two engines' native shortcuts are
@@ -36,9 +36,9 @@ import { storeFileState } from "./sqlite-header.js";
  *
  * | Crash after… | Next boot sees | Outcome |
  * |---|---|---|
- * | convert | no roster entry → **Open** | the plaintext original is still there; the orphaned encrypted store is discarded on retry |
- * | roster write | the account → **Protected** | the converted store, intact |
- * | destroy | the account → **Protected** | the finished state |
+ * | convert | no roster entry → **Unauthenticated** | the plaintext original is still there; the orphaned encrypted store is discarded on retry |
+ * | roster write | the account → **Authenticated** | the converted store, intact |
+ * | destroy | the account → **Authenticated** | the finished state |
  *
  * Deleting inside the conversion would create a window where the original is gone
  * but nothing yet points at its replacement — the one ordering that loses data.
@@ -119,7 +119,7 @@ export function convertStoreToEncrypted(opts: {
  * Destroy a plaintext store and its SQLite sidecars — the last step of account
  * creation, run **only after** the roster names the encrypted replacement.
  *
- * Also the boot-time sweep: a Protected launch that still finds an Open store has
+ * Also the boot-time sweep: an Authenticated launch that still finds an Unauthenticated store has
  * crashed between the roster write and this call, and the leftover is a plaintext
  * copy of data the user has already asked to encrypt.
  *

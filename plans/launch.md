@@ -47,8 +47,8 @@ and now mostly isn't:
 
 | The user is… | What the org move costs them |
 |---|---|
-| **Open** (no account — the common case at v0.1) | **nothing.** There are no keys to lose; the store is plaintext and simply opens |
-| **Protected** (has an account) | one password entry at the recovery gate; the phrase is needed only if they have forgotten that too |
+| **Unauthenticated** (no account — the common case at v0.1) | **nothing.** There are no keys to lose; the store is plaintext and simply opens |
+| **Authenticated** (has an account) | one password entry at the recovery gate; the phrase is needed only if they have forgotten that too |
 
 > **This is the single strongest practical argument for "encryption follows custody"**
 > (`encryption/model.md` §7.2), and it was found here. Under the old default the org move
@@ -145,7 +145,7 @@ the old one — uninstall them and rebuild the dev client before running `pnpm t
 > became its own workstream. It now lives in [`onboarding.md`](./onboarding.md) as that plan's
 > **Increments 1–2**, which are a drop-in for the gate this slot held.
 
-**Value, unchanged:** gets users from Open to Protected — which is what closes the data-loss
+**Value, unchanged:** gets users from Unauthenticated to Authenticated — which is what closes the data-loss
 path, rather than teaching a phrase to guard it. It is still a **hard prerequisite of
 Increment 4**, for the reason stated there: closed testers are real users with real data.
 
@@ -156,7 +156,7 @@ Three things settled here that `onboarding.md` inherits rather than re-decides:
   is precise. (The draft's "It's free" was cut — nothing is paid yet.)
 - **A nudge, never a wall** — a forced setup at first run violates the layperson/no-hoops
   principle in [`product-truths.md`](./product-truths.md) and `encryption/model.md` §1, and
-  would forfeit the zero-setup first run that is the point of the Open state.
+  would forfeit the zero-setup first run that is the point of the Unauthenticated state.
 - **"Dismissing it re-surfaces later"** was this increment's acceptance criterion and the
   thing the reminder engine could not actually do — its prune is a permanent tombstone. That
   is what reminder snooze in `onboarding.md` Increment 1 exists to fix.
@@ -179,10 +179,10 @@ the individual-first strategy** (§2).
 
 Confirm the intended story end to end on a fresh machine, per custody state:
 
-- **Open store** — copy `leapsake.db`, boot, read the data. No ceremony, no keys.
-- **Protected store, password door** — copy the store + sidecars, boot, pass the gate with
+- **Unauthenticated store** — copy `leapsake.db`, boot, read the data. No ceremony, no keys.
+- **Authenticated store, password door** — copy the store + sidecars, boot, pass the gate with
   the password.
-- **Protected store, phrase door** — same, with the recovery phrase; then confirm it forces
+- **Authenticated store, phrase door** — same, with the recovery phrase; then confirm it forces
   setting a new password afterwards.
 - **Negative cases** — wrong password and wrong phrase both rejected, neither corrupting.
 

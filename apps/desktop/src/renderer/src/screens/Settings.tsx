@@ -84,7 +84,7 @@ export function Settings() {
 
       {status === null ? (
         <p>Loading…</p>
-      ) : status.enabled ? (
+      ) : status.hasAccount ? (
         <AccountEnabled
           status={status}
           reviewCount={reviewCount}
@@ -117,7 +117,7 @@ export function Settings() {
         empty store), and the differences that remain are invisible to a user.
       */}
       {status !== null &&
-        (status.enabled ? (
+        (status.hasAccount ? (
           <>
             <hr />
             <RecoveryPhraseSection onRotated={setRevealed} />
@@ -1268,10 +1268,10 @@ function RecoveryPhraseWords({ phrase }: { phrase: string }) {
 /**
  * Factory reset: erase everything on this device and reopen as a fresh install.
  *
- * **Shown only while this device is Open** (`model.md` §7.2) — with an account,
+ * **Shown only while this device is Unauthenticated** (`model.md` §7.2) — with an account,
  * {@link ForgetAccount} is the same act under the name that fits, and offering
  * both was offering one act twice. That is also why this no longer branches its
- * copy on whether sync is set up: an Open device has no account, so the data
+ * copy on whether sync is set up: an Unauthenticated device has no account, so the data
  * here is by definition the only copy, and "erase" means exactly what it says.
  *
  * Gated behind a type-to-confirm step (the button stays disabled until the user

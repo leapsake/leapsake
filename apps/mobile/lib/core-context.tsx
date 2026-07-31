@@ -69,7 +69,7 @@ import {
 } from "@leapsake/crypto";
 import {
   createAccountRoster,
-  OPEN_STORE_SLOT,
+  UNAUTHENTICATED_STORE_SLOT,
   resolveActiveStore,
   storePath,
 } from "@leapsake/store-layout";
@@ -421,11 +421,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
       // This store's two db-key doors, which live *in its own directory* (§7.5,
       // `db/doors.ts`) — so they are as per-account as the store is, and forgetting
-      // one account cannot take another's doors with it. An **Open** store has no
+      // one account cannot take another's doors with it. An **Unauthenticated** store has no
       // db-key to seal and therefore no doors at all: naming them here would only
       // create an empty database beside a store that needs none.
       const doors =
-        activeStore.custody === "protected" &&
+        activeStore.custody === "encrypted" &&
         activeStore.accountId !== undefined
           ? accountDoors(activeStore.accountId)
           : undefined;
@@ -433,25 +433,25 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       const passwordSidecar = await doors?.readPassword();
 
       // **The boot-time sweep** (desktop's `destroyPlaintextStore` doc comment says
-      // the same of its own): a Protected launch that still finds an Open store is
+      // the same of its own): an Authenticated launch that still finds an Unauthenticated store is
       // one whose conversion could not delete the original — a plaintext copy of
       // data the user has already asked to encrypt. Verified on device 2026-07-29:
       // the delete at the end of account creation does *not* reliably take on
       // iOS — the file was still there, full schema and all — so this is not a
       // theoretical crash-recovery path, it is the one that actually runs.
       //
-      // Safe by construction: an Open store is only ever the pre-conversion one
+      // Safe by construction: an Unauthenticated store is only ever the pre-conversion one
       // once the roster names an account, and this launch is opening a different
       // file entirely.
-      if (activeStore.custody === "protected") {
+      if (activeStore.custody === "encrypted") {
         try {
-          await destroyPlaintextStore(storePath(OPEN_STORE_SLOT));
+          await destroyPlaintextStore(storePath(UNAUTHENTICATED_STORE_SLOT));
         } catch {
           // Nothing to sweep — the ordinary case.
         }
       }
 
-      // At-rest encryption (Stage 2), now conditional on custody: a Protected
+      // At-rest encryption (Stage 2), now conditional on custody: an Authenticated
       // store's whole-DB key is held only in the OS enclave and the file is
       // ciphertext. Three cases (mirrors desktop's open.ts):
       //  1. enclave holds it → use it;
@@ -459,10 +459,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       //     through one of the two doors (password first, phrase as the
       //     forgot-password fallback — §7.5 Phase 0.5);
       //  3. no key + no sidecar → mint one.
-      // An **Open** store skips all of it: no account, so no key exists and none
+      // An **Unauthenticated** store skips all of it: no account, so no key exists and none
       // is made — the OS keychain is never touched.
       let dbKey =
-        activeStore.custody === "protected" ? existingDbKey : undefined;
+        activeStore.custody === "encrypted" ? existingDbKey : undefined;
       let recoverySecret: Uint8Array | undefined;
       // Which door this launch came through, if any — the input to slice 9's
       // master-key repair below. It carries the key material the unlock already
@@ -473,7 +473,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       let unlockedBy: AdoptionDoor | undefined;
 
       if (
-        activeStore.custody === "protected" &&
+        activeStore.custody === "encrypted" &&
         dbKey === undefined &&
         (recoverySidecar !== undefined || passwordSidecar !== undefined)
       ) {
@@ -520,7 +520,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         await keyStore.setSecret(DATABASE_KEY, dbKey);
         setRecoveryPrompt(null);
       }
-      if (activeStore.custody === "protected" && dbKey === undefined)
+      if (activeStore.custody === "encrypted" && dbKey === undefined)
         dbKey = await ensureDatabaseKey(keyStore);
 
       // The path is derived (§7.4), never a fixed `leapsake.db`. expo-sqlite
@@ -530,7 +530,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       const driver = expoSqliteDriver(db);
       // SQLCipher requires `PRAGMA key` to precede all DB access, so supply it as
       // the very first statement on the fresh connection, before migrations. An
-      // Open store supplies none at all and opens as ordinary plaintext SQLite.
+      // Unauthenticated store supplies none at all and opens as ordinary plaintext SQLite.
       //
       // Then force a read of page 1 to prove the key actually opens this file,
       // matching desktop's `openEncryptedDatabase` and the check the converter
@@ -596,13 +596,13 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             },
       );
       // Custody Phase 0.5, not Phase 0: the master key is minted by account
-      // creation, so an Open store runs the core with no key session at all.
+      // creation, so an Unauthenticated store runs the core with no key session at all.
       keySession.current =
         established.state === "ok" ? (established.keySession ?? null) : null;
 
       // Refresh the recovery sidecar to the *current* enclave recovery key on
       // every launch (not just when missing), so it stays in step if the key was
-      // later adopted — e.g. after recovering an account. An Open store has no
+      // later adopted — e.g. after recovering an account. An Unauthenticated store has no
       // db-key to seal and so has no sidecar.
       //
       // **Read, never mint** (mirrors desktop's open.ts). A *password* unlock
@@ -641,7 +641,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           const session = keySession.current;
           if (session === null) return undefined;
           const status = await getSyncStatus({ driver });
-          if (!status.enabled || status.relayUrl === undefined)
+          if (!status.hasAccount || status.relayUrl === undefined)
             return undefined;
           return runAccountSync({
             keyStore,
@@ -674,7 +674,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
       const bootedCore = withSyncKick(
         // `null` is this ref's "no session"; `createCore` takes the key session as
-        // optional, which is what lets an Open store run without one at all.
+        // optional, which is what lets an Unauthenticated store run without one at all.
         createCore(driver, keySession.current ?? undefined),
         () => scheduler.current?.kick(),
       );
@@ -684,7 +684,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       void regenerateSystemReminders(bootedCore); // birthdays atop Home
       void scheduler.current.autoTrigger(); // initial sync (skipped if auto off)
       /**
-       * **Turn this device's Open store into an account's encrypted one** — the
+       * **Turn this device's Unauthenticated store into an account's encrypted one** — the
        * irreversible half of every path that establishes an account here: creating
        * one (§7.2.1), and joining or recovering one that already exists (§7.1).
        * All three run the identical sequence, which is why they share this:
@@ -699,17 +699,17 @@ export function CoreProvider({ children }: { children: ReactNode }) {
        *
        * - **The password door is written here, not by core.** Core seals it from
        *   inside `createLocalAccount` / `joinAccountViaRelay`, at a moment when the
-       *   account id is not in scope and the store still lives at the Open path
+       *   account id is not in scope and the store still lives at the Unauthenticated path
        *   that this function is about to delete — so a writer resolving its own
        *   destination would put the door in the directory the flow then removes.
        *   Every caller captures the bytes instead and hands them here, where the
        *   converted store's own directory exists. Desktop does exactly this.
-       * - **The recovery door needs no step at all**: the Protected boot path this
+       * - **The recovery door needs no step at all**: the Authenticated boot path this
        *   ends by re-running seals it on every launch.
        *
        * Always ends by re-running the bootstrap, success *or* failure. On success it
-       * resolves Protected and opens the converted store; on failure the roster is
-       * untouched, so it resolves Open and re-opens the plaintext original the
+       * resolves Authenticated and opens the converted store; on failure the roster is
+       * untouched, so it resolves Unauthenticated and re-opens the plaintext original the
        * conversion deliberately left in place — which is what keeps a mid-flow
        * throw from stranding the app on a driver this already closed.
        */
@@ -749,7 +749,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             key: dbKey,
           });
           // Beside the store it opens, and *before* the roster entry — so a device
-          // that is Protected from the next boot onward has had both from the same
+          // that is Authenticated from the next boot onward has had both from the same
           // moment.
           await targetDoors.writePassword(passwordDoor);
           await roster.add({
@@ -763,7 +763,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // and `enable`'s does that by never showing the one-time recovery phrase
           // — trading a 24-word backstop for a leftover file. Observed on device
           // 2026-07-29, which is how this was found: the delete does not reliably
-          // take on iOS. The Protected boot path this re-runs sweeps the leftover.
+          // take on iOS. The Authenticated boot path this re-runs sweeps the leftover.
           try {
             await destroyPlaintextStore(activeStore.path);
           } catch {
@@ -797,7 +797,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
          * Publish the account to its relay. Called **before** the store is
          * converted, so a rejected registration (a taken username, an
          * unreachable relay) rolls the account back and leaves the device
-         * exactly as it was — still Open, still plaintext, nothing on disk to
+         * exactly as it was — still Unauthenticated, still plaintext, nothing on disk to
          * undo.
          */
         registerWithRelay?: (bootstrap: AccountBootstrap) => Promise<void>;
@@ -808,11 +808,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
           );
         }
-        // Creating an account is an **Open** device's act, as it is on desktop
+        // Creating an account is an **Unauthenticated** device's act, as it is on desktop
         // (`create-account-flow.ts`). The converter would refuse the encrypted
         // source anyway, but only after an account had been registered on a
         // relay — so say so before anything leaves the device.
-        if (activeStore.custody !== "open") {
+        if (activeStore.custody !== "plaintext") {
           throw new Error(
             "This device already holds an account. Forget it before creating another.",
           );
@@ -924,16 +924,16 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           });
         },
         async join({ username, password, relayUrl }) {
-          const wasOpen = activeStore.custody === "open";
+          const wasOpen = activeStore.custody === "plaintext";
           // This device's own at-rest key, minted *before* the relay call: core
           // seals the password door from inside `joinAccountViaRelay`, and its
           // `sealPasswordDoorIfProtected` skips while there is no db-key to seal.
           // Minting first is what turns that skip into a real door, with no change
-          // at the call site. Safe while Open — custody is decided purely by the
-          // roster, and the Open boot branch ignores a db-key entirely.
+          // at the call site. Safe while Unauthenticated — custody is decided purely by the
+          // roster, and the Unauthenticated boot branch ignores a db-key entirely.
           if (wasOpen) await ensureDatabaseKey(keyStore);
           // Capture the door core seals rather than letting it write: while this
-          // runs the store is still the Open one, which the conversion below
+          // runs the store is still the Unauthenticated one, which the conversion below
           // deletes. See {@link adoptStoreForAccount}.
           let passwordDoor: Uint8Array | undefined;
           let session: KeySession;
@@ -1008,7 +1008,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             });
             return { duplicateCount };
           }
-          // Already Protected: the store is where it belongs, so the freshly sealed
+          // Already Authenticated: the store is where it belongs, so the freshly sealed
           // door belongs in its account's own directory.
           await writeThisDevicePasswordDoor(passwordDoor);
           void scheduler.current?.autoTrigger(); // push this device's data + pull remainder
@@ -1020,7 +1020,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
               `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
             );
           }
-          const wasOpen = activeStore.custody === "open";
+          const wasOpen = activeStore.custody === "plaintext";
           // Same reason as join: mint before the relay call so core's password door
           // is sealed rather than skipped.
           if (wasOpen) await ensureDatabaseKey(keyStore);
@@ -1125,15 +1125,15 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         // **Sign out** (model.md §7.3). Mobile has no relaunch primitive, so the
         // whole act is: forget the two keys that open this store, then re-run the
         // bootstrap. That re-run finds the roster still naming the account
-        // (Protected) but no db-key, with both doors intact — which is exactly the
+        // (Authenticated) but no db-key, with both doors intact — which is exactly the
         // gate case above, so the unlock prompt raises itself. No new mechanism.
         //
         // The two guards mirror desktop's, and both refuse rather than repair:
-        // an Open store has no account and no password to come back with, and a
+        // an Unauthenticated store has no account and no password to come back with, and a
         // device with no password door would be locked behind the 24-word phrase
         // alone, which is a support incident rather than a sign out.
         async signOut() {
-          if ((await getSyncStatus({ driver })).enabled !== true) {
+          if ((await getSyncStatus({ driver })).hasAccount !== true) {
             throw new Error(
               "There is no account on this device to sign out of. Create one to " +
                 "protect your data with a password.",
@@ -1155,10 +1155,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           setResetVersion((v) => v + 1);
         },
         async forgetInfo() {
-          const { enabled, username, relayUrl } = await getSyncStatus({
+          const { hasAccount, username, relayUrl } = await getSyncStatus({
             driver,
           });
-          if (enabled !== true) {
+          if (hasAccount !== true) {
             throw new Error("There is no account on this device.");
           }
           const { durableBackup } = await fetchRelayCapabilities({ relayUrl });
@@ -1166,11 +1166,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         },
         // **Forget account** (model.md §7.3). The roster is the authority for
         // *which* store — it names it, and it is what the next bootstrap reads —
-        // so with the entry gone the re-run resolves Open and lands the device on
+        // so with the entry gone the re-run resolves Unauthenticated and lands the device on
         // a fresh plaintext store, the state a new install is in.
         async forgetAccount() {
           const accountId =
-            activeStore.custody === "protected"
+            activeStore.custody === "encrypted"
               ? activeStore.accountId
               : undefined;
           if (accountId === undefined) {
@@ -1200,12 +1200,12 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // delete this store, its doors and the account roster, and clear every
           // keystore secret. Bumping resetVersion re-runs the bootstrap effect,
           // which now finds no roster, no key and no store, and so takes the
-          // *Open* path — a plaintext store and no keys at all (model.md §7.2).
+          // *Unauthenticated* path — a plaintext store and no keys at all (model.md §7.2).
           //
           // Clearing the roster is what makes that true. Left behind, it would
           // send the next boot looking for the store of an account the user had
           // just erased and mint a fresh key over an empty encrypted database,
-          // landing them back in a Protected state.
+          // landing them back in an Authenticated state.
           setCore(null);
           setSync(null);
           scheduler.current?.stop();

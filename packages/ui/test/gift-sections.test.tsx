@@ -93,12 +93,16 @@ describe("GiftsSection", () => {
     renderGifts({
       suggestions: [
         suggestion({ id: "s-1", giftIdeaId: "i-1", ideaTitle: "Given one" }),
-        suggestion({ id: "s-2", giftIdeaId: "i-2", ideaTitle: "Open one" }),
+        suggestion({
+          id: "s-2",
+          giftIdeaId: "i-2",
+          ideaTitle: "Unauthenticated one",
+        }),
       ],
       gifts: [given({ giftIdeaId: "i-1", ideaTitle: "Given one" })],
     });
 
-    expect(ideaOrder()).toEqual(["Open one", "Given one"]);
+    expect(ideaOrder()).toEqual(["Unauthenticated one", "Given one"]);
   });
 
   it("says so when there is nothing for this recipient", () => {

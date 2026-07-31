@@ -25,7 +25,7 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
  * unreachable relay), which must leave the device *exactly* as it was — able to
  * retry immediately. The user-facing "Disconnect account" button this also used
  * to back was removed 2026-07-28: it cleared these rows without clearing the
- * roster, which under per-account stores left a device Protected on disk while
+ * roster, which under per-account stores left a device Authenticated on disk while
  * reporting no account. See `clearLocalAccount`'s doc comment for the full story.
  */
 describe("clearLocalAccount", () => {
@@ -48,12 +48,12 @@ describe("clearLocalAccount", () => {
 
   it("clears the account but keeps the enclave master key, and allows re-enabling", async () => {
     await enableSync({ keyStore, driver, password: "old-password" });
-    expect((await getSyncStatus({ driver })).enabled).toBe(true);
+    expect((await getSyncStatus({ driver })).hasAccount).toBe(true);
 
     await clearLocalAccount({ driver });
 
     // Account is gone; the password + recovery doors are revoked…
-    expect((await getSyncStatus({ driver })).enabled).toBe(false);
+    expect((await getSyncStatus({ driver })).hasAccount).toBe(false);
     const keyWrapRepo = createKeyWrapRepo(driver);
     for (const door of ["password", "recovery"] as const) {
       expect(
@@ -81,7 +81,7 @@ describe("clearLocalAccount", () => {
       relayUrl: "https://relay.example",
     });
     const status = await getSyncStatus({ driver });
-    expect(status.enabled).toBe(true);
+    expect(status.hasAccount).toBe(true);
     expect(status.username).toBe("ada");
     const unlocked = await unlockWithPassword({
       driver,
@@ -92,6 +92,6 @@ describe("clearLocalAccount", () => {
 
   it("is a no-op when no account is set up", async () => {
     await expect(clearLocalAccount({ driver })).resolves.toBeUndefined();
-    expect((await getSyncStatus({ driver })).enabled).toBe(false);
+    expect((await getSyncStatus({ driver })).hasAccount).toBe(false);
   });
 });

@@ -71,7 +71,7 @@ export async function adoptRecoveryKey(opts: {
 
   const dbKey = await keyStore.getSecret(DATABASE_KEY);
   if (dbKey === undefined) {
-    // An Open store has no db-key by design (§7.2) and no phrase to rotate; a
+    // An Unauthenticated store has no db-key by design (§7.2) and no phrase to rotate; a
     // signed-out one is not running this at all.
     throw new Error("This device has no database key to seal a new door for.");
   }

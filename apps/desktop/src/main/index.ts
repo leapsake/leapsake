@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import {
   type AccountRoster,
-  OPEN_STORE_SLOT,
+  UNAUTHENTICATED_STORE_SLOT,
   ROSTER_PATH,
   createAccountRoster,
   resolveActiveStore,
@@ -168,7 +168,7 @@ function deviceRoster(): AccountRoster {
  * **second** time in the same process.
  *
  * That re-entrancy is the point. Two operations replace the store underneath a
- * running app — account creation (an Open store is converted to a Protected one at
+ * running app — account creation (an Unauthenticated store is converted to an Authenticated one at
  * a new path, `model.md` §7.2.1) and factory reset (everything is erased) — and
  * both used to be followed by `app.relaunch()`. A relaunch is a bad answer twice
  * over: it is user-visible downtime at the worst possible moment (the recovery
@@ -190,19 +190,22 @@ async function openActiveStore(): Promise<void> {
     accounts: await deviceRoster().list(),
   });
 
-  // A Protected launch that still finds an Open store crashed part-way through
+  // An Authenticated launch that still finds an Unauthenticated store crashed part-way through
   // account creation, after the roster entry but before the original was
   // destroyed. The leftover is a plaintext copy of exactly the data the user
   // asked to encrypt, so sweep it (create-account-flow.ts).
-  if (activeStore.custody === "protected") {
-    const strandedOpenStore = join(userDataPath, storePath(OPEN_STORE_SLOT));
+  if (activeStore.custody === "encrypted") {
+    const strandedOpenStore = join(
+      userDataPath,
+      storePath(UNAUTHENTICATED_STORE_SLOT),
+    );
     if (storeFileState(strandedOpenStore) !== "absent") {
       destroyPlaintextStore(strandedOpenStore);
     }
   }
   dbPath = join(userDataPath, activeStore.path);
 
-  // Open the store in that state: plaintext and keyless when Open; when Protected,
+  // Open the store in that state: plaintext and keyless when Unauthenticated; when Authenticated,
   // the enclave key on a normal launch, minting on a fresh launch, or recovery from
   // the `.recovery` sidecar via a typed phrase if the enclave was wiped (open.ts).
   // The prompt is hosted by the renderer's gate.
@@ -225,7 +228,7 @@ async function openActiveStore(): Promise<void> {
   // device that came back through an unlock door — a door unlock means the OS
   // keychain was lost, which took this device's master key with it — finish a repair
   // an earlier boot left half-done, and produce the key session the core is built
-  // around. An Open store gets none, since the master key is minted by account
+  // around. An Unauthenticated store gets none, since the master key is minted by account
   // creation, not here.
   //
   // It reports rather than throws: a device that cannot prove which master key is
@@ -336,7 +339,7 @@ async function restoreLiveStore(): Promise<void> {
  *
  * ⚠️ **Not for the paths that convert the store.** Account creation, join and
  * recovery all seal a door for a store that does not exist yet, so `dbPath` is the
- * wrong answer while they run — it still names the Open store they are about to
+ * wrong answer while they run — it still names the Unauthenticated store they are about to
  * delete. Those flows capture the bytes and write them at the converted path
  * instead (`create-account-flow.ts`, `adopt-account-flow.ts`).
  */
@@ -365,7 +368,7 @@ async function writeThisDeviceRecoveryDoor(door: Uint8Array): Promise<void> {
  * this device adopts it and re-seals its own doors.
  *
  * Fire-and-forget, and silent on failure by design. It is a convergence step, not
- * something the user asked for: an unreachable relay, an Open store, or a
+ * something the user asked for: an unreachable relay, an Unauthenticated store, or a
  * local-only account all simply mean there is nothing to converge on right now,
  * and the old phrase keeps opening this device's file until there is.
  */
@@ -633,7 +636,7 @@ function registerSyncIpc(): void {
       // Enabling sync **is** creating an account that also binds a relay, so it
       // runs the same flow as the local-only path (model.md §7.2.1): the store is
       // converted to encrypted here too. Before this it created the account and
-      // left the store plaintext — a half-Protected state §7.2 does not have.
+      // left the store plaintext — a half-Authenticated state §7.2 does not have.
       // The store was converted underneath this process, so withStoreSwap re-opens
       // the app around the new one before this resolves. The renderer keeps the
       // one-time phrase on screen throughout; nothing restarts.
@@ -889,7 +892,7 @@ function registerSyncIpc(): void {
   //
   // The two guards are the difference between a lock and a lockout, and both
   // refuse rather than repair, because there is no safe repair from here:
-  //  - **Open store** — no account, so no keys and no password to come back with.
+  //  - **Unauthenticated store** — no account, so no keys and no password to come back with.
   //    Signing out would be a no-op that looks like one.
   //  - **No password door** — the sidecar is written by every path that
   //    establishes an account (creation, join, recovery), so its absence means a
@@ -901,7 +904,7 @@ function registerSyncIpc(): void {
   // doesn't wait on it — it switches to the gate on the `boot:unlock-needed`
   // event — so the pending promise is invisible.
   ipcMain.handle("account:signOut", async () => {
-    if ((await getSyncStatus({ driver })).enabled !== true) {
+    if ((await getSyncStatus({ driver })).hasAccount !== true) {
       throw new Error(
         "There is no account on this device to sign out of. Create one to " +
           "protect your data with a password.",
@@ -927,8 +930,8 @@ function registerSyncIpc(): void {
   // why this is a check and not a hardcoded warning: when server-side backup
   // ships, the alarming copy stops appearing on its own.
   ipcMain.handle("account:forgetInfo", async () => {
-    const { enabled, username, relayUrl } = await getSyncStatus({ driver });
-    if (enabled !== true)
+    const { hasAccount, username, relayUrl } = await getSyncStatus({ driver });
+    if (hasAccount !== true)
       throw new Error("There is no account on this device.");
     const { durableBackup } = await fetchRelayCapabilities({ relayUrl });
     return { username, relayUrl, durableBackup };
@@ -941,7 +944,7 @@ function registerSyncIpc(): void {
   //
   // The roster is the authority for *which* store, not the account row: it names
   // the directory, and it is the thing the next boot reads. With it gone the
-  // re-open resolves to Open and lands the device on a fresh plaintext store —
+  // re-open resolves to Unauthenticated and lands the device on a fresh plaintext store —
   // the same state a new install is in. The renderer is then reloaded, as it is
   // after a factory reset, because it is displaying rows that no longer exist.
   ipcMain.handle("account:forget", async () => {
@@ -949,7 +952,7 @@ function registerSyncIpc(): void {
       accounts: await deviceRoster().list(),
     });
     const accountId =
-      active.custody === "protected" ? active.accountId : undefined;
+      active.custody === "encrypted" ? active.accountId : undefined;
     if (accountId === undefined) {
       throw new Error("There is no account on this device to forget.");
     }
@@ -971,7 +974,7 @@ function registerSyncIpc(): void {
   // Factory reset: erase everything and come back up as a first-run install.
   // Unlike account:forget (which removes one account's slot), this deletes the
   // store, the recovery sidecar, the roster, and every keystore secret — so the
-  // reopen that follows resolves custody as **Open** and mints nothing, which is
+  // reopen that follows resolves custody as **Unauthenticated** and mints nothing, which is
   // exactly the fresh-install state (§7.2).
   //
   // The DB handle is closed first so the file is unlocked before it is removed.
@@ -1130,7 +1133,7 @@ void app.whenReady().then(async () => {
     run: async () => {
       if (keySession === undefined || storeSwapping) return undefined;
       const status = await getSyncStatus({ driver });
-      if (!status.enabled || status.relayUrl === undefined) return undefined;
+      if (!status.hasAccount || status.relayUrl === undefined) return undefined;
       return runAccountSync({
         keyStore,
         driver,

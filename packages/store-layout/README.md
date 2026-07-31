@@ -4,12 +4,17 @@
 on-device layout that _"encryption follows custody"_ requires
 ([`plans/encryption/model.md`](../../plans/encryption/model.md) §7.2, §7.4): the account
 **roster**, the **per-account store paths**, and the pure decision of whether a launch is
-**Open** or **Protected**.
+**Unauthenticated** or **Authenticated**.
 
-| State         | Account | Keys in the OS keychain  | Store on disk        |
-| ------------- | ------- | ------------------------ | -------------------- |
-| **Open**      | none    | **none at all**          | plaintext, queryable |
-| **Protected** | yes     | db-key, master, recovery | encrypted            |
+| State               | Account | Keys in the OS keychain  | Store on disk        |
+| ------------------- | ------- | ------------------------ | -------------------- |
+| **Unauthenticated** | none    | **none at all**          | plaintext, queryable |
+| **Authenticated**   | yes     | db-key, master, recovery | encrypted            |
+
+The state names the **account**; `resolveActiveStore` reports the **file** separately as
+`custody: "plaintext" | "encrypted"`. They agree today because encryption follows custody,
+and they are named apart because `product-truths.md` delta 5 expects that to change. See
+[`AGENTS.md`](../../AGENTS.md) → _Custody vocabulary_ for all three axes.
 
 ## Why it is its own package
 
@@ -25,13 +30,13 @@ launch whether to mint keys at all. That forces two properties:
 
 ## Surface
 
-| Export                   | What it answers                                                 |
-| ------------------------ | --------------------------------------------------------------- |
-| `resolveActiveStore`     | Open or Protected, and which store — the whole custody decision |
-| `storePath` / `storeDir` | where one account's store lives, relative to the app-data root  |
-| `createAccountRoster`    | which accounts exist on this device                             |
-| `ROSTER_PATH`            | where the roster itself lives                                   |
-| `OPEN_STORE_SLOT`        | the reserved slot the one plaintext store occupies              |
+| Export                       | What it answers                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| `resolveActiveStore`         | Unauthenticated or Authenticated, and which store — the whole custody decision |
+| `storePath` / `storeDir`     | where one account's store lives, relative to the app-data root                 |
+| `createAccountRoster`        | which accounts exist on this device                                            |
+| `ROSTER_PATH`                | where the roster itself lives                                                  |
+| `UNAUTHENTICATED_STORE_SLOT` | the reserved slot the accountless store occupies                               |
 
 ## The rules worth knowing
 
@@ -46,7 +51,7 @@ device. Accepted and unavoidable: a login picker has to render.
 
 **A corrupt roster degrades to empty rather than throwing.** It is parsed before any UI
 exists to report an error, so a boot crash would be unrecoverable while "no accounts"
-merely opens the Open store. The stores themselves are untouched either way — only the
+merely opens the Unauthenticated store. The stores themselves are untouched either way — only the
 _index_ of them is lost.
 
 **There is no pre-custody compatibility path, deliberately.** Builds before the custody
@@ -58,7 +63,7 @@ app — including a mobile heuristic that inferred _"a store is encrypted"_ from
 of a key or a sidecar. **An install predating the custody work must be recreated.**
 
 **A store in the wrong custody state is refused, never silently fixed.** Encrypted where an
-Open store belongs, or plaintext where an account's store belongs, both raise. The
+Unauthenticated store belongs, or plaintext where an account's store belongs, both raise. The
 alternative — converting on the fly — is what the old boot path did, and it is precisely
 what §8.1 reserves for the deliberate conversion at account creation.
 

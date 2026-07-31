@@ -9,7 +9,7 @@ import {
 } from "@leapsake/core";
 import {
   type AccountRoster,
-  OPEN_STORE_SLOT,
+  UNAUTHENTICATED_STORE_SLOT,
   storePath,
 } from "@leapsake/store-layout";
 import {
@@ -21,7 +21,7 @@ import { storeFileState } from "./sqlite-header.js";
 
 /**
  * **Account creation, end to end** (`model.md` §7.2.1) — the single act that turns
- * encryption on. Mints every key, converts the Open store to Protected, records
+ * encryption on. Mints every key, converts the Unauthenticated store to Authenticated, records
  * the account in the roster, and destroys the plaintext original.
  *
  * The step order is chosen so that a crash at *any* point leaves a launchable
@@ -31,7 +31,7 @@ import { storeFileState } from "./sqlite-header.js";
  *
  * The caller closes the store's driver before calling and reopens afterwards — the
  * file cannot be converted while a handle is writing to it, and the new store is
- * opened by the ordinary Protected boot path, which also writes the recovery
+ * opened by the ordinary Authenticated boot path, which also writes the recovery
  * sidecar as it does on every launch.
  */
 export async function createAccountOnThisDevice(opts: {
@@ -47,7 +47,7 @@ export async function createAccountOnThisDevice(opts: {
   /**
    * Publish the account to its relay. Called **before** the store is converted,
    * so a rejected registration (a taken username, an unreachable relay) rolls the
-   * account back and leaves the device exactly as it was — still Open, still
+   * account back and leaves the device exactly as it was — still Unauthenticated, still
    * plaintext, nothing to undo on disk.
    */
   registerWithRelay?: (bootstrap: AccountBootstrap) => Promise<void>;
@@ -56,7 +56,7 @@ export async function createAccountOnThisDevice(opts: {
 }): Promise<{ accountId: string; recoveryPhrase: string; storePath: string }> {
   const { keyStore, driver, roster, userDataPath, username, password } = opts;
 
-  const openPath = join(userDataPath, storePath(OPEN_STORE_SLOT));
+  const openPath = join(userDataPath, storePath(UNAUTHENTICATED_STORE_SLOT));
   if (storeFileState(openPath) !== "plaintext") {
     throw new Error(
       "An account can only be created from an unencrypted store on this device.",
@@ -109,12 +109,12 @@ export async function createAccountOnThisDevice(opts: {
 
   // 2b. The password door, beside the store it opens. Written after the
   //     conversion because that is when its destination exists, and *before* the
-  //     roster entry so a device that is Protected from the next boot onward has
+  //     roster entry so a device that is Authenticated from the next boot onward has
   //     both doors from the same moment. The recovery sidecar needs no step here:
-  //     the Protected boot path seals it on every launch.
+  //     the Authenticated boot path seals it on every launch.
   writeSidecar(passwordSidecarPath(encryptedPath), passwordSidecar);
 
-  // 3. Point the roster at the new store. Past this line the device is Protected.
+  // 3. Point the roster at the new store. Past this line the device is Authenticated.
   await roster.add({
     id: accountId,
     username,

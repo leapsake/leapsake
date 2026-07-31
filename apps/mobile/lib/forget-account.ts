@@ -54,7 +54,7 @@ export async function forgetAccountOnThisDevice(opts: {
   //
   // 1. The roster entry, first: it is the account's existence on this device, and
   //    what the next bootstrap reads to decide custody. Dropping it first means a
-  //    crash lands the device Open — recoverable — rather than Protected and
+  //    crash lands the device Unauthenticated — recoverable — rather than Authenticated and
   //    pointed at a store that no longer exists, which would send the boot path
   //    off to mint a fresh empty encrypted store under the account the user
   //    thought they had just deleted.

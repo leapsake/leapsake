@@ -47,7 +47,7 @@ export async function sealPasswordDoor(opts: {
   }
   const dbKey = await keyStore.getSecret(DATABASE_KEY);
   if (dbKey === undefined) {
-    // An Open store has no db-key by design (§7.2), so this means a caller ran
+    // An Unauthenticated store has no db-key by design (§7.2), so this means a caller ran
     // out of order — the door would seal around nothing.
     throw new Error("This device has no database key to seal.");
   }

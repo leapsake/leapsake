@@ -82,8 +82,8 @@ sections are enough; you should not need another doc.
 **Where custody lives, for a fresh reader:**
 
 - **Which store, and is it encrypted** — [`@leapsake/store-layout`](../packages/store-layout/README.md):
-  the roster, the per-account paths, and the pure `resolveActiveStore` that answers *Open or
-  Protected* before anything is opened.
+  the roster, the per-account paths, and the pure `resolveActiveStore` that answers *Unauthenticated or
+  Authenticated* before anything is opened.
 - **Opening it** — `apps/desktop/src/main/db/open.ts` and the mirrored branch in
   `apps/mobile/lib/core-context.tsx`, including the two unlock doors.
 - **What the boot does about keys once the store is open** — `establishKeySession`
@@ -141,7 +141,7 @@ needs here:
 - **Increments 1–2 are the v0.1 line.** 1 is reminder **snooze** (`snoozed_until` +
   `defer_count` on `reminders`, plus the first hide rule `partitionReminders` has ever had)
   wired up as honest *Not now* / *Don't ask again* actions on the three nudges that already
-  ship. 2 is the account invitation — the Open→Protected prompt that closes the data-loss path
+  ship. 2 is the account invitation — the Unauthenticated → Authenticated prompt that closes the data-loss path
   and clears `launch.md` Increment 4's gate. **2 ships after 1 deliberately**: the account step
   is the one that must never be wrongly silenced, and until 1 lands the only dismiss available
   is the permanent one.
@@ -178,7 +178,7 @@ needs here:
   opaque to generic backup tools; the intended story is "copied `leapsake.db` +
   `leapsake.db.recovery` + the password (or phrase) on a fresh machine boots through
   `RecoveryGate`." Confirm it works end-to-end **per door**, then document it as *the* local
-  backup answer. Note an **Open** store needs no ceremony at all — the file just opens — so
+  backup answer. Note an **Unauthenticated** store needs no ceremony at all — the file just opens — so
   this concerns account holders only. It is also the honest limit of a local password: an
   account protects **access**, a backup protects against **losing the device** — two
   different promises, and the account-creation copy must say so (`model.md` §7.2.1).

@@ -75,8 +75,8 @@ export interface MilestonesRepo extends EntityRepo<Milestone> {
  * domain field sealed under a per-item content key (encryption `model.md` §2.1),
  * which is why this repo used to carry a `(note, note_ciphertext)` split and a
  * custom codec. Under *encryption follows custody* (§7.2) that layer bought
- * nothing a domain field wants: an **Open** store has no key to seal with, and a
- * **Protected** store is already whole-file ciphertext at rest, so per-item
+ * nothing a domain field wants: an **Unauthenticated** store has no key to seal with, and a
+ * **Authenticated** store is already whole-file ciphertext at rest, so per-item
  * sealing only added a second, device-local key to keep in step across sync.
  *
  * Layer 3 itself is **not** gone — `content_key`, `createContentCipher`, and

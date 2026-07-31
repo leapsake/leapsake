@@ -65,7 +65,7 @@ export function openEncryptedDatabase(
  * (a `Uint8Array` subclass), so the repos above the port are unaffected.
  *
  * The name records the backend, not the file: this wraps any handle from this
- * engine, keyed (Protected) or not (Open). Encryption is applied at *open* time —
+ * engine, keyed (Authenticated) or not (Unauthenticated). Encryption is applied at *open* time —
  * by which opener was used — never here.
  */
 export function encryptedSqliteDriver(db: EncryptedDatabase): SqliteDriver {

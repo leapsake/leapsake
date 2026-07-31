@@ -233,13 +233,18 @@ export async function ensureDeviceMasterKey(opts: {
 }
 
 /**
- * Whether this store has been promoted to a synced account (custody Phase 1),
- * for a client to branch its onboarding UI: offer "enable sync" when not yet
- * enabled, or show the account once it is. Carries only non-secret identity
- * (the account id + when it was created) — never key material.
+ * Whether this store holds an account (custody Phase 1), for a client to branch
+ * its onboarding UI: invite the user to create one, or show the account they
+ * have. Carries only non-secret identity (the account id + when it was created)
+ * — never key material.
+ *
+ * **`hasAccount`, not `enabled`.** The field was named for sync and meant custody,
+ * which read as "does this store sync" — false for the local-only account that
+ * `relayUrl` actually answers for. Renamed 2026-07-31; see `AGENTS.md` →
+ * *Custody vocabulary*.
  */
 export interface SyncStatus {
-  enabled: boolean;
+  hasAccount: boolean;
   accountId?: string;
   createdAt?: number;
   username?: string;
@@ -255,9 +260,9 @@ export async function getSyncStatus(opts: {
   driver: SqliteDriver;
 }): Promise<SyncStatus> {
   const account = await createAccountRepo(opts.driver).getSingleton();
-  if (account === undefined) return { enabled: false };
+  if (account === undefined) return { hasAccount: false };
   return {
-    enabled: true,
+    hasAccount: true,
     accountId: account.id,
     createdAt: account.createdAt,
     username: account.username ?? undefined,
@@ -274,7 +279,7 @@ export async function getSyncStatus(opts: {
  *
  * Its one caller in each client is the relay-registration failure path of
  * account creation (a taken username, an unreachable relay). That call happens
- * *before* anything on disk moves: the store is still the plaintext Open one and
+ * *before* anything on disk moves: the store is still the plaintext Unauthenticated one and
  * no roster entry exists yet, so undoing the rows genuinely restores the prior
  * state. A no-op (does not throw) if no account is set up.
  *
@@ -282,9 +287,9 @@ export async function getSyncStatus(opts: {
  * > back a "Disconnect account from this device" button, which the custody
  * > rebuild made incoherent: it cleared these rows but never the **roster**, and
  * > the roster is what decides whether a store is encrypted (§7.4). A device
- * > that pressed it stayed Protected on disk while reporting no account —
+ * > that pressed it stayed Authenticated on disk while reporting no account —
  * > hiding Sign out and Forget account, offering "create an account" instead,
- * > and failing that too, since creation requires a plaintext Open store. The
+ * > and failing that too, since creation requires a plaintext Unauthenticated store. The
  * > button was removed rather than repaired: "stop syncing but keep the data"
  * > is a narrow want, and rebuilding it properly means deciding what the relay
  * > does with the account, not just what this row does *(owner, 2026-07-28)*.

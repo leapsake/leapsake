@@ -18,7 +18,7 @@ const SQLITE_MAGIC = "SQLite format 3";
  * **`empty` is a real state, not a curiosity.** SQLite creates the file on open
  * but does not write the header until the first write, so a store that was opened
  * and never written is zero bytes — which matches *neither* magic. Folding that
- * into `encrypted` (as "not plaintext" would) sends an untouched Open store into
+ * into `encrypted` (as "not plaintext" would) sends an untouched Unauthenticated store into
  * the recovery gate, so it gets its own answer and callers treat it as absent.
  *
  * Reads only the header rather than the whole file: these run on the boot path,

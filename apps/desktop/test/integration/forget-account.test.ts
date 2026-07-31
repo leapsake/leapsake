@@ -15,7 +15,7 @@ import {
 import { runMigrations } from "@leapsake/core";
 import { createPeopleRepo } from "@leapsake/data";
 import {
-  OPEN_STORE_SLOT,
+  UNAUTHENTICATED_STORE_SLOT,
   ROSTER_PATH,
   createAccountRoster,
   resolveActiveStore,
@@ -35,7 +35,7 @@ import { storeFileState } from "../../src/main/db/sqlite-header.js";
  *
  * Two properties carry the weight. *Nothing survives it* — not the store, not
  * either door, not the keys, because a door outliving the store it opened is how
- * "deleted" quietly becomes "still there". And *the device is genuinely Open
+ * "deleted" quietly becomes "still there". And *the device is genuinely Unauthenticated
  * afterwards*, i.e. back in the accountless state a fresh install is in, which is
  * the acceptance that separates this from a factory reset that happens to work.
  */
@@ -61,10 +61,10 @@ async function deviceWithAccount(): Promise<{
   accountId: string;
   dbPath: string;
 }> {
-  const openPath = join(userData, storePath(OPEN_STORE_SLOT));
+  const openPath = join(userData, storePath(UNAUTHENTICATED_STORE_SLOT));
   const driver = await openAppDatabase({
     dbPath: openPath,
-    custody: "open",
+    custody: "plaintext",
     keyStore,
     requestUnlock: never,
   });
@@ -85,12 +85,12 @@ async function deviceWithAccount(): Promise<{
     },
   });
 
-  // The first Protected open writes the recovery sidecar, so the device under
+  // The first Authenticated open writes the recovery sidecar, so the device under
   // test has both doors, as a real one does by the time Settings is reachable.
   const dbPath = join(userData, storePath(accountId));
   const opened = await openAppDatabase({
     dbPath,
-    custody: "protected",
+    custody: "encrypted",
     keyStore,
     requestUnlock: never,
   });
@@ -120,7 +120,7 @@ describe("forget account", () => {
     expect(existsSync(join(userData, storeDir(accountId)))).toBe(false);
   });
 
-  it("drops the roster entry, so the next boot is Open again", async () => {
+  it("drops the roster entry, so the next boot is Unauthenticated again", async () => {
     const { accountId } = await deviceWithAccount();
 
     await forget(accountId);
@@ -129,8 +129,8 @@ describe("forget account", () => {
     const resolved = resolveActiveStore({
       accounts: await rosterFor(userData).list(),
     });
-    expect(resolved.custody).toBe("open");
-    expect(resolved.path).toBe(storePath(OPEN_STORE_SLOT));
+    expect(resolved.custody).toBe("plaintext");
+    expect(resolved.path).toBe(storePath(UNAUTHENTICATED_STORE_SLOT));
   });
 
   it("clears the keys that opened it", async () => {
@@ -145,7 +145,7 @@ describe("forget account", () => {
 
   // The acceptance: the result has to be a *launchable, genuinely accountless*
   // device — the fresh-install state (§7.2) — not merely a device missing files.
-  it("leaves a device the Open boot path opens, keyless and empty", async () => {
+  it("leaves a device the Unauthenticated boot path opens, keyless and empty", async () => {
     const { accountId } = await deviceWithAccount();
     await forget(accountId);
 
@@ -163,7 +163,7 @@ describe("forget account", () => {
 
     expect(storeFileState(dbPath)).toBe("plaintext");
     expect(await createPeopleRepo(reopened).list()).toEqual([]);
-    // Open means *no keys at all*, so forgetting must not have left one behind
+    // Unauthenticated means *no keys at all*, so forgetting must not have left one behind
     // for the new store to be silently encrypted under.
     expect(await keyStore.getSecret(DATABASE_KEY)).toBeUndefined();
     await reopened.close?.();

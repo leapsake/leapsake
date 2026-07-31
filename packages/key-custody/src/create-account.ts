@@ -12,7 +12,7 @@ import { type AccountBootstrap, enableSync } from "./session.js";
  * that turns encryption on. Everything here is local; no relay is involved and
  * nothing leaves the device.
  *
- * This is the *key* half of the flow. It runs against the still-open **Open**
+ * This is the *key* half of the flow. It runs against the still-open **Unauthenticated**
  * (plaintext) store and leaves it holding the account, device, and key-wrap rows —
  * which the caller then carries into an encrypted store by converting it (§8.1).
  * That ordering is deliberate: the conversion copies whatever is in the store, so
@@ -63,7 +63,7 @@ export async function createLocalAccount(opts: {
    * The **password door** sidecar for this device (`sealPasswordDoor`), returned
    * rather than written because its destination does not exist yet: the caller is
    * about to convert the store to a *new* path, and the sidecar belongs beside the
-   * converted file. Write it once the conversion lands — a Protected store without
+   * converted file. Write it once the conversion lands — an Authenticated store without
    * it can only ever be reopened with the recovery phrase.
    */
   passwordSidecar: Uint8Array;
@@ -92,7 +92,7 @@ export async function createLocalAccount(opts: {
 
   // Both doors onto that key are minted in the same breath (§7.5 Phase 0.5). The
   // recovery one is sealed by the boot path, which holds the recovery key on every
-  // Protected launch; the password one can only be sealed here, because this is the
+  // Authenticated launch; the password one can only be sealed here, because this is the
   // last moment the password is in hand.
   const passwordSidecar = await sealPasswordDoor({
     keyStore,

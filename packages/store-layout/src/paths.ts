@@ -17,11 +17,11 @@ const STORE_FILE = "leapsake.db";
 const STORES_DIR = "stores";
 
 /**
- * The Open store's slot (§7.2) — the one plaintext store a client may hold before
+ * The Unauthenticated store's slot (§7.2) — the one plaintext store a client may hold before
  * any account exists. It is a reserved slot rather than an account id, which is
  * why it can never collide with one: account ids are UUIDs.
  */
-export const OPEN_STORE_SLOT = "local";
+export const UNAUTHENTICATED_STORE_SLOT = "local";
 
 /** The directory for one account's store, relative to the app-data root. */
 export function storeDir(slot: string): string {

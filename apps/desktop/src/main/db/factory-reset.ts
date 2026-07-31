@@ -23,7 +23,7 @@ import { ROSTER_PATH } from "@leapsake/store-layout";
  * account exists, and therefore whether any key is minted at all (§7.2). Left
  * behind, it would send the next launch looking for the store of an account the
  * user had just erased, mint a fresh key over an empty encrypted database, and land
- * them back in a Protected state. Removing it is what makes the next boot the
+ * them back in an Authenticated state. Removing it is what makes the next boot the
  * genuinely keyless first run this is supposed to produce.
  *
  * `rmSync(..., { recursive: true, force: true })` treats an already-absent path as

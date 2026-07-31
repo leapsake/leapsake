@@ -9,7 +9,7 @@ import {
 import { type SqliteDriver, runMigrations } from "@leapsake/core";
 import { createPeopleRepo } from "@leapsake/data";
 import {
-  OPEN_STORE_SLOT,
+  UNAUTHENTICATED_STORE_SLOT,
   ROSTER_PATH,
   createAccountRoster,
   resolveActiveStore,
@@ -23,7 +23,7 @@ import { storeFileState } from "../../src/main/db/sqlite-header.js";
 
 /**
  * **Account creation** (`model.md` §7.2.1) — the act that turns encryption on,
- * end to end: an Open store with real data goes in, an encrypted per-account store
+ * end to end: an Unauthenticated store with real data goes in, an encrypted per-account store
  * comes out, the roster names it, and no plaintext survives.
  *
  * This is slice 4's acceptance, and the last case is the one worth the most: the
@@ -45,15 +45,15 @@ afterEach(() => {
   rmSync(userData, { recursive: true, force: true });
 });
 
-/** An Open store holding one person — the state a user is in before signing up. */
+/** An Unauthenticated store holding one person — the state a user is in before signing up. */
 async function openStoreWithData(): Promise<{
   driver: SqliteDriver;
   path: string;
 }> {
-  const path = join(userData, storePath(OPEN_STORE_SLOT));
+  const path = join(userData, storePath(UNAUTHENTICATED_STORE_SLOT));
   const driver = await openAppDatabase({
     dbPath: path,
-    custody: "open",
+    custody: "plaintext",
     keyStore,
     requestUnlock: never,
   });
@@ -80,7 +80,7 @@ async function createAccount(driver: SqliteDriver) {
 }
 
 describe("account creation", () => {
-  it("turns the Open store into an encrypted per-account store", async () => {
+  it("turns the Unauthenticated store into an encrypted per-account store", async () => {
     const { driver, path: openPath } = await openStoreWithData();
 
     const { accountId, storePath: encryptedPath } = await createAccount(driver);
@@ -90,13 +90,15 @@ describe("account creation", () => {
 
     // Acceptance: plaintext store in, encrypted store out, original gone.
     expect(existsSync(openPath)).toBe(false);
-    expect(existsSync(join(userData, "stores", OPEN_STORE_SLOT))).toBe(false);
+    expect(
+      existsSync(join(userData, "stores", UNAUTHENTICATED_STORE_SLOT)),
+    ).toBe(false);
     // `.plaintext.bak` cannot exist — the code that wrote it was deleted with the
     // pre-Stage-2 migration — but assert it, since §8.1 calls it out by name.
     expect(existsSync(`${openPath}.plaintext.bak`)).toBe(false);
   });
 
-  it("mints the db-key that was deliberately absent while Open", async () => {
+  it("mints the db-key that was deliberately absent while Unauthenticated", async () => {
     const { driver } = await openStoreWithData();
     expect(await keyStore.getSecret(DATABASE_KEY)).toBeUndefined();
 
@@ -114,7 +116,7 @@ describe("account creation", () => {
     expect(decodeRecoveryPhrase(recoveryPhrase).length).toBe(32);
   });
 
-  it("records the account in the roster, so the next boot is Protected", async () => {
+  it("records the account in the roster, so the next boot is Authenticated", async () => {
     const { driver } = await openStoreWithData();
     const { accountId } = await createAccount(driver);
 
@@ -123,7 +125,7 @@ describe("account creation", () => {
     expect(accounts[0].id).toBe(accountId);
 
     const resolved = resolveActiveStore({ accounts });
-    expect(resolved.custody).toBe("protected");
+    expect(resolved.custody).toBe("encrypted");
     expect(resolved.path).toBe(storePath(accountId));
   });
 
@@ -154,13 +156,13 @@ describe("account creation", () => {
     await reopened.close?.();
   });
 
-  it("writes the recovery sidecar on that first Protected open", async () => {
+  it("writes the recovery sidecar on that first Authenticated open", async () => {
     const { driver } = await openStoreWithData();
     const { storePath: encryptedPath } = await createAccount(driver);
 
     const reopened = await openAppDatabase({
       dbPath: encryptedPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore,
       requestUnlock: never,
     });
@@ -168,10 +170,10 @@ describe("account creation", () => {
     expect(existsSync(`${encryptedPath}.recovery`)).toBe(true);
   });
 
-  // Once the conversion has run there is no Open store left, so a repeat attempt
+  // Once the conversion has run there is no Unauthenticated store left, so a repeat attempt
   // (a double-submitted form, a retry after the success screen) must refuse rather
   // than convert something a second time.
-  it("refuses a second run once no Open store remains", async () => {
+  it("refuses a second run once no Unauthenticated store remains", async () => {
     const { driver } = await openStoreWithData();
     await createAccount(driver);
 

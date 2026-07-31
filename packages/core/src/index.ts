@@ -392,7 +392,7 @@ function mentionTargetsOf(r: {
   }));
 }
 
-// `keySession` is still accepted (and still optional — an Open store has none),
+// `keySession` is still accepted (and still optional — an Unauthenticated store has none),
 // but **no repository consumes it today**: `milestone.note` was layer 3's only
 // domain-field consumer and was retired on 2026-07-27 (migration 27). The
 // parameter stays because photos, layer 3's real consumer, will need exactly this

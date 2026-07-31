@@ -43,7 +43,7 @@ export async function resyncAfterMasterKeyRepair(opts: {
 
 /**
  * What a boot established about this device's master key: either a usable session
- * (or none at all, on an Open store), or the *Degraded* state — the store opened
+ * (or none at all, on an Unauthenticated store), or the *Degraded* state — the store opened
  * and the data is readable, but this device cannot prove which master key is the
  * account's, so it must not sync.
  */
@@ -102,7 +102,7 @@ export type BootKeySession =
 export async function establishKeySession(opts: {
   keyStore: KeyStore;
   driver: SqliteDriver;
-  custody: "open" | "protected";
+  custody: "plaintext" | "encrypted";
   /** Set when this boot came through the unlock gate, carrying that door's key
    *  material — never the password itself (see {@link AdoptionDoor}). */
   door?: AdoptionDoor;
@@ -110,9 +110,9 @@ export async function establishKeySession(opts: {
 }): Promise<BootKeySession> {
   const { keyStore, driver, custody, door, platform } = opts;
 
-  // An Open store has no account, no master key, and no repair to attempt — and
+  // An Unauthenticated store has no account, no master key, and no repair to attempt — and
   // must not acquire one here: minting is account creation's job (model.md §7.2.1).
-  if (custody === "open") return { state: "ok", keySession: undefined };
+  if (custody === "plaintext") return { state: "ok", keySession: undefined };
 
   const syncState = createSyncStateRepo(driver);
   let repair: "adopted" | "unchanged" | undefined;

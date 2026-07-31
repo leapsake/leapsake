@@ -26,7 +26,7 @@ describe("getSyncStatus", () => {
   });
 
   it("reports not enabled before sync is enabled", async () => {
-    expect(await getSyncStatus({ driver })).toEqual({ enabled: false });
+    expect(await getSyncStatus({ driver })).toEqual({ hasAccount: false });
   });
 
   it("reports enabled with the account identity after enableSync", async () => {
@@ -40,7 +40,7 @@ describe("getSyncStatus", () => {
     });
 
     const status = await getSyncStatus({ driver });
-    expect(status.enabled).toBe(true);
+    expect(status.hasAccount).toBe(true);
     expect(status.accountId).toBe(account.id);
     expect(status.createdAt).toBe(account.createdAt);
   });

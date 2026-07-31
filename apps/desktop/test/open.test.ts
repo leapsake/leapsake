@@ -43,11 +43,11 @@ const givePassword = (password: string) => answerWith("password", password);
 const never = () => Promise.reject(new Error("unexpected unlock prompt"));
 
 /**
- * The Open custody state (`model.md` §7.2): no account, so no keys anywhere and a
+ * The Unauthenticated custody state (`model.md` §7.2): no account, so no keys anywhere and a
  * plaintext store. These are slice 1's acceptance — "a fresh profile creates zero
  * keychain entries and a readable plaintext store" — expressed as tests.
  */
-describe("openAppDatabase — Open (no account)", () => {
+describe("openAppDatabase — Unauthenticated (no account)", () => {
   let dir: string;
   let dbPath: string;
 
@@ -65,7 +65,7 @@ describe("openAppDatabase — Open (no account)", () => {
     const keyStore = createInMemoryKeyStore();
     const driver = await openAppDatabase({
       dbPath,
-      custody: "open",
+      custody: "plaintext",
       keyStore,
       requestUnlock: never,
     });
@@ -81,7 +81,7 @@ describe("openAppDatabase — Open (no account)", () => {
   it("writes a genuinely plaintext file, readable without any key", async () => {
     const driver = await openAppDatabase({
       dbPath,
-      custody: "open",
+      custody: "plaintext",
       keyStore: createInMemoryKeyStore(),
       requestUnlock: never,
     });
@@ -93,7 +93,7 @@ describe("openAppDatabase — Open (no account)", () => {
 
     const reopened = await openAppDatabase({
       dbPath,
-      custody: "open",
+      custody: "plaintext",
       keyStore: createInMemoryKeyStore(),
       requestUnlock: never,
     });
@@ -103,7 +103,7 @@ describe("openAppDatabase — Open (no account)", () => {
   it("creates the per-account store directory on first launch", async () => {
     await openAppDatabase({
       dbPath,
-      custody: "open",
+      custody: "plaintext",
       keyStore: createInMemoryKeyStore(),
       requestUnlock: never,
     });
@@ -117,7 +117,7 @@ describe("openAppDatabase — Open (no account)", () => {
     const keyStore = createInMemoryKeyStore();
     const seeded = await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore,
       requestUnlock: never,
     });
@@ -129,7 +129,7 @@ describe("openAppDatabase — Open (no account)", () => {
     await expect(
       openAppDatabase({
         dbPath,
-        custody: "open",
+        custody: "plaintext",
         keyStore: createInMemoryKeyStore(),
         requestUnlock: never,
       }),
@@ -152,7 +152,7 @@ describe("openAppDatabase", () => {
 
   /**
    * Stand in for account creation, which is what establishes the recovery key in
-   * production (`createLocalAccount` → `ensureRecoveryKey`) before any Protected
+   * production (`createLocalAccount` → `ensureRecoveryKey`) before any Authenticated
    * store is opened. The boot path deliberately **reads** that key and never mints
    * one — minting there would hand a password-unlocked device a fresh key and
    * silently invalidate the phrase its user wrote down.
@@ -167,7 +167,7 @@ describe("openAppDatabase", () => {
     const keyStore = await withRecoveryKey();
     const driver = await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore,
       requestUnlock: never,
     });
@@ -184,7 +184,7 @@ describe("openAppDatabase", () => {
     const keyStore = createInMemoryKeyStore();
     await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore,
       requestUnlock: never,
     });
@@ -198,7 +198,7 @@ describe("openAppDatabase", () => {
     const keyStore = await withRecoveryKey();
     let driver = await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore,
       requestUnlock: never,
     });
@@ -210,7 +210,7 @@ describe("openAppDatabase", () => {
     const wiped = createInMemoryKeyStore();
     driver = await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore: wiped,
       requestUnlock: givePhrase(phrase),
     });
@@ -226,7 +226,7 @@ describe("openAppDatabase", () => {
     const keyStore = await withRecoveryKey();
     const seeded = await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore,
       requestUnlock: never,
     });
@@ -241,7 +241,7 @@ describe("openAppDatabase", () => {
     let attempt = 0;
     await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore: wiped,
       requestUnlock: ({ error }) => {
         errors.push(error);
@@ -263,7 +263,7 @@ describe("openAppDatabase", () => {
     const seededStore = await withRecoveryKey();
     const seeded = await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore: seededStore,
       requestUnlock: never,
     });
@@ -274,7 +274,7 @@ describe("openAppDatabase", () => {
     await expect(
       openAppDatabase({
         dbPath,
-        custody: "protected",
+        custody: "encrypted",
         keyStore: createInMemoryKeyStore(),
         requestUnlock: never,
       }),
@@ -285,7 +285,7 @@ describe("openAppDatabase", () => {
     const keyStore = await withRecoveryKey();
     await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore,
       requestUnlock: never,
     });
@@ -295,7 +295,7 @@ describe("openAppDatabase", () => {
 
     await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore,
       requestUnlock: never,
     });
@@ -324,7 +324,7 @@ describe("openAppDatabase — the password door", () => {
   });
 
   /**
-   * Stand in for account creation: a Protected store carrying both doors and a row
+   * Stand in for account creation: an Authenticated store carrying both doors and a row
    * to prove the data survived. Mirrors the real order — the keys exist before the
    * store is opened, and the password sidecar is written beside it afterwards.
    */
@@ -333,7 +333,7 @@ describe("openAppDatabase — the password door", () => {
     const recoveryKey = await ensureRecoveryKey(keyStore);
     const driver = await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore,
       requestUnlock: never,
     });
@@ -356,7 +356,7 @@ describe("openAppDatabase — the password door", () => {
     const wiped = createInMemoryKeyStore();
     const driver = await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore: wiped,
       requestUnlock: givePassword(PASSWORD),
     });
@@ -372,7 +372,7 @@ describe("openAppDatabase — the password door", () => {
     let attempt = 0;
     const driver = await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore: createInMemoryKeyStore(),
       requestUnlock: ({ error }) => {
         errors.push(error);
@@ -395,7 +395,7 @@ describe("openAppDatabase — the password door", () => {
     let attempt = 0;
     const driver = await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore: createInMemoryKeyStore(),
       requestUnlock: () => {
         attempt += 1;
@@ -419,7 +419,7 @@ describe("openAppDatabase — the password door", () => {
 
     await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore: createInMemoryKeyStore(),
       requestUnlock: givePassword(PASSWORD),
     });
@@ -432,14 +432,14 @@ describe("openAppDatabase — the password door", () => {
     const { phrase } = await seedStoreWithBothDoors();
     await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore: createInMemoryKeyStore(),
       requestUnlock: givePassword(PASSWORD),
     });
 
     const driver = await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore: createInMemoryKeyStore(),
       requestUnlock: givePhrase(phrase),
     });
@@ -455,7 +455,7 @@ describe("openAppDatabase — the password door", () => {
     const offered: { password: boolean; phrase: boolean }[] = [];
     await openAppDatabase({
       dbPath,
-      custody: "protected",
+      custody: "encrypted",
       keyStore: createInMemoryKeyStore(),
       requestUnlock: ({ doors }) => {
         offered.push(doors);
