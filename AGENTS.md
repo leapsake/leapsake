@@ -21,7 +21,9 @@ mostly-stdlib dependency set.
 - Always use pnpm as the package manager, and pnpm workspaces to manage the independent workspaces
 - Use TypeScript whenever possible.
 - Prefer less code over more code, but prefer legible code over concise code or "code golf"
-- Add a dependency only when it pays for itself across more than one place.
+- Add a dependency only when it pays for itself across more than one place, and say why
+  where it lands (the package's README, or the commit that adds it). The dependency set is
+  deliberately lean — `package.json` is the list; there is no second copy of it to consult.
 - Well-written tests are preferable to docs or code comments that can drift to not reflect accurate behavior.
 - Tests should generally treat the thing they are testing as a black box, and not care about the implementation.
 - Well-named, legible functions and code are preferable to code comments or docs, but code comments and docs are preferable to unclear code or behavior.
@@ -36,119 +38,66 @@ mostly-stdlib dependency set.
 
 ## Repository Structure
 
+`apps/{desktop,mobile,server,web}` over `packages/*`, wired in one direction:
+
 ```
-apps/
-  desktop/          # Electron app (V1) — built
-  mobile/           # Expo app (V2) — built, feature-complete vs. desktop
-  server/           # Blind sync relay (V3) — built; see apps/server/README.md
-  web/              # Web app (V3 — not yet created)
-packages/
-  schema/           # Zod schemas → inferred types + pure portable domain logic
-                    # (formatters, role algebra, normalization). Zero platform deps.
-  data/             # SqliteDriver port, migration runner, per-entity repositories,
-                    # cross-repo services (kinship, search, timeline), and the sync
-                    # substrate (defineSyncable, sync_state). Depends on schema.
-                    # No DB driver import.
-  sync/             # V3 client convergence: the SyncTransport port + in-memory and
-                    # HTTPS relay adapters, the registry-driven SyncEngine, and the
-                    # scheduler. Depends on data for types only.
-  key-custody/      # How a device obtains, holds, escrows, and relinquishes the
-                    # master key: the enclave bootstrap, the password/recovery
-                    # door, join + recover + reauthenticate. Implements
-                    # plans/encryption/model.md §7.5. See its README.
-  core/             # Client-agnostic application surface (CoreApi): transactional
-                    # writes, cascade deletes, relationship orientation, view-models.
-                    # Owns the syncable-repo allowlist and relay wiring.
-                    # Depends on data + sync + key-custody + schema.
-  bytes/            # Byte ↔ string codecs (base64/hex/utf-8) + deterministicUuid.
-                    # Non-secret data only; no workspace deps. See its README.
-  crypto/           # V3 envelope primitives (seal/wrap, the password KDF) + the
-                    # KeyStore port. Depend on this only if you handle keys or
-                    # ciphertext. See packages/crypto/README.md.
-  highlight/        # Search-match highlighting.
-  ui/               # Shared presentational UI, consumed by the Electron renderer
-                    # and (later) apps/web. Four subpaths: /tokens (plain-data
-                    # design tokens), /messages (the text catalog), /headless
-                    # (behavior hooks, no DOM), /web (DOM components). React is a
-                    # *peer* dependency. See its README.
-  view-models/      # Headless derivations every client shows the same way
-                    # (grouping, partitioning, ordering over already-loaded
-                    # data). Pure functions, generic over the caller's row
-                    # types; no repo access — that stays in core/views.ts.
-                    # See its README.
-AGENTS.md
-plans/                # forward-looking only — upcoming work, not past decisions
-  README.md           # project map / front door
-  status.md           # the single status oracle (all workstreams) — what's done + what's next
-  encryption/         # V3 encryption, privacy & sync design
+schema  →  data  →  core  →  clients
 ```
 
-Per-package architecture rationale (the "why this package is shaped this way") lives in each
-package's own `README.md` — `packages/{schema,data,sync,key-custody,core,crypto,bytes,ui,view-models}`,
-`apps/{desktop,server}`.
+- **`schema`** — Zod schemas → inferred types, plus pure portable domain logic
+  (formatters, role algebra, normalization, search folding). Zero platform deps.
+- **`data`** — the `SqliteDriver` port, the migration runner, per-entity
+  repositories, cross-repo services (kinship, search, timeline), and the sync
+  substrate (`defineSyncable`, `sync_state`). Imports no DB driver.
+- **`core`** — the client-agnostic `CoreApi` that every client wires up. It is
+  the composition root: it owns the syncable-repo allowlist and the relay wiring,
+  and it is the only package that depends on the others.
+- **Everything else is a narrow package `core` composes** — `sync`,
+  `key-custody`, `store-layout`, `crypto`, `bytes`, `holidays`, `reminders`,
+  `contact-import`, `highlight`, `ui`, `view-models`. **New domain logic gets its
+  own package** with injected ports rather than a new folder inside `core`.
+
+**Each package's own `README.md` is the authority on why it is shaped the way it
+is**, and `ls packages/` is the authority on which exist — do not keep a copy of
+either here. The project map is [`plans/README.md`](plans/README.md);
+`plans/` itself is forward-looking only.
+
+Client-specific logic lives in that client's `apps/` project; anything two
+clients could share belongs in a package.
 
 ## Data Model
 
-The domain has grown well past a single entity: **people, pets, tags, a
-relationship graph with derived kinship + dismissals, milestones, and typed
-contact methods**, plus holidays/observances, reminders, gifts, and the V3
-account/key/sync tables. The forward-only migrations in
-`packages/data/src/migrations.ts` are the current shape — read them rather than
-any summary, here or elsewhere. All tables
-follow the sync-safe conventions below.
+The domain is **people, pets, tags, a relationship graph with derived kinship +
+dismissals, milestones, typed contact methods** (email/phone/postal), holidays and
+observances, reminders, gifts, and the V3 account/key/sync tables. The forward-only
+migrations in `packages/data/src/migrations.ts` are the current shape; the Zod
+schemas in `packages/schema/src` are the current types. Read those — a summary
+here would be one more thing to keep in step, and would lose.
 
-### Person
+The conventions they all follow, which *are* this file's business:
 
-```ts
-// packages/schema/src/person.ts
-const personSchema = z.object({
-  id:         z.uuid(),
-  firstName:  z.string().min(1),
-  middleName: z.string().min(1).nullable(),
-  lastName:   z.string().min(1),
-  gender:     genderSchema.nullable(),
-  createdAt:  z.number().int(),   // epoch ms, UTC
-  updatedAt:  z.number().int(),
-  deletedAt:  z.number().int().nullable(),
-});
-type Person = z.infer<typeof personSchema>;
-```
-
-DB uses `snake_case`; the repository maps to camelCase in TypeScript.
-Never hard-delete rows — use `deleted_at` (soft delete). Value constraints
-(enums, partial-date rules) live in **Zod, not the DB**, so the same portable
-SQL runs on both engines.
-
-### Sync-safe conventions (all tables)
-
-- **Primary key**: client-generated UUID, stored as `TEXT`.
-- **`created_at`, `updated_at`**: `INTEGER` epoch milliseconds UTC.
-- **`deleted_at`**: nullable `INTEGER` epoch ms.
+- **Primary key**: client-generated UUID, stored as `TEXT`. Deterministic
+  (content- or key-derived) where two offline devices could assert the same fact —
+  otherwise they mint two rows that collide on a partial unique index at sync time.
+- **`created_at` / `updated_at`**: `INTEGER` epoch milliseconds, UTC.
+- **`deleted_at`**: nullable `INTEGER` epoch ms. **Never hard-delete a row** — a
+  hard delete cannot replicate, so a tombstone is the only durable way to say
+  "gone".
+- The DB is `snake_case`; repositories map to camelCase at the boundary.
+- **Value constraints (enums, partial-date rules) live in Zod, not the DB**, so the
+  same portable SQL runs on both engines.
 
 ## SqliteDriver Port
 
-Every repository is written against a small async interface so it can run on
-either engine — `better-sqlite3-multiple-ciphers` (desktop) and expo-sqlite
-(mobile) — without rewriting:
-
-```ts
-interface SqliteDriver {
-  exec(sql: string): Promise<void>;
-  run(sql: string, params?: unknown[]): Promise<void>;
-  all<T>(sql: string, params?: unknown[]): Promise<T[]>;
-  get<T>(sql: string, params?: unknown[]): Promise<T | undefined>;
-  transaction<T>(fn: () => Promise<T>): Promise<T>;
-  close?(): Promise<void>;
-}
-```
-
-Desktop supplies an adapter over `better-sqlite3-multiple-ciphers` that applies
-the key pragma at open and wraps its synchronous calls in resolved promises
-(`apps/desktop/src/main/db/encrypted-sqlite-driver.ts`). Mobile supplies an
-expo-sqlite (SQLCipher) adapter (`apps/mobile/db/expo-sqlite-driver.ts`).
+Every repository is written against one small async interface
+(`packages/data/src/driver.ts`) so it runs unchanged on
+`better-sqlite3-multiple-ciphers` (desktop, `apps/desktop/src/main/db/encrypted-sqlite-driver.ts`)
+and expo-sqlite/SQLCipher (mobile, `apps/mobile/db/expo-sqlite-driver.ts`). Both
+adapters are pinned to identical observable behavior by one shared contract suite —
+see *Testing*.
 
 **Shared packages run on the Hermes floor.** `packages/*` execute on mobile's
-Hermes engine, which lags on newer JS. Two consequences proven in V2 step 1b:
+Hermes engine, which lags on newer JS. Two consequences, both learned the hard way:
 (1) avoid ES2023-only methods like `Array#toSorted` — use `[...arr].sort(...)`
 (the `unicorn/no-array-sort` lint rule is disabled for this reason); (2) host
 capabilities the shared code assumes (the `crypto.randomUUID` Web Standard) are
@@ -203,34 +152,14 @@ Strategy, principles, and the driver-contract keystone live in
 - **E2E** (blocked, not built): the crucial-flow catalog per platform — desktop
   Playwright/Electron, mobile **Maestro** (committed). See `plans/testing/`.
 
-### The test harness (`scripts/test-all.mjs`)
+### Running them
 
-One orchestrator runs each trophy tier as a `pnpm test:*` script and prints a
-combined verdict; **blocked** tiers — either not built yet (E2E) *or* a built
-native tier whose device isn't booted here — are surfaced as ⏳, never silently
-skipped. The two mobile native tiers run per platform (`native-android` /
-`native-ios`, each `pnpm test:native --platform=<x>`); the orchestrator maps the
-runner's exit code 0→PASS, 3→BLOCKED, else→FAIL.
-
-- `pnpm test` — the fast local suite (static + unit + integration + coverage
-  gate; no emulator). The default inner loop.
-- `pnpm test:all` — everything reachable + reports the blocked native/E2E tiers.
-- `pnpm test:node` — just Vitest (unit + integration), the tightest loop.
-- `pnpm test:format` · `test:lint` · `test:types` — individual static tiers.
-- `pnpm test:coverage` — the driver-contract coverage forcer (gates the desktop
-  driver file at 100%, so a new driver path fails until a contract case covers it).
-- `pnpm test:native` — the mobile driver-contract self-test on a booted device via Maestro
-  (`scripts/test-native.mjs` → `apps/mobile/maestro/driver-selftest.yaml`). Auto-detects each
-  booted platform (Android emulator + iOS simulator); `--platform=ios|android` runs one.
-  Assumes a booted device + installed dev-client build + running Metro; it fails with the exact
-  setup command if one is missing, or exits 3 (BLOCKED) if no device/toolchain is present (see
-  `apps/mobile/maestro/README.md`). It is a `device` tier: `pnpm test` (fast loop) skips it;
-  `pnpm test:all` runs it.
-- `pnpm test:versions` — one version across every manifest (`scripts/set-version.mjs
-  --check`). Cheap, but it catches a bump that missed a manifest, which is otherwise
-  invisible until an artifact ships with the wrong number and a store record is burned.
-- `pnpm test:e2e` — reports BLOCKED until the harness exists. The flow catalog it will
-  implement is drafted: [`plans/testing/crucial-flows.md`](./plans/testing/crucial-flows.md).
+`scripts/test-all.mjs` is the orchestrator and documents its own tier registry,
+flags, and exit codes in its header — read that rather than a list here, and
+`package.json` for what each `pnpm test:*` actually runs. In the inner loop:
+**`pnpm test`** (fast: static + unit + integration + the coverage gate, no
+emulator), **`pnpm test:all`** (everything reachable, with unreachable tiers
+reported ⏳ BLOCKED rather than skipped), **`pnpm test:node`** (just Vitest).
 
 > ⚠️ **`pnpm test` cannot complete in a sandboxed agent shell**, and the failure looks like
 > a broken repo rather than a missing network. `test:node` and `test:coverage` both start
@@ -385,16 +314,3 @@ on-disk/Node resolution legitimately sees two copies that the bundler dedupes).
 It fails loudly if the dedupe is dropped or the React pair drifts. Run it in CI
 when CI lands; until then run it after touching React deps or the renderer
 bundler config.
-
-## Dependency Budget (V1)
-
-Runtime: `electron`, `react`, `react-dom`, `react-router-dom`, `zod`.
-(`node:sqlite` is a Node built-in — zero dependency.)
-Dev: `electron-vite`, `vite`, `@vitejs/plugin-react`, `typescript`, `vitest`,
-`oxlint`, `oxfmt`, `@testing-library/react` + `jsdom`.
-
-Anything beyond this list needs a clear reason. The testing-library/jsdom pair's
-reason: the desktop renderer had **no** test coverage of any kind, which is
-explicitly why three near-identical combobox implementations were left
-un-deduplicated at the time. They were the safety net for the UI extraction that
-later deduplicated them — see [`packages/ui/README.md`](packages/ui/README.md).
