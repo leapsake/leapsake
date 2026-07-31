@@ -29,6 +29,8 @@
 | Memory | **A persistent decision table**, an ordinary synced row | A user answers once, on any device, forever |
 | Flow-level suppression | **Must not suppress the account step** | The one step whose absence risks data loss is exempt (§3) |
 | Action mechanism | **Engine + view-model, via the id-convention** | No schema field for the actions themselves, no migration, no sync change |
+| Two kinds of "later" | **Reminder snooze and onboarding defer are separate mechanisms** | Different homes, neither blocks the other; see §4.1 |
+| Re-prompt policy | **Duration and repetitions are separate dials, held as data** | The numbers are cheap to change later — §4.2 is what makes that true |
 | Copy | Drop "It's free" from `launch.md`'s draft | Nothing is paid yet; it reads as an upsell tease |
 
 ## 2. What the code already does (do not re-derive this)
@@ -132,6 +134,43 @@ casing.
 > (`product-truths.md`), so leave the seam explicit in the schema doc-comment — adding a
 > nullable owner column later is a cheap migration, and guessing its shape now is not.
 
+### 4.1 Two kinds of "later", deliberately kept apart
+
+"Remind me later" means two different things in this product, and they are **separate
+mechanisms with separate homes** — not one feature built twice *(owner, 2026-07-30)*:
+
+| | **Reminder snooze** | **Onboarding defer** |
+|---|---|---|
+| Acts on | A reminder row that already exists | Whether a row is created at all |
+| Home | A field on the reminder + a hide rule in `partitionReminders` | The decision table (§4) |
+| Engine involvement | None — it is a display-level hide | Central: the engine consults the table before desiring a row |
+| Repetitions | Meaningless (you never tell a birthday to come back twice, then stop) | The point |
+
+Neither blocks the other, and building one does not pre-empt the other. Reminder snooze is
+still deferred (§6); onboarding defer is Increment 5.
+
+### 4.2 Store what happened, never what to do next
+
+**The table records facts: which step, which outcome, when, and how many times. It must not
+record a computed next-prompt date.**
+
+This is the whole of what makes the re-prompt policy cheap to change. If a row says *"deferred
+at T, count 2"*, the schedule is re-derived on every reconcile — so changing 3 days to 5, or
+two repetitions to three, takes effect immediately for everyone, including users who deferred
+last week. If a row says *"show again on 15 August"*, today's policy is baked into rows you
+can no longer reach, and every future change needs a data migration to match.
+
+The policy itself lives **as data on the step definitions** — the shape `ONBOARDING_STEPS`
+already uses (`packages/reminders/src/engine.ts:291`), and the same
+declarative-table-of-plain-objects pattern as `actionDefs` and `kindDefs`. Two independent
+dials per step:
+
+- **duration** — how long before it comes back;
+- **repetitions** — how many times it is willing to come back before giving up.
+
+Changing either is editing a literal, not touching logic. That is what "easy to change later"
+has to mean concretely, or it means nothing.
+
 ## 5. The increments
 
 Each is independently shippable: it lands, it has standalone value, and nothing is half-built
@@ -143,8 +182,10 @@ if the next one is deferred. **1 → 2 is the v0.1 line**; 3–6 can follow at a
 every later increment needs exists. Standalone even if nothing else here is built.
 
 - The decision table: schema + migration + repo + sync registration (§4). Records step key,
-  outcome (`done` / `deferred` / `suppressed`), a deferral timestamp, and the store's first-run
-  anchor.
+  outcome (`done` / `deferred` / `suppressed`), **when** it was last deferred, **how many
+  times**, and the store's first-run anchor — facts only, never a computed next-prompt date
+  (§4.2). Put that rule in the table's doc-comment; it is the one thing a later change can
+  quietly break.
 - Generalize the CTA seam from one call-to-action to a **list of actions**:
   `reminderCtaOf` → an action list in `@leapsake/view-models`, with the engine's step
   definitions declaring which actions they offer. Clients keep ownership of the labels (they
@@ -224,8 +265,9 @@ device; nothing about the flow is mandatory.
 **Value:** "skip and remind me later" becomes true rather than a polite no.
 
 Steps deferred in the flow re-surface as their own reminders on the schedule their definition
-declares (Day 2 / 7 / 30, or per-step). The decision table already holds the anchor and the
-outcome, so this is engine work plus copy — no new persistence.
+declares — the **duration** and **repetitions** dials from §4.2. The decision table already
+holds the anchor, the outcome and the count, so this is engine work plus copy — no new
+persistence, and the numbers stay editable literals.
 
 **Acceptance:** a step skipped with *remind me later* returns on schedule and no other step
 does; a step skipped with *don't ask again* never returns; the account step returns even when
@@ -243,10 +285,11 @@ two chores at once.
 
 ## 6. Deferred / decide-before-committing
 
-- **Real snooze for ordinary reminders** — a `snoozedUntil` field plus a visibility rule in
-  `partitionReminders`. Users will want it for their own reminders eventually; it is a
-  migration, a sync-surface change and both clients, and the decision table covers onboarding
-  without it. Revisit when someone asks for it on a user-created reminder.
+- **Reminder snooze** — the sibling mechanism in §4.1, not a competitor to onboarding defer:
+  a `snoozedUntil` field plus a hide rule in `partitionReminders`, hiding a row that already
+  exists. Users will want it on their own reminders eventually; it is a migration, a
+  sync-surface change and both clients, and onboarding does not need it. Revisit when someone
+  asks for it on a user-created reminder — and note it needs **no** repetitions dial.
 - **Reminder search** (`status.md`) is untouched by this plan, but note any new dateless
   system rows join the same surface.
 - **A general reminder-action framework.** Increment 1 designs the seam as a list but should
@@ -255,9 +298,11 @@ two chores at once.
 
 ## 7. Open decisions for owner sign-off
 
-1. **Deferral intervals.** Day 2 / 7 / 30 as a global ladder, or per-step schedules? §3's
-   stakes table argues per-step (the account step deserves a shorter leash than
-   "tell us about yourself"), but a global ladder is simpler to reason about and to test.
+1. **Starting numbers for the two dials** — *no longer an architecture question.* §4.2 makes
+   both cheap to change, so this is tuning, not a fork in the road: pick something reasonable
+   and correct it when real usage disagrees. The proposal on the table is a **shared duration,
+   per-step repetitions** — back after 3 days, then after 2 weeks, then stop; only the account
+   step takes both rungs, everything else gives up after one. Not yet confirmed.
 2. **Does the flow reminder appear before any data exists, or after the first entity?**
    `launch.md` argues the account invitation should fire at the first person added — the
    moment the exposed window opens. A *flow* might reasonably come earlier, at first launch.
