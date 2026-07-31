@@ -55,7 +55,7 @@ packages/
   key-custody/      # How a device obtains, holds, escrows, and relinquishes the
                     # master key: the enclave bootstrap, the password/recovery
                     # door, join + recover + reauthenticate. Implements
-                    # plans/encryption/custody-sequence.md. See its README.
+                    # plans/encryption/model.md §7.5. See its README.
   core/             # Client-agnostic application surface (CoreApi): transactional
                     # writes, cascade deletes, relationship orientation, view-models.
                     # Owns the syncable-repo allowlist and relay wiring.
@@ -80,7 +80,7 @@ AGENTS.md
 plans/                # forward-looking only — upcoming work, not past decisions
   README.md           # project map / front door
   status.md           # the single status oracle (all workstreams) — what's done + what's next
-  encryption/         # V3 encryption, privacy & sync design (unbuilt Stages 2–4)
+  encryption/         # V3 encryption, privacy & sync design
 ```
 
 Per-package architecture rationale (the "why this package is shaped this way") lives in each
@@ -91,8 +91,10 @@ package's own `README.md` — `packages/{schema,data,sync,key-custody,core,crypt
 
 The domain has grown well past a single entity: **people, pets, tags, a
 relationship graph with derived kinship + dismissals, milestones, and typed
-contact methods** (email/phone/postal). Ten forward-only migrations live in
-`packages/data/src/migrations.ts` — read them for the current shape. All tables
+contact methods**, plus holidays/observances, reminders, gifts, and the V3
+account/key/sync tables. The forward-only migrations in
+`packages/data/src/migrations.ts` are the current shape — read them rather than
+any summary, here or elsewhere. All tables
 follow the sync-safe conventions below.
 
 ### Person
@@ -115,7 +117,7 @@ type Person = z.infer<typeof personSchema>;
 DB uses `snake_case`; the repository maps to camelCase in TypeScript.
 Never hard-delete rows — use `deleted_at` (soft delete). Value constraints
 (enums, partial-date rules) live in **Zod, not the DB**, so the same portable
-SQL runs on `node:sqlite` and expo-sqlite.
+SQL runs on both engines.
 
 ### Sync-safe conventions (all tables)
 
@@ -126,7 +128,8 @@ SQL runs on `node:sqlite` and expo-sqlite.
 ## SqliteDriver Port
 
 Every repository is written against a small async interface so it can run on
-`node:sqlite` (desktop) and expo-sqlite (mobile) without rewriting:
+either engine — `better-sqlite3-multiple-ciphers` (desktop) and expo-sqlite
+(mobile) — without rewriting:
 
 ```ts
 interface SqliteDriver {
@@ -135,12 +138,14 @@ interface SqliteDriver {
   all<T>(sql: string, params?: unknown[]): Promise<T[]>;
   get<T>(sql: string, params?: unknown[]): Promise<T | undefined>;
   transaction<T>(fn: () => Promise<T>): Promise<T>;
+  close?(): Promise<void>;
 }
 ```
 
-Desktop supplies a `node:sqlite` adapter that wraps its synchronous calls in
-resolved promises (`apps/desktop/src/main/db/node-sqlite-driver.ts`). Mobile
-supplies an expo-sqlite adapter (`apps/mobile/db/expo-sqlite-driver.ts`).
+Desktop supplies an adapter over `better-sqlite3-multiple-ciphers` that applies
+the key pragma at open and wraps its synchronous calls in resolved promises
+(`apps/desktop/src/main/db/encrypted-sqlite-driver.ts`). Mobile supplies an
+expo-sqlite (SQLCipher) adapter (`apps/mobile/db/expo-sqlite-driver.ts`).
 
 **Shared packages run on the Hermes floor.** `packages/*` execute on mobile's
 Hermes engine, which lags on newer JS. Two consequences proven in V2 step 1b:
@@ -247,14 +252,21 @@ sees included files). All current test dirs are covered; verify when adding one.
 ## Desktop app (`apps/desktop`)
 
 Electron app built with electron-vite (`src/main`, `src/preload`,
-`src/renderer`). The main process opens `node:sqlite`, runs migrations, builds
-the `core`, and forwards it over typed IPC; the renderer is React + react-router.
-See `apps/desktop/README.md` for the dev workflow.
+`src/renderer`). The main process opens the encrypted store, runs migrations,
+builds the `core`, and forwards it over typed IPC; the renderer is React +
+react-router. See `apps/desktop/README.md` for the dev workflow.
 
-> **No native-module ABI dance.** The database is Node's built-in `node:sqlite`,
-> which ships inside the Node runtime that both Vitest and Electron bundle — so
-> there is no rebuild step and no Electron version pin tied to a prebuilt binary
-> (unlike the original better-sqlite3 plan). `pnpm test` and `dev` just work.
+> ⚠️ **The database is a native module, and the ABI matters.** At-rest encryption
+> cost us the original `node:sqlite` choice: desktop runs
+> `better-sqlite3-multiple-ciphers`, whose prebuilt binary is compiled per ABI and
+> is loaded from **two** runtimes — Electron (the app) and Node (Vitest). Whichever
+> ran last wins, so running the app flips the binary and the next `vitest` run dies
+> with *"Worker exited unexpectedly"* rather than an ABI error.
+> `scripts/ensure-sqlite-abi.mjs` papers over this before `dev`/`start`/`test`; which
+> build is installed is a **file-size check**, since both share a name
+> (`2217120` bytes = Node, `2217808` = Electron). The exit from the whole problem
+> class is [`plans/sqlite-abi-napi.md`](plans/sqlite-abi-napi.md) — a watch-item,
+> blocked on the fork rebasing onto N-API.
 
 ## Mobile app (`apps/mobile`)
 
@@ -384,7 +396,5 @@ Dev: `electron-vite`, `vite`, `@vitejs/plugin-react`, `typescript`, `vitest`,
 Anything beyond this list needs a clear reason. The testing-library/jsdom pair's
 reason: the desktop renderer had **no** test coverage of any kind, which is
 explicitly why three near-identical combobox implementations were left
-un-deduplicated (the header comment in
-`apps/desktop/src/renderer/src/components/MultiAddCombobox.module.css` records
-that call). They were the safety net for the UI extraction — see
-[`packages/ui/README.md`](packages/ui/README.md).
+un-deduplicated at the time. They were the safety net for the UI extraction that
+later deduplicated them — see [`packages/ui/README.md`](packages/ui/README.md).
