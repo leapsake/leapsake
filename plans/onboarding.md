@@ -123,6 +123,13 @@ The predicate already exists: every entry in `ONBOARDING_STEPS` carries
 `applies(signals)` (`packages/reminders/src/engine.ts:291`). The flow drives a sequence off
 the same predicate the reminder list drives off — no second notion of relevance.
 
+> **Connecting to an existing account ends the flow, immediately and unconditionally**
+> *(owner, 2026-07-30)*. Every remaining step does become irrelevant on its own — their people,
+> their self-person and their account all arrive — but they arrive **asynchronously**. Re-
+> evaluating relevance the moment the connect step returns can read a store that sync has not
+> filled yet, and then offer import against data already on its way: exactly the duplicate case
+> this section exists to prevent. Exit on the connect itself; do not wait to see what lands.
+
 Two consequences, both easy to get wrong later:
 
 1. **Relevance is recomputed between steps, not once when the flow opens.** Earlier steps
@@ -283,6 +290,7 @@ everything a user should see on day one.
   state.
 - **Opens at first launch; each step checks its own relevance** (§3.1) — skip what doesn't
   apply, exit when nothing does, recompute between steps, and show no progress counter.
+  **Connecting to an existing account exits the flow outright**, without waiting on sync.
 - One flow-level reminder replaces the `sync-devices` / `pick-self` / account nudges.
   `add-first-person` stays as the empty state for anyone who skips.
 - Per-step outcomes (§1) recorded in the decision table; **completing the flow completes the
