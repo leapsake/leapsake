@@ -1,6 +1,6 @@
 /**
  * The bundled holiday catalog — the public reference data that ships with the
- * app and works with no network, ever (plans/holidays/research.md §2.10:
+ * app and works with no network, ever (`@leapsake/holidays` README, OTA:
  * "bundled-first remains the floor").
  *
  * Authored as a TypeScript module rather than JSON so a typo in a recurrence

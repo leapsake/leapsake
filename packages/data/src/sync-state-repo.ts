@@ -38,7 +38,7 @@ export interface SyncStateRepo {
    * install, not about the account.
    *
    * The alternative — deciding whether to seed by checking whether holiday rows
-   * exist — is wrong in two ways at once (holidays/research.md §3): a device
+   * exist — is wrong in two ways at once (`@leapsake/holidays` README, the invariants): a device
    * that received the catalog via sync would re-seed from its own stale bundle,
    * and holidays the user deleted would come back.
    *

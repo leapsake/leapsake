@@ -9,7 +9,7 @@ import type { ReminderRule, ReminderRuleInput } from "./reminder-rule.js";
  * hang off the observance and already exist — see `reminder-rule.ts`.
  *
  * Splitting them this way is the load-bearing decision of the whole feature
- * (plans/holidays/research.md §1): an observance is milestone-shaped — (bearer,
+ * (`@leapsake/holidays` README, the three layers): an observance is milestone-shaped — (bearer,
  * holiday, date-derived-from-catalog) — so it, not the holiday, is what a
  * reminder rule bears on. That is what makes "gift Alice 30 days before
  * Christmas" and "just call Grandma day-of" fall out of the existing

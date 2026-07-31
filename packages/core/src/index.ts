@@ -976,7 +976,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     },
 
     // Holidays. The catalog itself is read-only — a catalog row is immutable by
-    // design (holidays/research.md §2.6) — so the user's levers are all
+    // design (`@leapsake/holidays` README, read-only catalog rows) — so the user's levers are all
     // *around* it: who observes, what each observance reminds about, and whether
     // the holiday is suppressed entirely.
     //

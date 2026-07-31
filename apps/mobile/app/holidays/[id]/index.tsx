@@ -20,7 +20,7 @@ import { formatOccurrence } from "@leapsake/schema";
 //
 // There is no edit affordance, and that is the design rather than an omission —
 // a catalog holiday is read-only, and a user who wants a different Mother's Day
-// hides this one and creates their own (holidays/research.md §2.6). That keeps a
+// hides this one and creates their own (`@leapsake/holidays` README, read-only catalog rows). That keeps a
 // user's edit from ever losing to, or blocking, a catalog update.
 export default function HolidayDetailScreen() {
   const core = useCore();

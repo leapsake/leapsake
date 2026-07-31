@@ -2,7 +2,7 @@
 
 How a device **obtains, holds, escrows, and relinquishes** the account master key.
 This is the code counterpart to
-[`plans/encryption/custody-sequence.md`](../../plans/encryption/custody-sequence.md) —
+[`plans/encryption/model.md`](../../plans/encryption/model.md) §7.5 —
 that document specifies the phases, this package implements them.
 
 ## Surface, by custody phase

@@ -2,7 +2,7 @@
  * How a holiday recurs, and the date math that turns a rule into the concrete
  * civil days it lands on in a given year.
  *
- * Five shapes, one discriminated union (plans/holidays/research.md §2.8). Four
+ * Five shapes, one discriminated union (`@leapsake/holidays` README, recurrence). Four
  * are self-contained arithmetic; `offset` is the only one that depends on
  * another entry, and it takes a resolver callback so the dependency graph (and
  * its acyclicity) stays the resolver's problem, not this module's.

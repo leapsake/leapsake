@@ -23,8 +23,8 @@ const MAX_SUGGESTIONS = 20;
  * type-then-Enter cycles rather than ten round trips through a modal. That
  * behaviour is the whole reason this replaced the select-all checklist: an
  * autocomplete that closed on every pick would trade a cumbersome control for a
- * slow one, and `plans/holidays/research.md` §2.12's case for bulk assignment
- * was outweighed by the common one-person case, not refuted.
+ * slow one, and the `@leapsake/holidays` README's case for bulk assignment being
+ * mandatory was outweighed by the common one-person case, not refuted.
  *
  * The caller owns the added list and passes `options` already filtered, so
  * anything picked simply stops being suggested. There is no `value` — this

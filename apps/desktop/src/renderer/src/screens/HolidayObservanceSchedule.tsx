@@ -14,7 +14,7 @@ import { Form, useLoaderData } from "react-router-dom";
  * fact but generates nothing until a rule is switched on here.
  *
  * It is per-*observance* rather than per-holiday because the rule's bearer is
- * the observance (holidays/research.md §1): that is exactly what lets "gift
+ * the observance (`@leapsake/holidays` README, the three layers): that is exactly what lets "gift
  * Alice 30 days before Christmas" and "just call Grandma day-of" coexist under
  * one holiday.
  */

@@ -161,7 +161,7 @@ async function adoptMasterKeyIntoEnclave(opts: {
 }
 
 /**
- * Custody Phase 0 (encryption/custody-sequence.md): make the device's master
+ * Custody Phase 0 (encryption/model.md §7.5): make the device's master
  * key real on first launch and recover it on every launch after — the first
  * consumer of the OS {@link KeyStore}.
  *
@@ -413,7 +413,7 @@ export interface RecoveryChannel {
 }
 
 /**
- * Custody Phase 1 (encryption/custody-sequence.md): **enable sync** — promote a
+ * Custody Phase 1 (encryption/model.md §7.5): **enable sync** — promote a
  * single, enclave-only device to an account with a portable **password** unlock
  * door, plus a one-time **recovery key**. This is the first crypto that leaves
  * AEAD-only territory: it derives a KEK with Argon2id (security-review.md).
@@ -534,7 +534,7 @@ export async function enableSync(opts: {
 }
 
 /**
- * Custody Phase 2 / login (encryption/custody-sequence.md): unlock the account's
+ * Custody Phase 2 / login (encryption/model.md §7.5): unlock the account's
  * master key from the **password** alone — no enclave, no device secret. This is
  * exactly what a second device does after the account's ciphertext arrives over
  * the relay: derive the KEK from the password + the public salt, authenticate

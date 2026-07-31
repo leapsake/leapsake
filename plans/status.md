@@ -20,7 +20,7 @@
 | **V1 desktop · V1.5 local CRM · V2 mobile** | shipped, feature-complete on both clients | — |
 | **V3 · Encryption + sync** | Stages 1–2 (zero-knowledge sync, at-rest) done and verified over the wire and on-disk; **custody finished**; relay hardening through H3 | the *Encryption + sync* and *Relay* backlogs below. Stages 3–4 (sharing, SSR web) are post-launch. Design: [`encryption/`](./encryption/) |
 | **V3 · Reconciliation** (dedup & merge) | A, B, and C's merge-on-join built; the review surface is detection-driven, not permanently advertised | C's bulk-import dedup, deferred until the importer exists. Design: [`packages/core/README.md`](../packages/core/README.md) |
-| **Holidays** | shipped both clients — catalog, recurrence engine, synced observances, per-occurrence reminders | one distant, calendrical task: **re-derive the two lunisolar tables before ~2050** (they run to 2056; see `packages/holidays/src/catalog.ts`). Design: [`holidays/research.md`](./holidays/research.md) |
+| **Holidays** | shipped both clients — catalog, recurrence engine, synced observances, per-occurrence reminders | one distant, calendrical task: **re-derive the two lunisolar tables before ~2050** (they run to 2056; see `packages/holidays/src/catalog.ts`). Design: [`@leapsake/holidays`](../packages/holidays/README.md) |
 | **Reminders** (Home surface) | the Reminder entity, Home on both clients, `@mentions` as two-way backlinks, four engine-owned `system` families, onboarding nudges | **reminder search** |
 | **UI extraction** | done — [`@leapsake/ui`](../packages/ui/README.md) holds every presentational component, [`@leapsake/view-models`](../packages/view-models/README.md) the shared derivations | styling / the design system (below) |
 | **Testing harness** | the tiered orchestration is built and self-documenting (`scripts/test-all.mjs`); the native tier is a terminal gate, proved RED and GREEN on both platforms | **E2E is the one blocked tier** — catalog drafted, pending owner sign-off. Design: [`testing/`](./testing/) |
@@ -211,6 +211,31 @@ is finished.
   (separate from row sync), chunked + resumable transfer, client-computed encrypted
   thumbnails, the `BlobStore` port with the filesystem adapter first. Scope details and the
   invariants that must hold are in that doc.
+
+**Holidays — doors deliberately left open** (none blocking; the design admits each additively,
+which is why they were deferred rather than built — see
+[`@leapsake/holidays`](../packages/holidays/README.md) for the mechanisms):
+- **Holiday reminders with no Person attached** ("get a tree"). The bearer-type enum and the
+  disjoint id namespaces admit `holiday` later with no schema change.
+- **Aggregate / grouped reminders** — collapsing "40 Christmas cards" into one row. **The one
+  non-reversible item here**: an aggregate is a different deterministic id, so migrating later
+  loses completion state. Related: **synchronized load** — everyone's Christmas reminders come
+  due at once, unlike birthdays. That half *is* reversible (ids key on occurrence + action, not
+  surface date), so it can be tuned whenever it starts to hurt.
+- **User-defined holidays authoring UI.** The schema has been capable from day one; expected
+  <1% of users.
+- **Religions / Nationalities fields** as bulk-assignment accelerators, with the inference
+  constraints the package README pins.
+- **Observed-date shifting** (holiday falls Saturday → observed Friday). Matters for "office
+  closed", barely for gifting. Leaning skip; noted, not solved.
+- **Per-user greeting overlay** — "Happy Christmas" for a British user. An overlay, never an
+  edit to a read-only catalog row.
+- **Events** — user-defined, separate-but-related to Milestones and Holidays. Much further out.
+  The distinction that motivates it: *"my family does a thing on August 3rd"* (an Event) vs.
+  *"my family observes an obscure holiday on August 3rd"* (a user-defined Holiday).
+- **@-mentioning holidays.** Not free (the `mentions` table references entity UUIDs; holiday
+  identity is slug-based) and not a priority. The better shape for the underlying idea is
+  natural-language date detection — "on Christmas" fills the due date.
 
 ### Post-launch (after the web app)
 

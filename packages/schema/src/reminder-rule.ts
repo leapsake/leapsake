@@ -122,7 +122,7 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
  * per-person schedule expressible: "gift Alice 30 days before Christmas" but
  * "just call Grandma day-of". Hanging it off the holiday would need a third
  * column naming the person, plus a parallel copy of the schedule machinery
- * (holidays/research.md §1).
+ * (`@leapsake/holidays` README, the three layers).
  */
 export const reminderRuleBearerTypeSchema = z.enum(["milestone", "observance"]);
 

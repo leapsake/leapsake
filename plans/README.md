@@ -28,7 +28,7 @@ client-agnostic data/core layer underneath all clients.
 | Understand the encryption / privacy / sync design | [`encryption/`](./encryption/) — start at its `README.md` (then `model.md`, `sync.md`, `schema.md`) |
 | Understand the file/media (photos v0.2) design | [`files.md`](./files.md) — the encrypted-blob invariants, pinned before build |
 | Know why the SQLite native-ABI dance exists (and how it ends) | [`sqlite-abi-napi.md`](./sqlite-abi-napi.md) — watch-item, blocked on the fork |
-| Understand the holidays design | [`holidays/research.md`](./holidays/research.md) — the catalog/observance/rule layering + decisions, pinned before build |
+| Understand the holidays design | [`packages/holidays/README.md`](../packages/holidays/README.md) — the catalog/observance/rule layering, and the decisions that constrain changing it |
 | Share UI or derivations across clients | [`packages/ui/README.md`](../packages/ui/README.md) (presentational components + the adapter/messages/ports seams) and [`packages/view-models/README.md`](../packages/view-models/README.md) (headless derivations) — the extraction is done |
 | Understand the dedup / merge design | [`packages/core/README.md`](../packages/core/README.md) — the two-kinds-of-merge framing + the person reference graph |
 | Understand the testing strategy (all apps/packages) | [`testing/`](./testing/) — start at its `README.md` (principles, the driver-contract keystone, the mobile-engine wall) |

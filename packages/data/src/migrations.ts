@@ -576,7 +576,7 @@ export const migrations: Migration[] = [
   {
     version: 22,
     async up(driver) {
-      // Holidays (plans/holidays/research.md) — three tables that together
+      // Holidays (`@leapsake/holidays` README) — three tables that together
       // extend the automated-reminder engine to a second family of recurring
       // dated facts about people. All plaintext rows, all synced.
       //

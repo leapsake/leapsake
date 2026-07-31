@@ -1,6 +1,6 @@
 /**
  * The one interface every caller asks a holiday's dates through:
- * `occurrencesFor(slug, year)` (plans/holidays/research.md §2.8). Callers never
+ * `occurrencesFor(slug, year)` (`@leapsake/holidays` README, recurrence). Callers never
  * learn whether an arithmetic rule or a precomputed table answered — which is
  * the point, and what lets the lunisolar tables be replaced by a real calendar
  * implementation later with no caller change.
