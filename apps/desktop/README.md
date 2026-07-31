@@ -1,35 +1,29 @@
 # @leapsake/desktop
 
 The Leapsake desktop app (Electron + React, built with electron-vite). The main
-process opens the encrypted SQLite database, runs migrations, builds the
-`@leapsake/core` application surface, and forwards it over a typed IPC surface;
-the renderer is a React + react-router UI that talks only to `window.api`.
+process opens this device's store — encrypted or not, depending on custody — runs
+migrations, builds the `@leapsake/core` application surface, and forwards it over a
+typed IPC surface; the renderer is a React + react-router UI that talks only to
+`window.api`.
 
 ## Layout
 
 ```
 src/
-  main/
-    index.ts                 # app lifecycle, window, DB init, core wiring, IPC handlers
-    db/
-      encrypted-sqlite-driver.ts # production SqliteDriver over the encrypted engine
-      database-key.ts            # whole-DB key custody in the OS enclave (KeyStore)
-      plaintext-migration.ts     # one-time upgrade of a pre-Stage-2 plaintext DB
-  preload/
-    index.ts                 # contextBridge → window.api; `Api` type is CoreApi
-  renderer/
-    index.html
-    src/
-      main.tsx               # React root
-      router.tsx             # react-router routes
-      App.tsx                # app shell
-      screens/ components/   # per-entity views, create/edit/delete, search
-      env.d.ts               # augments Window with `api: Api`
+  main/       # app lifecycle, window, boot, core wiring, IPC handlers (index.ts),
+              # plus db/ — the driver, the boot path (open.ts), the store
+              # conversion, and the account flows (create / adopt / forget / reset)
+  preload/    # contextBridge → window.api; `Api` type *is* CoreApi
+  renderer/   # React + react-router; talks only to window.api
 ```
 
-Data lives in a single **encrypted** SQLite file at Electron's `userData` path
-(`leapsake.db`), e.g. `~/Library/Application Support/@leapsake/desktop/` on macOS.
-The file is unreadable without the device's whole-DB key, held in the OS enclave.
+**Where the data lives depends on custody.** A device with no account holds a
+*plaintext* store at `stores/local/leapsake.db` under Electron's `userData` path
+(`~/Library/Application Support/@leapsake/desktop/` on macOS); once an account
+exists the store is encrypted and lives at `stores/<accountId>/leapsake.db`, with
+its two unlock doors beside it as sidecar files. The roster
+(`accounts.json`) sits outside every store and is what the boot path reads to
+decide which one is active — see [`@leapsake/store-layout`](../../packages/store-layout/README.md).
 
 ## Running
 
@@ -41,11 +35,11 @@ pnpm --filter @leapsake/desktop build   # production bundle into out/
 pnpm --filter @leapsake/desktop start   # preview the built app
 ```
 
-## Database: encrypted SQLite (at-rest, Stage 2)
+## Database: SQLite with an encrypted backend
 
-The database is **encrypted at rest** (`plans/encryption/model.md` §8): the file on
-disk is ciphertext, decrypted into memory page-by-page only while the process holds
-the whole-DB key. The backend is `better-sqlite3-multiple-ciphers`
+A store that belongs to an account is **encrypted at rest**
+(`plans/encryption/model.md` §8): the file on disk is ciphertext, decrypted into
+memory page-by-page only while the process holds the whole-DB key. The backend is `better-sqlite3-multiple-ciphers`
 (SQLite3-Multiple-Ciphers, SQLCipher-compatible), chosen over a WASM build because
 it is the only maintained, batteries-included encrypted SQLite for Node/Electron,
 ships **prebuilt binaries** for both Node and Electron (no node-gyp compile), and is
@@ -68,11 +62,17 @@ for at-rest encryption). Two consequences:
 The production driver (`src/main/db/encrypted-sqlite-driver.ts`) implements the async
 `SqliteDriver` port over the engine — applying the key pragma at open time, wrapping
 the synchronous calls in resolved promises, and `transaction` in manual
-`BEGIN`/`COMMIT`/`ROLLBACK`. `packages/data` itself stays driver-free, so the
-integration tests still run on `node:sqlite` `:memory:` and mobile keeps its
-expo-sqlite adapter. The whole-DB key is minted/held in the OS enclave
-(`database-key.ts`); a pre-Stage-2 plaintext file is re-keyed in place on first
-launch (`plaintext-migration.ts`).
+`BEGIN`/`COMMIT`/`ROLLBACK`. `packages/data` itself stays driver-free, so mobile
+keeps its expo-sqlite adapter and the integration suites run **this** driver: they
+build it through the production open path over a throwaway temp file
+(`test/support/encrypted-test-driver.ts`), because the encrypted backend cannot key
+an in-memory database.
+
+**Whether the store is encrypted at all is a custody question, not a desktop one.** A
+device with no account holds a plaintext store and no keys; creating, joining, or
+recovering an account is what converts it and mints the db-key. The boot path is
+`src/main/db/open.ts`, the conversion is `convert-store.ts`, and the model is
+[`plans/encryption/model.md`](../../plans/encryption/model.md) §7.
 
 ## Notes
 
