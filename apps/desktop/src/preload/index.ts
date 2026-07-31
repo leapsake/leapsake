@@ -170,6 +170,13 @@ export interface UnlockDoors {
   phrase: boolean;
 }
 
+/** The *Degraded* state as the renderer needs it: why, and whether this account
+ *  has a relay (so the banner can say what actually stopped). */
+interface DegradedCustody {
+  detail: string;
+  relayBound: boolean;
+}
+
 /**
  * The **boot gate** bridge: the renderer mounts before the database is open, so
  * it can host the at-rest unlock prompt when this device's enclave key is gone
@@ -187,14 +194,16 @@ export interface UnlockDoors {
  * opened but this device could not prove which master key is the account's (custody
  * slice 10, `model.md` §7.5). The app is fully usable — that is the point — so the
  * phase is still `ready`; sync is off until it is resolved, and the renderer keeps a
- * banner up for as long as it is set.
+ * banner up for as long as it is set. Its `relayBound` says whether this account has
+ * a relay at all, because that decides what the banner may honestly claim has
+ * stopped.
  */
 const boot = {
   status: (): Promise<{
     phase: "starting" | "recovering" | "ready";
     error?: string;
     doors: UnlockDoors;
-    degraded?: string;
+    degraded?: DegradedCustody;
   }> => ipcRenderer.invoke("boot:status"),
   submitUnlock: (answer: {
     door: "password" | "phrase";
@@ -211,10 +220,12 @@ const boot = {
     return () => ipcRenderer.removeListener("boot:unlock-needed", handler);
   },
   onReady: (
-    listener: (payload: { degraded?: string }) => void,
+    listener: (payload: { degraded?: DegradedCustody }) => void,
   ): (() => void) => {
-    const handler = (_event: unknown, payload?: { degraded?: string }) =>
-      listener(payload ?? {});
+    const handler = (
+      _event: unknown,
+      payload?: { degraded?: DegradedCustody },
+    ) => listener(payload ?? {});
     ipcRenderer.on("boot:ready", handler);
     return () => ipcRenderer.removeListener("boot:ready", handler);
   },

@@ -381,9 +381,18 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
         this phone is lost or breaks, a password won't bring your data back. Set
         up sync or keep a backup for that.
       </Text>
+      {/*
+        `testID`s here are load-bearing for the harness, not decoration. Both
+        password fields are `secureTextEntry` with identical (empty) accessibility
+        text, so a driver has nothing to tell them apart by and taps on the confirm
+        field silently landed elsewhere — the wall slices 8 and 9 both hit. An
+        explicit id is the anchor set `launch.md` Increment 6 plans to add "as flows
+        need them"; this flow needs them.
+      */}
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Username</Text>
         <TextInput
+          testID="account-username"
           style={styles.input}
           value={username}
           onChangeText={setUsername}
@@ -394,6 +403,7 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Password</Text>
         <TextInput
+          testID="account-password"
           style={styles.input}
           value={password}
           onChangeText={setPassword}
@@ -406,6 +416,7 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Confirm password</Text>
         <TextInput
+          testID="account-confirm-password"
           style={styles.input}
           value={confirm}
           onChangeText={setConfirm}
@@ -420,6 +431,7 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
         </Text>
       )}
       <Pressable
+        testID="account-submit"
         style={[styles.button, busy && { opacity: 0.5 }]}
         disabled={busy}
         onPress={() => void onSubmit()}

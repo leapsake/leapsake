@@ -44,7 +44,9 @@ function Root() {
   // Degraded state (custody slice 10). It rides along with "ready" rather than
   // being a phase of its own, because the app genuinely is ready — see
   // {@link CustodyBanner}.
-  const [degraded, setDegraded] = useState<string | undefined>();
+  const [degraded, setDegraded] = useState<
+    { detail: string; relayBound: boolean } | undefined
+  >();
 
   useEffect(() => {
     const offNeeded = window.boot.onUnlockNeeded(({ error: err, doors: d }) => {
@@ -77,7 +79,12 @@ function Root() {
   if (phase === "ready" && appRouter !== undefined)
     return (
       <>
-        {degraded !== undefined && <CustodyBanner detail={degraded} />}
+        {degraded !== undefined && (
+          <CustodyBanner
+            detail={degraded.detail}
+            relayBound={degraded.relayBound}
+          />
+        )}
         <RouterProvider router={appRouter} />
       </>
     );

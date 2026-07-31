@@ -16,7 +16,10 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaInsetsContext,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import * as SQLite from "expo-sqlite";
 import {
   type AccountBootstrap,
@@ -264,10 +267,16 @@ const SyncContext = createContext<SyncApi | null>(null);
 // `router.revalidate()` (reactive invalidation). Defaults to 0 (no provider →
 // never invalidates, so a screen used outside CoreProvider still renders).
 const DataVersionContext = createContext(0);
-// Why this device cannot prove which master key is the account's, or null when it
-// can — the *Degraded* state (custody slice 10). Defaults to null so a screen
-// rendered outside CoreProvider reads as healthy rather than throwing.
-const CustodyDegradedContext = createContext<string | null>(null);
+/** The *Degraded* state (custody slice 10) as a screen needs it: why, and whether
+ *  this account has a relay — which decides what may honestly be said to have
+ *  stopped (see {@link CustodyBanner}). */
+interface DegradedCustody {
+  detail: string;
+  relayBound: boolean;
+}
+// Null when this device can prove the account's master key. Defaults to null so a
+// screen rendered outside CoreProvider reads as healthy rather than throwing.
+const CustodyDegradedContext = createContext<DegradedCustody | null>(null);
 
 /** Access the ready CoreApi. Throws if used outside a (loaded) CoreProvider. */
 export function useCore(): CoreApi {
@@ -302,7 +311,7 @@ export function useDataVersion(): number {
  * cause and the fix app-wide, so a screen reads this only to stop offering controls
  * that cannot work — which is what Settings does with its sync section.
  */
-export function useCustodyDegraded(): string | null {
+export function useCustodyDegraded(): DegradedCustody | null {
   return useContext(CustodyDegradedContext);
 }
 
@@ -326,7 +335,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   // bootstrap run, so a repaired device clears it by re-opening. Unlike
   // {@link recoveryPrompt} it does not block the app — that is the whole point — it
   // raises a standing banner and keeps sync off.
-  const [degraded, setDegraded] = useState<string | null>(null);
+  const [degraded, setDegraded] = useState<DegradedCustody | null>(null);
   // Reactive invalidation: bumped whenever a sync pull applied changes, so the
   // focused screen (via `useFocusedData` → `useDataVersion`) re-reads in place.
   const [dataVersion, setDataVersion] = useState(0);
@@ -576,7 +585,15 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // every sign-out and reset, so it can never go stale.
       const degradedMessage =
         established.state === "degraded" ? established.message : null;
-      setDegraded(degradedMessage);
+      setDegraded(
+        degradedMessage === null
+          ? null
+          : {
+              detail: degradedMessage,
+              relayBound:
+                (await getSyncStatus({ driver })).relayUrl !== undefined,
+            },
+      );
       // Custody Phase 0.5, not Phase 0: the master key is minted by account
       // creation, so an Open store runs the core with no key session at all.
       keySession.current =
@@ -1283,21 +1300,69 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       <SyncContext.Provider value={sync}>
         <DataVersionContext.Provider value={dataVersion}>
           <CustodyDegradedContext.Provider value={degraded}>
-            {/*
-              Above `children`, so the notice is present on every screen and tab: the
-              Degraded state is a property of the device, not of one screen.
-            */}
-            {degraded !== null && (
-              <CustodyBanner
-                detail={degraded}
+            {degraded === null ? (
+              children
+            ) : (
+              <DegradedFrame
+                degraded={degraded}
                 onSignOut={() => sync.signOut()}
-              />
+              >
+                {children}
+              </DegradedFrame>
             )}
-            {children}
           </CustodyDegradedContext.Provider>
         </DataVersionContext.Provider>
       </SyncContext.Provider>
     </CoreContext.Provider>
+  );
+}
+
+/**
+ * Put {@link CustodyBanner} above the whole app without breaking the app's own
+ * layout — the awkward half of showing a persistent banner over a navigator.
+ *
+ * Two things have to be true at once, and neither is automatic:
+ *
+ * 1. **The banner owns the top safe area.** It is the topmost thing on screen, so
+ *    nothing else pads it away from the status bar and the notch; without the inset
+ *    its first line renders under the clock.
+ * 2. **Nothing below it may claim that inset again.** The navigator underneath still
+ *    believes it starts at the top of the screen, so its header adds a second
+ *    status-bar's worth of padding — a dead band between the banner and the first
+ *    header, exactly as wide as the notch. Overriding the context (rather than
+ *    hard-coding a negative margin) is what actually informs it: the inset has been
+ *    consumed, there is none left.
+ *
+ * Left/right insets are passed straight through — they matter in landscape, and the
+ * banner spans the full width, so it honors them itself rather than zeroing them.
+ * The bottom inset is untouched, which is what keeps the tab bar clear of the home
+ * indicator.
+ *
+ * Only mounted while the device is Degraded, so the ordinary app is unaffected by
+ * any of it.
+ */
+function DegradedFrame({
+  degraded,
+  onSignOut,
+  children,
+}: {
+  degraded: DegradedCustody;
+  onSignOut: () => Promise<void>;
+  children: ReactNode;
+}) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={styles.frame}>
+      <CustodyBanner
+        detail={degraded.detail}
+        relayBound={degraded.relayBound}
+        onSignOut={onSignOut}
+        insets={insets}
+      />
+      <SafeAreaInsetsContext.Provider value={{ ...insets, top: 0 }}>
+        <View style={styles.frameBody}>{children}</View>
+      </SafeAreaInsetsContext.Provider>
+    </View>
   );
 }
 
@@ -1320,17 +1385,26 @@ export function CoreProvider({ children }: { children: ReactNode }) {
  */
 function CustodyBanner({
   detail,
+  relayBound,
   onSignOut,
+  insets,
 }: {
   detail: string;
+  /**
+   * Whether this account has a relay. It decides what this banner may honestly say
+   * has stopped: an account with a relay *had* sync and no longer has it, while an
+   * account with none never did — telling that person "sync is paused" invents both
+   * a feature they do not use and a loss they have not suffered. The repair matters
+   * to them either way, because the moment they add a relay or a second device this
+   * device would be the odd one out.
+   */
+  relayBound: boolean;
   onSignOut: () => Promise<void>;
+  /** The safe area this banner is responsible for — see {@link DegradedFrame}. */
+  insets: { top: number; left: number; right: number };
 }) {
   const [expanded, setExpanded] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
-  // This banner sits *above* the navigator, so nothing else applies the top inset
-  // for it: without this the first line renders under the clock and the notch.
-  // Found by looking at it on a device — it reads fine in a layout tree.
-  const insets = useSafeAreaInsets();
 
   function signOut() {
     setSignOutError(null);
@@ -1343,11 +1417,26 @@ function CustodyBanner({
   }
 
   return (
-    <View style={[styles.banner, { paddingTop: insets.top + 12 }]}>
-      <Text style={styles.bannerTitle}>⚠ Sync is paused on this device.</Text>
+    <View
+      style={[
+        styles.banner,
+        {
+          paddingTop: insets.top + 12,
+          paddingLeft: insets.left + 16,
+          paddingRight: insets.right + 16,
+        },
+      ]}
+    >
+      <Text style={styles.bannerTitle}>
+        {relayBound
+          ? "⚠ Sync is paused on this device."
+          : "⚠ This device needs to be re-linked to your account."}
+      </Text>
       <Text style={styles.bannerBody}>
-        Your data is safe and still here. This device needs to be re-linked to
-        your account before it can sync again.
+        Your data is safe and still here.{" "}
+        {relayBound
+          ? "This device needs to be re-linked to your account before it can sync again."
+          : "Nothing is lost — but until you re-link it, this device can't sync or be joined by another device."}
       </Text>
       <Pressable onPress={() => setExpanded(!expanded)}>
         <Text style={styles.bannerLink}>
@@ -1546,13 +1635,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     textDecorationLine: "underline",
   },
-  /** The Degraded-state notice ({@link CustodyBanner}) — a strip above the app. */
+  /** {@link DegradedFrame}: banner on top, the whole app filling what is left. */
+  frame: {
+    flex: 1,
+  },
+  frameBody: {
+    flex: 1,
+  },
+  /**
+   * The Degraded-state notice ({@link CustodyBanner}) — a strip above the app.
+   * Its top and horizontal padding come from the safe area at render time (see
+   * {@link DegradedFrame}); only the bottom is fixed here.
+   */
   banner: {
     backgroundColor: "#fff4e5",
     borderBottomWidth: 1,
     borderBottomColor: "#e0b070",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
     gap: 6,
   },
   bannerTitle: {

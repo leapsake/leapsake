@@ -114,7 +114,12 @@ export function getKeySession(): KeySession | undefined {
 // so a repaired device clears it by re-opening, and read by the boot IPC — the
 // renderer keeps a banner up while it is set, and every sync surface refuses with
 // this message rather than the misleading "sync is not enabled for this store".
-let custodyDegraded: string | undefined;
+//
+// `relayBound` is carried because it changes what is *true* for the user, not just
+// how it is worded: an account with a relay has sync, and it has stopped; an account
+// with no relay never had any, so telling that person "sync is paused" invents a
+// feature they do not have and a loss they have not suffered.
+let custodyDegraded: { detail: string; relayBound: boolean } | undefined;
 
 // The live core the IPC handlers forward to. Reassigned when sync:join adopts the
 // account master key; registerIpc reads it through a getter so the handlers never
@@ -237,7 +242,12 @@ async function openActiveStore(): Promise<void> {
     platform: "desktop",
   });
   custodyDegraded =
-    established.state === "degraded" ? established.message : undefined;
+    established.state === "degraded"
+      ? {
+          detail: established.message,
+          relayBound: (await getSyncStatus({ driver })).relayUrl !== undefined,
+        }
+      : undefined;
   keySession = established.state === "ok" ? established.keySession : undefined;
   if (established.state === "degraded") {
     console.error(
@@ -808,7 +818,7 @@ function registerSyncIpc(): void {
     // A Degraded device skips for a completely different reason than a store with no
     // account, and telling it "sync is not enabled" would send the user to create an
     // account they already have. Say what is actually wrong (custody slice 10).
-    if (custodyDegraded !== undefined) throw new Error(custodyDegraded);
+    if (custodyDegraded !== undefined) throw new Error(custodyDegraded.detail);
     try {
       const result = await scheduler?.trigger();
       if (result === undefined) {

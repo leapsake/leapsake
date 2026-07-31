@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { Redirect, Stack } from "expo-router";
-import { DATABASE_KEY } from "@leapsake/crypto";
+import { DATABASE_KEY, RECOVERY_KEY } from "@leapsake/crypto";
 import { KEYSTORE_SECRET_IDS } from "@leapsake/core";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 import { colors, styles } from "../lib/styles";
@@ -24,6 +24,15 @@ import { colors, styles } from "../lib/styles";
  * for the right key and the repair correctly reports `"unchanged"`. It is the
  * mobile counterpart of deleting `keystore.json` from a desktop profile.
  *
+ * **Clear device identity** deletes `device-id` and `enclave` but *keeps* the
+ * db-key — a **partial** keychain loss, and the one route to custody slice 10's
+ * **Degraded** state. Because the db-key survives, the store opens with no gate,
+ * so no door is ever presented and nothing can repair the enclave: the boot finds
+ * an account it cannot prove a master key for, opens anyway, and pauses sync. On
+ * desktop the same state is reached by deleting exactly those two entries from
+ * `keystore.json`; mobile keeps its secrets in the OS keychain, where nothing
+ * outside the app can edit them one at a time — hence this button.
+ *
  * Reached by deep link only (`leapsake://dev-clear-dbkey`), with no link from any
  * shipping screen, and `__DEV__`-gated so it redirects home (and never deletes
  * anything) in a release build. Mirrors the `dev-selftest` route's gating.
@@ -42,11 +51,18 @@ type State =
 function ClearDbKey() {
   const [state, setState] = useState<State>({ kind: "idle" });
 
-  async function clear(scope: "db-key" | "everything") {
+  async function clear(scope: "db-key" | "everything" | "device-identity") {
     setState({ kind: "working" });
     try {
       const keyStore = secureStoreKeyStore();
-      const ids = scope === "db-key" ? [DATABASE_KEY] : KEYSTORE_SECRET_IDS;
+      const ids =
+        scope === "db-key"
+          ? [DATABASE_KEY]
+          : scope === "device-identity"
+            ? KEYSTORE_SECRET_IDS.filter(
+                (id) => id !== DATABASE_KEY && id !== RECOVERY_KEY,
+              )
+            : KEYSTORE_SECRET_IDS;
       for (const id of ids) await keyStore.deleteSecret(id);
       setState({ kind: "done" });
     } catch (e) {
@@ -76,6 +92,14 @@ function ClearDbKey() {
             way to reach the master-key repair (custody slice 9). Clearing just
             the db-key keeps this device's identity, so the next launch has
             nothing to repair.
+          </Text>
+          <Text style={styles.rowText}>
+            <Text style={{ fontWeight: "700" }}>Clear device identity</Text>{" "}
+            drops those two but <Text style={{ fontWeight: "700" }}>keeps</Text>{" "}
+            the db-key — a partial loss, so the store opens with no gate and no
+            door is ever offered. That is the only way to reach the{" "}
+            <Text style={{ fontWeight: "700" }}>Degraded</Text> state (custody
+            slice 10): the app opens, works, and pauses sync.
           </Text>
         </View>
 
@@ -119,6 +143,25 @@ function ClearDbKey() {
             </Text>
           </Pressable>
         )}
+
+        {state.kind === "idle" || state.kind === "working" ? (
+          <Pressable
+            testID="dev-clear-identity-button"
+            style={[
+              banner,
+              {
+                backgroundColor: colors.danger,
+                opacity: state.kind === "working" ? 0.5 : 1,
+              },
+            ]}
+            disabled={state.kind === "working"}
+            onPress={() => void clear("device-identity")}
+          >
+            <Text style={bannerText}>
+              {state.kind === "working" ? "Clearing…" : "Clear device identity"}
+            </Text>
+          </Pressable>
+        ) : null}
 
         {state.kind === "idle" || state.kind === "working" ? (
           <Pressable

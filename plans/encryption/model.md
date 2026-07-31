@@ -586,7 +586,10 @@ opens anyway and syncs nothing.** Three properties define it:
 - **It is visible and has one exit** — the unlock gate. Signing out lands there, where the
   *other* door is one action away (a phrase door is untouched by a broken password door and
   vice versa), and the next open repairs the enclave from it and rewinds both sync watermarks
-  so the records lost in each direction are re-offered once.
+  so the records lost in each direction are re-offered once. What the notice may *claim* has
+  stopped depends on the account: one bound to a relay had sync and no longer has it, while a
+  local-only account (§7.2.1) never had any, and telling that person "sync is paused" invents
+  both a feature they do not use and a loss they have not suffered.
 
 > *Ledger:* db-key reachable; MK reachable only from the doors, not from this enclave. Local
 > reads and writes are unaffected, and edits made while degraded reach the account after the

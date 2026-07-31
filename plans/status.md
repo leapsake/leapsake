@@ -515,16 +515,12 @@ reader would otherwise re-learn the hard way:
    catch-up demonstrably runs (it logs on every launch — that relay had been wiped, so it
    401s, which is the fire-and-forget path behaving correctly).
 
-   > ⚠️ **The mobile form was never *submitted* in a running app.** Maestro cannot get text
-   > into that `secureTextEntry` field: tapping it by text or by point both report COMPLETED
-   > and leave the field empty with no keyboard, so "Replace phrase" stays disabled. It is
-   > **not** the AutoFill problem slice 7c documented — tested by dropping
-   > `autoComplete="current-password"`, with no change — and the field is declared exactly
-   > like the re-auth field beside it. So the one thing unproven on mobile is the wiring
-   > from that button to `rotateRecoveryPhrase`, which is a two-line call into the core path
-   > desktop drove end to end. Worth resolving when the mobile E2E flows are built; the
-   > unlock gate's field (no `autoComplete`/`textContentType`, plus `autoCorrect={false}`)
-   > *is* drivable, which is the next thing to compare against.
+   > ⚠️ **The mobile form was never *submitted* in a running app** — Maestro could not get
+   > text into that `secureTextEntry` field. **Slice 10 found the cause and fixed it**: two
+   > secure fields carry identical empty accessibility text, so a driver has nothing to
+   > target; explicit `testID`s make the form fill and submit. Re-driving this rotation form
+   > is now a matter of adding them to it (the account form has them), not a blocked
+   > scenario.
 
 > **Still open after this slice:** binding a relay to an account that was rotated while
 > local-only is unaffected, but the **username-collision** question (Open questions) still
@@ -606,15 +602,11 @@ reader would otherwise re-learn the hard way:
    counterpart of deleting `keystore.json`. Clearing only the db-key keeps the device
    identity, so it can never reach the repair.
 
-   > ⚠️ **Mobile's boot repair was never driven in a running app.** The account form cannot
-   > be completed under Maestro: the **confirm-password** field takes no input (tap by text
-   > and by point both report COMPLETED and leave it empty), which is the same
-   > `secureTextEntry` wall slice 8 hit on the rotation form — and notably the *password*
-   > field beside it does accept input, so it is field-specific rather than a blanket
-   > limitation. The wiring is the same fifteen lines desktop drove end to end, and the
-   > repair primitives are proved on device by the self-test; what is unproven is only that
-   > `core-context.tsx` calls them at boot. Resolve with the mobile E2E flows — the harness
-   > affordance is now in place, so it is the form that blocks, not the scenario.
+   > ✅ **Mobile's boot repair was unproven in a running app until slice 10**, which added
+   > `testID`s to the account form (the confirm-password field was untargetable, not
+   > untypable) and drove creation → a real partial keychain loss → the repair, end to end on
+   > a simulator. The suspicion recorded here — that it was field-specific rather than a
+   > blanket `secureTextEntry` limitation — was right.
 
 10. **Soften the strict posture — the Degraded state** — ✅ **DONE on both clients,
    2026-07-29**, driven live on desktop over CDP with two profiles and a relay. This closed
@@ -670,10 +662,22 @@ reader would otherwise re-learn the hard way:
    > - **`rotateRecoveryPhrase` deliberately still works while degraded.** It takes MK from
    >   the password door, never the enclave (slice 8's first note), so it is correct by
    >   construction and needs no guard.
-   > - **Mobile's banner sits above the navigator, so nothing else applies the top inset** —
-   >   its first line rendered under the clock and the notch until it took
-   >   `useSafeAreaInsets` itself. Found by looking at it on a simulator; it reads fine in the
-   >   layout tree.
+   > - **The banner must not claim sync stopped on an account that never had it.** A
+   >   relay-less account (one tap away on both clients since 7c) has no sync to pause, so
+   >   "Sync is paused on this device" invents both a feature that person does not use and a
+   >   loss they have not suffered — the same error as the `sync:now` message above, one
+   >   screen over. The banner takes `relayBound` and leads with "This device needs to be
+   >   re-linked to your account" instead. Found by driving mobile, where the local-only
+   >   account is the *default* thing to create.
+   > - **A banner above a navigator has to consume the top inset and then say so.** Two
+   >   separate bugs, one visible and one easy to miss: nothing pads the banner away from the
+   >   status bar (its first line rendered under the clock), *and* the navigator underneath
+   >   still believes it starts at the top of the screen, so its header adds a second
+   >   status-bar's worth of padding — a dead band exactly as wide as the notch. `DegradedFrame`
+   >   (`core-context.tsx`) fixes both: the banner takes `useSafeAreaInsets` (top *and*
+   >   horizontal, for landscape), and children are wrapped in a
+   >   `SafeAreaInsetsContext.Provider` with `top: 0`. Overriding the context is what actually
+   >   informs the navigator; a negative margin would only paper over it.
 
    **How it was verified on desktop** (two profiles + a live relay over CDP): A creates a
    relay-bound account with a person and syncs → B joins and pulls it → B is quit and **only
@@ -687,7 +691,9 @@ reader would otherwise re-learn the hard way:
    shows the rewind in the relay's log: the joined person's record id at seq 1 (A's original
    push) *and* again at seq 41 (B's re-push), with the degraded-era person at 42 — **and A
    pulls it**, which is the assertion behind choosing "open" over "lock". Finally the no-op
-   path: an ordinary sign-out and password unlock leaves the relay's log untouched.
+   path: an ordinary sign-out and password unlock leaves the relay's log untouched. A third
+   profile with a **local-only** account, degraded the same way, gets the relay-less wording
+   and never mentions sync.
 
    **On mobile**, the on-device suite is **36/36** (two new cases: a door that cannot be
    repaired from leaves the state degraded, nothing minted and the flag set; and the same
@@ -695,14 +701,31 @@ reader would otherwise re-learn the hard way:
    watermarks — confirmed RED at **34/36** by restoring slice 9's throw and dropping the
    rewind). Argon2id is kept out of them, per slice 8's note.
 
-   > ⚠️ **The mobile banner's layout was checked on a simulator; the state it reports was
-   > forced to get it on screen.** Reaching Degraded for real on mobile needs an account, and
-   > the account form still cannot be completed under Maestro (the `secureTextEntry` wall from
-   > slices 8/9), so `establishKeySession` was temporarily made to return `degraded` for the
-   > Open case, screenshotted, and reverted. What that proves is the copy, the position above
-   > the tab navigator, and the inset fix — not that a real mobile degradation reaches it. The
-   > logic is proved on device by the self-test and end to end on desktop. Same resolution as
-   > slices 8/9: the mobile E2E flows.
+   **And the whole cycle was driven in a running app** (booted iOS simulator, Maestro): create
+   a local account → `stores/<id>/leapsake.db` is ciphertext → **"Clear device identity"** →
+   relaunch → the app opens on Home with the banner up, worded for a relay-less account →
+   expand → **"Sign out and unlock"** → the gate → password → **banner gone**, and a further
+   relaunch is clean. That is a **real** degradation, not a forced one: see the two harness
+   changes below, both of which outlive this slice.
+
+   > **The two things that made mobile drivable, after slices 8 and 9 both gave up on it.**
+   > - **`testID`s on the account form** (`account-username`, `account-password`,
+   >   `account-confirm-password`, `account-submit`). The wall was never `secureTextEntry` as
+   >   such — it was that both password fields are secure, and therefore carry identical
+   >   (empty) accessibility text, so a driver has nothing to tell them apart by and taps on
+   >   the confirm field landed elsewhere while reporting COMPLETED. With ids the form fills
+   >   and submits first try. **This retires the ⚠️ on slices 8 and 9**: the rotation form and
+   >   the boot repair are reachable now, and this is the start of the anchor set
+   >   `launch.md` Increment 6 plans. (iOS still does not *draw* the dots in a
+   >   `textContentType="newPassword"` field under automation — the field has the value, the
+   >   screenshot looks empty. Judge by the strength hint, not the dots.)
+   > - **`leapsake://dev-clear-dbkey` grew "Clear device identity"** — drops `device-id` and
+   >   `enclave` but **keeps** the db-key. That partial loss is the only route to Degraded:
+   >   with the db-key alive the store opens with no gate, so no door is ever offered and
+   >   nothing can repair the enclave. It is the mobile counterpart of deleting exactly those
+   >   two entries from a desktop `keystore.json`, which is how the desktop drive above
+   >   reached it — mobile keeps its secrets in the OS keychain, where nothing outside the app
+   >   can edit them one at a time.
 
 **Explicitly v0.2, not v0.1** *(owner, 2026-07-27)*: **automatic** locking on idle and the
 bounded session. The deliberate half (slice 7) is cheap; a real session needs mid-session
@@ -885,7 +908,9 @@ build finished with slice 6.
   launch produces no output at all.
 - **Mobile dev client:** `pnpm --filter @leapsake/mobile ios` (native SQLCipher build; Expo
   Go can't host it). `__DEV__` deep links: `leapsake://dev-selftest` (driver contract +
-  custody suite), `leapsake://dev-clear-dbkey` (simulate keychain loss). Editing a self-test
+  custody suite), `leapsake://dev-clear-dbkey` (simulate keychain loss — three scopes: the
+  db-key alone raises the gate, **everything** reaches the master-key repair, and **device
+  identity** keeps the db-key and so reaches the *Degraded* state). Editing a self-test
   needs a bundle reload, not just the deep link — see
   [`apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md).
 
