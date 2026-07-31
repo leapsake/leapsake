@@ -16,7 +16,9 @@
 > **One exception since 2026-07-30:** [`onboarding.md`](./onboarding.md) Increments 1–2 now
 > stand where `launch.md`'s Increment 2 did, and `launch.md` Increment 4 (the Play 14-day
 > clock) is still sequenced after them. They are the one non-`launch.md` item on the critical
-> path.
+> path. **Reshaped 2026-07-31** — the Day-1 flow and its decision table are dropped in favour
+> of standing nudges plus reminder snooze; the increments renumbered, but 1–2 still hold the
+> v0.1 line.
 
 ## Where things stand
 
@@ -26,8 +28,8 @@
 | **V3 · Encryption + sync** | Stages 1–2 (zero-knowledge sync, at-rest) done and verified over the wire and on-disk; **custody finished**; relay hardening through H3 | the *Encryption + sync* and *Relay* backlogs below. Stages 3–4 (sharing, SSR web) are post-launch. Design: [`encryption/`](./encryption/) |
 | **V3 · Reconciliation** (dedup & merge) | A, B, and C's merge-on-join built; the review surface is detection-driven, not permanently advertised | C's bulk-import dedup, deferred until the importer exists. Design: [`packages/core/README.md`](../packages/core/README.md) |
 | **Holidays** | shipped both clients — catalog, recurrence engine, synced observances, per-occurrence reminders | one distant, calendrical task: **re-derive the two lunisolar tables before ~2050** (they run to 2056; see `packages/holidays/src/catalog.ts`). Design: [`@leapsake/holidays`](../packages/holidays/README.md) |
-| **Reminders** (Home surface) | the Reminder entity, Home on both clients, `@mentions` as two-way backlinks, four engine-owned `system` families, onboarding nudges | **reminder search** |
-| **Onboarding** (first run) | three engine-owned first-run nudges ship on both clients; the Day-1 flow is **designed, not built** | all six increments in [`onboarding.md`](./onboarding.md) — 1–2 are the v0.1 line, 3–6 follow at any pace |
+| **Reminders** (Home surface) | the Reminder entity, Home on both clients, `@mentions` as two-way backlinks, four engine-owned `system` families, onboarding nudges | **reminder search**; **snooze** (arrives with onboarding Increment 1) |
+| **Onboarding** (first run) | three engine-owned first-run nudges ship on both clients; the nudge design is **decided, not built** | all four increments in [`onboarding.md`](./onboarding.md) — 1–2 are the v0.1 line, 3–4 follow at any pace |
 | **UI extraction** | done — [`@leapsake/ui`](../packages/ui/README.md) holds every presentational component, [`@leapsake/view-models`](../packages/view-models/README.md) the shared derivations | styling / the design system (below) |
 | **Testing harness** | the tiered orchestration is built and self-documenting (`scripts/test-all.mjs`); the native tier is a terminal gate, proved RED and GREEN on both platforms | **E2E is the one blocked tier** — catalog drafted, pending owner sign-off. Design: [`testing/`](./testing/) |
 | **Files / media** | nothing built | photos are the v0.2 headline; invariants pinned in [`files.md`](./files.md) |
@@ -54,10 +56,10 @@ the work they imply.
 > version number and the build-number strategy. The machinery and the credential gitignores
 > are built; it is due before Increment 4's first store upload, not before the v0.1 cut.
 > Local custody (the block below) is **finished**, owes v0.1 nothing, and blocks nothing.
-> **2.** **[`onboarding.md`](./onboarding.md) Increments 1–2** — the persistent nudge-decision
-> table, then the account invitation. Increment 2 is what `launch.md` Increment 4's "don't put
-> a build in real testers' hands first" rule actually requires, so it gates the Play clock.
-> Increments 3–6 there do **not**.
+> **2.** **[`onboarding.md`](./onboarding.md) Increments 1–2** — reminder snooze + honest
+> dismiss actions, then the account invitation. Increment 2 is what `launch.md` Increment 4's
+> "don't put a build in real testers' hands first" rule actually requires, so it gates the Play
+> clock. Increments 3–4 there do **not**.
 > **3.** The rest of `launch.md` in its own numbered order, once 1 is settled.
 > **4.** Everything else in this section — genuinely interleavable as capacity allows, no
 > dependencies between them.
@@ -128,20 +130,25 @@ keychain still holds the db-key. Not a one-way door — it sits on the same pass
 sabotage before being trusted GREEN). Both files' doc-comments carry the five invariants a
 change to either must preserve — read them before touching the ATTACH.
 
-**Onboarding** (the first-run experience — design decided 2026-07-30, nothing built yet).
-Full plan + increments: [`onboarding.md`](./onboarding.md). What a reader needs here:
+**Onboarding** (the first-run experience — design decided 2026-07-30, **reshaped 2026-07-31**,
+nothing built yet). Full plan + increments: [`onboarding.md`](./onboarding.md). What a reader
+needs here:
 
-- **Increments 1–2 are the v0.1 line.** 1 is the persistent nudge-decision table (the
-  `relationship_dismissals` pattern applied to the first-run nudges) plus honest
-  *Not now* / *Don't ask again* actions on the three nudges that already ship. 2 is the
-  account invitation — the Open→Protected prompt that closes the data-loss path and clears
-  `launch.md` Increment 4's gate.
-- **Increments 3–6** — Settings decomposition + an Account screen, the optional Day-1 flow
-  itself, deferred-step re-prompts, and import as a flow step — are post-gate and can land at
-  any pace.
-- **Four owner decisions remain open** (`onboarding.md` §7): deferral intervals, whether the
-  flow reminder fires at first launch or first entity, the per-step skip defaults, and where
-  import sits.
+- **The Day-1 flow is dropped**, and with it the `onboarding_decisions` table. Onboarding is N
+  standing nudges on Home, sequenced by `ONBOARDING_STEPS` display order — which already
+  carries the "connect before you hand-enter" argument in its own doc-comment. The reasoning,
+  and the usage signal that would reopen it, are in `onboarding.md` §5.
+- **Increments 1–2 are the v0.1 line.** 1 is reminder **snooze** (`snoozed_until` +
+  `defer_count` on `reminders`, plus the first hide rule `partitionReminders` has ever had)
+  wired up as honest *Not now* / *Don't ask again* actions on the three nudges that already
+  ship. 2 is the account invitation — the Open→Protected prompt that closes the data-loss path
+  and clears `launch.md` Increment 4's gate. **2 ships after 1 deliberately**: the account step
+  is the one that must never be wrongly silenced, and until 1 lands the only dismiss available
+  is the permanent one.
+- **Increments 3–4** — the import nudge, then Settings decomposition + an Account screen — are
+  post-gate and can land at any pace.
+- **One owner decision remains open** (`onboarding.md` §8): the starting numbers for the
+  duration and repetitions dials. It is tuning, not architecture, and blocks nothing.
 
 **Encryption + sync:**
 

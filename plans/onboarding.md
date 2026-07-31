@@ -1,10 +1,9 @@
-# Leapsake — Onboarding (the optional Day-1 flow and the nudges around it)
+# Leapsake — Onboarding (first-run nudges)
 
 > **The plan for how a new user is invited into the things they should do early** — connect
 > an existing account, tell us about themselves, import their contacts, and create an account
-> so they never lose access. It replaces the scattered first-run nudges with one optional
-> flow plus one reminder, and gives the reminder surface the persistent memory it needs to
-> stop asking the same person the same question.
+> so they never lose access. Each is a standing nudge on Home, ordered so the time-sensitive
+> ones lead, and each can be declined honestly.
 >
 > **This is a plan, not a status board.** As increments land, record them in
 > [`status.md`](./status.md) and keep this stable.
@@ -18,27 +17,30 @@
 > Increment 2 below is that nudge, kept narrow *on purpose* so it can clear `launch.md`'s
 > gate without the rest of this plan blocking the Play clock.
 
-## 1. The decisions this plan encodes (settled 2026-07-30)
+## 1. The decisions this plan encodes
+
+Settled 2026-07-30 unless noted.
 
 | Decision | Choice | Consequence |
 |---|---|---|
-| Shape | **One optional Day-1 flow + one flow-level reminder**, not N scattered nudges | The three existing first-run nudges collapse into the flow; `add-first-person` survives as the empty state |
-| Per-step outcomes | **do it · not now · don't ask again** — three, not four | *Skip* and *remind me later* are one action once skip hands off (§3.2); first pass shows two buttons |
+| Shape | **N standing nudges on Home**, no separate flow *(owner, 2026-07-31)* | Onboarding happens in the surface the user keeps; §5 records why the flow was dropped |
+| Sequencing | **Display order**, not a wizard *(owner, 2026-07-31)* | `ONBOARDING_STEPS` array order already encodes it, for exactly this reason (§3.1) |
+| Per-step outcomes | **do it · not now · don't ask again** — three | *Do it* is derived, never stored (§4) |
 | Skip semantics | **Per-step, declared by the step** — not one global rule | The steps have unequal stakes; see §3 |
 | "Don't ask again" | **Not offered on first encounter** — appears only when a step returns | First run stays a binary choice (layperson principle, `product-truths.md`) |
-| Memory | **A persistent decision table**, an ordinary synced row | A user answers once, on any device, forever |
-| Flow-level suppression | **Must not suppress the account step** | The one step whose absence risks data loss is exempt (§3) |
-| Action mechanism | **Engine + view-model, via the id-convention** | No schema field for the actions themselves, no migration, no sync change |
-| Two kinds of "later" | **Reminder snooze and onboarding defer are separate mechanisms** | Different homes, neither blocks the other; see §4.1 |
-| Flow timing | **Opens at first launch, always** — steps self-select on relevance | Resolves the steps' conflicting timing needs without splitting the flow; see §3.1 |
-| Re-prompt policy | **Duration and repetitions are separate dials, held as data** | The numbers are cheap to change later — §4.2 is what makes that true |
+| Memory | **Two nullable columns on `reminders`**, not a decision table *(owner, 2026-07-31)* | §4 — nearly all of the state is derivable; only the defer clock and count are not |
+| "Later" | **Reminder snooze *is* onboarding defer** *(owner, 2026-07-31)* | One mechanism, built once, generic to every reminder |
+| Re-prompt policy | **Duration and repetitions are separate dials, held as data** | The numbers are cheap to change later — §4.1 is what makes that true |
 | Copy | Drop "It's free" from `launch.md`'s draft | Nothing is paid yet; it reads as an upsell tease |
+
+> **Superseded 2026-07-31.** The first draft specified an optional Day-1 flow plus a
+> persistent `onboarding_decisions` table. Both are dropped. The reasoning is in §5; it is
+> kept rather than deleted because this direction has been revisited twice.
 
 ## 2. What the code already does (do not re-derive this)
 
-Five findings from reading the engine and both clients. Each one changed the design; a fresh
-reader who skips them will rebuild something that already exists or design against a
-constraint that isn't there.
+Findings from reading the engine and both clients. A fresh reader who skips these will rebuild
+something that exists, or design against a constraint that isn't there.
 
 1. **`hasAccount` needs no new plumbing.** `getSyncStatus({ driver }).enabled`
    (`packages/key-custody/src/session.ts:254`) reads the account singleton *from inside the
@@ -50,16 +52,16 @@ constraint that isn't there.
 
 2. **Deleting a system reminder already means "never ask again."** Prune is a `softDelete`
    tombstone and reconcile never resurrects a tombstoned id
-   (`packages/reminders/src/engine.ts:711`). Today the UI presents that as an ordinary
+   (`packages/reminders/src/engine.ts:711`). That is the right mechanism for *don't ask
+   again* and it is **kept**. The defect is only that the UI presents it as an ordinary
    delete, so a user who means *hide* gets *never*. Increment 1 makes the existing semantic
    honest rather than inventing a new one.
 
 3. **There is no snooze anywhere in the product.** `partitionReminders`
    (`packages/view-models/src/reminders.ts:22`) filters on `completedAt` alone — **every open
-   reminder renders regardless of due date**. Setting a future `dueDate` changes sort
-   position and nothing else. "Remind me later" is a new concept, which is why it needs the
-   decision table rather than a date field. A real `snoozedUntil` for *ordinary* reminders is
-   a separate, larger feature (§6).
+   reminder renders regardless of due date**. Setting a future `dueDate` changes sort position
+   and nothing else. So "remind me later" is a new concept, and a display-level hide is the
+   whole of it (§4).
 
 4. **`ReminderAction` is taken.** `packages/schema/src/reminder-rule.ts:23` already owns that
    name for the gift/wish/card milestone enum. The new per-row action type needs a different
@@ -69,13 +71,16 @@ constraint that isn't there.
    `system` row absent from the desired set (`engine.ts:731`). Any new family must always
    supply its port — an omitted port silently and permanently kills the rows it minted. This
    is why `holidays` and `duplicates` are documented as "always supplied, never conditionally."
+   > This is also why a deferred nudge must stay **desired**, and be hidden at display level
+   > instead. A deferral implemented as "stop desiring the row" would tombstone it, and by
+   > finding 2 that is permanent. See §4.
 
 **Where the account UI lives today:** inside Settings on both clients — desktop `/settings`,
 mobile `/(tabs)/settings`, the latter a ~50KB file with two distinct sections, *Protect your
 data* (local account) and *Sync across devices* (relay). Neither client has a create-account
-route. That is why Increment 3 exists.
+route. That is why Increment 4 exists.
 
-## 3. The constraint that shapes the flow: the steps have unequal stakes
+## 3. The constraint that shapes the nudges: the steps have unequal stakes
 
 Skip semantics are per-step because a single global rule is wrong in both directions:
 
@@ -86,26 +91,20 @@ Skip semantics are per-step because a single global rule is wrong in both direct
 | **Tell us about yourself** | Mild; gifts and (later) kinship stay less useful | **Few** |
 | **Import your contacts** | Mild; they can import any time | **One** |
 
-That last column *is* the **repetitions** dial (§4.2) — the stakes below are the reasoning; the
-dial is how it gets expressed. Which is why these are numbers to tune, not a design to settle.
+That last column *is* the **repetitions** dial (§4.1) — the stakes are the reasoning; the dial
+is how it gets expressed. Which is why these are numbers to tune, not a design to settle.
 
 The asymmetry is the whole argument: **wrongly nagging costs annoyance the user can dismiss;
 wrongly silencing the account step costs someone their data, with no signal that it
 happened.** Where a step's default is genuinely unclear, default to re-prompting.
 
-> **Corollary — flow-level "don't ask again" must not suppress the account step.** The flow is
-> a convenience wrapper; one dismissive tap on a generic "set up Leapsake" row must not switch
-> off the only thing inside it that protects the user. The account step re-surfaces on its own
-> terms regardless of what happened to the flow reminder.
-
 This is the onboarding-side restatement of `launch.md` §2: under *encryption follows custody*
 an accountless user has nothing to lose on the org move, and an account holder has a password
 to type. Both halves depend on account holders actually existing.
 
-### 3.1 The steps also disagree about *when* — so each checks its own relevance
+### 3.1 The steps disagree about *when* — display order is the answer
 
-The flow **opens at first launch, always** *(owner, 2026-07-30)*. That is not obvious, because
-the steps want opposite timing:
+The steps want opposite timing:
 
 - **Before any data** — *"already using Leapsake elsewhere?"* and *import*. Asked after the
   user has hand-entered five people, both are too late: they produce duplicates of records
@@ -113,134 +112,79 @@ the steps want opposite timing:
   need not have existed.
 - **After data exists** — *create an account*. At a cold first launch it is a signup wall
   protecting an empty database, which forfeits the zero-setup first run that is the entire
-  point of the Open state (§1, `encryption/model.md` §1).
+  point of the Open state (`encryption/model.md` §1).
 
-The resolution is to stop treating the flow's timing as one decision: **the flow opens
-immediately, and every step decides for itself whether it currently applies.** A step that
-doesn't apply is skipped; if nothing applies, the flow exits rather than showing empty
-screens. The account step works because *import lives inside the flow* — a user who imports
-200 contacts on step two reaches the account step with plenty to lose, and a user who skipped
-everything reaches it with nothing and is left alone until the ordinary nudge picks them up.
+**Both are already satisfied by the existing rails**, which is the finding that made the flow
+unnecessary:
 
-The predicate already exists: every entry in `ONBOARDING_STEPS` carries
-`applies(signals)` (`packages/reminders/src/engine.ts:291`). The flow drives a sequence off
-the same predicate the reminder list drives off — no second notion of relevance.
+- **Order.** `ONBOARDING_STEPS` array order *is* display priority, and its doc-comment already
+  gives this exact reason — *"Sync leads: a returning user already on another device should
+  reconnect before re-adding anyone, so their existing data flows in rather than being
+  re-entered by hand."* The connect question is the top row on Home at first launch.
+- **Relevance.** Every step carries `applies(signals)` (`engine.ts:291`), so the account step
+  simply does not exist until there is something to protect, and each step retires itself once
+  satisfied.
 
-> **Connecting to an existing account ends the flow, immediately and unconditionally**
-> *(owner, 2026-07-30)*. Every remaining step does become irrelevant on its own — their people,
-> their self-person and their account all arrive — but they arrive **asynchronously**. Re-
-> evaluating relevance the moment the connect step returns can read a store that sync has not
-> filled yet, and then offer import against data already on its way: exactly the duplicate case
-> this section exists to prevent. Exit on the connect itself; do not wait to see what lands.
+What ordering does **not** catch is a user who scrolls past the top row and starts typing.
+That residual duplicate risk is accepted: `reconcileOnJoin` plus the duplicate-review surface
+are built for precisely this case. See §5 for the revisit trigger.
 
-Two consequences, both easy to get wrong later:
+One consequence to hold onto: after connecting, the other nudges retire only as the synced
+data actually lands, so the list can show a stale row for a few seconds. That is a wart, not a
+correctness problem — the list self-corrects on the next reconcile.
 
-1. **Relevance is recomputed between steps, not once when the flow opens.** Earlier steps
-   change what later steps see — that is the entire mechanism above. The set can *shrink* too:
-   connecting to an existing account on step one makes creating one irrelevant. Note the
-   engine computes its signals once per reconcile; the flow needs them fresh per transition.
-2. **Therefore no "step 2 of 4" progress counter.** A set that legitimately changes mid-flow
-   makes any count a lie the moment it is rendered. Decide this deliberately rather than
-   discovering it when the number jumps.
-
-### 3.2 Skipping hands off to the standing nudge — after a grace period
-
-Three of the flow's four steps already have a standing Home nudge behind them: *connect to
-sync*, *pick yourself*, and (from Increment 2) *create an account*. Those re-surface on their
-own until satisfied. So a skipped step needs no re-prompting machinery of its own — **it hands
-off** *(owner, 2026-07-30)*:
-
-| In the flow, the user… | What happens |
-|---|---|
-| **Does it** | The derived signal flips; the standing nudge is never desired. Falls out of the existing engine — no work |
-| **Not now** | Recorded as `deferred`. The standing nudge is withheld for the step's **duration**, then appears |
-| **Don't ask again** | Recorded as `suppressed`. The standing nudge never appears |
-
-The grace period matters: a nudge that appears the instant the user closes the flow is asking
-again about something they declined seconds earlier. Skipping in the flow starts the same clock
-that deferring a standing nudge starts — one concept, one number, no separate
-post-onboarding delay to reason about.
-
-**Three consequences:**
-
-1. **The outcome vocabulary is three, not four.** Once skipping defers, *skip* and *skip +
-   remind me later* are the same action. What is left is do it / not now / don't ask again —
-   the three outcomes the decision table already stores, and (since "don't ask again" waits for
-   a step's second encounter, §1) **two buttons on the first pass**.
-2. **Dismissing the whole flow defers every step in it.** Same reasoning one level up: a user
-   who waves the flow away must not land on Home and immediately meet the same questions as
-   nudges. Deferring is not suppressing, so §3's account-step guarantee is untouched — it still
-   returns on its own terms, just not ten seconds later.
-3. **Increment 5 shrinks.** It is no longer "build re-prompting"; the standing nudges already
-   re-prompt. It is only the withholding rule plus the two dials. **Import is the sole step with
-   no standing nudge behind it** — decide whether it gets one or is simply offered once.
-
-## 4. Why a decision table (and not another id trick)
+## 4. Where the state lives
 
 The nudges are a **derived surface**: the engine recomputes the desired set on every reconcile
-from live signals. The codebase already has the pattern for "a derived surface plus a
-persistent user decision the engine must respect" — twice:
+from live signals. So the first question is not *what table* but *what is genuinely not
+derivable*. Almost everything is:
 
-- `relationship_dismissals` — *"The inference engine recomputes derived edges on every read; a
-  dismissal is the persistent 'no, not that one' so a rejected edge stays gone."*
-  (`packages/data/src/dismissals-repo.ts:16`)
-- `not_a_duplicate` — the same idea for the duplicate scorer.
-
-The onboarding nudges are the third such surface, and the only one missing its decision table.
-
-The alternative considered and rejected was encoding outcomes in deterministic ids and
-tombstones (the `duplicatesReminderId` trick, `engine.ts:346`). It survives a *single* nudge
-with a *single* global ladder, and collapses under per-step outcomes: "don't ask again" for a
-step whose row was never minted has nothing to tombstone; per-step deferral multiplies the
-missing time-anchor by the number of steps; and nothing distinguishes *skipped* from *not yet
-reached*. Each is individually solvable and collectively a mess.
-
-**The table pays for three things**, not one: per-step outcomes, the **install-date anchor**
-that does not exist anywhere today, and a real "flow completed" fact instead of overloading
-`completedAt`.
-
-**It must be an ordinary synced row** (client UUID, epoch-ms stamps, nullable `deletedAt`,
-whole-row LWW — the substrate in AGENTS.md), so a user answers once and every device honours
-it. Note how that behaves across custody: decisions made while **Open** are local by
-necessity, survive the plaintext→encrypted conversion with every other row, and merge by LWW
-on join — which is the desired "don't re-ask the same human" behaviour without any special
-casing.
-
-> **User association:** one store is one user today, so the step key is sufficient and no
-> owner column is added. The product model anticipates multi-user-per-client
-> (`product-truths.md`), so leave the seam explicit in the schema doc-comment — adding a
-> nullable owner column later is a cheap migration, and guessing its shape now is not.
-
-### 4.1 Two kinds of "later", deliberately kept apart
-
-"Remind me later" means two different things in this product, and they are **separate
-mechanisms with separate homes** — not one feature built twice *(owner, 2026-07-30)*:
-
-| | **Reminder snooze** | **Onboarding defer** |
+| Fact | Derivable? | From |
 |---|---|---|
-| Acts on | A reminder row that already exists | Whether a row is created at all |
-| Home | A field on the reminder + a hide rule in `partitionReminders` | The decision table (§4) |
-| Engine involvement | None — it is a display-level hide | Central: the engine consults the table before desiring a row |
-| Repetitions | Meaningless (you never tell a birthday to come back twice, then stop) | The point |
+| *Did it* | **Yes** | `applies(signals)`, live. **Never store it** — a stored copy is what lets a step be marked "deferred" on one device and satisfied on another, disagreeing forever |
+| *Don't ask again* | **Yes, already built** | the tombstone on the deterministic id (§2.2), which syncs like any row |
+| Which nudges exist now | **Yes** | the engine's desired-set computation, unchanged |
+| **Deferred until** | No | new |
+| **How many times deferred** | No | new |
 
-Neither blocks the other, and building one does not pre-empt the other. Reminder snooze is
-still deferred (§6); onboarding defer is Increment 5.
+So the persistence is **two nullable columns on `reminders`** — `snoozed_until` and
+`defer_count` — and no new table, no repo, no sync registration.
 
-### 4.2 Store what happened, never what to do next
+**Not now** sets `snoozed_until` and increments `defer_count` on the **live** row; the row
+stays in the desired set, so `reconcile` never prunes it (§2.5), and `partitionReminders`
+hides it until the clock passes. **Don't ask again** soft-deletes, exactly as today. When
+`defer_count` reaches the step's repetitions limit, the engine retires the row for good
+instead of re-showing it.
 
-**The table records facts: which step, which outcome, when, and how many times. It must not
-record a computed next-prompt date.**
+`snoozed_until` is generic to every reminder, so this delivers **reminder snooze** — long on
+the wish list — as the same work. `defer_count` is the one impurity: onboarding-flavoured
+state on a general table. Accepted deliberately; a table for one integer is the worse trade.
+
+> **User association:** one store is one user today, so no owner column is added. The product
+> model anticipates multi-user-per-client (`product-truths.md`), so leave the seam explicit in
+> the migration's doc-comment — adding a nullable owner column later is a cheap migration, and
+> guessing its shape now is not.
+
+### 4.1 Store what happened, never what to do next
+
+**Record facts — when it was deferred and how many times. Never a computed next-prompt date.**
 
 This is the whole of what makes the re-prompt policy cheap to change. If a row says *"deferred
 at T, count 2"*, the schedule is re-derived on every reconcile — so changing 3 days to 5, or
 two repetitions to three, takes effect immediately for everyone, including users who deferred
-last week. If a row says *"show again on 15 August"*, today's policy is baked into rows you
-can no longer reach, and every future change needs a data migration to match.
+last week. If a row says *"show again on 15 August"*, today's policy is baked into rows you can
+no longer reach, and every future change needs a data migration to match.
+
+> ⚠️ `snoozed_until` is a stored date, and therefore the one place this rule can be broken by
+> accident. It is legitimate **only** because it is generic snooze — a user-chosen "hide until
+> Tuesday" is a fact about what the user did. The onboarding *policy* must stay derived: the
+> engine computes the snooze target from the step's `duration` at defer time, and re-derives
+> the give-up decision from `defer_count` against the step's `repetitions` on every reconcile.
+> Never persist "this step's next prompt is on 15 August" as policy.
 
 The policy itself lives **as data on the step definitions** — the shape `ONBOARDING_STEPS`
-already uses (`packages/reminders/src/engine.ts:291`), and the same
-declarative-table-of-plain-objects pattern as `actionDefs` and `kindDefs`. Two independent
-dials per step:
+already uses (`engine.ts:291`), and the same declarative-table-of-plain-objects pattern as
+`actionDefs` and `kindDefs`. Two independent dials per step:
 
 - **duration** — how long before it comes back;
 - **repetitions** — how many times it is willing to come back before giving up.
@@ -248,38 +192,66 @@ dials per step:
 Changing either is editing a literal, not touching logic. That is what "easy to change later"
 has to mean concretely, or it means nothing.
 
-## 5. The increments
+## 5. Considered and deferred: the Day-1 flow
+
+The first draft specified an optional wizard at first launch — connect → import → tell us
+about yourself → create an account — with steps self-selecting on relevance. It was dropped on
+2026-07-31. Recorded so it is not rebuilt by reflex.
+
+**Why it was dropped:**
+
+- **Ordering already delivers the sequencing** (§3.1). The connect question leads the list at
+  first launch, for the reason the code comment already states.
+- **A list is more ignorable than a modal.** The flow's stated goal was to avoid a wall of
+  chores while preserving autonomy; a modal at first launch is a wall you must dismiss, a list
+  is one you can scroll past. On its own criterion the flow was the more imposing option.
+- **It was the only thing that needed the table.** "Declined a step whose nudge was never
+  minted" and "skipped vs. not yet reached" are flow-only states. Without the flow, §4's
+  derivation collapses the persistence to two columns.
+- **The residual risk is already mitigated.** `reconcileOnJoin` and the duplicate-review
+  surface exist and are built for the hand-entered-then-synced case.
+
+**Revisit if** real usage shows people hand-entering people *before* connecting an existing
+account, at a rate the duplicate-review surface makes painful. That is the one failure the
+flow prevents and ordering does not. It is a usage observation, not a design argument — do not
+reopen this without one.
+
+## 6. The increments
 
 Each is independently shippable: it lands, it has standalone value, and nothing is half-built
-if the next one is deferred. **1 → 2 is the v0.1 line**; 3–6 can follow at any pace.
+if the next one is deferred. **1 → 2 is the v0.1 line**; 3–4 can follow at any pace.
 
-### Increment 1 — Persistent nudge decisions + honest dismiss actions
+### Increment 1 — Snooze + honest dismiss actions
 
-**Value:** today's silent, permanent dismiss becomes an explicit choice, and the substrate
-every later increment needs exists. Standalone even if nothing else here is built.
+**Value:** today's silent, permanent dismiss becomes an explicit choice, and every reminder
+gains snooze. Standalone even if nothing else here is built.
 
-- The decision table: schema + migration + repo + sync registration (§4). Records step key,
-  outcome (`done` / `deferred` / `suppressed`), **when** it was last deferred, **how many
-  times**, and the store's first-run anchor — facts only, never a computed next-prompt date
-  (§4.2). Put that rule in the table's doc-comment; it is the one thing a later change can
-  quietly break.
-- Generalize the CTA seam from one call-to-action to a **list of actions**:
-  `reminderCtaOf` → an action list in `@leapsake/view-models`, with the engine's step
-  definitions declaring which actions they offer. Clients keep ownership of the labels (they
-  already do, deliberately — the copy is user-visible and the two routers differ).
-  Mind the name collision (§2.4).
-- Teach the engine to consult the table before desiring a row.
-- Wire *Not now* / *Don't ask again* onto the **existing three nudges**, with "don't ask
-  again" appearing only on a step's second encounter (§1).
+- Migration: `snoozed_until` and `defer_count` on `reminders` (§4). Note the derived-policy
+  rule (§4.1) in its doc-comment; it is the one thing a later change can quietly break.
+- The hide rule in `partitionReminders` — the first time that function considers anything
+  beyond `completedAt` (§2.3).
+- Generalize the CTA seam from one call-to-action to a **list of actions**: `reminderCtaOf` →
+  an action list in `@leapsake/view-models`, with the engine's step definitions declaring which
+  actions they offer. Clients keep ownership of the labels (they already do, deliberately — the
+  copy is user-visible and the two routers differ). Mind the name collision (§2.4).
+- `duration` + `repetitions` on the step definitions, and the engine retiring a step whose
+  `defer_count` has reached its limit.
+- Wire *Not now* / *Don't ask again* onto the **existing three nudges**, with "don't ask again"
+  appearing only on a step's second encounter (§1).
 
-**Acceptance:** a nudge dismissed with *Not now* returns; one dismissed with *Don't ask again*
-never does; both hold across a restart and across sync to a second device; both clients. The
-existing three nudges still retire on their own derived signals as before.
+**Acceptance:** a nudge dismissed with *Not now* disappears and returns on schedule; one
+dismissed with *Don't ask again* never returns; both hold across a restart and across sync to a
+second device; both clients. A step that exhausts its repetitions stops returning. The existing
+three nudges still retire on their own derived signals as before. A snoozed **user** reminder
+hides and returns too — the generic half.
+
+> If this proves large in practice, the clean split is snooze (migration + hide rule + both
+> clients) as 1a and the dismiss actions as 1b. Kept as one increment because the second is
+> nearly free once the first lands.
 
 ### Increment 2 — The account invitation
 
-> The narrow gate-clearer for [`launch.md`](./launch.md) Increment 4 — deliberately *not* the
-> full flow, so the Play 14-day clock isn't waiting on Increments 3–5.
+> The gate-clearer for [`launch.md`](./launch.md) Increment 4.
 
 **Value:** gets users from Open to Protected, which is what closes the data-loss path.
 
@@ -295,112 +267,74 @@ existing three nudges still retire on their own derived signals as before.
   existing local account to a relay is unbuilt on both clients (`status.md` → *Open questions*
   → *Username collision*). Retire `sync-devices` on `hasAccount` too, or reword it.
 
+> **Ships after Increment 1, deliberately.** This is the step §3 says must never be wrongly
+> silenced, and until Increment 1 lands the only available dismiss is the permanent one.
+
 **Acceptance:** a brand-new profile sees no custody UI until it has data; the invitation then
 appears on Home; creating an account clears it permanently and leaves the store encrypted with
-the plaintext original gone; *Not now* re-surfaces it; *Don't ask again* does not. Both clients.
-Verify it disappears **immediately** on account creation, not at next launch — desktop's store
-swap rebuilds core, mobile's `createAccountHere` path needs checking (a one-line
+the plaintext original gone; *Not now* re-surfaces it on schedule; *Don't ask again* does not.
+Both clients. Verify it disappears **immediately** on account creation, not at next launch —
+desktop's store swap rebuilds core, mobile's `createAccountHere` path needs checking (a one-line
 `regenerateSystem()` if not).
 
-### Increment 3 — Settings decomposition + an Account screen
+### Increment 3 — The import nudge
+
+**Value:** matches the real usage curve. Adoption is not incremental — a user goes from 0 to
+200 people via import, which is also the moment the account step's stakes jump.
+
+`@leapsake/contact-import` already ships vCard drag-drop, so this is a step definition, copy and
+a CTA route — not new import capability.
+
+- `applies`: few or no people yet. It sits with the other before-you-type steps (§3.1), so it
+  ranks high in `ONBOARDING_STEPS` order, below connect.
+- Note the tail: importing 200 people will fire the duplicates nudge, so the import CTA and the
+  duplicate-review surface will meet — sequence them so the user isn't handed two chores at once.
+- `add-first-person` already covers the truly-empty case; decide whether both should ever be
+  desired at the same time, or whether import supersedes it while it applies.
+
+**Acceptance:** a fresh profile is offered import on Home; importing retires the nudge; *Not
+now* and *Don't ask again* behave as Increment 1 defines. Both clients.
+
+### Increment 4 — Settings decomposition + an Account screen
 
 **Value:** the CTA destinations become real. Today both nudges land a first-week user at the
 top of a ~50KB settings screen and hope they scroll.
 
 - Split Settings into linked sub-screens; give the account flows their own route.
-- Extract the account forms so the **same** components serve the Account screen and (in
-  Increment 4) the flow — Settings being the post-onboarding way to edit what the flow set up.
+- Extract the account forms so the **same** components serve the Account screen and Settings —
+  the latter being the post-onboarding way to edit what the nudge set up.
 
 **Acceptance:** every onboarding CTA deep-links to a screen that does exactly one thing; the
 account forms exist in one place with two callers.
 
-### Increment 4 — The Day-1 flow
+## 7. Deferred / decide-before-committing
 
-**Value:** one coherent first-run experience instead of a list of nudges, and the frame for
-everything a user should see on day one.
-
-- An **optional, skippable** sequence: connect to an existing account → import → tell us about
-  yourself → create an account. A nudge, never a wall — a forced setup at first run violates
-  the layperson principle and forfeits the zero-setup first run that is the point of the Open
-  state.
-- **Opens at first launch; each step checks its own relevance** (§3.1) — skip what doesn't
-  apply, exit when nothing does, recompute between steps, and show no progress counter.
-  **Connecting to an existing account exits the flow outright**, without waiting on sync.
-- One flow-level reminder replaces the `sync-devices` / `pick-self` / account nudges.
-  `add-first-person` stays as the empty state for anyone who skips.
-- Per-step outcomes (§1) recorded in the decision table; **completing the flow completes the
-  flow reminder** regardless of what individual steps chose.
-- **"Tell us about yourself" creating the self-person satisfies `hasEntities` and `hasSelf` at
-  once** — one step retires two of today's nudges.
-
-**Acceptance:** a fresh profile is offered the flow **on first launch** and can complete it,
-skip any step, or dismiss it entirely; each outcome is recorded and honoured on the next launch
-and on a second device; nothing about the flow is mandatory. A step that does not apply is
-never shown, and a step made relevant by an earlier one — the account step after an import — is.
-
-> **Migration note:** the existing nudges' tombstones do not transfer to new step keys.
-> Pre-v0.1 that is fine (`product-truths.md` → *Pre-v0.1 latitude*) — worth stating so nobody
-> builds a compatibility shim for it.
-
-### Increment 5 — Deferred-step re-prompts
-
-**Value:** "not now" becomes true rather than a polite no.
-
-**Smaller than it looks** (§3.2): the standing nudges already re-prompt, so this is not
-building re-prompting. It is the **withholding** rule — a step recorded as `deferred` keeps its
-standing nudge off Home until its **duration** elapses, and gives up after its
-**repetitions** (§4.2) — plus copy. The decision table already holds the anchor, the outcome
-and the count, so there is no new persistence and the numbers stay editable literals.
-
-**Acceptance:** a step skipped with *not now* has its standing nudge withheld, then shown on
-schedule; a step skipped with *don't ask again* never shows one; a step the user *did* shows
-none ever. Dismissing the whole flow withholds every step's nudge — and the account step still
-returns afterwards (§3).
-
-### Increment 6 — Import as a flow step
-
-**Value:** matches the real usage curve. Adoption is not incremental — a user goes from 0 to
-200 people via import, which is also the moment the account step's stakes jump.
-
-`@leapsake/contact-import` already ships vCard drag-drop. This is placement and copy, not new
-import capability. Note the tail: importing 200 people will fire the duplicates nudge, so the
-flow's end and the duplicate-review surface will meet — sequence them so the user isn't handed
-two chores at once.
-
-## 6. Deferred / decide-before-committing
-
-- **Reminder snooze** — the sibling mechanism in §4.1, not a competitor to onboarding defer:
-  a `snoozedUntil` field plus a hide rule in `partitionReminders`, hiding a row that already
-  exists. Users will want it on their own reminders eventually; it is a migration, a
-  sync-surface change and both clients, and onboarding does not need it. Revisit when someone
-  asks for it on a user-created reminder — and note it needs **no** repetitions dial.
-- **Reminder search** (`status.md`) is untouched by this plan, but note any new dateless
-  system rows join the same surface.
+- **Reminder search** (`status.md`) is untouched by this plan, but note any new dateless system
+  rows join the same surface — and that snoozed rows need a deliberate answer there (hidden
+  from Home, but findable by search?).
 - **A general reminder-action framework.** Increment 1 designs the seam as a list but should
   implement only the actions these steps need. The id-convention earned its keep by being
   narrow; a framework built ahead of its second consumer gets built wrong.
+- **Snooze UI for user reminders.** Increment 1 delivers the mechanism and uses it for nudges.
+  Exposing "snooze until…" on an ordinary reminder is a small follow-on — a date picker and a
+  menu item — but it is its own copy and its own affordance on two clients.
 
-## 7. Open decisions for owner sign-off
+## 8. Open decisions for owner sign-off
 
-1. **Starting numbers for the two dials** — *not an architecture question.* §4.2 makes both
+1. **Starting numbers for the two dials** — *not an architecture question.* §4.1 makes both
    cheap to change, so this is tuning: pick something reasonable and correct it when real usage
    disagrees. The proposal is a **shared duration, per-step repetitions** — back after 3 days,
    then after 2 weeks, then stop; only the account step takes both rungs, everything else gives
    up after one, per §3's last column. Not yet confirmed.
-2. **Does *import* get a standing nudge, or is it offered once?** It is the only flow step with
-   nothing behind it (§3.2), so it is the only one where "hand off to the standing nudge" has
-   nothing to hand off to. Note `add-first-person` already covers the empty-app case, which may
-   be answer enough.
 
 *Settled since first draft:*
 
-- **Flow timing** (§3.1) — opens at first launch, steps self-select, connect exits outright.
-- **Import's placement** — *inside* the flow, and load-bearing there rather than incidental: it
-  is what puts data behind the account step. Flagged because it was decided by implication.
-- **What a skip means** (§3.2) — hand off to the standing nudge after a grace period, which
-  collapsed the outcome vocabulary to three and shrank Increment 5.
+- **Shape** (§1, §5) — standing nudges, no Day-1 flow; ordering carries the sequencing.
+- **Memory** (§4) — two columns on `reminders`, not a decision table; *did it* stays derived.
+- **The two kinds of "later"** collapsed into one — onboarding defer *is* reminder snooze.
+- **Does import get a nudge?** Yes — Increment 3.
 
-## 8. What this plan does *not* change
+## 9. What this plan does *not* change
 
 The custody build is finished and this plan touches none of it: no change to
 `resolveActiveStore`, the boot path, the doors, or the converters. It only decides *when a

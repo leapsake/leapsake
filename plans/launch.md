@@ -141,10 +141,9 @@ the old one — uninstall them and rebuild the dev client before running `pnpm t
 ### Increment 2 — The account invitation on Home → **moved to [`onboarding.md`](./onboarding.md)**
 
 > **Superseded 2026-07-30.** This was scoped as a single nudge. Designing it surfaced enough
-> product (per-step outcomes, a persistent record of what the user already answered, a Day-1
-> flow to hold it all) that it became its own workstream. It now lives in
-> [`onboarding.md`](./onboarding.md) as that plan's **Increments 1–2**, which are a drop-in
-> for the gate this slot held.
+> product (per-step outcomes, a persistent record of what the user already answered) that it
+> became its own workstream. It now lives in [`onboarding.md`](./onboarding.md) as that plan's
+> **Increments 1–2**, which are a drop-in for the gate this slot held.
 
 **Value, unchanged:** gets users from Open to Protected — which is what closes the data-loss
 path, rather than teaching a phrase to guard it. It is still a **hard prerequisite of
@@ -160,7 +159,7 @@ Three things settled here that `onboarding.md` inherits rather than re-decides:
   would forfeit the zero-setup first run that is the point of the Open state.
 - **"Dismissing it re-surfaces later"** was this increment's acceptance criterion and the
   thing the reminder engine could not actually do — its prune is a permanent tombstone. That
-  is what the decision table in `onboarding.md` Increment 1 exists to fix.
+  is what reminder snooze in `onboarding.md` Increment 1 exists to fix.
 
 **Acceptance:** as written in `onboarding.md` Increment 2.
 
