@@ -11,6 +11,9 @@
 >
 > Increments 2–3 and §2's hazard analysis assume *encryption follows custody*
 > (`encryption/model.md` §7.2), which is built on both clients.
+>
+> **Increment 2 now lives in [`onboarding.md`](./onboarding.md)** (its Increments 1–2). It
+> still gates Increment 4; the slot below explains what moved and what it inherited.
 
 ## 1. The decisions this plan encodes (settled 2026-07-21)
 
@@ -135,34 +138,31 @@ a separate identity, `com.leapsake.desktop`, set in Increment 5 — see the iden
 the old one — uninstall them and rebuild the dev client before running `pnpm test:native`.
 `scheme: "leapsake"` is unchanged, so the `leapsake://` deep links still route.
 
-### Increment 2 — The account invitation on Home
+### Increment 2 — The account invitation on Home → **moved to [`onboarding.md`](./onboarding.md)**
 
-> **Depends on** the custody build order in [`status.md`](./status.md) → *What's next* →
-> *Local custody* (slices 1–4, all built). This increment is only the *invitation*; the flow it opens
-> is built there.
+> **Superseded 2026-07-30.** This was scoped as a single nudge. Designing it surfaced enough
+> product (per-step outcomes, a persistent record of what the user already answered, a Day-1
+> flow to hold it all) that it became its own workstream. It now lives in
+> [`onboarding.md`](./onboarding.md) as that plan's **Increments 1–2**, which are a drop-in
+> for the gate this slot held.
 
-**Value:** gets users from Open to Protected — which is what closes the data-loss path,
-rather than teaching a phrase to guard it.
+**Value, unchanged:** gets users from Open to Protected — which is what closes the data-loss
+path, rather than teaching a phrase to guard it. It is still a **hard prerequisite of
+Increment 4**, for the reason stated there: closed testers are real users with real data.
 
-Use the **onboarding-as-reminders** surface that already ships and is CTA-wired on both
-clients, and the trigger the nudge engine already computes: **the user has data and has no
-account.** Fire it early — the first person added — since that is exactly when the exposed
-window opens.
+Three things settled here that `onboarding.md` inherits rather than re-decides:
 
-**Copy must promise access, not safety** (`encryption/model.md` §7.2.1). A local account
-does *not* protect against a dead SSD, and users will hear that it does unless the wording
-is precise:
+- **Copy must promise access, not safety** (`encryption/model.md` §7.2.1). A local account
+  does *not* protect against a dead SSD, and users will hear that it does unless the wording
+  is precise. (The draft's "It's free" was cut — nothing is paid yet.)
+- **A nudge, never a wall** — a forced setup at first run violates the layperson/no-hoops
+  principle in [`product-truths.md`](./product-truths.md) and `encryption/model.md` §1, and
+  would forfeit the zero-setup first run that is the point of the Open state.
+- **"Dismissing it re-surfaces later"** was this increment's acceptance criterion and the
+  thing the reminder engine could not actually do — its prune is a permanent tombstone. That
+  is what the decision table in `onboarding.md` Increment 1 exists to fix.
 
-> 🔐 **Create your account so you never lose access to your data. It's free.**
-
-**Design constraint:** a nudge, never a wall — dismissible, re-surfacing, and permanently
-satisfied once an account exists. A forced setup at first run violates the layperson/no-hoops
-principle in [`product-truths.md`](./product-truths.md) and `encryption/model.md` §1, and
-would forfeit the zero-setup first run that is the point of the Open state.
-
-**Acceptance:** a brand-new profile sees no custody UI at all until it has data; then the
-invitation appears on Home; completing signup clears it permanently and leaves the store
-encrypted with the plaintext original gone; dismissing it re-surfaces later. Both clients.
+**Acceptance:** as written in `onboarding.md` Increment 2.
 
 ### Increment 3 — Verify + document restore-from-backup
 
@@ -350,5 +350,7 @@ The pre-v0.1 items already in [`status.md`](./status.md) — vCard export, CK re
 background-fetch sync, relay disposability, reminder search — are untouched by this plan and
 can interleave as capacity allows. (The **local-custody decision** is the one exception added
 since: it does not change this plan's shape, but it holds Increments 2–4 — see the banner at
-the top.) The **lunisolar holiday tables** were on this list as the one
+the top. **Onboarding** is the second: it took Increment 2's content out to
+[`onboarding.md`](./onboarding.md) but left the sequencing intact — Increment 4 still waits on
+it, and nothing else here moved.) The **lunisolar holiday tables** were on this list as the one
 launch-blocking exception; they closed on 2026-07-23 (derived, cross-checked, extended to 2056).

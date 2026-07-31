@@ -23,6 +23,7 @@ client-agnostic data/core layer underneath all clients.
 | **Know what's done and what's next (any workstream)** | **[`status.md`](./status.md)** — the single status oracle |
 | **Know the product posture / user model (stable "why")** | **[`product-truths.md`](./product-truths.md)** — launch posture + the user/client/account/sharing/encryption model |
 | **Ship v0.1 — packaging, signing, stores, the release gate** | [`launch.md`](./launch.md) — the distribution plan + its increments |
+| **Design the first-run experience — the Day-1 flow, nudges, dismissals** | [`onboarding.md`](./onboarding.md) — the optional flow + its increments. Read it before touching `ONBOARDING_STEPS` or the reminder-row actions |
 | **See what is decided vs. still open** | [`status.md`](./status.md) → *What's next* (ordered) and *Open questions*, which lists every owner decision still outstanding. A decision big enough to need its own doc gets one, and is linked from its workstream's README |
 | **Understand how key custody works** | [`encryption/model.md`](./encryption/model.md) **§7** — the one place custody is described. Read it before touching onboarding, the boot path, `RecoveryGate`, or anything that assumes a key exists |
 | Understand the encryption / privacy / sync design | [`encryption/`](./encryption/) — start at its `README.md` (then `model.md`, `sync.md`, `schema.md`) |
