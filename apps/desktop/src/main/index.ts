@@ -669,9 +669,10 @@ function registerSyncIpc(): void {
 
   // Join an existing account from this fresh device: log in over the relay, adopt
   // the account master key under this device's enclave, and convert this device's
-  // store to encrypted — a joining device is Protected from byte one (model.md
-  // §7.1). Before this it adopted the key and left the store plaintext, so every
-  // device past the first was unencrypted at rest.
+  // store to encrypted — the conversion lands before the first sync pull, so no
+  // account data ever reaches a plaintext file (model.md §7.1). Before this it
+  // adopted the key and left the store plaintext, so every device past the first
+  // was unencrypted at rest.
   ipcMain.handle(
     "sync:join",
     async (

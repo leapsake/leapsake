@@ -337,19 +337,48 @@ Each line is a settled decision; the section it points to has the reasoning.
   be required (§10). Server-side decryption for SSR / Alexa / CardDAV is **accepted**,
   minimizing what the server knows (§9).
 
-### 7.1 First-launch onboarding — the "Already using Leapsake?" branch
+### 7.1 First launch, and the "Already using Leapsake?" branch
 
-One prompt on first launch decides the path. The two branches now differ in **custody**,
-not only in sync:
+*(Reconciled with the build 2026-07-31 — see the note at the end of this section.)*
+
+**There is no first-launch prompt.** Every fresh install starts **Open** (§7.2): straight
+into the app, no keys, no encryption (Tier 3, §5), nothing to decide. The "already using
+Leapsake elsewhere?" question is a **Home nudge**, ranked first among them
+([`../onboarding.md`](../onboarding.md) §3.1) — not a gate in front of the app.
+
+That is the layperson principle (§1) taken literally: a new user cannot usefully answer a
+question about our sync topology before seeing what the app is, and asking costs the
+zero-setup first run that the Open state exists to provide.
+
+The two answers still differ in **custody**, not only in sync:
 
 | Answer | Means | What happens |
 |---|---|---|
-| **Yes** | a 2nd+ device | log in to the existing account → prompt for **username + password** → the store is created **encrypted from byte one**; nothing is ever written plaintext |
-| **No** | fresh install | straight into the app with **no keys and no encryption** (Tier 3, §5). An account is *invited* later (§7.2), never demanded |
+| **Yes** | a 2nd+ device | join (or recover) the existing account → **username + password** → this device mints its own db-key, adopts the account master key, and **converts** its store (§8.1) |
+| **No** | fresh install | stays Open. An account is *invited* later (§7.2.1), never demanded |
 
-A password is never required to *start* using Leapsake on one device. The "No" branch is
-the only path that ever writes a plaintext store, and it stops being plaintext the moment
-the user creates an account.
+A password is never required to *start* using Leapsake on one device.
+
+**Every device ends up encrypted at rest.** That is the invariant, and the mechanism is
+conversion — not a second store-creation path. `adoptAccountOnThisDevice` (desktop) and
+`adoptStoreForAccount` (mobile) run the same **convert → password door → roster entry →
+destroy the original** ordering account creation does, because that ordering is what makes
+a crash survivable (§8.1).
+
+> **The plaintext window on a joining device holds no user data.** Its store is created
+> plaintext at first launch like any other, but the adoption converts it *before* the first
+> sync pull — `joinAccountViaRelay` returns a session without fetching rows — so what was
+> written in the clear is an empty schema. This is strictly narrower than §7.2.1's *honest
+> limit of converting late*, where the user has been typing for days. It is worth keeping
+> true: a join path that pulled first and converted after would forfeit it for nothing.
+
+> **What changed, and why this is not a new decision.** This section previously described
+> one first-launch prompt, with the "Yes" branch creating a store *"encrypted from byte
+> one; nothing is ever written plaintext."* The custody work of 2026-07-26/30 made every
+> store start Open and promoted it by conversion, and the first-run question became a nudge
+> rather than a prompt. The *goal* that wording expressed — no device left plaintext at
+> rest, no user data ever written in the clear on a joining device — is met, and asserted
+> above in terms of what the build actually does.
 
 ### 7.2 Custody states — the two ways a client can exist *(decided 2026-07-26)*
 
@@ -562,9 +591,10 @@ be able to **rename** (see `status.md` → Open questions).
 > *Ledger:* unchanged from 0.5, plus the relay's copy of `wrap(MK, KEK)` + verifier + salt.
 
 **Phase 2 — Add a second device.** Joins the account by username + password; it consumes the
-password door and never needs the RK or device 1's enclave key. **Its store is created
-encrypted from byte one** — a joining device knows the account exists before it writes a row,
-so it never passes through the Open state (§7.1). It derives the verifier → authenticates →
+password door and never needs the RK or device 1's enclave key. **Its store is encrypted
+before any account data reaches it** — the device starts Open like any other, and the join
+converts it (§7.1) before the first sync pull, so no row ever lands in a plaintext file. It
+derives the verifier → authenticates →
 receives `wrap(MK, KEK)` → derives the KEK locally → unwraps MK into memory → mints its *own*
 enclave key and db-key, adds `wrap(MK, device-2 enclave)`, and caches the unlock.
 > *Ledger:* MK reachable from either device's enclave, the RK, or the KEK. Two devices, one

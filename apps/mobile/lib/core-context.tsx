@@ -150,9 +150,10 @@ export interface SyncApi {
   /**
    * Log in to an existing account on a second device: fetch + unwrap the master
    * key, adopt it under this device's enclave, and **convert this device's store
-   * to encrypted** — a joining device is Protected from byte one (`model.md`
-   * §7.1). The conversion re-runs the bootstrap in place, so screens end up on the
-   * new store the same way account creation moves them.
+   * to encrypted** — the conversion lands before the first sync pull, so no account
+   * data ever reaches a plaintext file (`model.md` §7.1). The conversion re-runs the
+   * bootstrap in place, so screens end up on the new store the same way account
+   * creation moves them.
    */
   join(args: {
     username: string;
@@ -985,7 +986,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             duplicateCount = 0;
           }
           if (wasOpen) {
-            // Encrypt this device from byte one. The bootstrap this re-runs kicks
+            // Convert before anything syncs in. The bootstrap this re-runs kicks
             // its own sync, so nothing is triggered here.
             const { accountId } = await getSyncStatus({ driver });
             if (accountId === undefined) {

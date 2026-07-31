@@ -68,16 +68,17 @@ export type PasswordDoorWriter = (sidecar: Uint8Array) => Promise<void>;
  * Seal + persist this device's password door, **if this device has a store to put
  * a door on**.
  *
- * ⚠️ The guard is not defensive coding; it is a live gap. `joinAccount` and
- * `recoverAccount` adopt the account's master key but do **not** convert this
- * device's store the way account creation does, so a joined device is still
- * **Open** — plaintext, no db-key, no roster entry (`model.md` §7.1 says it should
- * be encrypted from byte one; it isn't yet). With no db-key there is nothing to
- * seal, and `sealPasswordDoor` would throw and fail an otherwise-good join.
+ * The guard is about **ordering**, not about a missing feature. It once covered a
+ * real gap — `joinAccount` and `recoverAccount` adopted the account's master key
+ * without converting this device's store, leaving a joined device Open with no
+ * db-key to seal a door around. Custody slice 6 closed that: the clients' adopt
+ * flows mint this device's db-key *before* calling in here, precisely so this
+ * skip becomes a real door with no change at these call sites
+ * (`apps/desktop/src/main/db/adopt-account-flow.ts` explains the ordering).
  *
- * So: seal when the store is genuinely Protected, skip when it is not. The day
- * join and recover convert, every one of these paths starts writing a real door
- * with no change here.
+ * So: seal when the store is genuinely Protected, skip when it is not — which now
+ * means skipping only for a store that legitimately has no key yet, never for a
+ * join or a recover.
  */
 async function sealPasswordDoorIfProtected(opts: {
   keyStore: KeyStore;

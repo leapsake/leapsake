@@ -24,10 +24,11 @@ import { storeFileState } from "./sqlite-header.js";
  * and recovery counterpart to {@link createAccountOnThisDevice}.
  *
  * Joining or recovering makes this device a member of an account that already
- * exists elsewhere, and §7.1 says such a device is encrypted *from byte one*. The
- * relay half of that (adopting the account master key) was always here; the local
- * half — giving this device its own db-key and converting its store — was not, so
- * every device past the first stayed plaintext at rest.
+ * exists elsewhere, and §7.1 requires such a device to be encrypted at rest before
+ * any user data reaches it. The relay half of that (adopting the account master
+ * key) was always here; the local half — giving this device its own db-key and
+ * converting its store — was not, so every device past the first stayed plaintext
+ * at rest.
  *
  * This is {@link createAccountOnThisDevice}'s irreversible half minus the key
  * minting, and it keeps that flow's ordering exactly, because the ordering is what

@@ -30,8 +30,8 @@ author will otherwise get wrong:
 > a first launch is **Open**: it mints no keys, leaves the OS key store empty, and opens a
 > **plaintext** store. **Creating an account — username + password — is the single act that
 > turns encryption on**, converting the store as it goes and showing the 24-word recovery
-> phrase once. A device *joining* an existing account is **specified** never to pass through
-> Open — encrypted from byte one (§7.1) — though it does today; see Flow 6. So the journey to
+> phrase once. A device *joining* an existing account starts Open too, and the join converts
+> it before any account data arrives (§7.1) — see Flow 6. So the journey to
 > exercise is not "set a passphrase, lock, unlock" — it is **Open → account → Protected**
 > (Flow 4), plus the two doors that reopen a Protected store when the OS key store is lost
 > (Flow 7).
@@ -208,12 +208,12 @@ surface no lower tier reaches).
 - **Assert (out of band):** enabling sync **is** account creation that also binds a relay, so
   **Flow 4's out-of-band assertions apply to Device A unchanged** — its store converted, its
   Open store is gone, its roster and key store are populated. Device B should be the same:
-  §7.1 says a joining device is encrypted from byte one, with no plaintext store ever written.
-  > ⚠️ **This is the assertion that currently fails, and it is a product bug, not a flow bug.**
-  > `sync:join` adopts the account key but never converts this device's store, so Device B is
-  > still Open — plaintext, no db-key, no roster entry, and therefore no password door either.
-  > Custody **slice 6** closes it (`status.md`). Write the assertion as specified and expect it
-  > red until then; do not weaken it to match the bug.
+  §7.1 requires a joining device to be encrypted at rest before any account data reaches it,
+  which the join achieves by converting B's Open store — so B ends with no plaintext store,
+  a db-key, a roster entry and a password door.
+  > **Closed by custody slice 6** (2026-07-30). This assertion was specified red while
+  > `sync:join` adopted the account key without converting the store; the client adopt flows
+  > (`adopt-account-flow.ts`, mobile's `adoptStoreForAccount`) now do both.
 - **Devices:** **two instances** (two emulators/sims, or two macOS app instances with separate
   data dirs).
 - **Uniquely exercises:** OS key store *and* relay together — register wraps the master key under

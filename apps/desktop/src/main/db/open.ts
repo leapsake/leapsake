@@ -59,7 +59,7 @@ export interface UnlockAnswer {
  *
  * 1. **Enclave holds the key** (every normal launch) — read it and open.
  * 2. **No enclave key and no file** — mint the key and create the store encrypted
- *    (a device joining an existing account, §7.1: encrypted from byte one).
+ *    (a Protected slot with nothing in it yet; §7.1).
  * 3. **No enclave key, but an encrypted file *and* at least one sidecar exist**
  *    (the OS keychain was wiped while the data survived) — prompt for a secret,
  *    unwrap the db-key from the matching sidecar, restore it to the enclave, then
