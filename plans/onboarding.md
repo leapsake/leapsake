@@ -30,6 +30,7 @@
 | Flow-level suppression | **Must not suppress the account step** | The one step whose absence risks data loss is exempt (§3) |
 | Action mechanism | **Engine + view-model, via the id-convention** | No schema field for the actions themselves, no migration, no sync change |
 | Two kinds of "later" | **Reminder snooze and onboarding defer are separate mechanisms** | Different homes, neither blocks the other; see §4.1 |
+| Flow timing | **Opens at first launch, always** — steps self-select on relevance | Resolves the steps' conflicting timing needs without splitting the flow; see §3.1 |
 | Re-prompt policy | **Duration and repetitions are separate dials, held as data** | The numbers are cheap to change later — §4.2 is what makes that true |
 | Copy | Drop "It's free" from `launch.md`'s draft | Nothing is paid yet; it reads as an upsell tease |
 
@@ -97,6 +98,40 @@ happened.** Where a step's default is genuinely unclear, default to re-prompting
 This is the onboarding-side restatement of `launch.md` §2: under *encryption follows custody*
 an accountless user has nothing to lose on the org move, and an account holder has a password
 to type. Both halves depend on account holders actually existing.
+
+### 3.1 The steps also disagree about *when* — so each checks its own relevance
+
+The flow **opens at first launch, always** *(owner, 2026-07-30)*. That is not obvious, because
+the steps want opposite timing:
+
+- **Before any data** — *"already using Leapsake elsewhere?"* and *import*. Asked after the
+  user has hand-entered five people, both are too late: they produce duplicates of records
+  that were about to arrive anyway, and `reconcileOnJoin` then has to sort out a mess that
+  need not have existed.
+- **After data exists** — *create an account*. At a cold first launch it is a signup wall
+  protecting an empty database, which forfeits the zero-setup first run that is the entire
+  point of the Open state (§1, `encryption/model.md` §1).
+
+The resolution is to stop treating the flow's timing as one decision: **the flow opens
+immediately, and every step decides for itself whether it currently applies.** A step that
+doesn't apply is skipped; if nothing applies, the flow exits rather than showing empty
+screens. The account step works because *import lives inside the flow* — a user who imports
+200 contacts on step two reaches the account step with plenty to lose, and a user who skipped
+everything reaches it with nothing and is left alone until the ordinary nudge picks them up.
+
+The predicate already exists: every entry in `ONBOARDING_STEPS` carries
+`applies(signals)` (`packages/reminders/src/engine.ts:291`). The flow drives a sequence off
+the same predicate the reminder list drives off — no second notion of relevance.
+
+Two consequences, both easy to get wrong later:
+
+1. **Relevance is recomputed between steps, not once when the flow opens.** Earlier steps
+   change what later steps see — that is the entire mechanism above. The set can *shrink* too:
+   connecting to an existing account on step one makes creating one irrelevant. Note the
+   engine computes its signals once per reconcile; the flow needs them fresh per transition.
+2. **Therefore no "step 2 of 4" progress counter.** A set that legitimately changes mid-flow
+   makes any count a lie the moment it is rendered. Decide this deliberately rather than
+   discovering it when the number jumps.
 
 ## 4. Why a decision table (and not another id trick)
 
@@ -242,9 +277,12 @@ account forms exist in one place with two callers.
 **Value:** one coherent first-run experience instead of a list of nudges, and the frame for
 everything a user should see on day one.
 
-- An **optional, skippable** sequence: connect to an existing account → tell us about yourself
-  → create an account. A nudge, never a wall — a forced setup at first run violates the
-  layperson principle and forfeits the zero-setup first run that is the point of the Open state.
+- An **optional, skippable** sequence: connect to an existing account → import → tell us about
+  yourself → create an account. A nudge, never a wall — a forced setup at first run violates
+  the layperson principle and forfeits the zero-setup first run that is the point of the Open
+  state.
+- **Opens at first launch; each step checks its own relevance** (§3.1) — skip what doesn't
+  apply, exit when nothing does, recompute between steps, and show no progress counter.
 - One flow-level reminder replaces the `sync-devices` / `pick-self` / account nudges.
   `add-first-person` stays as the empty state for anyone who skips.
 - Per-step outcomes (§1) recorded in the decision table; **completing the flow completes the
@@ -252,9 +290,10 @@ everything a user should see on day one.
 - **"Tell us about yourself" creating the self-person satisfies `hasEntities` and `hasSelf` at
   once** — one step retires two of today's nudges.
 
-**Acceptance:** a fresh profile is offered the flow and can complete it, skip any step, or
-dismiss it entirely; each outcome is recorded and honoured on the next launch and on a second
-device; nothing about the flow is mandatory.
+**Acceptance:** a fresh profile is offered the flow **on first launch** and can complete it,
+skip any step, or dismiss it entirely; each outcome is recorded and honoured on the next launch
+and on a second device; nothing about the flow is mandatory. A step that does not apply is
+never shown, and a step made relevant by an earlier one — the account step after an import — is.
 
 > **Migration note:** the existing nudges' tombstones do not transfer to new step keys.
 > Pre-v0.1 that is fine (`product-truths.md` → *Pre-v0.1 latitude*) — worth stating so nobody
@@ -303,11 +342,12 @@ two chores at once.
    and correct it when real usage disagrees. The proposal on the table is a **shared duration,
    per-step repetitions** — back after 3 days, then after 2 weeks, then stop; only the account
    step takes both rungs, everything else gives up after one. Not yet confirmed.
-2. **Does the flow reminder appear before any data exists, or after the first entity?**
-   `launch.md` argues the account invitation should fire at the first person added — the
-   moment the exposed window opens. A *flow* might reasonably come earlier, at first launch.
-3. **Confirm the §3 per-step defaults.** The stakes table is a proposal, not a decision.
-4. **Increment 6's placement** — inside the Day-1 flow, or a separate prompt after it?
+2. **Confirm the §3 per-step defaults.** The stakes table is a proposal, not a decision.
+
+*Settled since first draft:* flow timing (§3.1 — opens at first launch, steps self-select).
+**Increment 6's placement follows from it**: import sits *inside* the flow, and is load-bearing
+there rather than incidental — it is what puts data behind the account step for a user who has
+one. Flagged because it was decided by implication rather than named.
 
 ## 8. What this plan does *not* change
 
