@@ -5,83 +5,26 @@
 > The history of a **finished** increment lives in `git log` + the code's own doc-comments,
 > not here. Design docs never restate status; this file never restates design.
 >
-> **Updated 2026-07-29** — **"Encryption follows custody" is now the shipped behavior on both
-> clients, and the custody build (slices 1–10) is DONE on both, with no custody debt left
-> against v0.1.** First launch
-> mints **no keys** and leaves the store plaintext; creating an
-> account (username + password) is the single act that turns encryption on, converting the
-> store as it goes; and a lost keychain is answered by **the password**, with the 24-word
-> phrase as the forgot-password fallback. Joining or recovering an account converts that
-> device's store too, so **no path leaves real user data in a plaintext file any more**;
-> signing out and forgetting an account are both real; mobile's unlock doors are
-> per-account; **a phone can create an account with no relay at all**, so a
-> mobile-only user can encrypt; and the phrase is now **shown twice in its life** — at
-> account creation and at the password-gated **rotation** that replaces it — with peer
-> devices converging on the new one at their next launch. And a device that lost its OS
-> keychain now **re-adopts the account's master key** from the door it just came through,
-> instead of silently inventing one and diverging from its peers — and when that repair
-> *cannot* succeed the device is **Degraded** rather than dead: it opens, works, and syncs
-> nothing until the user comes back through the other unlock door. See the block
-> below under *What's next* → **Local custody** for what each slice did and the traps.
-> The model is [`encryption/model.md`](./encryption/model.md) §7, and §6.1 for rotation.
+> **Updated 2026-07-30.** Custody is finished on both clients: a fresh install mints no keys
+> and writes a plaintext store, creating an account turns encryption on, and a lost keychain
+> is answered by the password. Nothing in it blocks v0.1.
 >
-> **Next up is `launch.md`** — its Increment 1 owner decision (the version + build-number
-> scheme), then the rest of it in order. Nothing in custody blocks it.
->
-> Also standing: the encryption docs are **consolidated to four** (`custody-sequence.md` folded
-> into `model.md` §7.5, `local-custody-options.md` retired), and **the UI extraction is
-> finished** — `@leapsake/ui` holds every presentational component the desktop renderer had,
-> `@leapsake/view-models` the derivations both clients duplicated; rationale in those READMEs.
+> **Next up is [`launch.md`](./launch.md)** — its Increment 1 owner decision (the version +
+> build-number scheme) first, then the rest in its own order. Everything else in *What's next*
+> is interleavable.
 
 ## Where things stand
 
-- **V1 desktop + V1.5 local CRM** and **V2 mobile** (feature-complete vs. desktop, verified
-  iOS + Android) — ✅ done. (Delivery history: `git log`; durable lessons:
-  [`../AGENTS.md`](../AGENTS.md) and the package READMEs.)
-- **V3 · Encryption + sync** — **Stages 1 (zero-knowledge sync) and 2 (at-rest) are done on
-  both clients**, verified over the wire and on-disk. **The recovery-phrase increment is
-  done** (24-word phrase recovers both loss events; UI verified on both clients). **Relay
-  hardening: H3 done; only non-v0.1-blocking items remain** (see *What's next*). Stages 3–4
-  (sharing, SSR web) are post-launch. Design: [`encryption/`](./encryption/).
-  > ✅ **Custody was rebuilt 2026-07-27/28 and the boot path *is* the target model now.**
-  > A fresh install is **Open**: no keys anywhere, a plaintext store at `stores/local/`.
-  > Creating an account — **or joining/recovering one** — mints this device's db-key and
-  > converts the store to `stores/<accountId>/`, and both unlock doors, password and phrase,
-  > are built and proved on desktop for all three paths.
-  > Custody is finished on both clients (see *What's next* → *Local custody*). Any install
-  > predating it must be recreated — no compatibility path, by choice.
-- **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
-  and the review surface is **detection-driven rather than permanently advertised** (links and
-  banners appear only while pairs are outstanding; a `system` reminder nudges from Home). Only
-  C's bulk-import dedup remains, deferred until the importer exists. Design:
-  [`packages/core/README.md`](../packages/core/README.md).
-- **Files / media** — nothing built; design invariants pinned in [`files.md`](./files.md).
-  Photos are the v0.2 headline (first consumer of that design).
-- **Holidays** — **shipped on both clients**: `@leapsake/holidays` owns the catalog and the
-  recurrence engine, three synced tables carry observances, both ends author them, they are
-  searchable, and the reminder engine mints `system` reminders per occurrence against a
-  per-observance schedule. Design: [`holidays/research.md`](./holidays/research.md) (§4's four
-  open questions are settled there). The two lunisolar tables are **derived and cross-checked**
-  and run to **2056**; the only future task is calendrical and distant — **extend them before
-  ~2050**, re-deriving rather than extrapolating (see `packages/holidays/src/catalog.ts`).
-- **Reminders (home-screen surface)** — the syncable Reminder entity, the **Home screen on both
-  clients**, `@mentions` as two-way backlinks, the `@`/`#` compose surface, and four families of
-  engine-owned `system` reminders (birthdays, per-milestone staggered schedules, holidays, the
-  duplicates nudge) plus onboarding nudges are all built. Remaining: **reminder search**.
-- **UI extraction — done.** Two packages hold what the clients used to duplicate:
-  [`@leapsake/ui`](../packages/ui/README.md) (every presentational component the desktop renderer
-  had, no user-visible string in any of them, 197 tests) and
-  [`@leapsake/view-models`](../packages/view-models/README.md) (the headless derivations both
-  clients showed the same way, 21 tests). Rationale lives in those two READMEs. Leftovers below.
-- **Testing harness** — the tiered `pnpm test` orchestration is built: `pnpm test` = fast local
-  suite, `pnpm test:all` = everything reachable, with each tier a `pnpm test:*` script and
-  **blocked** tiers reported as ⏳ rather than silently skipped. The **driver-coverage forcer**
-  gates the desktop driver file at 100%. `pnpm test:native` drives the in-app self-test through
-  Maestro on a booted Android emulator and/or iOS simulator — a terminal automated gate, verified
-  RED and GREEN on both. E2E is the one **blocked** tier; its crucial-flow catalog is drafted
-  ([`testing/crucial-flows.md`](./testing/crucial-flows.md), pending owner sign-off). Next bricks:
-  desktop macOS Playwright E2E → mobile E2E flows on the same harness → iOS E2E half. Design:
-  [`testing/`](./testing/).
+| Workstream | State | What remains |
+|---|---|---|
+| **V1 desktop · V1.5 local CRM · V2 mobile** | shipped, feature-complete on both clients | — |
+| **V3 · Encryption + sync** | Stages 1–2 (zero-knowledge sync, at-rest) done and verified over the wire and on-disk; **custody finished**; relay hardening through H3 | the *Encryption + sync* and *Relay* backlogs below. Stages 3–4 (sharing, SSR web) are post-launch. Design: [`encryption/`](./encryption/) |
+| **V3 · Reconciliation** (dedup & merge) | A, B, and C's merge-on-join built; the review surface is detection-driven, not permanently advertised | C's bulk-import dedup, deferred until the importer exists. Design: [`packages/core/README.md`](../packages/core/README.md) |
+| **Holidays** | shipped both clients — catalog, recurrence engine, synced observances, per-occurrence reminders | one distant, calendrical task: **re-derive the two lunisolar tables before ~2050** (they run to 2056; see `packages/holidays/src/catalog.ts`). Design: [`holidays/research.md`](./holidays/research.md) |
+| **Reminders** (Home surface) | the Reminder entity, Home on both clients, `@mentions` as two-way backlinks, four engine-owned `system` families, onboarding nudges | **reminder search** |
+| **UI extraction** | done — [`@leapsake/ui`](../packages/ui/README.md) holds every presentational component, [`@leapsake/view-models`](../packages/view-models/README.md) the shared derivations | styling / the design system (below) |
+| **Testing harness** | the tiered orchestration is built and self-documenting (`scripts/test-all.mjs`); the native tier is a terminal gate, proved RED and GREEN on both platforms | **E2E is the one blocked tier** — catalog drafted, pending owner sign-off. Design: [`testing/`](./testing/) |
+| **Files / media** | nothing built | photos are the v0.2 headline; invariants pinned in [`files.md`](./files.md) |
 
 ## Product posture
 
