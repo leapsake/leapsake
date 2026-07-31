@@ -9,6 +9,10 @@ oracle [`../status.md`](../status.md)** (all workstreams).
 > `local-custody-options.md` retired once its decision was made. If you find yourself
 > wanting a fifth doc for a custody or auth question, it belongs in `model.md` §7 instead:
 > **one place says how auth and encryption work.**
+>
+> **One exception, clearly marked:** [`prune.md`](./prune.md) is an **exploratory** doc, not
+> a decision record — a pre-v0.1 discussion with an open-questions list rather than locked
+> decisions. Don't cite it as settled, and don't add more like it without the same banner.
 
 ## Read in this order
 
@@ -17,6 +21,7 @@ oracle [`../status.md`](../status.md)** (all workstreams).
 | [`model.md`](./model.md) | The conceptual model and the locked decisions — the three layers, the envelope/key hierarchy, **all of custody** (§7: states, exits, store layout, key lifecycle), the trust boundary, the honest limits. | Always start here. Mandatory before touching onboarding, the boot path, or key handling. |
 | [`schema.md`](./schema.md) | The concrete key tables (`content_key`, `key_wrap`, `account`, `device`, `share`). Reference. | When touching the schema or the `packages/data` repos. |
 | [`sync.md`](./sync.md) | The `SyncTransport` transport seam, the merge model, the account-bootstrap channel + the join-scheme decision, and the **P2P-is-a-deferred-adapter** decision. | When building sync, the relay, or evaluating P2P. |
+| [`prune.md`](./prune.md) | ⚠️ **Exploratory, nothing decided.** Relay retention: why the append log never shrinks, why minimum-cursor pruning corrupts joining devices, and the LWW-licensed compaction that needs no device tracking. | When thinking about relay storage cost, retention, or backup — and only ever as a proposal. |
 | [`security-review.md`](./security-review.md) | The recorded design review of the key hierarchy and relay auth: how the constructions hold the model's properties + the residual risks accepted. Pinned params live in [`packages/crypto/README.md`](../../packages/crypto/README.md). | When touching the KDF / password door, or before an external audit. |
 | [`security-findings.md`](./security-findings.md) | The adversarial "poke holes" review of the *shipped* code + relay: a severity-ranked backlog of concrete attacks (offline crack oracle, unthrottled login, convergence DoS) with mitigations. | Before hardening the relay / KDF, or picking up a security fix. |
 

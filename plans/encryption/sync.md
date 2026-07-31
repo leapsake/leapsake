@@ -65,6 +65,12 @@ This is deliberately the *least* clever option, and that is the point: with E2E
 encryption doing the hard work, the transport has no reason to be sophisticated. It is
 the low-homebrew-risk choice precisely because it does so little.
 
+> **Caveat — the relay is disposable by design, not yet by build.** Nothing ever deletes
+> from the append log, so it accumulates every version of every row and is currently
+> serving as an *accidental* durable backup. The retention problem, and why the obvious
+> fix corrupts joining devices, is explored in [`prune.md`](./prune.md) — **exploratory,
+> nothing decided.**
+
 ## 3. The P2P decision — a deferred adapter, not a closed door
 
 **Decision: do not build P2P for V3; do not foreclose it either.** True peer-to-peer
