@@ -301,7 +301,7 @@ is finished.
 
 ## Open questions
 
-**Custody** (live — these sit alongside the build order above, not behind it):
+**Custody** (live — the build is finished, but these are not decided):
 - **Username collision when a local account binds a relay.** A locally-chosen username may
   already exist on the relay (it answers `409`). Two cases hide behind one error and want
   different UX: *"this is me, I made a second account by accident and want them merged"* vs.

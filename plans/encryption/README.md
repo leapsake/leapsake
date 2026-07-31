@@ -20,13 +20,10 @@ oracle [`../status.md`](../status.md)** (all workstreams).
 | [`security-review.md`](./security-review.md) | The recorded design review of the key hierarchy and relay auth: how the constructions hold the model's properties + the residual risks accepted. Pinned params live in [`packages/crypto/README.md`](../../packages/crypto/README.md). | When touching the KDF / password door, or before an external audit. |
 | [`security-findings.md`](./security-findings.md) | The adversarial "poke holes" review of the *shipped* code + relay: a severity-ranked backlog of concrete attacks (offline crack oracle, unthrottled login, convergence DoS) with mitigations. | Before hardening the relay / KDF, or picking up a security fix. |
 
-> **Decided 2026-07-26/27 — "encryption follows custody."** First launch mints **no keys**
-> and leaves the store plaintext; creating an account (**username + password, required**) is
-> the single act that turns encryption on, and the recovery phrase is its forgot-password
-> backstop rather than a first-run ritual. This reverses the former "encrypted by default,
-> never plaintext" line. All of it lives in [`model.md`](./model.md) §7 — §7.2 states, §7.2.1
-> the flow, §7.3 Locked/Sign out/Forget account, §7.4 one store per account, §7.5 the key
-> lifecycle — plus §8.1 for converting a store. **Build order: [`../status.md`](../status.md).**
+> **Custody is [`model.md`](./model.md) §7, and only there** — §7.2 the states, §7.2.1 the
+> act that turns encryption on, §7.3 Locked / Sign out / Forget account, §7.4 one store per
+> account, §7.5 the key lifecycle, plus §8.1 for converting a store. Nothing in this folder
+> or anywhere else restates it; if you are about to, edit §7 instead.
 
 ## The one rule that keeps these from drifting
 

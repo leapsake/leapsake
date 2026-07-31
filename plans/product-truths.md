@@ -48,19 +48,11 @@ mental model, not leak through it.
 - **Shareable data:** People and Pets first; for v0.1 it's acceptable to share at the coarser
   grain that pulls in Milestones, Contact Methods, and Relationships. **Finer per-structure
   granularity is a future iteration.** (Reminders are *not* a share target.)
-- **Encryption follows custody** *(decided 2026-07-26)*. Creating an account — username +
-  password — is the single act that turns encryption on. Before that the app holds **no
-  keys at all** and the local database is plaintext; after it, everything is encrypted and
-  the user holds the way in. Rationale and the full state table:
-  [`encryption/model.md`](./encryption/model.md) §7.2.
-  - The user still **decides**: the account can be created whenever they like, and the
-    invitation is a nudge, never a wall.
-  - **We do not encrypt under a key the user does not hold.** That is what the old default
-    did, and it bought little while risking everything — the failure it created (lose the
-    OS keychain, lose the data, with only an unsaved 24-word phrase as the way back) was
-    worse than the exposure it prevented.
-  - The **recovery phrase is a backstop, not a ritual**: created with the account, shown
-    once, in the role every SaaS user already understands — *forgot password*.
+- **Encryption follows custody** — the product half of the decision whose mechanism and
+  rationale live in [`encryption/model.md`](./encryption/model.md) §7.2. What must stay true
+  of the *feel*: the user **decides** when to create an account (the invitation is a nudge,
+  never a wall), and the **recovery phrase is a backstop, not a ritual** — shown once, in the
+  role every SaaS user already understands, *forgot password*.
 - A user should **not have to manage multiple accounts** when using a single device or a
   single relay — **one identity, one credential set**. A credential *set* is a password
   plus its recovery backstop, which is the familiar arrangement (Proton, Bitwarden), not a

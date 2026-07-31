@@ -9,11 +9,8 @@
 > **This is a plan, not a status board.** As increments land, record them in
 > [`status.md`](./status.md) and keep this stable.
 >
-> ✅ **The custody decision that held Increments 2–3 is made (2026-07-26): encryption
-> follows custody** (`encryption/model.md` §7.2). Both increments are rewritten below to
-> match, and §2's hazard is substantially defused — see the note there. The custody work
-> itself is sequenced in [`status.md`](./status.md) → *What's next* → *Local custody*, and
-> Increment 2 depends on it.
+> Increments 2–3 and §2's hazard analysis assume *encryption follows custody*
+> (`encryption/model.md` §7.2), which is built on both clients.
 
 ## 1. The decisions this plan encodes (settled 2026-07-21)
 
