@@ -23,7 +23,7 @@
 | Decision | Choice | Consequence |
 |---|---|---|
 | Shape | **One optional Day-1 flow + one flow-level reminder**, not N scattered nudges | The three existing first-run nudges collapse into the flow; `add-first-person` survives as the empty state |
-| Per-step outcomes | **do it · skip · skip + remind me later · skip + don't ask again** | Each step carries its own outcome; the flow completes regardless |
+| Per-step outcomes | **do it · not now · don't ask again** — three, not four | *Skip* and *remind me later* are one action once skip hands off (§3.2); first pass shows two buttons |
 | Skip semantics | **Per-step, declared by the step** — not one global rule | The steps have unequal stakes; see §3 |
 | "Don't ask again" | **Not offered on first encounter** — appears only when a step returns | First run stays a binary choice (layperson principle, `product-truths.md`) |
 | Memory | **A persistent decision table**, an ordinary synced row | A user answers once, on any device, forever |
@@ -79,12 +79,15 @@ route. That is why Increment 3 exists.
 
 Skip semantics are per-step because a single global rule is wrong in both directions:
 
-| Step | If the user skips | Default skip behaviour |
+| Step | If the user skips | How many *not now*s before it gives up |
 |---|---|---|
-| **Connect to an existing account** | They almost certainly don't have one. Re-asking is noise | Quiet — don't re-prompt |
-| **Create an account** | Their data has no access-recovery path at all | Re-prompt — this is the one that matters |
-| **Tell us about yourself** | Mild; gifts and (later) kinship stay less useful | Re-prompt occasionally |
-| **Import your contacts** | Mild; they can import any time | Quiet |
+| **Connect to an existing account** | They almost certainly don't have one. Re-asking is noise | **One** — ask once more, then never |
+| **Create an account** | Their data has no access-recovery path at all | **Most** — this is the one that matters |
+| **Tell us about yourself** | Mild; gifts and (later) kinship stay less useful | **Few** |
+| **Import your contacts** | Mild; they can import any time | **One** |
+
+That last column *is* the **repetitions** dial (§4.2) — the stakes below are the reasoning; the
+dial is how it gets expressed. Which is why these are numbers to tune, not a design to settle.
 
 The asymmetry is the whole argument: **wrongly nagging costs annoyance the user can dismiss;
 wrongly silencing the account step costs someone their data, with no signal that it
@@ -139,6 +142,38 @@ Two consequences, both easy to get wrong later:
 2. **Therefore no "step 2 of 4" progress counter.** A set that legitimately changes mid-flow
    makes any count a lie the moment it is rendered. Decide this deliberately rather than
    discovering it when the number jumps.
+
+### 3.2 Skipping hands off to the standing nudge — after a grace period
+
+Three of the flow's four steps already have a standing Home nudge behind them: *connect to
+sync*, *pick yourself*, and (from Increment 2) *create an account*. Those re-surface on their
+own until satisfied. So a skipped step needs no re-prompting machinery of its own — **it hands
+off** *(owner, 2026-07-30)*:
+
+| In the flow, the user… | What happens |
+|---|---|
+| **Does it** | The derived signal flips; the standing nudge is never desired. Falls out of the existing engine — no work |
+| **Not now** | Recorded as `deferred`. The standing nudge is withheld for the step's **duration**, then appears |
+| **Don't ask again** | Recorded as `suppressed`. The standing nudge never appears |
+
+The grace period matters: a nudge that appears the instant the user closes the flow is asking
+again about something they declined seconds earlier. Skipping in the flow starts the same clock
+that deferring a standing nudge starts — one concept, one number, no separate
+post-onboarding delay to reason about.
+
+**Three consequences:**
+
+1. **The outcome vocabulary is three, not four.** Once skipping defers, *skip* and *skip +
+   remind me later* are the same action. What is left is do it / not now / don't ask again —
+   the three outcomes the decision table already stores, and (since "don't ask again" waits for
+   a step's second encounter, §1) **two buttons on the first pass**.
+2. **Dismissing the whole flow defers every step in it.** Same reasoning one level up: a user
+   who waves the flow away must not land on Home and immediately meet the same questions as
+   nudges. Deferring is not suppressing, so §3's account-step guarantee is untouched — it still
+   returns on its own terms, just not ten seconds later.
+3. **Increment 5 shrinks.** It is no longer "build re-prompting"; the standing nudges already
+   re-prompt. It is only the withholding rule plus the two dials. **Import is the sole step with
+   no standing nudge behind it** — decide whether it gets one or is simply offered once.
 
 ## 4. Why a decision table (and not another id trick)
 
@@ -309,16 +344,18 @@ never shown, and a step made relevant by an earlier one — the account step aft
 
 ### Increment 5 — Deferred-step re-prompts
 
-**Value:** "skip and remind me later" becomes true rather than a polite no.
+**Value:** "not now" becomes true rather than a polite no.
 
-Steps deferred in the flow re-surface as their own reminders on the schedule their definition
-declares — the **duration** and **repetitions** dials from §4.2. The decision table already
-holds the anchor, the outcome and the count, so this is engine work plus copy — no new
-persistence, and the numbers stay editable literals.
+**Smaller than it looks** (§3.2): the standing nudges already re-prompt, so this is not
+building re-prompting. It is the **withholding** rule — a step recorded as `deferred` keeps its
+standing nudge off Home until its **duration** elapses, and gives up after its
+**repetitions** (§4.2) — plus copy. The decision table already holds the anchor, the outcome
+and the count, so there is no new persistence and the numbers stay editable literals.
 
-**Acceptance:** a step skipped with *remind me later* returns on schedule and no other step
-does; a step skipped with *don't ask again* never returns; the account step returns even when
-the flow itself was dismissed (§3).
+**Acceptance:** a step skipped with *not now* has its standing nudge withheld, then shown on
+schedule; a step skipped with *don't ask again* never shows one; a step the user *did* shows
+none ever. Dismissing the whole flow withholds every step's nudge — and the account step still
+returns afterwards (§3).
 
 ### Increment 6 — Import as a flow step
 
@@ -345,17 +382,23 @@ two chores at once.
 
 ## 7. Open decisions for owner sign-off
 
-1. **Starting numbers for the two dials** — *no longer an architecture question.* §4.2 makes
-   both cheap to change, so this is tuning, not a fork in the road: pick something reasonable
-   and correct it when real usage disagrees. The proposal on the table is a **shared duration,
-   per-step repetitions** — back after 3 days, then after 2 weeks, then stop; only the account
-   step takes both rungs, everything else gives up after one. Not yet confirmed.
-2. **Confirm the §3 per-step defaults.** The stakes table is a proposal, not a decision.
+1. **Starting numbers for the two dials** — *not an architecture question.* §4.2 makes both
+   cheap to change, so this is tuning: pick something reasonable and correct it when real usage
+   disagrees. The proposal is a **shared duration, per-step repetitions** — back after 3 days,
+   then after 2 weeks, then stop; only the account step takes both rungs, everything else gives
+   up after one, per §3's last column. Not yet confirmed.
+2. **Does *import* get a standing nudge, or is it offered once?** It is the only flow step with
+   nothing behind it (§3.2), so it is the only one where "hand off to the standing nudge" has
+   nothing to hand off to. Note `add-first-person` already covers the empty-app case, which may
+   be answer enough.
 
-*Settled since first draft:* flow timing (§3.1 — opens at first launch, steps self-select).
-**Increment 6's placement follows from it**: import sits *inside* the flow, and is load-bearing
-there rather than incidental — it is what puts data behind the account step for a user who has
-one. Flagged because it was decided by implication rather than named.
+*Settled since first draft:*
+
+- **Flow timing** (§3.1) — opens at first launch, steps self-select, connect exits outright.
+- **Import's placement** — *inside* the flow, and load-bearing there rather than incidental: it
+  is what puts data behind the account step. Flagged because it was decided by implication.
+- **What a skip means** (§3.2) — hand off to the standing nudge after a grace period, which
+  collapsed the outcome vocabulary to three and shrank Increment 5.
 
 ## 8. What this plan does *not* change
 
