@@ -48,8 +48,8 @@
   > Creating an account — **or joining/recovering one** — mints this device's db-key and
   > converts the store to `stores/<accountId>/`, and both unlock doors, password and phrase,
   > are built and proved on desktop for all three paths.
-  > Slices 1–10 of the build order below are done on both clients. Any
-  > install predating this must be recreated (pre-v0.1 latitude) — no compatibility path.
+  > Custody is finished on both clients (see *What's next* → *Local custody*). Any install
+  > predating it must be recreated — no compatibility path, by choice.
 - **V3 · Reconciliation (dedup & merge)** — increments A, B, and C's merge-on-join are built,
   and the review surface is **detection-driven rather than permanently advertised** (links and
   banners appear only while pairs are outstanding; a `system` reminder nudges from Home). Only
@@ -104,665 +104,76 @@ the work they imply.
 > **1.** **`launch.md` Increment 1's last piece** — **an owner decision, not a task**: the
 > version number and the build-number strategy. The machinery and the credential gitignores
 > are built; it is due before Increment 4's first store upload, not before the v0.1 cut.
-> Local custody (the block below) is **done, slices 1–10**, owes v0.1 nothing, and blocks
-> nothing.
+> Local custody (the block below) is **finished**, owes v0.1 nothing, and blocks nothing.
 > **2.** The rest of `launch.md` in its own numbered order, once 1 is settled.
 > **3.** Everything else in this section — genuinely interleavable as capacity allows, no
 > dependencies between them.
 >
 > Sections after *Pre-v0.1* are **not** a queue; they are staged buckets (v0.2, post-launch).
 
-**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/29. Slices 1–10 are DONE on both
-clients, and this block owes v0.1 nothing.**
+**⇒ Local custody — decided 2026-07-26/27, built 2026-07-27/30 (slices 1–10). DONE on both
+clients; it owes v0.1 nothing and blocks nothing.** What each slice did, and the traps it
+found, are in `git log` and in the doc-comments of the files below — that is where they stay
+current. What follows is only what a reader needs *now*.
 
-> **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
-> are fine.** There are no real users, so a migration is only worth writing when it is
-> genuinely cheaper than "delete the profile and relaunch". Prefer the simpler code.
+**The decision:** Leapsake **encrypts once the user holds a secret that opens it, and not
+before.** A fresh install mints no keys and writes a plaintext store; creating an account
+(username + password) is the single act that turns encryption on; joining or recovering one
+does the same on that device. A lost keychain is answered by the password, with the 24-word
+phrase as the forgot-password fallback. The whole design is
+[`encryption/model.md`](./encryption/model.md) §7, and §8.1 for converting a store — those two
+sections are enough; you should not need another doc.
 
-*Starting cold? This block is written to be enough on its own. Read it, then
-[`encryption/model.md`](./encryption/model.md) §7 (custody, end to end) and §8.1 (converting
-a store). Those two are the whole design; you should not need another doc.*
-
-#### The decision, in five lines
-
-Leapsake **encrypts once the user holds a secret that opens it, and not before.**
-
-- **First launch mints no keys at all** — no db-key, no master key, no recovery phrase, no
-  sidecar. The OS keychain stays empty and the store is plaintext. (`model.md` §7.2, "Open")
-- **Creating an account — username + password, both required — is the single act that turns
-  encryption on**: it mints every key, converts the store to encrypted, and shows the
-  recovery phrase once as the *forgot-password* backstop. (§7.2.1, "Protected")
-- A device **joining or recovering an existing account** converts its store in the same act,
-  so it is encrypted from byte one too. (§7.1, slice 6)
-- **Why:** a key held only by the OS keychain guards little that platform disk encryption
-  doesn't already cover, while creating a real data-loss path — lose the keychain, lose
-  everything, with only an unsaved 24-word phrase as the way back.
-
-**Why it led everything:** it changes what a fresh install does with real data. That at-rest
-work is now finished, so `launch.md` Increments 2–4 are free to proceed. It also **defuses
-`launch.md` §2's central hazard** — the Team-ID change on the org move, which would have dropped *every* user into a
-recovery-phrase gate, now costs an accountless user nothing and an account holder one
-password entry.
-
-#### Where custody lives, for a fresh reader
+**Where custody lives, for a fresh reader:**
 
 - **Which store, and is it encrypted** — [`@leapsake/store-layout`](../packages/store-layout/README.md):
   the roster, the per-account paths, and the pure `resolveActiveStore` that answers *Open or
   Protected* before anything is opened.
 - **Opening it** — `apps/desktop/src/main/db/open.ts` and the mirrored branch in
   `apps/mobile/lib/core-context.tsx`, including the two unlock doors.
-- **What the boot does about keys, once the store is open** — `establishKeySession`
-  (`packages/key-custody/src/boot.ts`): the repair, the resume of a half-done repair, the key
-  session, and the *Degraded* verdict when this device cannot prove the account's master key.
-  Both clients and the desktop boot harness call this one function; the ordering inside it is
-  load-bearing in several directions and is documented there.
+- **What the boot does about keys once the store is open** — `establishKeySession`
+  (`packages/key-custody/src/boot.ts`): the master-key repair, the resume of a half-done
+  repair, the key session, and the *Degraded* verdict when this device cannot prove the
+  account's master key. Both clients and the desktop boot harness call this one function.
 - **Turning encryption on** — `createLocalAccount` (`@leapsake/key-custody`) plus each
   client's converter and flow: `apps/desktop/src/main/db/convert-store.ts` +
   `create-account-flow.ts`; `apps/mobile/db/convert-store.ts`, wired inside
-  `core-context.tsx`'s `createAccountHere`. On both clients the relay is **optional** at
-  that call — with it the act also binds a relay, without it the account is local only.
-- **Adopting an account someone else's device created** — the join/recover counterpart, same
+  `core-context.tsx`'s `createAccountHere`. On both clients the relay is **optional** at that
+  call — with it the act also binds a relay, without it the account is local only.
+- **Adopting an account another device created** — the join/recover counterpart, same
   sequence: `apps/desktop/src/main/db/adopt-account-flow.ts`, and on mobile the *same*
-  `adoptStoreForAccount` creation uses (`core-context.tsx`).
+  `adoptStoreForAccount` that creation uses (`core-context.tsx`).
 - **The doors** — `packages/crypto/src/{recovery,password-sidecar}.ts` for the primitives,
   `sealPasswordDoor` (`@leapsake/key-custody`) for the one place a door is sealed, and for
   where the bytes land: desktop's `main/db/sidecars.ts` (files beside the store) and mobile's
   `db/doors.ts` (`stores/<accountId>/doors.db`).
+- **Leaving** — `lockThisDevice` (sign out) and `forget-account-flow.ts` on each client.
 
-> **`createCore(driver, keySession?)` no longer reads its key session at all.** `milestone.note`
-> was layer 3's only consumer and was retired in slice 3, so **no repo needs a key**. The
-> parameter and the clients' "rebuild the core around the adopted MK on join" plumbing are
-> therefore currently inert. Left in place on purpose — photos (v0.2) are layer 3's real
-> consumer — and **still inert after slice 6**, which deliberately did not touch it *(owner,
-> 2026-07-28: keep the diff off the two riskiest handlers)*. On desktop the rebuild is now
-> genuinely redundant as well as inert: the store swap re-opens and rebuilds the core anyway.
-> Simplify it whenever layer 3 next gets attention.
+> **An install predating this work must be recreated.** `resolveActiveStore` is purely "does
+> the roster hold an account?", and the only legitimate plaintext→encrypted conversions are
+> the three that establish an account on this device. There is no compatibility path, by
+> choice (see *Pre-v0.1 latitude* in [`product-truths.md`](./product-truths.md)).
 
-#### Build order — each slice independently shippable
-
-**Slices 1–6 are built** (2026-07-27/28, both clients). What they did, in one line each:
-first launch mints nothing and opens plaintext (1); stores live at per-account paths behind
-an unencrypted roster (2); `milestone.note` stopped being a content-key consumer, so no repo
-needs a key (3); account creation mints every key and converts the store (4); the
-password opens the store at the pre-database layer, with the phrase demoted to the
-forgot-password fallback (5); and joining or recovering an account converts that device's
-store too, so no path leaves data plaintext (6). Slice 6 was verified over CDP on three
-profiles against a live relay — a joined device and a recovered device each end up ciphertext
-at `stores/<accountId>/` with the Open store gone, the roster naming the account, both
-sidecars present, and a **wiped keychain opening from that device's own password**. The *how*
-is in `git log` and the code's own doc-comments; what survives here is only what a future
-reader would otherwise re-learn the hard way:
-
-> - **Both boot paths read the recovery key; neither mints one.** A password unlock has no
->   recovery key — it stayed in the wiped keychain and nothing local recovers it — so minting
->   at boot would re-seal `<db>.recovery` under a fresh key and **silently invalidate the 24
->   words the user wrote down**. Creation, join, and recovery each establish it beforehand.
-> - **There is no relaunch.** Account creation and factory reset re-open the store in place
->   (`openActiveStore` / `withStoreSwap`), matching mobile. `app.relaunch()` took the app away
->   while the one-time phrase was on screen, and under `electron-vite dev` it white-screens the
->   app, because electron-vite exits with its Electron child and takes the renderer dev server
->   with it.
-> - **A `sealPasswordDoor` call must follow every password change**, on the device whose store
->   it is — each device seals its *own* db-key. The type system enforces it: `PasswordDoorWriter`
->   is a required parameter on every wrapper that establishes or rotates one.
-> - **An install predating the custody work must be recreated.** `resolveActiveStore` is purely
->   "does the roster hold an account?", and the only legitimate plaintext→encrypted conversions
->   are the three that establish an account on this device: creation, join, recovery.
->   **The refusal guards for a store in the wrong custody state are still desktop-only at the
->   *boot* path** *(corrected 2026-07-28; narrowed 2026-07-29)*. Desktop's `open.ts` throws on a
->   Protected store whose file is plaintext, and on an Open store whose file is encrypted,
->   because `storeFileState` reads the 16-byte SQLite header. Mobile has no raw file access, so
->   slice 7b built the guard the other way round — `storeState` **asks the engine** (open
->   keyless, count `sqlite_master`) — but wired it only into the *converter*, which is where a
->   mismatch destroys data. Mobile's boot still opens with or without a key and lets the engine
->   object; the piece now available and unused is `storeState` itself.
-> - **Migration 27 could not preserve an encrypted `milestone.note`** and did not try — a dev
->   profile that wrote notes while holding a key has NULL there. Accepted under the latitude
->   above.
-> - **Mobile's Settings flow has still never been driven in a running app.** Desktop's is
->   verified over CDP through account creation, join, recovery, both unlock doors, and
->   factory reset.
-> - **A password door is sealed *before* the store it opens exists.** Core seals it from
->   inside `joinAccountViaRelay` / `createLocalAccount`, while the live path still names the
->   Open store that is about to be deleted — so a writer resolving `passwordSidecarPath(dbPath)`
->   at call time writes the door into the directory the flow then removes. Both flows instead
->   **capture the bytes and write them at the converted path**. `writeThisDevicePasswordDoor`
->   is for the steady state only; its doc comment says so.
-> - **`sealPasswordDoorIfProtected` skips on "no db-key", not on "Open".** That is why slice 6
->   mints the db-key *before* the relay call rather than after — minting first is the whole
->   mechanism by which join and recover gained a real door with no change at those call sites.
->   `adopt-account-flow.ts` hard-fails if the door comes back unsealed, so a regression to the
->   skip cannot ship silently.
-> - **Mobile's `enable` had two gaps slice 6 fixed only for join/recover** — no overwrite
->   guard, and no restore path if the conversion threw after `driver.close?.()`. **Closed in
->   slice 7b**, which gave all three flows one shared conversion helper rather than three
->   copies.
-
-7. **Sign out + Forget account** (§7.3) — ✅ **DONE on both clients, 2026-07-28**, desktop
-   verified over CDP and mobile driven on a booted iOS simulator with Maestro.
-   Sign out clears the two keystore secrets that open
-   the store (`lockThisDevice`, `@leapsake/key-custody`) and re-opens, which drops the boot
-   path into its existing unlock gate; Forget account (`forget-account-flow.ts`) removes the
-   account's store directory, both doors, its roster entry, and those same keys, landing the
-   device back in the Open state. The relay-backup check that words the last-device
-   confirmation is `fetchRelayCapabilities` (`@leapsake/sync`), which answers `false` unless a
-   relay explicitly says otherwise. Desktop was driven over CDP through the whole cycle: Open
-   → create account → sign out (gate raised, wrong password refused) → password unlock → data
-   intact → forget → plaintext Open store, roster empty → second account creates cleanly. The
-   phrase door was driven live too. **Mobile mirrors it**: `lockThisDevice` is shared, and
-   `apps/mobile/lib/forget-account.ts` is the file half with its storage verbs injected (so
-   the ordering is unit-tested off-device, while the expo-sqlite deletes are proved on it).
-   **Mobile's Settings has now been driven in a running app** — the standing gap in the note
-   above is closed: on a booted iOS simulator, Open → create account → the account-holder
-   surface → sign out → gate raised → wrong password refused → password unlock → back in →
-   forget account (last-device wording, driven by a live relay that serves no
-   `/capabilities`) → back to Open. Screenshots at each step.
-
-   > - **Sign out must clear the recovery key, not just the db-key.** `<db>.recovery` holds
-   >   `seal(db-key, recoveryKey)` in plain view beside the store, so a recovery key left in
-   >   the keychain reconstructs the db-key with **no user secret involved** — the file would
-   >   look locked while anything holding the keychain still opened it. Both directions of
-   >   this are pinned by sabotage-verified tests.
-   > - **It must equally *not* clear `device-id` / `enclave`.** `ensureDeviceMasterKey` keys
-   >   its lookup on the device id, so a fresh one finds no wrap row, **mints a new master
-   >   key**, and orphans every content key wrapped under the old one. Signing out and back in
-   >   has to be a no-op above the at-rest layer.
-   > - **A password unlock cannot restore the recovery key** (it lived only in the cleared
-   >   keychain, and minting one would invalidate the user's 24 words — see slice 5's note).
-   >   So after sign-out-then-password-unlock, `sync:revealRecoveryPhrase` legitimately has
-   >   nothing to show; its error now says so instead of telling an account holder to create
-   >   an account. A *phrase* unlock does restore it. Slice 8 removes that surface anyway.
-   > - **Forget removes the roster entry first, then the files.** The reverse strands a roster
-   >   naming a store whose files are gone, which sends the Protected boot path off to create a
-   >   fresh empty encrypted store — presenting the user an empty app under the account they
-   >   thought they deleted. The chosen order's only failure mode is an inert ciphertext
-   >   directory nothing can ever name again.
-   > - **Forget is deliberately not `factoryResetFiles` with fewer arguments** — that erases
-   >   the whole `stores/` tree, which on a device holding a second account would delete data
-   >   the user never asked to lose.
-   > - **`reopenActiveStore` now announces `boot:ready`.** Only `whenReady` used to, so a
-   >   mid-session re-open left the renderer stuck on the gate forever. This is what makes
-   >   sign out's return trip work at all.
-   > - **The `/capabilities` endpoint is deliberately not built.** The protocol shape is still
-   >   an owner decision (Open questions, below), so only the *client* half exists — and since
-   >   silence means "no durable copy", the alarming last-device copy is what every user sees
-   >   today, which is the correct default.
-   > - **The export offer §7.3.1 asks for is not built** — there is no exporter yet (see
-   >   *vCard/JSContact export*, below). The desktop hard-confirm tells the user to copy
-   >   their `stores` folder instead, which is honest but poor, and mobile cannot even say
-   >   that (no user-reachable filesystem). Wire the real offer when the exporter lands.
-   > - **The gate copy no longer names a cause.** It asserted "its secure storage was likely
-   >   reset", which reads as an alarming malfunction to someone who just signed out
-   >   deliberately. Both clients now mention both routes in.
-   > - **Mobile's doors were device-scoped, not per-account** — fixed by **slice 7b** below.
-   > - **Mobile UX papercut, not fixed:** on the last-device confirmation the keyboard covers
-   >   the "Delete all data" button; the screen scrolls, so it is reachable, but it wants a
-   >   `KeyboardAvoidingView`. Confirmed still live 2026-07-29 — it is the one step of
-   >   the custody cycle a Maestro flow cannot drive, and **dismissing the keyboard first is
-   >   not enough**: the layout reflows as the keyboard goes, so the tap lands on whatever
-   >   moved under it (the tab bar, in practice). Fix the screen before trying to make this
-   >   cycle an E2E flow; there is no harness-side workaround worth having.
-
-7b. **Per-account db-key doors on mobile** — ✅ **DONE 2026-07-29**, driven end to end on a
-   booted iOS simulator against a live relay. Both doors now live at
-   `stores/<accountId>/doors.db` (`apps/mobile/db/doors.ts`), in the account's own directory,
-   the way desktop's `<dbPath>.password` / `<dbPath>.recovery` have always scoped themselves.
-   The device-scoped `leapsake-recovery.db` and its two `CHECK (id = 1)` tables are gone —
-   **the format was broken, not migrated** (pre-v0.1 latitude), so any install predating this
-   must forget its account and create it again.
-
-   What made it a bug rather than an asymmetry: `deleteDoors()` dropped the pair for the whole
-   *device*, so the first device to hold two accounts would have had forgetting one silently
-   destroy the other's password **and** recovery doors — silent then, unrecoverable later.
-   *(Archaeology, so the shape is not reintroduced: both schemes were written in `8e5e58a`
-   when a device had one store at a fixed `leapsake.db`; desktop derived its path from the
-   store, mobile used a constant. Custody slice 2 moved stores to `stores/<accountId>/` and
-   desktop's followed for free. Slice 5 doubled it by copying each client's existing shape.)*
-
-   Bundled in, as that slice's notes asked: **mobile's converter has both of desktop's guards**
-   now, and `enable`, `join` and `recover` share **one** conversion helper
-   (`adoptStoreForAccount`) instead of three copies — so the restore-on-failure path exists for
-   all three rather than only join/recover.
-
-   > - **Mobile cannot read a file header, so it asks the engine.** `storeState`
-   >   (`db/convert-store.ts`) opens keyless and counts `sqlite_master`: an unreadable file is
-   >   `encrypted`, an empty one is `empty`. That is the mobile answer to desktop's
-   >   `storeFileState`, and it is what the overwrite guard is built on. Two consequences:
-   >   *absent* and *empty* are one answer (asking creates the file — which doubles as the
-   >   `mkdir -p` the ATTACH needs), and "corrupt" reads as "encrypted". Both are the safe way
-   >   round for a guard that only ever refuses.
-   > - **The password door is captured from core, never written by it** — mobile now does what
-   >   desktop already did. Core seals it inside `createLocalAccount` / `joinAccountViaRelay`,
-   >   where the account id is not in scope and the store is still the Open one the flow is
-   >   about to delete. `writeThisDevicePasswordDoor` is the steady-state writer only
-   >   (`reauthenticate`), and it throws rather than guessing when there is no account.
-   > - **`enable` now refuses on a Protected device** before it registers anything with a
-   >   relay, as desktop's `create-account-flow.ts` does. The converter would refuse anyway,
-   >   but only after an account existed on a server.
-   > - **A failed `destroyPlaintextStore` must not fail the flow.** Found by driving it:
-   >   the delete at the end of account creation *does not reliably take on iOS*, and because
-   >   it threw out of `enable`, the user was never shown their one-time 24-word phrase —
-   >   trading the forgot-password backstop for a leftover file. It is now best-effort, and
-   >   **the Protected boot path sweeps a leftover Open store** the way desktop's has all
-   >   along. Verified both halves on device: with the sweep in, `stores/local/leapsake.db` is
-   >   gone and the phrase screen appears.
-   > - **The unlock gate could wedge on a second wrong password.** It reset its "Checking…"
-   >   state from a `useEffect` keyed on the error *string*, and two identical failures are
-   >   one unchanging string — so the button never came back and force-quitting was the only
-   >   way out, exactly when someone is trying hardest to get in. Keyed on the prompt's
-   >   `resolve` identity now. Also found by driving it, not by reading it.
-   > - **It does not make mobile multi-account, and should not be sold as that.** Multi-account
-   >   needs three things: per-account doors, **per-account keystore slots** (`db-key` and
-   >   `recovery-key` are fixed ids on *both* clients), and a login picker (`resolveActiveStore`
-   >   takes `activeAccountId`; nothing passes it). Desktop is one-for-three; this takes mobile
-   >   from zero to one.
-   > - **A pre-7b install keeps a stale `leapsake-recovery.db`** in the app's SQLite directory:
-   >   inert (it seals a db-key for a store that no longer exists) and never read again, but
-   >   nothing sweeps it. Not worth a migration under the latitude above.
-
-   **How it was verified** (iOS simulator + a local relay, with out-of-band assertions on the
-   app container, since custody's defining properties are invisible on screen): Open → create
-   account → `stores/<id>/leapsake.db` is ciphertext, `stores/<id>/doors.db` is plaintext and
-   holds both rows, `stores/local` is empty, the roster names the account → sign out → gate
-   raised → wrong password refused (twice, non-wedging) → **password unlock, which can only
-   have come from the new per-account door** → forget account → that directory is emptied of
-   *both* files and the roster is `[]` → create a second account → phrase shown, ciphertext
-   store, both doors. The self-test grew six cases (30/30 on device), including the
-   regression itself: two accounts' doors, one destroyed, the other's still readable.
-
-7c. **A local-only account on mobile — encryption without a relay** — ✅ **DONE 2026-07-29**,
-   driven end to end on a booted iOS simulator (both the new local path *and* the
-   relay-bound one, against a live relay). The owner call this carried — *is shipping v0.1
-   with mobile-only users unable to encrypt acceptable?* — is moot: it was cheap enough to
-   build, so it was. **Mobile now mirrors desktop**: `SyncApi.createAccount({username,
-   password})` is the counterpart of `window.sync.createAccount`, nothing leaves the phone,
-   and Settings offers it as "Protect your data" above the relay-bound "Sync across
-   devices" — the same two-section layout, and deliberately the same copy, which promises
-   **access, not safety** (§7.2.1).
-
-   What made it worth doing rather than deferring: under *encryption follows custody* an
-   account is the only thing that turns encryption on, so a phone-only user who did not
-   want sync stayed on a plaintext Open store **permanently** while a desktop user in the
-   same position could be private without a server. That was the last custody *capability*
-   gap between the clients, and it ran against
-   [`product-truths.md`](./product-truths.md), which states local-only use as supported.
-
-   > - **The two creation paths are now one sequence plus one step.** `createAccountHere`
-   >   (`core-context.tsx`) takes an optional `relayUrl` and an optional
-   >   `registerWithRelay` callback — the shape of desktop's `createAccountOnThisDevice` —
-   >   and `createAccount` / `enable` are thin wrappers over it. So the local path inherits
-   >   7b's `adoptStoreForAccount` wholesale: per-account doors, both converter guards, the
-   >   restore-on-failure path, the leftover-Open-store sweep. **Nothing custody-shaped was
-   >   written for this slice**, which was the point.
-   > - **The relay half stayed a callback rather than a branch** so the errors it owns (a
-   >   taken username, an unreachable host) are still worded where the URL is in scope.
-   >   The rollback on a rejected registration is unchanged and still runs before anything
-   >   on disk moves.
-   > - **Desktop's flow file was *not* moved into a package**, and shouldn't be. It is
-   >   `node:fs` all the way down (`rmSync`, path joins, a 16-byte file-header read) where
-   >   mobile is async expo-sqlite database *names*; sharing it would mean injecting five
-   >   ports to save a dozen lines. What genuinely is shared already was:
-   >   `createLocalAccount` (`@leapsake/key-custody`) does the key half for both.
-   > - **`MIN_PASSWORD_LENGTH` now exists once** — `@leapsake/key-custody`, re-exported
-   >   through `@leapsake/core`. It had four hand-synced copies (desktop main, desktop
-   >   renderer, mobile provider, mobile Settings), each with a "keep them in step" comment,
-   >   and this slice would have added a fifth.
-   > - **A relay-less account no longer shows dead sync controls** (fixed on *both*
-   >   clients). "Sync now", the auto-sync switch and the last-synced line were rendered
-   >   unconditionally, and on an account with no relay every one of them ended in "Sync is
-   >   not enabled for this store." Desktop had this wart from the moment it could create
-   >   local accounts; making them reachable on mobile is what made it worth fixing.
-   > - **Binding a relay to an existing local account is still not built on either client**,
-   >   and this makes that gap reachable by many more users. It is gated on the
-   >   username-collision question (Open questions, below) — decide it before relay binding
-   >   ships.
-
-   **How it was verified** (iOS simulator, with out-of-band assertions on the app container,
-   since custody's defining properties are invisible on screen): fresh install → Open, a
-   plaintext `stores/local/leapsake.db`, empty roster → "Protect my data" with **no relay
-   anywhere in the flow** → the one-time 24-word phrase appears → `stores/<id>/leapsake.db`
-   is ciphertext, `stores/local` is gone, the roster names the account, and
-   `stores/<id>/doors.db` holds **both** rows (password 124 B, recovery 104 B) → the
-   account surface says "on this device only" with no sync controls → sign out → gate
-   raised → wrong password refused → **password unlock, which can only have come from the
-   per-account door a flow that never contacted a relay wrote**. Then, on a fresh install,
-   the relay-bound path through the same helper: create via `Sync across devices` against a
-   live relay → ciphertext store, both doors, roster entry, and the relay holding the
-   account plus 18 records.
-
-   > **Harness notes for whoever drives this next.** Maestro cannot type into a
-   > `textContentType="newPassword"` field while the simulator's **AutoFill Passwords** is
-   > on — iOS's "Automatic Strong Password" cover view swallows the keystrokes and the form
-   > fails its own length check. Turn it off in the simulator's Settings → *AutoFill &
-   > Passwords* (done on this machine's iPhone 16 Pro sim). Also: Maestro text selectors are
-   > **full-match**, so the tab bar wants `.*Settings.*`; `hideKeyboard` fails on secure
-   > fields (`pressKey: Enter`, or a tap on static text, works); and with both account forms
-   > on screen every duplicated label ("Username", "Password") needs an explicit `index`.
-
-8. **Retire the Settings recovery-phrase reveal** — ✅ **DONE on both clients, 2026-07-29**,
-   desktop driven over CDP end to end. The reveal is gone; Settings now offers **"Replace
-   recovery phrase…"**, gated on the password and landing in the same one-time reveal
-   account creation uses. So a phrase is displayed exactly twice in its life: when the
-   account is made, and when a rotation replaces it.
-   Design: [`encryption/model.md`](./encryption/model.md) §6.1.
-
-   The owner calls this slice carried, both settled while planning: the relay's escrow
-   **is** rotated (otherwise the old phrase still recovers the account from any fresh
-   device — false in exactly the leaked-phrase case rotation exists for), and rotation
-   **works offline**, deferring only the escrow. The scope question the slice was parked
-   on — peers keeping the old phrase — was answered by *building* the catch-up rather than
-   wording around it: it turned out to be a pull plus a re-seal, with **no relay change at
-   all**, because `/accounts/bootstrap` already returns `wrap(recoveryKey, MK)` and every
-   device already holds MK.
-
-   Where it lives: `rotateRecoveryPhrase` + `adoptRecoveryKey` (`@leapsake/key-custody`),
-   wrapped by `rotateRecoveryPhraseForAccount` / `flushPendingRecoveryEscrow` /
-   `convergeRecoveryKey` (`packages/core/src/sync.ts`); `POST /accounts/recovery` on the
-   relay; each client's Settings section plus a door writer beside its password one.
-
-   > - **The master key must come from the password door, never the enclave.** *Found by
-   >   driving it, after the code was written and green.* A device that lost its keychain
-   >   and came back through a door holds a **fresh** enclave MK — the keychain held
-   >   `device-id`, so `ensureDeviceMasterKey` finds no wrap row and mints one. Rotating
-   >   around that key publishes an escrow keyed to a master key the account has never
-   >   seen, so **no** device can recover from the phrase again: one device's local problem
-   >   made account-wide. The password door is authoritative by construction, and its KEK
-   >   was just derived to check the password, so it costs one AEAD open. Pinned by a
-   >   sabotage-verified test.
-   > - **Flush the pending escrow before pulling a peer's key.** The rotating device runs
-   >   the catch-up too, so a pull while its own flush is outstanding fetches the relay's
-   >   *old* escrow and overwrites the key behind a phrase already shown to the user. The
-   >   catch-up flushes first *and* refuses to pull if the flag survives that — the flush is
-   >   what normally clears it, the refusal is what holds when it cannot (a device that
-   >   signed out between rotating and syncing has no recovery key to publish).
-   > - **The rotation endpoint is password-authed, not recovery-authed** — the one thing
-   >   about `POST /accounts/recovery` that must never be "simplified" to match the `GET` on
-   >   the same path. Gating it on the recovery verifier would let whoever leaked the phrase
-   >   rotate it and lock the owner out. Its negative is a test.
-   > - **Offline rotation is deferred, not queued-and-forgotten.** The local half lands, a
-   >   `sync_state` flag (`recovery_escrow_pending`, no migration — the table is key/value)
-   >   makes the next sync carry the escrow up, and the reveal screen tells the user to keep
-   >   the old phrase until then, because until the flush the old phrase is what recovers
-   >   the account and the new one is not.
-   > - **Concurrent offline rotations resolve as last-flush-wins**, and the loser's phrase
-   >   silently stops working. Accepted, not solved: two devices rotating one account's
-   >   phrase inside one offline window is not worth a protocol.
-   > - **The catch-up also re-arms a device that lost its recovery key at sign-out** — the
-   >   state slice 7's notes called permanent. It simply differs from the account's key and
-   >   adopts it.
-   > - **Keep Argon2id out of the mobile self-test.** The first draft of the on-device
-   >   cases created accounts and rotated with a password; each call is an Argon2id pass
-   >   (19 MiB, 2 rounds) and on Hermes, unJITted, in a dev bundle it runs for *minutes* —
-   >   the tier looked hung, not slow. The cases now exercise `adoptRecoveryKey` with
-   >   generated keys, which is the only genuinely mobile question (does the new key land
-   >   in `stores/<account>/doors.db` and reopen *this* device's db-key). The password gate
-   >   is platform-independent and is proved on desktop.
-
-   **How it was verified on desktop** (over CDP against a live relay, with out-of-band
-   assertions on the profile directories): create a relay-bound account → rotate with the
-   wrong password, refused with `<db>.recovery` byte-identical → rotate correctly, both the
-   local door and the relay's verifier hash move → **wipe `keystore.json`, relaunch: the
-   new phrase opens the store at the gate and the old one is refused** → stop the relay,
-   rotate offline (`escrowPending: true`, relay untouched), restart it, sync, and the
-   escrow lands → second profile joins, device 1 rotates, device 2 relaunches and adopts it
-   with nothing typed, and after its own keychain wipe **device 2 opens with the new phrase
-   and refuses the old**. The Settings form itself was driven the same way, ending on the
-   24-word one-time reveal.
-
-   **On mobile**, on a booted iOS simulator: the on-device suite is **32/32** (two new
-   `adoptRecoveryKey` cases, confirmed RED at 31/32 by sabotaging the keychain update); the
-   Settings section renders with its new copy and the form opens; and the launch-time
-   catch-up demonstrably runs (it logs on every launch — that relay had been wiped, so it
-   401s, which is the fire-and-forget path behaving correctly).
-
-   > ⚠️ **The mobile form was never *submitted* in a running app** — Maestro could not get
-   > text into that `secureTextEntry` field. **Slice 10 found the cause and fixed it**: two
-   > secure fields carry identical empty accessibility text, so a driver has nothing to
-   > target; explicit `testID`s make the form fill and submit. Re-driving this rotation form
-   > is now a matter of adding them to it (the account form has them), not a blocked
-   > scenario.
-
-> **Still open after this slice:** binding a relay to an account that was rotated while
-> local-only is unaffected, but the **username-collision** question (Open questions) still
-> gates relay binding generally.
-
-9. **Re-adopt the account master key after a door unlock** — ✅ **DONE on both clients,
-   2026-07-29**, desktop driven over CDP against a live relay with two profiles. This was
-   the ⚠️ found while driving slice 8: the doors recovered the **db-key**, so the store
-   opened and the user was back in, but nothing recovered the **master key**. The wiped
-   keychain held `device-id` and `enclave` too, so `ensureDeviceMasterKey` found no
-   `key_wrap` row for the fresh device id and **minted a new MK** — leaving the device
-   holding a key the account had never seen while the account's real one sat in the store's
-   own `key_wrap` rows, reachable from the door the user had just opened and never read.
-
-   The boot path now reads it back and binds it to the new enclave *before*
-   `ensureDeviceMasterKey` runs, so nothing is ever minted. Where it lives:
-   `adoptAccountMasterKey` (`@leapsake/key-custody`) over the private
-   `adoptMasterKeyIntoEnclave` that join and recover now share;
-   `resyncAfterMasterKeyRepair` (`packages/core/src/sync.ts`); each client's boot path
-   (`apps/desktop/src/main/index.ts`'s `openActiveStore`, `apps/mobile/lib/core-context.tsx`).
-
-   The owner calls this slice carried, both settled while planning: it is **strict** — the
-   repair must succeed or the app refuses to open, and `ensureDeviceMasterKey` now refuses
-   to mint at all once an account row exists — and it **heals the damage rather than only
-   stopping it**, rewinding both sync watermarks so the device re-pushes and re-pulls
-   everything once.
-
-   > - **Carry the KEK, not the password.** The password sidecar is sealed under the
-   >   *account's own* salt (`packages/crypto/src/password-sidecar.ts`), so the KEK that
-   >   opens the db-key at the gate is the very one that unwraps `key_wrap(master,
-   >   password)`. `openPasswordSidecar` now returns it. Re-deriving instead would cost a
-   >   second Argon2id pass — minutes on unJITted Hermes, on the launch where the user is
-   >   already waiting — and it keeps the typed password inside the unlock loop.
-   > - **The damage was two-sided, and neither half self-heals.** A stray-key device pushed
-   >   records peers could not open *and* skipped every peer record it could not open, and
-   >   `packages/sync/src/engine.ts` advances the cursor past a skipped record rather than
-   >   stalling on it (security-findings M3). So both sides lose those records permanently.
-   >   That is what the watermark rewind is for; without it slice 9 fixes the device and
-   >   leaves the account's history quietly holed.
-   > - **Ordering is load-bearing in both directions.** After `runMigrations` (it reads
-   >   `account`/`key_wrap`), before `ensureDeviceMasterKey` (which is what makes that call
-   >   find the right key), and **synchronously** — the launch-time recovery-escrow
-   >   catch-up publishes `wrap(recoveryKey, MK)` *to the relay*, so a stray key reaching it
-   >   re-opens slice 8's account-wide exposure by the back door.
-   > - **`joinAccount` never wrote a local `(master, password)` door.** *Found by driving
-   >   it, after the code was written and green* — the repair threw "No password unlock door
-   >   exists" on the joined device. The relay hands the joining device exactly those bytes
-   >   and it only persisted the *recovery* door; creation and recovery both wrote the
-   >   password one. So before this, a joined device that lost its keychain had **no local
-   >   route from its password back to the master key at all**. Now pinned by an assertion
-   >   in the relay suite's join case, confirmed RED.
-   > - **The pre-wipe `device` row and enclave `key_wrap` row are left behind**, on purpose.
-   >   Both are keyed to a device id that will never be presented again and an enclave
-   >   secret that died with the keychain, so they are unmatchable rather than merely
-   >   unused. Sweeping them is per-device revocation — post-launch, with a real design.
-   > - **The strict posture was softened by slice 10** (below), which is what closed the one
-   >   v0.1 blocker this slice opened. The refusal to *mint* is unchanged and must stay so;
-   >   what changed is that a repair which cannot succeed no longer refuses to open the app.
-   > - **A stale password sidecar is refused, not worked around.** Its verifier will not
-   >   match the account row, and its KEK cannot open the password wrap either. The phrase
-   >   door is unaffected (it derives from the recovery key, not the password salt) and is
-   >   the way in.
-
-   **How it was verified on desktop** (two profiles over CDP against a live relay): A
-   creates a relay-bound account, adds people, syncs → B joins and pulls them → **B's
-   `keystore.json` is deleted and B relaunches into the gate** → B unlocks with its password
-   → B writes a person, syncs, and **A reads it**; A writes one and **B reads it**.
-   Cross-device readability is the assertion that matters, since records are sealed under MK
-   and a stray key makes them mutually unreadable. The relay's log shows the rewind working
-   — the same record id at seq 1 (A's original push) and again at seq 37 (B's re-push after
-   the repair). Then the whole cycle again through the **phrase** door, after a rotation,
-   ending with A reading what the phrase-repaired device wrote. Finally the no-op path: an
-   ordinary sign-out, password unlock, data intact.
-
-   **On mobile**, the on-device suite is **34/34** (two new cases: the repair through the
-   recovery door on real SQLCipher, and the source guard; confirmed RED at 32/34 first).
-   `leapsake://dev-clear-dbkey` grew a **"Clear everything"** action that also deletes
-   `device-id` and `enclave` — the shape a real keychain loss leaves, and the mobile
-   counterpart of deleting `keystore.json`. Clearing only the db-key keeps the device
-   identity, so it can never reach the repair.
-
-   > ✅ **Mobile's boot repair was unproven in a running app until slice 10**, which added
-   > `testID`s to the account form (the confirm-password field was untargetable, not
-   > untypable) and drove creation → a real partial keychain loss → the repair, end to end on
-   > a simulator. The suspicion recorded here — that it was field-specific rather than a
-   > blanket `secureTextEntry` limitation — was right.
-
-10. **Soften the strict posture — the Degraded state** — ✅ **DONE on both clients,
-   2026-07-29**, driven live on desktop over CDP with two profiles and a relay. This closed
-   the v0.1 blocker slice 9 opened. A repair that cannot succeed no longer refuses to open
-   the app: the device is **Degraded** — the store opens, every screen works, and it syncs
-   **nothing** until it is repaired. Design: [`encryption/model.md`](./encryption/model.md)
-   §7.5, which names it as a custody condition.
-
-   What it actually replaced was worse than "locked": desktop threw out of
-   `openActiveStore`, so `whenReady` rejected, `bootPhase` never reached `ready`, and
-   `main.tsx` rendered `null` — **a blank window, forever, with no message.** Mobile at least
-   rendered the raw error string.
-
-   The owner calls this slice carried, both settled while planning: it **opens with sync
-   paused** rather than showing an actionable lock screen (nothing at rest is sealed under MK
-   since slice 3, so the app genuinely works without a key session — and edits made while
-   degraded still reach the account, because the post-repair rewind re-pushes them); and the
-   way out **reuses sign out → the existing unlock gate**, where the other door is one click
-   away, rather than a new mid-session prompt.
-
-   Where it lives: `establishKeySession` (`packages/key-custody/src/boot.ts`) — **one** boot
-   sequence both clients and the desktop boot harness now call, where the ordering
-   *repair → resync → key session* used to be written out three times;
-   `master_key_repair_pending` in `SyncStateRepo` (no migration, `sync_state` is key/value);
-   `custodyDegraded` + `boot:status`/`boot:ready` on desktop with `screens/CustodyBanner.tsx`
-   above the router; `CustodyDegradedContext` + `useCustodyDegraded` on mobile with the banner
-   above `children` in `CoreProvider`. `resyncAfterMasterKeyRepair` moved from
-   `packages/core/src/sync.ts` to sit beside it (still re-exported from core).
-
-   > - **The flag spans adopt-then-rewind, and is set *before* the adopt.** Those are two
-   >   durable writes, and a crash between them leaves a device holding the *right* key with
-   >   its history holed — the exact damage the repair exists to undo. Setting it afterwards
-   >   would leave that window open, which is the whole reason it is durable rather than a
-   >   local variable. A later boot with no door but the flag set rewinds **conservatively**,
-   >   since `"adopted"` and `"unchanged"` are no longer distinguishable from there: one
-   >   redundant full sync converges by LWW, a missed one holes the history for good.
-   > - **`"unchanged"` must not rewind.** Every ordinary sign-out unlock returns it, so
-   >   rewinding there would charge a routine sign-out a full re-push *and* re-pull of the
-   >   account. Pinned by a test, sabotage-verified.
-   > - **Degrading must not relax `ensureDeviceMasterKey`.** Its refusal to mint over an
-   >   existing account is caught, never softened — the refusal *is* the invariant and the
-   >   banner is the consequence of honoring it. The "mints nothing while degraded" test goes
-   >   RED only when *both* halves are relaxed, which is exactly the regression to fear.
-   > - **Sync is off because there is no key session**, not because anything new blocks it —
-   >   three existing guards (`catchUpRecoveryKey`, the scheduler run thunk, mobile's
-   >   `session !== null`) already keyed on it. That is what keeps the launch-time escrow
-   >   catch-up from publishing an unprovable key and re-opening slice 8's account-wide
-   >   exposure. Asserted, not assumed.
-   > - **`sync:now` / `syncNow` had to stop saying "Sync is not enabled for this store."** on
-   >   a degraded device — it sends someone off to create an account they already have. Both
-   >   clients now report the real cause, and Settings hides the sync controls entirely, the
-   >   way it already does for a relay-less account.
-   > - **`rotateRecoveryPhrase` deliberately still works while degraded.** It takes MK from
-   >   the password door, never the enclave (slice 8's first note), so it is correct by
-   >   construction and needs no guard.
-   > - **The banner must not claim sync stopped on an account that never had it.** A
-   >   relay-less account (one tap away on both clients since 7c) has no sync to pause, so
-   >   "Sync is paused on this device" invents both a feature that person does not use and a
-   >   loss they have not suffered — the same error as the `sync:now` message above, one
-   >   screen over. The banner takes `relayBound` and leads with "This device needs to be
-   >   re-linked to your account" instead. Found by driving mobile, where the local-only
-   >   account is the *default* thing to create.
-   > - **A banner above a navigator has to consume the top inset and then say so.** Two
-   >   separate bugs, one visible and one easy to miss: nothing pads the banner away from the
-   >   status bar (its first line rendered under the clock), *and* the navigator underneath
-   >   still believes it starts at the top of the screen, so its header adds a second
-   >   status-bar's worth of padding — a dead band exactly as wide as the notch. `DegradedFrame`
-   >   (`core-context.tsx`) fixes both: the banner takes `useSafeAreaInsets` (top *and*
-   >   horizontal, for landscape), and children are wrapped in a
-   >   `SafeAreaInsetsContext.Provider` with `top: 0`. Overriding the context is what actually
-   >   informs the navigator; a negative margin would only paper over it.
-
-   **How it was verified on desktop** (two profiles + a live relay over CDP): A creates a
-   relay-bound account with a person and syncs → B joins and pulls it → B is quit and **only
-   `device-id` and `enclave` are deleted from its `keystore.json`**, leaving the db-key, which
-   is a real partial keychain loss and the one route to Degraded that needs no sabotage at all
-   (no door is raised, so nothing can repair it) → B relaunches: **it opens on Home with its
-   data, the banner is on screen, `sync:now` returns the degraded message, Settings says sync
-   is paused with the controls gone, and the relay receives nothing.** A person written on B
-   while degraded stays local (the relay's record count does not move). Then the banner's
-   **"Sign out and unlock"** → gate → password → **banner gone**, and the sync that follows
-   shows the rewind in the relay's log: the joined person's record id at seq 1 (A's original
-   push) *and* again at seq 41 (B's re-push), with the degraded-era person at 42 — **and A
-   pulls it**, which is the assertion behind choosing "open" over "lock". Finally the no-op
-   path: an ordinary sign-out and password unlock leaves the relay's log untouched. A third
-   profile with a **local-only** account, degraded the same way, gets the relay-less wording
-   and never mentions sync.
-
-   **On mobile**, the on-device suite is **36/36** (two new cases: a door that cannot be
-   repaired from leaves the state degraded, nothing minted and the flag set; and the same
-   store with the missing wrap row comes back `ok`, clearing the flag and rewinding both
-   watermarks — confirmed RED at **34/36** by restoring slice 9's throw and dropping the
-   rewind). Argon2id is kept out of them, per slice 8's note.
-
-   **And the whole cycle was driven in a running app** (booted iOS simulator, Maestro): create
-   a local account → `stores/<id>/leapsake.db` is ciphertext → **"Clear device identity"** →
-   relaunch → the app opens on Home with the banner up, worded for a relay-less account →
-   expand → **"Sign out and unlock"** → the gate → password → **banner gone**, and a further
-   relaunch is clean. That is a **real** degradation, not a forced one: see the two harness
-   changes below, both of which outlive this slice.
-
-   > **The two things that made mobile drivable, after slices 8 and 9 both gave up on it.**
-   > - **`testID`s on the account form** (`account-username`, `account-password`,
-   >   `account-confirm-password`, `account-submit`). The wall was never `secureTextEntry` as
-   >   such — it was that both password fields are secure, and therefore carry identical
-   >   (empty) accessibility text, so a driver has nothing to tell them apart by and taps on
-   >   the confirm field landed elsewhere while reporting COMPLETED. With ids the form fills
-   >   and submits first try. **This retires the ⚠️ on slices 8 and 9**: the rotation form and
-   >   the boot repair are reachable now, and this is the start of the anchor set
-   >   `launch.md` Increment 6 plans. (iOS still does not *draw* the dots in a
-   >   `textContentType="newPassword"` field under automation — the field has the value, the
-   >   screenshot looks empty. Judge by the strength hint, not the dots.)
-   > - **`leapsake://dev-clear-dbkey` grew "Clear device identity"** — drops `device-id` and
-   >   `enclave` but **keeps** the db-key. That partial loss is the only route to Degraded:
-   >   with the db-key alive the store opens with no gate, so no door is ever offered and
-   >   nothing can repair the enclave. It is the mobile counterpart of deleting exactly those
-   >   two entries from a desktop `keystore.json`, which is how the desktop drive above
-   >   reached it — mobile keeps its secrets in the OS keychain, where nothing outside the app
-   >   can edit them one at a time.
-
+> **`createCore(driver, keySession?)` no longer reads its key session.** `milestone.note` was
+> layer 3's only consumer and was retired with migration 27, so no repo needs a key; the parameter and
+> the clients' "rebuild the core around the adopted MK" plumbing are inert. Left in place on
+> purpose — photos (v0.2) are layer 3's real consumer — but on desktop the rebuild is now
+> redundant as well as inert, since the store swap re-opens and rebuilds the core anyway.
+> **Simplify it whenever layer 3 next gets attention.**
 **Explicitly v0.2, not v0.1** *(owner, 2026-07-27)*: **automatic** locking on idle and the
-bounded session. The deliberate half (slice 7) is cheap; a real session needs mid-session
+bounded session. The deliberate half (sign out) is cheap; a real session needs mid-session
 re-lock in the desktop main process and mobile's bootstrap, and must not be theater since the
 keychain still holds the db-key. Not a one-way door — it sits on the same password door.
 
 #### Before you rely on it
 
 **The conversion is built and gated, not merely verified.** Desktop's lives in
-`apps/desktop/src/main/db/convert-store.ts` (8 tests, against the real app schema); mobile's
-in `apps/mobile/db/convert-store.ts`, exercised **on device** by
+`apps/desktop/src/main/db/convert-store.ts` (8 tests against the real app schema); mobile's in
+`apps/mobile/db/convert-store.ts`, exercised **on device** by
 `apps/mobile/test/custody-selftest.ts`, which runs beside the driver contract under
-`pnpm test:native` (**36 cases** total, each positive paired with its negative; confirmed RED by
-sabotage before being trusted GREEN). Since slice 7b it also drives the shipped `accountDoors`
-directly — it takes a slot, so a scratch account id proves the per-account scoping without
-touching the custody state of the device it runs on.
-
-What that gate is protecting, in case you change the conversion:
-- Neither engine's *native* shortcut is portable — desktop has `PRAGMA rekey` but **no**
-  `sqlcipher_export`, SQLCipher the reverse — hence the ordinary-SQL ATTACH + copy on both.
-- **Pin `PRAGMA cipher='sqlcipher'` before the ATTACH.** Load-bearing on **desktop only**; a
-  verified no-op on mobile (SQLCipher has one cipher), kept for symmetry. Skip it on desktop
-  and the file gets the default cipher, failing later with a misleading `file is not a
-  database`.
-- **Carry `user_version` across** — ATTACH does not, and losing it re-runs every migration
-  against tables that already exist.
-- **`ATTACH` never creates directories.** Desktop `mkdirSync`s; mobile opens the destination
-  by name first, since expo-sqlite creates intermediate directories on open — which its
-  destination guard (`storeState`) now does as a side effect, so the two are one step.
-- **Both refuse an occupied destination and an already-encrypted source.** Desktop reads the
-  file header; mobile asks the engine. The destination guard is the one that matters: without
-  it a retry after a mid-flow crash copies every row into a store that already holds them.
-
-**No longer blocks `launch.md` Increments 2–4.** The at-rest half of custody is complete on
-every path, so the first closed-test upload would not be putting testers' real data in a
-plaintext file. Slices 7–8 are user-facing surface, not on-disk churn, and can land alongside
-the distribution work rather than ahead of it.
+`pnpm test:native` (**36 cases**, each positive paired with its negative, confirmed RED by
+sabotage before being trusted GREEN). Both files' doc-comments carry the five invariants a
+change to either must preserve — read them before touching the ATTACH.
 
 **Encryption + sync:**
 
@@ -781,10 +192,13 @@ the distribution work rather than ahead of it.
 - **vCard/JSContact export** (import comes later with the bulk importer). The portability /
   exit-strategy answer: user-initiated, client-side (the client already holds plaintext),
   people + contact methods first. Cheap, and it doubles as groundwork for the future
-  CardDAV surface and the importer increment.
-- **Restore-from-file-backup flow — verify + document.** ⇐ **now unblocked** — slice 5 built
-  the second door, and both are proved on desktop against a wiped keychain, on created,
-  joined and recovered devices alike; what remains is
+  CardDAV surface and the importer increment. **It also unblocks a promise already made**:
+  `model.md` §7.3.1 says Forget-account should offer an export first, and today desktop's
+  hard-confirm can only tell the user to copy their `stores` folder — honest but poor — while
+  mobile cannot say even that (no user-reachable filesystem). Wire the real offer when the
+  exporter lands.
+- **Restore-from-file-backup flow — verify + document.** Both doors are proved on desktop
+  against a wiped keychain, on created, joined and recovered devices alike; what remains is
   the same exercise on a *fresh machine*, plus writing it up. At-rest encryption made the local file
   opaque to generic backup tools; the intended story is "copied `leapsake.db` +
   `leapsake.db.recovery` + the password (or phrase) on a fresh machine boots through
@@ -818,8 +232,8 @@ is deliberately still `0.0.0`. Two constraints on that choice: it must be settle
 **Increment 4's first store upload**, not before the v0.1.0 cut, and it needs a build-number
 strategy (`ios.buildNumber` / `android.versionCode` exist nowhere yet — EAS can auto-increment
 them). Store version strings are permanent and monotonic per store record, which is the whole
-reason this sits in Increment 1. **Increments 2–4 no longer wait on custody** — the at-rest
-build finished with slice 6.
+reason this sits in Increment 1. **Increments 2–4 do not wait on custody** — the at-rest build
+is finished.
 
 **Reconciliation** (quality; can land pre- or post-launch as capacity allows):
 - **Fuzzy / typo-tolerant name matching** — the scorer's reserved `"low"` tier via
@@ -831,6 +245,12 @@ build finished with slice 6.
   honoring the `not_a_duplicate` memory).
 
 **Client / UX** (sequenced *after* the encryption work above):
+- **Mobile: the last-device Forget-account confirmation needs a `KeyboardAvoidingView`.** The
+  keyboard covers "Delete all data"; the screen scrolls, so it is reachable by hand, but it is
+  the one step of the custody cycle no automated flow can drive — dismissing the keyboard first
+  does not help, because the layout reflows as it goes and the tap lands on whatever moved
+  under it. Fix the screen before trying to make that cycle an E2E flow
+  ([`apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md)).
 - **Reminder search** — reminders join `SearchResultType` the way gift ideas did, matched on
   title + body. The last piece of the reminders surface. (Leapsake-defined tasks extend the same
   engine later, keyed off `source` + trigger identity.)
@@ -886,9 +306,8 @@ build finished with slice 6.
 - **Extra desktop instances** (no single-instance lock): from repo root,
   `ELECTRON_RENDERER_URL=http://localhost:5173 "$(node -p 'require("electron")')" apps/desktop --user-data-dir=<fresh-dir>` —
   each distinct `--user-data-dir` is a separate "device".
-- **Driving the desktop app without a harness** (how custody slices 4 and 5 were actually
-  verified, and the only way to prove a *user-visible* desktop change until the E2E tier
-  exists). Add `--remote-debugging-port=9333` to the command above, then talk CDP to the
+- **Driving the desktop app without a harness** — the only way to prove a *user-visible*
+  desktop change until the E2E tier exists, and how every custody slice was verified. Add `--remote-debugging-port=9333` to the command above, then talk CDP to the
   renderer: `curl -s localhost:9333/json` gives the page's `webSocketDebuggerUrl`, and
   `Runtime.evaluate` over that socket runs anything in the renderer — `window.api.*`,
   `window.sync.*`, `window.boot.*`, or DOM clicks. Node 22+ has a built-in `WebSocket`, so
@@ -898,14 +317,16 @@ build finished with slice 6.
   properties are invisible on screen. React inputs need the native value setter plus an
   `input` event to register; `location.reload()` picks up an HMR'd renderer change without
   restarting the app. Deleting `keystore.json` between launches simulates keychain loss.
-  Two things learned driving slice 8: **`electron-vite dev` only HMRs the renderer**, so a
-  change under `packages/` needs the dev server restarted before an extra instance picks it
-  up (check with `grep` against `apps/desktop/out/main/index.js`). Deleting `keystore.json`
-  takes this device's **master key** as well as its db-key, which is the whole point — since
-  slice 9 the boot path repairs that from the door, so such a profile is representative
-  again, and this is how that repair is driven. A `pkill -9` of the Electron child can take
-  `out/` with it and leave the dev server serving nothing; restart the dev server if a
-  launch produces no output at all.
+  Three things that will otherwise cost you an hour each: **`electron-vite dev` only HMRs the
+  renderer**, so a change under `packages/` needs the dev server restarted before an extra
+  instance picks it up (check with `grep` against `apps/desktop/out/main/index.js`); deleting
+  `keystore.json` takes this device's **master key** as well as its db-key, which the boot path
+  repairs from whichever door you then unlock with, so such a profile exercises the repair
+  rather than merely the gate; and **deleting only `device-id` and `enclave`** from that file
+  leaves the db-key alive, which is the one route to the *Degraded* state (no gate is raised,
+  so nothing can repair it). A `pkill -9` of the Electron child can take `out/` with it and
+  leave the dev server serving nothing; restart the dev server if a launch produces no output
+  at all.
 - **Mobile dev client:** `pnpm --filter @leapsake/mobile ios` (native SQLCipher build; Expo
   Go can't host it). `__DEV__` deep links: `leapsake://dev-selftest` (driver contract +
   custody suite), `leapsake://dev-clear-dbkey` (simulate keychain loss — three scopes: the
@@ -946,7 +367,7 @@ build finished with slice 6.
   (`reconcileOnJoin` surfaces overlapping people after a join and deliberately does **not**
   auto-merge, leaving it to the duplicate-review surface), so "join the existing account and
   review the duplicates" may be the whole answer for v0.1. Decide before relay binding ships.
-  **Weightier since slice 7c** (2026-07-29): a local-only account is now one tap away on
+  **Weightier since 2026-07-29**: a local-only account is now one tap away on
   *both* clients, so the population that could later want to bind one to a relay is no
   longer desktop-only — while binding itself remains unbuilt on either client.
 - **Relay backup capability** — the protocol shape for a relay advertising whether it keeps a

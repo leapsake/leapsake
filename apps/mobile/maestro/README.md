@@ -130,3 +130,47 @@ xcrun simctl openurl <udid> "exp+leapsake://expo-development-client/?url=http%3A
 
 This bites hardest when deliberately breaking a case to confirm it goes RED: without the
 reload the sabotage appears to pass, and a genuinely vacuous suite would read as verified.
+
+## Driving forms and fields — the traps, in the order you'll hit them
+
+These cost several sessions to find. All of them look like "the app is broken" and are not.
+
+### A secure field needs a `testID`, not a better tap
+
+Two `secureTextEntry` fields on one screen (password + confirm password) carry **identical,
+empty accessibility text**, so a driver has nothing to tell them apart by. Tapping the second
+one by text or by point reports **COMPLETED** and types into nothing — the form then fails its
+own "passwords don't match" check, or the submit button stays disabled, and it reads as a
+platform limitation on secure input. It isn't: it is a selector problem.
+
+The account form carries ids for exactly this reason (`app/(tabs)/settings.tsx`):
+`account-username`, `account-password`, `account-confirm-password`, `account-submit`. Target
+those and the form fills first try. **Add ids to any other form you need to drive** — that is
+the anchor set `plans/launch.md` Increment 6 plans, grown one flow at a time.
+
+### iOS does not draw the dots in a `newPassword` field under automation
+
+A field with `textContentType="newPassword"` holds the value you typed but renders **empty**
+in a screenshot. Judge by a side effect instead — the password-strength hint below the field,
+or the submit button enabling — never by looking for dots. Its sibling trap:
+
+### Turn off AutoFill Passwords in the simulator
+
+With **Settings → AutoFill & Passwords** on, iOS's "Automatic Strong Password" cover view
+swallows keystrokes into `textContentType="newPassword"` fields entirely. Turn it off once per
+simulator (done on this machine's iPhone 16 Pro).
+
+### Selector and keyboard miscellany
+
+- Maestro text selectors are **full-match**: the tab bar wants `.*Settings.*`, not `Settings`.
+- `hideKeyboard` fails on secure fields. Use `pressKey: Enter`, or tap a static label.
+- With two account forms on screen, every duplicated label ("Username", "Password") needs an
+  explicit `index` — or, better, an id.
+
+### One flow still can't be driven
+
+The **last-device Forget-account confirmation**: the keyboard covers "Delete all data", and
+dismissing it first does not help because the layout reflows as the keyboard goes and the tap
+lands on whatever moved under it (the tab bar, in practice). The screen wants a
+`KeyboardAvoidingView`; fix that before trying to make this cycle an E2E flow. There is no
+harness-side workaround worth having.

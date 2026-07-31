@@ -22,6 +22,11 @@
 - **v0.2 = photo management**, built as the first consumer of the file-type-agnostic
   encrypted-blob design ([`files.md`](./files.md)) so video/documents/audio later reuse the
   same pattern.
+- **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
+  are fine.** There are no real users, so a migration is only worth writing when it is
+  genuinely cheaper than "delete the profile and relaunch" — prefer the simpler code. This
+  expires at v0.1; until then it is the reason several stores, key formats, and door layouts
+  were replaced rather than migrated.
 
 ## The user / client / account model (stated 2026-07-11)
 
@@ -97,10 +102,9 @@ v0.1-blocking; #3 may be** — it carries an open owner call.
    purged independently. Not v0.1, but **the per-account path is**: new work must not assume
    a single fixed database path, because retrofitting that after users have data is exactly
    the expensive class of change worth avoiding.
-3. **A local-only account is desktop-only.** The model above treats single-device use as
-   first-class, but mobile can only create an account by binding a relay, so a mobile-only
-   user cannot turn encryption on at all. Tracked as **slice 7c** in [`status.md`](./status.md),
-   which carries the owner call on whether it is v0.1-blocking.
+3. ~~**A local-only account is desktop-only.**~~ **Closed 2026-07-29** (custody slice 7c):
+   mobile creates an account with no relay in the flow, so a phone-only user can encrypt.
+   Both clients now offer "Protect your data" above the relay-bound "Sync across devices".
 4. ~~**Sign out vs. Forget account.**~~ **Closed 2026-07-28**, both clients. They are the
    only two actions here now — *make local-only* was cut, per the bullet above. **Automatic**
    locking on idle stays deliberately **v0.2** (owner, 2026-07-27) — the deliberate half is
