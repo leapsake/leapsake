@@ -261,13 +261,24 @@ interface OnboardingSignals {
 }
 
 /** One first-run nudge: a stable `key` (folded into its deterministic id), the
- *  copy shown on Home, the abstract CTA `route`, and `applies` — true while the
- *  step's condition is still unmet, i.e. while the nudge should exist. */
+ *  copy shown on Home, the abstract CTA `route`, `applies` — true while the
+ *  step's condition is still unmet, i.e. while the nudge should exist — and the
+ *  two snooze dials below. */
 interface OnboardingStep {
   key: string;
   title: string;
   route: OnboardingRoute;
   applies(s: OnboardingSignals): boolean;
+  /**
+   * How long a "not now" puts this step off for, in whole days off {@link DAY_MS} —
+   * so a snooze runs for a fixed span from the moment it is taken, not to a civil
+   * calendar date. That is the right arithmetic for a hide-until instant, and it
+   * needs no civil-date math.
+   */
+  snoozeDurationDays: number;
+  /** How many times this step is willing to come back before it gives up and
+   *  retires itself for good. See {@link snoozePolicyOf}. */
+  snoozeRepetitions: number;
 }
 
 /**
@@ -280,7 +291,17 @@ interface OnboardingStep {
  * **Permanent retirement is intentional:** retirement is a `softDelete` tombstone,
  * so a step does **not** re-appear if its condition later reverts (e.g. the user
  * deletes all their people). That is the correct "don't re-nag" onboarding
- * semantic — see {@link computeAndReconcile}.
+ * semantic — see {@link computeAndReconcile}. A step retires either because its
+ * condition was met or because it ran out of {@link OnboardingStep.snoozeRepetitions};
+ * both go through that one path.
+ *
+ * **The two snooze dials below are provisional numbers, not architecture.** They are
+ * data on purpose, so changing one is editing a literal here rather than touching
+ * logic. The reasoning behind the values is that the steps have unequal stakes:
+ * wrongly nagging costs annoyance the user can dismiss, while wrongly silencing a
+ * step costs something that gives no signal it happened — so where a step's budget
+ * is unclear, it gets another repetition rather than fewer. Expect to correct them
+ * once real usage disagrees.
  *
  * **Array order is display priority** (first = shown highest on Home). Sync leads:
  * a returning user already on another device should reconnect before re-adding
@@ -295,12 +316,20 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     title: "🔄 Already using Leapsake on another device? Connect to sync.",
     route: "connect-sync",
     applies: (s) => !s.syncConnected,
+    // A user who says "not now" here almost certainly has no other device, so
+    // asking once more and then dropping it is the whole budget.
+    snoozeDurationDays: 3,
+    snoozeRepetitions: 1,
   },
   {
     key: "add-first-person",
     title: "👋 Add your first person to get started",
     route: "add-person",
     applies: (s) => !s.hasEntities,
+    // Skipping this costs little: an empty app is self-evidently empty, and the
+    // nudge has nothing to add once the user starts typing.
+    snoozeDurationDays: 3,
+    snoozeRepetitions: 1,
   },
   {
     // Pick yourself, once there's a list to pick from — the self-person is the
@@ -310,6 +339,10 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     title: "🙋 Which of these is you? Pick yourself.",
     route: "pick-self",
     applies: (s) => s.hasEntities && !s.hasSelf,
+    // Worth one more ask than the others: nothing else tells the user that gifts
+    // (and, later, kinship) are quietly less useful until this is set.
+    snoozeDurationDays: 3,
+    snoozeRepetitions: 2,
   },
 ];
 
@@ -318,6 +351,22 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
  *  the disjoint `onboarding:<key>` name-space, so the two families never collide. */
 function onboardingId(key: string): string {
   return deterministicUuid(SYSTEM_REMINDER_NAMESPACE, `onboarding:${key}`);
+}
+
+/** The step a reminder id belongs to — {@link onboardingId} read backwards — or
+ *  `undefined` for any other reminder (user, milestone, holiday, duplicates). */
+function onboardingStepOf(id: string): OnboardingStep | undefined {
+  return ONBOARDING_STEPS.find((step) => onboardingId(step.key) === id);
+}
+
+/** Whether a step has used up its {@link OnboardingStep.snoozeRepetitions}. The
+ *  single place that comparison is made, so "is snooze still offered" and "does
+ *  the engine still want this row" can never answer it differently. */
+function hasSpentItsSnoozes(
+  step: OnboardingStep,
+  snoozeCount: number,
+): boolean {
+  return snoozeCount >= step.snoozeRepetitions;
 }
 
 /**
@@ -406,6 +455,42 @@ export const ONBOARDING_REMINDERS: readonly OnboardingReminder[] =
  *  reminder (a milestone or user reminder) — the client's branch for "show a CTA". */
 export function onboardingRouteOf(id: string): OnboardingRoute | null {
   return ONBOARDING_REMINDERS.find((r) => r.id === id)?.route ?? null;
+}
+
+/** The outcome of snoozing a reminder right now. */
+export interface SnoozePolicy {
+  /** When the snooze would run to — epoch ms, UTC. */
+  until: number;
+}
+
+/**
+ * Whether a reminder can still be put off, and if so until when — **one**
+ * evaluation answering both, so the offer and its date can never disagree.
+ *
+ * `null` means *don't offer snooze*, for either of two reasons the caller does not
+ * need to tell apart: the reminder is not an onboarding nudge (a user, milestone,
+ * holiday or duplicates row — putting an ordinary reminder off is its own
+ * unbuilt affordance), or the step has spent its repetitions and is about to
+ * retire. Otherwise the answer carries the target date, so the offered action can
+ * hand it straight to the one write method and the copy can say *"ask me in 3
+ * days"* with no second derivation.
+ *
+ * Pure, and `now` is a parameter rather than a clock read: the policy is applied
+ * at the moment the user asks, never inside a reconcile, which runs on a schedule
+ * and must leave an existing snooze alone.
+ *
+ * It lives here, beside {@link ONBOARDING_STEPS}, because the dials it reads are
+ * module-private — the same seam `@leapsake/view-models` already crosses for
+ * {@link onboardingRouteOf}.
+ */
+export function snoozePolicyOf(
+  reminder: { id: string; snoozeCount: number },
+  now: number,
+): SnoozePolicy | null {
+  const step = onboardingStepOf(reminder.id);
+  if (step === undefined) return null;
+  if (hasSpentItsSnoozes(step, reminder.snoozeCount)) return null;
+  return { until: now + step.snoozeDurationDays * DAY_MS };
 }
 
 /**
@@ -641,8 +726,10 @@ async function computeDesired(
   // unmet is desired (→ inserted); once met it drops out (→ pruned = softDelete).
   // Because prune tombstones the row, a retired step never re-appears even if its
   // condition later reverts (the user deletes all their people) — the intended
-  // "don't re-nag" semantic. Only when the caller injects the port (clients do;
-  // engine unit tests may not) — otherwise no onboarding rows join the set.
+  // "don't re-nag" semantic. Running out of snoozes drops a step out of the set
+  // the same way, so giving up needs no deletion path of its own. Only when the
+  // caller injects the port (clients do; engine unit tests may not) — otherwise
+  // no onboarding rows join the set.
   if (deps.onboarding !== undefined) {
     const signals: OnboardingSignals = {
       hasEntities: await deps.onboarding.hasAnyEntity(),
@@ -652,6 +739,16 @@ async function computeDesired(
     for (const [index, step] of ONBOARDING_STEPS.entries()) {
       if (!step.applies(signals)) continue;
       const id = onboardingId(step.key);
+      // A step that has been put off as many times as it is willing to come back
+      // stops being desired, and the prune below retires it the same way a met
+      // condition does. The row is absent on a first run, and `snoozeCount` only
+      // ever moves on a live row, so an absent row has spent nothing.
+      const existing = await deps.reminders.getIncludingDeleted(id);
+      if (
+        existing !== undefined &&
+        hasSpentItsSnoozes(step, existing.snoozeCount)
+      )
+        continue;
       // `index` is the step's display priority (0 = first); realized as a
       // `createdAt` back-off below so the nudges sort in array order on Home.
       desired.set(id, { id, title: step.title, dueDate: null, order: index });

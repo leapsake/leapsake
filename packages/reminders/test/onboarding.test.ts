@@ -11,10 +11,14 @@ import {
   type ReminderEngineDeps,
   onboardingRouteOf,
   regenerateSystemReminders,
+  snoozePolicyOf,
 } from "../src/index.js";
 
 /** A fixed local "today" (no milestones under test, so the value is immaterial). */
 const TODAY: CivilDate = { year: 2026, month: 6, day: 1 };
+
+/** Milliseconds in a day — the unit the steps' snooze durations are expressed in. */
+const DAY_MS = 86_400_000;
 
 /**
  * The engine harness for the onboarding family: an in-memory store plus a fakeable
@@ -67,12 +71,36 @@ function makeHarness() {
         (r) => r.source === "system" && r.deletedAt === null,
       ),
     byId: (id: string) => rows.get(id),
+    /**
+     * Put a row off `times` times, as the write method behind a "not now" will:
+     * bump the count and set the clock. Here rather than in production code
+     * because that write method is a later slice — the engine only ever *reads*
+     * these two fields.
+     */
+    snooze: (id: string, times = 1) => {
+      const row = rows.get(id);
+      if (row === undefined) throw new Error(`no such reminder: ${id}`);
+      rows.set(id, {
+        ...row,
+        snoozedUntil: Date.now() + times * DAY_MS,
+        snoozeCount: row.snoozeCount + times,
+      });
+    },
   };
 }
 
 /** The onboarding ids, keyed by route, from the exported convention. */
 const idFor = (route: string) =>
   ONBOARDING_REMINDERS.find((r) => r.route === route)!.id;
+
+/** The snooze dials the step definitions currently carry, mirrored once so that
+ *  re-tuning them — which is meant to be cheap — is a one-line edit here too. */
+const SNOOZE_DAYS = 3;
+const REPETITIONS = {
+  "connect-sync": 1,
+  "add-person": 1,
+  "pick-self": 2,
+} as const;
 
 describe("onboarding reminders", () => {
   let h: ReturnType<typeof makeHarness>;
@@ -218,6 +246,124 @@ describe("onboarding reminders", () => {
     const result = await regenerateSystemReminders(noPort);
     expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.activeSystem()).toHaveLength(0);
+  });
+
+  describe("snooze retirement", () => {
+    it("keeps a snoozed-but-not-exhausted step desired, and never prunes it", async () => {
+      // Isolate pick-self (2 repetitions): sync is connected, a person exists.
+      h.signals.hasEntities = true;
+      h.signals.syncConnected = true;
+      await regenerateSystemReminders(h.deps);
+      const id = idFor("pick-self");
+      expect(h.activeSystem().map((r) => r.id)).toEqual([id]);
+
+      h.snooze(id); // one "not now" of the two it allows
+
+      // The trap this slice exists to avoid: a deferral that stopped desiring the
+      // row would tombstone it here, and a tombstone is never resurrected — so
+      // "not now" would silently have meant "never".
+      const result = await regenerateSystemReminders(h.deps);
+      expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
+      expect(h.byId(id)?.deletedAt).toBeNull();
+      expect(h.activeSystem().map((r) => r.id)).toEqual([id]);
+    });
+
+    it("retires a step once its snooze count reaches its repetitions", async () => {
+      h.signals.hasEntities = true;
+      h.signals.syncConnected = true;
+      await regenerateSystemReminders(h.deps);
+      const id = idFor("pick-self");
+
+      h.snooze(id, REPETITIONS["pick-self"]); // one past the boundary above
+
+      const result = await regenerateSystemReminders(h.deps);
+      expect(result).toEqual({ created: 0, updated: 0, removed: 1 });
+      expect(h.byId(id)?.deletedAt).not.toBeNull();
+      expect(h.activeSystem()).toHaveLength(0);
+    });
+
+    it("retires a one-repetition step after a single snooze", async () => {
+      // Isolate sync-devices: "ask once more, then never".
+      h.signals.hasEntities = true;
+      h.signals.hasSelf = true;
+      await regenerateSystemReminders(h.deps);
+      const id = idFor("connect-sync");
+      expect(h.activeSystem().map((r) => r.id)).toEqual([id]);
+
+      h.snooze(id);
+
+      const result = await regenerateSystemReminders(h.deps);
+      expect(result).toEqual({ created: 0, updated: 0, removed: 1 });
+      expect(h.byId(id)?.deletedAt).not.toBeNull();
+    });
+
+    it("leaves an exhausted step gone, though its condition still holds", async () => {
+      h.signals.hasEntities = true;
+      h.signals.hasSelf = true;
+      await regenerateSystemReminders(h.deps);
+      const id = idFor("connect-sync");
+      h.snooze(id);
+      await regenerateSystemReminders(h.deps); // retired
+
+      // Sync is still not connected, so the step still applies — and stays dead.
+      const result = await regenerateSystemReminders(h.deps);
+      expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
+      expect(h.byId(id)?.deletedAt).not.toBeNull();
+      expect(h.activeSystem()).toHaveLength(0);
+    });
+
+    it("never clears or resets a snooze on reconcile", async () => {
+      h.signals.hasEntities = true;
+      h.signals.syncConnected = true;
+      await regenerateSystemReminders(h.deps);
+      const id = idFor("pick-self");
+      h.snooze(id);
+      const snoozed = h.byId(id);
+
+      const result = await regenerateSystemReminders(h.deps);
+
+      // A snooze is the user's, and reconcile runs on a schedule they didn't ask
+      // for — so it must leave both fields exactly as it found them.
+      expect(result.updated).toBe(0);
+      expect(h.byId(id)?.snoozedUntil).toBe(snoozed?.snoozedUntil);
+      expect(h.byId(id)?.snoozeCount).toBe(1);
+    });
+  });
+
+  describe("snoozePolicyOf", () => {
+    const NOW = Date.UTC(2026, 5, 1, 9, 30);
+
+    it("offers a snooze running to the step's duration from now", () => {
+      expect(
+        snoozePolicyOf({ id: idFor("pick-self"), snoozeCount: 0 }, NOW),
+      ).toEqual({ until: NOW + SNOOZE_DAYS * DAY_MS });
+    });
+
+    it("stops offering once the step's repetitions are spent", () => {
+      const id = idFor("pick-self");
+      expect(
+        snoozePolicyOf({ id, snoozeCount: REPETITIONS["pick-self"] - 1 }, NOW),
+      ).not.toBeNull();
+      expect(
+        snoozePolicyOf({ id, snoozeCount: REPETITIONS["pick-self"] }, NOW),
+      ).toBeNull();
+    });
+
+    it("gives each step its own budget", () => {
+      // One snooze leaves pick-self another and leaves connect-sync none.
+      expect(
+        snoozePolicyOf({ id: idFor("pick-self"), snoozeCount: 1 }, NOW),
+      ).not.toBeNull();
+      expect(
+        snoozePolicyOf({ id: idFor("connect-sync"), snoozeCount: 1 }, NOW),
+      ).toBeNull();
+    });
+
+    it("offers nothing for a non-onboarding (milestone / user) reminder", () => {
+      expect(
+        snoozePolicyOf({ id: crypto.randomUUID(), snoozeCount: 0 }, NOW),
+      ).toBeNull();
+    });
   });
 
   describe("onboardingRouteOf", () => {

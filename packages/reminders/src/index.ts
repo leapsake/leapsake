@@ -19,6 +19,7 @@ export {
   listSystemReminderTargets,
   onboardingRouteOf,
   regenerateSystemReminders,
+  snoozePolicyOf,
 } from "./engine.js";
 export type {
   HolidayBearerType,
@@ -26,6 +27,7 @@ export type {
   OnboardingReminder,
   OnboardingRoute,
   ReminderEngineDeps,
+  SnoozePolicy,
   SystemReminderStore,
   SystemReminderTarget,
 } from "./engine.js";
