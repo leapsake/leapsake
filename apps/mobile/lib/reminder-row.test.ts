@@ -1,0 +1,258 @@
+import { ONBOARDING_REMINDERS } from "@leapsake/core";
+import {
+  type ReminderRowAction,
+  reminderActionsOf,
+} from "@leapsake/view-models";
+import { describe, expect, it } from "vitest";
+import {
+  offerFor,
+  removalCopyFor,
+  showsRemove,
+  tapPathFor,
+} from "./reminder-row";
+
+const NOW = 1_800_000_000_000;
+
+/** The onboarding id for a given abstract route, from the exported convention. */
+const idFor = (route: string) =>
+  ONBOARDING_REMINDERS.find((r) => r.route === route)!.id;
+
+/** A reminder as far as `reminderActionsOf` reads one. */
+const reminder = (
+  id: string,
+  snoozeCount = 0,
+  completedAt: number | null = null,
+) => ({ id, completedAt, snoozeCount });
+
+const actionsFor = (
+  id: string,
+  snoozeCount = 0,
+  completedAt: number | null = null,
+  context = {},
+) => reminderActionsOf(reminder(id, snoozeCount, completedAt), context, NOW);
+
+/** What a row offers, run through this client's mapping — the pairing under test. */
+const offersFor = (actions: ReminderRowAction[]) => actions.map(offerFor);
+
+const giftContext = {
+  giftTarget: { recipientType: "person" as const, recipientId: "p1" },
+};
+
+describe("offerFor", () => {
+  it("renders a nudge's three offers in order — do it, not now, don't ask again", () => {
+    // `pick-self` is the step with more than one repetition, so at a count of 1
+    // it still offers snooze *and* has earned its dismiss — the full shape.
+    const actions = actionsFor(idFor("pick-self"), 1);
+
+    expect(offersFor(actions)).toEqual([
+      {
+        kind: "navigate",
+        path: "/(tabs)/people?pick=self",
+        label: "Get started ›",
+      },
+      { kind: "snooze", until: expect.any(Number), label: "Not now" },
+      { kind: "dismiss", label: "Don’t ask again" },
+    ]);
+  });
+
+  it("drops the snooze once the step has spent its repetitions, keeping dismiss", () => {
+    // `connect-sync` gets one repetition, so a count of 1 has spent it — the row
+    // can no longer be put off but must still be endable.
+    const actions = actionsFor(idFor("connect-sync"), 1);
+
+    expect(offersFor(actions)).toEqual([
+      { kind: "navigate", path: "/(tabs)/settings", label: "Get started ›" },
+      { kind: "dismiss", label: "Don’t ask again" },
+    ]);
+  });
+
+  it("offers only do-it and not-now on a first encounter", () => {
+    // The binary first choice: nothing here can permanently silence the nudge.
+    const actions = actionsFor(idFor("connect-sync"));
+
+    expect(offersFor(actions).map((o) => o.kind)).toEqual([
+      "navigate",
+      "snooze",
+    ]);
+  });
+
+  it("hands the snooze the exact date the action carried", () => {
+    // The guard against a second derivation: whatever the policy chose is what
+    // reaches the write, so the copy and the stored clock can never disagree.
+    const actions = actionsFor(idFor("add-person"));
+    const offered = actions.find((a) => a.kind === "snooze")!;
+    const rendered = offersFor(actions).find((o) => o.kind === "snooze")!;
+
+    expect(rendered.until).toBe(offered.until);
+  });
+
+  it("maps every onboarding route to a path", () => {
+    for (const { route } of ONBOARDING_REMINDERS) {
+      const offer = offerFor({
+        kind: "cta",
+        cta: { kind: "onboarding", route },
+      });
+
+      expect(offer.kind).toBe("navigate");
+      expect(offer.kind === "navigate" && offer.path.startsWith("/")).toBe(
+        true,
+      );
+    }
+  });
+
+  it("maps the duplicates row's CTA", () => {
+    const actions = actionsFor("dupes", 0, null, { isDuplicatesNudge: true });
+
+    expect(offersFor(actions)).toEqual([
+      { kind: "navigate", path: "/duplicates", label: "Review ›" },
+    ]);
+  });
+
+  it("maps a gift row's CTA, whose target flips once it's done", () => {
+    expect(offersFor(actionsFor("gift", 0, null, giftContext))).toEqual([
+      { kind: "navigate", path: "/people/p1", label: "See their gifts ›" },
+    ]);
+    expect(offersFor(actionsFor("gift", 0, NOW, giftContext))).toEqual([
+      {
+        kind: "navigate",
+        path: "/gifts/new?recipient=person%3Ap1",
+        label: "Record what you gave ›",
+      },
+    ]);
+  });
+
+  it("sends a pet's gifts to the pets tree, not people", () => {
+    expect(
+      offerFor({
+        kind: "cta",
+        cta: {
+          kind: "gift",
+          action: "see-gifts",
+          recipientType: "pet",
+          recipientId: "x1",
+        },
+      }),
+    ).toEqual({
+      kind: "navigate",
+      path: "/pets/x1",
+      label: "See their gifts ›",
+    });
+  });
+
+  it("offers nothing at all on an ordinary reminder", () => {
+    expect(offersFor(actionsFor("user-written"))).toEqual([]);
+  });
+});
+
+describe("tapPathFor", () => {
+  it("sends a nudge's text to the step it asks for", () => {
+    expect(tapPathFor({ kind: "onboarding", route: "add-person" }, "r1")).toBe(
+      "/people/new",
+    );
+  });
+
+  it("sends the duplicates row's text to the review", () => {
+    expect(tapPathFor({ kind: "duplicates" }, "r1")).toBe("/duplicates");
+  });
+
+  it("sends a gift row's text to its detail, not to its CTA", () => {
+    // A gift reminder is an ordinary dated reminder that happens to offer a link.
+    expect(
+      tapPathFor(
+        {
+          kind: "gift",
+          action: "see-gifts",
+          recipientType: "person",
+          recipientId: "p1",
+        },
+        "r1",
+      ),
+    ).toBe("/reminders/r1");
+  });
+
+  it("sends an ordinary reminder's text to its detail", () => {
+    expect(tapPathFor(null, "r1")).toBe("/reminders/r1");
+  });
+});
+
+describe("showsRemove", () => {
+  it("withholds Remove from an open nudge on its first encounter", () => {
+    // The first encounter is a genuinely binary choice — do it, or not now.
+    // Remove is the permanent option under a label that hides what it does.
+    const actions = actionsFor(idFor("connect-sync"));
+
+    expect(actions.map((a) => a.kind)).toEqual(["cta", "snooze"]);
+    expect(showsRemove(actions, false)).toBe(false);
+  });
+
+  it("withholds Remove once the nudge offers its own dismiss", () => {
+    // Otherwise the row shows two buttons for the one tombstone.
+    const actions = actionsFor(idFor("connect-sync"), 1);
+
+    expect(actions.map((a) => a.kind)).toContain("dismiss");
+    expect(showsRemove(actions, false)).toBe(false);
+  });
+
+  it("keeps Remove on a completed nudge, whose offers collapse to the CTA", () => {
+    // Without this, marking a nudge done would strand it at the foot of the list
+    // with no way to clear it.
+    const actions = actionsFor(idFor("connect-sync"), 1, NOW);
+
+    expect(actions.map((a) => a.kind)).toEqual(["cta"]);
+    expect(showsRemove(actions, true)).toBe(true);
+  });
+
+  it("keeps Remove on an ordinary reminder, which offers nothing", () => {
+    expect(showsRemove(actionsFor("user-written"), false)).toBe(true);
+  });
+
+  it("keeps Remove on gift and duplicates rows", () => {
+    expect(showsRemove(actionsFor("gift", 0, null, giftContext), false)).toBe(
+      true,
+    );
+    expect(
+      showsRemove(
+        actionsFor("dupes", 0, null, { isDuplicatesNudge: true }),
+        false,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("removalCopyFor", () => {
+  it("asks whether to stop asking, on a nudge", () => {
+    const copy = removalCopyFor(actionsFor(idFor("connect-sync"), 1));
+
+    expect(copy.title).toBe("Stop asking about this?");
+    expect(copy.confirm).toBe("Don’t ask again");
+    expect(copy.message("Set up sync")).toBe(
+      "Leapsake won’t ask about “Set up sync” again.",
+    );
+  });
+
+  it("still says the honest thing on a completed nudge, reached via Remove", () => {
+    // The copy branches on the row, not on which affordance was tapped, so the
+    // one remaining route to the tombstone can't bypass it.
+    const copy = removalCopyFor(actionsFor(idFor("connect-sync"), 1, NOW));
+
+    expect(copy.title).toBe("Stop asking about this?");
+  });
+
+  it("asks about deletion on a user's own reminder", () => {
+    const copy = removalCopyFor(actionsFor("user-written"));
+
+    expect(copy.title).toBe("Delete reminder");
+    expect(copy.confirm).toBe("Delete");
+    expect(copy.message("Call Ana")).toBe("Delete “Call Ana”?");
+  });
+
+  it("asks about deletion on gift and duplicates rows", () => {
+    expect(removalCopyFor(actionsFor("gift", 0, null, giftContext)).title).toBe(
+      "Delete reminder",
+    );
+    expect(
+      removalCopyFor(actionsFor("dupes", 0, null, { isDuplicatesNudge: true }))
+        .title,
+    ).toBe("Delete reminder");
+  });
+});

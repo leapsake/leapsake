@@ -8,59 +8,43 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import type { GiftReminderTarget, OnboardingRoute } from "@leapsake/core";
+import type { GiftReminderTarget } from "@leapsake/core";
 import {
   type ReminderWithTags,
   formatDueIn,
   reminderLabel,
 } from "@leapsake/schema";
-import {
-  type ReminderCta,
-  partitionReminders,
-  reminderCtaOf,
-} from "@leapsake/view-models";
+import { partitionReminders, reminderActionsOf } from "@leapsake/view-models";
 import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
+import {
+  offerFor,
+  removalCopyFor,
+  showsRemove,
+  tapPathFor,
+} from "../../lib/reminder-row";
 import { colors, styles } from "../../lib/styles";
 
-/** Each onboarding nudge's abstract {@link OnboardingRoute} as this client's own
- *  expo-router path — the tap target its row deep-links to. */
-const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
-  "add-person": "/people/new",
-  "connect-sync": "/(tabs)/settings",
-  // Pick-yourself deep-links to the People list in its pick mode, where each
-  // Person row offers "This is me".
-  "pick-self": "/(tabs)/people?pick=self",
-};
-
-/**
- * A `🎁 gift` reminder's CTA in this client's terms — the path plus its copy.
- * The target flips once the reminder is done (see `reminderCtaOf`, which holds
- * the *why*): from the recipient's own page to the capture form fixed to them.
- */
-function giftCtaFor(cta: Extract<ReminderCta, { kind: "gift" }>): {
-  path: string;
-  label: string;
-} {
-  const party = `${cta.recipientType}:${cta.recipientId}`;
-  return cta.action === "record-giving"
-    ? {
-        path: `/gifts/new?recipient=${encodeURIComponent(party)}`,
-        label: "Record what you gave ›",
-      }
-    : {
-        path: `${cta.recipientType === "pet" ? "/pets" : "/people"}/${cta.recipientId}`,
-        label: "See their gifts ›",
-      };
-}
+/** The title on the alert a failed write raises. Each says which write failed,
+ *  since the row offers several and a bare "Something went wrong" wouldn't. */
+const FAILURE_TITLES = {
+  complete: "Couldn’t update",
+  snooze: "Couldn’t put this off",
+  remove: "Couldn’t delete",
+} as const;
 
 /**
  * The Reminders tab — the app's home/landing screen, so it lives at the `(tabs)`
  * group's `index` route. A standalone list of user-created reminders: open ones
  * lead; completed ones sink to the bottom with a struck-through label. Each row
- * toggles completion and removes in place (the list reloads without navigating).
+ * toggles completion and acts in place (the list reloads without navigating).
  * "+ Add" lives on the tab header (app/(tabs)/_layout.tsx).
+ *
+ * Snoozed reminders show nowhere. `partitionReminders` hands back a third bucket
+ * and this screen deliberately ignores it: a surface for it would hand the user a
+ * way to *complete* a snoozed row, which reopens the still-open question of
+ * whether reopening should clear a running clock (`plans/onboarding.md` §7).
  */
 export default function RemindersScreen() {
   const core = useCore();
@@ -120,6 +104,11 @@ export default function RemindersScreen() {
   );
 }
 
+/**
+ * One reminder row: its heading (and body, when it has both) over a meta row of
+ * due-in and Done/Remove, with whatever the row offers — do it · not now · don't
+ * ask again — on a line of its own beneath.
+ */
 function ReminderRow({
   reminder,
   giftTarget,
@@ -127,7 +116,7 @@ function ReminderRow({
   reload,
 }: {
   reminder: ReminderWithTags;
-  /** Set when this is a `🎁 gift` reminder — see {@link giftCtaFor}. */
+  /** Set when this is a `🎁 gift` reminder — who it's about. */
   giftTarget?: GiftReminderTarget;
   /** Set when this row is the duplicates nudge, which opens the review. */
   isDuplicatesNudge?: boolean;
@@ -142,43 +131,52 @@ function ReminderRow({
   // Title leads; the body shows underneath as details. With no title the body
   // *is* the heading, so it isn't repeated below.
   const heading = reminder.title ?? reminder.body ?? "";
-  const cta = reminderCtaOf(reminder, { giftTarget, isDuplicatesNudge });
-  // A nudge deep-links to the screen it asks for, instead of to a (nonexistent)
-  // reminder detail; every other reminder taps through to its detail as before.
-  const open = () =>
-    router.push(
-      cta === null
-        ? `/reminders/${reminder.id}`
-        : cta.kind === "onboarding"
-          ? ONBOARDING_PATH[cta.route]
-          : cta.kind === "duplicates"
-            ? "/duplicates"
-            : `/reminders/${reminder.id}`,
-    );
-  // A gift reminder carries a due date of its own, so its CTA gets its own line
-  // below the meta row rather than competing for that row's left slot.
-  const giftCta = cta !== null && cta.kind === "gift" ? giftCtaFor(cta) : null;
-  // The other two kinds are dateless, so they show their affordance in the meta
-  // row's left slot where a due-in would otherwise sit.
-  const nudgeCta = cta !== null && cta.kind !== "gift" ? cta : null;
+  // Everything this row offers, in offer order — the view-model is the only
+  // authority on *what* is offered; this screen owns only how it looks. An
+  // ordinary reminder (milestone / birthday / user) offers nothing.
+  const actions = reminderActionsOf(reminder, {
+    giftTarget,
+    isDuplicatesNudge,
+  });
+  // The row text's own destination, which isn't always the CTA's — see
+  // `tapPathFor`. Derived back out of the offers rather than asking
+  // `reminderCtaOf` a second time.
+  const cta = actions.find((a) => a.kind === "cta")?.cta ?? null;
+  const open = () => router.push(tapPathFor(cta, reminder.id));
+  const removal = removalCopyFor(actions);
 
   function toggle() {
     core.reminders.setCompleted(reminder.id, !done).then(
       () => reload(),
-      (e: unknown) => Alert.alert("Couldn't update", String(e)),
+      (e: unknown) => Alert.alert(FAILURE_TITLES.complete, String(e)),
     );
   }
 
+  /** Put this row off until the date its offered action carried — handed
+   *  straight through, so nothing here re-derives a schedule. `snooze` spends the
+   *  repetition itself, so there is no count to send. */
+  function snooze(until: number) {
+    core.reminders.snooze(reminder.id, until).then(
+      () => reload(),
+      (e: unknown) => Alert.alert(FAILURE_TITLES.snooze, String(e)),
+    );
+  }
+
+  /**
+   * The permanent out, reached from `Remove` and from a nudge's "don't ask
+   * again" alike — one write, worded for whichever row it was handed. Removing a
+   * nudge has always been permanent; only its presentation lied.
+   */
   function confirmDelete() {
-    Alert.alert("Delete reminder", `Delete “${reminderLabel(reminder)}”?`, [
+    Alert.alert(removal.title, removal.message(reminderLabel(reminder)), [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Delete",
+        text: removal.confirm,
         style: "destructive",
         onPress: () =>
           core.reminders.softDelete(reminder.id).then(
             () => reload(),
-            (e: unknown) => Alert.alert("Couldn't delete", String(e)),
+            (e: unknown) => Alert.alert(FAILURE_TITLES.remove, String(e)),
           ),
       },
     ]);
@@ -205,14 +203,6 @@ function ReminderRow({
       <View style={styles.rowMeta}>
         {reminder.dueDate !== null ? (
           <Text style={styles.muted}>{formatDueIn(reminder.dueDate)}</Text>
-        ) : nudgeCta !== null ? (
-          // A subtle affordance that the nudge deep-links somewhere (tapping the
-          // text routes there); dateless nudges have no due-in to show here.
-          <Pressable accessibilityRole="button" onPress={open}>
-            <Text style={styles.link}>
-              {nudgeCta.kind === "duplicates" ? "Review ›" : "Get started ›"}
-            </Text>
-          </Pressable>
         ) : (
           <View />
         )}
@@ -220,18 +210,37 @@ function ReminderRow({
           <Pressable accessibilityRole="button" onPress={toggle}>
             <Text style={styles.link}>{done ? "Reopen" : "Done"}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={confirmDelete}>
-            <Text style={[styles.link, styles.danger]}>Remove</Text>
-          </Pressable>
+          {showsRemove(actions, done) && (
+            <Pressable accessibilityRole="button" onPress={confirmDelete}>
+              <Text style={[styles.link, styles.danger]}>Remove</Text>
+            </Pressable>
+          )}
         </View>
       </View>
-      {giftCta !== null && (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push(giftCta.path)}
-        >
-          <Text style={styles.link}>{giftCta.label}</Text>
-        </Pressable>
+      {actions.length > 0 && (
+        // Whatever the row offers, on its own line and in offer order — which is
+        // also order of escalating finality. They get a line rather than the meta
+        // row because they are peers of one choice and belong side by side, and
+        // because a dateless nudge would otherwise seat its permanent option next
+        // to the Done toggle. Each kind is offered at most once per row, so it keys.
+        <View style={styles.rowOffers}>
+          {actions.map((action) => {
+            const offer = offerFor(action);
+            return (
+              <Pressable
+                key={action.kind}
+                accessibilityRole="button"
+                onPress={() => {
+                  if (offer.kind === "navigate") router.push(offer.path);
+                  else if (offer.kind === "snooze") snooze(offer.until);
+                  else confirmDelete();
+                }}
+              >
+                <Text style={styles.link}>{offer.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       )}
     </View>
   );

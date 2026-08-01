@@ -86,6 +86,15 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 16,
   },
+  // A list row's offers — what it invites you to do, below its meta row. Wraps,
+  // because three of them don't fit one narrow-phone line.
+  rowOffers: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 16,
+    marginTop: 4,
+  },
   // Detail "definition list": a label above its value.
   field: {
     gap: 2,
