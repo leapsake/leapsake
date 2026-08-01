@@ -32,6 +32,7 @@ Settled 2026-07-30 unless noted.
 | "Later" | **One verb: snooze** *(owner, 2026-07-31)* | Onboarding defer *is* reminder snooze — one mechanism, one vocabulary, one write method (§4.2), generic to every reminder |
 | Re-prompt policy | **Duration and repetitions are separate dials, held as data** | The numbers are cheap to change later — §4.1 is what makes that true |
 | Copy | Drop "It's free" from `launch.md`'s draft | Nothing is paid yet; it reads as an upsell tease |
+| Merge across devices | **An untouched row never wins** *(owner, 2026-08-01)* | A mint must not overwrite a peer's dismissal or snooze; field-level merge is the eventual aim, not this slice — §6 Increment 1 → *Left open by slice 8* |
 
 > **Superseded 2026-07-31.** The first draft specified an optional Day-1 flow plus a
 > persistent `onboarding_decisions` table. Both are dropped. The reasoning is in §5; it is
@@ -355,14 +356,43 @@ first is what keeps this increment from being finished.
    > **Not the refresh path**, which was the suspicion going in and is innocent: a joined
    > device's boot `reconcile` left a peer's snooze byte-identical (it only writes on a
    > `title`/`dueDate` drift). The race is minting, not refreshing.
-   >
-   > Its own slice, and a design question before a patch. The candidates are not equivalent:
-   > deletion-wins in the merge for `system` rows (narrow, but a second merge rule); holding off
-   > the onboarding mint on a device that is about to join until its first pull lands (fixes the
-   > join case, not the general one); or giving the engine a way to learn that *some* device
-   > tombstoned an id it cannot see locally. Whichever wins, the `snooze_count` reset shows this
-   > is not only about dismissal — a *Not now* is erased the same way whenever the second device
-   > independently desires that step.
+
+   **Decided 2026-08-01 (owner): an untouched row never wins a merge.** Where one side carries
+   history — a snooze clock, a non-zero count, a tombstone — and the other is exactly as the
+   engine minted it, the side with history wins whatever the clocks say. Both with history is
+   unchanged LWW; both untouched are identical anyway.
+
+   The reason it is the *right* rule rather than a patch: **derived data can always be
+   recomputed and a user's decision cannot.** The engine rebuilds these rows from live signals on
+   every launch, so losing a mint costs nothing — the next reconcile re-derives it. A dismissal
+   exists once. When the two collide the irreplaceable one must win, which is §4's
+   "store what happened, never what to do next" applied to the merge.
+
+   Two things this rule has to get right, and both were nearly missed:
+
+   - **It is not "user beats system."** Two of the three resurrections above were engine-vs-engine
+     — one device retired a nudge on its derived signal, another minted it — with no user act on
+     either side. The discriminator is whether the row has *history*, not who wrote it. A mint is
+     not an edit; it is a device announcing it did not know the row existed, and it should never
+     overwrite one that did.
+   - **Order-independence is load-bearing** (`merge.ts` preamble, `sync.md` §3): the merge must
+     stay a `max` over a *total order*, or devices stop converging. The rule keeps it — it sorts
+     on `(has history, then updatedAt)` rather than on `updatedAt` — but only while "has history"
+     is a property of a row **alone**, never of the pair being compared.
+
+   Detecting "untouched" is the awkward part, because `updatedAt === createdAt` does **not** work
+   today: the mint deliberately backdates `createdAt` by the row's display rank (finding 3), so a
+   freshly minted nudge already looks edited. Either the predicate reads the domain fields — which
+   makes it per-table knowledge the sync substrate does not have yet — or that ordering trick moves
+   elsewhere, which would settle finding 3 in the same change. The per-table route is the better
+   aim: it is also more precise, since an engine *title refresh* leaves a row with no user decision
+   on it and should still lose to a peer's snooze, which a timestamp test cannot tell.
+
+   > **Where this is heading** *(owner, 2026-08-01)*: eventually a **field-level merge** that
+   > knows which fields a user owns and which the engine derives, rather than a whole-row winner.
+   > That is the only version that is right by construction instead of by timing. It is not worth
+   > buying for this alone — take the narrow rule now, and let the per-table seam it needs be the
+   > thing that grows into it when a second consumer appears.
 
 2. **A one-repetition step retires on the *first* "Not now"** — so for `sync-devices` and
    `add-first-person`, two of today's three nudges, *Not now* and *Don't ask again* are the same

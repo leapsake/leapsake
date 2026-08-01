@@ -41,9 +41,10 @@ hides and returns too.
 
 **It is not finished.** Across sync, a device that mints a nudge before it pulls beats the
 peer's tombstone under whole-row LWW, so *don't ask again* — and a snooze — can be undone by a
-second device. That fails an acceptance clause and is its own slice, with a design choice to
-make first; the two smaller findings beside it are an owner dial decision and a cosmetic
-ordering wart. All three are written up in
+second device. That fails an acceptance clause, and the fix is **slice 9**: the design choice is
+settled *(owner, 2026-08-01)* — an **untouched row never wins a merge** — so what is left is
+building it. The two smaller findings beside it are an owner dial decision and a cosmetic
+ordering wart, the second of which slice 9 may absorb. All three are written up in
 [`onboarding.md`](./onboarding.md) → *Left open by slice 8*. Mobile stays **unverified** — its
 row logic has a unit tier, but no client's on-screen behaviour has been observed there, and
 that belongs to the blocked E2E tier. Increment 2 is unblocked on everything but the sync
