@@ -26,6 +26,12 @@ reads (`GiftIdeaRef`, `BearerHolidayFacts`, `ReminderStanding`). Core's row type
 structurally assignable, each client keeps its own type on the way out, and this package stays
 off the data layer — the same posture `@leapsake/ui` takes with core's types.
 
+**The clock is a parameter, never a read.** `partitionReminders` is the first derivation here
+that depends on the current time (it holds snoozed reminders back until theirs passes), and it
+takes `now` so the split stays deterministic and testable; the `Date.now()` default is caller
+convenience. Any future time-dependent derivation does the same — a function that reads the
+clock itself cannot be tested without faking a global.
+
 Dependencies: `@leapsake/schema` and `@leapsake/reminders` (for `onboardingRouteOf`, the
 well-known-id lookup behind an onboarding nudge's CTA). Never `core` or `data`.
 

@@ -7,12 +7,14 @@ const reminder = (
   standing: {
     completedAt?: number | null;
     dueDate?: number | null;
+    snoozedUntil?: number | null;
     createdAt?: number;
   },
 ) => ({
   id,
   completedAt: standing.completedAt ?? null,
   dueDate: standing.dueDate ?? null,
+  snoozedUntil: standing.snoozedUntil ?? null,
   createdAt: standing.createdAt ?? 0,
 });
 
@@ -52,10 +54,61 @@ describe("partitionReminders", () => {
     const reminders = [
       reminder("undated", {}),
       reminder("due", { dueDate: day(1) }),
+      reminder("hidden", { snoozedUntil: day(9) }),
     ];
-    partitionReminders(reminders);
+    partitionReminders(reminders, day(5));
 
-    expect(reminders.map((r) => r.id)).toEqual(["undated", "due"]);
+    expect(reminders.map((r) => r.id)).toEqual(["undated", "due", "hidden"]);
+  });
+
+  it("holds a snoozed reminder back until its clock passes", () => {
+    const { open, snoozed } = partitionReminders(
+      [
+        reminder("awake", {}),
+        reminder("hidden", { snoozedUntil: day(9) }),
+        reminder("never-snoozed", { snoozedUntil: null }),
+      ],
+      day(5),
+    );
+
+    expect(open.map((r) => r.id)).toEqual(["awake", "never-snoozed"]);
+    expect(snoozed.map((r) => r.id)).toEqual(["hidden"]);
+  });
+
+  it("returns an expired snooze to the open list, in due-date order", () => {
+    const { open, snoozed } = partitionReminders(
+      [
+        reminder("undated", {}),
+        reminder("was-snoozed", { snoozedUntil: day(2), dueDate: day(3) }),
+        reminder("sooner", { dueDate: day(1) }),
+      ],
+      day(5),
+    );
+
+    // The hide is a filter, never a re-ranking: `was-snoozed` sorts on its due date.
+    expect(open.map((r) => r.id)).toEqual(["sooner", "was-snoozed", "undated"]);
+    expect(snoozed).toEqual([]);
+  });
+
+  it("treats the exact moment the clock arrives as open, not snoozed", () => {
+    const { open, snoozed } = partitionReminders(
+      [reminder("due-now", { snoozedUntil: day(5) })],
+      day(5),
+    );
+
+    expect(open.map((r) => r.id)).toEqual(["due-now"]);
+    expect(snoozed).toEqual([]);
+  });
+
+  it("lets completion win over snooze", () => {
+    const { open, done, snoozed } = partitionReminders(
+      [reminder("finished", { completedAt: day(4), snoozedUntil: day(9) })],
+      day(5),
+    );
+
+    expect(done.map((r) => r.id)).toEqual(["finished"]);
+    expect(open).toEqual([]);
+    expect(snoozed).toEqual([]);
   });
 });
 

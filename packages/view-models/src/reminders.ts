@@ -5,6 +5,7 @@ import { type GiftPartyType, compareReminderDue } from "@leapsake/schema";
 export interface ReminderStanding {
   completedAt: number | null;
   dueDate: number | null;
+  snoozedUntil: number | null;
   createdAt: number;
 }
 
@@ -14,15 +15,40 @@ export interface ReminderStanding {
  * {@link compareReminderDue}); **completed** ones follow — a disclosure on
  * desktop, struck through at the foot of the list on mobile — keeping the repo's
  * newest-first order, because a done reminder's due date has stopped mattering.
+ *
+ * **Snoozed** reminders are held back until their clock passes. Precedence:
+ * completion wins over snooze, so a reminder you put off and then finished is
+ * `done`, not pending. A row is snoozed while `snoozedUntil > now` — strictly
+ * greater, so the moment the clock arrives it is open again rather than spending
+ * a millisecond in limbo. `dueDate` is untouched by any of this: an un-snoozed
+ * row sorts among the open ones exactly as it always did, because the hide is a
+ * filter and never a re-ranking.
+ *
+ * **Why the hide lives here and not in the reminder engine.** A deferral
+ * implemented as "stop desiring the row" would be pruned to a tombstone by
+ * `reconcile`, and a tombstoned id is never resurrected — so "not now" would
+ * silently mean *never*. Display-level is the only place a deferral can be
+ * temporary. Do not move it.
+ *
+ * The `snoozed` bucket is returned rather than dropped so that "should a snoozed
+ * reminder still be findable by search?" stays an open question instead of one
+ * foreclosed by this function. Nothing displays it yet, so it keeps the caller's
+ * order — whoever gives it a surface picks a meaningful one.
+ *
+ * `now` is a parameter so the split is deterministic and testable; the default is
+ * caller convenience.
  */
 export function partitionReminders<R extends ReminderStanding>(
   reminders: readonly R[],
-): { open: R[]; done: R[] } {
+  now: number = Date.now(),
+): { open: R[]; done: R[]; snoozed: R[] } {
+  const active = reminders.filter((r) => r.completedAt === null);
+  const isSnoozed = (r: R) => r.snoozedUntil !== null && r.snoozedUntil > now;
+
   return {
-    open: reminders
-      .filter((r) => r.completedAt === null)
-      .sort(compareReminderDue),
+    open: active.filter((r) => !isSnoozed(r)).sort(compareReminderDue),
     done: reminders.filter((r) => r.completedAt !== null),
+    snoozed: active.filter(isSnoozed),
   };
 }
 
