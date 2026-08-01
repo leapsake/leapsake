@@ -32,8 +32,11 @@ until they are built or dropped.
 ## In progress
 
 **[`onboarding.md`](./onboarding.md) Increment 1 — reminder snooze + honest dismiss actions.**
-Planned down to slices in that doc's Increment 1; nothing built yet. It is the v0.1 line's
-first move and unblocks Increment 2.
+Slices 1–3 of 8 are built *(2026-07-31)*: a reminder can record that it was put off, the list
+hides it while its clock runs, and a nudge gives up once it has been put off as many times as
+its step allows. None of it is reachable yet — slice 4 (the action list) and slice 5 (the one
+write method) are next, and nothing can move `snoozeCount` until they land. It is the v0.1
+line's first move and unblocks Increment 2.
 
 ## Next, in order
 
