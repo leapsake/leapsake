@@ -335,6 +335,57 @@ hides and returns too — the generic half.
 > clients) as 1a and the dismiss actions as 1b. Kept as one increment because the second is
 > nearly free once the first lands.
 
+#### Left open by slice 8 (verification, 2026-08-01)
+
+Everything above is built, and every acceptance clause holds on **one desktop device** —
+observed on screen and against the store file. Three things it turned up are not built, and the
+first is what keeps this increment from being finished.
+
+1. **A tombstone loses to a fresh mint across sync — the acceptance clause fails.** §2.2's
+   "deleting a system reminder means never ask again" is enforced by `reconcile`, which is a
+   *local* rule. Sync has no counterpart: every device mints the same deterministic id
+   independently, `upsertFromRemote` settles a conflict by whole-row LWW on `updatedAt`
+   (`packages/schema/src/merge.ts`), and a device that mints a row **before** it pulls therefore
+   carries a newer `updatedAt` than the peer's tombstone and wins. Reproduced end to end: device
+   A dismissed the *pick yourself* nudge with *Don't ask again*; a device that had added a person
+   locally before joining pushed its own live copy; A pulled it and the nudge was back on Home
+   with `snoozed_until` null and `snooze_count` reset from 1 to **0**. The same path resurrected
+   the two nudges A had already retired on their derived signals — including *"Already using
+   Leapsake on another device?"* on a device that was, by then, syncing.
+   > **Not the refresh path**, which was the suspicion going in and is innocent: a joined
+   > device's boot `reconcile` left a peer's snooze byte-identical (it only writes on a
+   > `title`/`dueDate` drift). The race is minting, not refreshing.
+   >
+   > Its own slice, and a design question before a patch. The candidates are not equivalent:
+   > deletion-wins in the merge for `system` rows (narrow, but a second merge rule); holding off
+   > the onboarding mint on a device that is about to join until its first pull lands (fixes the
+   > join case, not the general one); or giving the engine a way to learn that *some* device
+   > tombstoned an id it cannot see locally. Whichever wins, the `snooze_count` reset shows this
+   > is not only about dismissal — a *Not now* is erased the same way whenever the second device
+   > independently desires that step.
+
+2. **A one-repetition step retires on the *first* "Not now"** — so for `sync-devices` and
+   `add-first-person`, two of today's three nudges, *Not now* and *Don't ask again* are the same
+   act. Observed: the click stored a clock three days out, and the next reconcile — a plain
+   app restart, no user action — tombstoned the row, so that clock is never read. This is what
+   `computeAndReconcile` and `onboarding.test.ts` both currently specify ("retires a
+   one-repetition step after a single snooze"), so it is a **dial question for the owner**, not a
+   defect: is §3's "one" the number of *not nows* the step will accept, or the number of times it
+   will come **back**? §8's proposal ("back after 3 days, then stop") reads as the latter, which
+   is `snoozeRepetitions: 2`. It matters beyond tuning because §1 withholds *don't ask again* on a
+   first encounter precisely so a permanent choice is never a trap — and today the gentle-looking
+   option is the permanent one.
+
+3. **Display order only holds within a single reconcile.** `ONBOARDING_STEPS` order is realized
+   as a `createdAt` back-off applied at insert time, so a step minted in a *later* pass outranks
+   one minted earlier whatever its rank: `pick-self` sits above `sync-devices` on Home, because
+   it is minted only once a person exists. Cosmetic, and only visible while more than one nudge
+   is live.
+
+Mobile is **unverified**: its row logic has a unit tier (`apps/mobile/lib/reminder-row.test.ts`),
+but no on-screen behaviour has been observed on either simulator. That belongs to the blocked
+E2E tier ([`testing/`](./testing/)), not to this increment.
+
 ### Increment 2 — The account invitation
 
 > The gate-clearer for [`launch.md`](./launch.md) Increment 4.

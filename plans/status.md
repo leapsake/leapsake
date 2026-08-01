@@ -32,14 +32,22 @@ until they are built or dropped.
 ## In progress
 
 **[`onboarding.md`](./onboarding.md) Increment 1 — reminder snooze + honest dismiss actions.**
-Slices 1–7 of 8 are built *(2026-07-31)*: a reminder can record that it was put off, the list
-hides it while its clock runs, a nudge gives up once it has been put off as many times as its
-step allows, a row offers its three choices as a list, `core.reminders.snooze(id, until)`
-performs the write, and **both clients now render all three** — do it · not now · don't ask
-again — with the old permanent `Remove` finally saying so. Only **slice 8** is left: driving
-the desktop dev app over CDP to prove a *Not now* survives a restart and reaches a second
-device by sync. Neither client's on-screen behaviour has been observed yet — there is no
-automated UI tier on either. It is the v0.1 line's first move and unblocks Increment 2.
+All 8 slices are built, and slice 8 drove the desktop dev app over CDP *(2026-08-01)* — the
+first time any of it has been observed running. **On one device it all holds**: a *Not now*
+hides the nudge, survives a restart, comes back when its clock passes and then offers *don't
+ask again*; a step that spends its repetitions stops returning; a dismissal is permanent and
+says so; all three nudges retire on their own derived signals; and a snoozed **user** reminder
+hides and returns too.
+
+**It is not finished.** Across sync, a device that mints a nudge before it pulls beats the
+peer's tombstone under whole-row LWW, so *don't ask again* — and a snooze — can be undone by a
+second device. That fails an acceptance clause and is its own slice, with a design choice to
+make first; the two smaller findings beside it are an owner dial decision and a cosmetic
+ordering wart. All three are written up in
+[`onboarding.md`](./onboarding.md) → *Left open by slice 8*. Mobile stays **unverified** — its
+row logic has a unit tier, but no client's on-screen behaviour has been observed there, and
+that belongs to the blocked E2E tier. Increment 2 is unblocked on everything but the sync
+defect.
 
 ## Next, in order
 
