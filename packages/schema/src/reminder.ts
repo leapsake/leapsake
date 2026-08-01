@@ -108,9 +108,10 @@ export type CreateReminderInput = z.infer<typeof createReminderInputSchema>;
  * the snooze clock. The repository merges this onto the stored row and re-validates
  * the whole row, so the title-or-body rule still holds after a partial update.
  *
- * `snoozeCount` is **deliberately absent**. It is engine-owned — the one write
- * method that snoozes a reminder increments it, so a caller can neither reset its
- * own nag budget nor skip ahead. Only `snoozedUntil` is a patchable field.
+ * `snoozeCount` is **deliberately absent**. It is engine-owned — `remindersRepo.snooze`
+ * is the only write that touches it, and it only ever increments, so a caller can
+ * neither reset its own nag budget nor skip ahead. Only `snoozedUntil` is a
+ * patchable field.
  */
 export const updateReminderInputSchema = z.object({
   ...textShape,
@@ -120,6 +121,22 @@ export const updateReminderInputSchema = z.object({
 });
 
 export type UpdateReminderInput = z.infer<typeof updateReminderInputSchema>;
+
+/**
+ * The date a snooze runs to — epoch ms, UTC. The single authority on what a valid
+ * `until` is, shared by the desktop IPC boundary and `remindersRepo.snooze` so the
+ * two can't disagree.
+ *
+ * **Any date passes, deliberately.** Snooze is generic (see {@link reminderSchema}),
+ * so the policy that picked this date — which reminders may be put off, and for how
+ * long — belongs to the caller, not here; a reminder with no policy at all is the
+ * ordinary case. A date already in the past is simply an inert snooze, which is the
+ * right outcome for a badly-chosen “hide until Tuesday”. What this *does* stop is a
+ * non-integer: the column is INTEGER but SQLite is loosely typed, so an unchecked
+ * string would be stored happily and then fail row validation on every subsequent
+ * read of that reminder.
+ */
+export const snoozeUntilSchema = z.number().int();
 
 /**
  * The display label for a reminder as a **plain string**: its title, else the

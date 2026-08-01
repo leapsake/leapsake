@@ -1236,6 +1236,24 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         completed: boolean,
       ): Promise<Reminder | undefined> =>
         driver.transaction(() => reminders.setCompleted(id, completed)),
+      // Put this off, ask me later: sets the snooze clock and spends one
+      // repetition of the nag budget, atomically. One generic verb for both
+      // cases — a user hiding their own reminder, and the product accepting
+      // "not now" on an onboarding nudge — because the row write is identical
+      // and only the choice of date differs.
+      //
+      // That date is the **caller's**: the offered action already carries the
+      // one `snoozePolicyOf` returned, so re-deriving it here would be a second
+      // evaluation that disagrees with the copy the user just read whenever a
+      // dial changes. Most reminders have no policy at all, so there is nothing
+      // to validate against in the general case.
+      //
+      // Deliberately skips `isReminderEditable`, the way `setCompleted` does:
+      // snoozing is not a content edit, so it stays open on `system` rows —
+      // which is the whole point, those being its first consumer. Text is
+      // untouched, so no tags/mentions to re-derive.
+      snooze: (id: string, until: number): Promise<Reminder | undefined> =>
+        driver.transaction(() => reminders.snooze(id, until)),
       softDelete: (id: string): Promise<void> =>
         driver.transaction(async () => {
           await reminders.softDelete(id);

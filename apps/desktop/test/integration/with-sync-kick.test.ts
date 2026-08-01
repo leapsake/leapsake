@@ -85,7 +85,7 @@ describe("withSyncKick — kick after mutations", () => {
 // Mirror of the predicate in sync-scheduler.ts; kept here so this test fails
 // loudly if the source predicate and the real surface ever diverge.
 const isMutating = (name: string) =>
-  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|capture)/.test(
+  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|snooze|capture)/.test(
     name,
   );
 
@@ -158,6 +158,7 @@ describe("withSyncKick — pins the CoreApi mutating surface", () => {
       "relationships.update",
       "reminders.create",
       "reminders.setCompleted",
+      "reminders.snooze",
       "reminders.softDelete",
       "reminders.update",
       "tags.softDelete",

@@ -5,6 +5,7 @@ import {
   runMigrations,
 } from "@leapsake/core";
 import { createTagsRepo } from "@leapsake/data";
+import { partitionReminders } from "@leapsake/view-models";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
@@ -93,6 +94,74 @@ describe("core.reminders", () => {
       "SELECT deleted_at FROM tags WHERE normalized = 'sink'",
     );
     expect(sink!.deleted_at).not.toBeNull();
+  });
+
+  it("snooze sets the clock and increments the count together", async () => {
+    const until = Date.UTC(2026, 7, 15);
+    const r = await core.reminders.create({ title: "book the dentist" });
+
+    const snoozed = await core.reminders.snooze(r.id, until);
+
+    expect(snoozed?.snoozedUntil).toBe(until);
+    expect(snoozed?.snoozeCount).toBe(1);
+    expect((await core.reminders.get(r.id))?.snoozeCount).toBe(1);
+  });
+
+  it("snoozes an automatic reminder, which update refuses to touch", async () => {
+    // Snoozing is not a content edit, so it bypasses the guard that protects
+    // engine-owned text. Asserted as a pair so the two policies stay visible
+    // together — this is the property the onboarding nudges depend on.
+    const r = await core.reminders.create({
+      title: "engine-owned text",
+      source: "system",
+    });
+
+    await expect(
+      core.reminders.update(r.id, { title: "mine now" }),
+    ).rejects.toThrow(/can't be edited/);
+
+    const snoozed = await core.reminders.snooze(r.id, Date.UTC(2026, 7, 15));
+    expect(snoozed?.snoozeCount).toBe(1);
+  });
+
+  it("keeps snoozeCount unwritable through update", async () => {
+    const r = await core.reminders.create({ title: "water the plants" });
+    await core.reminders.snooze(r.id, Date.UTC(2026, 7, 15));
+
+    // The nag budget is the engine's: a caller can move the clock but can't
+    // rewind the count that decides when a nudge gives up.
+    const updated = await core.reminders.update(r.id, {
+      snoozedUntil: null,
+      snoozeCount: 0,
+    } as never);
+
+    expect(updated?.snoozedUntil).toBeNull();
+    expect(updated?.snoozeCount).toBe(1);
+  });
+
+  it("snoozes a completed reminder without effect — completion wins", async () => {
+    const r = await core.reminders.create({ title: "ship it" });
+    await core.reminders.setCompleted(r.id, true);
+
+    const snoozed = await core.reminders.snooze(r.id, Date.now() + 86_400_000);
+    expect(snoozed?.snoozeCount).toBe(1);
+
+    // Still sorted as done, not held back as pending.
+    const { done, snoozed: hidden } = partitionReminders(
+      await core.reminders.list(),
+    );
+    expect(done.map((x) => x.id)).toEqual([r.id]);
+    expect(hidden).toEqual([]);
+  });
+
+  it("returns undefined for a missing or deleted reminder", async () => {
+    const r = await core.reminders.create({ title: "cancel it" });
+    await core.reminders.softDelete(r.id);
+
+    expect(await core.reminders.snooze(r.id, Date.now())).toBeUndefined();
+    expect(
+      await core.reminders.snooze(crypto.randomUUID(), Date.now()),
+    ).toBeUndefined();
   });
 
   it("shares a #tag with a person via the same taggings graph", async () => {

@@ -4,6 +4,7 @@ import {
   type UpdateReminderInput,
   createReminderInputSchema,
   reminderSchema,
+  snoozeUntilSchema,
   updateReminderInputSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
@@ -18,6 +19,27 @@ export interface RemindersRepo extends EntityRepo<Reminder> {
    * the row's clock advances and the change syncs like any other edit.
    */
   setCompleted(id: string, completed: boolean): Promise<Reminder | undefined>;
+  /**
+   * Put a reminder off until `until`, and record that it happened: sets
+   * `snoozedUntil` and increments `snoozeCount` in one statement.
+   *
+   * This is the **only** write that touches `snoozeCount`, which is why it can't
+   * ride `update` — the count is engine-owned and absent from
+   * {@link updateReminderInputSchema}, so no caller can reset its own nag budget
+   * or skip ahead. The increment is evaluated by SQLite (`snooze_count + 1`)
+   * rather than read-modify-written in TypeScript, so two snoozes can never read
+   * the same value and lose one.
+   *
+   * A **completed** row is allowed and inert: display gives completion
+   * precedence over snooze, so putting off a finished reminder changes nothing a
+   * user sees. A missing or soft-deleted id returns undefined, writing nothing.
+   *
+   * The date is the caller's: `until` is validated as a date but never judged
+   * against a schedule (see {@link snoozeUntilSchema}). Note that the count
+   * increments on every call regardless — so a budget spends even on a snooze
+   * that lands in the past.
+   */
+  snooze(id: string, until: number): Promise<Reminder | undefined>;
 }
 
 /**
@@ -25,7 +47,7 @@ export interface RemindersRepo extends EntityRepo<Reminder> {
  * no {@link ContentCipher}, unlike milestones; reminders aren't a share target
  * and are already covered by whole-DB-at-rest + master-key-sealed sync. Standard
  * CRUD + the sync surface come from {@link createEntityRepo}; only `create`
- * (input parse + assemble) and the `setCompleted` toggle are bespoke.
+ * (input parse + assemble), the `setCompleted` toggle and `snooze` are bespoke.
  */
 export function createRemindersRepo(driver: SqliteDriver): RemindersRepo {
   const base = createEntityRepo<Reminder>({
@@ -67,5 +89,21 @@ export function createRemindersRepo(driver: SqliteDriver): RemindersRepo {
 
     setCompleted: (id, completed) =>
       base.update(id, { completedAt: completed ? Date.now() : null }),
+
+    async snooze(id, until) {
+      // One statement, so the increment is SQLite's and not a read-modify-write.
+      // `updated_at` advances like any ordinary edit, which is what carries the
+      // snooze to other devices; the strictly-newer `MAX(?, updated_at + 1)`
+      // idiom is for tombstones alone (see `softDeleteWhere`).
+      await driver.run(
+        `UPDATE reminders
+            SET snoozed_until = ?, snooze_count = snooze_count + 1, updated_at = ?
+          WHERE id = ? AND deleted_at IS NULL`,
+        [snoozeUntilSchema.parse(until), Date.now(), id],
+      );
+      // Re-read rather than assemble: `get` decodes through the same codec as
+      // every other read, so the returned row is schema-validated, not assumed.
+      return base.get(id);
+    },
   };
 }

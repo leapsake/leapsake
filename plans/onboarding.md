@@ -404,6 +404,12 @@ account forms exist in one place with two callers.
 - **Snooze UI for user reminders.** Increment 1 delivers the mechanism and uses it for nudges.
   Exposing "snooze until…" on an ordinary reminder is a small follow-on — a date picker and a
   menu item — but it is its own copy and its own affordance on two clients.
+  > Decide then, not now: **should reopening a completed reminder clear a still-running
+  > `snoozedUntil`?** Today it would re-hide the row, which is probably not what "reopen" means.
+  > It is unreachable until this ships (completing a snoozed row needs a surface that shows the
+  > `snoozed` bucket), so `snooze` deliberately leaves `completedAt` and `setCompleted`
+  > deliberately leaves the snooze clock — one policy, not two. *(Raised 2026-07-31 building
+  > Increment 1 slice 5.)*
 
 ## 8. Open decisions for owner sign-off
 

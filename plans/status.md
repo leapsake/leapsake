@@ -32,11 +32,12 @@ until they are built or dropped.
 ## In progress
 
 **[`onboarding.md`](./onboarding.md) Increment 1 — reminder snooze + honest dismiss actions.**
-Slices 1–3 of 8 are built *(2026-07-31)*: a reminder can record that it was put off, the list
-hides it while its clock runs, and a nudge gives up once it has been put off as many times as
-its step allows. None of it is reachable yet — slice 4 (the action list) and slice 5 (the one
-write method) are next, and nothing can move `snoozeCount` until they land. It is the v0.1
-line's first move and unblocks Increment 2.
+Slices 1–5 of 8 are built *(2026-07-31)*: a reminder can record that it was put off, the list
+hides it while its clock runs, a nudge gives up once it has been put off as many times as its
+step allows, a row offers its three choices as a list, and `core.reminders.snooze(id, until)`
+performs the write. The mechanism is complete and reachable from desktop IPC, but **no client
+calls it yet** — slices 6–7 are the two UIs, then slice 8 verifies a *Not now* over a restart
+and a sync. It is the v0.1 line's first move and unblocks Increment 2.
 
 ## Next, in order
 

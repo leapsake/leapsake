@@ -78,6 +78,100 @@ describe("remindersRepo snooze columns", () => {
     });
   });
 
+  it("snooze sets the clock and spends one repetition of the budget", async () => {
+    const until = Date.UTC(2026, 7, 15);
+    const r = await repo.create({ title: "Book the dentist" });
+
+    const snoozed = await repo.snooze(r.id, until);
+
+    expect(snoozed?.snoozedUntil).toBe(until);
+    expect(snoozed?.snoozeCount).toBe(1);
+    expect(await snoozeColumns(driver, r.id)).toEqual({
+      snoozed_until: until,
+      snooze_count: 1,
+    });
+  });
+
+  it("counts every snooze, and the latest clock wins", async () => {
+    const first = Date.UTC(2026, 7, 15);
+    const second = Date.UTC(2026, 8, 1);
+    const r = await repo.create({ title: "Renew the passport" });
+
+    await repo.snooze(r.id, first);
+    const again = await repo.snooze(r.id, second);
+
+    expect(again?.snoozeCount).toBe(2);
+    expect(again?.snoozedUntil).toBe(second);
+  });
+
+  it("advances updatedAt, so a snooze travels like any other edit", async () => {
+    // Stamped a minute ago so the assertion turns on the write, not on whether
+    // two adjacent calls happened to land in different milliseconds — the
+    // outbound sync read is `updated_at > since`, strictly.
+    const stale = Date.now() - 60_000;
+    const id = crypto.randomUUID();
+    await repo.insert({
+      id,
+      title: "Water the plants",
+      body: null,
+      completedAt: null,
+      dueDate: null,
+      snoozedUntil: null,
+      snoozeCount: 0,
+      source: "user",
+      createdAt: stale,
+      updatedAt: stale,
+      deletedAt: null,
+    });
+
+    const snoozed = await repo.snooze(id, Date.UTC(2026, 7, 15));
+
+    expect(snoozed!.updatedAt).toBeGreaterThan(stale);
+    // So it lands in the outbound set a peer will pull, carrying the new state.
+    expect(await repo.listChangedSince(stale)).toContainEqual(snoozed);
+  });
+
+  it("stores a past `until` verbatim, and still spends the budget", async () => {
+    // Whether a date is sensible is the caller's policy, not the repo's — but
+    // the count increments either way, so no client can snooze for free.
+    const r = await repo.create({ title: "Call the plumber" });
+    const past = Date.UTC(2020, 0, 1);
+
+    const snoozed = await repo.snooze(r.id, past);
+
+    expect(snoozed?.snoozedUntil).toBe(past);
+    expect(snoozed?.snoozeCount).toBe(1);
+  });
+
+  it("rejects a non-integer `until` and writes nothing", async () => {
+    const r = await repo.create({ title: "Ship it" });
+
+    await expect(repo.snooze(r.id, "soon" as never)).rejects.toThrow();
+
+    // The guard that matters: had it been written, every later read of this row
+    // would fail validation instead.
+    expect(await snoozeColumns(driver, r.id)).toEqual({
+      snoozed_until: null,
+      snooze_count: 0,
+    });
+    expect((await repo.get(r.id))?.snoozeCount).toBe(0);
+  });
+
+  it("returns undefined for a missing id", async () => {
+    expect(await repo.snooze(crypto.randomUUID(), Date.now())).toBeUndefined();
+  });
+
+  it("leaves a soft-deleted reminder alone", async () => {
+    const r = await repo.create({ title: "Cancel the subscription" });
+    await repo.softDelete(r.id);
+
+    expect(await repo.snooze(r.id, Date.UTC(2026, 7, 15))).toBeUndefined();
+    expect(await snoozeColumns(driver, r.id)).toEqual({
+      snoozed_until: null,
+      snooze_count: 0,
+    });
+  });
+
   it("carries both columns through a sync encode/decode to another device", async () => {
     const peer = makeEncryptedTestDriver();
     try {

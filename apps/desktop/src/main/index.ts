@@ -46,6 +46,7 @@ import {
   createPostalInputSchema,
   createReminderInputSchema,
   createRelationshipInputSchema,
+  snoozeUntilSchema,
   updateEmailInputSchema,
   updateMilestoneInputSchema,
   updatePersonInputSchema,
@@ -504,6 +505,12 @@ const boundaryParsers: Partial<Record<ApiChannel, ArgParser>> = {
   "milestones.update": (a) => [a[0], updateMilestoneInputSchema.parse(a[1])],
   "reminders.create": (a) => [createReminderInputSchema.parse(a[0])],
   "reminders.update": (a) => [a[0], updateReminderInputSchema.parse(a[1])],
+  // Unlike `setCompleted` — whose boolean can only ever produce a valid stored
+  // value — a snooze stores its `until` verbatim, and SQLite would happily put a
+  // string in the INTEGER column. Row validation then fails on every later read
+  // of that reminder, so an unchecked arg here corrupts the list rather than
+  // failing the call.
+  "reminders.snooze": (a) => [a[0], snoozeUntilSchema.parse(a[1])],
   "contactMethods.emails.create": (a) => [createEmailInputSchema.parse(a[0])],
   "contactMethods.emails.update": (a) => [
     a[0],

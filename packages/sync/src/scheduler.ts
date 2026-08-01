@@ -180,11 +180,19 @@ export function createSyncScheduler(opts: {
 /**
  * Names of {@link CoreApi} methods that *mutate* state and so should trigger a
  * sync. Everything else (`list`/`get`/`*For*`/`query`/the view builders) is a
- * read and passes through untouched. Pinned by `with-sync-kick.test.ts` so a new
- * write method can't silently bypass background sync.
+ * read and passes through untouched.
+ *
+ * **This list must grow by hand when a write is named something new.**
+ * `with-sync-kick.test.ts` pins the set, but it builds its snapshot by filtering
+ * the real `CoreApi` through *this same predicate* — so it catches a write whose
+ * name already matches (a new `people.updateX` must be added to the expected
+ * array consciously) and is blind to one whose name does not. A write that
+ * matches nothing here is silently treated as a read: it lands locally and then
+ * waits for the next scheduled tick instead of kicking a push. `snooze` was
+ * added for exactly that reason.
  */
 const MUTATING_METHOD =
-  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|capture)/;
+  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|snooze|capture)/;
 
 /**
  * Wrap a {@link CoreApi}-shaped object so that every mutating method calls `kick`
