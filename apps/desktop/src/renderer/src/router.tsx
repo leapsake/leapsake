@@ -1030,6 +1030,24 @@ async function reminderToggleAction({ request, params }: ActionFunctionArgs) {
   return null;
 }
 
+/**
+ * Put a reminder off — posted by the list row's "Not now" fetcher, so the list
+ * revalidates and the row drops out of the open bucket in place.
+ *
+ * The date is the caller's: it is the one the offered action carried, straight
+ * from the snooze policy, so nothing here re-derives a schedule. The main
+ * process re-validates it at the IPC boundary, which is what stops a mangled
+ * form value from reaching the INTEGER column.
+ */
+async function reminderSnoozeAction({ request, params }: ActionFunctionArgs) {
+  const formData = await request.formData();
+  await window.api.reminders.snooze(
+    params.id as string,
+    Number(formData.get("until")),
+  );
+  return null;
+}
+
 const routes: RouteObject[] = [
   {
     path: "/",
@@ -1099,6 +1117,11 @@ const routes: RouteObject[] = [
         // Action-only: the list-row "Done/Reopen" fetcher posts here.
         path: "reminders/:id/complete",
         action: reminderToggleAction,
+      },
+      {
+        // Action-only: the list-row "Not now" fetcher posts here.
+        path: "reminders/:id/snooze",
+        action: reminderSnoozeAction,
       },
       {
         // Gifts — the whole graph keyed by idea. Creating is its

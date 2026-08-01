@@ -1,58 +1,21 @@
-import type { GiftReminderTarget, OnboardingRoute } from "@leapsake/core";
+import type { GiftReminderTarget } from "@leapsake/core";
 import {
   type ReminderWithTags,
   formatDueIn,
   isReminderEditable,
 } from "@leapsake/schema";
 import { ReminderText } from "@leapsake/ui/web";
-import {
-  type ReminderCta,
-  partitionReminders,
-  reminderCtaOf,
-} from "@leapsake/view-models";
+import { partitionReminders, reminderActionsOf } from "@leapsake/view-models";
+import { Fragment } from "react";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
-
-/** Each onboarding nudge's abstract {@link OnboardingRoute} as this client's own
- *  router path plus its link copy. */
-const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
-  {
-    "add-person": { path: "/people/new", label: "Add person →" },
-    "connect-sync": { path: "/settings", label: "Set up sync →" },
-    "pick-self": { path: "/people?pick=self", label: "Pick yourself →" },
-  };
+import { rowAffordanceFor, showsRemove } from "../lib/reminder-row";
 
 /**
- * A reminder's CTA decision (see {@link reminderCtaOf}, which holds the *why* of
- * each) rendered in this client's terms: a react-router path plus its copy. A
- * gift CTA's target flips once the reminder is done — from the recipient's own
- * page to the capture form fixed to them, to log what was actually given.
- */
-function ctaLinkFor(cta: ReminderCta): { path: string; label: string } {
-  switch (cta.kind) {
-    case "onboarding":
-      return ONBOARDING_CTA[cta.route];
-    case "duplicates":
-      return { path: "/duplicates", label: "Review duplicates →" };
-    case "gift": {
-      const party = `${cta.recipientType}:${cta.recipientId}`;
-      return cta.action === "record-giving"
-        ? {
-            path: `/gifts/new?recipient=${encodeURIComponent(party)}`,
-            label: "Record what you gave →",
-          }
-        : {
-            path: `${cta.recipientType === "pet" ? "/pets" : "/people"}/${cta.recipientId}`,
-            label: "See their gifts →",
-          };
-    }
-  }
-}
-
-/**
- * One reminder row: a done/reopen toggle, the reminder's heading, its edit/remove
- * links, and — when the reminder has both — its body shown underneath as details.
- * The title leads; if there's no title the body *is* the heading, so it isn't
- * repeated below. Inline `#tags` in either field link to their tag pages.
+ * One reminder row: a done/reopen toggle, the reminder's heading, whatever the
+ * row offers (do it · not now · don't ask again), its edit/remove links, and —
+ * when the reminder has both — its body shown underneath as details. The title
+ * leads; if there's no title the body *is* the heading, so it isn't repeated
+ * below. Inline `#tags` in either field link to their tag pages.
  */
 function ReminderRow({
   reminder,
@@ -65,25 +28,31 @@ function ReminderRow({
   /** Set when this row is the duplicates nudge, whose CTA opens the review. */
   isDuplicatesNudge?: boolean;
 }) {
-  const fetcher = useFetcher();
+  // Two fetchers, not one: completing and putting off are separate submissions
+  // and shouldn't share a pending state.
+  const completeFetcher = useFetcher();
+  const snoozeFetcher = useFetcher();
   const done = reminder.completedAt !== null;
   const strike = done ? { textDecoration: "line-through" as const } : undefined;
   const heading = reminder.title ?? reminder.body ?? "";
-  // Nudges and gift reminders deep-link somewhere; an ordinary reminder
-  // (milestone / birthday / user) has nowhere to go and shows no CTA.
-  const decision = reminderCtaOf(reminder, { giftTarget, isDuplicatesNudge });
-  const cta = decision === null ? null : ctaLinkFor(decision);
+  // Everything this row offers, in offer order — the view-model is the only
+  // authority on *what* is offered; this screen owns only how it looks. An
+  // ordinary reminder (milestone / birthday / user) offers nothing.
+  const actions = reminderActionsOf(reminder, {
+    giftTarget,
+    isDuplicatesNudge,
+  });
 
   return (
     <li>
-      <fetcher.Form
+      <completeFetcher.Form
         method="post"
         action={`/reminders/${reminder.id}/complete`}
         style={{ display: "inline" }}
       >
         <input type="hidden" name="completed" value={done ? "false" : "true"} />
         <button type="submit">{done ? "Reopen" : "Done"}</button>
-      </fetcher.Form>{" "}
+      </completeFetcher.Form>{" "}
       <span style={strike}>
         <ReminderText
           text={heading}
@@ -99,19 +68,39 @@ function ReminderRow({
         </>
       )}
       {/* Automatic (birthday) reminders aren't content-editable — the engine owns
-          their text — so only user reminders get an Edit link. Done/Reopen and
-          Remove stay available on every reminder. */}
+          their text — so only user reminders get an Edit link. Done/Reopen stays
+          available on every reminder; Remove doesn't (see `showsRemove`). */}
       {isReminderEditable(reminder) && (
         <>
           <Link to={`/reminders/${reminder.id}/edit`}>Edit</Link>{" "}
         </>
       )}
-      {cta !== null && (
-        <>
-          <Link to={cta.path}>{cta.label}</Link>{" "}
-        </>
+      {actions.map((action) => {
+        const affordance = rowAffordanceFor(action, reminder.id);
+        // Each kind is offered at most once per row, so it keys them.
+        return (
+          <Fragment key={action.kind}>
+            {affordance.kind === "snooze" ? (
+              // A post, not a link: the row has to leave the list once it's put
+              // off, and a fetcher submission revalidates this screen's loader
+              // in place. The date is the one the offered action carried.
+              <snoozeFetcher.Form
+                method="post"
+                action={affordance.to}
+                style={{ display: "inline" }}
+              >
+                <input type="hidden" name="until" value={affordance.until} />
+                <button type="submit">{affordance.label}</button>
+              </snoozeFetcher.Form>
+            ) : (
+              <Link to={affordance.to}>{affordance.label}</Link>
+            )}{" "}
+          </Fragment>
+        );
+      })}
+      {showsRemove(actions, done) && (
+        <Link to={`/reminders/${reminder.id}/delete`}>Remove</Link>
       )}
-      <Link to={`/reminders/${reminder.id}/delete`}>Remove</Link>
       {reminder.title !== null && reminder.body !== null && (
         <div style={strike}>
           <ReminderText

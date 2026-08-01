@@ -1,0 +1,127 @@
+import type { OnboardingRoute } from "@leapsake/core";
+import type { ReminderCta, ReminderRowAction } from "@leapsake/view-models";
+
+/** Each onboarding nudge's abstract {@link OnboardingRoute} as this client's own
+ *  router path plus its link copy. */
+const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
+  {
+    "add-person": { path: "/people/new", label: "Add person →" },
+    "connect-sync": { path: "/settings", label: "Set up sync →" },
+    "pick-self": { path: "/people?pick=self", label: "Pick yourself →" },
+  };
+
+/**
+ * The copy for the two actions that aren't a call to action — deliberately
+ * plain. The offered `snooze` carries the date it runs to, so “Not now (ask me
+ * in 3 days)” is available for free; it is not spent here because saying a date
+ * in words means either splicing a pre-formatted English fragment into a
+ * sentence or hand-rolling a plural rule in a screen that has no message
+ * catalog. Cheap to spend once these screens move into `@leapsake/ui`.
+ */
+const ACTION_LABELS = {
+  snooze: "Not now",
+  dismiss: "Don’t ask again",
+} as const;
+
+/**
+ * A reminder's CTA decision (see {@link reminderCtaOf}, which holds the *why* of
+ * each) rendered in this client's terms: a react-router path plus its copy. A
+ * gift CTA's target flips once the reminder is done — from the recipient's own
+ * page to the capture form fixed to them, to log what was actually given.
+ */
+export function ctaLinkFor(cta: ReminderCta): { path: string; label: string } {
+  switch (cta.kind) {
+    case "onboarding":
+      return ONBOARDING_CTA[cta.route];
+    case "duplicates":
+      return { path: "/duplicates", label: "Review duplicates →" };
+    case "gift": {
+      const party = `${cta.recipientType}:${cta.recipientId}`;
+      return cta.action === "record-giving"
+        ? {
+            path: `/gifts/new?recipient=${encodeURIComponent(party)}`,
+            label: "Record what you gave →",
+          }
+        : {
+            path: `${cta.recipientType === "pet" ? "/pets" : "/people"}/${cta.recipientId}`,
+            label: "See their gifts →",
+          };
+    }
+  }
+}
+
+/**
+ * One offered action as this client renders it. A `link` is a plain `<Link>`; a
+ * `snooze` is a fetcher form posting to `to`, because the row has to *disappear*
+ * once put off and a fetcher post revalidates the list's loader in place (the
+ * same mechanism the Done toggle already relies on).
+ */
+export type RowAffordance =
+  | { kind: "link"; to: string; label: string }
+  | { kind: "snooze"; to: string; until: number; label: string };
+
+/**
+ * What one {@link ReminderRowAction} looks like on desktop — the path, the copy
+ * and how it is submitted — so the row component renders and decides nothing.
+ *
+ * A snooze's `until` is passed through **verbatim**. It is the date
+ * `snoozePolicyOf` chose and the offered action carried; recomputing it here
+ * would be a second evaluation that disagrees with the first whenever a dial
+ * changes.
+ *
+ * Dismiss deliberately shares the remove route. Deleting a system reminder has
+ * always been the permanent “never ask again” — `reconcile` doesn't resurrect a
+ * tombstoned id — so this is the existing mechanism finally getting an honest
+ * label, not a new one. The confirm screen it lands on words itself for whichever
+ * kind of row it was handed.
+ */
+export function rowAffordanceFor(
+  action: ReminderRowAction,
+  reminderId: string,
+): RowAffordance {
+  switch (action.kind) {
+    case "cta": {
+      const { path, label } = ctaLinkFor(action.cta);
+      return { kind: "link", to: path, label };
+    }
+    case "snooze":
+      return {
+        kind: "snooze",
+        to: `/reminders/${reminderId}/snooze`,
+        until: action.until,
+        label: ACTION_LABELS.snooze,
+      };
+    case "dismiss":
+      return {
+        kind: "link",
+        to: `/reminders/${reminderId}/delete`,
+        label: ACTION_LABELS.dismiss,
+      };
+  }
+}
+
+/**
+ * Whether the row shows its own `Remove` link — **no**, while it is an open
+ * onboarding nudge.
+ *
+ * `reminderActionsOf` withholds `dismiss` from ordinary reminders precisely
+ * because `Remove` already gives them that affordance, and this is the mirror of
+ * that: a nudge's permanent out is “don't ask again”, so showing both would be
+ * two buttons for one tombstone. It also delivers the rule that a *first*
+ * encounter is a genuinely binary choice — do it, or not now — since the action
+ * list withholds dismiss until the second, and leaving `Remove` there would hand
+ * back the permanent option under a label that hides what it does.
+ *
+ * A **completed** nudge keeps it. Its action list is CTA-only, so without this a
+ * user who marked a nudge done would have no way to clear it from the completed
+ * disclosure; and a finished row is an ordinary row again.
+ */
+export function showsRemove(
+  actions: readonly ReminderRowAction[],
+  done: boolean,
+): boolean {
+  const isNudge = actions.some(
+    (a) => a.kind === "cta" && a.cta.kind === "onboarding",
+  );
+  return done || !isNudge;
+}
