@@ -32,6 +32,12 @@ export type ReminderSource = z.infer<typeof reminderSourceSchema>;
  * {@link Mentioning} rows (a relationship pointing at an entity id, **not** a
  * tagging — a mention names a specific pre-existing entity, never a shared label).
  *
+ * {@link reminderSchema}'s `snoozedUntil`/`snoozeCount` are **snooze**: put this off,
+ * ask me later. Generic to every reminder — the onboarding nudges are only the first
+ * consumer, and `source` is what tells the two cases apart. They record *what
+ * happened*, never what to do next; migration 28 is the authority on why that
+ * distinction is load-bearing and how it can be broken by accident.
+ *
  * Same sync-safe substrate as every domain row (see AGENTS.md): client UUID id,
  * epoch-ms UTC timestamps, nullable `deletedAt` — so it merges via whole-row LWW.
  * Deliberately plaintext (no per-item content key): reminders aren't a share
@@ -44,6 +50,8 @@ export const reminderSchema = z
     body: z.string().min(1).nullable(),
     completedAt: z.number().int().nullable(), // epoch ms, UTC; null = open
     dueDate: z.number().int().nullable(), // epoch-ms UTC midnight of the civil due day; null = no due date
+    snoozedUntil: z.number().int().nullable(), // epoch ms, UTC; null = not snoozed
+    snoozeCount: z.number().int().nonnegative(), // how many times it has been put off
     source: reminderSourceSchema,
     createdAt: z.number().int(), // epoch ms, UTC
     updatedAt: z.number().int(),
@@ -96,14 +104,19 @@ export const createReminderInputSchema = z
 export type CreateReminderInput = z.infer<typeof createReminderInputSchema>;
 
 /**
- * Editable fields when updating a reminder: the text and the completion stamp.
- * The repository merges this onto the stored row and re-validates the whole row,
- * so the title-or-body rule still holds after a partial update.
+ * Editable fields when updating a reminder: the text, the completion stamp, and
+ * the snooze clock. The repository merges this onto the stored row and re-validates
+ * the whole row, so the title-or-body rule still holds after a partial update.
+ *
+ * `snoozeCount` is **deliberately absent**. It is engine-owned — the one write
+ * method that snoozes a reminder increments it, so a caller can neither reset its
+ * own nag budget nor skip ahead. Only `snoozedUntil` is a patchable field.
  */
 export const updateReminderInputSchema = z.object({
   ...textShape,
   dueDate: z.number().int().nullable().optional(),
   completedAt: z.number().int().nullable().optional(),
+  snoozedUntil: z.number().int().nullable().optional(),
 });
 
 export type UpdateReminderInput = z.infer<typeof updateReminderInputSchema>;

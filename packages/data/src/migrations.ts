@@ -822,6 +822,42 @@ export const migrations: Migration[] = [
       await driver.exec(`ALTER TABLE milestones DROP COLUMN note_ciphertext;`);
     },
   },
+  {
+    version: 28,
+    async up(driver) {
+      // Snooze — “put this off, ask me later” on any reminder. Two facts, and
+      // deliberately **not** onboarding-flavoured: `snoozed_until` is when the row
+      // becomes visible again, `snooze_count` is how many times it has been put off
+      // — equally true of a dentist reminder someone has dodged four times. The
+      // onboarding nudges (`plans/onboarding.md` §4) are simply the first consumer;
+      // `source` already separates *the product asked and the user declined*
+      // (`system`) from *someone hiding their own reminder* (`user`), so neither
+      // case needs storage of its own.
+      //
+      // `snooze_count` is NOT NULL DEFAULT 0 because a count has an obvious zero:
+      // every existing row backfills for free, with no data step.
+      //
+      // ⚠️ **Store what happened, never what to do next** (`plans/onboarding.md`
+      // §4.1). `snoozed_until` is a stored date and therefore the one place that
+      // rule can be broken by accident. It is legitimate only as *generic* snooze —
+      // a user-chosen “hide until Tuesday” is a fact about what the user did. The
+      // re-prompt **policy** must stay derived: a step's `duration` is applied by a
+      // pure function at the moment the user snoozes, and the give-up decision is
+      // re-derived from `snooze_count` against the step's `repetitions` on every
+      // reconcile. Never persist “this step's next prompt is on 15 August” — doing
+      // so bakes today's policy into rows you can no longer reach, and every future
+      // tweak then needs a data migration to match.
+      //
+      // **No owner column.** One store is one user today. The product model
+      // anticipates multi-user-per-client (`plans/product-truths.md`), and the seam
+      // is left explicit here on purpose: adding a nullable owner column later is a
+      // cheap migration, and guessing its shape now is not.
+      await driver.exec(`
+        ALTER TABLE reminders ADD COLUMN snoozed_until INTEGER;
+        ALTER TABLE reminders ADD COLUMN snooze_count INTEGER NOT NULL DEFAULT 0;
+      `);
+    },
+  },
 ];
 
 /**

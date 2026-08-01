@@ -697,6 +697,9 @@ function reconcile(
           body: null,
           completedAt: null,
           dueDate: want.dueDate,
+          // Minted un-snoozed; snoozing is a user act, never a reconcile one.
+          snoozedUntil: null,
+          snoozeCount: 0,
           source: "system",
           // Back off `createdAt` by the row's display rank so dateless rows sort
           // in priority order on Home (newest-first tiebreak); dated milestone

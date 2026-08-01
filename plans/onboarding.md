@@ -317,8 +317,13 @@ Each is a coherent commit; they are ordered by dependency.
 - `defineSyncable`'s default codec is a pure camelCase↔snake_case rename driven by the Zod
   schema (`packages/data/src/syncable.ts`), so adding the fields to `reminderSchema` gets the
   columns **and** sync with no codec, no sync registration, and no relay change.
-- The `Reminder`-literal blast radius is **15 occurrences across 7 files** —
-  `packages/{schema,data,view-models}/src` plus `packages/reminders/test/engine.test.ts`.
+- The `Reminder`-literal blast radius is **3 sites in 3 files** — `remindersRepo.create`,
+  the engine's `insert` in `computeAndReconcile`, and the untyped `base` fixture in
+  `packages/schema/src/reminder.test.ts` (the one site a typecheck does *not* catch).
+  Everything else is structural (`ReminderStanding`), a partial `as Reminder`, or a spread;
+  the four `packages/reminders/test/*` harnesses store the row the engine hands them rather
+  than building their own. *(Corrected 2026-07-31 while building slice 1; the earlier figure
+  of "15 across 7 files" was wrong.)*
 
 **Acceptance:** a nudge dismissed with *Not now* disappears and returns on schedule; one
 dismissed with *Don't ask again* never returns; both hold across a restart and across sync to a

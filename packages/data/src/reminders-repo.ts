@@ -52,6 +52,9 @@ export function createRemindersRepo(driver: SqliteDriver): RemindersRepo {
         body,
         completedAt: null,
         dueDate,
+        // A reminder is never born snoozed, so `create` takes no input for either.
+        snoozedUntil: null,
+        snoozeCount: 0,
         source,
         createdAt: now,
         updatedAt: now,

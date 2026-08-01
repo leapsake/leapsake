@@ -10,6 +10,8 @@ const base = {
   id: crypto.randomUUID(),
   completedAt: null,
   dueDate: null,
+  snoozedUntil: null,
+  snoozeCount: 0,
   source: "user" as const,
   createdAt: 1,
   updatedAt: 1,
