@@ -599,7 +599,7 @@ publishes what exists. That convergence of local and synced custody is the payof
 receives the salt (public), the auth verifier, `wrap(MK, KEK)`, and the recovery escrow. It
 **cannot** derive the KEK, so it cannot unwrap MK: zero-knowledge holds, and this is where
 encryption layer 2 starts working. The relay is authoritative over usernames, so binding must
-be able to **rename** (see `status.md` → Open questions).
+be able to **rename** (see this folder's `README.md` → Open questions).
 > *Ledger:* unchanged from 0.5, plus the relay's copy of `wrap(MK, KEK)` + verifier + salt.
 
 **Phase 2 — Add a second device.** Joins the account by username + password; it consumes the

@@ -1,8 +1,10 @@
 # Leapsake — Testing (start here)
 
 This folder is the **design home for how Leapsake tests itself** across every app and package —
-the stable *why/how*. It is **not** a status board: for **what's built and what's next, see
-[`status.md`](../status.md)** (the cross-workstream oracle).
+the stable *why/how*. It is **not** a status board: what is in flight is in
+[`status.md`](../status.md), and what was delivered is in `git log`. The one piece of unbuilt
+work this folder still owns is the **E2E tier**, blocked pending owner sign-off on
+[`strategy.md`](./strategy.md) §3.
 
 ## Which doc for your task
 

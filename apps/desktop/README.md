@@ -35,6 +35,54 @@ pnpm --filter @leapsake/desktop build   # production bundle into out/
 pnpm --filter @leapsake/desktop start   # preview the built app
 ```
 
+`dev` puts this device's userData at `~/Library/Application Support/@leapsake/desktop` — the
+dev app, **not** the packaged `…/Leapsake`.
+
+> ⚠️ Any of these flips the native SQLite binary to the Electron ABI, which breaks the next
+> Vitest run in a misleading way. See [`../../AGENTS.md`](../../AGENTS.md) → *The native SQLite
+> ABI, and how it bites*.
+
+### More than one device at once
+
+There is no single-instance lock, so extra instances are just extra profiles. From the repo
+root, each distinct `--user-data-dir` is a separate "device":
+
+```sh
+ELECTRON_RENDERER_URL=http://localhost:5173 "$(node -p 'require("electron")')" \
+  apps/desktop --user-data-dir=<fresh-dir>
+```
+
+Point them at a local relay to exercise sync — see
+[`@leapsake/server`](../server/README.md) → *Running*.
+
+### Driving the app without a harness
+
+**Until the E2E tier exists this is the only way to prove a user-visible desktop change**, and
+it is how every custody slice was verified. Add `--remote-debugging-port=9333` to the command
+above, then talk CDP to the renderer: `curl -s localhost:9333/json` gives the page's
+`webSocketDebuggerUrl`, and `Runtime.evaluate` over that socket runs anything in the
+renderer — `window.api.*`, `window.sync.*`, `window.boot.*`, or DOM clicks. Node 22+ has a
+built-in `WebSocket`, so the driver is ~40 lines and needs no dependency.
+
+Pair it with **out-of-band assertions on the profile directory** — the store's first 16 bytes
+(`SQLite format 3\0`, or not), `keystore.json`'s key list, `accounts.json`, the sidecars —
+since custody's defining properties are invisible on screen.
+
+Things that will otherwise cost you an hour each:
+
+- React inputs need the native value setter **plus** an `input` event to register.
+- `location.reload()` picks up an HMR'd renderer change without restarting the app.
+- **`electron-vite dev` only HMRs the renderer.** A change under `packages/` needs the dev
+  server restarted before an extra instance picks it up — check with `grep` against
+  `out/main/index.js`.
+- Deleting `keystore.json` between launches simulates keychain loss — but it takes this
+  device's **master key** as well as its db-key, which the boot path repairs from whichever
+  door you then unlock with. Such a profile exercises the *repair*, not merely the gate.
+- Deleting **only** `device-id` and `enclave` from that file leaves the db-key alive, which is
+  the one route to the *Degraded* state: no gate is raised, so nothing can repair it.
+- A `pkill -9` of the Electron child can take `out/` with it and leave the dev server serving
+  nothing. If a launch produces no output at all, restart the dev server.
+
 ## Database: SQLite with an encrypted backend
 
 A store that belongs to an account is **encrypted at rest**

@@ -11,8 +11,8 @@
 > **Relationship to the other docs.** [`model.md`](./model.md) is the *why*;
 > [`security-review.md`](./security-review.md) §3 already lists several *accepted*
 > residual risks — where a finding here overlaps one of those, it says so and only adds
-> ranking/urgency. [`status.md`](../status.md) is the status oracle; the "Relay
-> hardening" backlog there is the delivery home for the relay-side fixes.
+> ranking/urgency. This folder's [`README.md`](./README.md) → *What remains* is the delivery
+> home for the relay-side fixes.
 >
 > **Reviewed at:** commit `e7e3d36` (proxy-aware client-IP rate limiting), 2026-07-05.
 > Scope: `packages/crypto`, `packages/data` (sync engine + transport + repos),

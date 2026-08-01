@@ -32,7 +32,7 @@ export interface RelayCapabilities {
    *
    * `false` is both the default and, today, always the answer: no relay
    * implements the endpoint yet, and the protocol shape is still an open question
-   * (`plans/status.md` → Open questions → Custody). The client side is built
+   * (`plans/encryption/README.md` → Open questions → Custody). The client side is built
    * first so the honest wording is already driven by a check.
    */
   durableBackup: boolean;

@@ -28,8 +28,8 @@ Settled 2026-07-30 unless noted.
 | Per-step outcomes | **do it · not now · don't ask again** — three | *Do it* is derived, never stored (§4) |
 | Skip semantics | **Per-step, declared by the step** — not one global rule | The steps have unequal stakes; see §3 |
 | "Don't ask again" | **Not offered on first encounter** — appears only when a step returns | First run stays a binary choice (layperson principle, `product-truths.md`) |
-| Memory | **Two nullable columns on `reminders`**, not a decision table *(owner, 2026-07-31)* | §4 — nearly all of the state is derivable; only the defer clock and count are not |
-| "Later" | **Reminder snooze *is* onboarding defer** *(owner, 2026-07-31)* | One mechanism, built once, generic to every reminder |
+| Memory | **Two new columns on `reminders`**, not a decision table *(owner, 2026-07-31)* | §4 — nearly all of the state is derivable; only the snooze clock and count are not |
+| "Later" | **One verb: snooze** *(owner, 2026-07-31)* | Onboarding defer *is* reminder snooze — one mechanism, one vocabulary, one write method (§4.2), generic to every reminder |
 | Re-prompt policy | **Duration and repetitions are separate dials, held as data** | The numbers are cheap to change later — §4.1 is what makes that true |
 | Copy | Drop "It's free" from `launch.md`'s draft | Nothing is paid yet; it reads as an upsell tease |
 
@@ -144,21 +144,33 @@ derivable*. Almost everything is:
 | *Did it* | **Yes** | `applies(signals)`, live. **Never store it** — a stored copy is what lets a step be marked "deferred" on one device and satisfied on another, disagreeing forever |
 | *Don't ask again* | **Yes, already built** | the tombstone on the deterministic id (§2.2), which syncs like any row |
 | Which nudges exist now | **Yes** | the engine's desired-set computation, unchanged |
-| **Deferred until** | No | new |
-| **How many times deferred** | No | new |
+| **Snoozed until** | No | new |
+| **How many times snoozed** | No | new |
 
-So the persistence is **two nullable columns on `reminders`** — `snoozed_until` and
-`defer_count` — and no new table, no repo, no sync registration.
+So the persistence is **two new columns on `reminders`** — `snoozed_until` and
+`snooze_count` — and no new table, no repo, no sync registration. (`snoozed_until` is
+nullable; `snooze_count` is `NOT NULL DEFAULT 0`, which backfills existing rows for free —
+a count has an obvious zero.)
 
-**Not now** sets `snoozed_until` and increments `defer_count` on the **live** row; the row
+**Not now** sets `snoozed_until` and increments `snooze_count` on the **live** row; the row
 stays in the desired set, so `reconcile` never prunes it (§2.5), and `partitionReminders`
 hides it until the clock passes. **Don't ask again** soft-deletes, exactly as today. When
-`defer_count` reaches the step's repetitions limit, the engine retires the row for good
+`snooze_count` reaches the step's repetitions limit, the engine retires the row for good
 instead of re-showing it.
 
-`snoozed_until` is generic to every reminder, so this delivers **reminder snooze** — long on
-the wish list — as the same work. `defer_count` is the one impurity: onboarding-flavoured
-state on a general table. Accepted deliberately; a table for one integer is the worse trade.
+**Neither column is onboarding-flavoured**, which is what lets both be generic. `snoozed_until`
+obviously is not. `snooze_count` holds *how many times this reminder has been put off* — a fact
+that is equally true of a dentist reminder someone has dodged four times, and one no reader
+needs onboarding to understand. What is onboarding-specific is not the count but the engine
+**comparing it to `repetitions` and retiring the row**, and that comparison lives in
+`computeAndReconcile`, which iterates `ONBOARDING_STEPS` and never sees a user reminder. So this
+delivers **reminder snooze** — long on the wish list — as the same work, with no impurity to
+accept.
+
+> The two cases stay distinguishable without a second column or a second method: `source`
+> already separates them. `system` + a snooze is *the product asked and the user declined*;
+> `user` + a snooze is *someone hiding their own reminder*. A distinction recoverable from data
+> already stored does not need its own storage.
 
 > **User association:** one store is one user today, so no owner column is added. The product
 > model anticipates multi-user-per-client (`product-truths.md`), so leave the seam explicit in
@@ -167,20 +179,20 @@ state on a general table. Accepted deliberately; a table for one integer is the 
 
 ### 4.1 Store what happened, never what to do next
 
-**Record facts — when it was deferred and how many times. Never a computed next-prompt date.**
+**Record facts — when it was snoozed and how many times. Never a computed next-prompt date.**
 
-This is the whole of what makes the re-prompt policy cheap to change. If a row says *"deferred
-at T, count 2"*, the schedule is re-derived on every reconcile — so changing 3 days to 5, or
-two repetitions to three, takes effect immediately for everyone, including users who deferred
-last week. If a row says *"show again on 15 August"*, today's policy is baked into rows you can
-no longer reach, and every future change needs a data migration to match.
+This is the whole of what makes the re-prompt policy cheap to change. If a row says *"snoozed
+at T, count 2"*, the schedule is re-derived every time it is asked for — so changing 3 days to
+5, or two repetitions to three, takes effect immediately for everyone, including users who
+snoozed last week. If a row says *"show again on 15 August"*, today's policy is baked into rows
+you can no longer reach, and every future change needs a data migration to match.
 
 > ⚠️ `snoozed_until` is a stored date, and therefore the one place this rule can be broken by
 > accident. It is legitimate **only** because it is generic snooze — a user-chosen "hide until
 > Tuesday" is a fact about what the user did. The onboarding *policy* must stay derived: the
-> engine computes the snooze target from the step's `duration` at defer time, and re-derives
-> the give-up decision from `defer_count` against the step's `repetitions` on every reconcile.
-> Never persist "this step's next prompt is on 15 August" as policy.
+> step's `duration` is applied by a **pure function** (§4.2) at the moment the user snoozes,
+> and the give-up decision is re-derived from `snooze_count` against the step's `repetitions`
+> on every reconcile. Never persist "this step's next prompt is on 15 August" as policy.
 
 The policy itself lives **as data on the step definitions** — the shape `ONBOARDING_STEPS`
 already uses (`engine.ts:291`), and the same declarative-table-of-plain-objects pattern as
@@ -191,6 +203,36 @@ already uses (`engine.ts:291`), and the same declarative-table-of-plain-objects 
 
 Changing either is editing a literal, not touching logic. That is what "easy to change later"
 has to mean concretely, or it means nothing.
+
+### 4.2 One verb, one write method
+
+*Decided 2026-07-31, while planning Increment 1.* An earlier draft of that plan split the write
+in two — a generic `snooze(id, until)` for user reminders and a policy-driven `defer(id)` for
+nudges. **Rejected.** The two differ only in *who computes the date*; the row write is
+identical, and "defer" as a second verb would fork the vocabulary across the schema, the
+engine, core, the IPC surface and both clients for no gain.
+
+There is **one** method — `snooze(id, until)` — and the policy is a **pure function** in
+`@leapsake/reminders`, beside the step definitions it reads:
+
+- The action seam already has to evaluate that policy for a different reason: it decides
+  whether to *offer* snooze at all (`snooze_count` vs. the step's `repetitions`). Having the
+  same evaluation return the target date means "is it offered" and "until when" come from one
+  place instead of two.
+- So the offered action **carries its own date** (`{ kind: "snooze", until }`), and the client
+  passes it straight to the one write method. No mode flag, no overload, no duplicated policy.
+- It lives in `@leapsake/reminders` because `ONBOARDING_STEPS` is module-private there;
+  `@leapsake/view-models` already imports `onboardingRouteOf` across that seam, so this is the
+  established route, not a new one.
+- It must be applied at click time, not inside `reconcile` — a snooze takes effect when the
+  user asks, and reconcile runs on a schedule.
+
+A side benefit worth keeping: because the action carries its date, the copy can be honest —
+*"Not now (ask me in 3 days)"* — with no second derivation.
+
+One guard is bypassed deliberately: `isReminderEditable` blocks *content* edits to `system`
+rows because the engine owns their text. Snoozing is not a content edit, so `snooze` routes
+around it the way `setCompleted` already does.
 
 ## 5. Considered and deferred: the Day-1 flow
 
@@ -226,18 +268,57 @@ if the next one is deferred. **1 → 2 is the v0.1 line**; 3–4 can follow at a
 **Value:** today's silent, permanent dismiss becomes an explicit choice, and every reminder
 gains snooze. Standalone even if nothing else here is built.
 
-- Migration: `snoozed_until` and `defer_count` on `reminders` (§4). Note the derived-policy
+- Migration: `snoozed_until` and `snooze_count` on `reminders` (§4). Note the derived-policy
   rule (§4.1) in its doc-comment; it is the one thing a later change can quietly break.
 - The hide rule in `partitionReminders` — the first time that function considers anything
   beyond `completedAt` (§2.3).
 - Generalize the CTA seam from one call-to-action to a **list of actions**: `reminderCtaOf` →
   an action list in `@leapsake/view-models`, with the engine's step definitions declaring which
-  actions they offer. Clients keep ownership of the labels (they already do, deliberately — the
-  copy is user-visible and the two routers differ). Mind the name collision (§2.4).
-- `duration` + `repetitions` on the step definitions, and the engine retiring a step whose
-  `defer_count` has reached its limit.
+  actions they offer, and the snooze action carrying its own target date (§4.2). Clients keep
+  ownership of the labels (they already do, deliberately — the copy is user-visible and the two
+  routers differ). Mind the name collision (§2.4).
+- `duration` + `repetitions` on the step definitions, the pure policy function that reads them
+  (§4.2), and the engine retiring a step whose `snooze_count` has reached its limit.
+- One write method, `core.reminders.snooze(id, until)` (§4.2) — plus its desktop IPC entry.
 - Wire *Not now* / *Don't ask again* onto the **existing three nudges**, with "don't ask again"
   appearing only on a step's second encounter (§1).
+
+#### Slices
+
+Each is a coherent commit; they are ordered by dependency.
+
+1. **Substrate.** Migration **28** (`snoozed_until INTEGER`, `snooze_count INTEGER NOT NULL
+   DEFAULT 0`), the two fields on `reminderSchema`, `snoozedUntil` added to
+   `updateReminderInputSchema` (but **not** `snoozeCount` — engine-owned), and
+   `remindersRepo.create` stamping `null`/`0`. Tests: repo round-trip, and that the columns
+   survive a sync encode/decode.
+2. **The hide rule.** `partitionReminders(reminders, now = Date.now())` gains a third
+   `snoozed` bucket; completion still wins over snooze. Clients ignore the third bucket for
+   now — it exists so §7's "findable by search?" question stays answerable.
+3. **Engine dials + retirement.** `duration` and `repetitions` on `OnboardingStep`; the pure
+   `snoozePolicyOf(row, now)` of §4.2; and the onboarding loop in `computeAndReconcile`
+   **ceasing to desire** a step whose `snoozeCount` has reached its limit, so the *existing*
+   prune→tombstone path retires it. Test the §2.5 trap explicitly: a snoozed-but-not-exhausted
+   step must stay desired and must never be pruned.
+4. **The action list.** `reminderActionsOf` composing the existing `reminderCtaOf` (which
+   keeps its return type and its doc-comment). The snooze action carries the `until` that
+   `snoozePolicyOf` returned; dismiss appears only from `snoozeCount >= 1`.
+5. **The write path.** `core.reminders.snooze(id, until)` plus its desktop IPC entry
+   (`apps/desktop/src/main/index.ts`'s arg-validation table, and the preload surface).
+6. **Desktop UI**, then **7. mobile UI** — the two actions on nudge rows; the existing
+   `Remove` / `confirmDelete` becomes the honest permanent dismiss.
+8. **Verification.** The unit tiers, then drive the desktop dev app over CDP
+   ([`apps/desktop/README.md`](../apps/desktop/README.md) → *Driving the app without a
+   harness*) to prove a *Not now* survives a restart and reaches a second device by sync.
+
+**Three facts worth not re-deriving** (verified 2026-07-31):
+
+- The next migration version is **28**.
+- `defineSyncable`'s default codec is a pure camelCase↔snake_case rename driven by the Zod
+  schema (`packages/data/src/syncable.ts`), so adding the fields to `reminderSchema` gets the
+  columns **and** sync with no codec, no sync registration, and no relay change.
+- The `Reminder`-literal blast radius is **15 occurrences across 7 files** —
+  `packages/{schema,data,view-models}/src` plus `packages/reminders/test/engine.test.ts`.
 
 **Acceptance:** a nudge dismissed with *Not now* disappears and returns on schedule; one
 dismissed with *Don't ask again* never returns; both hold across a restart and across sync to a
@@ -264,8 +345,8 @@ hides and returns too — the generic half.
 - Resolve the **collision with `sync-devices`**: both nudges currently deep-link to the same
   Settings screen, and `sync-devices` only retires on `relayUrl`, so a user who creates a
   **local-only** account keeps a nudge pointing at a flow that cannot satisfy it — binding an
-  existing local account to a relay is unbuilt on both clients (`status.md` → *Open questions*
-  → *Username collision*). Retire `sync-devices` on `hasAccount` too, or reword it.
+  existing local account to a relay is unbuilt on both clients (`encryption/README.md` →
+  *Open questions* → *Username collision*). Retire `sync-devices` on `hasAccount` too, or reword it.
 
 > **Ships after Increment 1, deliberately.** This is the step §3 says must never be wrongly
 > silenced, and until Increment 1 lands the only available dismiss is the permanent one.

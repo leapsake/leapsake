@@ -210,10 +210,30 @@ reported ⏳ BLOCKED rather than skipped), **`pnpm test:node`** (just Vitest).
 >
 > Run the tiers that don't need the native module (`pnpm exec node scripts/test-all.mjs
 > --only=format,lint,typecheck,versions`), and run Vitest **directly** — `pnpm exec vitest
-> run` — after restoring the binary from the local prebuild cache with the `tar` command in
-> [`plans/status.md`](./plans/status.md) → *Dev harness*. Never "fix" `ensure-sqlite-abi.mjs`
-> to work around this: it is correct, and on a developer machine with network `pnpm test`
-> runs the whole trophy as designed.
+> run` — after restoring the binary from the local prebuild cache (below). Never "fix"
+> `ensure-sqlite-abi.mjs` to work around this: it is correct, and on a developer machine with
+> network `pnpm test` runs the whole trophy as designed.
+
+### The native SQLite ABI, and how it bites
+
+The single native `.node` carries one ABI at a time. **Running the desktop app in any form —
+`dev`, `build`, `check:bundle` — flips it to the Electron ABI**, and the next `vitest` run then
+dies with dozens of *"Worker exited unexpectedly"* rather than an honest ABI error. A bare
+`require()` still succeeds, so the failure is delayed and misleading.
+
+Restore the Node build by extracting the cached prebuild — **not** with `prebuild-install
+--force`, which can clear the cache before its own download is killed:
+
+```sh
+cd node_modules/better-sqlite3-multiple-ciphers
+tar -xzf ~/.npm/_prebuilds/*better-sqlite3-multiple-ciphers-*-node-v137-darwin-arm64.tar.gz
+```
+
+**Which ABI is installed is a file-size check**, since both builds share a name and the
+tarballs preserve mtimes: `2217120` bytes = Node, `2217808` = Electron. Check it before
+trusting a green run — the binary has been observed flipped to Electron in sessions where the
+dev app was never started. The whole dance disappears if the N-API fork ever releases; see
+[`plans/sqlite-abi-napi.md`](plans/sqlite-abi-napi.md).
 
 **tsconfig-include invariant**: a new test directory must sit under some project
 tsconfig's `include`, or its type errors go unchecked (`pnpm test:types` only
