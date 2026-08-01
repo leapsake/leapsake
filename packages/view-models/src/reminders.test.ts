@@ -1,6 +1,10 @@
-import { ONBOARDING_REMINDERS } from "@leapsake/reminders";
+import { ONBOARDING_REMINDERS, snoozePolicyOf } from "@leapsake/reminders";
 import { describe, expect, it } from "vitest";
-import { partitionReminders, reminderCtaOf } from "./reminders.js";
+import {
+  partitionReminders,
+  reminderActionsOf,
+  reminderCtaOf,
+} from "./reminders.js";
 
 const reminder = (
   id: string,
@@ -8,6 +12,7 @@ const reminder = (
     completedAt?: number | null;
     dueDate?: number | null;
     snoozedUntil?: number | null;
+    snoozeCount?: number;
     createdAt?: number;
   },
 ) => ({
@@ -15,6 +20,7 @@ const reminder = (
   completedAt: standing.completedAt ?? null,
   dueDate: standing.dueDate ?? null,
   snoozedUntil: standing.snoozedUntil ?? null,
+  snoozeCount: standing.snoozeCount ?? 0,
   createdAt: standing.createdAt ?? 0,
 });
 
@@ -165,5 +171,98 @@ describe("reminderCtaOf", () => {
         giftTarget: { recipientType: "person", recipientId: "p1" },
       }),
     ).toEqual({ kind: "onboarding", route: onboarding.route });
+  });
+});
+
+describe("reminderActionsOf", () => {
+  const NOW = day(100);
+  const onboarding = ONBOARDING_REMINDERS[0];
+  // How many times a step will come back is the engine's dial, so these fixtures
+  // ask the policy which nudge is which instead of pinning today's numbers: one
+  // with budget left after a single "not now", and a count past anyone's budget.
+  const repeatable = ONBOARDING_REMINDERS.filter(
+    (r) => snoozePolicyOf({ id: r.id, snoozeCount: 1 }, NOW) !== null,
+  )[0];
+  const SPENT = 99;
+  const kinds = (id: string, snoozeCount = 0) =>
+    reminderActionsOf(reminder(id, { snoozeCount }), {}, NOW).map(
+      (a) => a.kind,
+    );
+
+  it("offers nothing on an ordinary reminder", () => {
+    expect(reminderActionsOf(reminder("plain", {}), {}, NOW)).toEqual([]);
+  });
+
+  it("offers a fresh nudge its CTA and a snooze, but no dismiss", () => {
+    expect(kinds(onboarding.id)).toEqual(["cta", "snooze"]);
+  });
+
+  it("adds dismiss once the nudge has been put off before", () => {
+    expect(kinds(repeatable.id, 1)).toEqual(["cta", "snooze", "dismiss"]);
+  });
+
+  it("keeps dismiss but drops snooze once the repetitions are spent", () => {
+    expect(
+      snoozePolicyOf({ id: onboarding.id, snoozeCount: SPENT }, NOW),
+    ).toBeNull();
+
+    expect(kinds(onboarding.id, SPENT)).toEqual(["cta", "dismiss"]);
+  });
+
+  it("carries the policy's own date, rather than deriving it again", () => {
+    const policy = snoozePolicyOf({ id: onboarding.id, snoozeCount: 0 }, NOW);
+
+    expect(
+      reminderActionsOf(reminder(onboarding.id, {}), {}, NOW),
+    ).toContainEqual({ kind: "snooze", until: policy?.until });
+  });
+
+  it("passes the duplicates CTA through with nothing alongside it", () => {
+    expect(
+      reminderActionsOf(
+        reminder("nudge", {}),
+        { isDuplicatesNudge: true },
+        NOW,
+      ),
+    ).toEqual([{ kind: "cta", cta: { kind: "duplicates" } }]);
+  });
+
+  it("passes a gift CTA through, flip and all, with nothing alongside it", () => {
+    const giftTarget = { recipientType: "person" as const, recipientId: "p1" };
+
+    expect(
+      reminderActionsOf(
+        reminder("gift", { snoozeCount: 2 }),
+        { giftTarget },
+        NOW,
+      ),
+    ).toEqual([
+      {
+        kind: "cta",
+        cta: { kind: "gift", action: "see-gifts", ...giftTarget },
+      },
+    ]);
+    expect(
+      reminderActionsOf(
+        reminder("gift", { completedAt: day(4) }),
+        { giftTarget },
+        NOW,
+      ),
+    ).toEqual([
+      {
+        kind: "cta",
+        cta: { kind: "gift", action: "record-giving", ...giftTarget },
+      },
+    ]);
+  });
+
+  it("stops offering to put off a reminder that is already done", () => {
+    expect(
+      reminderActionsOf(
+        reminder(repeatable.id, { completedAt: day(4), snoozeCount: 1 }),
+        {},
+        NOW,
+      ).map((a) => a.kind),
+    ).toEqual(["cta"]);
   });
 });

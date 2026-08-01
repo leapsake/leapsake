@@ -15,9 +15,14 @@ export { groupGiftsByIdea, sortIdeasGivenLast } from "./gifts.js";
 export type { GiftIdeaRef, IdeaGroup } from "./gifts.js";
 export { splitBearerHolidays } from "./holidays.js";
 export type { BearerHolidayFacts } from "./holidays.js";
-export { partitionReminders, reminderCtaOf } from "./reminders.js";
+export {
+  partitionReminders,
+  reminderActionsOf,
+  reminderCtaOf,
+} from "./reminders.js";
 export type {
   GiftReminderSubject,
   ReminderCta,
+  ReminderRowAction,
   ReminderStanding,
 } from "./reminders.js";

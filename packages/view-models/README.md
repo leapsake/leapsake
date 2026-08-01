@@ -41,3 +41,8 @@ Routes and copy. `reminderCtaOf` returns the _decision_ — an onboarding nudge,
 nudge, or a gift reminder pointing at its recipient (flipped once done) — and each client maps
 that to its own router path and its own user-visible label, because the two routers spell the
 same screen differently and the label is translatable text.
+
+`reminderActionsOf` widens that seam from one call to action to the _list_ of things a row
+offers — do it, not now, don't ask again — with the CTA as one entry in it. The same division
+holds: this package decides which are offered and when a snooze runs to; “Not now” and “Don't
+ask again” are copy, so they stay with the client.
