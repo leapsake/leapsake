@@ -212,3 +212,87 @@ describe("remindersRepo snooze columns", () => {
     }
   });
 });
+
+/**
+ * The merge rule of onboarding.md §1 at the one place it acts: `upsertFromRemote`.
+ * Every device mints the onboarding nudges independently under the same
+ * deterministic id, so a device that mints *before* it pulls carries the newer
+ * `updated_at` — and used to undo the peer's dismissal and reset its snooze
+ * count (slice 8). `reminderHasHistory` is what stops it.
+ */
+describe("remindersRepo — an untouched row never wins a merge", () => {
+  /** The id both devices mint independently; the value is immaterial, the sharing isn't. */
+  const NUDGE_ID = "0da73516-17c4-5fe9-8d2e-3cf98a63ae71";
+
+  /** A nudge exactly as the engine's `reconcile` inserts it. */
+  const minted = (at: number, over: Partial<Reminder> = {}): Reminder => ({
+    id: NUDGE_ID,
+    title: "🙋 Which of these is you? Pick yourself.",
+    body: null,
+    completedAt: null,
+    dueDate: null,
+    snoozedUntil: null,
+    snoozeCount: 0,
+    source: "system",
+    createdAt: at,
+    updatedAt: at,
+    deletedAt: null,
+    ...over,
+  });
+
+  it("keeps a local dismissal when a peer pushes a newer mint", async () => {
+    await repo.insert(minted(1000));
+    await repo.softDelete(NUDGE_ID); // "don't ask again"
+
+    // The peer's clock must genuinely out-rank the tombstone, or the assertion
+    // passes on LWW alone and proves nothing: `softDelete` stamps the real now.
+    await repo.upsertFromRemote(minted(Date.now() + 60_000));
+
+    const row = await repo.getIncludingDeleted(NUDGE_ID);
+    expect(row?.deletedAt).not.toBeNull();
+    expect(await repo.get(NUDGE_ID)).toBeUndefined(); // still off Home
+  });
+
+  it("keeps a local snooze, clock and count, when a peer pushes a newer mint", async () => {
+    const until = Date.UTC(2026, 7, 15);
+    await repo.insert(minted(1000));
+    await repo.snooze(NUDGE_ID, until);
+
+    await repo.upsertFromRemote(minted(Date.now() + 60_000));
+
+    const row = await repo.get(NUDGE_ID);
+    expect(row?.snoozedUntil).toBe(until);
+    expect(row?.snoozeCount).toBe(1); // not reset to 0 — the slice-8 symptom
+  });
+
+  it("still takes a peer's decision over a local mint", async () => {
+    // The mirror image: this device is the one that knew nothing. The peer's
+    // dismissal wins even though the local mint's clock is newer.
+    await repo.insert(minted(9000));
+
+    await repo.upsertFromRemote(
+      minted(1000, { deletedAt: 1000, snoozeCount: 1 }),
+    );
+
+    expect(await repo.get(NUDGE_ID)).toBeUndefined();
+    expect((await repo.getIncludingDeleted(NUDGE_ID))?.snoozeCount).toBe(1);
+  });
+
+  it("leaves two rows that both carry history on plain LWW", async () => {
+    await repo.insert(minted(1000));
+    await repo.snooze(NUDGE_ID, Date.UTC(2026, 6, 1));
+
+    // The peer snoozed a minute later by its own clock (`snooze` stamps the real
+    // one locally); last writer still wins between two decisions.
+    await repo.upsertFromRemote(
+      minted(Date.now() + 60_000, {
+        snoozedUntil: Date.UTC(2026, 8, 1),
+        snoozeCount: 2,
+      }),
+    );
+
+    const row = await repo.get(NUDGE_ID);
+    expect(row?.snoozedUntil).toBe(Date.UTC(2026, 8, 1));
+    expect(row?.snoozeCount).toBe(2);
+  });
+});

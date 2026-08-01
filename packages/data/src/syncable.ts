@@ -1,4 +1,4 @@
-import { type SyncRow, resolveMerge } from "@leapsake/schema";
+import { type HasHistory, type SyncRow, resolveMerge } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
 
 /**
@@ -31,9 +31,10 @@ export interface SyncableRepo<T extends SyncRow> {
   decode(payload: unknown): T;
   /**
    * Apply a record pulled from a peer: reconcile it against the local row (if
-   * any) via whole-row LWW (`resolveMerge`) and write the winner **verbatim**,
-   * preserving the incoming `createdAt`/`updatedAt`/`deletedAt` (LWW only
-   * converges if the clock stays the writer's).
+   * any) via whole-row LWW (`resolveMerge`, plus the repo's `hasHistory` rule if
+   * it declared one) and write the winner **verbatim**, preserving the incoming
+   * `createdAt`/`updatedAt`/`deletedAt` (LWW only converges if the clock stays
+   * the writer's).
    */
   upsertFromRemote(remote: T): Promise<void>;
 }
@@ -205,6 +206,8 @@ export function resolveCodec<T extends SyncRow>(opts: {
  *          boolean type). Forgetting one fails loudly on the first synced read.
  *        - `codec` — only when the on-wire shape differs from the on-disk shape
  *          (encrypted fields). See `milestones-repo.ts`.
+ *        - `hasHistory` — only for a table whose rows two devices **mint
+ *          independently under the same id**. See the option's doc-comment.
  *   4. **Register** — add the repo to the `repos` array handed to
  *      {@link createSyncEngine}, and to the allowlist guard test. This is the
  *      conscious "yes, this table may leave the device" step.
@@ -225,8 +228,27 @@ export function defineSyncable<T extends SyncRow>(opts: {
   booleans?: readonly string[];
   /** A bespoke domain↔table mapping; only for shapes that differ (encryption). */
   codec?: RowCodec<T>;
+  /**
+   * Narrow the merge so **an untouched row never wins**: given two versions of
+   * one row, the one this predicate calls history beats the one it doesn't,
+   * whatever `updated_at` says (`resolveMerge`). Omit it and the table merges by
+   * plain whole-row LWW, which is the right default for almost everything.
+   *
+   * **Opt-in, and it should stay rare.** It can only ever fire where two devices
+   * *independently mint the same id* — i.e. a deterministic-id family — because
+   * anything the user creates gets a random UUID and never collides. Today the
+   * only such table with a decision worth protecting is `reminders`, whose
+   * engine-minted onboarding nudges were being resurrected by a peer's fresh
+   * mint (`reminderHasHistory`, and onboarding.md §6 → *Left open by slice 8*).
+   * The other deterministic-id families carry no per-row user decision, and the
+   * holiday catalog deliberately depends on plain LWW over authored timestamps.
+   *
+   * This is also the seam a field-level merge grows out of, once a second
+   * consumer exists — the eventual aim recorded in onboarding.md.
+   */
+  hasHistory?: HasHistory<T>;
 }): SyncableRepo<T> {
-  const { driver, table, schema } = opts;
+  const { driver, table, schema, hasHistory } = opts;
   const codec = resolveCodec<T>(opts);
 
   return {
@@ -253,7 +275,7 @@ export function defineSyncable<T extends SyncRow>(opts: {
       if (existing !== undefined) {
         const local = await codec.fromRow(existing);
         // Local wins (or the rows are identical) → nothing to write.
-        if (resolveMerge(local, remote) === local) return;
+        if (resolveMerge(local, remote, hasHistory) === local) return;
       }
 
       const cols = await codec.toRow(remote);

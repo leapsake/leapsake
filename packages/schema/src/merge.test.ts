@@ -101,6 +101,75 @@ describe("resolveMerge — tombstones", () => {
   });
 });
 
+describe("resolveMerge — an untouched row never wins", () => {
+  // The stand-in for the real thing: `note` is the field a user's decision lands
+  // in, `name` the one the engine re-derives. A row with a note has history.
+  const hasHistory = (r: Row) => r.note !== null;
+
+  it("history beats a mint even when the mint is newer", () => {
+    const decided = row({ note: "snoozed", updatedAt: 1000 });
+    const minted = row({ name: "as minted", updatedAt: 9000 });
+    expect(resolveMerge(decided, minted, hasHistory)).toBe(decided);
+    expect(resolveMerge(minted, decided, hasHistory)).toBe(decided);
+  });
+
+  it("a tombstone survives a peer's fresh mint — the defect this fixes", () => {
+    const dismissed = row({
+      note: "dismissed",
+      updatedAt: 1000,
+      deletedAt: 1000,
+    });
+    const minted = row({ updatedAt: 2000 });
+    expect(resolveMerge(dismissed, minted, hasHistory)).toBe(dismissed);
+    expect(resolveMerge(minted, dismissed, hasHistory).deletedAt).toBe(1000);
+  });
+
+  it("two rows that both carry history stay plain LWW", () => {
+    const older = row({ note: "a", updatedAt: 1000 });
+    const newer = row({ note: "b", updatedAt: 2000 });
+    expect(resolveMerge(older, newer, hasHistory)).toBe(newer);
+    expect(resolveMerge(newer, older, hasHistory)).toBe(newer);
+  });
+
+  it("two untouched rows stay plain LWW", () => {
+    const older = row({ name: "old", updatedAt: 1000 });
+    const newer = row({ name: "new", updatedAt: 2000 });
+    expect(resolveMerge(older, newer, hasHistory)).toBe(newer);
+    expect(resolveMerge(newer, older, hasHistory)).toBe(newer);
+  });
+
+  it("changes nothing when no predicate is supplied", () => {
+    // The same pair the first case inverts: without the rule, newest wins.
+    const decided = row({ note: "snoozed", updatedAt: 1000 });
+    const minted = row({ name: "as minted", updatedAt: 9000 });
+    expect(resolveMerge(decided, minted)).toBe(minted);
+  });
+
+  it("folds any permutation of a mixed batch to the same row", () => {
+    // The test that catches a predicate consulting the *pair* rather than the
+    // row: such a predicate passes every case above and stops devices
+    // converging, which nothing else here would notice.
+    const versions: Row[] = [
+      row({ name: "mint-1", updatedAt: 3000 }), // newest, but untouched
+      row({ name: "mint-2", updatedAt: 2500 }),
+      row({ name: "mint-3", updatedAt: 2500 }), // ties mint-2
+      row({ note: "snoozed", updatedAt: 1000 }),
+      row({ note: "dismissed", updatedAt: 1200, deletedAt: 1200 }),
+      row({ note: "reopened", updatedAt: 1200 }), // ties the tombstone
+    ];
+
+    const fold = (xs: Row[]) =>
+      xs.reduce((acc, x) => resolveMerge(acc, x, hasHistory));
+    const expected = fold(versions);
+
+    // A row with history won, not the newest row.
+    expect(hasHistory(expected)).toBe(true);
+    for (const order of permutations(versions)) {
+      expect(fold(order)).toEqual(expected);
+    }
+  });
+});
+
 describe("resolveMerge — the lost-update window (documented cost of whole-row LWW)", () => {
   it("concurrent edits to *different* fields keep only the higher-updatedAt row", () => {
     const base = row({ name: "base", note: null, updatedAt: 1000 });

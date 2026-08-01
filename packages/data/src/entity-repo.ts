@@ -1,4 +1,4 @@
-import type { SyncRow } from "@leapsake/schema";
+import type { HasHistory, SyncRow } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
 import {
   type ParsableSchema,
@@ -110,6 +110,8 @@ export function createEntityRepo<T extends SyncRow>(opts: {
   booleans?: readonly string[];
   /** A bespoke domain↔table mapping; only for shapes that differ (encryption). */
   codec?: RowCodec<T>;
+  /** Narrow the merge so an untouched row never wins — see {@link defineSyncable}. */
+  hasHistory?: HasHistory<T>;
 }): EntityRepo<T> {
   const { driver, table, schema, orderBy } = opts;
   const codec = resolveCodec<T>(opts);

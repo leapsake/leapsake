@@ -166,3 +166,34 @@ export function reminderLabel(r: {
 export function isReminderEditable(r: { source: ReminderSource }): boolean {
   return r.source === "user";
 }
+
+/**
+ * Whether anything has happened to this reminder since the engine minted it —
+ * the {@link HasHistory} predicate `reminders` merges with, and the reason a
+ * peer's fresh mint can no longer undo a dismissal or reset a snooze across
+ * sync (onboarding.md §1; `merge.ts` for the rule).
+ *
+ * History is a **decision someone took about this row**: putting it off
+ * (`snoozedUntil`, and `snoozeCount` which outlives the clock), finishing it
+ * (`completedAt`), or dismissing it (`deletedAt` — including the engine's own
+ * retirement, which is equally irreplaceable since it records a signal the peer
+ * has not seen). A `user` row is history by construction: nothing minted it. The
+ * check is inert there in practice — user reminders get random UUIDs, so two
+ * devices never mint the same one — but the predicate has to mean what it says.
+ *
+ * What is deliberately **not** history: `title` and `dueDate`. The engine
+ * re-derives both on every reconcile, so a row whose title has drifted is still
+ * a row nobody has decided anything about, and it should still lose to a peer's
+ * snooze. That precision is the reason this is a per-table predicate rather than
+ * a timestamp test in the merge — no comparison of `createdAt` and `updatedAt`
+ * can tell an engine refresh from a user's act.
+ */
+export function reminderHasHistory(r: Reminder): boolean {
+  return (
+    r.deletedAt !== null ||
+    r.completedAt !== null ||
+    r.snoozedUntil !== null ||
+    r.snoozeCount > 0 ||
+    r.source === "user"
+  );
+}

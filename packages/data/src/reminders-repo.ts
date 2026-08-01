@@ -3,6 +3,7 @@ import {
   type Reminder,
   type UpdateReminderInput,
   createReminderInputSchema,
+  reminderHasHistory,
   reminderSchema,
   snoozeUntilSchema,
   updateReminderInputSchema,
@@ -55,6 +56,11 @@ export function createRemindersRepo(driver: SqliteDriver): RemindersRepo {
     table: "reminders",
     schema: reminderSchema,
     orderBy: "created_at DESC",
+    // The one table that needs it: the engine mints its `system` rows under
+    // deterministic ids, so two devices produce the same row independently and a
+    // mint would otherwise out-rank a peer's dismissal or snooze on `updated_at`
+    // alone. See {@link reminderHasHistory}.
+    hasHistory: reminderHasHistory,
   });
 
   return {

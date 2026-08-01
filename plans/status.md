@@ -28,32 +28,26 @@ until they are built or dropped.
 - **Onboarding design reshaped** *(2026-07-31)* — the Day-1 flow and its decision table dropped
   in favour of standing nudges plus reminder snooze. One verb, one write method
   ([`onboarding.md`](./onboarding.md) §4.2).
+- **[`onboarding.md`](./onboarding.md) Increment 1 — reminder snooze + honest dismiss actions**
+  *(2026-07-31 → 08-01, 9 slices)*. Every acceptance clause now holds on desktop, watched rather
+  than inferred: on one device (slice 8) and across two (slice 9). The last defect was the merge —
+  every device mints the nudges under the same deterministic id, so a device that minted before it
+  pulled out-ranked a peer's dismissal on `updated_at` and undid it. **An untouched row never wins
+  a merge** now, via an opt-in per-table `hasHistory` predicate the sync substrate grew for it.
+  Mobile is **unverified** — its row logic has a unit tier, but nothing on either simulator has
+  been observed, which belongs to the blocked E2E tier ([`testing/`](./testing/)), not here.
+  Two leftovers stay with the workstream: an owner dial (does a one-repetition step retire on the
+  *first* "not now"?) and a cosmetic ordering wart — [`onboarding.md`](./onboarding.md) →
+  *Left open by slice 8*, findings 2 and 3.
 
 ## In progress
 
-**[`onboarding.md`](./onboarding.md) Increment 1 — reminder snooze + honest dismiss actions.**
-All 8 slices are built, and slice 8 drove the desktop dev app over CDP *(2026-08-01)* — the
-first time any of it has been observed running. **On one device it all holds**: a *Not now*
-hides the nudge, survives a restart, comes back when its clock passes and then offers *don't
-ask again*; a step that spends its repetitions stops returning; a dismissal is permanent and
-says so; all three nudges retire on their own derived signals; and a snoozed **user** reminder
-hides and returns too.
-
-**It is not finished.** Across sync, a device that mints a nudge before it pulls beats the
-peer's tombstone under whole-row LWW, so *don't ask again* — and a snooze — can be undone by a
-second device. That fails an acceptance clause, and the fix is **slice 9**: the design choice is
-settled *(owner, 2026-08-01)* — an **untouched row never wins a merge** — so what is left is
-building it. The two smaller findings beside it are an owner dial decision and a cosmetic
-ordering wart, the second of which slice 9 may absorb. All three are written up in
-[`onboarding.md`](./onboarding.md) → *Left open by slice 8*. Mobile stays **unverified** — its
-row logic has a unit tier, but no client's on-screen behaviour has been observed there, and
-that belongs to the blocked E2E tier. Increment 2 is unblocked on everything but the sync
-defect.
+Nothing. Next is [`onboarding.md`](./onboarding.md) Increment 2 — see below.
 
 ## Next, in order
 
-1. **[`onboarding.md`](./onboarding.md) Increments 1–2.** Increment 2 (the account invitation)
-   is what [`launch.md`](./launch.md) Increment 4's *"don't put a build in real testers' hands
+1. **[`onboarding.md`](./onboarding.md) Increment 2** — the account invitation, now unblocked.
+   It is what [`launch.md`](./launch.md) Increment 4's *"don't put a build in real testers' hands
    first"* rule requires, so it gates the Play 14-day clock. Increments 3–4 there do **not** —
    they can land at any pace.
 2. **[`launch.md`](./launch.md), in its own numbered order.** Increment 2 is superseded by the
@@ -69,7 +63,7 @@ Not a queue. Each doc holds its own backlog and its own open questions.
 
 | Workstream | Doc | Shape of what remains |
 |---|---|---|
-| **Onboarding** (first run) | [`onboarding.md`](./onboarding.md) | 4 increments; 1–2 are the v0.1 line |
+| **Onboarding** (first run) | [`onboarding.md`](./onboarding.md) | Increment 1 built; 2 is the rest of the v0.1 line |
 | **Distribution / launch** | [`launch.md`](./launch.md) | 11 increments; signing, stores, the release gate |
 | **Encryption + sync** | [`encryption/`](./encryption/) | the relay/sync backlog + every post-launch stage |
 | **Reconciliation** (dedup & merge) | [`reconciliation.md`](./reconciliation.md) | 4 quality items; pre- or post-launch |

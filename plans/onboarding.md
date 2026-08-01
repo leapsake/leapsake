@@ -311,6 +311,8 @@ Each is a coherent commit; they are ordered by dependency.
 8. **Verification.** The unit tiers, then drive the desktop dev app over CDP
    ([`apps/desktop/README.md`](../apps/desktop/README.md) → *Driving the app without a
    harness*) to prove a *Not now* survives a restart and reaches a second device by sync.
+9. **The sync merge fix** — what slice 8 found: an untouched row never wins (§1, and the note
+   under *Left open by slice 8* below).
 
 **Three facts worth not re-deriving** (verified 2026-07-31):
 
@@ -339,10 +341,18 @@ hides and returns too — the generic half.
 #### Left open by slice 8 (verification, 2026-08-01)
 
 Everything above is built, and every acceptance clause holds on **one desktop device** —
-observed on screen and against the store file. Three things it turned up are not built, and the
-first is what keeps this increment from being finished.
+observed on screen and against the store file. Three things it turned up are not built.
 
-1. **A tombstone loses to a fresh mint across sync — the acceptance clause fails.** §2.2's
+> **Item 1 is built and verified** *(slice 9, 2026-08-01)* — kept below only because the
+> reasoning behind the rule is worth not re-deriving; the defect is gone. It became a per-table
+> `hasHistory` predicate on the sync substrate (`packages/data/src/syncable.ts`), supplied by
+> `reminders` alone (`reminderHasHistory`), and an optional third argument to `resolveMerge`.
+> **This severed finding 3's coupling to it**: the predicate reads the domain fields, so it does
+> not care where display rank lives, and moving the `createdAt` back-off is now an independent
+> cosmetic change. Finding 2 remains an open owner dial.
+
+1. ~~**A tombstone loses to a fresh mint across sync — the acceptance clause fails.**~~ *Fixed by
+   slice 9; the analysis is kept.* §2.2's
    "deleting a system reminder means never ask again" is enforced by `reconcile`, which is a
    *local* rule. Sync has no counterpart: every device mints the same deterministic id
    independently, `upsertFromRemote` settles a conflict by whole-row LWW on `updatedAt`
@@ -387,6 +397,10 @@ first is what keeps this increment from being finished.
    elsewhere, which would settle finding 3 in the same change. The per-table route is the better
    aim: it is also more precise, since an engine *title refresh* leaves a row with no user decision
    on it and should still lose to a peer's snooze, which a timestamp test cannot tell.
+   > **Taken, 2026-08-01 (slice 9): the per-table route**, for that precision — and the rule was
+   > scoped opt-in rather than applied to every synced table, since it can only ever fire where two
+   > devices independently mint the *same id*, and `reminders` is the only such family carrying a
+   > decision worth protecting.
 
    > **Where this is heading** *(owner, 2026-08-01)*: eventually a **field-level merge** that
    > knows which fields a user owns and which the engine derives, rather than a whole-row winner.
@@ -410,7 +424,9 @@ first is what keeps this increment from being finished.
    as a `createdAt` back-off applied at insert time, so a step minted in a *later* pass outranks
    one minted earlier whatever its rank: `pick-self` sits above `sync-devices` on Home, because
    it is minted only once a person exists. Cosmetic, and only visible while more than one nudge
-   is live.
+   is live. **Independent of item 1** since slice 9 (see the note above): the fix is to move rank
+   out of `createdAt` and into the view-model sort, which is a `@leapsake/view-models` + both-clients
+   change and nothing to do with the merge.
 
 Mobile is **unverified**: its row logic has a unit tier (`apps/mobile/lib/reminder-row.test.ts`),
 but no on-screen behaviour has been observed on either simulator. That belongs to the blocked
