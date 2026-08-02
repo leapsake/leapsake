@@ -16,8 +16,18 @@ of launch as capacity allows.
 - **`libphonenumber-js` phone normalization** — E.164 canonicalization; its own increment.
 - **Pets / generalized `mergeEntities`** — a small follow-on; the reference graph is already
   entity-typed.
-- **Bulk-import dedup** — deferred until the importer exists, at which point it is mostly A+B
-  reuse, honoring the `not_a_duplicate` memory.
+- **Bulk-import dedup** — **no longer blocked**: `@leapsake/contact-import` shipped vCard
+  drag-drop, so the precondition this was deferred on is met. Today `ingestContacts` creates
+  every accepted contact unconditionally, so importing a list that overlaps existing people
+  produces the duplicates *after the fact* — the detector finds them, the nudge fires, and the
+  user reconciles pairs they could have been shown at the point of import. Mostly A+B reuse:
+  score each parsed contact against the existing set before the review screen renders. The seam
+  is already there — `ImportDecision.action` is an enum with `create` and `skip`, and this adds
+  a third arm pointing at an existing person. Must honor the `not_a_duplicate` memory, or a pair
+  the user has already dismissed comes back on every import.
+  > Sequencing note: [`onboarding.md`](./onboarding.md) Increment 3 (the import nudge) flags the
+  > same collision from the other side — don't hand a new user an import chore and a duplicate
+  > chore at once. Whichever lands second should read the other.
 
 ## Open questions
 
