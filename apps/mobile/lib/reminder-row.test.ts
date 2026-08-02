@@ -56,9 +56,10 @@ describe("offerFor", () => {
   });
 
   it("drops the snooze once the step has spent its repetitions, keeping dismiss", () => {
-    // `connect-sync` gets one repetition, so a count of 1 has spent it — the row
-    // can no longer be put off but must still be endable.
-    const actions = actionsFor(idFor("connect-sync"), 1);
+    // A count past any step's budget — deliberately dial-independent, since what
+    // is under test is this client's mapping, not the number itself. The row can
+    // no longer be put off but must still be endable.
+    const actions = actionsFor(idFor("connect-sync"), 99);
 
     expect(offersFor(actions)).toEqual([
       { kind: "navigate", path: "/(tabs)/settings", label: "Get started ›" },

@@ -97,8 +97,8 @@ const idFor = (route: string) =>
  *  re-tuning them — which is meant to be cheap — is a one-line edit here too. */
 const SNOOZE_DAYS = 3;
 const REPETITIONS = {
-  "connect-sync": 1,
-  "add-person": 1,
+  "connect-sync": 2,
+  "add-person": 2,
   "pick-self": 2,
 } as const;
 
@@ -282,8 +282,21 @@ describe("onboarding reminders", () => {
       expect(h.activeSystem()).toHaveLength(0);
     });
 
-    it("retires a one-repetition step after a single snooze", async () => {
-      // Isolate sync-devices: "ask once more, then never".
+    it("never retires any step on a single 'not now'", async () => {
+      // The floor the owner set on 2026-08-01: every step comes back at least
+      // once. At one repetition the first "not now" would spend the whole budget
+      // and the next reconcile would tombstone the row before its clock was ever
+      // read — making the gentle option the permanent one, and hiding "don't ask
+      // again" for good, since that only appears on a second sighting.
+      for (const route of [
+        "connect-sync",
+        "add-person",
+        "pick-self",
+      ] as const) {
+        expect(REPETITIONS[route]).toBeGreaterThanOrEqual(2);
+      }
+
+      // Proven through the engine for one of them, not just asserted on a literal.
       h.signals.hasEntities = true;
       h.signals.hasSelf = true;
       await regenerateSystemReminders(h.deps);
@@ -293,8 +306,8 @@ describe("onboarding reminders", () => {
       h.snooze(id);
 
       const result = await regenerateSystemReminders(h.deps);
-      expect(result).toEqual({ created: 0, updated: 0, removed: 1 });
-      expect(h.byId(id)?.deletedAt).not.toBeNull();
+      expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
+      expect(h.byId(id)?.deletedAt).toBeNull();
     });
 
     it("leaves an exhausted step gone, though its condition still holds", async () => {
@@ -302,7 +315,7 @@ describe("onboarding reminders", () => {
       h.signals.hasSelf = true;
       await regenerateSystemReminders(h.deps);
       const id = idFor("connect-sync");
-      h.snooze(id);
+      h.snooze(id, REPETITIONS["connect-sync"]);
       await regenerateSystemReminders(h.deps); // retired
 
       // Sync is still not connected, so the step still applies — and stays dead.
@@ -349,14 +362,34 @@ describe("onboarding reminders", () => {
       ).toBeNull();
     });
 
-    it("gives each step its own budget", () => {
-      // One snooze leaves pick-self another and leaves connect-sync none.
-      expect(
-        snoozePolicyOf({ id: idFor("pick-self"), snoozeCount: 1 }, NOW),
-      ).not.toBeNull();
-      expect(
-        snoozePolicyOf({ id: idFor("connect-sync"), snoozeCount: 1 }, NOW),
-      ).toBeNull();
+    it("reads each step's own budget, whatever it is set to", () => {
+      // The dials are per-step by construction even while all three share a
+      // value today — so this asserts the lookup, against each step's own number.
+      for (const route of [
+        "connect-sync",
+        "add-person",
+        "pick-self",
+      ] as const) {
+        const id = idFor(route);
+        const last = REPETITIONS[route] - 1;
+        expect(snoozePolicyOf({ id, snoozeCount: last }, NOW)).not.toBeNull();
+        expect(snoozePolicyOf({ id, snoozeCount: last + 1 }, NOW)).toBeNull();
+      }
+    });
+
+    it("still offers a snooze on the second encounter, for every step", () => {
+      // The user-visible half of the floor above: after one "not now" the row
+      // returns *and* can be put off again, so "don't ask again" — which appears
+      // only from a count of 1 — is never the only remaining choice.
+      for (const route of [
+        "connect-sync",
+        "add-person",
+        "pick-self",
+      ] as const) {
+        expect(
+          snoozePolicyOf({ id: idFor(route), snoozeCount: 1 }, NOW),
+        ).not.toBeNull();
+      }
     });
 
     it("offers nothing for a non-onboarding (milestone / user) reminder", () => {

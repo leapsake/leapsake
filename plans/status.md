@@ -36,9 +36,11 @@ until they are built or dropped.
   a merge** now, via an opt-in per-table `hasHistory` predicate the sync substrate grew for it.
   Mobile is **unverified** — its row logic has a unit tier, but nothing on either simulator has
   been observed, which belongs to the blocked E2E tier ([`testing/`](./testing/)), not here.
-  Two leftovers stay with the workstream: an owner dial (does a one-repetition step retire on the
-  *first* "not now"?) and a cosmetic ordering wart — [`onboarding.md`](./onboarding.md) →
-  *Left open by slice 8*, findings 2 and 3.
+  The dial that went with it is settled too *(owner, 2026-08-01)*: a step accepts **two** *not
+  now*s, never one, so no nudge retires on the first click and *don't ask again* is always
+  reachable. One cosmetic leftover stays with the workstream and is deprioritized — nudge display
+  order only holds within a single reconcile ([`onboarding.md`](./onboarding.md) → *Left open by
+  slice 8*, finding 3).
 
 ## In progress
 

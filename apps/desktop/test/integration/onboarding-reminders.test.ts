@@ -201,11 +201,12 @@ describe("onboarding reminders (end to end through core)", () => {
   });
 
   it("stops offering snooze once the step has spent its repetitions", async () => {
-    // connect-sync gets one repetition, so the second snooze exhausts it: the
-    // budget really is spent by the write, not merely displayed as spent.
+    // connect-sync gets two repetitions, so the second "not now" exhausts it:
+    // the budget really is spent by the write, not merely displayed as spent.
     await core.reminders.regenerateSystem();
     const id = idFor("connect-sync");
 
+    await core.reminders.snooze(id, Date.now() + 86_400_000);
     await core.reminders.snooze(id, Date.now() + 86_400_000);
     const spent = (await systemReminders()).find((r) => r.id === id)!;
 

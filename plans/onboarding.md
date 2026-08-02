@@ -85,15 +85,23 @@ route. That is why Increment 4 exists.
 
 Skip semantics are per-step because a single global rule is wrong in both directions:
 
-| Step | If the user skips | How many *not now*s before it gives up |
+| Step | If the user skips | How many *not now*s it accepts before giving up |
 |---|---|---|
-| **Connect to an existing account** | They almost certainly don't have one. Re-asking is noise | **One** — ask once more, then never |
+| **Connect to an existing account** | They almost certainly don't have one. Re-asking is noise | **Two** — the floor; comes back once |
 | **Create an account** | Their data has no access-recovery path at all | **Most** — this is the one that matters |
 | **Tell us about yourself** | Mild; gifts and (later) kinship stay less useful | **Few** |
-| **Import your contacts** | Mild; they can import any time | **One** |
+| **Import your contacts** | Mild; they can import any time | **Two** — the floor |
 
 That last column *is* the **repetitions** dial (§4.1) — the stakes are the reasoning; the dial
 is how it gets expressed. Which is why these are numbers to tune, not a design to settle.
+
+> ⚠️ **Count *not nows accepted*, not times it comes back** — the two readings differ by one, and
+> the column was written the second way until 2026-08-01, which is how every step but `pick-self`
+> ended up at a value that retired it on the first click. **Two is the floor for every step**
+> *(owner, 2026-08-01)*: at one, the first *not now* spends the whole budget and the next
+> reconcile tombstones the row before its clock is read — so the gentle-looking option is the
+> permanent one, and *don't ask again* is never offered at all, since §1 withholds it until a
+> second sighting. A step may take more than two; none may take fewer.
 
 The asymmetry is the whole argument: **wrongly nagging costs annoyance the user can dismiss;
 wrongly silencing the account step costs someone their data, with no signal that it
@@ -313,6 +321,8 @@ Each is a coherent commit; they are ordered by dependency.
    harness*) to prove a *Not now* survives a restart and reaches a second device by sync.
 9. **The sync merge fix** — what slice 8 found: an untouched row never wins (§1, and the note
    under *Left open by slice 8* below).
+10. **The repetitions floor** — every step accepts at least two *not now*s, so none retires on
+    the first click and *don't ask again* is always reachable (§3, §8).
 
 **Three facts worth not re-deriving** (verified 2026-07-31):
 
@@ -341,15 +351,19 @@ hides and returns too — the generic half.
 #### Left open by slice 8 (verification, 2026-08-01)
 
 Everything above is built, and every acceptance clause holds on **one desktop device** —
-observed on screen and against the store file. Three things it turned up are not built.
+observed on screen and against the store file. It turned up three things.
 
-> **Item 1 is built and verified** *(slice 9, 2026-08-01)* — kept below only because the
-> reasoning behind the rule is worth not re-deriving; the defect is gone. It became a per-table
-> `hasHistory` predicate on the sync substrate (`packages/data/src/syncable.ts`), supplied by
-> `reminders` alone (`reminderHasHistory`), and an optional third argument to `resolveMerge`.
-> **This severed finding 3's coupling to it**: the predicate reads the domain fields, so it does
-> not care where display rank lives, and moving the `createdAt` back-off is now an independent
-> cosmetic change. Finding 2 remains an open owner dial.
+> **Items 1 and 2 are settled and built** *(2026-08-01)*; only the cosmetic item 3 is left, and
+> it is **deprioritized** *(owner)* — nothing is lost by it, so the order can change later. Both
+> are kept below because the reasoning behind them is worth not re-deriving.
+>
+> - **1 → slice 9.** A per-table `hasHistory` predicate on the sync substrate
+>   (`packages/data/src/syncable.ts`), supplied by `reminders` alone (`reminderHasHistory`), and
+>   an optional third argument to `resolveMerge`. **This severed item 3's coupling to it**: the
+>   predicate reads the domain fields, so it does not care where display rank lives, and moving
+>   the `createdAt` back-off is now an independent cosmetic change.
+> - **2 → slice 10.** The repetitions dial counts *not nows accepted*, with **two as the floor**
+>   for every step (§3, §8).
 
 1. ~~**A tombstone loses to a fresh mint across sync — the acceptance clause fails.**~~ *Fixed by
    slice 9; the analysis is kept.* §2.2's
@@ -408,17 +422,15 @@ observed on screen and against the store file. Three things it turned up are not
    > buying for this alone — take the narrow rule now, and let the per-table seam it needs be the
    > thing that grows into it when a second consumer appears.
 
-2. **A one-repetition step retires on the *first* "Not now"** — so for `sync-devices` and
-   `add-first-person`, two of today's three nudges, *Not now* and *Don't ask again* are the same
-   act. Observed: the click stored a clock three days out, and the next reconcile — a plain
-   app restart, no user action — tombstoned the row, so that clock is never read. This is what
-   `computeAndReconcile` and `onboarding.test.ts` both currently specify ("retires a
-   one-repetition step after a single snooze"), so it is a **dial question for the owner**, not a
-   defect: is §3's "one" the number of *not nows* the step will accept, or the number of times it
-   will come **back**? §8's proposal ("back after 3 days, then stop") reads as the latter, which
-   is `snoozeRepetitions: 2`. It matters beyond tuning because §1 withholds *don't ask again* on a
-   first encounter precisely so a permanent choice is never a trap — and today the gentle-looking
-   option is the permanent one.
+2. ~~**A one-repetition step retires on the *first* "Not now"**~~ — **settled and built**
+   *(owner, 2026-08-01)*: the dial counts *not nows accepted*, and **two is the floor**, so
+   `sync-devices` and `add-first-person` went 1 → 2 and every nudge now comes back at least once
+   before it can retire. The original finding: for two of today's three nudges, *Not now* and
+   *Don't ask again* were the same act — the click stored a clock three days out, and the next
+   reconcile (a plain app restart, no user action) tombstoned the row, so that clock was never
+   read. It mattered beyond tuning because §1 withholds *don't ask again* on a first encounter
+   precisely so a permanent choice is never a trap, and the gentle-looking option was the
+   permanent one. See §3's warning and §8.
 
 3. **Display order only holds within a single reconcile.** `ONBOARDING_STEPS` order is realized
    as a `createdAt` back-off applied at insert time, so a step minted in a *later* pass outranks
@@ -510,13 +522,15 @@ account forms exist in one place with two callers.
 
 ## 8. Open decisions for owner sign-off
 
-1. **Starting numbers for the two dials** — *not an architecture question.* §4.1 makes both
-   cheap to change, so this is tuning: pick something reasonable and correct it when real usage
-   disagrees. The proposal is a **shared duration, per-step repetitions** — back after 3 days,
-   then after 2 weeks, then stop; only the account step takes both rungs, everything else gives
-   up after one, per §3's last column. Not yet confirmed.
+*None outstanding.*
 
 *Settled since first draft:*
+
+- **Starting numbers for the two dials** *(owner, 2026-08-01)* — 3 days, and **two** *not nows*
+  for all three of today's steps. Not an architecture question: §4.1 makes both cheap to change,
+  so these are tuning numbers to correct once real usage disagrees. What is **not** tuning is the
+  floor of two — see §3's warning; a step at one has no second encounter, and therefore no
+  *don't ask again*. The account step (Increment 2) is the one expected to take more.
 
 - **Shape** (§1, §5) — standing nudges, no Day-1 flow; ordering carries the sequencing.
 - **Memory** (§4) — two columns on `reminders`, not a decision table; *did it* stays derived.

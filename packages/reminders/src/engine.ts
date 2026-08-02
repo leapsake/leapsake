@@ -276,8 +276,20 @@ interface OnboardingStep {
    * needs no civil-date math.
    */
   snoozeDurationDays: number;
-  /** How many times this step is willing to come back before it gives up and
-   *  retires itself for good. See {@link snoozePolicyOf}. */
+  /**
+   * How many *"not now"s* this step will accept before it gives up and retires
+   * itself for good — so it comes back `snoozeRepetitions - 1` times. A step set
+   * to **1** therefore never returns: the first "not now" spends the budget and
+   * the next reconcile tombstones the row before its clock is ever read.
+   *
+   * That is why the floor is **2** for every step *(owner, 2026-08-01)*: at 1 the
+   * gentle-looking option is the permanent one, and "don't ask again" — which is
+   * withheld on a first encounter precisely so a permanent choice is never a
+   * trap — is then never offered at all, because it appears only on a second
+   * sighting. Read the number as *not nows accepted*, not *times it returns*;
+   * the two readings differ by one and the plan's §3 table is written the other
+   * way round. See {@link snoozePolicyOf}.
+   */
   snoozeRepetitions: number;
 }
 
@@ -319,7 +331,7 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     // A user who says "not now" here almost certainly has no other device, so
     // asking once more and then dropping it is the whole budget.
     snoozeDurationDays: 3,
-    snoozeRepetitions: 1,
+    snoozeRepetitions: 2,
   },
   {
     key: "add-first-person",
@@ -329,7 +341,7 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     // Skipping this costs little: an empty app is self-evidently empty, and the
     // nudge has nothing to add once the user starts typing.
     snoozeDurationDays: 3,
-    snoozeRepetitions: 1,
+    snoozeRepetitions: 2,
   },
   {
     // Pick yourself, once there's a list to pick from — the self-person is the

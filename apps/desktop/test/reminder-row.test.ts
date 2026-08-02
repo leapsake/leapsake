@@ -55,10 +55,11 @@ describe("rowAffordanceFor", () => {
   });
 
   it("drops the snooze once the step has spent its repetitions, keeping dismiss", () => {
-    // `connect-sync` gets one repetition, so a count of 1 has spent it — the row
-    // can no longer be put off but must still be endable.
+    // A count past any step's budget — deliberately dial-independent, since what
+    // is under test is this client's mapping, not the number itself. The row can
+    // no longer be put off but must still be endable.
     const id = idFor("connect-sync");
-    const actions = reminderActionsOf(reminder(id, 1), {}, NOW);
+    const actions = reminderActionsOf(reminder(id, 99), {}, NOW);
 
     expect(affordancesFor(actions, id)).toEqual([
       { kind: "link", to: "/settings", label: "Set up sync →" },
