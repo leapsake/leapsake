@@ -39,8 +39,7 @@ until they are built or dropped.
   The dial that went with it is settled too *(owner, 2026-08-01)*: a step accepts **two** *not
   now*s, never one, so no nudge retires on the first click and *don't ask again* is always
   reachable. One cosmetic leftover stays with the workstream and is deprioritized — nudge display
-  order only holds within a single reconcile ([`onboarding.md`](./onboarding.md) → *Left open by
-  slice 8*, finding 3).
+  order only holds within a single reconcile ([`onboarding.md`](./onboarding.md) → Increment 1).
 
 ## In progress
 
