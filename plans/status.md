@@ -47,10 +47,17 @@ Nothing. Next is [`onboarding.md`](./onboarding.md) Increment 2 — see below.
 
 ## Next, in order
 
-1. **[`onboarding.md`](./onboarding.md) Increment 2** — the account invitation, now unblocked.
-   It is what [`launch.md`](./launch.md) Increment 4's *"don't put a build in real testers' hands
-   first"* rule requires, so it gates the Play 14-day clock. Increments 3–4 there do **not** —
-   they can land at any pace.
+1. **[`onboarding.md`](./onboarding.md) Increment 2** — the account invitation. It is what
+   [`launch.md`](./launch.md) Increment 4's *"don't put a build in real testers' hands first"*
+   rule requires, so it gates the Play 14-day clock. Increments 3–4 there do **not** — they can
+   land at any pace. **Reshaped 2026-08-02** by a returning-user trap: a *create account* nudge
+   on Home can lead someone with an existing account into a second, local-only one that **cannot
+   currently be merged back** — `adopt-account-flow.ts:95` refuses it and the converter takes
+   only a plaintext source. Settled in response: the nudges become an explicit fork (*sign in*
+   from day 1, *create* only once `hasEntities`), under an invariant that any local store stays
+   mergeable into a synced account ([`onboarding.md`](./onboarding.md) §6.1–6.2). **One open
+   question, and it moves the launch clock:** whether that merge path ships before Increment 2
+   or alongside it — see that doc's §8.
 2. **[`launch.md`](./launch.md), in its own numbered order.** Increment 2 is superseded by the
    above; Increment 1 is down to one owner decision, **deliberately deferred** *(owner,
    2026-07-31)*: everything stays `0.0.0` until it is needed, which is Increment 4's first

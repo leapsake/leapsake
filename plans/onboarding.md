@@ -1,9 +1,9 @@
 # Leapsake — Onboarding (first-run nudges)
 
 > **The plan for how a new user is invited into the things they should do early** — connect
-> an existing account, tell us about themselves, import their contacts, and create an account
-> so they never lose access. Each is a standing nudge on Home, ordered so the time-sensitive
-> ones lead, and each can be declined honestly.
+> an existing account, tell us about themselves, import their contacts, and create an account,
+> which is what turns encryption on and makes sync possible at all. Each is a standing nudge
+> on Home, ordered so the time-sensitive ones lead, and each can be declined honestly.
 >
 > **Unbuilt work and the decisions that constrain it.** Increment 1 is built; how it *works* is
 > in the code and its doc-comments (`packages/reminders/src/engine.ts` for the steps and dials,
@@ -64,7 +64,7 @@ Skip semantics are per-step because a single global rule is wrong in both direct
 | Step | If the user skips | How many *not now*s it accepts before giving up |
 |---|---|---|
 | **Connect to an existing account** | They almost certainly don't have one. Re-asking is noise | **Two** — the floor; comes back once |
-| **Create an account** | Their data has no access-recovery path at all | **Most** — this is the one that matters |
+| **Create an account** | Their store stays plaintext, and every further day of typing widens a window that conversion cannot fully close | **Most** — this is the one that matters |
 | **Tell us about yourself** | Mild; gifts and (later) kinship stay less useful | **Few** |
 | **Import your contacts** | Mild; they can import any time | **Two** — the floor |
 
@@ -80,8 +80,30 @@ is how it gets expressed. Which is why these are numbers to tune, not a design t
 > second sighting. A step may take more than two; none may take fewer.
 
 The asymmetry is the whole argument: **wrongly nagging costs annoyance the user can dismiss;
-wrongly silencing the account step costs someone their data, with no signal that it
-happened.** Where a step's default is genuinely unclear, default to re-prompting.
+wrongly silencing the account step costs confidentiality that no later action fully recovers,
+with no signal that it happened.** Where a step's default is genuinely unclear, default to
+re-prompting.
+
+> ⚠️ **Corrected 2026-08-02. An accountless user is not at risk of losing their data, and
+> this plan said three times that they were.** The claim was that an accountless store "has
+> no access-recovery path"; the truth is the opposite. An Unauthenticated store is a plaintext
+> file with no keys anywhere, so there is no lock to be locked out of — `model.md` §7.2's
+> custody table says a wiped keychain loses **nothing** in that state, and `launch.md` §2 says
+> an accountless user has nothing to lose on the org move. Creating an account is what
+> *introduces* a lock; the password and recovery phrase are the two doors back through it.
+>
+> **What an account actually buys**, and what the copy and the dials must be justified by:
+> encryption at rest, an identity, and — the big one — the master key that sync and sharing
+> have nothing to seal under until it exists. **An account does not protect against a lost or
+> broken device**; only sync or a file backup does, exactly as `model.md` §7.2.1 already says.
+>
+> **The stakes argument survives on different ground.** The cost of *delay* is real, silent,
+> and one-way: data typed before the account exists is written to disk in the clear, and
+> §7.2.1's *honest limit of converting late* is that conversion deletes the plaintext original
+> but cannot reliably erase it from SSD free space. So converting on day 1 is materially
+> better than day 30, the user is given no signal of this, and they cannot undo it afterwards.
+> That is why this step still takes the most repetitions — not a data-loss path that does not
+> exist.
 
 This is the onboarding-side restatement of `launch.md` §2: under *encryption follows custody*
 an accountless user has nothing to lose on the org move, and an account holder has a password
@@ -206,13 +228,32 @@ Two things it left, neither of them build work:
 
 > The gate-clearer for [`launch.md`](./launch.md) Increment 4.
 
-**Value:** gets users from Unauthenticated to Authenticated, which is what closes the data-loss path.
+**Value:** gets users from Unauthenticated to Authenticated — the state that turns encryption on
+and is the precondition for sync and sharing, neither of which has a key to seal under until an
+account exists. Read the ⚠️ note in §3 before writing any copy for it: this is **not** a
+data-loss fix, and saying so was this plan's own mistake for two drafts.
 
 - A fourth step on the existing rails: `hasAccount` from §2, a `create-account` route, both
-  client CTA tables (`apps/desktop/.../ReminderList.tsx:17`, `apps/mobile/app/(tabs)/index.tsx:29`).
+  client CTA tables (`apps/desktop/src/renderer/src/lib/reminder-row.ts:32` `ctaLinkFor`,
+  `apps/mobile/lib/reminder-row.ts:62` `ctaOffer`).
+- **`applies: (s) => s.hasEntities && !s.hasAccount`** — the invitation waits for something worth
+  protecting *(owner, 2026-08-02)*. `hasEntities` already exists as a signal, so this needs no
+  new plumbing, and it puts the step below `add-first-person` in the §3.1 sense without a second
+  mechanism. Meanwhile `sync-devices` is minted at first launch and stands from day 1, which is
+  what makes the pair read as *"already have one?"* before *"make one"*.
+  > **Not a wall-clock delay, deliberately.** "Day 2 or 3" is the *expected* effect of gating on
+  > data, not a second condition. A user who imports 200 contacts on day 1 has reached the
+  > moment the account matters **most** (Increment 3 says as much), and an elapsed-time floor
+  > would mute the invitation exactly then, widening §7.2.1's window in the highest-stakes case.
+  > If a floor is ever wanted anyway, it needs no new column: `sync-devices` is minted at the
+  > first reconcile, so its `createdAt` **is** the install date — derived, per §4.
 - Copy promises **access, not safety** (`encryption/model.md` §7.2.1) — an account protects
-  access; a backup protects against losing the device. Draft, minus `launch.md`'s "It's free":
-  > 🔐 **Create your account so you never lose access to your data.**
+  access; a backup protects against losing the device. **The old draft violated exactly that
+  rule** ("*so you never lose access to your data*") and is withdrawn; §8 carries the
+  replacement as an open decision. The reminder row has both a title and a body, and the body
+  is the natural home for the honesty clause rather than a footnote nobody reads. Working draft:
+  > 🔐 **Set up your login to protect the data on this device.**
+  > It stays on this device. A login encrypts it and is what lets you sync later.
 - Titles stay free of `#`/`@` tokens so the core insert-wrapper materializes no tags or mentions.
 - It is the step §3 says must never be wrongly silenced, so it takes **more repetitions than the
   floor** — the one step expected to.
@@ -221,6 +262,111 @@ Two things it left, neither of them build work:
   **local-only** account keeps a nudge pointing at a flow that cannot satisfy it — binding an
   existing local account to a relay is unbuilt on both clients (`encryption/README.md` →
   *Open questions* → *Username collision*). Retire `sync-devices` on `hasAccount` too, or reword it.
+- **Do not ship this increment without settling §6.1** — putting a *create* invitation on Home
+  is what turns that latent trap into a mass-produced one.
+
+#### 6.1 The two-account trap — the fork *(settled 2026-08-02)*
+
+**The failure:** a returning user who already has a Leapsake account on another device sees
+*"create an account"* on Home, takes it, and gets a **second, local-only** account. Their
+existing data is on the other device and they now hold a store they cannot bind to it.
+
+**Why it is not symmetric, which is the key to the fix.** The two possible mistakes cost
+wildly different amounts:
+
+| The user… | …when they should have… | Cost |
+|---|---|---|
+| signs in | created | **None.** `SyncSetup` (`Settings.tsx:695`) takes username + relay, calls `window.sync.lookup`, and branches to `LoginStep` or `SignupStep` on the answer. Guessing wrong self-corrects, and `reconcileOnJoin` keeps local data and surfaces overlaps for review |
+| creates | signed in | **Potentially stranding.** `CreateAccount` runs no lookup — it cannot, it is deliberately relay-free — and **relay binding for an existing local account is unbuilt on both clients**. The only exit is *Forget account*, which destroys the local store |
+
+So the guard belongs on the *create* path, not spread evenly across both.
+
+**Why Increment 2 makes it worse rather than finding it.** Today a local-only account is one
+tap away *inside Settings*, which a first-week user may never open — `encryption/README.md`
+already flags this population as growing and its exit as unbuilt. This increment puts that same
+tap on Home, in front of every user, including returning ones. **Closed testers are the
+population most likely to be hit**: they are precisely the people installing on a second device.
+That makes this a live interaction with `launch.md` Increment 4, not a v0.2 polish item.
+
+**Ordering alone does not fix it.** §3.1 already puts `sync-devices` first for this reason, but
+display order is a preference, not a gate: both rows are on Home simultaneously, and *"create
+your account"* reads like the primary setup action while *"connect to sync"* reads like an
+optional extra. A returning user can easily take the wrong one from the top of the list.
+
+**Resolved *(owner, 2026-08-02)*: options 1 + 2 as the near-term shape, option 4 as the
+invariant that makes the trap survivable.** The nudges become an explicit fork — *"Already have
+Leapsake? Sign in"* stands from day 1, and *"Create your account"* only appears once there is
+local data to protect — and underneath them sits a guarantee: **a local store, Unauthenticated
+or Authenticated, must always be mergeable into an authenticated synced account.** A user who
+takes the wrong branch loses time, never work. §6.2 is what that costs.
+
+The options as they were weighed:
+
+1. **Guard the destination.** The create screen opens by asking *"Do you already have a Leapsake
+   account on another device?"* — Yes routes into the lookup flow, No into local create. Catches
+   every route in, including Settings visited directly, and is the only option that does not
+   depend on the user reading two Home rows correctly. Naturally Increment 4 work, pulled forward.
+2. **Reword the pair as one fork.** *"Already have Leapsake? Sign in"* / *"New to Leapsake?
+   Create your account."* Cheap, and `sync-devices`' current *"Connect to sync"* is our
+   vocabulary rather than the user's — a returning user is looking for the word **sign in**.
+3. **Sequence them:** withhold `create-account` until `sync-devices` is answered or exhausted.
+   Genuinely prevents it, but costs a cross-step dependency the engine has no notion of (a
+   step's `applies` reading another step's row state, cutting against §4's derive-don't-store),
+   and delays the account invitation by the whole snooze budget for anyone who ignores rather
+   than answers — which the §3 delay argument says is the wrong direction.
+4. **Ship the *rename or join* half of relay binding first**, so the trap has an exit and the
+   nudge stops being one-way. Largest scope; turns a UX guard into a real capability.
+
+1 + 2 are complementary and cover the case without new engine concepts; 4 is the durable fix
+whenever relay binding lands.
+
+#### 6.2 The merge invariant, and what is missing from it
+
+> **A local store — Unauthenticated *or* Authenticated — must always be mergeable into an
+> authenticated synced account.** *(owner, 2026-08-02.)* This is the guarantee the fork in §6.1
+> rests on: a wrong turn costs a detour, never data. It also outranks §6.1's UX guards — those
+> reduce how often the mistake is made, this one decides what it costs.
+
+**From Unauthenticated: built, and already meets the invariant.** `adoptAccountOnThisDevice`
+runs convert → password door → roster entry → destroy original, and `reconcileOnJoin` keeps this
+device's rows, deliberately not auto-merging: overlaps go to the duplicate-review surface.
+
+**From Authenticated local-only: refused, at two layers.**
+
+| Layer | What it does today |
+|---|---|
+| `apps/desktop/src/main/db/adopt-account-flow.ts:95` | throws — *"This device already holds an account. Forget it before joining another."* (the comment above it, from :88, is the one discussed below) |
+| `apps/desktop/src/main/db/convert-store.ts:53` | refuses any source that is not plaintext |
+
+The comment above that throw records an in-place adopt branch that **existed and was removed**,
+because "silently adopting a second account into a store still homed under the first one's id
+was never a state worth producing". That objection stands and is not overturned here: what the
+invariant asks for is an **explicit, user-initiated merge**, not the silent adopt that was cut.
+Keep the distinction — it is the difference between rehoming a store on purpose and letting a
+roster inconsistency do it by accident.
+
+**What the missing half needs**, in the order the difficulty runs:
+
+1. **Re-key, not round-trip.** The converter is plaintext→encrypted. It needs an encrypted
+   source: `ATTACH` the destination keyed under the account MK while the source is open under
+   the local db-key, which is the same ordinary-SQL pattern the doc-comment already explains.
+   **Never route through a plaintext intermediate** — that would write the entire database in
+   the clear, the exact window `model.md` §7.2.1 exists to keep small.
+2. **Rehome the store.** The file lives at `storePath(accountId)` and carries an account row, so
+   the merge moves it from the local account's id to the synced one's, rewrites the roster
+   entry, and retires the local account. The local password stops working — that is user-visible
+   and needs copy, not just a migration.
+3. **Preserve the crash ordering.** convert → door → roster → destroy, unchanged. The wrinkle is
+   that the source is now itself an encrypted store worth keeping if the merge fails, so
+   "original survives until the roster names its replacement" matters more here, not less.
+4. **Merge the rows: already done.** `reconcileOnJoin` is the whole answer, as
+   [`encryption/README.md`](./encryption/README.md)'s username-collision question already
+   guessed.
+5. **Username collision.** If the local handle exists on the relay, that is the `409` with two
+   readings. Renaming is the easy half; *"join it and review the duplicates"* is the other.
+
+The hard part — merging people without losing or silently fusing them — is the part that
+already exists. What is missing is custody plumbing, which is bounded.
 
 **Acceptance:** a brand-new profile sees no custody UI until it has data; the invitation then
 appears on Home; creating an account clears it permanently and leaves the store encrypted with
@@ -278,7 +424,18 @@ account forms exist in one place with two callers.
 
 ## 8. Open decisions for owner sign-off
 
-*None outstanding.* Settled since first draft:
+**One outstanding** *(raised 2026-08-02)*:
+
+- **Does the §6.2 merge path have to ship *before* Increment 2, or alongside it?** The invariant
+  is settled; its sequencing is not, and it is the one question that moves the launch clock.
+  Building it first means Increment 2 — and therefore `launch.md` Increment 4 and the Play
+  14-day clock — waits on custody plumbing. Shipping Increment 2 behind §6.1's fork first keeps
+  the clock moving and leaves a window in which the mistake is hard to make but still one-way.
+  Closed testers are few and reachable, which argues the window is survivable; they are also
+  the likeliest to own a second device, which argues it is exactly the wrong group to leave
+  exposed. **Not a decision to make implicitly by build order.**
+
+Settled since first draft:
 
 - **Shape** (§1, §5) — standing nudges, no Day-1 flow; ordering carries the sequencing.
 - **Memory** (§4) — two columns on `reminders`, not a decision table; *did it* stays derived.
@@ -288,6 +445,12 @@ account forms exist in one place with two callers.
   steps. Tuning numbers, to be corrected when real usage disagrees. What is **not** tuning is
   the floor of two (§3).
 - **Merge across devices** *(owner, 2026-08-01)* — an untouched row never wins (§1).
+- **The create/sign-in fork** *(owner, 2026-08-02)* — §6.1 options 1 + 2. *"Already have
+  Leapsake? Sign in"* stands from day 1; the create invitation waits for `hasEntities`.
+- **The merge invariant** *(owner, 2026-08-02)* — §6.2. A local store, Unauthenticated or
+  Authenticated, is always mergeable into a synced account. A wrong turn costs time, not work.
+- **The old account copy is withdrawn** *(2026-08-02)* — it promised what §3's ⚠️ note says is
+  false. The working draft in Increment 2 replaces it; wording is not blocking.
 
 ## 9. What this plan does *not* change
 

@@ -127,6 +127,18 @@ db-key. Not a one-way door — it sits on the same password door.
   binding ships.** Weightier since 2026-07-29: a local-only account is now one tap away on
   *both* clients, so the population that could later want to bind one is no longer
   desktop-only — while binding itself remains unbuilt on either client.
+  > **Now constrained by an invariant** *(owner, 2026-08-02)*: **a local store, Unauthenticated
+  > or Authenticated, must always be mergeable into an authenticated synced account.** That
+  > settles the *"this is me"* half — it must exist, and *"join it and review the duplicates"*
+  > is the shape — leaving only the rename half genuinely open. It also raises the priority:
+  > [`../onboarding.md`](../onboarding.md) Increment 2 puts a **create-account** invitation on
+  > Home, which multiplies the population holding a local-only account, and closed testers are
+  > the group most likely to own a second device. §6.2 there costs out the missing plumbing;
+  > the row-merging half is already built.
+  >
+  > **Before picking this up, read [`../onboarding.md`](../onboarding.md) §8.** Whether this
+  > work must land *before* that increment or alongside it is an open owner decision, and it is
+  > the thing that decides whether this is next or merely soon.
 - **Relay backup capability** — the protocol shape for a relay advertising whether it keeps a
   durable copy ([`model.md`](./model.md) §7.3.1). The **client half is built**
   (`fetchRelayCapabilities`, `@leapsake/sync`): it GETs `/capabilities`, reads a literal

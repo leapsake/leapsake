@@ -145,9 +145,18 @@ the old one — uninstall them and rebuild the dev client before running `pnpm t
 > became its own workstream. It now lives in [`onboarding.md`](./onboarding.md) as that plan's
 > **Increments 1–2**, which are a drop-in for the gate this slot held.
 
-**Value, unchanged:** gets users from Unauthenticated to Authenticated — which is what closes the data-loss
-path, rather than teaching a phrase to guard it. It is still a **hard prerequisite of
-Increment 4**, for the reason stated there: closed testers are real users with real data.
+**Value, unchanged:** gets users from Unauthenticated to Authenticated — the state that turns
+encryption on and that sync and sharing have no key to seal under until it exists, rather than
+teaching a phrase to guard it. It is still a **hard prerequisite of Increment 4**, for the
+reason stated there: closed testers are real users with real data.
+
+> ⚠️ **Corrected 2026-08-02.** This said the account "closes the data-loss path". It does not —
+> an Unauthenticated store is plaintext with no keys, so there is nothing to be locked out of,
+> and §2 below says as much from the other side. The gate above still holds, but on two
+> different grounds now, and both are worth re-reading before leaning on it: testers' data sits
+> in the clear meanwhile (`encryption/model.md` §7.2.1's un-erasable window), and testers are
+> the population most likely to install on a **second device**, which needs an account to work
+> at all. The full correction is in [`onboarding.md`](./onboarding.md) §3.
 
 Three things settled here that `onboarding.md` inherits rather than re-decides:
 
@@ -204,6 +213,14 @@ everything downstream waits — which is exactly why it runs early and cheap.
 
 **Sequenced after 1–3 deliberately:** closed testers are real users with real data. Do not
 put a build in their hands before the recovery nudge and a verified restore path.
+
+> ⚠️ **This gate has an open question against it** *(2026-08-02)*, and it is the one that decides
+> when this increment can start. [`onboarding.md`](./onboarding.md) §6.1 found that a
+> *create account* nudge can lead a returning user into a second, local-only account that
+> **cannot currently be merged back** into their real one — and closed testers are the group
+> most likely to hit it, being the likeliest to own a second device. Whether the merge path
+> (§6.2 there) must ship **before** the invitation or alongside it is undecided and is tracked
+> in that doc's **§8**. Do not settle it by build order from this side.
 
 **Acceptance:** reproducible signed builds from a clean checkout; Android build live in
 closed testing with the tester count met and the 14-day clock running.
