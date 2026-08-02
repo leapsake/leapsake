@@ -71,6 +71,7 @@ Not a queue. Each doc holds its own backlog and its own open questions.
 | **Client / UX** | [`client-ux.md`](./client-ux.md) | reminder search, styling, i18n, one mobile bug |
 | **Holidays** | [`holidays.md`](./holidays.md) | doors deliberately left open; none blocking |
 | **Files / media** (photos, v0.2) | [`files.md`](./files.md) | nothing built; invariants pinned |
+| **Web client** (SSR / PWA) | [`web.md`](./web.md) | nothing built; a 6-increment throwaway spike, post-launch |
 | **Testing** | [`testing/`](./testing/) | E2E is the one blocked tier, pending owner sign-off |
 | **Native SQLite ABI** | [`sqlite-abi-napi.md`](./sqlite-abi-napi.md) | watch-item, blocked on the fork |
 

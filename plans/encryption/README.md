@@ -85,10 +85,15 @@ db-key. Not a one-way door — it sits on the same password door.
 ### Post-launch (after the web app)
 
 - **Web app — Stage 4** (SSR split-session rendering + PWA; [`model.md`](./model.md) §10): the
-  no-JS accessibility floor, and the gate for all URL-based sharing. Framework still open
-  (Remix / Next.js / React Router). **Low retrofit risk** — the KEK layer makes the SSR
-  session-key door additive, the auth-verifier split it needs is already built, and web is just
-  another `core` consumer behind existing ports.
+  no-JS accessibility floor, and the gate for all URL-based sharing. **Low retrofit risk** — the
+  KEK layer makes the SSR session-key door additive, the auth-verifier split it needs is already
+  built, and web is just another `core` consumer behind existing ports.
+  > **The backlog moved** *(2026-08-02)*: [`../web.md`](../web.md) now owns the web workstream —
+  > the increments, the still-open framework choice, and the throwaway spike that proves the
+  > §9.2/§10 design before v0.1 hardens it. Two of its findings land back here: the relay needs
+  > **CORS + `OPTIONS`** before any browser client can exist, and the bootstrap/session
+  > **per-IP** rate-limit budget is structurally wrong for an SSR host, which logs in from one
+  > IP for every user.
 - **Capability-link sharing** ([`model.md`](./model.md) §11): zero-knowledge public links (key
   in the `#fragment`, no `key_wrap` row). Needs the web app as render vehicle **and** the
   share-URL decision below.

@@ -41,6 +41,7 @@ from its workstream doc, and let `git log` carry the history.
 | **Ship v0.1 — packaging, signing, stores, the release gate** | [`launch.md`](./launch.md) |
 | **Design the first-run experience — nudges, snooze, dismissals** | [`onboarding.md`](./onboarding.md). Read it before touching `ONBOARDING_STEPS` or the reminder-row actions |
 | Understand the encryption / privacy / sync design, **or pick up sync work** | [`encryption/`](./encryption/) — start at its `README.md`, which also holds that workstream's backlog and open questions |
+| **Build the web client (SSR / PWA), or prove it is still possible** | [`web.md`](./web.md) — the throwaway spike and what it must answer, increment by increment |
 | Pick up dedup / merge work | [`reconciliation.md`](./reconciliation.md) (backlog) · [`packages/core/README.md`](../packages/core/README.md) (how the built part works) |
 | Pick up reminder search, styling, i18n, or the mobile keyboard bug | [`client-ux.md`](./client-ux.md) |
 | Extend holidays | [`holidays.md`](./holidays.md) (doors left open) · [`@leapsake/holidays`](../packages/holidays/README.md) (how it works) |
