@@ -117,6 +117,12 @@ export const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.text,
   },
+  // A form embedded in another screen's scroll view (a staged milestone or
+  // contact method on the create screen): the `screen` gap without its padding,
+  // which the host screen has already applied.
+  inlineForm: {
+    gap: 16,
+  },
   // A pressable rendered as a primary button.
   button: {
     backgroundColor: colors.accent,

@@ -4,7 +4,9 @@ import type { ReminderCta, ReminderRowAction } from "@leapsake/view-models";
 /** Each onboarding nudge's abstract {@link OnboardingRoute} as this client's own
  *  expo-router path — where its call to action leads. */
 const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
-  "add-person": "/people/new",
+  // The combined create form, which opens on its Person half — there is no
+  // person-only create route any more.
+  "add-person": "/add",
   // Settings is a root-stack screen (reached from the Menu tab), not a tab of
   // its own, so the nudge pushes it like any other detail route.
   "connect-sync": "/settings",

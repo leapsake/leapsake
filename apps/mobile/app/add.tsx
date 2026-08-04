@@ -1,44 +1,269 @@
-import { Pressable, Text, View } from "react-native";
+import { useState } from "react";
+import { Alert, Pressable, ScrollView, Text } from "react-native";
 import { Stack, useRouter } from "expo-router";
+import type { CoreApi, HolidayListItem } from "@leapsake/core";
+import { type EntityType, parseTagNames } from "@leapsake/schema";
+import type { ContactFormValue } from "../components/ContactMethodForm";
+import { EntityTypeToggle } from "../components/EntityTypeToggle";
+import { HeaderSave } from "../components/HeaderSave";
+import type { MilestoneFormValue } from "../components/MilestoneForm";
+import {
+  type PersonDraft,
+  PersonFields,
+  emptyPersonDraft,
+  personDraftToInput,
+  personDraftValid,
+} from "../components/PersonForm";
+import {
+  type PetDraft,
+  PetFields,
+  emptyPetDraft,
+  petDraftToInput,
+  petDraftValid,
+} from "../components/PetForm";
+import { StagedContactsSection } from "../components/StagedContactsSection";
+import { StagedHolidaysSection } from "../components/StagedHolidaysSection";
+import { StagedMilestonesSection } from "../components/StagedMilestonesSection";
+import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
 /**
- * The "what do you want to add?" chooser, reached from the single "+ Add" action
- * on the People & Pets header. It replaces the two separate header links (one per
- * entity type) with one action and a follow-up choice — keeping the header to a
- * single right-aligned item.
+ * Add a person or a pet — the single destination behind the People & Pets tab's
+ * "+ Add". It replaced a chooser screen that asked "person, pet, or import?" with
+ * three buttons and then `replace`d itself with one of three forms; the question
+ * is now a toggle on the form itself, which opens on **Person** because that is
+ * overwhelmingly what a user is adding.
  *
- * Each choice `replace`s this screen with the relevant form, so the chooser drops
- * out of the back stack: after the form's own `replace` to the new detail page,
- * backing out lands on Home rather than on this throwaway screen.
+ * Two things the old chooser did that this has to keep doing:
+ *
+ * - **Import from Contacts** was reachable *only* from it. It is now a link at
+ *   the foot of this form (and a row on Menu > Data). The link `push`es rather
+ *   than `replace`s, so backing out of the importer returns to a half-filled
+ *   form rather than throwing the typing away.
+ * - **Nothing stays in the back stack.** The chooser dropped itself so that Back
+ *   from a new person's page landed on Home; this screen's `replace` at the end
+ *   of {@link save} does the same job.
+ *
+ * The form also **stages** milestones, contacts, and holidays — things that used
+ * to require saving first and then walking into a section on the detail page.
+ * They're held in memory and written immediately after the entity exists, since
+ * every one of them is keyed to a bearer id that doesn't exist until then.
+ * Relationships and gifts are deliberately not here: a relationship needs a
+ * second saved party, and gift capture is a screen's worth of form on its own.
  */
 export default function AddScreen() {
+  const [type, setType] = useState<EntityType>("person");
+
+  // Keyed on the entity type, so flipping the toggle remounts the form and drops
+  // every draft and staged entry with it. That's the intended behaviour (the two
+  // halves share no fields worth carrying across) and it's also the safe one:
+  // milestone kinds are constrained by bearer type, so a staged person milestone
+  // isn't necessarily a legal pet milestone.
+  return <AddEntityForm key={type} type={type} onTypeChange={setType} />;
+}
+
+/** Everything staged alongside the entity itself, written once it has an id. */
+interface StagedExtras {
+  milestones: MilestoneFormValue[];
+  contacts: ContactFormValue[];
+  holidays: HolidayListItem[];
+}
+
+function AddEntityForm({
+  type,
+  onTypeChange,
+}: {
+  type: EntityType;
+  onTypeChange: (type: EntityType) => void;
+}) {
+  const core = useCore();
   const router = useRouter();
 
+  const [personDraft, setPersonDraft] = useState<PersonDraft>(emptyPersonDraft);
+  const [petDraft, setPetDraft] = useState<PetDraft>(emptyPetDraft);
+  const [milestones, setMilestones] = useState<MilestoneFormValue[]>([]);
+  const [contacts, setContacts] = useState<ContactFormValue[]>([]);
+  const [holidays, setHolidays] = useState<HolidayListItem[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const isPerson = type === "person";
+  const canSave = isPerson
+    ? personDraftValid(personDraft)
+    : petDraftValid(petDraft);
+
+  async function save() {
+    if (!canSave || saving) return;
+    setSaving(true);
+    try {
+      const extras: StagedExtras = { milestones, contacts, holidays };
+      if (isPerson) {
+        const person = await core.people.create(
+          personDraftToInput(personDraft),
+          parseTagNames(personDraft.tags),
+        );
+        await writeExtras(core, "person", person.id, extras);
+        // Detection runs at the moment the duplicate is created, while the user
+        // still remembers both entries and can act on them — but only when there
+        // is something to resolve, and only *after* the staged extras land, so
+        // the review compares finished records. Either way this screen is
+        // **replaced**, so back returns home rather than to a filled-in form; the
+        // review screen's "Not now" then replaces itself with the detail page.
+        const matches = await core.duplicates
+          .findFor(person.id)
+          .catch(() => []);
+        router.replace(
+          matches.length > 0
+            ? `/duplicates?for=${person.id}`
+            : `/people/${person.id}`,
+        );
+      } else {
+        const pet = await core.pets.create(
+          petDraftToInput(petDraft),
+          parseTagNames(petDraft.tags),
+        );
+        await writeExtras(core, "pet", pet.id, extras);
+        router.replace(`/pets/${pet.id}`);
+      }
+    } catch (e) {
+      Alert.alert("Couldn't save", String(e));
+      setSaving(false);
+    }
+  }
+
   return (
-    <View style={styles.screen}>
-      <Stack.Screen options={{ title: "Add" }} />
-      <Pressable
-        accessibilityRole="button"
-        style={styles.button}
-        onPress={() => router.replace("/people/new")}
+    <>
+      <Stack.Screen
+        options={{
+          title: isPerson ? "Add person" : "Add pet",
+          headerRight: () => (
+            <HeaderSave
+              canSave={canSave}
+              saving={saving}
+              onPress={() => void save()}
+            />
+          ),
+        }}
+      />
+      <ScrollView
+        contentContainerStyle={styles.screen}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.buttonText}>Add Person</Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        style={styles.button}
-        onPress={() => router.replace("/pets/new")}
-      >
-        <Text style={styles.buttonText}>Add Pet</Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        style={styles.button}
-        onPress={() => router.replace("/import")}
-      >
-        <Text style={styles.buttonText}>Import from Contacts</Text>
-      </Pressable>
-    </View>
+        <EntityTypeToggle value={type} onChange={onTypeChange} />
+
+        {isPerson ? (
+          <PersonFields draft={personDraft} onChange={setPersonDraft} />
+        ) : (
+          <PetFields draft={petDraft} onChange={setPetDraft} />
+        )}
+
+        <StagedMilestonesSection
+          bearerType={type}
+          entries={milestones}
+          onChange={setMilestones}
+        />
+
+        {/* Person-only, matching the detail pages: a pet has no Contacts section
+          to read these back from. */}
+        {isPerson && (
+          <StagedContactsSection entries={contacts} onChange={setContacts} />
+        )}
+
+        <StagedHolidaysSection entries={holidays} onChange={setHolidays} />
+
+        <Text style={styles.muted}>
+          Relationships and gifts can be added from {isPerson ? "their" : "its"}{" "}
+          page once saved.
+        </Text>
+
+        {/* Pushed, not replaced: backing out of the importer returns here with
+            whatever is already typed in. */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/import")}
+        >
+          <Text style={styles.link}>Or import from contacts</Text>
+        </Pressable>
+      </ScrollView>
+    </>
   );
+}
+
+/**
+ * Write everything staged on the form against the entity that now exists.
+ *
+ * There is no rollback: by the time this runs the person or pet is saved, and
+ * deleting it because a phone number failed to write would throw away more than
+ * it rescued. A failure is reported by name and the caller carries on to the
+ * detail page, where the section that didn't take is one tap from being redone.
+ */
+async function writeExtras(
+  core: CoreApi,
+  bearerType: EntityType,
+  bearerId: string,
+  { milestones, contacts, holidays }: StagedExtras,
+): Promise<void> {
+  const failed: string[] = [];
+
+  for (const value of milestones) {
+    try {
+      await core.milestones.create({ ...value, bearerType, bearerId });
+    } catch {
+      failed.push("a milestone");
+    }
+  }
+
+  // Contacts are person-owned only; the form never stages any for a pet.
+  for (const value of contacts) {
+    try {
+      if (value.kind === "email") {
+        await core.contactMethods.emails.create({
+          ownerType: "person",
+          ownerId: bearerId,
+          label: value.label,
+          address: value.address,
+        });
+      } else if (value.kind === "phone") {
+        await core.contactMethods.phones.create({
+          ownerType: "person",
+          ownerId: bearerId,
+          label: value.label,
+          number: value.number,
+          extension: value.extension,
+          country: value.country,
+          smsCapable: value.smsCapable,
+        });
+      } else {
+        await core.contactMethods.postals.create({
+          ownerType: "person",
+          ownerId: bearerId,
+          label: value.label,
+          line1: value.line1,
+          line2: value.line2,
+          locality: value.locality,
+          region: value.region,
+          postalCode: value.postalCode,
+          country: value.country,
+        });
+      }
+    } catch {
+      failed.push(value.label);
+    }
+  }
+
+  for (const holiday of holidays) {
+    try {
+      await core.holidays.setObservers(holiday.id, [
+        { bearerType, bearerId, observes: true },
+      ]);
+    } catch {
+      failed.push(holiday.name);
+    }
+  }
+
+  if (failed.length > 0) {
+    Alert.alert(
+      "Saved, but not everything",
+      `Couldn't save ${failed.join(", ")}. You can add ${failed.length === 1 ? "it" : "them"} again from the page you're about to land on.`,
+    );
+  }
 }

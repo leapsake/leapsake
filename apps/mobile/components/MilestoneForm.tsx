@@ -45,10 +45,16 @@ const MONTH_OPTIONS: { value: string; label: string }[] = [
  * year) and an optional note. The day⇒month rule is mirrored here for friendly
  * inline validation; the schema re-validates on submit.
  *
- * Mirroring `PetForm`, this component only collects input: the screen owns the
+ * Mirroring `PetForm`, this component only collects input: the caller owns the
  * `core.milestones.create/update` call (and supplies the bearer), and gets back
  * a structured {@link MilestoneFormValue}. When `milestone` is provided the form
  * is in edit mode and pre-fills from it.
+ *
+ * With `inline` it renders into the caller's layout rather than owning the
+ * screen — no scroll view of its own, since nesting one inside another of the
+ * same orientation silently breaks scrolling. That is how the create screen
+ * (app/add.tsx) stages a milestone for a bearer that doesn't exist yet: same
+ * fields, same validation, but `onSubmit` appends to a list instead of writing.
  */
 export function MilestoneForm({
   bearerType,
@@ -56,12 +62,15 @@ export function MilestoneForm({
   submitLabel,
   onSubmit,
   onCancel,
+  inline = false,
 }: {
   bearerType: MilestoneBearerType;
   milestone?: Milestone;
   submitLabel: string;
   onSubmit: (value: MilestoneFormValue) => Promise<void>;
   onCancel: () => void;
+  /** Render without the screen-owning scroll view, for embedding in a form. */
+  inline?: boolean;
 }) {
   const core = useCore();
   const kinds = kindsForBearerType(bearerType);
@@ -150,11 +159,8 @@ export function MilestoneForm({
 
   const def = kindDefs[kind];
 
-  return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
+  const body = (
+    <>
       <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
         <Pressable
           accessibilityRole="button"
@@ -239,6 +245,17 @@ export function MilestoneForm({
       </Text>
 
       <ReminderScheduleFields value={schedule} onChange={onScheduleChange} />
+    </>
+  );
+
+  if (inline) return <View style={styles.inlineForm}>{body}</View>;
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.screen}
+      keyboardShouldPersistTaps="handled"
+    >
+      {body}
     </ScrollView>
   );
 }

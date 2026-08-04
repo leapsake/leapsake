@@ -14,30 +14,34 @@ export default function PersonEditScreen() {
   const load = useCallback(() => core.views.person(id), [core, id]);
   const { data: view, error } = useFocusedData(load);
 
+  // The form declares the header (title + Save) itself, so the title is set here
+  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
+  // route would otherwise race over the same options.
+  if (error !== null || view === null) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Edit person" }} />
+        <View style={styles.screen}>
+          {error !== null ? (
+            <Text style={styles.danger}>{error}</Text>
+          ) : (
+            <ActivityIndicator />
+          )}
+        </View>
+      </>
+    );
+  }
+
   return (
-    <>
-      <Stack.Screen options={{ title: "Edit person" }} />
-      {error !== null ? (
-        <View style={styles.screen}>
-          <Text style={styles.danger}>{error}</Text>
-        </View>
-      ) : view === null ? (
-        <View style={styles.screen}>
-          <ActivityIndicator />
-        </View>
-      ) : (
-        <PersonForm
-          person={view.person}
-          // Same round-trip as desktop: labels in, parseTagNames out.
-          tagNames={view.tags.map((tag) => tagLabel(tag.name)).join(" ")}
-          submitLabel="Save"
-          onCancel={() => router.back()}
-          onSubmit={async (input, tagsRaw) => {
-            await core.people.update(id, input, parseTagNames(tagsRaw));
-            router.back();
-          }}
-        />
-      )}
-    </>
+    <PersonForm
+      title="Edit person"
+      person={view.person}
+      // Same round-trip as desktop: labels in, parseTagNames out.
+      tagNames={view.tags.map((tag) => tagLabel(tag.name)).join(" ")}
+      onSubmit={async (input, tagsRaw) => {
+        await core.people.update(id, input, parseTagNames(tagsRaw));
+        router.back();
+      }}
+    />
   );
 }

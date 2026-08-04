@@ -57,12 +57,18 @@ function blankToNull(raw: string): string | null {
  * — one polymorphic form whose visible fields branch on `kind` (email / phone /
  * postal). Contacts are person-owned only, so there is no subject-type axis.
  *
- * Like the other mobile forms it only collects input: the screen owns the
+ * Like the other mobile forms it only collects input: the caller owns the
  * `core.contactMethods.{emails,phones,postals}.create/update` call and gets back
  * a {@link ContactFormValue}. When `method` is provided the form is in edit mode
  * and pre-fills from it (the caller passes a method whose shape matches `kind`).
  * The label is free text; the kind's suggestions render as tappable chips — the
  * RN equivalent of desktop's `<datalist>`.
+ *
+ * With `inline` it renders into the caller's layout rather than owning the
+ * screen — see {@link MilestoneForm}, which takes the same prop for the same
+ * reason: the create screen stages contact methods for a person who doesn't
+ * exist yet, and a scroll view nested in another of the same orientation
+ * silently stops scrolling.
  */
 export function ContactMethodForm({
   kind,
@@ -70,12 +76,15 @@ export function ContactMethodForm({
   submitLabel,
   onSubmit,
   onCancel,
+  inline = false,
 }: {
   kind: ContactMethodKind;
   method?: EmailAddress | PhoneNumber | PostalAddress;
   submitLabel: string;
   onSubmit: (value: ContactFormValue) => Promise<void>;
   onCancel: () => void;
+  /** Render without the screen-owning scroll view, for embedding in a form. */
+  inline?: boolean;
 }) {
   // `method`'s shape matches `kind` (the caller guarantees it), so narrow once.
   const email =
@@ -153,11 +162,8 @@ export function ContactMethodForm({
     }
   }
 
-  return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
+  const body = (
+    <>
       <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
         <Pressable
           accessibilityRole="button"
@@ -307,6 +313,17 @@ export function ContactMethodForm({
           <CountryField value={country} onChange={setCountry} />
         </>
       ) : null}
+    </>
+  );
+
+  if (inline) return <View style={styles.inlineForm}>{body}</View>;
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.screen}
+      keyboardShouldPersistTaps="handled"
+    >
+      {body}
     </ScrollView>
   );
 }

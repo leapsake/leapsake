@@ -148,7 +148,7 @@ describe("offerFor", () => {
 describe("tapPathFor", () => {
   it("sends a nudge's text to the step it asks for", () => {
     expect(tapPathFor({ kind: "onboarding", route: "add-person" }, "r1")).toBe(
-      "/people/new",
+      "/add",
     );
   });
 
