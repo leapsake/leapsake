@@ -29,7 +29,19 @@ function TabIcon({ glyph, color }: { glyph: string; color: ColorValue }) {
 
 export default function TabsLayout() {
   return (
-    <Tabs screenOptions={{ tabBarActiveTintColor: colors.accent }}>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: colors.accent,
+        // Inset the header actions from the screen edge. The bottom-tab
+        // navigator draws its header in JS and leaves a custom `headerRight`
+        // flush against the edge, where the native stack header the rest of the
+        // app pushes gives its own buttons the platform's 16pt margin — so
+        // "+ Add" sat harder against the right edge than "‹ Back" does against
+        // the left. Set for every tab, since it is the navigator's default that
+        // is wrong rather than any one screen's.
+        headerRightContainerStyle: { paddingRight: 16 },
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
