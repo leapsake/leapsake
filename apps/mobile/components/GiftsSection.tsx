@@ -5,11 +5,10 @@ import type {
   GiftForRecipient,
   GiftSuggestionForRecipient,
 } from "@leapsake/core";
-import type { GiftIdea, GiftPartyType } from "@leapsake/schema";
+import type { GiftPartyType } from "@leapsake/schema";
 import { formatGiftDate, formatGiftTargetDate } from "@leapsake/schema";
 import { groupGiftsByIdea } from "@leapsake/view-models";
 import { GiftAdornmentsEditor } from "./GiftAdornmentsEditor";
-import { GiftCaptureForm } from "./GiftCaptureForm";
 import { dateFieldsOf } from "./GiftOccasionFields";
 import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
@@ -18,29 +17,28 @@ const joinBits = (bits: (string | null)[]) => bits.filter(Boolean).join(", ");
 
 /**
  * The "Gifts" section on a Person or Pet screen, ported from the desktop
- * `GiftsSection`. One consolidated capture form on top — type a gift
- * (autocompleting existing ideas), and it's a suggestion; add a date and it's a
- * logged giving — over one list combining **suggestions**
- * (candidates) and **givings** (dated events), grouped by idea. A giving points at
- * the idea, never the suggestion, so "✓ given" is just a fact read alongside (the
- * suggestion row never changes state); candidates not yet given lead, given ideas
- * sink.
+ * `GiftsSection`. One list combining **suggestions** (candidates) and **givings**
+ * (dated events), grouped by idea. A giving points at the idea, never the
+ * suggestion, so "✓ given" is just a fact read alongside (the suggestion row never
+ * changes state); candidates not yet given lead, given ideas sink.
+ *
+ * Adding is a link out to `/gifts/new`, with this person or pet as the fixed
+ * recipient — the same screen the Gifts catalog's "+ Add" opens, and the same one
+ * a completed gift reminder hands off to. The consolidated `GiftCaptureForm` used
+ * to sit inline at the top of this section, which put a multi-field form (idea,
+ * occasion, date, giver) between the reader and the list they came to read.
  */
 export function GiftsSection({
   recipientType,
   recipientId,
-  recipientLabel,
   suggestions,
   gifts,
-  ideaPool,
   onChanged,
 }: {
   recipientType: GiftPartyType;
   recipientId: string;
-  recipientLabel: string;
   suggestions: GiftSuggestionForRecipient[];
   gifts: GiftForRecipient[];
-  ideaPool: GiftIdea[];
   onChanged: () => void;
 }) {
   const core = useCore();
@@ -79,17 +77,13 @@ export function GiftsSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Gifts</Text>
+        <Link
+          href={`/gifts/new?recipient=${recipientType}:${recipientId}`}
+          style={styles.link}
+        >
+          Add gift
+        </Link>
       </View>
-
-      <GiftCaptureForm
-        ideaPool={ideaPool}
-        fixedRecipient={{
-          type: recipientType,
-          id: recipientId,
-          label: recipientLabel,
-        }}
-        onSaved={onChanged}
-      />
 
       {ordered.length === 0 ? (
         <Text style={styles.muted}>No gifts yet.</Text>

@@ -23,6 +23,11 @@ import { Typeahead } from "./Typeahead";
  * Per-observance reminder schedules aren't offered here. They belong to the
  * observance rather than the holiday, and the row that edits them lives on the
  * detail page once the observance is real.
+ *
+ * Collapsed until asked for, like the other two staged sections. The detail-page
+ * {@link HolidaysSection} pushes {@link HolidayPicker} instead of opening a field
+ * in place — it can, having a bearer to write to. Here there is nothing to write
+ * to yet, so the field stays on the form and only the *offer* matches.
  */
 export function StagedHolidaysSection({
   entries,
@@ -33,6 +38,7 @@ export function StagedHolidaysSection({
 }) {
   const core = useCore();
   const [catalog, setCatalog] = useState<HolidayListItem[] | null>(null);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -53,45 +59,58 @@ export function StagedHolidaysSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Holidays</Text>
+        {!adding && (
+          <Pressable accessibilityRole="button" onPress={() => setAdding(true)}>
+            <Text style={styles.link}>Add holiday</Text>
+          </Pressable>
+        )}
       </View>
 
-      <Typeahead
-        multi
-        label="Add a holiday"
-        value={null}
-        options={addable}
-        onChange={(h) => h !== null && onChange([...entries, h])}
-        getKey={(h) => h.id}
-        getLabel={(h) => h.name}
-        placeholder={
-          catalog === null ? "Loading holidays…" : "Search holidays…"
-        }
-      />
-
-      {entries.length === 0 ? (
-        <Text style={styles.muted}>No holidays yet.</Text>
-      ) : (
-        entries.map((holiday) => (
-          <View key={holiday.id} style={styles.row}>
-            <Text style={styles.rowText}>{holiday.name}</Text>
-            <View style={styles.rowMeta}>
-              <Text style={styles.muted}>
-                {holiday.nextOccurrence === null
-                  ? "—"
-                  : formatOccurrence(holiday.nextOccurrence)}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() =>
-                  onChange(entries.filter((h) => h.id !== holiday.id))
-                }
-              >
-                <Text style={[styles.link, styles.danger]}>Remove</Text>
-              </Pressable>
-            </View>
-          </View>
-        ))
+      {adding && (
+        <View style={styles.inlineForm}>
+          <Typeahead
+            multi
+            label="Add a holiday"
+            value={null}
+            options={addable}
+            onChange={(h) => h !== null && onChange([...entries, h])}
+            getKey={(h) => h.id}
+            getLabel={(h) => h.name}
+            placeholder={
+              catalog === null ? "Loading holidays…" : "Search holidays…"
+            }
+          />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setAdding(false)}
+          >
+            <Text style={styles.link}>Done</Text>
+          </Pressable>
+        </View>
       )}
+
+      {entries.length === 0
+        ? !adding && <Text style={styles.muted}>No holidays yet.</Text>
+        : entries.map((holiday) => (
+            <View key={holiday.id} style={styles.row}>
+              <Text style={styles.rowText}>{holiday.name}</Text>
+              <View style={styles.rowMeta}>
+                <Text style={styles.muted}>
+                  {holiday.nextOccurrence === null
+                    ? "—"
+                    : formatOccurrence(holiday.nextOccurrence)}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() =>
+                    onChange(entries.filter((h) => h.id !== holiday.id))
+                  }
+                >
+                  <Text style={[styles.link, styles.danger]}>Remove</Text>
+                </Pressable>
+              </View>
+            </View>
+          ))}
     </View>
   );
 }

@@ -75,7 +75,7 @@ export function ContactsSection({
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Contacts</Text>
+        <Text style={styles.sectionTitle}>Contact methods</Text>
         <View style={styles.rowActions}>
           <Link
             href={`/people/${ownerId}/contacts/email/new`}
@@ -99,7 +99,7 @@ export function ContactsSection({
       </View>
 
       {methods.length === 0 ? (
-        <Text style={styles.muted}>No contacts yet.</Text>
+        <Text style={styles.muted}>No contact methods yet.</Text>
       ) : (
         methods.map((entry) => (
           <View key={entry.method.id} style={styles.row}>

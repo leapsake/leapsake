@@ -47,7 +47,7 @@ export function StagedContactsSection({
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Contacts</Text>
+        <Text style={styles.sectionTitle}>Contact methods</Text>
         {adding === null && (
           <View style={styles.rowActions}>
             {(["email", "phone", "postal"] as const).map((kind) => (
@@ -100,7 +100,7 @@ export function StagedContactsSection({
           }}
         />
       ) : entries.length === 0 ? (
-        <Text style={styles.muted}>No contacts yet.</Text>
+        <Text style={styles.muted}>No contact methods yet.</Text>
       ) : null}
     </View>
   );

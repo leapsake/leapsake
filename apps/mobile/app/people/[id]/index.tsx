@@ -49,11 +49,11 @@ export default function PersonDetailScreen() {
         // The whole catalog with this person's answers — one read serving both
         // the Holidays section's list and its add-field's suggestions.
         core.holidays.listForBearer("person", id),
-        // The Gifts section: what's suggested for them, what they've been given,
-        // and the idea pool its capture form autocompletes against.
+        // The Gifts section: what's suggested for them, and what they've been
+        // given. Capturing a new one is `/gifts/new`'s job, so the idea pool it
+        // autocompletes against is loaded there rather than here.
         core.gifts.suggestions.listForRecipient("person", id),
         core.gifts.given.listForRecipient("person", id),
-        core.gifts.ideas.list(),
         // Unresolved pairs this person is half of — both people in a pair carry
         // the banner, so whichever one the user opens leads back to the review.
         core.duplicates.findFor(id),
@@ -84,7 +84,6 @@ export default function PersonDetailScreen() {
     holidays,
     giftSuggestions,
     giftsGiven,
-    giftIdeaPool,
     duplicateCandidates,
   ] = data;
   if (view === null) {
@@ -180,10 +179,8 @@ export default function PersonDetailScreen() {
       <GiftsSection
         recipientType="person"
         recipientId={person.id}
-        recipientLabel={fullName(person)}
         suggestions={giftSuggestions}
         gifts={giftsGiven}
-        ideaPool={giftIdeaPool}
         onChanged={reload}
       />
 
@@ -195,12 +192,20 @@ export default function PersonDetailScreen() {
 
       <MentionedInSection reminders={mentionedIn} />
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push(`/people/${person.id}/merge`)}
-      >
-        <Text style={styles.link}>Merge duplicate…</Text>
-      </Pressable>
+      {/* Offered only when detection has something to offer it for. It used to
+          stand on every person, advertising a chore on pages where there was
+          nothing to merge — the same thing the People list's duplicates link
+          stopped doing. The banner above is the same trip by a shorter road when
+          the pair is already known; this stays because merging is the act, and
+          reviewing is only the way in. */}
+      {duplicateCandidates.length > 0 && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push(`/people/${person.id}/merge`)}
+        >
+          <Text style={styles.link}>Merge duplicate…</Text>
+        </Pressable>
+      )}
 
       <Pressable accessibilityRole="button" onPress={confirmDelete}>
         <Text style={[styles.link, styles.danger]}>Delete person</Text>

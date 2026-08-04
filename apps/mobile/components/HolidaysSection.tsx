@@ -6,7 +6,6 @@ import { formatOccurrence } from "@leapsake/schema";
 import { splitBearerHolidays } from "@leapsake/view-models";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
-import { Typeahead } from "./Typeahead";
 
 /**
  * The Holidays section on the Person and Pet screens, ported from the desktop
@@ -17,6 +16,11 @@ import { Typeahead } from "./Typeahead";
  * Each row links to that observance's reminder schedule rather than editing
  * anything here, because the reminder rule bears on the *observance*: two people
  * who observe the same holiday can be reminded about entirely different things.
+ *
+ * Adding is a link out to {@link HolidayPicker}, the way Relationships and
+ * Milestones have always worked. It used to be a typeahead sitting in the
+ * section, which meant the only way to find a holiday was to already know its
+ * name — the picker screen has room to list the catalog.
  */
 export function HolidaysSection({
   bearerType,
@@ -31,13 +35,15 @@ export function HolidaysSection({
 }) {
   const core = useCore();
 
-  // What this bearer keeps, and what it can still be offered — hidden holidays
-  // are deliberately absent from the second (see `splitBearerHolidays`).
-  const { observed, addable } = splitBearerHolidays(holidays);
+  // Only what this bearer keeps: what it could still be offered is the picker
+  // screen's business now (see `splitBearerHolidays`).
+  const { observed } = splitBearerHolidays(holidays);
+  const basePath = bearerType === "person" ? "people" : "pets";
 
-  function setObserves(holidayId: string, observes: boolean) {
+  /** Removal only — adding is the picker screen's, so `observes` is never true here. */
+  function stopObserving(holidayId: string) {
     core.holidays
-      .setObservers(holidayId, [{ bearerType, bearerId, observes }])
+      .setObservers(holidayId, [{ bearerType, bearerId, observes: false }])
       .then(
         () => onChanged(),
         (e: unknown) => Alert.alert("Couldn't save", String(e)),
@@ -53,7 +59,7 @@ export function HolidaysSection({
         {
           text: "Remove",
           style: "destructive",
-          onPress: () => setObserves(holiday.id, false),
+          onPress: () => stopObserving(holiday.id),
         },
       ],
     );
@@ -63,18 +69,13 @@ export function HolidaysSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Holidays</Text>
+        <Link
+          href={`/${basePath}/${bearerId}/holidays/new`}
+          style={styles.link}
+        >
+          Add holiday
+        </Link>
       </View>
-
-      <Typeahead
-        multi
-        label="Add a holiday"
-        value={null}
-        options={addable}
-        onChange={(h) => h !== null && setObserves(h.id, true)}
-        getKey={(h) => h.id}
-        getLabel={(h) => h.name}
-        placeholder="Search holidays…"
-      />
 
       {observed.length === 0 ? (
         <Text style={styles.muted}>No holidays yet.</Text>

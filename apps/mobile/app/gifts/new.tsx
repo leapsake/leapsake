@@ -18,14 +18,18 @@ import { styles } from "../../lib/styles";
 /**
  * Add a gift — the standalone create screen (the Gifts tab's "+ Add" action),
  * ported from desktop's `GiftCreate`. Type a name/URL to capture an idea; add
- * people/pets to suggest it; add dates under a recipient to log givings. Returns
- * to the Gifts tab on save.
+ * people/pets to suggest it; add dates under a recipient to log givings.
  *
- * Reached with a recipient already chosen (`?recipient=<type>:<id>`) when a
- * completed `🎁 gift` reminder hands off — then the picker collapses to that one
- * person or pet and the form opens on a date row, since the answer to "record what
- * you gave" is a giving, not a shortlist. An
+ * Reached with a recipient already chosen (`?recipient=<type>:<id>`) from a person
+ * or pet's Gifts section, and when a completed `🎁 gift` reminder hands off — then
+ * the picker collapses to that one person or pet and the form opens on a date row,
+ * since the answer to "record what you gave" is a giving, not a shortlist. An
  * unresolvable id falls back to the ordinary picker.
+ *
+ * **Where saving lands depends on how you got here.** Arriving with a recipient
+ * means arriving from somewhere that already shows that recipient's gifts, so it
+ * goes back there; the Gifts tab's own "+ Add" has nowhere to go back to that
+ * would show the new gift, so it lands on the catalog.
  */
 export default function GiftCreateScreen() {
   const core = useCore();
@@ -85,7 +89,11 @@ export default function GiftCreateScreen() {
           fixedRecipient === undefined ? candidates : undefined
         }
         startWithGiving={fixedRecipient !== undefined}
-        onSaved={() => router.replace("/gifts")}
+        onSaved={() =>
+          fixedRecipient === undefined
+            ? router.replace("/gifts")
+            : router.back()
+        }
       />
 
       <Pressable accessibilityRole="button" onPress={() => router.back()}>

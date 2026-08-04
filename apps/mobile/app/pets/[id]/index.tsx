@@ -46,11 +46,11 @@ export default function PetDetailScreen() {
         core.views.pet(id),
         core.reminders.mentioning("pet", id),
         core.holidays.listForBearer("pet", id),
-        // The Gifts section: what's suggested for them, what they've been given,
-        // and the idea pool its capture form autocompletes against.
+        // The Gifts section: what's suggested for them, and what they've been
+        // given. Capturing a new one is `/gifts/new`'s job, so the idea pool it
+        // autocompletes against is loaded there rather than here.
         core.gifts.suggestions.listForRecipient("pet", id),
         core.gifts.given.listForRecipient("pet", id),
-        core.gifts.ideas.list(),
       ]),
     [core, id],
   );
@@ -72,14 +72,7 @@ export default function PetDetailScreen() {
     );
   }
 
-  const [
-    view,
-    mentionedIn,
-    holidays,
-    giftSuggestions,
-    giftsGiven,
-    giftIdeaPool,
-  ] = data;
+  const [view, mentionedIn, holidays, giftSuggestions, giftsGiven] = data;
   if (view === null) {
     return (
       <View style={styles.screen}>
@@ -152,10 +145,8 @@ export default function PetDetailScreen() {
       <GiftsSection
         recipientType="pet"
         recipientId={pet.id}
-        recipientLabel={pet.name}
         suggestions={giftSuggestions}
         gifts={giftsGiven}
-        ideaPool={giftIdeaPool}
         onChanged={reload}
       />
 
