@@ -3,14 +3,22 @@ import { Link, Tabs } from "expo-router";
 import { colors, styles } from "../../lib/styles";
 
 /**
- * The app's bottom tab bar: Reminders (the home/landing tab, so it lives at the
- * group's `index` route), the combined People & Pets list, the Holidays catalog,
- * the Gifts idea list, global Search, and Settings. Detail screens (people/[id],
- * pets/[id], relationships, tags, holidays/[id], gifts/[id]) and the "+ Add"
- * chooser live outside this
- * group on the root stack, so navigating into one pushes full-screen over the
- * tabs — the standard pattern. This navigator owns each tab's header (the root
- * stack hides its own header for the `(tabs)` route in app/_layout.tsx).
+ * The app's bottom tab bar, kept to **four** standing destinations: Reminders
+ * (the home/landing tab, so it lives at the group's `index` route), the combined
+ * People & Pets list, global Search, and Menu.
+ *
+ * Everything else lives outside this group on the root stack, so navigating into
+ * one pushes full-screen over the tabs — the standard pattern. That covers the
+ * detail screens (people/[id], pets/[id], relationships, tags, holidays/[id],
+ * gifts/[id]) and the "+ Add" chooser, and now also the two **catalogs**
+ * (holidays, gifts) and Settings, which the Menu tab lists. The catalogs are
+ * reference lists rather than places you live: each stays reachable from the
+ * Menu tab, from Search (as a hit, and from the browse list its empty field
+ * shows), and — per person or pet — from the sections on their page. A permanent
+ * tab each was more prominence than either earns.
+ *
+ * This navigator owns each tab's header (the root stack hides its own header for
+ * the `(tabs)` route in app/_layout.tsx).
  *
  * Tab icons are plain emoji `<Text>` rather than a vector-icon font, keeping the
  * dependency budget (no `@expo/vector-icons`); the `color` follows focus.
@@ -53,27 +61,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="holidays"
-        options={{
-          title: "Holidays",
-          tabBarIcon: ({ color }) => <TabIcon glyph="🎉" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="gifts"
-        options={{
-          title: "Gifts",
-          tabBarIcon: ({ color }) => <TabIcon glyph="🎁" color={color} />,
-          headerRight: () => (
-            <View style={styles.headerActions}>
-              <Link href="/gifts/new" style={styles.link}>
-                + Add
-              </Link>
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="search"
         options={{
           title: "Search",
@@ -81,10 +68,10 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="menu"
         options={{
-          title: "Settings",
-          tabBarIcon: ({ color }) => <TabIcon glyph="⚙️" color={color} />,
+          title: "Menu",
+          tabBarIcon: ({ color }) => <TabIcon glyph="☰" color={color} />,
         }}
       />
     </Tabs>

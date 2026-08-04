@@ -8,6 +8,9 @@ same core surface backs both clients behind a swapped driver and key-store port.
 
 ```
 app/          # expo-router routes; (tabs)/index.tsx is Home (the reminders list)
+              # Four tabs — Home, People, Search, Menu. Everything else (the
+              # holidays and gifts catalogs, Settings, every detail screen) is a
+              # root-stack route that pushes full-screen over the tab bar.
 db/           # the expo-sqlite driver, store conversion, and the unlock doors
 lib/          # core-context.tsx — the boot path, custody branches, and core wiring
 test/         # the on-device self-tests (driver contract + custody)

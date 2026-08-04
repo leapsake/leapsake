@@ -143,7 +143,7 @@ one by text or by point reports **COMPLETED** and types into nothing — the for
 own "passwords don't match" check, or the submit button stays disabled, and it reads as a
 platform limitation on secure input. It isn't: it is a selector problem.
 
-The account form carries ids for exactly this reason (`app/(tabs)/settings.tsx`):
+The account form carries ids for exactly this reason (`app/settings.tsx`):
 `account-username`, `account-password`, `account-confirm-password`, `account-submit`. Target
 those and the form fills first try. **Add ids to any other form you need to drive** — that is
 the anchor set `plans/launch.md` Increment 6 plans, grown one flow at a time.

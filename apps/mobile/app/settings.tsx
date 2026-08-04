@@ -8,10 +8,10 @@ import {
   View,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
-import { Link } from "expo-router";
+import { Link, Stack } from "expo-router";
 import { MIN_PASSWORD_LENGTH, type SyncStatus } from "@leapsake/core";
-import { useCore, useCustodyDegraded, useSync } from "../../lib/core-context";
-import { colors, styles } from "../../lib/styles";
+import { useCore, useCustodyDegraded, useSync } from "../lib/core-context";
+import { colors, styles } from "../lib/styles";
 
 /** Prefilled relay origin for local development (apps/server defaults to :4000). */
 const DEFAULT_RELAY_URL = "http://localhost:4000";
@@ -45,6 +45,10 @@ function passwordHint(password: string): string {
  * Device-to-device sync is real now (multi-device-login.md Phase C): a first
  * device sets a password + username and registers with a relay; a second device
  * logs in to the same account; "Sync now" pushes/pulls the encrypted records.
+ *
+ * A root-stack screen reached from the Menu tab (and from Home's "Get started"
+ * onboarding nudge, which deep-links straight here). It sets its own header
+ * title, which the tab navigator used to.
  */
 export default function SettingsScreen() {
   const sync = useSync();
@@ -71,64 +75,72 @@ export default function SettingsScreen() {
 
   useEffect(refreshStatus, [sync]);
 
-  // One-time reveal takes over the screen until acknowledged.
+  // One-time reveal takes over the screen until acknowledged. It keeps the same
+  // header title as the screen it took over, so each branch declares it — the
+  // shape holidays/[id] uses for its own two branches.
   if (revealed !== null) {
     return (
-      <RecoveryKeyReveal
-        recoveryKey={revealed.phrase}
-        escrowPending={revealed.escrowPending}
-        onDone={() => {
-          setRevealed(null);
-          refreshStatus();
-        }}
-      />
+      <>
+        <Stack.Screen options={{ title: "Settings" }} />
+        <RecoveryKeyReveal
+          recoveryKey={revealed.phrase}
+          escrowPending={revealed.escrowPending}
+          onDone={() => {
+            setRevealed(null);
+            refreshStatus();
+          }}
+        />
+      </>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.screen}>
-      <Text style={styles.title}>Account &amp; sync</Text>
-      {status === null ? (
-        <Text style={styles.muted}>Loading…</Text>
-      ) : status.hasAccount ? (
-        <AccountEnabled
-          status={status}
-          reviewCount={reviewCount}
-          onReviewed={() => setReviewCount(0)}
-        />
-      ) : (
-        <>
-          <CreateAccount
-            onCreated={(phrase) =>
-              setRevealed({ phrase, escrowPending: false })
-            }
+    <>
+      <Stack.Screen options={{ title: "Settings" }} />
+      <ScrollView contentContainerStyle={styles.screen}>
+        <Text style={styles.title}>Account &amp; sync</Text>
+        {status === null ? (
+          <Text style={styles.muted}>Loading…</Text>
+        ) : status.hasAccount ? (
+          <AccountEnabled
+            status={status}
+            reviewCount={reviewCount}
+            onReviewed={() => setReviewCount(0)}
           />
-          <SyncSetup
-            onEnabled={(phrase) =>
-              setRevealed({ phrase, escrowPending: false })
-            }
-            onJoined={onJoined}
-          />
-        </>
-      )}
-      {/*
-        The two ways to be rid of what is on this device, one per custody state
-        (`model.md` §7.2), mirroring desktop. With an account, "Forget account"
-        removes it and its store; without one there is nothing to forget, so the
-        accountless wipe is the only shape the action can take. Showing both at
-        once was showing one act twice — they land in the identical place.
-      */}
-      {status !== null &&
-        (status.hasAccount ? (
-          <>
-            <RecoveryPhraseSection onRotated={setRevealed} />
-            <SignOutSection />
-            <ForgetAccountSection />
-          </>
         ) : (
-          <FactoryResetSection />
-        ))}
-    </ScrollView>
+          <>
+            <CreateAccount
+              onCreated={(phrase) =>
+                setRevealed({ phrase, escrowPending: false })
+              }
+            />
+            <SyncSetup
+              onEnabled={(phrase) =>
+                setRevealed({ phrase, escrowPending: false })
+              }
+              onJoined={onJoined}
+            />
+          </>
+        )}
+        {/*
+          The two ways to be rid of what is on this device, one per custody state
+          (`model.md` §7.2), mirroring desktop. With an account, "Forget account"
+          removes it and its store; without one there is nothing to forget, so the
+          accountless wipe is the only shape the action can take. Showing both at
+          once was showing one act twice — they land in the identical place.
+        */}
+        {status !== null &&
+          (status.hasAccount ? (
+            <>
+              <RecoveryPhraseSection onRotated={setRevealed} />
+              <SignOutSection />
+              <ForgetAccountSection />
+            </>
+          ) : (
+            <FactoryResetSection />
+          ))}
+      </ScrollView>
+    </>
   );
 }
 

@@ -53,7 +53,7 @@ plumbing. Increment 2 needs exactly this.
 > when it meant "does an account exist" — `relayUrl` is what answers the sync question.
 
 **Where the account UI lives today:** inside Settings on both clients — desktop `/settings`,
-mobile `/(tabs)/settings`, the latter a ~50KB file with two distinct sections, *Protect your
+mobile `/settings`, the latter a ~50KB file with two distinct sections, *Protect your
 data* (local account) and *Sync across devices* (relay). Neither client has a create-account
 route. That is why Increment 4 exists.
 

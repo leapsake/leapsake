@@ -62,7 +62,7 @@ describe("offerFor", () => {
     const actions = actionsFor(idFor("connect-sync"), 99);
 
     expect(offersFor(actions)).toEqual([
-      { kind: "navigate", path: "/(tabs)/settings", label: "Get started ›" },
+      { kind: "navigate", path: "/settings", label: "Get started ›" },
       { kind: "dismiss", label: "Don’t ask again" },
     ]);
   });

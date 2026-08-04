@@ -5,7 +5,9 @@ import type { ReminderCta, ReminderRowAction } from "@leapsake/view-models";
  *  expo-router path — where its call to action leads. */
 const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
   "add-person": "/people/new",
-  "connect-sync": "/(tabs)/settings",
+  // Settings is a root-stack screen (reached from the Menu tab), not a tab of
+  // its own, so the nudge pushes it like any other detail route.
+  "connect-sync": "/settings",
   // Pick-yourself deep-links to the People list in its pick mode, where each
   // Person row offers "This is me".
   "pick-self": "/(tabs)/people?pick=self",

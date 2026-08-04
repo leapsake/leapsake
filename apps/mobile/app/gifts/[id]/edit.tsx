@@ -86,7 +86,7 @@ export default function GiftIdeaEditScreen() {
         style: "destructive",
         onPress: () => {
           core.gifts.ideas.softDelete(id).then(
-            () => router.replace("/(tabs)/gifts"),
+            () => router.replace("/gifts"),
             (e: unknown) => Alert.alert("Couldn't remove", String(e)),
           );
         },

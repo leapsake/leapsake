@@ -85,7 +85,7 @@ export default function GiftCreateScreen() {
           fixedRecipient === undefined ? candidates : undefined
         }
         startWithGiving={fixedRecipient !== undefined}
-        onSaved={() => router.replace("/(tabs)/gifts")}
+        onSaved={() => router.replace("/gifts")}
       />
 
       <Pressable accessibilityRole="button" onPress={() => router.back()}>
