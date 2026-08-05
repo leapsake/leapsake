@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
+import { Stack } from "expo-router";
 import type { GiftForRecipient, GiftOccasionOption } from "@leapsake/core";
 import type {
   CaptureRecipient,
@@ -14,6 +15,7 @@ import {
   emptyDate,
   parseDateFields,
 } from "./GiftOccasionFields";
+import { HeaderSave } from "./HeaderSave";
 import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
 import { Typeahead } from "./Typeahead";
@@ -259,14 +261,21 @@ function usePartyContext(parties: PartyOption[]): Map<string, PartyContext> {
  * they observe. A giving carries one per date row (two Christmases are two rows);
  * a suggestion carries one alongside its *target* date, behind a collapsed "For…"
  * link so the common case stays two fields.
+ *
+ * Like the entity forms it declares its own native header — `title` plus a
+ * right-aligned {@link HeaderSave} — rather than carrying a submit button at the
+ * foot of a form this long.
  */
 export function GiftCaptureForm({
+  title: headerTitle,
   ideaPool,
   fixedRecipient,
   recipientCandidates,
   startWithGiving = false,
   onSaved,
 }: {
+  /** Native header title, set here so the header is declared in one place. */
+  title: string;
   ideaPool: GiftIdea[];
   fixedRecipient?: PartyOption;
   recipientCandidates?: PartyOption[];
@@ -396,13 +405,23 @@ export function GiftCaptureForm({
     }
   }
 
-  const anyDates = fixedRecipient
-    ? fixedGivings.length > 0
-    : recipients.some((r) => r.givings.length > 0);
   const canSubmit = !busy && trimmedTitle !== "";
 
   return (
     <View style={styles.section}>
+      <Stack.Screen
+        options={{
+          title: headerTitle,
+          headerRight: () => (
+            <HeaderSave
+              canSave={canSubmit}
+              saving={busy}
+              onPress={() => void submit()}
+            />
+          ),
+        }}
+      />
+
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Gift</Text>
         <TextInput
@@ -522,15 +541,6 @@ export function GiftCaptureForm({
       {error !== null && (
         <Text style={styles.danger}>Couldn't save: {error}</Text>
       )}
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => void submit()}
-        disabled={!canSubmit}
-        style={[styles.button, !canSubmit && { opacity: 0.5 }]}
-      >
-        <Text style={styles.buttonText}>{anyDates ? "Log gift" : "Add"}</Text>
-      </Pressable>
     </View>
   );
 }

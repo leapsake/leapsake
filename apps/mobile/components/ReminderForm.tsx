@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, Text, TextInput, View } from "react-native";
+import { Stack } from "expo-router";
 import {
   type CreateReminderInput,
   type Reminder,
@@ -7,6 +8,7 @@ import {
   isoFromDueMs,
 } from "@leapsake/schema";
 import { colors, styles } from "../lib/styles";
+import { HeaderSave } from "./HeaderSave";
 import { MentionTextField } from "./MentionTextField";
 
 /**
@@ -17,17 +19,20 @@ import { MentionTextField } from "./MentionTextField";
  * MentionTextField} so an `@` opens a People/Pets picker that splices the token in.
  * The screen owns the actual core call; this component collects input and hands
  * back a {@link CreateReminderInput} (empty → null).
+ *
+ * Like {@link PersonForm}, it declares its own native header — title plus a
+ * right-aligned {@link HeaderSave} — so the screen doesn't have to lift `canSubmit`
+ * out of it just to render a header button.
  */
 export function ReminderForm({
+  title: headerTitle,
   reminder,
-  submitLabel,
   onSubmit,
-  onCancel,
 }: {
+  /** Native header title, set here so the header is declared in one place. */
+  title: string;
   reminder?: Reminder;
-  submitLabel: string;
   onSubmit: (input: CreateReminderInput) => Promise<void>;
-  onCancel: () => void;
 }) {
   const [title, setTitle] = useState(reminder?.title ?? "");
   const [body, setBody] = useState(reminder?.body ?? "");
@@ -61,67 +66,63 @@ export function ReminderForm({
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onCancel}
-          disabled={submitting}
-        >
-          <Text style={styles.link}>Cancel</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleSubmit}
-          disabled={!canSubmit}
-          style={[styles.button, !canSubmit && { opacity: 0.5 }]}
-        >
-          <Text style={styles.buttonText}>{submitLabel}</Text>
-        </Pressable>
-      </View>
+    <>
+      <Stack.Screen
+        options={{
+          title: headerTitle,
+          headerRight: () => (
+            <HeaderSave
+              canSave={canSubmit}
+              saving={submitting}
+              onPress={() => void handleSubmit()}
+            />
+          ),
+        }}
+      />
+      <ScrollView
+        contentContainerStyle={styles.screen}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Title</Text>
+          <MentionTextField
+            style={styles.input}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Call mom"
+          />
+        </View>
 
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Title</Text>
-        <MentionTextField
-          style={styles.input}
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Call mom"
-        />
-      </View>
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Details</Text>
+          <MentionTextField
+            style={[styles.input, { minHeight: 96, textAlignVertical: "top" }]}
+            value={body}
+            onChangeText={setBody}
+            multiline
+            placeholder="Type @ to mention someone; add #tags inline"
+          />
+        </View>
 
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Details</Text>
-        <MentionTextField
-          style={[styles.input, { minHeight: 96, textAlignVertical: "top" }]}
-          value={body}
-          onChangeText={setBody}
-          multiline
-          placeholder="Type @ to mention someone; add #tags inline"
-        />
-      </View>
-
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Due date</Text>
-        <TextInput
-          style={[styles.input, !dueValid && { borderColor: colors.danger }]}
-          value={due}
-          onChangeText={setDue}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="numbers-and-punctuation"
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.muted}
-        />
-        {!dueValid ? (
-          <Text style={styles.muted}>
-            Use the format YYYY-MM-DD, e.g. 2026-08-01.
-          </Text>
-        ) : null}
-      </View>
-    </ScrollView>
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Due date</Text>
+          <TextInput
+            style={[styles.input, !dueValid && { borderColor: colors.danger }]}
+            value={due}
+            onChangeText={setDue}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="numbers-and-punctuation"
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={colors.muted}
+          />
+          {!dueValid ? (
+            <Text style={styles.muted}>
+              Use the format YYYY-MM-DD, e.g. 2026-08-01.
+            </Text>
+          ) : null}
+        </View>
+      </ScrollView>
+    </>
   );
 }

@@ -1,15 +1,9 @@
 import { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
 import type { ReminderRuleInput } from "@leapsake/schema";
+import { HeaderSave } from "../../../../../components/HeaderSave";
 import { ReminderScheduleFields } from "../../../../../components/ReminderScheduleFields";
 import { useCore } from "../../../../../lib/core-context";
 import { useFocusedData } from "../../../../../lib/useFocusedData";
@@ -105,7 +99,14 @@ export default function ObservanceScheduleScreen() {
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <Stack.Screen
-        options={{ title: `${observer.label} — ${holiday.name}` }}
+        options={{
+          title: `${observer.label} — ${holiday.name}`,
+          // Saving lives in the header, as it does on every other form screen;
+          // there's nothing to validate here, so it's only disabled mid-write.
+          headerRight: () => (
+            <HeaderSave canSave saving={saving} onPress={save} />
+          ),
+        }}
       />
 
       {holiday.hidden && (
@@ -116,17 +117,6 @@ export default function ObservanceScheduleScreen() {
       )}
 
       <ReminderScheduleFields value={schedule} onChange={setRules} />
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={save}
-        disabled={saving}
-        style={[styles.button, { alignSelf: "flex-start" }]}
-      >
-        <Text style={styles.buttonText}>
-          {saving ? "Saving…" : "Save reminders"}
-        </Text>
-      </Pressable>
     </ScrollView>
   );
 }

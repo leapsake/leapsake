@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Stack } from "expo-router";
 import {
   type ContactMethodKind,
   type EmailAddress,
@@ -17,6 +18,7 @@ import {
   postalLabelSuggestions,
 } from "@leapsake/schema";
 import { CountryField } from "./CountryField";
+import { HeaderSave } from "./HeaderSave";
 import { colors, styles } from "../lib/styles";
 
 /**
@@ -68,9 +70,13 @@ function blankToNull(raw: string): string | null {
  * screen — see {@link MilestoneForm}, which takes the same prop for the same
  * reason: the create screen stages contact methods for a person who doesn't
  * exist yet, and a scroll view nested in another of the same orientation
- * silently stops scrolling.
+ * silently stops scrolling. The submit action moves with the mode — see
+ * {@link MilestoneForm}, which splits its props the same way: a header
+ * {@link HeaderSave} on its own screen, the in-body `Cancel  submitLabel` row
+ * inline.
  */
 export function ContactMethodForm({
+  title,
   kind,
   method,
   submitLabel,
@@ -78,11 +84,15 @@ export function ContactMethodForm({
   onCancel,
   inline = false,
 }: {
+  /** Screen mode: the native header title, set here so it's declared in one place. */
+  title?: string;
   kind: ContactMethodKind;
   method?: EmailAddress | PhoneNumber | PostalAddress;
-  submitLabel: string;
+  /** Inline mode: the in-body submit button's label. */
+  submitLabel?: string;
   onSubmit: (value: ContactFormValue) => Promise<void>;
-  onCancel: () => void;
+  /** Inline mode: collapses the sub-form. */
+  onCancel?: () => void;
   /** Render without the screen-owning scroll view, for embedding in a form. */
   inline?: boolean;
 }) {
@@ -164,23 +174,25 @@ export function ContactMethodForm({
 
   const body = (
     <>
-      <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onCancel}
-          disabled={submitting}
-        >
-          <Text style={styles.link}>Cancel</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleSubmit}
-          disabled={!canSubmit}
-          style={[styles.button, !canSubmit && { opacity: 0.5 }]}
-        >
-          <Text style={styles.buttonText}>{submitLabel}</Text>
-        </Pressable>
-      </View>
+      {inline ? (
+        <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onCancel}
+            disabled={submitting}
+          >
+            <Text style={styles.link}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleSubmit}
+            disabled={!canSubmit}
+            style={[styles.button, !canSubmit && { opacity: 0.5 }]}
+          >
+            <Text style={styles.buttonText}>{submitLabel}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Label</Text>
@@ -319,11 +331,25 @@ export function ContactMethodForm({
   if (inline) return <View style={styles.inlineForm}>{body}</View>;
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
-      {body}
-    </ScrollView>
+    <>
+      <Stack.Screen
+        options={{
+          title,
+          headerRight: () => (
+            <HeaderSave
+              canSave={canSubmit}
+              saving={submitting}
+              onPress={() => void handleSubmit()}
+            />
+          ),
+        }}
+      />
+      <ScrollView
+        contentContainerStyle={styles.screen}
+        keyboardShouldPersistTaps="handled"
+      >
+        {body}
+      </ScrollView>
+    </>
   );
 }

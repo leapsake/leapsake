@@ -99,14 +99,14 @@ export default function GiftIdeaEditScreen() {
       contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled"
     >
-      <Stack.Screen options={{ title: "Edit gift idea" }} />
-
+      {/* The form declares this screen's header (title + Save) itself; the
+        "no longer exists" branch above sets the title because it isn't mounted
+        there. Two `Stack.Screen`s for one route would race over the same options. */}
       <GiftIdeaForm
+        title="Edit gift idea"
         idea={idea}
         // Same round-trip as a Person's tags: labels in, parseTagNames out.
         tagNames={tags.map((tag) => tagLabel(tag.name)).join(" ")}
-        submitLabel="Save"
-        onCancel={() => router.back()}
         onSubmit={async (value, tagsRaw) => {
           await core.gifts.ideas.update(id, value, parseTagNames(tagsRaw));
           router.back();

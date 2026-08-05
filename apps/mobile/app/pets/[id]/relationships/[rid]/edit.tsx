@@ -19,41 +19,45 @@ export default function PetRelationshipEditScreen() {
   );
   const { data: view, error } = useFocusedData(load);
 
+  // The form declares the header (title + Save) itself, so the title is set here
+  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
+  // route would otherwise race over the same options.
+  if (error !== null || view === null) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Edit relationship" }} />
+        <View style={styles.screen}>
+          {error !== null ? (
+            <Text style={styles.danger}>{error}</Text>
+          ) : (
+            <ActivityIndicator />
+          )}
+        </View>
+      </>
+    );
+  }
+
   return (
-    <>
-      <Stack.Screen options={{ title: "Edit relationship" }} />
-      {error !== null ? (
-        <View style={styles.screen}>
-          <Text style={styles.danger}>{error}</Text>
-        </View>
-      ) : view === null ? (
-        <View style={styles.screen}>
-          <ActivityIndicator />
-        </View>
-      ) : (
-        <RelationshipForm
-          subjectType="pet"
-          lockedOther={{
-            type: view.neighbor.otherType,
-            id: view.neighbor.otherId,
-            label: view.neighbor.otherLabel,
-          }}
-          initialRole={view.neighbor.otherRole}
-          initialNote={view.neighbor.otherRoleNote}
-          submitLabel="Save"
-          onCancel={() => router.back()}
-          onSubmit={async (value) => {
-            await core.relationships.editFromSubject({
-              subjectType: "pet",
-              subjectId: id,
-              relId: rid,
-              otherRole: value.otherRole,
-              otherRoleNote: value.otherRoleNote,
-            });
-            router.back();
-          }}
-        />
-      )}
-    </>
+    <RelationshipForm
+      title="Edit relationship"
+      subjectType="pet"
+      lockedOther={{
+        type: view.neighbor.otherType,
+        id: view.neighbor.otherId,
+        label: view.neighbor.otherLabel,
+      }}
+      initialRole={view.neighbor.otherRole}
+      initialNote={view.neighbor.otherRoleNote}
+      onSubmit={async (value) => {
+        await core.relationships.editFromSubject({
+          subjectType: "pet",
+          subjectId: id,
+          relId: rid,
+          otherRole: value.otherRole,
+          otherRoleNote: value.otherRoleNote,
+        });
+        router.back();
+      }}
+    />
   );
 }

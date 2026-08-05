@@ -19,33 +19,35 @@ export default function PersonMilestoneEditScreen() {
   const { data: milestones, error } = useFocusedData(load);
   const milestone = milestones?.find((m) => m.id === mid);
 
+  // The form declares the header (title + Save) itself, so the title is set here
+  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
+  // route would otherwise race over the same options.
+  if (error !== null || milestones === null || milestone === undefined) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Edit milestone" }} />
+        <View style={styles.screen}>
+          {error !== null ? (
+            <Text style={styles.danger}>{error}</Text>
+          ) : milestones === null ? (
+            <ActivityIndicator />
+          ) : (
+            <Text style={styles.danger}>Milestone not found.</Text>
+          )}
+        </View>
+      </>
+    );
+  }
+
   return (
-    <>
-      <Stack.Screen options={{ title: "Edit milestone" }} />
-      {error !== null ? (
-        <View style={styles.screen}>
-          <Text style={styles.danger}>{error}</Text>
-        </View>
-      ) : milestones === null ? (
-        <View style={styles.screen}>
-          <ActivityIndicator />
-        </View>
-      ) : milestone === undefined ? (
-        <View style={styles.screen}>
-          <Text style={styles.danger}>Milestone not found.</Text>
-        </View>
-      ) : (
-        <MilestoneForm
-          bearerType="person"
-          milestone={milestone}
-          submitLabel="Save"
-          onCancel={() => router.back()}
-          onSubmit={async (value) => {
-            await core.milestones.update(mid, value);
-            router.back();
-          }}
-        />
-      )}
-    </>
+    <MilestoneForm
+      title="Edit milestone"
+      bearerType="person"
+      milestone={milestone}
+      onSubmit={async (value) => {
+        await core.milestones.update(mid, value);
+        router.back();
+      }}
+    />
   );
 }

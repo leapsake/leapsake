@@ -1,11 +1,5 @@
 import { useCallback } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   GiftCaptureForm,
@@ -42,19 +36,21 @@ export default function GiftCreateScreen() {
   );
   const { data, error } = useFocusedData(load);
 
-  if (error !== null) {
+  // The form declares the header (title + Save) itself, so the title is set here
+  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
+  // route would otherwise race over the same options.
+  if (error !== null || data === null) {
     return (
-      <View style={styles.screen}>
-        <Text style={styles.danger}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (data === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
+      <>
+        <Stack.Screen options={{ title: "Add a gift" }} />
+        <View style={styles.screen}>
+          {error !== null ? (
+            <Text style={styles.danger}>{error}</Text>
+          ) : (
+            <ActivityIndicator />
+          )}
+        </View>
+      </>
     );
   }
 
@@ -74,8 +70,6 @@ export default function GiftCreateScreen() {
       contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled"
     >
-      <Stack.Screen options={{ title: "Add a gift" }} />
-
       {fixedRecipient !== undefined && (
         <Text style={styles.muted}>
           Recording a gift for {fixedRecipient.label}.
@@ -83,6 +77,7 @@ export default function GiftCreateScreen() {
       )}
 
       <GiftCaptureForm
+        title="Add a gift"
         ideaPool={ideas}
         fixedRecipient={fixedRecipient}
         recipientCandidates={
@@ -95,10 +90,6 @@ export default function GiftCreateScreen() {
             : router.back()
         }
       />
-
-      <Pressable accessibilityRole="button" onPress={() => router.back()}>
-        <Text style={styles.link}>Cancel</Text>
-      </Pressable>
     </ScrollView>
   );
 }

@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
+import { Stack } from "expo-router";
 import type { GiftIdea } from "@leapsake/schema";
+import { HeaderSave } from "./HeaderSave";
 import { colors, styles } from "../lib/styles";
 
 /** The structured value the form hands back; the screen owns the core call. */
@@ -18,20 +20,25 @@ export interface GiftIdeaFormValue {
  *
  * There is no *create* screen behind this form on either client: a new idea is
  * captured by the `GiftCaptureForm`, which is the single-payload surface.
+ *
+ * It is only one section of its screen — the recipients manager and the remove
+ * link sit below it — but it is that screen's only *form*, so it declares the
+ * native header (title plus a right-aligned {@link HeaderSave}) the way the
+ * whole-screen forms do. `expo-router` honours a `Stack.Screen` anywhere in the
+ * screen's subtree.
  */
 export function GiftIdeaForm({
+  title: headerTitle,
   idea,
   tagNames = "",
-  submitLabel,
   onSubmit,
-  onCancel,
 }: {
+  /** Native header title, set here so the header is declared in one place. */
+  title: string;
   idea?: GiftIdea;
   /** Space-separated existing tag labels; empty on create. */
   tagNames?: string;
-  submitLabel: string;
   onSubmit: (value: GiftIdeaFormValue, tagsRaw: string) => Promise<void>;
-  onCancel: () => void;
 }) {
   const [title, setTitle] = useState(idea?.title ?? "");
   const [url, setUrl] = useState(idea?.url ?? "");
@@ -62,23 +69,18 @@ export function GiftIdeaForm({
 
   return (
     <View style={styles.section}>
-      <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onCancel}
-          disabled={submitting}
-        >
-          <Text style={styles.link}>Cancel</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => void handleSubmit()}
-          disabled={!canSubmit}
-          style={[styles.button, !canSubmit && { opacity: 0.5 }]}
-        >
-          <Text style={styles.buttonText}>{submitLabel}</Text>
-        </Pressable>
-      </View>
+      <Stack.Screen
+        options={{
+          title: headerTitle,
+          headerRight: () => (
+            <HeaderSave
+              canSave={canSubmit}
+              saving={submitting}
+              onPress={() => void handleSubmit()}
+            />
+          ),
+        }}
+      />
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Title</Text>

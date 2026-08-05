@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Stack } from "expo-router";
 import {
   type Milestone,
   type MilestoneKind,
@@ -9,6 +10,7 @@ import {
   kindsForBearerType,
   resolveReminderSchedule,
 } from "@leapsake/schema";
+import { HeaderSave } from "./HeaderSave";
 import { SelectField } from "./SelectField";
 import { ReminderScheduleFields } from "./ReminderScheduleFields";
 import { useCore } from "../lib/core-context";
@@ -55,8 +57,16 @@ const MONTH_OPTIONS: { value: string; label: string }[] = [
  * same orientation silently breaks scrolling. That is how the create screen
  * (app/add.tsx) stages a milestone for a bearer that doesn't exist yet: same
  * fields, same validation, but `onSubmit` appends to a list instead of writing.
+ *
+ * The two modes carry the submit action in different places, which is what splits
+ * the props. On its own screen it declares the native header — `title` plus a
+ * right-aligned {@link HeaderSave} — and there is no Cancel, since "‹ Back"
+ * already leaves. Inline it keeps the in-body `Cancel  submitLabel` row: the
+ * header belongs to the screen around it, and Cancel is the only way to collapse
+ * the sub-form.
  */
 export function MilestoneForm({
+  title,
   bearerType,
   milestone,
   submitLabel,
@@ -64,11 +74,15 @@ export function MilestoneForm({
   onCancel,
   inline = false,
 }: {
+  /** Screen mode: the native header title, set here so it's declared in one place. */
+  title?: string;
   bearerType: MilestoneBearerType;
   milestone?: Milestone;
-  submitLabel: string;
+  /** Inline mode: the in-body submit button's label. */
+  submitLabel?: string;
   onSubmit: (value: MilestoneFormValue) => Promise<void>;
-  onCancel: () => void;
+  /** Inline mode: collapses the sub-form. */
+  onCancel?: () => void;
   /** Render without the screen-owning scroll view, for embedding in a form. */
   inline?: boolean;
 }) {
@@ -161,23 +175,25 @@ export function MilestoneForm({
 
   const body = (
     <>
-      <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onCancel}
-          disabled={submitting}
-        >
-          <Text style={styles.link}>Cancel</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleSubmit}
-          disabled={!canSubmit}
-          style={[styles.button, !canSubmit && { opacity: 0.5 }]}
-        >
-          <Text style={styles.buttonText}>{submitLabel}</Text>
-        </Pressable>
-      </View>
+      {inline ? (
+        <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onCancel}
+            disabled={submitting}
+          >
+            <Text style={styles.link}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleSubmit}
+            disabled={!canSubmit}
+            style={[styles.button, !canSubmit && { opacity: 0.5 }]}
+          >
+            <Text style={styles.buttonText}>{submitLabel}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <SelectField
         label="Kind"
@@ -251,11 +267,25 @@ export function MilestoneForm({
   if (inline) return <View style={styles.inlineForm}>{body}</View>;
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
-      {body}
-    </ScrollView>
+    <>
+      <Stack.Screen
+        options={{
+          title,
+          headerRight: () => (
+            <HeaderSave
+              canSave={canSubmit}
+              saving={submitting}
+              onPress={() => void handleSubmit()}
+            />
+          ),
+        }}
+      />
+      <ScrollView
+        contentContainerStyle={styles.screen}
+        keyboardShouldPersistTaps="handled"
+      >
+        {body}
+      </ScrollView>
+    </>
   );
 }

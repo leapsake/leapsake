@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, Text, TextInput, View } from "react-native";
+import { Stack } from "expo-router";
 import type { RelationshipCandidate } from "@leapsake/core";
 import {
   type EntityType,
   type RelationshipRole,
   rolesForPair,
 } from "@leapsake/schema";
+import { HeaderSave } from "./HeaderSave";
 import { Typeahead } from "./Typeahead";
 import { colors, styles } from "../lib/styles";
 
@@ -39,26 +41,27 @@ export interface LockedOther {
  * materialise-a-derived-edge path (other endpoint known, role chosen) and the
  * edit-an-explicit-edge path (endpoints immutable, only the role changes). Like
  * the other forms, this only collects input — the screen owns the
- * `core.relationships.*` call — and hands back a {@link RelationshipFormValue}.
+ * `core.relationships.*` call — and hands back a {@link RelationshipFormValue} —
+ * and it declares its own native header, title plus a right-aligned
+ * {@link HeaderSave}, so `canSubmit` never has to be lifted out of it.
  */
 export function RelationshipForm({
+  title,
   subjectType,
   candidates,
   lockedOther,
   initialRole,
   initialNote,
-  submitLabel,
   onSubmit,
-  onCancel,
 }: {
+  /** Native header title, set here so the header is declared in one place. */
+  title: string;
   subjectType: EntityType;
   candidates?: RelationshipCandidate[];
   lockedOther?: LockedOther;
   initialRole?: RelationshipRole;
   initialNote?: string | null;
-  submitLabel: string;
   onSubmit: (value: RelationshipFormValue) => Promise<void>;
-  onCancel: () => void;
 }) {
   const [selected, setSelected] = useState<RelationshipCandidate | null>(
     lockedOther
@@ -108,75 +111,71 @@ export function RelationshipForm({
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onCancel}
-          disabled={submitting}
-        >
-          <Text style={styles.link}>Cancel</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleSubmit}
-          disabled={!canSubmit}
-          style={[styles.button, !canSubmit && { opacity: 0.5 }]}
-        >
-          <Text style={styles.buttonText}>{submitLabel}</Text>
-        </Pressable>
-      </View>
-
-      {lockedOther ? (
-        <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Name</Text>
-          <Text style={styles.fieldValue}>{lockedOther.label}</Text>
-        </View>
-      ) : (
-        <Typeahead<RelationshipCandidate>
-          label="Name"
-          value={selected}
-          options={candidates ?? []}
-          // Re-picking the name invalidates the role (it's pair-dependent).
-          onChange={(candidate) => {
-            setSelected(candidate);
-            setRole(null);
-          }}
-          getKey={(c) => `${c.type}:${c.id}`}
-          getLabel={(c) => c.label}
-          placeholder="Start typing a name"
-        />
-      )}
-
-      {selected !== null ? (
-        <Typeahead<RoleOption>
-          // Remount on a name change so the role's live query resets.
-          key={selected.id}
-          label="Role"
-          value={selectedRole}
-          options={roleOptions}
-          onChange={(option) => setRole(option?.role ?? null)}
-          getKey={(r) => r.role}
-          getLabel={(r) => r.label}
-          placeholder="Start typing a role"
-        />
-      ) : null}
-
-      {noteRequired ? (
-        <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Note</Text>
-          <TextInput
-            style={styles.input}
-            value={note}
-            onChangeText={setNote}
-            placeholder="e.g. landlord"
-            placeholderTextColor={colors.muted}
+    <>
+      <Stack.Screen
+        options={{
+          title,
+          headerRight: () => (
+            <HeaderSave
+              canSave={canSubmit}
+              saving={submitting}
+              onPress={() => void handleSubmit()}
+            />
+          ),
+        }}
+      />
+      <ScrollView
+        contentContainerStyle={styles.screen}
+        keyboardShouldPersistTaps="handled"
+      >
+        {lockedOther ? (
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Name</Text>
+            <Text style={styles.fieldValue}>{lockedOther.label}</Text>
+          </View>
+        ) : (
+          <Typeahead<RelationshipCandidate>
+            label="Name"
+            value={selected}
+            options={candidates ?? []}
+            // Re-picking the name invalidates the role (it's pair-dependent).
+            onChange={(candidate) => {
+              setSelected(candidate);
+              setRole(null);
+            }}
+            getKey={(c) => `${c.type}:${c.id}`}
+            getLabel={(c) => c.label}
+            placeholder="Start typing a name"
           />
-        </View>
-      ) : null}
-    </ScrollView>
+        )}
+
+        {selected !== null ? (
+          <Typeahead<RoleOption>
+            // Remount on a name change so the role's live query resets.
+            key={selected.id}
+            label="Role"
+            value={selectedRole}
+            options={roleOptions}
+            onChange={(option) => setRole(option?.role ?? null)}
+            getKey={(r) => r.role}
+            getLabel={(r) => r.label}
+            placeholder="Start typing a role"
+          />
+        ) : null}
+
+        {noteRequired ? (
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Note</Text>
+            <TextInput
+              style={styles.input}
+              value={note}
+              onChangeText={setNote}
+              placeholder="e.g. landlord"
+              placeholderTextColor={colors.muted}
+            />
+          </View>
+        ) : null}
+      </ScrollView>
+    </>
   );
 }

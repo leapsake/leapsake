@@ -19,56 +19,58 @@ export default function ContactEditScreen() {
   const { data: methods, error } = useFocusedData(load);
   const entry = methods?.find((m) => m.method.id === cid);
 
+  // The form declares the header (title + Save) itself, so the title is set here
+  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
+  // route would otherwise race over the same options.
+  if (error !== null || methods === null || entry === undefined) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Edit contact" }} />
+        <View style={styles.screen}>
+          {error !== null ? (
+            <Text style={styles.danger}>{error}</Text>
+          ) : methods === null ? (
+            <ActivityIndicator />
+          ) : (
+            <Text style={styles.danger}>Contact not found.</Text>
+          )}
+        </View>
+      </>
+    );
+  }
+
   return (
-    <>
-      <Stack.Screen options={{ title: "Edit contact" }} />
-      {error !== null ? (
-        <View style={styles.screen}>
-          <Text style={styles.danger}>{error}</Text>
-        </View>
-      ) : methods === null ? (
-        <View style={styles.screen}>
-          <ActivityIndicator />
-        </View>
-      ) : entry === undefined ? (
-        <View style={styles.screen}>
-          <Text style={styles.danger}>Contact not found.</Text>
-        </View>
-      ) : (
-        <ContactMethodForm
-          kind={entry.kind}
-          method={entry.method}
-          submitLabel="Save"
-          onCancel={() => router.back()}
-          onSubmit={async (value) => {
-            if (value.kind === "email") {
-              await core.contactMethods.emails.update(cid, {
-                label: value.label,
-                address: value.address,
-              });
-            } else if (value.kind === "phone") {
-              await core.contactMethods.phones.update(cid, {
-                label: value.label,
-                number: value.number,
-                extension: value.extension,
-                country: value.country,
-                smsCapable: value.smsCapable,
-              });
-            } else {
-              await core.contactMethods.postals.update(cid, {
-                label: value.label,
-                line1: value.line1,
-                line2: value.line2,
-                locality: value.locality,
-                region: value.region,
-                postalCode: value.postalCode,
-                country: value.country,
-              });
-            }
-            router.back();
-          }}
-        />
-      )}
-    </>
+    <ContactMethodForm
+      title="Edit contact"
+      kind={entry.kind}
+      method={entry.method}
+      onSubmit={async (value) => {
+        if (value.kind === "email") {
+          await core.contactMethods.emails.update(cid, {
+            label: value.label,
+            address: value.address,
+          });
+        } else if (value.kind === "phone") {
+          await core.contactMethods.phones.update(cid, {
+            label: value.label,
+            number: value.number,
+            extension: value.extension,
+            country: value.country,
+            smsCapable: value.smsCapable,
+          });
+        } else {
+          await core.contactMethods.postals.update(cid, {
+            label: value.label,
+            line1: value.line1,
+            line2: value.line2,
+            locality: value.locality,
+            region: value.region,
+            postalCode: value.postalCode,
+            country: value.country,
+          });
+        }
+        router.back();
+      }}
+    />
   );
 }

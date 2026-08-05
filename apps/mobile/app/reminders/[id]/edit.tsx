@@ -47,18 +47,17 @@ export default function ReminderEditScreen() {
     );
   }
 
+  // The form declares the header (title + Save) itself; the branches above set the
+  // title only because it isn't mounted in them. Two `Stack.Screen`s for one route
+  // would otherwise race over the same options.
   return (
-    <>
-      <Stack.Screen options={{ title: "Edit reminder" }} />
-      <ReminderForm
-        reminder={reminder}
-        submitLabel="Save"
-        onCancel={() => router.back()}
-        onSubmit={async (input) => {
-          await core.reminders.update(id, input);
-          router.back();
-        }}
-      />
-    </>
+    <ReminderForm
+      title="Edit reminder"
+      reminder={reminder}
+      onSubmit={async (input) => {
+        await core.reminders.update(id, input);
+        router.back();
+      }}
+    />
   );
 }
