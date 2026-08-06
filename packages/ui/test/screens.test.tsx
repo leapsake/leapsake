@@ -69,8 +69,8 @@ describe("PersonScreen", () => {
     renderPerson();
     expect(sectionTitles()).toEqual([
       "Contact",
-      "Relationships",
       "Milestones",
+      "Relationships",
       "Holidays",
       "Gifts",
       "Tags",
@@ -147,8 +147,8 @@ describe("PetScreen", () => {
     );
 
     expect(sectionTitles()).toEqual([
-      "Relationships",
       "Milestones",
+      "Relationships",
       "Holidays",
       "Gifts",
       "Tags",

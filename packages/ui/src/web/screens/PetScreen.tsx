@@ -77,16 +77,16 @@ export function PetScreen({
         ]}
       />
 
-      <RelationshipsSection
-        subjectType="pet"
-        subjectId={pet.id}
-        relationships={relationships}
-      />
-
       <MilestonesSection
         bearerType="pet"
         bearerId={pet.id}
         entries={timeline}
+      />
+
+      <RelationshipsSection
+        subjectType="pet"
+        subjectId={pet.id}
+        relationships={relationships}
       />
 
       <HolidaysSection

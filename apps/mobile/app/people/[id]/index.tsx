@@ -151,14 +151,10 @@ export default function PersonDetailScreen() {
       <DetailField label="Middle name" value={person.middleName ?? "—"} />
       <DetailField label="Last name" value={person.lastName} />
       <DetailField label="Gender" value={genderText} />
-      <DetailField label="Tags" value={tagsText} />
-      <DetailField label="Created" value={formatTimestamp(person.createdAt)} />
-      <DetailField label="Updated" value={formatTimestamp(person.updatedAt)} />
 
-      <RelationshipsSection
-        subjectType="person"
-        subjectId={person.id}
-        relationships={relationships}
+      <ContactsSection
+        ownerId={person.id}
+        methods={contactMethods}
         onChanged={reload}
       />
 
@@ -166,6 +162,13 @@ export default function PersonDetailScreen() {
         bearerType="person"
         bearerId={person.id}
         entries={timeline}
+        onChanged={reload}
+      />
+
+      <RelationshipsSection
+        subjectType="person"
+        subjectId={person.id}
+        relationships={relationships}
         onChanged={reload}
       />
 
@@ -184,13 +187,14 @@ export default function PersonDetailScreen() {
         onChanged={reload}
       />
 
-      <ContactsSection
-        ownerId={person.id}
-        methods={contactMethods}
-        onChanged={reload}
-      />
+      <DetailField label="Tags" value={tagsText} />
 
       <MentionedInSection reminders={mentionedIn} />
+
+      {/* Bookkeeping, not what the page is about — it sits below the sections a
+          reader came for, just above the destructive end of the screen. */}
+      <DetailField label="Created" value={formatTimestamp(person.createdAt)} />
+      <DetailField label="Last Updated" value={formatTimestamp(person.updatedAt)} />
 
       {/* Offered only when detection has something to offer it for. It used to
           stand on every person, advertising a chore on pages where there was

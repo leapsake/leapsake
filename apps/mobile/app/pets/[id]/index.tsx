@@ -117,21 +117,18 @@ export default function PetDetailScreen() {
 
       <DetailField label="Name" value={pet.name} />
       <DetailField label="Gender" value={genderText} />
-      <DetailField label="Tags" value={tagsText} />
-      <DetailField label="Created" value={formatTimestamp(pet.createdAt)} />
-      <DetailField label="Updated" value={formatTimestamp(pet.updatedAt)} />
-
-      <RelationshipsSection
-        subjectType="pet"
-        subjectId={pet.id}
-        relationships={relationships}
-        onChanged={reload}
-      />
 
       <MilestonesSection
         bearerType="pet"
         bearerId={pet.id}
         entries={timeline}
+        onChanged={reload}
+      />
+
+      <RelationshipsSection
+        subjectType="pet"
+        subjectId={pet.id}
+        relationships={relationships}
         onChanged={reload}
       />
 
@@ -150,7 +147,14 @@ export default function PetDetailScreen() {
         onChanged={reload}
       />
 
+      <DetailField label="Tags" value={tagsText} />
+
       <MentionedInSection reminders={mentionedIn} />
+
+      {/* Bookkeeping, not what the page is about — it sits below the sections a
+          reader came for, just above the destructive end of the screen. */}
+      <DetailField label="Created" value={formatTimestamp(pet.createdAt)} />
+      <DetailField label="Last Updated" value={formatTimestamp(pet.updatedAt)} />
 
       <Pressable accessibilityRole="button" onPress={confirmDelete}>
         <Text style={[styles.link, styles.danger]}>Delete pet</Text>

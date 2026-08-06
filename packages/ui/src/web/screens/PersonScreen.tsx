@@ -110,16 +110,16 @@ export function PersonScreen({
 
       <ContactMethodsSection personId={person.id} methods={contactMethods} />
 
-      <RelationshipsSection
-        subjectType="person"
-        subjectId={person.id}
-        relationships={relationships}
-      />
-
       <MilestonesSection
         bearerType="person"
         bearerId={person.id}
         entries={timeline}
+      />
+
+      <RelationshipsSection
+        subjectType="person"
+        subjectId={person.id}
+        relationships={relationships}
       />
 
       <HolidaysSection
