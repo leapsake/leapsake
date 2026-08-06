@@ -298,15 +298,6 @@ export default function ImportScreen() {
                 until you tap Import.
               </Text>
               <View style={local.searchRow}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  value={search}
-                  onChangeText={setSearch}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  placeholder="Search contacts…"
-                  placeholderTextColor={colors.muted}
-                />
                 <Pressable
                   accessibilityRole="checkbox"
                   accessibilityLabel={
@@ -337,6 +328,15 @@ export default function ImportScreen() {
                     </Text>
                   )}
                 </Pressable>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={search}
+                  onChangeText={setSearch}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="Search contacts…"
+                  placeholderTextColor={colors.muted}
+                />
               </View>
             </View>
           )
@@ -489,6 +489,10 @@ const local = StyleSheet.create({
     alignItems: "flex-start",
     gap: 12,
   },
+  // Select-all sits left of the search box so it lines up with the per-row
+  // checkboxes below: same leading edge (both children start at the list's
+  // content padding) and the same `row` gap, which also aligns the search text
+  // with the names.
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
