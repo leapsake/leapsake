@@ -148,6 +148,23 @@ export default function ImportScreen() {
     );
   }, [contacts, search]);
 
+  // Select-all acts on the rows the search is *showing*, so it reads as "all of
+  // these" rather than silently reaching contacts scrolled out of the filter.
+  const allShownSelected =
+    rows.length > 0 && rows.every(({ index }) => selected.has(index));
+  const someShownSelected = rows.some(({ index }) => selected.has(index));
+
+  function toggleAllShown() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const { index } of rows) {
+        if (allShownSelected) next.delete(index);
+        else next.add(index);
+      }
+      return next;
+    });
+  }
+
   async function commit() {
     setCommitting(true);
     const decisions = contacts
@@ -280,15 +297,47 @@ export default function ImportScreen() {
                 Choose which contacts to add as People. Nothing is imported
                 until you tap Import.
               </Text>
-              <TextInput
-                style={styles.input}
-                value={search}
-                onChangeText={setSearch}
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder="Search contacts…"
-                placeholderTextColor={colors.muted}
-              />
+              <View style={local.searchRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={search}
+                  onChangeText={setSearch}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="Search contacts…"
+                  placeholderTextColor={colors.muted}
+                />
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={
+                    search.trim() === ""
+                      ? "Select all contacts"
+                      : "Select all matching contacts"
+                  }
+                  accessibilityState={{
+                    checked: allShownSelected
+                      ? true
+                      : someShownSelected
+                        ? "mixed"
+                        : false,
+                    disabled: rows.length === 0,
+                  }}
+                  disabled={rows.length === 0}
+                  hitSlop={8}
+                  onPress={toggleAllShown}
+                  style={[
+                    local.checkbox,
+                    (allShownSelected || someShownSelected) && local.checkboxOn,
+                    rows.length === 0 && { opacity: 0.5 },
+                  ]}
+                >
+                  {(allShownSelected || someShownSelected) && (
+                    <Text style={local.checkboxMark}>
+                      {allShownSelected ? "✓" : "–"}
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
             </View>
           )
         }
@@ -360,7 +409,13 @@ function ContactRow({
         onPress={onToggle}
         style={local.row}
       >
-        <View style={[local.checkbox, selected && local.checkboxOn]}>
+        <View
+          style={[
+            local.checkbox,
+            local.rowCheckbox,
+            selected && local.checkboxOn,
+          ]}
+        >
           {selected && <Text style={local.checkboxMark}>✓</Text>}
         </View>
         <View style={{ flex: 1, gap: 4 }}>
@@ -434,6 +489,11 @@ const local = StyleSheet.create({
     alignItems: "flex-start",
     gap: 12,
   },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
   checkbox: {
     width: 24,
     height: 24,
@@ -442,6 +502,9 @@ const local = StyleSheet.create({
     borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
+  },
+  /** Nudge the per-row box onto the first line of the name beside it. */
+  rowCheckbox: {
     marginTop: 2,
   },
   checkboxOn: {
