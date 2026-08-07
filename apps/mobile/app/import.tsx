@@ -19,6 +19,7 @@ import {
 } from "expo-contacts";
 import type { ParsedContact } from "@leapsake/contact-import";
 import type { DuplicateMatch, ImportResult } from "@leapsake/core";
+import { Checkbox, CheckboxBox } from "../components/Checkbox";
 import { deviceContactToParsed } from "../lib/device-contacts";
 import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
@@ -298,36 +299,23 @@ export default function ImportScreen() {
                 until you tap Import.
               </Text>
               <View style={local.searchRow}>
-                <Pressable
-                  accessibilityRole="checkbox"
+                <Checkbox
                   accessibilityLabel={
                     search.trim() === ""
                       ? "Select all contacts"
                       : "Select all matching contacts"
                   }
-                  accessibilityState={{
-                    checked: allShownSelected
+                  checked={
+                    allShownSelected
                       ? true
                       : someShownSelected
                         ? "mixed"
-                        : false,
-                    disabled: rows.length === 0,
-                  }}
+                        : false
+                  }
                   disabled={rows.length === 0}
-                  hitSlop={8}
                   onPress={toggleAllShown}
-                  style={[
-                    local.checkbox,
-                    (allShownSelected || someShownSelected) && local.checkboxOn,
-                    rows.length === 0 && { opacity: 0.5 },
-                  ]}
-                >
-                  {(allShownSelected || someShownSelected) && (
-                    <Text style={local.checkboxMark}>
-                      {allShownSelected ? "✓" : "–"}
-                    </Text>
-                  )}
-                </Pressable>
+                  style={rows.length === 0 ? { opacity: 0.5 } : undefined}
+                />
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
                   value={search}
@@ -407,17 +395,9 @@ function ContactRow({
         accessibilityRole="checkbox"
         accessibilityState={{ checked: selected }}
         onPress={onToggle}
-        style={local.row}
+        style={styles.rowWithLead}
       >
-        <View
-          style={[
-            local.checkbox,
-            local.rowCheckbox,
-            selected && local.checkboxOn,
-          ]}
-        >
-          {selected && <Text style={local.checkboxMark}>✓</Text>}
-        </View>
+        <CheckboxBox checked={selected} style={styles.rowLeadCheckbox} />
         <View style={{ flex: 1, gap: 4 }}>
           <Text style={styles.rowText}>{label || "Unnamed contact"}</Text>
           <ContactDetail contact={contact} />
@@ -484,41 +464,14 @@ function Screen({ title, children }: { title: string; children: ReactNode }) {
 }
 
 const local = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-  },
   // Select-all sits left of the search box so it lines up with the per-row
   // checkboxes below: same leading edge (both children start at the list's
-  // content padding) and the same `row` gap, which also aligns the search text
-  // with the names.
+  // content padding) and the same `rowWithLead` gap, which also aligns the
+  // search text with the names.
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  /** Nudge the per-row box onto the first line of the name beside it. */
-  rowCheckbox: {
-    marginTop: 2,
-  },
-  checkboxOn: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  checkboxMark: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "700",
   },
   nameFix: {
     gap: 6,

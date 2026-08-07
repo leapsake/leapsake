@@ -55,6 +55,23 @@ export const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  // A list row led by a control (a checkbox) with its content beside it. Composed
+  // with `row`, which keeps the padding and the separator. The gap is shared so
+  // every such list indents its text to the same place.
+  rowWithLead: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  /** Sit the leading control on the first line of the text beside it. */
+  rowLeadCheckbox: {
+    marginTop: 2,
+  },
+  /** Everything to the right of a leading control — takes the rest of the width
+   *  so long text wraps beside the control rather than under it. */
+  rowBody: {
+    flex: 1,
+  },
   rowText: {
     fontSize: 17,
     color: colors.text,

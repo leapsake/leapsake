@@ -15,6 +15,7 @@ import {
   reminderLabel,
 } from "@leapsake/schema";
 import { partitionReminders, reminderActionsOf } from "@leapsake/view-models";
+import { Checkbox } from "../../components/Checkbox";
 import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
@@ -105,9 +106,10 @@ export default function RemindersScreen() {
 }
 
 /**
- * One reminder row: its heading (and body, when it has both) over a meta row of
- * due-in and Done/Remove, with whatever the row offers — do it · not now · don't
- * ask again — on a line of its own beneath.
+ * One reminder row: a completion checkbox on the leading edge, beside its heading
+ * (and body, when it has both) over a meta row of due-in and Remove, with whatever
+ * the row offers — do it · not now · don't ask again — on a line of its own
+ * beneath.
  */
 function ReminderRow({
   reminder,
@@ -131,6 +133,9 @@ function ReminderRow({
   // Title leads; the body shows underneath as details. With no title the body
   // *is* the heading, so it isn't repeated below.
   const heading = reminder.title ?? reminder.body ?? "";
+  // How this reminder is *named* — in the checkbox's accessibility label and in
+  // the removal confirmation alike, so both call it the same thing.
+  const label = reminderLabel(reminder);
   // Everything this row offers, in offer order — the view-model is the only
   // authority on *what* is offered; this screen owns only how it looks. An
   // ordinary reminder (milestone / birthday / user) offers nothing.
@@ -168,7 +173,7 @@ function ReminderRow({
    * nudge has always been permanent; only its presentation lied.
    */
   function confirmDelete() {
-    Alert.alert(removal.title, removal.message(reminderLabel(reminder)), [
+    Alert.alert(removal.title, removal.message(label), [
       { text: "Cancel", style: "cancel" },
       {
         text: removal.confirm,
@@ -183,65 +188,73 @@ function ReminderRow({
   }
 
   return (
-    <View style={styles.row}>
-      <ReminderText
-        text={heading}
-        tags={reminder.tags}
-        mentions={reminder.mentions}
-        style={[styles.rowText, strike]}
-        onPressText={open}
+    <View style={[styles.row, styles.rowWithLead]}>
+      {/* The completion toggle, and the row's own affordance — deliberately
+          outside the text below, so tapping through to the reminder (or to a
+          tag or mention inside it) never flips it. Its label names the reminder
+          because nothing else here does now that the button's words are gone. */}
+      <Checkbox
+        accessibilityLabel={done ? `Reopen “${label}”` : `Mark “${label}” done`}
+        checked={done}
+        onPress={toggle}
+        style={styles.rowLeadCheckbox}
       />
-      {reminder.title !== null && reminder.body !== null && (
+      <View style={styles.rowBody}>
         <ReminderText
-          text={reminder.body}
+          text={heading}
           tags={reminder.tags}
           mentions={reminder.mentions}
-          style={[styles.muted, strike]}
+          style={[styles.rowText, strike]}
           onPressText={open}
         />
-      )}
-      <View style={styles.rowMeta}>
-        {reminder.dueDate !== null ? (
-          <Text style={styles.muted}>{formatDueIn(reminder.dueDate)}</Text>
-        ) : (
-          <View />
+        {reminder.title !== null && reminder.body !== null && (
+          <ReminderText
+            text={reminder.body}
+            tags={reminder.tags}
+            mentions={reminder.mentions}
+            style={[styles.muted, strike]}
+            onPressText={open}
+          />
         )}
-        <View style={styles.rowActions}>
-          <Pressable accessibilityRole="button" onPress={toggle}>
-            <Text style={styles.link}>{done ? "Reopen" : "Done"}</Text>
-          </Pressable>
-          {showsRemove(actions, done) && (
-            <Pressable accessibilityRole="button" onPress={confirmDelete}>
-              <Text style={[styles.link, styles.danger]}>Remove</Text>
-            </Pressable>
+        <View style={styles.rowMeta}>
+          {reminder.dueDate !== null ? (
+            <Text style={styles.muted}>{formatDueIn(reminder.dueDate)}</Text>
+          ) : (
+            <View />
           )}
-        </View>
-      </View>
-      {actions.length > 0 && (
-        // Whatever the row offers, on its own line and in offer order — which is
-        // also order of escalating finality. They get a line rather than the meta
-        // row because they are peers of one choice and belong side by side, and
-        // because a dateless nudge would otherwise seat its permanent option next
-        // to the Done toggle. Each kind is offered at most once per row, so it keys.
-        <View style={styles.rowOffers}>
-          {actions.map((action) => {
-            const offer = offerFor(action);
-            return (
-              <Pressable
-                key={action.kind}
-                accessibilityRole="button"
-                onPress={() => {
-                  if (offer.kind === "navigate") router.push(offer.path);
-                  else if (offer.kind === "snooze") snooze(offer.until);
-                  else confirmDelete();
-                }}
-              >
-                <Text style={styles.link}>{offer.label}</Text>
+          <View style={styles.rowActions}>
+            {showsRemove(actions, done) && (
+              <Pressable accessibilityRole="button" onPress={confirmDelete}>
+                <Text style={[styles.link, styles.danger]}>Remove</Text>
               </Pressable>
-            );
-          })}
+            )}
+          </View>
         </View>
-      )}
+        {actions.length > 0 && (
+          // Whatever the row offers, on its own line and in offer order — which
+          // is also order of escalating finality. They get a line rather than the
+          // meta row because they are peers of one choice and belong side by
+          // side. Each kind is offered at most once per row, so it keys.
+          <View style={styles.rowOffers}>
+            {actions.map((action) => {
+              const offer = offerFor(action);
+              return (
+                <Pressable
+                  key={action.kind}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    if (offer.kind === "navigate") router.push(offer.path);
+                    else if (offer.kind === "snooze") snooze(offer.until);
+                    else confirmDelete();
+                  }}
+                >
+                  <Text style={styles.link}>{offer.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+      </View>
     </View>
   );
 }
