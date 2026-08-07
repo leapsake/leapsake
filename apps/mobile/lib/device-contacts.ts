@@ -61,6 +61,68 @@ function isoCountry(value: string | null | undefined): string | null {
     : null;
 }
 
+/**
+ * Apple's `CNLabel*` constants are not display text: they are wrapped tokens —
+ * `CNLabelWork` is literally `"_$!<Work>!$_"`, `CNLabelPhoneNumberHomeFax` is
+ * `"_$!<HomeFAX>!$_"`. The Contacts framework unwraps them via
+ * `CNLabeledValue.localizedString(forLabel:)`; `expo-contacts` does that in its
+ * legacy API but *not* in the newer `Contact` one we read from, so the constants
+ * arrive here raw and would otherwise be shown to the user as-is.
+ *
+ * Unwrapping is safe rather than brittle because the wrapper is a fixed, decades-
+ * old sentinel (it predates `CNLabeledValue`, coming from AddressBook.framework)
+ * whose whole purpose is to be recognisable: it can't collide with a user's own
+ * label, since the Contacts UI has no way to type one. Anything not wrapped is
+ * free text (a custom label, or Android's already-localised value) and passes
+ * through untouched — we never title-case someone's "Beach House".
+ */
+const CN_LABEL_CONSTANT = /^_\$!<(.+)>!\$_$/;
+
+/**
+ * Tokens whose unwrapped form isn't presentable on its own, keyed by the token
+ * lower-cased. Everything else inside the wrapper is a single word ("Home",
+ * "Mobile", "Pager", "School") that only needs its casing settled.
+ */
+const LABEL_TOKENS: Record<string, string> = {
+  homefax: "Home fax",
+  workfax: "Work fax",
+  otherfax: "Other fax",
+  homepage: "Home page",
+};
+
+/**
+ * A couple of constants Apple ships *unwrapped* (`CNLabelPhoneNumberiPhone` is
+ * just `"iPhone"`). Only the ones we deliberately rewrite are listed: "iPhone"
+ * becomes "Mobile" so a contact imported from the device and the same contact
+ * imported as a vCard — where the parser maps `TYPE=IPHONE` the same way — carry
+ * the same label. `iCloud`, `Apple Watch` and friends read fine as-is.
+ */
+const PLAIN_LABELS: Record<string, string> = { iphone: "Mobile" };
+
+/** The label to show for a contact method with none of its own. */
+const DEFAULT_LABEL = "Other";
+
+/**
+ * Turn a device label into display text: unwrap an Apple label constant, or pass
+ * free text through. Falls back to {@link DEFAULT_LABEL} when there is nothing —
+ * contact-method labels are `min(1)` in the parsed schema.
+ */
+function label(value: string | null | undefined): string {
+  const trimmed = clean(value);
+  if (trimmed === null) return DEFAULT_LABEL;
+
+  const wrapped = CN_LABEL_CONSTANT.exec(trimmed)?.[1];
+  if (wrapped === undefined)
+    return PLAIN_LABELS[trimmed.toLowerCase()] ?? trimmed;
+
+  const token = wrapped.trim();
+  if (token === "") return DEFAULT_LABEL;
+  return (
+    LABEL_TOKENS[token.toLowerCase()] ??
+    token.charAt(0).toUpperCase() + token.slice(1).toLowerCase()
+  );
+}
+
 const NOTE_CAP = 300;
 
 /**
@@ -76,7 +138,7 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
   const emails: ParsedEmail[] = (contact.emails ?? []).flatMap((email) => {
     const address = clean(email.address);
     if (address === null) return [];
-    return [{ label: clean(email.label) ?? "other", address }];
+    return [{ label: label(email.label), address }];
   });
 
   const phones: ParsedPhone[] = (contact.phones ?? []).flatMap((phone) => {
@@ -86,7 +148,7 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
     // and `smsCapable` defaults true (the platform doesn't flag fax lines here).
     return [
       {
-        label: clean(phone.label) ?? "other",
+        label: label(phone.label),
         number,
         extension: null,
         country: null,
@@ -100,7 +162,7 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
     if (line1 === null) return []; // no street ⇒ nothing the schema can store
     return [
       {
-        label: clean(addr.label) ?? "other",
+        label: label(addr.label),
         line1,
         line2: null,
         locality: clean(addr.city),

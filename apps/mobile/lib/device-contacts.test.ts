@@ -124,7 +124,36 @@ describe("deviceContactToParsed", () => {
     expect(named.postals[0]?.country).toBeNull();
   });
 
-  it("drops entries with no usable value and defaults blank labels to 'other'", () => {
+  it("unwraps Apple's label constants into display text", () => {
+    const parsed = deviceContactToParsed(
+      device({
+        emails: [
+          { id: "1", label: "_$!<Work>!$_", address: "jane@example.com" },
+          { id: "2", label: "iCloud", address: "jane@icloud.com" },
+        ],
+        phones: [
+          { id: "3", label: "_$!<Mobile>!$_", number: "+15551234567" },
+          { id: "4", label: "_$!<HomeFAX>!$_", number: "+15559876543" },
+          // Shipped unwrapped by Apple; rewritten to match the vCard parser.
+          { id: "5", label: "iPhone", number: "+15550001111" },
+          // A custom label is free text and must survive verbatim.
+          { id: "6", label: "Beach House", number: "+15552223333" },
+        ],
+        addresses: [{ id: "7", label: "_$!<Home>!$_", street: "1 Main St" }],
+      }),
+    );
+
+    expect(parsed.emails.map((e) => e.label)).toEqual(["Work", "iCloud"]);
+    expect(parsed.phones.map((p) => p.label)).toEqual([
+      "Mobile",
+      "Home fax",
+      "Mobile",
+      "Beach House",
+    ]);
+    expect(parsed.postals.map((p) => p.label)).toEqual(["Home"]);
+  });
+
+  it("drops entries with no usable value and defaults blank labels to 'Other'", () => {
     const parsed = deviceContactToParsed(
       device({
         emails: [
@@ -136,7 +165,7 @@ describe("deviceContactToParsed", () => {
       }),
     );
     expect(parsed.emails).toEqual([
-      { label: "other", address: "keep@example.com" },
+      { label: "Other", address: "keep@example.com" },
     ]);
     expect(parsed.phones).toEqual([]);
     expect(parsed.postals).toEqual([]);
