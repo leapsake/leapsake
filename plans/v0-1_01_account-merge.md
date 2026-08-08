@@ -33,6 +33,7 @@ and the Play 14-day clock out by the length of this doc — accepted knowingly.
 | Unauthenticated → synced | `apps/desktop/src/main/db/adopt-account-flow.ts:67` | **Done**: convert → password door → roster entry → destroy original. Called from `main/index.ts:699` (join) and `:767` (recover); integration test at `apps/desktop/test/integration/account-adopt.test.ts` |
 | Plaintext → encrypted converter | desktop `main/db/convert-store.ts:46`, mobile `db/convert-store.ts:27` | **Done**, two deliberately parallel implementations — neither engine's native shortcut works on the other (desktop has `PRAGMA rekey` but no `sqlcipher_export`; SQLCipher has the reverse), so both run the same ordinary-SQL `ATTACH` + copy-from-`sqlite_master` |
 | Crash ordering | the converter's doc-comment table | **Done**: convert → roster → destroy, with both overwrite guards enforced |
+| Encrypted → encrypted copy | desktop `main/db/convert-store.ts` `rekeyStore` | **Done** *(Increment 1, 2026-08-08)*: the encrypted-source door onto the same ATTACH machinery, guards and crash ordering shared with the plaintext one. Tests in `apps/desktop/test/convert-store.test.ts` |
 
 **The hard part — merging people without losing or silently fusing them — already exists.** What
 is missing is custody plumbing, and it is bounded.
@@ -42,7 +43,7 @@ is missing is custody plumbing, and it is bounded.
 | Layer | What it does |
 |---|---|
 | `apps/desktop/src/main/db/adopt-account-flow.ts:95` | throws — *"This device already holds an account. Forget it before joining another."* |
-| `apps/desktop/src/main/db/convert-store.ts:53` | refuses any source that is not plaintext |
+| ~~`convert-store.ts` refuses any non-plaintext source~~ | **Lifted by Increment 1.** `convertStoreToEncrypted` still refuses one, but `rekeyStore` is now the door that accepts it. The only refusal left is the flow guard above |
 
 ⚠️ **Read the comment at `adopt-account-flow.ts:88-94` before touching that guard.** An in-place
 adopt branch **existed and was deliberately removed**, because "silently adopting a second account
@@ -56,23 +57,32 @@ by accident.
 
 Ordered so the thing most likely to fail comes first.
 
-### Increment 1 — the re-key converter, desktop
+### ~~Increment 1 — the re-key converter, desktop~~ — **done 2026-08-08**
 
-The converter is plaintext→encrypted; the merge needs **encrypted→encrypted**. `ATTACH` the
-destination keyed under the account master key while the source is open under this device's
-db-key — the same ordinary-SQL pattern the existing doc-comment already explains, with a keyed
-source instead of a bare one.
+`rekeyStore` in `apps/desktop/src/main/db/convert-store.ts`: an encrypted source opened under
+`fromKey`, `ATTACH`ing a destination under `toKey`, sharing one private body — and therefore one
+set of guards and one crash ordering — with `convertStoreToEncrypted`. Twelve cases in
+`apps/desktop/test/convert-store.test.ts`.
 
-⚠️ **Never route through a plaintext intermediate.** That would write the entire database in the
-clear, which is the exact window [`model.md`](./encryption/model.md) §7.2.1 exists to keep small.
+⚠️ **This doc previously said the destination is "keyed under the account master key". That was
+wrong**, and the correction matters for Increment 2. The at-rest `db-key` is minted **per device**,
+not per account ([`model.md`](./encryption/model.md) §7.1: a joining device "mints its own db-key,
+adopts the account master key"); the MK is the sync envelope *inside* the database, not the file
+key. So both of this device's stores are locked with the **same** key, and Increment 2 is a
+**re-home** — the file moves to the synced account's folder without changing its lock.
+`rekeyStore` still takes two keys, because a device that lost its keychain and returned through a
+password door holds a *fresh* one (§6), and that store has to move under it.
 
-Both existing guards need a re-key-aware arm rather than deletion: the source check at
-`convert-store.ts:53` must accept *encrypted-and-openable-under-this-key*, and the destination
-check must stay as strict as it is.
+**Do not replace the copy with a `rename`.** It is atomic, but it leaves a window where the file
+has moved and the roster has not — and a crash there boots into a roster entry naming an empty
+folder. Copy → roster → destroy is what makes the sequence survivable, and it is why Increment 1
+is a converter rather than a `mv`.
 
-**Done when** `apps/desktop/test/convert-store.test.ts` grows the encrypted-source cases beside
-its existing plaintext ones — round-trip, `user_version` carried, wrong-key rejected, destination
-guard still fires — and no plaintext file is produced at any point in the sequence.
+Settled empirically while building, and now in the doc-comment: `PRAGMA cipher` before the
+`ATTACH` names the *destination's* cipher and overrides `main`'s. Omitted, the attached file
+inherits `main`'s — which is why it is mandatory on the plaintext path (no codec to inherit, so
+the file is written with the library default and later fails to open as `sqlcipher`) and
+belt-and-braces on the re-key path.
 
 ### Increment 2 — the merge flow, desktop
 
@@ -81,7 +91,9 @@ The user-initiated flow the invariant actually promises, on the rails
 
 - **Rehome the store.** The file lives at `storePath(localAccountId)` and carries an account row;
   the merge moves it to `storePath(syncedAccountId)`, rewrites the roster entry, and retires the
-  local account.
+  local account. The move itself is `rekeyStore` from Increment 1, called with **the same key
+  both ways** (`ensureDatabaseKey` is per device). Note the roster has no *retire* verb — only
+  `add` (upsert by id) and `remove`, so the old entry needs removing explicitly.
 - **Preserve the crash ordering** — convert → door → roster → destroy, unchanged. One wrinkle
   makes it stricter, not looser: the source is now itself an **encrypted store worth keeping** if
   the merge fails, so "the original survives until the roster names its replacement" matters more

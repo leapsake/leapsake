@@ -5,14 +5,12 @@
 
 ## Just landed
 
-- **`plans/` restructured around the v0.1 order** *(2026-08-07)*. Seven numbered, individually
-  deletable docs behind [`v0-1.md`](./v0-1.md); everything non-gating moved to
-  [`v0-2.md`](./v0-2.md); durable design moved next to its code.
+- **`plans/` restructured around the v0.1 order** *(2026-08-07)*. Seven numbered, deletable docs
+  behind [`v0-1.md`](./v0-1.md); non-gating work to [`v0-2.md`](./v0-2.md); design next to code.
 - **Onboarding Increment 1 — reminder snooze + honest dismiss actions** *(2026-07-31 → 08-01)*.
-  Every acceptance clause holds on desktop, on one device and across two. The last defect was the
-  merge: an untouched row now never wins. **Mobile is unverified** — its row logic has a unit
-  tier, but nothing has been observed on a simulator, which belongs to the blocked E2E tier
-  ([`v0-1_06`](./v0-1_06_e2e-and-release-gate.md)).
+  Every acceptance clause holds on desktop, on one device and across two. **Mobile is unverified**
+  — its row logic has a unit tier, but nothing has been observed on a simulator, which belongs to
+  the blocked E2E tier ([`v0-1_06`](./v0-1_06_e2e-and-release-gate.md)).
 - **Local custody**, both clients *(2026-07-26 → 07-30)*. Leapsake encrypts once the user holds a
   secret that opens it, and not before. [`encryption/model.md`](./encryption/model.md) §7.
 - **Relay hardening through H3** — session tokens + both TLS paths, plus H2, M3, proxy-aware IP
@@ -20,14 +18,17 @@
 
 ## In progress
 
-Nothing.
+**[`01 — account merge`](./v0-1_01_account-merge.md), Increment 1 landed** *(2026-08-08)*.
+`rekeyStore` — the encrypted-source door onto the converter, sharing one body, one set of guards
+and one crash ordering with the plaintext one. The finding worth carrying: the at-rest db-key is
+minted **per device, not per account**, so Increment 2 is a *re-home* (same key, new folder), and
+the doc's "account master key" wording was wrong and is corrected. Next: Increment 2.
 
 ## Next
 
-1. **[`v0-1_01_account-merge.md`](./v0-1_01_account-merge.md)** — Increment 1, the encrypted-source
-   re-key converter. Merging a local-only account into a synced one is the missing half of
-   custody, and it closes a one-way trap before [`02`](./v0-1_02_account-invitation.md)
-   advertises it.
+1. **[`01 — account merge`](./v0-1_01_account-merge.md)** — Increments 2–4: the merge flow, mobile
+   parity, the username collision. Closes a one-way trap before
+   [`02`](./v0-1_02_account-invitation.md) advertises it.
 2. **[`v0-1_02_account-invitation.md`](./v0-1_02_account-invitation.md)** — the create/sign-in fork
    on Home. Gates the mobile pipeline, and therefore the 14-day Play clock.
 3. **[`v0-1_03_store-identity-and-restore.md`](./v0-1_03_store-identity-and-restore.md)** — then
