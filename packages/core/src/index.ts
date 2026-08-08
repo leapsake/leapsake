@@ -3,6 +3,7 @@ import {
   type DuplicateMatch,
   type GenderResult,
   type SqliteDriver,
+  type TagListItem,
   createContactMethodsRepo,
   createDismissalsRepo,
   createDuplicateService,
@@ -134,6 +135,10 @@ export type {
   DuplicateCandidatePerson,
   DuplicateMatch,
 } from "@leapsake/data";
+
+// The tag catalog's row shape, re-exported so a client's tag list binds to the
+// same contract `tags.list` returns.
+export type { TagListItem } from "@leapsake/data";
 
 // Contact-import shapes, re-exported so the desktop boundary parser and the
 // review UI bind to the same contract the ingest engine consumes.
@@ -940,6 +945,10 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     },
 
     tags: {
+      // The tag catalog: every tag alphabetically, with its usage count. Unlike
+      // the `…ForTag` reads below it answers "what tags exist at all", which no
+      // per-entity screen can reconstruct.
+      list: (): Promise<TagListItem[]> => tags.list(),
       get: (id: string): Promise<Tag | undefined> => tags.get(id),
       softDelete: (id: string): Promise<void> =>
         driver.transaction(() => tags.softDelete(id)),

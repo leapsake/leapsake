@@ -32,6 +32,15 @@ function toTag(row: TagRow): Tag {
   });
 }
 
+/**
+ * A tag plus how many things currently wear it — one row of the tag catalog.
+ * The count spans every bearer type (people, pets, reminders, gift ideas), which
+ * is what the catalog is *for*: a tag's reach, not its reach within one type.
+ */
+export interface TagListItem extends Tag {
+  usageCount: number;
+}
+
 export interface TagsRepo extends SyncableRepo<Tag> {
   /**
    * The `taggings` join table as its own synced unit (a tag is meaningless
@@ -78,6 +87,12 @@ export interface TagsRepo extends SyncableRepo<Tag> {
    * the deletion in one `driver.transaction`.
    */
   softDelete(tagId: string): Promise<void>;
+
+  /**
+   * Every active tag, alphabetically, each with its active-tagging count —
+   * the tag catalog.
+   */
+  list(): Promise<TagListItem[]>;
 
   get(id: string): Promise<Tag | undefined>;
 
@@ -242,6 +257,26 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
     async softDelete(tagId) {
       await softDeleteWhere(driver, "taggings", "tag_id = ?", [tagId]);
       await softDeleteRow(driver, "tags", tagId);
+    },
+
+    async list() {
+      // Sorted by `normalized` — the lowercased name — so "apple" and "Apple"
+      // interleave the way a reader expects rather than by ASCII case.
+      // LEFT JOIN, not JOIN: a tag whose last tagging was removed is normally
+      // GC'd, but a pulled peer row can land taggingless, and a tag that exists
+      // should be listed (and so be deletable) rather than silently hidden.
+      const rows = await driver.all<TagRow & { usage_count: number }>(
+        `SELECT t.*, COUNT(g.id) AS usage_count
+           FROM tags t
+           LEFT JOIN taggings g ON g.tag_id = t.id AND g.deleted_at IS NULL
+          WHERE t.deleted_at IS NULL
+          GROUP BY t.id
+          ORDER BY t.normalized`,
+      );
+      return rows.map((row) => ({
+        ...toTag(row),
+        usageCount: row.usage_count,
+      }));
     },
 
     async get(id) {

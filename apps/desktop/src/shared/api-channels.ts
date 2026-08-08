@@ -26,6 +26,7 @@ export const API_CHANNELS = [
   "pets.update",
   "pets.softDelete",
 
+  "tags.list",
   "tags.get",
   "tags.softDelete",
   "tags.listForPerson",

@@ -27,7 +27,11 @@ export {
   type RelationshipsRepo,
   createRelationshipsRepo,
 } from "./relationships-repo.js";
-export { type TagsRepo, createTagsRepo } from "./tags-repo.js";
+export {
+  type TagListItem,
+  type TagsRepo,
+  createTagsRepo,
+} from "./tags-repo.js";
 export { type RemindersRepo, createRemindersRepo } from "./reminders-repo.js";
 export {
   SELF_PERSON_ID,

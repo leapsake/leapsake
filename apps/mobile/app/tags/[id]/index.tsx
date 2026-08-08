@@ -78,7 +78,7 @@ export default function TagDetailScreen() {
     giftIdeas.length === 0;
 
   function confirmDelete() {
-    Alert.alert("Delete tag", `Delete #${label}?`, [
+    Alert.alert("Delete tag", `Delete ${label}?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -95,7 +95,7 @@ export default function TagDetailScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <Stack.Screen options={{ title: `#${label}` }} />
+      <Stack.Screen options={{ title: label }} />
 
       {empty && <Text style={styles.muted}>Nothing has this tag.</Text>}
 

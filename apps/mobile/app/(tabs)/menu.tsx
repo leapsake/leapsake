@@ -5,8 +5,8 @@ import { colors, styles } from "../../lib/styles";
 
 /**
  * The Menu tab — everything that isn't one of the three standing destinations
- * (Home, People & Pets, Search). That's the two catalogs plus Data and Settings,
- * neither of which is reachable from any entity.
+ * (Home, People & Pets, Search). That's the three catalogs plus Data and
+ * Settings, neither of which is reachable from any entity.
  *
  * Deliberately *only* the overflow: People isn't listed even though a "menu"
  * might suggest a full sitemap. It's already a permanent tab, and the row would

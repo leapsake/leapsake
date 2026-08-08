@@ -152,6 +152,27 @@ describe("tagsRepo", () => {
     expect(await repo.listForEntity("person", "p1")).toHaveLength(0);
   });
 
+  it("list returns every active tag alphabetically, with its usage count", async () => {
+    await repo.setEntityTags("person", "p1", ["zebra", "Friend"]);
+    await repo.setEntityTags("pet", "x1", ["apple", "friend"]);
+    await repo.setEntityTags("reminder", "r1", ["Friend"]);
+
+    // Case-insensitive ordering (by `normalized`), and the count spans bearer
+    // types — "Friend" is worn by a person, a pet, and a reminder.
+    expect((await repo.list()).map((t) => [t.name, t.usageCount])).toEqual([
+      ["apple", 1],
+      ["Friend", 3],
+      ["zebra", 1],
+    ]);
+  });
+
+  it("list omits a tag once its last tagging is gone", async () => {
+    await repo.setEntityTags("person", "p1", ["Friend"]);
+    await repo.setEntityTags("person", "p1", []);
+
+    expect(await repo.list()).toEqual([]);
+  });
+
   it("get returns undefined for a missing or soft-deleted tag", async () => {
     expect(await repo.get(crypto.randomUUID())).toBeUndefined();
 
