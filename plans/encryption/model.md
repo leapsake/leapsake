@@ -455,6 +455,50 @@ in free space, and on SSDs cannot be reliably erased. **Accepted** (owner, 2026-
 window is small, it requires physical access to the disk to exploit, and the alternative is
 the data-loss path above. It is stated in §12 rather than glossed.
 
+#### 7.2.2 The two exits from local-only *(built 2026-08-08)*
+
+> **A local store — Unauthenticated *or* Authenticated — must always be mergeable into an
+> authenticated synced account.** *(owner, 2026-08-02.)*
+
+A user who takes the wrong branch at the create/sign-in fork (§7.1) loses **time, never work**.
+That outranks any UX guard against taking the wrong branch: a guard reduces how often the
+mistake is made, this decides what it costs.
+
+It takes two exits, because *"I have a local-only account and I want sync"* has two meanings —
+and a user knows which one they mean before they know any of the mechanics:
+
+| The user means | The act | Where |
+|---|---|---|
+| *"Publish the account that is already here"* | **bind a relay.** Nothing is minted and nothing is re-encrypted, so the same password and the same recovery phrase keep working. §7.2.1 mints the auth verifier and both master-key wrappings with no relay in sight *precisely* so this adds no new ritual | `bindRelayToAccount` (`packages/key-custody/src/bind-relay.ts`) |
+| *"Move this data into the account I already have elsewhere"* | **merge.** The store is re-homed under the synced account's id, keeps every row, and opens under *that* account's password from the next launch. Overlapping people go to duplicate review rather than being fused (`reconcileOnJoin`) | `main/db/merge-account-flow.ts` (desktop), `lib/merge-account.ts` (mobile) |
+
+Three constraints hold the pair together. Each is enforced and explained where it lives; they are
+listed here because they are easy to undo from a distance:
+
+- **The merge's relay half runs against a copy.** Joining refuses while a local account row
+  exists, so clearing that row on the *live* store would destroy the user's account identity at
+  exactly the moment the login **failed**. Both merge flows carry the crash table in their
+  doc-comments.
+- **Binding publishes before it persists.** A refused username has to leave a working local-only
+  account behind with nothing to roll back.
+- **A taken username is a question, not an error.** It hides both readings above — your own
+  account, or a stranger's — so the clients fork on it (`isUsernameTakenError`) instead of
+  reporting it. This is what closed the *username collision* question this section used to defer.
+
+> **The join guard was not relaxed, and must not be.** An in-place adopt branch existed and was
+> deliberately removed, because *"silently adopting a second account into a store still homed
+> under the first one's id was never a state worth producing"*. What the invariant asks for is an
+> **explicit, user-initiated merge** — a different thing from letting a roster inconsistency
+> rehome a store by accident. Read the comment on `adopt-account-flow.ts`'s assertion before
+> touching it.
+
+**Not built: merge by recovery phrase.** `recoverAccount` carries the same *"already part of an
+account"* refusal `joinAccount` does, so it needs the same copy-first treatment and amounts to a
+second full flow; the merge UI hides its recovery affordance rather than offering a button that
+can only throw. The gap is a user who has the account's **phrase** but not its password — today
+they must recover on the other device first. *(Deferred, owner 2026-08-08; see
+[`../v0-1.md`](../v0-1.md) → Open decisions.)*
+
 ### 7.3 Locked, Sign out, Forget account *(decided 2026-07-27)*
 
 Three concepts, no overlap. **One state, two actions.**
@@ -483,10 +527,11 @@ mistaken for signing out.
 > then refused, since creation requires a plaintext Unauthenticated store.
 >
 > It was removed rather than repaired. The want is narrow (creating a local account,
-> promoting it to a synced one, and starting out synced are all covered), and repairing it
-> is not a local edit: "drop only the relay binding" has to decide what becomes of the
-> account on the relay, whether the username is retained for re-binding, and how that
-> interacts with the username-collision question that is still open. Cheap to rebuild later
+> promoting it to a synced one, and starting out synced are all covered — §7.2.2), and
+> repairing it is not a local edit: "drop only the relay binding" has to decide what becomes
+> of the account on the relay, and whether the username is retained for re-binding. That
+> second half is now the sharper question, since binding *does* exist (§7.2.2) and a released
+> handle is the one thing the relay's namespace has no verb for. Cheap to rebuild later
 > if the want turns out to be real. `clearLocalAccount` itself survives as what it is
 > actually good at — the rollback when relay registration fails mid-creation, before
 > anything on disk has moved.

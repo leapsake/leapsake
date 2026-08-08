@@ -804,9 +804,9 @@ function registerSyncIpc(): void {
   );
 
   // **Start syncing an account that already exists here** — bind a relay to a
-  // local-only account (model.md §7.2, plans/v0-1_01_account-merge.md Increment
-  // 4). Publishes what the store already holds; no keys are minted, no store is
-  // converted, and the recovery phrase the user wrote down still works.
+  // local-only account (`encryption/model.md` §7.2.2). Publishes what the store
+  // already holds; no keys are minted, no store is converted, and the recovery
+  // phrase the user wrote down still works.
   //
   // **A taken username is a return value, not a throw.** It is the one outcome
   // here that hides two readings the user must choose between — *"that is my own
@@ -856,7 +856,7 @@ function registerSyncIpc(): void {
   );
 
   // Merge this device's **local-only account** into an existing synced one
-  // (plans/v0-1_01_account-merge.md): the store is re-homed under the synced
+  // (encryption/model.md §7.2.2): the store is re-homed under the synced
   // account's id, keeps every row, and from the next launch opens under *that*
   // account's password.
   //

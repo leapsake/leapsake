@@ -42,7 +42,7 @@ export async function convertStoreToEncrypted(opts: {
  * `fromKey`, into a new encrypted store at `toName` under `toKey`. The
  * encrypted-source door onto {@link convertStoreToEncrypted}'s machinery, and the
  * file-level half of merging a local-only account into a synced one
- * (`plans/v0-1_01_account-merge.md`). Desktop's namesake lives in
+ * (`encryption/model.md` §7.2.2). Desktop's namesake lives in
  * `main/db/convert-store.ts` and this mirrors it step for step.
  *
  * **This writes a *new* store and leaves the original openable.** That is the

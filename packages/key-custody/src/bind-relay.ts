@@ -67,7 +67,7 @@ import {
  * and *"that is a stranger, I need a different handle"* (→ call this again with
  * another username). Only the user can tell those apart, so this function refuses
  * to guess: it lets the relay's error through and the clients fork on it. See
- * `plans/v0-1_01_account-merge.md`, Increment 4.
+ * `encryption/model.md` §7.2.2.
  *
  * Calling again after a 409 **is** the rename. There is no separate rename
  * primitive because there is nothing to rename yet — the username has never been

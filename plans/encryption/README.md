@@ -50,7 +50,6 @@ ordered against the rest of the project:
 
 | Work | Where |
 |---|---|
-| Merging a local-only account into a synced one — the missing half of custody | [`../v0-1_01_account-merge.md`](../v0-1_01_account-merge.md), **first in the v0.1 order** |
 | Proving the SSR / PWA design before v0.1 hardens it | [`../v0-1_web-spike.md`](../v0-1_web-spike.md) |
 | Relay disposability, CK revocation/GC, the shared rate-limit counter, background sync, vCard export, the `createCore` cleanup, the relay-backup capability | [`../v0-2.md`](../v0-2.md) → *Encryption, sync, and the relay* |
 | Automatic locking, session lifetime, biometrics | [`../v0-2.md`](../v0-2.md) — explicitly v0.2 *(owner, 2026-07-27)* |

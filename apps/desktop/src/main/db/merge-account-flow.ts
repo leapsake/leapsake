@@ -25,7 +25,7 @@ import { passwordSidecarPath, writeSidecar } from "./sidecars.js";
 import { storeFileState } from "./sqlite-header.js";
 
 /**
- * **Merging a local-only account into a synced one** (`plans/v0-1_01_account-merge.md`)
+ * **Merging a local-only account into a synced one** (`encryption/model.md` §7.2.2)
  * — the third and last store-converting flow, beside {@link createAccountOnThisDevice}
  * and {@link adoptAccountOnThisDevice}.
  *

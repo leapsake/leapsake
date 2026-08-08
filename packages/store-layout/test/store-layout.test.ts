@@ -77,7 +77,7 @@ describe("account roster", () => {
     expect((await roster.list()).map((a) => a.id)).toEqual(["a2"]);
   });
 
-  // `replace` exists so the merge flow (plans/v0-1_01_account-merge.md) has one
+  // `replace` exists so the merge flow (encryption/model.md §7.2.2) has one
   // point of no return. Everything below pins that, the position rule it turns
   // on, and the retry case.
   it("swaps one account for another in its place", async () => {

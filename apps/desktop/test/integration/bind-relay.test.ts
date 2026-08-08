@@ -20,7 +20,7 @@ import { equalBytes } from "../support/fake-relay.js";
 
 /**
  * **Binding a relay to an account that already exists**
- * (`plans/v0-1_01_account-merge.md`, Increment 4) — the act that makes
+ * (`encryption/model.md` §7.2.2) — the act that makes
  * `model.md` §7.2's *"start syncing later adds a relay binding rather than a new
  * ritual"* true, and the only place a **409** is reachable by anything other than
  * a race.

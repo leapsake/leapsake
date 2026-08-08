@@ -6,10 +6,11 @@
 
 **Value:** starts the 14-day Play clock. Ships nothing to the public, unblocks everything.
 
-**Prerequisites, all hard:** [01](./v0-1_01_account-merge.md), [02](./v0-1_02_account-invitation.md),
-[03](./v0-1_03_store-identity-and-restore.md). Closed testers are real users with real data —
-do not put a build in their hands before the account fork exists, the merge path makes a wrong
-turn recoverable, and the restore path is verified. See [`v0-1.md`](./v0-1.md) for why this one
+**Prerequisites, all hard:** [02](./v0-1_02_account-invitation.md),
+[03](./v0-1_03_store-identity-and-restore.md), and the account merge (landed 2026-08-08).
+Closed testers are real users with real data — do not put a build in their hands before the
+account fork exists, the merge path makes a wrong turn recoverable, and the restore path is
+verified. See [`v0-1.md`](./v0-1.md) for why this one
 increment carries the whole critical path.
 
 ## What to build

@@ -5,9 +5,10 @@
 > ([README](../packages/reminders/README.md) + the doc-comments on `ONBOARDING_STEPS` and
 > `snoozePolicyOf`). Nothing here restates it.
 
-**Prerequisite: [01 — account merge](./v0-1_01_account-merge.md) must land first.** This doc puts
-a *create account* invitation in front of every user; 01 is what makes taking it wrongly
-survivable. Do not start this one early.
+**Prerequisite satisfied *(2026-08-08)*: the account merge landed.** This doc puts a *create
+account* invitation in front of every user, and what makes taking it wrongly survivable is now
+built — a local-only account can be published to a relay or merged into a synced one
+([`encryption/model.md`](./encryption/model.md) §7.2.2).
 
 **Gates [04 — mobile pipeline](./v0-1_04_mobile-pipeline.md).** Closed testers are real users with
 real data, and two things follow: their data sits in the clear until they have an account

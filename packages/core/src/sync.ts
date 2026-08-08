@@ -212,7 +212,7 @@ export async function lookupAccount(opts: {
  * relay's 404 rather than becoming `false`, because every caller here needs the
  * id and none of them has a "no such account" branch to take.
  *
- * The merge flow (`plans/v0-1_01_account-merge.md`) is why this exists: it must
+ * The merge flow (`encryption/model.md` §7.2.2) is why this exists: it must
  * know which account the store is being re-homed *to* — the destination
  * directory is named after it — before it copies a single byte, and long before
  * a password has been checked.
@@ -623,8 +623,7 @@ export function isRelayAuthError(error: unknown): boolean {
  * own account from my other device"* (→ merge into it) and *"that is a stranger,
  * I need a different handle"* (→ bind again under another name). Clients fork on
  * it rather than reporting it, so it must survive the trip from the transport to
- * the UI without being flattened into prose (`plans/v0-1_01_account-merge.md`,
- * Increment 4).
+ * the UI without being flattened into prose (`encryption/model.md` §7.2.2).
  *
  * ⚠️ **Check this before wrapping.** `relayErrorMessage`-style prose loses the
  * status code, so a call site that friendlies the message first can never fork

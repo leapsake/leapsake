@@ -26,7 +26,7 @@ import { openAppDatabase } from "../src/main/db/open.js";
  *
  * The second half of the file covers the **encrypted → encrypted** door,
  * `rekeyStore` — the file-level move behind merging a local-only account into a
- * synced one (`plans/v0-1_01_account-merge.md`). Same machinery, a different
+ * synced one (`encryption/model.md` §7.2.2). Same machinery, a different
  * source custody, and one extra thing to prove: the copy never lands in the clear.
  */
 const never = () => Promise.reject(new Error("unexpected recovery prompt"));

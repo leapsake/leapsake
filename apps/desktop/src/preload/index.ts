@@ -58,7 +58,7 @@ const sync = {
     ipcRenderer.invoke("sync:recover", args),
   /**
    * Merge this device's **local-only account** into an existing synced one
-   * (`plans/v0-1_01_account-merge.md`): the store is re-homed under the synced
+   * (`encryption/model.md` §7.2.2): the store is re-homed under the synced
    * account's id, keeps every row, and from the next launch opens under *that*
    * account's password.
    *

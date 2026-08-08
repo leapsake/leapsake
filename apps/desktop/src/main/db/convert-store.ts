@@ -196,7 +196,7 @@ function copyStoreUnderNewKey(opts: {
  * `fromKey`, into a new encrypted store at `toPath` under `toKey`. The
  * encrypted-source door onto {@link convertStoreToEncrypted}'s machinery, and the
  * file-level half of merging a local-only account into a synced one
- * (`plans/v0-1_01_account-merge.md`).
+ * (`encryption/model.md` §7.2.2).
  *
  * **Not `PRAGMA rekey`.** This writes a *new* file and leaves the original
  * untouched and openable. That is the point: until the roster names the

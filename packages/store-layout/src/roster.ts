@@ -39,7 +39,7 @@ export interface AccountRoster {
   remove(id: string): Promise<void>;
   /**
    * Swap one account for another **in a single write** — the merge flow's point
-   * of no return (`plans/v0-1_01_account-merge.md`).
+   * of no return (`encryption/model.md` §7.2.2).
    *
    * Deliberately not {@link add} + {@link remove}. Those are two writes, and a
    * crash between them leaves both ids listed — at which point

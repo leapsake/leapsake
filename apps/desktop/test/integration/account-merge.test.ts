@@ -26,8 +26,8 @@ import {
 } from "../support/fake-relay.js";
 
 /**
- * **Merging a local-only account into a synced one** — Increment 2's acceptance
- * (`plans/v0-1_01_account-merge.md`), and the third member of the family beside
+ * **Merging a local-only account into a synced one** — the desktop acceptance
+ * (`encryption/model.md` §7.2.2), and the third member of the family beside
  * `create-account.test.ts` and `account-adopt.test.ts`.
  *
  * The state under test is the one `makeBootDevice().deviceWithAccount()` already

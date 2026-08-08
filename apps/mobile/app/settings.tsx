@@ -254,7 +254,7 @@ function AccountEnabled({
           </Text>
           {/*
             The two ways out of a local-only account, and between them the reason
-            it is not a trap (plans/v0-1_01_account-merge.md).
+            it is not a trap (encryption/model.md §7.2.2).
 
             They are siblings rather than one flow because they answer opposite
             questions — *publish the account that is already here* versus *move
@@ -905,7 +905,7 @@ function LoginStep({
 /**
  * **Start syncing an account that already exists on this device** — binding a
  * relay to a local-only account (`model.md` §7.2,
- * `plans/v0-1_01_account-merge.md` Increment 4), and the mobile mirror of
+ * `encryption/model.md` §7.2.2), and the mobile mirror of
  * desktop's `StartSyncing`.
  *
  * No password field, and that is not an omission: binding publishes the
@@ -1083,7 +1083,7 @@ function StartSyncing({
 /**
  * **Merging a local-only account into a synced one** — {@link SyncSetup}'s
  * counterpart for a device that already *has* an account
- * (`plans/v0-1_01_account-merge.md`), and the mobile mirror of desktop's
+ * (`encryption/model.md` §7.2.2), and the mobile mirror of desktop's
  * `MergeSetup`.
  *
  * A sibling rather than a branch of `SyncSetup`, because one thing it must never

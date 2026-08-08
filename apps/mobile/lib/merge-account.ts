@@ -23,7 +23,7 @@ import { accountDoors } from "../db/doors";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 
 /**
- * **Merging a local-only account into a synced one** (`plans/v0-1_01_account-merge.md`)
+ * **Merging a local-only account into a synced one** (`encryption/model.md` §7.2.2)
  * — mobile's half, and the counterpart of desktop's
  * `apps/desktop/src/main/db/merge-account-flow.ts`. The two are deliberately the
  * same *order* for the same reasons; only the storage verbs differ, because mobile

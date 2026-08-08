@@ -606,7 +606,7 @@ export function runCustodySelfTest(t: TestApi): void {
   });
 
   /**
-   * The **encrypted-source door** (`plans/v0-1_01_account-merge.md`, Increment 3).
+   * The **encrypted-source door** (`encryption/model.md` §7.2.2).
    * It shares one private body with the plaintext converter above, so these cases
    * are not re-proving the ATTACH copy — they prove the half that is genuinely its
    * own: that it accepts an encrypted source and refuses everything else, that a
