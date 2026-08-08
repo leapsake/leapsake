@@ -4,12 +4,7 @@ import {
   reminderActionsOf,
 } from "@leapsake/view-models";
 import { describe, expect, it } from "vitest";
-import {
-  offerFor,
-  removalCopyFor,
-  showsRemove,
-  tapPathFor,
-} from "./reminder-row";
+import { offerFor, removalCopyFor, showsDelete } from "./reminder-row";
 
 const NOW = 1_800_000_000_000;
 
@@ -145,74 +140,43 @@ describe("offerFor", () => {
   });
 });
 
-describe("tapPathFor", () => {
-  it("sends a nudge's text to the step it asks for", () => {
-    expect(tapPathFor({ kind: "onboarding", route: "add-person" }, "r1")).toBe(
-      "/add",
-    );
-  });
-
-  it("sends the duplicates row's text to the review", () => {
-    expect(tapPathFor({ kind: "duplicates" }, "r1")).toBe("/duplicates");
-  });
-
-  it("sends a gift row's text to its detail, not to its CTA", () => {
-    // A gift reminder is an ordinary dated reminder that happens to offer a link.
-    expect(
-      tapPathFor(
-        {
-          kind: "gift",
-          action: "see-gifts",
-          recipientType: "person",
-          recipientId: "p1",
-        },
-        "r1",
-      ),
-    ).toBe("/reminders/r1");
-  });
-
-  it("sends an ordinary reminder's text to its detail", () => {
-    expect(tapPathFor(null, "r1")).toBe("/reminders/r1");
-  });
-});
-
-describe("showsRemove", () => {
-  it("withholds Remove from an open nudge on its first encounter", () => {
+describe("showsDelete", () => {
+  it("withholds Delete from an open nudge on its first encounter", () => {
     // The first encounter is a genuinely binary choice — do it, or not now.
-    // Remove is the permanent option under a label that hides what it does.
+    // Delete is the permanent option under a label that hides what it does.
     const actions = actionsFor(idFor("connect-sync"));
 
     expect(actions.map((a) => a.kind)).toEqual(["cta", "snooze"]);
-    expect(showsRemove(actions, false)).toBe(false);
+    expect(showsDelete(actions, false)).toBe(false);
   });
 
-  it("withholds Remove once the nudge offers its own dismiss", () => {
-    // Otherwise the row shows two buttons for the one tombstone.
+  it("withholds Delete once the nudge offers its own dismiss", () => {
+    // Otherwise the screen shows two buttons for the one tombstone.
     const actions = actionsFor(idFor("connect-sync"), 1);
 
     expect(actions.map((a) => a.kind)).toContain("dismiss");
-    expect(showsRemove(actions, false)).toBe(false);
+    expect(showsDelete(actions, false)).toBe(false);
   });
 
-  it("keeps Remove on a completed nudge, whose offers collapse to the CTA", () => {
+  it("keeps Delete on a completed nudge, whose offers collapse to the CTA", () => {
     // Without this, marking a nudge done would strand it at the foot of the list
-    // with no way to clear it.
+    // with no way to be rid of it.
     const actions = actionsFor(idFor("connect-sync"), 1, NOW);
 
     expect(actions.map((a) => a.kind)).toEqual(["cta"]);
-    expect(showsRemove(actions, true)).toBe(true);
+    expect(showsDelete(actions, true)).toBe(true);
   });
 
-  it("keeps Remove on an ordinary reminder, which offers nothing", () => {
-    expect(showsRemove(actionsFor("user-written"), false)).toBe(true);
+  it("keeps Delete on an ordinary reminder, which offers nothing", () => {
+    expect(showsDelete(actionsFor("user-written"), false)).toBe(true);
   });
 
-  it("keeps Remove on gift and duplicates rows", () => {
-    expect(showsRemove(actionsFor("gift", 0, null, giftContext), false)).toBe(
+  it("keeps Delete on gift and duplicates reminders", () => {
+    expect(showsDelete(actionsFor("gift", 0, null, giftContext), false)).toBe(
       true,
     );
     expect(
-      showsRemove(
+      showsDelete(
         actionsFor("dupes", 0, null, { isDuplicatesNudge: true }),
         false,
       ),
@@ -231,9 +195,9 @@ describe("removalCopyFor", () => {
     );
   });
 
-  it("still says the honest thing on a completed nudge, reached via Remove", () => {
-    // The copy branches on the row, not on which affordance was tapped, so the
-    // one remaining route to the tombstone can't bypass it.
+  it("still says the honest thing on a completed nudge, reached via Delete", () => {
+    // The copy branches on the reminder, not on which affordance was tapped, so
+    // the one remaining route to the tombstone can't bypass it.
     const copy = removalCopyFor(actionsFor(idFor("connect-sync"), 1, NOW));
 
     expect(copy.title).toBe("Stop asking about this?");

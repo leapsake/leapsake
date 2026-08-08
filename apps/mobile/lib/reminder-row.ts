@@ -112,53 +112,30 @@ export function offerFor(action: ReminderRowAction): RowOffer {
   }
 }
 
-/**
- * Where tapping the row's *text* goes — its own affordance, separate from the
- * offers line.
- *
- * A dateless nudge deep-links to the screen it asks for, rather than to a
- * reminder detail the engine owns and the user cannot edit. Everything else,
- * **including a gift reminder**, taps through to its detail: a gift row is an
- * ordinary dated reminder that happens to offer a link, so its text should behave
- * like every other row's.
- *
- * That this duplicates the CTA is fine, and is not the "two buttons, one write"
- * problem `showsRemove` guards: tapping through is non-destructive and
- * reversible, and a large tap target on the row text is the native list idiom.
- */
-export function tapPathFor(
-  cta: ReminderCta | null,
-  reminderId: string,
-): string {
-  if (cta?.kind === "onboarding") return ONBOARDING_PATH[cta.route];
-  if (cta?.kind === "duplicates") return "/duplicates";
-  return `/reminders/${reminderId}`;
-}
-
 /** Whether these offers belong to an onboarding nudge — the seam both the
- *  `Remove` rule and the confirmation copy branch on. The CTA kind answers it, so
+ *  `Delete` rule and the confirmation copy branch on. The CTA kind answers it, so
  *  neither has to pull the reminder engine into the app bundle. */
 function isNudge(actions: readonly ReminderRowAction[]): boolean {
   return actions.some((a) => a.kind === "cta" && a.cta.kind === "onboarding");
 }
 
 /**
- * Whether the row shows its own `Remove` — **no**, while it is an open
- * onboarding nudge.
+ * Whether the detail screen shows its `Delete` — **no**, while the reminder is an
+ * open onboarding nudge.
  *
  * `reminderActionsOf` withholds `dismiss` from ordinary reminders precisely
- * because `Remove` already gives them that affordance, and this is the mirror of
+ * because `Delete` already gives them that affordance, and this is the mirror of
  * that: a nudge's permanent out is “don't ask again”, so showing both would be
  * two buttons for one tombstone. It also delivers the rule that a *first*
  * encounter is a genuinely binary choice — do it, or not now — since the action
- * list withholds dismiss until the second, and leaving `Remove` there would hand
+ * list withholds dismiss until the second, and leaving `Delete` there would hand
  * back the permanent option under a label that hides what it does.
  *
  * A **completed** nudge keeps it. Its offers collapse to the CTA alone, so
- * without this a user who marked a nudge done would have no way to clear it from
- * the foot of the list; and a finished row is an ordinary row again.
+ * without this a user who marked a nudge done would have no way to be rid of it;
+ * and a finished nudge is an ordinary reminder again.
  */
-export function showsRemove(
+export function showsDelete(
   actions: readonly ReminderRowAction[],
   done: boolean,
 ): boolean {
@@ -196,9 +173,9 @@ const DISMISS_COPY: RemovalCopy = {
 /**
  * The confirmation worded for the row it was handed.
  *
- * Branching on the row rather than on which affordance was tapped means the
+ * Branching on the reminder rather than on which affordance was tapped means the
  * honest copy cannot be bypassed by whichever one got you here — and a completed
- * nudge's `Remove` is exactly such an affordance.
+ * nudge's `Delete` is exactly such an affordance.
  */
 export function removalCopyFor(
   actions: readonly ReminderRowAction[],

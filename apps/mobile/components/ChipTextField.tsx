@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   type StyleProp,
   type TextInput as RNTextInput,
@@ -23,17 +23,10 @@ import {
   snapCaret,
   splitDraft,
 } from "@leapsake/schema";
+import { useDebouncedSearch, useTypeahead } from "@leapsake/ui/headless";
 import { useCore } from "../lib/core-context";
 import { highlightMatch } from "../lib/highlightMatch";
 import { colors, styles } from "../lib/styles";
-
-/**
- * Shortest fragment we query for — mirrors the search service's own floor (and the
- * search screen's), so the picker stays quiet on a bare `@` until a character or
- * two is typed. (Kept in sync with `MIN_QUERY_LENGTH` in `search-service`.)
- */
-const MIN_QUERY_LENGTH = 2;
-const DEBOUNCE_MS = 200;
 
 /**
  * A controlled `TextInput` whose `@mentions` and `#tags` read as **chips**, with
@@ -63,7 +56,25 @@ const DEBOUNCE_MS = 200;
  *
  * The results list renders inline beneath the field (the parent `ScrollView`
  * keeps `keyboardShouldPersistTaps="handled"` so a tap lands before the keyboard
- * dismisses).
+ * dismisses). Which suggestion is highlighted, and the debounce in front of the
+ * search, come from `@leapsake/ui/headless` — the same two hooks the desktop field
+ * uses, so "what does Return commit" has one answer on both clients.
+ *
+ * ## Committing a suggestion
+ *
+ * A tap always works. On a hardware keyboard, **Return** commits the highlighted
+ * row: `submitBehavior="submit"` — set only while the picker is open — is the one
+ * way to make Return reach us on a multiline `TextInput` without inserting a
+ * newline first. **Tab** is best-effort by construction. React Native has no
+ * refusable key event, so a Tab is caught as the character it inserts and the pick
+ * replaces that edit; on Android `onKeyPress` fires for soft-keyboard input only
+ * (and no soft keyboard has a Tab key), and on iOS a hardware Tab is often
+ * consumed by UIKit's focus navigation before it reaches the field. Where the
+ * platform delivers it Tab completes; where it doesn't, Return and tapping do.
+ *
+ * There is no arrow-key or Escape handling: on a `TextInput` the arrows move the
+ * caret and RN surfaces no event to intercept, so the highlight stays on the first
+ * row — which is the suggestion the picker is usually open for.
  */
 export function ChipTextField({
   grammar = "prose",
@@ -91,17 +102,17 @@ export function ChipTextField({
   // Where the caret was before the move being handled — the direction an arrow
   // key was travelling, which is what carries it over a chip rather than into it.
   const previousCaret = useRef<number | null>(null);
-  const [results, setResults] = useState<SearchHit[]>([]);
+  // Escape has no key here, but a completed pick still suppresses the picker
+  // until the next keystroke — otherwise a tag picked in a tags field re-opens.
   const [suppressed, setSuppressed] = useState(false);
+  // Set by `onKeyPress` for the one `onChangeText` that a Tab caused, so that
+  // edit can be replaced by the pick instead of applied.
+  const tabPressed = useRef(false);
   // A one-shot forced caret, applied for a single render after a pick or a snap,
   // then released (undefined) so the field returns to uncontrolled selection.
   const [selection, setSelection] = useState<
     { start: number; end: number } | undefined
   >(undefined);
-
-  // Latest-query-wins: query promises can resolve out of order, so a stale
-  // response (token !== latest) is ignored rather than allowed to flicker in.
-  const queryToken = useRef(0);
 
   const seed = (text: string): ComposerDraft =>
     prose ? draftFromMarkup(text) : draftFromTagField(text);
@@ -150,36 +161,31 @@ export function ChipTextField({
   const active = mode === "tag" ? tag : mode === "mention" ? mention : null;
   const activeQuery = active?.query ?? null;
 
-  useEffect(() => {
-    // No active fragment, dismissed, or below the floor: clear immediately.
-    if (
-      activeQuery === null ||
-      suppressed ||
-      activeQuery.trim().length < MIN_QUERY_LENGTH
-    ) {
-      queryToken.current++; // invalidate any in-flight response
-      setResults([]);
-      return;
-    }
-    const token = ++queryToken.current;
-    const timer = setTimeout(() => {
-      void core.search.query(activeQuery).then((hits) => {
-        if (token !== queryToken.current) return; // superseded by a newer query
-        // The tag picker keeps only tag hits; the `@mention` picker excludes
-        // them (mentions only reference people/pets).
-        setResults(
-          hits.filter((h) =>
-            mode === "tag" ? h.entityType === "tag" : h.entityType !== "tag",
+  // The tag picker keeps only tag hits; the `@mention` picker excludes them
+  // (mentions only reference people/pets). Memoised on `mode`, because
+  // `useDebouncedSearch` re-runs whenever this function's identity changes.
+  const searchForMode = useCallback(
+    (query: string) =>
+      core.search
+        .query(query)
+        .then((hits) =>
+          hits.filter((hit) =>
+            mode === "tag"
+              ? hit.entityType === "tag"
+              : hit.entityType !== "tag",
           ),
-        );
-      });
-    }, DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [core, activeQuery, mode, suppressed]);
+        ),
+    [core, mode],
+  );
 
-  const open = active !== null && !suppressed && results.length > 0;
+  const results = useDebouncedSearch({
+    query: activeQuery ?? "",
+    search: searchForMode,
+    enabled: activeQuery !== null && !suppressed,
+  });
+  const open = results.length > 0;
 
-  /** Splice the tapped hit in as a set chip and nudge the caret past it. */
+  /** Splice the chosen hit in as a set chip and nudge the caret past it. */
   function pick(hit: SearchHit) {
     if (caret === null) return;
     const inserted =
@@ -191,10 +197,17 @@ export function ChipTextField({
             targetId: hit.entityId,
           });
     commit(inserted.draft, inserted.caret, true);
-    setResults([]);
-    queryToken.current++;
+    // The caret lands at the chip's end, which is not a fragment — but a tag
+    // picked in a tags field would re-open on the next keystroke otherwise.
+    setSuppressed(true);
     inputRef.current?.focus();
   }
+
+  const { activeIndex, selectActive } = useTypeahead({
+    query: activeQuery ?? "",
+    results,
+    onSelect: pick,
+  });
 
   return (
     <View>
@@ -204,7 +217,24 @@ export function ChipTextField({
         ref={inputRef}
         style={style}
         selection={selection}
+        submitBehavior={open ? "submit" : undefined}
+        // `open` guarantees a highlighted row, so Return is never swallowed for
+        // nothing; with the picker closed the prop is absent and Return means
+        // what it always did (a newline here, submit in a single-line field).
+        onSubmitEditing={() => {
+          selectActive();
+        }}
+        onKeyPress={(e) => {
+          const key = e.nativeEvent.key;
+          tabPressed.current = key === "Tab" || key === "\t";
+        }}
         onChangeText={(text) => {
+          // A Tab arrives as an inserted character rather than a key we can
+          // refuse, so the pick stands in for the edit it would have made.
+          if (tabPressed.current) {
+            tabPressed.current = false;
+            if (selectActive()) return;
+          }
           // The field hands back displayed text; chips move, grow or go whole.
           const edited = applyDraftEdit(live, text);
           commit(edited.draft, edited.caret, edited.tookChip);
@@ -245,13 +275,20 @@ export function ChipTextField({
       </TextInput>
       {open && (
         <View style={chipStyles.listbox}>
-          {results.map((hit) => {
+          {results.map((hit, index) => {
             const reasons = hit.reasons.filter((r) => r.facet !== "name");
+            const highlighted = index === activeIndex;
             return (
               <Pressable
                 key={`${hit.entityType}:${hit.entityId}`}
                 accessibilityRole="button"
-                style={chipStyles.option}
+                // Which row Return will take — the native counterpart of the web
+                // listbox's `aria-selected`.
+                accessibilityState={{ selected: highlighted }}
+                style={[
+                  chipStyles.option,
+                  highlighted && chipStyles.optionHighlighted,
+                ]}
                 onPress={() => pick(hit)}
               >
                 <Text style={[styles.rowText, { color: colors.accent }]}>
@@ -302,5 +339,10 @@ const chipStyles = {
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  // The row Return commits, in the same wash the chips carry — so the highlight
+  // reads as "this is the one that becomes a chip".
+  optionHighlighted: {
+    backgroundColor: colors.accentTint,
   },
 };

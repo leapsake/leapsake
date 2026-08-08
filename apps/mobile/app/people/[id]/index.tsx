@@ -194,7 +194,10 @@ export default function PersonDetailScreen() {
       {/* Bookkeeping, not what the page is about — it sits below the sections a
           reader came for, just above the destructive end of the screen. */}
       <DetailField label="Created" value={formatTimestamp(person.createdAt)} />
-      <DetailField label="Last Updated" value={formatTimestamp(person.updatedAt)} />
+      <DetailField
+        label="Last Updated"
+        value={formatTimestamp(person.updatedAt)}
+      />
 
       {/* Offered only when detection has something to offer it for. It used to
           stand on every person, advertising a chore on pages where there was

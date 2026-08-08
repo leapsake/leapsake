@@ -126,6 +126,9 @@ importers:
       '@leapsake/store-layout':
         specifier: workspace:*
         version: link:../../packages/store-layout
+      '@leapsake/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@leapsake/view-models':
         specifier: workspace:*
         version: link:../../packages/view-models

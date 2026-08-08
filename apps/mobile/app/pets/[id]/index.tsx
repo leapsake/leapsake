@@ -154,7 +154,10 @@ export default function PetDetailScreen() {
       {/* Bookkeeping, not what the page is about — it sits below the sections a
           reader came for, just above the destructive end of the screen. */}
       <DetailField label="Created" value={formatTimestamp(pet.createdAt)} />
-      <DetailField label="Last Updated" value={formatTimestamp(pet.updatedAt)} />
+      <DetailField
+        label="Last Updated"
+        value={formatTimestamp(pet.updatedAt)}
+      />
 
       <Pressable accessibilityRole="button" onPress={confirmDelete}>
         <Text style={[styles.link, styles.danger]}>Delete pet</Text>

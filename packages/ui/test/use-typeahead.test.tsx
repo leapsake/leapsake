@@ -20,15 +20,17 @@ function Host({
   onEscape?: (event: { preventDefault: () => void }) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<string>("");
   // Below two characters the caller supplies nothing — the same floor the real
   // comboboxes apply before they search.
   const results = query.length < 2 ? [] : options;
-  const { open, activeIndex, onKeyDown, optionId, listboxId } = useTypeahead({
-    query,
-    results,
-    onSelect,
-    onEscape,
-  });
+  const { open, activeIndex, onKeyDown, optionId, listboxId, selectActive } =
+    useTypeahead({
+      query,
+      results,
+      onSelect,
+      onEscape,
+    });
 
   return (
     <>
@@ -38,10 +40,16 @@ function Host({
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={onKeyDown}
       />
+      {/* Stands in for a caller with no DOM key event of its own — mobile
+          commits from `onSubmitEditing` exactly like this. */}
+      <button type="button" onClick={() => setPicked(String(selectActive()))}>
+        commit
+      </button>
       <output data-testid="state">
         {open ? "open" : "closed"}:{activeIndex}:{optionId(activeIndex)}:
         {listboxId}
       </output>
+      <output data-testid="picked">{picked}</output>
     </>
   );
 }
@@ -90,6 +98,30 @@ describe("useTypeahead", () => {
     press("ArrowDown");
     press("Enter");
     expect(onSelect).toHaveBeenCalledWith("b");
+  });
+
+  it("commits the highlighted option through selectActive, reporting that it did", () => {
+    // The seam for a renderer with no DOM key event: React Native has no
+    // `keydown`, so mobile's field calls this from `onSubmitEditing` instead.
+    const onSelect = vi.fn();
+    render(<Host options={["a", "b", "c"]} onSelect={onSelect} />);
+    type("ab");
+    press("ArrowDown");
+
+    fireEvent.click(screen.getByText("commit"));
+    expect(onSelect).toHaveBeenCalledWith("b");
+    expect(screen.getByTestId("picked").textContent).toBe("true");
+  });
+
+  it("reports false from selectActive when there is nothing to commit", () => {
+    // What lets a caller decide whether to swallow the key that got it here —
+    // Tab must still move focus when no picker is open.
+    const onSelect = vi.fn();
+    render(<Host options={["a"]} onSelect={onSelect} />);
+
+    fireEvent.click(screen.getByText("commit"));
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.getByTestId("picked").textContent).toBe("false");
   });
 
   it("ignores Enter and the arrows while closed, so a form can still submit", () => {

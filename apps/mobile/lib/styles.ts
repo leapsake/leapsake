@@ -105,14 +105,26 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 16,
   },
-  // A list row's offers — what it invites you to do, below its meta row. Wraps,
-  // because three of them don't fit one narrow-phone line.
+  // A reminder's offers — what it invites you to do, below the standing actions
+  // on its detail screen. Wraps, because three of them don't fit one
+  // narrow-phone line.
   rowOffers: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
     gap: 16,
     marginTop: 4,
+  },
+  // A reminder detail's heading: its title, or its body when it has no title —
+  // whichever the list would have shown — carrying the completion checkbox
+  // beside it. Weight rather than a "Title" label marks it as the heading, so the
+  // thing the screen is about reads as a heading instead of as the first row of a
+  // definition list. Same size as the field values below it: the nav bar already
+  // carries the screen's large title, and a second 24pt one would shout.
+  reminderHeading: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: colors.text,
   },
   // Detail "definition list": a label above its value.
   field: {

@@ -5,7 +5,9 @@ import { type KeyboardEvent, useId, useState } from "react";
  * keyboard moves it, and the ids that tie the field to the list.
  *
  * Zero DOM — it returns state and handlers, not markup — so a React Native
- * renderer could drive its own list from the same hook.
+ * renderer drives its own list from the same hook. {@link onKeyDown} is the web
+ * transport; a renderer with no DOM key event commits through `selectActive`
+ * instead (mobile's `ChipTextField` calls it from `onSubmitEditing`).
  *
  * It deliberately does **not** own the query or fetch anything. The three
  * comboboxes this was extracted from get their query from three different
@@ -47,6 +49,18 @@ export function useTypeahead<T>({
   const open = results.length > 0;
   const optionId = (index: number) => `${listboxId}-opt-${index}`;
 
+  /**
+   * Commit the highlighted option, reporting whether there was one. Callers use
+   * the answer to decide what the key that got them here should do next — swallow
+   * it, or let it through to whatever it means when no picker is open.
+   */
+  function selectActive(): boolean {
+    const option = results[activeIndex];
+    if (option === undefined) return false;
+    onSelect(option);
+    return true;
+  }
+
   function onKeyDown(event: KeyboardEvent) {
     if (event.key === "Escape") {
       onEscape?.(event);
@@ -60,15 +74,11 @@ export function useTypeahead<T>({
       event.preventDefault();
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (event.key === "Enter") {
-      const option = results[activeIndex];
-      if (option !== undefined) {
-        // Only swallow Enter when it actually picks something, so a form's
-        // default submit still works when nothing is highlighted.
-        event.preventDefault();
-        onSelect(option);
-      }
+      // Only swallow Enter when it actually picks something, so a form's
+      // default submit still works when nothing is highlighted.
+      if (selectActive()) event.preventDefault();
     }
   }
 
-  return { open, activeIndex, listboxId, optionId, onKeyDown };
+  return { open, activeIndex, listboxId, optionId, onKeyDown, selectActive };
 }

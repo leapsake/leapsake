@@ -245,3 +245,70 @@ describe("ChipTextField — tags", () => {
     expect(field.selectionStart).toBe(0);
   });
 });
+
+describe("ChipTextField — completing from the keyboard", () => {
+  /** Press `key`, reporting whether the field swallowed it. */
+  const press = (field: HTMLElement, key: string, shiftKey = false) =>
+    !fireEvent.keyDown(field, { key, shiftKey });
+
+  it("completes the highlighted mention on Enter", async () => {
+    const { container } = renderWithUi(<Host />);
+    const field = screen.getByLabelText("Title");
+
+    type(field, "call @dav");
+    await screen.findByRole("option");
+
+    expect(press(field, "Enter")).toBe(true);
+    expect(field).toHaveProperty("value", "call @David Taylor ");
+    expect(stored(container)).toBe(`call ${davidToken} `);
+  });
+
+  it("completes the highlighted mention on Tab", async () => {
+    const { container } = renderWithUi(<Host />);
+    const field = screen.getByLabelText("Title");
+
+    type(field, "call @dav");
+    await screen.findByRole("option");
+
+    // Swallowed, so focus stays put rather than moving on to the next control.
+    expect(press(field, "Tab")).toBe(true);
+    expect(field).toHaveProperty("value", "call @David Taylor ");
+    expect(stored(container)).toBe(`call ${davidToken} `);
+  });
+
+  it("completes the highlighted tag on Tab", async () => {
+    const { container } = renderWithUi(<Host grammar="tags" />);
+    const field = screen.getByLabelText("Title");
+
+    type(field, "fam");
+    await screen.findByRole("option");
+
+    expect(press(field, "Tab")).toBe(true);
+    expect(stored(container)).toBe("#family ");
+    expect(chips(container)).toEqual(["#family"]);
+  });
+
+  it("lets Tab move focus when there is no picker open", () => {
+    const { container } = renderWithUi(<Host grammar="tags" />);
+    const field = screen.getByLabelText("Title");
+
+    type(field, "f"); // below the search floor, so nothing is suggested
+
+    expect(press(field, "Tab")).toBe(false);
+    expect(stored(container)).toBe("f");
+  });
+
+  it("lets Shift+Tab move focus even with the picker open", async () => {
+    // Stepping backwards is how you leave a field without committing what you
+    // were part-way through typing.
+    const { container } = renderWithUi(<Host grammar="tags" />);
+    const field = screen.getByLabelText("Title");
+
+    type(field, "fam");
+    await screen.findByRole("option");
+
+    expect(press(field, "Tab", true)).toBe(false);
+    expect(stored(container)).toBe("fam");
+    expect(chips(container)).toEqual([]);
+  });
+});

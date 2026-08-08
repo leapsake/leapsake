@@ -33,7 +33,8 @@ import styles from "./ChipTextField.module.css";
  * picker. Which trigger the caret sits in decides three things and no others:
  * which detector runs ({@link activeMentionQuery} vs {@link activeTagQuery}),
  * which hits are kept (people/pets vs `tag`), and which insert helper splices the
- * choice in ({@link insertMentionInDraft} vs {@link insertTagInDraft}).
+ * choice in ({@link insertMentionInDraft} vs {@link insertTagInDraft}). Enter, Tab
+ * or a click commits the highlighted suggestion as a chip.
  *
  * Two grammars, for the two places tags are typed:
  *
@@ -206,18 +207,36 @@ export function ChipTextField({
     fieldRef.current?.focus();
   }
 
-  const { activeIndex, listboxId, optionId, onKeyDown } = useTypeahead({
-    query: activeQuery ?? "",
-    results,
-    onSelect: pick,
-    // Escape dismisses the picker for this fragment and swallows the key so it
-    // reaches nothing else — but only when there is a picker to dismiss.
-    onEscape: (event) => {
-      if (results.length === 0) return;
+  const { activeIndex, listboxId, optionId, onKeyDown, selectActive } =
+    useTypeahead({
+      query: activeQuery ?? "",
+      results,
+      onSelect: pick,
+      // Escape dismisses the picker for this fragment and swallows the key so it
+      // reaches nothing else — but only when there is a picker to dismiss.
+      onEscape: (event) => {
+        if (results.length === 0) return;
+        event.preventDefault();
+        setSuppressed(true);
+      },
+    });
+
+  /**
+   * Tab completes the highlighted suggestion, exactly as Enter does — the fast
+   * way to close a `@mention` or `#tag` you have already typed enough of. It is
+   * only swallowed when it actually picks, so Tab still moves focus when no
+   * picker is open; Shift+Tab always moves focus, since stepping backwards is how
+   * you leave a field without committing what you were typing.
+   */
+  function onFieldKeyDown(
+    event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) {
+    if (event.key === "Tab" && !event.shiftKey && selectActive()) {
       event.preventDefault();
-      setSuppressed(true);
-    },
-  });
+      return;
+    }
+    onKeyDown(event);
+  }
 
   function onFieldChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -295,7 +314,7 @@ export function ChipTextField({
           onChange: onFieldChange,
           onSelect: onFieldSelect,
           onScroll: syncScroll,
-          onKeyDown,
+          onKeyDown: onFieldKeyDown,
           ...aria,
         };
         return (
