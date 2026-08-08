@@ -10,7 +10,7 @@ import type { RosterEntry } from "./roster.js";
  *
  * **`custody` names the file, not the account** — `"plaintext" | "encrypted"`,
  * deliberately not the state names above. The two agree today *because* encryption
- * follows custody, and they are spelled apart because `product-truths.md` delta 5
+ * follows custody, and they are spelled apart because `plans/v0-2.md`
  * expects a user to opt out of encryption while holding an account. When that
  * lands, this discriminant is the one that changes and the state names do not. See
  * `AGENTS.md` → *Custody vocabulary*.

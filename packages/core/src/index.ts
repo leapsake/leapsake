@@ -401,7 +401,7 @@ function mentionTargetsOf(r: {
 // but **no repository consumes it today**: `milestone.note` was layer 3's only
 // domain-field consumer and was retired on 2026-07-27 (migration 27). The
 // parameter stays because photos, layer 3's real consumer, will need exactly this
-// (`plans/files.md`) — and because `createCore(driver, keySession?)` is what lets
+// (`plans/v0-2.md`) — and because `createCore(driver, keySession?)` is what lets
 // the same call site serve both custody states.
 export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
   const people = createPeopleRepo(driver);

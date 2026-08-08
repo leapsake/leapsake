@@ -114,7 +114,7 @@ later.
 
 > **Do not read this as "layer 3 is speculative."** It is the *only* layer that can protect
 > a photo, because a blob living outside the database is reachable by neither layer 1 nor
-> layer 2 — [`../files.md`](../files.md) invariant #2 is built on it. It is also the only
+> layer 2 — [`../v0-2.md`](../v0-2.md)'s files invariant #2 is built on it. It is also the only
 > layer that can express "you may read *this album* and nothing else."
 
 #### 2.2 Four guardrails so v0.2 sharing stays possible
@@ -410,7 +410,7 @@ custody, so "start syncing later" adds a relay binding rather than a new ritual.
 > definition: an account exists, therefore keys exist, therefore the store is encrypted.
 > Read the table downward and it derives; read it as a list and the two get conflated.
 >
-> Why that separation is worth keeping explicit: `product-truths.md` delta 5 anticipates a
+> Why that separation is worth keeping explicit: `../v0-2.md` anticipates a
 > user **opting out of encryption while holding an account**, which severs exactly this
 > implication. When that lands, only the *Store on disk* row changes — the state itself
 > still means what it says. The file's own vocabulary is **plaintext / encrypted**
@@ -529,7 +529,7 @@ and a real differentiator for the eventual paid relay.
 ### 7.4 One store per user, not one store per client *(direction, 2026-07-26)*
 
 A client holds **one Unauthenticated store or many Authenticated ones** — the same shape
-[`../product-truths.md`](../product-truths.md) already states for users ("one
+[`../../packages/key-custody/README.md`](../../packages/key-custody/README.md) already states for users ("one
 unauthenticated user OR multiple authenticated users"). Each account gets its **own
 encrypted database file**, which is what makes both delta #1 (per-user isolation) and
 **Forget account** (§7.3) clean rather than surgical:
@@ -878,7 +878,7 @@ SQLite rows). Same per-item-key model — encrypt each blob with a content key, 
 ciphertext in object storage, wrap keys as above. A storage concern, not a
 crypto-model change. The file-layer design invariants (separate blob channel, resumable
 chunked transfer, client-computed encrypted derivatives, the `BlobStore` port) are pinned
-in [`../files.md`](../files.md).
+in [`../v0-2.md`](../v0-2.md).
 
 ## 12. The honest trust boundary & limits
 

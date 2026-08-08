@@ -2,7 +2,7 @@
 
 > **Delete this doc when the work lands.** The packaging configuration documents itself; the
 > native-module constraint below is already recorded beside the code it constrains
-> (`scripts/ensure-sqlite-abi.mjs` and [`sqlite-abi-napi.md`](./sqlite-abi-napi.md)).
+> (`scripts/ensure-sqlite-abi.mjs`, [`../AGENTS.md`](../AGENTS.md), and [`v0-2.md`](./v0-2.md)).
 
 Three stages of one job: turn `out/` into something a stranger can install and that can fix
 itself later. Split into A/B/C because **A is the classic Electron failure** and deserves to fail
@@ -21,7 +21,7 @@ on its own, not inside a signing change.
 - Bundle ID `com.leapsake.desktop`; app icon; category; version from 03.
 
 > An N-API fork release would delete this whole constraint — see
-> [`sqlite-abi-napi.md`](./sqlite-abi-napi.md). Watch-item, blocked upstream; do not wait for it.
+> [`v0-2.md`](./v0-2.md) → *The N-API exit*. Watch-item, blocked upstream; do not wait for it.
 
 **Acceptance:** `.app` launches on a clean macOS user account, creates its DB, migrates, and
 reaches Home. Native SQLite loads from the packaged bundle.

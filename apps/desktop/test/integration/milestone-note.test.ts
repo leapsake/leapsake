@@ -21,7 +21,7 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
  * *column* inside it is no longer separately sealed.
  *
  * The load-bearing case is the last one — that no content key is minted even when
- * a master key is available. Layer 3 still exists for photos (`plans/files.md`),
+ * a master key is available. Layer 3 still exists for photos (`plans/v0-2.md`),
  * so the guard is against it silently regaining a domain-field consumer.
  */
 let driver: SqliteDriver;

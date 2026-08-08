@@ -13,6 +13,29 @@ cleartext sync metadata (UUIDs, `updated_at`, `deleted_at`) in a per-account
 append log whose autoincrement `seq` **is** the opaque delivery cursor. The relay
 store is its own schema, independent of the clients' `packages/data` migrations.
 
+## Who is expected to run this, and when *(decided 2026-07-05)*
+
+The hosting strategy is **incremental and reversible**, and this package is step one:
+
+1. **Self-hosted relay (v0.1).** There is **no hosted relay at v0.1** — multi-device sync users
+   run this themselves. Single-device use needs no server at all and remains the
+   layperson-complete path.
+2. **An official paid hosted relay**, later. Before it can store other people's data it needs
+   the hosted-relay gate in [`plans/v0-2.md`](../../plans/v0-2.md): OPAQUE login, server-escrow
+   recovery as an opt-in dial, quotas / registration-token enforcement, and a shared
+   cross-process rate-limit counter.
+3. **User-customizable / BYO storage**, as the endgame.
+
+*Mantra: simplicity and security first, followed closely by total customizability.*
+
+The design already optimizes the layperson flow, so **nothing needs reworking when the hosted
+relay arrives** — it is a deployment change, not an architecture change.
+
+⚠️ **Backup is a capability this relay advertises, not a promise clients assume.** The relay is
+designed to be disposable, and not every operator will keep a durable copy. Clients ask, and
+**absent an answer they assume none** — which is why a last-device forget is worded as deletion.
+See [`@leapsake/key-custody`](../../packages/key-custody/README.md).
+
 ## Auth (blind)
 
 Two credentials, one durable and one short-lived

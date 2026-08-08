@@ -69,7 +69,7 @@ change to either must preserve — **read them before touching the ATTACH.**
 > "does the roster hold an account?", and the only legitimate plaintext→encrypted conversions
 > are the three that establish an account on this device. There is no compatibility path, by
 > choice — see *Pre-v0.1 latitude* in
-> [`plans/product-truths.md`](../../plans/product-truths.md).
+> the product model above.
 
 ## Why it is a package, not a `core` module
 
@@ -90,6 +90,37 @@ composition root its README describes.
 real `HttpSyncTransport` satisfies structurally. So this package never imports
 `@leapsake/sync`, the two are independently testable, and `core` remains the only
 place that knows both a relay and a custody flow exist.
+
+## The product model this serves *(stated 2026-07-11)*
+
+The mechanism below exists to hold a specific user-facing shape. Change the mechanism freely;
+these are the properties that must survive the change.
+
+- A **user** uses Leapsake on **one-to-many clients**. A **client** hosts **one unauthenticated
+  user OR multiple authenticated users** — never multiple *unauthenticated* users. Each
+  authenticated user gets their own encrypted database file; the unauthenticated user gets an
+  unencrypted one (`plans/encryption/model.md` §7.4, and
+  [`@leapsake/store-layout`](../store-layout/README.md) for the paths).
+- **Authentication is required to sync, and only to sync.** Local-only use needs no account to
+  get started and stays fully layperson-complete.
+- **The relay is set per authenticated user/account, not per client.**
+- **The user decides when to create an account.** The invitation is a nudge, never a wall.
+- **One state and two actions, never conflated** — one of them destroys data, so they must not
+  share a word:
+  - **Locked** is a *state*, not a button: the store is closed and the password reopens it. The
+    app enters it on your behalf when idle; you reach it by signing out.
+  - **Sign out** behaves **identically for local-only and synced users**. Both get the same
+    promise: *nobody can see my data on this device anymore.*
+  - **Forget account** removes this account and its data from this device. Named as removal so
+    it can never be mistaken for signing out.
+  - *"Make local-only"* — leave the relay, keep the data — was once a third, non-destructive
+    action. **Cut 2026-07-28**: its shipped form was incoherent under per-account stores, the
+    want is narrow, and repairing it needs relay-side decisions
+    (`plans/encryption/model.md` §7.3).
+- **Forgetting the last device is treated as deletion unless a server durably holds a copy.**
+  The relay is designed to be disposable and **not every relay will offer backup** — someone has
+  to host it. So backup is a **relay capability the client asks about**, and **absent an answer,
+  assume none**: word it *"Delete all data on this device"* and offer an export first.
 
 ## The signing identity owns the enclave key
 

@@ -81,7 +81,7 @@ export interface MilestonesRepo extends EntityRepo<Milestone> {
  *
  * Layer 3 itself is **not** gone — `content_key`, `createContentCipher`, and
  * `EncryptedRecord.wrappedKey` remain, because photos are its real consumer
- * (`plans/files.md`). It simply has no *domain-field* consumer today, which is
+ * (`plans/v0-2.md`). It simply has no *domain-field* consumer today, which is
  * why this repo is now ordinary: no cipher, no codec, just the default
  * snake_case mapping every other entity uses.
  */

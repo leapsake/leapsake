@@ -17,6 +17,7 @@ This is the rule the whole repo is organized around. Learn it before looking for
 | **What is being worked on right now** | [`status.md`](./status.md) — never over 50 lines | anywhere else |
 | **What to pick up next, and in what order** | [`v0-1.md`](./v0-1.md) — the one sequence | `status.md`, which shows only the head of it |
 | **What is deferred** | [`v0-2.md`](./v0-2.md) — everything that does not gate v0.1 | the v0.1 docs, which stay short by excluding it |
+| **The stable "why" — posture, the user model, invariants** | next to the code it constrains: [`../AGENTS.md`](../AGENTS.md), the package `README.md`s | `plans/`, which holds only *work* |
 | **How the code works today** | the code, its tests, and the `README.md` beside it; [`../AGENTS.md`](../AGENTS.md) is the index | here — design docs describe intent, not the build |
 
 ## The v0.1 docs are disposable, and that is the point
@@ -42,12 +43,13 @@ enclave key lives in [`@leapsake/key-custody`](../packages/key-custody/README.md
 | **Know what's in flight** | [`status.md`](./status.md) |
 | **Know what to build next** | [`v0-1.md`](./v0-1.md) → the numbered doc it points at |
 | **Find something we deliberately deferred** | [`v0-2.md`](./v0-2.md) |
-| **Know the product posture / user model (stable "why")** | [`product-truths.md`](./product-truths.md) |
+| **Know the product posture (laypeople-first, pre-v0.1 latitude)** | [`../AGENTS.md`](../AGENTS.md) → *Product posture* |
+| **Know the user / client / account model** | [`@leapsake/key-custody`](../packages/key-custody/README.md) → *The product model this serves* |
 | Understand the encryption / privacy / sync **design** | [`encryption/`](./encryption/) — start at its `README.md`. Design only; no backlog |
 | **Understand how key custody works** | [`encryption/model.md`](./encryption/model.md) **§7** — the one place custody is *specified*. Code map: [`@leapsake/key-custody`](../packages/key-custody/README.md) |
 | Understand the testing strategy | [`testing/`](./testing/) — principles, the driver-contract keystone, the flow catalog |
-| Understand the file/media (photos) design | [`files.md`](./files.md) — encrypted-blob invariants, pinned before build |
-| Know why the SQLite native-ABI dance exists (and how it ends) | [`sqlite-abi-napi.md`](./sqlite-abi-napi.md) — watch-item, blocked upstream |
+| Understand the file/media (photos) design | [`v0-2.md`](./v0-2.md) → *Files and media* — encrypted-blob invariants, pinned before build |
+| Know how the SQLite native-ABI dance bites (and how it ends) | [`../AGENTS.md`](../AGENTS.md) today · [`v0-2.md`](./v0-2.md) → *The N-API exit* |
 | Understand a shared package's architecture | its own `README.md` — [`schema`](../packages/schema/README.md), [`data`](../packages/data/README.md), [`core`](../packages/core/README.md), [`crypto`](../packages/crypto/README.md), [`reminders`](../packages/reminders/README.md), [`ui`](../packages/ui/README.md), [`view-models`](../packages/view-models/README.md) |
 | Run the apps, drive them by hand, or debug the native ABI | the app's own README — [`desktop`](../apps/desktop/README.md), [`mobile`](../apps/mobile/README.md), [`server`](../apps/server/README.md) |
 | Know conventions & guardrails | [`../AGENTS.md`](../AGENTS.md) |

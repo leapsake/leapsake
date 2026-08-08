@@ -464,7 +464,7 @@ export const migrations: Migration[] = [
       // to" columns adopt the **bearer** vocabulary — an entity *bears* a
       // milestone/tag. Pure column rename, no data change; SQLite propagates the
       // rename to dependent indexes. Kept distinct from relationship "subject"
-      // (orientation) and contact-method "owner". See plans/product-truths.md.
+      // (orientation) and contact-method "owner". See packages/key-custody/README.md.
       await driver.exec(`
         ALTER TABLE milestones RENAME COLUMN subject_type TO bearer_type;
         ALTER TABLE milestones RENAME COLUMN subject_id TO bearer_id;
@@ -816,7 +816,7 @@ export const migrations: Migration[] = [
       //
       // Layer 3 itself stays — `content_key`, `key_wrap`, and
       // `createContentCipher` are untouched, because photos are its real
-      // consumer (`plans/files.md`). Existing `content_key` rows for milestones
+      // consumer (`plans/v0-2.md`). Existing `content_key` rows for milestones
       // are left as harmless orphans; the ciphertext they protected is gone, and
       // key GC is a tracked sync-era concern.
       await driver.exec(`ALTER TABLE milestones DROP COLUMN note_ciphertext;`);
@@ -848,7 +848,7 @@ export const migrations: Migration[] = [
       // tweak then needs a data migration to match.
       //
       // **No owner column.** One store is one user today. The product model
-      // anticipates multi-user-per-client (`plans/product-truths.md`), and the seam
+      // anticipates multi-user-per-client (`plans/v0-2.md`), and the seam
       // is left explicit here on purpose: adding a nullable owner column later is a
       // cheap migration, and guessing its shape now is not.
       await driver.exec(`

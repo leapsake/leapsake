@@ -336,7 +336,7 @@ Things the spike should confirm and cost, not discover:
 - **The browser's `KeyStore`** — §13 lists PWA custody as "weak — IndexedDB, no enclave →
   passkey PRF is the right custody answer." Increment 5e probes the cheaper non-extractable
   `CryptoKey` option; passkey PRF remains the designed answer and is untested.
-- **Media and the no-JS floor** — [`files.md`](./files.md) already raises it: serving decrypted
+- **Media and the no-JS floor** — [`v0-2.md`](./v0-2.md) already raises it: serving decrypted
   media to a no-JS browser means the render server transiently holds *file* keys, and whether
   media is exempt from the floor is undecided. Out of scope for this spike (no blobs exist yet),
   but the SSR measurements here are the input to that decision.

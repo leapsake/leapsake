@@ -13,7 +13,7 @@ on-device layout that _"encryption follows custody"_ requires
 
 The state names the **account**; `resolveActiveStore` reports the **file** separately as
 `custody: "plaintext" | "encrypted"`. They agree today because encryption follows custody,
-and they are named apart because `product-truths.md` delta 5 expects that to change. See
+and they are named apart because `plans/v0-2.md` expects that to change. See
 [`AGENTS.md`](../../AGENTS.md) → _Custody vocabulary_ for all three axes.
 
 ## Why it is its own package

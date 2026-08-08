@@ -35,6 +35,30 @@ mostly-stdlib dependency set.
 - Specific logic that's only used for a given client or app should be located in that relevant apps/ project.
 - For code comments, docs, string content, text in the UI, and anywhere else appropriate, be sure to use the appropriate quotation marks, e.g. “Father’s Day” instead of "Father's Day".
 
+### Product posture — the "why it must feel this way" *(decided 2026-07-05)*
+
+These are stable and shape *how* every increment is built, not what gets built next.
+
+- **Laypeople first, power users under the hood.** Defaults must work for someone who has never
+  heard of a key or a relay; every stronger-or-different choice is a **visible-but-optional
+  dial, never a prerequisite**. When a security default would add a hoop for a layperson, the
+  hoop becomes opt-in. The reasoning is `plans/encryption/model.md` §1.
+- **Interact like a typical, centralized SaaS app — but with better protections underneath.**
+  The mechanism must serve that layperson mental model, not leak through it. A user should
+  **not have to manage multiple accounts** on a single device or relay: *one identity, one
+  credential set*. A credential set is a password plus its recovery backstop — the familiar
+  arrangement (Proton, Bitwarden) — not several coequal secrets to juggle.
+- **The recovery phrase is a backstop, not a ritual.** Shown once, in the role every SaaS user
+  already understands: *forgot password*.
+- **An account is invited, never required.** Single-device, local-only use is fully
+  layperson-complete with no account at all; the invitation arrives once there is data worth
+  protecting. A nudge, never a wall — see [`@leapsake/reminders`](packages/reminders/README.md).
+- **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
+  are fine.** There are no real users, so a migration is only worth writing when it is genuinely
+  cheaper than "delete the profile and relaunch" — prefer the simpler code. **This expires at
+  v0.1.** Until then it is why several stores, key formats, and door layouts were replaced
+  rather than migrated.
+
 
 ## Repository Structure
 
@@ -103,10 +127,10 @@ with the encryption state, and made a good default sound like a vulnerability.
 **Do not collapse them**, even though two currently always agree:
 
 - **Authenticated ⇒ encrypted is true today, and is a consequence, not a definition.**
-  `plans/product-truths.md` delta 5 anticipates a user opting out of encryption while
-  holding an account. When that lands, the account axis is unchanged and only the file
-  axis moves. Code that asks "how do I open this file?" must read the file axis, never
-  infer it from the account.
+  `plans/v0-2.md` anticipates a user opting out of encryption while holding an account
+  (*user-toggleable encryption beyond custody*). When that lands, the account axis is
+  unchanged and only the file axis moves. Code that asks "how do I open this file?" must
+  read the file axis, never infer it from the account.
 - **Locked is a sub-state of Authenticated, never a peer.** Sign out (`lockThisDevice`)
   deletes exactly two keychain secrets and touches nothing else — the roster entry, the
   account row, the encrypted file and both sidecars all survive. A signed-out device is
@@ -233,7 +257,7 @@ tar -xzf ~/.npm/_prebuilds/*better-sqlite3-multiple-ciphers-*-node-v137-darwin-a
 tarballs preserve mtimes: `2217120` bytes = Node, `2217808` = Electron. Check it before
 trusting a green run — the binary has been observed flipped to Electron in sessions where the
 dev app was never started. The whole dance disappears if the N-API fork ever releases; see
-[`plans/sqlite-abi-napi.md`](plans/sqlite-abi-napi.md).
+[`plans/v0-2.md`](plans/v0-2.md) → *The N-API exit*.
 
 **tsconfig-include invariant**: a new test directory must sit under some project
 tsconfig's `include`, or its type errors go unchecked (`pnpm test:types` only
@@ -255,7 +279,7 @@ react-router. See `apps/desktop/README.md` for the dev workflow.
 > `scripts/ensure-sqlite-abi.mjs` papers over this before `dev`/`start`/`test`; which
 > build is installed is a **file-size check**, since both share a name
 > (`2217120` bytes = Node, `2217808` = Electron). The exit from the whole problem
-> class is [`plans/sqlite-abi-napi.md`](plans/sqlite-abi-napi.md) — a watch-item,
+> class is [`plans/v0-2.md`](plans/v0-2.md) → *The N-API exit* — a watch-item,
 > blocked on the fork rebasing onto N-API.
 
 ## Mobile app (`apps/mobile`)
