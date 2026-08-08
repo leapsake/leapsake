@@ -8,12 +8,13 @@ import {
   View,
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { genderLabel, tagLabel } from "@leapsake/schema";
+import { genderLabel } from "@leapsake/schema";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
+import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
@@ -83,8 +84,6 @@ export default function PetDetailScreen() {
 
   const { pet, gender, tags, timeline, relationships } = view;
   const genderText = gender.value === null ? "—" : genderLabel[gender.value];
-  const tagsText =
-    tags.length === 0 ? "—" : tags.map((tag) => tagLabel(tag.name)).join(" ");
 
   function confirmDelete() {
     Alert.alert("Delete pet", `Delete ${pet.name}?`, [
@@ -147,9 +146,9 @@ export default function PetDetailScreen() {
         onChanged={reload}
       />
 
-      <DetailField label="Tags" value={tagsText} />
+      <TagsField tags={tags} />
 
-      <MentionedInSection reminders={mentionedIn} />
+      <MentionedInSection reminders={mentionedIn} from={pet.name} />
 
       {/* Bookkeeping, not what the page is about — it sits below the sections a
           reader came for, just above the destructive end of the screen. */}

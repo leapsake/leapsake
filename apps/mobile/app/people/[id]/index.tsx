@@ -8,13 +8,14 @@ import {
   View,
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { fullName, genderLabel, tagLabel } from "@leapsake/schema";
+import { fullName, genderLabel } from "@leapsake/schema";
 import { ContactsSection } from "../../../components/ContactsSection";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
+import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { colors, styles } from "../../../lib/styles";
@@ -97,8 +98,6 @@ export default function PersonDetailScreen() {
   const { person, gender, tags, timeline, relationships, contactMethods } =
     view;
   const genderText = gender.value === null ? "—" : genderLabel[gender.value];
-  const tagsText =
-    tags.length === 0 ? "—" : tags.map((tag) => tagLabel(tag.name)).join(" ");
 
   function confirmDelete() {
     Alert.alert("Delete person", `Delete ${fullName(person)}?`, [
@@ -187,9 +186,9 @@ export default function PersonDetailScreen() {
         onChanged={reload}
       />
 
-      <DetailField label="Tags" value={tagsText} />
+      <TagsField tags={tags} />
 
-      <MentionedInSection reminders={mentionedIn} />
+      <MentionedInSection reminders={mentionedIn} from={fullName(person)} />
 
       {/* Bookkeeping, not what the page is about — it sits below the sections a
           reader came for, just above the destructive end of the screen. */}

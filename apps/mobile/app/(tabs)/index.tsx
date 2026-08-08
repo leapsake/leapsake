@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
   type ReminderWithTags,
   formatDueIn,
@@ -17,6 +17,7 @@ import { partitionReminders } from "@leapsake/view-models";
 import { Checkbox } from "../../components/Checkbox";
 import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
+import { stickyOrder } from "../../lib/sticky-order";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
 
@@ -24,9 +25,12 @@ import { colors, styles } from "../../lib/styles";
  * The Reminders tab — the app's home/landing screen, so it lives at the `(tabs)`
  * group's `index` route. A standalone list of user-created reminders: open ones
  * lead; completed ones sink to the bottom with a struck-through label. Each row
- * toggles completion in place (the list reloads without navigating); every *other*
- * action a reminder offers lives on its detail screen, which the row text taps
- * through to. "+ Add" lives on the tab header (app/(tabs)/_layout.tsx).
+ * toggles completion in place — in place *literally*: the row stays where the
+ * user's finger found it, struck through, rather than sliding down to the
+ * completed tail and pulling the next row up under the finger that just tapped it
+ * (see {@link stickyOrder}). Every *other* action a reminder offers lives on its
+ * detail screen, which the row text taps through to. "+ Add" lives on the tab
+ * header (app/(tabs)/_layout.tsx).
  *
  * That split is why this screen reads nothing but the list. The gift targets and
  * the duplicates-nudge id it used to fetch existed only to decide which offers a
@@ -41,6 +45,19 @@ export default function RemindersScreen() {
   const core = useCore();
   const load = useCallback(() => core.reminders.list(), [core]);
   const { data: reminders, error, reload } = useFocusedData(load);
+  // The order the rows were in when one of them was last toggled, which the
+  // reloaded list is held to so the tapped row doesn't move out from under the
+  // finger. Cleared when the screen blurs: leaving is the user's own break in the
+  // interaction, and the answer to "when does the list finally re-sort?".
+  const [pinned, setPinned] = useState<readonly string[]>([]);
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        setPinned([]);
+      },
+      [],
+    ),
+  );
 
   if (error !== null) {
     return (
@@ -57,9 +74,13 @@ export default function RemindersScreen() {
     );
   }
 
-  // Open first, then completed — one flat list for the FlatList.
+  // Open first, then completed — one flat list for the FlatList, held to the
+  // pinned order while the user works down it.
   const { open, done } = partitionReminders(reminders);
-  const ordered = [...open, ...done];
+  const ordered = stickyOrder([...open, ...done], pinned);
+  // Pinning the *displayed* order, not the natural one, is what makes a second
+  // and third tick hold everything still too.
+  const pin = () => setPinned(ordered.map((r) => r.id));
 
   return (
     <View style={styles.screen}>
@@ -68,7 +89,7 @@ export default function RemindersScreen() {
         keyExtractor={(r) => r.id}
         ListEmptyComponent={<Text style={styles.muted}>No reminders yet.</Text>}
         renderItem={({ item }) => (
-          <ReminderRow reminder={item} reload={reload} />
+          <ReminderRow reminder={item} pin={pin} reload={reload} />
         )}
       />
     </View>
@@ -90,9 +111,12 @@ export default function RemindersScreen() {
  */
 function ReminderRow({
   reminder,
+  pin,
   reload,
 }: {
   reminder: ReminderWithTags;
+  /** Freeze the list's current order before this row's write re-sorts it. */
+  pin: () => void;
   reload: () => Promise<void>;
 }) {
   const core = useCore();
@@ -107,9 +131,18 @@ function ReminderRow({
   // How this reminder is named, for the checkbox's accessibility label — nothing
   // else here names it now that the row's own buttons are gone.
   const label = reminderLabel(reminder);
-  const open = () => router.push(`/reminders/${reminder.id}`);
+  // `from` names this tab on the detail screen's back button — it carries no
+  // title of its own, and a native stack can't read a tab navigator's for it.
+  const open = () =>
+    router.push({
+      pathname: "/reminders/[id]",
+      params: { id: reminder.id, from: "Reminders" },
+    });
 
   function toggle() {
+    // Before the write, not after: the order to hold is the one the user was
+    // looking at when they aimed at this checkbox.
+    pin();
     core.reminders.setCompleted(reminder.id, !done).then(
       () => reload(),
       (e: unknown) => Alert.alert("Couldn’t update", String(e)),

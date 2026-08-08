@@ -31,7 +31,9 @@ export default function ReminderEditScreen() {
   if (reminder === undefined) {
     return (
       <View style={styles.screen}>
-        <Stack.Screen options={{ title: "Edit reminder" }} />
+        <Stack.Screen
+          options={{ title: "Edit reminder", headerBackTitle: "Back" }}
+        />
         <Text style={styles.muted}>This reminder no longer exists.</Text>
       </View>
     );
@@ -41,7 +43,9 @@ export default function ReminderEditScreen() {
   if (!isReminderEditable(reminder)) {
     return (
       <View style={styles.screen}>
-        <Stack.Screen options={{ title: "Edit reminder" }} />
+        <Stack.Screen
+          options={{ title: "Edit reminder", headerBackTitle: "Back" }}
+        />
         <Text style={styles.muted}>Automatic reminders can't be edited.</Text>
       </View>
     );

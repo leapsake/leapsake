@@ -70,6 +70,10 @@ export function ReminderForm({
       <Stack.Screen
         options={{
           title: headerTitle,
+          // Spelled out because the detail screen this is pushed from carries no
+          // title, and a native stack takes a back button's label from there —
+          // without this, editing a reminder leaves a bare chevron to go back by.
+          headerBackTitle: "Back",
           headerRight: () => (
             <HeaderSave
               canSave={canSubmit}
