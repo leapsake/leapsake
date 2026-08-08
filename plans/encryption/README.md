@@ -31,9 +31,16 @@ is the only thing [`../status.md`](../status.md) tracks.
 > account, §7.5 the key lifecycle, plus §8.1 for converting a store. Nothing in this folder
 > or anywhere else restates it; if you are about to, edit §7 instead.
 
+The one **build** doc in this folder, kept separate from the six design docs above:
+
+| Doc | What it is | When to read it |
+|---|---|---|
+| [`account-merge.md`](./account-merge.md) | Merging an Authenticated **local-only** account into a synced one — the missing half of the custody build, in four increments. **Currently first in the build order** ([`../launch.md`](../launch.md) §3). | Before onboarding Increment 2, or any work on the converters, the adopt flow, or the `409` collision. |
+
 ## The one rule that keeps these from drifting
 
-**The six docs above are design; unbuilt work lives in *What remains* below and nowhere else.**
+**The six design docs above are design; unbuilt work lives in *What remains* below, in
+[`account-merge.md`](./account-merge.md), and nowhere else.**
 When a slice lands, delete its entry here — its delivery detail belongs in `git log` and in the
 doc-comments of the code it touched, not in a doc that then has to be maintained. Never restate
 "what's done" or "which stage" in `model.md`/`sync.md`/`schema.md`; they are meant to read the
@@ -94,6 +101,11 @@ db-key. Not a one-way door — it sits on the same password door.
   > **CORS + `OPTIONS`** before any browser client can exist, and the bootstrap/session
   > **per-IP** rate-limit budget is structurally wrong for an SSR host, which logs in from one
   > IP for every user.
+  >
+  > ⚠️ **The *spike* is pre-v0.1** *(owner, 2026-08-07)*; the Stage 4 **web app** below is not.
+  > Do not read this heading as deferring [`../web.md`](../web.md) — it runs on its own track in
+  > [`../launch.md`](../launch.md) §3, and its two relay findings are the reason: both are
+  > cheaper to learn before the relay is in testers' hands than after.
 - **Capability-link sharing** ([`model.md`](./model.md) §11): zero-knowledge public links (key
   in the `#fragment`, no `key_wrap` row). Needs the web app as render vehicle **and** the
   share-URL decision below.
@@ -116,29 +128,12 @@ db-key. Not a one-way door — it sits on the same password door.
 
 **Custody** — the build is finished, but these are not decided:
 
-- **Username collision when a local account binds a relay.** A locally-chosen username may
-  already exist on the relay, which answers `409`. Two cases hide behind that one error and
-  want different UX: *"this is me, I made a second account by accident and want them merged"*
-  vs. *"different person, I just need a different handle."* Renaming is the easy half and
-  should ship with relay binding. Merging is the hard half — but note the machinery partly
-  exists (`reconcileOnJoin` surfaces overlapping people after a join and deliberately does
-  **not** auto-merge, leaving it to the duplicate-review surface), so *"join the existing
-  account and review the duplicates"* may be the whole answer for v0.1. **Decide before relay
-  binding ships.** Weightier since 2026-07-29: a local-only account is now one tap away on
-  *both* clients, so the population that could later want to bind one is no longer
-  desktop-only — while binding itself remains unbuilt on either client.
-  > **Now constrained by an invariant** *(owner, 2026-08-02)*: **a local store, Unauthenticated
-  > or Authenticated, must always be mergeable into an authenticated synced account.** That
-  > settles the *"this is me"* half — it must exist, and *"join it and review the duplicates"*
-  > is the shape — leaving only the rename half genuinely open. It also raises the priority:
-  > [`../onboarding.md`](../onboarding.md) Increment 2 puts a **create-account** invitation on
-  > Home, which multiplies the population holding a local-only account, and closed testers are
-  > the group most likely to own a second device. §6.2 there costs out the missing plumbing;
-  > the row-merging half is already built.
-  >
-  > **Before picking this up, read [`../onboarding.md`](../onboarding.md) §8.** Whether this
-  > work must land *before* that increment or alongside it is an open owner decision, and it is
-  > the thing that decides whether this is next or merely soon.
+- **Username collision when a local account binds a relay** → **now a build, not a question.**
+  It is [`account-merge.md`](./account-merge.md) Increment 4, and the doc it sits in is the
+  **first thing being built** *(owner, 2026-08-07)*. The invariant — *a local store,
+  Unauthenticated or Authenticated, must always be mergeable into an authenticated synced
+  account* — settled the *"this is me, merge them"* half; only the rename half was ever open,
+  and it ships with relay binding as always intended.
 - **Relay backup capability** — the protocol shape for a relay advertising whether it keeps a
   durable copy ([`model.md`](./model.md) §7.3.1). The **client half is built**
   (`fetchRelayCapabilities`, `@leapsake/sync`): it GETs `/capabilities`, reads a literal

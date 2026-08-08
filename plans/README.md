@@ -16,6 +16,7 @@ This is the rule the whole repo is organized around. Learn it before looking for
 | **What was done, and why it was done that way** | `git log`, plus the doc-comments in the code it touched | here — finished work leaves `plans/` |
 | **What is being worked on right now** | [`status.md`](./status.md) — short by design | anywhere else |
 | **What *could* be built next** | this folder — one doc per workstream, each holding only **unbuilt** work | `status.md`, which never accumulates leftovers |
+| **What order it all goes in** | [`launch.md`](./launch.md) §3 — one sequence, one place | `status.md`, which says only what is *in flight*; and the workstream docs, which order only their own increments |
 | **How the code works today** | the code, its tests, and the `README.md` beside it; [`../AGENTS.md`](../AGENTS.md) is the index | here — design docs describe intent, not the current build |
 
 **A doc in this folder lives exactly as long as it has unbuilt work in it.** It shrinks as
@@ -37,8 +38,10 @@ from its workstream doc, and let `git log` carry the history.
 | You want to… | Go to |
 |---|---|
 | **Know what's in flight right now** | [`status.md`](./status.md) |
+| **Know what to pick up next, and in what order** | [`launch.md`](./launch.md) **§3** — the one order of operations, including the prerequisites other docs own |
 | **Know the product posture / user model (stable "why")** | [`product-truths.md`](./product-truths.md) — launch posture + the user/client/account/sharing/encryption model |
 | **Ship v0.1 — packaging, signing, stores, the release gate** | [`launch.md`](./launch.md) |
+| **Merge a local-only account into a synced one** | [`encryption/account-merge.md`](./encryption/account-merge.md) — the missing half of custody; **first in the build order** |
 | **Design the first-run experience — nudges, snooze, dismissals** | [`onboarding.md`](./onboarding.md). Read it before touching `ONBOARDING_STEPS` or the reminder-row actions |
 | Understand the encryption / privacy / sync design, **or pick up sync work** | [`encryption/`](./encryption/) — start at its `README.md`, which also holds that workstream's backlog and open questions |
 | **Build the web client (SSR / PWA), or prove it is still possible** | [`web.md`](./web.md) — the throwaway spike and what it must answer, increment by increment |

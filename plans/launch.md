@@ -12,8 +12,10 @@
 > Increments 2–3 and §2's hazard analysis assume *encryption follows custody*
 > (`encryption/model.md` §7.2), which is built on both clients.
 >
-> **Increment 2 now lives in [`onboarding.md`](./onboarding.md)** (its Increments 1–2). It
-> still gates Increment 4; the slot below explains what moved and what it inherited.
+> **§3 is the whole project's order of operations**, not just this doc's — it is the one place
+> that sequences the prerequisites other docs own against these increments. Read it before
+> picking anything up. Increment numbering here is **stable and never renumbered**; other docs
+> cite these numbers, so a superseded slot becomes a pointer rather than disappearing.
 
 ## 1. The decisions this plan encodes (settled 2026-07-21)
 
@@ -58,9 +60,9 @@ and now mostly isn't:
 
 Two things still follow, and both are increments below rather than footnotes:
 
-1. **Custody must exist before real testers do** (Increment 2, plus the build order in
-   [`status.md`](./status.md)). The goal is no longer "teach the phrase harder" — it is that
-   an account holder has a password to type and an accountless user has nothing to lose.
+1. **Custody must exist before real testers do** — §3's **P1** and **P2**. The goal is no longer
+   "teach the phrase harder" — it is that an account holder has a password to type and an
+   accountless user has nothing to lose.
 2. **The recovery path must be verified end to end before shipping** (Increment 3), because
    the whole strategy leans on it — now across *two* doors.
 
@@ -85,12 +87,33 @@ desktop work proceeds. Desktop parallelizes completely — direct-download macOS
 review latency at all, only notarization (minutes).
 
 ```
-Track P (paperwork)   ├─ Apple enroll ──────┐         ┌─ iOS submit ─┐
-                      └─ Play enroll ─┐     │         │              │
-Track M (mobile)              Inc 4 ──┴─ 14-day closed test ─────────┴─ Inc 11
-Track D (desktop)     Inc 5 ─ Inc 6 ─ Inc 7 ─ Inc 8 ─ Inc 9 ─ Inc 10
-Prerequisites         Inc 1 ─ Inc 2 ─ Inc 3 ─┘ (gate everything user-facing)
+Track P (paperwork)     ├─ Apple enroll ─────┐          ┌─ iOS submit ─┐
+                        └─ Play enroll ─┐    │          │              │
+Track M (mobile)                Inc 4 ──┴─ 14-day closed test ─────────┴─ Inc 11
+Track D (desktop)       Inc 5 ─ Inc 6 ─ Inc 7 ─ Inc 8 ─ Inc 9 ─ Inc 10
+Prerequisites     P1 ─ P2 ─ Inc 1 ─ Inc 3 ─┘ (gate everything user-facing)
+Track W (web spike)     web.md Inc 1 ─ 2 ─ 3 ─ 4 ─ 5 ─ 6   (independent; see below)
 ```
+
+### The prerequisites, including the ones other docs own
+
+`Inc 4` is the gate everything waits behind, and two of its prerequisites are **not increments
+of this doc**. They are listed here so the order exists in one place:
+
+| # | What | Owned by | Why it is where it is |
+|---|---|---|---|
+| **P1** | Merge a local-only account into a synced one | [`encryption/account-merge.md`](./encryption/account-merge.md) | 4 increments. Closes the one-way exit **before** P2 advertises it *(owner, 2026-08-07)* |
+| **P2** | The account invitation on Home | [`onboarding.md`](./onboarding.md) Increment 2 | Gets users Unauthenticated → Authenticated. The drop-in for this doc's superseded Increment 2 slot |
+| **Inc 1** | Store identity + repo hygiene | here | Version decision; real deadline is Inc 4's first upload |
+| **Inc 3** | Verify + document restore-from-backup | here | Cheap, early, and turns into a build increment if a door fails |
+
+**Track W is genuinely independent** *(owner, 2026-08-07)*: [`web.md`](./web.md) is a throwaway
+spike that touches no custody code and whose own done-when forbids editing `packages/`. It runs
+pre-v0.1 rather than post-launch because **two of its "known before starting" items are relay
+changes** — CORS + `OPTIONS`, and the per-IP bootstrap/session rate-limit budget being wrong for
+an SSR host — and the relay is the component hardening for v0.1. Both are cheaper to learn before
+Inc 4 puts a build in testers' hands. With one person on this, P1 goes first because it is what
+blocks the clock; Track W is the natural filler whenever the prerequisite chain is waiting.
 
 ---
 
@@ -138,37 +161,31 @@ a separate identity, `com.leapsake.desktop`, set in Increment 5 — see the iden
 the old one — uninstall them and rebuild the dev client before running `pnpm test:native`.
 `scheme: "leapsake"` is unchanged, so the `leapsake://` deep links still route.
 
-### Increment 2 — The account invitation on Home → **moved to [`onboarding.md`](./onboarding.md)**
+### Increment 2 — *superseded.* → [`onboarding.md`](./onboarding.md) Increment 2 (= **P2** in §3)
 
-> **Superseded 2026-07-30.** This was scoped as a single nudge. Designing it surfaced enough
-> product (per-step outcomes, a persistent record of what the user already answered) that it
-> became its own workstream. It now lives in [`onboarding.md`](./onboarding.md) as that plan's
-> **Increments 1–2**, which are a drop-in for the gate this slot held.
-
-**Value, unchanged:** gets users from Unauthenticated to Authenticated — the state that turns
-encryption on and that sync and sharing have no key to seal under until it exists, rather than
-teaching a phrase to guard it. It is still a **hard prerequisite of Increment 4**, for the
-reason stated there: closed testers are real users with real data.
-
-> ⚠️ **Corrected 2026-08-02.** This said the account "closes the data-loss path". It does not —
-> an Unauthenticated store is plaintext with no keys, so there is nothing to be locked out of,
-> and §2 below says as much from the other side. The gate above still holds, but on two
-> different grounds now, and both are worth re-reading before leaning on it: testers' data sits
-> in the clear meanwhile (`encryption/model.md` §7.2.1's un-erasable window), and testers are
-> the population most likely to install on a **second device**, which needs an account to work
-> at all. The full correction is in [`onboarding.md`](./onboarding.md) §3.
+> **Slot kept, never renumbered**, because other docs cite these numbers. Scoped as a single
+> nudge in 2026-07-30; designing it surfaced enough product that it became its own workstream.
+> It remains a hard prerequisite of Increment 4 — see §3, where it is **P2** and now sits behind
+> **P1**, the merge path.
 
 Three things settled here that `onboarding.md` inherits rather than re-decides:
 
-- **Copy must promise access, not safety** (`encryption/model.md` §7.2.1). A local account
-  does *not* protect against a dead SSD, and users will hear that it does unless the wording
-  is precise. (The draft's "It's free" was cut — nothing is paid yet.)
+- **Copy must promise access, not safety** (`encryption/model.md` §7.2.1). A local account does
+  *not* protect against a dead SSD, and users will hear that it does unless the wording is
+  precise. ⚠️ This slot itself once claimed the account "closes the data-loss path"; it does not —
+  an Unauthenticated store is plaintext with no keys, so there is nothing to be locked out of.
+  The full correction is [`onboarding.md`](./onboarding.md) §3.
 - **A nudge, never a wall** — a forced setup at first run violates the layperson/no-hoops
-  principle in [`product-truths.md`](./product-truths.md) and `encryption/model.md` §1, and
-  would forfeit the zero-setup first run that is the point of the Unauthenticated state.
-- **"Dismissing it re-surfaces later"** was this increment's acceptance criterion and the
-  thing the reminder engine could not actually do — its prune is a permanent tombstone. That
-  is what reminder snooze in `onboarding.md` Increment 1 exists to fix.
+  principle in [`product-truths.md`](./product-truths.md) and `encryption/model.md` §1, and would
+  forfeit the zero-setup first run that is the point of the Unauthenticated state.
+- **"Dismissing it re-surfaces later"** was this increment's acceptance criterion and the thing
+  the reminder engine could not do — its prune is a permanent tombstone. That is what reminder
+  snooze in `onboarding.md` Increment 1 exists to fix, and it is built.
+
+**The gate on Increment 4 rests on two grounds**, both worth re-reading before leaning on it:
+testers' data sits in the clear meanwhile (`encryption/model.md` §7.2.1's un-erasable window),
+and testers are the population most likely to install on a **second device**, which needs an
+account to work at all.
 
 **Acceptance:** as written in `onboarding.md` Increment 2.
 
@@ -211,16 +228,14 @@ everything downstream waits — which is exactly why it runs early and cheap.
 - First production-profile Android build → **closed testing track**, recruit ≥12 testers.
 - iOS build profile in the same pass; TestFlight upload once Apple enrollment clears.
 
-**Sequenced after 1–3 deliberately:** closed testers are real users with real data. Do not
-put a build in their hands before the recovery nudge and a verified restore path.
+**Sequenced after the §3 prerequisites deliberately:** closed testers are real users with real
+data. Do not put a build in their hands before the recovery nudge and a verified restore path.
 
-> ⚠️ **This gate has an open question against it** *(2026-08-02)*, and it is the one that decides
-> when this increment can start. [`onboarding.md`](./onboarding.md) §6.1 found that a
-> *create account* nudge can lead a returning user into a second, local-only account that
-> **cannot currently be merged back** into their real one — and closed testers are the group
-> most likely to hit it, being the likeliest to own a second device. Whether the merge path
-> (§6.2 there) must ship **before** the invitation or alongside it is undecided and is tracked
-> in that doc's **§8**. Do not settle it by build order from this side.
+> **The gate is now fully specified** *(owner, 2026-08-07)*. [`onboarding.md`](./onboarding.md)
+> §6.1 found that a *create account* nudge can lead a returning user into a second, local-only
+> account that could not be merged back — and closed testers are the group likeliest to hit it,
+> being the likeliest to own a second device. Settled: the merge path ships **before** the
+> invitation, as §3's **P1** ahead of **P2**. This increment waits on both.
 
 **Acceptance:** reproducible signed builds from a clean checkout; Android build live in
 closed testing with the tester count met and the 14-day clock running.
@@ -362,11 +377,14 @@ Pre-flight, in order (git history is public *forever* — this precedes the flip
 
 ## 8. What this plan does *not* change
 
-The pre-v0.1 items already in [`status.md`](./status.md) — vCard export, CK revocation/GC,
-background-fetch sync, relay disposability, reminder search — are untouched by this plan and
-can interleave as capacity allows. (The **local-custody decision** is the one exception added
-since: it does not change this plan's shape, but it holds Increments 2–4 — see the banner at
-the top. **Onboarding** is the second: it took Increment 2's content out to
-[`onboarding.md`](./onboarding.md) but left the sequencing intact — Increment 4 still waits on
-it, and nothing else here moved.) The **lunisolar holiday tables** were on this list as the one
-launch-blocking exception; they closed on 2026-07-23 (derived, cross-checked, extended to 2056).
+The interleavable pre-v0.1 items — vCard export, CK revocation/GC, background-fetch sync, relay
+disposability ([`encryption/README.md`](./encryption/README.md) → *What remains*), reminder search
+([`client-ux.md`](./client-ux.md)) — are untouched by this plan and can land as capacity allows.
+They are **not** in §3, deliberately: §3 sequences only what gates something.
+
+Two things reshaped this plan without changing its increments, and both are absorbed above rather
+than pending: the **local-custody decision** (which holds Increments 3–4), and **onboarding**,
+which took Increment 2's content out to [`onboarding.md`](./onboarding.md) and then, with the
+merge path in front of it, became §3's **P1 → P2** chain. Increment 4 still waits on it; nothing
+else here moved. The **lunisolar holiday tables** were on this list as the one launch-blocking
+exception; they closed on 2026-07-23 (derived, cross-checked, extended to 2056).

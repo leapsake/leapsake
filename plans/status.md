@@ -7,6 +7,7 @@
 |---|---|
 | What has been **done**, and how? | `git log`, plus the doc-comments in the code it touched |
 | What **could** be done next? | the workstream docs in [`plans/`](./README.md) — each holds only *unbuilt* work |
+| **In what order?** | [`launch.md`](./launch.md) **§3** — the one order of operations, including the prerequisites other docs own |
 | What is being done **right now**? | this file |
 | How does the code **work**? | the code, its tests, and the README beside it — [`../AGENTS.md`](../AGENTS.md) maps them |
 | What is **decided** (product posture, user model)? | [`product-truths.md`](./product-truths.md) |
@@ -43,42 +44,31 @@ until they are built or dropped.
 
 ## In progress
 
-Nothing. Next is [`onboarding.md`](./onboarding.md) Increment 2 — see below.
+Nothing. Next is [`encryption/account-merge.md`](./encryption/account-merge.md) Increment 1 —
+**P1** in [`launch.md`](./launch.md) §3, which now carries the whole order and is the only place
+it is written down.
 
-## Next, in order
-
-1. **[`onboarding.md`](./onboarding.md) Increment 2** — the account invitation. It is what
-   [`launch.md`](./launch.md) Increment 4's *"don't put a build in real testers' hands first"*
-   rule requires, so it gates the Play 14-day clock. Increments 3–4 there do **not** — they can
-   land at any pace. **Reshaped 2026-08-02** by a returning-user trap: a *create account* nudge
-   on Home can lead someone with an existing account into a second, local-only one that **cannot
-   currently be merged back** — `adopt-account-flow.ts:95` refuses it and the converter takes
-   only a plaintext source. Settled in response: the nudges become an explicit fork (*sign in*
-   from day 1, *create* only once `hasEntities`), under an invariant that any local store stays
-   mergeable into a synced account ([`onboarding.md`](./onboarding.md) §6.1–6.2). **One open
-   question, and it moves the launch clock:** whether that merge path ships before Increment 2
-   or alongside it — see that doc's §8.
-2. **[`launch.md`](./launch.md), in its own numbered order.** Increment 2 is superseded by the
-   above; Increment 1 is down to one owner decision, **deliberately deferred** *(owner,
-   2026-07-31)*: everything stays `0.0.0` until it is needed, which is Increment 4's first
-   store upload, not the v0.1 cut.
-3. **Everything else** — genuinely interleavable, no dependencies between them. See the table
-   below.
+Two sequencing decisions landed *(owner, 2026-08-07)* and are recorded there: the **merge path
+ships before** the account invitation, pushing the Play 14-day clock out by its length; and the
+**web spike runs pre-v0.1** on its own independent track, because two of its findings are relay
+changes and the relay is what hardens for v0.1.
 
 ## Where the rest of the work lives
 
-Not a queue. Each doc holds its own backlog and its own open questions.
+Not a queue — [`launch.md`](./launch.md) §3 is the queue. Each doc holds its own backlog and its
+own open questions.
 
 | Workstream | Doc | Shape of what remains |
 |---|---|---|
-| **Onboarding** (first run) | [`onboarding.md`](./onboarding.md) | Increment 1 built; 2 is the rest of the v0.1 line |
-| **Distribution / launch** | [`launch.md`](./launch.md) | 11 increments; signing, stores, the release gate |
+| **Account merge** (custody) | [`encryption/account-merge.md`](./encryption/account-merge.md) | 4 increments; **first in the order** (§3 P1) |
+| **Onboarding** (first run) | [`onboarding.md`](./onboarding.md) | Increment 1 built; 2 is the rest of the v0.1 line (§3 P2) |
+| **Distribution / launch** | [`launch.md`](./launch.md) | 11 increments **and the order of operations**; signing, stores, the release gate |
 | **Encryption + sync** | [`encryption/`](./encryption/) | the relay/sync backlog + every post-launch stage |
 | **Reconciliation** (dedup & merge) | [`reconciliation.md`](./reconciliation.md) | 4 quality items; pre- or post-launch |
 | **Client / UX** | [`client-ux.md`](./client-ux.md) | reminder search, styling, i18n, one mobile bug |
 | **Holidays** | [`holidays.md`](./holidays.md) | doors deliberately left open; none blocking |
 | **Files / media** (photos, v0.2) | [`files.md`](./files.md) | nothing built; invariants pinned |
-| **Web client** (SSR / PWA) | [`web.md`](./web.md) | nothing built; a 6-increment throwaway spike, post-launch |
+| **Web client** (SSR / PWA) | [`web.md`](./web.md) | nothing built; a 6-increment throwaway spike, **pre-v0.1** on its own track |
 | **Testing** | [`testing/`](./testing/) | E2E is the one blocked tier, pending owner sign-off |
 | **Native SQLite ABI** | [`sqlite-abi-napi.md`](./sqlite-abi-napi.md) | watch-item, blocked on the fork |
 

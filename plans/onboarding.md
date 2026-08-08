@@ -320,53 +320,19 @@ The options as they were weighed:
 1 + 2 are complementary and cover the case without new engine concepts; 4 is the durable fix
 whenever relay binding lands.
 
-#### 6.2 The merge invariant, and what is missing from it
+#### 6.2 The merge invariant → [`encryption/account-merge.md`](./encryption/account-merge.md)
 
 > **A local store — Unauthenticated *or* Authenticated — must always be mergeable into an
 > authenticated synced account.** *(owner, 2026-08-02.)* This is the guarantee the fork in §6.1
 > rests on: a wrong turn costs a detour, never data. It also outranks §6.1's UX guards — those
 > reduce how often the mistake is made, this one decides what it costs.
 
-**From Unauthenticated: built, and already meets the invariant.** `adoptAccountOnThisDevice`
-runs convert → password door → roster entry → destroy original, and `reconcileOnJoin` keeps this
-device's rows, deliberately not auto-merging: overlaps go to the duplicate-review surface.
-
-**From Authenticated local-only: refused, at two layers.**
-
-| Layer | What it does today |
-|---|---|
-| `apps/desktop/src/main/db/adopt-account-flow.ts:95` | throws — *"This device already holds an account. Forget it before joining another."* (the comment above it, from :88, is the one discussed below) |
-| `apps/desktop/src/main/db/convert-store.ts:53` | refuses any source that is not plaintext |
-
-The comment above that throw records an in-place adopt branch that **existed and was removed**,
-because "silently adopting a second account into a store still homed under the first one's id
-was never a state worth producing". That objection stands and is not overturned here: what the
-invariant asks for is an **explicit, user-initiated merge**, not the silent adopt that was cut.
-Keep the distinction — it is the difference between rehoming a store on purpose and letting a
-roster inconsistency do it by accident.
-
-**What the missing half needs**, in the order the difficulty runs:
-
-1. **Re-key, not round-trip.** The converter is plaintext→encrypted. It needs an encrypted
-   source: `ATTACH` the destination keyed under the account MK while the source is open under
-   the local db-key, which is the same ordinary-SQL pattern the doc-comment already explains.
-   **Never route through a plaintext intermediate** — that would write the entire database in
-   the clear, the exact window `model.md` §7.2.1 exists to keep small.
-2. **Rehome the store.** The file lives at `storePath(accountId)` and carries an account row, so
-   the merge moves it from the local account's id to the synced one's, rewrites the roster
-   entry, and retires the local account. The local password stops working — that is user-visible
-   and needs copy, not just a migration.
-3. **Preserve the crash ordering.** convert → door → roster → destroy, unchanged. The wrinkle is
-   that the source is now itself an encrypted store worth keeping if the merge fails, so
-   "original survives until the roster names its replacement" matters more here, not less.
-4. **Merge the rows: already done.** `reconcileOnJoin` is the whole answer, as
-   [`encryption/README.md`](./encryption/README.md)'s username-collision question already
-   guessed.
-5. **Username collision.** If the local handle exists on the relay, that is the `409` with two
-   readings. Renaming is the easy half; *"join it and review the duplicates"* is the other.
-
-The hard part — merging people without losing or silently fusing them — is the part that
-already exists. What is missing is custody plumbing, which is bounded.
+**It ships before this increment** *(owner, 2026-08-07)*, so the exit is closed before the
+create invitation advertises the trap. Everything about it — what is already built, the two
+layers that refuse it today, the four increments, and the username collision — moved to
+[`encryption/account-merge.md`](./encryption/account-merge.md), because it is custody plumbing
+and was previously described in three places at once. **It is a hard prerequisite of this
+increment; do not start Increment 2 before it lands.**
 
 **Acceptance:** a brand-new profile sees no custody UI until it has data; the invitation then
 appears on Home; creating an account clears it permanently and leaves the store encrypted with
@@ -424,18 +390,16 @@ account forms exist in one place with two callers.
 
 ## 8. Open decisions for owner sign-off
 
-**One outstanding** *(raised 2026-08-02)*:
-
-- **Does the §6.2 merge path have to ship *before* Increment 2, or alongside it?** The invariant
-  is settled; its sequencing is not, and it is the one question that moves the launch clock.
-  Building it first means Increment 2 — and therefore `launch.md` Increment 4 and the Play
-  14-day clock — waits on custody plumbing. Shipping Increment 2 behind §6.1's fork first keeps
-  the clock moving and leaves a window in which the mistake is hard to make but still one-way.
-  Closed testers are few and reachable, which argues the window is survivable; they are also
-  the likeliest to own a second device, which argues it is exactly the wrong group to leave
-  exposed. **Not a decision to make implicitly by build order.**
+**None outstanding.** This plan is decided end to end; what is left is building it, in the order
+[`launch.md`](./launch.md) §3 carries.
 
 Settled since first draft:
+
+- **The §6.2 merge path ships *before* this increment** *(owner, 2026-08-07)* — not alongside it.
+  It moves `launch.md` Increment 4 and the Play 14-day clock out by the length of that work,
+  accepted knowingly: closed testers are the group likeliest to own a second device, so they are
+  exactly the wrong population to leave holding a one-way local-only account. The work is
+  [`encryption/account-merge.md`](./encryption/account-merge.md).
 
 - **Shape** (§1, §5) — standing nudges, no Day-1 flow; ordering carries the sequencing.
 - **Memory** (§4) — two columns on `reminders`, not a decision table; *did it* stays derived.

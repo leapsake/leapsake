@@ -10,6 +10,13 @@
 run. This doc exists because the answer is cheap to prove *now* and expensive to discover
 after v0.1 hardens the architecture.
 
+**Scheduled pre-v0.1** *(owner, 2026-08-07)*, as Track W in [`launch.md`](./launch.md) §3 —
+independent of the launch prerequisite chain, and the natural filler whenever that chain is
+waiting. The deciding argument was not the general one below but a specific one: two items in
+*Known before starting* are **relay** changes, and the relay is the component hardening for v0.1.
+Note that this schedules the **spike**, not the Stage 4 web app, which stays post-launch
+([`encryption/README.md`](./encryption/README.md)).
+
 ## Why this is worth doing before v0.1
 
 Three owner questions *(2026-08-02)*: can an authenticated sync user **view** their data
