@@ -128,6 +128,14 @@ export interface ReminderEngineDeps {
     isSyncConnected(): Promise<boolean>;
     /** Whether the self-person has been picked yet. */
     hasSelf(): Promise<boolean>;
+    /**
+     * Whether this store holds an account — the custody signal, **not** the sync
+     * one. A local-only account answers `true` here and `false` to
+     * {@link ReminderEngineDeps.onboarding.isSyncConnected}, and keeping the two
+     * apart is what lets the sign-in nudge retire for a user who created an
+     * account that never touched a relay.
+     */
+    hasAccount(): Promise<boolean>;
   };
   /**
    * The holiday-observance source — the second family of recurring dated facts
@@ -251,13 +259,20 @@ function occurrenceName(
  * (not a concrete client path) so each client maps it to its own router — see
  * {@link onboardingRouteOf} and the client CTA tables.
  */
-export type OnboardingRoute = "add-person" | "connect-sync" | "pick-self";
+export type OnboardingRoute =
+  | "add-person"
+  | "connect-sync"
+  | "create-account"
+  | "pick-self";
 
 /** The raw first-run signals an onboarding step's condition is evaluated against. */
 interface OnboardingSignals {
   hasEntities: boolean;
   syncConnected: boolean;
   hasSelf: boolean;
+  /** Whether this store holds an account at all — relay-bound or local-only.
+   *  Distinct from `syncConnected`, which is the narrower "and it has a relay". */
+  hasAccount: boolean;
 }
 
 /** One first-run nudge: a stable `key` (folded into its deterministic id), the
@@ -315,23 +330,60 @@ interface OnboardingStep {
  * is unclear, it gets another repetition rather than fewer. Expect to correct them
  * once real usage disagrees.
  *
- * **Array order is display priority** (first = shown highest on Home). Sync leads:
- * a returning user already on another device should reconnect before re-adding
- * anyone, so their existing data flows in rather than being re-entered by hand.
- * The order is made deterministic by a per-step `createdAt` back-off at insert
- * time (see {@link computeAndReconcile}), so it doesn't hinge on insertion-tie
- * ordering in the store.
+ * **Array order is display priority** (first = shown highest on Home). Sign-in
+ * leads: a returning user already on another device should get back into their
+ * account before re-adding anyone, so their existing data flows in rather than
+ * being re-entered by hand. `create-account` sits directly beneath it because the
+ * two are **one fork, read together** — see below. The order is made deterministic
+ * by a per-step `createdAt` back-off at insert time (see
+ * {@link computeAndReconcile}), so it doesn't hinge on insertion-tie ordering in
+ * the store.
  */
 const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   {
     key: "sync-devices",
-    title: "🔄 Already using Leapsake on another device? Connect to sync.",
+    // **Sign-in vocabulary, deliberately.** "Connect to sync" is our word for
+    // this, not the user's: someone who already has Leapsake elsewhere is looking
+    // for *sign in*, and reading past this row to "create your account" is the
+    // one wrong turn on Home that used to be a dead end. The words carry the
+    // load because ordering alone cannot — both rows are on screen at once.
+    title: "🔄 Already have Leapsake on another device? Sign in.",
     route: "connect-sync",
-    applies: (s) => !s.syncConnected,
+    // **Any account retires this, not just a relay-bound one.** Retiring on
+    // `syncConnected` alone left a user who created a local-only account being
+    // nudged toward a flow that could not satisfy the condition — the deep-link
+    // lands on Settings, which has no sign-in to offer once an account exists.
+    applies: (s) => !s.syncConnected && !s.hasAccount,
     // A user who says "not now" here almost certainly has no other device, so
     // asking once more and then dropping it is the whole budget.
     snoozeDurationDays: 3,
     snoozeRepetitions: 2,
+  },
+  {
+    // **The account invitation** — the other half of the fork above, and the step
+    // that gets a user from Unauthenticated to Authenticated (`encryption/model.md`
+    // §7.2.1). It waits for `hasEntities` because an account protects *access to
+    // data*, and there is nothing to protect until some exists.
+    //
+    // Not a wall-clock delay, deliberately. Gating on data rather than on days
+    // elapsed is what puts the invitation in front of someone who imported 200
+    // contacts on day one — the moment the account matters most, and exactly the
+    // moment an elapsed-time floor would mute it.
+    //
+    // The copy promises **access, not safety**: an Unauthenticated store is
+    // plaintext with no keys, so there is nothing yet to be locked out of, and a
+    // *backup* — not an account — is what survives a lost device. Saying
+    // otherwise would be a guarantee the product does not make.
+    key: "create-account",
+    title: "🔐 Set up your login to protect the data on this device",
+    route: "create-account",
+    applies: (s) => s.hasEntities && !s.hasAccount,
+    // **The one step that gets more than the floor.** Wrongly nagging costs
+    // annoyance a user can dismiss; wrongly silencing this one leaves their data
+    // in the clear with no signal that it happened — so it is the step where the
+    // unequal-stakes rule above buys an extra repetition.
+    snoozeDurationDays: 3,
+    snoozeRepetitions: 3,
   },
   {
     key: "add-first-person",
@@ -351,8 +403,10 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     title: "🙋 Which of these is you? Pick yourself.",
     route: "pick-self",
     applies: (s) => s.hasEntities && !s.hasSelf,
-    // Worth one more ask than the others: nothing else tells the user that gifts
-    // (and, later, kinship) are quietly less useful until this is set.
+    // At the floor, like everything except the account invitation: nothing else
+    // tells the user that gifts (and, later, kinship) are quietly less useful
+    // until this is set, but nothing is lost silently either — an unset self is
+    // recoverable at any time from the People list.
     snoozeDurationDays: 3,
     snoozeRepetitions: 2,
   },
@@ -747,6 +801,7 @@ async function computeDesired(
       hasEntities: await deps.onboarding.hasAnyEntity(),
       syncConnected: await deps.onboarding.isSyncConnected(),
       hasSelf: await deps.onboarding.hasSelf(),
+      hasAccount: await deps.onboarding.hasAccount(),
     };
     for (const [index, step] of ONBOARDING_STEPS.entries()) {
       if (!step.applies(signals)) continue;

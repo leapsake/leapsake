@@ -19,13 +19,14 @@ const TODAY: CivilDate = { year: 2026, month: 6, day: 1 };
  * fakeable `duplicates` port driven by a mutable pair list. The onboarding port
  * is supplied with every signal already satisfied, so no onboarding nudge joins
  * the desired set and the duplicates row is the only thing under test — except
- * in the ordering case, which flips one signal back on deliberately.
+ * in the ordering case, which flips signals back on deliberately.
  */
 function makeHarness() {
   const rows = new Map<string, Reminder>();
   const state = {
     pairs: [] as string[],
     syncConnected: true,
+    hasAccount: true,
   };
 
   const deps: ReminderEngineDeps = {
@@ -58,6 +59,7 @@ function makeHarness() {
       hasAnyEntity: async () => true,
       isSyncConnected: async () => state.syncConnected,
       hasSelf: async () => true,
+      hasAccount: async () => state.hasAccount,
     },
     duplicates: { pairKeys: async () => state.pairs },
   };
@@ -185,7 +187,10 @@ describe("duplicates nudge", () => {
   });
 
   it("ranks below the onboarding nudges on Home", async () => {
-    h.state.syncConnected = false; // brings the sync nudge back into the set
+    // Accountless brings both custody nudges back into the set (the harness's
+    // entities satisfy the account invitation's other half).
+    h.state.syncConnected = false;
+    h.state.hasAccount = false;
     h.state.pairs = ["a:b"];
     await regenerateSystemReminders(h.deps);
 
@@ -194,6 +199,7 @@ describe("duplicates nudge", () => {
     const ordered = h.activeSystem().sort(compareReminderDue);
     expect(ordered.map((r) => r.id)).toEqual([
       ONBOARDING_REMINDERS.find((r) => r.route === "connect-sync")!.id,
+      ONBOARDING_REMINDERS.find((r) => r.route === "create-account")!.id,
       duplicatesReminderId(["a:b"]),
     ]);
   });

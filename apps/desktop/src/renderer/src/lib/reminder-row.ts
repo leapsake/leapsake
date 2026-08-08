@@ -6,7 +6,14 @@ import type { ReminderCta, ReminderRowAction } from "@leapsake/view-models";
 const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
   {
     "add-person": { path: "/people/new", label: "Add person →" },
-    "connect-sync": { path: "/settings", label: "Set up sync →" },
+    // The two custody routes land on the same screen today — an accountless
+    // Settings renders `CreateAccount` above `SyncSetup`, so each nudge's target
+    // is already on it — but they stay two routes, not one. The labels are the
+    // fork the user reads (*sign in* vs *create*), and splitting the destination
+    // is then a table edit rather than a plumbing change, which is what the
+    // Settings decomposition in v0-2 will want.
+    "connect-sync": { path: "/settings", label: "Sign in →" },
+    "create-account": { path: "/settings", label: "Create your account →" },
     "pick-self": { path: "/people?pick=self", label: "Pick yourself →" },
   };
 

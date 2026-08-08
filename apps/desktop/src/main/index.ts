@@ -284,6 +284,15 @@ async function reopenActiveStore(): Promise<void> {
   storeSwapping = false;
   scheduler?.setAutoEnabled(await getAutoSync({ driver }));
   scheduler?.start();
+  // Reconcile against the store that just arrived. Every swap can change what the
+  // onboarding nudges are asking for — creating an account answers the account
+  // invitation and the sign-in nudge both, and a factory reset puts a fresh store
+  // back at the start of the sequence — and without this the answer would wait for
+  // the next window focus, leaving a satisfied nudge on Home behind the one-time
+  // recovery phrase. Deliberately not awaited: it is best-effort (it swallows its
+  // own failures) and nothing here depends on it. It broadcasts `changed`, which
+  // is what makes the renderer revalidate the list in place.
+  void regenerateSystemReminders();
   // Take the gate back down. Only sign out (model.md §7.3) actually raises it
   // mid-session — `openActiveStore` above parks inside `requestUnlock` until the
   // password lands, leaving the renderer on `RecoveryGate` — but announcing

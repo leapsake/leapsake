@@ -33,8 +33,8 @@ const affordancesFor = (actions: ReminderRowAction[], id: string) =>
 
 describe("rowAffordanceFor", () => {
   it("renders a nudge's three offers in order, each to its own desktop path", () => {
-    // `pick-self` is the step with more than one repetition, so at a count of 1
-    // it still offers snooze *and* has earned its dismiss — the full shape.
+    // Every step accepts at least two "not now"s, so at a count of 1 this one
+    // still offers snooze *and* has earned its dismiss — the full shape.
     const id = idFor("pick-self");
     const actions = reminderActionsOf(reminder(id, 1), {}, NOW);
 
@@ -62,7 +62,7 @@ describe("rowAffordanceFor", () => {
     const actions = reminderActionsOf(reminder(id, 99), {}, NOW);
 
     expect(affordancesFor(actions, id)).toEqual([
-      { kind: "link", to: "/settings", label: "Set up sync →" },
+      { kind: "link", to: "/settings", label: "Sign in →" },
       {
         kind: "link",
         to: `/reminders/${id}/delete`,
@@ -143,6 +143,22 @@ describe("ctaLinkFor", () => {
       path: "/people?pick=self",
       label: "Pick yourself →",
     });
+  });
+
+  it("words the two custody routes as a fork, though they share a screen", () => {
+    // Both land on Settings, which renders create-account above sign-in while the
+    // store has no account — so the *labels* are what tell a returning user which
+    // row is theirs. "Connect to sync" is our vocabulary; they are looking for
+    // the words "sign in", and taking the wrong one used to be a dead end.
+    const signIn = ctaLinkFor({ kind: "onboarding", route: "connect-sync" });
+    const create = ctaLinkFor({ kind: "onboarding", route: "create-account" });
+
+    expect(signIn).toEqual({ path: "/settings", label: "Sign in →" });
+    expect(create).toEqual({
+      path: "/settings",
+      label: "Create your account →",
+    });
+    expect(signIn.label).not.toBe(create.label);
   });
 
   it("sends a pet's gifts to the pets tree, not people", () => {

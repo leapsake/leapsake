@@ -5,6 +5,12 @@
 
 ## Just landed
 
+- **The account invitation — Onboarding Increment 2, both clients** *(2026-08-08)*. Home now
+  carries the create/sign-in **fork**: *sign in* stands from day 1, *create your account* arrives
+  once there is data worth protecting, and the sign-in nudge finally retires for a local-only
+  account instead of pointing at a flow that could not satisfy it. **Unverified on a simulator**
+  (unit + integration tiers only), like Increment 1. Design:
+  [`@leapsake/reminders`](../packages/reminders/README.md).
 - **The account merge, all four increments, both clients** *(2026-08-08)*. A local-only account
   is no longer a one-way street in either direction: it can **merge** into a synced one, or
   **publish itself** to a relay, and a taken username forks to merge-or-rename rather than
@@ -15,15 +21,12 @@
   Every acceptance clause holds on desktop, on one device and across two. **Mobile is unverified**
   — its row logic has a unit tier, but nothing has been observed on a simulator, which belongs to
   the blocked E2E tier ([`v0-1_06`](./v0-1_06_e2e-and-release-gate.md)).
-- **Local custody**, both clients *(2026-07-26 → 07-30)*. Leapsake encrypts once the user holds a
-  secret that opens it, and not before. [`encryption/model.md`](./encryption/model.md) §7.
 
 ## Next
 
-1. **[`v0-1_02_account-invitation.md`](./v0-1_02_account-invitation.md)** — the create/sign-in fork
-   on Home. Gates the mobile pipeline, and therefore the 14-day Play clock.
-2. **[`v0-1_03_store-identity-and-restore.md`](./v0-1_03_store-identity-and-restore.md)** — then
-   04 → 07 in [`v0-1.md`](./v0-1.md)'s order.
+1. **[`v0-1_03_store-identity-and-restore.md`](./v0-1_03_store-identity-and-restore.md)** — real
+   version + bundle IDs and a proven backup answer. The last thing between here and 04, which
+   starts the 14-day Play clock. Then 04 → 07 in [`v0-1.md`](./v0-1.md)'s order.
 
 **Startable today, in parallel with any of the above:**
 

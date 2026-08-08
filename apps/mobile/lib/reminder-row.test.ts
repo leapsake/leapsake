@@ -35,8 +35,8 @@ const giftContext = {
 
 describe("offerFor", () => {
   it("renders a nudge's three offers in order — do it, not now, don't ask again", () => {
-    // `pick-self` is the step with more than one repetition, so at a count of 1
-    // it still offers snooze *and* has earned its dismiss — the full shape.
+    // Every step accepts at least two "not now"s, so at a count of 1 this one
+    // still offers snooze *and* has earned its dismiss — the full shape.
     const actions = actionsFor(idFor("pick-self"), 1);
 
     expect(offersFor(actions)).toEqual([
@@ -57,7 +57,7 @@ describe("offerFor", () => {
     const actions = actionsFor(idFor("connect-sync"), 99);
 
     expect(offersFor(actions)).toEqual([
-      { kind: "navigate", path: "/settings", label: "Get started ›" },
+      { kind: "navigate", path: "/settings", label: "Sign in ›" },
       { kind: "dismiss", label: "Don’t ask again" },
     ]);
   });
@@ -93,7 +93,27 @@ describe("offerFor", () => {
       expect(offer.kind === "navigate" && offer.path.startsWith("/")).toBe(
         true,
       );
+      expect(offer.label).not.toBe("");
     }
+  });
+
+  it("names the two custody routes rather than sharing one generic label", () => {
+    // Both push the same screen, so the label is all that separates them — and a
+    // shared "Get started ›" under a row offering to get a returning user back
+    // into the account they already have reads as *begin something new*.
+    const offer = (route: "connect-sync" | "create-account") =>
+      offerFor({ kind: "cta", cta: { kind: "onboarding", route } });
+
+    expect(offer("connect-sync")).toEqual({
+      kind: "navigate",
+      path: "/settings",
+      label: "Sign in ›",
+    });
+    expect(offer("create-account")).toEqual({
+      kind: "navigate",
+      path: "/settings",
+      label: "Create your account ›",
+    });
   });
 
   it("maps the duplicates row's CTA", () => {

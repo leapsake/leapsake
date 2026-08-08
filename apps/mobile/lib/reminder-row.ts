@@ -8,8 +8,12 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
   // person-only create route any more.
   "add-person": "/add",
   // Settings is a root-stack screen (reached from the Menu tab), not a tab of
-  // its own, so the nudge pushes it like any other detail route.
+  // its own, so the nudge pushes it like any other detail route. Both custody
+  // routes land there today — an accountless Settings renders `CreateAccount`
+  // above `SyncSetup`, so each nudge's target is already on screen — and they
+  // stay two routes so splitting the destination later is a table edit.
   "connect-sync": "/settings",
+  "create-account": "/settings",
   // Pick-yourself deep-links to the People list in its pick mode, where each
   // Person row offers "This is me".
   "pick-self": "/(tabs)/people?pick=self",
@@ -19,10 +23,10 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
  * The copy for everything a row can offer.
  *
  * `›` marks a label that **navigates**, which is this client's own convention
- * (desktop writes `→`, and names each onboarding route where mobile says one
- * generic "Get started"). That is exactly why `snooze` and `dismiss` don't wear
+ * (desktop writes `→`). That is exactly why `snooze` and `dismiss` don't wear
  * one: neither goes anywhere. Their words match desktop's because the words are
- * right, not because they were inherited.
+ * right, not because they were inherited. Which onboarding routes get a named
+ * label and which share the generic one is {@link ONBOARDING_LABEL}'s business.
  *
  * The offered `snooze` carries the date it runs to, so “Not now (ask me in 3
  * days)” is available for free; it isn't spent here, because saying a date in
@@ -30,6 +34,8 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
  */
 const OFFER_LABELS = {
   onboarding: "Get started ›",
+  signIn: "Sign in ›",
+  createAccount: "Create your account ›",
   duplicates: "Review ›",
   seeGifts: "See their gifts ›",
   recordGiving: "Record what you gave ›",
@@ -50,6 +56,25 @@ export type RowOffer =
   | { kind: "snooze"; until: number; label: string }
   | { kind: "dismiss"; label: string };
 
+/**
+ * What each nudge's call to action says. Generic where the row's own title
+ * already names the act ("Add your first person" → *Get started*), and specific
+ * for the two **custody** routes, where it cannot be.
+ *
+ * Those two are one fork — sign in to an account you have, or create one — sat on
+ * Home together, and a shared "Get started" under both is the flattening the fork
+ * exists to prevent: it reads as *begin something new* under a row offering to
+ * get a returning user back into what they already have. Desktop names every
+ * route for the same reason; this is the narrower version of that, spent where a
+ * wrong turn used to cost the most.
+ */
+const ONBOARDING_LABEL: Record<OnboardingRoute, string> = {
+  "add-person": OFFER_LABELS.onboarding,
+  "connect-sync": OFFER_LABELS.signIn,
+  "create-account": OFFER_LABELS.createAccount,
+  "pick-self": OFFER_LABELS.onboarding,
+};
+
 /** A `🎁 gift` reminder's CTA path. The target flips once the reminder is done
  *  (see `reminderCtaOf`, which holds the *why*): from the recipient's own page,
  *  whose Gifts section lists what's suggested for them, to the capture form fixed
@@ -69,7 +94,7 @@ function ctaOffer(cta: ReminderCta): RowOffer {
       return {
         kind: "navigate",
         path: ONBOARDING_PATH[cta.route],
-        label: OFFER_LABELS.onboarding,
+        label: ONBOARDING_LABEL[cta.route],
       };
     case "duplicates":
       return {

@@ -430,6 +430,7 @@ describe("listSystemReminderTargets", () => {
         hasAnyEntity: async () => false,
         isSyncConnected: async () => false,
         hasSelf: async () => false,
+        hasAccount: async () => false,
       },
     };
     await regenerateSystemReminders(deps);

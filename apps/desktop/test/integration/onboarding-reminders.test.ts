@@ -4,8 +4,10 @@ import {
   type SqliteDriver,
   ONBOARDING_REMINDERS,
   createCore,
+  createLocalAccount,
   enableSync,
   ensureDeviceMasterKey,
+  getSyncStatus,
   onboardingRouteOf,
   runMigrations,
 } from "@leapsake/core";
@@ -71,8 +73,8 @@ describe("onboarding reminders (end to end through core)", () => {
     expect(new Set(rows.map((r) => r.id))).toEqual(
       new Set([idFor("connect-sync"), idFor("add-person")]),
     );
-    // Home order (through the real driver + list ordering): sync leads so a
-    // returning user reconnects before re-adding anyone.
+    // Home order (through the real driver + list ordering): sign-in leads so a
+    // returning user gets back into their account before re-adding anyone.
     expect(rows.sort(compareReminderDue).map((r) => r.id)).toEqual([
       idFor("connect-sync"),
       idFor("add-person"),
@@ -113,7 +115,7 @@ describe("onboarding reminders (end to end through core)", () => {
     );
   });
 
-  it("retires 'sync another device' once a relay account is bound", async () => {
+  it("retires the sign-in nudge once a relay account is bound", async () => {
     await core.reminders.regenerateSystem();
     expect((await systemReminders()).map((r) => r.id)).toContain(
       idFor("connect-sync"),
@@ -132,11 +134,115 @@ describe("onboarding reminders (end to end through core)", () => {
     });
 
     const result = await core.reminders.regenerateSystem();
-    // Only the sync nudge retires; the add-person nudge stays (still no entities).
+    // Only the sign-in nudge retires; the add-person nudge stays (still no entities).
     expect(result.removed).toBe(1);
     const live = await systemReminders();
     expect(live.map((r) => r.id)).not.toContain(idFor("connect-sync"));
     expect(live.map((r) => r.id)).toContain(idFor("add-person"));
+  });
+
+  it("retires the sign-in nudge for a local-only account, which binds no relay", async () => {
+    // The collision the account invitation had to resolve: both custody nudges
+    // deep-link to Settings, and this one used to retire on `relayUrl` alone — so
+    // creating an account that never touches a relay left the user being nudged
+    // toward a flow that could no longer satisfy it.
+    await core.reminders.regenerateSystem();
+    expect((await systemReminders()).map((r) => r.id)).toContain(
+      idFor("connect-sync"),
+    );
+
+    const keyStore = createInMemoryKeyStore();
+    await ensureDeviceMasterKey({ keyStore, driver });
+    await createLocalAccount({
+      keyStore,
+      driver,
+      password: "correct horse battery staple",
+      username: "ada",
+      platform: "desktop",
+    });
+
+    // No relay was bound — the account is local-only, and that is still an account.
+    expect((await getSyncStatus({ driver })).relayUrl).toBeUndefined();
+    await core.reminders.regenerateSystem();
+    expect((await systemReminders()).map((r) => r.id)).not.toContain(
+      idFor("connect-sync"),
+    );
+  });
+
+  describe("the account invitation", () => {
+    it("appears only once there is data, and retires the moment an account exists", async () => {
+      // A brand-new profile sees no custody invitation at all.
+      await core.reminders.regenerateSystem();
+      expect((await systemReminders()).map((r) => r.id)).not.toContain(
+        idFor("create-account"),
+      );
+
+      // The first person is the data an account would protect access to — and
+      // creating one reconciles in the same call, so no explicit regenerate here.
+      await core.people.create(
+        {
+          firstName: "Ada",
+          middleName: null,
+          lastName: "Lovelace",
+          gender: null,
+        },
+        [],
+      );
+      const invited = (await systemReminders()).find(
+        (r) => r.id === idFor("create-account"),
+      );
+      expect(invited?.title).toBe(
+        "🔐 Set up your login to protect the data on this device",
+      );
+      expect(invited?.dueDate).toBeNull();
+      expect(onboardingRouteOf(invited!.id)).toBe("create-account");
+
+      // Taking it — locally, no relay — retires it.
+      const keyStore = createInMemoryKeyStore();
+      await ensureDeviceMasterKey({ keyStore, driver });
+      await createLocalAccount({
+        keyStore,
+        driver,
+        password: "correct horse battery staple",
+        username: "ada",
+        platform: "desktop",
+      });
+
+      await core.reminders.regenerateSystem();
+      expect((await systemReminders()).map((r) => r.id)).not.toContain(
+        idFor("create-account"),
+      );
+    });
+
+    it("survives two 'not now's, which would have retired any other step", async () => {
+      // The extra repetition, through the real store and the real write method:
+      // this is the one step that must never be wrongly silenced.
+      await core.people.create(
+        { firstName: "Ada", middleName: null, lastName: "L", gender: null },
+        [],
+      );
+      const id = idFor("create-account");
+      const nudge = async () =>
+        (await systemReminders()).find((r) => r.id === id);
+
+      for (let i = 0; i < 2; i++) {
+        const offered = reminderActionsOf((await nudge())!);
+        const snooze = offered.find((a) => a.kind === "snooze")!;
+        await core.reminders.snooze(id, snooze.until);
+      }
+      await core.reminders.regenerateSystem();
+      expect(await nudge()).toBeDefined();
+
+      // The third spends the budget, and snooze stops being offered with it.
+      const last = reminderActionsOf((await nudge())!);
+      expect(last.find((a) => a.kind === "snooze")).toBeDefined();
+      await core.reminders.snooze(
+        id,
+        last.find((a) => a.kind === "snooze")!.until,
+      );
+      await core.reminders.regenerateSystem();
+      expect(await nudge()).toBeUndefined();
+    });
   });
 
   it("never resurrects a dismissed nudge", async () => {

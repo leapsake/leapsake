@@ -735,16 +735,23 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     today: todayCivil(),
     transaction: (body) => driver.transaction(body),
     // The first-run signals for the onboarding nudges. `hasAnyEntity` gates the
-    // "add your first person" step; a relay-connected account (a `relayUrl` on
-    // the singleton) gates the "sync another device" step; `hasSelf` gates the
-    // "pick yourself" step. All retire (prune) automatically once satisfied —
-    // see `@leapsake/reminders` ONBOARDING_STEPS.
+    // "add your first person" step and (with `hasAccount`) the account
+    // invitation; a relay-connected account (a `relayUrl` on the singleton) gates
+    // the sign-in step; `hasSelf` gates the "pick yourself" step. All retire
+    // (prune) automatically once satisfied — see `@leapsake/reminders`
+    // ONBOARDING_STEPS.
+    //
+    // `isSyncConnected` and `hasAccount` are two reads of the same singleton and
+    // stay separate on purpose: the account exists as soon as one is created, but
+    // `relayUrl` is set only when it is also bound to a relay, and a local-only
+    // account is the case that tells them apart.
     onboarding: {
       hasAnyEntity: async () =>
         (await people.list()).length > 0 || (await pets.list()).length > 0,
       isSyncConnected: async () =>
         (await getSyncStatus({ driver })).relayUrl !== undefined,
       hasSelf: async () => (await self.getSelf()) !== undefined,
+      hasAccount: async () => (await getSyncStatus({ driver })).hasAccount,
     },
     // Holiday observances — the second dated reminder family. Always supplied
     // here, never conditionally: the engine prunes (and permanently
