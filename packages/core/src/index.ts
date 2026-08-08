@@ -159,6 +159,7 @@ export type {
 export {
   ensureDeviceMasterKey,
   createLocalAccount,
+  bindRelayToAccount,
   sealPasswordDoor,
   enableSync,
   joinAccount,
@@ -201,6 +202,7 @@ export {
   recoverAccountViaRelay,
   reauthenticateViaRelay,
   isRelayAuthError,
+  isUsernameTakenError,
   runAccountSync,
   rotateRecoveryPhraseForAccount,
   flushPendingRecoveryEscrow,

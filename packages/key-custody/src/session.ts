@@ -377,8 +377,14 @@ export interface AccountBootstrap {
   recoveryVerifier: Uint8Array;
 }
 
-/** Normalize a username to its canonical form (matches the relay's normalization). */
-function normalizeUsername(username: string): string {
+/**
+ * Normalize a username to its canonical form (matches the relay's normalization).
+ *
+ * Package-internal rather than private: {@link bindRelayToAccount} claims a handle
+ * on the relay from a *different* file, and a second copy of this rule is how the
+ * client and the relay end up disagreeing about which names collide.
+ */
+export function normalizeUsername(username: string): string {
   return username.trim().toLowerCase();
 }
 

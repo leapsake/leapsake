@@ -253,11 +253,21 @@ function AccountEnabled({
             nothing here needs syncing.
           </Text>
           {/*
-            The way *out* of a local-only account, and the reason it is not a
-            trap (plans/v0-1_01_account-merge.md). Until this existed, a user who
-            picked "create an account" on this phone and already had one
-            elsewhere had no path from here to there that kept their data.
+            The two ways out of a local-only account, and between them the reason
+            it is not a trap (plans/v0-1_01_account-merge.md).
+
+            They are siblings rather than one flow because they answer opposite
+            questions — *publish the account that is already here* versus *move
+            this data into one that exists elsewhere* — and a user knows which of
+            those they want before they know any of the mechanics. The 409 fork
+            inside `StartSyncing` is what carries the person who guessed wrong
+            across to the other one.
           */}
+          <StartSyncing
+            username={status.username}
+            onBound={() => onMerged(0)}
+            onMerged={onMerged}
+          />
           <MergeSetup username={status.username} onMerged={onMerged} />
         </>
       ) : degraded !== null ? (
@@ -888,6 +898,184 @@ function LoginStep({
           </Text>
         </Pressable>
       )}
+    </View>
+  );
+}
+
+/**
+ * **Start syncing an account that already exists on this device** — binding a
+ * relay to a local-only account (`model.md` §7.2,
+ * `plans/v0-1_01_account-merge.md` Increment 4), and the mobile mirror of
+ * desktop's `StartSyncing`.
+ *
+ * No password field, and that is not an omission: binding publishes the
+ * `wrap(MK, KEK)` the account already holds, so there is nothing to re-derive.
+ * Asking for a password here would imply something is being re-established, and
+ * nothing is — the same phrase and the same password keep working.
+ *
+ * ### The collision is the whole reason this is not a one-shot form
+ *
+ * The username was chosen with no relay in sight, so it may already belong to
+ * someone. That `409` hides **two readings that want opposite outcomes**, and
+ * only the user can tell them apart:
+ *
+ * - *"That is my own account, from my other device"* → merge into it, keeping
+ *   this phone's data ({@link LoginStep} in its `merge` variant, reached without
+ *   a second lookup — a 409 already proves the account is there).
+ * - *"That is a stranger"* → pick another handle and bind again. There is no
+ *   rename primitive because nothing was ever published; the retry *is* the
+ *   rename.
+ *
+ * Guessing on the user's behalf is the one thing this must not do. Joining a
+ * stranger's account would hand them your data, and refusing outright would
+ * strand the person whose own account it is.
+ */
+function StartSyncing({
+  username: localUsername,
+  onBound,
+  onMerged,
+}: {
+  /** This account's local username — the handle it will try to claim. */
+  username: string | undefined;
+  onBound: () => void;
+  onMerged: (duplicateCount: number) => void;
+}) {
+  const sync = useSync();
+  const [open, setOpen] = useState(false);
+  const [username, setUsername] = useState(localUsername ?? "");
+  const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_URL);
+  // The handle the relay refused, which is what raises the fork below. Null
+  // whenever there is no unresolved collision on screen.
+  const [taken, setTaken] = useState<string | null>(null);
+  // Set once the user says the taken handle is their own account: hands off to
+  // the merge, which needs no lookup — the 409 was the existence proof.
+  const [merging, setMerging] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (merging) {
+    return (
+      <LoginStep
+        username={taken ?? username}
+        relayUrl={relayUrl}
+        merge
+        onBack={() => setMerging(false)}
+        onJoined={onMerged}
+      />
+    );
+  }
+
+  if (!open) {
+    return (
+      <Pressable onPress={() => setOpen(true)}>
+        <Text style={styles.link}>
+          Start syncing this account to your other devices
+        </Text>
+      </Pressable>
+    );
+  }
+
+  async function onSubmit() {
+    setError(null);
+    if (username.trim() === "" || relayUrl.trim() === "") {
+      setError("Username and relay URL are required.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await sync.bindRelay({ username, relayUrl });
+      if (result.status === "username-taken") setTaken(result.username);
+      else onBound();
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Couldn't reach the relay.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (taken !== null) {
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>
+          “{taken}” is already taken on {relayUrl}
+        </Text>
+        <Text style={styles.muted}>
+          Someone already syncs under that name. If that someone is you — an
+          account you set up on another device — you can log in to it and bring
+          this phone's data along. Otherwise pick a different name for this
+          account.
+        </Text>
+        <Pressable style={styles.button} onPress={() => setMerging(true)}>
+          <Text style={styles.buttonText}>
+            That's my account — log in and bring this data with me
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.button, { backgroundColor: colors.border }]}
+          onPress={() => {
+            setTaken(null);
+            setError(null);
+          }}
+        >
+          <Text style={styles.buttonText}>
+            Someone else has it — pick a different name
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Start syncing this account</Text>
+      <Text style={styles.muted}>
+        Your account and everything in it stays exactly as it is — the same
+        password opens it, and the recovery phrase you saved still works. This
+        only publishes it to a relay so your other devices can log in.
+      </Text>
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Username</Text>
+        <TextInput
+          style={styles.input}
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+          autoComplete="username"
+        />
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Relay URL</Text>
+        <TextInput
+          style={styles.input}
+          value={relayUrl}
+          onChangeText={setRelayUrl}
+          autoCapitalize="none"
+          keyboardType="url"
+        />
+      </View>
+      {error !== null && (
+        <Text style={styles.danger} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
+      <Pressable
+        style={styles.button}
+        disabled={busy}
+        onPress={() => void onSubmit()}
+      >
+        <Text style={styles.buttonText}>
+          {busy ? "Starting…" : "Start syncing"}
+        </Text>
+      </Pressable>
+      <Pressable
+        style={[styles.button, { backgroundColor: colors.border }]}
+        disabled={busy}
+        onPress={() => setOpen(false)}
+      >
+        <Text style={styles.buttonText}>Cancel</Text>
+      </Pressable>
     </View>
   );
 }

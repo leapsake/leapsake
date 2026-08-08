@@ -613,6 +613,28 @@ export function isRelayAuthError(error: unknown): boolean {
   return message.includes("401");
 }
 
+/**
+ * Whether a registration failure is the relay refusing a **username that already
+ * belongs to another account** (a 409) — the same substring seam
+ * {@link isRelayAuthError} uses, for the same reason.
+ *
+ * It gets its own predicate because a 409 is **not an error the user can only be
+ * told about**: it hides two readings that want opposite outcomes — *"that is my
+ * own account from my other device"* (→ merge into it) and *"that is a stranger,
+ * I need a different handle"* (→ bind again under another name). Clients fork on
+ * it rather than reporting it, so it must survive the trip from the transport to
+ * the UI without being flattened into prose (`plans/v0-1_01_account-merge.md`,
+ * Increment 4).
+ *
+ * ⚠️ **Check this before wrapping.** `relayErrorMessage`-style prose loses the
+ * status code, so a call site that friendlies the message first can never fork
+ * afterwards.
+ */
+export function isUsernameTakenError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("409");
+}
+
 export interface JoinReconcileResult {
   /**
    * How many possible duplicates the join surfaced between this device's

@@ -30,6 +30,7 @@ import {
   type RecoveryDoorWriter,
   type SyncScheduler,
   type SyncStatus,
+  bindRelayToAccount,
   clearLocalAccount,
   convergeRecoveryKey,
   createCore,
@@ -40,6 +41,7 @@ import {
   getAutoSync,
   getSyncStatus,
   isRelayAuthError,
+  isUsernameTakenError,
   joinAccountViaRelay,
   KEYSTORE_SECRET_IDS,
   lockThisDevice,
@@ -187,6 +189,30 @@ export interface SyncApi {
     password: string;
     relayUrl: string;
   }): Promise<{ duplicateCount: number }>;
+  /**
+   * **Start syncing an account that already exists on this device** — bind a
+   * relay to a local-only account (`model.md` §7.2). It publishes what the store
+   * already holds: no password is asked for, no key is minted, no store is
+   * converted, and the recovery phrase the user wrote down still opens the
+   * account.
+   *
+   * The sibling of {@link SyncApi.merge}, and the other half of the local-only
+   * branch: merge moves this data **into** an account that exists elsewhere,
+   * this publishes the account that is **already here**.
+   *
+   * ⚠️ **`username-taken` resolves, it does not reject.** A taken handle is a
+   * fork rather than a failure — it may be the user's own account on another
+   * device (→ {@link SyncApi.merge}) or a stranger's (→ call this again with a
+   * different name) — and only the user can say which. Every other failure still
+   * rejects.
+   */
+  bindRelay(args: {
+    username: string;
+    relayUrl: string;
+  }): Promise<
+    | { status: "bound"; accountId: string; username: string }
+    | { status: "username-taken"; username: string }
+  >;
   /**
    * Recover an existing account on this device from the recovery phrase (forgot
    * password, `model.md` §6): unwrap MK from the relay's recovery escrow, set a
@@ -1140,6 +1166,46 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // app on the merged one and starts its sync.
           setResetVersion((v) => v + 1);
           return { duplicateCount };
+        },
+        /**
+         * **Bind a relay to this device's local-only account.** Unlike every
+         * other flow on this surface it touches no file: the store keeps its
+         * name, its key and its doors, so there is no conversion, no roster
+         * write and no bootstrap re-run. Two columns change.
+         *
+         * The 409 is passed through raw rather than friendlied, because
+         * `relayErrorMessage` would flatten the status into prose and the fork
+         * below could never see it.
+         */
+        async bindRelay({ username, relayUrl }) {
+          try {
+            const bound = await bindRelayToAccount({
+              keyStore,
+              driver,
+              username,
+              relayUrl,
+              registerWithRelay: async (bootstrap) => {
+                try {
+                  await registerAccountWithRelay({ relayUrl, bootstrap });
+                } catch (cause) {
+                  if (isUsernameTakenError(cause)) throw cause;
+                  throw new Error(relayErrorMessage(cause, relayUrl), {
+                    cause,
+                  });
+                }
+              },
+            });
+            // Bound, so this account now syncs — start it without waiting. The
+            // scheduler re-reads `getSyncStatus` on every run, so the binding is
+            // picked up with no restart.
+            void scheduler.current?.autoTrigger();
+            return { status: "bound" as const, ...bound };
+          } catch (cause) {
+            if (isUsernameTakenError(cause)) {
+              return { status: "username-taken" as const, username };
+            }
+            throw cause;
+          }
         },
         async recover({ username, recoveryPhrase, newPassword, relayUrl }) {
           if (newPassword.length < MIN_PASSWORD_LENGTH) {

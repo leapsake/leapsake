@@ -61,6 +61,22 @@ export interface AccountRepo {
     kdfSalt: Uint8Array;
     authVerifier: Uint8Array;
   }): Promise<void>;
+  /**
+   * Record the relay this account syncs through, and the handle it is known by
+   * there — the local half of **binding a relay to an account that already
+   * exists** (`bindRelayToAccount`, `model.md` §7.2).
+   *
+   * Separate from {@link create} because binding is not creation: an account
+   * created locally already holds every key and verifier a relay needs (that is
+   * why `enableSync` mints the auth verifier with no relay in sight), so
+   * *"start syncing later"* adds two columns rather than a new ritual. Nothing
+   * about the keys changes, which is what makes this a plain `UPDATE`.
+   *
+   * Separate from {@link updateCredentials} because that one answers a password
+   * reset performed elsewhere. These two never want to run together: one changes
+   * who you are to the relay, the other how you prove it.
+   */
+  bindRelay(input: { username: string; relayUrl: string }): Promise<void>;
   /** The single active account for this local store, or undefined before sync. */
   getSingleton(): Promise<Account | undefined>;
   /**
@@ -130,6 +146,15 @@ export function createAccountRepo(driver: SqliteDriver): AccountRepo {
             SET kdf_salt = ?, auth_verifier = ?, updated_at = ?
           WHERE deleted_at IS NULL`,
         [kdfSalt, authVerifier, Date.now()],
+      );
+    },
+
+    async bindRelay({ username, relayUrl }) {
+      await driver.run(
+        `UPDATE account
+            SET username = ?, relay_url = ?, updated_at = ?
+          WHERE deleted_at IS NULL`,
+        [username, relayUrl, Date.now()],
       );
     },
 

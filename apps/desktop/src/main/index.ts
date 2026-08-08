@@ -13,6 +13,7 @@ import {
   type KeySession,
   type SqliteDriver,
   type SyncScheduler,
+  bindRelayToAccount,
   createCore,
   createSyncScheduler,
   establishKeySession,
@@ -21,6 +22,7 @@ import {
   getAutoSync,
   getSyncStatus,
   isRelayAuthError,
+  isUsernameTakenError,
   joinAccountViaRelay,
   lockThisDevice,
   lookupAccount,
@@ -798,6 +800,58 @@ function registerSyncIpc(): void {
       const duplicateCount = await reconcileAfterAdopt();
       void scheduler?.autoTrigger();
       return { duplicateCount };
+    },
+  );
+
+  // **Start syncing an account that already exists here** — bind a relay to a
+  // local-only account (model.md §7.2, plans/v0-1_01_account-merge.md Increment
+  // 4). Publishes what the store already holds; no keys are minted, no store is
+  // converted, and the recovery phrase the user wrote down still works.
+  //
+  // **A taken username is a return value, not a throw.** It is the one outcome
+  // here that hides two readings the user must choose between — *"that is my own
+  // account"* (→ `sync:merge`) and *"that is a stranger"* (→ bind again under
+  // another handle) — so the renderer forks on it. Every other failure is still
+  // an error, because none of them is a question.
+  ipcMain.handle(
+    "sync:bindRelay",
+    async (
+      _event,
+      args: { username?: unknown; relayUrl?: unknown },
+    ): Promise<
+      | { status: "bound"; accountId: string; username: string }
+      | { status: "username-taken"; username: string }
+    > => {
+      const username = requireText(args?.username, "Username");
+      const relayUrl = requireText(args?.relayUrl, "Relay URL");
+      // No password: binding publishes the `wrap(MK, KEK)` row the account
+      // already holds, so it never re-derives a KEK (see `bindRelayToAccount`).
+      try {
+        const bound = await bindRelayToAccount({
+          keyStore,
+          driver,
+          username,
+          relayUrl,
+          registerWithRelay: async (bootstrap) => {
+            try {
+              await registerAccountWithRelay({ relayUrl, bootstrap });
+            } catch (cause) {
+              // Pass a 409 through unwrapped: `relayErrorMessage` would flatten
+              // the status into prose, and the fork below could never see it.
+              if (isUsernameTakenError(cause)) throw cause;
+              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+            }
+          },
+        });
+        // Bound, so this account now syncs — start it without waiting.
+        void scheduler?.autoTrigger();
+        return { status: "bound", ...bound };
+      } catch (cause) {
+        if (isUsernameTakenError(cause)) {
+          return { status: "username-taken", username };
+        }
+        throw cause;
+      }
     },
   );
 

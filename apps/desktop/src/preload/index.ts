@@ -73,6 +73,29 @@ const sync = {
   }): Promise<{ duplicateCount: number }> =>
     ipcRenderer.invoke("sync:merge", args),
   /**
+   * **Start syncing an account that already exists on this computer** — bind a
+   * relay to a local-only account (`model.md` §7.2). It publishes what the store
+   * already holds: no password is asked for, no key is minted, no store is
+   * converted, and the recovery phrase the user wrote down still opens the
+   * account.
+   *
+   * The sibling of {@link merge}, and the other half of the local-only branch:
+   * merge moves this data **into** an account that exists elsewhere, this
+   * publishes the account that is **already here**.
+   *
+   * ⚠️ **`username-taken` resolves, it does not reject.** A taken handle is a
+   * fork rather than a failure — it may be the user's own account on another
+   * device (→ {@link merge}) or a stranger's (→ call this again with a different
+   * name) — and only the user can say which. Every other failure still rejects.
+   */
+  bindRelay: (args: {
+    username: string;
+    relayUrl: string;
+  }): Promise<
+    | { status: "bound"; accountId: string; username: string }
+    | { status: "username-taken"; username: string }
+  > => ipcRenderer.invoke("sync:bindRelay", args),
+  /**
    * Create an account on this device (model.md §7.2.1) — the act that turns
    * encryption on. Fully local. Resolves with the 24-word recovery phrase for its
    * one-time reveal, by which point the main process has already re-opened the

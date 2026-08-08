@@ -42,6 +42,7 @@
  * which a real `HttpSyncTransport` satisfies structurally. So custody never
  * imports `@leapsake/sync`, and the two stay independently testable.
  */
+export { bindRelayToAccount } from "./bind-relay.js";
 export { establishKeySession, resyncAfterMasterKeyRepair } from "./boot.js";
 export type { BootKeySession } from "./boot.js";
 export { createLocalAccount } from "./create-account.js";

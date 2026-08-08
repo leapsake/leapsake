@@ -36,6 +36,7 @@ and the Play 14-day clock out by the length of this doc — accepted knowingly.
 | Encrypted → encrypted copy | desktop `main/db/convert-store.ts` `rekeyStore` | **Done** *(Increment 1, 2026-08-08)*: the encrypted-source door onto the same ATTACH machinery, guards and crash ordering shared with the plaintext one. Tests in `apps/desktop/test/convert-store.test.ts` |
 | The desktop merge flow | `main/db/merge-account-flow.ts`, `sync:merge` in `main/index.ts`, `MergeSetup` + `LoginStep merge` in `renderer/src/screens/Settings.tsx` | **Done** *(Increment 2, 2026-08-08)*: copy-first ordering, `roster.replace` as the single point of no return. Eleven cases in `apps/desktop/test/integration/account-merge.test.ts` |
 | The mobile merge flow | `lib/merge-account.ts`, `SyncApi.merge` in `lib/core-context.tsx`, `MergeSetup` + `LoginStep merge` in `app/settings.tsx` | **Done** *(Increment 3, 2026-08-08)*: the same ordering and guards over mobile's storage verbs, plus `rekeyStore` and `clearUnclaimedDestination` in `db/convert-store.ts`. Six cases in the custody self-test |
+| Relay binding + the collision fork | `packages/key-custody/src/bind-relay.ts`, `isUsernameTakenError` in `packages/core/src/sync.ts`, `sync:bindRelay` / `SyncApi.bindRelay`, `StartSyncing` on both clients | **Done** *(Increment 4, 2026-08-08)*: a local-only account can publish itself to a relay, and a taken username forks to merge-or-rename instead of dead-ending. Ten cases in `apps/desktop/test/integration/bind-relay.test.ts` |
 
 **The hard part — merging people without losing or silently fusing them — already exists.** What
 is missing is custody plumbing, and it is bounded.
@@ -146,22 +147,42 @@ observable at all.
 **Still to do, as on desktop: verify by hand against a real relay.** The stub proves the ordering;
 it does not prove that `joinAccountViaRelay` behaves on a copy's driver the way this assumes.
 
-### Increment 4 — the username collision
+### ~~Increment 4 — the username collision~~ — **done 2026-08-08**
 
 A locally-chosen username may already exist on the relay, which answers `409`. **Two cases hide
 behind that one error** and want opposite UX:
 
-| The user means | The answer |
-|---|---|
-| *"This is me — I made a second account by accident"* | join it and review the duplicates. Increments 1–3 are what make this possible; `reconcileOnJoin` is the review half |
-| *"Different person, I just need a different handle"* | rename. The easy half, and it must ship with relay binding |
+| The user means | The answer | Built as |
+|---|---|---|
+| *"This is me — I made a second account by accident"* | join it and review the duplicates | the `merge` of Increments 1–3, reached straight from the fork — a `409` already proves the account exists, so there is no second lookup |
+| *"Different person, I just need a different handle"* | rename | calling `bindRelayToAccount` again under another name. **There is no rename primitive**, because nothing was ever published: the retry *is* the rename |
 
-The invariant settles the first reading — it must exist, and *"join it and review the
-duplicates"* is its shape. **Only the rename half is genuinely open**, and it is the last thing
-here rather than the first because a `409` a user cannot act on is worse than one they never
-reach.
+⚠️ **The collision was not reachable, and making it reachable was most of this increment**
+*(owner, 2026-08-08)*. `enableSync` refuses a store that already holds an account and both
+clients' creation flows require a *plaintext* store, so a local-only account's only route to a
+relay was `joinAccount` — somebody else's account, never your own. `model.md` §7.2's *"start
+syncing later adds a relay binding rather than a new ritual"* was therefore aspiration.
+`bindRelayToAccount` (`packages/key-custody/src/bind-relay.ts`) is that binding, and the `409` is
+the first thing it can hit.
 
-**Done when** both readings are reachable from the collision, on both clients.
+**It mints nothing.** Every field the relay needs already exists — `enableSync` writes the KDF
+salt, the auth verifier and both master-key wrappings *"even though no relay exists, so that
+binding one later adds no new ritual"*, and this is the cash-in on that decision. Consequences
+worth keeping: binding asks for **no password** (it publishes the stored `wrap(MK, KEK)` rather
+than re-deriving a KEK), and the user's existing recovery phrase keeps working.
+
+⚠️ **Publish before persisting, and let the 409 through raw.** The relay call comes first, so a
+refused username leaves a working local-only account with nothing to roll back; the local
+`bindRelay` write is the last line. And `isUsernameTakenError` must be checked *before*
+`relayErrorMessage` wraps anything — friendly prose loses the status code, and a client that
+flattens it first can never fork on it. `sync:bindRelay` therefore **returns** `username-taken`
+rather than throwing: it is a question, not a failure.
+
+The reverse crash gap needs no code: the relay is idempotent on the account id (`"exists"`), so a
+retry after a successful register that failed to persist locally converges.
+
+**Still to do, as with the merge: verify by hand against a real relay.** Ten cases in
+`apps/desktop/test/integration/bind-relay.test.ts` cover the primitive with a stubbed relay.
 
 ## Open questions
 
