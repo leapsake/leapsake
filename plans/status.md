@@ -16,19 +16,18 @@
 
 ## In progress
 
-**[`01 — account merge`](./v0-1_01_account-merge.md), Increments 1–2 landed** *(2026-08-08)*. A
-desktop device holding a local-only account can sign in to a synced one and bring its data:
-`rekeyStore`, then `mergeAccountOnThisDevice` behind `sync:merge` and a Settings entry point. The
-finding for Increment 3: the relay half runs against a **copy**, because `joinAccount` needs the
-local account row gone and clearing it on the live store would destroy the user's account whenever
-the login *failed*. **Still to do: verify by hand against a real relay** — duplicate review has no
-automated tier. Next: Increment 3, mobile parity.
+**[`01 — account merge`](./v0-1_01_account-merge.md), Increments 1–3 landed** *(2026-08-08)*. A
+device holding a local-only account can sign in to a synced one and bring its data — **both
+clients now**: `rekeyStore`, then `mergeAccountOnThisDevice` behind a Settings entry point. The
+relay half runs against a **copy**, because joining needs the local account row gone and clearing
+it on the live store would destroy the user's account whenever the login *failed*. **Still to do:
+verify by hand against a real relay, on both clients** — that failure path has no automated tier
+above a stub. Next: Increment 4, the username collision.
 
 ## Next
 
-1. **[`01 — account merge`](./v0-1_01_account-merge.md)** — Increments 3–4: mobile parity, the
-   username collision. Closes a one-way trap before
-   [`02`](./v0-1_02_account-invitation.md) advertises it.
+1. **[`01 — account merge`](./v0-1_01_account-merge.md)** — Increment 4: the username collision.
+   Closes a one-way trap before [`02`](./v0-1_02_account-invitation.md) advertises it.
 2. **[`v0-1_02_account-invitation.md`](./v0-1_02_account-invitation.md)** — the create/sign-in fork
    on Home. Gates the mobile pipeline, and therefore the 14-day Play clock.
 3. **[`v0-1_03_store-identity-and-restore.md`](./v0-1_03_store-identity-and-restore.md)** — then

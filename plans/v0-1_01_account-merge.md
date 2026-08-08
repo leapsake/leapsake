@@ -35,6 +35,7 @@ and the Play 14-day clock out by the length of this doc — accepted knowingly.
 | Crash ordering | the converter's doc-comment table | **Done**: convert → roster → destroy, with both overwrite guards enforced |
 | Encrypted → encrypted copy | desktop `main/db/convert-store.ts` `rekeyStore` | **Done** *(Increment 1, 2026-08-08)*: the encrypted-source door onto the same ATTACH machinery, guards and crash ordering shared with the plaintext one. Tests in `apps/desktop/test/convert-store.test.ts` |
 | The desktop merge flow | `main/db/merge-account-flow.ts`, `sync:merge` in `main/index.ts`, `MergeSetup` + `LoginStep merge` in `renderer/src/screens/Settings.tsx` | **Done** *(Increment 2, 2026-08-08)*: copy-first ordering, `roster.replace` as the single point of no return. Eleven cases in `apps/desktop/test/integration/account-merge.test.ts` |
+| The mobile merge flow | `lib/merge-account.ts`, `SyncApi.merge` in `lib/core-context.tsx`, `MergeSetup` + `LoginStep merge` in `app/settings.tsx` | **Done** *(Increment 3, 2026-08-08)*: the same ordering and guards over mobile's storage verbs, plus `rekeyStore` and `clearUnclaimedDestination` in `db/convert-store.ts`. Six cases in the custody self-test |
 
 **The hard part — merging people without losing or silently fusing them — already exists.** What
 is missing is custody plumbing, and it is bounded.
@@ -114,23 +115,36 @@ Two pieces landed outside the flow and are reused by Increment 3: `AccountRoster
 window in which the device boots the *old* account while a roster entry claims the destination —
 and `destroyStoreFiles`, the custody-blind rename of `destroyPlaintextStore` on both clients.
 
-### Increment 3 — mobile parity
+### ~~Increment 3 — mobile parity~~ — **done 2026-08-08**
 
-Mobile keeps its own converter (`apps/mobile/db/convert-store.ts`) by design, so Increments 1–2
-are two implementations, not one. The mobile half also has no user-reachable filesystem, so the
-"original survives" step is verified through `storeState` rather than a file-header read — the
-same asymmetry the existing converters already document.
+`mergeAccountOnThisDevice` in `apps/mobile/lib/merge-account.ts`, reached from the local-only
+branch of `app/settings.tsx` through `SyncApi.merge`. Same order as desktop, same guards, same
+`catch`; the storage verbs differ, because a store is a *name* here and doors are rows. The
+re-key door (`rekeyStore`) and the pre-copy sweep (`clearUnclaimedDestination`) landed in
+`db/convert-store.ts`, which now has the same two-doors-onto-one-body shape desktop's file has.
 
-**Start from the desktop flow's doc-comment, not from `core-context.tsx`'s join path.** Three
-things are settled and must not be re-litigated: the relay half runs against a **copy** (adopt's
-ordering is wrong here, and wrong only on failure, which is how it would survive a happy-path
-demo); the `RECOVERY_KEY` restore in the `catch` is load-bearing, not defensive tidying; and the
-roster swap is one `replace` call. Two of those three are already shared code —
-`AccountRoster.replace` and `destroyStoreFiles` — so what mobile still owns is the re-key itself
-and the flow's ordering.
+Three findings are worth carrying forward:
 
-**Done when** the Increment 2 acceptance holds on a device, exercised through the custody
-self-test (`leapsake://dev-selftest`) the way the plaintext conversion already is.
+⚠️ **Mobile's "re-open" is not awaitable, so the post-swap reconcile is the caller's own open.**
+Desktop's `withStoreSwap` re-opens the store and then runs `reconcileAfterAdopt` on it; mobile's
+equivalent is a `setResetVersion` bump, which React schedules and no caller can await. So
+`SyncApi.merge` opens the merged store once itself (`openStoreUnderKey`), reconciles, closes it,
+and only then bumps. The alternative — reconciling against the copy before the swap — was
+rejected: it puts a network pull inside the window before the point of no return, and
+`reconcileOnJoin`'s own contract is that it runs after.
+
+⚠️ **The `closed` flag is mobile's `storeSwapping`, and it is not tidying.** A guard that refuses
+before anything moves leaves a live driver and a running scheduler; re-running the bootstrap over
+that would tear the user's screen down to report a validation error. Only a failure past
+`closeStore` re-boots.
+
+**The self-test is mobile's integration tier for this**, since expo-sqlite has no Node build. The
+relay half is already an injected callback, so the two flow cases drive the real function with a
+stub in that seat — including the failing one, which is the only place the copy-first ordering is
+observable at all.
+
+**Still to do, as on desktop: verify by hand against a real relay.** The stub proves the ordering;
+it does not prove that `joinAccountViaRelay` behaves on a copy's driver the way this assumes.
 
 ### Increment 4 — the username collision
 

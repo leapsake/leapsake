@@ -103,6 +103,7 @@ export default function SettingsScreen() {
             status={status}
             reviewCount={reviewCount}
             onReviewed={() => setReviewCount(0)}
+            onMerged={onJoined}
           />
         ) : (
           <>
@@ -142,10 +143,13 @@ function AccountEnabled({
   status,
   reviewCount,
   onReviewed,
+  onMerged,
 }: {
   status: SyncStatus;
   reviewCount: number;
   onReviewed: () => void;
+  /** A merge landed: same shape as a join, because it ends in the same place. */
+  onMerged: (duplicateCount: number) => void;
 }) {
   const sync = useSync();
   // Whether this device is *Degraded* — it holds the account but cannot prove the
@@ -243,10 +247,19 @@ function AccountEnabled({
         them would have ended in "Sync is not enabled for this store."
       */}
       {status.relayUrl === undefined ? (
-        <Text style={styles.muted}>
-          This account is on this device only. Nothing is sent anywhere, so
-          nothing here needs syncing.
-        </Text>
+        <>
+          <Text style={styles.muted}>
+            This account is on this device only. Nothing is sent anywhere, so
+            nothing here needs syncing.
+          </Text>
+          {/*
+            The way *out* of a local-only account, and the reason it is not a
+            trap (plans/v0-1_01_account-merge.md). Until this existed, a user who
+            picked "create an account" on this phone and already had one
+            elsewhere had no path from here to there that kept their data.
+          */}
+          <MergeSetup username={status.username} onMerged={onMerged} />
+        </>
       ) : degraded !== null ? (
         /*
           Degraded (custody slice 10): hidden for the same reason as on a relay-less
@@ -706,11 +719,14 @@ function SignupStep({
 function LoginStep({
   username,
   relayUrl,
+  merge = false,
   onBack,
   onJoined,
 }: {
   username: string;
   relayUrl: string;
+  /** Merge this device's local-only account in, rather than join from scratch. */
+  merge?: boolean;
   onBack: () => void;
   onJoined: (duplicateCount: number) => void;
 }) {
@@ -754,7 +770,7 @@ function LoginStep({
     setError(null);
     setWorking(true);
     try {
-      const { duplicateCount } = await sync.join({
+      const { duplicateCount } = await (merge ? sync.merge : sync.join)({
         username,
         password,
         relayUrl,
@@ -782,6 +798,23 @@ function LoginStep({
         ) : (
           <Text style={styles.muted}>
             Log in to “{username}” on {relayUrl} and sync this device.
+          </Text>
+        )}
+        {/*
+          The merge's one genuinely non-mechanical part. After it lands the store
+          opens under the *account's* password, and joining replaces this device's
+          recovery key with the account's — so both doors this phone has today
+          stop working. Unlike a fresh join, the user is giving up credentials
+          that currently work, so it has to be said before, not discovered after.
+          A warning and not a hoop: no re-typing, no phrase re-entry, because the
+          people most likely to be here are the least likely to get through one.
+        */}
+        {merge && (
+          <Text style={styles.muted}>
+            This phone's password will stop working. From now on it opens with “
+            {username}”'s password, and “{username}”'s recovery phrase replaces
+            the one this phone has now. Make sure you have them before you
+            continue. This cannot be undone.
           </Text>
         )}
         <Pressable
@@ -841,10 +874,155 @@ function LoginStep({
       >
         <Text style={styles.buttonText}>Back</Text>
       </Pressable>
-      <Pressable onPress={() => setRecovering(true)}>
+      {/*
+        Not offered on the merge route. Recovery carries the same "this device is
+        already part of an account" refusal that made the merge flow necessary in
+        the first place, so there is no merge-by-phrase path built (owner,
+        2026-08-08: password-only for this increment). A button that can only
+        throw is worse than one that isn't there.
+      */}
+      {!merge && (
+        <Pressable onPress={() => setRecovering(true)}>
+          <Text style={styles.link}>
+            Forgot your password? Recover with your recovery phrase
+          </Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+/**
+ * **Merging a local-only account into a synced one** — {@link SyncSetup}'s
+ * counterpart for a device that already *has* an account
+ * (`plans/v0-1_01_account-merge.md`), and the mobile mirror of desktop's
+ * `MergeSetup`.
+ *
+ * A sibling rather than a branch of `SyncSetup`, because one thing it must never
+ * do is offer to create a *second* account: this device already has one, and
+ * making another is precisely the mistake this flow exists to undo. A username
+ * the relay does not know is therefore a dead end here, not a sign-up.
+ *
+ * It lives inside {@link AccountEnabled}, so it unmounts on its own once the
+ * merge lands and the account gains a relay.
+ */
+function MergeSetup({
+  username: localUsername,
+  onMerged,
+}: {
+  /** This device's current (local-only) username, shown to keep the two apart. */
+  username: string | undefined;
+  onMerged: (duplicateCount: number) => void;
+}) {
+  const sync = useSync();
+  const [open, setOpen] = useState(false);
+  const [username, setUsername] = useState("");
+  const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_URL);
+  const [resolved, setResolved] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!open) {
+    return (
+      <Pressable onPress={() => setOpen(true)}>
         <Text style={styles.link}>
-          Forgot your password? Recover with your recovery phrase
+          Already have an account on another device? Log in and bring this data
+          with you
         </Text>
+      </Pressable>
+    );
+  }
+
+  if (resolved) {
+    return (
+      <LoginStep
+        username={username}
+        relayUrl={relayUrl}
+        merge
+        onBack={() => {
+          setResolved(false);
+          setError(null);
+        }}
+        onJoined={onMerged}
+      />
+    );
+  }
+
+  async function onContinue() {
+    setError(null);
+    if (username.trim() === "" || relayUrl.trim() === "") {
+      setError("Username and relay URL are required.");
+      return;
+    }
+    setChecking(true);
+    try {
+      if (await sync.lookup(username, relayUrl)) setResolved(true);
+      else {
+        setError(
+          `No account called “${username}” on ${relayUrl}. This phone already ` +
+            "has an account, so there is nothing to create here — check the " +
+            "username you used on your other device.",
+        );
+      }
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Couldn't reach the relay.",
+      );
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>
+        Log in to an account you already have
+      </Text>
+      <Text style={styles.muted}>
+        Everything on this phone moves into that account and keeps syncing from
+        there.
+        {localUsername !== undefined &&
+          ` The local account ${localUsername} is retired in the process.`}
+      </Text>
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Username</Text>
+        <TextInput
+          style={styles.input}
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
+          autoComplete="username"
+        />
+      </View>
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Relay URL</Text>
+        <TextInput
+          style={styles.input}
+          value={relayUrl}
+          onChangeText={setRelayUrl}
+          autoCapitalize="none"
+          keyboardType="url"
+        />
+      </View>
+      {error !== null && (
+        <Text style={styles.danger} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
+      <Pressable
+        style={styles.button}
+        disabled={checking}
+        onPress={() => void onContinue()}
+      >
+        <Text style={styles.buttonText}>
+          {checking ? "Checking…" : "Continue"}
+        </Text>
+      </Pressable>
+      <Pressable
+        style={[styles.button, { backgroundColor: colors.border }]}
+        onPress={() => setOpen(false)}
+      >
+        <Text style={styles.buttonText}>Cancel</Text>
       </Pressable>
     </View>
   );

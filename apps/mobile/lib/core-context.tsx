@@ -44,6 +44,7 @@ import {
   KEYSTORE_SECRET_IDS,
   lockThisDevice,
   lookupAccount,
+  lookupAccountId,
   MIN_PASSWORD_LENGTH,
   reauthenticateViaRelay,
   recoverAccountViaRelay,
@@ -74,6 +75,7 @@ import {
   storePath,
 } from "@leapsake/store-layout";
 import {
+  clearUnclaimedDestination,
   convertStoreToEncrypted,
   destroyStoreFiles,
 } from "../db/convert-store";
@@ -82,6 +84,7 @@ import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 import { deleteAccountRoster, sqliteRosterStorage } from "../db/roster-storage";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 import { forgetAccountOnThisDevice } from "./forget-account";
+import { mergeAccountOnThisDevice, openStoreUnderKey } from "./merge-account";
 
 /**
  * Translate a relay/transport failure into copy a user can act on — the mobile
@@ -161,6 +164,28 @@ export interface SyncApi {
     relayUrl: string;
     // `duplicateCount` is how many possible duplicates the join surfaced between
     // this device's pre-existing people and the account's — a prompt to review.
+  }): Promise<{ duplicateCount: number }>;
+  /**
+   * **Merge this device's local-only account into an existing synced one**
+   * (`plans/v0-1_01_account-merge.md`): the store is re-homed under the synced
+   * account's id, keeps every row, and from the next launch opens under *that*
+   * account's password. The local account is retired.
+   *
+   * A separate method from {@link SyncApi.join} rather than a mode of it. Join is
+   * an accountless device's act and refuses a store that already holds an
+   * account; this one *retires* an account, and the two have different guards, a
+   * different ordering (the relay half runs against a copy) and different copy.
+   * Folding them together would rebuild the polymorphic entry point the flow docs
+   * say was deliberately cut.
+   *
+   * Returns the same `duplicateCount` a join does, because it ends in the same
+   * place: this device's people are all pre-existing-local, so overlaps land in
+   * duplicate review rather than being fused.
+   */
+  merge(args: {
+    username: string;
+    password: string;
+    relayUrl: string;
   }): Promise<{ duplicateCount: number }>;
   /**
    * Recover an existing account on this device from the recovery phrase (forgot
@@ -728,21 +753,12 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         scheduler.current?.stop();
         await driver.close?.();
         try {
-          // A destination left by an earlier attempt that crashed before its roster
-          // entry is claimed by nobody, so it is discardable — and clearing it is
-          // what lets a retry convert into an empty file rather than trip the
-          // converter's overwrite guard. Its doors go with it: they seal a key for
-          // a store that is about to be replaced. Usually there is nothing there,
-          // and `deleteDatabaseAsync` throws rather than shrugging at a missing
-          // file, so tolerate that.
-          if (!(await roster.list()).some((a) => a.id === accountId)) {
-            try {
-              await SQLite.deleteDatabaseAsync(target);
-            } catch {
-              // nothing stranded — the ordinary case
-            }
-            await targetDoors.destroy();
-          }
+          // A destination left by an earlier attempt that crashed before its
+          // roster entry is claimed by nobody, so it is discardable — and
+          // clearing it is what lets a retry convert into an empty store rather
+          // than trip the converter's overwrite guard. Shared with the merge
+          // flow, which needs the identical sweep for the identical reason.
+          await clearUnclaimedDestination({ accountId, roster });
           await convertStoreToEncrypted({
             fromName: activeStore.path,
             toName: target,
@@ -1012,6 +1028,117 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // door belongs in its account's own directory.
           await writeThisDevicePasswordDoor(passwordDoor);
           void scheduler.current?.autoTrigger(); // push this device's data + pull remainder
+          return { duplicateCount };
+        },
+        /**
+         * **Merge a local-only account into a synced one** — the ordering,
+         * the guards and the crash table all live on
+         * {@link mergeAccountOnThisDevice}; this is the wiring around it.
+         *
+         * Three things are this layer's own, and none of them are tidying:
+         *
+         * 1. **`closed` is mobile's `storeSwapping`.** Desktop's `withStoreSwap`
+         *    re-opens the store after a failed swap only when the handle actually
+         *    died; the same distinction matters here, because a guard that
+         *    refuses before anything moves (already signed in, same account
+         *    twice) leaves a live driver and a running scheduler, and re-running
+         *    the bootstrap over that would throw the user's screen away to report
+         *    a validation error.
+         * 2. **The reconcile runs here, not in the flow**, and on a connection of
+         *    its own. Mobile's "re-open" is a bootstrap effect, which React
+         *    schedules and this cannot await — so the only way to return an
+         *    honest `duplicateCount` is to open the merged store once, reconcile,
+         *    and close it before handing the bootstrap its turn. The pull cursor
+         *    it persists is what stops the following boot re-pulling.
+         * 3. **The session comes back through `adopt`.** The flow hands the copy
+         *    to the join and keeps the session it returns; the reconcile needs
+         *    that master key, and re-deriving it here would mean a second relay
+         *    round trip for something already in hand.
+         */
+        async merge({ username, password, relayUrl }) {
+          let session: KeySession | undefined;
+          let closed = false;
+          let accountId: string;
+          try {
+            ({ accountId } = await mergeAccountOnThisDevice({
+              keyStore,
+              driver,
+              roster: createAccountRoster(sqliteRosterStorage()),
+              username,
+              prelogin: async () => {
+                try {
+                  return await lookupAccountId({ relayUrl, username });
+                } catch (cause) {
+                  throw new Error(relayErrorMessage(cause, relayUrl), {
+                    cause,
+                  });
+                }
+              },
+              // Note the driver: the merge hands over a copy of this device's
+              // store, not the live one, so a refused login damages nothing.
+              adopt: async (copy, writePasswordSidecar) => {
+                try {
+                  session = await joinAccountViaRelay({
+                    keyStore,
+                    driver: copy,
+                    relayUrl,
+                    username,
+                    password,
+                    platform: Platform.OS,
+                    writePasswordSidecar,
+                  });
+                  return session;
+                } catch (cause) {
+                  throw new Error(relayErrorMessage(cause, relayUrl), {
+                    cause,
+                  });
+                }
+              },
+              closeStore: async () => {
+                closed = true;
+                scheduler.current?.stop();
+                await driver.close?.();
+              },
+            }));
+          } catch (cause) {
+            // Only a failure past `closeStore` left the app on a dead handle.
+            // Re-resolving custody from the roster picks the right store either
+            // way: the original if the merge never reached its roster write, the
+            // merged one if it did.
+            if (closed) setResetVersion((v) => v + 1);
+            throw cause;
+          }
+
+          // Past the roster swap. Everything below is best-effort — the merge has
+          // already happened, and a device that lands on the merged store with an
+          // un-run duplicate scan is merely un-prompted, not broken.
+          let duplicateCount = 0;
+          const dbKey = await keyStore.getSecret(DATABASE_KEY);
+          if (session !== undefined && dbKey !== undefined) {
+            try {
+              const merged = await openStoreUnderKey(
+                storePath(accountId),
+                dbKey,
+              );
+              try {
+                ({ duplicateCount } = await reconcileOnJoin({
+                  driver: merged,
+                  masterKey: session.masterKey,
+                  // Transient and unwrapped: nothing here writes, so there is no
+                  // sync to kick, and this core is closed a few lines below.
+                  core: createCore(merged, session),
+                }));
+              } finally {
+                await merged.close?.();
+              }
+            } catch (cause) {
+              console.error("post-merge reconcile failed:", cause);
+              duplicateCount = 0;
+            }
+          }
+          // The store under this provider is gone; the bootstrap re-run lands the
+          // app on the merged one and starts its sync.
+          setResetVersion((v) => v + 1);
           return { duplicateCount };
         },
         async recover({ username, recoveryPhrase, newPassword, relayUrl }) {

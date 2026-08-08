@@ -6,6 +6,7 @@ import {
   RECOVERY_KEY,
   createInMemoryKeyStore,
   generateKey,
+  generateSalt,
   openDbKeyFromRecovery,
   rawKeyLiteral,
   sealDbKeyForRecovery,
@@ -16,21 +17,31 @@ import {
   adoptRecoveryKey,
   ensureDeviceMasterKey,
   establishKeySession,
+  getSyncStatus,
 } from "@leapsake/core";
 import {
   createAccountRepo,
   createKeyWrapRepo,
+  createPeopleRepo,
   createSyncStateRepo,
   runMigrations,
 } from "@leapsake/data";
 import type { TestApi } from "@leapsake/data/testing";
 import {
+  type AccountRoster,
+  type RosterEntry,
+  createAccountRoster,
+  storePath,
+} from "@leapsake/store-layout";
+import {
   convertStoreToEncrypted,
   destroyStoreFiles,
+  rekeyStore,
   storeState,
 } from "../db/convert-store";
 import { accountDoors, doorsPath } from "../db/doors";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
+import { mergeAccountOnThisDevice } from "../lib/merge-account";
 
 /**
  * The **custody** self-test: proves on-device the two expo-sqlite behaviors that
@@ -590,6 +601,430 @@ export function runCustodySelfTest(t: TestApi): void {
       } finally {
         await discard(from);
         await discard(to);
+      }
+    });
+  });
+
+  /**
+   * The **encrypted-source door** (`plans/v0-1_01_account-merge.md`, Increment 3).
+   * It shares one private body with the plaintext converter above, so these cases
+   * are not re-proving the ATTACH copy — they prove the half that is genuinely its
+   * own: that it accepts an encrypted source and refuses everything else, that a
+   * wrong key is caught *before* the copy rather than surfacing as corruption, and
+   * that the original comes through openable. That last one is the merge's whole
+   * safety story — until the roster names the destination, the source is the only
+   * copy of the user's account.
+   */
+  describe("custody: the shipped re-key door", () => {
+    it("copies an encrypted store under a new name, original still openable", async () => {
+      const from = scratchName("rekey-src");
+      const to = `stores/rekey-${crypto.randomUUID()}/leapsake.db`;
+      const key = generateKey();
+
+      const source = await SQLite.openDatabaseAsync(from);
+      await source.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+      await source.execAsync(`
+        CREATE TABLE person (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE INDEX person_by_name ON person (name);
+        PRAGMA user_version = 27;
+      `);
+      await source.runAsync(
+        "INSERT INTO person (id, name) VALUES (1, ?)",
+        "Ada",
+      );
+      await source.closeAsync();
+
+      try {
+        // The same key both ways — today's only caller, the merge, re-homes a
+        // store rather than re-locking it (the db-key is per *device*).
+        await rekeyStore({
+          fromName: from,
+          fromKey: key,
+          toName: to,
+          toKey: key,
+        });
+
+        const target = await SQLite.openDatabaseAsync(to);
+        await target.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+        const row = await target.getFirstAsync<{ name: string }>(
+          "SELECT name FROM person WHERE id = 1",
+        );
+        expect(row?.name).toBe("Ada");
+        const index = await target.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'person_by_name'",
+        );
+        expect(index?.name).toBe("person_by_name");
+        const version = await target.getFirstAsync<{ user_version: number }>(
+          "PRAGMA user_version",
+        );
+        expect(version?.user_version).toBe(27);
+        await target.closeAsync();
+
+        // The property the crash ordering rests on: this is not a `mv`. Until
+        // the roster names the destination the source must still open, and hold
+        // everything it held.
+        const original = await SQLite.openDatabaseAsync(from);
+        await original.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+        const survivor = await original.getFirstAsync<{ name: string }>(
+          "SELECT name FROM person WHERE id = 1",
+        );
+        expect(survivor?.name).toBe("Ada");
+        await original.closeAsync();
+      } finally {
+        await discard(from);
+        await discard(to);
+      }
+    });
+
+    it("refuses a plaintext source", async () => {
+      const from = scratchName("rekey-plain-src");
+      const to = `stores/rekey-${crypto.randomUUID()}/leapsake.db`;
+      const key = generateKey();
+
+      const source = await SQLite.openDatabaseAsync(from);
+      await source.execAsync("CREATE TABLE person (id INTEGER PRIMARY KEY)");
+      await source.closeAsync();
+
+      try {
+        // The mirror of the plaintext door's "already encrypted" refusal. Two
+        // doors onto one body, each accepting only its own custody, is what stops
+        // a store being fed to the wrong one by accident.
+        expect(
+          await rejects(() =>
+            rekeyStore({
+              fromName: from,
+              fromKey: key,
+              toName: to,
+              toKey: key,
+            }),
+          ),
+        ).toBe(true);
+      } finally {
+        await discard(from);
+        await discard(to);
+      }
+    });
+
+    it("refuses a source that does not open under the given key, before copying", async () => {
+      const from = scratchName("rekey-wrong-key");
+      const to = `stores/rekey-${crypto.randomUUID()}/leapsake.db`;
+      const key = generateKey();
+
+      const source = await SQLite.openDatabaseAsync(from);
+      await source.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+      await source.execAsync("CREATE TABLE person (id INTEGER PRIMARY KEY)");
+      await source.closeAsync();
+
+      try {
+        expect(
+          await rejects(() =>
+            rekeyStore({
+              fromName: from,
+              fromKey: generateKey(),
+              toName: to,
+              toKey: key,
+            }),
+          ),
+        ).toBe(true);
+
+        // …and it left nothing behind. `storeState` reports *not readable
+        // keyless* for a corrupt file exactly as it does for an encrypted one, so
+        // a half-written destination would read as "encrypted" and the retry
+        // would trip the overwrite guard forever.
+        expect(await storeState(to)).toBe("empty");
+
+        // The wrong key must not have damaged the source either.
+        const original = await SQLite.openDatabaseAsync(from);
+        await original.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+        const table = await original.getFirstAsync<{ n: number }>(
+          "SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'person'",
+        );
+        expect(table?.n).toBe(1);
+        await original.closeAsync();
+      } finally {
+        await discard(from);
+        await discard(to);
+      }
+    });
+
+    it("refuses a destination that already holds data", async () => {
+      const from = scratchName("rekey-guard-src");
+      const to = `stores/rekey-${crypto.randomUUID()}/leapsake.db`;
+      const key = generateKey();
+
+      const source = await SQLite.openDatabaseAsync(from);
+      await source.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+      await source.execAsync(
+        "CREATE TABLE person (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+      );
+      await source.runAsync(
+        "INSERT INTO person (id, name) VALUES (1, ?)",
+        "Ada",
+      );
+      await source.closeAsync();
+
+      try {
+        await rekeyStore({
+          fromName: from,
+          fromKey: key,
+          toName: to,
+          toKey: key,
+        });
+        // The retry that would otherwise double every row.
+        expect(
+          await rejects(() =>
+            rekeyStore({
+              fromName: from,
+              fromKey: key,
+              toName: to,
+              toKey: key,
+            }),
+          ),
+        ).toBe(true);
+
+        const target = await SQLite.openDatabaseAsync(to);
+        await target.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+        const count = await target.getFirstAsync<{ n: number }>(
+          "SELECT COUNT(*) AS n FROM person",
+        );
+        expect(count?.n).toBe(1);
+        await target.closeAsync();
+      } finally {
+        await discard(from);
+        await discard(to);
+      }
+    });
+  });
+
+  /**
+   * **The merge flow itself** (`lib/merge-account.ts`) — mobile's answer to
+   * desktop's `test/integration/account-merge.test.ts`, which cannot run here
+   * because expo-sqlite has no Node build.
+   *
+   * The relay half is the injected `adopt` callback, so these drive the real flow
+   * end to end with a stub in that seat: a happy path that proves the swap, and a
+   * failing one that proves the property the whole copy-first ordering exists for
+   * — that a refused login leaves the user's account exactly as it was.
+   *
+   * Everything is scratch: random account ids (so `storePath` names a store no
+   * device holds), an in-memory roster, and an in-memory keystore. A self-test
+   * must never rewrite the custody state of the device it runs on.
+   */
+  describe("custody: merging a local-only account into a synced one", () => {
+    /** An {@link AccountRoster} over a string in memory, seeded with `entries`. */
+    function scratchRoster(entries: RosterEntry[]): AccountRoster {
+      let text: string | undefined = JSON.stringify({
+        version: 1,
+        accounts: entries,
+      });
+      return createAccountRoster({
+        read: async () => text,
+        write: async (next) => {
+          text = next;
+        },
+      });
+    }
+
+    /**
+     * A store in the shape the merge flow expects to find: encrypted under `key`,
+     * migrated, holding one **local-only** account row (no relay) and one person.
+     *
+     * Built through the repos rather than through `createLocalAccount` on
+     * purpose — that derives a KEK from a password, and an Argon2id pass on
+     * Hermes runs for minutes. Nothing here needs a real password door; what is
+     * under test is where the rows end up.
+     */
+    async function seedLocalAccount(opts: {
+      accountId: string;
+      key: Uint8Array;
+      firstName: string;
+    }): Promise<void> {
+      const db = await SQLite.openDatabaseAsync(storePath(opts.accountId));
+      const driver = expoSqliteDriver(db);
+      await driver.exec(`PRAGMA key = "${rawKeyLiteral(opts.key)}"`);
+      await runMigrations(driver);
+      await createAccountRepo(driver).create({
+        id: opts.accountId,
+        kdfSalt: generateSalt(),
+        authVerifier: generateSalt(),
+        kdfAlg: KDF_ALG,
+        username: "local-me",
+      });
+      await createPeopleRepo(driver).create({
+        firstName: opts.firstName,
+        lastName: "Lovelace",
+      });
+      await driver.close?.();
+    }
+
+    /** Open a scratch store under its key, for the assertions after a flow ran. */
+    async function reopen(accountId: string, key: Uint8Array) {
+      const driver = expoSqliteDriver(
+        await SQLite.openDatabaseAsync(storePath(accountId)),
+      );
+      await driver.exec(`PRAGMA key = "${rawKeyLiteral(key)}"`);
+      return driver;
+    }
+
+    /** Both halves of a scratch account's directory. */
+    async function discardAccount(accountId: string): Promise<void> {
+      await discard(storePath(accountId));
+      await discard(doorsPath(accountId));
+    }
+
+    it("re-homes the store, swaps the roster and retires the local account", async () => {
+      const localId = `local-${crypto.randomUUID()}`;
+      const syncedId = `synced-${crypto.randomUUID()}`;
+      const key = generateKey();
+      const keyStore = createInMemoryKeyStore();
+      await keyStore.setSecret(DATABASE_KEY, key);
+      const roster = scratchRoster([
+        {
+          id: localId,
+          username: "local-me",
+          createdAt: "2026-08-01T00:00:00Z",
+        },
+      ]);
+
+      try {
+        await seedLocalAccount({ accountId: localId, key, firstName: "Ada" });
+        const live = await reopen(localId, key);
+
+        const { accountId } = await mergeAccountOnThisDevice({
+          keyStore,
+          driver: live,
+          roster,
+          username: "synced-me",
+          prelogin: async () => ({ accountId: syncedId }),
+          // The relay half, stubbed: what `joinAccountViaRelay` leaves behind is
+          // the synced account's row on the driver it was handed, plus a sealed
+          // password door. Note the driver it writes to is the *copy*.
+          adopt: async (copy, writePasswordSidecar) => {
+            await createAccountRepo(copy).create({
+              id: syncedId,
+              kdfSalt: generateSalt(),
+              authVerifier: generateSalt(),
+              kdfAlg: KDF_ALG,
+              username: "synced-me",
+              relayUrl: "http://relay.invalid",
+            });
+            await writePasswordSidecar(new Uint8Array([1, 2, 3]));
+            return { deviceId: crypto.randomUUID(), masterKey: generateKey() };
+          },
+          closeStore: () => live.close?.() ?? Promise.resolve(),
+        });
+        expect(accountId).toBe(syncedId);
+
+        // 1. The rows came across, and the store now answers as the synced account.
+        const merged = await reopen(syncedId, key);
+        const people = await createPeopleRepo(merged).list();
+        expect(people.length).toBe(1);
+        expect(people[0]?.firstName).toBe("Ada");
+        const status = await getSyncStatus({ driver: merged });
+        expect(status.accountId).toBe(syncedId);
+        expect(status.relayUrl).toBe("http://relay.invalid");
+        await merged.close?.();
+
+        // 2. One roster entry, naming the synced account — the point of no return.
+        const listed = await roster.list();
+        expect(listed.length).toBe(1);
+        expect(listed[0]?.id).toBe(syncedId);
+
+        // 3. The password door landed in the *destination's* directory. Writing
+        //    it beside the retired store is the bug this ordering exists to
+        //    avoid: it would be deleted moments later, at step 10.
+        expect(await accountDoors(syncedId).readPassword()).toEqual(
+          new Uint8Array([1, 2, 3]),
+        );
+
+        // 4. The local store is gone, doors and all. Re-opening a destroyed name
+        //    gives a *new, empty* database — expo-sqlite creates on open.
+        expect(await storeState(storePath(localId))).toBe("empty");
+        expect(await accountDoors(localId).readPassword()).toBeUndefined();
+      } finally {
+        await discardAccount(localId);
+        await discardAccount(syncedId);
+      }
+    });
+
+    /**
+     * **The reason the relay half runs against a copy.** A wrong password is the
+     * one moment the user's local account must survive untouched — and the
+     * ordering the join path uses (clear the account row, *then* call the relay)
+     * would have destroyed it in place. This is the case a happy-path demo cannot
+     * show, so it is the one worth having on device.
+     */
+    it("leaves the live store, its roster entry and the keychain intact when the login fails", async () => {
+      const localId = `local-${crypto.randomUUID()}`;
+      const syncedId = `synced-${crypto.randomUUID()}`;
+      const key = generateKey();
+      const localRecoveryKey = generateKey();
+      const keyStore = createInMemoryKeyStore();
+      await keyStore.setSecret(DATABASE_KEY, key);
+      await keyStore.setSecret(RECOVERY_KEY, localRecoveryKey);
+      const roster = scratchRoster([
+        {
+          id: localId,
+          username: "local-me",
+          createdAt: "2026-08-01T00:00:00Z",
+        },
+      ]);
+
+      try {
+        await seedLocalAccount({ accountId: localId, key, firstName: "Grace" });
+        const live = await reopen(localId, key);
+
+        expect(
+          await rejects(() =>
+            mergeAccountOnThisDevice({
+              keyStore,
+              driver: live,
+              roster,
+              username: "synced-me",
+              prelogin: async () => ({ accountId: syncedId }),
+              // A refused password, *after* the join has already replaced this
+              // device's recovery key — which is what the real one does
+              // (`session.ts`, `joinAccount`) and why the flow's catch has a
+              // restore line at all.
+              adopt: async () => {
+                await keyStore.setSecret(RECOVERY_KEY, generateKey());
+                throw new Error("Incorrect username or password.");
+              },
+              closeStore: () => live.close?.() ?? Promise.resolve(),
+            }),
+          ),
+        ).toBe(true);
+
+        // 1. The account the user still has: rows, identity, and no relay. Every
+        //    destructive step landed on the copy.
+        const original = await reopen(localId, key);
+        const people = await createPeopleRepo(original).list();
+        expect(people.length).toBe(1);
+        expect(people[0]?.firstName).toBe("Grace");
+        const status = await getSyncStatus({ driver: original });
+        expect(status.accountId).toBe(localId);
+        expect(status.relayUrl).toBeUndefined();
+        await original.close?.();
+
+        // 2. Still the account this device holds.
+        const listed = await roster.list();
+        expect(listed.length).toBe(1);
+        expect(listed[0]?.id).toBe(localId);
+
+        // 3. The keychain is device-global, so no copy could have protected it.
+        //    Without the restore, the bootstrap the caller re-runs would re-seal
+        //    the local store's recovery door under the *account's* key — killing
+        //    the phrase door of a store the user never left.
+        expect(await keyStore.getSecret(RECOVERY_KEY)).toEqual(
+          localRecoveryKey,
+        );
+
+        // 4. Nothing stranded at the destination, so a retry is not refused by
+        //    the converter's overwrite guard.
+        expect(await storeState(storePath(syncedId))).toBe("empty");
+      } finally {
+        await discardAccount(localId);
+        await discardAccount(syncedId);
       }
     });
   });
