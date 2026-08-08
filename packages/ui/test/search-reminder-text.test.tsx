@@ -142,8 +142,10 @@ describe("ReminderText", () => {
       />,
     );
 
+    // The sigil is part of the link text: a mention reads as one here just as
+    // it did in the composer.
     expect(
-      screen.getByRole("link", { name: "Ada Byron" }).getAttribute("href"),
+      screen.getByRole("link", { name: "@Ada Byron" }).getAttribute("href"),
     ).toBe(`/people/${PERSON_ID}`);
   });
 

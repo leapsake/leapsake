@@ -151,7 +151,6 @@ export {
   MENTION_NAMESPACE,
   mentionToken,
   activeMentionQuery,
-  insertMention,
   activeHashtagQuery,
   insertHashtag,
   parseMentions,
@@ -159,6 +158,18 @@ export {
   splitAnnotatedText,
 } from "./mention.js";
 export type { Mention, AnnotatedSegment } from "./mention.js";
+export {
+  applyDraftEdit,
+  draftFromMarkup,
+  insertMentionInDraft,
+  markupFromDraft,
+  splitDraft,
+} from "./mention-draft.js";
+export type {
+  DraftSegment,
+  MentionDraft,
+  MentionSpan,
+} from "./mention-draft.js";
 export { mentioningSchema, mentionBearerTypeSchema } from "./mentioning.js";
 export type {
   Mentioning,

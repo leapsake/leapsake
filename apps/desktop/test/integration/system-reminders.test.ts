@@ -76,7 +76,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     expect(reminder.title).toBe(
       `🎉 Wish ${mentionToken("Alice Ng", "person", alice.id)} a happy birthday`,
     );
-    expect(reminderLabel(reminder)).toBe("🎉 Wish Alice Ng a happy birthday");
+    expect(reminderLabel(reminder)).toBe("🎉 Wish @Alice Ng a happy birthday");
     // Core resolves the mention to the person's current label for the renderer.
     expect(reminder.mentions).toEqual([
       { targetType: "person", targetId: alice.id, label: "Alice Ng" },
@@ -111,12 +111,12 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     const rows = await systemReminders();
     const byTitle = new Map(rows.map((r) => [reminderLabel(r), r]));
     expect([...byTitle.keys()].sort()).toEqual([
-      "🎁 Get Bea Ko a gift",
-      "🎉 Wish Bea Ko a happy birthday",
+      "🎁 Get @Bea Ko a gift",
+      "🎉 Wish @Bea Ko a happy birthday",
     ]);
     // The wish is due day-of; the gift 30 days earlier.
-    const gift = byTitle.get("🎁 Get Bea Ko a gift")!;
-    const wish = byTitle.get("🎉 Wish Bea Ko a happy birthday")!;
+    const gift = byTitle.get("🎁 Get @Bea Ko a gift")!;
+    const wish = byTitle.get("🎉 Wish @Bea Ko a happy birthday")!;
     expect(daysUntil(todayCivil(), civilFromDueMs(wish.dueDate!))).toBe(20);
     expect(daysUntil(todayCivil(), civilFromDueMs(gift.dueDate!))).toBe(-10);
     // Both link back to Bea's page.

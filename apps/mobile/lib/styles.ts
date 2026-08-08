@@ -7,6 +7,8 @@ export const colors = {
   muted: "#6b6b6b",
   border: "#d4d4d4",
   accent: "#1f6feb",
+  /** A wash of `accent` — the mention chip behind `@Name` in a composer. */
+  accentTint: "rgba(31, 111, 235, 0.14)",
   danger: "#b00020",
   selectedBg: "#1f6feb",
   selectedText: "#ffffff",

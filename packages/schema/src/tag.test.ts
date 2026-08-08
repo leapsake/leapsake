@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 // The compose-surface hashtag authoring helpers are the twin of the `@mention`
-// ones and live beside them in `mention.ts` (they share the mention-token guard),
-// but they mirror this file's tag grammar, so their edge cases are tested here.
+// ones and live beside them in `mention.ts` (they share the placed-mention
+// guard), but they mirror this file's tag grammar, so their edge cases are
+// tested here.
+import { draftFromMarkup } from "./mention-draft.js";
 import { activeHashtagQuery, insertHashtag, mentionToken } from "./mention.js";
 import {
   normalizeTagName,
@@ -200,13 +202,28 @@ describe("activeHashtagQuery", () => {
     });
   });
 
-  it("does not fire on a '#' embedded in a mention token's display name", () => {
-    const text = `${mentionToken("Team #1", "person", ALICE)} `;
-    // Caret parked just after the "#1" inside the token — not a live hashtag.
-    const inside = text.indexOf("#1") + 2;
-    expect(activeHashtagQuery(text, inside)).toBeNull();
-    // Caret at the very end (after the whole token + space) is also not a query.
-    expect(activeHashtagQuery(text, text.length)).toBeNull();
+  it("does not fire on a '#' embedded in a mention's display name", () => {
+    // What the composer shows for `@[Team #1](person:…)` — the '#' is part of
+    // the name, and the span is what says so.
+    const { text, spans } = draftFromMarkup(
+      `${mentionToken("Team #1", "person", ALICE)} `,
+    );
+    expect(text).toBe("@Team #1 ");
+    // Caret parked just after the "#1" inside the name — not a live hashtag.
+    expect(activeHashtagQuery(text, text.indexOf("#1") + 2, spans)).toBeNull();
+    // Caret at the very end (after the whole name + space) is also not a query.
+    expect(activeHashtagQuery(text, text.length, spans)).toBeNull();
+  });
+
+  it("opens on a '#' typed after a placed mention", () => {
+    const { spans } = draftFromMarkup(
+      mentionToken("Alice Ng", "person", ALICE),
+    );
+    const text = "@Alice Ng #par";
+    expect(activeHashtagQuery(text, text.length, spans)).toEqual({
+      query: "par",
+      start: 10,
+    });
   });
 });
 

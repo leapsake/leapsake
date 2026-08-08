@@ -13,7 +13,10 @@ import { useUi } from "../adapter.js";
  * and its `@mentions` linked to the person/pet they name. The reminder's resolved
  * {@link Tag}s supply tag ids (keyed by normalized name); its {@link
  * ResolvedMention}s supply each target's **current** label (keyed by
- * `type:id`) — a rename shows through. A mention whose target is gone (`label`
+ * `type:id`) — a rename shows through. Both keep their sigil, so a mention reads
+ * as `@Alice Ng` here exactly as it did in the composer that wrote it.
+ *
+ * A mention whose target is gone (`label`
  * null) or unresolved falls back to the token's snapshot name as plain text; a
  * `#token`/mention with no match — which shouldn't happen, since both are derived
  * from this very text — likewise falls back to plain text. Segment order is
@@ -59,11 +62,11 @@ export function ReminderText({
                 key={i}
                 href={`${entityBasePath(segment.targetType)}/${segment.targetId}`}
               >
-                {label}
+                @{label}
               </Link>
             );
           }
-          return <Fragment key={i}>{segment.displayName}</Fragment>;
+          return <Fragment key={i}>@{segment.displayName}</Fragment>;
         }
         return <Fragment key={i}>{segment.text}</Fragment>;
       })}

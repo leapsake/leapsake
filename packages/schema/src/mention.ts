@@ -1,3 +1,4 @@
+import type { MentionSpan } from "./mention-draft.js";
 import type { EntityType } from "./relationship.js";
 
 /**
@@ -44,6 +45,14 @@ export function mentionToken(
   return `@[${displayName}](${targetType}:${targetId})`;
 }
 
+/** Whether `index` falls inside one of `spans` — i.e. belongs to a mention. */
+function isInsideMention(
+  spans: readonly MentionSpan[],
+  index: number,
+): boolean {
+  return spans.some((span) => index >= span.start && index < span.end);
+}
+
 /**
  * The active `@`-mention fragment at the caret, or `null` when the caret isn't in
  * one. Used by the compose-surface typeahead (both apps) to decide whether to show
@@ -54,17 +63,27 @@ export function mentionToken(
  * so `foo@bar` (an email) and a mid-word `@` never trigger — and runs up to the
  * caret. Names carry spaces, so the fragment deliberately spans them (`@ali ng`);
  * it is *not* ended at a space. It is ended by a newline (a mention never wraps a
- * line) and by any token/markup punctuation (`[](){@}`), which is how an already
- * inserted `@[Name](type:id)` token — or a caret sitting inside one — reads as
- * "not a live query" and returns `null` rather than a garbage fragment. The empty
- * fragment (`@` with nothing after it yet) is a valid active query (`query: ""`);
- * the caller's search floor keeps it quiet until a character is typed. Returns the
- * `start` index of the opening `@` so {@link insertMention} knows the span to
- * replace. Platform-agnostic and unit-testable.
+ * line) and by any token/markup punctuation (`[](){@}`).
+ *
+ * The text here is what the composer **displays**, where a mention already taken
+ * reads `@David Taylor` — indistinguishable from a name being typed. So the
+ * already-placed mentions come in as {@link MentionSpan}s (see {@link
+ * ../mention-draft.js MentionDraft}) and end a fragment the same way punctuation
+ * does: a caret inside or just past one is not a live query. Without that, the
+ * picker would reopen on a completed mention and quietly widen its query across
+ * everything typed since. Callers with no spans to give (a plain search box) pass
+ * none.
+ *
+ * The empty fragment (`@` with nothing after it yet) is a valid active query
+ * (`query: ""`); the caller's search floor keeps it quiet until a character is
+ * typed. Returns the `start` index of the opening `@` so {@link
+ * ../mention-draft.js insertMentionInDraft} knows the span to replace.
+ * Platform-agnostic and unit-testable.
  */
 export function activeMentionQuery(
   text: string,
   caret: number,
+  spans: readonly MentionSpan[] = [],
 ): { query: string; start: number } | null {
   // Walk back from the caret to the nearest '@' that could open a fragment. Stop
   // early at a newline (a fragment can't span one); the first '@' we reach is the
@@ -72,6 +91,8 @@ export function activeMentionQuery(
   for (let i = caret - 1; i >= 0; i--) {
     const ch = text[i];
     if (ch === "\n") return null;
+    // A character belonging to a mention already placed — including its own '@'.
+    if (isInsideMention(spans, i)) return null;
     if (ch === "@") {
       const before = i > 0 ? text[i - 1] : "";
       // An opener must be at string start or right after whitespace.
@@ -84,63 +105,6 @@ export function activeMentionQuery(
     }
   }
   return null;
-}
-
-/**
- * Splice a resolved mention into `text`, replacing the active `@`-fragment at the
- * caret with its inline {@link mentionToken}, and return the new text plus the
- * caret position just past the insertion. The counterpart to {@link
- * activeMentionQuery}: the picker calls this when the user selects a hit, then
- * feeds the result back into the field's state. Re-derives the fragment span from
- * `(text, caret)` so it always replaces exactly what `activeMentionQuery` reported;
- * if the caret isn't in a fragment (it should be, when called from the picker) the
- * token is inserted at the caret without replacing anything.
- *
- * A single trailing space is appended after the token (unless the following
- * character is already whitespace) so the inserted token stays a discrete word —
- * without it, a subsequent `@` typed right after `)` would fail the "after
- * whitespace" opener test and never trigger the picker again. The returned caret
- * sits just after the token (before any pre-existing trailing whitespace).
- * Platform-agnostic and unit-testable.
- */
-export function insertMention(
-  text: string,
-  caret: number,
-  mention: Mention,
-): { text: string; caret: number } {
-  const active = activeMentionQuery(text, caret);
-  const start = active ? active.start : caret;
-  const token = mentionToken(
-    mention.displayName,
-    mention.targetType,
-    mention.targetId,
-  );
-  const after = text.slice(caret);
-  const needsSpace = !/^\s/u.test(after); // true when `after` is "" or non-space
-  const insertion = needsSpace ? `${token} ` : token;
-  return {
-    text: text.slice(0, start) + insertion + after,
-    caret: start + token.length, // just after the token, before the space
-  };
-}
-
-/**
- * Whether `index` falls **inside** an `@[…](type:id)` mention token in `text`.
- * Used only by {@link activeHashtagQuery} to disqualify a `#` that lives in a
- * mention's display name (`@[Team #1](person:…)`) — that `#` is part of the token,
- * not a live hashtag being authored, so it must not open the tag picker. Uses the
- * same token grammar as {@link parseMentions}, so "inside a token" means exactly
- * the span the write path treats as one mention.
- */
-function isInsideMentionToken(text: string, index: number): boolean {
-  for (const match of text.matchAll(
-    /@\[[^\]]+\]\((?:person|pet):[0-9a-fA-F-]{36}\)/gu,
-  )) {
-    if (index >= match.index && index < match.index + match[0].length) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /**
@@ -158,15 +122,17 @@ function isInsideMentionToken(text: string, index: number): boolean {
  * `#fam` is active but `#fam ` (trailing space) has ended it, and the caret moving
  * onto punctuation/a newline closes it. The empty fragment (`#` with nothing after
  * it yet) is a valid active query (`query: ""`); the caller's search floor keeps it
- * quiet until a character is typed. A `#` embedded in a mention token's display
- * name belongs to that token (see {@link isInsideMentionToken}), not to a live
- * hashtag, so it returns `null`. Returns the `start` index of the opening `#` so
+ * quiet until a character is typed. A `#` embedded in a mention's display name
+ * (`@Team #1`) belongs to that mention, not to a live hashtag, so — as in {@link
+ * activeMentionQuery} — the already-placed {@link MentionSpan}s are passed in and
+ * a `#` inside one returns `null`. Returns the `start` index of the opening `#` so
  * {@link insertHashtag} knows the span to replace. Platform-agnostic and
  * unit-testable.
  */
 export function activeHashtagQuery(
   text: string,
   caret: number,
+  spans: readonly MentionSpan[] = [],
 ): { query: string; start: number } | null {
   // Walk back from the caret through the tag's alphanumeric run to its opening
   // '#'. Any other character (whitespace, punctuation, a newline, a token
@@ -178,8 +144,8 @@ export function activeHashtagQuery(
       const before = i > 0 ? text[i - 1] : "";
       // An opener must be at string start or right after whitespace.
       if (before !== "" && !/\s/u.test(before)) return null;
-      // A '#' inside a mention token is part of that token, not a live hashtag.
-      if (isInsideMentionToken(text, i)) return null;
+      // A '#' inside a mention is part of its name, not a live hashtag.
+      if (isInsideMention(spans, i)) return null;
       return { query: text.slice(i + 1, caret), start: i };
     }
     if (!/[\p{L}\p{N}]/u.test(ch)) return null;
@@ -191,11 +157,11 @@ export function activeHashtagQuery(
  * Splice a chosen tag name into `text`, replacing the active `#`-fragment at the
  * caret with `#<tagName>`, and return the new text plus the caret position just
  * past the insertion. The counterpart to {@link activeHashtagQuery} (and the twin
- * of {@link insertMention}): the picker calls this when the user selects an
- * existing-tag hit, then feeds the result back into the field's state. Re-derives
- * the fragment span from `(text, caret)` so it always replaces exactly what
- * `activeHashtagQuery` reported; if the caret isn't in a fragment the tag is
- * inserted at the caret without replacing anything.
+ * of {@link ../mention-draft.js insertMentionInDraft}): the picker calls this when
+ * the user selects an existing-tag hit, then feeds the result back into the
+ * field's state. Re-derives the fragment span from `(text, caret, spans)` so it
+ * always replaces exactly what `activeHashtagQuery` reported; if the caret isn't
+ * in a fragment the tag is inserted at the caret without replacing anything.
  *
  * Unlike a mention there is no id to carry — the bare `#name` **is** the tag (see
  * {@link ./tag.js parseHashtags}), so no name-resolution step is needed. A single
@@ -209,8 +175,9 @@ export function insertHashtag(
   text: string,
   caret: number,
   tagName: string,
+  spans: readonly MentionSpan[] = [],
 ): { text: string; caret: number } {
-  const active = activeHashtagQuery(text, caret);
+  const active = activeHashtagQuery(text, caret, spans);
   const start = active ? active.start : caret;
   const token = `#${tagName}`;
   const after = text.slice(caret);
@@ -248,17 +215,19 @@ export function parseMentions(text: string): Mention[] {
 }
 
 /**
- * Replace each inline mention token with its bare display name — `@[Alice
- * Ng](person:…)` → `Alice Ng` — for the plain-text contexts that show a
+ * Replace each inline mention token with the `@name` a reader sees — `@[Alice
+ * Ng](person:…)` → `@Alice Ng` — for the plain-text contexts that show a
  * reminder's raw title/body as a string rather than through the `ReminderText`
  * renderer (delete confirmations, list labels; see {@link ./reminder.js
- * reminderLabel}). Idempotent: text with no token is returned unchanged, and a
- * once-stripped string has nothing left to strip.
+ * reminderLabel}). The sigil is kept because that is what the composer and the
+ * rendered view both show; only the id is machine-facing. Idempotent: text with
+ * no token is returned unchanged, and a once-stripped string has nothing left to
+ * strip.
  */
 export function plainMentionText(text: string): string {
   return text.replace(
     /@\[([^\]]+)\]\((?:person|pet):[0-9a-fA-F-]{36}\)/gu,
-    (_match, display: string) => display,
+    (_match, display: string) => `@${display}`,
   );
 }
 

@@ -168,11 +168,18 @@ describe("GiftIdeaForm", () => {
 
 describe("ReminderForm", () => {
   it("submits title, body and due date under their stored names", () => {
-    renderWithUi(<ReminderForm search={noSearch} submitting={false} />);
+    const { container } = renderWithUi(
+      <ReminderForm search={noSearch} submitting={false} />,
+    );
 
-    expect(screen.getByLabelText("Title")).toHaveProperty("name", "title");
-    expect(screen.getByLabelText("Details")).toHaveProperty("name", "body");
     expect(screen.getByLabelText("Due date")).toHaveProperty("name", "dueDate");
+    // Title and Details show a mention *draft* (`@Alice Ng`), so the stored text
+    // — tokens and all — is what their hidden inputs carry to the write path.
+    expect(
+      [...container.querySelectorAll("input[type=hidden]")].map((i) =>
+        i.getAttribute("name"),
+      ),
+    ).toEqual(["title", "body"]);
   });
 
   it("starts empty when adding", () => {

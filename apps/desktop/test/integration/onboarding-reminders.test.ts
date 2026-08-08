@@ -245,7 +245,7 @@ describe("onboarding reminders (end to end through core)", () => {
     expect(byKind.sync).toHaveLength(1);
     expect(byKind.birthday).toHaveLength(1);
     expect(reminderLabel(byKind.birthday[0])).toBe(
-      "🎉 Wish Alice Ng a happy birthday",
+      "🎉 Wish @Alice Ng a happy birthday",
     );
     expect(
       daysUntil(todayCivil(), soon) >= 0 && byKind.birthday[0].dueDate !== null,

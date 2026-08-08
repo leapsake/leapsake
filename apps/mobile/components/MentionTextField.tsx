@@ -13,8 +13,12 @@ import {
   type SearchHit,
   activeHashtagQuery,
   activeMentionQuery,
+  applyDraftEdit,
+  draftFromMarkup,
   insertHashtag,
-  insertMention,
+  insertMentionInDraft,
+  markupFromDraft,
+  splitDraft,
 } from "@leapsake/schema";
 import { useCore } from "../lib/core-context";
 import { highlightMatch } from "../lib/highlightMatch";
@@ -35,13 +39,21 @@ const DEBOUNCE_MS = 200;
  * run off the same `core.search.query` + caret/debounce/list machinery — only
  * which trigger the caret sits in branches: {@link activeMentionQuery} vs {@link
  * activeHashtagQuery} for detection, people/pets vs `tag` for the hit filter, and
- * {@link insertMention}'s `@[Name](type:id)` vs {@link insertHashtag}'s `#name`
- * for the splice. Both tokens stay visible as literal text — rich rendering is the
- * saved `ReminderText`'s job — and the write path re-derives mentions/taggings, so
- * a brand-new `#tag` with no suggestion is still typed and created on save.
+ * {@link insertMentionInDraft} vs {@link insertHashtag} for the splice.
+ *
+ * `value`/`onChangeText` carry the **stored** text, mention tokens and all
+ * (`@[Alice Ng](person:<uuid>)`), so the write path still re-derives
+ * mentions/taggings from it and a brand-new `#tag` with no suggestion is created
+ * on save. What the field *shows* is that text's {@link draftFromMarkup} draft —
+ * `@Alice Ng`, with the id held beside the text as a span — reconciled back
+ * through {@link applyDraftEdit} → {@link markupFromDraft} on every edit. React
+ * Native styles runs of a `TextInput`'s text natively, so the draft goes in as
+ * nested `<Text>` children and each mention carries the same tint the desktop
+ * backdrop paints. Tapping through to the person is the saved `ReminderText`'s
+ * job, not the composer's.
  *
  * Selection is tracked with `onSelectionChange` to find the active fragment; on a
- * pick the caret is nudged just past the inserted token via a one-shot controlled
+ * pick the caret is nudged just past the inserted name via a one-shot controlled
  * `selection`, then released back to uncontrolled. The results list renders inline
  * beneath the field (the parent `ScrollView` keeps
  * `keyboardShouldPersistTaps="handled"` so a tap lands before the keyboard
@@ -78,12 +90,17 @@ export function MentionTextField({
   // response (token !== latest) is ignored rather than allowed to flicker in.
   const queryToken = useRef(0);
 
+  // What the user sees and what their caret offsets are measured against.
+  const draft = draftFromMarkup(value);
+
   // Which inline trigger — `@mention` or `#hashtag` — the caret sits in. A
   // mention fragment spans spaces, so it can overlap a later `#`; when both
   // detectors match, the one whose trigger is nearest the caret (greater `start`)
   // is the live one — i.e. the token the user is currently typing.
-  const mention = caret === null ? null : activeMentionQuery(value, caret);
-  const hashtag = caret === null ? null : activeHashtagQuery(value, caret);
+  const mention =
+    caret === null ? null : activeMentionQuery(draft.text, caret, draft.spans);
+  const hashtag =
+    caret === null ? null : activeHashtagQuery(draft.text, caret, draft.spans);
   const mode: "mention" | "hashtag" | null =
     mention && hashtag
       ? hashtag.start > mention.start
@@ -129,20 +146,26 @@ export function MentionTextField({
 
   const open = active !== null && !suppressed && results.length > 0;
 
-  /** Splice the tapped hit's token in and nudge the caret just past it. */
+  /** Splice the tapped hit in and nudge the caret just past it. */
   function pick(hit: SearchHit) {
     if (caret === null) return;
-    // A tag hit inserts the bare `#name`; a person/pet hit inserts the
-    // id-carrying `@[Name](type:id)` token.
-    const { text, caret: nextCaret } =
-      mode === "hashtag"
-        ? insertHashtag(value, caret, hit.title)
-        : insertMention(value, caret, {
-            displayName: hit.title,
-            targetType: hit.entityType as EntityType, // never "tag" here
-            targetId: hit.entityId,
-          });
-    onChangeText(text);
+    // A tag hit inserts the bare `#name` — plain text, so its effect on the
+    // mention spans is just an edit like any other. A person/pet hit inserts
+    // `@Name` and the span that remembers which entity it is.
+    let nextCaret: number;
+    if (mode === "hashtag") {
+      const inserted = insertHashtag(draft.text, caret, hit.title, draft.spans);
+      nextCaret = inserted.caret;
+      onChangeText(markupFromDraft(applyDraftEdit(draft, inserted.text)));
+    } else {
+      const inserted = insertMentionInDraft(draft, caret, {
+        displayName: hit.title,
+        targetType: hit.entityType as EntityType, // never "tag" here
+        targetId: hit.entityId,
+      });
+      nextCaret = inserted.caret;
+      onChangeText(markupFromDraft(inserted.draft));
+    }
     setResults([]);
     setCaret(nextCaret);
     setSelection({ start: nextCaret, end: nextCaret });
@@ -152,13 +175,15 @@ export function MentionTextField({
 
   return (
     <View>
+      {/* Children, not `value`: RN takes the text from them, which is what lets
+          each mention run carry its own style. */}
       <TextInput
         ref={inputRef}
         style={style}
-        value={value}
         selection={selection}
         onChangeText={(text) => {
-          onChangeText(text);
+          // The field hands back displayed text; the spans move (or decay) with it.
+          onChangeText(markupFromDraft(applyDraftEdit(draft, text)));
           setSuppressed(false); // typing re-opens the picker after a dismiss
         }}
         onSelectionChange={(e) => {
@@ -170,7 +195,16 @@ export function MentionTextField({
         autoCapitalize="sentences"
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
-      />
+      >
+        {splitDraft(draft).map((segment, i) => (
+          <Text
+            key={i}
+            style={segment.mention === null ? undefined : mentionStyles.mention}
+          >
+            {segment.text}
+          </Text>
+        ))}
+      </TextInput>
       {open && (
         <View style={mentionStyles.listbox}>
           {results.map((hit) => {
@@ -210,6 +244,13 @@ export function MentionTextField({
 }
 
 const mentionStyles = {
+  // The chip behind an `@Name` as it's typed. Background only — the desktop
+  // field paints the same tint from a backdrop layer that can't afford a weight
+  // or size change (see MentionTextField.module.css), and the two should read
+  // the same.
+  mention: {
+    backgroundColor: colors.accentTint,
+  },
   // A bordered dropdown beneath the field, echoing the desktop listbox overlay.
   listbox: {
     borderWidth: 1,

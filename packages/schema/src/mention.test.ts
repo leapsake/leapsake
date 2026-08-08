@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { draftFromMarkup } from "./mention-draft.js";
 import {
   activeMentionQuery,
-  insertMention,
   mentionToken,
   parseMentions,
   plainMentionText,
@@ -105,64 +105,42 @@ describe("activeMentionQuery", () => {
     expect(activeMentionQuery("", 0)).toBeNull();
   });
 
-  it("returns null when the fragment overlaps an existing token", () => {
-    const text = `${mentionToken("Alice Ng", "person", ALICE)} `;
-    // Caret at the very end, after the whole token + trailing space.
-    expect(activeMentionQuery(text, text.length)).toBeNull();
-    // Caret parked in the middle of the token also reads as not-a-query.
-    expect(activeMentionQuery(text, 5)).toBeNull();
-  });
-});
-
-describe("insertMention", () => {
-  const ALICE_MENTION = {
-    displayName: "Alice Ng",
-    targetType: "person" as const,
-    targetId: ALICE,
-  };
-
-  it("replaces the active fragment with the token and adds a trailing space", () => {
-    const result = insertMention("email @ali", 10, ALICE_MENTION);
-    const token = mentionToken("Alice Ng", "person", ALICE);
-    expect(result.text).toBe(`email ${token} `);
-    // Caret sits just after the token, before the trailing space.
-    expect(result.caret).toBe(6 + token.length);
+  // In the composer's displayed text a mention already taken reads "@Alice Ng",
+  // which is indistinguishable from a name being typed — the spans are what tell
+  // the two apart.
+  it("returns null when the caret sits inside or just past a placed mention", () => {
+    const { text, spans } = draftFromMarkup(
+      `${mentionToken("Alice Ng", "person", ALICE)} `,
+    );
+    expect(text).toBe("@Alice Ng ");
+    // Caret at the very end, after the whole mention + trailing space.
+    expect(activeMentionQuery(text, text.length, spans)).toBeNull();
+    // Caret parked in the middle of the name also reads as not-a-query.
+    expect(activeMentionQuery(text, 5, spans)).toBeNull();
   });
 
-  it("preserves text after the caret", () => {
-    const result = insertMention("hi @ali there", 7, ALICE_MENTION);
-    const token = mentionToken("Alice Ng", "person", ALICE);
-    expect(result.text).toBe(`hi ${token} there`);
-  });
-
-  it("does not double the space when the following char is already whitespace", () => {
-    const result = insertMention("@ali there", 4, ALICE_MENTION);
-    const token = mentionToken("Alice Ng", "person", ALICE);
-    expect(result.text).toBe(`${token} there`);
-    expect(result.caret).toBe(token.length); // before the pre-existing space
-  });
-
-  it("splices a token in from a bare '@'", () => {
-    const result = insertMention("@", 1, ALICE_MENTION);
-    expect(result.text).toBe(`${mentionToken("Alice Ng", "person", ALICE)} `);
-  });
-
-  it("round-trips: the inserted token parses back to the mention", () => {
-    const { text } = insertMention("ping @al", 8, ALICE_MENTION);
-    expect(parseMentions(text)).toEqual([ALICE_MENTION]);
+  it("opens on a new '@' typed after a placed mention", () => {
+    const { spans } = draftFromMarkup(
+      mentionToken("Alice Ng", "person", ALICE),
+    );
+    const text = "@Alice Ng @re";
+    expect(activeMentionQuery(text, text.length, spans)).toEqual({
+      query: "re",
+      start: 10,
+    });
   });
 });
 
 describe("plainMentionText", () => {
-  it("replaces each token with its bare display name", () => {
+  it("replaces each token with the '@name' a reader sees", () => {
     const text = `🎂 ${mentionToken("Alice Ng", "person", ALICE)}'s birthday`;
-    expect(plainMentionText(text)).toBe("🎂 Alice Ng's birthday");
+    expect(plainMentionText(text)).toBe("🎂 @Alice Ng's birthday");
   });
 
   it("is idempotent and leaves token-free text untouched", () => {
     const once = plainMentionText(`hi ${mentionToken("Rex", "pet", REX)}`);
-    expect(once).toBe("hi Rex");
-    expect(plainMentionText(once)).toBe("hi Rex");
+    expect(once).toBe("hi @Rex");
+    expect(plainMentionText(once)).toBe("hi @Rex");
     expect(plainMentionText("just prose #tag")).toBe("just prose #tag");
   });
 });

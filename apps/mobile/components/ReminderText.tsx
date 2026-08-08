@@ -15,8 +15,10 @@ import { styles } from "../lib/styles";
  * Tag}s (keyed by normalized name); a mention's label comes from the resolved
  * {@link ResolvedMention}s (keyed by `type:id`) — the **current** label, so a
  * rename shows through, falling back to the token's snapshot name (and no link)
- * when the target is gone. RN can't nest a <Link> inside <Text>, so links are
- * nested <Text> with `onPress` → `router.push`.
+ * when the target is gone. Both keep their sigil, so a mention reads as
+ * `@Alice Ng` here exactly as it did in the composer that wrote it. RN can't nest
+ * a <Link> inside <Text>, so links are nested <Text> with `onPress` →
+ * `router.push`.
  *
  * `onPressText` makes the non-link runs tappable too (the list uses it to open the
  * reminder while its tags/mentions still navigate to their own pages); omit it on
@@ -64,7 +66,7 @@ export function ReminderText({
             `${segment.targetType}:${segment.targetId}`,
           );
           if (typeof label !== "string") {
-            return <Text key={i}>{segment.displayName}</Text>;
+            return <Text key={i}>@{segment.displayName}</Text>;
           }
           const href =
             segment.targetType === "person"
@@ -77,7 +79,7 @@ export function ReminderText({
               accessibilityRole="link"
               onPress={() => router.push(href)}
             >
-              {label}
+              @{label}
             </Text>
           );
         }

@@ -685,7 +685,7 @@ describe("core.reminders.giftTargets", () => {
 
     // The named reminder is the gift one — not the birthday wish beside it.
     const reminder = await core.reminders.get(targets[0].reminderId);
-    expect(reminderLabel(reminder!)).toBe("🎁 Get Alice X a gift");
+    expect(reminderLabel(reminder!)).toBe("🎁 Get @Alice X a gift");
   });
 
   it("excludes the wish reminder minted alongside it", async () => {
@@ -696,7 +696,7 @@ describe("core.reminders.giftTargets", () => {
         reminderLabel((await core.reminders.get(t.reminderId))!),
       ),
     );
-    expect(labels).toEqual(["🎁 Get Alice X a gift"]);
+    expect(labels).toEqual(["🎁 Get @Alice X a gift"]);
   });
 
   it("keeps naming the reminder once it's completed, so the giving can be logged", async () => {

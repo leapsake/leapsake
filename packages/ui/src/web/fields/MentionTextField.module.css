@@ -1,0 +1,85 @@
+/* A mention has to look like one *while you type* — but a <textarea> can't style
+   runs of its own text. So the field is laid over a backdrop that renders the
+   same text with a tint behind each `@Name`, and the field's own background is
+   made transparent to let it through. Only the backdrop is styled; the caret,
+   selection, IME and undo all stay native.
+
+   That trick only holds if the two boxes wrap identically, so the field and the
+   backdrop must keep the same font, line height, padding and border width —
+   hence the shared `.metrics` declarations rather than two lists that could
+   drift. A bold or larger mention is deliberately not on offer: it would change
+   the run's width, the backdrop would stop lining up with the text the caret is
+   measured against, and the tint would drift a character further off with every
+   mention on the line.
+
+   The wrapper is sized by the field (inline-block, and the field is `display:
+   block` so no baseline gap creeps in), so the backdrop's `inset: 0` lands on
+   exactly the field's box without anyone having to state a width. */
+
+.wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.metrics {
+  /* A textarea does not inherit the page font by default; the backdrop (a span)
+     does. Pin both to the same one, or the mirror is a different width. */
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: 1.4;
+  padding: 0.25rem;
+  border: 1px solid #767676;
+  box-sizing: border-box;
+  margin: 0;
+  /* A scrollbar appearing in the field would narrow its text but not the
+     mirror's, and every wrapped line would land a word off. Both reserve the
+     gutter from the start, so they wrap identically scrolled or not. */
+  scrollbar-gutter: stable;
+}
+
+.field {
+  composes: metrics;
+  position: relative;
+  display: block;
+  /* The tint lives on the backdrop below; anything opaque here would hide it. */
+  background: transparent;
+}
+
+textarea.field {
+  resize: vertical;
+}
+
+.backdrop {
+  composes: metrics;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+  /* Invisible: the real text is the field's, drawn on top. This layer exists
+     only to place the chips under it. */
+  color: transparent;
+  background: #fff;
+  border-color: transparent;
+}
+
+.multiline {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.singleLine {
+  white-space: pre;
+}
+
+/* The mirrored text arrives as `data-run` attributes and is put back here, so no
+   copy of it exists as a text node — see `mirrorRuns`. */
+.backdrop span::before {
+  content: attr(data-run);
+}
+
+.mention {
+  background: rgba(31, 111, 235, 0.14); /* tokens/index.ts → color.accentTint */
+  border-radius: 3px;
+}
