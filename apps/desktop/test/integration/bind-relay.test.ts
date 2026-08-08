@@ -29,6 +29,15 @@ import { equalBytes } from "../support/fake-relay.js";
  * publishes the account **unchanged** (same master key, same phrase, no new
  * ritual), and that a taken username leaves the user exactly where they were, free
  * to retry under another handle. Everything between is the guard rail.
+ *
+ * **The relay here is a stub, deliberately** — these cases are about what this
+ * device publishes and what it does with the answer, and a stub gives both on
+ * demand. Whether a real relay *accepts* those bytes, and whether its real 409
+ * still reaches the client's merge-or-rename fork, is the companion suite:
+ * `apps/server/test/relay.test.ts` → *binding a relay to a local-only account*.
+ * Note that the `usernameTaken` message below is not the real transport's
+ * (`relay register failed: 409`); both are matched only on the status, which is
+ * the property that suite pins.
  */
 const RELAY = "https://relay.example";
 const PASSWORD = "correct-horse-battery";

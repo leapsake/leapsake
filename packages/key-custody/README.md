@@ -156,3 +156,26 @@ Coverage lives in `apps/desktop/test/integration/` (`key-session`,
 `sync-status`). These need a real encrypted SQLite driver and an OS keystore
 adapter, so they stay integration tests at the app layer rather than moving here.
 They reach these functions through `@leapsake/core`'s re-export.
+
+**The relay-facing flows are tested twice, on purpose.** `joinAccount`,
+`recoverAccount`, `bindRelayToAccount` and the clients' merge flows each have a
+**stub** tier (`apps/desktop/test/support/fake-relay.ts`) and a **live** tier
+against a relay running in-process on an ephemeral port
+(`apps/desktop/test/support/live-relay.ts`, and the `bind → join → converge`
+suite in `apps/server/test/relay.test.ts`). The split is not redundancy:
+
+- The **stub** answers on demand, so it is the only way to test the orderings and
+  the guards — *what does this device do when the relay refuses?*
+- The **live** relay is the only thing that can answer *does the relay accept what
+  we published, and does its refusal arrive in the shape the client forks on?* A
+  stub agrees with a bug as readily as with the truth, because it was written from
+  the same reading of the protocol as the code under test. The 409 that drives the
+  merge-or-rename fork is the case in point: the real transport throws
+  `relay register failed: 409` and the desktop stub throws a differently-worded
+  string, and only the live tier proves the client's match still fires.
+
+**Not covered by either: mobile.** `apps/mobile/lib/merge-account.ts` imports
+`expo-sqlite`, whose native engine cannot load headlessly
+(`plans/testing/mobile-engine.md`), so its relay flows are exercised on-device by
+`apps/mobile/test/custody-selftest.ts` against a stub — and the live equivalent
+belongs to the blocked native/E2E tier.

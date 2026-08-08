@@ -14,8 +14,9 @@
 - **The account merge, all four increments, both clients** *(2026-08-08)*. A local-only account
   is no longer a one-way street in either direction: it can **merge** into a synced one, or
   **publish itself** to a relay, and a taken username forks to merge-or-rename rather than
-  dead-ending. **Unverified against a real relay** — both the merge's failure path and the
-  collision fork stop at a stubbed one, and the failure path is the whole reason for the design.
+  dead-ending. **Verified against a real relay on desktop** *(2026-08-08)* — an in-process
+  relay now drives the merge's real 401/404 failure paths, the post-merge duplicate review, and
+  bind's real 409 fork; both sabotage-checked. **Mobile and both UIs are still stub-only.**
   Design: [`encryption/model.md`](./encryption/model.md) §7.2.2.
 - **Onboarding Increment 1 — reminder snooze + honest dismiss actions** *(2026-07-31 → 08-01)*.
   Every acceptance clause holds on desktop, on one device and across two. **Mobile is unverified**
@@ -30,8 +31,9 @@
 
 **Startable today, in parallel with any of the above:**
 
-- **Hand-verify merge + relay binding against a running relay**, both clients. Small, and it is
-  the only tier those flows have above a stub.
+- **Hand-verify merge + binding through the UI, and on mobile** — the automated live-relay tier
+  covers desktop's flow functions, not the Settings dialogs that fork on a 409, and not mobile
+  (whose `expo-sqlite` merge is stuck in the blocked native tier).
 - **Developer account enrollment** — weeks of latency, zero effort, blocks 05 and 07.
 - **[`v0-1_web-spike.md`](./v0-1_web-spike.md)** — independent of the chain; best done before 04,
   since two of its findings are relay changes.

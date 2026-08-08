@@ -48,7 +48,10 @@ import {
  * that serves `pull` (`account-adopt.test.ts` does not test it either). What the
  * "keeps its rows" and "adopts the synced account" cases pin are exactly its two
  * preconditions: the local people survived the copy, and the account is now
- * relay-bound. The review path itself is verified by hand against a real relay.
+ * relay-bound. The review path itself — and the failure path driven by a *real*
+ * refusal rather than an injected throw — lives in
+ * [`account-merge-live.test.ts`](./account-merge-live.test.ts), against a relay
+ * running in-process.
  */
 
 const LOCAL_PASSWORD = "the password this computer has now";

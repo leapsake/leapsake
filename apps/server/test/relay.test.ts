@@ -14,15 +14,19 @@ import {
 } from "@leapsake/crypto";
 import { bytesToBase64 } from "@leapsake/bytes";
 import {
+  bindRelayToAccount,
   convergeRecoveryKey,
   createCore,
   enableSync,
   ensureDeviceMasterKey,
+  getSyncStatus,
+  isUsernameTakenError,
   joinAccount,
   joinAccountViaRelay,
   reauthenticateViaRelay,
   recoverAccountViaRelay,
   reconcileOnJoin,
+  registerAccountWithRelay,
   rotateRecoveryPhraseForAccount,
   runAccountSync,
   unlockWithPassword,
@@ -1266,6 +1270,296 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     ).rejects.toThrow(/401/);
     // No account row was written on the failed join.
     expect(await createAccountRepo(d2.driver).getSingleton()).toBeUndefined();
+
+    d1.db.close();
+    d2.db.close();
+  });
+});
+
+/**
+ * **Binding a relay to an account that already exists** (`encryption/model.md`
+ * §7.2.2), against the real relay rather than a captured bootstrap.
+ *
+ * `apps/desktop/test/integration/bind-relay.test.ts` already pins what
+ * {@link bindRelayToAccount} *publishes*, byte for byte, against a hand-written
+ * stub. What a stub cannot answer is whether the relay **accepts** those bytes and
+ * whether the account they describe is then usable — which is the whole claim the
+ * increment rests on: *a bound-later account is indistinguishable on the relay from
+ * one bound at creation.* Every case here ends by exercising the published account
+ * through a second device.
+ *
+ * The other half is the **409**. The stub asserts the client's behaviour against a
+ * hand-rolled `Error("relay POST /accounts failed: 409")`; the real transport
+ * throws `relay register failed: 409`. The strings differ, so only a real relay
+ * proves the client's fork still fires — and that fork is what stands between a
+ * collision and a dead end.
+ */
+describe("binding a relay to a local-only account (bind → join → converge)", () => {
+  const PASSWORD = "correct horse battery staple";
+  let server: Server;
+  let relayDb: DatabaseSync;
+  let baseUrl: string;
+
+  beforeEach(async () => {
+    relayDb = new DatabaseSync(":memory:");
+    server = createRelayServer({ store: createRelayStore(relayDb) });
+    baseUrl = `http://127.0.0.1:${await listen(server)}`;
+  });
+
+  afterEach(async () => {
+    relayDb.close();
+    await close(server);
+  });
+
+  /**
+   * The state the increment is about: an account created with **no relay in
+   * sight** — its own master key, its own doors, a username the user picked
+   * locally, and nothing published anywhere.
+   */
+  async function localOnlyDevice(username = "ada") {
+    const device = blankDevice();
+    await runMigrations(device.driver);
+    const { masterKey } = await ensureDeviceMasterKey({
+      keyStore: device.keyStore,
+      driver: device.driver,
+    });
+    const { recoveryKey } = await enableSync({
+      keyStore: device.keyStore,
+      driver: device.driver,
+      username,
+      password: PASSWORD,
+      // No `relayUrl` — this is the local-only half of `model.md` §7.2.
+      platform: "desktop",
+    });
+    return { ...device, masterKey, recoveryKey };
+  }
+
+  /** The bind, wired exactly as both clients' IPC handlers wire it. */
+  function bind(device: ReturnType<typeof blankDevice>, username: string) {
+    return bindRelayToAccount({
+      keyStore: device.keyStore,
+      driver: device.driver,
+      username,
+      relayUrl: baseUrl,
+      registerWithRelay: (bootstrap) =>
+        registerAccountWithRelay({ relayUrl: baseUrl, bootstrap }),
+    });
+  }
+
+  /** A stranger who got to the handle first. */
+  async function strangerHolding(username: string) {
+    const stranger = await localOnlyDevice(username);
+    await bind(stranger, username);
+    return stranger;
+  }
+
+  // The headline claim, end to end: nothing about the account changed, and yet a
+  // device that has never seen it can now log in with the username and password
+  // that already existed and read what it holds.
+  it("publishes a local-only account so a second device logs in and reads its data", async () => {
+    const d1 = await localOnlyDevice();
+    const ada = await reposFor(d1.driver).people.create({
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+
+    const { accountId } = await bind(d1, "ada");
+
+    // Bound, and the relay knows it under the handle the user picked locally.
+    expect((await getSyncStatus({ driver: d1.driver })).relayUrl).toBe(baseUrl);
+    expect(
+      await createHttpSyncTransport({ baseUrl }).lookup("ada"),
+    ).toMatchObject({ accountId });
+
+    // Data it created *before* binding pushes like any other.
+    await runAccountSync({
+      keyStore: d1.keyStore,
+      driver: d1.driver,
+      masterKey: d1.masterKey,
+    });
+
+    const d2 = blankDevice();
+    await runMigrations(d2.driver);
+    await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+    const session = await joinAccount({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      transport: createHttpSyncTransport({ baseUrl }),
+      relayUrl: baseUrl,
+      username: "ada",
+      password: PASSWORD, // the password the account has always had
+      platform: "mobile",
+    });
+    // The account's own master key — binding published it, it did not mint one.
+    expect(session.masterKey).toEqual(d1.masterKey);
+
+    await runAccountSync({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      masterKey: session.masterKey,
+    });
+    expect(await reposFor(d2.driver).people.get(ada.id)).toEqual(ada);
+
+    d1.db.close();
+    d2.db.close();
+  });
+
+  /**
+   * `bindRelayToAccount` computes exactly two values rather than reading them —
+   * `wrap(recoveryKey, MK)` and the recovery verifier. The desktop suite checks
+   * them against locally-derived bytes, which cannot catch a disagreement with the
+   * relay's own hashing of the verifier. Recovery is the door a user reaches for
+   * having already lost the other one, so it is the worst possible place for
+   * "published, but not the shape the relay authenticates against".
+   */
+  it("publishes a recovery door the relay's own recovery route accepts", async () => {
+    const d1 = await localOnlyDevice();
+    const ada = await reposFor(d1.driver).people.create({
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+    await bind(d1, "ada");
+    await runAccountSync({
+      keyStore: d1.keyStore,
+      driver: d1.driver,
+      masterKey: d1.masterKey,
+    });
+    // The 24 words the user wrote down at account creation, before any relay.
+    const phrase = encodeRecoveryPhrase(d1.recoveryKey);
+
+    const d2 = blankDevice();
+    await runMigrations(d2.driver);
+    await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+    const session = await recoverAccountViaRelay({
+      writePasswordSidecar: discardSidecar,
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      relayUrl: baseUrl,
+      username: "ada",
+      recoveryPhrase: phrase,
+      newPassword: "a brand new battery horse staple",
+      platform: "mobile",
+    });
+    expect(session.masterKey).toEqual(d1.masterKey);
+
+    await runAccountSync({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      masterKey: session.masterKey,
+    });
+    expect(await reposFor(d2.driver).people.get(ada.id)).toEqual(ada);
+
+    d1.db.close();
+    d2.db.close();
+  });
+
+  /**
+   * **The increment's reason for existing.** A locally-chosen username may already
+   * be somebody's, and the user who hits that must keep the working local-only
+   * account they had — with the collision reaching the client as a *question*
+   * rather than an error.
+   */
+  it("leaves the account local-only on a real 409, which the clients read as a taken username", async () => {
+    const stranger = await strangerHolding("ada");
+    const d1 = await localOnlyDevice("ada");
+    const before = await getSyncStatus({ driver: d1.driver });
+
+    const failure = await bind(d1, "ada").catch((cause: unknown) => cause);
+
+    // The bridge to both clients' merge-or-rename fork. `isUsernameTakenError` is
+    // a substring match on "409", and the message it has to match is the real
+    // transport's — not the desktop stub's differently-worded one.
+    expect(isUsernameTakenError(failure)).toBe(true);
+
+    // Untouched: same account, still local-only, still under the chosen name. Had
+    // the local write come first, this store would now point at a relay that never
+    // accepted it, and every later sync would 401 with no way back.
+    const after = await getSyncStatus({ driver: d1.driver });
+    expect(after.accountId).toBe(before.accountId);
+    expect(after.username).toBe("ada");
+    expect(after.relayUrl).toBeUndefined();
+
+    // And the stranger's account is exactly as it was — a refused bind must not
+    // disturb the account it collided with.
+    expect(
+      await createHttpSyncTransport({ baseUrl }).lookup("ada"),
+    ).toMatchObject({
+      accountId: (await getSyncStatus({ driver: stranger.driver })).accountId,
+    });
+
+    stranger.db.close();
+    d1.db.close();
+  });
+
+  // The rename half of the fork. There is no rename primitive because the handle
+  // was never published — the second attempt is simply a first attempt.
+  it("binds under another username after a real collision, and that account works", async () => {
+    const stranger = await strangerHolding("ada");
+    const d1 = await localOnlyDevice("ada");
+    await expect(bind(d1, "ada")).rejects.toThrow(/409/);
+
+    const { accountId } = await bind(d1, "ada-lovelace");
+    expect((await getSyncStatus({ driver: d1.driver })).username).toBe(
+      "ada-lovelace",
+    );
+
+    // Not merely "no error": the renamed account is separately reachable, and the
+    // stranger still holds the handle that caused all this.
+    const lookup = createHttpSyncTransport({ baseUrl });
+    expect(await lookup.lookup("ada-lovelace")).toMatchObject({ accountId });
+    expect((await lookup.lookup("ada")).accountId).not.toBe(accountId);
+
+    stranger.db.close();
+    d1.db.close();
+  });
+
+  /**
+   * The crash window `bindRelayToAccount`'s doc-comment reasons about: the
+   * register succeeds and the process dies before the one local write. The doc
+   * says the retry converges because the relay is idempotent **on the account id**
+   * — this is that claim, against the relay that has to honour it.
+   */
+  it("converges when a crash loses the local write after a successful register", async () => {
+    const d1 = await localOnlyDevice();
+
+    // Publish for real, then die before `bindRelay` can record it.
+    await expect(
+      bindRelayToAccount({
+        keyStore: d1.keyStore,
+        driver: d1.driver,
+        username: "ada",
+        relayUrl: baseUrl,
+        registerWithRelay: async (bootstrap) => {
+          await registerAccountWithRelay({ relayUrl: baseUrl, bootstrap });
+          throw new Error("power cut");
+        },
+      }),
+    ).rejects.toThrow(/power cut/);
+    // Published, but the store does not know it.
+    expect(
+      (await getSyncStatus({ driver: d1.driver })).relayUrl,
+    ).toBeUndefined();
+
+    // The retry re-registers the same id → "exists" → 200, so it falls through to
+    // the local write instead of colliding with itself.
+    await bind(d1, "ada");
+    expect((await getSyncStatus({ driver: d1.driver })).relayUrl).toBe(baseUrl);
+
+    // Converged for real: the first registration is the one that survived, and the
+    // password door it published still opens the account from a fresh device.
+    const d2 = blankDevice();
+    await runMigrations(d2.driver);
+    await ensureDeviceMasterKey({ keyStore: d2.keyStore, driver: d2.driver });
+    const session = await joinAccount({
+      keyStore: d2.keyStore,
+      driver: d2.driver,
+      transport: createHttpSyncTransport({ baseUrl }),
+      relayUrl: baseUrl,
+      username: "ada",
+      password: PASSWORD,
+      platform: "mobile",
+    });
+    expect(session.masterKey).toEqual(d1.masterKey);
 
     d1.db.close();
     d2.db.close();
