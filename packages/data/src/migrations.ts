@@ -829,7 +829,7 @@ export const migrations: Migration[] = [
       // deliberately **not** onboarding-flavoured: `snoozed_until` is when the row
       // becomes visible again, `snooze_count` is how many times it has been put off
       // — equally true of a dentist reminder someone has dodged four times. The
-      // onboarding nudges (`plans/onboarding.md` §4) are simply the first consumer;
+      // onboarding nudges (`packages/reminders/README.md`) are simply the first consumer;
       // `source` already separates *the product asked and the user declined*
       // (`system`) from *someone hiding their own reminder* (`user`), so neither
       // case needs storage of its own.
@@ -837,8 +837,7 @@ export const migrations: Migration[] = [
       // `snooze_count` is NOT NULL DEFAULT 0 because a count has an obvious zero:
       // every existing row backfills for free, with no data step.
       //
-      // ⚠️ **Store what happened, never what to do next** (`plans/onboarding.md`
-      // §4.1). `snoozed_until` is a stored date and therefore the one place that
+      // ⚠️ **Store what happened, never what to do next** (`packages/reminders/README.md`). `snoozed_until` is a stored date and therefore the one place that
       // rule can be broken by accident. It is legitimate only as *generic* snooze —
       // a user-chosen “hide until Tuesday” is a fact about what the user did. The
       // re-prompt **policy** must stay derived: a step's `duration` is applied by a

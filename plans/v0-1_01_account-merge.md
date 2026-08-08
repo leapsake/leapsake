@@ -1,12 +1,12 @@
-# Leapsake — Merging a local account into a synced one
+# v0.1 · 01 — Merging a local account into a synced one
 
-> **Unbuilt work only.** How the built half works — the converter, the adopt flow, the crash
+> **Delete this doc when the work lands.** How the built half works — the converter, the adopt flow, the crash
 > ordering, `reconcileOnJoin` — is in the doc-comments on the files named below. This doc holds
 > the missing half and is deleted when it empties.
 
-**Why this doc exists:** the same work was described in three places, each partially — this
-folder's *username collision* open question, [`../onboarding.md`](../onboarding.md) §6.2, and
-[`../launch.md`](../launch.md) Increment 4's gate. It is now the **first thing to build**, so it
+**Why this doc exists:** the same work was described in three places, each partially — the
+encryption folder's *username collision* open question, the onboarding plan's merge section, and
+the mobile-pipeline gate. It is now the **first thing to build**, so it
 gets one home. Those three now point here.
 
 ## The invariant this serves
@@ -15,14 +15,14 @@ gets one home. Those three now point here.
 > authenticated synced account.** *(owner, 2026-08-02.)*
 
 A user who takes the wrong branch at the create/sign-in fork loses **time, never work**. That
-outranks the UX guards in [`../onboarding.md`](../onboarding.md) §6.1: those reduce how often the
+outranks the UX guards in [`02 — the account invitation`](./v0-1_02_account-invitation.md): those reduce how often the
 mistake is made, this decides what it costs.
 
 **Sequencing settled** *(owner, 2026-08-07)*: this ships **before**
-[`../onboarding.md`](../onboarding.md) Increment 2, not alongside it. Increment 2 puts a *create
+[`02 — the account invitation`](./v0-1_02_account-invitation.md), not alongside it. That step puts a *create
 account* invitation on Home, which mass-produces the population holding a local-only account;
 closed testers are the group likeliest to own a second device and therefore to hit it. The exit
-gets closed before the trap is advertised. This moves [`../launch.md`](../launch.md) Increment 4
+gets closed before the trap is advertised. This moves [`04 — the mobile pipeline`](./v0-1_04_mobile-pipeline.md)
 and the Play 14-day clock out by the length of this doc — accepted knowingly.
 
 ## What is already built — do not re-derive it
@@ -64,7 +64,7 @@ db-key — the same ordinary-SQL pattern the existing doc-comment already explai
 source instead of a bare one.
 
 ⚠️ **Never route through a plaintext intermediate.** That would write the entire database in the
-clear, which is the exact window [`model.md`](./model.md) §7.2.1 exists to keep small.
+clear, which is the exact window [`model.md`](./encryption/model.md) §7.2.1 exists to keep small.
 
 Both existing guards need a re-key-aware arm rather than deletion: the source check at
 `convert-store.ts:53` must accept *encrypted-and-openable-under-this-key*, and the destination
@@ -127,7 +127,7 @@ reach.
 - **Does the retired local account leave a tombstone?** Retiring it in the roster is enough for
   the device, but nothing yet decides whether the relay should learn that a local account id was
   folded into a synced one. Nothing depends on it today; it would matter for device management
-  (this folder's [`README.md`](./README.md) → *Post-launch*).
-- **Concurrent merges** — the same edge case [`../reconciliation.md`](../reconciliation.md)
+  ([`v0-2.md`](./v0-2.md) → *Post-launch*).
+- **Concurrent merges** — the same edge case [`v0-2.md`](./v0-2.md)
   already notes for merges generally: two devices merging overlapping pairs differently may
   diverge under LWW. Not made worse by this work, and not solved by it.

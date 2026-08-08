@@ -171,7 +171,7 @@ export function isReminderEditable(r: { source: ReminderSource }): boolean {
  * Whether anything has happened to this reminder since the engine minted it —
  * the {@link HasHistory} predicate `reminders` merges with, and the reason a
  * peer's fresh mint can no longer undo a dismissal or reset a snooze across
- * sync (onboarding.md §1; `merge.ts` for the rule).
+ * sync (`packages/reminders/README.md` → *Merge safety*; `merge.ts` for the rule).
  *
  * History is a **decision someone took about this row**: putting it off
  * (`snoozedUntil`, and `snoozeCount` which outlives the clock), finishing it

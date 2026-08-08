@@ -344,7 +344,7 @@ Each line is a settled decision; the section it points to has the reasoning.
 **There is no first-launch prompt.** Every fresh install starts **Unauthenticated** (§7.2): straight
 into the app, no keys, no encryption (Tier 3, §5), nothing to decide. The "already using
 Leapsake elsewhere?" question is a **Home nudge**, ranked first among them
-([`../onboarding.md`](../onboarding.md) §3.1) — not a gate in front of the app.
+([`../../packages/reminders/README.md`](../../packages/reminders/README.md)) — not a gate in front of the app.
 
 That is the layperson principle (§1) taken literally: a new user cannot usefully answer a
 question about our sync topology before seeing what the app is, and asking costs the
@@ -386,7 +386,7 @@ a crash survivable (§8.1).
 only by the OS keychain. That trade was bad in both directions: it bought little (it
 guards a copied file, which platform full-disk encryption largely covers already) and it
 cost a lot (if the keychain is ever lost — OS reinstall, migration, repair, or the Team-ID
-change in [`../launch.md`](../launch.md) §2 — the *only* way back was a 24-word phrase the
+change in [`../../packages/key-custody/README.md`](../../packages/key-custody/README.md) — the *only* way back was a 24-word phrase the
 user had never been asked to save). A key the user does not hold protects little and can
 lose everything. So: **no custody, no encryption.**
 

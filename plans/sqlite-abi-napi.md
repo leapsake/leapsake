@@ -21,7 +21,7 @@ The workaround has its own sharp edges:
 
 - Interrupting the script mid-extract (SIGKILL) leaves **no** binary — recovery is a manual
   `tar` restore from `~/.npm/_prebuilds`.
-- It is one more thing packaging must agree with ([`launch.md`](./launch.md) Increment 5:
+- It is one more thing packaging must agree with ([`v0-1_05_desktop-packaging-and-signing.md`](./v0-1_05_desktop-packaging-and-signing.md):
   asar unpacking + the Electron ABI).
 
 This is the cost we knowingly accepted when at-rest encryption overrode the
@@ -58,7 +58,7 @@ a patch.
 2. Delete `scripts/ensure-sqlite-abi.mjs`.
 3. Strip the `node ../../scripts/ensure-sqlite-abi.mjs electron &&` prefix from the desktop
    `dev` / `start` / `rebuild` scripts, and the `node` variant from `pnpm test`.
-4. Re-check the packaging story in [`launch.md`](./launch.md) Increment 5 — one ABI-agnostic
+4. Re-check the packaging story in [`v0-1_05_desktop-packaging-and-signing.md`](./v0-1_05_desktop-packaging-and-signing.md) — one ABI-agnostic
    binary should *simplify* asar unpacking, not complicate it.
 5. Verify the cipher pragmas are unchanged (`applyDatabaseKey`) and the driver contract
    suite passes on both runtimes without any rebuild step.

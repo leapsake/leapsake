@@ -91,6 +91,33 @@ real `HttpSyncTransport` satisfies structurally. So this package never imports
 `@leapsake/sync`, the two are independently testable, and `core` remains the only
 place that knows both a relay and a custody flow exist.
 
+## The signing identity owns the enclave key
+
+A fact worth knowing before any change to the app's signing principal, because it is invisible
+until it fires for every user at once.
+
+`safe-storage-keystore.ts` stores a macOS keychain item whose ACL is **bound to the app's code
+signature**; on iOS, keychain access groups are prefixed with the **Team ID**
+(`$(AppIdentifierPrefix)com.leapsake.app`). A new signing principal — an org transfer, a
+different Developer ID — is a different owner, and **every existing enclave key becomes
+unreadable**.
+
+What that costs depends entirely on the custody model, which is why *encryption follows custody*
+(`plans/encryption/model.md` §7.2) matters more than it looks:
+
+| The user is… | What a signing-identity change costs them |
+|---|---|
+| **Unauthenticated** (no account) | **nothing.** There are no keys to lose; the store is plaintext and simply opens |
+| **Authenticated** | one password entry at the recovery gate; the phrase only if they have forgotten that too |
+
+Under the *old* default — encrypt always — the same event dropped every user into a
+24-word-phrase gate for a phrase they had never been asked to save. This is the single strongest
+practical argument for the current model, and it was found while planning distribution.
+
+The hazard is **not unique to an org transfer**: OS reinstall, machine migration, or any
+`safeStorage` failure triggers the same gate. A transfer only makes it fire for everyone at once,
+deterministically.
+
 ## Tests
 
 Coverage lives in `apps/desktop/test/integration/` (`key-session`,

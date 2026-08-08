@@ -1,76 +1,49 @@
-# Leapsake — Status (immediate work only)
+# Leapsake — Status
 
-> **What this file is:** what just landed, and what is being worked on next. Nothing else.
-> It is deliberately short — if it grows past ~100 lines, something in it belongs elsewhere.
-
-| Question | Where the answer lives |
-|---|---|
-| What has been **done**, and how? | `git log`, plus the doc-comments in the code it touched |
-| What **could** be done next? | the workstream docs in [`plans/`](./README.md) — each holds only *unbuilt* work |
-| **In what order?** | [`launch.md`](./launch.md) **§3** — the one order of operations, including the prerequisites other docs own |
-| What is being done **right now**? | this file |
-| How does the code **work**? | the code, its tests, and the README beside it — [`../AGENTS.md`](../AGENTS.md) maps them |
-| What is **decided** (product posture, user model)? | [`product-truths.md`](./product-truths.md) |
-
-**A doc in `plans/` lives exactly as long as it has unbuilt work in it.** It shrinks as
-increments land — delivered detail moves to `git log` and to the code's own doc-comments — and
-it is **deleted when empty**. Leftovers are never parked here; they stay with their workstream
-until they are built or dropped.
+> **What just landed, what is next, what follows.** Nothing else — and never over 50 lines.
+> The full v0.1 order is [`v0-1.md`](./v0-1.md); everything deferred is [`v0-2.md`](./v0-2.md).
 
 ## Just landed
 
-- **Local custody**, both clients *(2026-07-26 → 07-30)*. Leapsake encrypts once the user holds
-  a secret that opens it, and not before: a fresh install mints no keys and writes a plaintext
-  store, creating an account turns encryption on, and a lost keychain is answered by the
-  password. Design: [`encryption/model.md`](./encryption/model.md) §7. Code map:
-  [`@leapsake/key-custody`](../packages/key-custody/README.md).
+- **`plans/` restructured around the v0.1 order** *(2026-08-07)*. Seven numbered, individually
+  deletable docs behind [`v0-1.md`](./v0-1.md); everything non-gating moved to
+  [`v0-2.md`](./v0-2.md); durable design moved next to its code.
+- **Onboarding Increment 1 — reminder snooze + honest dismiss actions** *(2026-07-31 → 08-01)*.
+  Every acceptance clause holds on desktop, on one device and across two. The last defect was the
+  merge: an untouched row now never wins. **Mobile is unverified** — its row logic has a unit
+  tier, but nothing has been observed on a simulator, which belongs to the blocked E2E tier
+  ([`v0-1_06`](./v0-1_06_e2e-and-release-gate.md)).
+- **Local custody**, both clients *(2026-07-26 → 07-30)*. Leapsake encrypts once the user holds a
+  secret that opens it, and not before. [`encryption/model.md`](./encryption/model.md) §7.
 - **Relay hardening through H3** — session tokens + both TLS paths, plus H2, M3, proxy-aware IP
   and the recovery throttle.
-- **Onboarding design reshaped** *(2026-07-31)* — the Day-1 flow and its decision table dropped
-  in favour of standing nudges plus reminder snooze. One verb, one write method
-  ([`onboarding.md`](./onboarding.md) §4.2).
-- **[`onboarding.md`](./onboarding.md) Increment 1 — reminder snooze + honest dismiss actions**
-  *(2026-07-31 → 08-01, 9 slices)*. Every acceptance clause now holds on desktop, watched rather
-  than inferred: on one device (slice 8) and across two (slice 9). The last defect was the merge —
-  every device mints the nudges under the same deterministic id, so a device that minted before it
-  pulled out-ranked a peer's dismissal on `updated_at` and undid it. **An untouched row never wins
-  a merge** now, via an opt-in per-table `hasHistory` predicate the sync substrate grew for it.
-  Mobile is **unverified** — its row logic has a unit tier, but nothing on either simulator has
-  been observed, which belongs to the blocked E2E tier ([`testing/`](./testing/)), not here.
-  The dial that went with it is settled too *(owner, 2026-08-01)*: a step accepts **two** *not
-  now*s, never one, so no nudge retires on the first click and *don't ask again* is always
-  reachable. One cosmetic leftover stays with the workstream and is deprioritized — nudge display
-  order only holds within a single reconcile ([`onboarding.md`](./onboarding.md) → Increment 1).
 
 ## In progress
 
-Nothing. Next is [`encryption/account-merge.md`](./encryption/account-merge.md) Increment 1 —
-**P1** in [`launch.md`](./launch.md) §3, which now carries the whole order and is the only place
-it is written down.
+Nothing.
 
-Two sequencing decisions landed *(owner, 2026-08-07)* and are recorded there: the **merge path
-ships before** the account invitation, pushing the Play 14-day clock out by its length; and the
-**web spike runs pre-v0.1** on its own independent track, because two of its findings are relay
-changes and the relay is what hardens for v0.1.
+## Next
 
-## Where the rest of the work lives
+1. **[`v0-1_01_account-merge.md`](./v0-1_01_account-merge.md)** — Increment 1, the encrypted-source
+   re-key converter. Merging a local-only account into a synced one is the missing half of
+   custody, and it closes a one-way trap before [`02`](./v0-1_02_account-invitation.md)
+   advertises it.
+2. **[`v0-1_02_account-invitation.md`](./v0-1_02_account-invitation.md)** — the create/sign-in fork
+   on Home. Gates the mobile pipeline, and therefore the 14-day Play clock.
+3. **[`v0-1_03_store-identity-and-restore.md`](./v0-1_03_store-identity-and-restore.md)** — then
+   04 → 07 in [`v0-1.md`](./v0-1.md)'s order.
 
-Not a queue — [`launch.md`](./launch.md) §3 is the queue. Each doc holds its own backlog and its
-own open questions.
+**Startable today, in parallel with any of the above:**
 
-| Workstream | Doc | Shape of what remains |
-|---|---|---|
-| **Account merge** (custody) | [`encryption/account-merge.md`](./encryption/account-merge.md) | 4 increments; **first in the order** (§3 P1) |
-| **Onboarding** (first run) | [`onboarding.md`](./onboarding.md) | Increment 1 built; 2 is the rest of the v0.1 line (§3 P2) |
-| **Distribution / launch** | [`launch.md`](./launch.md) | 11 increments **and the order of operations**; signing, stores, the release gate |
-| **Encryption + sync** | [`encryption/`](./encryption/) | the relay/sync backlog + every post-launch stage |
-| **Reconciliation** (dedup & merge) | [`reconciliation.md`](./reconciliation.md) | 4 quality items; pre- or post-launch |
-| **Client / UX** | [`client-ux.md`](./client-ux.md) | reminder search, styling, i18n, one mobile bug |
-| **Holidays** | [`holidays.md`](./holidays.md) | doors deliberately left open; none blocking |
-| **Files / media** (photos, v0.2) | [`files.md`](./files.md) | nothing built; invariants pinned |
-| **Web client** (SSR / PWA) | [`web.md`](./web.md) | nothing built; a 6-increment throwaway spike, **pre-v0.1** on its own track |
-| **Testing** | [`testing/`](./testing/) | E2E is the one blocked tier, pending owner sign-off |
-| **Native SQLite ABI** | [`sqlite-abi-napi.md`](./sqlite-abi-napi.md) | watch-item, blocked on the fork |
+- **Developer account enrollment** — weeks of latency, zero effort, blocks 05 and 07.
+- **[`v0-1_web-spike.md`](./v0-1_web-spike.md)** — independent of the chain; best done before 04,
+  since two of its findings are relay changes.
 
-**Shipped and feature-complete, with no doc left:** V1 desktop, V1.5 local CRM, V2 mobile, the
-UI/view-model extraction, gifts, contact import. Read `git log` and the package READMEs.
+## Open, waiting on the owner
+
+**How much of the E2E catalog gates v0.1** — it plausibly sizes larger than all of distribution
+combined, and it needs a decision rather than a quiet reinterpretation. Details and three smaller
+questions: [`v0-1.md`](./v0-1.md) → *Open decisions*.
+
+**Shipped, feature-complete, no doc left:** V1 desktop, V1.5 local CRM, V2 mobile, the UI/
+view-model extraction, gifts, contact import, holidays. Read `git log` and the package READMEs.

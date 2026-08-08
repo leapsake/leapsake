@@ -70,7 +70,7 @@ export type HasHistory<T> = (row: T) => boolean;
  *   a newer `updatedAt` than the peer's tombstone and would otherwise undo a
  *   "don't ask again" or reset a snooze. **Derived data can be recomputed and a
  *   user's decision cannot**: losing a mint costs nothing, because the next
- *   reconcile re-derives it. (onboarding.md §1, owner, 2026-08-01.)
+ *   reconcile re-derives it. (`packages/reminders/README.md` → *Merge safety*; owner, 2026-08-01.)
  * - **Higher `updatedAt` wins** — whole-row last-writer-wins.
  * - **Equal `updatedAt` is broken deterministically** by canonical-serialization
  *   order, so two devices that wrote in the same millisecond still converge on

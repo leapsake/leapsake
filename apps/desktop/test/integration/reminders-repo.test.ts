@@ -214,7 +214,7 @@ describe("remindersRepo snooze columns", () => {
 });
 
 /**
- * The merge rule of onboarding.md §1 at the one place it acts: `upsertFromRemote`.
+ * The merge rule in `packages/reminders/README.md` → *Merge safety* at the one place it acts: `upsertFromRemote`.
  * Every device mints the onboarding nudges independently under the same
  * deterministic id, so a device that mints *before* it pulls carries the newer
  * `updated_at` — and used to undo the peer's dismissal and reset its snooze

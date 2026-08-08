@@ -19,7 +19,7 @@ import { colors, styles } from "../lib/styles";
  *
  * **Clear everything** additionally deletes `device-id` and `enclave`, which is
  * what an OS reinstall or a signing-identity change actually costs a user
- * (`plans/launch.md` §2). That is the only way to reach custody slice 9's
+ * (`packages/key-custody/README.md`). That is the only way to reach custody slice 9's
  * master-key repair: with the device identity intact the enclave still vouches
  * for the right key and the repair correctly reports `"unchanged"`. It is the
  * mobile counterpart of deleting `keystore.json` from a desktop profile.

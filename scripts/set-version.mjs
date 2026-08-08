@@ -13,7 +13,7 @@
 //
 // The check half is the point. A bump that misses one manifest is invisible until an
 // artifact ships with the wrong number on it — and store version strings are permanent
-// and monotonic, so "we'll fix it next release" is not available (plans/launch.md §2).
+// and monotonic, so "we'll fix it next release" is not available (plans/v0-1.md).
 //
 // Manifests are *discovered*, never listed, so a new package or app is covered the day
 // it is created rather than the day someone remembers this file exists.

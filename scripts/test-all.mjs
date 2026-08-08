@@ -56,7 +56,7 @@ const TIERS = [
   {
     // Cheap, but it guards something the other static tiers can't see: a version bump
     // that missed a manifest is invisible until an artifact ships with the wrong number
-    // on it, and store versions are permanent and monotonic (plans/launch.md §2).
+    // on it, and store versions are permanent and monotonic (plans/v0-1.md).
     key: "versions",
     layer: "static",
     label: "version agreement (one version across every manifest)",

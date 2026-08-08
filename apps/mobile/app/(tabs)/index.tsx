@@ -39,7 +39,7 @@ import { colors, styles } from "../../lib/styles";
  * Snoozed reminders show nowhere. `partitionReminders` hands back a third bucket
  * and this screen deliberately ignores it: a surface for it would hand the user a
  * way to *complete* a snoozed row, which reopens the still-open question of
- * whether reopening should clear a running clock (`plans/onboarding.md` §7).
+ * whether reopening should clear a running clock (`plans/v0-2.md`).
  */
 export default function RemindersScreen() {
   const core = useCore();

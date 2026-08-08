@@ -617,7 +617,7 @@ export type AdoptionDoor =
  *
  * A door unlock is, by construction, what happens when the OS keychain no longer
  * opens the store — an OS reinstall, a new machine, or a signing-identity change
- * (`plans/launch.md` §2). The door recovers the *db-key*, so the store opens and
+ * (this package's README → *The signing identity owns the enclave key*). The door recovers the *db-key*, so the store opens and
  * the user is back in. But the same wipe took `device-id` and `enclave`, so
  * {@link ensureDeviceMasterKey} would find no wrap row for the fresh id and mint a
  * brand-new master key. The device would then hold a key the account has never

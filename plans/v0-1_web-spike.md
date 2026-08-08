@@ -10,7 +10,7 @@
 run. This doc exists because the answer is cheap to prove *now* and expensive to discover
 after v0.1 hardens the architecture.
 
-**Scheduled pre-v0.1** *(owner, 2026-08-07)*, as Track W in [`launch.md`](./launch.md) §3 —
+**Scheduled pre-v0.1** *(owner, 2026-08-07)*, as a parallel track in [`v0-1.md`](./v0-1.md) —
 independent of the launch prerequisite chain, and the natural filler whenever that chain is
 waiting. The deciding argument was not the general one below but a specific one: two items in
 *Known before starting* are **relay** changes, and the relay is the component hardening for v0.1.
@@ -240,7 +240,7 @@ integrity trust dependency production must not have. So the real conclusion is t
 
 ### Increment 6 — write the findings, tear the spike down
 
-`plans/web.md` (this doc) is rewritten into the answers, structured as answers rather than
+`plans/v0-1_web-spike.md` (this doc) is rewritten into the answers, structured as answers rather than
 narrative: the three questions resolved in three sentences; the measurement table; the required
 relay and shared-package changes; the no-JS section inventory below; the two sharing flavors;
 and the open questions that survived. Then delete `apps/web-spike` and revert the

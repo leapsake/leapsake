@@ -239,12 +239,12 @@ export function defineSyncable<T extends SyncRow>(opts: {
    * anything the user creates gets a random UUID and never collides. Today the
    * only such table with a decision worth protecting is `reminders`, whose
    * engine-minted onboarding nudges were being resurrected by a peer's fresh
-   * mint (`reminderHasHistory`, and onboarding.md §1 → *Merge across devices*).
+   * mint (`reminderHasHistory`, and `packages/reminders/README.md` → *Merge safety*).
    * The other deterministic-id families carry no per-row user decision, and the
    * holiday catalog deliberately depends on plain LWW over authored timestamps.
    *
    * This is also the seam a field-level merge grows out of, once a second
-   * consumer exists — the eventual aim recorded in onboarding.md.
+   * consumer exists — the eventual aim recorded in `packages/reminders/README.md`.
    */
   hasHistory?: HasHistory<T>;
 }): SyncableRepo<T> {

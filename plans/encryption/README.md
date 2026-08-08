@@ -1,9 +1,9 @@
 # Leapsake Encryption, Privacy & Sync — design docs
 
 This folder holds the **design** for how Leapsake protects, shares, and syncs user data — the
-stable "why" — plus **this workstream's own backlog** (*What remains*, below). What is already
-built is in `git log` and in the doc-comments of the code; what is being worked on *right now*
-is the only thing [`../status.md`](../status.md) tracks.
+stable "why". **Design only** — no backlog lives here any more; see *Where the unbuilt work
+lives* below. What is already built is in `git log` and in the doc-comments of the code; what is
+being worked on *right now* is the only thing [`../status.md`](../status.md) tracks.
 
 > **Four docs, four questions.** Consolidated 2026-07-27 from six — `custody-sequence.md`
 > folded into `model.md` §7.5 (it had become the same story told twice) and
@@ -31,136 +31,39 @@ is the only thing [`../status.md`](../status.md) tracks.
 > account, §7.5 the key lifecycle, plus §8.1 for converting a store. Nothing in this folder
 > or anywhere else restates it; if you are about to, edit §7 instead.
 
-The one **build** doc in this folder, kept separate from the six design docs above:
-
-| Doc | What it is | When to read it |
-|---|---|---|
-| [`account-merge.md`](./account-merge.md) | Merging an Authenticated **local-only** account into a synced one — the missing half of the custody build, in four increments. **Currently first in the build order** ([`../launch.md`](../launch.md) §3). | Before onboarding Increment 2, or any work on the converters, the adopt flow, or the `409` collision. |
-
 ## The one rule that keeps these from drifting
 
-**The six design docs above are design; unbuilt work lives in *What remains* below, in
-[`account-merge.md`](./account-merge.md), and nowhere else.**
-When a slice lands, delete its entry here — its delivery detail belongs in `git log` and in the
-doc-comments of the code it touched, not in a doc that then has to be maintained. Never restate
+**These six docs are design; unbuilt work lives in the numbered v0.1 docs or
+[`../v0-2.md`](../v0-2.md), never here.** A work item that lands leaves no trace in this folder —
+its delivery detail belongs in `git log` and in the doc-comments of the code it touched. Never
+restate
 "what's done" or "which stage" in `model.md`/`sync.md`/`schema.md`; they are meant to read the
 same whether a thing shipped yesterday or ships next year.
 
-## What remains
+## Where the unbuilt work lives — not here
 
 **Stages 1–2 (zero-knowledge sync, at-rest) are done** and verified over the wire and on disk;
-**custody is finished** on both clients; relay hardening is complete through H3. Stages 3–4
-(sharing, SSR web) are post-launch by decision.
+**custody is finished** on both clients; relay hardening is complete through H3.
 
-### Pre-v0.1 — interleavable, none of it blocking
+This folder is **design only**. Everything unbuilt moved out on 2026-08-07 so it could be
+ordered against the rest of the project:
 
-- **Shared cross-process rate-limit counter.** Today's limiters *and* the session store are
-  in-memory and per-process; a multi-node relay collapses them. One shared follow-up.
-- **vCard/JSContact export** (import comes later, with the bulk importer). The portability /
-  exit-strategy answer: user-initiated, client-side (the client already holds plaintext),
-  people + contact methods first. Cheap, and it doubles as groundwork for the future CardDAV
-  surface and the importer increment. **It also unblocks a promise already made:**
-  [`model.md`](./model.md) §7.3.1 says Forget-account should offer an export first, and today
-  desktop's hard-confirm can only tell the user to copy their `stores` folder — honest but poor
-  — while mobile cannot say even that (no user-reachable filesystem). Wire the real offer when
-  the exporter lands.
-- **Relay disposability** ([`sync.md`](./sync.md) §2): losing `relay.db` must never lose user
-  data. Content already lives on devices; close the gap by having devices **self-heal the
-  account row + recovery escrow** on sync, so a relay wipe costs one re-join at most.
-  > The relay store's `ALTER TABLE` try/catch migration pattern (`apps/server/src/store.ts`) is
-  > fine for single-node SQLite; revisit only if that store ever moves backends.
-- **CK revocation / GC on entity delete** — sync-era cleanup that stops orphaned keys.
-- **True background-fetch sync**, plus a configurable sync-interval UI.
-- **Cleanup:** `createCore(driver, keySession?)` no longer reads its key session —
-  `milestone.note` was layer 3's only consumer and was retired with migration 27. The parameter
-  and the clients' "rebuild the core around the adopted MK" plumbing are inert, and on desktop
-  the rebuild is redundant as well, since the store swap re-opens and rebuilds core anyway.
-  Left in place on purpose (photos are layer 3's real consumer — [`../files.md`](../files.md)),
-  so **simplify it whenever layer 3 next gets attention.**
+| Work | Where |
+|---|---|
+| Merging a local-only account into a synced one — the missing half of custody | [`../v0-1_01_account-merge.md`](../v0-1_01_account-merge.md), **first in the v0.1 order** |
+| Proving the SSR / PWA design before v0.1 hardens it | [`../v0-1_web-spike.md`](../v0-1_web-spike.md) |
+| Relay disposability, CK revocation/GC, the shared rate-limit counter, background sync, vCard export, the `createCore` cleanup, the relay-backup capability | [`../v0-2.md`](../v0-2.md) → *Encryption, sync, and the relay* |
+| Automatic locking, session lifetime, biometrics | [`../v0-2.md`](../v0-2.md) — explicitly v0.2 *(owner, 2026-07-27)* |
+| Stages 3–4 (sharing, the web app), the hosted-relay gate, passkeys, device management | [`../v0-2.md`](../v0-2.md) → *Post-launch* |
+| Restore-from-file-backup | [`../v0-1_03_store-identity-and-restore.md`](../v0-1_03_store-identity-and-restore.md) — a launch gate, not an encryption task |
 
-> **Restore-from-file-backup** is tracked as [`../launch.md`](../launch.md) Increment 3, not
-> here — it is a launch gate, and both doors are already proved on desktop against a wiped
-> keychain. What remains there is the same exercise on a *fresh machine*, plus writing it up.
+The **open design questions** that are tied to a not-yet-started stage — the asymmetric scheme,
+the public-key directory trust model, the web framework, share-URL formation, metadata
+minimization, the SSR enclave ceiling — are listed with the stage that will answer them, in
+[`../v0-2.md`](../v0-2.md).
 
-### Explicitly v0.2, not v0.1 *(owner, 2026-07-27)*
-
-**Automatic locking on idle, and the bounded session.** The deliberate half (sign out) is
-already cheap and built. A real session needs mid-session re-lock in the desktop main process
-and in mobile's bootstrap, and it must not be theater, since the keychain still holds the
-db-key. Not a one-way door — it sits on the same password door.
-
-### Post-launch (after the web app)
-
-- **Web app — Stage 4** (SSR split-session rendering + PWA; [`model.md`](./model.md) §10): the
-  no-JS accessibility floor, and the gate for all URL-based sharing. **Low retrofit risk** — the
-  KEK layer makes the SSR session-key door additive, the auth-verifier split it needs is already
-  built, and web is just another `core` consumer behind existing ports.
-  > **The backlog moved** *(2026-08-02)*: [`../web.md`](../web.md) now owns the web workstream —
-  > the increments, the still-open framework choice, and the throwaway spike that proves the
-  > §9.2/§10 design before v0.1 hardens it. Two of its findings land back here: the relay needs
-  > **CORS + `OPTIONS`** before any browser client can exist, and the bootstrap/session
-  > **per-IP** rate-limit budget is structurally wrong for an SSR host, which logs in from one
-  > IP for every user.
-  >
-  > ⚠️ **The *spike* is pre-v0.1** *(owner, 2026-08-07)*; the Stage 4 **web app** below is not.
-  > Do not read this heading as deferring [`../web.md`](../web.md) — it runs on its own track in
-  > [`../launch.md`](../launch.md) §3, and its two relay findings are the reason: both are
-  > cheaper to learn before the relay is in testers' hands than after.
-- **Capability-link sharing** ([`model.md`](./model.md) §11): zero-knowledge public links (key
-  in the `#fragment`, no `key_wrap` row). Needs the web app as render vehicle **and** the
-  share-URL decision below.
-- **Stage 3 — authenticated sharing**: account keypair + public-key directory (TOFU-vs-verify
-  trust) + constrained principals (hosted links, Alexa, CardDAV). Kept entirely post-web. Needs
-  an **external** crypto audit before public ship.
-- **Hosted-relay gate** — before any official or paid relay stores other people's data:
-  **OPAQUE** login (the H1 decision, [`sync.md`](./sync.md) §4), Tier-1 server-escrow recovery
-  (email/password reset as an opt-in dial, [`model.md`](./model.md) §5–6), quotas /
-  registration-token enforcement, and the shared rate-limit counter above.
-- **Custody doors, in preference order** *(decided 2026-07-05, [`sync.md`](./sync.md) §4)*:
-  **passkeys (WebAuthn PRF)** as an additional unlock door — supported, *not* the default (not
-  yet universal enough). A 1Password-style **Secret Key is deliberately not planned as a
-  default** — at most a much-later opt-in hardening after passkeys. Also the high-entropy
-  sync-code / QR-pairing door, and username reconciliation across relays.
-- **Device management** — per-device revocation and a master-key rotation mechanism (the
-  lost-phone story). Grows in importance with photos (v0.2), so track it before then.
-
-## Open questions
-
-**Custody** — the build is finished, but these are not decided:
-
-- **Username collision when a local account binds a relay** → **now a build, not a question.**
-  It is [`account-merge.md`](./account-merge.md) Increment 4, and the doc it sits in is the
-  **first thing being built** *(owner, 2026-08-07)*. The invariant — *a local store,
-  Unauthenticated or Authenticated, must always be mergeable into an authenticated synced
-  account* — settled the *"this is me, merge them"* half; only the rename half was ever open,
-  and it ships with relay binding as always intended.
-- **Relay backup capability** — the protocol shape for a relay advertising whether it keeps a
-  durable copy ([`model.md`](./model.md) §7.3.1). The **client half is built**
-  (`fetchRelayCapabilities`, `@leapsake/sync`): it GETs `/capabilities`, reads a literal
-  `durableBackup: true`, and falls back to "no" on anything else. Undecided is the **server**
-  side — the endpoint's shape, whether it carries more than one field, and whether it is
-  authenticated — so no relay serves it and every user currently sees the last-device deletion
-  warning. That default is the safe one, so it does not block v0.1.
-- *(Deferred with automatic locking, v0.2)* **session lifetime and its dial**; **biometrics on
-  mobile** as the everyday unlock, with a true expiry still demanding the password; and
-  **auto-purge of an idle logged-in device**.
-
-**Encryption** — each tied to a not-yet-started stage:
-
-- **Asymmetric scheme** (X25519/Ed25519) — reviewed when **Stage 3** needs it. Plus an
-  **external** crypto audit before public ship; the recorded review is an internal design audit.
-- **Public-key directory trust model** (TOFU vs. verification) — **Stage 3**.
-- **Web framework** — must support both SSR (no-JS) and a client-side decryption path in one
-  app ([`model.md`](./model.md) §10) — **Stage 4**.
-- **Share-URL formation** — how the official/paid instance and self-hosted instances at
-  arbitrary domains form and resolve share URLs, and how account identity / the public-key
-  directory reconcile across relays and domains. Blocks **capability-link sharing**; tied to
-  the web app + Stage 3.
-- **Metadata minimization** — explicitly out of scope for V3. Revisit before privacy-first
-  marketing at scale, and again before v0.2: blob sizes and counts reveal more about a photo
-  library than text rows do (see [`../files.md`](../files.md)).
-- **Confidential-computing enclave for SSR** — the **Stage 4** ceiling; only if server-side
-  decryption trust ever needs hardening.
+> The relay store's `ALTER TABLE` try/catch migration pattern (`apps/server/src/store.ts`) is
+> fine for single-node SQLite; revisit only if that store ever moves backends.
 
 ## The 60-second summary
 
@@ -176,7 +79,7 @@ db-key. Not a one-way door — it sits on the same password door.
   ever holds ciphertext + wrapped keys → **zero-knowledge by default**.
 - A **KEK layer** (`model.md` §4) means every later capability — recovery, passkeys, the
   security dial, sharing — is *one more wrapping of the master key, re-encrypting
-  nothing*. That is what lets the work ship as small additive **stages** (`status.md`).
+  nothing*. That is what lets the work ship as small additive **stages**.
 - **Sync** rides on top: the server is a **blind relay** (`sync.md`), all merge is
   client-side, and **true P2P stays possible** as a future transport adapter.
 - **State:** deliberately not restated here (the one rule above) — see

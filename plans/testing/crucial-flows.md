@@ -259,9 +259,9 @@ reveal-in-Settings to fall back on.
 - **Devices:** single.
 - **Uniquely exercises:** the password sidecar in the pre-database boot path. This is the door
   that makes an org-move Team-ID change cost one password entry instead of a phrase hunt
-  ([`../launch.md`](../launch.md) §2), and it is the most delicate code in the app: it runs
+  ([`../../packages/key-custody/README.md`](../../packages/key-custody/README.md)), and it is the most delicate code in the app: it runs
   before the database opens, so a bug is not a failed query but an app that cannot start.
-- **Note:** this variant covers the automated half of [`../launch.md`](../launch.md)
+- **Note:** this variant covers the automated half of [`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md)
   Increment 3, whose manual half additionally documents restore-from-file-backup per door.
 
 ---
