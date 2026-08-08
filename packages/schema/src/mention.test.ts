@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { draftFromMarkup } from "./mention-draft.js";
+import { draftFromMarkup } from "./composer-draft.js";
 import {
   activeMentionQuery,
   mentionToken,

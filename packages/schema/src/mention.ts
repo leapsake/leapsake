@@ -1,4 +1,4 @@
-import type { MentionSpan } from "./mention-draft.js";
+import type { ChipSpan } from "./composer-draft.js";
 import type { EntityType } from "./relationship.js";
 
 /**
@@ -45,11 +45,8 @@ export function mentionToken(
   return `@[${displayName}](${targetType}:${targetId})`;
 }
 
-/** Whether `index` falls inside one of `spans` — i.e. belongs to a mention. */
-function isInsideMention(
-  spans: readonly MentionSpan[],
-  index: number,
-): boolean {
+/** Whether `index` falls inside one of `spans` — i.e. belongs to a chip. */
+function isInsideChip(spans: readonly ChipSpan[], index: number): boolean {
   return spans.some((span) => index >= span.start && index < span.end);
 }
 
@@ -67,8 +64,8 @@ function isInsideMention(
  *
  * The text here is what the composer **displays**, where a mention already taken
  * reads `@David Taylor` — indistinguishable from a name being typed. So the
- * already-placed mentions come in as {@link MentionSpan}s (see {@link
- * ../mention-draft.js MentionDraft}) and end a fragment the same way punctuation
+ * already-placed mentions come in as {@link ChipSpan}s (see {@link
+ * ../composer-draft.js ComposerDraft}) and end a fragment the same way punctuation
  * does: a caret inside or just past one is not a live query. Without that, the
  * picker would reopen on a completed mention and quietly widen its query across
  * everything typed since. Callers with no spans to give (a plain search box) pass
@@ -77,13 +74,13 @@ function isInsideMention(
  * The empty fragment (`@` with nothing after it yet) is a valid active query
  * (`query: ""`); the caller's search floor keeps it quiet until a character is
  * typed. Returns the `start` index of the opening `@` so {@link
- * ../mention-draft.js insertMentionInDraft} knows the span to replace.
+ * ../composer-draft.js insertMentionInDraft} knows the span to replace.
  * Platform-agnostic and unit-testable.
  */
 export function activeMentionQuery(
   text: string,
   caret: number,
-  spans: readonly MentionSpan[] = [],
+  spans: readonly ChipSpan[] = [],
 ): { query: string; start: number } | null {
   // Walk back from the caret to the nearest '@' that could open a fragment. Stop
   // early at a newline (a fragment can't span one); the first '@' we reach is the
@@ -92,7 +89,7 @@ export function activeMentionQuery(
     const ch = text[i];
     if (ch === "\n") return null;
     // A character belonging to a mention already placed — including its own '@'.
-    if (isInsideMention(spans, i)) return null;
+    if (isInsideChip(spans, i)) return null;
     if (ch === "@") {
       const before = i > 0 ? text[i - 1] : "";
       // An opener must be at string start or right after whitespace.
@@ -124,15 +121,15 @@ export function activeMentionQuery(
  * it yet) is a valid active query (`query: ""`); the caller's search floor keeps it
  * quiet until a character is typed. A `#` embedded in a mention's display name
  * (`@Team #1`) belongs to that mention, not to a live hashtag, so — as in {@link
- * activeMentionQuery} — the already-placed {@link MentionSpan}s are passed in and
+ * activeMentionQuery} — the already-placed {@link ChipSpan}s are passed in and
  * a `#` inside one returns `null`. Returns the `start` index of the opening `#` so
- * {@link insertHashtag} knows the span to replace. Platform-agnostic and
- * unit-testable.
+ * {@link ../composer-draft.js insertTagInDraft} knows the span to replace.
+ * Platform-agnostic and unit-testable.
  */
 export function activeHashtagQuery(
   text: string,
   caret: number,
-  spans: readonly MentionSpan[] = [],
+  spans: readonly ChipSpan[] = [],
 ): { query: string; start: number } | null {
   // Walk back from the caret through the tag's alphanumeric run to its opening
   // '#'. Any other character (whitespace, punctuation, a newline, a token
@@ -145,48 +142,12 @@ export function activeHashtagQuery(
       // An opener must be at string start or right after whitespace.
       if (before !== "" && !/\s/u.test(before)) return null;
       // A '#' inside a mention is part of its name, not a live hashtag.
-      if (isInsideMention(spans, i)) return null;
+      if (isInsideChip(spans, i)) return null;
       return { query: text.slice(i + 1, caret), start: i };
     }
     if (!/[\p{L}\p{N}]/u.test(ch)) return null;
   }
   return null;
-}
-
-/**
- * Splice a chosen tag name into `text`, replacing the active `#`-fragment at the
- * caret with `#<tagName>`, and return the new text plus the caret position just
- * past the insertion. The counterpart to {@link activeHashtagQuery} (and the twin
- * of {@link ../mention-draft.js insertMentionInDraft}): the picker calls this when
- * the user selects an existing-tag hit, then feeds the result back into the
- * field's state. Re-derives the fragment span from `(text, caret, spans)` so it
- * always replaces exactly what `activeHashtagQuery` reported; if the caret isn't
- * in a fragment the tag is inserted at the caret without replacing anything.
- *
- * Unlike a mention there is no id to carry — the bare `#name` **is** the tag (see
- * {@link ./tag.js parseHashtags}), so no name-resolution step is needed. A single
- * trailing space is appended after the token (unless the following character is
- * already whitespace) so the tag stays a discrete word and a subsequent `#` typed
- * right after it can open the picker again. The returned caret sits just after the
- * `#name` token, before any pre-existing trailing whitespace. Platform-agnostic
- * and unit-testable.
- */
-export function insertHashtag(
-  text: string,
-  caret: number,
-  tagName: string,
-  spans: readonly MentionSpan[] = [],
-): { text: string; caret: number } {
-  const active = activeHashtagQuery(text, caret, spans);
-  const start = active ? active.start : caret;
-  const token = `#${tagName}`;
-  const after = text.slice(caret);
-  const needsSpace = !/^\s/u.test(after); // true when `after` is "" or non-space
-  const insertion = needsSpace ? `${token} ` : token;
-  return {
-    text: text.slice(0, start) + insertion + after,
-    caret: start + token.length, // just after the token, before the space
-  };
 }
 
 /**

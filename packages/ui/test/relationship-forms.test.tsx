@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PersonForm,
   PetForm,
@@ -11,6 +11,9 @@ import {
 import { renderWithUi } from "./support.js";
 
 afterEach(cleanup);
+
+/** The Tags field's existing-tag picker; nothing to suggest in these tests. */
+const noSearch = vi.fn(async () => []);
 
 const candidates: RelationshipCandidate[] = [
   { type: "person", id: "p-2", label: "Ada Lovelace" },
@@ -167,6 +170,7 @@ describe("PersonForm", () => {
     renderWithUi(
       <PersonForm
         title="Add a person"
+        search={noSearch}
         submitLabel="Add"
         cancelTo="/"
         submitting={false}
@@ -192,6 +196,7 @@ describe("PersonForm", () => {
     renderWithUi(
       <PersonForm
         title="Add a person"
+        search={noSearch}
         submitLabel="Add"
         cancelTo="/"
         submitting={false}
@@ -212,6 +217,7 @@ describe("PersonForm", () => {
     renderWithUi(
       <PersonForm
         title="Edit Ada"
+        search={noSearch}
         submitLabel="Save"
         cancelTo="/"
         submitting={false}
@@ -225,6 +231,7 @@ describe("PersonForm", () => {
       <PersonForm
         title="Add a person"
         candidates={candidates}
+        search={noSearch}
         submitLabel="Add"
         cancelTo="/"
         submitting={false}
@@ -240,6 +247,7 @@ describe("PetForm", () => {
       <PetForm
         title="Add a pet"
         candidates={candidates}
+        search={noSearch}
         submitLabel="Add"
         cancelTo="/"
         submitting={false}

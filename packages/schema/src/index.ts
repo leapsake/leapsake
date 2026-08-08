@@ -152,24 +152,29 @@ export {
   mentionToken,
   activeMentionQuery,
   activeHashtagQuery,
-  insertHashtag,
   parseMentions,
   plainMentionText,
   splitAnnotatedText,
 } from "./mention.js";
 export type { Mention, AnnotatedSegment } from "./mention.js";
 export {
+  activeTagQuery,
   applyDraftEdit,
   draftFromMarkup,
+  draftFromTagField,
   insertMentionInDraft,
+  insertTagInDraft,
   markupFromDraft,
+  snapCaret,
+  snapSelection,
   splitDraft,
-} from "./mention-draft.js";
+} from "./composer-draft.js";
 export type {
-  DraftSegment,
-  MentionDraft,
-  MentionSpan,
-} from "./mention-draft.js";
+  ChipSpan,
+  ComposerDraft,
+  DraftRun,
+  TagGrammar,
+} from "./composer-draft.js";
 export { mentioningSchema, mentionBearerTypeSchema } from "./mentioning.js";
 export type {
   Mentioning,

@@ -33,7 +33,7 @@ export {
   type ImportOutcome,
   type ImportPreviewEntry,
 } from "./import/ImportReview.js";
-export { MentionTextField } from "./fields/MentionTextField.js";
+export { ChipTextField } from "./fields/ChipTextField.js";
 export {
   RelationshipFields,
   type RelationshipCandidate,

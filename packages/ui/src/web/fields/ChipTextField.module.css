@@ -1,16 +1,16 @@
-/* A mention has to look like one *while you type* — but a <textarea> can't style
+/* A chip has to look like one *while you type* — but a <textarea> can't style
    runs of its own text. So the field is laid over a backdrop that renders the
-   same text with a tint behind each `@Name`, and the field's own background is
-   made transparent to let it through. Only the backdrop is styled; the caret,
-   selection, IME and undo all stay native.
+   same text with a tint behind each `@Name` and `#tag`, and the field's own
+   background is made transparent to let it through. Only the backdrop is styled;
+   the caret, selection, IME and undo all stay native.
 
    That trick only holds if the two boxes wrap identically, so the field and the
    backdrop must keep the same font, line height, padding and border width —
    hence the shared `.metrics` declarations rather than two lists that could
-   drift. A bold or larger mention is deliberately not on offer: it would change
-   the run's width, the backdrop would stop lining up with the text the caret is
+   drift. A bold or larger chip is deliberately not on offer: it would change the
+   run's width, the backdrop would stop lining up with the text the caret is
    measured against, and the tint would drift a character further off with every
-   mention on the line.
+   chip on the line.
 
    The wrapper is sized by the field (inline-block, and the field is `display:
    block` so no baseline gap creeps in), so the backdrop's `inset: 0` lands on
@@ -79,7 +79,7 @@ textarea.field {
   content: attr(data-run);
 }
 
-.mention {
+.chip {
   background: rgba(31, 111, 235, 0.14); /* tokens/index.ts → color.accentTint */
   border-radius: 3px;
 }

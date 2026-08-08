@@ -3,6 +3,7 @@ import { tagLabel } from "@leapsake/schema";
 import { Breadcrumbs, PetForm } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
 import { homeCrumb } from "../lib/crumbs";
+import { searchEntities } from "../lib/search";
 import { useSubmitting } from "../lib/useSubmitting";
 
 export function PetEdit() {
@@ -17,6 +18,7 @@ export function PetEdit() {
         title={`Edit ${pet.name}`}
         pet={pet}
         tagNames={tags.map((tag) => tagLabel(tag.name)).join(" ")}
+        search={searchEntities}
         submitLabel="Save"
         cancelTo={`/pets/${pet.id}`}
         submitting={useSubmitting()}

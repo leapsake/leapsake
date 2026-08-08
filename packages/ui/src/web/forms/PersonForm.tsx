@@ -1,6 +1,7 @@
-import type { Person } from "@leapsake/schema";
-import type { ReactNode } from "react";
+import type { Person, SearchHit } from "@leapsake/schema";
+import { type ReactNode, useState } from "react";
 import { useMessages } from "../../messages/index.js";
+import { ChipTextField } from "../fields/ChipTextField.js";
 import {
   RelationshipFields,
   type RelationshipCandidate,
@@ -19,6 +20,7 @@ export function PersonForm({
   title,
   person,
   tagNames = "",
+  search,
   candidates,
   submitLabel,
   cancelTo,
@@ -28,6 +30,8 @@ export function PersonForm({
   person?: Person;
   /** Comma-separated existing tag names; empty on create. */
   tagNames?: string;
+  /** Backs the Tags field's existing-tag picker; must be stable across renders. */
+  search: (query: string) => Promise<SearchHit[]>;
   /** Relationship candidates; when present, the create-mode Relationships section shows. */
   candidates?: readonly RelationshipCandidate[];
   submitLabel: string;
@@ -36,6 +40,8 @@ export function PersonForm({
   submitting: boolean;
 }) {
   const m = useMessages();
+  // Controlled, because the Tags field chips what it holds — see ChipTextField.
+  const [tags, setTags] = useState(tagNames);
 
   return (
     <FormShell
@@ -57,9 +63,12 @@ export function PersonForm({
       <fieldset>
         <legend>{m.tags.title}</legend>
         <Field label={m.tags.title}>
-          <input
+          <ChipTextField
             name="tags"
-            defaultValue={tagNames}
+            grammar="tags"
+            value={tags}
+            onChange={setTags}
+            search={search}
             placeholder={m.personForm.tagsPlaceholder}
           />
         </Field>

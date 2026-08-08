@@ -9,14 +9,14 @@ import {
 } from "@leapsake/schema";
 import { colors, styles } from "../lib/styles";
 import { HeaderSave } from "./HeaderSave";
-import { MentionTextField } from "./MentionTextField";
+import { ChipTextField } from "./ChipTextField";
 
 /**
  * The shared create/edit form for a Reminder, mirroring the desktop `ReminderForm`.
  * Title and body are both optional free text (at least one required). `#tags` and
  * `@mentions` are typed **inline** in either field — there's no separate input for
  * either — and core parses them out on save. Title and Details use {@link
- * MentionTextField} so an `@` opens a People/Pets picker that splices the token in.
+ * ChipTextField} so an `@` opens a People/Pets picker that splices the token in.
  * The screen owns the actual core call; this component collects input and hands
  * back a {@link CreateReminderInput} (empty → null).
  *
@@ -85,7 +85,7 @@ export function ReminderForm({
       >
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Title</Text>
-          <MentionTextField
+          <ChipTextField
             style={styles.input}
             value={title}
             onChangeText={setTitle}
@@ -95,7 +95,7 @@ export function ReminderForm({
 
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Details</Text>
-          <MentionTextField
+          <ChipTextField
             style={[styles.input, { minHeight: 96, textAlignVertical: "top" }]}
             value={body}
             onChangeText={setBody}

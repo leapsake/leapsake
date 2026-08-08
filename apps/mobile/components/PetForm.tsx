@@ -3,6 +3,7 @@ import { ScrollView, Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
 import { type CreatePetInput, type Gender, type Pet } from "@leapsake/schema";
 import { GenderField } from "./GenderField";
+import { ChipTextField } from "./ChipTextField";
 import { HeaderSave } from "./HeaderSave";
 import { colors, styles } from "../lib/styles";
 
@@ -69,14 +70,12 @@ export function PetFields({
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Tags</Text>
-        <TextInput
+        <ChipTextField
+          grammar="tags"
           style={styles.input}
           value={draft.tags}
           onChangeText={(value) => set("tags", value)}
-          autoCapitalize="none"
-          autoCorrect={false}
           placeholder="#Friend #Neighbor"
-          placeholderTextColor={colors.muted}
         />
       </View>
     </>

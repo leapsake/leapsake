@@ -130,15 +130,18 @@ describe("GiftIdeaForm", () => {
   } as GiftIdea;
 
   it("submits under the names the write path reads", () => {
-    renderWithUi(<GiftIdeaForm submitting={false} />);
+    renderWithUi(<GiftIdeaForm search={noSearch} submitting={false} />);
 
     expect(
       screen.getAllByRole("textbox").map((f) => f.getAttribute("name")),
-    ).toEqual(["title", "url", "notes", "tags"]);
+    ).toEqual(["title", "url", "notes"]);
+    // Tags is a chip field, so it reports as a combobox rather than a plain
+    // textbox — but it still carries `name`, since its text is what gets saved.
+    expect(screen.getByRole("combobox")).toHaveProperty("name", "tags");
   });
 
   it("requires a title and nothing else", () => {
-    renderWithUi(<GiftIdeaForm submitting={false} />);
+    renderWithUi(<GiftIdeaForm search={noSearch} submitting={false} />);
 
     expect(screen.getByLabelText("Title")).toHaveProperty("required", true);
     expect(screen.getByLabelText("Link")).toHaveProperty("required", false);
@@ -147,7 +150,12 @@ describe("GiftIdeaForm", () => {
 
   it("pre-fills from an existing idea on edit", () => {
     renderWithUi(
-      <GiftIdeaForm idea={idea} tagNames="#books" submitting={false} />,
+      <GiftIdeaForm
+        idea={idea}
+        tagNames="#books"
+        search={noSearch}
+        submitting={false}
+      />,
     );
 
     expect(screen.getByLabelText("Title")).toHaveProperty("value", "Kite");
@@ -159,7 +167,7 @@ describe("GiftIdeaForm", () => {
   });
 
   it("returns to the gift list unless told otherwise", () => {
-    renderWithUi(<GiftIdeaForm submitting={false} />);
+    renderWithUi(<GiftIdeaForm search={noSearch} submitting={false} />);
     expect(
       screen.getByRole("link", { name: "Cancel" }).getAttribute("href"),
     ).toBe("/gifts");

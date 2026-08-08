@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 // ones and live beside them in `mention.ts` (they share the placed-mention
 // guard), but they mirror this file's tag grammar, so their edge cases are
 // tested here.
-import { draftFromMarkup } from "./mention-draft.js";
-import { activeHashtagQuery, insertHashtag, mentionToken } from "./mention.js";
+import { draftFromMarkup, insertTagInDraft } from "./composer-draft.js";
+import { activeHashtagQuery, mentionToken } from "./mention.js";
 import {
   normalizeTagName,
   parseHashtags,
@@ -227,31 +227,38 @@ describe("activeHashtagQuery", () => {
   });
 });
 
-describe("insertHashtag", () => {
+/** A prose draft over `text` with nothing chipped yet — a field mid-typing. */
+function typing(text: string) {
+  return { text, spans: [], grammar: "prose" as const };
+}
+
+describe("insertTagInDraft", () => {
   it("replaces the active fragment with #<tag> and adds a trailing space", () => {
-    const result = insertHashtag("call #fa", 8, "family");
-    expect(result.text).toBe("call #family ");
-    // Caret sits just after the token, before the trailing space.
+    const result = insertTagInDraft(typing("call #fa"), 8, "family");
+    expect(result.draft.text).toBe("call #family ");
+    // Caret sits at the chip's end, before the trailing space.
     expect(result.caret).toBe("call #family".length);
   });
 
   it("preserves text after the caret", () => {
-    const result = insertHashtag("call #fa soon", 8, "family");
-    expect(result.text).toBe("call #family soon");
+    const result = insertTagInDraft(typing("call #fa soon"), 8, "family");
+    expect(result.draft.text).toBe("call #family soon");
   });
 
   it("does not double the space when the following char is already whitespace", () => {
-    const result = insertHashtag("#fa there", 3, "family");
-    expect(result.text).toBe("#family there");
+    const result = insertTagInDraft(typing("#fa there"), 3, "family");
+    expect(result.draft.text).toBe("#family there");
     expect(result.caret).toBe("#family".length); // before the pre-existing space
   });
 
   it("splices a tag in from a bare '#'", () => {
-    expect(insertHashtag("#", 1, "family").text).toBe("#family ");
+    expect(insertTagInDraft(typing("#"), 1, "family").draft.text).toBe(
+      "#family ",
+    );
   });
 
-  it("round-trips: the inserted token parses back to the tag", () => {
-    const { text } = insertHashtag("tag me #fa", 10, "Family");
-    expect(parseHashtags(text)).toEqual(["Family"]);
+  it("round-trips: the inserted tag parses back out of the text", () => {
+    const { draft } = insertTagInDraft(typing("tag me #fa"), 10, "Family");
+    expect(parseHashtags(draft.text)).toEqual(["Family"]);
   });
 });

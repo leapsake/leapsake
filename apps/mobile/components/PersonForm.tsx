@@ -7,6 +7,7 @@ import {
   type Person,
 } from "@leapsake/schema";
 import { GenderField } from "./GenderField";
+import { ChipTextField } from "./ChipTextField";
 import { HeaderSave } from "./HeaderSave";
 import { colors, styles } from "../lib/styles";
 
@@ -122,14 +123,12 @@ export function PersonFields({
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Tags</Text>
-        <TextInput
+        <ChipTextField
+          grammar="tags"
           style={styles.input}
           value={draft.tags}
           onChangeText={(value) => set("tags", value)}
-          autoCapitalize="none"
-          autoCorrect={false}
           placeholder="#Friend #Colleague"
-          placeholderTextColor={colors.muted}
         />
       </View>
     </>

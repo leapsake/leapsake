@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
 import type { GiftIdea } from "@leapsake/schema";
+import { ChipTextField } from "./ChipTextField";
 import { HeaderSave } from "./HeaderSave";
 import { colors, styles } from "../lib/styles";
 
@@ -121,14 +122,12 @@ export function GiftIdeaForm({
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Tags</Text>
-        <TextInput
+        <ChipTextField
+          grammar="tags"
           style={styles.input}
           value={tags}
           onChangeText={setTags}
-          autoCapitalize="none"
-          autoCorrect={false}
           placeholder="#books #kitchen"
-          placeholderTextColor={colors.muted}
         />
       </View>
     </View>

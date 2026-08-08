@@ -1,7 +1,7 @@
 import { type Reminder, type SearchHit, isoFromDueMs } from "@leapsake/schema";
 import { useState } from "react";
 import { useMessages } from "../../messages/index.js";
-import { MentionTextField } from "../fields/MentionTextField.js";
+import { ChipTextField } from "../fields/ChipTextField.js";
 import { FormShell } from "../patterns/FormShell.js";
 import { StackedField } from "../primitives/Field.js";
 
@@ -11,8 +11,9 @@ import { StackedField } from "../primitives/Field.js";
  * one). `#tags` and `@mentions` are typed **inline** in either field — there is
  * no separate input for either — and are parsed out and applied on save, so the
  * text stays the source of truth. Title and Details are controlled (React state)
- * so the `@mention` picker can splice tokens in, but keep their `name`
- * attributes so the write path reads them from `FormData` exactly as before.
+ * so the pickers can splice chips in; each {@link ChipTextField} carries the
+ * stored text on a hidden input under its `name`, so the write path reads them
+ * from `FormData` exactly as before.
  */
 export function ReminderForm({
   reminder,
@@ -35,7 +36,7 @@ export function ReminderForm({
       submitting={submitting}
     >
       <StackedField label={m.reminderForm.title}>
-        <MentionTextField
+        <ChipTextField
           name="title"
           value={title}
           onChange={setTitle}
@@ -44,7 +45,7 @@ export function ReminderForm({
         />
       </StackedField>
       <StackedField label={m.reminderForm.details}>
-        <MentionTextField
+        <ChipTextField
           name="body"
           value={body}
           onChange={setBody}

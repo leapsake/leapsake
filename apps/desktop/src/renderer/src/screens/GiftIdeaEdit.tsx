@@ -8,6 +8,7 @@ import {
 } from "@leapsake/ui/web";
 import { useLoaderData, useRevalidator } from "react-router-dom";
 import { homeCrumb } from "../lib/crumbs";
+import { searchEntities } from "../lib/search";
 import { useSubmitting } from "../lib/useSubmitting";
 
 export function GiftIdeaEdit() {
@@ -34,6 +35,7 @@ export function GiftIdeaEdit() {
       <GiftIdeaForm
         idea={idea}
         tagNames={tagNames}
+        search={searchEntities}
         submitting={useSubmitting()}
       />
 
