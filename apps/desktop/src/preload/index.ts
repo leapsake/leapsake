@@ -57,6 +57,22 @@ const sync = {
   }): Promise<{ duplicateCount: number }> =>
     ipcRenderer.invoke("sync:recover", args),
   /**
+   * Merge this device's **local-only account** into an existing synced one
+   * (`plans/v0-1_01_account-merge.md`): the store is re-homed under the synced
+   * account's id, keeps every row, and from the next launch opens under *that*
+   * account's password.
+   *
+   * The same argument shape as {@link join} on purpose, so one login form serves
+   * both — but a distinct channel, because join is an accountless device's act
+   * and this one retires an account.
+   */
+  merge: (args: {
+    username: string;
+    password: string;
+    relayUrl: string;
+  }): Promise<{ duplicateCount: number }> =>
+    ipcRenderer.invoke("sync:merge", args),
+  /**
    * Create an account on this device (model.md §7.2.1) — the act that turns
    * encryption on. Fully local. Resolves with the 24-word recovery phrase for its
    * one-time reveal, by which point the main process has already re-opened the

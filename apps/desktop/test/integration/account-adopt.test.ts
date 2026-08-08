@@ -14,22 +14,14 @@ import {
 } from "@leapsake/crypto";
 import {
   type AccountBootstrap,
-  type AccountBootstrapChannel,
   type KeySession,
   type PasswordDoorWriter,
-  type RecoveryChannel,
   type SqliteDriver,
-  enableSync,
   joinAccount,
   recoverAccount,
   runMigrations,
-  sealPasswordDoor,
 } from "@leapsake/core";
-import {
-  createDeviceRepo,
-  createKeyWrapRepo,
-  createPeopleRepo,
-} from "@leapsake/data";
+import { createDeviceRepo, createPeopleRepo } from "@leapsake/data";
 import {
   UNAUTHENTICATED_STORE_SLOT,
   ROSTER_PATH,
@@ -46,7 +38,11 @@ import {
 } from "../../src/main/db/open.js";
 import { jsonFileStorage } from "../../src/main/db/roster-storage.js";
 import { storeFileState } from "../../src/main/db/sqlite-header.js";
-import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
+import {
+  type SyncedAccount,
+  existingAccount,
+  sealLikeCore as sealLikeCoreShared,
+} from "../support/fake-relay.js";
 
 /**
  * **Adopting an existing account** (`model.md` §7.1) — slice 6's acceptance, and
@@ -72,101 +68,36 @@ const RELAY_URL = "https://relay.example";
 
 const never = () => Promise.reject(new Error("unexpected recovery prompt"));
 
-function equal(a: Uint8Array, b: Uint8Array): boolean {
-  return a.length === b.length && a.every((byte, i) => byte === b[i]);
-}
-
 let userData: string;
 let keyStore: KeyStore;
+let account: SyncedAccount;
 let bootstrap: AccountBootstrap;
-let wrappedMasterKeyRecovery: Uint8Array;
 let recoveryKey: Uint8Array;
 
 const rosterFor = (dir: string) =>
   createAccountRoster(jsonFileStorage(join(dir, ROSTER_PATH)));
 
-const cleanups: Array<() => void> = [];
+const fakeRelay = () => account.relay();
+const fakeRecoveryRelay = () => account.recoveryRelay();
 
-/** Device 1: the account this device is about to join, and its relay bootstrap. */
-async function existingAccount(): Promise<void> {
-  const { driver, cleanup } = makeEncryptedTestDriver();
-  cleanups.push(cleanup);
-  await runMigrations(driver);
-  const enabled = await enableSync({
-    keyStore: createInMemoryKeyStore(),
-    driver,
-    username: USERNAME,
-    password: PASSWORD,
-    relayUrl: RELAY_URL,
-    platform: "desktop",
-  });
-  bootstrap = enabled.bootstrap;
-  recoveryKey = enabled.recoveryKey;
-  // The relay's recovery escrow — `wrap(MK, recoveryKey)`, which is what a
-  // recovering device fetches in place of the password bootstrap.
-  const wrap = await createKeyWrapRepo(driver).getActive({
-    wrappedKind: "master",
-    principalKind: "recovery",
-  });
-  wrappedMasterKeyRecovery = wrap!.ciphertext;
-}
-
-function fakeRelay(): AccountBootstrapChannel {
-  return {
-    async lookup(username) {
-      if (username !== bootstrap.username) throw new Error("404 not found");
-      return { accountId: bootstrap.accountId, kdfSalt: bootstrap.kdfSalt };
-    },
-    async fetchBootstrap({ accountId, authVerifier }) {
-      if (
-        accountId !== bootstrap.accountId ||
-        !equal(authVerifier, bootstrap.authVerifier)
-      ) {
-        throw new Error("401 unauthorized");
-      }
-      return {
-        wrappedMasterKey: bootstrap.wrappedMasterKey,
-        wrappedRecoveryKey: bootstrap.wrappedRecoveryKey,
-      };
-    },
-  };
-}
-
-function fakeRecoveryRelay(): RecoveryChannel {
-  return {
-    async lookup(username) {
-      if (username !== bootstrap.username) throw new Error("404 not found");
-      return { accountId: bootstrap.accountId, kdfSalt: bootstrap.kdfSalt };
-    },
-    async fetchRecovery() {
-      return wrappedMasterKeyRecovery;
-    },
-    async resetCredentials() {},
-  };
-}
-
-/**
- * `sealPasswordDoorIfProtected` (`packages/core/src/sync.ts`), reproduced: core
- * seals this device's password door after a join/recover, and **skips while there
- * is no db-key to seal**. Keeping the skip here is the point — it is what makes
- * the "guard" case below meaningful.
- */
-async function sealLikeCore(
+const sealLikeCore = (
   driver: SqliteDriver,
   password: string,
   write: PasswordDoorWriter,
-): Promise<void> {
-  if ((await keyStore.getSecret(DATABASE_KEY)) === undefined) return;
-  await write(await sealPasswordDoor({ keyStore, driver, password }));
-}
+) => sealLikeCoreShared({ keyStore, driver, password, write });
 
 beforeEach(async () => {
   userData = mkdtempSync(join(tmpdir(), "leapsake-adopt-"));
   keyStore = createInMemoryKeyStore();
-  await existingAccount();
+  account = await existingAccount({
+    username: USERNAME,
+    password: PASSWORD,
+    relayUrl: RELAY_URL,
+  });
+  ({ bootstrap, recoveryKey } = account);
 });
 afterEach(() => {
-  for (const c of cleanups.splice(0)) c();
+  account.cleanup();
   rmSync(userData, { recursive: true, force: true });
 });
 
@@ -310,10 +241,10 @@ describe.each([
     const people = await createPeopleRepo(reopened).list();
     expect(people.map((p) => p.firstName)).toEqual(["Grace"]);
 
-    const account = await reopened.get<{ id: string }>(
+    const accountRow = await reopened.get<{ id: string }>(
       "SELECT id FROM account LIMIT 1",
     );
-    expect(account?.id).toBe(bootstrap.accountId);
+    expect(accountRow?.id).toBe(bootstrap.accountId);
     await reopened.close?.();
   });
 

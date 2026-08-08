@@ -89,6 +89,7 @@ export function Settings() {
           status={status}
           reviewCount={reviewCount}
           onReviewed={() => setReviewCount(0)}
+          onJoined={onJoined}
         />
       ) : (
         <>
@@ -346,10 +347,13 @@ function AccountEnabled({
   status,
   reviewCount,
   onReviewed,
+  onJoined,
 }: {
   status: SyncStatus;
   reviewCount: number;
   onReviewed: () => void;
+  /** A merge landed: same shape as a join, because it ends in the same place. */
+  onJoined: (duplicateCount: number) => void;
 }) {
   const [lastSynced, setLastSynced] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -443,10 +447,19 @@ function AccountEnabled({
         failing: every one of them ended in "Sync is not enabled for this store."
       */}
       {status.relayUrl === undefined ? (
-        <p>
-          This account is on this computer only. Nothing is sent anywhere, so
-          nothing here needs syncing.
-        </p>
+        <>
+          <p>
+            This account is on this computer only. Nothing is sent anywhere, so
+            nothing here needs syncing.
+          </p>
+          {/*
+            The way *out* of a local-only account, and the reason it is not a
+            trap (plans/v0-1_01_account-merge.md). Until this existed, a user who
+            picked "create an account" on one computer and already had one
+            elsewhere had no path from here to there that kept their data.
+          */}
+          <MergeSetup username={status.username} onMerged={onJoined} />
+        </>
       ) : degraded ? (
         /*
           Degraded (custody slice 10): the controls are hidden for the same reason
@@ -767,6 +780,137 @@ function SyncSetup({
 }
 
 /**
+ * **Merging a local-only account into a synced one** — {@link SyncSetup}'s
+ * counterpart for a device that already *has* an account
+ * (`plans/v0-1_01_account-merge.md`).
+ *
+ * A sibling rather than a branch of `SyncSetup`, because one thing it must never
+ * do is offer to create a *second* account: this device already has one, and
+ * making another is precisely the mistake this flow exists to undo. A username
+ * the relay does not know is therefore a dead end here, not a sign-up.
+ *
+ * It lives inside `AccountEnabled`, so it unmounts on its own once the merge
+ * lands and the account gains a relay.
+ */
+function MergeSetup({
+  username: localUsername,
+  onMerged,
+}: {
+  /** This device's current (local-only) username, shown to keep the two apart. */
+  username: string | undefined;
+  onMerged: (duplicateCount: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [username, setUsername] = useState("");
+  const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_URL);
+  const [resolved, setResolved] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!open) {
+    return (
+      <p>
+        <button type="button" onClick={() => setOpen(true)}>
+          Already have an account on another device? Log in and bring this data
+          with you
+        </button>
+      </p>
+    );
+  }
+
+  if (resolved) {
+    return (
+      <LoginStep
+        username={username}
+        relayUrl={relayUrl}
+        merge
+        onBack={() => {
+          setResolved(false);
+          setError(null);
+        }}
+        onJoined={onMerged}
+      />
+    );
+  }
+
+  async function onContinue(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    if (username.trim() === "" || relayUrl.trim() === "") {
+      setError("Username and relay URL are required.");
+      return;
+    }
+    setChecking(true);
+    try {
+      const { exists } = await window.sync.lookup({ username, relayUrl });
+      if (exists) setResolved(true);
+      else {
+        setError(
+          `No account called “${username}” on ${relayUrl}. This computer ` +
+            "already has an account, so there is nothing to create here — " +
+            "check the username you used on your other device.",
+        );
+      }
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Couldn't reach the relay.",
+      );
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <>
+      <h3>Log in to an account you already have</h3>
+      <p>
+        Everything on this computer moves into that account and keeps syncing
+        from there.
+        {localUsername !== undefined && (
+          <>
+            {" "}
+            The local account <strong>{localUsername}</strong> is retired in the
+            process.
+          </>
+        )}
+      </p>
+      <form onSubmit={onContinue}>
+        <p>
+          <label>
+            Username on your other device
+            <br />
+            <input
+              type="text"
+              value={username}
+              autoComplete="username"
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </label>
+        </p>
+        <p>
+          <label>
+            Relay URL
+            <br />
+            <input
+              type="text"
+              value={relayUrl}
+              onChange={(e) => setRelayUrl(e.target.value)}
+            />
+          </label>
+        </p>
+        {error !== null && <p role="alert">{error}</p>}
+        <button type="submit" disabled={checking}>
+          {checking ? "Checking…" : "Continue"}
+        </button>{" "}
+        <button type="button" onClick={() => setOpen(false)}>
+          Cancel
+        </button>
+      </form>
+    </>
+  );
+}
+
+/**
  * Create-account branch: the username is free on the relay. Collect a password
  * (with confirmation), then require an explicit confirm before creating the
  * account — after which the parent reveals the one-time recovery key.
@@ -904,19 +1048,30 @@ function SignupStep({
 
 /**
  * Log-in branch: the account exists. Collect the password, then require an
- * explicit confirm before joining. Because joining **replaces** this device's
- * data with the account's (the overwrite stance, multi-device-login.md), the
- * confirmation checks whether this device actually has local data and warns in
- * the strongest terms only when there is something to lose.
+ * explicit confirm before logging in. The confirmation checks whether this
+ * device actually has local data, so the warning is proportionate to what is
+ * at stake.
+ *
+ * Joining **keeps** this device's data and sends overlaps to duplicate review
+ * (`reconcileOnJoin`). It did once replace it — the overwrite stance in
+ * multi-device-login.md — and this comment said so for a while after it stopped
+ * being true.
+ *
+ * `merge` switches the destination without forking the form. Both routes are a
+ * password login against the same account; what differs is what this device
+ * brings and what it gives up, which is copy, not control flow.
  */
 function LoginStep({
   username,
   relayUrl,
+  merge = false,
   onBack,
   onJoined,
 }: {
   username: string;
   relayUrl: string;
+  /** Merge this device's local-only account in, rather than join from scratch. */
+  merge?: boolean;
   onBack: () => void;
   onJoined: (duplicateCount: number) => void;
 }) {
@@ -959,11 +1114,9 @@ function LoginStep({
     setError(null);
     setWorking(true);
     try {
-      const { duplicateCount } = await window.sync.join({
-        username,
-        password,
-        relayUrl,
-      });
+      const { duplicateCount } = await (
+        merge ? window.sync.merge : window.sync.join
+      )({ username, password, relayUrl });
       onJoined(duplicateCount);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't log in.");
@@ -989,6 +1142,25 @@ function LoginStep({
           <p>
             Log in to <strong>{username}</strong> on {relayUrl} and sync this
             device.
+          </p>
+        )}
+        {/*
+          The merge's one genuinely non-mechanical part. After it lands the store
+          opens under the *account's* password, and `joinAccount` replaces this
+          device's recovery key with the account's — so both doors this computer
+          has today stop working. Unlike a fresh join, the user is giving up
+          credentials that currently work, so it has to be said before, not
+          discovered after. A warning and not a hoop: no re-typing, no phrase
+          re-entry, because the people most likely to be here are the least
+          likely to get through one.
+        */}
+        {merge && (
+          <p>
+            <strong>This computer's password will stop working.</strong> From
+            now on it opens with <strong>{username}</strong>'s password, and{" "}
+            <strong>{username}</strong>'s recovery phrase replaces the one this
+            computer has now. Make sure you have them before you continue. This
+            cannot be undone.
           </p>
         )}
         <p>
@@ -1038,11 +1210,20 @@ function LoginStep({
           Back
         </button>
       </form>
-      <p>
-        <button type="button" onClick={() => setRecovering(true)}>
-          Forgot your password? Recover with your recovery phrase
-        </button>
-      </p>
+      {/*
+        Not offered on the merge route. `recoverAccount` carries the same "this
+        device is already part of an account" refusal that made the merge flow
+        necessary in the first place, so there is no merge-by-phrase path built
+        (owner, 2026-08-08: password-only for this increment). A button that can
+        only throw is worse than one that isn't there.
+      */}
+      {!merge && (
+        <p>
+          <button type="button" onClick={() => setRecovering(true)}>
+            Forgot your password? Recover with your recovery phrase
+          </button>
+        </p>
+      )}
     </>
   );
 }

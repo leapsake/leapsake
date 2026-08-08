@@ -24,6 +24,16 @@ import type { SqliteDriver } from "./driver.js";
  * One CK per entity (the `content_key_entity_active` unique index): every
  * encrypted field of the same entity shares its CK, minted on first seal and
  * reused thereafter.
+ *
+ * > **Reviving this has a hard dependency.** The account merge
+ * > (`apps/desktop/src/main/db/merge-account-flow.ts`) **swaps a store's master
+ * > key** for a different account's, and re-wraps nothing. That is only safe
+ * > while nothing writes the rows below — migration 27 retired the last writer,
+ * > and `account-merge.test.ts` asserts there are none. The first repo to call
+ * > {@link ContentCipher.sealField} again makes those rows real, and the merge
+ * > must grow a re-wrap loop (unwrap each live CK under the old MK, re-wrap
+ * > under the adopted one) in the same change — otherwise merging silently
+ * > strands every encrypted field on the device.
  */
 export interface ContentCipher {
   /**

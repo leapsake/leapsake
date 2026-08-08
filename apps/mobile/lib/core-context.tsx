@@ -75,7 +75,7 @@ import {
 } from "@leapsake/store-layout";
 import {
   convertStoreToEncrypted,
-  destroyPlaintextStore,
+  destroyStoreFiles,
 } from "../db/convert-store";
 import { accountDoors } from "../db/doors";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
@@ -432,7 +432,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       const recoverySidecar = await doors?.readRecovery();
       const passwordSidecar = await doors?.readPassword();
 
-      // **The boot-time sweep** (desktop's `destroyPlaintextStore` doc comment says
+      // **The boot-time sweep** (desktop's `destroyStoreFiles` doc comment says
       // the same of its own): an Authenticated launch that still finds an Unauthenticated store is
       // one whose conversion could not delete the original — a plaintext copy of
       // data the user has already asked to encrypt. Verified on device 2026-07-29:
@@ -445,7 +445,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // file entirely.
       if (activeStore.custody === "encrypted") {
         try {
-          await destroyPlaintextStore(storePath(UNAUTHENTICATED_STORE_SLOT));
+          await destroyStoreFiles(storePath(UNAUTHENTICATED_STORE_SLOT));
         } catch {
           // Nothing to sweep — the ordinary case.
         }
@@ -765,7 +765,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // 2026-07-29, which is how this was found: the delete does not reliably
           // take on iOS. The Authenticated boot path this re-runs sweeps the leftover.
           try {
-            await destroyPlaintextStore(activeStore.path);
+            await destroyStoreFiles(activeStore.path);
           } catch {
             // Swept on the next launch, a few lines below where custody resolves.
           }

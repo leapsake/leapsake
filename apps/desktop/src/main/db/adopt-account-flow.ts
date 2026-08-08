@@ -13,8 +13,9 @@ import {
   storePath,
 } from "@leapsake/store-layout";
 import {
+  clearUnclaimedDestination,
   convertStoreToEncrypted,
-  destroyPlaintextStore,
+  destroyStoreFiles,
 } from "./convert-store.js";
 import { passwordSidecarPath, writeSidecar } from "./sidecars.js";
 import { storeFileState } from "./sqlite-header.js";
@@ -124,15 +125,7 @@ export async function adoptAccountOnThisDevice(opts: {
   const encryptedPath = join(userDataPath, storePath(accountId));
   await opts.closeStore();
 
-  // A destination left by an earlier attempt that crashed before its roster entry
-  // is claimed by nobody, so it is discardable — and clearing it is what lets a
-  // retry succeed rather than trip the conversion's overwrite guard.
-  if (
-    storeFileState(encryptedPath) !== "absent" &&
-    !(await roster.list()).some((a) => a.id === accountId)
-  ) {
-    rmSync(dirname(encryptedPath), { recursive: true, force: true });
-  }
+  await clearUnclaimedDestination({ path: encryptedPath, accountId, roster });
 
   // 3. Convert. The original survives this on purpose.
   convertStoreToEncrypted({
@@ -154,7 +147,7 @@ export async function adoptAccountOnThisDevice(opts: {
   });
 
   // 5. Only now destroy the plaintext original.
-  destroyPlaintextStore(openPath);
+  destroyStoreFiles(openPath);
   rmSync(dirname(openPath), { recursive: true, force: true });
 
   return session;

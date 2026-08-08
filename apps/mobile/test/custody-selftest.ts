@@ -26,7 +26,7 @@ import {
 import type { TestApi } from "@leapsake/data/testing";
 import {
   convertStoreToEncrypted,
-  destroyPlaintextStore,
+  destroyStoreFiles,
   storeState,
 } from "../db/convert-store";
 import { accountDoors, doorsPath } from "../db/doors";
@@ -422,7 +422,7 @@ export function runCustodySelfTest(t: TestApi): void {
         await convertStoreToEncrypted({ fromName: from, toName: to, key });
         // The step join used to skip entirely: without it the device keeps a
         // plaintext copy of everything it just encrypted.
-        await destroyPlaintextStore(from);
+        await destroyStoreFiles(from);
 
         // The paired negative — the target is only "encrypted" if a keyless
         // connection genuinely cannot read it.

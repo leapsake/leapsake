@@ -34,6 +34,7 @@ and the Play 14-day clock out by the length of this doc — accepted knowingly.
 | Plaintext → encrypted converter | desktop `main/db/convert-store.ts:46`, mobile `db/convert-store.ts:27` | **Done**, two deliberately parallel implementations — neither engine's native shortcut works on the other (desktop has `PRAGMA rekey` but no `sqlcipher_export`; SQLCipher has the reverse), so both run the same ordinary-SQL `ATTACH` + copy-from-`sqlite_master` |
 | Crash ordering | the converter's doc-comment table | **Done**: convert → roster → destroy, with both overwrite guards enforced |
 | Encrypted → encrypted copy | desktop `main/db/convert-store.ts` `rekeyStore` | **Done** *(Increment 1, 2026-08-08)*: the encrypted-source door onto the same ATTACH machinery, guards and crash ordering shared with the plaintext one. Tests in `apps/desktop/test/convert-store.test.ts` |
+| The desktop merge flow | `main/db/merge-account-flow.ts`, `sync:merge` in `main/index.ts`, `MergeSetup` + `LoginStep merge` in `renderer/src/screens/Settings.tsx` | **Done** *(Increment 2, 2026-08-08)*: copy-first ordering, `roster.replace` as the single point of no return. Eleven cases in `apps/desktop/test/integration/account-merge.test.ts` |
 
 **The hard part — merging people without losing or silently fusing them — already exists.** What
 is missing is custody plumbing, and it is bounded.
@@ -42,8 +43,9 @@ is missing is custody plumbing, and it is bounded.
 
 | Layer | What it does |
 |---|---|
-| `apps/desktop/src/main/db/adopt-account-flow.ts:95` | throws — *"This device already holds an account. Forget it before joining another."* |
-| ~~`convert-store.ts` refuses any non-plaintext source~~ | **Lifted by Increment 1.** `convertStoreToEncrypted` still refuses one, but `rekeyStore` is now the door that accepts it. The only refusal left is the flow guard above |
+| `apps/desktop/src/main/db/adopt-account-flow.ts:95` | throws — *"This device already holds an account. Forget it before joining another."* **Still throws, and should.** Increment 2 did not relax it; it added `mergeAccountOnThisDevice` as a second door with its own guards, leaving join's assertion exactly as it was |
+| ~~`convert-store.ts` refuses any non-plaintext source~~ | **Lifted by Increment 1.** `convertStoreToEncrypted` still refuses one, but `rekeyStore` is now the door that accepts it |
+| `packages/key-custody/src/session.ts:751`, `:877` | `joinAccount` / `recoverAccount` throw — *"This device is already part of an account."* The merge clears the row **on its copy** to get past the first; nothing gets past the second, which is why merge-by-phrase is unbuilt |
 
 ⚠️ **Read the comment at `adopt-account-flow.ts:88-94` before touching that guard.** An in-place
 adopt branch **existed and was deliberately removed**, because "silently adopting a second account
@@ -84,28 +86,33 @@ inherits `main`'s — which is why it is mandatory on the plaintext path (no cod
 the file is written with the library default and later fails to open as `sqlcipher`) and
 belt-and-braces on the re-key path.
 
-### Increment 2 — the merge flow, desktop
+### ~~Increment 2 — the merge flow, desktop~~ — **done 2026-08-08**
 
-The user-initiated flow the invariant actually promises, on the rails
-`adoptAccountOnThisDevice` already lays down.
+`mergeAccountOnThisDevice` in `apps/desktop/src/main/db/merge-account-flow.ts`, reachable from the
+local-only branch of Settings. Its doc-comment holds the reasoning and the crash table; three
+findings are worth carrying forward:
 
-- **Rehome the store.** The file lives at `storePath(localAccountId)` and carries an account row;
-  the merge moves it to `storePath(syncedAccountId)`, rewrites the roster entry, and retires the
-  local account. The move itself is `rekeyStore` from Increment 1, called with **the same key
-  both ways** (`ensureDatabaseKey` is per device). Note the roster has no *retire* verb — only
-  `add` (upsert by id) and `remove`, so the old entry needs removing explicitly.
-- **Preserve the crash ordering** — convert → door → roster → destroy, unchanged. One wrinkle
-  makes it stricter, not looser: the source is now itself an **encrypted store worth keeping** if
-  the merge fails, so "the original survives until the roster names its replacement" matters more
-  here than it did in the plaintext case.
-- **The local password stops working.** After the merge the store opens under the synced
-  account's password. That is user-visible and needs copy, not just a migration — it is the one
-  part of this increment that is not mechanical.
+⚠️ **The relay half runs against a copy, inverting adopt's ordering.** `joinAccount` refuses while
+a local account row exists, so the merge must `clearLocalAccount` first — and doing that to the
+*live* store would destroy the user's account identity in place whenever the login **failed**,
+which is the one time it must not. Copying before mutating means every destructive step lands on a
+file no roster entry names, so a failure needs no rollback. **Increment 3 must keep this ordering**;
+adopt's is the wrong shape here.
 
-**Done when** a desktop profile holding an Authenticated local-only account with data can sign in
-to an existing synced account, keeps its rows, sees overlaps in duplicate review via
-`reconcileOnJoin`, and opens on next launch under the synced account's password — with the
-pre-merge store still launchable if the flow is killed before the roster write.
+⚠️ **One rollback line survives, and it is not on disk.** `joinAccount` writes `RECOVERY_KEY` into
+the *device* keychain (`session.ts:817`), which no copy can contain — and a clean throw after that
+point is not merely a crash window, because the caller's re-open re-seals the abandoned store's
+`.recovery` from the keychain (`open.ts:191-195`) before the failed call even returns. The flow
+restores the prior key in its `catch`; `account-merge.test.ts` pins it.
+
+**Password-only** *(owner, 2026-08-08)*. `recoverAccount` carries the same "already part of an
+account" refusal, so merge-by-phrase is a second full flow; `LoginStep` hides its recovery
+affordance in the merge variant. Deferred, not forgotten — see *Open questions*.
+
+Two pieces landed outside the flow and are reused by Increment 3: `AccountRoster.replace`
+(`packages/store-layout/src/roster.ts`) — one atomic write, because `add` + `remove` leaves a crash
+window in which the device boots the *old* account while a roster entry claims the destination —
+and `destroyStoreFiles`, the custody-blind rename of `destroyPlaintextStore` on both clients.
 
 ### Increment 3 — mobile parity
 
@@ -113,6 +120,14 @@ Mobile keeps its own converter (`apps/mobile/db/convert-store.ts`) by design, so
 are two implementations, not one. The mobile half also has no user-reachable filesystem, so the
 "original survives" step is verified through `storeState` rather than a file-header read — the
 same asymmetry the existing converters already document.
+
+**Start from the desktop flow's doc-comment, not from `core-context.tsx`'s join path.** Three
+things are settled and must not be re-litigated: the relay half runs against a **copy** (adopt's
+ordering is wrong here, and wrong only on failure, which is how it would survive a happy-path
+demo); the `RECOVERY_KEY` restore in the `catch` is load-bearing, not defensive tidying; and the
+roster swap is one `replace` call. Two of those three are already shared code —
+`AccountRoster.replace` and `destroyStoreFiles` — so what mobile still owns is the re-key itself
+and the flow's ordering.
 
 **Done when** the Increment 2 acceptance holds on a device, exercised through the custody
 self-test (`leapsake://dev-selftest`) the way the plaintext conversion already is.
@@ -136,6 +151,15 @@ reach.
 
 ## Open questions
 
+- **Merge by recovery phrase.** Deferred at Increment 2 (owner, 2026-08-08) and unbuilt on both
+  clients: `recoverAccount` refuses a device that already holds an account, exactly as
+  `joinAccount` does, so it needs the same copy-first treatment. The gap it leaves is a user who
+  has the account's *phrase* but not its password — today they must recover on the other device
+  first. Decide before v0.1 whether that is acceptable to ship.
+- **Layer 3 blocks a future merge.** `packages/data/src/content-cipher.ts` wraps content keys
+  under the master key, and the merge **swaps** the master key without re-wrapping. Safe only
+  because nothing writes those rows since migration 27; `account-merge.test.ts` asserts it. The
+  first repo to encrypt a field again must add the re-wrap loop in the same change.
 - **Does the retired local account leave a tombstone?** Retiring it in the roster is enough for
   the device, but nothing yet decides whether the relay should learn that a local account id was
   folded into a synced one. Nothing depends on it today; it would matter for device management

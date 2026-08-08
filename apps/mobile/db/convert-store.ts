@@ -141,8 +141,12 @@ export async function storeState(
   }
 }
 
-/** Delete a plaintext store — run only once the roster names its replacement. */
-export async function destroyPlaintextStore(name: string): Promise<void> {
+/**
+ * Delete a store — run only once the roster names its replacement. Custody-blind
+ * like desktop's namesake: creation destroys a plaintext original, the merge flow
+ * an encrypted one.
+ */
+export async function destroyStoreFiles(name: string): Promise<void> {
   await SQLite.deleteDatabaseAsync(name);
 }
 

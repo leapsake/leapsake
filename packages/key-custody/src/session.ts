@@ -277,11 +277,20 @@ export async function getSyncStatus(opts: {
  * master key, leaving the enclave wrapping — and all data — untouched, so the
  * device is exactly as it was a moment earlier.
  *
- * Its one caller in each client is the relay-registration failure path of
+ * Its first caller in each client is the relay-registration failure path of
  * account creation (a taken username, an unreachable relay). That call happens
  * *before* anything on disk moves: the store is still the plaintext Unauthenticated one and
  * no roster entry exists yet, so undoing the rows genuinely restores the prior
  * state. A no-op (does not throw) if no account is set up.
+ *
+ * Its second is the **merge flow** (`apps/desktop/src/main/db/merge-account-flow.ts`),
+ * which needs the account row gone because {@link joinAccount} refuses to run
+ * while one exists. That is a different use — clearing to make room rather than
+ * to undo — and it does *not* reopen the hole the warning below describes: the
+ * merge calls this against a **copy** that no roster entry names, and the copy
+ * gains the synced account's row moments later, before any entry points at it.
+ * The "rows cleared, roster not" state is therefore never on disk, in either
+ * store, for any length of time, and the live store is not mutated at all.
  *
  * > **Not a user-facing action, and no longer reachable as one.** This used to
  * > back a "Disconnect account from this device" button, which the custody

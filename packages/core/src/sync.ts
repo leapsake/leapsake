@@ -194,12 +194,8 @@ export async function lookupAccount(opts: {
   username: string;
   fetch?: typeof fetch;
 }): Promise<boolean> {
-  const transport = createHttpSyncTransport({
-    baseUrl: opts.relayUrl,
-    fetch: opts.fetch,
-  });
   try {
-    await transport.lookup(opts.username);
+    await lookupAccountId(opts);
     return true;
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
@@ -208,6 +204,30 @@ export async function lookupAccount(opts: {
     if (message.includes("404")) return false;
     throw cause;
   }
+}
+
+/**
+ * {@link lookupAccount}'s sibling: the same unauthenticated prelogin, keeping the
+ * **account id** rather than reducing it to a boolean. A miss propagates as the
+ * relay's 404 rather than becoming `false`, because every caller here needs the
+ * id and none of them has a "no such account" branch to take.
+ *
+ * The merge flow (`plans/v0-1_01_account-merge.md`) is why this exists: it must
+ * know which account the store is being re-homed *to* — the destination
+ * directory is named after it — before it copies a single byte, and long before
+ * a password has been checked.
+ */
+export async function lookupAccountId(opts: {
+  relayUrl: string;
+  username: string;
+  fetch?: typeof fetch;
+}): Promise<{ accountId: string }> {
+  const transport = createHttpSyncTransport({
+    baseUrl: opts.relayUrl,
+    fetch: opts.fetch,
+  });
+  const { accountId } = await transport.lookup(opts.username);
+  return { accountId };
 }
 
 /**
@@ -247,6 +267,13 @@ export async function registerAccountWithRelay(opts: {
  * which preloads, unwraps the master key, and adopts it under this device's
  * enclave. Returns the unlocked {@link KeySession} so the caller rebuilds `core`.
  * Keeps the HTTP transport construction in core; the app passes only coordinates.
+ *
+ * **`driver` need not be the live store.** The merge flow
+ * (`apps/desktop/src/main/db/merge-account-flow.ts`) points this at a *copy* it
+ * owns, so a failed login damages nothing the app is using. Everything below is
+ * driver-scoped — the repos, the enclave adoption, and the password door, which
+ * reads its salt from whichever store it is handed — so nothing here reaches for
+ * a live handle.
  */
 export async function joinAccountViaRelay(opts: {
   keyStore: KeyStore;

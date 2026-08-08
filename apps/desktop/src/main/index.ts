@@ -24,6 +24,7 @@ import {
   joinAccountViaRelay,
   lockThisDevice,
   lookupAccount,
+  lookupAccountId,
   MIN_PASSWORD_LENGTH,
   reauthenticateViaRelay,
   recoverAccountViaRelay,
@@ -68,10 +69,11 @@ import {
   registerCoreHandlers,
 } from "../shared/ipc-bridge.js";
 import { adoptAccountOnThisDevice } from "./db/adopt-account-flow.js";
-import { destroyPlaintextStore } from "./db/convert-store.js";
+import { destroyStoreFiles } from "./db/convert-store.js";
 import { createAccountOnThisDevice } from "./db/create-account-flow.js";
 import { factoryResetFiles } from "./db/factory-reset.js";
 import { forgetAccountOnThisDevice } from "./db/forget-account-flow.js";
+import { mergeAccountOnThisDevice } from "./db/merge-account-flow.js";
 import {
   type UnlockAnswer,
   type UnlockRequest,
@@ -201,7 +203,7 @@ async function openActiveStore(): Promise<void> {
       storePath(UNAUTHENTICATED_STORE_SLOT),
     );
     if (storeFileState(strandedOpenStore) !== "absent") {
-      destroyPlaintextStore(strandedOpenStore);
+      destroyStoreFiles(strandedOpenStore);
     }
   }
   dbPath = join(userDataPath, activeStore.path);
@@ -793,6 +795,74 @@ function registerSyncIpc(): void {
         }),
       );
       // Same post-adopt reconcile: a recovering device may hold local data too.
+      const duplicateCount = await reconcileAfterAdopt();
+      void scheduler?.autoTrigger();
+      return { duplicateCount };
+    },
+  );
+
+  // Merge this device's **local-only account** into an existing synced one
+  // (plans/v0-1_01_account-merge.md): the store is re-homed under the synced
+  // account's id, keeps every row, and from the next launch opens under *that*
+  // account's password.
+  //
+  // A separate channel from `sync:join` rather than a mode of it. Join is an
+  // accountless device's act and refuses a store that holds an account; this one
+  // retires an account, and the two have different guards, a different ordering
+  // (the relay half runs against a copy) and different copy. Folding them
+  // together would rebuild the polymorphic entry point the flow docs say was
+  // deliberately cut.
+  ipcMain.handle(
+    "sync:merge",
+    async (
+      _event,
+      args: { username?: unknown; password?: unknown; relayUrl?: unknown },
+    ) => {
+      const username = requireText(args?.username, "Username");
+      const relayUrl = requireText(args?.relayUrl, "Relay URL");
+      // No length check: this is the *account's* existing password, not a new
+      // one, so a minimum here could only lock out an older account.
+      const password = requireText(args?.password, "Password");
+      await withStoreSwap(() =>
+        mergeAccountOnThisDevice({
+          keyStore,
+          driver,
+          roster: deviceRoster(),
+          userDataPath,
+          username,
+          prelogin: async () => {
+            try {
+              return await lookupAccountId({ relayUrl, username });
+            } catch (cause) {
+              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+            }
+          },
+          // Note the driver: the merge hands over a copy of this device's store,
+          // not the live one, so a refused login damages nothing.
+          adopt: async (copy, writePasswordSidecar) => {
+            try {
+              return await joinAccountViaRelay({
+                keyStore,
+                driver: copy,
+                relayUrl,
+                username,
+                password,
+                platform: "desktop",
+                writePasswordSidecar,
+              });
+            } catch (cause) {
+              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
+            }
+          },
+          closeStore: async () => {
+            storeSwapping = true;
+            await driver.close?.();
+          },
+        }),
+      );
+      // Same post-swap reconcile as joining: this device's people are all
+      // pre-existing-local, so overlaps land in duplicate review rather than
+      // being fused.
       const duplicateCount = await reconcileAfterAdopt();
       void scheduler?.autoTrigger();
       return { duplicateCount };

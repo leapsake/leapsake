@@ -37,6 +37,27 @@ export interface AccountRoster {
   add(entry: RosterEntry): Promise<void>;
   /** Remove an account (Forget account, §7.3). A no-op when absent. */
   remove(id: string): Promise<void>;
+  /**
+   * Swap one account for another **in a single write** — the merge flow's point
+   * of no return (`plans/v0-1_01_account-merge.md`).
+   *
+   * Deliberately not {@link add} + {@link remove}. Those are two writes, and a
+   * crash between them leaves both ids listed — at which point
+   * {@link resolveActiveStore} picks `accounts[0]`, the *old* one, so the device
+   * boots the pre-merge store (safe) while a roster entry now **claims** the
+   * merge's destination (not safe: it defeats the flow's stranded-destination
+   * sweep, so the retry trips the converter's overwrite guard). The reverse
+   * order is worse still — an empty roster boots Unauthenticated.
+   *
+   * The incoming entry takes the outgoing one's **position**, not the end of the
+   * list. With no `activeAccountId` the first entry is the one that boots, so
+   * appending would silently hand the boot slot to a different account on a
+   * device that holds more than one.
+   *
+   * `oldId` absent → a plain add, so re-running a merge that already landed is a
+   * no-op rather than a duplicate.
+   */
+  replace(oldId: string, entry: RosterEntry): Promise<void>;
 }
 
 /** The on-disk shape. Versioned so a later migration has something to branch on. */
@@ -81,6 +102,14 @@ function parse(text: string | undefined): RosterEntry[] {
   }
 }
 
+/** Add `entry`, or overwrite the row already holding its id, in place. */
+function upsert(accounts: RosterEntry[], entry: RosterEntry): RosterEntry[] {
+  const at = accounts.findIndex((a) => a.id === entry.id);
+  if (at === -1) accounts.push(entry);
+  else accounts[at] = entry;
+  return accounts;
+}
+
 export function createAccountRoster(storage: RosterStorage): AccountRoster {
   const load = async (): Promise<RosterEntry[]> => parse(await storage.read());
 
@@ -95,11 +124,7 @@ export function createAccountRoster(storage: RosterStorage): AccountRoster {
     },
 
     async add(entry) {
-      const accounts = await load();
-      const existing = accounts.findIndex((a) => a.id === entry.id);
-      if (existing === -1) accounts.push(entry);
-      else accounts[existing] = entry;
-      await save(accounts);
+      await save(upsert(await load(), entry));
     },
 
     async remove(id) {
@@ -108,6 +133,19 @@ export function createAccountRoster(storage: RosterStorage): AccountRoster {
       // Skip the write when nothing changed, so removing an absent account can't
       // rewrite (and so can't corrupt) a roster it wasn't going to alter.
       if (remaining.length !== accounts.length) await save(remaining);
+    },
+
+    async replace(oldId, entry) {
+      const accounts = await load();
+      const at = accounts.findIndex((a) => a.id === oldId);
+      if (at === -1) {
+        await save(upsert(accounts, entry));
+        return;
+      }
+      accounts[at] = entry;
+      // Any *other* row already carrying the incoming id is now a duplicate of
+      // the one just written into the outgoing account's slot.
+      await save(accounts.filter((a, i) => i === at || a.id !== entry.id));
     },
   };
 }

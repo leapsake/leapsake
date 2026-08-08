@@ -8,7 +8,7 @@ import { createPeopleRepo } from "@leapsake/data";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   convertStoreToEncrypted,
-  destroyPlaintextStore,
+  destroyStoreFiles,
   rekeyStore,
 } from "../src/main/db/convert-store.js";
 import {
@@ -155,7 +155,7 @@ describe("convertStoreToEncrypted", () => {
     convertStoreToEncrypted({ fromPath, toPath, key: generateKey() });
     expect(storeFileState(fromPath)).toBe("plaintext");
 
-    destroyPlaintextStore(fromPath);
+    destroyStoreFiles(fromPath);
     expect(existsSync(fromPath)).toBe(false);
     expect(existsSync(`${fromPath}-wal`)).toBe(false);
     expect(existsSync(`${fromPath}-shm`)).toBe(false);

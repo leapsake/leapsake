@@ -195,6 +195,7 @@ export {
   syncableRepos,
   createAccountSyncEngine,
   lookupAccount,
+  lookupAccountId,
   registerAccountWithRelay,
   joinAccountViaRelay,
   recoverAccountViaRelay,

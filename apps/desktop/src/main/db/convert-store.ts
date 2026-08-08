@@ -2,6 +2,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3-multiple-ciphers";
 import { rawKeyLiteral } from "@leapsake/crypto";
+import type { AccountRoster } from "@leapsake/store-layout";
 import { openEncryptedDatabase } from "./encrypted-sqlite-driver.js";
 import { storeFileState } from "./sqlite-header.js";
 
@@ -43,7 +44,7 @@ import { storeFileState } from "./sqlite-header.js";
  * 3. **Tables before indexes.** An index cannot be created before its table, and
  *    `sqlite_master` order is not guaranteed to respect that.
  *
- * **This does not delete the original** — {@link destroyPlaintextStore} does, and
+ * **This does not delete the original** — {@link destroyStoreFiles} does, and
  * the caller must not call it until the roster entry naming the new store has been
  * written. That ordering is what makes a crash mid-flow survivable:
  *
@@ -182,7 +183,7 @@ function copyStoreUnderNewKey(opts: {
     // runs on a throw; a SIGKILL or a power cut runs nothing, and that leftover
     // is what the sweep is for.
     try {
-      removeStoreFiles(toPath);
+      destroyStoreFiles(toPath);
     } catch {
       // Nothing actionable, and the original error is the one worth raising.
     }
@@ -228,29 +229,56 @@ export function rekeyStore(opts: {
 }
 
 /**
- * Destroy a plaintext store and its SQLite sidecars — the last step of account
- * creation, run **only after** the roster names the encrypted replacement.
+ * Destroy a store file and the SQLite sidecars that belong to it (`-wal`,
+ * `-shm`) — the last step of every flow that converts one store into another,
+ * run **only after** the roster names the replacement.
  *
- * Also the boot-time sweep: an Authenticated launch that still finds an Unauthenticated store has
- * crashed between the roster write and this call, and the leftover is a plaintext
- * copy of data the user has already asked to encrypt.
+ * **Custody-blind, and named that way on purpose.** It unlinks bytes; whether
+ * they were plaintext or ciphertext is the caller's business. Account creation
+ * and the join/recover adopt destroy a *plaintext* original; the merge flow
+ * (`merge-account-flow.ts`) destroys an *encrypted* one. There is also the
+ * boot-time sweep in `index.ts`, where an Authenticated launch still finding an
+ * Unauthenticated store means a crash between the roster write and this call
+ * left a plaintext copy of data the user has already asked to encrypt.
+ *
+ * **It does not remove the store's doors or its directory.** The `.password` and
+ * `.recovery` sidecars live beside the file and outlive this call; a caller
+ * retiring a store for good follows with `rmSync(dirname(path))`, which is why
+ * this is not called `destroyStore`.
  *
  * The honest limit (§7.2.1): this unlinks the file, and deleted bytes can linger
  * in free space on an SSD. Accepted deliberately — the alternative is never
  * converting at all.
- *
- * The body is custody-blind — it unlinks a file and its sidecars, which works on
- * an encrypted store just as well. The name records today's only caller; the
- * merge flow destroys an *encrypted* original with the same call, and is the
- * place to widen the name rather than here.
  */
-export function destroyPlaintextStore(path: string): void {
-  removeStoreFiles(path);
-}
-
-/** A store file and the SQLite sidecars that belong to it. */
-function removeStoreFiles(path: string): void {
+export function destroyStoreFiles(path: string): void {
   for (const target of [path, `${path}-wal`, `${path}-shm`]) {
     rmSync(target, { force: true });
   }
+}
+
+/**
+ * Clear a destination left behind by an earlier attempt that died before its
+ * roster entry — the pre-convert sweep every store-converting flow runs.
+ *
+ * **The roster is what makes this safe.** A store directory that no roster entry
+ * names is claimed by nobody: no boot path will ever open it, and no user can
+ * reach it. One that *is* named is somebody's live account, and removing it
+ * would be data loss, so this refuses to touch it and lets the caller's own
+ * guard report the collision.
+ *
+ * Without this a retry cannot succeed — {@link convertStoreToEncrypted}'s
+ * overwrite guard refuses a non-absent destination, and the leftover from a
+ * SIGKILL (which runs no `catch`) is exactly such a destination.
+ */
+export async function clearUnclaimedDestination(opts: {
+  /** The destination store file; its whole directory is what gets removed. */
+  path: string;
+  /** The account that directory is named after. */
+  accountId: string;
+  roster: AccountRoster;
+}): Promise<void> {
+  const { path, accountId, roster } = opts;
+  if (storeFileState(path) === "absent") return;
+  if ((await roster.list()).some((a) => a.id === accountId)) return;
+  rmSync(dirname(path), { recursive: true, force: true });
 }

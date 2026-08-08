@@ -5,8 +5,6 @@
 
 ## Just landed
 
-- **`plans/` restructured around the v0.1 order** *(2026-08-07)*. Seven numbered, deletable docs
-  behind [`v0-1.md`](./v0-1.md); non-gating work to [`v0-2.md`](./v0-2.md); design next to code.
 - **Onboarding Increment 1 — reminder snooze + honest dismiss actions** *(2026-07-31 → 08-01)*.
   Every acceptance clause holds on desktop, on one device and across two. **Mobile is unverified**
   — its row logic has a unit tier, but nothing has been observed on a simulator, which belongs to
@@ -18,16 +16,18 @@
 
 ## In progress
 
-**[`01 — account merge`](./v0-1_01_account-merge.md), Increment 1 landed** *(2026-08-08)*.
-`rekeyStore` — the encrypted-source door onto the converter, sharing one body, one set of guards
-and one crash ordering with the plaintext one. The finding worth carrying: the at-rest db-key is
-minted **per device, not per account**, so Increment 2 is a *re-home* (same key, new folder), and
-the doc's "account master key" wording was wrong and is corrected. Next: Increment 2.
+**[`01 — account merge`](./v0-1_01_account-merge.md), Increments 1–2 landed** *(2026-08-08)*. A
+desktop device holding a local-only account can sign in to a synced one and bring its data:
+`rekeyStore`, then `mergeAccountOnThisDevice` behind `sync:merge` and a Settings entry point. The
+finding for Increment 3: the relay half runs against a **copy**, because `joinAccount` needs the
+local account row gone and clearing it on the live store would destroy the user's account whenever
+the login *failed*. **Still to do: verify by hand against a real relay** — duplicate review has no
+automated tier. Next: Increment 3, mobile parity.
 
 ## Next
 
-1. **[`01 — account merge`](./v0-1_01_account-merge.md)** — Increments 2–4: the merge flow, mobile
-   parity, the username collision. Closes a one-way trap before
+1. **[`01 — account merge`](./v0-1_01_account-merge.md)** — Increments 3–4: mobile parity, the
+   username collision. Closes a one-way trap before
    [`02`](./v0-1_02_account-invitation.md) advertises it.
 2. **[`v0-1_02_account-invitation.md`](./v0-1_02_account-invitation.md)** — the create/sign-in fork
    on Home. Gates the mobile pipeline, and therefore the 14-day Play clock.
