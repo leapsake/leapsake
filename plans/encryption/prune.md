@@ -5,7 +5,7 @@
 > decision record like its four siblings in this folder. Where [`model.md`](./model.md)
 > and [`sync.md`](./sync.md) say *"decided, do not relitigate"*, this doc says *"here is
 > the shape of the problem and what a good answer probably looks like."* Treat every
-> recommendation below as a proposal awaiting an owner decision (see **§8**).
+> recommendation below as a proposal awaiting an owner decision (see **§9**).
 >
 > **Why it exists.** [`sync.md`](./sync.md) §2 designs the relay to be **disposable** —
 > "losing `relay.db` costs at most one re-join per device." That is true of the *design*
@@ -242,9 +242,93 @@ the minimum forever. The one genuinely nice property: **Tier 1 makes eviction sa
 device evicted while offline and returning later simply receives the newest copy of every
 row, which is where LWW would have put it regardless.
 
+> That cost is stated here for a spool **standing alone**, which is how this section frames
+> it. [§7](#7-a-reframe-worth-considering--two-roles-two-retention-policies) explores a
+> decomposition in which it may be avoidable entirely.
+
 ---
 
-## 7. Proposed sequencing (not decided)
+## 7. A reframe worth considering — two roles, two retention policies
+
+> **Hypothetical.** Everything above treats retention as *one policy over one table*,
+> escalating in tiers. This section records a different decomposition, raised while
+> revisiting the doc: split §1's jobs into **two components with independent policies**.
+> It is written down because it changes what Tier 2 costs — not because it has been chosen.
+> It is compatible with Tier 1 (§3) rather than an alternative to it.
+
+### 7.1 The split
+
+Two components, two rules:
+
+- **The spool** — holds a record until it has been delivered. Prunes *forward* (a TTL, or
+  delivery acknowledgement).
+- **The archive** — holds exactly one copy of every live row. Prunes *by supersession*.
+
+§1's third job, the bootstrap seed, is served by the archive; the spool never carries it.
+The two may be one process or two deployments on different hosts, and nothing below depends
+on which — the archive is described here as an always-on peer that any device syncs with
+when both are online.
+
+### 7.2 The archive is §3, relocated
+
+The archive is **not a new mechanism**. Keeping the winning copy of each row without ever
+decrypting is precisely §3's supersede-on-push rule, tie handling (§3.3) intact: on an
+`updatedAt` tie the archive keeps both sides, because the tiebreak is a canonical
+serialization of the *decrypted* row and the archive cannot compute it.
+
+What changes is framing. §3 presents compaction as an optimization of the relay's log; here
+it is a component with a stated job — which is what lets an operator answer *for* it. Note
+that the archive is a **sink and a seed, never an originator**: it never pushes, never
+merges, and so is not symmetric with a real device even where it speaks the same protocol.
+
+### 7.3 The result that changes Tier 2's cost
+
+§6 prices the mailbox in per-device cursors, and therefore in device count, last-sync times,
+and an eviction TTL. That price is real for a spool that must stand alone. Paired with an
+archive it may be avoidable outright:
+
+> Prune the spool on a **flat TTL**, with no device identity and no server-side cursors at
+> all. A device offline past the TTL falls back to the archive and re-syncs from cursor 0 —
+> idempotent under LWW (§3.1), correct, and merely expensive in bandwidth.
+
+The archive is what makes a straggler's missed window recoverable, so the spool never has to
+track anyone in order to know when forgetting is safe. If that holds, the end state stores
+**less** per-account metadata than today's log does, not more — inverting §6's assumption
+that statelessness has to be bought with presence data.
+
+### 7.4 What it would fix
+
+- [`relay-capabilities.ts`](../../packages/sync/src/relay-capabilities.ts) becomes coherent.
+  §5 notes Tier 1 makes `durableBackup: true` *truthful* for a backed-up relay; the split
+  makes it **structural** — `false` for a bare relay, `true` for one with an archive
+  attached — which is the configurable answer §9's cross-cutting question is asking for.
+- §1's three jobs become two components with separately-defensible policies, instead of
+  three jobs sharing whichever policy is strictest.
+- It separates *cost* from *liability* (§5) by making the complete copy an explicit, opt-in
+  artifact rather than a side effect of the spool.
+- The archive is a natural seam for the **user-customizable / BYO storage** endgame
+  ([`apps/server/README.md`](../../apps/server/README.md)) — self-hosted, object storage, or
+  a hosted archive — while the relay itself stays disposable.
+
+### 7.5 What it does not settle
+
+- **Join with no archive.** If the archive is opt-in and switched off, a joining device has
+  no seed and password-only join quietly stops working. This is §6's fork relocated — but
+  now explicit and user-visible rather than implicit. Either device pairing becomes the
+  fallback when the archive is off, or the archive is on by default.
+- **Two cursor spaces.** The spool's `seq` and the archive's contents share no ordering, so
+  a client needs a rule for which it is pulling from and how a cursor-0 archive bootstrap
+  hands off to steady-state spool pulls. Likely the bulk of the protocol work.
+- **Topology.** Either the archive authenticates to the relay as a peer — needing an
+  account-issued credential that exposes no key material — or clients push to both. The
+  latter needs no new credential model; the former keeps the archive fresh even when every
+  device is offline.
+- **The `updatedAt` cost stands.** The archive still needs it in cleartext (§4). The split
+  relocates who pays that cost; it does not remove it.
+
+---
+
+## 8. Proposed sequencing (not decided)
 
 1. **Tier 1 first.** Small, provably convergence-neutral, no new concepts, and it removes the
    unbounded growth. It is also a strict prerequisite for Tier 2 — both for storage sanity and
@@ -254,9 +338,14 @@ row, which is where LWW would have put it regardless.
    a P2P story. Choosing Tier 2's shape before that decision is choosing the backup product by
    accident — which is exactly how the current situation arose.
 
+If §7's reframe is adopted, the sequencing does not change but step 1's *framing* does: Tier 1
+would be built as **the archive** — a component with a stated job — rather than as an
+optimization of the relay's log. Same mechanism and same first commit either way, which is
+part of why Tier 1 is safe to build before the §7 question is settled.
+
 ---
 
-## 8. Open questions
+## 9. Open questions
 
 Every one of these is **open and pre-v0.1**. None blocks v0.1, since v0.1 sync is
 self-host-only and the relay's growth is a self-hoster's own disk.
@@ -293,6 +382,22 @@ self-host-only and the relay's growth is a self-hoster's own disk.
 - **What is the eviction TTL, and does the user ever see it?** "Your other device has been
   offline long enough that it will re-sync from scratch" may be a UX event, not just a
   server-side policy.
+
+**The two-role split (§7), if it is pursued**
+
+- **Does the flat-TTL spool actually hold?** §7.3 is the load-bearing claim and has had
+  nothing like the scrutiny §3 got. It assumes a returning device can always recover from
+  the archive; that needs checking against §3.2's late-push scenario, and against whether a
+  cursor-0 re-sync is acceptable on a large account or needs an `updatedAt`-keyed delta
+  (which carries its own correctness question).
+- **What is the spool TTL, and who sets it?** A flat window is only defensible if it is long
+  enough to cover ordinary device absence; operator-tunable invites operators to get it wrong.
+- **Does the archive need its own identity on the relay?** §7.5's topology fork. "Clients
+  push to both" avoids a new credential entirely, at the cost of an archive that is only as
+  fresh as the last device to come online.
+- **Is "archive off ⇒ pairing required to join" acceptable?** §7.5. This is §6's
+  snapshot-or-pairing fork in its user-visible form, and it is a product decision about the
+  join promise, not a storage one.
 
 **Cross-cutting**
 
