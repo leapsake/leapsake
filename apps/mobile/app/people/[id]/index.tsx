@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName, genderLabel } from "@leapsake/schema";
+import { formatTimestamp } from "@leapsake/ui/headless";
 import { ContactsSection } from "../../../components/ContactsSection";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
@@ -19,11 +20,6 @@ import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { colors, styles } from "../../../lib/styles";
-
-/** Render an epoch-ms timestamp in the device locale. */
-function formatTimestamp(ms: number): string {
-  return new Date(ms).toLocaleString();
-}
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (

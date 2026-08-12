@@ -7,19 +7,9 @@ import {
   kindDefs,
   milestoneLabel,
 } from "@leapsake/schema";
+import { entityBasePath } from "@leapsake/ui/headless";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
-
-/** The route base for a milestone bearer's pages, branching on its type. */
-function basePathFor(bearerType: MilestoneBearerType, id: string): string {
-  const segment =
-    bearerType === "person"
-      ? "people"
-      : bearerType === "pet"
-        ? "pets"
-        : "relationships";
-  return `/${segment}/${id}`;
-}
 
 /**
  * The Milestones section shared by the Person, Pet, and relationship detail
@@ -44,7 +34,7 @@ export function MilestonesSection({
   onChanged: () => void;
 }) {
   const core = useCore();
-  const basePath = basePathFor(bearerType, bearerId);
+  const basePath = `${entityBasePath(bearerType)}/${bearerId}`;
 
   function confirmRemove(entry: MilestoneTimelineEntry) {
     const label = milestoneLabel(entry.milestone);

@@ -5,13 +5,9 @@ import {
   type RelationshipNeighbor,
   baseRole,
 } from "@leapsake/schema";
+import { entityBasePath } from "@leapsake/ui/headless";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
-
-/** The route base for an entity's pages, branching on its type. */
-function basePathFor(type: EntityType, id: string): string {
-  return `/${type === "person" ? "people" : "pets"}/${id}`;
-}
 
 /** The role shown for a neighbor: a free-text note for "other", else the label. */
 function roleText(neighbor: RelationshipNeighbor): string {
@@ -46,7 +42,7 @@ export function RelationshipsSection({
   onChanged: () => void;
 }) {
   const core = useCore();
-  const basePath = basePathFor(subjectType, subjectId);
+  const basePath = `${entityBasePath(subjectType)}/${subjectId}`;
 
   function confirmRemove(neighbor: RelationshipNeighbor) {
     const remove =
@@ -106,7 +102,7 @@ export function RelationshipsSection({
         <Text style={styles.muted}>No relationships yet.</Text>
       ) : (
         relationships.map((neighbor) => {
-          const otherPath = basePathFor(neighbor.otherType, neighbor.otherId);
+          const otherPath = `${entityBasePath(neighbor.otherType)}/${neighbor.otherId}`;
           const key =
             neighbor.origin === "explicit"
               ? neighbor.relationshipId

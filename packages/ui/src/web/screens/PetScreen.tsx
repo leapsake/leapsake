@@ -21,7 +21,7 @@ import { MentionedInSection } from "../sections/MentionedInSection.js";
 import { MilestonesSection } from "../sections/MilestonesSection.js";
 import { RelationshipsSection } from "../sections/RelationshipsSection.js";
 import { TagsSection } from "../sections/TagsSection.js";
-import { formatTimestamp } from "./timestamps.js";
+import { formatTimestamp } from "../../headless/index.js";
 
 /**
  * A pet's page. The same shape as {@link PersonScreen} minus what pets don't

@@ -24,7 +24,7 @@ import { MentionedInSection } from "../sections/MentionedInSection.js";
 import { MilestonesSection } from "../sections/MilestonesSection.js";
 import { RelationshipsSection } from "../sections/RelationshipsSection.js";
 import { TagsSection } from "../sections/TagsSection.js";
-import { formatTimestamp } from "./timestamps.js";
+import { formatTimestamp } from "../../headless/index.js";
 
 /**
  * A person's page: who they are, then every section that hangs off them.
