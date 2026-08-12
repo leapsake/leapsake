@@ -823,9 +823,26 @@ server needs the user's key for the session; make the holding thin:
   the server unwraps the master key into **request-scoped memory**, renders, then
   discards. A stolen session store is useless without cookies; a stolen cookie is
   useless without the store — the server holds nothing standing-decryptable at rest.
+- **Wrap the `authVerifier` under the session key too** *(added 2026-08-12, after
+  building it)*. The session store cannot hold only the master key: relay sessions are
+  in-memory per relay process, so a relay restart invalidates them and the render host
+  must re-authenticate **without the password**. That means it must keep the
+  `authVerifier` — which is a standing relay credential. Held in the clear beside the
+  wrapped master key it partly defeats the split, because a store thief gets read and
+  write access to all of the account's ciphertext without ever touching a cookie.
+  Wrapping it under the same session key is one more line and restores the property.
 - **Memory-only, request-scoped, zeroized.** Keys/plaintext never touch disk, logs,
   swap, error traces, or APM. Rendered HTML with plaintext is `Cache-Control:
   private, no-store` — never in a shared cache/CDN.
+- **The decrypted *store* is request-scoped too — warm the key, not the database**
+  *(measured 2026-08-12)*. The tempting optimization is a per-session decrypted SQLite
+  kept between requests, and it would quietly break the bullet above: a fully decrypted
+  database in server memory, readable without any cookie, for the session's lifetime.
+  It is also unnecessary. Argon2id — not the pull — dominates the cold path (~355 ms at
+  every store size), so a **warm key with a cold store** is both the private answer and
+  a fast one: rebuilding the store per request costs a **6.6 ms p50 at 100 people and
+  36.8 ms at 1 000**. Build cold; if a store ever grows large enough to hurt, the answer
+  is an incremental sync cursor, not a warm database.
 - **Short session TTL + re-auth** for sensitive actions.
 - **Ceiling (later, if ever):** run the decrypting renderer inside a
   **confidential-computing enclave** (AWS Nitro / GCP Confidential VM) so the key and
@@ -889,7 +906,17 @@ interactivity:
 
 The app **fully works with no JS** (the accessibility requirement) and
 **automatically becomes zero-knowledge when JS is available**. JS just moves the
-decryption boundary from server to client. This resolves the latent contradiction in
+decryption boundary from server to client.
+
+*The read path is proven, and the gap is named* **(2026-08-12)**. A person's page
+server-renders with JavaScript disabled — every mutation on it is already expressed as
+navigation to a `/new`, `/edit`, or `/delete` route, so it needed no shared-package
+change. Two sections are **not** there yet and are the accessibility floor's actual
+backlog: `HolidaysSection`, whose add-field is a Combobox (a `<form>` + `<select>` is a
+direct swap, the data being loaded already), and `GiftsSection`, where `GiftCaptureForm`
+emits a bare `<form>` with no `method`, no `action`, and no `name` on any field — so a
+no-JS submit posts nothing, nowhere. Until those land, "fully works with no JS" is the
+requirement, not yet a description. This resolves the latent contradiction in
 the V3 web goal ("server-rendered… no client JS required", [`status.md`](../status.md)) vs.
 client-side-only decryption: **encrypted content is client-rendered when JS is present and
 server-rendered (trusted) when it is not.** *(The V3 web scope in `status.md` states this
