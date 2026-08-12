@@ -6,18 +6,45 @@
 
 **Value:** starts the 14-day Play clock. Ships nothing to the public, unblocks everything.
 
-**Prerequisites, all hard:** [03](./v0-1_03_store-identity-and-restore.md), plus the account merge
-and the account invitation (both landed, 2026-08-08). Closed testers are real users with real
-data — do not put a build in their hands before the account fork exists, the merge path makes a
-wrong turn recoverable, and the restore path is verified. See [`v0-1.md`](./v0-1.md) for why this one
+**Prerequisites, all hard:** the account merge, the account invitation, and the verified restore
+path (all landed, 2026-08-08 → 08-11). Closed testers are real users with real data — do not put
+a build in their hands before the account fork exists, the merge path makes a wrong turn
+recoverable, and the restore path is verified. See [`v0-1.md`](./v0-1.md) for why this one
 increment carries the whole critical path.
 
 ## What to build
 
+- **Settle store identity first** — see below. It is minutes of decision, and the first upload
+  makes it permanent.
 - Create `eas.json` with build profiles (dev / preview / production) — **none exists today**.
 - Android signing via Play App Signing; keep the upload key out of the repo.
 - First production-profile Android build → **closed testing track**; recruit ≥12 testers.
 - iOS build profile in the same pass; TestFlight upload once Apple enrollment clears.
+
+## Store identity — the free-to-fix decision this upload makes permanent
+
+*(Carried over from the retired 03 on 2026-08-11, because the deadline was always this upload
+rather than the v0.1 cut — owner, 2026-07-31. Everything stays `0.0.0` until here.)*
+
+Store version strings are permanent and monotonic per store record, and stores reject
+non-numeric strings — so `0.0.0` and `0.1.0-dev` are both unusable there.
+
+- Pick the real `version` and the versioning scheme for both clients. The *mechanism* is built —
+  `scripts/set-version.mjs` writes every manifest and `pnpm test:versions` gates agreement — so
+  this is purely the decision.
+- Pick a **build-number strategy** (`ios.buildNumber` / `android.versionCode`), which exists
+  nowhere yet. EAS can auto-increment them here.
+- ✅ **Already done:** the credential shapes this increment and 05 introduce (`*.p12`,
+  `AuthKey_*.p8`, `*.mobileprovision`, `*.jks`, `*.keystore`, `credentials.json`) are gitignored
+  at the root preemptively — cheaper than a history rewrite, and the history goes public in 07.
+
+Bundle IDs are settled in [`v0-1.md`](./v0-1.md) → *The decisions this encodes*:
+`com.leapsake.app` for mobile. The new ID is a new app identity, so existing dev installs hold
+orphaned data under the old one — uninstall and rebuild the dev client before running
+`pnpm test:native`. `scheme: "leapsake"` is unchanged, so `leapsake://` deep links still route.
+
+**Acceptance for this part:** fresh dev install on **iOS and Android** under `com.leapsake.app`;
+`git status` clean.
 
 ## The clock, which is the whole point
 

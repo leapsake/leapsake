@@ -8,7 +8,8 @@ Three stages of one job: turn `out/` into something a stranger can install and t
 itself later. Split into A/B/C because **A is the classic Electron failure** and deserves to fail
 on its own, not inside a signing change.
 
-**Prerequisite:** [03](./v0-1_03_store-identity-and-restore.md) for the version and bundle ID.
+**Prerequisite:** [04](./v0-1_04_mobile-pipeline.md) → *Store identity* for the version and the
+versioning scheme; the desktop bundle ID (`com.leapsake.desktop`) is set here.
 **B is blocked on Apple enrollment** — start that today (see [`v0-1.md`](./v0-1.md)).
 
 ## A — Packaging (unsigned)

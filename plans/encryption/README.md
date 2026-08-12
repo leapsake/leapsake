@@ -54,7 +54,7 @@ ordered against the rest of the project:
 | Relay disposability, CK revocation/GC, the shared rate-limit counter, background sync, vCard export, the `createCore` cleanup, the relay-backup capability | [`../v0-2.md`](../v0-2.md) → *Encryption, sync, and the relay* |
 | Automatic locking, session lifetime, biometrics | [`../v0-2.md`](../v0-2.md) — explicitly v0.2 *(owner, 2026-07-27)* |
 | Stages 3–4 (sharing, the web app), the hosted-relay gate, passkeys, device management | [`../v0-2.md`](../v0-2.md) → *Post-launch* |
-| Restore-from-file-backup | [`../v0-1_03_store-identity-and-restore.md`](../v0-1_03_store-identity-and-restore.md) — a launch gate, not an encryption task |
+| Restore-from-file-backup | **Built and verified** *(2026-08-11)*. The procedure is [`apps/desktop/README.md`](../../apps/desktop/README.md) → *Backing up and restoring* |
 
 The **open design questions** that are tied to a not-yet-started stage — the asymmetric scheme,
 the public-key directory trust model, the web framework, share-URL formation, metadata

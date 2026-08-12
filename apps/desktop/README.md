@@ -122,6 +122,83 @@ recovering an account is what converts it and mints the db-key. The boot path is
 `src/main/db/open.ts`, the conversion is `convert-store.ts`, and the model is
 [`plans/encryption/model.md`](../../plans/encryption/model.md) §7.
 
+## Backing up and restoring
+
+**"How do I back up Leapsake?"** — copy the app's `userData` directory. That is the
+whole answer, and it works in every custody state. On macOS:
+
+```
+~/Library/Application Support/Leapsake/          # packaged
+~/Library/Application Support/@leapsake/desktop/ # dev
+  accounts.json          # the roster — which accounts this device knows
+  stores/local/leapsake.db          # Unauthenticated: plaintext
+  stores/<accountId>/leapsake.db    # Authenticated: ciphertext
+  stores/<accountId>/leapsake.db.password   # door 1: the account password
+  stores/<accountId>/leapsake.db.recovery   # door 2: the 24-word phrase
+  keystore.json          # this machine's keys — does NOT travel
+```
+
+**Quit the app before copying.** Copy any `-wal`/`-shm` files next to a store if
+they are present; a store copied mid-write is the one way to get an unreadable
+backup.
+
+**`keystore.json` is deliberately worthless off the machine.** It is a map of
+`id → base64(ciphertext)` sealed by Electron's `safeStorage`, which derives its key
+from *this* OS account's keychain (`main/keystore/safe-storage-keystore.ts`). Copying
+it to another machine restores nothing. That is not a gap — it is why the two
+sidecar doors exist, and the restore path below goes through them.
+
+**`accounts.json` is small and load-bearing.** It is the only file whose loss is
+silent: the roster degrades to empty rather than throwing
+([`@leapsake/store-layout`](../../packages/store-layout/README.md)), so a restore
+missing it boots into a *fresh Unauthenticated store* with the real data sitting
+unopened in `stores/<accountId>/`. Nothing is lost — the fix is to restore the file,
+or hand-write it (`{"version":1,"accounts":[{"id":…,"username":…,"createdAt":…}]}`,
+where `id` is the store's directory name) — but the app will not tell you that is
+what happened.
+
+### Restoring, per custody state
+
+| State | What to copy | What happens on first boot |
+|---|---|---|
+| **Unauthenticated** (no account) | `stores/local/leapsake.db` | Opens straight into the data. No keys, no ceremony — there is nothing to unlock |
+| **Authenticated, password door** | `accounts.json` + the whole `stores/<accountId>/` directory | The gate asks for the account password; it unwraps the db-key from `.password`, restores it to this machine's keychain, and re-adopts the master key |
+| **Authenticated, phrase door** | same | Same gate, answered with the 24 words; `.recovery` yields the same db-key, and the phrase also restores this device's recovery key |
+| **Either door, wrong secret** | — | Rejected with a per-door message and re-prompted, in a loop. Nothing is written and nothing is corrupted — a wrong answer costs an attempt, not the store |
+| **Encrypted store, no sidecars** | — | Refused outright: *"the database is encrypted but this device's key is missing."* Correct, and unrecoverable — the db-key lives nowhere inside the store it opens |
+
+The gate offers only the doors whose sidecars are present, so a backup that carries
+one of them is a complete restore. Both are 100-odd opaque bytes; there is no reason
+not to carry both.
+
+The unlock is `openAppDatabase` (`main/db/open.ts`, case 3) and the repair that
+follows it is `establishKeySession`
+([`@leapsake/key-custody`](../../packages/key-custody/README.md)). A door unlock
+means the keychain was lost, which took this device's *master* key with it, so the
+boot path re-adopts the account's before anything reads it; if that fails the app
+still opens, in the **Degraded** state, rather than refusing to start.
+
+**A phrase unlock does not force a new password**, and does not need to: the password
+door is an independent file and still opens. (Account-level recovery *does* demand
+one — `sync:recover` unwraps the master key from the relay's escrow onto a device that
+never had it. That is a different flow with a different threat model.)
+
+### The limit, stated honestly
+
+**An account protects access; a backup protects against losing the device.** They are
+not substitutes:
+
+- A backup does not need an account. The majority of v0.1 users are local-only —
+  sync requires self-hosting a relay — and copying one plaintext file is their
+  complete backup story.
+- An account does not give you a backup. Sync replicates to a relay you run; it is
+  not a restore point, and Forget account destroys the local store.
+- What a backup cannot survive is losing **both** door secrets on an encrypted store.
+  No amount of file copying helps: that is the design working as intended.
+
+Exporting to a portable format (rather than copying files) is the vCard exporter in
+[`plans/v0-2.md`](../../plans/v0-2.md).
+
 ## Notes
 
 - In `dev`/`start` (unpackaged) Electron prints a Content-Security-Policy
