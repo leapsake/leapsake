@@ -2,11 +2,8 @@ import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { GiftOccasionOption } from "@leapsake/core";
 import type { GiftOccasion, GiftParty } from "@leapsake/schema";
-import {
-  type DateFields,
-  GiftOccasionFields,
-  parseDateFields,
-} from "./GiftOccasionFields";
+import { type DateFields, parseDateFields } from "@leapsake/ui/headless";
+import { GiftOccasionFields } from "./GiftOccasionFields";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 

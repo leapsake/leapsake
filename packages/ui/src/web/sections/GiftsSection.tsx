@@ -2,12 +2,12 @@ import type { GiftIdea, GiftPartyType } from "@leapsake/schema";
 import { formatGiftDate, formatGiftTargetDate } from "@leapsake/schema";
 import { groupGiftsByIdea } from "@leapsake/view-models";
 import { useState } from "react";
+import { dateFieldsOf } from "../../headless/index.js";
 import { useSerializedWrites } from "../../headless/useSerializedWrites.js";
 import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import { GiftAdornmentsEditor } from "../gifts/GiftAdornmentsEditor.js";
 import { GiftCaptureForm } from "../gifts/GiftCaptureForm.js";
-import { dateFieldsOf } from "../gifts/GiftOccasionFields.js";
 import {
   type GivenRow,
   type SuggestionRow,

@@ -6,6 +6,14 @@
  * if one is ever added. Anything that renders an element belongs in `../web`.
  */
 export {
+  type DateFields,
+  type PartialDate,
+  datePart,
+  dateFieldsOf,
+  emptyDate,
+  parseDateFields,
+} from "./partial-date.js";
+export {
   entityBasePath,
   neighborKey,
   neighborPath,

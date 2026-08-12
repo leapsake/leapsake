@@ -2,52 +2,10 @@ import { useEffect, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import type { GiftOccasionOption } from "@leapsake/core";
 import type { GiftOccasion } from "@leapsake/schema";
+import { type DateFields, datePart } from "@leapsake/ui/headless";
 import { SelectField } from "./SelectField";
 import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
-
-/** A partial date as typed — strings so an empty input stays empty, not 0/NaN. */
-export interface DateFields {
-  year: string;
-  month: string;
-  day: string;
-}
-
-export const emptyDate = (): DateFields => ({ year: "", month: "", day: "" });
-
-/** A typed date part as a positive integer, or null when blank/unparseable. */
-function num(s: string): number | null {
-  const n = Number(s.trim());
-  return s.trim() !== "" && Number.isInteger(n) && n > 0 ? n : null;
-}
-
-/**
- * The typed fields as a partial date, or null when wholly blank. A lone day (no
- * month) drops the day — the schema's day⇒month rule, mirrored here so the form
- * only submits values the schema will accept.
- */
-export function parseDateFields(
-  d: DateFields,
-): { year: number | null; month: number | null; day: number | null } | null {
-  const year = num(d.year);
-  const month = num(d.month);
-  const day = month !== null ? num(d.day) : null;
-  if (year === null && month === null && day === null) return null;
-  return { year, month, day };
-}
-
-/** A stored partial date back into typed fields (for an edit form's initial state). */
-export function dateFieldsOf(d: {
-  year: number | null;
-  month: number | null;
-  day: number | null;
-}): DateFields {
-  return {
-    year: d.year?.toString() ?? "",
-    month: d.month?.toString() ?? "",
-    day: d.day?.toString() ?? "",
-  };
-}
 
 const keyOf = (o: GiftOccasion | null) =>
   o === null ? "" : `${o.type}:${o.id}`;
@@ -87,7 +45,7 @@ export function GiftOccasionFields({
   const core = useCore();
   const [fills, setFills] = useState<string[]>([]);
 
-  const year = num(date.year);
+  const year = datePart(date.year);
   const holidayId = occasion?.type === "holiday" ? occasion.id : null;
 
   // Offer the occasion's real date(s) once there's a holiday and a year to

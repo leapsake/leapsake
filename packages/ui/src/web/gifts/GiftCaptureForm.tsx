@@ -10,10 +10,10 @@ import type { Messages } from "../../messages/index.js";
 import { MultiAddCombobox } from "../primitives/MultiAddCombobox.js";
 import {
   type DateFields,
-  GiftOccasionFields,
   emptyDate,
   parseDateFields,
-} from "./GiftOccasionFields.js";
+} from "../../headless/index.js";
+import { GiftOccasionFields } from "./GiftOccasionFields.js";
 import {
   type GiftOccasionChoice,
   type GivenRow,

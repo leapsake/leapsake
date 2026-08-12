@@ -4,10 +4,10 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type DateFields,
-  GiftOccasionFields,
   emptyDate,
   parseDateFields,
-} from "../src/web/gifts/GiftOccasionFields.js";
+} from "../src/headless/index.js";
+import { GiftOccasionFields } from "../src/web/gifts/GiftOccasionFields.js";
 import type { GiftOccasion } from "@leapsake/schema";
 import { fakeGiftsPorts, renderWithGifts } from "./gift-support.js";
 

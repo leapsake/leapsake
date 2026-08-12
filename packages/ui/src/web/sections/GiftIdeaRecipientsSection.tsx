@@ -1,8 +1,8 @@
 import { useState } from "react";
+import { dateFieldsOf } from "../../headless/index.js";
 import { useSerializedWrites } from "../../headless/useSerializedWrites.js";
 import { useMessages } from "../../messages/index.js";
 import { GiftAdornmentsEditor } from "../gifts/GiftAdornmentsEditor.js";
-import { dateFieldsOf } from "../gifts/GiftOccasionFields.js";
 import {
   type IdeaSuggestionRow,
   type PartyOption,

@@ -1,11 +1,8 @@
 import type { GiftOccasion, GiftParty } from "@leapsake/schema";
 import { useEffect, useState } from "react";
 import { useMessages } from "../../messages/index.js";
-import {
-  type DateFields,
-  GiftOccasionFields,
-  parseDateFields,
-} from "./GiftOccasionFields.js";
+import { type DateFields, parseDateFields } from "../../headless/index.js";
+import { GiftOccasionFields } from "./GiftOccasionFields.js";
 import { type GiftOccasionChoice, useGiftsPorts } from "./ports.js";
 
 /**

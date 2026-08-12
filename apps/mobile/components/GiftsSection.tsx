@@ -8,8 +8,8 @@ import type {
 import type { GiftPartyType } from "@leapsake/schema";
 import { formatGiftDate, formatGiftTargetDate } from "@leapsake/schema";
 import { groupGiftsByIdea } from "@leapsake/view-models";
+import { dateFieldsOf } from "@leapsake/ui/headless";
 import { GiftAdornmentsEditor } from "./GiftAdornmentsEditor";
-import { dateFieldsOf } from "./GiftOccasionFields";
 import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
 

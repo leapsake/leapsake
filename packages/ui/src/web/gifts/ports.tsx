@@ -6,6 +6,9 @@ import type {
   GiftPartyType,
 } from "@leapsake/schema";
 import { type ReactNode, createContext, useContext } from "react";
+import type { PartialDate } from "../../headless/partial-date.js";
+
+export type { PartialDate };
 
 /**
  * One pickable occasion for a gift — a milestone of the recipient's, or a
@@ -22,13 +25,6 @@ export interface PartyOption {
   type: GiftPartyType;
   id: string;
   label: string;
-}
-
-/** A partial date, as stored. */
-export interface PartialDate {
-  year: number | null;
-  month: number | null;
-  day: number | null;
 }
 
 /**

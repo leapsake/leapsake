@@ -11,10 +11,10 @@ import type {
 import { formatGiftDate } from "@leapsake/schema";
 import {
   type DateFields,
-  GiftOccasionFields,
   emptyDate,
   parseDateFields,
-} from "./GiftOccasionFields";
+} from "@leapsake/ui/headless";
+import { GiftOccasionFields } from "./GiftOccasionFields";
 import { HeaderSave } from "./HeaderSave";
 import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
