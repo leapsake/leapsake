@@ -6,9 +6,15 @@
 > Nothing here restates it. This doc holds the **spike that proves it**, increment by
 > increment, and is deleted when the list empties.
 
-**State:** nothing built. The design answers every case on paper; no line of it has been
-run. This doc exists because the answer is cheap to prove *now* and expensive to discover
-after v0.1 hardens the architecture.
+**State:** Increments 1 and 2 are **done** *(2026-08-12)*, and with them the primary
+question. A person's page server-renders with JavaScript disabled and **zero files changed
+under `packages/`**; the adapter a no-JS client owes the shared UI is six lines. The
+findings live beside the code that produced them, in
+[`apps/web-spike/README.md`](../apps/web-spike/README.md), until Increment 6 folds them
+into this doc and deletes the app.
+
+Increments 3, 4, and 5 are unbuilt, and each is still independently droppable — see
+*Stopping points*, which now records that the first one has been reached.
 
 **Scheduled pre-v0.1** *(owner, 2026-08-07)*, as a parallel track in [`v0-1.md`](./v0-1.md) —
 independent of the launch prerequisite chain, and the natural filler whenever that chain is
@@ -84,59 +90,30 @@ quantify three costs nobody has measured. **Deliverable is the answers**, not th
 Ordered so the highest-information work comes first. **Each is independently droppable** —
 see *Stopping points*.
 
-### Increment 1 — scaffold and a seeded dev account
+### Increments 1 and 2 — done *(2026-08-12)*
 
-`package.json`, `tsconfig.json`, `vite.config.ts`, `src/server.ts` (a `switch` on
-method+pathname, mirroring `apps/server/src/relay.ts:436`), the copied driver, and
-`scripts/seed.ts`.
+The scaffold, the seeded relay account, and the no-JS SSR read path. Both done-whens were
+met, including *zero files changed under `packages/`*. The answers are in
+[`apps/web-spike/README.md`](../apps/web-spike/README.md); the record of what the
+zero-edits constraint cost is `apps/web-spike/WANTED-CHANGES.md`. Four results change what
+the increments below should expect, so they are repeated here rather than only there:
 
-The seed chain is `apps/server/test/relay.test.ts:476` (`enableAndRegister`) with a
-`createCore` write phase bolted on: `runMigrations` → `createInMemoryKeyStore()` →
-`ensureDeviceMasterKey` → `enableSync({…, platform: "web"})`
-(`packages/key-custody/src/session.ts:447`, **password ≥ 12**) → `registerAccountWithRelay`
-(`packages/core/src/sync.ts:221`) → `seedHolidayCatalog` → `createCore(driver)` writes, with
-`--rows N` for 100/1k/10k → `createSyncEngine({transport, masterKey, repos: syncableRepos(driver)}).push(0)`.
+- **Argon2id dominates, and the store does not.** ~355 ms at every size, and it stalls the
+  whole event loop. What needs to be warm is the *key*, not a decrypted store.
+- **Cold-per-request with a warm key wins the §9.2 measurement** — 6.6 ms p50 at 100
+  people, 36.8 ms at 1 000, against the ~150 ms rule below. **The decision is made: take
+  cold.** No warm decrypted store, so the trust claim *Two design points* warned about is
+  not forced. That section is kept for its second half, which the build confirmed.
+- **`duplicates.findFor` is O(n²) on every person page** — 11.8 s of a 12.1 s request at
+  10 000 people, against 0.8 ms for the other six loader calls combined. Not an SSR
+  finding: desktop makes the same call on the same screen.
+- **The relay's per-IP failed-login budget is confirmed wrong for an SSR host**, as
+  predicted in *Known before starting*, and lifted with env vars rather than patched.
 
-**Seed the holiday catalog.** It is the bulk of a fresh account's log, and leaving it out
-would make every pull measurement a lie.
-
-Run the relay as `RELAY_DB=:memory: RELAY_BOOTSTRAP_RATE_LIMIT_MAX=100000 RELAY_RATE_LIMIT_MAX=100000 pnpm server`.
-That is not only a dev convenience — **it is the first finding**. `/accounts/session` and
-`/accounts/bootstrap` share a 10-per-60s *per-IP* failed-login budget, and an SSR host logs
-in from one IP on behalf of every user, so a per-IP budget is structurally wrong for a web
-client. Relay sessions are also in-memory per process, so a relay restart forces a re-login
-— which means the SSR session store must keep the `authVerifier`, not only the master key.
-
-**Done when** the seed prints an accountId and a second process, given only username and
-password, can `pull(0)` and see the rows. **Over two hours means the spike is mis-scoped.**
-
-### Increment 2 — the SSR read path with JS disabled *(the primary question)*
-
-`src/ui-adapter.tsx`, `src/gifts-ports-ssr.ts`, `src/render.tsx`, `src/session.ts`,
-`src/hydrate.ts`, `src/routes/{login,people,person}.tsx`.
-
-The `UiAdapter` is six lines — `Link` → `<a href>`, `Form` → `<form method action>`. **That
-it is six lines is the finding.** `PersonScreen` throws without `MessagesProvider`,
-`UiProvider`, and `GiftsPortsProvider`; make the SSR gift ports **throw** on every method,
-because nothing should invoke a port during render and a throwing stub is an assertion.
-Serve with `Cache-Control: private, no-store` (§9.2 asks for it; it is a header).
-
-The loader is a near-mechanical port: `apps/desktop/src/renderer/src/router.tsx:237`
-`personLoader` is seven parallel `window.api.*` calls, and `window.api` mirrors `CoreApi`, so
-each becomes the same call on `core` — `views.person`, `reminders.mentioning`,
-`holidays.listForBearer`, `gifts.suggestions.listForRecipient`, `gifts.ideas.list`,
-`gifts.given.listForRecipient`, `duplicates.findFor`. Prop wiring copies
-`apps/desktop/src/renderer/src/screens/PersonView.tsx`, with both callbacks as no-ops.
-
-**There is no shared people-list screen** — it lives only in the desktop renderer. Use
-`core.views.entityList()` and render a bare `<ul>` of `<a href>`. Building a shared list
-screen is product work, not spike work.
-
-**Done when** `curl /people/<id>` and Firefox with `javascript.enabled=false` both show the
-person's name, contact methods, relationships, timeline, tags, and mentioned-in reminders —
-**with zero files changed under `packages/`**. Keep a running `WANTED-CHANGES.md` of every
-moment you were tempted to edit a shared package; that list is a large share of the findings'
-value.
+One caveat to carry: the JS-disabled half was verified by parsing the markup — the response
+carries no `<script>` and no inline handler, so the DOM is identical either way — but **not
+by driving Firefox**, which no headless browser in the dev shell would do. A manual
+`javascript.enabled=false` load is still owed.
 
 ### Increment 3 — the SSR write path with JS disabled
 
@@ -246,57 +223,49 @@ relay and shared-package changes; the no-JS section inventory below; the two sha
 and the open questions that survived. Then delete `apps/web-spike` and revert the
 `.oxlintrc.json` line.
 
-## Two design points the spike must not skip
+## Two design points — both settled by Increment 2
 
-**Implement the real split session key** (§9.2 Scenario 1), not a plaintext master-key map.
-It is ~30 lines over the already-exported `generateKey`/`wrapKey`/`unwrapKey`: at login mint a
-session key, store `wrap(MK, sk)` server-side, put `sk` in an `httpOnly` cookie, unwrap into
-request-scoped memory per request. Build it because it surfaces two things a map would hide:
+Kept because they are what the later increments and §9.2 inherit, not because they are still
+open. The real split session key was built (`apps/web-spike/src/session.ts`) rather than
+faked with a plaintext master-key map, and both things a map would have hidden showed up:
 
-1. **The session store also needs the `authVerifier`** — to re-login after a relay restart and
-   to refresh session tokens. Held in the clear beside the wrapped MK it partly defeats the
-   split, since a store thief gets a standing relay credential and therefore all the ciphertext.
-   Wrapping it under the same session key is one more line, and a genuine refinement §9.2 does
-   not currently spell out.
-2. **A warm decrypted store defeats the split entirely.** §9.2 promises the server holds
-   nothing standing-decryptable at rest, but a warm per-session SQLite is a fully decrypted
-   database in server memory that needs no cookie to read. §9.2's own next bullet —
-   "memory-only, request-scoped, zeroized" — is the real constraint, and a warm cache violates
-   the request-scoped half.
+1. **The session store also needs the `authVerifier`**, to re-login after a relay restart —
+   which makes it a standing relay credential. So it is **wrapped under the same session
+   key**, one more line. **Confirmed, and a genuine refinement §9.2 does not currently spell
+   out: it should.**
+2. **A warm decrypted store would defeat the split entirely** — a fully decrypted database
+   in server memory that needs no cookie to read, violating the request-scoped half of
+   §9.2's "memory-only, request-scoped, zeroized". **Moot, because the measurement chose
+   cold.**
 
-**Where the decrypted store lives is a measurement, not a preference.** Build warm-per-session
-as the default with cold-per-request behind a flag, because the whole question is the ratio and
-one implementation cannot give it. Cold is a fresh in-memory DB → migrate → `pull(0)` →
-`createCore` → render → discard: maximum privacy, matching §9.2 as written. Warm is a map keyed
-by session with an idle TTL, pulling the *delta* per request. One nearly-free optimization worth
-measuring: `node:sqlite`'s `DatabaseSync` exposes `serialize()`/`deserialize()`, so the
-migrations can run once at boot and be deserialized per hydrate.
+**The decision rule was: cold's p50 under ~150 ms at realistic store size ⇒ take cold.**
+Measured at 6.6 ms (100 people) and 36.8 ms (1 000), against 3.7 / 8.2 ms for the warm arm.
+**Cold wins**, the §9.2 conflict evaporates, and the product-visible trust claim never has to
+be made. What cold pays is a re-pull per request, decrypt-bound rather than network-bound; if
+a 10 000-row store ever becomes real the answer is an incremental cursor, not a warm store.
 
-**The decision rule:** if cold's p50 is under ~150 ms at realistic store size, take cold — it is
-simpler *and* the better privacy story, and the §9.2 conflict evaporates. If cold is seconds,
-warm is forced, and the findings must say plainly that the SSR web app holds decrypted user data
-in server memory for the session lifetime. That is a product-visible trust claim, not an
-implementation detail.
+Two mechanisms from this section survive into any real client: the boot-time schema template
+(`node:sqlite`'s `serialize()`/`deserialize()` cut per-request setup from 7.9 ms to 0.1 ms),
+and `WEB_SPIKE_STORE=warm`, which still builds the other arm should the owner want it.
 
 ## What to measure
 
-Keep it all in one `src/measure.ts` so it is one file to read and one to delete.
+Keep it all in one `src/measure.ts` so it is one file to read and one to delete. The
+server-side half is **done**; the browser half is what Increment 5 still owes.
 
-- **Argon2id server-side**, around the `deriveKeyMaterial` call — and **the blocking**, via a
-  `setInterval(…, 50)` event-loop lag probe recording max delay spanning a login. "Argon2 costs
-  900 ms" is interesting; "Argon2 stalls every other in-flight request by 900 ms" is decisive,
-  because it means a real SSR host needs a worker pool or a native Argon2 binding, and neither
-  exists in the repo.
+- ~~**Argon2id server-side**, and the blocking~~ — done: ~355 ms, stalling the whole event
+  loop for essentially its full duration. A real SSR host needs a worker pool or a native
+  binding, and neither exists in the repo.
+- ~~**Pull + decrypt + apply** in Node~~ — done at 100/1k/10k, transport wrapped so
+  decrypt+apply = total − transport. `/sync/pull` still has no LIMIT and no pagination, and
+  `readBody` still accumulates the whole body into a string.
 - **Argon2id in-browser**, main thread (5b) and worker (5c), with the device recorded — a phone
   is the case that matters.
-- **Pull + decrypt + apply.** `pull` exposes no sub-timings, so wrap the *transport* (~10 lines)
-  to record per-call ms, record counts, and wire bytes; **decrypt+apply = total − transport**.
-  Report `rows | wire bytes | transport ms | decrypt+apply ms | ms per row` at 100/1k/10k in
-  **both** Node and browser — that side-by-side says whether the client-side zero-knowledge path
-  is viable. Note that `/sync/pull` has no LIMIT and no pagination and `readBody` accumulates the
-  whole body into a string, so the 10k row is also a relay finding.
-- **Peak RSS per warm session**, in-process rather than over HTTP, sampling after `global.gc()`
-  at N = 1/5/10/25/50. **Trap:** a `:memory:` database's pages live in native memory, so
+- **Pull + decrypt + apply in the browser**, the same table, so the two sit side by side —
+  that comparison is what says whether the client-side zero-knowledge path is viable.
+- ~~**Peak RSS per warm session**~~ — **deliberately not measured.** It only decides
+  something if warm is forced, and cold won. Still missing if the owner wants warm anyway;
+  the trap when taking it is that a `:memory:` database's pages live in native memory, so
   `heapUsed` looks flat and lies — `rss` is the only faithful number.
 
 ## Known before starting
@@ -308,31 +277,33 @@ Things the spike should confirm and cost, not discover:
 - **`/sync/pull` has no pagination**, and the whole body is buffered as a string.
 - **`packages/data` ships no browser driver** — and by policy ships none, so the web client owns
   one, like every other app.
-- **The no-JS section inventory for `PersonScreen`.** Working today, because every mutation is
-  expressed as navigation to a `/new`, `/edit`, or `/delete` route: `ContactMethodsSection`,
-  `RelationshipsSection`, `MilestonesSection`, `TagsSection`, `MentionedInSection`. Needing JS:
-  `GiftsSection` and `GiftIdeaRecipientsSection` (`useState` + `onClick`, and `useGiftsPorts()`
-  throws without a provider) and `HolidaysSection` (Combobox + buttons). The spike should add a
-  one-line verdict per JS-requiring section on whether a link/form rewrite is plausible — that
-  list is the concrete backlog a real web client works from.
+- ~~**The no-JS section inventory for `PersonScreen`**~~ — **done, and it came out sharper
+  than predicted.** Working: `ContactMethodsSection`, `RelationshipsSection`,
+  `MilestonesSection`, `TagsSection`, `MentionedInSection` — 23 real `<a href>`s, because
+  every mutation is navigation to a `/new`, `/edit`, or `/delete` route. `HolidaysSection`
+  renders but is inert (the add-field is a Combobox); a `<form>` + `<select>` is a direct
+  swap, since the addable list is already loaded. `GiftsSection` is the only genuinely inert
+  one: `GiftCaptureForm` emits a bare `<form>` with **no `method`, no `action`, and no `name`
+  on any field**, so a no-JS submit posts nothing, nowhere. The whole page carries exactly two
+  `<button>`s, both inside it. That is the backlog a real web client works from.
 
 ## Stopping points
 
-- **After Increment 2** — you know whether a no-JS web read path exists. A clean yes with zero
-  package edits is most of the value on offer.
+- ~~**After Increment 2**~~ — **reached**, and it is a clean yes with zero package edits.
+  Continuing into 3-5 is now an owner call rather than the default.
 - **After Increment 5a** — you know whether the browser data layer is possible, for a couple of
   hours, before committing to the rest of Increment 5.
 - Increments 3, 4, and 5b-e are each droppable without invalidating what came before.
 
 ## Open questions
 
-- **Framework.** Deliberately still open, and the spike must not settle it by accident — that is
-  why it uses bare `node:http` + `renderToString` rather than Remix / Next.js / React Router. The
-  spike measures what any framework would have to carry; pick one afterward.
-- **Whether the warm-store trust claim is acceptable**, if the measurement forces warm. A product
-  call, not an engineering one.
-- **Whether server-side Argon2id needs a native binding or a worker pool**, which the event-loop
-  measurement decides.
+- **Framework.** Deliberately still open, and Increment 2 did not settle it by accident — bare
+  `node:http` + `renderToString` throughout. What that cost is now visible and small: path
+  parameters are a regex and the loader/action pairing is hand-written. Pick one afterward.
+- ~~**Whether the warm-store trust claim is acceptable**~~ — **moot.** Cold won the
+  measurement, so the claim never has to be made.
+- **Whether server-side Argon2id needs a native binding or a worker pool** — the measurement
+  says one of them is needed; *which* is still open, and neither exists in the repo.
 - **The browser's `KeyStore`** — §13 lists PWA custody as "weak — IndexedDB, no enclave →
   passkey PRF is the right custody answer." Increment 5e probes the cheaper non-extractable
   `CryptoKey` option; passkey PRF remains the designed answer and is untested.
