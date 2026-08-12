@@ -5,16 +5,18 @@
 
 ## Just landed
 
+- **The web spike, Increment 1** *(2026-08-12)*. A second process now reconstructs a seeded
+  account cold from username + password alone. Three answers already: the shared UI **loads
+  through Vite SSR with zero package edits** (the riskiest assumption, now observed);
+  **Argon2id, not the pull, dominates the cold path** at every store size, reframing
+  cold-vs-warm around a warm *key*; and it **stalls the whole event loop**, so an SSR host
+  needs a worker pool or a native binding.
+  Findings: [`apps/web-spike/README.md`](../apps/web-spike/README.md).
 - **Restore-from-backup, verified and written down** *(2026-08-11)*. All four cases confirmed on
   a clean machine from copied files — plaintext store, both unlock doors, and the negatives —
   and the answer to *"how do I back up Leapsake?"* now lives with the app it describes:
   [`apps/desktop/README.md`](../apps/desktop/README.md) → *Backing up and restoring*. The last
   gate before 04 is gone; `v0-1_03` is retired, its store-identity half carried into 04.
-- **The account invitation — Onboarding Increment 2, both clients** *(2026-08-08)*. Home now
-  carries the create/sign-in **fork**: *sign in* stands from day 1, *create your account* arrives
-  once there is data worth protecting, and the sign-in nudge finally retires for a local-only
-  account instead of pointing at a flow that could not satisfy it. Design:
-  [`@leapsake/reminders`](../packages/reminders/README.md).
 - **The account merge, all four increments, both clients** *(2026-08-08 → 08-11)*. A local-only
   account is no longer a one-way street in either direction: it can **merge** into a synced one,
   or **publish itself** to a relay, and a taken username forks to merge-or-rename rather than
@@ -23,16 +25,16 @@
 
 ## Next
 
-1. **[`v0-1_web-spike.md`](./v0-1_web-spike.md) — Increment 1**: scaffold `apps/web-spike` and a
-   seeded dev account, ending when a second process can `pull(0)` given only a username and
-   password. **Over two hours means the spike is mis-scoped.** Then Increment 2, the primary
-   question and the first clean stopping point: a no-JS SSR read path with **zero files changed
-   under `packages/`**. The doc holds every decision already made, so it should not need
-   re-litigating — read it before writing anything.
+1. **[`v0-1_web-spike.md`](./v0-1_web-spike.md) — Increment 2**, the primary question and the
+   first clean stopping point: a no-JS SSR read path with **zero files changed under
+   `packages/`**. Increment 1 de-risked it — the shared UI loads through Vite SSR unmodified —
+   so this is loader-porting and prop-wiring, kept honest by `WANTED-CHANGES.md`. Read the doc
+   first; it holds every decision already made. One change out of Increment 1: measure
+   **warm-key/cold-store** first, ahead of warm-per-session.
 
    Why now: it is the only substantial unblocked dev work on the board, and two of its findings
-   are **relay** changes (CORS + `OPTIONS`; a per-IP rate-limit budget that is structurally wrong
-   for an SSR host) — cheaper to learn before a build is in testers' hands.
+   are **relay** changes (CORS + `OPTIONS`; a per-IP rate-limit budget now *confirmed* wrong for
+   an SSR host) — cheaper to learn before a build is in testers' hands.
 
 2. Then **04 → 07** in [`v0-1.md`](./v0-1.md)'s order. 04 starts the 14-day Play clock and makes
    store identity permanent; 06 waits on 05, and on open decision 1 below.

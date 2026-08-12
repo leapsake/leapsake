@@ -1,0 +1,31 @@
+{
+  "name": "@leapsake/web-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "seed": "tsx scripts/seed.ts",
+    "pull": "tsx scripts/pull.ts"
+  },
+  "dependencies": {
+    "@leapsake/bytes": "workspace:*",
+    "@leapsake/core": "workspace:*",
+    "@leapsake/crypto": "workspace:*",
+    "@leapsake/data": "workspace:*",
+    "@leapsake/schema": "workspace:*",
+    "@leapsake/sync": "workspace:*",
+    "@leapsake/ui": "workspace:*",
+    "@leapsake/view-models": "workspace:*",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "tsx": "^4.19.0",
+    "vite": "^7.3.3"
+  }
+}
