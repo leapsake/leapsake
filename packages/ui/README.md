@@ -25,7 +25,7 @@ container — read the loader, render a component from here.
 | ----------------------- | ------------------------------- | ----------------------- |
 | `@leapsake/ui/tokens`   | Design tokens as plain objects  | Neutral                 |
 | `@leapsake/ui/messages` | The text catalog + its provider | Neutral                 |
-| `@leapsake/ui/headless` | Behavior hooks with zero DOM    | Neutral                 |
+| `@leapsake/ui/headless` | Behavior + ports with zero DOM  | Neutral                 |
 | `@leapsake/ui/web`      | DOM components                  | Web + Electron renderer |
 
 There is **no package root export**. Subpaths are what would let a
@@ -137,6 +137,11 @@ components that only forward them. The app supplies one implementation:
 The bar for adding another is that shape — deep nesting _and_ several entry
 points. A section with one write takes a callback prop instead (`HolidaysSection`
 takes `onSetObserves`).
+
+A port lives in `headless/`, not beside the components that read it: it is types
+plus a React context, and `apps/mobile` reads the same interface from its own
+React Native components. `@leapsake/ui/web` re-exports `GiftsPorts` so a web host
+sees one import surface.
 
 ## React is a peer dependency
 

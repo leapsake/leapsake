@@ -1,10 +1,22 @@
 /**
  * `@leapsake/ui/headless` — behavior without markup.
  *
- * Hooks here return state and handlers and touch no DOM, so they are shared by
- * the web components in `../web` and are consumable by a React Native renderer
- * if one is ever added. Anything that renders an element belongs in `../web`.
+ * Hooks, domain rules and feature ports here touch no DOM, so they are shared by
+ * the web components in `../web` and are read directly by `apps/mobile`'s React
+ * Native components. Anything that renders a *host* element belongs in `../web`;
+ * a React context is neutral and belongs here.
  */
+export {
+  GiftsPortsProvider,
+  useGiftsPorts,
+  type GiftCaptureInput,
+  type GiftOccasionChoice,
+  type GiftsPorts,
+  type GivenRow,
+  type IdeaSuggestionRow,
+  type PartyOption,
+  type SuggestionRow,
+} from "./gifts-ports.js";
 export {
   type DateFields,
   type PartialDate,

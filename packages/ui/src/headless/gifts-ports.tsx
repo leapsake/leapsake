@@ -1,3 +1,11 @@
+/**
+ * The gift feature's ports — everything the gift surfaces need from the
+ * application, as one interface the host app implements.
+ *
+ * Neutral rather than DOM: it is types plus a React context, so a React Native
+ * renderer reads the same interface a web one does. The provider's JSX renders a
+ * context, never a host element, which is why this is the one `.tsx` here.
+ */
 import type {
   CaptureRecipient,
   GiftOccasion,
@@ -6,9 +14,7 @@ import type {
   GiftPartyType,
 } from "@leapsake/schema";
 import { type ReactNode, createContext, useContext } from "react";
-import type { PartialDate } from "../../headless/partial-date.js";
-
-export type { PartialDate };
+import type { PartialDate } from "./partial-date.js";
 
 /**
  * One pickable occasion for a gift — a milestone of the recipient's, or a
@@ -87,9 +93,9 @@ export interface GiftCaptureInput {
  * that by hand would put most of them on components that only forward them.
  *
  * This is the same shape as the repo's other ports (`SqliteDriver`, `KeyStore`,
- * `ImportPorts`): an interface the composition root implements, here over
- * `window.api` on desktop and over whatever the web app's transport turns out to
- * be.
+ * `ImportPorts`): an interface the composition root implements — over
+ * `window.api` on desktop, over an in-process `CoreApi` on mobile, and over
+ * whatever the web app's transport turns out to be.
  */
 export interface GiftsPorts {
   /** Occasions this party can name — their milestones plus holidays they observe. */

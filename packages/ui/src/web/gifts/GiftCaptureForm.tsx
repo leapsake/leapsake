@@ -10,16 +10,14 @@ import type { Messages } from "../../messages/index.js";
 import { MultiAddCombobox } from "../primitives/MultiAddCombobox.js";
 import {
   type DateFields,
-  emptyDate,
-  parseDateFields,
-} from "../../headless/index.js";
-import { GiftOccasionFields } from "./GiftOccasionFields.js";
-import {
   type GiftOccasionChoice,
   type GivenRow,
   type PartyOption,
+  emptyDate,
+  parseDateFields,
   useGiftsPorts,
-} from "./ports.js";
+} from "../../headless/index.js";
+import { GiftOccasionFields } from "./GiftOccasionFields.js";
 
 /** One giving being authored: a what-happened date and an optional occasion.
  *  `id` is a stable React key across adds/removes. */

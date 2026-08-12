@@ -1,8 +1,12 @@
 import type { GiftOccasion } from "@leapsake/schema";
 import { useEffect, useId, useState } from "react";
-import { type DateFields, datePart } from "../../headless/index.js";
+import {
+  type DateFields,
+  type GiftOccasionChoice,
+  datePart,
+  useGiftsPorts,
+} from "../../headless/index.js";
 import { useMessages } from "../../messages/index.js";
-import { type GiftOccasionChoice, useGiftsPorts } from "./ports.js";
 
 const keyOf = (o: GiftOccasion | null) =>
   o === null ? "" : `${o.type}:${o.id}`;

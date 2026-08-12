@@ -67,7 +67,7 @@ export {
   type PartialDate,
   type PartyOption,
   type SuggestionRow,
-} from "./gifts/ports.js";
+} from "../headless/index.js";
 export { GiftCaptureForm } from "./gifts/GiftCaptureForm.js";
 export { GiftsSection } from "./sections/GiftsSection.js";
 export { GiftIdeaRecipientsSection } from "./sections/GiftIdeaRecipientsSection.js";

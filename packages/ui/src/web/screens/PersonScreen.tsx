@@ -10,7 +10,7 @@ import type {
 import { fullName } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
-import type { GivenRow, SuggestionRow } from "../gifts/ports.js";
+import type { GivenRow, SuggestionRow } from "../../headless/index.js";
 import { Breadcrumbs, type Crumb } from "../primitives/Breadcrumbs.js";
 import { DetailList } from "../primitives/DetailList.js";
 import { GenderValue, type GenderResult } from "../primitives/GenderValue.js";
