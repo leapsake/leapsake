@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
-import type { GiftOccasionOption } from "@leapsake/core";
 import type { GiftOccasion } from "@leapsake/schema";
-import { type DateFields, datePart } from "@leapsake/ui/headless";
+import {
+  type DateFields,
+  type GiftOccasionChoice,
+  datePart,
+} from "@leapsake/ui/headless";
 import { SelectField } from "./SelectField";
 import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
@@ -36,7 +39,7 @@ export function GiftOccasionFields({
   onDateChange,
 }: {
   label: string;
-  occasions: GiftOccasionOption[];
+  occasions: readonly GiftOccasionChoice[];
   occasion: GiftOccasion | null;
   onOccasionChange: (occasion: GiftOccasion | null) => void;
   date: DateFields;

@@ -1,72 +1,27 @@
-import type {
-  CaptureRecipient,
-  GiftIdea,
-  GiftOccasion,
-} from "@leapsake/schema";
+import type { CaptureRecipient, GiftIdea } from "@leapsake/schema";
 import { formatGiftDate } from "@leapsake/schema";
-import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { useMessages } from "../../messages/index.js";
 import type { Messages } from "../../messages/index.js";
 import { MultiAddCombobox } from "../primitives/MultiAddCombobox.js";
 import {
-  type DateFields,
   type GiftOccasionChoice,
   type GivenRow,
+  type GivingRow,
   type PartyOption,
-  emptyDate,
+  type RecipientEntry,
+  type SuggestionFields,
+  captureRecipientOf,
+  newGivingRow,
+  newSuggestionFields,
   parseDateFields,
+  partyKey,
+  patchRecipient,
+  removeRecipient,
   useGiftsPorts,
+  usePartyContext,
 } from "../../headless/index.js";
 import { GiftOccasionFields } from "./GiftOccasionFields.js";
-
-/** One giving being authored: a what-happened date and an optional occasion.
- *  `id` is a stable React key across adds/removes. */
-interface GivingRow {
-  id: string;
-  date: DateFields;
-  occasion: GiftOccasion | null;
-}
-
-/** What the “For…” disclosure holds for a recipient that ends up a *suggestion*
- *  (no dates) — its target date and occasion. */
-interface SuggestionFields {
-  date: DateFields;
-  occasion: GiftOccasion | null;
-}
-
-/** A recipient in the Gifts-screen form, with *its own* givings (a date under
- *  Alice is a gift to Alice, not to everyone) and its own suggestion fields. */
-interface RecipientEntry {
-  option: PartyOption;
-  givings: GivingRow[];
-  suggestion: SuggestionFields;
-}
-
-const newGivingRow = (): GivingRow => ({
-  id: crypto.randomUUID(),
-  date: emptyDate(),
-  occasion: null,
-});
-
-const newSuggestionFields = (): SuggestionFields => ({
-  date: emptyDate(),
-  occasion: null,
-});
-
-/** The giving rows as capture givings — a row with neither a date nor an occasion
- *  is blank and drops out. */
-function givingsOf(rows: GivingRow[]): {
-  date?: NonNullable<ReturnType<typeof parseDateFields>>;
-  occasion?: GiftOccasion | null;
-}[] {
-  return rows
-    .map((row) => ({ date: parseDateFields(row.date), occasion: row.occasion }))
-    .filter((g) => g.date !== null || g.occasion !== null)
-    .map((g) => ({
-      ...(g.date === null ? {} : { date: g.date }),
-      occasion: g.occasion,
-    }));
-}
 
 /** The repeatable “Given on…” rows — reused for the fixed recipient and for each
  *  picked recipient on the Gifts screen. Each row carries its own occasion,
@@ -169,55 +124,6 @@ function AlreadyGivenNotice({
   return <p>{m.giftCapture.alreadyGiven(label, when)}</p>;
 }
 
-/** What the form knows about one party: the occasions it can name, and what it
- *  has already been given (the re-gift guard's source). */
-interface PartyContext {
-  occasions: GiftOccasionChoice[];
-  given: GivenRow[];
-}
-
-const EMPTY_CONTEXT: PartyContext = { occasions: [], given: [] };
-
-/**
- * Each party's context, fetched once per party and kept for the life of the form.
- * Keyed `type:id`; an unfetched party reads as empty, so the pickers render
- * (empty) rather than flicker in.
- */
-function usePartyContext(parties: PartyOption[]): Map<string, PartyContext> {
-  const { loadOccasions, loadGiven } = useGiftsPorts();
-  const [pools, setPools] = useState<Map<string, PartyContext>>(new Map());
-  // Which parties have been asked for, in a ref rather than in `pools`: the
-  // effect must not re-run each time a fetch lands, or picking one recipient
-  // would re-ask for every earlier one.
-  const asked = useRef(new Set<string>());
-  const wanted = parties.map((p) => `${p.type}:${p.id}`).join(",");
-
-  useEffect(() => {
-    let active = true;
-    for (const key of wanted === "" ? [] : wanted.split(",")) {
-      if (asked.current.has(key)) continue;
-      asked.current.add(key);
-      const [type, ...rest] = key.split(":");
-      const party = {
-        type: type as PartyOption["type"],
-        id: rest.join(":"),
-      };
-      void Promise.all([loadOccasions(party), loadGiven(party)]).then(
-        ([occasions, given]) => {
-          if (active) {
-            setPools((prev) => new Map(prev).set(key, { occasions, given }));
-          }
-        },
-      );
-    }
-    return () => {
-      active = false;
-    };
-  }, [wanted, loadOccasions, loadGiven]);
-
-  return pools;
-}
-
 /**
  * The one consolidated “capture a gift” form. Type a gift's
  * name (autocompleting existing ideas) or paste a URL; that alone captures an
@@ -256,7 +162,7 @@ export function GiftCaptureForm({
    */
   onSaved: () => void;
 }) {
-  const { capture } = useGiftsPorts();
+  const ports = useGiftsPorts();
   const m = useMessages();
   const listId = useId();
 
@@ -273,27 +179,16 @@ export function GiftCaptureForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const chosenIds = new Set(
-    recipients.map((r) => `${r.option.type}:${r.option.id}`),
-  );
+  const chosenIds = new Set(recipients.map((r) => partyKey(r.option)));
   const addableRecipients = (recipientCandidates ?? []).filter(
-    (c) => !chosenIds.has(`${c.type}:${c.id}`),
+    (c) => !chosenIds.has(partyKey(c)),
   );
 
   // One context per party in play — the fixed recipient, or everyone picked.
   const pools = usePartyContext(
     fixedRecipient ? [fixedRecipient] : recipients.map((r) => r.option),
+    ports,
   );
-  const contextFor = (party: PartyOption) =>
-    pools.get(`${party.type}:${party.id}`) ?? EMPTY_CONTEXT;
-  const poolFor = (party: PartyOption) => contextFor(party).occasions;
-
-  const patchRecipient = (key: string, patch: Partial<RecipientEntry>) =>
-    setRecipients((prev) =>
-      prev.map((r) =>
-        `${r.option.type}:${r.option.id}` === key ? { ...r, ...patch } : r,
-      ),
-    );
 
   // An exact (case-insensitive) title match reuses the existing idea rather than
   // minting a duplicate; otherwise it's a new idea. Near-duplicate *different*
@@ -306,10 +201,6 @@ export function GiftCaptureForm({
       : ideaPool.find(
           (i) => i.title.toLowerCase() === trimmedTitle.toLowerCase(),
         );
-  const alreadyGiven = (party: PartyOption): GivenRow[] =>
-    typedIdea === undefined
-      ? []
-      : contextFor(party).given.filter((g) => g.giftIdeaId === typedIdea.id);
 
   function reset() {
     setTitle("");
@@ -332,29 +223,16 @@ export function GiftCaptureForm({
           url: url.trim() !== "" ? url.trim() : undefined,
         };
 
-    // Each recipient carries both arms; core reads the givings when there are
-    // any and the suggestion fields otherwise.
-    const entryFor = (
-      party: PartyOption,
-      givings: GivingRow[],
-      suggestion: SuggestionFields,
-    ): CaptureRecipient => ({
-      party: { type: party.type, id: party.id },
-      givings: givingsOf(givings),
-      suggestion: {
-        occasion: suggestion.occasion,
-        targetDate: parseDateFields(suggestion.date),
-      },
-    });
-
     const captureRecipients: CaptureRecipient[] = fixedRecipient
-      ? [entryFor(fixedRecipient, fixedGivings, fixedSuggestion)]
-      : recipients.map((r) => entryFor(r.option, r.givings, r.suggestion));
+      ? [captureRecipientOf(fixedRecipient, fixedGivings, fixedSuggestion)]
+      : recipients.map((r) =>
+          captureRecipientOf(r.option, r.givings, r.suggestion),
+        );
 
     setBusy(true);
     setError(null);
     try {
-      await capture({ giftIdea, recipients: captureRecipients });
+      await ports.capture({ giftIdea, recipients: captureRecipients });
       reset();
       onSaved();
     } catch (err) {
@@ -399,19 +277,19 @@ export function GiftCaptureForm({
           <>
             <AlreadyGivenNotice
               label={fixedRecipient.label}
-              gifts={alreadyGiven(fixedRecipient)}
+              gifts={pools.alreadyGiven(fixedRecipient, typedIdea?.id)}
               m={m}
             />
             {fixedGivings.length === 0 && (
               <SuggestionDisclosure
                 fields={fixedSuggestion}
-                occasions={poolFor(fixedRecipient)}
+                occasions={pools.occasionsFor(fixedRecipient)}
                 onChange={setFixedSuggestion}
               />
             )}
             <GivingRows
               rows={fixedGivings}
-              occasions={poolFor(fixedRecipient)}
+              occasions={pools.occasionsFor(fixedRecipient)}
               onChange={setFixedGivings}
             />
           </>
@@ -421,7 +299,7 @@ export function GiftCaptureForm({
               label={m.giftCapture.addRecipientLabel}
               placeholder={m.giftCapture.addRecipientPlaceholder}
               options={addableRecipients}
-              getKey={(c) => `${c.type}:${c.id}`}
+              getKey={partyKey}
               getLabel={(c) => c.label}
               onPick={(c) =>
                 setRecipients((prev) => [
@@ -437,7 +315,7 @@ export function GiftCaptureForm({
               announceCount={m.combobox.suggestionCount}
             />
             {recipients.map((r) => {
-              const key = `${r.option.type}:${r.option.id}`;
+              const key = partyKey(r.option);
               return (
                 <fieldset key={key}>
                   <legend>
@@ -445,11 +323,7 @@ export function GiftCaptureForm({
                     <button
                       type="button"
                       onClick={() =>
-                        setRecipients((prev) =>
-                          prev.filter(
-                            (p) => `${p.option.type}:${p.option.id}` !== key,
-                          ),
-                        )
+                        setRecipients((prev) => removeRecipient(prev, key))
                       }
                     >
                       {m.giftCapture.removeRecipient}
@@ -457,22 +331,28 @@ export function GiftCaptureForm({
                   </legend>
                   <AlreadyGivenNotice
                     label={r.option.label}
-                    gifts={alreadyGiven(r.option)}
+                    gifts={pools.alreadyGiven(r.option, typedIdea?.id)}
                     m={m}
                   />
                   {r.givings.length === 0 && (
                     <SuggestionDisclosure
                       fields={r.suggestion}
-                      occasions={poolFor(r.option)}
+                      occasions={pools.occasionsFor(r.option)}
                       onChange={(suggestion) =>
-                        patchRecipient(key, { suggestion })
+                        setRecipients((prev) =>
+                          patchRecipient(prev, key, { suggestion }),
+                        )
                       }
                     />
                   )}
                   <GivingRows
                     rows={r.givings}
-                    occasions={poolFor(r.option)}
-                    onChange={(givings) => patchRecipient(key, { givings })}
+                    occasions={pools.occasionsFor(r.option)}
+                    onChange={(givings) =>
+                      setRecipients((prev) =>
+                        patchRecipient(prev, key, { givings }),
+                      )
+                    }
                   />
                 </fieldset>
               );

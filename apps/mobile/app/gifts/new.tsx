@@ -1,10 +1,8 @@
 import { useCallback } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import {
-  GiftCaptureForm,
-  type PartyOption,
-} from "../../components/GiftCaptureForm";
+import { type PartyOption, partyKey } from "@leapsake/ui/headless";
+import { GiftCaptureForm } from "../../components/GiftCaptureForm";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { styles } from "../../lib/styles";
@@ -63,7 +61,7 @@ export default function GiftCreateScreen() {
   const fixedRecipient =
     recipient === undefined
       ? undefined
-      : candidates.find((c) => `${c.type}:${c.id}` === recipient);
+      : candidates.find((c) => partyKey(c) === recipient);
 
   return (
     <ScrollView

@@ -7,6 +7,21 @@
  * a React context is neutral and belongs here.
  */
 export {
+  type GivingRow,
+  type PartyContexts,
+  type PartyLoaders,
+  type RecipientEntry,
+  type SuggestionFields,
+  captureRecipientOf,
+  givingsOf,
+  newGivingRow,
+  newSuggestionFields,
+  partyKey,
+  patchRecipient,
+  removeRecipient,
+  usePartyContext,
+} from "./gift-form.js";
+export {
   GiftsPortsProvider,
   useGiftsPorts,
   type GiftCaptureInput,
