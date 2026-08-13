@@ -30,15 +30,22 @@ RELAY_URL=http://localhost:4001 pnpm --filter @leapsake/web-spike dev
 # 5. The cold-vs-warm p50. Run it against a host started each way.
 pnpm --filter @leapsake/web-spike bench \
   --username ada --password 'hunter2 hunter2' --n 30
+
+# 6. Increment 3's done-when, automated: C/U/D on the no-JS web client, each one
+#    observed arriving on a second device that joined the same relay account.
+pnpm --filter @leapsake/web-spike roundtrip \
+  --relay http://localhost:4001 --host http://localhost:5180 \
+  --username ada --password 'hunter2 hunter2'
 ```
 
-Three environment variables steer the host, and each one exists to produce a
+Four environment variables steer the host, and each one exists to produce a
 number rather than to configure anything:
 
 | variable | values | what it changes |
 | -------- | ------ | --------------- |
 | `WEB_SPIKE_STORE` | `cold` (default), `warm` | where the decrypted store lives — the §9.2 measurement |
 | `WEB_SPIKE_LOADER` | `parallel` (default), `serial` | attribute the loader's cost per call, when one of them blocks |
+| `WEB_SPIKE_PUSH_MARK` | `pull` (default), `session` | where a write's push starts from — Increment 3 finding 3 |
 | `RELAY_URL` | URL | which relay to log in against |
 
 Note the spike **is never typechecked**: it deliberately defines no `typecheck`
@@ -269,6 +276,206 @@ form. That is the concrete backlog a real web client works from.
 - **`Cache-Control: private, no-store` on everything**, set once in `server.ts`.
   `private` alone would still let the browser keep decrypted user data on disk.
 
+## Increment 3 — findings
+
+**Done-when met, and automated.** `pnpm --filter @leapsake/web-spike roundtrip`
+creates, edits and deletes a person on the JavaScript-disabled web client and
+watches all three arrive on a **second device** — one that ran the real
+`joinAccount` against the same relay account and syncs with `runAccountSync`,
+i.e. `createAccountSyncEngine` with durable `sync_state` watermarks, the call
+desktop's IPC handler makes. **9/9 checks, still with zero files changed under
+`packages/`.**
+
+```
+C — create, with JavaScript disabled
+  ✓ web 303s to the new person
+  ✓ peer sees the create — every field, tags included
+U — edit, with JavaScript disabled
+  ✓ web 303s back to the person
+  ✓ the web page shows the new name
+  ✓ peer merges the rename over its own row
+D — delete, with JavaScript disabled
+  ✓ web 303s to the list
+  ✓ the person is off the web list
+  ✓ peer applies the tombstone
+  ✓ peer is back to its baseline count
+```
+
+Two caveats, both the same shape as Increment 2's Firefox one. The peer is not
+Electron — no renderer, and `node:sqlite` against a plain file rather than the
+at-rest encrypted driver. Neither touches sync semantics (the envelope is layer
+2, applied by the engine; the at-rest cipher is layer 1, under the driver), but
+"a real desktop build converged" is still owed as a manual check. And the web
+half is driven by `fetch` posting `application/x-www-form-urlencoded`, which is
+byte-for-byte what a no-JS browser sends, but again is not a browser.
+
+### 1. The actions ported as mechanically as the loader did
+
+Increment 2's finding was that `personLoader` moved across because it depended
+on `CoreApi`, not on Electron. The write half is the same story twice over.
+
+- **The three actions are the desktop router's, call for call** — `people.create`
+  + `createRelationships` + the `duplicates.findFor` redirect, `people.update`,
+  `people.softDelete`. Nothing was reshaped.
+- **The field readers ported *verbatim*, one edit each: the parameter type.**
+  `readGender`, `readPersonInput`, `readTags`, `readRelationships` take
+  `FormData` on desktop and `URLSearchParams` here, and the bodies are
+  identical, because the two classes agree exactly on the surface the readers
+  use (`get` → `string | null`, `getAll` → array). The desktop write path was
+  never Electron-shaped either; it was **`FormData`-shaped**, and a no-JS host
+  gets that for free from the raw body.
+
+`PersonForm` is the same component on both routes, given a `person` or given
+`candidates`, exactly as desktop shares it between `PersonCreate` and
+`PersonEdit`. That is the part usually assumed lost without JavaScript, because
+a form's identity is normally "the thing the JS submits" — here it is the URL
+the form sits on, since `FormShell` emits `<form method="post">` with no
+`action`. Verified on the wire: the create and edit pages carry **zero
+`<script>` elements**, the edit form comes back prefilled (`value="Ada"`,
+`value="#math"`, `<option value="female" selected>`), and `ConfirmDelete`
+renders `<form method="post">` with a submit and a Cancel `<a href>`.
+
+`ConfirmDelete`'s `hiddenFields` prop — the second data point the plan wanted —
+is **not exercised** by a person delete, whose whole identity is in the path.
+The case that needs it is the inferred-relationship dismiss, which has no stored
+id.
+
+### 2. A cold store makes the round trip impossible to fake
+
+Desktop's actions end at the `core` call, because a background sync loop carries
+the row away afterwards. A stateless SSR host has no loop and no next tick it
+owns, so the push happens **inside the request, before the 303**.
+
+Under a cold store that is forced rather than chosen, and the forcing is the
+useful part: the GET after the 303 throws the database away and rebuilds it from
+the relay, so a write that was not pushed is not merely invisible to peers — it
+is invisible to the page that just made it. There is no "it worked locally"
+state to mistake for success.
+
+This also confirms the prediction the plan doc flagged as inverting its own
+earlier text: **staleness is a property of the warm arm only.** Every request
+re-pulls, so a second session sees a write on its next request with no
+revalidator equivalent needed.
+
+### 3. `pushHwm = 0` is wrong, and it compounds — the increment's real finding
+
+The plan doc prescribed `session.pushHwm = await engine.push(session.pushHwm)`,
+starting at 0 because a cold host has no durable `sync_state` row to keep a mark
+in. That is correct in the sense that nothing is lost, and **wrong in a way that
+does not stay small.**
+
+`push(hwm)` re-seals and re-pushes every row with `updated_at > hwm`, so a
+session's *first* write re-pushes the entire store. The relay is an
+**append-only log with no compaction** (`apps/server/src/store.ts` → `append` is
+a plain `INSERT`; `pull` is `WHERE seq > ? ORDER BY seq`, no dedup by row id),
+so those ~130 duplicate versions are permanent. And a cold host **must**
+`pull(0)` — a delta pull into an empty database yields an empty database — so
+every later request of every later session re-pulls and re-decrypts them.
+Cold-store and incremental-pull are mutually exclusive, which makes the SSR host
+the one client that pays for the whole history on every request.
+
+Five logins with one create each, from an identical 128-record account:
+
+| push mark | relay records | wire | list page, warmed |
+| --------- | ------------- | ---- | ----------------- |
+| *(before, both arms)* | 128 | 32.6 KiB | 5.6 ms |
+| `session` — the plan doc's | **793** | 201.8 KiB | **24.2 ms** |
+| `pull` — the fix, now default | **135** | 34.3 KiB | **5.0 ms** |
+
+6.2× the log and 4.3× the page, from five logins, permanently. For contrast,
+**25 writes inside one session** added 157 records and no measurable time — the
+cost is per *login*, not per write, which is exactly backwards from what anyone
+would guess.
+
+The fix needs no durable state, because a cold store has a property desktop's
+does not: everything in it arrived from the relay moments ago, in this very
+request. So the boundary between "pulled" and "written by this request" is the
+store's own high-water mark, read straight back out of it after the pull.
+
+**And the obvious spelling of that fix is silently broken**, which is the part
+worth carrying forward. Taking the mark as `Date.now()` after the pull looks
+equivalent and is not: `listChangedSince` is `updated_at > ?`, *strictly*, at
+millisecond resolution, and a create landing in the mark's own millisecond
+compares equal and is skipped. Measured before it was caught: **four writes out
+of five pushed zero records while still returning a happy 303** — the person
+appeared on the page it redirected to, then vanished on the next request.
+Reading `MAX(updated_at)` out of the store instead is the same quantity the
+engine itself would compute, so it cannot disagree with it. `SyncEngine` should
+expose this rather than leaving each client to reconstruct it —
+`WANTED-CHANGES.md`.
+
+### 4. What a write costs, per letter
+
+Same 100-person account, warm key, cold store, default push mark. `write` is the
+`core` call; `push` is seal + wire.
+
+| | write | push | records up | what the push carries |
+| --- | ----- | ---- | ---------- | --------------------- |
+| **C** create | 3.6–6.6 ms | 0.9–2.9 ms | 1–3 | the person, its taggings |
+| **U** edit | 2.7–4.1 ms | 0.9–1.6 ms | 2–3 | the person, changed taggings |
+| **D** delete | 2.4–2.7 ms | 0.9–1.5 ms | 5–7 | the tombstone plus the cascade |
+
+The delete pushes the most because `people.softDelete` cascades across
+milestones, taggings, relationships, contact methods and observances — every one
+of which is a row that has to reach the peer for it to agree the person is gone.
+
+Two things fold into `write` that are worth naming separately. `people.create`
+and `people.update` each run `regenerateSystem()`, and the create additionally
+runs **`duplicates.findFor` to pick its redirect** — the quadratic call
+Increment 2 measured. At 100 people it is ~2 ms and invisible inside a 4 ms
+write; at 10 000 it would be the 11.8 s Increment 2 recorded, paid on **create**
+as well as on every person-page view. Ported deliberately and not fixed here: it
+is the same shared-app defect, not an SSR one.
+
+That redirect fired for real during the first run, which is worth recording
+because it was an accident rather than a fixture: re-running the round trip with
+a fixed name created a same-named person, `duplicates.findFor` matched it, and
+the create 303'd to `/duplicates?for=<id>` instead of the person. **The
+detection-driven redirect works end to end with JavaScript disabled**, and the
+round-trip script now uses a fresh surname per run so the deterministic arm is
+the one being asserted.
+
+### 5. Relationships on create are inert without JavaScript — a fifth section for the inventory
+
+`readRelationships` and `createRelationships` are ported, and with JavaScript
+disabled they can never fire. `RelationshipFields` starts a Person form with
+**zero rows** and grows them from an `onClick`, and each row's hidden
+`relationships` input only appears once React has resolved the typed name and
+role against the candidate list. Confirmed on the wire: the create page's only
+named fields are `firstName`, `middleName`, `lastName`, `gender`, `tags`, and
+its only two `<button>`s are `type="button"` (add row, remove row).
+
+So Increment 2's section inventory gains a row, and it is a *form* rather than a
+screen section:
+
+| form section | no-JS today | verdict |
+| ------------ | ----------- | ------- |
+| Person fields + Gender | ✅ works | plain `<input>`/`<select>` with names |
+| Tags (`ChipTextField`) | ✅ works | the tags grammar keeps `name` on the visible field, so typing and submitting work; only the chip picker is lost |
+| Relationships (create only) | ❌ inert | needs a no-JS shape: a fixed `<select>` pair per row, or a second screen after create |
+
+The Tags row is the pleasant surprise. `ChipTextField` is the most JavaScript-
+heavy field in the shared UI, and in `grammar="tags"` mode the visible input
+*is* the stored value and carries `name` itself — so it degrades to a plain text
+field that submits exactly what the write path parses. In `grammar="prose"` it
+would not: there the `name` is on a hidden input the component maintains.
+
+### 6. Smaller things worth keeping
+
+- **The framework question's cost went up, mildly and visibly.** Increment 2's
+  routing was one regex; the write routes need a literal (`/people/new`) ordered
+  *above* the `:id` pattern it would otherwise match, and a GET/POST pair per
+  screen that a framework would pair for you. It is a `switch` on
+  `` `${method} ${verb}` `` and it is ten lines — still not an argument for any
+  particular framework, but no longer free.
+- **`/duplicates` is a throwaway route**, written for the same reason
+  `people.tsx` is: there is no shared duplicates screen, desktop's leans on
+  `useFetcher`, and promoting one into `@leapsake/ui` is product work wearing a
+  spike's clothes. It exists so the ported create redirect lands somewhere real
+  instead of on a 404 that would read as the write path failing.
+- **303 was the right status and it never had to be debugged**, which is worth a
+  line only because getting it wrong is invisible until a refresh resubmits.
+
 ## What is here
 
 | file | why |
@@ -282,7 +489,10 @@ form. That is the concrete backlog a real web client works from.
 | `src/gifts-ports-ssr.ts` | gift ports that **throw** — a stub returning `[]` would be a lie that renders |
 | `src/routes/` | login, the people list, and the person page |
 | `src/reply.ts` | routes return data, so `app.tsx` can own `no-store` and the zeroize |
-| `src/form-data.ts` | posted body → `URLSearchParams`; Increment 3 grows the field readers here |
+| `src/form-data.ts` | posted body → `URLSearchParams`, plus the field readers ported verbatim from the desktop router |
+| `src/routes/person-new.tsx`, `person-edit.tsx`, `person-delete.tsx` | the C, U and D of Increment 3 — a GET that renders the shared form and a POST that runs the desktop action |
+| `src/routes/duplicates.tsx` | a throwaway list, so the ported create redirect lands somewhere real |
+| `scripts/roundtrip.ts` | Increment 3's done-when, runnable: C/U/D on the no-JS client, each observed on a second joined device |
 | `src/bootstrap.ts` | the four-call username+password → master key path (**not** `joinAccount`, and the docblock says why) |
 | `src/measure.ts` | every measurement, in one file, so it is one file to delete |
 | `src/probe.ts` | the `@leapsake/ui`-loads-through-SSR check behind `GET /probe` |

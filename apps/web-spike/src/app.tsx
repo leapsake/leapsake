@@ -1,16 +1,21 @@
 import type { IncomingMessage } from "node:http";
 import type { CoreApi } from "@leapsake/core";
 import { readForm } from "./form-data.js";
-import { hydrate, type HydrateTimings, storeMode } from "./hydrate.js";
+import { hydrate, type Hydrated, type HydrateTimings, storeMode } from "./hydrate.js";
 import { probe } from "./probe.js";
 import { redirect, text, type Reply } from "./reply.js";
+import { duplicatesPage } from "./routes/duplicates.js";
 import { loginPage, loginSubmit } from "./routes/login.js";
 import { peoplePage } from "./routes/people.js";
 import { personPage } from "./routes/person.js";
+import { personDeletePage, personDeleteSubmit } from "./routes/person-delete.js";
+import { personEditPage, personEditSubmit } from "./routes/person-edit.js";
+import { personNewPage, personNewSubmit } from "./routes/person-new.js";
 import {
   CLEAR_COOKIE,
   closeSession,
   resolveSession,
+  setPushHwm,
   type OpenSession,
 } from "./session.js";
 
@@ -36,14 +41,21 @@ import {
 /** Serve a request that needs an account, or send it to the login page. */
 async function authenticated(
   req: IncomingMessage,
-  render: (core: CoreApi, session: OpenSession) => Promise<Reply>,
+  render: (
+    core: CoreApi,
+    session: OpenSession,
+    hydrated: Hydrated,
+  ) => Promise<Reply>,
 ): Promise<Reply> {
   const session = resolveSession(req.headers.cookie);
   if (session === null) return redirect("/login");
 
   const hydrated = await hydrate(session);
   try {
-    return withTimings(await render(hydrated.core, session), hydrated.timings);
+    return withTimings(
+      await render(hydrated.core, session, hydrated),
+      hydrated.timings,
+    );
   } finally {
     // The two halves of §9.2's "memory-only, request-scoped, zeroized", in the
     // one place that can guarantee both run: the decrypted store goes, then the
@@ -51,6 +63,72 @@ async function authenticated(
     hydrated.release();
     session.close();
   }
+}
+
+/**
+ * Serve a **write**: the read lifecycle, plus the push that makes it leave.
+ *
+ * Everything about this is the same as `authenticated` except the last two
+ * lines, and those two lines are Increment 3's whole claim. Desktop's actions
+ * end at the `core` call because a background sync loop carries the row away
+ * afterwards; a stateless SSR host has no loop and no next tick it owns, so the
+ * push has to happen inside the request, before the 303.
+ *
+ * Under a cold store that is not a design preference, it is forced — and the
+ * forcing is what makes the round trip impossible to fake. The GET the browser
+ * makes after the 303 discards this database and rebuilds it from the relay, so
+ * a write that was not pushed is not merely invisible to peers: it is invisible
+ * to the page that just made it.
+ *
+ * ## Where the push starts from — the increment's most expensive mistake
+ *
+ * The plan doc prescribed `session.pushHwm = await engine.push(session.pushHwm)`,
+ * starting from 0 because a cold host has no durable `sync_state` row. That is
+ * the `WEB_SPIKE_PUSH_MARK=session` arm, and it is **wrong in a way that
+ * compounds**: the mark starts at 0, so a session's first write re-pushes the
+ * whole store, and the relay is an append-only log with no compaction — those
+ * ~150 duplicate versions are permanent, and a cold host `pull(0)`s them back
+ * on every request forever. Measured: five logins-with-one-write took a
+ * 128-record account to 1 073 and its list page from 6.6 ms to 31.2 ms, while
+ * twenty-five writes *inside one session* added 157 records and no measurable
+ * time.
+ *
+ * The default arm fixes it with no durable state — see `Hydrated.pushMark`. The
+ * session mark is kept as a floor so the two arms are comparable rather than
+ * exclusive.
+ */
+const pushMarkMode = process.env.WEB_SPIKE_PUSH_MARK === "session" ? "session" : "pull";
+
+async function writing(
+  req: IncomingMessage,
+  run: (core: CoreApi, form: URLSearchParams) => Promise<Reply>,
+): Promise<Reply> {
+  const form = await readForm(req);
+  return authenticated(req, async (core, session, hydrated) => {
+    const writeStarted = performance.now();
+    const reply = await run(core, form);
+    const writeMs = Math.round((performance.now() - writeStarted) * 10) / 10;
+
+    const from =
+      pushMarkMode === "session"
+        ? session.pushHwm
+        : Math.max(session.pushHwm, hydrated.pushMark);
+
+    const before = hydrated.transportStats();
+    const pushStarted = performance.now();
+    const hwm = await hydrated.engine.push(from);
+    const pushMs = Math.round((performance.now() - pushStarted) * 10) / 10;
+    const after = hydrated.transportStats();
+    setPushHwm(session.id, hwm);
+
+    console.log(
+      `  write ${writeMs} ms  push ${pushMs} ms  ` +
+        `${after.records - before.records} records / ` +
+        `${((after.bytes - before.bytes) / 1024).toFixed(1)} KiB up  ` +
+        `(mark ${pushMarkMode}${from === 0 ? " 0 — whole store" : ""})`,
+    );
+    return reply;
+  });
 }
 
 /**
@@ -122,14 +200,43 @@ export async function handleRequest(req: IncomingMessage): Promise<Reply> {
     );
   }
 
-  // The framework-shaped part done by hand: one path parameter, one segment deep.
-  const person = /^\/people\/([^/]+)$/.exec(path);
-  if (method === "GET" && person !== null) {
-    return authenticated(req, (core) => personPage(core, person[1] as string));
+  // Create sits above the `:id` patterns, because `/people/new` matches both and
+  // the literal has to win — the one ordering hazard of hand-written routing.
+  if (path === "/people/new") {
+    if (method === "GET") return authenticated(req, (core) => personNewPage(core));
+    if (method === "POST") return writing(req, personNewSubmit);
+  }
+
+  if (method === "GET" && path === "/duplicates") {
+    return authenticated(req, (core) =>
+      duplicatesPage(core, url.searchParams.get("for")),
+    );
+  }
+
+  // The framework-shaped part done by hand: one path parameter, one segment deep
+  // — now with a verb after it, which is where the cost of no router shows. A
+  // framework pairs each route's loader with its action; here the GET and the
+  // POST of one screen are two arms of the same `if`, and keeping them adjacent
+  // is a convention rather than something the code enforces.
+  const person = /^\/people\/([^/]+)(?:\/(edit|delete))?$/.exec(path);
+  if (person !== null) {
+    const id = person[1] as string;
+    switch (`${method} ${person[2] ?? ""}`) {
+      case "GET ":
+        return authenticated(req, (core) => personPage(core, id));
+      case "GET edit":
+        return authenticated(req, (core) => personEditPage(core, id));
+      case "POST edit":
+        return writing(req, (core, form) => personEditSubmit(core, id, form));
+      case "GET delete":
+        return authenticated(req, (core) => personDeletePage(core, id));
+      case "POST delete":
+        return writing(req, (core) => personDeleteSubmit(core, id));
+    }
   }
 
   return text(404, "not found\n");
 }
 
 /** Printed at boot, so a run's numbers are never read under the wrong heading. */
-export const bootBanner = `store mode: ${storeMode}`;
+export const bootBanner = `store mode: ${storeMode}, push mark: ${pushMarkMode}`;

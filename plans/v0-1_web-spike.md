@@ -6,20 +6,17 @@
 > Nothing here restates it. This doc holds the **spike that proves it**, increment by
 > increment, and is deleted when the list empties.
 
-**State:** Increments 1 and 2 are **done** *(2026-08-12)*, and with them the primary
-question. A person's page server-renders with JavaScript disabled and **zero files changed
-under `packages/`**; the adapter a no-JS client owes the shared UI is six lines. The
-findings live beside the code that produced them, in
+**State:** Increments 1, 2 and 3 are **done** *(2026-08-12)*, and with them both the primary
+question and the CRUD question the owner sharpened it into. A person's page server-renders
+with JavaScript disabled, and create / edit / delete all work with JavaScript disabled and
+land on a second device through a real relay — all of it with **zero files changed under
+`packages/`**. The adapter a no-JS client owes the shared UI is six lines. The findings live
+beside the code that produced them, in
 [`apps/web-spike/README.md`](../apps/web-spike/README.md), until Increment 6 folds them
 into this doc and deletes the app.
 
-**Continue through Increments 3-5** *(owner, 2026-08-12)*. The first stopping point was
-reached and deliberately not taken, and the decision came with a sharpened goal: the spike
-must show that **every CRUD path a web client needs is possible on this architecture**, not
-only the read Increment 2 answered. So Increment 3 grows a **create** route alongside edit
-and delete — the four letters, end to end, with JavaScript disabled — and stays the place
-the round trip through a real relay is proved. **Start there.** Increments 4 and 5 follow;
-each is still independently droppable, and 5a is the next real stopping point.
+**Next: Increment 4, then 5.** Each is still independently droppable, and 5a is the next
+real stopping point.
 
 **Scheduled pre-v0.1** *(owner, 2026-08-07)*, as a parallel track in [`v0-1.md`](./v0-1.md) —
 independent of the launch prerequisite chain, and the natural filler whenever that chain is
@@ -120,53 +117,43 @@ carries no `<script>` and no inline handler, so the DOM is identical either way 
 by driving Firefox**, which no headless browser in the dev shell would do. A manual
 `javascript.enabled=false` load is still owed.
 
-### Increment 3 — the full CRUD round trip with JS disabled
+### Increment 3 — done *(2026-08-12)*
 
-**This is where the spike resumes** *(owner, 2026-08-12)*, and the owner's framing is that
-all four letters have to work, not just the write that proves writes are possible.
+Create, edit and delete a person with JavaScript disabled, each one observed arriving on a
+second device through a real relay. **Done-when met, automated as
+`pnpm --filter @leapsake/web-spike roundtrip` (9/9), and still zero files changed under
+`packages/`.** Full findings in [`apps/web-spike/README.md`](../apps/web-spike/README.md);
+four results change what the increments below should expect, so they are repeated here.
 
-`src/routes/person-new.tsx`, `src/routes/person-edit.tsx`, `src/routes/person-delete.tsx`,
-and `src/form-data.ts` grown with verbatim ports of the three field readers —
-`readGender` (`router.tsx:74`), `readPersonInput` (`:80`), `readTags` (`:96`) — plus
-`readRelationships` (`:149`) and `createRelationships` (`:160`) if create carries them.
-`PersonForm` already wraps `FormShell`, so create and edit share it exactly as desktop
-does, and `ConfirmDelete` gives a second data point on hidden fields.
+- **The actions and the field readers ported verbatim**, one edit each: the readers take
+  `URLSearchParams` where desktop passes `FormData`, and nothing else differs, because the
+  desktop write path was **`FormData`-shaped rather than Electron-shaped**. `PersonForm`
+  serves create and edit on two URLs because `FormShell` emits `<form method="post">` with
+  no `action` — the shared-form property usually assumed lost without JavaScript.
+- **`pushHwm = 0` is wrong and it compounds, which is the increment's real finding.** This
+  doc prescribed `session.pushHwm = await engine.push(session.pushHwm)`. Because the relay
+  is an **append-only log with no compaction** and a cold host must `pull(0)`, a session's
+  first write re-pushes the whole store *permanently*: five logins-with-one-create took a
+  128-record account to 793 records and its list page from 5.6 ms to 24.2 ms, against 135
+  records and 5.0 ms once fixed. The fix needs no durable state — the mark is the cold
+  store's own `MAX(updated_at)` after the pull — but **the obvious spelling of it,
+  `Date.now()`, silently drops writes**, because `listChangedSince` is `updated_at > ?`
+  strictly at millisecond resolution. Four writes in five pushed zero records behind a
+  successful 303 before that was caught. `SyncEngine` should expose the mark; see
+  `WANTED-CHANGES.md`.
+- **Cold makes the round trip impossible to fake**, and confirms the prediction that
+  inverted this doc's earlier text: every request re-pulls, so a write that was not pushed
+  vanishes from the web client too, and staleness is a property of the warm arm only.
+- **Relationships-on-create are inert without JavaScript** — a third entry for the no-JS
+  inventory, alongside the holiday add-field and `GiftCaptureForm`, and the same verdict:
+  the shape is product work. The pleasant surprise is `ChipTextField`, the most
+  JavaScript-heavy field in the shared UI, which in `grammar="tags"` mode **degrades
+  cleanly** because the visible input carries `name` itself.
 
-Each action is the desktop router's, ported call-for-call — the point is that nothing is
-reshaped, the same way Increment 2's loader was not:
-
-| | route | the call, and where desktop makes it |
-|---|---|---|
-| **C** | `POST /people/new` | `core.people.create(input, tags)` (`router.tsx:1156`), then `createRelationships` |
-| **R** | `GET /people/:id` | **done** — Increment 2 |
-| **U** | `POST /people/:id/edit` | `core.people.update(id, input, tags)` (`router.tsx:1188`) |
-| **D** | `POST /people/:id/delete` | `core.people.softDelete(id)` (`router.tsx:1201`) |
-
-Every one of them then does `session.pushHwm = await engine.push(session.pushHwm)` → `303`.
-
-Two things to expect rather than discover. Create's loader is `views.candidates()`
-(`router.tsx:1152`), and create's *redirect* runs `duplicates.findFor` (`:1169`) to decide
-between `/duplicates?for=` and the new person — the quadratic call from Increment 2. Port it,
-because it is the real flow, and record what it costs a create; do not fix it here.
-
-**Done when**, with JS disabled: creating a person 303s to that person's page, editing the
-name shows the new one, deleting drops it from the list — and **all three arrive in a desktop
-app running against the same relay account**. A local write that never leaves is not an
-answer; the full `seal` → relay → `open` → LWW merge round trip is. The delete is the one
-worth being strict about: a tombstone is exactly the case where "it vanished locally" and "it
-propagated" are easy to confuse.
-
-**Out of scope, deliberately:** the two sections Increment 2 found inert — the holiday
-add-field and `GiftCaptureForm`. Both are known CRUD gaps with known shapes (see the section
-inventory in *Known before starting*), and both would need edits under `packages/`, which is
-the one constraint this spike does not spend. Person CRUD proves the architecture; those two
-are the web client's backlog, and they belong in `WANTED-CHANGES.md`, not in this increment.
-
-One consequence of the cold decision to confirm as you go, because it inverts what this doc
-originally predicted: under `WEB_SPIKE_STORE=cold` the write is pushed and **every** later
-request re-pulls, so a second session sees it on its next request with no revalidator
-equivalent needed. Staleness is a property of the warm arm only — which is one more argument
-that cold was the right pick.
+Two things were deliberately not done, as planned: the holiday add-field and
+`GiftCaptureForm` stayed out of scope (both need `packages/` edits), and
+`duplicates.findFor` was ported into the create redirect rather than fixed — so the
+quadratic call is now on the write path too, priced and left alone.
 
 ### Increment 4 — sharing, both flavors contrasted
 
@@ -255,9 +242,15 @@ integrity trust dependency production must not have. So the real conclusion is t
 
 `plans/v0-1_web-spike.md` (this doc) is rewritten into the answers, structured as answers rather than
 narrative: the three questions resolved in three sentences; the measurement table; the required
-relay and shared-package changes; the no-JS section inventory below; the two sharing flavors;
-and the open questions that survived. Then delete `apps/web-spike` and revert the
-`.oxlintrc.json` line.
+relay and shared-package changes; the no-JS section inventory below (now five entries, with
+Increment 3's form-level rows folded in); the two sharing flavors; and the open questions that
+survived. Then delete `apps/web-spike` and revert the `.oxlintrc.json` line.
+
+Two manual checks are owed before the teardown, both cheap and both the same shape — things
+verified by construction rather than by driving the real thing. Load `http://localhost:5180`
+in Firefox with `javascript.enabled=false` and walk create/edit/delete by hand; and converge
+one real desktop build against the spike's relay account, since Increment 3's peer is the
+desktop *data path* (`joinAccount` + `runAccountSync`) rather than Electron.
 
 ## Two design points — both settled by Increment 2
 
@@ -309,8 +302,18 @@ server-side half is **done**; the browser half is what Increment 5 still owes.
 Things the spike should confirm and cost, not discover:
 
 - **The relay needs CORS + `OPTIONS`** before any browser client exists.
-- **Per-IP rate limits are wrong for an SSR host**, which logs in from one IP for all users.
-- **`/sync/pull` has no pagination**, and the whole body is buffered as a string.
+- ~~**Per-IP rate limits are wrong for an SSR host**~~ — **confirmed, Increment 1.**
+- **`/sync/pull` has no pagination**, and the whole body is buffered as a string — and
+  Increment 3 adds the sharper half: **the relay never compacts.** `append` is a plain
+  `INSERT` and `pull` is `WHERE seq > ?`, so `pull(0)` returns every version ever pushed,
+  not the latest per row. Invisible to desktop and mobile, which pull incrementally from a
+  durable cursor; unavoidable for a cold-per-request host, because a delta pull into an
+  empty database yields an empty database. **Cold store and incremental pull are mutually
+  exclusive**, which makes the SSR host the one client whose per-request cost grows with the
+  account's write history rather than its row count. Increment 3's push-mark fix keeps that
+  growth to one record per write instead of one store per login, but it does not remove it —
+  latest-per-row compaction (or a `pull` that collapses by row id) is the real answer, and
+  it is a **relay** change.
 - **`packages/data` ships no browser driver** — and by policy ships none, so the web client owns
   one, like every other app.
 - ~~**The no-JS section inventory for `PersonScreen`**~~ — **done, and it came out sharper
@@ -328,10 +331,10 @@ Things the spike should confirm and cost, not discover:
 - ~~**After Increment 2**~~ — **reached, and not taken** *(owner, 2026-08-12)*. It was a clean
   yes with zero package edits; the call was to keep going through 3-5 anyway, because "a person's
   page renders" is not "a web client is possible" until the writes are proved too. Hence
-  Increment 3's CRUD framing.
+  Increment 3's CRUD framing — which is now also done, and answered yes.
 - **After Increment 5a** — the next real one: you know whether the browser data layer is
   possible, for a couple of hours, before committing to the rest of Increment 5.
-- Increments 3, 4, and 5b-e are each droppable without invalidating what came before.
+- Increments 4 and 5b-e are each droppable without invalidating what came before.
 
 ## Open questions
 

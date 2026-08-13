@@ -1,6 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
 import { type CoreApi, createCore, runMigrations, syncableRepos } from "@leapsake/core";
-import { createHttpSyncTransport, createSyncEngine } from "@leapsake/sync";
+import {
+  createHttpSyncTransport,
+  createSyncEngine,
+  type SyncEngine,
+} from "@leapsake/sync";
 import { instrumentTransport, type TransportStats } from "./measure.js";
 import { nodeSqliteDriver } from "./node-sqlite-driver.js";
 import type { OpenSession } from "./session.js";
@@ -65,6 +69,50 @@ export interface HydrateTimings {
 
 export interface Hydrated {
   core: CoreApi;
+  /**
+   * The same engine that pulled this store, kept so a write can push it back.
+   *
+   * Increment 3's whole point is that the round trip closes, and a cold store
+   * makes that unfakeable: the next request throws this database away and
+   * re-pulls, so a write that was not pushed does not merely fail to reach a
+   * peer — it vanishes from the web client too.
+   */
+  engine: SyncEngine;
+  /**
+   * The instrumented transport's running totals. Read before and after a push
+   * to get the push's own record count and wire bytes — `timings` below is a
+   * snapshot taken at the end of the pull, so it cannot carry them.
+   */
+  transportStats: () => TransportStats;
+  /**
+   * The highest `updated_at` in the store the instant the pull finished — the
+   * correct starting mark for this request's push, and the fix for a bug
+   * Increment 3 measured.
+   *
+   * `SyncEngine.push(hwm)` re-seals and re-pushes every row with
+   * `updated_at > hwm`. Desktop keeps `hwm` in a durable `sync_state` row, so
+   * it only ever pushes what it actually changed. A cold host has no durable
+   * row, and starting from 0 — the obvious substitute, and what the plan doc
+   * prescribed — makes a session's *first* write re-push the entire store,
+   * permanently: the relay is an append-only log with no compaction, so those
+   * ~150 duplicate versions are re-pulled by every later request of every later
+   * session (README finding 3).
+   *
+   * A cold store can close that with no durable state, because it has a
+   * property desktop's does not: **everything in it arrived from the relay
+   * moments ago, in this very request.** So the boundary between "pulled" and
+   * "written by this request" is exactly the store's own high-water mark.
+   *
+   * **Not `Date.now()`, which is the trap.** The obvious spelling of the same
+   * idea is a wall-clock timestamp taken after the pull — and it silently drops
+   * writes. `listChangedSince` is `updated_at > ?`, strictly, at millisecond
+   * resolution, and a create landing in the mark's own millisecond compares
+   * equal and is skipped. Measured: with a clock mark, four writes out of five
+   * pushed **zero records** while still returning a happy 303. Reading the mark
+   * out of the store is the same query the engine would have run, so it cannot
+   * disagree with it.
+   */
+  pushMark: number;
   timings: HydrateTimings;
   /** Release the store. A no-op for a warm one, which outlives the request. */
   release(): void;
@@ -109,6 +157,29 @@ function sweepWarm(): void {
   }
 }
 
+/**
+ * The highest `updated_at` across every synced table — see `Hydrated.pushMark`.
+ *
+ * One `UNION ALL` rather than 24 round trips, and it leans on two facts about
+ * `defineSyncable`: a repo's `table` **is** its SQL table name, and the column
+ * `listChangedSince` filters on is `updated_at` on every one of them. If either
+ * ever stops being true this returns a wrong mark rather than failing, which is
+ * the argument for `SyncEngine` exposing this itself — logged in
+ * `WANTED-CHANGES.md`.
+ */
+async function storeMark(
+  driver: ReturnType<typeof nodeSqliteDriver>,
+  tables: readonly string[],
+): Promise<number> {
+  const union = tables
+    .map((table) => `SELECT MAX(updated_at) AS m FROM ${table}`)
+    .join(" UNION ALL ");
+  const row = await driver.get<{ m: number | null }>(
+    `SELECT MAX(m) AS m FROM (${union})`,
+  );
+  return row?.m ?? 0;
+}
+
 /** Everything a pull needs, built from the request's own key material. */
 function engineFor(session: OpenSession, db: DatabaseSync) {
   const driver = nodeSqliteDriver(db);
@@ -119,13 +190,15 @@ function engineFor(session: OpenSession, db: DatabaseSync) {
       authVerifier: session.authVerifier,
     }),
   );
+  const repos = syncableRepos(driver);
   return {
     driver,
     transport,
+    tables: repos.map((repo) => repo.table),
     engine: createSyncEngine({
       transport,
       masterKey: session.masterKey,
-      repos: syncableRepos(driver),
+      repos,
     }),
   };
 }
@@ -159,13 +232,17 @@ export async function hydrate(session: OpenSession): Promise<Hydrated> {
     const existing = warm.get(session.id);
     if (existing !== undefined) {
       // The delta, not the account: this is the whole reason warm is cheaper.
-      const { transport, engine } = engineFor(session, existing.db);
+      const { transport, engine, tables } = engineFor(session, existing.db);
       const pullStarted = performance.now();
       const pulled = await engine.pull(existing.cursor);
+      const pushMark = await storeMark(nodeSqliteDriver(existing.db), tables);
       existing.cursor = pulled.cursor;
       existing.lastUsed = Date.now();
       return {
         core: existing.core,
+        engine,
+        transportStats: transport.stats,
+        pushMark,
         timings: timings({
           storeMs: 0,
           pullMs: Math.round((performance.now() - pullStarted) * 10) / 10,
@@ -180,11 +257,12 @@ export async function hydrate(session: OpenSession): Promise<Hydrated> {
   }
 
   const { db, ms: storeMs } = await emptyStore();
-  const { driver, transport, engine } = engineFor(session, db);
+  const { driver, transport, engine, tables } = engineFor(session, db);
 
   const pullStarted = performance.now();
   const pulled = await engine.pull(0);
   const pullMs = Math.round((performance.now() - pullStarted) * 10) / 10;
+  const pushMark = await storeMark(driver, tables);
 
   const core = createCore(driver);
 
@@ -199,6 +277,9 @@ export async function hydrate(session: OpenSession): Promise<Hydrated> {
 
   return {
     core,
+    engine,
+    transportStats: transport.stats,
+    pushMark,
     timings: timings({
       storeMs,
       pullMs,

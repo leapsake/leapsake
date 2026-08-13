@@ -71,3 +71,60 @@ adapter, and seven `core` calls. What follows is the whole list.
   promise — that an adapter must render a real `<form>` with `method`/`action`
   intact — held: the no-JS adapter is the *degenerate* one, doing strictly less
   than desktop's.
+
+## Increment 3 — the full CRUD round trip
+
+**Zero files under `packages/` were changed again**, but unlike Increment 2 the
+list is not almost-empty: one entry below is a genuine gap in `@leapsake/sync`
+that a real web client cannot work around as cleanly as the spike did, and one
+is the same product decision `GiftCaptureForm` already raised.
+
+- **`SyncEngine` should be able to tell a client its current high-water mark.**
+  The whole of README finding 3. `push(hwm)` re-pushes everything newer than
+  `hwm`; desktop reads `hwm` from a durable `sync_state` row; a cold SSR host has
+  no durable row and starting at 0 re-pushes the entire store on every session's
+  first write, permanently inflating an append-only relay log that a cold client
+  must then re-pull in full on every request. Wanted: `SyncEngine.currentMark()`
+  (the `MAX(updated_at)` across the repo allowlist — the same quantity `push`
+  computes internally), or a `pushChanged(rows)` that does not need a mark at
+  all. → Computed in the spike instead, with a `SELECT MAX(updated_at)` UNION
+  over `repo.table` (`src/hydrate.ts` → `storeMark`). **That workaround is not
+  good enough for production**: it depends on two facts `defineSyncable` happens
+  to guarantee today — that a repo's `table` is its SQL table name, and that
+  every synced table's column is `updated_at` — and if either changes it returns
+  a *wrong mark* rather than failing. The engine already knows both; the client
+  should not have to.
+
+- **The near-miss that makes the above urgent: `listChangedSince` is `updated_at
+  > ?`, strictly.** The obvious client-side substitute for a mark — `Date.now()`
+  taken after the pull — silently drops any write landing in that same
+  millisecond. Measured at four writes in five, each returning a successful 303
+  with nothing pushed. Wanted: nothing changed here; `>` is correct for a mark
+  that came from a real push. → Recorded as the reason a synthesised mark is
+  unsafe, which is the argument for the engine exposing one.
+
+- **`RelationshipFields` has no no-JS shape** (`packages/ui/src/web/fields/
+  RelationshipFields.tsx`). It starts at zero rows, grows them from an `onClick`,
+  and emits its hidden `relationships` input only after React resolves the typed
+  entity and role against the candidate list — so a no-JS create posts no
+  relationships at all. Wanted: a fixed pair of `<select>`s per row, or a
+  post-create screen. → Nothing changed. Identical in kind to Increment 2's
+  `GiftCaptureForm` entry, and identical in verdict: the shape is a **product**
+  decision (the candidate list is already loaded, so a `<select>` is a direct
+  swap, but "how many rows does a no-JS form show?" is not the spike's to
+  answer). The readers are ported anyway so the action does not silently differ
+  from desktop's.
+
+- **Wanted and then withdrawn: an index or a count for `duplicates.findFor`.**
+  The ported create action runs it to choose its redirect, so it is now on the
+  *write* path as well as the person page. → Still nothing changed, for the
+  reason Increment 2 gave: desktop runs the same call on the same flow.
+
+- **Not wanted, and the near-miss worth recording:** the three actions and all
+  five field readers ported with **no wrapper and no shim** — the readers took
+  `URLSearchParams` where desktop passes `FormData` and needed no other edit,
+  because the desktop write path was `FormData`-shaped rather than
+  Electron-shaped. `PersonForm`, `FormShell` and `ConfirmDelete` were used
+  exactly as desktop uses them; `FormShell`'s action-less `<form method="post">`
+  is what lets one component serve create and edit on two different URLs with no
+  JavaScript at all.

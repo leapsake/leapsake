@@ -49,6 +49,22 @@ interface SessionRecord {
   wrappedAuthVerifier: Uint8Array;
   relayUrl: string;
   createdAt: number;
+  /**
+   * The push high-water mark, which lives **here** because a cold store has
+   * nowhere else to put it (Increment 3).
+   *
+   * Desktop and mobile keep this in a `sync_state` row, and `SyncEngine.pushAndPull`
+   * reads it from there. A cold host cannot: the row would be written into a
+   * database that is discarded at the end of the request, so every write would
+   * start from zero. Session-scoped is the natural home — it is per-account,
+   * outlives the request, and is not a secret, so it needs no wrapping.
+   *
+   * What it costs is stated rather than hidden: it starts at 0, so a session's
+   * **first** write re-seals and re-pushes the whole store. The relay LWW-merges
+   * that to a no-op, so it is a cost rather than a bug, and the README reports
+   * what it is.
+   */
+  pushHwm: number;
 }
 
 /** A session opened for the duration of one request. */
@@ -59,6 +75,8 @@ export interface OpenSession {
   relayUrl: string;
   masterKey: Uint8Array;
   authVerifier: Uint8Array;
+  /** Where the next push starts from; see {@link SessionRecord.pushHwm}. */
+  pushHwm: number;
   /** Zeroize the request-scoped copies. §9.2's "memory-only, request-scoped". */
   close(): void;
 }
@@ -110,6 +128,7 @@ export async function openSession(opts: {
     wrappedAuthVerifier: wrapKey(authVerifier, sessionKey),
     relayUrl: opts.relayUrl,
     createdAt: Date.now(),
+    pushHwm: 0,
   });
   // The plaintext key material never reaches the map, and the login's own copies
   // die with this call frame.
@@ -166,6 +185,7 @@ export function resolveSession(
       relayUrl: record.relayUrl,
       masterKey,
       authVerifier,
+      pushHwm: record.pushHwm,
       close: () => {
         masterKey.fill(0);
         authVerifier.fill(0);
@@ -174,6 +194,12 @@ export function resolveSession(
   } catch {
     return null;
   }
+}
+
+/** Advance where the next push starts from, after one has landed. */
+export function setPushHwm(id: string, hwm: number): void {
+  const record = sessions.get(id);
+  if (record !== undefined) record.pushHwm = hwm;
 }
 
 /** Drop the server's half; the cookie it matched becomes inert. */
