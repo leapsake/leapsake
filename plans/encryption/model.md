@@ -945,6 +945,22 @@ Per the product philosophy: **default to capability links; make "hosted link" an
 explicit, clearly-labeled opt-in** the sharer chooses when they specifically want
 no-JS/preview behavior.
 
+*Both flavors are built and observed, and one product rule falls out*
+**(2026-08-12)**. The spike made and viewed each one: a capability link's key was seen
+never to reach the server (the request line arrives with the fragment already stripped)
+and the page it serves carries ciphertext and no plaintext; the hosted link renders the
+same payload through the *same shared screen*, server-side, with no `<script>` in the
+response at all. The mechanism is one code path — seal under a content key — differing
+only in whether the server keeps that key. Two things the design should absorb:
+**a capability link can never be re-shown** (its key exists only for the duration of the
+request that mints it, so "copy it now" is a rule the sharing UI has to state, where a
+hosted link can always be looked up again); and **every mode in the table above renders
+somebody else's screen**, which the shared screens are not yet shaped for — rendered
+unauthenticated, `RelationshipScreen` still offers Edit / Delete / Add-milestone and
+leaks the item's internal id. A read-only mode is small, and it is a prerequisite for
+sharing rather than a polish item. Evidence:
+[`apps/web-spike/README.md`](../../apps/web-spike/README.md) → *Increment 4*.
+
 **Photos / large binaries** introduce **blob/object storage** (photos don't belong in
 SQLite rows). Same per-item-key model — encrypt each blob with a content key, store
 ciphertext in object storage, wrap keys as above. A storage concern, not a

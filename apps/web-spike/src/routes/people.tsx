@@ -47,6 +47,9 @@ export async function peoplePage(core: CoreApi, username: string): Promise<Reply
             <a href="/people/new">Add a person</a>
           </p>
           <p>
+            <a href="/share/new">Share a relationship</a>
+          </p>
+          <p>
             <small>{rows.length} entries</small>
           </p>
         </main>

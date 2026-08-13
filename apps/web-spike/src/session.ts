@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { base64ToBytes, bytesToBase64 } from "@leapsake/bytes";
 import { generateKey, unwrapKey, wrapKey } from "@leapsake/crypto";
+import { fromBase64Url, toBase64Url } from "./base64url.js";
 import { bootstrapMasterKey } from "./bootstrap.js";
 
 /**
@@ -84,24 +84,6 @@ export interface OpenSession {
 const sessions = new Map<string, SessionRecord>();
 
 export const COOKIE_NAME = "ls_session";
-
-/**
- * `bytesToBase64` emits **standard** base64, whose `+` and `/` are not safe in a
- * cookie value or a URL fragment. Both this and Increment 4's capability links
- * need the URL alphabet, so the conversion lives here rather than being written
- * twice.
- */
-function toBase64Url(bytes: Uint8Array): string {
-  return bytesToBase64(bytes)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
-
-function fromBase64Url(text: string): Uint8Array {
-  const standard = text.replaceAll("-", "+").replaceAll("_", "/");
-  return base64ToBytes(standard.padEnd(Math.ceil(standard.length / 4) * 4, "="));
-}
 
 /**
  * Log in: username + password → a session, and a `Set-Cookie` carrying nothing

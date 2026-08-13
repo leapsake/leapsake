@@ -128,3 +128,38 @@ is the same product decision `GiftCaptureForm` already raised.
   exactly as desktop uses them; `FormShell`'s action-less `<form method="post">`
   is what lets one component serve create and edit on two different URLs with no
   JavaScript at all.
+
+## Increment 4 — sharing, both flavors
+
+**Zero files under `packages/` were changed a third time.** Two entries, and
+neither is urgent: one is the same product decision the previous increments
+already logged twice, and one is a bundling observation rather than a want.
+
+- **A shared screen has no read-only mode** (`packages/ui/src/web/screens/
+  RelationshipScreen.tsx`). Rendered to an unauthenticated viewer it still emits
+  "Edit roles", "Delete" and "Add milestone" links, plus the relationship's
+  internal id and the shape of the owner's routes. Wanted: a `readOnly` prop, or
+  a viewer-capability context the sections read, so one screen serves both the
+  owner and a stranger. → Nothing changed. Identical in kind and verdict to
+  `GiftCaptureForm` (Increment 2) and `RelationshipFields` (Increment 3): the
+  mechanism is small, but *what a shared view is* — does a viewer see the
+  timeline? the other partner's page? — is a product question a spike must not
+  answer by implementing one. Recorded because §11 will need it: every sharing
+  mode in that table renders somebody else's screen.
+
+- **`@leapsake/crypto`'s index does not tree-shake.** The capability client
+  imports `open` and nothing else, and the browser bundle still carries the KDF's
+  domain-label constants, because they are top-level `utf8ToBytes(...)` calls no
+  bundler can prove are side-effect-free. Wanted, weakly: `"sideEffects": false`
+  in the package, or lazily-computed labels. → Nothing changed. It costs a few
+  hundred bytes against a 5.9 KiB gzip bundle, so it is a note for whoever cares
+  about a minimal browser entry point rather than a change worth making now.
+
+- **Not wanted, and the near-miss worth recording twice over.**
+  `views.relationship()` returns *exactly* `RelationshipScreen`'s props, so the
+  share payload is the view model sealed verbatim — no share format to design,
+  and it type-checks against `@leapsake/ui`'s `RelationshipPartner` with no
+  mapping. And `@leapsake/crypto` + `@leapsake/bytes` bundled for a browser with
+  **no shim, no polyfill, and no config beyond pointing Vite at the entry**,
+  which is the property Increment 5 depends on and the thing this increment was
+  asked to check early.

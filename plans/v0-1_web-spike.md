@@ -6,17 +6,18 @@
 > Nothing here restates it. This doc holds the **spike that proves it**, increment by
 > increment, and is deleted when the list empties.
 
-**State:** Increments 1, 2 and 3 are **done** *(2026-08-12)*, and with them both the primary
-question and the CRUD question the owner sharpened it into. A person's page server-renders
-with JavaScript disabled, and create / edit / delete all work with JavaScript disabled and
-land on a second device through a real relay — all of it with **zero files changed under
-`packages/`**. The adapter a no-JS client owes the shared UI is six lines. The findings live
-beside the code that produced them, in
-[`apps/web-spike/README.md`](../apps/web-spike/README.md), until Increment 6 folds them
-into this doc and deletes the app.
+**State:** Increments 1, 2, 3 and 4 are **done** *(2026-08-12)*, and with them the primary
+question, the CRUD question the owner sharpened it into, and both sharing flavors. A
+person's page server-renders with JavaScript disabled; create / edit / delete all work with
+JavaScript disabled and land on a second device through a real relay; and a capability link
+decrypts in the browser from a key the server is observed never to receive, with the hosted
+fallback a ten-line SSR route — all of it with **zero files changed under `packages/`**. The
+adapter a no-JS client owes the shared UI is six lines. The findings live beside the code
+that produced them, in [`apps/web-spike/README.md`](../apps/web-spike/README.md), until
+Increment 6 folds them into this doc and deletes the app.
 
-**Next: Increment 4, then 5.** Each is still independently droppable, and 5a is the next
-real stopping point.
+**Next: Increment 5.** Its 5a is the next real stopping point, and 5b-e are each
+independently droppable.
 
 **Scheduled pre-v0.1** *(owner, 2026-08-07)*, as a parallel track in [`v0-1.md`](./v0-1.md) —
 independent of the launch prerequisite chain, and the natural filler whenever that chain is
@@ -155,30 +156,37 @@ Two things were deliberately not done, as planned: the holiday add-field and
 `duplicates.findFor` was ported into the create redirect rather than fixed — so the
 quadratic call is now on the write path too, priced and left alone.
 
-### Increment 4 — sharing, both flavors contrasted
+### Increment 4 — done *(2026-08-12)*
 
-`src/shares.ts` (a `Map`), `src/routes/share-new.tsx`, `src/routes/share-view.tsx`,
-`src/client/share.ts`, `src/routes/hosted-view.tsx`.
+Both §11 flavors, made and viewed, contrasted on one page. **Done-when met, automated as
+`pnpm --filter @leapsake/web-spike share` (13/13), and still zero files changed under
+`packages/`.** The optional quarter-hour was taken. Full findings in
+[`apps/web-spike/README.md`](../apps/web-spike/README.md); four results change what
+Increment 5 should expect, so they are repeated here.
 
-Capability link: `ck = generateKey()`, `blob = seal(utf8ToBytes(JSON.stringify(payload)), ck)`,
-link is `/share/<id>#<base64url(ck)>`. `bytesToBase64` emits **standard** base64 — convert to
-base64url yourself. The client half is ~15 lines: read `location.hash`, decode, `open(blob, ck)`,
-`JSON.parse`, write to the DOM. **Bundle it through Vite here** — it proves `@leapsake/crypto`
-compiles to a browser target, which is a five-minute early warning on Increment 5's biggest
-assumption. The hosted flavor is ~10 lines: the server keeps the `ck` and SSR-renders.
-
-**Done when** the capability link decrypts in-browser and the server's request log for
-`/share/:id` contains **no fragment** — paste that log line into the findings as the
-demonstration — and the hosted link renders identically with JS on and off.
-
-**Expect to confirm, and state flatly:** capability links are *structurally* incompatible
-with no-JS, because the key never reaches the server. That is why §11 lists two flavors. The
-spike's job is to show the cost is real and small, and that the hosted fallback is a ten-line
-route.
-
-*Optional quarter-hour, outsized value:* render the shared payload through
-`RelationshipScreen` (zero callback props, fully SSR-clean) to test whether shared screens are
-reusable in an **unauthenticated** context.
+- **The capability link's key is observed never to reach the server**, and the demonstration
+  is the request line the host printed for a request made with the whole link:
+  `sent /share/43282163…#vJjX-SJG…` → `received /share/43282163…`, serving 840 B of
+  ciphertext and 0 B of plaintext. Confirmed flatly, as predicted: **capability links are
+  structurally incompatible with the no-JS floor** — no server can render what no server
+  receives — and the hosted fallback really is a ten-line route whose only load-bearing line
+  is `openHostedShare`.
+- **The shared crypto compiles to a browser target, and so does the shared UI** — the early
+  warning this increment was asked to buy, both green. `@leapsake/crypto` + `@leapsake/bytes`
+  bundle to **5.9 KiB gzip with no shim, no polyfill and no config**. Adding React and
+  `RelationshipScreen` takes it to **111.9 KiB gzip**, of which the shared UI is 16 KiB and
+  **zod — pulled in unavoidably by `@leapsake/schema` — is 160 KiB pre-minify**. The framework
+  and the validator are the weight; the code Increment 5 wants to reuse is nearly free.
+- **A shared screen is reusable unauthenticated, and it renders too much.** The payload needed
+  no share format at all (`views.relationship()` returns exactly the screen's props, sealed
+  verbatim), but the screen still emits "Edit roles", "Delete" and "Add milestone" to a
+  stranger, plus the relationship's internal id. Same verdict as the two `packages/` entries
+  before it: small mechanism, product decision — §11's other three modes will all need it.
+- **A capability link cannot be re-shown**, and that is a product rule rather than a bug. The
+  key exists in the host for the duration of the create request and a redirect could only
+  carry it in a fragment the next server never sees, so the create *response* is its only
+  appearance. That is what "the server cannot read it" means from the sharer's side, and
+  whatever UI offers the choice has to say so.
 
 ### Increment 5 — the browser JS path
 
@@ -246,11 +254,18 @@ relay and shared-package changes; the no-JS section inventory below (now five en
 Increment 3's form-level rows folded in); the two sharing flavors; and the open questions that
 survived. Then delete `apps/web-spike` and revert the `.oxlintrc.json` line.
 
-Two manual checks are owed before the teardown, both cheap and both the same shape — things
-verified by construction rather than by driving the real thing. Load `http://localhost:5180`
-in Firefox with `javascript.enabled=false` and walk create/edit/delete by hand; and converge
-one real desktop build against the spike's relay account, since Increment 3's peer is the
-desktop *data path* (`joinAccount` + `runAccountSync`) rather than Electron.
+**Three** manual checks are owed before the teardown, all cheap and all the same shape —
+things verified by construction or by a stand-in rather than by driving the real thing.
+
+1. Load `http://localhost:5180` in Firefox with `javascript.enabled=false` and walk
+   create/edit/delete by hand — and while there, open a **hosted** share link, which is the
+   same check for Increment 4's no-JS half.
+2. Open a **capability** link in a real browser. Increment 4 built the client for a browser
+   target and then executed it against a DOM stub with the fragment supplied by hand, so what
+   is unexercised is the browser's own URL handling — precisely the half the zero-knowledge
+   claim rests on. Watch the network panel: the request must show the path without the `#`.
+3. Converge one real desktop build against the spike's relay account, since Increment 3's peer
+   is the desktop *data path* (`joinAccount` + `runAccountSync`) rather than Electron.
 
 ## Two design points — both settled by Increment 2
 
@@ -334,7 +349,10 @@ Things the spike should confirm and cost, not discover:
   Increment 3's CRUD framing — which is now also done, and answered yes.
 - **After Increment 5a** — the next real one: you know whether the browser data layer is
   possible, for a couple of hours, before committing to the rest of Increment 5.
-- Increments 4 and 5b-e are each droppable without invalidating what came before.
+- Increments 5b-e are each droppable without invalidating what came before — and 5a is now
+  cheaper to reach than it was, because Increment 4 already proved the browser *build* works
+  (`@leapsake/crypto` and `@leapsake/ui` both bundle), leaving 5a to answer only the
+  sqlite-wasm half.
 
 ## Open questions
 

@@ -36,6 +36,11 @@ pnpm --filter @leapsake/web-spike bench \
 pnpm --filter @leapsake/web-spike roundtrip \
   --relay http://localhost:4001 --host http://localhost:5180 \
   --username ada --password 'hunter2 hunter2'
+
+# 7. Increment 4's done-when, automated: both sharing flavors made and viewed,
+#    including a Vite browser build of the client half that is then executed.
+pnpm --filter @leapsake/web-spike share \
+  --host http://localhost:5180 --username ada --password 'hunter2 hunter2'
 ```
 
 Four environment variables steer the host, and each one exists to produce a
@@ -476,6 +481,176 @@ would not: there the `name` is on a hidden input the component maintains.
 - **303 was the right status and it never had to be debugged**, which is worth a
   line only because getting it wrong is invisible until a refresh resubmits.
 
+## Increment 4 — findings
+
+**Done-when met, and automated.** `pnpm --filter @leapsake/web-spike share`
+makes both flavors of §11 public link, views each one, and checks the three
+things the flavors are supposed to differ on. **13/13, and still zero files
+changed under `packages/`.**
+
+```
+capability link — the key stays in the browser
+  ✓ the server's request line carries no fragment
+  ✓ the served page contains ciphertext and no plaintext
+  ✓ and it decrypts with the key from the fragment
+  ✓ without JavaScript it says so, rather than appearing broken
+the client half — built by Vite, then executed
+  ✓ @leapsake/crypto compiles to a browser target
+  ✓ the built bundle decrypts from location.hash and writes the DOM
+  ✓ a wrong key fails closed
+  ✓ no key at all explains itself
+  ✓ @leapsake/ui + React compile to a browser target too
+hosted link — the server holds the key, so no-JS works
+  ✓ no fragment, so the whole link is what the server receives
+  ✓ it renders the shared relationship through the shared screen
+  ✓ identical with JavaScript on and off
+  ✓ the two flavors differ by exactly one thing: who has the key
+```
+
+The caveat is the same shape as Increments 2 and 3's, and it lands on the same
+missing thing: **no browser was driven.** The client half was built for a
+browser target and then *executed* — against a hand-written DOM stub, with the
+fragment a browser would have supplied — so what is unproven is the browser's
+own URL handling rather than the code. See the two halves below.
+
+### 1. The demonstration, which is a log line the server did not print
+
+The done-when asks for the server's request log, so here it is, from a request
+made with the complete link — key and all — on the end:
+
+```
+sent      /share/43282163-cc01-4830-8bc0-449beee09b92#vJjX-SJG…
+received  /share/43282163-cc01-4830-8bc0-449beee09b92
+share  GET /share/43282163-cc01-4830-8bc0-449beee09b92  → 840 B ciphertext, 0 B plaintext
+```
+
+`fetch` stands in for a browser here **deliberately, not for convenience**: both
+implement the same rule from the same spec — the Fetch standard builds a request
+from a URL whose fragment has already been excluded — so this exercises the rule
+under test rather than working around a missing browser. The route echoes
+`req.url` verbatim as `x-received-url` so the check reads the server's own input
+rather than a reconstruction of it.
+
+The complementary half is that the page carries **no plaintext to leak**: 1 564
+bytes, of which 840 are base64 ciphertext, and none of the payload's own words
+(`"Ada Lovelace & Charles Babbage"` and both partner labels, in raw *and*
+HTML-escaped spelling) appear anywhere in it.
+
+### 2. Capability links are structurally incompatible with the no-JS floor — confirmed, and it is cheap
+
+Exactly as the plan doc predicted, and worth stating flatly because it is the
+one place the accessibility floor cannot be reached by more work: **the key
+never arrives, so no server can render the page.** The spike's answer is a
+`<noscript>` that says so in those words rather than a page that looks broken.
+
+The cost is real and small, and the hosted fallback really is a ten-line route
+(`hosted-view.tsx`, of which `openHostedShare` is the only line that differs in
+kind). The two viewers sit side by side and differ by exactly one thing:
+
+| | capability | hosted |
+| --- | --- | --- |
+| where the key is | the URL fragment, client-side only | the server, `wrap(ck, hostKey)` |
+| page contains | 840 B ciphertext, 0 B plaintext | the rendered relationship |
+| `<script>` in the response | 1 | **0** |
+| works with JS disabled | **no, and cannot** | yes |
+| re-showable to the sharer | **no — see finding 4** | yes |
+| server can read the content | no | **yes** |
+
+### 3. `@leapsake/crypto` compiles to a browser target — and `@leapsake/ui` does too, at a price
+
+The plan doc wanted this as a five-minute early warning on Increment 5's biggest
+assumption. It is green, and the second build is the more interesting one:
+
+| bundle | minified | gzip |
+| ------ | -------- | ---- |
+| `share.ts` — `@leapsake/crypto` + `@leapsake/bytes`, no framework | **13.8 KiB** | **5.9 KiB** |
+| `share-screen.tsx` — the same plus React and `RelationshipScreen` | 475.3 KiB | **111.9 KiB** |
+
+Neither output contains a `node:` import or a `require(`. The larger one breaks
+down as **react-dom 548 KiB, zod 160 KiB, @noble/ciphers 52 KiB,
+@leapsake/schema 32 KiB, react 20 KiB, @leapsake/ui 16 KiB** (pre-minify
+rendered sizes), and two of those are worth carrying into Increment 5:
+
+- **`zod` reaches the browser through `@leapsake/schema`**, which every shared
+  package imports, so it is not optional — 160 KiB of validator to render a
+  read-only screen. If the browser bundle ever matters, that is the first thing
+  to look at, and it is a shared-package shape question rather than a web one.
+- **The shared UI itself is 16 KiB.** The framework is the weight; the code the
+  spike is trying to reuse is nearly free.
+
+Smaller, and only visible because the bundle was read: **`@leapsake/crypto`'s
+index does not tree-shake.** The capability client imports `open` and nothing
+else, yet the bundle still contains the KDF's domain-label constants, because
+they are top-level `utf8ToBytes(...)` calls the bundler cannot prove are pure.
+It costs a few hundred bytes here; it would matter to a package that wanted a
+minimal browser entry point.
+
+### 4. A capability link cannot be re-shown, and that is a product rule
+
+The create POST answers with a page rather than a 303, and unlike every other
+write in the spike it has no choice: the key exists in the host process only for
+the duration of that request, and a redirect target could only carry it in a
+fragment the redirected-to server would never see. So **the create response is
+the only place a capability key ever appears.** Lose the link and you re-share.
+
+That is not an implementation detail to fix later — it is what "the server
+cannot read it" *means*, seen from the sharer's side, and it belongs in whatever
+UI eventually offers the choice ("copy this now" vs. a hosted link that can be
+looked up again). What it costs the spike is a refresh hazard: re-posting mints
+a second share. Left alone, because the alternative — a server-side flash
+holding a plaintext key across requests — is precisely the thing the flavor
+exists to avoid.
+
+### 5. A shared screen is reusable unauthenticated, and it renders too much
+
+The plan doc's optional quarter-hour, taken, and it paid. `RelationshipScreen`
+was chosen because it has **zero callback props and renders no form**, and it
+dropped into an unauthenticated page as one JSX element. The payload needed no
+share format either: `views.relationship()` already returns exactly the screen's
+props, so `shares.ts` seals the view model verbatim and it type-checks against
+`@leapsake/ui`'s `RelationshipPartner` with no mapping. That is Increment 2's
+finding a third time — the shared layer is portable because it was never
+client-shaped.
+
+What it renders, though, is the *owner's* screen:
+
+```html
+<a href="/relationships/4eb78f4b…/edit">Edit roles</a>
+<a href="/relationships/4eb78f4b…/delete">Delete</a>
+<a href="/relationships/4eb78f4b…/milestones/new">Add milestone</a>
+```
+
+Three affordances a viewer cannot use, plus the relationship's internal id and
+the shape of the owner's routes. Nothing is damaged — with no JavaScript they
+are plain links to routes this host does not serve — but a real share needs a
+read-only mode, and the verdict matches Increments 2 and 3's two `packages/`
+entries exactly: **plausible and small** (a `readOnly` prop, or a
+viewer-capability the sections read), **and product work** about what a shared
+view *is*. Logged in `WANTED-CHANGES.md`.
+
+### 6. Smaller things worth keeping
+
+- **Two submit buttons, one `<form>`, same `name` and different `value`** is the
+  whole no-JS mechanism for offering two actions on one row — which is how the
+  two flavors get contrasted at the point of choosing. It needed nothing from
+  the shared UI, and it is the plain-HTML answer to what would otherwise be a
+  radio group plus JavaScript.
+- **`Host` builds the absolute link, and a real host must not do that.** The
+  header is attacker-controlled, and a share link is exactly the value that must
+  not be poisoned by it — a configured public origin is the real answer. Noted at
+  the call site.
+- **The hosted key is wrapped, and the claim is thinner than the session's.**
+  `wrap(ck, hostKey)` mirrors §9.2 Scenario 2, but `hostKey` lives in the same
+  process as the ciphertext it opens, where a session's wrapping key lives in a
+  browser's cookie jar. Wrapping means a stolen *store* is not also a stolen
+  *key*; it does not mean the server cannot read a hosted share, which is the
+  whole point of the flavor.
+- **The base64 alphabets are not interchangeable, and only one place needs the
+  URL one.** The fragment key is base64url (`+`/`/`/`=` are wrong in a URL); the
+  ciphertext in the page stays standard base64, because an HTML attribute has no
+  opinion. Both conversions moved to `src/base64url.ts`, which the session cookie
+  was already the only user of.
+
 ## What is here
 
 | file | why |
@@ -493,6 +668,14 @@ would not: there the `name` is on a hidden input the component maintains.
 | `src/routes/person-new.tsx`, `person-edit.tsx`, `person-delete.tsx` | the C, U and D of Increment 3 — a GET that renders the shared form and a POST that runs the desktop action |
 | `src/routes/duplicates.tsx` | a throwaway list, so the ported create redirect lands somewhere real |
 | `scripts/roundtrip.ts` | Increment 3's done-when, runnable: C/U/D on the no-JS client, each observed on a second joined device |
+| `src/shares.ts` | both §11 flavors from one mechanism — the only difference is what happens to the content key |
+| `src/routes/share-new.tsx` | making a share, with the two flavors offered side by side; the POST that can only answer once |
+| `src/routes/share-view.tsx` | the capability viewer: ciphertext, a `<script>`, and a `<noscript>` that says why |
+| `src/client/share.ts` | the client half — the only JavaScript the spike ships, and the whole zero-knowledge claim |
+| `src/client/share-screen.tsx` | **a build probe, not a route**: does `@leapsake/ui` compile to a browser target, and what does it weigh |
+| `src/routes/hosted-view.tsx` | the hosted viewer: ten lines, SSR, no script — the same shared screen, unauthenticated |
+| `src/base64url.ts` | standard base64 ↔ the URL alphabet, for the cookie and the fragment key |
+| `scripts/share.ts` | Increment 4's done-when, runnable: both flavors, plus a Vite browser build of the client that is then executed |
 | `src/bootstrap.ts` | the four-call username+password → master key path (**not** `joinAccount`, and the docblock says why) |
 | `src/measure.ts` | every measurement, in one file, so it is one file to delete |
 | `src/probe.ts` | the `@leapsake/ui`-loads-through-SSR check behind `GET /probe` |

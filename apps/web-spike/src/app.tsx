@@ -5,12 +5,15 @@ import { hydrate, type Hydrated, type HydrateTimings, storeMode } from "./hydrat
 import { probe } from "./probe.js";
 import { redirect, text, type Reply } from "./reply.js";
 import { duplicatesPage } from "./routes/duplicates.js";
+import { hostedViewPage } from "./routes/hosted-view.js";
 import { loginPage, loginSubmit } from "./routes/login.js";
 import { peoplePage } from "./routes/people.js";
 import { personPage } from "./routes/person.js";
 import { personDeletePage, personDeleteSubmit } from "./routes/person-delete.js";
 import { personEditPage, personEditSubmit } from "./routes/person-edit.js";
 import { personNewPage, personNewSubmit } from "./routes/person-new.js";
+import { shareNewPage, shareNewSubmit } from "./routes/share-new.js";
+import { shareViewPage } from "./routes/share-view.js";
 import {
   CLEAR_COOKIE,
   closeSession,
@@ -205,6 +208,39 @@ export async function handleRequest(req: IncomingMessage): Promise<Reply> {
   if (path === "/people/new") {
     if (method === "GET") return authenticated(req, (core) => personNewPage(core));
     if (method === "POST") return writing(req, personNewSubmit);
+  }
+
+  // The two share flavors of §11, and the routing tells them apart before
+  // anything else does: `/share/*` is served without a session (a share is for
+  // someone with no account), so both viewers sit *outside* `authenticated`
+  // while the maker of a share sits inside it.
+  if (path === "/share/new") {
+    if (method === "GET") {
+      return authenticated(req, (core) =>
+        shareNewPage(core, url.searchParams.get("person")),
+      );
+    }
+    if (method === "POST") {
+      const form = await readForm(req);
+      // The absolute link has to be built from something, and `Host` is what a
+      // browser sends. A real host reads a configured public origin instead —
+      // `Host` is attacker-controlled, and a share link is exactly the kind of
+      // value that must not be poisoned by it.
+      const origin = `http://${req.headers.host ?? "localhost:5180"}`;
+      return authenticated(req, (core) => shareNewSubmit(core, form, origin));
+    }
+  }
+
+  const capability = /^\/share\/([^/]+)$/.exec(path);
+  if (method === "GET" && capability !== null) {
+    // `req.url` verbatim, because the point of this route is what it *did not*
+    // receive — see `share-view.tsx`.
+    return shareViewPage(capability[1] as string, req.url ?? "");
+  }
+
+  const hosted = /^\/hosted\/([^/]+)$/.exec(path);
+  if (method === "GET" && hosted !== null) {
+    return hostedViewPage(hosted[1] as string);
   }
 
   if (method === "GET" && path === "/duplicates") {

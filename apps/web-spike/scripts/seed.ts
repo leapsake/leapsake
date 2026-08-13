@@ -139,13 +139,25 @@ const charles = await core.people.create(
   { firstName: "Charles", lastName: "Babbage" },
   [],
 );
-await core.relationships.create({
+const friendship = await core.relationships.create({
   aType: "person",
   aId: ada.id,
   aRole: "friend",
   bType: "person",
   bId: charles.id,
   bRole: "friend",
+});
+// A milestone **on the relationship**, so Increment 4 has something to share
+// that is not just two names. `RelationshipScreen` is the canonical home for
+// relationship-kind milestones, and a share of an empty screen would prove the
+// wiring without proving the payload.
+await core.milestones.create({
+  kind: "met",
+  bearerType: "relationship",
+  bearerId: friendship.id,
+  year: 1833,
+  month: 6,
+  day: 5,
 });
 // An inline `@mention` so `MentionedInSection` has a backlink to render — the one
 // section on the page fed by a reverse index rather than a direct read.
