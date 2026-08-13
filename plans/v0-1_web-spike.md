@@ -13,8 +13,13 @@ findings live beside the code that produced them, in
 [`apps/web-spike/README.md`](../apps/web-spike/README.md), until Increment 6 folds them
 into this doc and deletes the app.
 
-Increments 3, 4, and 5 are unbuilt, and each is still independently droppable — see
-*Stopping points*, which now records that the first one has been reached.
+**Continue through Increments 3-5** *(owner, 2026-08-12)*. The first stopping point was
+reached and deliberately not taken, and the decision came with a sharpened goal: the spike
+must show that **every CRUD path a web client needs is possible on this architecture**, not
+only the read Increment 2 answered. So Increment 3 grows a **create** route alongside edit
+and delete — the four letters, end to end, with JavaScript disabled — and stays the place
+the round trip through a real relay is proved. **Start there.** Increments 4 and 5 follow;
+each is still independently droppable, and 5a is the next real stopping point.
 
 **Scheduled pre-v0.1** *(owner, 2026-08-07)*, as a parallel track in [`v0-1.md`](./v0-1.md) —
 independent of the launch prerequisite chain, and the natural filler whenever that chain is
@@ -115,22 +120,53 @@ carries no `<script>` and no inline handler, so the DOM is identical either way 
 by driving Firefox**, which no headless browser in the dev shell would do. A manual
 `javascript.enabled=false` load is still owed.
 
-### Increment 3 — the SSR write path with JS disabled
+### Increment 3 — the full CRUD round trip with JS disabled
 
-`src/routes/person-edit.tsx`, `src/routes/person-delete.tsx`, `src/form-data.ts` (body →
-`URLSearchParams`, plus verbatim ports of `readPersonInput`/`readGender`/`readTags` from
-`router.tsx:73-98`). `PersonForm` already wraps `FormShell`, and `ConfirmDelete` gives a
-second data point on hidden fields for about twenty minutes' work.
+**This is where the spike resumes** *(owner, 2026-08-12)*, and the owner's framing is that
+all four letters have to work, not just the write that proves writes are possible.
 
-POST: parse → `core.people.update(id, input, tags)` (`router.tsx:1188`) →
-`session.pushHwm = await engine.push(session.pushHwm)` → `303`.
+`src/routes/person-new.tsx`, `src/routes/person-edit.tsx`, `src/routes/person-delete.tsx`,
+and `src/form-data.ts` grown with verbatim ports of the three field readers —
+`readGender` (`router.tsx:74`), `readPersonInput` (`:80`), `readTags` (`:96`) — plus
+`readRelationships` (`:149`) and `createRelationships` (`:160`) if create carries them.
+`PersonForm` already wraps `FormShell`, so create and edit share it exactly as desktop
+does, and `ConfirmDelete` gives a second data point on hidden fields.
 
-**Done when**, with JS disabled, editing a name returns a 303, shows the new name, and
-**then arrives in the desktop app running against the same relay account**. A local write
-that never leaves is not an answer; the full `seal` → relay → `open` → LWW merge round trip
-is. Note as you go that the write lands in the warm per-session store, so a second session
-sees it only after its next pull — the SSR analogue of desktop's revalidator, with no
-equivalent yet.
+Each action is the desktop router's, ported call-for-call — the point is that nothing is
+reshaped, the same way Increment 2's loader was not:
+
+| | route | the call, and where desktop makes it |
+|---|---|---|
+| **C** | `POST /people/new` | `core.people.create(input, tags)` (`router.tsx:1156`), then `createRelationships` |
+| **R** | `GET /people/:id` | **done** — Increment 2 |
+| **U** | `POST /people/:id/edit` | `core.people.update(id, input, tags)` (`router.tsx:1188`) |
+| **D** | `POST /people/:id/delete` | `core.people.softDelete(id)` (`router.tsx:1201`) |
+
+Every one of them then does `session.pushHwm = await engine.push(session.pushHwm)` → `303`.
+
+Two things to expect rather than discover. Create's loader is `views.candidates()`
+(`router.tsx:1152`), and create's *redirect* runs `duplicates.findFor` (`:1169`) to decide
+between `/duplicates?for=` and the new person — the quadratic call from Increment 2. Port it,
+because it is the real flow, and record what it costs a create; do not fix it here.
+
+**Done when**, with JS disabled: creating a person 303s to that person's page, editing the
+name shows the new one, deleting drops it from the list — and **all three arrive in a desktop
+app running against the same relay account**. A local write that never leaves is not an
+answer; the full `seal` → relay → `open` → LWW merge round trip is. The delete is the one
+worth being strict about: a tombstone is exactly the case where "it vanished locally" and "it
+propagated" are easy to confuse.
+
+**Out of scope, deliberately:** the two sections Increment 2 found inert — the holiday
+add-field and `GiftCaptureForm`. Both are known CRUD gaps with known shapes (see the section
+inventory in *Known before starting*), and both would need edits under `packages/`, which is
+the one constraint this spike does not spend. Person CRUD proves the architecture; those two
+are the web client's backlog, and they belong in `WANTED-CHANGES.md`, not in this increment.
+
+One consequence of the cold decision to confirm as you go, because it inverts what this doc
+originally predicted: under `WEB_SPIKE_STORE=cold` the write is pushed and **every** later
+request re-pulls, so a second session sees it on its next request with no revalidator
+equivalent needed. Staleness is a property of the warm arm only — which is one more argument
+that cold was the right pick.
 
 ### Increment 4 — sharing, both flavors contrasted
 
@@ -289,10 +325,12 @@ Things the spike should confirm and cost, not discover:
 
 ## Stopping points
 
-- ~~**After Increment 2**~~ — **reached**, and it is a clean yes with zero package edits.
-  Continuing into 3-5 is now an owner call rather than the default.
-- **After Increment 5a** — you know whether the browser data layer is possible, for a couple of
-  hours, before committing to the rest of Increment 5.
+- ~~**After Increment 2**~~ — **reached, and not taken** *(owner, 2026-08-12)*. It was a clean
+  yes with zero package edits; the call was to keep going through 3-5 anyway, because "a person's
+  page renders" is not "a web client is possible" until the writes are proved too. Hence
+  Increment 3's CRUD framing.
+- **After Increment 5a** — the next real one: you know whether the browser data layer is
+  possible, for a couple of hours, before committing to the rest of Increment 5.
 - Increments 3, 4, and 5b-e are each droppable without invalidating what came before.
 
 ## Open questions
