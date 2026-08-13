@@ -31,9 +31,8 @@ import { eventLoopLag, timed } from "./measure.js";
  * sessions are **in-memory per process**, so a relay restart invalidates them
  * and the caller must be able to re-login without the password. That means an
  * SSR session store has to hold the verifier, which is a standing relay
- * credential — see the spike doc's *Two design points* for why it must end up
- * wrapped under the session key rather than sitting in the clear beside the
- * wrapped master key.
+ * credential — see `session.ts` for why it must end up wrapped under the
+ * session key rather than sitting in the clear beside the wrapped master key.
  */
 export async function bootstrapMasterKey(opts: {
   relayUrl: string;

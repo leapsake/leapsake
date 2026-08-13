@@ -124,7 +124,7 @@ plan; it is now observed rather than reasoned.
 
 ### 4. Relay: the per-IP failed-login budget is confirmed wrong for SSR
 
-As predicted in *Known before starting*. `/accounts/session` and
+As the spike doc predicted before a line was written. `/accounts/session` and
 `/accounts/bootstrap` share a 10-per-60s **per-IP** budget; an SSR host logs in
 from one IP for every user, so ten users mistyping a password lock out the
 eleventh. Lifted here with env vars, **not patched** — see `WANTED-CHANGES.md`.

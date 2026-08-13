@@ -2,7 +2,9 @@ import type { EncryptedRecord, SyncTransport } from "@leapsake/sync";
 
 /**
  * Every measurement the spike takes, in **one file** so it is one file to read
- * and one to delete (`plans/v0-1_web-spike.md` → *What to measure*).
+ * and one to delete. What the browser half still owes is
+ * `plans/v0-1_web-spike.md` → *Increment 5*; what the server half found is the
+ * README beside this file.
  *
  * Nothing here is production code and nothing here should grow a dependency in
  * the other direction: the routes and scripts call in, this calls nothing back.

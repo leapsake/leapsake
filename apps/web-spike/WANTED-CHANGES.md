@@ -14,7 +14,8 @@ One line each: **what was wanted → what happened instead**.
   from one IP for every user, so the budget is structurally wrong for a web
   client. → Lifted with `RELAY_BOOTSTRAP_RATE_LIMIT_MAX` / `RELAY_RATE_LIMIT_MAX`
   env vars for the spike run. **Not patched.** This one is a real relay change,
-  and it is already listed in the spike doc's *Known before starting*.
+  and it is already listed in the spike doc's *Changes this spike has already
+  justified*.
 
 - **A non-blocking `deriveKeyMaterial`.** It is synchronous and CPU-bound, and it
   freezes the SSR host for ~355 ms per login (README finding 2). Wanted: an async
