@@ -1,11 +1,12 @@
 /**
- * The gift-capture form's logic, without its markup.
+ * The gift forms' logic, without their markup.
  *
- * The web form and the React Native one are honest ports of each other — the
+ * The web forms and the React Native ones are honest ports of each other — the
  * markup differs because the platforms do — but what a recipient *is* while it's
- * being authored, when a giving row counts as blank, and how a party's occasions
- * and prior gifts are fetched are domain rules, identical in both. They were two
- * hand-kept copies, and only the web one was under test.
+ * being authored, when a giving row counts as blank, how a party's occasions and
+ * prior gifts are fetched, and how a party or an occasion is keyed are domain
+ * rules, identical in both. They were two hand-kept copies, and only the web one
+ * was under test.
  */
 import type {
   CaptureRecipient,
@@ -24,6 +25,19 @@ import { type DateFields, emptyDate, parseDateFields } from "./partial-date.js";
 /** A person or pet as one string — a React key, a Set member, a route param. */
 export const partyKey = (party: { type: string; id: string }) =>
   `${party.type}:${party.id}`;
+
+/** An occasion as an option's value. The empty string is “no occasion”, which is
+ *  a pickable choice rather than an absence of one. */
+export const occasionKey = (occasion: GiftOccasion | null) =>
+  occasion === null ? "" : `${occasion.type}:${occasion.id}`;
+
+/** A picked option's value back into an occasion, the inverse of
+ *  {@link occasionKey}. */
+export function occasionOfKey(value: string): GiftOccasion | null {
+  if (value === "") return null;
+  const [type, ...rest] = value.split(":");
+  return { type: type as GiftOccasion["type"], id: rest.join(":") };
+}
 
 /** One giving being authored: a what-happened date and an optional occasion.
  *  `id` is a stable React key across adds/removes. */

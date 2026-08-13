@@ -4,12 +4,11 @@ import {
   type DateFields,
   type GiftOccasionChoice,
   datePart,
+  occasionKey,
+  occasionOfKey,
   useGiftsPorts,
 } from "../../headless/index.js";
 import { useMessages } from "../../messages/index.js";
-
-const keyOf = (o: GiftOccasion | null) =>
-  o === null ? "" : `${o.type}:${o.id}`;
 
 /**
  * The occasion + partial-date pair, authored together because their *meanings*
@@ -66,18 +65,6 @@ export function GiftOccasionFields({
   const milestones = occasions.filter((o) => o.type === "milestone");
   const holidays = occasions.filter((o) => o.type === "holiday");
 
-  function pickOccasion(value: string) {
-    if (value === "") {
-      onOccasionChange(null);
-      return;
-    }
-    const [type, ...rest] = value.split(":");
-    onOccasionChange({
-      type: type as GiftOccasion["type"],
-      id: rest.join(":"),
-    });
-  }
-
   return (
     <fieldset>
       <legend>{legend}</legend>
@@ -85,14 +72,14 @@ export function GiftOccasionFields({
         <label htmlFor={`${id}-occasion`}>{m.giftOccasion.occasionLabel}</label>{" "}
         <select
           id={`${id}-occasion`}
-          value={keyOf(occasion)}
-          onChange={(e) => pickOccasion(e.target.value)}
+          value={occasionKey(occasion)}
+          onChange={(e) => onOccasionChange(occasionOfKey(e.target.value))}
         >
           <option value="">{m.giftOccasion.noOccasion}</option>
           {milestones.length > 0 && (
             <optgroup label={m.giftOccasion.milestoneGroup}>
               {milestones.map((o) => (
-                <option key={`${o.type}:${o.id}`} value={`${o.type}:${o.id}`}>
+                <option key={occasionKey(o)} value={occasionKey(o)}>
                   {o.label}
                 </option>
               ))}
@@ -101,7 +88,7 @@ export function GiftOccasionFields({
           {holidays.length > 0 && (
             <optgroup label={m.giftOccasion.holidayGroup}>
               {holidays.map((o) => (
-                <option key={`${o.type}:${o.id}`} value={`${o.type}:${o.id}`}>
+                <option key={occasionKey(o)} value={occasionKey(o)}>
                   {o.label}
                 </option>
               ))}

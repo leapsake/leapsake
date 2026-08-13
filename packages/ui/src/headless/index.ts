@@ -16,6 +16,8 @@ export {
   givingsOf,
   newGivingRow,
   newSuggestionFields,
+  occasionKey,
+  occasionOfKey,
   partyKey,
   patchRecipient,
   removeRecipient,

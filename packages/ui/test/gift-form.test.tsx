@@ -11,6 +11,8 @@ import {
   givingsOf,
   newGivingRow,
   newSuggestionFields,
+  occasionKey,
+  occasionOfKey,
   partyKey,
   patchRecipient,
   removeRecipient,
@@ -47,6 +49,24 @@ describe("givingsOf", () => {
 
   it("drops a lone day, since a day needs a month", () => {
     expect(givingsOf([dated({ day: "25" })])).toEqual([]);
+  });
+});
+
+describe("occasionKey / occasionOfKey", () => {
+  it("round-trips an occasion through an option value", () => {
+    const occasion = { type: "holiday" as const, id: "h-1" };
+    expect(occasionOfKey(occasionKey(occasion))).toEqual(occasion);
+  });
+
+  it("treats the empty value as “no occasion”, both ways", () => {
+    expect(occasionKey(null)).toBe("");
+    expect(occasionOfKey("")).toBeNull();
+  });
+
+  it("keeps a milestone and a holiday of the same id apart", () => {
+    expect(occasionKey({ type: "milestone", id: "x" })).not.toBe(
+      occasionKey({ type: "holiday", id: "x" }),
+    );
   });
 });
 

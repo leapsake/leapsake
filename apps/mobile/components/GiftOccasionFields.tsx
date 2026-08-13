@@ -5,13 +5,12 @@ import {
   type DateFields,
   type GiftOccasionChoice,
   datePart,
+  occasionKey,
+  occasionOfKey,
 } from "@leapsake/ui/headless";
 import { SelectField } from "./SelectField";
 import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
-
-const keyOf = (o: GiftOccasion | null) =>
-  o === null ? "" : `${o.type}:${o.id}`;
 
 /**
  * The occasion + partial-date pair, ported from the desktop `GiftOccasionFields`.
@@ -72,22 +71,10 @@ export function GiftOccasionFields({
   const options = [
     { value: "", label: "— none —" },
     ...occasions.map((o) => ({
-      value: `${o.type}:${o.id}`,
+      value: occasionKey(o),
       label: o.type === "holiday" ? `${o.label} (holiday)` : o.label,
     })),
   ];
-
-  function pickOccasion(value: string) {
-    if (value === "") {
-      onOccasionChange(null);
-      return;
-    }
-    const [type, ...rest] = value.split(":");
-    onOccasionChange({
-      type: type as GiftOccasion["type"],
-      id: rest.join(":"),
-    });
-  }
 
   return (
     <View style={styles.section}>
@@ -95,9 +82,9 @@ export function GiftOccasionFields({
 
       <SelectField
         label="Occasion"
-        value={keyOf(occasion)}
+        value={occasionKey(occasion)}
         options={options}
-        onChange={pickOccasion}
+        onChange={(value) => onOccasionChange(occasionOfKey(value))}
       />
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
