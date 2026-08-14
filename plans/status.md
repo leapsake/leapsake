@@ -27,8 +27,8 @@
 1. **The web spike, Increment 5d** — the last of it: a PWA (manifest + service worker caching
    shell, JS and `.wasm`). **Done when a DevTools-offline reload renders the person from the
    OPFS database.** 5c and 5e did the data and key halves, so what is left is the *asset* half
-   plus two inherited questions: **single-tab** OPFS, which an installed PWA is exactly what gets
-   opened twice, and **durable storage**, refused on `localhost` — installing may change that.
+   plus two inherited questions: **single-tab** OPFS, which a PWA is exactly what gets opened
+   twice, and **durable storage**, refused on `localhost` — installing may change that.
    It also collects the number 5c and 5e could not, **Argon2id on a worker in a visible tab**,
    since an agent-driven tab is always `hidden`. Droppable at the owner's call, not the
    agent's; then **Increment 6** (write up, tear
