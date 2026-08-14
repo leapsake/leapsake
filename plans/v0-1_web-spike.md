@@ -7,15 +7,16 @@
 > the code that produced them. Nothing here restates either. This doc holds what is **left
 > to do**, and is deleted when the list empties.
 
-**Done: Increments 1-4, 5a and 5b** *(→ 2026-08-13)* — read, write, both sharing flavors, the
-browser data layer, and the whole client-side login path, all answered yes, every one with
-**zero files changed under `packages/`**. **Left: 5c-e, then Increment 6 (write up, tear
-down). Start at 5c.** No stopping points remain; each of 5c-e is droppable on its own merits
-rather than collectively at risk.
+**Done: Increments 1-4, 5a, 5b and 5c** *(→ 2026-08-13)* — read, write, both sharing flavors,
+the browser data layer, the whole client-side login path, and that path in a Worker over a
+persistent store, all answered yes, every one with **zero files changed under `packages/`**.
+**Left: 5e then 5d, then Increment 6 (write up, tear down). Start at 5e** — 5c inverted that
+order, and the section below says why. No stopping points remain; each of the two is droppable
+on its own merits rather than collectively at risk.
 
-## What 1-5b settled, so the rest does not re-derive it
+## What 1-5c settled, so the rest does not re-derive it
 
-Ten results in one line each; the evidence for every one is in the README.
+Thirteen results in one line each; the evidence for every one is in the README.
 
 - **A real browser is drivable** — the Claude-in-Chrome extension reads the browser the user
   already has open (headless still will not launch here). So the three checks owed before
@@ -32,10 +33,22 @@ Ten results in one line each; the evidence for every one is in the README.
   pulls 446 records, decrypts and applies them (~90 ms), and renders `PersonScreen` through
   the *same* adapter the SSR host uses, in ~1 s cold. Everything but the KDF is ~135 ms.
 - **Cold store and incremental pull are mutually exclusive** — the relay is an append-only log
-  with no compaction and a cold host must `pull(0)`. 5c's client is *not* cold, which is why
-  "a reload does not re-pull" is worth proving.
+  with no compaction and a cold host must `pull(0)`. 5c's persistent client is the other arm,
+  measured: a reload pulls **0 records** where the cold host re-pulls the whole history.
 - **`SyncEngine` does not expose its high-water mark**, and the obvious substitute
-  (`Date.now()`) silently drops writes. Any client that writes needs the real mark.
+  (`Date.now()`) silently drops writes. That is a **cold-store** want: a client with a durable
+  store gets `sync()` and both marks from a `syncState` repo, as 5c does.
+- **A Worker moves the whole stall off the page, and the split needs no package change** —
+  `CoreApi` crossed the thread boundary behind a 40-line `Proxy`, the *same* screen file
+  rendering against a real `core` on one page and a proxied one on the other. Argon2id still
+  costs what it costs; the page's own worst unavailability went from ~800 ms to **8.4 ms**.
+- **OPFS makes the schema a once-ever cost and the reload free** — `runMigrations` drops from
+  20-43 ms per tab to "nothing to do", and `pull(cursor)` applies nothing. What it costs is the
+  *cold* apply, 4-7× slower into OPFS than into `:memory:`.
+- **OPFS SAHPool is one tab at a time.** Access handles are exclusive, so a second tab fails
+  at install with `NoModificationAllowedError`. Opening a second tab is something users do, so
+  a real client owes an answer (shared worker, leader election, or read-only fallback) — and
+  5d is a PWA, which is precisely the thing someone opens twice.
 - **The shared layer ports with no shim** — six-line adapter, loader/actions call-for-call,
   field readers verbatim, view models usable as a share payload; `@leapsake/crypto` (5.9 KiB
   gzip) and `@leapsake/ui` + React (112 KiB gzip) both compile to a browser target; contract
@@ -54,12 +67,14 @@ Ten results in one line each; the evidence for every one is in the README.
 The rest were consumed by 1-5a and now live in the code they shaped (`vite.config.ts`,
 `bootstrap.ts`, the two drivers). These two still constrain unbuilt work:
 
-- **`@sqlite.org/sqlite-wasm` for the browser database** — chosen, and as of 5a *working*,
-  so what still binds is the part 5c/5d has yet to use: **OPFS SAHPool needs no cross-origin
-  isolation**, where the older OPFS VFS needs `SharedArrayBuffer` and therefore COOP/COEP,
-  which would poison the whole origin. (`wa-sqlite`'s async-VFS pitch bought nothing because
-  our port is already async; `sql.js` has no persistence story. Migration portability is no
-  longer a prediction — `runMigrations` ran unmodified in 5a, `PRAGMA user_version` and all.)
+- **`@sqlite.org/sqlite-wasm` for the browser database** — chosen, working since 5a, and as of
+  5c **persistent**: `installOpfsSAHPoolVfs()` + `new poolUtil.OpfsSAHPoolDb(...)` needed no
+  cross-origin isolation, exactly as the choice predicted (the older OPFS VFS needs
+  `SharedArrayBuffer` and therefore COOP/COEP, which would poison the whole origin). What now
+  binds 5d is the constraint that came with it: the pool is **worker-only and single-tab**.
+  (`wa-sqlite`'s async-VFS pitch bought nothing because our port is already async; `sql.js` has
+  no persistence story. Migration portability is no longer a prediction — `runMigrations` ran
+  unmodified in 5a, and in 5c ran *once ever*.)
 - **One origin, one module graph.** Vite in middleware mode already covers SSR pages, the
   client bundle, the `.wasm` and the service worker from a single origin, and `server.ts`
   reaches the app only through `ssrLoadModule` — load a module twice and the session store
@@ -69,44 +84,55 @@ Governance for anything new: `"version": "0.0.0"`, no `typecheck` script, exclud
 `oxlint` via `.oxlintrc.json` → `ignorePatterns`, and out of `vitest.config.ts` — verification
 here is manual and in-browser.
 
-## Increment 5b-e — the rest of the browser JS path
+## Increments 5e and 5d — the rest of the browser JS path, in that order
 
-Spike-sized only if "can it work" is split from "is it usable." The lever: **the desktop
-main/renderer split is isomorphic to the browser main-thread/Worker split.**
-`window.api.people.get(id)` is `ipcRenderer.invoke`; a path-addressed `postMessage` proxy over
-`CoreApi` is ~40 lines. This re-hosts `core` behind a different RPC — it re-implements nothing.
+Spike-sized only if "can it work" is split from "is it usable." The lever the plan predicted
+for 5c held exactly and is now a result rather than a bet: **the desktop main/renderer split is
+isomorphic to the browser main-thread/Worker split**, and a path-addressed `postMessage` proxy
+over `CoreApi` came to 40 lines that re-implement nothing.
 
-5a and 5b are done. The driver is `apps/web-spike/src/wasm-sqlite-driver.ts` and the page is
-`/driver-contract`; the client is `src/client/client-app.tsx` behind `/client`, with the
-relay forwarder it needs in `src/relay-proxy.ts`. Both pages print their own numbers.
+5a, 5b and 5c are done. The driver is `apps/web-spike/src/wasm-sqlite-driver.ts` and the page
+is `/driver-contract`; the main-thread client is `src/client/client-app.tsx` behind `/client`;
+the Worker client is `src/client/core-worker.ts` + `core-proxy.ts` behind `/client-worker`,
+with the relay forwarder they need in `src/relay-proxy.ts`. Every page prints its own numbers.
 
-- **5c — Worker and OPFS.** Move sqlite-wasm, `createCore`, `createSyncEngine`, and
-  `deriveKeyMaterial` into the worker; the main thread keeps React and the RPC proxy. Switch to
-  `installOpfsSAHPoolVfs()` + `new poolUtil.OpfsSAHPoolDb("/spike.db")`. **Done when** the page
-  stays interactive through login and the full pull, and a reload does not re-pull. 5b makes
-  the first half concrete: the tab is frozen for ~800 ms of a ~1 s login, and *that* is what
-  the worker is for — it does not make the KDF cheaper. Worth checking while there:
-  persistence should make `runMigrations` a once-ever cost rather than 5b's 20-43 ms per tab,
-  and the ~25 ms engine init should remain per tab regardless. Note the client is read-only
-  today, so a worker that writes needs the high-water mark `SyncEngine` still does not expose.
-- **5d — PWA.** Manifest plus a service worker caching shell, JS, and `.wasm`.
-  `http://localhost` is a secure context, so no TLS. **Done when** DevTools-offline reload
-  renders the person from the OPFS database.
-- **5e — browser key custody.** Half an hour, and arguably the most valuable half-hour here.
+**The order is 5e then 5d, and 5c is what settled it.** The two were listed the other way
+round on the assumption that a PWA is the bigger piece and custody a garnish. It is the
+reverse: 5d's done-when is unreachable without 5e, because `bootstrap.ts` makes **two network
+calls before it has a key** — `lookup(username)` for the account id and salt, then
+`fetchBootstrap` for `wrap(MK, kek)`. Offline, both fail, so an offline reload holds a perfectly
+good OPFS store and nothing that opens it. 5c is what made that concrete by making everything
+*except* the key survive.
+
+- **5e — browser key custody.** Half an hour, and after 5c the most valuable half-hour here.
   Offline access needs something persisted that unwraps the local database; desktop and mobile
   use an OS enclave via the `KeyStore` port and **the browser has no equivalent**. Probe the
   closest analogue: a **non-extractable** `AES-KW`/`AES-GCM` `CryptoKey` in IndexedDB
   (unextractable by JS, origin-bound) wrapping the master key — mint, wrap, reload, unwrap,
-  decrypt a row. Success answers "what is the browser's `KeyStore`?", which §13 leaves open.
-  Failure means PWA offline costs an Argon2id run on every cold start, which is a product
-  decision, not an engineering one.
+  decrypt a row. Success answers "what is the browser's `KeyStore`?", which §13 leaves open,
+  and hands 5d a warm start that needs neither the network nor the KDF. Failure means PWA
+  offline costs an Argon2id run on every cold start, which is a product decision, not an
+  engineering one. 5c sharpened the stakes: the store, the schema and the sync cursor now all
+  survive a reload, so **the key is the only thing that does not**, and the entire cost of a
+  warm start is a KDF run whose result is deliberately thrown away.
+- **5d — PWA.** Manifest plus a service worker caching shell, JS, and `.wasm`.
+  `http://localhost` is a secure context, so no TLS. **Done when** DevTools-offline reload
+  renders the person from the OPFS database. 5c did the data half already — the store, the
+  schema and the cursor all survive — so what 5d adds is the *asset* half, plus one question it
+  inherits: **the OPFS pool is single-tab**, and an installed PWA is exactly what gets opened
+  twice. If 5e fails, 5d can still reach its done-when by caching the two login responses in
+  the service worker — offline login then costs a full Argon2id every time, and it means
+  `wrap(MK, kek)` sits in Cache Storage. That leaks nothing the relay does not already hold,
+  but it is a decision to take deliberately rather than to back into for a green demo.
 
 **What 5 still owes the measurement table** (the server-side half is all in `src/measure.ts`,
 one file to delete; the browser numbers are printed by the pages that produced them):
-**Argon2id on a worker** (5c), and **the device recorded — a phone is the case that
-matters**, since every number so far is one laptop. 5b delivered the rest: the main-thread
-KDF, and pull + decrypt + apply in the browser against the same account the Node column was
-measured on, so the two sit side by side in the README.
+**Argon2id on a worker in a *visible* tab** — 5c measured it five times in a hidden one and got
+1 083-3 417 ms, which is unusable, because a backgrounded renderer de-prioritizes its workers
+at least as hard as its main thread. And **the device recorded — a phone is the case that
+matters**, since every number so far is one laptop. 5b and 5c delivered the rest: the
+main-thread KDF, pull + decrypt + apply in the browser against the same account the Node column
+was measured on, and the cold-versus-persistent store comparison.
 
 ### The CORS gap — proxied in 5b, but the real change is unchanged
 
@@ -147,11 +173,13 @@ Three things belong in the write-up that are not in the README, because they are
 - **The relay's compaction gap** (below) is the one change that is neither optional nor
   cosmetic for an SSR host.
 
-**Three checks are owed before the teardown**, all the same shape — things verified by
-construction or by a stand-in rather than by driving the real thing. 5a found they need not be
-manual: the Claude-in-Chrome extension drives the browser the user already has open, which is
-how `/driver-contract` was read. Only the Firefox one needs a human, and only because
-`javascript.enabled=false` is a Firefox preference.
+**Four checks are owed before the teardown**, the first three the same shape — things verified
+by construction or by a stand-in rather than by driving the real thing. 5a found they need not
+be manual: the Claude-in-Chrome extension drives the browser the user already has open, which
+is how `/driver-contract` was read. Two of them do need a human: the Firefox one, because
+`javascript.enabled=false` is a Firefox preference, and the fourth, because an agent-driven tab
+is always `hidden` — and 5c found that neither `requestAnimationFrame` nor `setInterval`
+survives that, so a visible tab is the one thing the extension route cannot supply.
 
 1. Load `http://localhost:5180` in Firefox with `javascript.enabled=false` and walk
    create/edit/delete by hand — and while there, open a **hosted** share link, which is the
@@ -162,6 +190,12 @@ how `/driver-contract` was read. Only the Firefox one needs a human, and only be
    claim rests on. Watch the network panel: the request must show the path without the `#`.
 3. Converge one real desktop build against the spike's relay account, since Increment 3's peer
    is the desktop *data path* (`joinAccount` + `runAccountSync`) rather than Electron.
+4. **Click `/client-worker` once with the window in front**, and read the two lines the
+   measurement table is missing: Argon2id on a worker, and the frame meter. 5c measured the
+   KDF five times in a hidden tab and got 1 083-3 417 ms against 5b's one visible reading of
+   449 ms, so nothing there is comparable. Cheapest during 5e or 5d, both of which end at a
+   human reloading a real browser anyway. The page prints the visible-tab line only when the
+   tab stayed visible throughout, so its presence is the evidence rather than the tester's word.
 
 ## Changes this spike has already justified
 
@@ -180,7 +214,9 @@ to rediscover it. Each is confirmed, none is built; the reasoning is in
 - **The relay's per-IP failed-login budget is wrong for an SSR host** — one IP for every user,
   so ten users mistyping a password lock out the eleventh. Lifted with env vars, not patched.
 - **A real SSR host needs a worker pool or a native Argon2 binding**; neither exists here.
-- **`SyncEngine` should expose its high-water mark** (or offer a `pushChanged` needing no mark).
+- **`SyncEngine` should expose its high-water mark** (or offer a `pushChanged` needing no mark)
+  — **for hosts with no durable store**, which 5c narrowed it to: a browser client with an OPFS
+  database keeps `sync_state` like desktop and gets both marks from `sync()`.
 - **`createCollectingTestApi` should live in `@leapsake/data/testing`** beside the contract it
   runs — mobile has it, and 5a needed it byte for byte.
 - **`packages/data` ships no browser driver**, and by policy ships none, so the web client owns
@@ -196,6 +232,11 @@ to rediscover it. Each is confirmed, none is built; the reasoning is in
 - **The browser's `KeyStore`** — §13 calls PWA custody "weak — IndexedDB, no enclave → passkey
   PRF is the right answer." 5e probes the cheaper non-extractable `CryptoKey`; passkey PRF
   stays the designed answer and is untested.
+- **What a second tab does** *(Increment 5c)*. OPFS access handles are exclusive, so exactly one
+  tab can hold the database; the second one fails at VFS install. The mechanisms are known
+  (a `SharedWorker` owning the store, a `Web Locks` leader election, or a read-only fallback)
+  and none is free — a `SharedWorker` is the natural fit and is one more thing to prove. The
+  product question underneath it is what a *second* tab should even do, and it arrives with 5d.
 - **Where a share lives** *(Increment 4)*. The spike's process `Map` decides nothing. A real
   share is a row — in the owner's encrypted store (syncs to their devices; the link dies when
   they are offline) or in a **new relay table** (always resolves; the relay grows a schema).

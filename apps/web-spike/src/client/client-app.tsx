@@ -1,21 +1,11 @@
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import {
-  type CoreApi,
-  createCore,
-  runMigrations,
-  syncableRepos,
-} from "@leapsake/core";
+import { createCore, runMigrations, syncableRepos } from "@leapsake/core";
 import { createHttpSyncTransport, createSyncEngine } from "@leapsake/sync";
-import { MessagesProvider, en } from "@leapsake/ui/messages";
-import { GiftsPortsProvider, PersonScreen, UiProvider } from "@leapsake/ui/web";
-import type { GiftsPorts } from "@leapsake/ui/web";
-import { useCallback, useEffect, useState, type ReactElement } from "react";
-import { createRoot } from "react-dom/client";
 import { bootstrapMasterKey } from "../bootstrap.js";
 import { instrumentTransport } from "../measure.js";
-import { ssrUiAdapter } from "../ui-adapter.js";
 import { wasmSqliteDriver } from "../wasm-sqlite-driver.js";
 import { clientGiftsPorts } from "./gifts-ports-client.js";
+import { mountPersonApp } from "./person-app.js";
 
 /**
  * **Increment 5b**: username and password in, a rendered person out, with every
@@ -132,168 +122,14 @@ stage(
   `sqlite ${sqlite3.version.libVersion}, 864 KiB of .wasm — per tab, not per login`,
 );
 
-// --- The loader, which is `routes/person.tsx`'s seven calls ------------------
+// --- The loader and the screen ----------------------------------------------
 
 /**
- * The person page's data, from `core` — the *same seven calls*, in the same
- * `Promise.all`, that `routes/person.tsx` makes on the server and
- * `personLoader` makes on desktop against `window.api`.
- *
- * Copied rather than imported for one reason: the SSR route wraps these in the
- * `WEB_SPIKE_LOADER=serial` attribution harness, which reads `process.env`. The
- * calls themselves are identical, and that they are is the finding — a third
- * host, a third transport under `CoreApi`, no reshaping.
+ * Both live in `person-app.tsx`, which Increment 5c extracted so that its Worker
+ * client renders the *same file* over a `postMessage` proxy onto a `core` in
+ * another thread — see that module's docblock for why one file with two callers
+ * is the claim rather than a tidy-up.
  */
-async function personProps(core: CoreApi, id: string) {
-  const [
-    view,
-    mentionedIn,
-    holidays,
-    giftSuggestions,
-    giftIdeaPool,
-    giftsGiven,
-    duplicateCandidates,
-  ] = await Promise.all([
-    core.views.person(id),
-    core.reminders.mentioning("person", id),
-    core.holidays.listForBearer("person", id),
-    core.gifts.suggestions.listForRecipient("person", id),
-    core.gifts.ideas.list(),
-    core.gifts.given.listForRecipient("person", id),
-    core.duplicates.findFor(id),
-  ]);
-  if (view === null) return null;
-  return {
-    view,
-    mentionedIn,
-    holidays,
-    giftSuggestions,
-    giftIdeaPool,
-    giftsGiven,
-    duplicateCount: duplicateCandidates.length,
-  };
-}
-
-type PersonProps = Awaited<ReturnType<typeof personProps>>;
-
-// --- The screen -------------------------------------------------------------
-
-/**
- * `apps/desktop/src/renderer/src/screens/PersonView.tsx`, with its two
- * dependencies on being desktop replaced:
- *
- * - `useLoaderData()` → the loader called directly, since this client has no
- *   router (the framework question is still deliberately open);
- * - `useRevalidator()` → `load()` again, which is the same idea with none of the
- *   machinery. `onSetObserves` and `onChanged` are the two writes that do *not*
- *   go through a route action, and on the no-JS host they were no-ops with an
- *   apology in a comment. **Here they work**, because JavaScript runs.
- *
- * The `<select>` is the spike's, not the product's: there is no shared people
- * list (see `routes/people.tsx`), and one is not worth inventing to prove a
- * screen renders.
- */
-function App(props: {
-  core: CoreApi;
-  people: readonly { id: string; label: string }[];
-  first: string;
-}): ReactElement {
-  const { core, people, first } = props;
-  const [id, setId] = useState(first);
-  const [data, setData] = useState<PersonProps>(null);
-  const [loaderMs, setLoaderMs] = useState<number | null>(null);
-
-  const load = useCallback(
-    async (personId: string): Promise<void> => {
-      const started = performance.now();
-      const next = await personProps(core, personId);
-      setLoaderMs(round(performance.now() - started));
-      setData(next);
-    },
-    [core],
-  );
-
-  useEffect(() => {
-    void load(id);
-  }, [load, id]);
-
-  return (
-    <>
-      <p>
-        <label htmlFor="who">Person</label>{" "}
-        <select
-          id="who"
-          value={id}
-          onChange={(event) => setId(event.target.value)}
-        >
-          {people.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.label}
-            </option>
-          ))}
-        </select>{" "}
-        <small>
-          {people.length} people in the browser&rsquo;s store
-          {loaderMs === null ? "" : ` — loader ${loaderMs} ms`}
-        </small>
-      </p>
-      {data === null ? (
-        <p>Loading…</p>
-      ) : (
-        <PersonScreen
-          // Every `href` this screen renders is a link to the *SSR* host's
-          // routes, and clicking one is a full document navigation that throws
-          // this tab's store and master key away. That is not a bug in the
-          // adapter, it is what the degenerate adapter *is* — see the findings.
-          trail={[{ label: "People & Pets", href: "/client" }]}
-          person={data.view.person}
-          gender={data.view.gender}
-          tags={data.view.tags}
-          relationships={data.view.relationships}
-          timeline={data.view.timeline}
-          contactMethods={data.view.contactMethods}
-          mentionedIn={data.mentionedIn}
-          holidays={data.holidays}
-          giftSuggestions={data.giftSuggestions}
-          giftsGiven={data.giftsGiven}
-          giftIdeaPool={data.giftIdeaPool}
-          duplicateCount={data.duplicateCount}
-          onSetObserves={(holidayId, observes) =>
-            core.holidays.setObservers(holidayId, [
-              { bearerType: "person", bearerId: id, observes },
-            ])
-          }
-          onChanged={() => {
-            void load(id);
-          }}
-        />
-      )}
-    </>
-  );
-}
-
-function mount(
-  core: CoreApi,
-  ports: GiftsPorts,
-  people: readonly { id: string; label: string }[],
-): void {
-  const host = document.getElementById("app");
-  const first = people[0]?.id;
-  if (host === null || first === undefined) return;
-
-  // The identical provider stack `render.tsx` mounts for a server render — the
-  // same three providers, the same adapter instance — with `renderToString`
-  // replaced by a root. Nothing about `@leapsake/ui` needed to know which.
-  createRoot(host).render(
-    <MessagesProvider messages={en}>
-      <UiProvider adapter={ssrUiAdapter}>
-        <GiftsPortsProvider ports={ports}>
-          <App core={core} people={people} first={first} />
-        </GiftsPortsProvider>
-      </UiProvider>
-    </MessagesProvider>,
-  );
-}
 
 // --- Login, pull, decrypt ---------------------------------------------------
 
@@ -362,7 +198,7 @@ async function run(username: string, password: string): Promise<void> {
     .map((row) => ({ id: row.id, label: row.label }));
   stage("createCore + entityList", round(performance.now() - coreStarted), "");
 
-  mount(core, clientGiftsPorts(core), people);
+  mountPersonApp(core, clientGiftsPorts(core), people);
   const totalMs = round(performance.now() - startedAt - yieldedMs);
   stage(
     "total, click to first render",

@@ -6,6 +6,7 @@ import { probe } from "./probe.js";
 import { proxyRelay } from "./relay-proxy.js";
 import { redirect, text, type Reply } from "./reply.js";
 import { clientPage } from "./routes/client.js";
+import { clientWorkerPage } from "./routes/client-worker.js";
 import { driverContractPage } from "./routes/driver-contract.js";
 import { duplicatesPage } from "./routes/duplicates.js";
 import { hostedViewPage } from "./routes/hosted-view.js";
@@ -193,6 +194,11 @@ export async function handleRequest(req: IncomingMessage): Promise<Reply> {
   // brings its own login, so this host holds no session for it. Everything below
   // this line is the SSR host; these two pages and the forwarder are the client.
   if (method === "GET" && path === "/client") return clientPage();
+
+  // Increment 5c: the same client with its data layer in a Worker and its
+  // database in OPFS. It sits beside 5b's rather than replacing it, because the
+  // main-thread page is the baseline the worker page is read against.
+  if (method === "GET" && path === "/client-worker") return clientWorkerPage();
 
   // The relay, from the browser's own origin — a spike affordance standing in
   // for the CORS headers the relay does not send, and `relay-proxy.ts` is

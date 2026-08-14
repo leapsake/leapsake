@@ -36,6 +36,12 @@ export default defineConfig({
     // served from its own directory and the relative URL holds.
     exclude: ["@sqlite.org/sqlite-wasm"],
   },
+  // Increment 5c's worker is an ES module — it awaits `installOpfsSAHPoolVfs()`
+  // at the top level and imports `@leapsake/*` — and dev serves it as one
+  // natively. This line only matters to `vite build`, whose default is an IIFE
+  // that neither top-level `await` nor those imports survive; recorded here so a
+  // production build does not rediscover it as a mystery.
+  worker: { format: "es" },
   // React 19.2.3 exactly — the hoisted root pair, so the spike adds no nested
   // copy (AGENTS.md → *React version policy*). Desktop's 19.2.7 is its own
   // bundle's business.

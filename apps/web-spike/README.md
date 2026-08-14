@@ -15,7 +15,7 @@ the next increment can read them all. What each part is for:
 
 | If you are… | Read | Skip |
 | ----------- | ---- | ---- |
-| **picking up the next increment** | *Run it* below, then the plan doc's *What 1-5b settled* — one line per result | every `## Increment N — findings` section |
+| **picking up the next increment** | *Run it* below, then the plan doc's *What 1-5c settled* — one line per result | every `## Increment N — findings` section |
 | **writing Increment 6** | all of it, plus `WANTED-CHANGES.md` — this is the source material | nothing |
 | **chasing one file** | *What is here* at the bottom, then the file's own docblock | the rest |
 | **re-checking a number** | the findings section for the increment that measured it | the others |
@@ -70,6 +70,14 @@ open http://localhost:5180/driver-contract
 #    Keep the window in front: the KDF measures ~1.9x slower in a hidden tab,
 #    and the page labels which one it was.
 open http://localhost:5180/client
+
+# 10. Increment 5c's done-when: the same login with the data layer in a Worker
+#     and the database in OPFS. Click the button, then *reload and click again*
+#     — the second run is the half that persistence exists for. Keep the window
+#     in front here too, and for a stronger reason than on /client: a hidden
+#     tab's KDF readings vary three-fold, and its frame meter reads zero.
+#     Only one tab at a time — OPFS access handles are exclusive.
+open http://localhost:5180/client-worker
 ```
 
 Four environment variables steer the host, and each one exists to produce a
@@ -990,6 +998,183 @@ different adapters over the same screens**, and both already exist in the repo.
   had to reconstruct by hand (`WANTED-CHANGES.md`), and it answers no question 5b
   asked.
 
+## Increment 5c — findings
+
+**Both done-whens met, in a real browser.**
+`http://localhost:5180/client-worker` runs the entire data layer — sqlite-wasm,
+Argon2id, the master key, `createSyncEngine`, `createCore` — in a **Worker**,
+against an **OPFS SAHPool** database, and talks to it over a 40-line
+`postMessage` proxy. The page stays interactive throughout (worst main-thread
+task latency **8.4 ms** while the worker was stalled for **1 057 ms**), and a
+reload logs in against the store it already has: `pull(446)` → **0 applied, 0
+records**, with `runMigrations` reporting *schema already at 28, nothing to do*.
+**Zero files changed under `packages/`**, a seventh time.
+
+```
+worker ready              61.9 ms   sqlite 3.53.0 (49 ms) + leapsake-spike (12.9 ms) — OPFS holds: empty
+Argon2id + bootstrap    1106.7 ms   worker thread stalled 1057.4 ms — 19 MiB, t=2, in JavaScript
+open OPFS + runMigrations 102.7 ms  /spike-<accountId>.db — new file, migrated 0 → 28
+pull(0) + decrypt + apply 241.9 ms  446 applied / 446 records / 112.8 KiB → cursor 446
+createCore + entityList     2.3 ms
+total, click to first render      1474.5 ms
+main thread during the login: worst task latency 8.4 ms over 639 791 message
+round trips, 0 of them over one 60 Hz frame
+```
+
+The second half of the increment is one line of the *reload*, and it is the
+line the persistence was for:
+
+```
+open OPFS + runMigrations  18.8 ms  schema already at 28, nothing to do
+pull(446) + decrypt + apply 34.8 ms 0 applied / 0 records / 0.0 KiB → cursor 446
+```
+
+### 1. The stall did not shrink. It moved — and that is the entire point
+
+The worker does not make Argon2id cheaper and was never going to. What it
+changes is **which thread pays**, and the two probes are meant to be read as a
+pair: the worker's own event-loop probe (`measure.ts`, the same function 5b ran
+on the main thread) reports it stalled for the whole KDF, while the page's probe
+reports a main thread that was never blocked.
+
+| | 5b, main thread | 5c, worker |
+| --- | --- | --- |
+| thread running Argon2id | the tab's | the worker's |
+| that thread's stall | 797.7 ms | 1 057–3 369 ms |
+| **the page's own worst unavailability** | **the same 797.7 ms** | **8.4 ms** |
+| frames drawn during the login | none — the tab is frozen | uninterrupted |
+| what the page could show meanwhile | nothing, without an explicit `await paint()` | every stage row, as it happened |
+
+The disappearance of the yields is the developer-visible half. 5b needed four
+`await paint()` calls to get a row on screen before the next synchronous block,
+and had to *subtract* the time they cost from its own total (a bug it hit first:
+four yields once turned a 530 ms login into a reported 12 423 ms). None of that
+exists here. The stage rows stream from the worker onto a thread that is doing
+nothing, so the wall clock is the number, with nothing subtracted from it.
+
+### 2. Measuring that needed a third instrument, because a hidden tab breaks the other two
+
+Worth its own finding, because it applies to **every browser check this spike
+still owes** — they are all "drive a tab the user is not looking at".
+
+In a backgrounded tab, `requestAnimationFrame` does not fire at all and
+`setInterval` is clamped to ~1 s. So on a main thread that was provably free,
+the frame meter read **0 frames drawn** and `measure.ts`'s event-loop probe —
+the one that ported unchanged from Node to a browser in 5b — read **724–950 ms
+of "stall"**. Both are throttling, and neither can tell throttling from
+blocking.
+
+What does work is a **`MessageChannel` posting to itself in a loop**, measuring
+the gap between consecutive deliveries: message tasks are not on the timer
+throttle. It runs at ~300–600 k round trips per second, which is enough
+allocation to earn the occasional GC pause of its own — so it reports a
+distribution rather than a single worst case, and the count of gaps over one
+60 Hz frame is the number to read. On the cold run: **0 of 639 791**.
+
+### 3. What persistence costs, and what it buys
+
+Same account, same 446 records, same laptop, hidden tab. The KDF row is
+deliberately absent from this table — see finding 5.
+
+| stage | 5b, `:memory:` main thread | 5c cold, OPFS | 5c reload, OPFS |
+| --- | --- | --- | --- |
+| `sqlite3InitModule` | 23–36 ms, **on the login path** | 41–49 ms, **before the click** | 19–45 ms, before the click |
+| install the SAHPool VFS | — | 12.9 ms | 6.6–16.9 ms |
+| open the db + `runMigrations` | 20.7–42.6 ms, **every tab** | 99.8–102.7 ms | **5.1–29.1 ms, nothing to do** |
+| pull + decrypt + apply | 89.7 ms (446 applied) | 241.9–408.6 ms (446 applied) | **8–41.1 ms (0 applied)** |
+| `createCore` + `entityList` | 7.6 ms | 2.3–2.9 ms | 4.7–35.3 ms |
+
+Three readings:
+
+- **The reload is the whole win, and it is bigger than the schema line.**
+  5a and 5b both flagged `runMigrations` as a per-tab cost OPFS should turn into
+  a once-ever one, and it did — but the pull is the larger prize: a browser
+  client that keeps its store pulls **nothing** on a reload where a cold one
+  re-pulls the account's entire history. That is the same asymmetry Increment 3
+  found from the other side, where the *cold* SSR host was the client that could
+  never pull incrementally.
+- **Writing 446 rows into OPFS costs 4–7× what writing them into `:memory:`
+  did** (224–387 ms against 42–53 ms). Persistence is not free on the cold path;
+  it is simply paid once instead of per tab.
+- **Engine init moved off the login path entirely**, because the worker starts
+  with the page and installs its VFS while the user is still typing. It is the
+  one cost the split removed rather than relocated, and it cost nothing to get.
+
+### 4. `CoreApi` crossed a thread boundary behind a `Proxy`, and the screen never noticed
+
+The lever the plan doc predicted — *the desktop main/renderer split is
+isomorphic to the browser main-thread/Worker split* — held exactly.
+`core-proxy.ts` is one recursive `Proxy`: property access accumulates a path,
+calling it posts `{ path, args }`, the reply resolves the promise. No method
+table, no batching layer, no change to any package.
+
+The claim is structural rather than asserted. **`src/client/person-app.tsx` is
+one file with two callers** — 5b's page hands it a real `core`, this one hands
+it a proxy — and the loader, the screen and the provider stack are byte-identical
+between them. `gifts-ports-client.ts` is reused across the boundary untouched,
+which means the gift and holiday sections drive `core` calls *through the worker*
+with no port of their own.
+
+The seven-call person loader crosses as seven separate messages, in one
+`Promise.all`, and costs **6.6–10.9 ms** against 5b's **10.1 ms** in-thread. So
+the RPC is free at this granularity, and deliberately un-optimized: a batching
+API would have hidden whether one was needed.
+
+One real hazard, worth the line it costs: **the proxy must not answer to
+`then`.** An accidental `await core.views` would otherwise see a truthy `then`,
+treat the namespace as a thenable, and hang forever waiting on a
+`core.views.then` call the worker cannot resolve.
+
+### 5. OPFS SAHPool is one tab at a time, and the KDF number is unusable in a hidden one
+
+Two limits of the browser rather than of the code, both found by driving it:
+
+- **A second tab cannot open the database.** The pool takes exclusive
+  `createSyncAccessHandle` locks, so a second tab of the same page fails at
+  install with `NoModificationAllowedError: Access Handles cannot be created if
+  there is another open Access Handle`. That is not a spike artifact — **opening
+  a second tab is something users do**, and a real web client has to answer it
+  (a shared worker, a leader election, or a graceful read-only fallback). It also
+  lands on 5d: a PWA is precisely the thing someone opens twice. The page detects
+  the failure and says so rather than looking broken.
+- **The KDF cannot be measured in a hidden tab, and a worker is *worse* than a
+  main thread there.** Five hidden-tab runs read 1 083 / 1 107 / 1 120 / 3 229 /
+  3 417 ms against 5b's hidden main thread at 832–1 106 ms and its one visible
+  run at 449 ms. A backgrounded renderer's workers are de-prioritized at least as
+  hard as its main thread, and the variance is three-fold, so **none of these
+  numbers belongs in a comparison** — the page labels the tab's visibility for
+  exactly this reason. What the increment does establish is the shape: the KDF is
+  still the whole cost, and it is now the *only* thing a reload has to redo,
+  which is what makes 5e the increment that matters — and, after this increment,
+  the one that comes *next*, ahead of 5d. The visible-tab run is deferred rather
+  than dropped: it is **check 4 of the four owed before the teardown** (plan doc
+  → *Increment 6*), collected cheaply during either, since both end at a human
+  reloading a real browser anyway.
+
+### 6. Smaller things worth keeping
+
+- **The database is named after the account** (`/spike-<accountId>.db`), decided
+  after `lookup(username)` and before the store is opened. A persistent store
+  plus a login form is otherwise a mismatch waiting to happen: logging in as a
+  second account against the first one's store would merge two accounts into one
+  file, silently. A real client has one account per install and answers this with
+  custody instead — but the hazard is created by persistence, so it appears here
+  first.
+- **`bootstrap.ts` now runs unmodified in a third host** — Node, a browser main
+  thread, and a Worker. Its `measure.ts` event-loop probe works in all three too,
+  which is what let the worker report its own stall in the same units.
+- **`vite build` would need `worker: { format: "es" }`**, recorded in
+  `vite.config.ts` though the spike only ever runs dev: the default IIFE worker
+  build survives neither the top-level `await` the VFS install needs nor the
+  `@leapsake/*` imports.
+- **Nothing was needed to make the worker load `.wasm`.** 5a's
+  `optimizeDeps.exclude` is what makes `new URL("sqlite3.wasm", import.meta.url)`
+  resolve, and it holds identically inside a module worker.
+- **Driving a hidden tab is flaky in a way worth knowing before the teardown
+  checks.** Synthesized clicks on this page landed about half the time; a
+  `requestSubmit()` through the page's own handler was reliable. The three checks
+  the spike still owes are all browser-driving, and two of them are click-based.
+
 ## What is here
 
 | file | why |
@@ -1026,6 +1211,12 @@ different adapters over the same screens**, and both already exist in the repo.
 | `src/relay-proxy.ts` | `/relay/*` → `RELAY_URL/*`, because the relay sends no CORS headers; the docblock is emphatic that this is a spike affordance, not an answer |
 | `src/routes/client.tsx` | Increment 5b's shell: a login form the server renders and then has nothing more to do with |
 | `src/client/client-app.tsx` | **Increment 5b's done-when**: login, `pull(0)`, decrypt and `PersonScreen` — all in the tab, all measured |
+| `src/client/person-app.tsx` | the loader, the screen and the providers — **one file, rendered by 5b against a real `core` and by 5c against a proxied one** |
+| `src/routes/client-worker.tsx` | Increment 5c's shell: the login form, plus the frame meter and text field that make "still interactive" watchable |
+| `src/client/client-worker-app.tsx` | **Increment 5c's done-when**, main-thread half: three probes, the stage table, and React over a `core` that lives elsewhere |
+| `src/client/core-worker.ts` | the other half: sqlite-wasm, OPFS, Argon2id, the master key, the sync engine and `core`, none of which the page can reach directly |
+| `src/client/core-proxy.ts` | `CoreApi` over `postMessage` in one recursive `Proxy` — the ~40 lines the plan doc predicted |
+| `src/client/worker-protocol.ts` | the three message shapes between them, which is the whole contract of the thread boundary |
 | `src/client/gifts-ports-client.ts` | desktop's gift ports with `window.api` → `core`; the SSR ports throw, and in a browser the effects that call them actually run |
 | `scripts/seed.ts` | account + rows on a real relay; the fixture is an *account*, since the renderer is stateless |
 | `scripts/pull.ts` | Increment 1's done-when, runnable: the SSR request path minus the rendering |

@@ -255,3 +255,57 @@ that is genuinely blocking is not in `packages/` at all — it is the relay.
   `transformIndexHtml` — would inject `/@vite/client` into every page and break
   the "no `<script>` in the response" property Increments 2–4 assert on the wire.
   One opt-in flag, one page using it.
+
+## Increment 5c — the Worker and OPFS
+
+**Zero files under `packages/` were changed a seventh time**, and this increment
+is the one that could most plausibly have failed that way: re-hosting `core`
+behind a message port is exactly where an API that assumed it was called in-process
+would show it. It did not, so two of the three entries below are *withdrawals* —
+wants from earlier increments that this one dissolved rather than added to.
+
+- **Withdrawn: "a non-blocking `deriveKeyMaterial`" is not the want.** Increments
+  1 and 5b both asked for an async or worker-hosted KDF in `@leapsake/crypto`.
+  5b already noted a client cannot move one function off the main thread by
+  itself — it can only move *everything that calls it*, and that is what this
+  increment did: the synchronous `deriveKeyMaterial` runs unchanged in a Worker,
+  and the page stays at single-digit-millisecond task latency throughout. So the
+  API needs nothing. → What survives is a *different* want, unchanged by any
+  amount of threading: the KDF still costs what it costs, so a **faster
+  implementation or a persisted key** (5e) is the only thing that makes a warm
+  start cheap. A server-side host still wants a worker pool or a native binding
+  for the separate reason Increment 1 gave.
+
+- **Narrowed: `SyncEngine`'s missing high-water mark is a *cold-store* want, not
+  a client-side one.** Increment 3 needed the mark because a stateless SSR host
+  has nowhere durable to keep it; a browser client with an OPFS database has the
+  same `sync_state` table desktop does, so it builds the engine with a
+  `syncState` repo and gets `sync()` — durable marks included — for free. → No
+  change wanted from *this* host, and the Increment 3 entry stands as written for
+  the host that has no durable store. One caveat, **read out of
+  `packages/sync/src/engine.ts` rather than measured**, since this client is
+  read-only: `sync()` is push-then-pull, and a first sync on an empty store
+  stores `push_hwm = 0`, so the *next* sync re-pushes every row the first one
+  pulled. Bounded and one-time, but a persistent client that starts pushing
+  should set the mark after its first pull rather than discover this on the relay.
+
+- **Wanted, and small: a browser `KeyStore`, which is 5e's subject and is now
+  urgent rather than interesting.** Persistence changed what the KDF is *for*.
+  Before this increment every reload lost everything, so paying Argon2id again
+  was merely slow; now the store, the schema and the cursor all survive and the
+  key is the **only** thing that does not — so the whole cost of a warm start is
+  a KDF run whose result is thrown away deliberately. → Nothing changed;
+  `@leapsake/key-custody`'s `KeyStore` port is exactly the right seam and §13
+  leaves the browser's implementation open. Recorded here because 5c is what
+  makes the gap visible: the numbers on the page are a persistent client asking
+  for a key it is not allowed to keep.
+
+- **Not wanted, and the near-miss is the increment's whole result.** `CoreApi`
+  crossed a thread boundary **behind a 40-line `Proxy`** with no batching layer,
+  no method table and no change to any package: property access accumulates a
+  path, calling it posts the path and the arguments, and the reply resolves the
+  promise. It works because the API is entirely async and entirely plain-data,
+  which it is because it was already crossing desktop's `ipcRenderer` boundary.
+  The proof is structural rather than asserted — `src/client/person-app.tsx` is
+  **one file rendering against both**, a real `core` on 5b's page and a proxied
+  one here, and `gifts-ports-client.ts` is reused across the boundary untouched.
