@@ -198,3 +198,60 @@ entry.
 - **Also not wanted:** the `.wasm` resolution fight is entirely Vite's
   (`optimizeDeps.exclude`), not a package's. Nothing in `packages/` knows the
   driver exists, which is the point of the app owning it.
+
+## Increment 5b — client login, pull and decrypt
+
+**Zero files under `packages/` were changed a sixth time**, and the one entry
+that is genuinely blocking is not in `packages/` at all — it is the relay.
+
+- **The relay needs CORS and an `OPTIONS` handler, and this is the increment
+  where that stopped being a prediction.** It sends no `Access-Control-Allow-*`
+  and answers no `OPTIONS`, and the transport's `Authorization` header is not
+  CORS-safelisted — so a browser preflights into a 404 and **no browser client
+  can exist**. Wanted: ~6 lines in `apps/server`, behind a `RELAY_CORS_ORIGINS`
+  env var so the default stays closed. → Forwarded `/relay/*` from the spike's
+  own origin instead (`src/relay-proxy.ts`), which needed **no transport change**
+  because `http-transport.ts` concatenates URLs rather than calling
+  `new URL(base)`, so a relative `baseUrl: "/relay"` just works. Proxying rather
+  than patching, because the relay is the component that is hardening and a CORS
+  patch reverted with the spike is the kind of change that survives a revert by
+  accident. **The proxy is not the answer and must not be read as one**: it sees
+  the account's `authVerifier`, so it could impersonate the account to read and
+  write ciphertext (confidentiality survives — the verifier is an independent
+  HKDF branch — but integrity and availability do not).
+
+- **A non-blocking `deriveKeyMaterial`, again, and now with the strongest case
+  yet.** Increment 1 wanted it because a synchronous KDF stalls an SSR host's
+  other requests; in a browser it freezes **the user's own tab** for 450–860 ms,
+  and the page cannot even paint "logging in…" without an explicit yield first.
+  → Nothing changed. Still a design decision the spike should inform rather than
+  pre-empt (worker vs. native binding), and 5c is where the worker arm gets
+  measured. Worth noting the shape of the eventual want: a client cannot move
+  `deriveKeyMaterial` off the main thread by itself — it can only move
+  *everything that calls it* into a worker, which is why 5c relocates the whole
+  data layer rather than one function.
+
+- **Not wanted, and the near-misses are the increment's real result.**
+  `src/bootstrap.ts` — the SSR host's own four-call login — was **imported and
+  run unmodified in a browser**, `@leapsake/crypto` and `@leapsake/sync` and all.
+  `ui-adapter.tsx` was imported unmodified too, and `PersonScreen` rendered from
+  `createRoot` with the same three providers `render.tsx` mounts for
+  `renderToString`. The gift ports are `apps/desktop/.../gifts-ports.ts` with
+  `window.api` → `core`, and the screen container is desktop's `PersonView` with
+  `useLoaderData` → the loader called directly and `useRevalidator` → calling it
+  again. **A fourth host, a fourth transport under `CoreApi`, and nothing
+  reshaped.**
+
+- **A `readOnly`-shaped want that is *not* wanted here, recorded so it is not
+  re-raised:** the client renders the owner's own screen, so its Edit / Delete /
+  Add-milestone links are correct rather than leaky. What they *are* is full
+  document navigations that discard the tab's key and store — an adapter and
+  routing question for a real web client (README finding 5), not a package one.
+  Desktop's adapter already solves it by mapping `href` onto react-router's `to`.
+
+- **Not a package change, and not the plugin's fault either:**
+  `@vitejs/plugin-react`'s Refresh preamble had to be emitted by hand
+  (`render.tsx` → `REACT_REFRESH_PREAMBLE`), because the normal route —
+  `transformIndexHtml` — would inject `/@vite/client` into every page and break
+  the "no `<script>` in the response" property Increments 2–4 assert on the wire.
+  One opt-in flag, one page using it.

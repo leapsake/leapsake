@@ -29,11 +29,36 @@ import { ssrUiAdapter } from "./ui-adapter.js";
  * other page keeps the property that a missing `<script>` is checkable evidence
  * rather than a promise.
  */
+/**
+ * The React Refresh preamble `@vitejs/plugin-react` requires of any **dev-server**
+ * page that renders React in the browser.
+ *
+ * Normally Vite injects this through `transformIndexHtml`, which the spike cannot
+ * use: that would also inject `/@vite/client` into *every* page, and "this page
+ * contains no `<script>`" is a property Increments 2, 3 and 4 check on the wire.
+ * So it is opt-in per page, and exactly one page opts in.
+ *
+ * Without it the plugin's transform of any React module throws **"can't detect
+ * preamble"** at the first component import, which is a runtime error in a
+ * *dependency* rather than in the page — the module graph is fine, the build is
+ * fine, and the failure names a package the spike never edited. Increment 4's
+ * browser bundles never hit it because `vite build` does not use Refresh at all.
+ */
+const REACT_REFRESH_PREAMBLE = `<script type="module">
+import RefreshRuntime from "/@react-refresh";
+RefreshRuntime.injectIntoGlobalHook(window);
+window.$RefreshReg$ = () => {};
+window.$RefreshSig$ = () => (type) => type;
+window.__vite_plugin_react_preamble_installed__ = true;
+</script>`;
+
 export function renderPage(opts: {
   title: string;
   children: ReactNode;
   /** A module to load — the capability-link viewer, and nothing else. */
   script?: string;
+  /** Does {@link renderPage.script} render React? See the preamble above. */
+  react?: boolean;
 }): string {
   const body = renderToString(
     <MessagesProvider messages={en}>
@@ -51,6 +76,7 @@ export function renderPage(opts: {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(opts.title)} — Leapsake web spike</title>
+${opts.react === true ? REACT_REFRESH_PREAMBLE : ""}
 </head>
 <body>
 ${body}

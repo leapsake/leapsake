@@ -3,7 +3,9 @@ import type { CoreApi } from "@leapsake/core";
 import { readForm } from "./form-data.js";
 import { hydrate, type Hydrated, type HydrateTimings, storeMode } from "./hydrate.js";
 import { probe } from "./probe.js";
+import { proxyRelay } from "./relay-proxy.js";
 import { redirect, text, type Reply } from "./reply.js";
+import { clientPage } from "./routes/client.js";
 import { driverContractPage } from "./routes/driver-contract.js";
 import { duplicatesPage } from "./routes/duplicates.js";
 import { hostedViewPage } from "./routes/hosted-view.js";
@@ -186,6 +188,18 @@ export async function handleRequest(req: IncomingMessage): Promise<Reply> {
   // needs no account: the browser data layer either works or it does not, and
   // nothing about a relay or a key can be blamed for the answer.
   if (method === "GET" && path === "/driver-contract") return driverContractPage();
+
+  // Increment 5b, and it sits beside 5a for the same reason: the browser client
+  // brings its own login, so this host holds no session for it. Everything below
+  // this line is the SSR host; these two pages and the forwarder are the client.
+  if (method === "GET" && path === "/client") return clientPage();
+
+  // The relay, from the browser's own origin — a spike affordance standing in
+  // for the CORS headers the relay does not send, and `relay-proxy.ts` is
+  // emphatic about not letting it launder that into "no relay change needed".
+  if (path.startsWith("/relay/")) {
+    return proxyRelay(req, path.slice("/relay".length) + url.search);
+  }
 
   if (method === "GET" && path === "/") return redirect("/people");
 

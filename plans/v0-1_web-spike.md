@@ -7,15 +7,15 @@
 > the code that produced them. Nothing here restates either. This doc holds what is **left
 > to do**, and is deleted when the list empties.
 
-**Done: Increments 1-4 and 5a** *(→ 2026-08-13)* — read, write, both sharing flavors, and the
-browser data layer, all answered yes, every one with **zero files changed under `packages/`**.
-**Left: 5b-e, then Increment 6 (write up, tear down). Start at 5b.** No stopping points
-remain; 5a's green means 5b-e are each droppable on their own merits rather than collectively
-at risk.
+**Done: Increments 1-4, 5a and 5b** *(→ 2026-08-13)* — read, write, both sharing flavors, the
+browser data layer, and the whole client-side login path, all answered yes, every one with
+**zero files changed under `packages/`**. **Left: 5c-e, then Increment 6 (write up, tear
+down). Start at 5c.** No stopping points remain; each of 5c-e is droppable on its own merits
+rather than collectively at risk.
 
-## What 1-5a settled, so the rest does not re-derive it
+## What 1-5b settled, so the rest does not re-derive it
 
-Eight results in one line each; the evidence for every one is in the README.
+Ten results in one line each; the evidence for every one is in the README.
 
 - **A real browser is drivable** — the Claude-in-Chrome extension reads the browser the user
   already has open (headless still will not launch here). So the three checks owed before
@@ -25,8 +25,12 @@ Eight results in one line each; the evidence for every one is in the README.
   40-140 ms: as on the server, the KDF is the cold-start cost, not the database.
 - **Cold store, warm key** — §9.2 as written, so the warm-decrypted-store trust claim it
   warned might be forced is not forced. `WEB_SPIKE_STORE=warm` still builds the other arm.
-- **Argon2id is the whole login cost (~355 ms) and it stalls the entire host** — the number
-  every in-browser measurement is compared against.
+- **Argon2id is the whole login cost and it stalls whatever runs it** — ~386 ms on Node,
+  **~450 ms in a visible browser tab and ~850 ms in a hidden one**, freezing the tab for
+  essentially the whole duration. It is 85% of a browser cold start.
+- **The client-side path works end to end and is not the expensive part.** A tab logs in,
+  pulls 446 records, decrypts and applies them (~90 ms), and renders `PersonScreen` through
+  the *same* adapter the SSR host uses, in ~1 s cold. Everything but the KDF is ~135 ms.
 - **Cold store and incremental pull are mutually exclusive** — the relay is an append-only log
   with no compaction and a cold host must `pull(0)`. 5c's client is *not* cold, which is why
   "a reload does not re-pull" is worth proving.
@@ -37,7 +41,13 @@ Eight results in one line each; the evidence for every one is in the README.
   gzip) and `@leapsake/ui` + React (112 KiB gzip) both compile to a browser target; contract
   and migrations run in a browser unmodified.
 - **The no-JS floor has a three-item `packages/ui` backlog**, all product work:
-  `GiftCaptureForm`, the `HolidaysSection` add-field, `RelationshipFields` on create.
+  `GiftCaptureForm`, the `HolidaysSection` add-field, `RelationshipFields` on create — and
+  5b showed all three are **live in a JS client from the same components**, so they are gaps
+  in the floor rather than in the package.
+- **The SSR host and the JS client want different adapters over the same screens.** The
+  degenerate `href`-passthrough adapter is right for no-JS and wrong for a client-side app,
+  where every link is a document navigation that discards the tab's key and store. Desktop's
+  adapter (`href` → react-router `to`) is the shape a real web client needs.
 
 ## Decisions that still bind
 
@@ -66,20 +76,19 @@ main/renderer split is isomorphic to the browser main-thread/Worker split.**
 `window.api.people.get(id)` is `ipcRenderer.invoke`; a path-addressed `postMessage` proxy over
 `CoreApi` is ~40 lines. This re-hosts `core` behind a different RPC — it re-implements nothing.
 
-5a is done: the driver is `apps/web-spike/src/wasm-sqlite-driver.ts`, the page is
-`/driver-contract`, and the `optimizeDeps` exclusion the `.wasm` needs is in
-`vite.config.ts` with the failure mode recorded beside it.
+5a and 5b are done. The driver is `apps/web-spike/src/wasm-sqlite-driver.ts` and the page is
+`/driver-contract`; the client is `src/client/client-app.tsx` behind `/client`, with the
+relay forwarder it needs in `src/relay-proxy.ts`. Both pages print their own numbers.
 
-- **5b — client login, pull, decrypt** on the main thread with `:memory:`. Freeze the tab;
-  prove the capability first. Same four calls as the server (`src/bootstrap.ts`), then
-  `runMigrations` → `createSyncEngine(...).pull(0)` → `createCore` → render `PersonScreen`
-  with the *same* `ui-adapter.tsx`.
 - **5c — Worker and OPFS.** Move sqlite-wasm, `createCore`, `createSyncEngine`, and
   `deriveKeyMaterial` into the worker; the main thread keeps React and the RPC proxy. Switch to
   `installOpfsSAHPoolVfs()` + `new poolUtil.OpfsSAHPoolDb("/spike.db")`. **Done when** the page
-  stays interactive through login and the full pull, and a reload does not re-pull. Worth
-  checking while there: persistence should make `runMigrations` a once-ever cost rather than
-  5a's 40-140 ms per load, and the ~55 ms engine init should remain per tab regardless.
+  stays interactive through login and the full pull, and a reload does not re-pull. 5b makes
+  the first half concrete: the tab is frozen for ~800 ms of a ~1 s login, and *that* is what
+  the worker is for — it does not make the KDF cheaper. Worth checking while there:
+  persistence should make `runMigrations` a once-ever cost rather than 5b's 20-43 ms per tab,
+  and the ~25 ms engine init should remain per tab regardless. Note the client is read-only
+  today, so a worker that writes needs the high-water mark `SyncEngine` still does not expose.
 - **5d — PWA.** Manifest plus a service worker caching shell, JS, and `.wasm`.
   `http://localhost` is a secure context, so no TLS. **Done when** DevTools-offline reload
   renders the person from the OPFS database.
@@ -93,22 +102,21 @@ main/renderer split is isomorphic to the browser main-thread/Worker split.**
   decision, not an engineering one.
 
 **What 5 still owes the measurement table** (the server-side half is all in `src/measure.ts`,
-one file to delete; 5a's browser numbers are printed by the page that produced them):
-**Argon2id in-browser**, main thread (5b) and worker (5c), with the device
-recorded — a phone is the case that matters; and **pull + decrypt + apply in the browser**,
-the same shape as the Node table already in the README, so the two sit side by side. That
-comparison is what says whether the client-side zero-knowledge path is viable.
+one file to delete; the browser numbers are printed by the pages that produced them):
+**Argon2id on a worker** (5c), and **the device recorded — a phone is the case that
+matters**, since every number so far is one laptop. 5b delivered the rest: the main-thread
+KDF, and pull + decrypt + apply in the browser against the same account the Node column was
+measured on, so the two sit side by side in the README.
 
-### The CORS gap — proxy for the spike, but name the real change
+### The CORS gap — proxied in 5b, but the real change is unchanged
 
-The relay sends no CORS headers and handles no `OPTIONS`, so **a browser cannot call it
-today**. For the spike, forward `/relay/*` → `RELAY_URL/*` from the spike's own origin (~20
-lines). This needs **zero transport changes**: `http-transport.ts` builds every URL by string
-concatenation (`${base}/accounts/session`, lines 224-381), never `new URL(base)`, so a relative
-`baseUrl: "/relay"` resolves against the page origin — and same-origin means no preflight,
-which matters because the `Authorization` header would otherwise force an `OPTIONS` the relay
-404s. Proxying beats patching `apps/server` because the relay is the thing hardening, and a
-reverted CORS patch is exactly the kind of change that survives revert by accident.
+`src/relay-proxy.ts` forwards `/relay/*` → `RELAY_URL/*` from the spike's own origin, and it
+needed **zero transport changes**: `http-transport.ts` concatenates URLs rather than calling
+`new URL(base)`, so a relative `baseUrl: "/relay"` resolves against the page origin — and
+same-origin means no preflight, which matters because the `Authorization` header would
+otherwise force an `OPTIONS` the relay 404s. Proxying beat patching `apps/server` because the
+relay is the thing hardening, and a reverted CORS patch is exactly the kind of change that
+survives revert by accident.
 
 **The caveat belongs in the findings, not buried here:** the proxy sees
 `Authorization: Bearer <accountId>.<b64(authVerifier)>`. The verifier is an independent HKDF
@@ -162,7 +170,8 @@ to rediscover it. Each is confirmed, none is built; the reasoning is in
 [`WANTED-CHANGES.md`](../apps/web-spike/WANTED-CHANGES.md).
 
 - **The relay needs CORS + `OPTIONS`** before any browser client can exist (~6 lines behind a
-  `RELAY_CORS_ORIGINS` env var).
+  `RELAY_CORS_ORIGINS` env var) — no longer a prediction: in 5b it is the one thing that stops
+  a browser reaching the relay at all, and the spike only got past it by proxying.
 - **The relay never compacts**, and `/sync/pull` has no pagination, so `pull(0)` returns every
   version ever pushed rather than the latest per row. Invisible to desktop and mobile, which
   pull incrementally from a durable cursor; **unavoidable for a cold-per-request host**, whose

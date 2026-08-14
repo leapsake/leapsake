@@ -1,3 +1,4 @@
+import { relayUrl } from "../relay-proxy.js";
 import { openSession } from "../session.js";
 import { redirect, type Reply } from "../reply.js";
 import { renderPage } from "../render.js";
@@ -11,8 +12,6 @@ import { renderPage } from "../render.js";
  * with every other page here is that it is *only* a form — no script, no fetch,
  * and the browser posts it itself.
  */
-
-export const relayUrl = process.env.RELAY_URL ?? "http://localhost:4000";
 
 export function loginPage(opts: { failed: boolean }): Reply {
   return {

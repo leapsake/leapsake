@@ -15,7 +15,7 @@ the next increment can read them all. What each part is for:
 
 | If you are… | Read | Skip |
 | ----------- | ---- | ---- |
-| **picking up the next increment** | *Run it* below, then the plan doc's *What 1-5a settled* — one line per result | every `## Increment N — findings` section |
+| **picking up the next increment** | *Run it* below, then the plan doc's *What 1-5b settled* — one line per result | every `## Increment N — findings` section |
 | **writing Increment 6** | all of it, plus `WANTED-CHANGES.md` — this is the source material | nothing |
 | **chasing one file** | *What is here* at the bottom, then the file's own docblock | the rest |
 | **re-checking a number** | the findings section for the increment that measured it | the others |
@@ -63,6 +63,13 @@ pnpm --filter @leapsake/web-spike share \
 #    question is whether the data layer works *in a browser*. Needs no relay,
 #    no account and no key: open it and read the banner.
 open http://localhost:5180/driver-contract
+
+# 9. Increment 5b's done-when, also a page: log in, pull and decrypt in the tab.
+#    Needs the relay of step 1 and the account of step 2 — the form is prefilled
+#    with them. Click the button and read the stage table.
+#    Keep the window in front: the KDF measures ~1.9x slower in a hidden tab,
+#    and the page labels which one it was.
+open http://localhost:5180/client
 ```
 
 Four environment variables steer the host, and each one exists to produce a
@@ -819,6 +826,170 @@ served from its own directory, `.wasm` and all, with
   statement is `PRAGMA user_version`") held exactly, and `PRAGMA user_version` is
   the one statement that needed the empty-bind branch above.
 
+## Increment 5b — findings
+
+**Done-when met, in a real browser.** `http://localhost:5180/client` takes a
+username and password, derives the master key **in the tab**, pulls 446 records
+from the relay, decrypts and applies them into a `sqlite-wasm` `:memory:` store,
+and renders `PersonScreen` through **the same `src/ui-adapter.tsx` the SSR host
+renders with**. The server holds no session, no key and no store for it: it
+serves the module and forwards `/relay/*`. **Zero files changed under
+`packages/`**, a sixth time.
+
+```
+sqlite3InitModule          27 ms    sqlite 3.53.0, 864 KiB of .wasm — per tab, not per login
+deriving the key…                   Argon2id, on this thread — the tab freezes
+Argon2id + bootstrap    847.5 ms    main thread stalled 797.7 ms — 19 MiB, t=2, tab hidden
+runMigrations            20.7 ms    :memory:, so this is paid per tab until OPFS (5c)
+pull(0) + decrypt + apply 89.7 ms   446 applied / 446 records / 112.8 KiB
+                                    — transport 38.1 ms, decrypt + apply 51.6 ms
+createCore + entityList   7.6 ms
+total, click to first render      982.1 ms
+```
+
+Then the screen: Ada Lovelace, 100 people in the picker, loader 10.1 ms for the
+seven calls. So **the client-side zero-knowledge path works**, and what decides
+whether it is *viable* is the first row, not the third.
+
+### 1. The two hosts, side by side, on the same 446 records
+
+The comparison Increment 5 was for. Same account, same relay, same laptop, minutes
+apart — `pnpm --filter @leapsake/web-spike pull` for the Node column, the page
+above for the browser one.
+
+| | Node 24 (SSR host) | browser, main thread |
+| --- | --- | --- |
+| Argon2id | **386.1 ms** | **847.5 ms** *(832–1 106 hidden, 449.4 visible — see below)* |
+| …of which the host/tab is frozen | 336.6 ms | 797.7 ms |
+| `runMigrations` (28 migrations) | 5.4 ms | 20.7–42.6 ms |
+| transport, 112.8 KiB | 6.6 ms | 33.1–38.1 ms *(through the proxy)* |
+| decrypt + apply, 446 records | 22.9 ms | 42.0–52.7 ms |
+| **cold total** | **421 ms** | **982–1014 ms** |
+
+Two readings, and they point opposite ways:
+
+- **The data half is fine.** Decrypt + apply is ~2× Node's and still under 55 ms
+  for a whole account; the store is not what makes a browser client expensive.
+  (`transport` is inflated by the extra proxy hop and is a localhost floor
+  either way.)
+- **The KDF is the whole cost, more so than on the server.** 847 ms of a 982 ms
+  cold start is Argon2id, and unlike the server's stall — which freezes *other
+  people's* requests — this one freezes the user's own tab, which is the version
+  a person can see.
+
+### 2. Argon2id costs ~1.9× more in a backgrounded tab
+
+Five runs driven with the tab hidden reported **832.4 / 838.6 / 847.5 / 863.6 /
+1 106.3 ms**; the one run made with it visible reported **449.4 ms**. Same code,
+same parameters, same machine. A hidden tab's renderer is de-prioritized — the
+same reason `requestAnimationFrame` stops firing in one (finding 6) — and 19 MiB
+of Argon2id is exactly the kind of work that shows it. (The hidden runs are also
+the noisier ones, which fits: a de-prioritized renderer is the one that loses to
+whatever else the machine is doing.)
+
+It is labelled in the page (`tab hidden` / `tab visible`) rather than left to be
+compared by accident, because **an unlabelled KDF number cannot be compared to
+another one**. Worth re-clicking with the window in front: the visible-tab figure
+is one sample, and it is the one a real user would pay.
+
+Either way the conclusion for 5c holds: at ~450 ms best case the KDF is 3–4× the
+entire rest of the cold start, and it runs where the UI lives. **A worker is not
+a performance nicety for a browser client, it is the difference between a login
+that shows progress and one that shows a frozen tab.** Note what a worker does
+*not* fix: the cost itself, and therefore the case for a native-speed KDF or a
+persisted key (5e) stands separately.
+
+### 3. A browser cannot reach the relay at all — so this is the increment where CORS stopped being theoretical
+
+Predicted since the plan doc; here it is load-bearing rather than noted. The
+relay sends no `Access-Control-Allow-*` and handles no `OPTIONS`, and the
+transport's `Authorization` header is not CORS-safelisted, so a cross-origin
+`fetch` is preflighted into a 404 before any request is made.
+
+`src/relay-proxy.ts` forwards `/relay/*` from the spike's own origin, and **the
+transport needed nothing**: `baseUrl: "/relay"` works because `http-transport.ts`
+builds every URL by string concatenation and never `new URL(base)`, so a
+relative base resolves against the page. Same-origin also means no preflight.
+
+The caveat belongs beside the result rather than in a footnote: **the proxy sees
+`Authorization: Bearer <accountId>.<b64(authVerifier)>`.** The verifier is an
+independent HKDF branch, so it reveals nothing about the KEK and confidentiality
+genuinely survives — but the proxy could impersonate the account to read and
+write ciphertext. That is an availability and integrity dependency production
+must not have, which is *why* the answer is CORS (~6 lines behind a
+`RELAY_CORS_ORIGINS` env var) and not a permanent forwarder.
+
+### 4. The client is where the no-JS floor's inert sections come alive
+
+The SSR gift ports (`src/gifts-ports-ssr.ts`) throw from every method, and their
+docblock names the limit of that assertion: `renderToString` never runs effects,
+so a section that loads through `useEffect` is invisible to it. **In a browser
+those effects run**, and the throwing ports would take the page down — so the
+client needs real ones, and they are
+`apps/desktop/src/renderer/src/lib/gifts-ports.ts` **with `window.api` replaced
+by `core`**, nine lines, nothing else changed (`src/client/gifts-ports-client.ts`).
+
+That closes the loop on Increment 2's section inventory from the other side.
+Rendered here, `HolidaysSection`'s `MultiAddCombobox` is a live combobox and
+`GiftCaptureForm` is a working form — the two rows the inventory marked ⚠️ and ❌
+— with no change to either component. **The no-JS gaps are gaps in the *floor*,
+not in the components**, and a client with JavaScript gets the whole screen from
+the same code the SSR host renders as HTML.
+
+Same story for the two callbacks: `onSetObserves` and `onChanged` were no-ops
+with an apology in a comment on the SSR route, and here they are desktop's
+`PersonView` exactly — a `core` call and a re-run of the loader, which is what
+`useRevalidator` does with none of the machinery.
+
+### 5. The degenerate adapter is not a *client-side* adapter, and the difference is the whole navigation story
+
+`ui-adapter.tsx` is imported and used unchanged, which is the reuse claim. But
+every `href` it renders is a real `<a>` doing a real document navigation, and in
+a client-side app that means **throwing away the tab's decrypted store and its
+master key** — a click on "Edit" is a re-login.
+
+That is not a defect in the adapter; it is what the degenerate adapter *is*, and
+it is exactly the gap desktop's adapter fills by mapping `href` onto react-router's
+`to`. What it says about the framework question, which the spike keeps open: the
+one thing a web client cannot hand-roll as cheaply as routing-by-`switch` is the
+*client* half, because a JS host with no router either re-derives the key on
+every navigation or does not navigate. **The SSR host and the JS client want
+different adapters over the same screens**, and both already exist in the repo.
+
+### 6. Smaller things worth keeping
+
+- **`@vitejs/plugin-react` needs its Refresh preamble in the document**, and
+  without it the first React import throws *"can't detect preamble"* — pointing
+  at `packages/ui`, which is innocent. Vite normally injects it through
+  `transformIndexHtml`, which this spike cannot use: that would put
+  `/@vite/client` into **every** page, and "this page contains no `<script>`" is
+  a property Increments 2–4 check on the wire. So it is opt-in per page
+  (`renderPage({ react: true })`) and exactly one page opts in. Increment 4's
+  browser bundles never hit this because `vite build` does not use Refresh.
+- **`requestAnimationFrame` never fires in a hidden tab** — not "fires slowly",
+  never — so the pipeline's yield-so-the-page-can-paint hung indefinitely under
+  an agent-driven browser. Raced against a 50 ms timeout now. Worth knowing
+  before the three checks still owed before teardown, which are all "drive a tab
+  the user is not looking at".
+- **A main-thread KDF cannot even announce itself without a deliberate yield.**
+  The "deriving the key…" row is appended, then the thread blocks for the better
+  part of a second — so without an explicit `await paint()` the browser never
+  renders it, and the page appears to do nothing and then jump to the answer.
+- **`bootstrap.ts` runs in a browser unmodified.** The four-call login the SSR
+  host uses is imported by the client as-is: `@leapsake/crypto` and
+  `@leapsake/sync` needed no browser variant, and neither did the spike's own
+  module. Its `measure.ts` event-loop probe works too — `setInterval` measures a
+  frozen main thread identically in either host.
+- **Warm numbers for 5a's two costs**, now that a second page pays them:
+  `sqlite3InitModule` is 23–36 ms warm against 5a's 52.7–57.3 ms, and
+  `runMigrations` is 20.7–42.6 ms against 40–140 ms. Both are per *tab*, and both
+  are what OPFS should turn into a once-ever cost in 5c.
+- **The client is read-only, deliberately.** 5b pulls and does not push, so the
+  gift and holiday writes its ports enable land in the tab's `:memory:` store and
+  die with it. Wiring the push would need the same high-water mark Increment 3
+  had to reconstruct by hand (`WANTED-CHANGES.md`), and it answers no question 5b
+  asked.
+
 ## What is here
 
 | file | why |
@@ -852,6 +1023,10 @@ served from its own directory, `.wasm` and all, with
 | `src/routes/driver-contract.tsx` | a shell and a `<script>`; the second and last page here that ships one |
 | `src/client/driver-contract.ts` | Increment 5a's done-when, **as a page**: `runDriverContract` + `runMigrations` in the browser, verdict in the `<h2>` and the tab title |
 | `src/client/test-api.ts` | byte-identical copy of `apps/mobile/test/test-api.ts` — a collecting `describe`/`it`/`expect` for a host with no test runner |
+| `src/relay-proxy.ts` | `/relay/*` → `RELAY_URL/*`, because the relay sends no CORS headers; the docblock is emphatic that this is a spike affordance, not an answer |
+| `src/routes/client.tsx` | Increment 5b's shell: a login form the server renders and then has nothing more to do with |
+| `src/client/client-app.tsx` | **Increment 5b's done-when**: login, `pull(0)`, decrypt and `PersonScreen` — all in the tab, all measured |
+| `src/client/gifts-ports-client.ts` | desktop's gift ports with `window.api` → `core`; the SSR ports throw, and in a browser the effects that call them actually run |
 | `scripts/seed.ts` | account + rows on a real relay; the fixture is an *account*, since the renderer is stateless |
 | `scripts/pull.ts` | Increment 1's done-when, runnable: the SSR request path minus the rendering |
 | `scripts/bench.ts` | the cold-vs-warm p50 the decision rule is stated on |
