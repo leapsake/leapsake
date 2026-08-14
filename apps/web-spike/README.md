@@ -7,6 +7,23 @@ at Increment 6. Nothing here is production code; nothing should import from it.
 Read the plan doc first — it holds every decision already made, so none of them
 need re-litigating here.
 
+## Don't read this file top to bottom
+
+It is over 800 lines, and most of them are an **archive**: the per-increment findings
+exist so Increment 6 can write the summary without re-deriving anything, not so
+the next increment can read them all. What each part is for:
+
+| If you are… | Read | Skip |
+| ----------- | ---- | ---- |
+| **picking up the next increment** | *Run it* below, then the plan doc's *What 1-5a settled* — one line per result | every `## Increment N — findings` section |
+| **writing Increment 6** | all of it, plus `WANTED-CHANGES.md` — this is the source material | nothing |
+| **chasing one file** | *What is here* at the bottom, then the file's own docblock | the rest |
+| **re-checking a number** | the findings section for the increment that measured it | the others |
+
+The per-increment sections are append-only and never rewritten, so an older one
+is what was true *then*. Where a later increment changed the answer it says so;
+the plan doc's settled list is always the current reading.
+
 ## Run it
 
 ```sh
