@@ -20,6 +20,7 @@
     "@leapsake/sync": "workspace:*",
     "@leapsake/ui": "workspace:*",
     "@leapsake/view-models": "workspace:*",
+    "@sqlite.org/sqlite-wasm": "3.53.0-build1",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

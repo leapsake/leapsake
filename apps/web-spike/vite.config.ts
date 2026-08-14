@@ -26,6 +26,16 @@ export default defineConfig({
   ssr: {
     noExternal: [/^@leapsake\//],
   },
+  optimizeDeps: {
+    // Increment 5a, and **load-bearing** — observed, not assumed. The package
+    // resolves its binary with `new URL("sqlite3.wasm", import.meta.url)`, so
+    // pre-bundling it to `node_modules/.vite/deps/` moves the module and leaves the
+    // `.wasm` behind. What that looks like is *not* a build error: the page loads,
+    // then emscripten aborts at init with "both async and sync fetching of the wasm
+    // failed", naming neither Vite nor the missing file. Excluded, the module is
+    // served from its own directory and the relative URL holds.
+    exclude: ["@sqlite.org/sqlite-wasm"],
+  },
   // React 19.2.3 exactly — the hoisted root pair, so the spike adds no nested
   // copy (AGENTS.md → *React version policy*). Desktop's 19.2.7 is its own
   // bundle's business.

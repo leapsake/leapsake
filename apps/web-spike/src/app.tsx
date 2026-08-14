@@ -4,6 +4,7 @@ import { readForm } from "./form-data.js";
 import { hydrate, type Hydrated, type HydrateTimings, storeMode } from "./hydrate.js";
 import { probe } from "./probe.js";
 import { redirect, text, type Reply } from "./reply.js";
+import { driverContractPage } from "./routes/driver-contract.js";
 import { duplicatesPage } from "./routes/duplicates.js";
 import { hostedViewPage } from "./routes/hosted-view.js";
 import { loginPage, loginSubmit } from "./routes/login.js";
@@ -180,6 +181,11 @@ export async function handleRequest(req: IncomingMessage): Promise<Reply> {
   if (method === "GET" && path === "/probe") {
     return text(200, `@leapsake/ui loaded via SSR: ${probe().screen}\n`);
   }
+
+  // Increment 5a, and it sits here — above the session — because a driver test
+  // needs no account: the browser data layer either works or it does not, and
+  // nothing about a relay or a key can be blamed for the answer.
+  if (method === "GET" && path === "/driver-contract") return driverContractPage();
 
   if (method === "GET" && path === "/") return redirect("/people");
 

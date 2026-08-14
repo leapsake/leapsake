@@ -23,9 +23,11 @@ import { ssrUiAdapter } from "./ui-adapter.js";
  *
  * Increment 4 adds the single exception, and it is the opposite case rather than
  * a weakening of the rule: a **capability link** cannot work without JavaScript,
- * because the key it decrypts with never reaches this server. So `script` is
- * offered to exactly one route (`share-view.tsx`), and every other page keeps the
- * property that a missing `<script>` is checkable evidence rather than a promise.
+ * because the key it decrypts with never reaches this server. Increment 5a adds
+ * the second and last one, which is not a page a user ever sees:
+ * `driver-contract.tsx` is a test harness whose subject *is* JavaScript. Every
+ * other page keeps the property that a missing `<script>` is checkable evidence
+ * rather than a promise.
  */
 export function renderPage(opts: {
   title: string;

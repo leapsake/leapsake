@@ -41,6 +41,11 @@ pnpm --filter @leapsake/web-spike roundtrip \
 #    including a Vite browser build of the client half that is then executed.
 pnpm --filter @leapsake/web-spike share \
   --host http://localhost:5180 --username ada --password 'hunter2 hunter2'
+
+# 8. Increment 5a's done-when. No script — it is a page, because the whole
+#    question is whether the data layer works *in a browser*. Needs no relay,
+#    no account and no key: open it and read the banner.
+open http://localhost:5180/driver-contract
 ```
 
 Four environment variables steer the host, and each one exists to produce a
@@ -651,6 +656,152 @@ view *is*. Logged in `WANTED-CHANGES.md`.
   opinion. Both conversions moved to `src/base64url.ts`, which the session cookie
   was already the only user of.
 
+## Increment 5a — findings
+
+**Done-when met, and — a first for this spike — met in a real browser.**
+`http://localhost:5180/driver-contract` reports **12/12** from
+`runDriverContract` (`@leapsake/data/testing`) against
+`@sqlite.org/sqlite-wasm`, and `runMigrations` completes: 28 migrations →
+`user_version` 28, 26 tables, 32 indexes. Chrome 1555×888, sqlite 3.53.0,
+`:memory:`, main thread. **Zero files changed under `packages/`**, a fifth time.
+
+```
+PASS — 12/12 contract, migrations OK
+sqlite 3.53.0 via @sqlite.org/sqlite-wasm, :memory: on the main thread
+  — module init 57.3 ms, run 254.4 ms
+  ✓ round-trips a row through run + get
+  ✓ returns undefined (not null) from get on a miss
+  ✓ returns every matching row from all, and [] when none match
+  ✓ honors ORDER BY in all()
+  ✓ binds positional params left-to-right
+  ✓ round-trips a BLOB as bytes
+  ✓ applies every statement in a multi-statement exec
+  ✓ persists writes made inside a committed transaction
+  ✓ rolls back all writes and rethrows when the transaction body throws
+  ✓ returns the transaction body's resolved value
+  ✓ round-trips a SQL NULL as JS null
+  ✓ closes the connection, and use after close rejects
+  ✓ runMigrations completes
+    28 migrations → user_version 28, 26 tables, 32 indexes, 140.6 ms
+```
+
+So **the browser data layer is possible**, and 5b-e are plumbing on a proven
+base rather than bets. Green on the first run, which is the part worth reading:
+nothing about the port needed rethinking for a third engine.
+
+### 0. A real browser was driven, which retires the spike's standing caveat
+
+Increments 2, 3 and 4 each ended with the same footnote — *no headless browser
+will launch in this dev shell* — and each substituted `fetch`, a DOM stub, or a
+markup parse. **Chrome is drivable after all, through the Claude-in-Chrome
+extension**: the same browser the user has open, navigated and read by the agent
+rather than launched by it. Headless Chrome still hangs from this shell (a bare
+`--dump-dom data:text/html,<h1>hi</h1>` times out), so nothing about the earlier
+increments' reasoning was wrong; the constraint was *launching* a browser, and
+this route does not launch one.
+
+That is worth more than this increment. **The three manual checks owed before the
+teardown are now cheap and automatable-ish** — the Firefox `javascript.enabled=
+false` walk-through, opening a capability link in a real browser and watching the
+network panel for the missing `#`, and viewing a hosted share with no JS. All
+three are "drive a browser and look", and there is now a way to do exactly that.
+
+### 1. The driver is 40 lines, and three things differ from `node:sqlite`
+
+The port held for a third unrelated engine with no change to `SqliteDriver` and
+no shim: `exec`/`run`/`all`/`get`/`transaction`/`close` map onto oo1's
+`exec`/`selectObjects`/`selectObject` one for one. The differences, all three read
+out of oo1's source *before* the first run rather than found by a red test:
+
+- **An empty `bind` throws.** `db.exec({ sql, bind: [] })` on a parameterless
+  statement raises "This statement has no bindable parameters" — oo1 distinguishes
+  *absent* bindings from *empty* ones, where `db.prepare(sql).run(...[])` does
+  not. The port's signature is `params?: unknown[]` and callers pass `[]` freely,
+  so a driver that forwards it verbatim breaks on `runMigrations`'s own first
+  statement, `PRAGMA user_version`. Two `length === 0` branches.
+- **`selectObject` returns `undefined` on a miss**, so the contract's
+  "undefined, not null" case is satisfied by the engine rather than by a wrapper.
+- **`close()` is a documented no-op once closed**, so this factory needs neither
+  desktop's `if (db.open)` guard nor mobile's swallowed throw.
+
+Everything else — positional binds, `Uint8Array` in and out of a BLOB, SQL `NULL`
+as JS `null`, multi-statement `exec`, `BEGIN`/`COMMIT`/`ROLLBACK` — is the Node
+driver's code unchanged, and oo1 agrees with it.
+
+The plan doc's async-factory gotcha was real and is a two-line answer:
+`sqlite3InitModule()` is awaited **once at the top level of the page module**, so
+the synchronous `DriverFactory` the contract requires does nothing but
+`new sqlite3.oo1.DB(":memory:")` — the same trick the mobile factory plays with
+`openDatabaseSync`.
+
+### 2. What the browser costs before any data arrives
+
+| step | cold load | second load |
+| ---- | --------- | ----------- |
+| `sqlite3InitModule()` — fetch + compile 864 KiB of `.wasm` | 57.3 ms | 52.7 ms |
+| `runMigrations` — 28 migrations, 26 tables, 32 indexes | **140.6 ms** | **40 ms** |
+| the whole page (12 cases, each opening and closing a DB, + migrations) | 254.4 ms | 108.7 ms |
+
+Two things to carry into 5b-d. **Module init is stable at ~55 ms** and is a
+per-tab cost that no amount of persistence removes — it is the price of the
+engine, not of the data. **Schema creation is 40 ms warm and 140 ms cold**, where
+`node:sqlite` runs the same migrations in 7.9 ms (Increment 2 finding 3), so it is
+5-18× the server's number; Increment 2's `serialize()`/`deserialize()` trick has
+no obvious wasm equivalent, but OPFS should make the question moot by running the
+migrations **once, ever** — which is now one of the things 5c/5d is worth doing.
+
+And the comparison that matters is the one Increment 1 set up: **all of this
+together is under 300 ms cold, against ~355 ms for a single Argon2id.** Just as on
+the server, the database is not the expensive part of a cold start; the KDF is.
+5b measures Argon2id in a browser, and that is the number to watch.
+
+### 3. `optimizeDeps: { exclude }` is load-bearing, and its failure is a runtime abort
+
+The plan doc predicted this; it is now observed rather than prescribed, by running
+a second host on port 5181 with the exclusion removed (and its own `cacheDir`, so
+the real one's was untouched). Vite pre-bundles the package to
+`node_modules/.vite/deps/@sqlite__org_sqlite-wasm.js`, the loader's
+`new URL("sqlite3.wasm", import.meta.url)` then resolves next to the *bundle*,
+and the binary is not there:
+
+```
+wasm streaming compile failed: TypeError: … HTTP status code is not ok
+failed to asynchronously prepare wasm: both async and sync fetching of the wasm failed
+Exception loading sqlite3 module: RuntimeError: Aborted(…)
+```
+
+Worth recording because of *when* it fails: the build is clean, the module graph
+is clean, and the page loads — then emscripten aborts at init with a message that
+names neither Vite nor the missing file. Any bundler that relocates the module
+relative to its asset can reproduce it, and the symptom will not point at the
+cause — the package shipping a separate demo per bundler (Vite, Webpack, Parcel,
+rsbuild) suggests it is the usual place people get stuck. Excluded, the module is
+served from its own directory, `.wasm` and all, with
+`Content-Type: application/wasm`.
+
+### 4. Smaller things worth keeping
+
+- **The collecting test runner is a byte-identical copy of mobile's.**
+  `src/client/test-api.ts` is `apps/mobile/test/test-api.ts`, `diff`-clean —
+  *zero* edits, not even an import path, because it depends only on
+  `@leapsake/data/testing`'s `TestApi`. That is the second non-Vitest host to want
+  it, which is the argument for it living in `packages/data` beside the contract it
+  serves. Logged in `WANTED-CHANGES.md`.
+- **The contract earned its "framework-agnostic" claim a second time.** It was
+  written for Vitest, ported once to a simulator, and ran here with no
+  registration shim, no environment flag and no `beforeEach` — because each case
+  provisions its own driver. The single design choice that made this increment two
+  hours instead of two days.
+- **`node_modules` is hoisted, so the `.wasm` is served from `/@fs/…`.** The
+  workspace uses `nodeLinker: hoisted`, so the package resolves outside the
+  spike's Vite root and its binary comes back through `/@fs/`. Vite serves it
+  correctly, but a production build will need the asset copied deliberately
+  rather than relying on a dev-server path.
+- **Migrations are portable, now on three engines rather than two.** The claim in
+  the plan doc ("plain DDL, no extensions or `RETURNING`, the only exotic
+  statement is `PRAGMA user_version`") held exactly, and `PRAGMA user_version` is
+  the one statement that needed the empty-bind branch above.
+
 ## What is here
 
 | file | why |
@@ -680,6 +831,10 @@ view *is*. Logged in `WANTED-CHANGES.md`.
 | `src/measure.ts` | every measurement, in one file, so it is one file to delete |
 | `src/probe.ts` | the `@leapsake/ui`-loads-through-SSR check behind `GET /probe` |
 | `src/node-sqlite-driver.ts` | verbatim copy of `apps/server/test/node-sqlite-driver.ts` — `packages/data` ships no drivers by design |
+| `src/wasm-sqlite-driver.ts` | the same seam over `@sqlite.org/sqlite-wasm` — the browser's driver, and Increment 5a's subject |
+| `src/routes/driver-contract.tsx` | a shell and a `<script>`; the second and last page here that ships one |
+| `src/client/driver-contract.ts` | Increment 5a's done-when, **as a page**: `runDriverContract` + `runMigrations` in the browser, verdict in the `<h2>` and the tab title |
+| `src/client/test-api.ts` | byte-identical copy of `apps/mobile/test/test-api.ts` — a collecting `describe`/`it`/`expect` for a host with no test runner |
 | `scripts/seed.ts` | account + rows on a real relay; the fixture is an *account*, since the renderer is stateless |
 | `scripts/pull.ts` | Increment 1's done-when, runnable: the SSR request path minus the rendering |
 | `scripts/bench.ts` | the cold-vs-warm p50 the decision rule is stated on |

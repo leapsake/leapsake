@@ -164,3 +164,37 @@ already logged twice, and one is a bundling observation rather than a want.
   **no shim, no polyfill, and no config beyond pointing Vite at the entry**,
   which is the property Increment 5 depends on and the thing this increment was
   asked to check early.
+
+## Increment 5a — the wasm driver and the contract
+
+**Zero files under `packages/` were changed a fifth time**, and this one had the
+strongest reason yet to want an edit: a new driver for a third engine is exactly
+the moment a port either holds or gets widened. It held, so the list is one real
+entry.
+
+- **`createCollectingTestApi` belongs in `@leapsake/data/testing`, beside the
+  contract it exists to run.** `runDriverContract` is deliberately
+  framework-agnostic so a host with no test runner can drive it — and a host with
+  no test runner then needs a `describe`/`it`/`expect` that collects results. That
+  shim was written for `apps/mobile`, and this increment needed it **byte for
+  byte**: `src/client/test-api.ts` is `diff`-clean against
+  `apps/mobile/test/test-api.ts`, with not even an import path changed, because it
+  depends on nothing but the exported `TestApi` type. Wanted: move it to
+  `packages/data/src/testing/collecting-api.ts` and have mobile import it, so the
+  runner-less path is as shared as the spec is. → Copied instead, per the
+  zero-edits constraint. Two callers with identical bytes in two apps is the
+  clearest case in this whole file: the *second* copy is evidence, where the
+  first was a judgement call.
+
+- **Not wanted, and the near-miss worth recording:** `SqliteDriver` needed **no
+  widening** for a third unrelated engine. The three ways oo1 differs from
+  `node:sqlite` (an empty `bind` throws, `selectObject` already returns
+  `undefined` on a miss, `close()` is idempotent) are all absorbed inside 40
+  lines of adapter, which is what the port is for. And `runMigrations` ran
+  unmodified against a browser database — the "portable SQL only" rule in
+  `packages/data/src/migrations.ts` is now checked on three engines instead of
+  two.
+
+- **Also not wanted:** the `.wasm` resolution fight is entirely Vite's
+  (`optimizeDeps.exclude`), not a package's. Nothing in `packages/` knows the
+  driver exists, which is the point of the app owning it.

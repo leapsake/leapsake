@@ -7,16 +7,18 @@
 > the code that produced them. Nothing here restates either. This doc holds what is **left
 > to do**, and is deleted when the list empties.
 
-**State: Increments 1-4 are done** *(2026-08-12)*, and with them all three owner questions
-except the PWA one. A person's page server-renders with JavaScript disabled; create / edit /
-delete do too, and land on a second device through a real relay; and a capability link
-decrypts in the browser from a key the server is *observed* never to receive, with the
-hosted fallback a ten-line SSR route. Every increment held **zero files changed under
-`packages/`**; the record of what that cost is
+**State: Increments 1-4 and 5a are done** *(2026-08-13)*, and with them all three owner
+questions except the PWA one. A person's page server-renders with JavaScript disabled;
+create / edit / delete do too, and land on a second device through a real relay; a
+capability link decrypts in the browser from a key the server is *observed* never to
+receive, with the hosted fallback a ten-line SSR route; and **the shared driver contract
+passes 12/12 in a real browser** against `@sqlite.org/sqlite-wasm`, with `runMigrations`
+completing, so the browser data layer is proven rather than assumed. Every increment held
+**zero files changed under `packages/`**; the record of what that cost is
 [`WANTED-CHANGES.md`](../apps/web-spike/WANTED-CHANGES.md).
 
-**Left: Increment 5 (the browser JS path), then Increment 6 (write up, tear down).**
-**5a is the next stopping point** and the place to start.
+**Left: Increment 5b-e (the rest of the browser JS path), then Increment 6 (write up, tear
+down).** **5b is the place to start**, and it is now plumbing on a proven base.
 
 **Scheduled pre-v0.1** *(owner, 2026-08-07)*, as a parallel track in [`v0-1.md`](./v0-1.md) —
 independent of the launch prerequisite chain, and the natural filler whenever that chain is
@@ -25,10 +27,21 @@ waiting. The deciding argument was that two of the changes the spike exists to f
 schedules the **spike**, not the Stage 4 web app, which stays post-launch
 ([`encryption/README.md`](./encryption/README.md)).
 
-## What 1-4 settled, so 5 and 6 do not re-derive it
+## What 1-5a settled, so the rest does not re-derive it
 
-Six results, and only these — everything else is in the README.
+Eight results, and only these — everything else is in the README.
 
+- **A real browser is drivable after all, through the Claude-in-Chrome extension.** Every
+  earlier increment ended with the same caveat — no headless browser will launch in this dev
+  shell, and that is still true — but the agent can navigate and read the browser the user
+  already has open. **The three manual checks owed before the teardown are therefore no
+  longer manual-only**, and 5d's DevTools-offline reload is reachable the same way.
+- **The browser data layer works, and the port did not have to widen for it.**
+  `runDriverContract` reports 12/12 against `@sqlite.org/sqlite-wasm` and `runMigrations`
+  completes (28 migrations, 26 tables), from a **40-line** driver. Engine init is ~55 ms and
+  the schema is 40-140 ms — both under the ~355 ms an Argon2id costs, so as on the server the
+  database is not the expensive part of a cold start. 5b's in-browser KDF measurement is the
+  number that decides the client-side path.
 - **Take cold-per-request with a warm key.** Measured and decided; §9.2 as written, no warm
   decrypted store, so the trust claim it warned might be forced is not forced.
   `WEB_SPIKE_STORE=warm` still builds the other arm if the owner ever wants it.
@@ -41,9 +54,10 @@ Six results, and only these — everything else is in the README.
   substitute (`Date.now()`) silently drops writes. Any client that writes needs the real
   mark; the spike computes it by hand and says why that is not good enough for production.
 - **The shared packages port with no shim.** Adapter six lines, loader and actions call-for-
-  call, field readers verbatim, view models usable as a share payload unchanged — and
+  call, field readers verbatim, view models usable as a share payload unchanged;
   `@leapsake/crypto` (5.9 KiB gzip) and `@leapsake/ui` + React (112 KiB gzip) both **compile
-  to a browser target**. 5a therefore has only the sqlite-wasm half left to answer.
+  to a browser target**; and the driver contract plus the migrations run in a browser
+  unmodified. Nothing in the shared layer has yet needed an edit to reach the web.
 - **The no-JS floor has a three-item backlog**, all in `packages/ui` and all product work:
   `GiftCaptureForm`, the `HolidaysSection` add-field, and `RelationshipFields` on create.
   Out of scope here; the README inventories them for whoever builds the real client.
@@ -54,12 +68,12 @@ The rest were consumed by 1-4 and now live in the code they shaped
 (`vite.config.ts`, `bootstrap.ts`, `node-sqlite-driver.ts`). These two still constrain
 unbuilt work:
 
-- **`@sqlite.org/sqlite-wasm` for the browser database.** OPFS SAHPool needs no
-  cross-origin isolation, where the older OPFS VFS needs `SharedArrayBuffer` and therefore
-  COOP/COEP, which would poison the whole origin. `wa-sqlite`'s async-VFS pitch buys nothing
-  because our port is already async; `sql.js` has no persistence story and so cannot answer
-  the PWA question. Migrations are portable — `packages/data/src/migrations.ts` is plain DDL,
-  no extensions or `RETURNING`; the only exotic statement is `PRAGMA user_version`.
+- **`@sqlite.org/sqlite-wasm` for the browser database** — chosen, and as of 5a *working*,
+  so what still binds is the part 5c/5d has yet to use: **OPFS SAHPool needs no cross-origin
+  isolation**, where the older OPFS VFS needs `SharedArrayBuffer` and therefore COOP/COEP,
+  which would poison the whole origin. (`wa-sqlite`'s async-VFS pitch bought nothing because
+  our port is already async; `sql.js` has no persistence story. Migration portability is no
+  longer a prediction — `runMigrations` ran unmodified in 5a, `PRAGMA user_version` and all.)
 - **One origin, one module graph.** Vite in middleware mode already covers SSR pages, the
   client bundle, the `.wasm` and the service worker from a single origin, and `server.ts`
   reaches the app only through `ssrLoadModule` — load a module twice and the session store
@@ -69,25 +83,17 @@ Governance for anything new: `"version": "0.0.0"`, no `typecheck` script, exclud
 `oxlint` via `.oxlintrc.json` → `ignorePatterns`, and out of `vitest.config.ts` — verification
 here is manual and in-browser.
 
-## Increment 5 — the browser JS path
+## Increment 5b-e — the rest of the browser JS path
 
 Spike-sized only if "can it work" is split from "is it usable." The lever: **the desktop
 main/renderer split is isomorphic to the browser main-thread/Worker split.**
 `window.api.people.get(id)` is `ipcRenderer.invoke`; a path-addressed `postMessage` proxy over
 `CoreApi` is ~40 lines. This re-hosts `core` behind a different RPC — it re-implements nothing.
 
-Vite needs `optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] }`; the package resolves its
-`.wasm` relative to `import.meta.url` and pre-bundling breaks that.
+5a is done: the driver is `apps/web-spike/src/wasm-sqlite-driver.ts`, the page is
+`/driver-contract`, and the `optimizeDeps` exclusion the `.wasm` needs is in
+`vite.config.ts` with the failure mode recorded beside it.
 
-- **5a — the wasm driver and the contract.** Run `runDriverContract` from
-  `@leapsake/data/testing` **in the browser**, exactly as mobile runs it on a simulator — copy
-  `apps/mobile/test/driver-contract-selftest.ts` and its `createCollectingTestApi`. No vitest
-  browser mode; the contract is framework-agnostic by design for precisely this. Gotcha:
-  `DriverFactory` is synchronous but `sqlite3InitModule()` is async, so await the module once
-  at page top level and let the factory synchronously do `new sqlite3.oo1.DB(":memory:")` —
-  the same trick the mobile factory uses. **Done when the page reports 12/12 and
-  `runMigrations` completes.** Green means the browser data layer is proven and the rest is
-  plumbing; red is a precise, cheap answer.
 - **5b — client login, pull, decrypt** on the main thread with `:memory:`. Freeze the tab;
   prove the capability first. Same four calls as the server (`src/bootstrap.ts`), then
   `runMigrations` → `createSyncEngine(...).pull(0)` → `createCore` → render `PersonScreen`
@@ -95,7 +101,9 @@ Vite needs `optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] }`; the package
 - **5c — Worker and OPFS.** Move sqlite-wasm, `createCore`, `createSyncEngine`, and
   `deriveKeyMaterial` into the worker; the main thread keeps React and the RPC proxy. Switch to
   `installOpfsSAHPoolVfs()` + `new poolUtil.OpfsSAHPoolDb("/spike.db")`. **Done when** the page
-  stays interactive through login and the full pull, and a reload does not re-pull.
+  stays interactive through login and the full pull, and a reload does not re-pull. Worth
+  checking while there: persistence should make `runMigrations` a once-ever cost rather than
+  5a's 40-140 ms per load, and the ~55 ms engine init should remain per tab regardless.
 - **5d — PWA.** Manifest plus a service worker caching shell, JS, and `.wasm`.
   `http://localhost` is a secure context, so no TLS. **Done when** DevTools-offline reload
   renders the person from the OPFS database.
@@ -108,8 +116,9 @@ Vite needs `optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] }`; the package
   Failure means PWA offline costs an Argon2id run on every cold start, which is a product
   decision, not an engineering one.
 
-**What 5 still owes the measurement table** (all of it in `src/measure.ts`, one file to
-delete): **Argon2id in-browser**, main thread (5b) and worker (5c), with the device
+**What 5 still owes the measurement table** (the server-side half is all in `src/measure.ts`,
+one file to delete; 5a's browser numbers are printed by the page that produced them):
+**Argon2id in-browser**, main thread (5b) and worker (5c), with the device
 recorded — a phone is the case that matters; and **pull + decrypt + apply in the browser**,
 the same shape as the Node table already in the README, so the two sit side by side. That
 comparison is what says whether the client-side zero-knowledge path is viable.
@@ -154,8 +163,11 @@ Three things belong in the write-up that are not in the README, because they are
 - **The relay's compaction gap** (below) is the one change that is neither optional nor
   cosmetic for an SSR host.
 
-**Three manual checks are owed before the teardown**, all the same shape — things verified by
-construction or by a stand-in rather than by driving the real thing:
+**Three checks are owed before the teardown**, all the same shape — things verified by
+construction or by a stand-in rather than by driving the real thing. 5a found they need not be
+manual: the Claude-in-Chrome extension drives the browser the user already has open, which is
+how `/driver-contract` was read. Only the Firefox one needs a human, and only because
+`javascript.enabled=false` is a Firefox preference.
 
 1. Load `http://localhost:5180` in Firefox with `javascript.enabled=false` and walk
    create/edit/delete by hand — and while there, open a **hosted** share link, which is the
@@ -192,9 +204,9 @@ to rediscover it. Each is confirmed, none is built.
 
 ## Stopping points
 
-**After 5a** — the only one left, and a real one: a couple of hours tells you whether the
-browser data layer is possible before committing to 5b-e, each of which is independently
-droppable.
+**None left.** 5a was the last one, and it came back green: the browser data layer is
+possible, so 5b-e are each independently droppable rather than collectively at risk. Stop
+whenever the remaining questions stop being worth their hour.
 
 ## Open questions
 
