@@ -14,8 +14,8 @@
   thing that did not — a **non-extractable `CryptoKey` in IndexedDB** wrapping the master key,
   implementing **`@leapsake/crypto`'s `KeyStore` port unchanged**: a reload renders in **91 ms**,
   no password, `fetch` removed, opening a **relay-produced** record to prove the key is the
-  account's. **Zero `packages/` edits** all eight times. Carries: **no CORS on the relay blocks
-  any browser client**; **OPFS is single-tab**; **durable storage was refused**.
+  account's. **Zero `packages/` edits** all eight times. Carries: **no relay CORS blocks any
+  browser client**; **OPFS is single-tab**; **durable storage was refused**.
 - **Restore-from-backup, verified** *(2026-08-11)*. Four cases on a clean machine; 04's last gate
   is gone: [`apps/desktop/README.md`](../apps/desktop/README.md) → *Backing up*
 - **The account merge, all four increments, both clients** *(2026-08-08 → 08-11)*. Local-only
@@ -28,11 +28,10 @@
    shell, JS and `.wasm`). **Done when a DevTools-offline reload renders the person from the
    OPFS database.** 5c and 5e did the data and key halves, so what is left is the *asset* half
    plus two inherited questions: **single-tab** OPFS, which a PWA is exactly what gets opened
-   twice, and **durable storage**, refused on `localhost` — installing may change that.
-   It also collects the number 5c and 5e could not, **Argon2id on a worker in a visible tab**,
-   since an agent-driven tab is always `hidden`. Droppable at the owner's call, not the
-   agent's; then **Increment 6** (write up, tear
-   down). Two files brief it: [`v0-1_web-spike.md`](./v0-1_web-spike.md) (what is left) and
+   twice, and **durable storage**, refused on `localhost` — installing may change that. It also
+   collects the last owed measurement. Droppable at the owner's call, not the agent's; then
+   **Increment 6** (write up, tear down). Briefed by
+   [`v0-1_web-spike.md`](./v0-1_web-spike.md) (what is left) and
    [`apps/web-spike/README.md`](../apps/web-spike/README.md) (how to run it, what 1-5e found).
    **Keep the zero-`packages/`-edits constraint**, logging temptations in `WANTED-CHANGES.md`.
 
