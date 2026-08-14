@@ -5,15 +5,17 @@
 
 ## Just landed
 
-- **The web spike, Increments 5a-5c — a real browser client, in a Worker, on a store that
-  survives** *(2026-08-13)*, after 1-4 answered read, write and sharing yes *(08-12)*. 5a:
-  **12/12** on the driver contract against `sqlite-wasm`. 5b: username + password → master key
-  → `pull(0)` → `PersonScreen`, all in the tab. 5c moved the data layer, Argon2id and `core`
-  into a **Worker** behind a **40-line `Proxy`**, database in **OPFS**, one screen file for
-  both: worst page unavailability **8.4 ms** against 5b's frozen **800**; a reload pulls **0
-  records**. **Zero `packages/` edits** all seven times. Three carries: **the relay's missing
-  CORS blocks any browser client**; **OPFS is single-tab**, and a PWA gets opened twice; the
-  KDF is **all a reload redoes** — why 5e now precedes 5d.
+- **The web spike, Increments 5a-5c and 5e — a real browser client, in a Worker, on a store and
+  a key that survive** *(2026-08-13)*, after 1-4 answered read, write and sharing yes *(08-12)*.
+  5a: **12/12** on the driver contract against `sqlite-wasm`. 5b: username + password → master
+  key → `pull(0)` → `PersonScreen`, in the tab. 5c moved the data layer, Argon2id and `core` into
+  a **Worker** behind a **40-line `Proxy`**, database in **OPFS**: worst page unavailability
+  **8.4 ms** against 5b's frozen **800**; a reload pulls **0 records**. 5e persisted the last
+  thing that did not — a **non-extractable `CryptoKey` in IndexedDB** wrapping the master key,
+  implementing **`@leapsake/crypto`'s `KeyStore` port unchanged**: a reload renders in **91 ms**,
+  no password, `fetch` removed, opening a **relay-produced** record to prove the key is the
+  account's. **Zero `packages/` edits** all eight times. Carries: **no CORS on the relay blocks
+  any browser client**; **OPFS is single-tab**; **durable storage was refused**.
 - **Restore-from-backup, verified** *(2026-08-11)*. Four cases on a clean machine; 04's last gate
   is gone: [`apps/desktop/README.md`](../apps/desktop/README.md) → *Backing up*
 - **The account merge, all four increments, both clients** *(2026-08-08 → 08-11)*. Local-only
@@ -22,18 +24,16 @@
 
 ## Next
 
-1. **The web spike, Increment 5e** — a **non-extractable `CryptoKey` in IndexedDB** wrapping the
-   master key. **Done when a reload unwraps it and decrypts a row, with no password and no
-   relay.** Half an hour, and 5c promoted it ahead of 5d: the store, schema and cursor now
-   survive a reload and **the key is the only thing that does not**, while 5d's offline
-   done-when is unreachable without it — `bootstrap.ts` makes two network calls before it has a
-   key. Then **5d** (PWA: manifest + service worker for shell, JS and `.wasm`), which inherits
-   **single-tab** OPFS. Either browser session collects the number 5c could not — **Argon2id on
-   a worker in a visible tab**; an agent-driven tab is always `hidden`. Both are droppable on
-   their own merits. Two files brief it: [`v0-1_web-spike.md`](./v0-1_web-spike.md) (what is
-   left, what not to re-litigate) and [`apps/web-spike/README.md`](../apps/web-spike/README.md)
-   (how to run it, what 1-5c found). **Keep the zero-`packages/`-edits constraint**, logging
-   temptations in `WANTED-CHANGES.md`.
+1. **The web spike, Increment 5d** — the last of it: a PWA (manifest + service worker caching
+   shell, JS and `.wasm`). **Done when a DevTools-offline reload renders the person from the
+   OPFS database.** 5c and 5e did the data and key halves, so what is left is the *asset* half
+   plus two inherited questions: **single-tab** OPFS, which an installed PWA is exactly what gets
+   opened twice, and **durable storage**, refused on `localhost` — installing may change that.
+   It also collects the number 5c and 5e could not, **Argon2id on a worker in a visible tab**,
+   since an agent-driven tab is always `hidden`. Droppable; then **Increment 6** (write up, tear
+   down). Two files brief it: [`v0-1_web-spike.md`](./v0-1_web-spike.md) (what is left) and
+   [`apps/web-spike/README.md`](../apps/web-spike/README.md) (how to run it, what 1-5e found).
+   **Keep the zero-`packages/`-edits constraint**, logging temptations in `WANTED-CHANGES.md`.
 
 2. Then **04 → 07** in [`v0-1.md`](./v0-1.md)'s order — the launch chain, which the spike runs
    beside rather than blocks. 04 starts the 14-day Play clock and fixes store identity; 06 waits

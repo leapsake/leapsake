@@ -15,7 +15,7 @@ the next increment can read them all. What each part is for:
 
 | If you are… | Read | Skip |
 | ----------- | ---- | ---- |
-| **picking up the next increment** | *Run it* below, then the plan doc's *What 1-5c settled* — one line per result | every `## Increment N — findings` section |
+| **picking up the next increment** | *Run it* below, then the plan doc's *What 1-5e settled* — one line per result | every `## Increment N — findings` section |
 | **writing Increment 6** | all of it, plus `WANTED-CHANGES.md` — this is the source material | nothing |
 | **chasing one file** | *What is here* at the bottom, then the file's own docblock | the rest |
 | **re-checking a number** | the findings section for the increment that measured it | the others |
@@ -78,6 +78,14 @@ open http://localhost:5180/client
 #     tab's KDF readings vary three-fold, and its frame meter reads zero.
 #     Only one tab at a time — OPFS access handles are exclusive.
 open http://localhost:5180/client-worker
+
+# 11. Increment 5e's done-when: log in once, then *reload* and press
+#     "Resume — no password". The second start unwraps the master key from
+#     IndexedDB, opens the OPFS store, decrypts a record the relay sent, and
+#     renders the person — with fetch disabled for the duration. Same
+#     one-tab-at-a-time rule as step 10, and it contends with that page for
+#     the same OPFS pool.
+open http://localhost:5180/client-key
 ```
 
 Four environment variables steer the host, and each one exists to produce a
@@ -1175,6 +1183,177 @@ Two limits of the browser rather than of the code, both found by driving it:
   `requestSubmit()` through the page's own handler was reliable. The three checks
   the spike still owes are all browser-driving, and two of them are click-based.
 
+## Increment 5e — findings
+
+**Done-when met, in a real browser, and it is the cheapest increment here.**
+`http://localhost:5180/client-key` logs in with a password once and mints a
+**non-extractable `AES-GCM` `CryptoKey` in IndexedDB** wrapping the master key.
+A reload then starts the same client from that wrap: **91.3 ms**, no password,
+`fetch` removed from the worker for the duration, and the person on screen.
+**Zero files changed under `packages/`**, an eighth time — and this time the
+notable part is *which* package did not change.
+
+```
+storage bucket                      best-effort (evictable) storage — persist() was refused,
+                                    0.7 MiB used of 10.0 GiB — requested from the page, not the worker
+worker ready               69.5 ms  sqlite 3.53.0 + leapsake-spike — OPFS holds: /spike-<accountId>.db
+unwrap the master key       8.6 ms  IndexedDB → non-extractable CryptoKey → AES-GCM
+                                    → 32-byte master key and 32-byte relay verifier;
+                                    exportKey refused (InvalidAccessError) — extractable: false
+open OPFS + runMigrations  23.6 ms  schema already at 28, nothing to do
+createCore + entityList    52.5 ms
+open a relay record with it         230 B of ciphertext from people → “Ada Lovelace”,
+                                    the same row the OPFS store holds
+total, click to first render       91.3 ms   no password, no Argon2id, 0 network calls
+```
+
+### 1. The browser's `KeyStore` is `@leapsake/crypto`'s `KeyStore`, unchanged
+
+The increment was framed as "probe the closest analogue to an enclave", and the
+answer arrived in a shape nobody had to design: `createBrowserKeyStore()` in
+`src/client/key-custody.ts` **implements the `KeyStore` port as written** —
+`getSecret` / `setSecret` / `deleteSecret`, bytes in and bytes out, async — over
+IndexedDB, with each secret stored under its own freshly generated
+non-extractable `CryptoKey`. No port change, no widening, no browser-shaped
+method. That is the same result the driver contract gave in 5a and `CoreApi`
+gave in 5c, a third time: **the ports were never desktop-shaped.**
+
+Per-secret wrapping keys rather than one shared key, because generation is
+sub-millisecond and it makes `deleteSecret` complete: dropping the record drops
+the only reference to the handle, so there is no "the wrapping key is still
+around somewhere" left to reason about. The two ids this client keeps are
+`master-key` and `auth-verifier`.
+
+So §13's PWA row can be answered rather than deferred, in two halves:
+
+- **What custody *is*** — a `KeyStore` adapter, ~60 lines, no new dependency.
+- **What custody is *worth*** — see finding 3. The port cannot express the
+  difference, which is exactly why the spike had to look.
+
+### 2. Two things a demo like this could fake, and neither is faked
+
+The done-when is "a reload unwraps it and decrypts a row, with no password and
+no relay", and both halves of that are easy to *appear* to satisfy:
+
+- **"No relay" can mean "nothing happened to need one."** So the worker
+  **removes `fetch`** for the duration of a resume (`withNoNetwork`), and any
+  reach for it throws. The instrument then tests itself before it is trusted —
+  one deliberate probe fetch, which must be blocked — because *0 calls made* and
+  *no counter installed* look identical from outside. Both numbers are in the
+  page's verdict.
+- **"It decrypted a row" can mean it opened something it sealed itself**, which
+  proves only that AES-GCM is symmetric. So the cold login keeps one
+  `EncryptedRecord` **exactly as the relay sent it** and the resume opens *that*:
+  230 B of ciphertext this browser did not produce, yielding "Ada Lovelace" —
+  a row the OPFS store independently holds. That is what makes the claim "custody
+  returned **the account's** master key" rather than "a key round-tripped".
+
+### 3. What non-extractable buys, and what it does not
+
+`exportKey("raw", …)` on the wrapping key raises `InvalidAccessError` on every
+run, and the page reports the refusal rather than asserting it. So the key is a
+**handle**, not a value: an attacker who reads IndexedDB — XSS, another script on
+the origin — gets a wrap they cannot open anywhere else, and cannot exfiltrate
+the key to open it later.
+
+What it does not buy is protection from **same-origin script**, because using the
+key is the entire point of storing it. A payload running on this origin can call
+`decrypt` exactly as this client does. Nor does it keep the master key out of JS
+memory once unwrapped: `@leapsake/crypto` seals and opens with `Uint8Array`s and
+the port itself is defined in bytes, which is also why the wrap is AES-GCM over
+raw bytes rather than `AES-KW` — `AES-KW`'s whole selling point is that the
+wrapped key never materializes, and no caller of this port can have that.
+
+**So §13's "passkey PRF is the right answer" survives this increment intact.**
+What changed is the floor, not the ceiling: the cheap thing works, costs nothing,
+and is a strict improvement over re-deriving the key from a password on every
+load. Passkey PRF adds *user presence* — a per-unlock gesture that a background
+XSS cannot supply — and remains untested.
+
+### 4. The cost of a warm start is 65× smaller, and the last cold cost is a KDF
+
+Same account, 129 records, same laptop, hidden tab, one cold login and one reload
+each way. The KDF row is a hidden-tab reading and is **not comparable to
+anything** (5c, finding 5) — it is here to show what the resume skips, not how
+long Argon2id takes.
+
+| stage | cold login | resume |
+| --- | --- | --- |
+| Argon2id + bootstrap | 3 894–4 947 ms *(hidden tab)* | **not run** |
+| open OPFS + `runMigrations` | 280–375 ms, new file | 17–29 ms, nothing to do |
+| `pull(0)` + decrypt + apply | 676–870 ms (129 records) | **not run** |
+| unwrap the master key | — | **8.6–10.2 ms** |
+| `createCore` + `entityList` | 11–16 ms | 49–61 ms |
+| mint custody | 6.4–18.8 ms | — |
+| **total** | **4 884–6 277 ms** | **62.7–96.4 ms** |
+
+Three readings:
+
+- **The KDF was the only thing left, and now it is optional.** 5c made the store,
+  the schema and the cursor survive a reload; this makes the key survive, and the
+  whole cold path collapses to a 32-byte AES-GCM decrypt.
+- **Minting got 3× more expensive when the port arrived** (6.4 ms → 18.8 ms):
+  two `setSecret` calls means two key generations and two IndexedDB
+  transactions where the first cut wrote one record. It is paid once per login,
+  on the far side of an Argon2id, so it is not worth optimizing — but it is worth
+  knowing that per-secret keys are not free.
+- **`createCore` + `entityList` is slower warm than cold** (49–61 ms against
+  11–16 ms), which reads backwards until you notice the cold number is measured
+  moments after 129 rows were written through the same pages. Warm, the first
+  query pays a real read from OPFS. It is the reload's largest line, and it is
+  the store, not the key.
+
+### 5. The thread that owns the data is not allowed to protect it
+
+`navigator.storage.persist()` is **`[Exposed=Window]`**. The worker — which owns
+the OPFS database *and* the IndexedDB wrap — gets `persisted()` and `estimate()`
+and no way to ask for durability. Found by calling it there and reading
+`navigator.storage.persist is unavailable` back; the request now lives on the
+page and the worker only reports what it got.
+
+And what it got is the part 5d needs to plan for: **`persist()` was refused**,
+leaving both the store and the key on best-effort storage that the browser may
+evict under pressure (Safari's 7-day cap on unused origins does it on a timer).
+Chrome grants durability to *installed* or highly-engaged origins — which an
+installed PWA is, and `localhost` in an agent-driven tab is not — so this is one
+more thing 5d changes rather than a wall. The failure mode is mild and should be
+designed for anyway: eviction costs one Argon2id and a full re-pull, not an
+account, because the relay still holds everything.
+
+### 6. Smaller things worth keeping
+
+- **`forget` and `wipe` are different buttons, and the difference is the
+  finding.** Forgetting the wrap keeps the store — logout, custody-shaped, and
+  the thing a shared computer needs. Wiping the store must *also* drop the wrap,
+  because a key without a store is a warm start into an empty database: it opens,
+  migrates a fresh schema, and renders nobody.
+- **A resume needs the relay credential as much as the master key**, so the
+  `authVerifier` is in custody too. This is §9.2's session-store point in a
+  different host: a client that can read its local store but can never sync again
+  is not a client. It is unwrapped on every resume and deliberately unused there
+  — the offline claim has to stand on its own — but it is what lets a resumed
+  session sync the moment it wants to.
+- **The account id is stored in the clear, and it has to be.** The OPFS filename
+  is `/spike-<accountId>.db`, which is needed *before* anything is unwrapped.
+  It is also what the relay uses to address the account, so it is not a secret —
+  but it is the one field that says which account this browser belongs to, and it
+  sits beside the wrap rather than inside it.
+- **`peekCustody` is the splash-screen call**, and a real client needs one: it
+  reads whether a wrap exists without opening it, which is how the page decides
+  between showing a password field and showing the app. Same decision an
+  installed PWA makes on every cold launch.
+- **The IndexedDB schema needed a version bump mid-increment** (one record
+  holding everything → a `secrets` store plus an `account` store), and doing that
+  correctly means creating stores conditionally inside `onupgradeneeded`, because
+  a browser that ran the earlier code already has the old database. Trivial here;
+  a real client's custody store will need migrations exactly like its SQL one.
+- **The OPFS pool is still one tab at a time, and this page proved it the
+  annoying way**: the first run failed at VFS install with
+  `NoModificationAllowedError` because a `/client-worker` tab from 5c was still
+  open. Two *different* pages of the same origin contend just as two copies of
+  one page do — worth knowing before 5d, where the answer is a `SharedWorker` or
+  a leader election rather than more pages.
+
 ## What is here
 
 | file | why |
@@ -1214,10 +1393,13 @@ Two limits of the browser rather than of the code, both found by driving it:
 | `src/client/person-app.tsx` | the loader, the screen and the providers — **one file, rendered by 5b against a real `core` and by 5c against a proxied one** |
 | `src/routes/client-worker.tsx` | Increment 5c's shell: the login form, plus the frame meter and text field that make "still interactive" watchable |
 | `src/client/client-worker-app.tsx` | **Increment 5c's done-when**, main-thread half: three probes, the stage table, and React over a `core` that lives elsewhere |
-| `src/client/core-worker.ts` | the other half: sqlite-wasm, OPFS, Argon2id, the master key, the sync engine and `core`, none of which the page can reach directly |
+| `src/client/core-worker.ts` | the other half: sqlite-wasm, OPFS, Argon2id, the master key, the sync engine and `core`, none of which the page can reach directly — and, since 5e, the `resume` that reaches the same `core` with none of the first three |
 | `src/client/core-proxy.ts` | `CoreApi` over `postMessage` in one recursive `Proxy` — the ~40 lines the plan doc predicted |
 | `src/client/worker-protocol.ts` | the three message shapes between them, which is the whole contract of the thread boundary |
 | `src/client/gifts-ports-client.ts` | desktop's gift ports with `window.api` → `core`; the SSR ports throw, and in a browser the effects that call them actually run |
+| `src/client/key-custody.ts` | **Increment 5e**: `@leapsake/crypto`'s `KeyStore` port over IndexedDB + a non-extractable `CryptoKey`, plus the account record and the relay canary that prove a warm start got the *right* key |
+| `src/routes/client-key.tsx` | 5e's shell: one page with two ways in — a password login that mints a wrap, and a resume that uses one |
+| `src/client/client-key-app.tsx` | **Increment 5e's done-when**: reload → unwrap → open OPFS → decrypt a relay record → render, with the network guard's verdict |
 | `scripts/seed.ts` | account + rows on a real relay; the fixture is an *account*, since the renderer is stateless |
 | `scripts/pull.ts` | Increment 1's done-when, runnable: the SSR request path minus the rendering |
 | `scripts/bench.ts` | the cold-vs-warm p50 the decision rule is stated on |

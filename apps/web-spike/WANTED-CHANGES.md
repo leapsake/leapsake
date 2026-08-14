@@ -309,3 +309,35 @@ wants from earlier increments that this one dissolved rather than added to.
   The proof is structural rather than asserted — `src/client/person-app.tsx` is
   **one file rendering against both**, a real `core` on 5b's page and a proxied
   one here, and `gifts-ports-client.ts` is reused across the boundary untouched.
+
+## Increment 5e — key custody in the browser
+
+**Zero files under `packages/` were changed an eighth time**, and the one entry
+below is a *withdrawal* of the want 5c filed. Custody was the increment most
+likely to need a new port — desktop and mobile reach an OS enclave, and the
+browser has nothing of the kind — so the port surviving intact is the result.
+
+- **Withdrawn: "a browser `KeyStore`" is not a package change.**
+  5c filed this as urgent, because persistence had made the KDF the only thing a
+  reload redid. It is built and green, and it needed **nothing** from
+  `@leapsake/crypto`: `createBrowserKeyStore()` in `src/client/key-custody.ts`
+  implements `getSecret` / `setSecret` / `deleteSecret` **as written**, storing
+  each secret under its own freshly generated non-extractable `AES-GCM`
+  `CryptoKey` in IndexedDB. Bytes in, bytes out, async — the three properties the
+  port already had, and the same non-result the driver contract gave in 5a.
+  → The adapter belongs to the **web client**, not to `packages/crypto`, by the
+  policy that already governs `packages/data`: the package ships the port and an
+  in-memory adapter, and each app owns the one for its own platform. So there is
+  nothing to build in `packages/`, and Increment 6 should say that rather than
+  leave §13's PWA row reading as though custody is unsolved until passkey PRF.
+  The *design* note that survives is smaller and belongs to `model.md` §13: the
+  row should distinguish "the port is satisfiable today" (it is) from "user
+  presence needs PRF" (it does).
+
+- **Not wanted, but worth the sentence: the port cannot express key strength.**
+  `KeyStore` says where bytes go, not what protects them, so nothing in it
+  distinguishes an OS enclave from `localStorage`. That is the right shape for a
+  port — and it means the *choice* of custody, and any claim made about it, lives
+  with the app and the model doc rather than with the interface. 5e reached
+  around the port deliberately (`probeKeyProtection`) to check `exportKey` is
+  refused, because the port had nothing to ask.

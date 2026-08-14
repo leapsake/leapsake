@@ -1,5 +1,12 @@
 import type { CoreApi } from "@leapsake/core";
-import type { Ready, Request, Response, Stage, Summary } from "./worker-protocol.js";
+import type {
+  Ready,
+  Request,
+  Response,
+  ResumeSummary,
+  Stage,
+  Summary,
+} from "./worker-protocol.js";
 
 /**
  * The main thread's half of Increment 5c: a `CoreApi` that is not a `core`.
@@ -26,9 +33,16 @@ import type { Ready, Request, Response, Stage, Summary } from "./worker-protocol
 export interface WorkerClient {
   /** Username + password → the whole login, on the worker's thread. */
   login: (username: string, password: string) => Promise<Summary>;
-  /** `CoreApi` over `postMessage`. Usable only after {@link WorkerClient.login}. */
+  /**
+   * **Increment 5e**: the same client, from the wrap in IndexedDB. No password,
+   * and the worker enforces no network for the duration.
+   */
+  resume: () => Promise<ResumeSummary>;
+  /** Drop the wrap, keeping the store — the logout half of custody. */
+  forget: () => Promise<string>;
+  /** `CoreApi` over `postMessage`. Usable after a {@link WorkerClient.login} or {@link WorkerClient.resume}. */
   core: CoreApi;
-  /** Throw the OPFS database away; resolves to the files that remain. */
+  /** Throw the OPFS database **and the wrap** away; resolves to the files that remain. */
   wipe: () => Promise<string[]>;
   /** Resolves when sqlite-wasm and the OPFS pool are up — or rejects if not. */
   ready: Promise<Extract<Ready, { error?: undefined }>>;
@@ -107,6 +121,8 @@ export function createWorkerClient(
     ready,
     login: (username, password) =>
       send({ kind: "login", username, password }) as Promise<Summary>,
+    resume: () => send({ kind: "resume" }) as Promise<ResumeSummary>,
+    forget: () => send({ kind: "forget" }) as Promise<string>,
     wipe: () => send({ kind: "wipe" }) as Promise<string[]>,
     core: pathProxy([]) as CoreApi,
   };

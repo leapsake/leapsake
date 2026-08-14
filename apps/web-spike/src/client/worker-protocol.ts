@@ -13,6 +13,14 @@
 export type Request =
   | { kind: "login"; id: number; username: string; password: string }
   /**
+   * **Increment 5e**: a warm start. Note what it does not carry — a password —
+   * which is the point rather than an omission: everything it needs is the wrap
+   * in IndexedDB and the database in OPFS.
+   */
+  | { kind: "resume"; id: number }
+  /** Drop the custody wrap, so the next load is a password login again. */
+  | { kind: "forget"; id: number }
+  /**
    * One `CoreApi` call, addressed by path: `["gifts", "ideas", "list"]` is
    * `core.gifts.ideas.list()`. A path rather than a method name because the API
    * is three levels deep in places, and a flat name table would be a list to
@@ -31,6 +39,11 @@ export type Ready =
       vfsName: string;
       /** What OPFS already holds — a previous run's database, on a reload. */
       files: string[];
+      /**
+       * Whether a wrap is waiting in IndexedDB, read without opening it — so the
+       * page can offer "resume" or "log in" before the user touches anything.
+       */
+      custody: { accountId: string; mintedAt: number } | null;
       error?: undefined;
     }
   | { kind: "ready"; error: string };
@@ -66,6 +79,49 @@ export interface Summary {
   records: number;
   /** Whether the OPFS database already existed — i.e. this was a reload. */
   reusedStore: boolean;
+  /** What custody the login left behind for a warm start (Increment 5e). */
+  custody: { ms: number; extractability: string; storage: string };
+}
+
+/**
+ * **Increment 5e's done-when**, in one object: what a reload got without a
+ * password and without the relay.
+ *
+ * The three fields that decide it are {@link ResumeSummary.networkCalls} (zero,
+ * enforced rather than observed — the worker's `fetch` throws for the duration),
+ * {@link ResumeSummary.canary}, and the absence of any Argon2id row in the stage
+ * table. Everything else is the cost breakdown of a warm start.
+ */
+export interface ResumeSummary {
+  accountId: string;
+  people: { id: string; label: string }[];
+  totalMs: number;
+  /** IndexedDB open + `AES-GCM` decrypt of the master key and the verifier. */
+  unwrapMs: number;
+  /** Opening the OPFS database the previous session left behind. */
+  openStoreMs: number;
+  /** `fetch` calls attempted between the click and the render. Must be 0. */
+  networkCalls: number;
+  /**
+   * Whether a deliberate probe fetch was blocked — the guard's own test, since
+   * "no calls were made" and "no counter was installed" read identically.
+   */
+  guardProven: boolean;
+  /** When the wrap was minted — i.e. how long ago the password was last typed. */
+  mintedAt: number;
+  extractability: string;
+  /**
+   * The relay record kept at mint time, opened with the key that came out of
+   * custody: `plaintext` is a field from inside the envelope, and `inStore` says
+   * the OPFS store holds the same row. Null if custody predates a canary.
+   */
+  canary: {
+    table: string;
+    id: string;
+    plaintext: string;
+    bytes: number;
+    inStore: boolean;
+  } | null;
 }
 
 export type Response =

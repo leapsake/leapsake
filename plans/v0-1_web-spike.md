@@ -7,16 +7,16 @@
 > the code that produced them. Nothing here restates either. This doc holds what is **left
 > to do**, and is deleted when the list empties.
 
-**Done: Increments 1-4, 5a, 5b and 5c** *(→ 2026-08-13)* — read, write, both sharing flavors,
-the browser data layer, the whole client-side login path, and that path in a Worker over a
-persistent store, all answered yes, every one with **zero files changed under `packages/`**.
-**Left: 5e then 5d, then Increment 6 (write up, tear down). Start at 5e** — 5c inverted that
-order, and the section below says why. No stopping points remain; each of the two is droppable
-on its own merits rather than collectively at risk.
+**Done: Increments 1-4, 5a, 5b, 5c and 5e** *(→ 2026-08-13)* — read, write, both sharing
+flavors, the browser data layer, the whole client-side login path, that path in a Worker over a
+persistent store, and a reload that needs neither the password nor the relay, all answered yes,
+every one with **zero files changed under `packages/`**.
+**Left: 5d, then Increment 6 (write up, tear down).** 5d is droppable on its own merits; nothing
+else is at risk.
 
-## What 1-5c settled, so the rest does not re-derive it
+## What 1-5e settled, so the rest does not re-derive it
 
-Thirteen results in one line each; the evidence for every one is in the README.
+Sixteen results in one line each; the evidence for every one is in the README.
 
 - **A real browser is drivable** — the Claude-in-Chrome extension reads the browser the user
   already has open (headless still will not launch here). So the three checks owed before
@@ -57,6 +57,18 @@ Thirteen results in one line each; the evidence for every one is in the README.
   `GiftCaptureForm`, the `HolidaysSection` add-field, `RelationshipFields` on create — and
   5b showed all three are **live in a JS client from the same components**, so they are gaps
   in the floor rather than in the package.
+- **The browser's `KeyStore` is `@leapsake/crypto`'s `KeyStore`** — a non-extractable
+  `AES-GCM` `CryptoKey` per secret in IndexedDB, implementing the port as written, ~60 lines,
+  no widening. §13's PWA row can be answered rather than deferred: this is what custody *is*.
+  What it is *worth* is narrower — it stops exfiltration, not same-origin use, so **passkey PRF
+  stays the designed answer** and this is the floor rather than the ceiling.
+- **A warm start costs 91 ms against a cold one's 5-6 s**, and the difference is entirely the
+  KDF plus the pull. Custody was the last thing a reload had to redo; `resume` runs with `fetch`
+  removed from the worker and opens a relay-produced record to prove the key is the account's.
+- **The thread that owns the data cannot protect it**: `storage.persist()` is `[Exposed=Window]`,
+  so the *page* must ask — and on `localhost` it was **refused**, leaving the OPFS store and the
+  wrap both evictable. An installed origin is one of the things that changes the answer, so it
+  is 5d's to collect.
 - **The SSR host and the JS client want different adapters over the same screens.** The
   degenerate `href`-passthrough adapter is right for no-JS and wrong for a client-side app,
   where every link is a document navigation that discards the tab's key and store. Desktop's
@@ -84,46 +96,36 @@ Governance for anything new: `"version": "0.0.0"`, no `typecheck` script, exclud
 `oxlint` via `.oxlintrc.json` → `ignorePatterns`, and out of `vitest.config.ts` — verification
 here is manual and in-browser.
 
-## Increments 5e and 5d — the rest of the browser JS path, in that order
+## Increment 5d — the last of the browser JS path
 
 Spike-sized only if "can it work" is split from "is it usable." The lever the plan predicted
 for 5c held exactly and is now a result rather than a bet: **the desktop main/renderer split is
 isomorphic to the browser main-thread/Worker split**, and a path-addressed `postMessage` proxy
 over `CoreApi` came to 40 lines that re-implement nothing.
 
-5a, 5b and 5c are done. The driver is `apps/web-spike/src/wasm-sqlite-driver.ts` and the page
-is `/driver-contract`; the main-thread client is `src/client/client-app.tsx` behind `/client`;
-the Worker client is `src/client/core-worker.ts` + `core-proxy.ts` behind `/client-worker`,
-with the relay forwarder they need in `src/relay-proxy.ts`. Every page prints its own numbers.
+5a, 5b, 5c and 5e are done. The driver is `apps/web-spike/src/wasm-sqlite-driver.ts` and the
+page is `/driver-contract`; the main-thread client is `src/client/client-app.tsx` behind
+`/client`; the Worker client is `src/client/core-worker.ts` + `core-proxy.ts` behind
+`/client-worker`; custody is `src/client/key-custody.ts` behind `/client-key`, with the relay
+forwarder they need in `src/relay-proxy.ts`. Every page prints its own numbers.
 
-**The order is 5e then 5d, and 5c is what settled it.** The two were listed the other way
-round on the assumption that a PWA is the bigger piece and custody a garnish. It is the
-reverse: 5d's done-when is unreachable without 5e, because `bootstrap.ts` makes **two network
-calls before it has a key** — `lookup(username)` for the account id and salt, then
-`fetchBootstrap` for `wrap(MK, kek)`. Offline, both fail, so an offline reload holds a perfectly
-good OPFS store and nothing that opens it. 5c is what made that concrete by making everything
-*except* the key survive.
+**5e was moved ahead of 5d and that was right.** 5d's done-when was unreachable without it:
+`bootstrap.ts` makes **two network calls before it has a key** — `lookup(username)` for the
+account id and salt, then `fetchBootstrap` for `wrap(MK, kek)` — so an offline reload held a
+perfectly good OPFS store and nothing that opened it. It now holds the key too, and 5d inherits
+a warm start that needs neither the network nor the KDF.
 
-- **5e — browser key custody.** Half an hour, and after 5c the most valuable half-hour here.
-  Offline access needs something persisted that unwraps the local database; desktop and mobile
-  use an OS enclave via the `KeyStore` port and **the browser has no equivalent**. Probe the
-  closest analogue: a **non-extractable** `AES-KW`/`AES-GCM` `CryptoKey` in IndexedDB
-  (unextractable by JS, origin-bound) wrapping the master key — mint, wrap, reload, unwrap,
-  decrypt a row. Success answers "what is the browser's `KeyStore`?", which §13 leaves open,
-  and hands 5d a warm start that needs neither the network nor the KDF. Failure means PWA
-  offline costs an Argon2id run on every cold start, which is a product decision, not an
-  engineering one. 5c sharpened the stakes: the store, the schema and the sync cursor now all
-  survive a reload, so **the key is the only thing that does not**, and the entire cost of a
-  warm start is a KDF run whose result is deliberately thrown away.
 - **5d — PWA.** Manifest plus a service worker caching shell, JS, and `.wasm`.
   `http://localhost` is a secure context, so no TLS. **Done when** DevTools-offline reload
-  renders the person from the OPFS database. 5c did the data half already — the store, the
-  schema and the cursor all survive — so what 5d adds is the *asset* half, plus one question it
-  inherits: **the OPFS pool is single-tab**, and an installed PWA is exactly what gets opened
-  twice. If 5e fails, 5d can still reach its done-when by caching the two login responses in
-  the service worker — offline login then costs a full Argon2id every time, and it means
-  `wrap(MK, kek)` sits in Cache Storage. That leaks nothing the relay does not already hold,
-  but it is a decision to take deliberately rather than to back into for a green demo.
+  renders the person from the OPFS database. 5c did the data half and 5e the key half — the
+  store, the schema, the cursor and now the master key all survive — so what 5d adds is the
+  *asset* half, plus two questions it inherits. **The OPFS pool is single-tab**, and an
+  installed PWA is exactly what gets opened twice (5e hit this from a second *page* rather
+  than a second copy of one). And **durable storage was refused on `localhost`**, leaving the
+  store and the wrap evictable: an installed origin is one of the things that changes Chrome's
+  answer, so 5d is where that number gets collected. The service-worker fallback 5e's failure
+  would have forced — caching the two login responses, putting `wrap(MK, kek)` in Cache Storage
+  — is no longer needed and should not be built.
 
 **What 5 still owes the measurement table** (the server-side half is all in `src/measure.ts`,
 one file to delete; the browser numbers are printed by the pages that produced them):
@@ -170,6 +172,10 @@ Three things belong in the write-up that are not in the README, because they are
   credential; in the clear beside the wrapped master key it partly defeats the split. One
   line, and the model does not currently spell it out.
 - **§9.2's cold-vs-warm question is answered** — cold, with the numbers.
+- **§13's PWA row should be rewritten** from "weak — IndexedDB, no enclave → passkey PRF is the
+  right answer" to the two-part answer 5e produced: the *port* is satisfied today by a
+  non-extractable `CryptoKey` in IndexedDB, and passkey PRF is what adds user presence on top.
+  The row currently reads as though nothing works until PRF does, and something does.
 - **The relay's compaction gap** (below) is the one change that is neither optional nor
   cosmetic for an SSR host.
 
@@ -192,8 +198,9 @@ survives that, so a visible tab is the one thing the extension route cannot supp
    is the desktop *data path* (`joinAccount` + `runAccountSync`) rather than Electron.
 4. **Click `/client-worker` once with the window in front**, and read the two lines the
    measurement table is missing: Argon2id on a worker, and the frame meter. 5c measured the
-   KDF five times in a hidden tab and got 1 083-3 417 ms against 5b's one visible reading of
-   449 ms, so nothing there is comparable. Cheapest during 5e or 5d, both of which end at a
+   KDF five times in a hidden tab and got 1 083-3 417 ms; 5e's cold logins added 3 789-4 947 ms
+   from the same hidden-tab position, against 5b's one visible reading of 449 ms — so nothing
+   there is comparable and the spread is now four-fold. Cheapest during 5d, which ends at a
    human reloading a real browser anyway. The page prints the visible-tab line only when the
    tab stayed visible throughout, so its presence is the evidence rather than the tester's word.
 
@@ -220,7 +227,10 @@ to rediscover it. Each is confirmed, none is built; the reasoning is in
 - **`createCollectingTestApi` should live in `@leapsake/data/testing`** beside the contract it
   runs — mobile has it, and 5a needed it byte for byte.
 - **`packages/data` ships no browser driver**, and by policy ships none, so the web client owns
-  one like every other app.
+  one like every other app. **`packages/crypto` is the same story for `KeyStore`** — it ships
+  the port and an in-memory adapter, and 5e's browser adapter (IndexedDB + a non-extractable
+  `CryptoKey`) belongs to the web client for the same reason. Neither is a wanted change; both
+  are noted so Increment 6 does not read "no package change" as "nothing to build".
 
 ## Open questions
 
@@ -229,9 +239,12 @@ to rediscover it. Each is confirmed, none is built; the reasoning is in
   particular. Pick one afterward.
 - **Whether server-side Argon2id needs a native binding or a worker pool** — one of them is
   needed; *which* is open, and neither exists in the repo.
-- **The browser's `KeyStore`** — §13 calls PWA custody "weak — IndexedDB, no enclave → passkey
-  PRF is the right answer." 5e probes the cheaper non-extractable `CryptoKey`; passkey PRF
-  stays the designed answer and is untested.
+- **The browser's `KeyStore`** — *answered in part by 5e.* The port needs no change: a
+  non-extractable `AES-GCM` `CryptoKey` per secret in IndexedDB implements `getSecret` /
+  `setSecret` / `deleteSecret` as written, and a reload unwraps and decrypts with no password
+  and no network. What stays open is the *strength*: it stops exfiltration but not same-origin
+  use, so §13's **passkey PRF** — which adds a user-presence gesture an XSS cannot supply —
+  remains the designed answer and remains untested.
 - **What a second tab does** *(Increment 5c)*. OPFS access handles are exclusive, so exactly one
   tab can hold the database; the second one fails at VFS install. The mechanisms are known
   (a `SharedWorker` owning the store, a `Web Locks` leader election, or a read-only fallback)

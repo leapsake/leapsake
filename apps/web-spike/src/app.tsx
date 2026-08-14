@@ -6,6 +6,7 @@ import { probe } from "./probe.js";
 import { proxyRelay } from "./relay-proxy.js";
 import { redirect, text, type Reply } from "./reply.js";
 import { clientPage } from "./routes/client.js";
+import { clientKeyPage } from "./routes/client-key.js";
 import { clientWorkerPage } from "./routes/client-worker.js";
 import { driverContractPage } from "./routes/driver-contract.js";
 import { duplicatesPage } from "./routes/duplicates.js";
@@ -199,6 +200,12 @@ export async function handleRequest(req: IncomingMessage): Promise<Reply> {
   // database in OPFS. It sits beside 5b's rather than replacing it, because the
   // main-thread page is the baseline the worker page is read against.
   if (method === "GET" && path === "/client-worker") return clientWorkerPage();
+
+  // Increment 5e: the same worker client, started from a wrap in IndexedDB
+  // instead of from a password. Its own page rather than a button on 5c's,
+  // because 5c's numbers are read against 5b's and adding a second way in would
+  // have muddied the page the interactivity claim is measured on.
+  if (method === "GET" && path === "/client-key") return clientKeyPage();
 
   // The relay, from the browser's own origin — a spike affordance standing in
   // for the CORS headers the relay does not send, and `relay-proxy.ts` is
