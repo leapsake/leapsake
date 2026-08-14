@@ -30,7 +30,8 @@
    plus two inherited questions: **single-tab** OPFS, which an installed PWA is exactly what gets
    opened twice, and **durable storage**, refused on `localhost` — installing may change that.
    It also collects the number 5c and 5e could not, **Argon2id on a worker in a visible tab**,
-   since an agent-driven tab is always `hidden`. Droppable; then **Increment 6** (write up, tear
+   since an agent-driven tab is always `hidden`. Droppable at the owner's call, not the
+   agent's; then **Increment 6** (write up, tear
    down). Two files brief it: [`v0-1_web-spike.md`](./v0-1_web-spike.md) (what is left) and
    [`apps/web-spike/README.md`](../apps/web-spike/README.md) (how to run it, what 1-5e found).
    **Keep the zero-`packages/`-edits constraint**, logging temptations in `WANTED-CHANGES.md`.
