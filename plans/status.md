@@ -5,18 +5,14 @@
 
 ## Just landed
 
-- **The web spike, Increment 5a — the browser data layer works** *(2026-08-13)*. A real
+- **The web spike, Increment 5a — the browser data layer works** *(2026-08-13)*, after 1-4
+  answered read, write and sharing yes *(08-12; the spike doc lists what they settled)*. A real
   browser reports **12/12** from `runDriverContract` against `@sqlite.org/sqlite-wasm`, and
   `runMigrations` completes — from a **40-line** driver, `SqliteDriver` unwidened for a third
   engine, **zero `packages/` edits** a fifth time. Engine init ~55 ms, schema 40-140 ms, both
   under one Argon2id. Two carries: the spike **can drive a real browser** after all (the Chrome
   extension, not a headless launch), retiring the "no browser was driven" caveat; and mobile's
   collecting test runner was needed **byte for byte**, so it belongs in `@leapsake/data/testing`.
-- **The web spike, Increments 1-4 — read, write and sharing all answered yes** *(2026-08-12)*.
-  A person's page server-renders with JavaScript disabled (the adapter is **six lines**); create /
-  edit / delete do too, **observed on a second device through a real relay** (9/9, `roundtrip`);
-  and a **capability link decrypts in the browser**, the hosted fallback a ten-line SSR route
-  (13/13, `share`). Six carries, in the spike doc.
 - **Restore-from-backup, verified** *(2026-08-11)*. Four cases on a clean machine; 04's last gate
   is gone: [`apps/desktop/README.md`](../apps/desktop/README.md) → *Backing up*
 - **The account merge, all four increments, both clients** *(2026-08-08 → 08-11)*. Local-only
