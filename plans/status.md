@@ -28,10 +28,10 @@
 1. **The web spike, Increment 6 — the write-up is done, the teardown is not.**
    [`v0-1_web-spike.md`](./v0-1_web-spike.md) is now the spike's *answers*: the three owner
    questions, the measurements, the relay and shared-package changes, three edits owed to
-   `model.md`, and the open questions that survived. The capability link is **checked in a real
-   browser** — no fragment on the wire, 840 B of ciphertext decrypted in the tab. **Three checks
-   are owed** before the delete (that doc → *Still owed*): a Firefox no-JS walk-through and the
-   `/client-pwa` install need a human; one desktop build converging does not. Then tag
+   `model.md`, and the open questions that survived. Two checks are **done**: the capability link
+   in a real browser (no fragment on the wire) and a clean **Electron** install converging on the
+   spike's account in 836 ms, round-tripping both ways through an at-rest-encrypted store. The
+   last **two need you** — a Firefox no-JS walk-through and the `/client-pwa` install. Then tag
    `web-spike-final`, delete `apps/web-spike`, revert the `.oxlintrc.json` line. **No more
    measurement** *(owner, 08-14)* — so the phone row is a standing risk, not a task.
 

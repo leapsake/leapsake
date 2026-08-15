@@ -171,6 +171,22 @@ call; the field readers ported *verbatim*, one edit each — the parameter type,
 surface the readers use. The desktop write path was never Electron-shaped; it was
 **`FormData`-shaped**, and a no-JS host gets that free from the raw body.
 
+**A real desktop build converges on it, both directions** *(Electron 41.7.1, 2026-08-14 — the
+check Increment 3 could only make with a Node peer)*. A **clean install** on a throwaway
+user-data directory joined the spike's relay account in **836 ms**, `duplicateCount: 0`, and
+converged on **100 people** — Ada Lovelace and Charles Babbage among them. Then:
+
+- a create on the **JavaScript-disabled web client** arrived on `syncNow` with the **same row
+  id**, 100 → 101;
+- a create in the **desktop app** came back rendered by the SSR host, with **zero `<script>`**.
+
+That closes both halves of Increment 3's caveat, and the second half is the one worth naming:
+this store is **encrypted at rest**. Increment 3's peer used plain `node:sqlite` against a plain
+file; this is `better-sqlite3-multiple-ciphers` on the Electron ABI, and the resulting 385 KiB
+file has **no `SQLite format 3` header** — `sqlite3` refuses it outright as "not a database". So
+the envelope (layer 2) and the at-rest cipher (layer 1) are now observed composing on a real
+build, rather than argued to be independent.
+
 ## Sharing: two flavors, one mechanism
 
 | | capability link | hosted link |
@@ -297,21 +313,19 @@ finding**: `duplicates.findFor` is a full in-memory O(n²) pass run on every per
 on every create, and the page only uses `.length` of the result — 2.1 ms at 100 people, 122.9 ms
 at 1 000, **11 781 ms at 10 000**. Desktop makes the identical call on the same screen.
 
-## Still owed: three checks, then the teardown
+## Still owed: two checks, then the teardown
 
-All three are the same shape — things verified by construction or by a stand-in rather than by
-driving the real thing. *(The fourth, a capability link in a real browser, is **done** — see
-*Sharing* above.)*
+Both need a human, which is the only reason they are still here. *(The other two — a capability
+link in a real browser, and a real desktop build converging — are **done**; see *Sharing* and
+*The no-JS floor* above.)*
 
 1. **Firefox with `javascript.enabled=false`**, walking create/edit/delete by hand, and while
-   there opening a **hosted** share link — the same check for Increment 4's no-JS half. *(Needs a
-   human: it is a Firefox preference.)*
-2. **One real desktop build converged against the spike's relay account.** Increment 3's peer is
-   the desktop *data path* (`joinAccount` + `runAccountSync`) rather than Electron.
-3. **Install `/client-pwa` and read one line** — whether an *installed* origin is granted durable
+   there opening a **hosted** share link — the same check for Increment 4's no-JS half. *(A
+   Firefox preference, so it cannot be driven from here.)*
+2. **Install `/client-pwa` and read one line** — whether an *installed* origin is granted durable
    storage where a `localhost` tab is refused. Chrome fired `beforeinstallprompt`, so the
    manifest, icons and worker all qualify and the button is live. **If the answer is still
-   "refused", that is the answer.** *(Needs a human: a native install dialog.)*
+   "refused", that is the answer.** *(A native install dialog, likewise.)*
 
 Then: tag `web-spike-final`, delete `apps/web-spike`, revert the `.oxlintrc.json`
 `ignorePatterns` entry, and drop the spike's row from [`status.md`](./status.md) and
