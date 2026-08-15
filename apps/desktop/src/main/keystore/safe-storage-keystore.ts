@@ -16,6 +16,14 @@ import { safeStorage } from "electron";
  * OS account's keychain. The device's enclave secret must live here, outside
  * the synced SQLite database (it is the one key the database cannot hold).
  *
+ * ⚠️ **`safeStorage.isEncryptionAvailable()` overstates the guarantee on
+ * Linux.** It returns `true` even where Electron has fallen back to the
+ * `basic_text` backend because no real OS keyring is present — the enclave
+ * secret is then only lightly protected at rest. The secret is worth exactly as
+ * much as the keyring actually behind it, which is why this is an accepted limit
+ * rather than a check we can make here. (Linux is out of scope for v0.1
+ * regardless; this matters when it stops being.)
+ *
  * Writes are whole-file and atomic (temp file + rename). No locking is needed:
  * the Electron main process is single-threaded and every method below resolves
  * synchronously, so calls never interleave mid-write.

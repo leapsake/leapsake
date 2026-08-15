@@ -12,7 +12,7 @@ import type { Cursor, EncryptedRecord, SyncTransport } from "./transport.js";
  * JSON transit and attaches the account's credential. It never holds a master key
  * and never merges.
  *
- * **Sessions (security-findings.md H3).** The hot `push`/`pull` path authenticates
+ * **Sessions.** The hot `push`/`pull` path authenticates
  * with a short-lived **session token**, not the password-derived verifier — so the
  * verifier transits only *once per login*. This adapter manages that lifecycle
  * itself, invisibly: it logs in with the verifier on first use (and near expiry),

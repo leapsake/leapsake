@@ -20,13 +20,13 @@ import { createRelayStore } from "./store.js";
  * `RELAY_RECOVERY_RATE_LIMIT_WINDOW_MS`, and failed logins at `/accounts/bootstrap`
  * are throttled via `RELAY_BOOTSTRAP_RATE_LIMIT_MAX` /
  * `RELAY_BOOTSTRAP_RATE_LIMIT_WINDOW_MS` (the online-guessing mitigation,
- * security-findings.md H2). All defaults + env-var names live in `./config`.
+ * threat H2, README.md). All defaults + env-var names live in `./config`.
  *
  * Behind a reverse proxy, set `RELAY_TRUSTED_PROXIES` (comma-separated IPs / CIDR
  * ranges / `proxy-addr` presets like `loopback`, `uniquelocal`) so the rate
  * limiters key on the real client IP from `X-Forwarded-For`; unset trusts no
  * proxy and ignores the header (the secure default). Short-lived login sessions
- * (security-findings.md H3) carry the hot sync path; tune their lifetime with
+ * (threat H3, README.md) carry the hot sync path; tune their lifetime with
  * `RELAY_SESSION_TTL_MS`.
  *
  * TLS: terminate it **in front** (Option A — a proxy; the default) or **in-process**

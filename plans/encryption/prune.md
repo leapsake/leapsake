@@ -360,8 +360,9 @@ self-host-only and the relay's growth is a self-hoster's own disk.
   the relay's store. Rotation would mean rewriting every record's key.
 - **Does compaction change what a hostile relay can do?** It grants the relay a *sanctioned*
   reason to delete records. The convergence-neutrality argument (§3.3) holds for an honest
-  relay; the adversarial case belongs with the existing M3-class analysis in
-  [`security-findings.md`](./security-findings.md) and has not been done.
+  relay; the adversarial case belongs with the M3-class analysis in
+  [`apps/server/README.md`](../../apps/server/README.md) → *Threat register*, and has not been
+  done.
 - **Tombstone garbage collection.** Tombstones are kept forever under §3.4. Dropping them
   after a long retention window would shrink the store further, but reopens the classic
   resurrection window for a device offline across the boundary. Not analysed here.

@@ -267,8 +267,8 @@ env-gated seam (public when unset); enforcement is a future phase.
 ### Auth-hardening decision — OPAQUE at the hosted-relay gate (decided 2026-07-05)
 
 The problem being decided:
-[`security-findings.md`](./security-findings.md) **H1** — the relay observes the raw auth
-verifier on every request, so against a curious *operator* (the exact adversary the blind
+[`apps/server/README.md`](../../apps/server/README.md) → *Threat register* **H1** — the relay
+observes the raw auth verifier on every request, so against a curious *operator* (the exact adversary the blind
 relay is designed for), account confidentiality reduces to password strength stretched by
 one interactive Argon2id pass. Three candidate fixes were weighed **through the
 accessibility lens** (`model.md` §1: security defaults must not cost laypeople usability).

@@ -19,7 +19,7 @@ import {
  *
  * - **Outbound**, it pushed records sealed under a key no peer holds. Peers pulled
  *   them, failed to open them, and *advanced past them* — the engine skips a bad
- *   record rather than stalling on it forever (`security-findings.md` M3). Those
+ *   record rather than stalling on it forever. Those
  *   records will never be offered again.
  * - **Inbound**, the same skip-and-advance happened here for every peer record this
  *   device could not open.

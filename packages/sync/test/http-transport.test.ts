@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { createHttpSyncTransport } from "../src/http-transport.js";
 
 /**
- * The session lifecycle the HTTP transport manages *itself* (security-findings.md
- * H3): it exchanges the durable verifier for a short-lived token at
+ * The session lifecycle the HTTP transport manages *itself* (threat H3,
+ * `apps/server/README.md`): it exchanges the durable verifier for a short-lived token at
  * `POST /accounts/session` once, carries that token on the hot `push`/`pull` path,
  * and re-logs-in transparently on a 401 — so the verifier transits once per login,
  * never per request, and everything above the transport stays unchanged. Driven by

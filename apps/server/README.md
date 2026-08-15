@@ -38,8 +38,7 @@ See [`@leapsake/key-custody`](../../packages/key-custody/README.md).
 
 ## Auth (blind)
 
-Two credentials, one durable and one short-lived
-([`security-findings.md`](../../plans/encryption/security-findings.md) H3). The
+Two credentials, one durable and one short-lived (threat H3 below). The
 durable **verifier** is sent as `Authorization: Bearer <accountId>.<b64(authVerifier)>`
 to the two login endpoints only (`POST /accounts/session`, `GET /accounts/bootstrap`);
 the relay persists just `sha256(verifier)`, constant-time-compares it, and namespaces
@@ -53,8 +52,28 @@ Because the verifier is HKDF-independent of the KEK
 ([`packages/crypto`](../../packages/crypto/README.md)), the relay authenticates a device
 without ever holding anything that could unwrap the master key. The auth model and its
 accepted residual risks are in
-[`plans/encryption/security-review.md`](../../plans/encryption/security-review.md) and
-[`security-findings.md`](../../plans/encryption/security-findings.md).
+[`plans/encryption/security-review.md`](../../plans/encryption/security-review.md); the
+attacks it is built against are the register below.
+
+## Threat register
+
+Four attacks found by an adversarial review of the shipped relay + client on
+**2026-07-05**, kept here because the code cites them by id and a reader needs one
+place to look them up. Three are closed; the open one is scoped to a tier that does
+not exist yet.
+
+| Id     | The attack                                                                                                                                                                                             | Where it stands                                                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **H1** | The relay observes the raw auth verifier and stores `kdfSalt` + `wrap(MK, KEK)`, so an operator can crack passwords **entirely offline** and decrypt the account. Zero-knowledge reduces to password strength. | **Open, gated.** Sessions (H3) cut the observation window to once per login; OPAQUE closes it and is required before any hosted tier — [`plans/v0-2.md`](../../plans/v0-2.md) → *Hosted-relay gate*. |
+| **H2** | `GET /accounts/bootstrap` is the de-facto login endpoint, so unlimited 401s let an attacker with a username grind passwords online. A hit yields the verifier **and** the KEK.                              | **Closed.** A third per-IP throttle charges only *failed* logins, on its own counter (`RELAY_BOOTSTRAP_RATE_LIMIT_MAX`); `relay.test.ts` asserts 401→401→429 and budget independence. |
+| **H3** | The verifier was a forever-valid bearer on every request — replayable, non-expiring, one per account — and nothing in the repo terminated TLS.                                                          | **Closed for transit.** Session tokens (`POST /accounts/session`) plus both TLS options above. **Still open:** per-device tokens + revocation, and a shared session store for multi-node. |
+| **M3** | A hostile or buggy relay can serve a too-short ciphertext; `open()` had no length guard and `pull()` no per-record try/catch, so one bad row aborted every batch forever — a denial of *convergence*.      | **Closed, client-side.** `open()` length-guards before the `subarray` (`packages/crypto`) and `pull()` skips-and-logs a poison record while the cursor still advances (`packages/sync`). |
+
+Findings that are not about the relay live with the code they constrain: the
+Argon2id cost in [`packages/crypto`](../../packages/crypto/README.md), master-key
+residency and recovery-phrase backpressure in
+[`packages/key-custody`](../../packages/key-custody/README.md) and
+[`plans/v0-2.md`](../../plans/v0-2.md).
 
 ## Routes (`src/relay.ts`)
 
@@ -185,5 +204,5 @@ is you or someone you chose to trust — but **use a strong password** regardles
 [`plans/encryption/sync.md`](../../plans/encryption/sync.md) §4.
 
 > **Still ahead** before a public, at-scale relay: per-device tokens + revocation, replay
-> defense, and a shared cross-process session + rate-limit store for multi-node. Tracked in
-> the encryption status oracle and `security-findings.md` (H3).
+> defense, and a shared cross-process session + rate-limit store for multi-node — the open
+> half of H3, tracked in [`plans/v0-2.md`](../../plans/v0-2.md).

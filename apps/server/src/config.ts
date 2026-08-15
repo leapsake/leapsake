@@ -29,7 +29,7 @@ export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 
 /**
  * How long a minted session token stays valid (`POST /accounts/session`,
- * security-findings.md H3). Short-lived on purpose: the token is the credential
+ * threat H3, README.md). Short-lived on purpose: the token is the credential
  * that transits on every `push`/`pull`, so a bounded lifetime caps the value of
  * a leaked one and shrinks raw-verifier observation to *once per login*. A device
  * silently re-logs-in (it still holds the verifier locally) when its token
@@ -71,7 +71,7 @@ export const DEFAULT_RECOVERY_RATE_LIMIT: RateLimit = {
 
 /**
  * A tight default throttle on **failed** authentications at the two verifier-checking
- * endpoints — `GET /accounts/bootstrap` and `POST /accounts/session` (security-findings.md
+ * endpoints — `GET /accounts/bootstrap` and `POST /accounts/session` (threats
  * H2/H3). Both are de-facto login endpoints: a device that authenticates successfully is
  * handed either `wrap(MK, KEK)` (bootstrap) or a session token (session), so an
  * unauthenticated route (`GET /accounts/lookup`) leaks the salt and an attacker can then
@@ -123,7 +123,7 @@ export const ENV = {
   /**
    * Bootstrap failed-auth throttle overrides (default
    * {@link DEFAULT_BOOTSTRAP_RATE_LIMIT}). Limits online password guessing at
-   * `GET /accounts/bootstrap` (security-findings.md H2).
+   * `GET /accounts/bootstrap` (threat H2, README.md).
    */
   bootstrapRateLimitMax: "RELAY_BOOTSTRAP_RATE_LIMIT_MAX",
   bootstrapRateLimitWindowMs: "RELAY_BOOTSTRAP_RATE_LIMIT_WINDOW_MS",

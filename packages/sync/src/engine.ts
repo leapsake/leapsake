@@ -107,7 +107,7 @@ export function createSyncEngine(opts: {
       // aborting the whole batch: a single malformed row (a corrupt row, or one
       // injected by a hostile relay) would otherwise throw here and — since the
       // cursor never advances past it — re-throw on every subsequent pull,
-      // permanently stalling convergence (security-findings.md M3). The cursor
+      // permanently stalling convergence. The cursor
       // still advances to `next`, so the bad row is pulled once, skipped, and
       // never seen again. AEAD still fails closed, so this is not a confidentiality
       // relaxation — only a resilience one.

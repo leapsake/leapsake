@@ -20,8 +20,8 @@
 >
 > **Companion docs:** [`sync.md`](./sync.md) (the transport seam + merge model + the P2P
 > decision),
-> [`security-review.md`](./security-review.md) + [`security-findings.md`](./security-findings.md)
-> (the audits). Start at [`README.md`](./README.md) if you're new to this folder.
+> [`security-review.md`](./security-review.md) (the design audit; the attacks the relay is
+> built against are [`apps/server/README.md`](../../apps/server/README.md) → *Threat register*). Start at [`README.md`](./README.md) if you're new to this folder.
 
 ## 1. Goals
 

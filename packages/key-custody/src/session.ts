@@ -27,6 +27,17 @@ import {
  * and the in-memory master key (MK). Held by a client after bootstrap so later
  * work (per-item content keys, sync) can wrap/unwrap under MK. The MK bytes live
  * only here in memory — on disk it exists solely as its enclave wrapping.
+ *
+ * **Accepted limit: MK is a plaintext `Uint8Array` for the process lifetime and
+ * is never zeroized.** In a GC'd runtime it cannot reliably be — V8 and Hermes
+ * both copy and intern buffers — so `.fill(0)` would buy the appearance of
+ * hygiene rather than the fact. What follows: this is exposed to a memory dump,
+ * swap, or a crash report on an *already compromised* device, and at-rest
+ * encryption rather than wiping is the real device-theft mitigation. Two
+ * consequences for anyone editing this file: never let a key-bearing object
+ * reach a log or a crash reporter, and do wipe the short-lived **KEK** and
+ * transient wrap keys after use, since those are derived-then-used-once and
+ * cost nothing to clear.
  */
 export interface KeySession {
   deviceId: string;

@@ -46,7 +46,7 @@ export type { RateLimit };
  * - `POST /sync/push`          — session auth; append `{ records }` to the account log.
  * - `GET  /sync/pull`          — session auth; `?since=<cursor>` → `{ records, cursor }`.
  *
- * **Two credentials, one durable and one short-lived (security-findings.md H3).**
+ * **Two credentials, one durable and one short-lived (threat H3, README.md).**
  * The durable one is the password-derived **verifier**, sent as
  * `Authorization: Bearer <accountId>.<base64(authVerifier)>`; the relay stores only
  * `sha256(verifier)` and constant-time-compares (model.md §9.3). It authenticates the
@@ -154,7 +154,7 @@ function registrationTokenOk(req: IncomingMessage): boolean {
  * dropping usernames — but it **can be throttled**, the pragmatic enumeration mitigation
  * (security-review.md §3). Those two logins aren't enumeration oracles but *are* password
  * oracles — a successful auth returns `wrap(MK, KEK)` or a session token — so an online
- * guessing grind is capped across both, sharing one budget (security-findings.md H2/H3).
+ * guessing grind is capped across both, sharing one budget (threats H2/H3, README.md).
  * `push`/`pull` stay un-throttled: neither oracle, and hit legitimately on every sync.
  *
  * The key is a proxy-aware client IP (see {@link createRelayServer}'s `clientIp`):
@@ -282,7 +282,7 @@ export function createRelayServer(opts: {
   /**
    * Per-IP throttle on **failed** authentications at the verifier-checking login
    * endpoints (`GET /accounts/bootstrap`, `POST /accounts/session`), the online-
-   * password-guessing mitigation (security-findings.md H2/H3). Its own shared counter,
+   * password-guessing mitigation (threats H2/H3, README.md). Its own shared counter,
    * so a guessing grind never spends — nor is laundered across — the enumeration/
    * recovery budgets. Defaults tight — see {@link DEFAULT_BOOTSTRAP_RATE_LIMIT}.
    */
@@ -316,7 +316,7 @@ export function createRelayServer(opts: {
   const allowRecovery = createRateLimiter(
     opts.recoveryRateLimit ?? DEFAULT_RECOVERY_RATE_LIMIT,
   );
-  // A third, independent counter for failed bootstrap auths (security-findings.md H2),
+  // A third, independent counter for failed bootstrap auths (threat H2, README.md),
   // so an online password-guessing grind can't spend the enumeration/recovery budgets.
   const allowBootstrap = createRateLimiter(
     opts.bootstrapRateLimit ?? DEFAULT_BOOTSTRAP_RATE_LIMIT,
@@ -503,7 +503,7 @@ export function createRelayServer(opts: {
 
     if (method === "POST" && url.pathname === "/accounts/session") {
       // The steady-state login: verifier auth *once*, in exchange for a short-lived
-      // session token that carries the hot `push`/`pull` path (security-findings.md H3).
+      // session token that carries the hot `push`/`pull` path (threat H3, README.md).
       const accountId = authenticate(req, store);
       if (accountId === null) {
         // Failed auth here is the same online-guessing surface as bootstrap, so it
@@ -523,7 +523,7 @@ export function createRelayServer(opts: {
       const accountId = authenticate(req, store);
       if (accountId === null) {
         // A failed auth consumes the per-IP bootstrap budget; once exhausted we 429 so
-        // a password-guessing grind is throttled (security-findings.md H2). A legit
+        // a password-guessing grind is throttled (threat H2, README.md). A legit
         // device authenticates successfully and never touches this counter.
         if (!allowBootstrap(clientIp(req))) {
           sendJson(res, 429, { error: "rate limited" });

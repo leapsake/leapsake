@@ -1675,7 +1675,7 @@ describe("relay rate limiting (recovery endpoints)", () => {
 
 /**
  * Failed logins at `GET /accounts/bootstrap` are throttled per IP
- * (security-findings.md H2). Bootstrap isn't an enumeration oracle but *is* a password
+ * (threat H2, README.md). Bootstrap isn't an enumeration oracle but *is* a password
  * oracle — a successful auth hands back `wrap(MK, KEK)` — so an attacker who has a
  * username (via the unauthed `lookup`) could otherwise grind passwords against it with
  * unlimited 401s. Only *failed* auths consume the budget, on its own counter, so a
@@ -1818,7 +1818,7 @@ describe("relay rate limiting (proxy-aware client IP)", () => {
 });
 
 /**
- * In-process TLS (Option B, security-findings.md H3): handed a cert + key, the relay
+ * In-process TLS (Option B, threat H3): handed a cert + key, the relay
  * terminates HTTPS itself and serves the *same* handler over TLS. Driven with the
  * committed TEST-ONLY self-signed localhost cert (`test/fixtures`) so it needs no
  * tools at runtime — and validated against its own CA (not `rejectUnauthorized:

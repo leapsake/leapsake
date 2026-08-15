@@ -47,7 +47,7 @@ export function seal(
  * Length-guards before the split: a blob too short to hold nonce + tag can't be a
  * genuine sealed value, so we reject it with a clear error instead of feeding a
  * negative-length remainder into the AEAD. This keeps a hostile/corrupt relay record
- * from crashing the sync pull loop in an opaque way (security-findings.md M3).
+ * from crashing the sync pull loop in an opaque way.
  */
 export function open(sealed: Uint8Array, key: Uint8Array): Uint8Array {
   if (sealed.length < NONCE_BYTES + TAG_BYTES) {

@@ -25,7 +25,6 @@ being worked on *right now* is the only thing [`../status.md`](../status.md) tra
 | [`sync.md`](./sync.md) | The `SyncTransport` transport seam, the merge model, the account-bootstrap channel + the join-scheme decision, and the **P2P-is-a-deferred-adapter** decision. | When building sync, the relay, or evaluating P2P. |
 | [`prune.md`](./prune.md) | ⚠️ **Exploratory, nothing decided.** Relay retention: why the append log never shrinks, why minimum-cursor pruning corrupts joining devices, and the LWW-licensed compaction that needs no device tracking. | When thinking about relay storage cost, retention, or backup — and only ever as a proposal. |
 | [`security-review.md`](./security-review.md) | The recorded design review of the key hierarchy and relay auth: how the constructions hold the model's properties + the residual risks accepted. Pinned params live in [`packages/crypto/README.md`](../../packages/crypto/README.md). | When touching the KDF / password door, or before an external audit. |
-| [`security-findings.md`](./security-findings.md) | The adversarial "poke holes" review of the *shipped* code + relay: a severity-ranked backlog of concrete attacks (offline crack oracle, unthrottled login, convergence DoS) with mitigations. | Before hardening the relay / KDF, or picking up a security fix. |
 
 > **Custody is [`model.md`](./model.md) §7, and only there** — §7.2 the states, §7.2.1 the
 > act that turns encryption on, §7.3 Locked / Sign out / Forget account, §7.4 one store per

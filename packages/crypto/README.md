@@ -48,6 +48,21 @@ Argon2id m = 19 MiB / t = 2 / p = 1 is the OWASP interactive minimum, chosen so
 the pure-JS implementation stays acceptable on mobile (Hermes) while resisting
 GPU/ASIC cracking.
 
+> ⚠️ **Be honest about what that parameter is holding up.** OWASP's figure is a
+> floor for *sub-second interactive login*, where a failed guess costs the
+> attacker a round trip. Here the same pass is the **sole stretch protecting
+> at-rest and relay confidentiality against a fully offline attacker** who holds
+> the salt and an observed verifier — a much harder job, and 19 MiB is cheap to
+> attack at scale on GPU/ASIC. The parameter is defensible (pure-JS on Hermes is
+> the real constraint) but it is justified by *mobile UX*, not by that adversary.
+>
+> Raising it is deliberately cheap: `KDF_ALG` is versioned per account, so a bump
+> re-derives nothing and locks nobody out. Measure Hermes headroom and take as
+> much as mobile tolerates — many RN apps bear 46–64 MiB. This stays load-bearing
+> even after OPAQUE, which removes the *passive* observation of a verifier but
+> not a malicious operator's active grind ([`plans/v0-2.md`](../../plans/v0-2.md)
+> → *Hosted-relay gate*).
+
 > **Scope.** The asymmetric scheme (X25519/Ed25519 for authenticated sharing) is
 > deferred to encryption **Stage 3** and is not in this package yet. The
 > `security-review.md` audit is an _internal design review_, not a third-party

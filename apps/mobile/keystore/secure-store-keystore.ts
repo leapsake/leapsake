@@ -12,7 +12,11 @@ import * as SecureStore from "expo-secure-store";
  *
  * `keychainAccessible: AFTER_FIRST_UNLOCK` keeps the secret reachable after the
  * first unlock following a reboot, which later background sync needs, while
- * still protecting it before that first unlock. Values are base64 (secrets are
+ * still protecting it before that first unlock. **The accepted limit that comes
+ * with it:** after that first unlock the secret is readable to anything running
+ * on the device, so at-rest protection from then on leans entirely on the OS
+ * lockscreen. A stricter class (`WHEN_UNLOCKED`) would trade background sync for
+ * it; that trade has not been made. Values are base64 (secrets are
  * tiny — well under expo-secure-store's ~2048-byte per-value limit on Android,
  * which would matter only for much larger future blobs).
  */
