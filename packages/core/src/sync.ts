@@ -233,7 +233,8 @@ export async function lookupAccountId(opts: {
 /**
  * Register a freshly-enabled account with its relay so a second device can later
  * log in: upload the public salt, unique username, and the *ciphertext*
- * `wrap(MK, KEK)` (the relay reads none of it, multi-device-login.md). Builds the
+ * `wrap(MK, KEK)` (the relay reads none of it — `encryption/sync.md` → *The
+ * account-bootstrap channel*). Builds the
  * authenticated transport from the {@link AccountBootstrap} {@link enableSync}
  * returned, keeping the HTTP transport out of the app layer. A duplicate username
  * surfaces as the relay's 409 → a thrown error.

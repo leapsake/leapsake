@@ -73,7 +73,7 @@ export function decodeRecord(wire: WireRecord): EncryptedRecord {
  * minus the credentials the transport already holds (`accountId`/`authVerifier`,
  * supplied at construction). It carries the public salt and the *ciphertext*
  * `wrap(MK, password-KEK)` so a future second device can log in and recover the
- * master key — the relay stores both but can read neither (multi-device-login.md).
+ * master key — the relay stores both but can read neither.
  */
 export interface AccountRegistration {
   /** Unique login handle the second device looks the account up by. */
@@ -97,7 +97,8 @@ export interface AccountRegistration {
 /**
  * A {@link SyncTransport} plus the extra calls the engine never needs — the
  * account-bootstrap channel that lets a *second* device obtain the master key
- * (multi-device-login.md). These are adoption concerns, not sync concerns, so
+ * (`plans/encryption/sync.md` → *The account-bootstrap channel*). These are
+ * adoption concerns, not sync concerns, so
  * they live outside the port; the engine only ever touches `push`/`pull`.
  *
  * `accountId`/`authVerifier` are optional at construction: a *joining* device

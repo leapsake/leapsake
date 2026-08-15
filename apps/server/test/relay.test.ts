@@ -455,7 +455,7 @@ describe("blind HTTPS relay (server + adapter)", () => {
 
 /**
  * The Stage-1 completion: multi-device account login over the real relay
- * (plans/encryption/multi-device-login.md). Unlike the block above — where both
+ * (plans/encryption/sync.md). Unlike the block above — where both
  * devices were handed a shared master key — here device 2 starts knowing *only*
  * the relay URL, username, and password, and obtains the master key through the
  * relay's blind account-bootstrap channel, then converges.

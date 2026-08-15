@@ -61,7 +61,7 @@ export function open(sealed: Uint8Array, key: Uint8Array): Uint8Array {
 /**
  * Wrap a key under a wrapping key. Wrapping a key is just sealing its 32 bytes,
  * so this is {@link seal} under a name that reads correctly at the call site
- * (encryption.md §3 — "the envelope is rows, not codepaths").
+ * (plans/encryption/model.md §3 — "the envelope is rows, not codepaths").
  */
 export const wrapKey = seal;
 

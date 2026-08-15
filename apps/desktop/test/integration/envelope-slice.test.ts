@@ -21,7 +21,7 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
  * store it enclave-wrapped, wrap a content key under the master key, persist
  * both wraps, then — from cold handles — read back, unwrap, and decrypt a
  * payload. Proves the core "the DB only ever holds ciphertext + wrapped keys"
- * property (encryption.md §3) end-to-end through `packages/crypto`, the
+ * property (plans/encryption/model.md §3) end-to-end through `packages/crypto`, the
  * `KeyStore` port, and the `content_key` + `key_wrap` data layer.
  */
 describe("envelope slice", () => {

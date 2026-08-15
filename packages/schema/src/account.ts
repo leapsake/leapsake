@@ -15,7 +15,7 @@ import { z } from "zod";
  * same per-record-`alg` posture as `key_wrap`).
  *
  * `username`/`relayUrl` are the multi-device login coordinates (custody Phase
- * 1/2, multi-device-login.md): the unique handle a second device looks the
+ * 1/2, plans/encryption/model.md §7.5): the unique handle a second device looks the
  * account up by, and the relay it lives on. Both are NULL for a local-only
  * store (sync never enabled) — they are populated at enable-sync, and on a
  * joining device after login.
@@ -42,7 +42,7 @@ export type Account = z.infer<typeof accountSchema>;
  * Input accepted when creating the account; the repository fills timestamps and,
  * by default, the id. `id` is accepted explicitly so a **joining** device can
  * persist the account id it looked up by username — that id is the relay's
- * per-account namespace and must match across devices (multi-device-login.md).
+ * per-account namespace and must match across devices.
  * `username`/`relayUrl` default to NULL for an enable-sync that omits them.
  */
 export const createAccountInputSchema = z.object({

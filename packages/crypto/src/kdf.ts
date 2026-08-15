@@ -53,7 +53,7 @@ const AUTH_INFO = utf8ToBytes("leapsake:auth:v1");
  * Derived from the high-entropy recovery key (not a password), so it needs no
  * Argon2id; one HKDF branch yields a verifier whose stored hash lets the relay
  * authenticate a "forgot password" recovery without ever seeing the key
- * (`model.md` §6, multi-device-login.md). Independent of the KEK/auth branches.
+ * (`model.md` §6). Independent of the KEK/auth branches.
  */
 const RECOVERY_AUTH_INFO = utf8ToBytes("leapsake:recovery-auth:v1");
 

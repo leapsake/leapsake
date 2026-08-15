@@ -8,8 +8,7 @@
  * renderer could be added at `./native` without DOM code entering Metro's module
  * graph. `./tokens` is the platform-neutral third subpath.
  *
- * See `packages/ui/README.md` for the contract and
- * `plans/ui-extraction.md` for the increments still to come.
+ * See `packages/ui/README.md` for the contract.
  */
 export {
   UiProvider,

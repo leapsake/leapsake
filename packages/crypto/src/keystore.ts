@@ -1,5 +1,5 @@
 /**
- * The `KeyStore` port (encryption.md §13): the small async surface for secrets
+ * The `KeyStore` port (plans/encryption/model.md §13): the small async surface for secrets
  * the device holds outside the database — the enclave-wrapping secret today,
  * passphrase-derived material later. Async so the same port covers desktop
  * `safeStorage` and mobile `expo-secure-store`; this slice ships only the

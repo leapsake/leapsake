@@ -66,7 +66,7 @@ export type { RateLimit };
  * them). If `RELAY_REGISTRATION_TOKEN` is set the relay requires + constant-time-
  * compares it on `POST /accounts`; unset ⇒ the relay is public (the default).
  * This is the host-auth / paid-relay hook — additive, never a one-way door
- * (multi-device-login.md).
+ * (`plans/encryption/sync.md` → *The account-bootstrap channel*).
  *
  * The two **unauthenticated** routes (`POST /accounts`, `GET /accounts/lookup`)
  * are per-IP **rate-limited** ({@link RateLimit}) — the pragmatic mitigation for
@@ -149,7 +149,7 @@ function registrationTokenOk(req: IncomingMessage): boolean {
  * (`GET /accounts/lookup`, `POST /accounts`), a stricter one on the recovery-authed
  * endpoints, and a third on **failed** authentications at the two verifier-checking
  * login endpoints (`GET /accounts/bootstrap`, `POST /accounts/session`).
- * The launch join scheme is username + password (multi-device-login.md), so a username
+ * The launch join scheme is username + password (`plans/encryption/sync.md`), so a username
  * existence oracle is an *accepted, deliberate* property — it can't be removed without
  * dropping usernames — but it **can be throttled**, the pragmatic enumeration mitigation
  * (security-review.md §3). Those two logins aren't enumeration oracles but *are* password

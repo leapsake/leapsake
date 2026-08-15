@@ -30,7 +30,7 @@ function passwordHint(password: string): string {
  * survive a navigation or a loader re-run, so it lives in local state and is
  * dropped the moment the user confirms they've saved it.
  *
- * Device-to-device sync is real now (multi-device-login.md Phase B): a first
+ * Device-to-device sync is real now: a first
  * device sets a password + username and registers with a relay; a second device
  * logs in to the same account; "Sync now" pushes/pulls the encrypted records.
  */
@@ -1227,9 +1227,8 @@ function SignupStep({
  * at stake.
  *
  * Joining **keeps** this device's data and sends overlaps to duplicate review
- * (`reconcileOnJoin`). It did once replace it — the overwrite stance in
- * multi-device-login.md — and this comment said so for a while after it stopped
- * being true.
+ * (`reconcileOnJoin`). It did once replace it, and this comment said so for a
+ * while after it stopped being true.
  *
  * `merge` switches the destination without forking the form. Both routes are a
  * password login against the same account; what differs is what this device

@@ -15,7 +15,7 @@ import pkg from "./package.json";
  * Why it matters more here than elsewhere: `expo.version` is the **user-visible store
  * version string** on both platforms, and store versions are permanent and monotonic.
  * A bump that updated `package.json` but not `app.json` would ship the wrong number to
- * a store record that can never go backwards (`plans/v0-1_03_store-identity-and-restore.md`).
+ * a store record that can never go backwards.
  *
  * Build numbers (`ios.buildNumber`, `android.versionCode`) are deliberately *not* set
  * here — they are per-upload rather than per-release, and belong to the EAS pipeline

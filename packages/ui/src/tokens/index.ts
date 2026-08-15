@@ -3,9 +3,8 @@
  *
  * No CSS, no `StyleSheet`, no framework: a token file that is just objects is
  * the one layer a React Native renderer could consume unchanged if
- * `@leapsake/ui/native` ever exists (see `plans/ui-extraction.md` →
- * *Post-v0.1 doors*). Emitting CSS variables here would close that door for no
- * present gain.
+ * `@leapsake/ui/native` ever exists. Emitting CSS variables here would close
+ * that door for no present gain.
  *
  * **This is a seed, not a design system.** The values are lifted from
  * `apps/mobile/lib/styles.ts`, which is the only place in the repo that ever

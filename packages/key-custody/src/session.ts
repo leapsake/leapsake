@@ -343,7 +343,7 @@ export interface UnlockedMasterKey {
 
 /**
  * Everything the relay needs to let a *second* device join this account by
- * username + password (multi-device-login.md). {@link enableSync} returns it so
+ * username + password. {@link enableSync} returns it so
  * the caller can hand it to `HttpSyncTransport.register`. It is all
  * public-or-blind: the `authVerifier` authenticates login without revealing the
  * KEK (model.md §9.3), and `wrappedMasterKey` = `wrap(MK, password-KEK)` is
@@ -451,7 +451,7 @@ export interface RecoveryChannel {
  * must hold for that login (`HttpSyncTransport.register`). They are optional
  * because a device can establish an account *locally* before any relay is
  * chosen; a username is required only to actually register with a relay (the
- * apps collect it when they wire sync — see multi-device-login.md Phases B/C).
+ * apps collect it when they wire sync).
  *
  * Returns the created {@link Account}, the recovery key to show the user
  * **once** (the caller/UI owns display + encoding; we never store it), and the
@@ -727,7 +727,7 @@ export async function adoptAccountMasterKey(opts: {
 }
 
 /**
- * Custody Phase 2 / multi-device login (encryption/multi-device-login.md): join
+ * Custody Phase 2 / multi-device login (plans/encryption/model.md §7.5): join
  * an **existing** account on a fresh device, so it converges over the relay. This
  * is the one capability that completes Stage-1 sync — `account`/`key_wrap` are
  * device-local and never replicate, so a second device needs this separate

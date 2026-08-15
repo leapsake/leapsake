@@ -196,7 +196,7 @@ export const migrations: Migration[] = [
     version: 9,
     async up(driver) {
       // Contact methods: three typed tables (email/phone/postal) rather than one
-      // generic table, since each fits its own shape (contact-methods-plan.md).
+      // generic table, since each fits its own shape.
       // Every row shares a spine — a polymorphic `(owner_type, owner_id)` pair, a
       // per-table label + free-text `label_note` for the `other` escape hatch,
       // and the usual sync-safe id/timestamps/soft-delete (see AGENTS.md).
@@ -429,7 +429,7 @@ export const migrations: Migration[] = [
     version: 15,
     async up(driver) {
       // Multi-device login coordinates (custody Phases 1–2,
-      // plans/encryption/multi-device-login.md). `username` is the unique handle
+      // plans/encryption/model.md §7.5). `username` is the unique handle
       // a second device looks the account up by (prelogin → salt → fetch the
       // relay-stored wrap(MK, KEK)); `relay_url` is the relay this account syncs
       // through. Both are NULL for a local-only store and populated at

@@ -11,7 +11,7 @@ import type { EncryptedRecord } from "@leapsake/sync";
  *   The hash is all the relay needs to authenticate; a leak of it does not
  *   expose the KEK (model.md §9.3), and the wrapped master key is opaque
  *   ciphertext — the relay stores it for a second device to fetch and unwrap,
- *   but can never read it (multi-device-login.md).
+ *   but can never read it (`plans/encryption/sync.md`).
  * - `relay_record` — the append log of opaque {@link EncryptedRecord}s. The
  *   autoincrement `seq` *is* the delivery cursor — the relay's own ordering,
  *   never a content clock (the P2P invariant, sync.md §3 #2).
@@ -24,7 +24,7 @@ import type { EncryptedRecord } from "@leapsake/sync";
 export interface RelayAccount {
   authVerifierHash: Uint8Array;
   kdfSalt: Uint8Array;
-  /** Ciphertext `wrap(MK, KEK)` — opaque to the relay (multi-device-login.md). */
+  /** Ciphertext `wrap(MK, KEK)` — opaque to the relay. */
   wrappedMasterKey: Uint8Array;
   /**
    * Ciphertext `wrap(recoveryKey, MK)`, opaque to the relay; absent on

@@ -39,7 +39,7 @@ function passwordHint(password: string): string {
  * re-run, so it lives in local state and is dropped the moment the user confirms
  * they've saved it.
  *
- * Device-to-device sync is real now (multi-device-login.md Phase C): a first
+ * Device-to-device sync is real now: a first
  * device sets a password + username and registers with a relay; a second device
  * logs in to the same account; "Sync now" pushes/pulls the encrypted records.
  *
