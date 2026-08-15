@@ -7,22 +7,24 @@
 
 ## In flight
 
-**The web spike — two checks, then tear it down.** Both remaining checks **need the owner at a
-keyboard** and cannot be driven from an agent session, so an agent picking this up should *say so
-rather than attempt them*: a **Firefox** walk-through with `javascript.enabled=false` (a browser
-preference), and **installing** `/client-pwa` to read whether an installed origin gets durable
-storage (a native dialog). What each must show is
-[`v0-1_web-spike.md`](./v0-1_web-spike.md) → *Still owed*; how to start the spike is
-[`apps/web-spike/README.md`](../apps/web-spike/README.md) → *Run it*, which dies with it.
+**The web spike — two checks, then tear it down.** It stays in flight until it is finished, and it
+comes before 08 *(owner, 2026-08-14)*.
 
-Then tag `web-spike-final`, delete `apps/web-spike`, revert the `.oxlintrc.json` line, and retire
-the spike's rows here and in [`v0-1.md`](./v0-1.md). **No more measurement** *(owner,
-2026-08-14)* — the phone row is a standing risk, not a task.
+Both checks need the **owner at a keyboard**: a **Firefox** walk-through with
+`javascript.enabled=false` (a browser pref), and **installing** `/client-pwa` to read whether an
+installed origin gets durable storage (a native dialog). An agent must not attempt them — **and
+must not stop at "blocked" either.** Its deliverable is a **numbered runbook the owner can follow
+without rereading anything**: setup commands it has actually run, the exact `about:config` pref,
+the exact URLs, what to click, the question each check answers, and where to write the answer.
+Raw material: [`v0-1_web-spike.md`](./v0-1_web-spike.md) → *Still owed* and
+[`apps/web-spike/README.md`](../apps/web-spike/README.md) → *Run it*, which dies with the spike.
+
+**Only once the owner reports both answers:** tag `web-spike-final`, delete `apps/web-spike`,
+revert the `.oxlintrc.json` line, retire the spike's rows here and in [`v0-1.md`](./v0-1.md).
+**No more measurement** *(owner, 2026-08-14)* — the phone row is a standing risk, not a task.
 
 ## Next
 
-**04 → 07** in [`v0-1.md`](./v0-1.md)'s order — the launch chain, which the spike runs beside
-rather than blocks. 04 starts the 14-day Play clock and fixes store identity; 05 gates 06; 06 is
-also blocked on the two owner decisions that size it (how much of the E2E catalog gates v0.1, and
-whether v0.1 ships without merge-by-recovery-phrase) — both in
-[`v0-1.md`](./v0-1.md) → *Open decisions*.
+**08 → 04 → 07**, the launch chain — [`v0-1.md`](./v0-1.md) holds the order and why 08 runs first.
+Start at **08 Inc 1, the policy substrate**: first-run device id, migration 29, the repo, the
+allowlist guard — no UI, no OS calls, no owner input. 06 also waits on its *Open decisions*.
