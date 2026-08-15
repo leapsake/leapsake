@@ -198,6 +198,22 @@ The payload needed no share format: `views.relationship()` already returns exact
 props, so the view model is sealed verbatim and type-checks against `@leapsake/ui` with no
 mapping.
 
+**The zero-knowledge claim is confirmed in a real browser** *(Chrome 151, 2026-08-14 — the check
+Increment 4 could only make with a DOM stub)*. A capability link opened with its 43-character
+fragment, and three witnesses agree:
+
+- the browser's **document request** is logged as `/share/<id>` — **no fragment**;
+- the **server's own echo** of `req.url` reads `/share/<id>` for a request the *page* issued with
+  `location.href`, fragment and all — byte-identical to one issued without it. So both request
+  paths a browser takes, navigation and `fetch`, drop the key;
+- the tab still holds the key (`location.hash`, 43 chars) and **decrypted with it**: "Ada
+  Lovelace & Charles Babbage" rendered from **840 bytes of ciphertext** in a 1 566-byte
+  `private, no-store` body containing **zero plaintext** — one `<script>`, one `<noscript>`.
+
+Every figure matches Increment 4's to the byte, so what the check moved is the *warrant*, not the
+numbers: the rule was read out of the Fetch standard and is now observed in the browser the claim
+depends on.
+
 ## Three edits owed to `encryption/model.md`
 
 Changes to *designs*, not findings about code. None is applied — each is a one-line-to-one-row
@@ -271,27 +287,28 @@ left in a deleted docblock:
   at all: `requestAnimationFrame` never fires and `setInterval` is clamped to ~1 s, so a provably
   free main thread reads 724–950 ms of "stall". What works is a `MessageChannel` posting to
   itself and measuring the gap between deliveries.
+- **`PerformanceNavigationTiming.name` keeps the fragment**, so it is *not* an instrument for
+  "did the key cross the wire" — it reports the document's URL, not the request line, and it is
+  the first thing anyone re-checking the capability claim reaches for. The instruments that
+  answer the question are the browser's own network log and a server that echoes `req.url` back.
 
 One shared-app defect the spike measured and deliberately did not fix, because it is **not an SSR
 finding**: `duplicates.findFor` is a full in-memory O(n²) pass run on every person-page load and
 on every create, and the page only uses `.length` of the result — 2.1 ms at 100 people, 122.9 ms
 at 1 000, **11 781 ms at 10 000**. Desktop makes the identical call on the same screen.
 
-## Still owed: four checks, then the teardown
+## Still owed: three checks, then the teardown
 
-Three are the same shape — things verified by construction or by a stand-in rather than by
-driving the real thing.
+All three are the same shape — things verified by construction or by a stand-in rather than by
+driving the real thing. *(The fourth, a capability link in a real browser, is **done** — see
+*Sharing* above.)*
 
 1. **Firefox with `javascript.enabled=false`**, walking create/edit/delete by hand, and while
    there opening a **hosted** share link — the same check for Increment 4's no-JS half. *(Needs a
    human: it is a Firefox preference.)*
-2. **A capability link opened in a real browser.** Increment 4 built the client for a browser
-   target and executed it against a DOM stub with the fragment supplied by hand, so what is
-   unexercised is the browser's own URL handling — precisely the half the zero-knowledge claim
-   rests on. The network panel must show the path **without** the `#`. *(Agent-drivable.)*
-3. **One real desktop build converged against the spike's relay account.** Increment 3's peer is
+2. **One real desktop build converged against the spike's relay account.** Increment 3's peer is
    the desktop *data path* (`joinAccount` + `runAccountSync`) rather than Electron.
-4. **Install `/client-pwa` and read one line** — whether an *installed* origin is granted durable
+3. **Install `/client-pwa` and read one line** — whether an *installed* origin is granted durable
    storage where a `localhost` tab is refused. Chrome fired `beforeinstallprompt`, so the
    manifest, icons and worker all qualify and the button is live. **If the answer is still
    "refused", that is the answer.** *(Needs a human: a native install dialog.)*
