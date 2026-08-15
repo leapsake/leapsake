@@ -89,10 +89,14 @@ export interface AccountRepo {
 }
 
 /**
- * The account-identity repository (encryption-schema.md §2.1). One account per
- * local store (schema.md §4 — multi-account is out of scope), so reads are a
- * singleton. Written against the async {@link SqliteDriver} port so it runs
- * unchanged on desktop and mobile.
+ * The account-identity repository. One account per local store — multi-account
+ * on one device is served by a store *per* account (@leapsake/store-layout),
+ * not by rows here — so reads are a singleton. Written against the async
+ * {@link SqliteDriver} port so it runs unchanged on desktop and mobile.
+ *
+ * A store with **no** account row is the normal Unauthenticated case, not a
+ * corrupt one (plans/encryption/model.md §7.2): a fresh install has no account
+ * until the user creates one.
  */
 export function createAccountRepo(driver: SqliteDriver): AccountRepo {
   return {
@@ -214,9 +218,8 @@ export interface DeviceRepo {
 }
 
 /**
- * The device-registration repository (encryption-schema.md §2.2). Written
- * against the async {@link SqliteDriver} port so it runs unchanged on desktop
- * and mobile.
+ * The device-registration repository. Written against the async
+ * {@link SqliteDriver} port so it runs unchanged on desktop and mobile.
  */
 export function createDeviceRepo(driver: SqliteDriver): DeviceRepo {
   const get = async (id: string): Promise<Device | undefined> => {

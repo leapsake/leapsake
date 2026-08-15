@@ -40,7 +40,7 @@ export interface ContentKeyRepo {
 }
 
 /**
- * The content-key registry repository (encryption-schema.md §2.3). Registers
+ * The content-key registry repository. Registers
  * that an entity has a content key — never the key bytes, which live only as
  * `key_wrap` ciphertext. Written against the async {@link SqliteDriver} port so
  * it runs unchanged on desktop and mobile; excludes soft-deleted rows from

@@ -1,8 +1,7 @@
 # Leapsake — Sync Transport & Merge
 
 > **This doc owns the two genuinely-open sync decisions** that the model
-> ([`model.md`](./model.md)) and schema ([`schema.md`](./schema.md)) deliberately left
-> as TODOs: **(1) the transport seam** — how encrypted bytes move between devices — and
+> ([`model.md`](./model.md)) deliberately left as TODOs: **(1) the transport seam** — how encrypted bytes move between devices — and
 > **(2) the merge model** — how concurrent edits reconcile. It also records the
 > **P2P decision**: true peer-to-peer is a *deferred adapter, not a closed door*.
 >
@@ -58,7 +57,8 @@ What it is:
   by an opaque cursor. Plain request/response; no exotic protocol.
 - **Blind** — it stores ciphertext + sync metadata (`updated_at`, `deleted_at`, UUIDs)
   and nothing else. It cannot read, merge, or order *content*; it only orders *delivery*.
-- The same host already enforces share access policy (`schema.md` §2.5) and serves
+- The same host already enforces share access policy ([`../v0-2.md`](../v0-2.md) → *Stage 3*)
+  and serves
   capability-link blobs. Sync is one more blind-blob surface on it.
 
 This is deliberately the *least* clever option, and that is the point: with E2E
@@ -92,7 +92,8 @@ already satisfies all four:
 3. **Transport behind the `SyncTransport` port** (§1) — so "P2P" is an adapter swap, not
    a rewrite.
 4. **Identity is by keypair.** P2P dials peers by public key; we already plan
-   `device.public_key` (for QR device-linking, `schema.md` §2.2) and an account keypair.
+   `device.public_key` (for QR device-linking, `packages/schema/src/account.ts`) and an account
+   keypair.
    Those device keys can double as P2P node identities later — no schema change.
 
 ### Why not now, and the Iroh assessment
@@ -125,7 +126,8 @@ already satisfies all four:
 ## 4. The merge model
 
 The one decision that touches the **domain** per-item rows (e.g. `person`), not the key
-tables — the key tables are conflict-free by construction (`schema.md` §1, §3). Merge
+tables — the key tables are conflict-free by construction
+(`packages/schema/src/key-wrap.ts`). Merge
 happens **client-side, on decrypted data**, and must be **order-independent** (§3
 invariant 2).
 
@@ -134,7 +136,7 @@ invariant 2).
 - The §4.2 sync-safe substrate is already on every table: UUID PKs, epoch-ms
   `updated_at`, `deleted_at` tombstones. Soft deletes propagate; UUIDs never collide.
 - The **key tables merge trivially** — union-of-grants minus union-of-revokes
-  (`schema.md` §1). Nothing below changes that.
+  (`packages/schema/src/key-wrap.ts`). Nothing below changes that.
 - Whatever we pick must work **peer-to-peer**, i.e. with no central merger or
   authoritative clock (§3).
 
@@ -167,7 +169,7 @@ not the default.** The pure resolver is now built (`resolveMerge` /
   and reconciling that with the row/repository model — a meaningful redesign to take on
   only when justified.
 - **Escalation path, not a one-way door:** because merge is isolated to the domain rows
-  and any clock/vector column is *additive* (`schema.md` §3 marker), we can move from
+  and any clock/vector column is *additive*, we can move from
   LWW to a CRDT later without reshaping the key tables or the transport.
 
 **Granularity — whole-row, not per-field (decided).** The resolver reconciles a row at a

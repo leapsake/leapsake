@@ -3,7 +3,7 @@ import { randomBytes } from "@noble/ciphers/utils.js";
 
 /**
  * The wrap/AEAD algorithm identifier written into every `key_wrap.alg` column
- * (encryption-schema.md §2.4). Recording it per-row lets the §15.3 security
+ * (plans/encryption/model.md §3). Recording it per-row lets the security
  * review swap the primitive later without reshaping stored data — old rows keep
  * decrypting under the id they were written with.
  *

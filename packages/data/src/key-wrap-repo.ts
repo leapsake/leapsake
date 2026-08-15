@@ -59,11 +59,14 @@ export interface KeyWrapRepo {
 }
 
 /**
- * The universal-envelope repository (encryption-schema.md §2.4). Key material
- * is **append/revoke, never edited** (§1): you `add` a wrapping (grant) or
- * `revoke` one (soft-delete) — there is deliberately no update. Written against
- * the async {@link SqliteDriver} port so it runs unchanged on desktop and
- * mobile.
+ * The universal-envelope repository. Key material is **append/revoke, never
+ * edited**: you `add` a wrapping (grant) or `revoke` one (soft-delete) — there
+ * is deliberately no update, which is what makes these rows conflict-free to
+ * merge (see {@link KeyWrap}). Written against the async {@link SqliteDriver}
+ * port so it runs unchanged on desktop and mobile.
+ *
+ * Empty until an account exists (plans/encryption/model.md §7.2): "no rows" is
+ * a normal state here, not a corrupt one.
  */
 export function createKeyWrapRepo(driver: SqliteDriver): KeyWrapRepo {
   return {

@@ -8,7 +8,7 @@ import * as SecureStore from "expo-secure-store";
  * itself. The counterpart to the desktop `safeStorage` adapter; `packages/crypto`
  * stays adapter-free so the port is implemented per-platform, like the SQLite
  * drivers. This is where the device's enclave secret lives — on-device, outside
- * the synced SQLite database (encryption-schema.md §2.4).
+ * the synced SQLite database (it is the one key the database cannot hold).
  *
  * `keychainAccessible: AFTER_FIRST_UNLOCK` keeps the secret reachable after the
  * first unlock following a reboot, which later background sync needs, while

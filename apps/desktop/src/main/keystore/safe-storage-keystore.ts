@@ -14,7 +14,7 @@ import { safeStorage } from "electron";
  * `id → base64(ciphertext)` at `filePath` (under `app.getPath("userData")`).
  * The stored blob is useless if copied off the machine — decryption needs this
  * OS account's keychain. The device's enclave secret must live here, outside
- * the synced SQLite database (encryption-schema.md §2.4).
+ * the synced SQLite database (it is the one key the database cannot hold).
  *
  * Writes are whole-file and atomic (temp file + rename). No locking is needed:
  * the Electron main process is single-threaded and every method below resolves

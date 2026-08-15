@@ -5,9 +5,11 @@ stable "why". **Design only** — no backlog lives here any more; see *Where the
 lives* below. What is already built is in `git log` and in the doc-comments of the code; what is
 being worked on *right now* is the only thing [`../status.md`](../status.md) tracks.
 
-> **Four docs, four questions.** Consolidated 2026-07-27 from six — `custody-sequence.md`
-> folded into `model.md` §7.5 (it had become the same story told twice) and
-> `local-custody-options.md` retired once its decision was made. If you find yourself
+> **Consolidated twice.** 2026-07-27 from six docs — `custody-sequence.md` folded into
+> `model.md` §7.5 (it had become the same story told twice) and `local-custody-options.md`
+> retired once its decision was made. 2026-08-14: `schema.md` retired, because the key tables
+> it specified are **built** — the migrations and the Zod schemas are the reference now, and a
+> second copy could only drift from them. If you find yourself
 > wanting a fifth doc for a custody or auth question, it belongs in `model.md` §7 instead:
 > **one place says how auth and encryption work.**
 >
@@ -20,7 +22,6 @@ being worked on *right now* is the only thing [`../status.md`](../status.md) tra
 | Doc | What it is | When to read it |
 |---|---|---|
 | [`model.md`](./model.md) | The conceptual model and the locked decisions — the three layers, the envelope/key hierarchy, **all of custody** (§7: states, exits, store layout, key lifecycle), the trust boundary, the honest limits. | Always start here. Mandatory before touching onboarding, the boot path, or key handling. |
-| [`schema.md`](./schema.md) | The concrete key tables (`content_key`, `key_wrap`, `account`, `device`, `share`). Reference. | When touching the schema or the `packages/data` repos. |
 | [`sync.md`](./sync.md) | The `SyncTransport` transport seam, the merge model, the account-bootstrap channel + the join-scheme decision, and the **P2P-is-a-deferred-adapter** decision. | When building sync, the relay, or evaluating P2P. |
 | [`prune.md`](./prune.md) | ⚠️ **Exploratory, nothing decided.** Relay retention: why the append log never shrinks, why minimum-cursor pruning corrupts joining devices, and the LWW-licensed compaction that needs no device tracking. | When thinking about relay storage cost, retention, or backup — and only ever as a proposal. |
 | [`security-review.md`](./security-review.md) | The recorded design review of the key hierarchy and relay auth: how the constructions hold the model's properties + the residual risks accepted. Pinned params live in [`packages/crypto/README.md`](../../packages/crypto/README.md). | When touching the KDF / password door, or before an external audit. |
@@ -33,12 +34,16 @@ being worked on *right now* is the only thing [`../status.md`](../status.md) tra
 
 ## The one rule that keeps these from drifting
 
-**These six docs are design; unbuilt work lives in the numbered v0.1 docs or
+**These docs are design; unbuilt work lives in the numbered v0.1 docs or
 [`../v0-2.md`](../v0-2.md), never here.** A work item that lands leaves no trace in this folder —
 its delivery detail belongs in `git log` and in the doc-comments of the code it touched. Never
-restate
-"what's done" or "which stage" in `model.md`/`sync.md`/`schema.md`; they are meant to read the
-same whether a thing shipped yesterday or ships next year.
+restate "what's done" or "which stage" in `model.md`/`sync.md`; they are meant to read the same
+whether a thing shipped yesterday or ships next year.
+
+**And when a thing is built, its *specification* moves to the code.** A doc here describes
+intent; once there is a migration, a Zod schema and a repository, they are the reference and the
+doc is a second copy that can only drift. That is what retired `schema.md` — the key tables are
+now documented where they are defined.
 
 ## Where the unbuilt work lives — not here
 

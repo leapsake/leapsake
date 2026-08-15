@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 /**
- * The `account` row (encryption-schema.md §2.1) — the identity established when
- * the user enables sync (custody Phase 1). It holds only *public* or
+ * The `account` row — the identity established when the user creates an account
+ * (custody Phase 1, plans/encryption/model.md §7). It holds only *public* or
  * *derivable-but-blind* material: the Argon2id `kdfSalt` (public) and the
  * `authVerifier` the server stores to authenticate login (§9.3 — it reveals
  * nothing about the KEK). The account private key is **not** a column; it lives
@@ -58,8 +58,8 @@ export const createAccountInputSchema = z.object({
 export type CreateAccountInput = z.infer<typeof createAccountInputSchema>;
 
 /**
- * The `device` row (encryption-schema.md §2.2) — one registration per device on
- * an account (custody Phase 2). Each device's enclave wrapping of the master key
+ * The `device` row — one registration per device on an account (custody Phase
+ * 2). Each device's enclave wrapping of the master key
  * is a `key_wrap` row keyed by this `id` (`principalKind = 'enclave'`); revoking
  * a device is a soft-delete here plus a revoke of that wrap. `publicKey` (the
  * device keypair for QR/device-linking, §13) is nullable and unused in the

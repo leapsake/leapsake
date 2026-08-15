@@ -287,21 +287,34 @@ export const migrations: Migration[] = [
   {
     version: 11,
     async up(driver) {
-      // Encryption Stage 1, the two key-custody tables (encryption-schema.md
-      // §2.3–§2.4). Plaintext keys are NEVER stored: a key exists in the DB only
-      // as the set of its wrappings. `content_key` registers that an entity has
-      // a content key (not its bytes); `key_wrap` is the universal envelope —
-      // "wrap this key for that principal" as immutable, append/revoke-only rows
-      // (the §1 property), used identically for the master key, the account
-      // private key, and every per-item content key.
+      // Encryption Stage 1, the two key-custody tables. Plaintext keys are
+      // NEVER stored: a key exists in the DB only as the set of its wrappings.
+      // `content_key` registers that an entity has a content key (not its
+      // bytes); `key_wrap` is the universal envelope — "wrap this key for that
+      // principal" as immutable, append/revoke-only rows, used identically for
+      // the master key, the account private key, and every per-item content
+      // key. The envelope model is plans/encryption/model.md §3.
       //
       // Value constraints (the wrapped_kind/principal_kind enums) live in Zod
-      // (packages/schema), not the DB, to stay portable across node:sqlite and
-      // expo-sqlite. The wrapping algorithm is recorded per-row in `alg` so the
-      // crypto primitive can change later (§15.3 review) without reshaping data.
-      // Partial unique indexes scoped to `deleted_at IS NULL` enforce "one
-      // active row per key" while letting soft-deleted history coexist
+      // (packages/schema/src/key-wrap.ts), not the DB, to stay portable across
+      // node:sqlite and expo-sqlite. The wrapping algorithm is recorded per-row
+      // in `alg` so the crypto primitive can change later without reshaping
+      // data. Partial unique indexes scoped to `deleted_at IS NULL` enforce
+      // "one active row per key" while letting soft-deleted history coexist
       // (see AGENTS.md).
+      //
+      // Two absences are deliberate. The **whole-DB at-rest key** is not here
+      // and cannot be: it is supplied at open time by the device enclave and
+      // protects the file these tables live in (model.md §8). And a
+      // **capability link stores no `key_wrap` row at all** — it carries the
+      // content key in a URL `#fragment` that never reaches the server (§11),
+      // which is exactly what makes it zero-knowledge; revocation there acts on
+      // the share, not on a key.
+      //
+      // Both tables are created in every store but are **empty until an account
+      // exists** — under "encryption follows custody" (model.md §7.2) a fresh
+      // install mints no keys. Code reading them must treat "no rows" as a
+      // normal state, not a corrupt one.
       await driver.exec(`
         CREATE TABLE content_key (
           id          TEXT    PRIMARY KEY,
@@ -372,8 +385,8 @@ export const migrations: Migration[] = [
     version: 14,
     async up(driver) {
       // Encryption Stage 1, the password unlock door (custody Phases 1–2,
-      // encryption-schema.md §2.1–§2.2). `account` is the identity established
-      // when the user enables sync: it stores only public/blind material — the
+      // plans/encryption/model.md §7.5). `account` is the identity established
+      // when the user creates one: it stores only public/blind material — the
       // Argon2id `kdf_salt` (public) and the `auth_verifier` the server uses to
       // authenticate login (§9.3, which reveals nothing about the KEK). The
       // account private key and every wrapped master key are NOT columns here —

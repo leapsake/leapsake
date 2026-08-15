@@ -18,8 +18,8 @@
 > layout (§7.4), and the key lifecycle phase by phase (§7.5). If you are touching
 > onboarding, the boot path, or anything that assumes a key exists, §7 is the section.
 >
-> **Companion docs:** [`schema.md`](./schema.md) (the key tables — §7.5's ledger as SQL),
-> [`sync.md`](./sync.md) (the transport seam + merge model + the P2P decision),
+> **Companion docs:** [`sync.md`](./sync.md) (the transport seam + merge model + the P2P
+> decision),
 > [`security-review.md`](./security-review.md) + [`security-findings.md`](./security-findings.md)
 > (the audits). Start at [`README.md`](./README.md) if you're new to this folder.
 
@@ -701,10 +701,13 @@ its dedicated keypair — never MK — so the blast radius is exactly those item
 deleting that wrapped-key set. **Heavier (4b):** the trusted SSR session, where the server
 transiently unwraps MK per request (§9.2 Scenario 1), reserved for the no-JS floor.
 
-What falls out for the schema — see [`schema.md`](./schema.md), which turns this ledger into
-tables: a wrapped-key store (`key_wrap`, one row per unlock path or grant), an
-account/identity table, a device registration table, a per-item content-key registry, and a
-share/access-policy table. Plus one thing that is deliberately **not** a table: the
+What falls out for the schema is **built, and the code is the reference**: this ledger became a
+wrapped-key store (`key_wrap`, one row per unlock path or grant), an account/identity table, a
+device registration table, and a per-item content-key registry — migrations 11 and 14 in
+`packages/data/src/migrations.ts`, typed in
+`packages/schema/src/{key-wrap,account,content-key}.ts`. The share/access-policy table is the one
+piece still unbuilt ([`../v0-2.md`](../v0-2.md) → *Stage 3*). Plus one thing that is deliberately
+**not** a table: the
 **on-device account roster** (§7.4), which lives outside every store, unencrypted, because it
 must be readable before any store can be opened.
 
