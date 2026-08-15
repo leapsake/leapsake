@@ -12,15 +12,13 @@ comes before 08 *(owner, 2026-08-14)*.
 
 Both checks need the **owner at a keyboard**: a **Firefox** walk-through with
 `javascript.enabled=false` (a browser pref), and **installing** `/client-pwa` to read whether an
-installed origin gets durable storage (a native dialog). An agent must not attempt them — **and
-must not stop at "blocked" either.** Its deliverable is a **numbered runbook the owner can follow
-without rereading anything**: setup commands it has actually run, the exact `about:config` pref,
-the exact URLs, what to click, the question each check answers, and where to write the answer.
-Raw material: [`v0-1_web-spike.md`](./v0-1_web-spike.md) → *Still owed* and
-[`apps/web-spike/README.md`](../apps/web-spike/README.md) → *Run it*, which dies with the spike.
+installed origin gets durable storage (a native dialog). An agent must not attempt them.
 
-**Only once the owner reports both answers:** tag `web-spike-final`, delete `apps/web-spike`,
-revert the `.oxlintrc.json` line, retire the spike's rows here and in [`v0-1.md`](./v0-1.md).
+**The runbook is written and its setup is verified end to end:**
+[`v0-1_web-spike-runbook.md`](./v0-1_web-spike-runbook.md) — ~15 minutes, and the answers get
+written into its own §5. Nothing else needs reading first.
+
+**Only once the owner reports both answers:** the teardown, which needs no owner — runbook §4.
 **No more measurement** *(owner, 2026-08-14)* — the phone row is a standing risk, not a task.
 
 ## Next
