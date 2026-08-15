@@ -562,6 +562,59 @@ client-side-only decryption: **encrypted content is client-rendered when JS is p
 server-rendered (trusted) when it is not.** *(The V3 web scope in `status.md` states this
 explicitly.)*
 
+### 10.1 The web client requires a sync account — durability is not grantable *(owner, 2026-08-15)*
+
+**A browser cannot promise to keep what you store in it, so the web client must never hold
+the only copy of anything.** Desktop and mobile write to app-data directories that no eviction
+heuristic touches; a browser's storage is evictable by policy, and no API upgrades that into a
+guarantee. This is a platform fact, not a preference, and it is the one place where a client
+cannot be given the same promise as the others.
+
+Measured on the spike's *installed* PWA (Chrome 151, `localhost`, 2026-08-14):
+
+```
+best-effort (evictable) storage — persist() was refused, 8.8 MiB used of 10.0 GiB
+ · running as: standalone
+```
+
+`standalone` is the install having taken effect, so that is the installed origin's answer, not a
+tab's. It **contradicts Chrome's own documented criteria**, which name PWA installation as one of
+the things that grants persistence — leaving site engagement (zero on a minute-old install) or a
+`localhost` exclusion as the explanations. Not chased further: *no more measurement*
+**(owner, 2026-08-14)**.
+
+**Durability is unguaranteed, not absent** — and the distinction is load-bearing, because someone
+will eventually observe a granted bucket and should not conclude this rule was wrong. Chrome may
+grant on a real HTTPS origin with engagement; WebKit deletes all script-writable storage after
+**seven days** without interaction, but **exempts home-screen web apps** from that sweep. Two
+vendors, two mechanisms, both heuristic, both changed before. What no vendor offers is a promise
+an app can rely on, and even a granted bucket survives neither an uninstall nor a user clearing
+site data.
+
+The rule that follows:
+
+| | may hold the only copy | why |
+|---|---|---|
+| **Desktop / mobile** | **yes** | app-data directories; no eviction heuristic applies |
+| **Web / PWA** | **no — sync account required** | storage is evictable by policy, at the browser's discretion |
+
+**The account does not make browser storage durable; it makes durability stop mattering.** With
+one, eviction costs a single Argon2id and a full re-pull. Without one, it costs the account. So
+the requirement is *an account with sync* — self-hosted or hosted, free or paid, which is a
+pricing question that must be free to move without anyone thinking this safety rule lapsed.
+
+**This does not weaken offline.** Offline-capable and sole-copy are different claims: the spike's
+installed client resumed in 69.3 ms with 0 bytes on the wire, and that result stands whole. It is
+filed under availability and speed rather than durability, and the local store is a **cache that
+happens to be fast** rather than a home.
+
+**The residual risk, named because requiring an account does not remove it:** a write made
+offline and evicted before it ever reaches the relay is gone, account or no account. Requiring
+sync shrinks the blast radius from *everything* to *unsynced writes*; closing the remainder is a
+UI obligation — the web client owes an honest indication of what has and has not reached the
+relay, and possibly a decision not to offer extended offline *writing* on web at all. Open, and
+it belongs to whoever builds Stage 4.
+
 ## 11. Sharing
 
 Per-item keys + wrapping give four modes from one mechanism:
@@ -599,7 +652,8 @@ somebody else's screen**, which the shared screens are not yet shaped for — re
 unauthenticated, `RelationshipScreen` still offers Edit / Delete / Add-milestone and
 leaks the item's internal id. A read-only mode is small, and it is a prerequisite for
 sharing rather than a polish item. Evidence:
-[`apps/web-spike/README.md`](../../apps/web-spike/README.md) → *Increment 4*.
+[`../v0-1_web-spike.md`](../v0-1_web-spike.md) → *Sharing*, and in full at
+`git show web-spike-final:apps/web-spike/README.md` → *Increment 4*.
 
 **Photos / large binaries** introduce **blob/object storage** (photos don't belong in
 SQLite rows). Same per-item-key model — encrypt each blob with a content key, store
@@ -646,7 +700,7 @@ second behind a **`KeyStore` port**, the same move as the `SqliteDriver` port.
 | **Desktop / Mobile** | Yes | OS keychain / Secure Enclave (best) | full zero-knowledge; the easy cases |
 | **CLI** | Yes | OS keychain or prompted passphrase | power-user friendly |
 | **tvOS** | Yes | Secure Enclave | typing a passphrase on a remote is misery → **enroll by QR / device-linking from the phone**, don't prompt |
-| **PWA** | Yes (WebCrypto) | weak — IndexedDB, no enclave → **passkey PRF** is the right custody answer | key custody is the whole problem on web |
+| **PWA** | Yes (WebCrypto) | IndexedDB + a non-extractable `CryptoKey` satisfies the port today; **passkey PRF** is what it still lacks, and the bucket is **evictable** either way | see below — the floor works, the ceiling and the durability do not |
 | **SSR web** | server decrypts | n/a | trusted session / progressive enhancement (§9.2, §10) |
 | **Alexa** | **No** — voice→cloud; the "client" is Amazon's server running the skill | server-side | **can't be zero-knowledge**; model as a constrained principal (§9.2 Scenario 2) — wrap only specific item keys to it |
 | **CardDAV / CalDAV** | **No** — native Contacts/Calendar apps speak the protocol; a Leapsake server serves vCards/iCalendar | server-side | **can't be zero-knowledge** (§9.4); constrained principal scoped to the contact/calendar slice — wrap only those item keys to a dedicated server keypair |
@@ -655,6 +709,24 @@ The payoff: a client that can't do client-side crypto (Alexa) or can't hold keys
 (web without passkeys) is **not a special case** — it is "a principal you wrap
 specific item keys to, at the security level the user chose." The mechanism is
 uniform; clients differ only in *which keys they may hold and where they store them.*
+
+**The PWA row in three parts, because "weak" hid the fact that something works** *(built and
+measured 2026-08-13/14)*:
+
+- **The port is satisfied today.** A non-extractable `AES-GCM` `CryptoKey` per secret in
+  IndexedDB implements `getSecret` / `setSecret` / `deleteSecret` **as written** — ~60 lines, no
+  widening of the port, and `exportKey` refused on every run. An attacker who reads IndexedDB
+  gets a wrap they cannot open anywhere else.
+- **Passkey PRF is what it still lacks: user presence.** Non-extractable stops *exfiltration*,
+  not *same-origin use* — using the key is the entire point of storing it, so a background XSS
+  can still ask for it. PRF adds a per-unlock gesture that XSS cannot supply. So PRF stays the
+  designed answer, and the above is the floor rather than the ceiling.
+- **Durability is a third axis, and it is not custody's to fix.** `persist()` is
+  `[Exposed=Window]`, so the thread that owns the data cannot even ask — the *page* must, which
+  is one more thing a real client's startup owes beside the manifest and the service worker. And
+  the answer may be no regardless: refused on `localhost`, **and refused on an installed
+  origin** (§10.1). The failure mode is mild by construction — eviction costs one Argon2id and a
+  re-pull, **not an account** — but only because §10.1 requires the account.
 
 ## 14. Decentralization vs. shareable URLs → a hybrid topology
 

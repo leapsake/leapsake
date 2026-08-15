@@ -12,9 +12,10 @@ persistent store, a reload that needs neither the password nor the relay, and fi
 needs no server either. Every question answered yes, every one with **zero files changed under
 `packages/`** — nine times.
 
-> **Increment 6 is in progress.** The answers below are final, and two of the four owed checks
-> are done *(see *Sharing* and *The no-JS floor*)*. The **last two checks** — both needing a
-> human — and the **teardown** are not, so `apps/web-spike` is still in the tree.
+> **The spike is closed** *(2026-08-15)*. All four owed checks are done — the last two by the
+> owner at a keyboard — and `apps/web-spike` is deleted. The code is at the tag
+> **`web-spike-final`**: `git show web-spike-final:apps/web-spike/<path>` works forever, and
+> *Where the code went* below says which files are worth reading.
 
 ## The three questions, answered
 
@@ -161,6 +162,14 @@ that does not work.
 | Tags (`ChipTextField`) | ✅ works | in `grammar="tags"` the visible input *is* the stored value and carries `name`; only the chip picker is lost. In `grammar="prose"` it would not — there the `name` is on a hidden input React maintains |
 | Relationships (create only) | ❌ inert | starts at zero rows, grows them from an `onClick`, and emits its hidden input only after React resolves the typed name against the candidate list. Needs a fixed `<select>` pair per row, or a second screen after create |
 
+**Confirmed by hand in Firefox with `javascript.enabled=false`** *(owner, 2026-08-15 — the check
+Increment 2 could only make with `curl` and a markup parse)*. Create, edit and delete were each
+walked through the real browser with the pref off and all three worked, as did a **hosted** share
+link opened in the same session — the half of Increment 4 that a DOM stub could not reach. The
+two known-inert affordances behaved as the table above predicts and nothing else did. So the
+strong claim — the DOM a browser builds is identical either way — is now observed in the browser
+rather than argued from the bytes.
+
 **All three gaps are gaps in the floor, not in the components.** 5b rendered the identical
 components in a browser client and `HolidaysSection`'s combobox and `GiftCaptureForm` are both
 fully live there, with no change to either. A client with JavaScript gets the whole screen from
@@ -231,10 +240,10 @@ Every figure matches Increment 4's to the byte, so what the check moved is the *
 numbers: the rule was read out of the Fetch standard and is now observed in the browser the claim
 depends on.
 
-## Three edits owed to `encryption/model.md`
+## Three edits owed to `encryption/model.md` — one applied, two still owed
 
-Changes to *designs*, not findings about code. None is applied — each is a one-line-to-one-row
-edit an owner should green-light.
+Changes to *designs*, not findings about code. **The third is applied** *(owner, 2026-08-15)*;
+the first two remain one-line-to-one-row edits an owner should green-light.
 
 - **§9.2 should say the `authVerifier` is wrapped under the session key too.** Relay sessions are
   in-memory per process, so a restart forces a re-login and the host must re-authenticate without
@@ -249,9 +258,22 @@ edit an owner should green-light.
   database in server memory**, so the product-visible trust claim §9.2 warned might be forced is
   not forced. *(Deliberately unmeasured: peak RSS per warm session — it only decides anything if
   warm is forced, and it is not.)*
-- **§13's PWA row** (line 1009: *"weak — IndexedDB, no enclave → **passkey PRF** is the right
-  custody answer"*) **should be rewritten into two halves**, because it currently reads as though
-  nothing works until PRF does, and something does:
+- ✅ **§13's PWA row** — *applied 2026-08-15*, as a rewritten row plus three bullets under §13's
+  table, because it read as though nothing works until PRF does, and something does. The
+  durability half also produced a **product rule**, now [`model.md`](./encryption/model.md)
+  §10.1: **the web client requires a sync account and must never hold the only copy.** The owner
+  check that forced it is below — `persist()` is refused on an *installed* origin too, not only
+  on `localhost`, so an install is not the fix:
+
+  ```
+  best-effort (evictable) storage — persist() was refused, 8.8 MiB used of 10.0 GiB
+   · running as: standalone
+  ```
+
+  *(Chrome 151, owner, 2026-08-15. `standalone` is the install having taken effect. It
+  contradicts Chrome's own documented criteria, which name PWA installation as a thing that
+  grants persistence — leaving site engagement or a `localhost` exclusion as the explanations,
+  and neither is chased: no more measurement.)* The three parts as applied:
   - *the port is satisfied today* — a non-extractable `AES-GCM` `CryptoKey` per secret in
     IndexedDB implements `getSecret` / `setSecret` / `deleteSecret` as written, ~60 lines, no
     widening, and `exportKey` is refused on every run. An attacker who reads IndexedDB gets a
@@ -261,15 +283,17 @@ edit an owner should green-light.
     key is the entire point of storing it. So PRF stays the designed answer and this is the floor
     rather than the ceiling.
   - **Durability belongs in the same row.** `storage.persist()` is `[Exposed=Window]`, so the
-    thread that owns the data cannot protect it — and on `localhost` it is **refused**, leaving
-    both the OPFS store and the wrap evictable. The failure mode is mild and should be designed
-    for anyway: eviction costs one Argon2id and a full re-pull, **not an account**.
+    thread that owns the data cannot protect it — and it is **refused on `localhost` and on an
+    installed origin alike**, leaving both the OPFS store and the wrap evictable. The failure
+    mode is mild *because §10.1 makes it so*: eviction costs one Argon2id and a full re-pull,
+    **not an account** — which is only true while the web client requires one.
 
 ## Where the code went
 
-`apps/web-spike` is deleted at the end of Increment 6, and the commit before that is tagged
+`apps/web-spike` was deleted on **2026-08-15**, and the commit before that is tagged
 **`web-spike-final`** — one `git worktree add` from runnable, without being maintained. Nothing
-is lost by the delete: `git show web-spike-final:<path>` works forever.
+was lost by the delete: `git show web-spike-final:apps/web-spike/<path>` works forever, and
+paths below are relative to `apps/web-spike/`.
 
 Of ~8 000 lines, these are what an `apps/web` would otherwise re-derive:
 
@@ -313,24 +337,6 @@ One shared-app defect the spike measured and deliberately did not fix, because i
 finding**: `duplicates.findFor` is a full in-memory O(n²) pass run on every person-page load and
 on every create, and the page only uses `.length` of the result — 2.1 ms at 100 people, 122.9 ms
 at 1 000, **11 781 ms at 10 000**. Desktop makes the identical call on the same screen.
-
-## Still owed: two checks, then the teardown
-
-Both need a human, which is the only reason they are still here. *(The other two — a capability
-link in a real browser, and a real desktop build converging — are **done**; see *Sharing* and
-*The no-JS floor* above.)*
-
-1. **Firefox with `javascript.enabled=false`**, walking create/edit/delete by hand, and while
-   there opening a **hosted** share link — the same check for Increment 4's no-JS half. *(A
-   Firefox preference, so it cannot be driven from here.)*
-2. **Install `/client-pwa` and read one line** — whether an *installed* origin is granted durable
-   storage where a `localhost` tab is refused. Chrome fired `beforeinstallprompt`, so the
-   manifest, icons and worker all qualify and the button is live. **If the answer is still
-   "refused", that is the answer.** *(A native install dialog, likewise.)*
-
-Then: tag `web-spike-final`, delete `apps/web-spike`, revert the `.oxlintrc.json`
-`ignorePatterns` entry, and drop the spike's row from [`status.md`](./status.md) and
-[`v0-1.md`](./v0-1.md).
 
 ## Open questions
 
