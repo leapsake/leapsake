@@ -153,7 +153,7 @@ export type {
 // migrations and createCore to make the device's master key available. Plus the
 // Phase-1/2 password unlock door: enable sync (add the password + recovery
 // wrappings of MK) and unlock the master key from the password / recovery key
-// alone, with no enclave involved. And the relinquish half (model.md §7.3):
+// alone, with no enclave involved. And the relinquish half (@leapsake/key-custody):
 // `lockThisDevice` is sign out — forget the two secrets that open this device's
 // store so the next open must pass the password gate.
 export {
@@ -329,7 +329,7 @@ export {
 } from "@leapsake/sync";
 
 // Whether the relay claims to keep a durable copy of the account's data — the
-// check that words the "Forget account" confirmation (model.md §7.3.1). Silence
+// check that words the "Forget account" confirmation (@leapsake/key-custody). Silence
 // means "no copy", so a client that never reaches its relay still warns honestly.
 export {
   fetchRelayCapabilities,

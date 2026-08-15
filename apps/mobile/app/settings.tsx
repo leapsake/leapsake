@@ -254,7 +254,7 @@ function AccountEnabled({
           </Text>
           {/*
             The two ways out of a local-only account, and between them the reason
-            it is not a trap (encryption/model.md §7.2.2).
+            it is not a trap (@leapsake/key-custody).
 
             They are siblings rather than one flow because they answer opposite
             questions — *publish the account that is already here* versus *move

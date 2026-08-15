@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * The `account` row — the identity established when the user creates an account
- * (custody Phase 1, plans/encryption/model.md §7). It holds only *public* or
+ * (custody Phase 1, @leapsake/key-custody). It holds only *public* or
  * *derivable-but-blind* material: the Argon2id `kdfSalt` (public) and the
  * `authVerifier` the server stores to authenticate login (§9.3 — it reveals
  * nothing about the KEK). The account private key is **not** a column; it lives
@@ -15,7 +15,7 @@ import { z } from "zod";
  * same per-record-`alg` posture as `key_wrap`).
  *
  * `username`/`relayUrl` are the multi-device login coordinates (custody Phase
- * 1/2, plans/encryption/model.md §7.5): the unique handle a second device looks the
+ * 1/2, @leapsake/key-custody): the unique handle a second device looks the
  * account up by, and the relay it lives on. Both are NULL for a local-only
  * store (sync never enabled) — they are populated at enable-sync, and on a
  * joining device after login.

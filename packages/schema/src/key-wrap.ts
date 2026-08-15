@@ -15,7 +15,7 @@ export type WrappedKind = z.infer<typeof wrappedKindSchema>;
 
 /**
  * Who can unwrap a `key_wrap` row — exactly the custody ledger's unlock paths
- * and recipients (plans/encryption/model.md §7.5). The full set is enumerated
+ * and recipients (@leapsake/key-custody). The full set is enumerated
  * now even though Stage 1 only writes `enclave | recovery | password |
  * master`; the rest (`recipient`, `server_principal`, `session`) light up in
  * later stages by simply being written, never altering this schema.

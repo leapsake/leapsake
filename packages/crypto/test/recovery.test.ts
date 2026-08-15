@@ -22,7 +22,7 @@ describe("ensureRecoveryKey", () => {
 
 describe("readRecoveryKey", () => {
   // The whole reason this exists: an Unauthenticated device must stay keyless no matter who
-  // asks. Reading has to be a question, not an instruction (model.md §7.2).
+  // asks. Reading has to be a question, not an instruction (@leapsake/key-custody).
   it("returns undefined for a keyless device and mints nothing", async () => {
     const store = createInMemoryKeyStore();
     expect(await readRecoveryKey(store)).toBeUndefined();

@@ -65,7 +65,7 @@ export function RecoveryGate({
     <main style={{ maxWidth: 560, margin: "3rem auto", padding: "0 1rem" }}>
       {/*
         The copy names no cause, because this gate now has two of them: the user
-        signed out deliberately (model.md §7.3), or this device's secure storage
+        signed out deliberately (@leapsake/key-custody), or this device's secure storage
         was reset and took the key with it. It used to assert the second — "its
         secure storage was likely reset" — which reads as an alarming malfunction
         to someone who simply signed out a moment ago. Mentioning both, and

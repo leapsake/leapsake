@@ -312,7 +312,7 @@ export const migrations: Migration[] = [
       // the share, not on a key.
       //
       // Both tables are created in every store but are **empty until an account
-      // exists** — under "encryption follows custody" (model.md §7.2) a fresh
+      // exists** — under "encryption follows custody" (@leapsake/key-custody) a fresh
       // install mints no keys. Code reading them must treat "no rows" as a
       // normal state, not a corrupt one.
       await driver.exec(`
@@ -385,7 +385,7 @@ export const migrations: Migration[] = [
     version: 14,
     async up(driver) {
       // Encryption Stage 1, the password unlock door (custody Phases 1–2,
-      // plans/encryption/model.md §7.5). `account` is the identity established
+      // @leapsake/key-custody). `account` is the identity established
       // when the user creates one: it stores only public/blind material — the
       // Argon2id `kdf_salt` (public) and the `auth_verifier` the server uses to
       // authenticate login (§9.3, which reveals nothing about the KEK). The
@@ -429,7 +429,7 @@ export const migrations: Migration[] = [
     version: 15,
     async up(driver) {
       // Multi-device login coordinates (custody Phases 1–2,
-      // plans/encryption/model.md §7.5). `username` is the unique handle
+      // @leapsake/key-custody). `username` is the unique handle
       // a second device looks the account up by (prelogin → salt → fetch the
       // relay-stored wrap(MK, KEK)); `relay_url` is the relay this account syncs
       // through. Both are NULL for a local-only store and populated at

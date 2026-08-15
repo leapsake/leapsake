@@ -146,11 +146,11 @@ Locked: no, your data is right there and sealed.
 
 **Internal names are not user-facing copy.** These words are for code and design docs.
 The UI says whatever is clearest for a layperson — "Protect your data", "Set up your
-login", "Sync across devices" — and `encryption/model.md` §7.2.1 licenses that
+login", "Sync across devices" — and `@leapsake/key-custody` licenses that
 explicitly. Never surface "Unauthenticated" to a user.
 
-The full design lives in `plans/encryption/model.md` §7; this section is the vocabulary
-only, so it stays true as that plan evolves.
+The full design lives in `packages/key-custody/README.md`; this section is the
+vocabulary only, so it stays true as that design evolves.
 
 ## SqliteDriver Port
 

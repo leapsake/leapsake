@@ -1,9 +1,330 @@
 # @leapsake/key-custody
 
 How a device **obtains, holds, escrows, and relinquishes** the account master key.
-This is the code counterpart to
-[`plans/encryption/model.md`](../../plans/encryption/model.md) §7.5 —
-that document specifies the phases, this package implements them.
+
+**This README is where custody is specified.** It was `plans/encryption/model.md` §7 until
+2026-08-14; it moved here because every part of it is built, on both clients, and a
+specification that lives away from its implementation drifts from it. The design it sits
+inside — the three layers, the envelope, the key hierarchy — is still
+[`plans/encryption/model.md`](../../plans/encryption/model.md); what *sharing* and the *web
+app* will later do with these keys is still design, and stays there too.
+
+> **The decision, in one sentence:** Leapsake **encrypts once the user holds a secret that
+> opens it, and not before.** A fresh install mints no keys and writes a plaintext store;
+> creating an account (username + password) is the single act that turns encryption on, and
+> joining or recovering one does the same on that device. A lost keychain is answered by the
+> password, with the 24-word phrase as the forgot-password fallback.
+
+## Custody states — the two ways a client can exist *(decided 2026-07-26)*
+
+**The reasoning, because it reversed the previous default.** The old design encrypted the
+file at first launch under a key held only by the OS keychain. That trade was bad in both
+directions: it bought little — it guards a copied file, which platform full-disk encryption
+largely covers already — and it cost a lot, because if the keychain was ever lost (OS
+reinstall, migration, repair, or the signing-identity change below) the *only* way back was a
+24-word phrase the user had never been asked to save. **A key the user does not hold protects
+little and can lose everything.** So: no custody, no encryption.
+
+|  | **Unauthenticated** | **Authenticated** |
+|---|---|---|
+| **Custody** | none | username + password, with a recovery phrase as the backstop |
+| **Created** | at first launch, silently | when the user creates their account |
+| **Store on disk** | plaintext, queryable | encrypted (layer 1) |
+| **Keys in the OS keychain** | **none at all** | db-key, master key, recovery key |
+| **Layers active** | none | 1, 3, and 2 once relay-bound |
+| **Sync / sharing** | impossible — there is no MK to seal under | available; binding a relay is a further step |
+| **OS keychain wiped** | **nothing is lost** — the file just opens | password opens it; phrase is the backstop |
+
+Only two states, and **relay-bound is not a third** — it is an Authenticated account that has
+also registered with a relay. This matters: local-only and synced users have *identical*
+custody, so "start syncing later" adds a relay binding rather than a new ritual.
+
+> **The state names the account, not the file** *(renamed 2026-07-31)*. Everything below
+> *Custody* in that table is a **consequence** of the row above it, not part of the
+> definition: an account exists, therefore keys exist, therefore the store is encrypted. Read
+> the table downward and it derives; read it as a list and the two get conflated.
+>
+> Why that separation is worth keeping explicit: [`plans/v0-2.md`](../../plans/v0-2.md)
+> anticipates a user **opting out of encryption while holding an account**, which severs
+> exactly this implication. When that lands, only the *Store on disk* row changes — the state
+> itself still means what it says. The file's own vocabulary is **plaintext / encrypted**
+> (`resolveActiveStore`'s `custody` discriminant), and the session's is **Locked / unlocked**.
+> Three axes, three vocabularies; see [`AGENTS.md`](../../AGENTS.md) → *Custody vocabulary*.
+
+## First launch, and the "Already using Leapsake?" branch
+
+**There is no first-launch prompt.** Every fresh install starts Unauthenticated: straight into
+the app, no keys, no encryption, nothing to decide. The "already using Leapsake elsewhere?"
+question is a **Home nudge**, ranked first among them
+([`@leapsake/reminders`](../reminders/README.md)) — not a gate in front of the app.
+
+That is the layperson principle taken literally: a new user cannot usefully answer a question
+about our sync topology before seeing what the app is, and asking costs the zero-setup first
+run that the Unauthenticated state exists to provide.
+
+The two answers still differ in **custody**, not only in sync:
+
+| Answer | Means | What happens |
+|---|---|---|
+| **Yes** | a 2nd+ device | join (or recover) the existing account → **username + password** → this device mints its own db-key, adopts the account master key, and **converts** its store |
+| **No** | fresh install | stays Unauthenticated. An account is *invited* later, never demanded |
+
+A password is never required to *start* using Leapsake on one device.
+
+**Every device ends up encrypted at rest.** That is the invariant, and the mechanism is
+conversion — not a second store-creation path. `adoptAccountOnThisDevice` (desktop) and
+`adoptStoreForAccount` (mobile) run the same **convert → password door → roster entry →
+destroy the original** ordering that account creation does, because that ordering is what
+makes a crash survivable (`model.md` §8.1).
+
+> **The plaintext window on a joining device holds no user data.** Its store is created
+> plaintext at first launch like any other, but the adoption converts it *before* the first
+> sync pull — `joinAccountViaRelay` returns a session without fetching rows — so what was
+> written in the clear is an empty schema. This is strictly narrower than the honest limit of
+> converting late (below), where the user has been typing for days. It is worth keeping true:
+> a join path that pulled first and converted after would forfeit it for nothing.
+
+## Creating an account is the act that turns encryption on
+
+**Username + password is required to turn encryption on** *(decided 2026-07-27)*. The
+alternative considered and rejected was a phrase-only "accountless encryption": it makes the
+recovery phrase the *primary* credential — reviving the exact unfamiliar ritual this decision
+exists to demote — leaves one door instead of two, and terminates at a password anyway the
+moment the user wants sync, having added a third custody state and a second conversion to the
+boot path on the way.
+
+> **The word, not the mechanism, is the thing to soften.** A username and password stored only
+> on this device is *accountless* in every sense a user cares about: no email, no server,
+> nothing transmitted, nobody to notify. "Account" is our vocabulary. If it reads as too heavy
+> for something that never leaves the laptop, change the label — "Protect your data", "Set up
+> your login" — not the mechanism. Never surface "Unauthenticated" to a user.
+
+There is **one** operation, reachable from two places — the Home invitation once the user has
+data to lose, and a Settings control for anyone who wants it sooner. Both run the same flow,
+and it is fully local: no relay, no email, nothing leaves the device.
+
+1. Choose a **username + password**. The username is a login handle, and is what later allows
+   several accounts to share one client.
+2. Mint db-key, master key, and recovery key; write the password- and recovery-wrapped
+   sidecars beside the store.
+3. **Convert the Unauthenticated store to Authenticated** (`model.md` §8.1) and destroy the
+   plaintext original.
+4. Show the **recovery phrase once**, as the forgot-password backstop.
+
+> **The copy must promise access, not safety.** A local account protects against *this device
+> losing its security settings*; it does **not** protect against a lost or broken device. Say
+> so in the flow, and point at sync or a file backup for that. Getting this wrong borrows the
+> user's SaaS instincts and then violates them on the worst day.
+
+**The honest limit of converting late.** Data typed before the account existed was written to
+disk in the clear. The conversion writes a *new* encrypted file and deletes the original, so
+no plaintext survives inside the live database — but deleted bytes can linger in free space,
+and on SSDs cannot be reliably erased. **Accepted** *(owner, 2026-07-26)*: the window is
+small, exploiting it requires physical access to the disk, and the alternative is the
+data-loss path above. It is stated in `model.md` §12 rather than glossed.
+
+## The two exits from local-only *(built 2026-08-08)*
+
+> **A local store — Unauthenticated *or* Authenticated — must always be mergeable into an
+> authenticated synced account.** *(owner, 2026-08-02.)*
+
+A user who takes the wrong branch at the create/sign-in fork loses **time, never work**. That
+outranks any UX guard against taking the wrong branch: a guard reduces how often the mistake is
+made, this decides what it costs.
+
+It takes two exits, because *"I have a local-only account and I want sync"* has two meanings —
+and a user knows which one they mean before they know any of the mechanics:
+
+| The user means | The act | Where |
+|---|---|---|
+| *"Publish the account that is already here"* | **bind a relay.** Nothing is minted and nothing is re-encrypted, so the same password and the same recovery phrase keep working. Account creation mints the auth verifier and both master-key wrappings with no relay in sight *precisely* so this adds no new ritual | `bindRelayToAccount` (`src/bind-relay.ts`) |
+| *"Move this data into the account I already have elsewhere"* | **merge.** The store is re-homed under the synced account's id, keeps every row, and opens under *that* account's password from the next launch. Overlapping people go to duplicate review rather than being fused (`reconcileOnJoin`) | `main/db/merge-account-flow.ts` (desktop), `lib/merge-account.ts` (mobile) |
+
+Three constraints hold the pair together. Each is enforced and explained where it lives; they
+are listed here because they are easy to undo from a distance:
+
+- **The merge's relay half runs against a copy.** Joining refuses while a local account row
+  exists, so clearing that row on the *live* store would destroy the user's account identity at
+  exactly the moment the login **failed**. Both merge flows carry the crash table in their
+  doc-comments.
+- **Binding publishes before it persists.** A refused username has to leave a working
+  local-only account behind with nothing to roll back.
+- **A taken username is a question, not an error.** It hides both readings above — your own
+  account, or a stranger's — so the clients fork on it (`isUsernameTakenError`) instead of
+  reporting it.
+
+> **The join guard was not relaxed, and must not be.** An in-place adopt branch existed and was
+> deliberately removed, because *"silently adopting a second account into a store still homed
+> under the first one's id was never a state worth producing"*. What the invariant asks for is
+> an **explicit, user-initiated merge** — a different thing from letting a roster inconsistency
+> rehome a store by accident. Read the comment on `adopt-account-flow.ts`'s assertion before
+> touching it.
+
+**Not built: merge by recovery phrase.** `recoverAccount` carries the same *"already part of an
+account"* refusal `joinAccount` does, so it needs the same copy-first treatment and amounts to
+a second full flow; the merge UI hides its recovery affordance rather than offering a button
+that can only throw. The gap is a user who has the account's **phrase** but not its password —
+today they must recover on the other device first. *(Deferred, owner 2026-08-08; see
+[`plans/v0-1.md`](../../plans/v0-1.md) → Open decisions.)*
+
+## Locked, Sign out, Forget account *(decided 2026-07-27)*
+
+Three concepts, no overlap. **One state, two actions** — and one of the actions destroys data,
+so they must not share a word.
+
+| | What it is |
+|---|---|
+| **Locked** | a **state** — the store is closed and the password reopens it. Reached automatically (idle / session expiry) or deliberately |
+| **Sign out** | a user **action** → the Locked state. *Identical for local-only and synced users* |
+| **Forget account** | a user **action** → this account and its data are removed from this device |
+
+The reason this shape is right: **Sign out does not have to behave differently by custody
+state.** Both users get the same promise — *nobody can see my data on this device anymore* —
+and the only difference (whether the bytes remain, encrypted) is invisible to that intent. One
+honest line covers it for a local-only user: *"Your data stays on this device, encrypted.
+You'll need your password to get back in."*
+
+Purging lives entirely in **Forget account**, which is named as removal so it can never be
+mistaken for signing out.
+
+> **Do not invent a "Lock" button.** Locked is a state, not an affordance. The app enters it on
+> your behalf when idle; the user reaches it by signing out.
+
+> **"Make local-only" was cut** *(owner, 2026-07-28)*. There used to be a third,
+> non-destructive action — leaving the relay while keeping the data — backed by
+> `clearLocalAccount`. The custody rebuild made its shipped form incoherent: it cleared the
+> account rows but never the **roster**, and the roster is what decides whether a store is
+> encrypted, so a device that used it stayed Authenticated on disk while reporting no account —
+> hiding Sign out and Forget account, and offering an account-creation path that then refused,
+> since creation requires a plaintext Unauthenticated store.
+>
+> It was removed rather than repaired. The want is narrow (creating a local account, promoting
+> it to a synced one, and starting out synced are all covered above), and repairing it is not a
+> local edit: "drop only the relay binding" has to decide what becomes of the account on the
+> relay, and whether the username is retained for re-binding. That second half is the sharper
+> question now that binding *does* exist, since a released handle is the one thing the relay's
+> namespace has no verb for. Cheap to rebuild later if the want turns out to be real.
+> `clearLocalAccount` itself survives as what it is actually good at — the rollback when relay
+> registration fails mid-creation, before anything on disk has moved.
+
+**v0.1 ships the deliberate half only** *(scope decision, owner, 2026-07-27)*. Sign out and
+Forget account are cheap — close or delete the store. **Automatic** locking is not: a real
+session needs mid-session re-lock in the desktop main process and mobile's bootstrap, and it
+must be a genuine re-lock rather than theater, since the keychain still holds the db-key and a
+relaunch would otherwise walk straight past it. Deferred to v0.2
+([`plans/v0-2.md`](../../plans/v0-2.md)). Nothing about it is a one-way door — the session sits
+on top of the same password door either way.
+
+### Forgetting the last device — ask the relay, assume the worst
+
+Forgetting an account on its **last remaining device** is functionally a deletion *unless some
+server durably holds a copy*. Two facts make this sharper than it first looks:
+
+- The relay is designed to be **disposable** — devices self-heal it — so a relay is explicitly
+  *not* a backup ([`apps/server`](../../apps/server/README.md)).
+- **Not every relay will offer backup.** Someone has to host that data; a self-hoster may
+  choose to, and many will not. It is a property of *who is hosting*, so it is a **relay
+  capability**, not an account setting.
+
+Therefore the client **asks** rather than assumes: the relay advertises whether it retains a
+durable copy, and **absent that advertisement, assume it does not.** Defaulting to "no" fails
+safely — the worst case is over-warning.
+
+| Durable server copy | What Forget account means here | How to say it |
+|---|---|---|
+| **No** (default, and today always) | the last copy is destroyed | word it as **"Delete all data on this device"**, hard-confirm, and offer an export first |
+| **Yes** (a relay that opts in) | ordinary — sign back in and re-pull | the normal Forget confirmation |
+
+Build this as a *check*, not a hardcoded string: when server-side backup ships, alarming copy
+must stop appearing on its own rather than being hunted down. The capability should also be
+**visible** — "This server does not keep a backup of your data" is honest for self-hosters and
+a real differentiator for the eventual paid relay.
+
+## The key lifecycle, phase by phase
+
+Every key in play, and who makes it:
+
+| Key | Created by | Purpose |
+|---|---|---|
+| **Master key (MK)** | client, at account creation | the root; wraps everything below. Never derived from the password |
+| **Enclave key** | OS keychain / Secure Enclave | a device's local unlock path for MK |
+| **db-key** | client, at account creation | the whole-DB at-rest key; read from a sidecar *before* the store opens |
+| **Recovery key (RK)** | client, at account creation | out-of-band unlock for MK **and** db-key; the 24 words encode it; user-held, never stored by us |
+| **KEK** | `Argon2id(password, salt)` | the password unlock path for MK and db-key |
+| **Auth verifier** | separate derivation from the password | what a relay stores to authenticate login — reveals nothing about the KEK |
+| **Content key (CK)** | client, per shareable unit | encrypts one item/blob; wrapped for each principal that may read it |
+| **Account keypair** | client, Stage 3 | public key published to a directory; private key (MK-wrapped) opens shares sent to you |
+| **Principal keypair** | per server integration | a constrained reader (Alexa / CardDAV / hosted link) you wrap *specific* CKs to |
+| **Session key** | server, at SSR login | wraps MK for one trusted SSR session |
+
+The **invariant** through every phase: a server never holds an *unwrapped* MK at rest, and
+never holds the password, KEK, or RK at all. The three phases after these — creating a share,
+and granting a constrained principal — are not built; they are `model.md` §11 and §9.2.
+
+**Phase 0 — First launch, fresh install.** **No keys are created — the OS keychain stays
+empty** — and the store is written plaintext. All three encryption layers are inactive; nothing
+leaves the machine.
+> *Ledger: empty.* Wiping the keychain costs this user nothing, and the file opens anywhere it
+> is copied. That is the point.
+
+**Phase 0.5 — Create an account.** The pivotal phase, reached from the Home invitation or
+Settings. Fully local. Mints **MK, enclave key, db-key, RK, KEK, and the auth verifier** — the
+verifier now, though no relay exists, so binding one later adds no new ritual. Persists
+`wrap(MK, enclave)`, `wrap(MK, KEK)`, `wrap(MK, RK)` inside the store, and beside it the two
+**db-key sidecars**, `seal(db-key, RK)` and `seal(db-key, KEK)`. Sidecars are separate files by
+necessity: they are read *before* the database can open. Then converts the store and destroys
+the plaintext original.
+> *Ledger:* MK and db-key each reachable by enclave, password, or phrase. The user holds two
+> secrets — one chosen, one generated — and the keychain is no longer a single point of failure.
+
+**Phase 1 — Bind the account to a relay.** Because 0.5 already minted the password door, the
+recovery key, and the verifier, this phase creates **no new key material at all** — it only
+publishes what exists. That convergence of local and synced custody is the payoff. The relay
+receives the salt (public), the auth verifier, `wrap(MK, KEK)`, and the recovery escrow. It
+**cannot** derive the KEK, so it cannot unwrap MK: zero-knowledge holds, and this is where
+encryption layer 2 starts working. The relay is authoritative over usernames, so binding must
+be able to **rename**.
+> *Ledger:* unchanged from 0.5, plus the relay's copy of `wrap(MK, KEK)` + verifier + salt.
+
+**Phase 2 — Add a second device.** Joins the account by username + password; it consumes the
+password door and never needs the RK or device 1's enclave key. **Its store is encrypted before
+any account data reaches it** — the device starts Unauthenticated like any other, and the join
+converts it before the first sync pull, so no row ever lands in a plaintext file. It derives
+the verifier → authenticates → receives `wrap(MK, KEK)` → derives the KEK locally → unwraps MK
+into memory → mints its *own* enclave key and db-key, adds `wrap(MK, device-2 enclave)`, and
+caches the unlock.
+> *Ledger:* MK reachable from either device's enclave, the RK, or the KEK. Two devices, one
+> account, relay still blind.
+
+**Degraded — a device that holds the account but cannot prove its master key** *(decided
+2026-07-29)*. Not a phase but a condition any Authenticated device can land in, and the answer
+to the one failure the phases above cannot design away: the db-key opens (so the store opens
+and the data is readable) while the enclave holds no MK the account would recognize — a
+keychain that was partly lost, or an unlock door whose `key_wrap` row cannot be opened. **The
+device opens anyway and syncs nothing.** Three properties define it:
+
+- **No key session.** MK is absent rather than invented, so nothing is pushed under a key no
+  peer holds, nothing is pulled that cannot be read, and the recovery-escrow catch-up cannot
+  publish a key this device cannot vouch for.
+- **Nothing is minted.** Minting MK over an existing account is forbidden, always: a device
+  holding a stray key seals records no peer can open and discards theirs, silently, and the
+  sync engine advances past both. The refusal is the invariant; Degraded is its consequence.
+- **It is visible and has one exit** — the unlock gate. Signing out lands there, where the
+  *other* door is one action away (a phrase door is untouched by a broken password door and
+  vice versa), and the next open repairs the enclave from it and rewinds both sync watermarks
+  so the records lost in each direction are re-offered once. What the notice may *claim* has
+  stopped depends on the account: one bound to a relay had sync and no longer has it, while a
+  local-only account never had any, and telling that person "sync is paused" invents both a
+  feature they do not use and a loss they have not suffered.
+
+> *Ledger:* db-key reachable; MK reachable only from the doors, not from this enclave. Local
+> reads and writes are unaffected, and edits made while degraded reach the account after the
+> repair, because the rewind re-pushes them.
+>
+> **Why not refuse to open**, which is the tempting reading of the invariant: nothing at rest is
+> sealed under MK, so the app is fully usable without one. Refusing would withhold a person's
+> own readable data over a cause they can neither see nor act on, while protecting nothing that
+> the missing key session does not already protect.
 
 ## Surface, by custody phase
 
@@ -20,16 +341,8 @@ precedes.
 
 ## Where custody lives across the repo
 
-Custody spans this package, two others, and both clients. This is the map for a fresh
-reader — the **decision** it implements is
-[`plans/encryption/model.md`](../../plans/encryption/model.md) §7, and §8.1 for converting
-a store. Those two sections are enough; you should not need another doc.
-
-> **The decision, in one sentence:** Leapsake **encrypts once the user holds a secret that
-> opens it, and not before.** A fresh install mints no keys and writes a plaintext store;
-> creating an account (username + password) is the single act that turns encryption on, and
-> joining or recovering one does the same on that device. A lost keychain is answered by the
-> password, with the 24-word phrase as the forgot-password fallback.
+Custody spans this package, two others, and both clients. This is the map for a fresh reader;
+the sections above are the decisions it implements.
 
 - **Which store, and is it encrypted** —
   [`@leapsake/store-layout`](../store-layout/README.md): the roster, the per-account paths,
@@ -68,8 +381,7 @@ change to either must preserve — **read them before touching the ATTACH.**
 > **A dev install predating this work must be recreated.** `resolveActiveStore` is purely
 > "does the roster hold an account?", and the only legitimate plaintext→encrypted conversions
 > are the three that establish an account on this device. There is no compatibility path, by
-> choice — see *Pre-v0.1 latitude* in
-> the product model above.
+> choice — see *Pre-v0.1 latitude* in [`AGENTS.md`](../../AGENTS.md).
 
 ## Why it is a package, not a `core` module
 
@@ -93,34 +405,19 @@ place that knows both a relay and a custody flow exist.
 
 ## The product model this serves *(stated 2026-07-11)*
 
-The mechanism below exists to hold a specific user-facing shape. Change the mechanism freely;
+The mechanism above exists to hold a specific user-facing shape. Change the mechanism freely;
 these are the properties that must survive the change.
 
 - A **user** uses Leapsake on **one-to-many clients**. A **client** hosts **one unauthenticated
   user OR multiple authenticated users** — never multiple *unauthenticated* users. Each
   authenticated user gets their own encrypted database file; the unauthenticated user gets an
-  unencrypted one (`plans/encryption/model.md` §7.4, and
-  [`@leapsake/store-layout`](../store-layout/README.md) for the paths).
+  unencrypted one (see [`@leapsake/store-layout`](../store-layout/README.md) for the paths).
 - **Authentication is required to sync, and only to sync.** Local-only use needs no account to
   get started and stays fully layperson-complete.
 - **The relay is set per authenticated user/account, not per client.**
 - **The user decides when to create an account.** The invitation is a nudge, never a wall.
-- **One state and two actions, never conflated** — one of them destroys data, so they must not
-  share a word:
-  - **Locked** is a *state*, not a button: the store is closed and the password reopens it. The
-    app enters it on your behalf when idle; you reach it by signing out.
-  - **Sign out** behaves **identically for local-only and synced users**. Both get the same
-    promise: *nobody can see my data on this device anymore.*
-  - **Forget account** removes this account and its data from this device. Named as removal so
-    it can never be mistaken for signing out.
-  - *"Make local-only"* — leave the relay, keep the data — was once a third, non-destructive
-    action. **Cut 2026-07-28**: its shipped form was incoherent under per-account stores, the
-    want is narrow, and repairing it needs relay-side decisions
-    (`plans/encryption/model.md` §7.3).
-- **Forgetting the last device is treated as deletion unless a server durably holds a copy.**
-  The relay is designed to be disposable and **not every relay will offer backup** — someone has
-  to host it. So backup is a **relay capability the client asks about**, and **absent an answer,
-  assume none**: word it *"Delete all data on this device"* and offer an export first.
+- **Forgetting the last device is treated as deletion unless a server durably holds a copy** —
+  see *Forgetting the last device* above.
 
 ## The signing identity owns the enclave key
 
@@ -134,7 +431,7 @@ different Developer ID — is a different owner, and **every existing enclave ke
 unreadable**.
 
 What that costs depends entirely on the custody model, which is why *encryption follows custody*
-(`plans/encryption/model.md` §7.2) matters more than it looks:
+matters more than it looks:
 
 | The user is… | What a signing-identity change costs them |
 |---|---|

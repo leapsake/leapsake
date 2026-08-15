@@ -187,7 +187,7 @@ function deviceRoster(): AccountRoster {
  * a store that changed custody since the last open is opened correctly.
  */
 async function openActiveStore(): Promise<void> {
-  // Which store, and in which custody state (model.md §7.2/§7.4). Both answers
+  // Which store, and in which custody state (@leapsake/store-layout). Both answers
   // come from the roster, which must be read before anything is opened — it is
   // readable precisely because it lives outside every store. `dbPath` is
   // *derived*, never a fixed `leapsake.db`.
@@ -293,7 +293,7 @@ async function reopenActiveStore(): Promise<void> {
   // own failures) and nothing here depends on it. It broadcasts `changed`, which
   // is what makes the renderer revalidate the list in place.
   void regenerateSystemReminders();
-  // Take the gate back down. Only sign out (model.md §7.3) actually raises it
+  // Take the gate back down. Only sign out (@leapsake/key-custody) actually raises it
   // mid-session — `openActiveStore` above parks inside `requestUnlock` until the
   // password lands, leaving the renderer on `RecoveryGate` — but announcing
   // unconditionally is right for the other swaps too: they leave the phase at
@@ -654,7 +654,7 @@ function registerSyncIpc(): void {
         );
       }
       // Enabling sync **is** creating an account that also binds a relay, so it
-      // runs the same flow as the local-only path (model.md §7.2.1): the store is
+      // runs the same flow as the local-only path (@leapsake/key-custody): the store is
       // converted to encrypted here too. Before this it created the account and
       // left the store plaintext — a half-Authenticated state §7.2 does not have.
       // The store was converted underneath this process, so withStoreSwap re-opens
@@ -693,7 +693,7 @@ function registerSyncIpc(): void {
   // Join an existing account from this fresh device: log in over the relay, adopt
   // the account master key under this device's enclave, and convert this device's
   // store to encrypted — the conversion lands before the first sync pull, so no
-  // account data ever reaches a plaintext file (model.md §7.1). Before this it
+  // account data ever reaches a plaintext file (@leapsake/key-custody). Before this it
   // adopted the key and left the store plaintext, so every device past the first
   // was unencrypted at rest.
   ipcMain.handle(
@@ -865,7 +865,7 @@ function registerSyncIpc(): void {
   );
 
   // Merge this device's **local-only account** into an existing synced one
-  // (encryption/model.md §7.2.2): the store is re-homed under the synced
+  // (@leapsake/key-custody): the store is re-homed under the synced
   // account's id, keeps every row, and from the next launch opens under *that*
   // account's password.
   //
@@ -983,7 +983,7 @@ function registerSyncIpc(): void {
     }
   });
 
-  // **Create an account on this device** (model.md §7.2.1) — the act that turns
+  // **Create an account on this device** (@leapsake/key-custody) — the act that turns
   // encryption on. Fully local: no relay, no email, nothing leaves the machine.
   // Returns the recovery phrase for its one-time reveal.
   //
@@ -1022,7 +1022,7 @@ function registerSyncIpc(): void {
     },
   );
 
-  // **Sign out** (model.md §7.3): close the store and forget the keys that open
+  // **Sign out** (@leapsake/key-custody): close the store and forget the keys that open
   // it, so getting back in costs the password. Locked is a *state*, not a
   // separate mechanism — this reaches it by deleting the db-key + recovery key
   // and re-opening, which drops the boot path into its "the enclave is gone but
@@ -1064,7 +1064,7 @@ function registerSyncIpc(): void {
   });
 
   // What the **Forget account** confirmation needs to word itself honestly
-  // (model.md §7.3.1). Forgetting an account on its last device is functionally a
+  // (@leapsake/key-custody). Forgetting an account on its last device is functionally a
   // deletion *unless a server durably holds a copy* — so ask the relay, and treat
   // silence as "no copy". No relay implements the endpoint today, which is exactly
   // why this is a check and not a hardcoded warning: when server-side backup
@@ -1077,7 +1077,7 @@ function registerSyncIpc(): void {
     return { username, relayUrl, durableBackup };
   });
 
-  // **Forget account** (model.md §7.3): remove this account and its data from
+  // **Forget account** (@leapsake/key-custody): remove this account and its data from
   // this device — the store, both db-key doors, the roster entry, and the keys
   // that opened them. Local only; an account that exists on a relay or another
   // device is untouched there.

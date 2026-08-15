@@ -16,6 +16,26 @@ The state names the **account**; `resolveActiveStore` reports the **file** separ
 and they are named apart because `plans/v0-2.md` expects that to change. See
 [`AGENTS.md`](../../AGENTS.md) → _Custody vocabulary_ for all three axes.
 
+## The layout *(direction, 2026-07-26)*
+
+A client holds **one Unauthenticated store or many Authenticated ones** — the same shape
+[`@leapsake/key-custody`](../key-custody/README.md) states for users. Each account gets its
+**own encrypted database file**, which is what makes per-user isolation and **Forget account**
+clean rather than surgical:
+
+```
+<userData>/stores/
+  local/leapsake.db                  ← the Unauthenticated store (plaintext), before any account
+  <accountId>/leapsake.db            ← one encrypted store per account on this client
+  <accountId>/leapsake.db.recovery   ← its sidecars (recovery + password doors)
+<userData>/accounts.json             ← the roster: which accounts exist on this client
+```
+
+- **Creating an account** writes `stores/<accountId>/` and removes `stores/local/`.
+- **Logging out** deletes `stores/<accountId>/` and its roster entry. Nothing to sift.
+- **The roster must be readable before any store opens** — you cannot enumerate accounts from
+  inside files you cannot decrypt — so it is unencrypted. See *The rules worth knowing*.
+
 ## Why it is its own package
 
 It is read on the **boot path, before anything is opened** — the roster is what tells a

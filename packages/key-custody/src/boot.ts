@@ -111,7 +111,7 @@ export async function establishKeySession(opts: {
   const { keyStore, driver, custody, door, platform } = opts;
 
   // An Unauthenticated store has no account, no master key, and no repair to attempt — and
-  // must not acquire one here: minting is account creation's job (model.md §7.2.1).
+  // must not acquire one here: minting is account creation's job (README.md).
   if (custody === "plaintext") return { state: "ok", keySession: undefined };
 
   const syncState = createSyncStateRepo(driver);

@@ -95,7 +95,7 @@ export interface AccountRepo {
  * {@link SqliteDriver} port so it runs unchanged on desktop and mobile.
  *
  * A store with **no** account row is the normal Unauthenticated case, not a
- * corrupt one (plans/encryption/model.md §7.2): a fresh install has no account
+ * corrupt one (@leapsake/key-custody): a fresh install has no account
  * until the user creates one.
  */
 export function createAccountRepo(driver: SqliteDriver): AccountRepo {

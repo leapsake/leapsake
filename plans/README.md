@@ -46,7 +46,7 @@ enclave key lives in [`@leapsake/key-custody`](../packages/key-custody/README.md
 | **Know the product posture (laypeople-first, pre-v0.1 latitude)** | [`../AGENTS.md`](../AGENTS.md) → *Product posture* |
 | **Know the user / client / account model** | [`@leapsake/key-custody`](../packages/key-custody/README.md) → *The product model this serves* |
 | Understand the encryption / privacy / sync **design** | [`encryption/`](./encryption/) — start at its `README.md`. Design only; no backlog |
-| **Understand how key custody works** | [`encryption/model.md`](./encryption/model.md) **§7** — the one place custody is *specified*. Code map: [`@leapsake/key-custody`](../packages/key-custody/README.md) |
+| **Understand how key custody works** | [`@leapsake/key-custody`](../packages/key-custody/README.md) — the one place custody is *specified*, and the code map for it |
 | Understand the testing strategy | [`testing/`](./testing/) — principles, the driver-contract keystone, the flow catalog |
 | Understand the file/media (photos) design | [`v0-2.md`](./v0-2.md) → *Files and media* — encrypted-blob invariants, pinned before build |
 | Know how the SQLite native-ABI dance bites (and how it ends) | [`../AGENTS.md`](../AGENTS.md) today · [`v0-2.md`](./v0-2.md) → *The N-API exit* |

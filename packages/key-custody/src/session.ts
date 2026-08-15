@@ -172,7 +172,7 @@ async function adoptMasterKeyIntoEnclave(opts: {
 }
 
 /**
- * Custody Phase 0 (encryption/model.md §7.5): make the device's master
+ * Custody Phase 0 (README.md): make the device's master
  * key real on first launch and recover it on every launch after — the first
  * consumer of the OS {@link KeyStore}.
  *
@@ -444,7 +444,7 @@ export interface RecoveryChannel {
 }
 
 /**
- * Custody Phase 1 (encryption/model.md §7.5): **enable sync** — promote a
+ * Custody Phase 1 (README.md): **enable sync** — promote a
  * single, enclave-only device to an account with a portable **password** unlock
  * door, plus a one-time **recovery key**. This is the first crypto that leaves
  * AEAD-only territory: it derives a KEK with Argon2id (@leapsake/crypto).
@@ -565,7 +565,7 @@ export async function enableSync(opts: {
 }
 
 /**
- * Custody Phase 2 / login (encryption/model.md §7.5): unlock the account's
+ * Custody Phase 2 / login (README.md): unlock the account's
  * master key from the **password** alone — no enclave, no device secret. This is
  * exactly what a second device does after the account's ciphertext arrives over
  * the relay: derive the KEK from the password + the public salt, authenticate
@@ -738,7 +738,7 @@ export async function adoptAccountMasterKey(opts: {
 }
 
 /**
- * Custody Phase 2 / multi-device login (plans/encryption/model.md §7.5): join
+ * Custody Phase 2 / multi-device login (README.md): join
  * an **existing** account on a fresh device, so it converges over the relay. This
  * is the one capability that completes Stage-1 sync — `account`/`key_wrap` are
  * device-local and never replicate, so a second device needs this separate

@@ -462,7 +462,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // The same keystore instance that backs the enable-sync door below.
       const keyStore = secureStoreKeyStore();
 
-      // Which store, and in which custody state (model.md §7.2/§7.4) — settled
+      // Which store, and in which custody state (@leapsake/store-layout) — settled
       // before anything is opened, because it decides whether a key is even
       // involved. The roster is the whole answer, exactly as on desktop.
       const activeStore = resolveActiveStore({
@@ -949,7 +949,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           createAccountHere({ username, password }),
         enable({ username, password, relayUrl }) {
           // Enabling sync **is** creating an account that also binds a relay, so
-          // it is the local act plus one step (model.md §7.2.1). The relay half
+          // it is the local act plus one step (@leapsake/key-custody). The relay half
           // is a callback rather than a branch so the failure it owns — a taken
           // username, an unreachable host — is worded here, where the URL is.
           return createAccountHere({
@@ -1315,7 +1315,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           }
           await scheduler.current?.trigger();
         },
-        // **Sign out** (model.md §7.3). Mobile has no relaunch primitive, so the
+        // **Sign out** (@leapsake/key-custody). Mobile has no relaunch primitive, so the
         // whole act is: forget the two keys that open this store, then re-run the
         // bootstrap. That re-run finds the roster still naming the account
         // (Authenticated) but no db-key, with both doors intact — which is exactly the
@@ -1357,7 +1357,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           const { durableBackup } = await fetchRelayCapabilities({ relayUrl });
           return { username, relayUrl, durableBackup };
         },
-        // **Forget account** (model.md §7.3). The roster is the authority for
+        // **Forget account** (@leapsake/key-custody). The roster is the authority for
         // *which* store — it names it, and it is what the next bootstrap reads —
         // so with the entry gone the re-run resolves Unauthenticated and lands the device on
         // a fresh plaintext store, the state a new install is in.
@@ -1393,7 +1393,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // delete this store, its doors and the account roster, and clear every
           // keystore secret. Bumping resetVersion re-runs the bootstrap effect,
           // which now finds no roster, no key and no store, and so takes the
-          // *Unauthenticated* path — a plaintext store and no keys at all (model.md §7.2).
+          // *Unauthenticated* path — a plaintext store and no keys at all (@leapsake/key-custody).
           //
           // Clearing the roster is what makes that true. Left behind, it would
           // send the next boot looking for the store of an account the user had
@@ -1716,7 +1716,7 @@ function RecoveryGate({
     <View style={styles.gate}>
       {/*
         Names no cause, because this gate now has two (mirrors desktop's): the
-        user signed out deliberately (model.md §7.3), or this device's secure
+        user signed out deliberately (@leapsake/key-custody), or this device's secure
         storage was reset and took the key with it. Asserting the second — as
         this used to — reads as an alarming malfunction to someone who simply
         signed out a moment ago.

@@ -65,7 +65,7 @@ export interface KeyWrapRepo {
  * merge (see {@link KeyWrap}). Written against the async {@link SqliteDriver}
  * port so it runs unchanged on desktop and mobile.
  *
- * Empty until an account exists (plans/encryption/model.md §7.2): "no rows" is
+ * Empty until an account exists (@leapsake/key-custody): "no rows" is
  * a normal state here, not a corrupt one.
  */
 export function createKeyWrapRepo(driver: SqliteDriver): KeyWrapRepo {

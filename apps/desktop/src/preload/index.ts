@@ -96,7 +96,7 @@ const sync = {
     | { status: "username-taken"; username: string }
   > => ipcRenderer.invoke("sync:bindRelay", args),
   /**
-   * Create an account on this device (model.md §7.2.1) — the act that turns
+   * Create an account on this device (@leapsake/key-custody) — the act that turns
    * encryption on. Fully local. Resolves with the 24-word recovery phrase for its
    * one-time reveal, by which point the main process has already re-opened the
    * app around the converted store — there is nothing to restart.
