@@ -25,11 +25,6 @@ This is the rule the whole repo is organized around. Learn it before looking for
 Each numbered doc holds one unit of gating work and is **deleted the day that work lands**.
 Nothing accumulates. When you finish one:
 
-> **One exception, and only one:** [`v0-1_web-spike.md`](./v0-1_web-spike.md) survives its own
-> completion. It carries the prefix because the spike was *scheduled* pre-v0.1, but what it holds
-> is the inheritance for a **post-launch** web client — so its work landing is what made it worth
-> keeping. It retires when an `apps/web` exists.
-
 1. Move anything durable **next to the code it constrains** — a doc-comment, the package
    `README.md`, or an `ARCHITECTURE.md`. Not into another `plans/` file.
 2. Delete the doc, and its row in [`v0-1.md`](./v0-1.md).
@@ -48,7 +43,7 @@ enclave key lives in [`@leapsake/key-custody`](../packages/key-custody/README.md
 | **Know what's in flight** | [`status.md`](./status.md) |
 | **Know what to build next** | [`v0-1.md`](./v0-1.md) → the numbered doc it points at |
 | **Find something we deliberately deferred** | [`v0-2.md`](./v0-2.md) |
-| **Build the web / PWA client for real** | [`v0-1_web-spike.md`](./v0-1_web-spike.md) — what the spike proved and what an `apps/web` inherits — then [`v0-2.md`](./v0-2.md) → *Post-launch* item 1. The rule it produced is [`encryption/model.md`](./encryption/model.md) §10.1: **web requires a sync account** |
+| **Build the web / PWA client for real** | [`web-client.md`](./web-client.md) — what the spike proved and what an `apps/web` inherits — then [`v0-2.md`](./v0-2.md) → *Post-launch* item 1. The rule it produced is [`encryption/model.md`](./encryption/model.md) §10.1: **web requires a sync account** |
 | **Know the product posture (laypeople-first, pre-v0.1 latitude)** | [`../AGENTS.md`](../AGENTS.md) → *Product posture* |
 | **Know the user / client / account model** | [`@leapsake/key-custody`](../packages/key-custody/README.md) → *The product model this serves* |
 | Understand the encryption / privacy / sync **design** | [`encryption/`](./encryption/) — start at its `README.md`. Design only; no backlog |

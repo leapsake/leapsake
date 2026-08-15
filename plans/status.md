@@ -9,7 +9,7 @@
 
 **Nothing.** The web spike closed 2026-08-15 — both owner checks answered, `apps/web-spike`
 deleted, code at the tag `web-spike-final`. What it inherits to a future web client is
-[`v0-1_web-spike.md`](./v0-1_web-spike.md); the rule it produced is
+[`web-client.md`](./web-client.md); the rule it produced is
 [`encryption/model.md`](./encryption/model.md) §10.1 — **web and PWA require a sync account**,
 because browser storage is evictable even when installed.
 

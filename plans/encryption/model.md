@@ -652,7 +652,7 @@ somebody else's screen**, which the shared screens are not yet shaped for — re
 unauthenticated, `RelationshipScreen` still offers Edit / Delete / Add-milestone and
 leaks the item's internal id. A read-only mode is small, and it is a prerequisite for
 sharing rather than a polish item. Evidence:
-[`../v0-1_web-spike.md`](../v0-1_web-spike.md) → *Sharing*, and in full at
+[`../web-client.md`](../web-client.md) → *Sharing*, and in full at
 `git show web-spike-final:apps/web-spike/README.md` → *Increment 4*.
 
 **Photos / large binaries** introduce **blob/object storage** (photos don't belong in
