@@ -14,7 +14,7 @@ This is the rule the whole repo is organized around. Learn it before looking for
 | You want to know… | Look in | Not in |
 |---|---|---|
 | **What was done, and why that way** | `git log`, plus the doc-comments in the code it touched | here — finished work leaves `plans/` |
-| **What is being worked on right now** | [`status.md`](./status.md) — never over 50 lines | anywhere else |
+| **What is being worked on right now** | [`status.md`](./status.md) — in flight + next, never over 30 lines | anywhere else |
 | **What to pick up next, and in what order** | [`v0-1.md`](./v0-1.md) — the one sequence | `status.md`, which shows only the head of it |
 | **What is deferred** | [`v0-2.md`](./v0-2.md) — everything that does not gate v0.1 | the v0.1 docs, which stay short by excluding it |
 | **The stable "why" — posture, the user model, invariants** | next to the code it constrains: [`../AGENTS.md`](../AGENTS.md), the package `README.md`s | `plans/`, which holds only *work* |
