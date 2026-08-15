@@ -25,15 +25,15 @@
 
 ## Next
 
-1. **The web spike, Increment 6 — write up, tear down.** Rewrite
-   [`v0-1_web-spike.md`](./v0-1_web-spike.md) into *answers*: the three owner questions of
-   08-02, the measurement table, the required relay and shared-package changes, and the open
-   questions that survived — sourced from
-   [`apps/web-spike/README.md`](../apps/web-spike/README.md) and `WANTED-CHANGES.md`. Then
-   delete `apps/web-spike` and revert the `.oxlintrc.json` line. **Four checks are owed first**
-   (plan doc → *Increment 6*): a Firefox no-JS walk-through, a capability link in a real
-   browser, one real desktop build converging on the spike's account, and installing
-   `/client-pwa` to see whether an installed origin gets durable storage.
+1. **The web spike, Increment 6 — the write-up is done, the teardown is not.**
+   [`v0-1_web-spike.md`](./v0-1_web-spike.md) is now the spike's *answers*: the three owner
+   questions, the measurements, the relay and shared-package changes, three edits owed to
+   `model.md`, and the open questions that survived. **Four checks are owed** before the
+   delete (that doc → *Still owed*) — two need a human (a Firefox no-JS walk-through,
+   installing `/client-pwa` for the durable-storage line), two do not (a capability link in a
+   real browser, one real desktop build converging on the spike's account). Then tag
+   `web-spike-final`, delete `apps/web-spike`, revert the `.oxlintrc.json` line. **No more
+   measurement** *(owner, 08-14)* — so the phone row is a standing risk, not a task.
 
 2. Then **04 → 07** in [`v0-1.md`](./v0-1.md)'s order — the launch chain, which the spike runs
    beside rather than blocks. 04 starts the 14-day Play clock and fixes store identity; 06 waits

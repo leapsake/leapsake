@@ -1,299 +1,350 @@
 # Leapsake — Web client (`apps/web`)
 
-> **Unbuilt work only.** The *design* for how a web client decrypts, renders, and shares
-> is [`encryption/model.md`](./encryption/model.md) §9.2 (server-side decryption), §10 (the
-> progressive-enhancement table), §11 (sharing), and §13 (the `KeyStore` port per client).
-> The *findings* are in [`apps/web-spike/README.md`](../apps/web-spike/README.md), beside
-> the code that produced them. Nothing here restates either. This doc holds what is **left
-> to do**, and is deleted when the list empties.
+> **What the spike proved, and what an `apps/web` inherits.** The *design* is
+> [`encryption/model.md`](./encryption/model.md) §9.2 (server-side decryption), §10 (the
+> progressive-enhancement table), §11 (sharing), §13 (the `KeyStore` port per client). This doc
+> holds the spike's **answers** — nothing restates the design, and nothing here re-derives the
+> narrative that produced them. Everything below is an input to a web client nobody has started.
 
-**Done: Increments 1-5, all of them** *(→ 2026-08-14)* — read, write, both sharing flavors, the
-browser data layer, the whole client-side login path, that path in a Worker over a persistent
-store, a reload that needs neither the password nor the relay, and finally one that needs no
-server either. Every question answered yes, every one with **zero files changed under
-`packages/`**.
-**Left: Increment 6 alone — write up, tear down.**
+**The spike is done: six increments, 2026-08-02 → 2026-08-14.** Read, write, both sharing
+flavors, the browser data layer, the whole client-side login path, that path in a Worker over a
+persistent store, a reload that needs neither the password nor the relay, and finally one that
+needs no server either. Every question answered yes, every one with **zero files changed under
+`packages/`** — nine times.
 
-## What 1-5d settled, so the rest does not re-derive it
+> **Increment 6 is in progress.** The answers below are final. The **four checks** and the
+> **teardown** are not done, and `apps/web-spike` is still in the tree until they are.
 
-Twenty results in one line each; the evidence for every one is in the README.
+## The three questions, answered
 
-- **A real browser is drivable** — the Claude-in-Chrome extension reads the browser the user
-  already has open (headless still will not launch here). So the three checks owed before
-  teardown, and 5d's offline reload, are not human-only work.
-- **The browser data layer works and the port did not widen for it** — 12/12 on
-  `runDriverContract`, `runMigrations` complete, from a 40-line driver. Engine ~55 ms, schema
-  40-140 ms: as on the server, the KDF is the cold-start cost, not the database.
-- **Cold store, warm key** — §9.2 as written, so the warm-decrypted-store trust claim it
-  warned might be forced is not forced. `WEB_SPIKE_STORE=warm` still builds the other arm.
-- **Argon2id is the whole login cost and it stalls whatever runs it** — ~386 ms on Node,
-  **~450 ms in a visible browser tab and ~850 ms in a hidden one**, freezing the tab for
-  essentially the whole duration. It is 85% of a browser cold start.
-- **The client-side path works end to end and is not the expensive part.** A tab logs in,
-  pulls 446 records, decrypts and applies them (~90 ms), and renders `PersonScreen` through
-  the *same* adapter the SSR host uses, in ~1 s cold. Everything but the KDF is ~135 ms.
-- **Cold store and incremental pull are mutually exclusive** — the relay is an append-only log
-  with no compaction and a cold host must `pull(0)`. 5c's persistent client is the other arm,
-  measured: a reload pulls **0 records** where the cold host re-pulls the whole history.
-- **`SyncEngine` does not expose its high-water mark**, and the obvious substitute
-  (`Date.now()`) silently drops writes. That is a **cold-store** want: a client with a durable
-  store gets `sync()` and both marks from a `syncState` repo, as 5c does.
-- **A Worker moves the whole stall off the page, and the split needs no package change** —
-  `CoreApi` crossed the thread boundary behind a 40-line `Proxy`, the *same* screen file
-  rendering against a real `core` on one page and a proxied one on the other. Argon2id still
-  costs what it costs; the page's own worst unavailability went from ~800 ms to **8.4 ms**.
-- **OPFS makes the schema a once-ever cost and the reload free** — `runMigrations` drops from
-  20-43 ms per tab to "nothing to do", and `pull(cursor)` applies nothing. What it costs is the
-  *cold* apply, 4-7× slower into OPFS than into `:memory:`.
-- **OPFS SAHPool is one tab at a time, and a `Web Locks` election is the cheap answer.**
-  Access handles are exclusive, so 5c's and 5e's second tab failed at install with
-  `NoModificationAllowedError`. 5d turns that into a queue in ~40 lines: the second tab waits,
-  and when the first closes it takes the store over by itself in **21.5 ms**, no reload. Two
-  limits — it only binds *participating* clients (an older tab still holds the handles and the
-  queue is blind to it, observed), and a queued tab does nothing, so a `SharedWorker` owning
-  the store is still what would make two tabs live.
-- **The shared layer ports with no shim** — six-line adapter, loader/actions call-for-call,
-  field readers verbatim, view models usable as a share payload; `@leapsake/crypto` (5.9 KiB
-  gzip) and `@leapsake/ui` + React (112 KiB gzip) both compile to a browser target; contract
-  and migrations run in a browser unmodified.
-- **The no-JS floor has a three-item `packages/ui` backlog**, all product work:
-  `GiftCaptureForm`, the `HolidaysSection` add-field, `RelationshipFields` on create — and
-  5b showed all three are **live in a JS client from the same components**, so they are gaps
-  in the floor rather than in the package.
-- **The browser's `KeyStore` is `@leapsake/crypto`'s `KeyStore`** — a non-extractable
-  `AES-GCM` `CryptoKey` per secret in IndexedDB, implementing the port as written, ~60 lines,
-  no widening. §13's PWA row can be answered rather than deferred: this is what custody *is*.
-  What it is *worth* is narrower — it stops exfiltration, not same-origin use, so **passkey PRF
-  stays the designed answer** and this is the floor rather than the ceiling.
-- **A warm start costs 91 ms against a cold one's 5-6 s**, and the difference is entirely the
-  KDF plus the pull. Custody was the last thing a reload had to redo; `resume` runs with `fetch`
-  removed from the worker and opens a relay-produced record to prove the key is the account's.
-- **The thread that owns the data cannot protect it**: `storage.persist()` is `[Exposed=Window]`,
-  so the *page* must ask — and on `localhost` it is **refused**, leaving the OPFS store and the
-  wrap both evictable. Still refused in 5d from a browser tab; what 5d settled is that the
-  origin *qualifies* as an app (Chrome fired `beforeinstallprompt`, so manifest, icons and
-  worker all pass), leaving one human click between here and the answer. The failure mode is
-  mild either way: eviction costs one Argon2id and a re-pull, not an account.
-- **The whole client runs with no server, and the last thing it needed was the page.** A
-  manifest plus a service worker caching the shell, the modules and the `.wasm`: with the dev
-  server **killed** (not DevTools-pretending — `navigator.onLine` stayed `true`), a reload
-  resumes and renders the person in **69.3 ms** and **0 bytes cross the wire**, the browser
-  itself labelling the navigation `deliveryType: "cache-storage"`. 5c and 5e had already made
-  the data and the key survive; nothing in `packages/` had to learn that a network might be
-  missing, because a resume never builds a transport.
-- **A caching service worker and a `no-store` SSR host share an origin, and Cache Storage
-  ignores the header.** `cache.put` stores a `private, no-store` response as happily as any
-  other, so a "cache everything same-origin" worker would write rendered person pages to disk.
-  The allowlist naming which URLs are *shell* is five lines and is the whole difference.
+The owner asked three things on 2026-08-02. In three sentences:
+
+1. **Can an authenticated sync user view their data on the web?** **Yes** — and in two different
+   architectures, both built: an SSR host that decrypts per request and holds no standing
+   plaintext store, and a browser client that decrypts in the tab and never gives the server a
+   key at all.
+2. **Can they share part of it?** **Yes**, in both §11 flavors from one mechanism, differing by
+   exactly one thing — who holds the content key — with the zero-knowledge flavor's key never
+   reaching the server's request line.
+3. **Can both work with JS, without JS, and as a PWA?** **Yes, yes with a three-item product
+   backlog, and yes** — the no-JS floor renders and round-trips create/edit/delete with zero
+   `<script>` on the wire, and the installed app resumes offline in 69.3 ms with **0 bytes
+   across the wire**.
+
+The load-bearing non-result behind all three: **the shared layer was never client-shaped.** A
+six-line adapter, the desktop loader and actions call for call, the field readers *verbatim*,
+`CoreApi` across a thread boundary behind a 40-line `Proxy`, `SqliteDriver` unwidened for a third
+engine, `KeyStore` implemented as written. Four hosts now, and nothing reshaped for any of them.
+
+## The measurements
+
+One machine, and now permanently: **MacBook Pro (Mac14,6), M2 Max, 12 cores, 32 GiB, macOS
+26.5.1, Chrome 151**, 10.0 GiB storage quota. See *Open questions* → the phone.
+
+**Cold start, by host.** The browser column is a *visible* tab; hidden-tab readings are not
+comparable to anything and are excluded (a backgrounded renderer de-prioritizes main thread and
+workers alike, three-fold and noisily).
+
+| stage | SSR host (Node 24) | browser, cold login | browser, resume |
+| --- | --- | --- | --- |
+| Argon2id | 386 ms | **441 ms** | **not run** |
+| schema — `runMigrations`, 28 migrations | 5.4 ms *(0.1 ms via `serialize`/`deserialize`)* | 91 ms, new OPFS file | 14–29 ms, nothing to do |
+| pull + decrypt + apply | 22.9 ms / 446 records | 277 ms / 129 records *(8.4 ms of it transport)* | **not run** |
+| unwrap the master key | — | — | 4.9–10.2 ms |
+| **total** | **421 ms** | **859 ms** | **40–96 ms** |
+
+**The KDF is the whole cost, on every host.** 51% of a cold browser login, 93% of one against a
+store that already exists, and ~85% of a browser cold start at the sizes that matter. A Worker
+does not make it cheaper — 433.3 / 440.6 / 441.1 ms on a worker against 449.4 ms on the main
+thread — it moves *which* thread pays, and that is worth everything: the page's own worst
+unavailability drops from ~800 ms to **8.4 ms**.
+
+**SSR per-request page, cold store + warm key** (p50, list page, login outside the loop):
+
+| people | cold store, warm key | warm store | what cold pays for |
+| --- | --- | --- | --- |
+| 100 | **6.6 ms** | 3.7 ms | 128 records re-pulled |
+| 1 000 | **36.8 ms** | 8.2 ms | 1 028 records |
+| 10 000 | **352.1 ms** | 66.9 ms | 10 028 records, 2.2 MiB |
+
+**Offline, installed:** resume in **69.3 ms** with **0 bytes** on the wire and
+`navigator.onLine: true` — the browser labelling the navigation `deliveryType: "cache-storage"`
+itself, with the dev server *killed* rather than DevTools pretending. A second offline reload,
+OS page cache warm: **14.3 ms**. A second tab queues on a `Web Lock` and takes the store over in
+**21.5 ms** when the first closes.
+
+**Weights:** `@leapsake/crypto` + `@leapsake/bytes` **5.9 KiB gzip**; the same plus React and a
+shared screen **112 KiB gzip** (react-dom the largest piece, **zod the second**, `@leapsake/ui`
+itself 16 KiB); the sqlite `.wasm` **864 KiB**, which dwarfs both and is slower out of Cache
+Storage (218.8 ms) than out of Chrome's own (20–91 ms).
+
+## What must change before a browser client can exist
+
+### The relay — three, and the first two are not optional
+
+- **CORS + an `OPTIONS` handler.** No longer a prediction: the relay sends no
+  `Access-Control-Allow-*` and answers no `OPTIONS`, and the transport's `Authorization` header
+  is not CORS-safelisted, so a browser preflights into a 404 and **no browser client can exist**.
+  ~6 lines behind a `RELAY_CORS_ORIGINS` env var so the default stays closed. The spike got past
+  it by forwarding `/relay/*` from its own origin — **do not let that launder into "no relay
+  change needed"**: the proxy sees `Authorization: Bearer <accountId>.<b64(authVerifier)>`, so it
+  could impersonate the account to read and write ciphertext. Confidentiality genuinely survives
+  (the verifier is an independent HKDF branch); integrity and availability do not.
+- **Compaction, or a `pull` that collapses by row id.** The relay is an append-only log with no
+  compaction and `/sync/pull` has no pagination, so `pull(0)` returns every version ever pushed
+  rather than the latest per row. Invisible to desktop and mobile, which pull incrementally from
+  a durable cursor; **unavoidable for a cold-per-request host**, which must `pull(0)` and whose
+  per-request cost therefore grows with the account's write *history* rather than its size.
+- **The per-IP failed-login budget is wrong for an SSR host** — `/accounts/session` and
+  `/accounts/bootstrap` share a 10-per-60s per-IP throttle, and an SSR host logs in from one IP
+  for every user, so ten users mistyping a password lock out the eleventh. Lifted with env vars
+  for the spike run, not patched.
+
+*Smaller, and worth knowing rather than fixing:* the relay's pull cursor is **global across
+accounts**, not per-account. Correctness is unaffected — records are account-scoped — but a
+client's cursor is a weak side channel on total relay activity.
+
+### The shared packages — three, none blocking
+
+- **`SyncEngine` should expose its high-water mark** (or offer a `pushChanged` needing no mark).
+  `push(hwm)` re-pushes everything newer than `hwm`; a host with no durable `sync_state` row must
+  start at 0 and so re-pushes its entire store on every session's first write — measured at
+  **6.2× the relay log and 4.3× the page from five logins, permanently**. The obvious substitute
+  is silently broken: `Date.now()` after the pull drops any write landing in that same
+  millisecond, because `listChangedSince` is `updated_at > ?` *strictly* — **four writes in five
+  pushed nothing while returning a happy 303**. 5c narrowed the scope: a browser client with an
+  OPFS database keeps `sync_state` like desktop and gets both marks from `sync()`, so this is a
+  **cold-store** want, not a client-side one.
+- **`createCollectingTestApi` should live in `@leapsake/data/testing`**, beside the
+  framework-agnostic contract it exists to run. Mobile wrote it; 5a needed it **byte for byte**,
+  `diff`-clean, not even an import path changed. The second copy is evidence where the first was
+  a judgement call.
+- **A server-side Argon2 worker pool or a native binding.** `deriveKeyMaterial` is synchronous
+  and CPU-bound, so on a single-threaded SSR host every in-flight request freezes for the
+  duration of anyone's login — ten concurrent logins is a three-second stall for everybody.
+  Neither exists in the repo. *Which* of the two is an open question; that one is needed is not.
+
+**Read "no package change" carefully.** Two things the spike deliberately did *not* want are not
+the same as nothing to build: `packages/data` ships **no drivers by design** and `packages/crypto`
+ships the `KeyStore` **port plus an in-memory adapter** — so the web client owns its wasm driver
+(~40 lines) and its IndexedDB custody adapter (~60 lines) exactly as every other app owns its
+own. Both are app work that no package change would remove.
+
+### `packages/ui` — four items, all product work
+
+Three are the no-JS gaps below. The fourth: **a shared screen has no read-only mode.** Rendered
+to an unauthenticated viewer, `RelationshipScreen` still emits "Edit roles", "Delete" and "Add
+milestone", plus the relationship's internal id and the shape of the owner's routes. The
+mechanism is small (a `readOnly` prop, or a viewer capability the sections read); *what a shared
+view is* — does a viewer see the timeline? the other partner's page? — is not, and **every §11
+mode renders somebody else's screen.**
+
+## The no-JS floor
+
+The strong form of the claim, and it holds by construction rather than by luck: the SSR response
+contains **no `<script>` element and no inline event attribute**, so the DOM a browser builds is
+identical either way. Every mutation is navigation to a `/new`, `/edit` or `/delete` route — **23
+real `<a href>`s** on a person page, and exactly **two `<button>`s**, both inside the one form
+that does not work.
+
+| person page | no JS | verdict |
+| --- | --- | --- |
+| Contact methods, Milestones, Relationships, Mentioned in | ✅ works | — |
+| Tags | ✅ works | "Edit tags" is a link to `/edit` |
+| Holidays | ⚠️ renders, inert | **plausible**: the addable list is already loaded, so a `<form method="post">` with a `<select>` is a direct swap |
+| Gifts | ❌ inert | **product work**: `GiftCaptureForm` emits a bare `<form>` with no `method`, no `action` and **no `name` on any field** — a no-JS submit posts nothing, nowhere. Needs a `/gifts/new?for=` route and named fields |
+
+| person form | no JS | verdict |
+| --- | --- | --- |
+| Fields + Gender | ✅ works | plain `<input>`/`<select>` with names |
+| Tags (`ChipTextField`) | ✅ works | in `grammar="tags"` the visible input *is* the stored value and carries `name`; only the chip picker is lost. In `grammar="prose"` it would not — there the `name` is on a hidden input React maintains |
+| Relationships (create only) | ❌ inert | starts at zero rows, grows them from an `onClick`, and emits its hidden input only after React resolves the typed name against the candidate list. Needs a fixed `<select>` pair per row, or a second screen after create |
+
+**All three gaps are gaps in the floor, not in the components.** 5b rendered the identical
+components in a browser client and `HolidaysSection`'s combobox and `GiftCaptureForm` are both
+fully live there, with no change to either. A client with JavaScript gets the whole screen from
+the same code the SSR host renders as HTML.
+
+**And the write path is the same code too.** The three actions are the desktop router's call for
+call; the field readers ported *verbatim*, one edit each — the parameter type, `FormData` →
+`URLSearchParams`, whose bodies are identical because the two classes agree exactly on the
+surface the readers use. The desktop write path was never Electron-shaped; it was
+**`FormData`-shaped**, and a no-JS host gets that free from the raw body.
+
+## Sharing: two flavors, one mechanism
+
+| | capability link | hosted link |
+| --- | --- | --- |
+| where the key is | the URL fragment, client-side only | the server, `wrap(ck, hostKey)` |
+| page contains | 840 B ciphertext, **0 B plaintext** | the rendered relationship |
+| `<script>` in the response | 1 | **0** |
+| works with JS disabled | **no, and cannot** | yes |
+| re-showable to the sharer | **no** | yes |
+| server can read the content | no | **yes** |
+
+Two rules fall out, and both are product rules rather than implementation details:
+
+- **Capability links are structurally incompatible with the no-JS floor.** The key never
+  arrives, so no server can render the page. This is the one place the accessibility floor cannot
+  be reached by more work, and the answer is a `<noscript>` that says so rather than a page that
+  looks broken. The hosted fallback beside it is a ten-line route.
+- **A capability link cannot be re-shown.** The key exists in the host process only for the
+  duration of the create request, and a redirect target could only carry it in a fragment the
+  redirected-to server would never see — so the create *response* is the only place it ever
+  appears. Lose the link and you re-share. That is what "the server cannot read it" means seen
+  from the sharer's side, and it belongs in whatever UI offers the choice.
+
+The payload needed no share format: `views.relationship()` already returns exactly the screen's
+props, so the view model is sealed verbatim and type-checks against `@leapsake/ui` with no
+mapping.
+
+## Three edits owed to `encryption/model.md`
+
+Changes to *designs*, not findings about code. None is applied — each is a one-line-to-one-row
+edit an owner should green-light.
+
+- **§9.2 should say the `authVerifier` is wrapped under the session key too.** Relay sessions are
+  in-memory per process, so a restart forces a re-login and the host must re-authenticate without
+  the password — which means the session store holds a standing relay credential. In the clear
+  beside the wrapped master key it partly defeats the split: a store thief gets read/write access
+  to all of the account's ciphertext. Wrapping it is one more line. The model does not currently
+  spell this out.
+- **§9.2's cold-vs-warm question is answered: cold**, with two orders of magnitude to spare at
+  realistic store sizes (table above). The configuration is §9.2 as written — the *key* is warm
+  (`wrap(MK, sk)` server-side, `sk` in an `httpOnly` cookie), the *store* is memory-only,
+  request-scoped and closed in a `finally`. **The SSR web app never holds a standing decrypted
+  database in server memory**, so the product-visible trust claim §9.2 warned might be forced is
+  not forced. *(Deliberately unmeasured: peak RSS per warm session — it only decides anything if
+  warm is forced, and it is not.)*
+- **§13's PWA row** (line 1009: *"weak — IndexedDB, no enclave → **passkey PRF** is the right
+  custody answer"*) **should be rewritten into two halves**, because it currently reads as though
+  nothing works until PRF does, and something does:
+  - *the port is satisfied today* — a non-extractable `AES-GCM` `CryptoKey` per secret in
+    IndexedDB implements `getSecret` / `setSecret` / `deleteSecret` as written, ~60 lines, no
+    widening, and `exportKey` is refused on every run. An attacker who reads IndexedDB gets a
+    wrap they cannot open anywhere else;
+  - *passkey PRF is what it still lacks* — **user presence**, a per-unlock gesture a background
+    XSS cannot supply. Non-extractable stops exfiltration, not same-origin use, because using the
+    key is the entire point of storing it. So PRF stays the designed answer and this is the floor
+    rather than the ceiling.
+  - **Durability belongs in the same row.** `storage.persist()` is `[Exposed=Window]`, so the
+    thread that owns the data cannot protect it — and on `localhost` it is **refused**, leaving
+    both the OPFS store and the wrap evictable. The failure mode is mild and should be designed
+    for anyway: eviction costs one Argon2id and a full re-pull, **not an account**.
+
+## Where the code went
+
+`apps/web-spike` is deleted at the end of Increment 6, and the commit before that is tagged
+**`web-spike-final`** — one `git worktree add` from runnable, without being maintained. Nothing
+is lost by the delete: `git show web-spike-final:<path>` works forever.
+
+Of ~8 000 lines, these are what an `apps/web` would otherwise re-derive:
+
+| file | why it is worth reading |
+| --- | --- |
+| `src/wasm-sqlite-driver.ts` | the whole browser data layer in ~40 lines; the three ways oo1 differs from `node:sqlite` are absorbed inside it (**an empty `bind` throws** — the one that breaks `runMigrations`'s own first statement) |
+| `src/client/core-proxy.ts` | `CoreApi` over `postMessage` in one recursive `Proxy` — no method table, no batching. **It must not answer to `then`**, or an accidental `await core.views` hangs forever |
+| `src/client/key-custody.ts` | the `KeyStore` port over IndexedDB + a non-extractable `CryptoKey`, per-secret so `deleteSecret` is complete; plus the account record and the relay canary that prove a warm start got the *right* key |
+| `src/client/core-worker.ts` | the `Web Locks` election (~40 lines) that turns OPFS's exclusive access handles from a crash into a queue; the lock is held by a promise that never resolves, so the browser releases it when the tab dies |
+| `src/client/service-worker.js` | `isShell()` — the five-line allowlist that is the whole difference between an app cache and a data leak (below) |
+| `vite.config.ts` | three load-bearing lines: `ssr.noExternal: [/^@leapsake\//]`, `optimizeDeps.exclude` for the `.wasm`, and `worker: { format: "es" }` |
+
+Four hazards that cost hours to find and minutes to avoid, so they are written here rather than
+left in a deleted docblock:
+
+- **`optimizeDeps.exclude` for `@sqlite.org/sqlite-wasm` is load-bearing, and its failure is a
+  runtime abort.** Pre-bundling moves the module and leaves the `.wasm` behind; the build is
+  clean, the page loads, and then emscripten aborts at init naming neither Vite nor the missing
+  file. Any bundler that relocates a module relative to its asset reproduces it.
+- **Cache Storage ignores `no-store`.** `cache.put` stores a `private, no-store` response as
+  happily as any other, so a service worker caching "everything same-origin" would write
+  server-rendered person pages — names, contact methods, timelines — to disk, on an origin whose
+  SSR half exists precisely to avoid that. Allowlist the shell; let everything else fall through.
 - **A service worker cannot live in the bundler's module graph.** It controls only URLs at or
-  below the path it is served from, so it is served from the root and is the one untransformed
-  file in the spike — the first deliberate exception to Increment 1's one-graph rule, and the
-  reason every production bundler ships a service-worker special case.
-- **Argon2id costs the same on a worker as on the main thread: ~435 ms.** Three visible-tab
-  runs, 433.3 / 440.6 / 441.1 ms, against 5b's one visible main-thread reading of 449.4 ms —
-  so 5c's alarming 1 083–3 417 ms was the *hidden tab*, not the thread, and the worker buys
-  interactivity at no cost to the KDF. A visible-tab cold login is **859 ms** end to end
-  (51% KDF) where the hidden-tab reading was 4 884–6 277 ms.
-- **The SSR host and the JS client want different adapters over the same screens.** The
-  degenerate `href`-passthrough adapter is right for no-JS and wrong for a client-side app,
-  where every link is a document navigation that discards the tab's key and store. Desktop's
-  adapter (`href` → react-router `to`) is the shape a real web client needs.
+  below the path it is served from, so it is served from the root off disk and is the one
+  untransformed file in the app. Every production bundler ships a service-worker special case,
+  and this is why.
+- **Parallel timings cannot attribute blocking work.** Seven parallel `core` calls where one
+  blocks the event loop all report the *same* duration, naming no culprit — which is what hid a
+  12-second page. And a naive `setInterval`/`clearInterval` stall probe reads **0 ms**, because a
+  synchronous block prevents the timer callback from ever running. In a hidden tab neither works
+  at all: `requestAnimationFrame` never fires and `setInterval` is clamped to ~1 s, so a provably
+  free main thread reads 724–950 ms of "stall". What works is a `MessageChannel` posting to
+  itself and measuring the gap between deliveries.
 
-## Decisions that still bind
+One shared-app defect the spike measured and deliberately did not fix, because it is **not an SSR
+finding**: `duplicates.findFor` is a full in-memory O(n²) pass run on every person-page load and
+on every create, and the page only uses `.length` of the result — 2.1 ms at 100 people, 122.9 ms
+at 1 000, **11 781 ms at 10 000**. Desktop makes the identical call on the same screen.
 
-The rest were consumed by 1-5a and now live in the code they shaped (`vite.config.ts`,
-`bootstrap.ts`, the two drivers). These two still constrain unbuilt work:
+## Still owed: four checks, then the teardown
 
-- **`@sqlite.org/sqlite-wasm` for the browser database** — chosen, working since 5a, and as of
-  5c **persistent**: `installOpfsSAHPoolVfs()` + `new poolUtil.OpfsSAHPoolDb(...)` needed no
-  cross-origin isolation, exactly as the choice predicted (the older OPFS VFS needs
-  `SharedArrayBuffer` and therefore COOP/COEP, which would poison the whole origin). The
-  constraint that came with it — the pool is **worker-only and single-tab** — is answered
-  rather than open: 5d queues the second tab on a `Web Lock` and hands the store over when the
-  first closes. (`wa-sqlite`'s async-VFS pitch bought nothing because our port is already
-  async; `sql.js` has no persistence story. Migration portability is no longer a prediction —
-  `runMigrations` ran unmodified in 5a, and in 5c ran *once ever*.)
-- **One origin, one module graph — with exactly one deliberate exception.** Vite in middleware
-  mode covers SSR pages, the client bundle and the `.wasm` from a single origin, and
-  `server.ts` reaches the app only through `ssrLoadModule` — load a module twice and the
-  session store splits in half. The **service worker** cannot obey it: it controls only URLs at
-  or below the path it is served from, so it is served from the root off disk and is the one
-  file here that no bundler touches.
+Three are the same shape — things verified by construction or by a stand-in rather than by
+driving the real thing.
 
-Governance for anything new: `"version": "0.0.0"`, no `typecheck` script, excluded from
-`oxlint` via `.oxlintrc.json` → `ignorePatterns`, and out of `vitest.config.ts` — verification
-here is manual and in-browser.
+1. **Firefox with `javascript.enabled=false`**, walking create/edit/delete by hand, and while
+   there opening a **hosted** share link — the same check for Increment 4's no-JS half. *(Needs a
+   human: it is a Firefox preference.)*
+2. **A capability link opened in a real browser.** Increment 4 built the client for a browser
+   target and executed it against a DOM stub with the fragment supplied by hand, so what is
+   unexercised is the browser's own URL handling — precisely the half the zero-knowledge claim
+   rests on. The network panel must show the path **without** the `#`. *(Agent-drivable.)*
+3. **One real desktop build converged against the spike's relay account.** Increment 3's peer is
+   the desktop *data path* (`joinAccount` + `runAccountSync`) rather than Electron.
+4. **Install `/client-pwa` and read one line** — whether an *installed* origin is granted durable
+   storage where a `localhost` tab is refused. Chrome fired `beforeinstallprompt`, so the
+   manifest, icons and worker all qualify and the button is live. **If the answer is still
+   "refused", that is the answer.** *(Needs a human: a native install dialog.)*
 
-## Increment 5 — done, and where each half of it lives
-
-The driver is `apps/web-spike/src/wasm-sqlite-driver.ts` and the page is `/driver-contract`;
-the main-thread client is `src/client/client-app.tsx` behind `/client`; the Worker client is
-`src/client/core-worker.ts` + `core-proxy.ts` behind `/client-worker`; custody is
-`src/client/key-custody.ts` behind `/client-key`; the installed app is
-`src/client/service-worker.js` + `src/routes/pwa.ts` behind `/client-pwa`, with the relay
-forwarder they all need in `src/relay-proxy.ts`. Every page prints its own numbers.
-
-**5e was moved ahead of 5d and that was right.** 5d's done-when was unreachable without it:
-`bootstrap.ts` makes **two network calls before it has a key** — `lookup(username)` for the
-account id and salt, then `fetchBootstrap` for `wrap(MK, kek)` — so an offline reload held a
-perfectly good OPFS store and nothing that opened it. Because 5e went first, the service-worker
-fallback its failure would have forced (caching the two login responses, putting
-`wrap(MK, kek)` in Cache Storage) was never needed and was never built.
-
-**The measurement table is complete but for one row: a phone.** Every number in this spike
-is one laptop — MacBook Pro (Mac14,6), M2 Max, 32 GiB, macOS 26.5.1, Chrome 151 — and the
-device that decides whether a browser client is usable is the one nobody has measured. 5d
-collected the other two: Argon2id on a worker in a *visible* tab (~435 ms, three runs), and
-the machine itself. The server-side half is all in `src/measure.ts`, one file to delete; the
-browser numbers are printed by the pages that produced them.
-
-### The CORS gap — proxied in 5b, but the real change is unchanged
-
-`src/relay-proxy.ts` forwards `/relay/*` → `RELAY_URL/*` from the spike's own origin, and it
-needed **zero transport changes**: `http-transport.ts` concatenates URLs rather than calling
-`new URL(base)`, so a relative `baseUrl: "/relay"` resolves against the page origin — and
-same-origin means no preflight, which matters because the `Authorization` header would
-otherwise force an `OPTIONS` the relay 404s. Proxying beat patching `apps/server` because the
-relay is the thing hardening, and a reverted CORS patch is exactly the kind of change that
-survives revert by accident.
-
-**The caveat belongs in the findings, not buried here:** the proxy sees
-`Authorization: Bearer <accountId>.<b64(authVerifier)>`. The verifier is an independent HKDF
-branch, so it reveals nothing about the KEK and **confidentiality genuinely survives** — but
-the proxy could impersonate the account to read and write ciphertext, an availability and
-integrity trust dependency production must not have. So the real conclusion is that
-**the relay needs CORS + `OPTIONS` before any browser client can exist** (~6 lines behind a
-`RELAY_CORS_ORIGINS` env var). Do not let the proxy launder that into "no relay change needed."
-
-## Increment 6 — write the findings, tear the spike down
-
-This doc is rewritten into **answers rather than narrative**, sourced from
-[`apps/web-spike/README.md`](../apps/web-spike/README.md) and
-[`WANTED-CHANGES.md`](../apps/web-spike/WANTED-CHANGES.md): the three owner questions of
-2026-08-02 (view / share / with-JS-without-JS-as-PWA) resolved in three sentences; the
-measurement table; the required **relay** and **shared-package** changes; the no-JS
-inventory; the two sharing flavors; and the open questions that survived. Then delete
-`apps/web-spike` and revert the `.oxlintrc.json` line.
-
-Three things belong in the write-up that are not in the README, because they are changes to
-*designs* rather than findings about code:
-
-- **§9.2 should say the `authVerifier` is wrapped under the session key.** Relay sessions are
-  per-process, so a restart forces a re-login and the host must hold a standing relay
-  credential; in the clear beside the wrapped master key it partly defeats the split. One
-  line, and the model does not currently spell it out.
-- **§9.2's cold-vs-warm question is answered** — cold, with the numbers.
-- **§13's PWA row should be rewritten** from "weak — IndexedDB, no enclave → passkey PRF is the
-  right answer" to the two-part answer 5e produced: the *port* is satisfied today by a
-  non-extractable `CryptoKey` in IndexedDB, and passkey PRF is what adds user presence on top.
-  The row currently reads as though nothing works until PRF does, and something does. 5d adds
-  the durability half of the same row: both the key and the store sit on **evictable** storage
-  until an origin Chrome considers installed asks for `persist()`, and eviction is a re-login
-  rather than a data loss.
-- **The relay's compaction gap** (below) is the one change that is neither optional nor
-  cosmetic for an SSR host.
-
-**Four checks are owed before the teardown**, the first three the same shape — things verified
-by construction or by a stand-in rather than by driving the real thing. 5a found they need not
-be manual: the Claude-in-Chrome extension drives the browser the user already has open, which
-is how `/driver-contract` was read. Only the Firefox one plainly needs a human, because
-`javascript.enabled=false` is a Firefox preference; the fourth needs one because clicking
-through Chrome's install dialog is a native window the extension cannot reach.
-
-*(The old fourth check — the visible-tab KDF — is **collected**: 5d's tab reported `visible`
-throughout and read 433.3 / 440.6 / 441.1 ms. So "an agent-driven tab is always hidden" was
-true of 5c's and 5e's sessions rather than of the route.)*
-
-1. Load `http://localhost:5180` in Firefox with `javascript.enabled=false` and walk
-   create/edit/delete by hand — and while there, open a **hosted** share link, which is the
-   same check for Increment 4's no-JS half.
-2. Open a **capability** link in a real browser. Increment 4 built the client for a browser
-   target and then executed it against a DOM stub with the fragment supplied by hand, so what
-   is unexercised is the browser's own URL handling — precisely the half the zero-knowledge
-   claim rests on. Watch the network panel: the request must show the path without the `#`.
-3. Converge one real desktop build against the spike's relay account, since Increment 3's peer
-   is the desktop *data path* (`joinAccount` + `runAccountSync`) rather than Electron.
-4. **Install `/client-pwa` and read one line.** The page's "Install this app" button is live —
-   Chrome offered the prompt, so the manifest, the icons and the worker all qualify — and the
-   `storage` line reports `persist()` and `display-mode` on every load. The question is whether
-   an *installed* origin is granted durable storage where a `localhost` tab is refused; today
-   both the OPFS database and the wrapped master key are evictable. One click, one reload, one
-   line to copy into the findings — and if the answer is still "refused", that is the answer.
-
-## Changes this spike has already justified
-
-Not spike work — **product work it has found and priced**, listed so Increment 6 does not have
-to rediscover it. Each is confirmed, none is built; the reasoning is in
-[`WANTED-CHANGES.md`](../apps/web-spike/WANTED-CHANGES.md).
-
-- **The relay needs CORS + `OPTIONS`** before any browser client can exist (~6 lines behind a
-  `RELAY_CORS_ORIGINS` env var) — no longer a prediction: in 5b it is the one thing that stops
-  a browser reaching the relay at all, and the spike only got past it by proxying.
-- **The relay never compacts**, and `/sync/pull` has no pagination, so `pull(0)` returns every
-  version ever pushed rather than the latest per row. Invisible to desktop and mobile, which
-  pull incrementally from a durable cursor; **unavoidable for a cold-per-request host**, whose
-  per-request cost then grows with the account's write *history*. Latest-per-row compaction (or
-  a `pull` that collapses by row id) is the real answer.
-- **The relay's per-IP failed-login budget is wrong for an SSR host** — one IP for every user,
-  so ten users mistyping a password lock out the eleventh. Lifted with env vars, not patched.
-- **A real SSR host needs a worker pool or a native Argon2 binding**; neither exists here.
-- **`SyncEngine` should expose its high-water mark** (or offer a `pushChanged` needing no mark)
-  — **for hosts with no durable store**, which 5c narrowed it to: a browser client with an OPFS
-  database keeps `sync_state` like desktop and gets both marks from `sync()`.
-- **`createCollectingTestApi` should live in `@leapsake/data/testing`** beside the contract it
-  runs — mobile has it, and 5a needed it byte for byte.
-- **`packages/data` ships no browser driver**, and by policy ships none, so the web client owns
-  one like every other app. **`packages/crypto` is the same story for `KeyStore`** — it ships
-  the port and an in-memory adapter, and 5e's browser adapter (IndexedDB + a non-extractable
-  `CryptoKey`) belongs to the web client for the same reason. Neither is a wanted change; both
-  are noted so Increment 6 does not read "no package change" as "nothing to build".
+Then: tag `web-spike-final`, delete `apps/web-spike`, revert the `.oxlintrc.json`
+`ignorePatterns` entry, and drop the spike's row from [`status.md`](./status.md) and
+[`v0-1.md`](./v0-1.md).
 
 ## Open questions
 
-- **Framework.** Deliberately open. Five increments of bare `node:http` + `renderToString`
-  cost one regex and a hand-written loader/action pairing, and argue for nothing in
-  particular. Pick one afterward.
-- **Whether server-side Argon2id needs a native binding or a worker pool** — one of them is
-  needed; *which* is open, and neither exists in the repo.
-- **The browser's `KeyStore`** — *answered in part by 5e.* The port needs no change: a
-  non-extractable `AES-GCM` `CryptoKey` per secret in IndexedDB implements `getSecret` /
-  `setSecret` / `deleteSecret` as written, and a reload unwraps and decrypts with no password
-  and no network. What stays open is the *strength*: it stops exfiltration but not same-origin
-  use, so §13's **passkey PRF** — which adds a user-presence gesture an XSS cannot supply —
-  remains the designed answer and remains untested.
-- **What a second tab does** *(5c, half-answered by 5d)*. The **mechanical** half is settled: a
-  `Web Locks` election is ~40 lines, the second tab queues instead of throwing, and it takes
-  the store over in 21.5 ms when the first closes. Two things stay open. A queued tab **does
-  nothing**, and a `SharedWorker` owning the store — which would make both live — is still
-  unproven; and the election binds only clients that participate, so it is a convention inside
-  one app rather than a guarantee. The product question underneath is unchanged: what *should*
-  a second tab of a personal CRM do?
-- **Whether the SSR client and the PWA should share an origin** *(Increment 5d)*. They do here,
-  and two things fell out of it that a real deployment inherits: the service worker had to be
-  told which URLs are *shell* and which are somebody's decrypted data (Cache Storage ignores
-  `no-store`, so the allowlist is the only thing standing between the two), and the manifest's
-  `start_url` had to name the client rather than `/`. Separate origins would make both
-  questions disappear and cost a second deployment plus a cross-origin story for shares.
-- **Where a share lives** *(Increment 4)*. The spike's process `Map` decides nothing. A real
-  share is a row — in the owner's encrypted store (syncs to their devices; the link dies when
-  they are offline) or in a **new relay table** (always resolves; the relay grows a schema).
-  §11 does not say, and the answer decides whether this is another relay change.
-- **Revocation and expiry are unexercised** *(Increment 4)*. Two of §11's four modes are built.
-  Both remaining ones are server-side gatekeeping of *delivery* and look cheap — but revocation
-  is load-bearing, because a capability link **cannot be re-shown**, so revoke-and-re-share is
-  the only way to correct a mis-sent one.
-- **What a viewer of a shared screen sees** *(Increment 4)*. Unauthenticated,
-  `RelationshipScreen` still offers Edit / Delete / Add-milestone and leaks the internal id.
-  The mechanism is small (a `readOnly` prop, or a viewer capability); the product question —
-  does a viewer see the timeline? the other partner's page? — is not, and every §11 mode needs
-  the answer.
-- **Whether the browser bundle's size matters** *(Increment 4, sharpened by 5d)*. 112 KiB gzip
-  for a read-only screen, **zod the second-largest piece**, reaching the browser unavoidably
-  through `@leapsake/schema`. 5d makes the PWA real, so this is now live — but it also changes
-  the shape of the question: an installed app downloads its bundle **once** and then serves it
-  from Cache Storage, so the size is a first-launch cost rather than a per-visit one, and the
-  864 KiB `.wasm` dwarfs it either way. The fix, if there is one, is still a shared-package
-  shape change rather than a web one.
+Nothing below was answered by the spike, and each is a decision an `apps/web` has to make.
+
+- **Framework.** Deliberately open, and the cost of leaving it open was visible and small: five
+  increments of bare `node:http` + `renderToString` cost one regex, a literal route ordered above
+  the pattern it would otherwise match, and a hand-written loader/action pairing. It argued for
+  nothing in particular. But **the SSR host and the JS client want different adapters over the
+  same screens**: the degenerate `href`-passthrough adapter is right for no-JS and wrong for a
+  client-side app, where every link is a document navigation that **discards the tab's key and
+  store** — a click on "Edit" is a re-login. Desktop's adapter (`href` → react-router's `to`) is
+  the shape the client half needs, and it already exists in the repo.
+- **A phone, and now permanently unmeasured** *(owner, 2026-08-14: 5d was the last number)*.
+  Every figure above is one M2 Max laptop, and the device that decides whether a browser client
+  is usable is the one nobody measured. The KDF is 51–93% of every start and is exactly the work
+  a phone is worst at, so treat **~440 ms as a floor, not an estimate** — and take the first
+  phone reading before committing to a login flow, not after.
+- **Native binding or worker pool for server-side Argon2id.** One of them is needed; which is
+  open, and neither exists in the repo.
+- **Custody strength** — the port is answered, the strength is not. §13's passkey PRF adds the
+  user-presence gesture a background XSS cannot supply, and remains untested.
+- **What a second tab *should* do.** The mechanical half is settled — it queues, then takes over
+  in 21.5 ms. Two things stay open: a queued tab **does nothing**, and a `SharedWorker` owning the
+  store (which would make both live) is unproven; and the election binds only *participating*
+  clients, so it is a convention inside one app rather than a guarantee from the platform — an
+  older tab that does not take the lock still holds the access handles and the queue is blind to
+  it, observed twice.
+- **Whether the SSR client and the PWA share an origin.** They do here, and two things fell out
+  of it that a real deployment inherits: the service worker had to be told which URLs are shell
+  and which are somebody's decrypted data, and the manifest's `start_url` had to name the client
+  rather than `/`. Separate origins make both questions disappear and cost a second deployment
+  plus a cross-origin story for shares.
+- **Where a share lives.** The spike's process `Map` decides nothing. A real share is a row —
+  in the owner's encrypted store (syncs to their devices; the link dies when they are offline) or
+  in a **new relay table** (always resolves; the relay grows a schema). §11 does not say, and the
+  answer decides whether this is a fourth relay change.
+- **Revocation and expiry**, both unexercised. Two of §11's four modes are built; the remaining
+  two are server-side gatekeeping of *delivery* and look cheap — but revocation is load-bearing,
+  because a capability link cannot be re-shown, so revoke-and-re-share is the only way to correct
+  a mis-sent one.
+- **Whether the browser bundle's size matters.** 112 KiB gzip for a read-only screen, zod the
+  second-largest piece, reaching the browser unavoidably through `@leapsake/schema`. An installed
+  app downloads it **once** and then serves it from Cache Storage, so it is a first-launch cost
+  rather than a per-visit one — and the 864 KiB `.wasm` dwarfs it either way. The fix, if there
+  is one, is a shared-package shape change rather than a web one.
 - **Media and the no-JS floor** — [`v0-2.md`](./v0-2.md) raises it: serving decrypted media to a
   no-JS browser means the render server transiently holds *file* keys. Out of scope here (no
-  blobs exist yet), but these SSR measurements are the input to that decision.
+  blobs exist yet); these SSR measurements are the input to that decision.
