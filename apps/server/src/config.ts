@@ -43,7 +43,7 @@ export const DEFAULT_SESSION_TTL_MS = 60 * 60_000;
  * The default throttle on the **unauthenticated** enumeration vectors
  * (`GET /accounts/lookup`, `POST /accounts`) — generous; tune per deployment. The
  * username join scheme makes an existence oracle deliberate-but-throttled
- * (security-review.md §3); the authenticated routes aren't oracles, so aren't
+ * (README.md); the authenticated routes aren't oracles, so aren't
  * throttled.
  */
 export const DEFAULT_RATE_LIMIT: RateLimit = {
@@ -62,7 +62,7 @@ export const DEFAULT_RATE_LIMIT: RateLimit = {
  * lower cap than the enumeration limit, since a *legitimate* client touches
  * these endpoints only during the rare manual recovery (a handful of attempts at
  * most). Per-IP, like {@link DEFAULT_RATE_LIMIT}; both share the proxy-awareness
- * follow-up in security-review.md §3.
+ * follow-up in README.md.
  */
 export const DEFAULT_RECOVERY_RATE_LIMIT: RateLimit = {
   max: 10,
@@ -90,7 +90,7 @@ export const DEFAULT_BOOTSTRAP_RATE_LIMIT: RateLimit = {
  * The set of reverse proxies the relay trusts to set `X-Forwarded-For`, used to
  * recover the real client IP for the per-IP rate limiters when the relay runs
  * behind a proxy/load balancer (otherwise every client looks like the proxy and
- * the throttles collapse to one shared bucket — security-review.md §3). Each
+ * the throttles collapse to one shared bucket — README.md). Each
  * entry is an IP, a CIDR range (`10.0.0.0/8`), or a `proxy-addr` preset name
  * (`loopback`, `linklocal`, `uniquelocal`).
  *

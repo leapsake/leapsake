@@ -1,16 +1,17 @@
 /**
  * Client-side merge for synced domain rows.
  *
- * Sync is a blind relay (see plans/encryption/sync.md): the server carries
- * already-encrypted records and never merges, so reconciliation of concurrent
- * edits happens here, on the client, over decrypted rows. The model is
- * **whole-row last-writer-wins (LWW) on `updatedAt`, with tombstones** — the
- * decision recorded in sync.md §4.
+ * Sync is a blind relay: the server carries already-encrypted records and never
+ * merges, so reconciliation of concurrent edits happens here, on the client,
+ * over decrypted rows. The model is **whole-row last-writer-wins (LWW) on
+ * `updatedAt`, with tombstones** — why that rather than a CRDT, and the
+ * lost-update window it knowingly accepts, are in
+ * [`@leapsake/sync`](../../sync/README.md) → *The merge model*.
  *
  * The one property the rest of the design leans on is **order-independence**: a
  * device that pulls the same set of changes in any order must converge on the
  * same result, with no central clock or server-authoritative sequence (the P2P
- * invariant, sync.md §3). {@link resolveMerge} achieves this by being a `max`
+ * invariant). {@link resolveMerge} achieves this by being a `max`
  * over a *total order* on rows — and `max` is commutative, idempotent, and
  * associative, so folding a batch converges regardless of arrival order.
  *

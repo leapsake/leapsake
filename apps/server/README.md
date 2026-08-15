@@ -48,12 +48,56 @@ the hot `push`/`pull` path — so the raw verifier transits _once per login_, no
 request. Sessions are in-memory and per-process (ephemeral; a restart costs each device
 one silent re-login). A bad/absent credential is `401`.
 
-Because the verifier is HKDF-independent of the KEK
-([`packages/crypto`](../../packages/crypto/README.md)), the relay authenticates a device
-without ever holding anything that could unwrap the master key. The auth model and its
-accepted residual risks are in
-[`plans/encryption/security-review.md`](../../plans/encryption/security-review.md); the
-attacks it is built against are the register below.
+**Why this is sound.** Because the verifier is HKDF-independent of the KEK, the relay
+authenticates a device without ever holding anything that could unwrap the master key —
+it stays blind. It persists only `SHA-256(verifier)`, so a store leak is not a usable
+credential and not a cheap guessing oracle (the verifier is already a high-entropy
+Argon2id→HKDF output, not a password). The compare is constant-time
+(`crypto.timingSafeEqual`), and records are namespaced by the **authenticated** account
+id, never one supplied in the request body — so a device can only ever reach its own
+namespace. The reasoning behind the primitives is
+[`packages/crypto`](../../packages/crypto/README.md) → *Why these hold*.
+
+**Username enumeration is accepted, mitigated, not eliminated.** A username rendezvous is
+inherently an existence oracle: prelogin must hand back the public salt, so
+`GET /accounts/lookup` and registration's 409 both reveal whether a username is taken.
+This cannot be removed without dropping usernames or adopting OPAQUE; per-IP rate limiting
+is the mitigation. Metadata — record counts, sync timing, who shares with whom — is
+likewise out of scope, and stays a thing to revisit before any at-scale privacy claim
+(`plans/encryption/model.md` §12).
+
+### Why username + password *(decided 2026-06-20)*
+
+Weighed against a **high-entropy sync code** (one code, QR-or-paste, doubling as the
+recovery key) and a rigorous **aPAKE (OPAQUE)**. Recorded so it is not relitigated:
+
+- **Chosen because** it is universal and familiar (lowest adoption friction), it makes a
+  future paid email/password tier a continuum rather than a jump, and it is "something you
+  know" — no device co-location, unlike a QR scan. The Bitwarden / 1Password / Standard
+  Notes point on the privacy/usability curve, not the maximally-private one.
+- **Accepted, mitigated costs.** *Enumeration* — a username rendezvous is inherently an
+  existence oracle (the unauthenticated `lookup`, and registration's 409); throttled, and
+  intrinsic to user-chosen handles. *Offline brute-force* — a human password is a weaker
+  KEK; floored at 12 characters, backstopped by the recovery key, and the relay stores only
+  `sha256(verifier)`. *No reset* — the familiar flow wrongly implies one exists; in a
+  zero-knowledge store it does not, and the UI says so plainly.
+- **Rejected — sync code only.** Strictly stronger on privacy and simpler in total
+  secrets, but trades away familiarity and the paid on-ramp. Deferred as a future additive
+  door.
+- **Rejected for now — OPAQUE.** The only design giving usernames *and*
+  enumeration-resistance *and* no offline precomputation, but a vetted-dependency and
+  complexity cost that did not fit a dependency-minimal Stage 1. It returns as a
+  requirement at the hosted-relay gate — see threat H1 below.
+- **Not a one-way door.** MK has multiple independent unlock doors, each one `key_wrap`
+  row added with no re-encryption. A later high-entropy-code or paid email/password door is
+  purely additive. The caveat is asymmetric: you can stop *offering* a scheme to new
+  accounts, but you cannot *remove* an existing account's door without locking it out.
+
+**Access control is orthogonal to zero-knowledge.** *Who may read* the bytes is settled by
+the envelope; *who may store* bytes on a given relay is a separate, content-blind concern.
+A host-issued **registration token** at account creation (cf. Matrix registration tokens,
+Tailscale auth keys) lets an operator gate usage without ever seeing plaintext —
+`RELAY_REGISTRATION_TOKEN` is that seam, public when unset.
 
 ## Threat register
 

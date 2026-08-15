@@ -8,7 +8,7 @@ import { KEY_BYTES, generateKey } from "./keys.js";
  * The password key-derivation algorithm identifier, recorded alongside an
  * account so the primitive can change later without locking out existing
  * accounts — the same per-record-`alg` posture as the wrap {@link ALG}
- * (plans/encryption/security-review.md). An account derives under the id it was
+ * (README.md → *Why these hold*). An account derives under the id it was
  * created with.
  *
  * `argon2id-hkdf-sha256@1`: one Argon2id pass over the password produces a

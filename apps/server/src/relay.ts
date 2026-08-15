@@ -58,7 +58,7 @@ export type { RateLimit };
  * sync.md §4). Sessions are held **in-memory, per-process** — ephemeral, non-user-data:
  * a relay restart just costs each device one silent re-login, and (like the rate
  * limiters) a multi-node relay still needs a shared session store, the same follow-up as
- * the shared rate-limit counter (security-review.md §3). Either way a device may only
+ * the shared rate-limit counter (README.md). Either way a device may only
  * ever touch its own namespace, taken from the authenticated identity — never the body.
  *
  * Account creation reserves an env-gated **registration-token** seam: access
@@ -71,7 +71,7 @@ export type { RateLimit };
  * The two **unauthenticated** routes (`POST /accounts`, `GET /accounts/lookup`)
  * are per-IP **rate-limited** ({@link RateLimit}) — the pragmatic mitigation for
  * the username-existence oracle that the username/password join scheme inherently
- * exposes (security-review.md §3).
+ * exposes (README.md).
  */
 
 // --- Trust-boundary validation (AGENTS.md: Zod at every boundary). ----------
@@ -152,7 +152,7 @@ function registrationTokenOk(req: IncomingMessage): boolean {
  * The launch join scheme is username + password (`plans/encryption/sync.md`), so a username
  * existence oracle is an *accepted, deliberate* property — it can't be removed without
  * dropping usernames — but it **can be throttled**, the pragmatic enumeration mitigation
- * (security-review.md §3). Those two logins aren't enumeration oracles but *are* password
+ * (README.md). Those two logins aren't enumeration oracles but *are* password
  * oracles — a successful auth returns `wrap(MK, KEK)` or a session token — so an online
  * guessing grind is capped across both, sharing one budget (threats H2/H3, README.md).
  * `push`/`pull` stay un-throttled: neither oracle, and hit legitimately on every sync.
@@ -161,7 +161,7 @@ function registrationTokenOk(req: IncomingMessage): boolean {
  * behind a trusted reverse proxy it's the real client from `X-Forwarded-For`, not
  * the proxy's address. In-memory and per-process, so right for a *single-node*
  * relay; a multi-node deployment still needs a shared counter (the remaining
- * security-review.md §3 follow-up). Default parameters live in {@link ./config}.
+ * open half of threat H3, README.md). Default parameters live in {@link ./config}.
  */
 function createRateLimiter(limit: RateLimit): (ip: string) => boolean {
   const hits = new Map<string, { count: number; resetAt: number }>();

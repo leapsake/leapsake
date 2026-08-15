@@ -30,11 +30,10 @@ did — declare a dependency on the security package. The rule now: **depend on
 
 ## Pinned algorithms & parameters
 
-These are recorded as named constants in the source (each carries a versioned
+These are recorded as named constants in the source, each carrying a versioned
 `alg` id so the primitive can change later without locking out existing
-accounts/rows). The design audit that fixed them — and the rationale for _why_
-each holds the model's properties — is
-[`plans/encryption/security-review.md`](../../plans/encryption/security-review.md).
+accounts or rows. Why each one holds the model's properties is the section after
+next.
 
 | Concern                          | Choice                                                                         | Constant                                                         |
 | -------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
@@ -63,8 +62,52 @@ GPU/ASIC cracking.
 > not a malicious operator's active grind ([`plans/v0-2.md`](../../plans/v0-2.md)
 > → *Hosted-relay gate*).
 
-> **Scope.** The asymmetric scheme (X25519/Ed25519 for authenticated sharing) is
-> deferred to encryption **Stage 3** and is not in this package yet. The
-> `security-review.md` audit is an _internal design review_, not a third-party
-> cryptographic audit — an external review is still worth commissioning before a
-> public, at-scale launch.
+## Why these hold the model's properties
+
+The design review that pinned the table above (2026-07-05, before the password door
+was written) argued each choice against what the model promises. The arguments are
+here because they are the reason a future change is safe or unsafe — not history.
+
+- **The password never derives MK.** It derives a **KEK**, which only *wraps* the
+  master key. So changing a password re-wraps MK and re-encrypts **nothing**, and MK
+  can have several independent unlock doors — enclave, password, recovery — each just
+  one more `key_wrap` row. Any change that makes MK a function of the password
+  forfeits this, and with it every future door.
+- **Two independent values from one password.** A single expensive Argon2id pass
+  yields a 32-byte seed; HKDF-SHA256 expands it into two **independent** 32-byte
+  outputs under domain-separated `info` labels (`leapsake:kek:v1`,
+  `leapsake:auth:v1`). Because HKDF outputs are independent, holding the auth
+  verifier reveals **nothing** about the KEK — which is exactly what lets a blind
+  relay authenticate a device it can never decrypt for. Keep the labels distinct and
+  keep the split; collapsing them would hand the relay a KEK oracle.
+- **A stored verifier is not a password oracle.** The relay persists only
+  `SHA-256(verifier)` and compares constant-time. A fast hash is sufficient *because
+  the verifier is already a high-entropy Argon2id→HKDF output*, not a low-entropy
+  password — so a relay DB leak yields nothing cheap to grind. (What a *live* relay
+  can do is a different and harsher question — threat H1 in
+  [`apps/server/README.md`](../../apps/server/README.md).)
+- **AEAD failure is closed.** XChaCha20-Poly1305 authenticates on open, so a wrong
+  KEK or recovery key, or any tampered byte, **throws** rather than returning
+  garbage. `unlockWithRecoveryKey` leans on exactly this: the unwrap failing *is* the
+  wrong-key signal. A wrong password is caught earlier still, as a verifier mismatch
+  before any unwrap is attempted.
+- **Nonce safety by size, not bookkeeping.** 24-byte random nonces (XChaCha) make
+  accidental reuse negligible, so callers seal and wrap freely without tracking a
+  counter. This is why the AEAD choice is XChaCha rather than ChaCha20-Poly1305.
+- **Argon2id, not Argon2i or 2d** — the hybrid gives both side-channel and GPU
+  resistance.
+
+## Accepted limits
+
+- **Lost password + lost recovery key = unrecoverable data.** By design
+  (`plans/encryption/model.md` §6). Server-side escrow exists only as a future opt-in
+  dial for people who want it.
+- **Password strength is the encryption strength** — floored, not solved. A 12-character
+  minimum with length-over-complexity guidance (`MIN_PASSWORD_LENGTH`, per NIST) plus
+  Argon2id stretching, with the recovery key as the genuine backstop and a UI that says
+  plainly there is no reset. A user may still choose something long and weak; accepted.
+- **The asymmetric scheme (X25519/Ed25519) is deferred to Stage 3** and is not in this
+  package. Nothing in the symmetric Stage-1 core needs it.
+- **Not externally audited.** The review behind this section is an *internal design
+  audit*; it unblocked development rather than certifying it. A third-party
+  cryptographic audit is still worth commissioning before a public, at-scale launch.

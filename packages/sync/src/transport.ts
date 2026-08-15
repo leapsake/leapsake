@@ -1,24 +1,24 @@
 /**
  * The sync transport port — the seam over which already-encrypted records move
- * between this device and its peers (plans/encryption/sync.md §1).
+ * between this device and its peers.
  *
  * Like {@link SqliteDriver} and the crypto `KeyStore`, the transport is an
  * *untrusted, swappable* port: content is sealed **before** it crosses this
- * line (per-item / per-row keys, model.md §3), so the transport never sees
- * plaintext, never holds a key, and never merges. Everything it carries is
- * ciphertext plus sync metadata (UUIDs, `updatedAt`, `deletedAt`) — never a
- * domain field. That is exactly what keeps the relay blind and a future P2P
- * transport possible (sync.md §3).
+ * line (per-item / per-row keys, plans/encryption/model.md §3), so the
+ * transport never sees plaintext, never holds a key, and never merges.
+ * Everything it carries is ciphertext plus sync metadata (UUIDs, `updatedAt`,
+ * `deletedAt`) — never a domain field. That is exactly what keeps the relay
+ * blind and a future P2P transport possible (README.md → *What must stay true
+ * for P2P*).
  *
- * This slice ships one adapter — {@link createInMemoryTransport}, for tests —
- * mirroring how `KeyStore` shipped an in-memory adapter before the OS ones. The
- * real authenticated HTTPS blind-relay adapter is a later slice.
+ * Two adapters implement it: {@link createInMemoryTransport} here for tests,
+ * and the authenticated HTTPS blind-relay adapter in `http-transport.ts`.
  */
 
 /**
  * One encrypted row in flight. The domain fields live **only** inside
  * {@link ciphertext}; everything else is the cleartext sync metadata the
- * transport is allowed to see and order by (sync.md §1).
+ * transport is allowed to see and order by.
  */
 export interface EncryptedRecord {
   /** The row's UUID — stable identity across devices. */
@@ -32,8 +32,8 @@ export interface EncryptedRecord {
   /** `seal(utf8(JSON(row)), MK)` — the only place a domain field appears. */
   ciphertext: Uint8Array;
   /**
-   * RESERVED and unused this slice. When a row escalates to a per-record
-   * content key (model.md §3), this carries `wrap(CK, MK)` and the ciphertext
+   * RESERVED and unused so far. When a row escalates to a per-record content
+   * key (plans/encryption/model.md §3), this carries `wrap(CK, MK)` and the ciphertext
    * is sealed under CK instead of MK — an *additive* change, no reshaping.
    */
   wrappedKey?: Uint8Array;
@@ -42,7 +42,7 @@ export interface EncryptedRecord {
 /**
  * An opaque delivery cursor. It is the **transport's** own ordering of
  * delivery, deliberately *not* a content `updatedAt` — so we never depend on a
- * server-authoritative clock (the P2P invariant, sync.md §3 #2).
+ * server-authoritative clock (the P2P invariant, README.md).
  */
 export type Cursor = number;
 

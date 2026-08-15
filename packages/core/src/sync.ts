@@ -183,7 +183,7 @@ export function createAccountSyncEngine(opts: {
  * unauthenticated `lookup` a joining device runs (it must fetch the public salt
  * before it can derive anything, model.md §9.3), so this exposes nothing the
  * relay didn't already answer; enumeration defense stays a relay concern
- * (rate-limiting / the registration-token seam, security-review.md).
+ * (rate-limiting / the registration-token seam, apps/server/README.md).
  *
  * Returns `true` on a hit, `false` on the relay's 404 miss. A connection failure
  * (relay unreachable) or any other status propagates, so the caller can tell

@@ -14,7 +14,7 @@ import { createRelayStore } from "./store.js";
  * Runnable entry for the blind relay (plans/encryption/sync.md §2). Defaults are
  * dev-friendly; override with `PORT` and `RELAY_DB` (a file path, or `:memory:`),
  * and tune the unauthenticated-endpoint throttle with `RELAY_RATE_LIMIT_MAX` /
- * `RELAY_RATE_LIMIT_WINDOW_MS` (the enumeration mitigation, security-review.md §3).
+ * `RELAY_RATE_LIMIT_WINDOW_MS` (the enumeration mitigation, README.md).
  * The recovery-authed endpoints (`/accounts/recovery`, `/accounts/reset`) have
  * their own tighter throttle, tuned with `RELAY_RECOVERY_RATE_LIMIT_MAX` /
  * `RELAY_RECOVERY_RATE_LIMIT_WINDOW_MS`, and failed logins at `/accounts/bootstrap`
@@ -33,7 +33,7 @@ import { createRelayStore } from "./store.js";
  * (Option B) by setting `RELAY_TLS_CERT` + `RELAY_TLS_KEY` (PEM file paths; plus
  * `RELAY_TLS_KEY_PASSPHRASE` for an encrypted key). See apps/server/README.md → Deploy.
  *
- * Still deferred (see plans/encryption/security-review.md): replay defense and a
+ * Still deferred (see README.md → *Threat register*, H3): replay defense and a
  * shared cross-process session + rate-limit store for multi-node relays (the
  * single-node proxy-aware client IP is done).
  */

@@ -1568,7 +1568,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
 
 /**
  * The enumeration mitigation: the unauthenticated endpoints are per-IP
- * rate-limited (security-review.md §3). The username/password scheme can't remove
+ * rate-limited (README.md). The username/password scheme can't remove
  * the existence oracle, but it throttles it.
  */
 describe("relay rate limiting (unauthenticated endpoints)", () => {
@@ -1604,7 +1604,7 @@ describe("relay rate limiting (unauthenticated endpoints)", () => {
 
 /**
  * The recovery-authed endpoints (`/accounts/recovery`, `/accounts/reset`) have
- * their own, tighter throttle (security-review.md §3): `reset` is state-changing
+ * their own, tighter throttle (README.md): `reset` is state-changing
  * and both are gated only by the recovery verifier, so they're the brute-force
  * target. The throttle fires *before* the verifier check, so a wrong-token
  * guesser is limited — and it's a separate budget from the enumeration throttle.
@@ -1754,7 +1754,7 @@ describe("relay rate limiting (bootstrap endpoint)", () => {
 });
 
 /**
- * Proxy-aware client IP (security-review.md §3): behind a reverse proxy every
+ * Proxy-aware client IP (README.md): behind a reverse proxy every
  * request shares the proxy's socket address, so the rate limiters must key on the
  * real client from `X-Forwarded-For` — but *only* when the request actually came
  * from a trusted proxy, or a forged header would mint unlimited buckets. These

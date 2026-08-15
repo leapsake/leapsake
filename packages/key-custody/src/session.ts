@@ -447,7 +447,7 @@ export interface RecoveryChannel {
  * Custody Phase 1 (encryption/model.md §7.5): **enable sync** — promote a
  * single, enclave-only device to an account with a portable **password** unlock
  * door, plus a one-time **recovery key**. This is the first crypto that leaves
- * AEAD-only territory: it derives a KEK with Argon2id (security-review.md).
+ * AEAD-only territory: it derives a KEK with Argon2id (@leapsake/crypto).
  *
  * The KEK layer (`model.md` §4) is the whole point: the master key is unchanged
  * and **nothing is re-encrypted** — we only add two *new wrappings* of the same

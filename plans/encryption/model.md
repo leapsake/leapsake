@@ -20,8 +20,10 @@
 >
 > **Companion docs:** [`sync.md`](./sync.md) (the transport seam + merge model + the P2P
 > decision),
-> [`security-review.md`](./security-review.md) (the design audit; the attacks the relay is
-> built against are [`apps/server/README.md`](../../apps/server/README.md) → *Threat register*). Start at [`README.md`](./README.md) if you're new to this folder.
+> and, for the constructions themselves, [`packages/crypto`](../../packages/crypto/README.md)
+> (why each primitive holds these properties) plus
+> [`apps/server/README.md`](../../apps/server/README.md) → *Threat register* (the attacks the
+> relay is built against). Start at [`README.md`](./README.md) if you're new to this folder.
 
 ## 1. Goals
 
