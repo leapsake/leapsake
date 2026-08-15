@@ -16,6 +16,13 @@ needs no server either. Every question answered yes, every one with **zero files
 > owner at a keyboard — and `apps/web-spike` is deleted. The code is at the tag
 > **`web-spike-final`**: `git show web-spike-final:apps/web-spike/<path>` works forever, and
 > *Where the code went* below says which files are worth reading.
+>
+> ⚠️ **Do not delete this doc with the other `v0-1_*` docs.** It carries a `v0-1_` prefix for
+> historical reasons only — the spike was *scheduled* pre-v0.1, but its **subject is
+> post-launch**. [`README.md`](./README.md) says a numbered doc is deleted the day its work
+> lands; this is the one exception, because its work landing is precisely what created the thing
+> worth keeping. It retires when an `apps/web` exists and its contents have moved next to that
+> code.
 
 ## The three questions, answered
 
