@@ -12,8 +12,9 @@ persistent store, a reload that needs neither the password nor the relay, and fi
 needs no server either. Every question answered yes, every one with **zero files changed under
 `packages/`** — nine times.
 
-> **Increment 6 is in progress.** The answers below are final. The **four checks** and the
-> **teardown** are not done, and `apps/web-spike` is still in the tree until they are.
+> **Increment 6 is in progress.** The answers below are final, and two of the four owed checks
+> are done *(see *Sharing* and *The no-JS floor*)*. The **last two checks** — both needing a
+> human — and the **teardown** are not, so `apps/web-spike` is still in the tree.
 
 ## The three questions, answered
 

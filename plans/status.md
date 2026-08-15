@@ -5,18 +5,16 @@
 
 ## Just landed
 
-- **The web spike, Increment 5 complete — a browser client that needs no server**
-  *(2026-08-14)*, after 5a-5c and 5e answered the data layer, the Worker, the persistent store
-  and the key *(08-13)*. **5d installed it**: a manifest plus a service worker caching an
-  **allowlisted** shell, and with the dev server *killed* — not DevTools pretending — a reload
-  resumes from OPFS and IndexedDB and renders the person in **69.3 ms** with **0 bytes across
-  the wire**, Chrome itself labelling the navigation `cache-storage`. A second tab now
-  **queues** on a `Web Lock` and takes the store over in **21.5 ms** when the first closes,
-  where 5c crashed. Both owed measurements collected: **Argon2id on a worker in a visible tab
-  is ~435 ms**, the same as the main thread — so 5c's 1 083-3 417 ms was the *hidden tab*, not
-  the worker — plus the device. **Zero `packages/` edits**, a ninth time. Carries: Cache
-  Storage **ignores `no-store`**, so the app/user-data split is the worker's allowlist and
-  nothing else; `persist()` is still refused until someone installs the app (one click).
+- **The web spike, Increment 6 — the answers are written, two of four checks done**
+  *(2026-08-14)*. [`v0-1_web-spike.md`](./v0-1_web-spike.md) is no longer a plan: it is the
+  spike's **answers**, and it outlives `apps/web-spike`. Checked since: a **capability link in a
+  real browser** — the browser's own network log shows no fragment on the wire, and the tab
+  decrypts 840 B of ciphertext with the key it kept — and a clean **Electron** install
+  **converging** on the spike's account in 836 ms, round-tripping a no-JS web write *and* a
+  desktop write through a store that is **encrypted at rest**. Increments 1-5 are what it
+  reports on *(→ 08-14)*: read, write, both sharing flavors, the browser data layer, a Worker
+  over a persistent store, and an installed app resuming offline in **69.3 ms** with **0 bytes**
+  on the wire. **Zero `packages/` edits**, nine times.
 - **Restore-from-backup, verified** *(2026-08-11)*. Four cases on a clean machine; 04's last gate
   is gone: [`apps/desktop/README.md`](../apps/desktop/README.md) → *Backing up*
 - **The account merge, all four increments, both clients** *(2026-08-08 → 08-11)*. Local-only
@@ -25,15 +23,16 @@
 
 ## Next
 
-1. **The web spike, Increment 6 — the write-up is done, the teardown is not.**
-   [`v0-1_web-spike.md`](./v0-1_web-spike.md) is now the spike's *answers*: the three owner
-   questions, the measurements, the relay and shared-package changes, three edits owed to
-   `model.md`, and the open questions that survived. Two checks are **done**: the capability link
-   in a real browser (no fragment on the wire) and a clean **Electron** install converging on the
-   spike's account in 836 ms, round-tripping both ways through an at-rest-encrypted store. The
-   last **two need you** — a Firefox no-JS walk-through and the `/client-pwa` install. Then tag
-   `web-spike-final`, delete `apps/web-spike`, revert the `.oxlintrc.json` line. **No more
-   measurement** *(owner, 08-14)* — so the phone row is a standing risk, not a task.
+1. **The web spike — two checks, then tear it down.** Both remaining checks **need the owner at
+   a keyboard** and cannot be driven from an agent session, so an agent picking this up should
+   *say so rather than attempt them*: a **Firefox** walk-through with `javascript.enabled=false`
+   (a browser preference), and **installing** `/client-pwa` to read whether an installed origin
+   gets durable storage (a native dialog). What each must show is
+   [`v0-1_web-spike.md`](./v0-1_web-spike.md) → *Still owed*; how to start the spike is
+   [`apps/web-spike/README.md`](../apps/web-spike/README.md) → *Run it*, which dies with it.
+   Then tag `web-spike-final`, delete `apps/web-spike`, revert the `.oxlintrc.json` line, and
+   retire the spike's rows here and in [`v0-1.md`](./v0-1.md). **No more measurement**
+   *(owner, 08-14)* — the phone row is a standing risk, not a task.
 
 2. Then **04 → 07** in [`v0-1.md`](./v0-1.md)'s order — the launch chain, which the spike runs
    beside rather than blocks. 04 starts the 14-day Play clock and fixes store identity; 06 waits
