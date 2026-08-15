@@ -9,7 +9,11 @@
 export interface Reply {
   status: number;
   headers?: Record<string, string>;
-  body: string;
+  /**
+   * Bytes rather than a string only for Increment 5d's PNG icons, which exist
+   * because Chrome will not offer to install a PWA without them (`icon.ts`).
+   */
+  body: string | Uint8Array;
 }
 
 export function html(body: string, status = 200): Reply {

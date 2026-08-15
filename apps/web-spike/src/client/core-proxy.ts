@@ -6,6 +6,7 @@ import type {
   ResumeSummary,
   Stage,
   Summary,
+  Waiting,
 } from "./worker-protocol.js";
 
 /**
@@ -51,6 +52,13 @@ export interface WorkerClient {
 export function createWorkerClient(
   worker: Worker,
   onStage: (stage: Stage) => void,
+  /**
+   * **Increment 5d**, and optional so 5c's and 5e's pages are unchanged: this
+   * tab lost the store's leader election and is queued behind another one.
+   * {@link WorkerClient.ready} still resolves — later, when the other tab
+   * closes — which is why waiting is a callback rather than a rejection.
+   */
+  onWaiting?: (waiting: Waiting) => void,
 ): WorkerClient {
   let nextId = 1;
   const pending = new Map<
@@ -67,25 +75,32 @@ export function createWorkerClient(
     },
   );
 
-  worker.addEventListener("message", (event: MessageEvent<Ready | Stage | Response>) => {
-    const message = event.data;
-    if (message.kind === "stage") {
-      onStage(message);
-      return;
-    }
-    if (message.kind === "ready") {
-      if (message.error === undefined) onReady(message);
-      else onReadyFailed(new Error(message.error));
-      return;
-    }
-    const waiting = pending.get(message.id);
-    if (waiting === undefined) return;
-    pending.delete(message.id);
-    if (message.ok) waiting.resolve(message.value);
-    // The worker's own error text, re-thrown here so a failure reads as a
-    // failure of the call the page made rather than as a dead worker.
-    else waiting.reject(new Error(message.error));
-  });
+  worker.addEventListener(
+    "message",
+    (event: MessageEvent<Ready | Stage | Response | Waiting>) => {
+      const message = event.data;
+      if (message.kind === "stage") {
+        onStage(message);
+        return;
+      }
+      if (message.kind === "waiting") {
+        onWaiting?.(message);
+        return;
+      }
+      if (message.kind === "ready") {
+        if (message.error === undefined) onReady(message);
+        else onReadyFailed(new Error(message.error));
+        return;
+      }
+      const pendingCall = pending.get(message.id);
+      if (pendingCall === undefined) return;
+      pending.delete(message.id);
+      if (message.ok) pendingCall.resolve(message.value);
+      // The worker's own error text, re-thrown here so a failure reads as a
+      // failure of the call the page made rather than as a dead worker.
+      else pendingCall.reject(new Error(message.error));
+    },
+  );
 
   function send(request: Omit<Request, "id">): Promise<unknown> {
     const id = nextId++;

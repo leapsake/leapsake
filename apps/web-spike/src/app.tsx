@@ -7,12 +7,14 @@ import { proxyRelay } from "./relay-proxy.js";
 import { redirect, text, type Reply } from "./reply.js";
 import { clientPage } from "./routes/client.js";
 import { clientKeyPage } from "./routes/client-key.js";
+import { clientPwaPage } from "./routes/client-pwa.js";
 import { clientWorkerPage } from "./routes/client-worker.js";
 import { driverContractPage } from "./routes/driver-contract.js";
 import { duplicatesPage } from "./routes/duplicates.js";
 import { hostedViewPage } from "./routes/hosted-view.js";
 import { loginPage, loginSubmit } from "./routes/login.js";
 import { peoplePage } from "./routes/people.js";
+import { iconReply, manifestReply, serviceWorkerReply } from "./routes/pwa.js";
 import { personPage } from "./routes/person.js";
 import { personDeletePage, personDeleteSubmit } from "./routes/person-delete.js";
 import { personEditPage, personEditSubmit } from "./routes/person-edit.js";
@@ -206,6 +208,16 @@ export async function handleRequest(req: IncomingMessage): Promise<Reply> {
   // because 5c's numbers are read against 5b's and adding a second way in would
   // have muddied the page the interactivity claim is measured on.
   if (method === "GET" && path === "/client-key") return clientKeyPage();
+
+  // Increment 5d: the same client again, installable and offline. Its three
+  // supporting files sit here rather than in Vite's module graph for one reason
+  // each — the service worker must be served from the scope it claims, the
+  // manifest is JSON the browser fetches itself, and the icons are bytes.
+  if (method === "GET" && path === "/client-pwa") return clientPwaPage();
+  if (method === "GET" && path === "/manifest.webmanifest") return manifestReply();
+  if (method === "GET" && path === "/sw.js") return serviceWorkerReply();
+  const icon = /^\/icon-(192|512)\.png$/.exec(path);
+  if (method === "GET" && icon !== null) return iconReply(Number(icon[1]));
 
   // The relay, from the browser's own origin — a spike affordance standing in
   // for the CORS headers the relay does not send, and `relay-proxy.ts` is

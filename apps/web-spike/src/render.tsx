@@ -59,6 +59,13 @@ export function renderPage(opts: {
   script?: string;
   /** Does {@link renderPage.script} render React? See the preamble above. */
   react?: boolean;
+  /**
+   * **Increment 5d**: link the web app manifest, which is what makes a page
+   * installable. One page opts in, for the same reason one page opts into the
+   * Refresh preamble — a `<link rel="manifest">` in the SSR pages would make
+   * every no-JS route claim to be part of an app it is not part of.
+   */
+  manifest?: boolean;
 }): string {
   const body = renderToString(
     <MessagesProvider messages={en}>
@@ -76,6 +83,13 @@ export function renderPage(opts: {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(opts.title)} — Leapsake web spike</title>
+${
+  opts.manifest === true
+    ? `<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#103d3a">
+<link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">`
+    : ""
+}
 ${opts.react === true ? REACT_REFRESH_PREAMBLE : ""}
 </head>
 <body>

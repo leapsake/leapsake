@@ -35,6 +35,7 @@ import type {
   ResumeSummary,
   Stage,
   Summary,
+  Waiting,
 } from "./worker-protocol.js";
 
 /**
@@ -87,7 +88,19 @@ import type {
  * has one account per install and answers this with custody instead — §13.)
  */
 
-const post = (message: Ready | Stage | Response): void => {
+/**
+ * ## What Increment 5d added: one tab at a time, on purpose rather than by error
+ *
+ * The OPFS pool takes exclusive access handles, so 5c's and 5e's second tab died
+ * at `installOpfsSAHPoolVfs()` with `NoModificationAllowedError`. An installed
+ * PWA is precisely the thing someone opens twice, so 5d turns that crash into a
+ * queue: a **`Web Locks` leader election** decides who installs the pool, and
+ * the loser waits rather than fails — then takes over the moment the leader's
+ * tab closes. It is opt-in per page (see {@link electLeader}), so 5c's and 5e's
+ * pages keep the behaviour their findings were written against.
+ */
+
+const post = (message: Ready | Stage | Response | Waiting): void => {
   self.postMessage(message);
 };
 
@@ -109,32 +122,135 @@ function stage(label: string, ms: number | null, detail = ""): void {
  */
 const bootStarted = performance.now();
 let sqlite3: Sqlite3Static;
-let poolUtil: SAHPoolUtil;
+let poolUtil: SAHPoolUtil | undefined;
+
+/**
+ * Every OPFS call goes through here, because since 5d the pool may legitimately
+ * not be installed yet: this worker might be the tab that is *waiting* for it.
+ */
+function pool(): SAHPoolUtil {
+  if (poolUtil === undefined) {
+    throw new Error("the OPFS pool is not installed — another tab holds the database");
+  }
+  return poolUtil;
+}
+
+/**
+ * **Increment 5d**, and opt-in by worker name.
+ *
+ * `new Worker(url, { name: "leapsake-core-pwa" })` gets the election; 5c's and
+ * 5e's pages construct the same module under their own names and get the old
+ * behaviour, which their findings describe and which is still the honest answer
+ * for a client that has not thought about second tabs. A name rather than a
+ * message because the choice has to be made *before* the top-level `await`
+ * below, which runs before the page can send anything.
+ */
+const electLeader = self.name.endsWith("-pwa");
+const STORE_LOCK = "leapsake-spike-opfs";
+
+/**
+ * Hold the store lock for this worker's whole life, resolving to whether we got
+ * it.
+ *
+ * `Web Locks` is the cheapest of the three mechanisms 5c listed (the others
+ * being a `SharedWorker` owning the store, and a read-only fallback), and the
+ * only one that needs no second thread: the callback's promise *is* the lock's
+ * lifetime, so a promise that never settles is a lock held until the tab dies —
+ * at which point the browser releases it, which is exactly the event a waiting
+ * tab wants to hear about.
+ */
+async function takeStoreLock(wait: boolean): Promise<boolean> {
+  const locks: LockManager | undefined = navigator.locks;
+  if (locks === undefined) return true;
+  return new Promise<boolean>((resolve) => {
+    void locks.request(STORE_LOCK, wait ? {} : { ifAvailable: true }, (lock) => {
+      if (lock === null) {
+        resolve(false);
+        return;
+      }
+      resolve(true);
+      return new Promise<void>(() => {
+        // Never resolved: the lock is released by the browser when this worker
+        // goes away with its tab.
+      });
+    });
+  });
+}
+
+/**
+ * Install the pool and tell the page it can start.
+ *
+ * The retry is not defensive padding — it is the seam between the two things
+ * that release when a tab closes. The Web Lock is released by the browser and
+ * the sync access handles are released by the storage layer, and nothing orders
+ * them, so a promoted tab can hold the lock and still find the handles busy for
+ * a moment.
+ */
+async function installPool(initMs: number, waitedMs: number): Promise<void> {
+  const vfsStarted = performance.now();
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 8; attempt++) {
+    try {
+      // Default capacity is 6 files, which the docs put at "one or two databases
+      // and their journals" — one database here. `clearOnInit` stays off:
+      // surviving a reload is 5c's second done-when.
+      poolUtil = await sqlite3.installOpfsSAHPoolVfs({ name: "leapsake-spike" });
+      post({
+        kind: "ready",
+        initMs,
+        vfsMs: round(performance.now() - vfsStarted),
+        libVersion: sqlite3.version.libVersion,
+        vfsName: poolUtil.vfsName,
+        files: poolUtil.getFileNames(),
+        // Increment 5e: whether a previous session left a wrap behind. Read
+        // without unwrapping it, so the page can choose its form before anyone
+        // clicks.
+        custody: await peekCustody(),
+        // Increment 5d: what this thread fetched — the sqlite module, 864 KiB of
+        // `.wasm`, and its own module graph. The page cannot see a worker's
+        // resource timing, and the service worker's cache is empty of exactly
+        // these on a first load, so the worker reports them and the page hands
+        // the list over to be warmed.
+        resources: performance
+          .getEntriesByType("resource")
+          .map((entry) => entry.name),
+        waitedMs: waitedMs === 0 ? undefined : round(waitedMs),
+        attempts: attempt,
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  }
+  throw lastError;
+}
+
 try {
   sqlite3 = await sqlite3InitModule({ print: console.log, printErr: console.error });
   const initMs = round(performance.now() - bootStarted);
 
-  const vfsStarted = performance.now();
-  // Default capacity is 6 files, which the docs put at "one or two databases and
-  // their journals" — one database here. `clearOnInit` stays off: surviving a
-  // reload is the increment's second done-when.
-  poolUtil = await sqlite3.installOpfsSAHPoolVfs({ name: "leapsake-spike" });
-  post({
-    kind: "ready",
-    initMs,
-    vfsMs: round(performance.now() - vfsStarted),
-    libVersion: sqlite3.version.libVersion,
-    vfsName: poolUtil.vfsName,
-    files: poolUtil.getFileNames(),
-    // Increment 5e: whether a previous session left a wrap behind. Read without
-    // unwrapping it, so the page can choose its form before anyone clicks.
-    custody: await peekCustody(),
-  });
+  if (electLeader && !(await takeStoreLock(false))) {
+    // Second tab. Previously this was a crash three lines later; now it is a
+    // queue, and the page is told what it is waiting for rather than shown a
+    // `DOMException` about access handles.
+    post({
+      kind: "waiting",
+      reason:
+        "another tab of this origin holds the OPFS database — waiting for it to close",
+    });
+    const waitStarted = performance.now();
+    await takeStoreLock(true);
+    await installPool(initMs, performance.now() - waitStarted);
+  } else {
+    await installPool(initMs, 0);
+  }
 } catch (error) {
   // The two ways this fails are worth telling apart in the page, because one of
   // them is a product finding rather than a bug: a **second tab** cannot install
   // the pool at all, since the first tab's worker holds every sync access handle
-  // exclusively. The other is a browser without OPFS.
+  // exclusively — which is what the election above turns into a wait, for the
+  // one page that asked for it. The other is a browser without OPFS.
   post({ kind: "ready", error: String(error) });
   throw error;
 }
@@ -156,10 +272,10 @@ let core: CoreApi | undefined;
  */
 async function openStore(accountId: string): Promise<{ existed: boolean }> {
   const filename = `/spike-${accountId}.db`;
-  const existed = poolUtil.getFileNames().includes(filename);
+  const existed = pool().getFileNames().includes(filename);
 
   const openStarted = performance.now();
-  db = new poolUtil.OpfsSAHPoolDb(filename);
+  db = new (pool().OpfsSAHPoolDb)(filename);
   driver = wasmSqliteDriver(db);
   const before = await driver.get<{ user_version: number }>("PRAGMA user_version");
   await runMigrations(driver);
@@ -459,9 +575,9 @@ async function wipe(): Promise<string[]> {
   db = undefined;
   driver = undefined;
   core = undefined;
-  await poolUtil.wipeFiles();
+  await pool().wipeFiles();
   await forgetCustody();
-  return poolUtil.getFileNames();
+  return pool().getFileNames();
 }
 
 self.addEventListener("message", (event: MessageEvent<Request>) => {

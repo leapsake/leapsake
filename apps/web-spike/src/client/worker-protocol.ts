@@ -44,9 +44,34 @@ export type Ready =
        * page can offer "resume" or "log in" before the user touches anything.
        */
       custody: { accountId: string; mintedAt: number } | null;
+      /**
+       * **Increment 5d**: every URL this thread fetched, for the service worker
+       * to cache. A page cannot read a worker's resource timing, and the two
+       * biggest assets an offline reload needs — the sqlite module and 864 KiB
+       * of `.wasm` — are fetched only here.
+       */
+      resources?: string[];
+      /** How long this worker waited for another tab to release the store. */
+      waitedMs?: number;
+      /** Attempts the VFS install took — see the worker's `installPool`. */
+      attempts?: number;
       error?: undefined;
     }
   | { kind: "ready"; error: string };
+
+/**
+ * **Increment 5d**: worker → page, when this tab is *not* the one holding the
+ * database.
+ *
+ * A message rather than an error, which is the whole change: 5c and 5e's second
+ * tab got `NoModificationAllowedError` out of `installOpfsSAHPoolVfs()` and had
+ * nothing to say but "something is broken". A tab that knows it is queued can
+ * say so, and a {@link Ready} arrives later if the other tab closes.
+ */
+export interface Waiting {
+  kind: "waiting";
+  reason: string;
+}
 
 /**
  * Worker → page, unsolicited: one row of the login's stage table as it happens.

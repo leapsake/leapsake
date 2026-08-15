@@ -15,7 +15,7 @@ the next increment can read them all. What each part is for:
 
 | If you are… | Read | Skip |
 | ----------- | ---- | ---- |
-| **picking up the next increment** | *Run it* below, then the plan doc's *What 1-5e settled* — one line per result | every `## Increment N — findings` section |
+| **picking up the next increment** | *Run it* below, then the plan doc's *What 1-5d settled* — one line per result | every `## Increment N — findings` section |
 | **writing Increment 6** | all of it, plus `WANTED-CHANGES.md` — this is the source material | nothing |
 | **chasing one file** | *What is here* at the bottom, then the file's own docblock | the rest |
 | **re-checking a number** | the findings section for the increment that measured it | the others |
@@ -86,6 +86,15 @@ open http://localhost:5180/client-worker
 #     one-tab-at-a-time rule as step 10, and it contends with that page for
 #     the same OPFS pool.
 open http://localhost:5180/client-key
+
+# 12. Increment 5d's done-when: the same client as an installed app, with the
+#     server switched off. Load it once (log in if it asks), then **stop the
+#     dev server** — or tick DevTools → Network → Offline — and reload. It
+#     should resume and render the person; the verdict line says PASS and
+#     prints how many bytes crossed the wire, which must be zero.
+#     Unlike steps 10 and 11 a *second* tab of this one is fine: it queues on
+#     a Web Lock and takes the store over when the first tab closes.
+open http://localhost:5180/client-pwa
 ```
 
 Four environment variables steer the host, and each one exists to produce a
@@ -1354,6 +1363,251 @@ account, because the relay still holds everything.
   one page do — worth knowing before 5d, where the answer is a `SharedWorker` or
   a leader election rather than more pages.
 
+## Increment 5d — findings
+
+**Done-when met, in a real browser, and met the strict way.** The done-when says
+"a DevTools-offline reload renders the person from the OPFS database"; this was
+taken with the **dev server killed** instead, which is the harder version of the
+same test — DevTools-offline asks the browser to pretend, and a dead server does
+not. `http://localhost:5180/client-pwa` reloads with nothing listening on 5180,
+resumes from IndexedDB and OPFS, and renders Ada Lovelace in **69.3 ms**, with
+**0 bytes across the wire**. **Zero files changed under `packages/`**, a ninth
+time — see `WANTED-CHANGES.md` for why that was never in doubt here.
+
+```
+OFFLINE PASS 69.3 ms — PWA                    ← the tab title
+Offline-ready: all 201 assets this load used are in the cache (205 entries in total)
+
+service worker              64.1 ms   registered at scope http://localhost:5180/ — controlling this load
+worker ready               231.8 ms   sqlite 3.53.0 (218.8 ms) + leapsake-spike (13 ms)
+                                      — OPFS holds: /spike-<accountId>.db
+unwrap the master key        4.9 ms   IndexedDB → non-extractable CryptoKey → AES-GCM
+open OPFS + runMigrations     14 ms   schema already at 28, nothing to do
+createCore + entityList     46.6 ms
+open a relay record with it           230 B of ciphertext from people → “Ada Lovelace”
+
+PASS — this load rendered the person with nothing on the other end of the socket.
+service worker: 225 requests fell back to cache when the fetch failed, 15 resolved, 0 in neither
+the browser's own account: 0 B crossed the wire for 251 requests — 224 from the service
+  worker's Cache Storage, 27 from Chrome's HTTP cache, 0 from the network
+navigator.onLine: true — so a load with zero bytes on the wire means the server is down
+resumed in 69.3 ms with no password: unwrap 4.9 ms, open the store 14.2 ms, 0 fetch calls
+rendered 100 people from OPFS; the password was last typed 3 h ago
+```
+
+A second offline reload, with the OS page cache warm, came back in **14.3 ms**.
+
+### 1. The evidence is the browser's, not the page's
+
+Every previous increment could be accused of grading its own homework, and this
+one is the easiest of all to fake — "it worked offline" is a claim about
+something that did *not* happen. So the verdict is read from three places, and
+the deciding one is not the spike's:
+
+| witness | offline load | online load |
+| --- | --- | --- |
+| `PerformanceResourceTiming.transferSize`, summed | **0 B** | 3 436 B |
+| `deliveryType` — the browser's own label | **224 `cache-storage`**, 27 `cache`, 0 network | 0 `cache-storage`, 249 `cache`, 2 network |
+| the service worker's tally | 225 fell back to cache after the fetch **failed** | 240 fetches resolved |
+| `navigator.onLine` | **true** | true |
+
+The navigation itself reports `deliveryType: "cache-storage"`, which is Chrome
+saying it served the document out of a service worker's `Cache` — a sentence the
+page cannot write about itself. And `navigator.onLine: true` is the line that
+makes the test strict rather than weak: the browser believed it was online, tried
+the network 225 times, and got nothing.
+
+One count deliberately disagrees with the others and it is worth knowing why:
+the service worker recorded **15 fetches that resolved** during the offline load.
+None of them touched the network — they were answered by **Chrome's own HTTP
+cache**, because Vite serves its optimized dependencies as immutable. So "the
+`fetch` succeeded" and "the network was used" are different questions, and only
+`transferSize` answers the second one.
+
+### 2. Cache Storage does not care about `Cache-Control`, and this origin is half app, half user data
+
+The finding to carry into a real web client, and the reason the service worker
+has an allowlist rather than a blocklist.
+
+Every response this host sends is `private, no-store` (Increment 2 finding 6),
+which is what keeps decrypted people out of the browser's disk cache. **Cache
+Storage is not the HTTP cache and ignores the header entirely**: `cache.put` on a
+`no-store` response stores it as happily as any other. A `fetch` handler that
+cached "everything from this origin" would therefore write server-rendered person
+pages — names, contact methods, timelines — to disk, on an origin whose SSR half
+exists precisely to avoid that.
+
+So `isShell()` names the six URL shapes that may be cached (the PWA page, the
+manifest, the icons, `/src/*`, `/@*`, `/node_modules/*`) and everything else —
+`/relay/*`, `/people/*`, `/login`, `/share/*` — falls through untouched. It is
+five lines, and it is the whole of the difference between an app cache and a
+data leak.
+
+### 3. Network-first, because a dev server has no stable URLs
+
+A production PWA precaches a build manifest of hashed filenames and serves them
+cache-first, which is correct exactly because those URLs are immutable. Vite's
+are not: modules are transformed on demand and re-stamped `?t=<ms>` on every
+edit, `?v=<hash>` on every dep re-optimization. Cache-first in dev serves
+yesterday's module and turns an afternoon into a stale-bundle hunt.
+
+Network-first costs nothing on localhost and makes the offline claim *stronger*,
+since a cached response is only ever served after the network refused. The one
+concession is the fallback match: an exact URL first, then `ignoreSearch`,
+because a restarted server re-stamps the queries the cache was filled under.
+`ignoreVary` is needed too — Vite's middleware sends `Vary: Origin` on
+everything, and Cache Storage honours `Vary` even where nothing else does.
+
+### 4. The first load can cache itself, and the trick is the browser's own bookkeeping
+
+A page that registers a service worker has **already fetched its own module
+graph** by the time the worker activates, so the textbook PWA needs a second
+reload before it works offline — `clients.claim()` takes control but does not
+retroactively cache anything.
+
+It does not have to. The browser already knows exactly what was fetched, so the
+page hands `performance.getEntriesByType("resource")` to the service worker and
+asks it to fetch that list once. Measured on a genuinely first load (registration
+unregistered and the cache deleted first): **119 of 201 assets missing → 119
+fetched → 0 missing**, in the same load. The other 82 were already there because
+`claim()` had taken effect partway through.
+
+The half that needs the protocol change is the Worker's: **a page cannot see a
+worker's resource timing**, and the worker is what fetches the sqlite module and
+864 KiB of `.wasm` — the two assets an offline start most needs. So the worker
+reports its own `getEntriesByType("resource")` in its `ready` message, and the
+page merges the two lists. Two lines, and without them the first load caches
+everything except the largest thing on it.
+
+### 5. A service worker must be served from the scope it claims, which puts it outside the bundler
+
+`/src/client/service-worker.ts` — the URL Vite would give it — can only control
+`/src/client/*`. Not the page, not the `.wasm` under `/@fs/`. The two ways out
+are a `Service-Worker-Allowed: /` header on that module, or serving the file from
+the root; the spike takes the second, so `app.tsx` reads
+`src/client/service-worker.js` off disk at `/sw.js`.
+
+That makes it **the one `.js` file in `src/`**: nothing transforms it, so it
+cannot be TypeScript. Worth recording as a real cost rather than a quirk — it is
+the first file in this spike outside the one-module-graph rule the plan doc set
+in Increment 1, and it is outside it for a reason no bundler can remove. Every
+production bundler ships a service-worker special case, and this is why.
+
+### 6. Two tabs: `Web Locks` turns 5c's crash into a queue, in about forty lines
+
+5c and 5e's second tab died at `installOpfsSAHPoolVfs()` with
+`NoModificationAllowedError`, and 5d is the page a user installs and then opens
+twice. The election is the cheapest of the three mechanisms 5c listed:
+`navigator.locks.request(name, { ifAvailable: true })`, and the callback returns
+a promise that is never resolved — so the lock is held for the worker's life and
+released by the browser when the tab dies.
+
+Both halves observed, in a real browser:
+
+- a second tab **queues** — "another tab of this origin holds the OPFS database
+  — waiting for it to close" — instead of showing a `DOMException`;
+- when the first tab closed, the second **took the store over by itself**:
+  installed the pool on **attempt 1**, opened the database, resumed from custody
+  and rendered the person, in **21.5 ms**, with no reload and no click.
+
+Two caveats, and the first is the important one. **The election is a convention
+among participating clients, not a guarantee from the platform.** An older tab
+that does not take the lock still holds the access handles, and the queue is
+blind to it — observed the annoying way, exactly as 5e was: this increment's
+first run failed with `NoModificationAllowedError` because a `/client-key` tab
+from the previous session was open, and the retry loop dutifully failed eight
+times. The second: the retry loop exists because the Web Lock and the access
+handles are released by different parts of the browser with nothing ordering
+them, so a promoted tab can hold the lock and still find the handles busy. It
+did not happen here — one attempt sufficed — but a takeover that needs no retry
+on a fast laptop is not evidence that none ever does.
+
+What this does *not* answer is the product question underneath, which is still
+open: a queued tab is a tab that does nothing. A `SharedWorker` owning the store
+is what would make both tabs live, and it remains unproven.
+
+### 7. Durable storage: still refused, and the install is now one click away
+
+The number 5e could not collect is still not collected, but it is no longer
+blocked on building anything. `persist()` is **still refused** running as a
+browser tab on `localhost` — best-effort storage, 9.8 MiB used of a 10.0 GiB
+quota — and the page now reports `display-mode` beside the answer, so an
+installed launch will say so plainly.
+
+What *is* settled is that the origin qualifies: **Chrome fired
+`beforeinstallprompt`**, which it only does when the manifest, the icons and a
+service worker with a `fetch` handler are all in place. So the page carries a
+working "Install this app" button, and the last step is a human clicking it and
+reading the storage line — the fifth item on the teardown checklist, and the
+cheapest one there.
+
+The icons are why: Chrome will not offer to install a PWA without a 192 px and a
+512 px icon, so `src/icon.ts` draws both with `node:zlib` and forty lines of PNG
+chunk arithmetic. A throwaway app should not commit binaries or add an image
+dependency, and betting on Chrome's SVG handling would have been a third thing
+to debug.
+
+### 8. The measurement table's last two lines, collected
+
+Both of the numbers Increment 5 still owed, and the first one changes a reading
+rather than filling a hole.
+
+**Argon2id on a worker, in a tab that stayed visible: 433.3 / 440.6 / 441.1 ms** —
+three runs, two of them on this page and one on `/client-key`, the tab reporting
+`visible` throughout and the page printing the label so the claim is not the
+tester's word. Against 5c's five hidden-tab readings of 1 083–3 417 ms, and 5b's
+single visible **main-thread** reading of 449.4 ms.
+
+So the conclusion 5c hedged can be stated flatly: **a worker does not make the
+KDF slower.** It costs what it costs — ~435 ms on this machine — and the
+three-fold spread 5c measured was the hidden tab, not the thread. The whole
+worker/main-thread comparison is one number: 449 ms on the page's thread with
+the tab frozen, ~435 ms on the worker's with the tab not.
+
+The device, since every number in this spike is one machine and 5 owed the line:
+**MacBook Pro (Mac14,6), Apple M2 Max, 12 cores, 32 GiB, macOS 26.5.1, Chrome
+151, viewport 1091×778 at dpr 2, 10.0 GiB storage quota.** A phone is still the
+case that matters and is still unmeasured — see the plan doc.
+
+Two more readings the visible tab made comparable, both from `/client-key`:
+
+| | hidden tab (5e) | visible tab (5d) |
+| --- | --- | --- |
+| cold login — Argon2id, new OPFS file, `pull(0)` of 129 records | 4 884–6 277 ms | **859.4 ms** |
+| resume — unwrap, open the store, render | 62.7–96.4 ms | **40.2 ms** |
+
+The cold login breaks down as 441.1 ms of KDF, 91.3 ms to create the schema, and
+276.8 ms to pull and apply 129 records — of which only 8.4 ms is transport. The
+KDF is 51% of a *cold* login and 93% of one against a store that already exists.
+
+### 9. Smaller things worth keeping
+
+- **The `.wasm` is slower out of Cache Storage than out of Chrome's own cache.**
+  One sample each, so it is an observation rather than a number:
+  `sqlite3InitModule` took **218.8 ms** on the offline load against 20–91 ms
+  online. Reading and compiling 864 KiB from the Cache API is evidently not the
+  same path as a memory-cache hit, and it is the single largest line in an
+  offline start — worth a look before anyone quotes a cold-launch figure for an
+  installed client.
+- **A resumed client is offline in the strong sense already, and that is 5e's
+  doing rather than 5d's.** The resume runs with `fetch` removed from the worker,
+  so this increment never had to make the *data* path tolerate a missing network
+  — it was already forbidden from having one. The only thing 5d had to fix was
+  the page.
+- **The canary depends on the login having pulled something.** A re-login against
+  an up-to-date store applies 0 records, so `pickCanary` sees nothing and custody
+  is minted without one; the next resume then reports "no canary in custody"
+  rather than failing quietly. Correct behaviour, mildly surprising, and it means
+  the strongest form of 5e's proof needs a login that actually pulled.
+- **`display-mode` and `beforeinstallprompt` are the only two ways a page can
+  tell it is an app**, and neither is reliable alone: the event does not fire if
+  the app is already installed, and `display-mode: browser` is also what an
+  installed app looks like when opened in a tab. The page reports both.
+- **An installed PWA's `start_url` is not `/`.** On this origin `/` is the *SSR*
+  client — a different product with a server-side session and a different trust
+  model — so the manifest points at `/client-pwa`. A real deployment has the same
+  choice to make, and it is a product decision rather than a routing detail.
+
 ## What is here
 
 | file | why |
@@ -1399,6 +1653,11 @@ account, because the relay still holds everything.
 | `src/client/gifts-ports-client.ts` | desktop's gift ports with `window.api` → `core`; the SSR ports throw, and in a browser the effects that call them actually run |
 | `src/client/key-custody.ts` | **Increment 5e**: `@leapsake/crypto`'s `KeyStore` port over IndexedDB + a non-extractable `CryptoKey`, plus the account record and the relay canary that prove a warm start got the *right* key |
 | `src/routes/client-key.tsx` | 5e's shell: one page with two ways in — a password login that mints a wrap, and a resume that uses one |
+| `src/routes/client-pwa.tsx` | **Increment 5d's shell**: the same client as an installed app — no resume button, because a launched app shows its data |
+| `src/client/client-pwa-app.tsx` | 5d's main thread: register the worker, auto-resume, and report the load from three witnesses the page did not write |
+| `src/client/service-worker.js` | the asset half — network-first over an **allowlist**, because Cache Storage ignores `no-store` and half this origin is user data. The one untransformed file here, and its docblock says why |
+| `src/routes/pwa.ts` | the manifest, the icons, and `/sw.js` served from the root scope it has to claim |
+| `src/icon.ts` | a PNG drawn with `node:zlib`, because Chrome will not offer to install an app without one |
 | `src/client/client-key-app.tsx` | **Increment 5e's done-when**: reload → unwrap → open OPFS → decrypt a relay record → render, with the network guard's verdict |
 | `scripts/seed.ts` | account + rows on a real relay; the fixture is an *account*, since the renderer is stateless |
 | `scripts/pull.ts` | Increment 1's done-when, runnable: the SSR request path minus the rendering |

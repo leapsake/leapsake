@@ -341,3 +341,28 @@ browser has nothing of the kind — so the port surviving intact is the result.
   with the app and the model doc rather than with the interface. 5e reached
   around the port deliberately (`probeKeyProtection`) to check `exportKey` is
   refused, because the port had nothing to ask.
+
+## Increment 5d — the PWA
+
+**Zero files under `packages/` were changed a ninth time**, and this increment is
+the one where that was never in doubt: a manifest, a service worker and a set of
+icons are *host* concerns, and none of them has an opinion about a data layer.
+The list is empty on purpose, and two near-misses are recorded instead because
+both look like package work from a distance.
+
+- **Not wanted: the second-tab answer is an app concern, not a `packages/data`
+  one.** The obvious place to put "only one client may hold this store" is under
+  the driver, next to the thing being protected. It does not belong there: the
+  exclusion is a property of the *OPFS VFS*, which is this app's driver and no
+  other app's, and the mechanism (a `Web Locks` leader election, ~40 lines in
+  `core-worker.ts`) is about which **tab** runs, which `packages/data` cannot
+  see. Desktop has one process and mobile has one app; the browser is the only
+  host with this problem, so the browser owns the answer.
+
+- **Not wanted, and it is the load-bearing non-result: offline needed nothing
+  from the shared layer.** The whole increment is one HTML file's worth of
+  browser API — `ServiceWorkerRegistration`, `Cache`, `navigator.storage`,
+  `navigator.locks` — wrapped around a client that was already finished. No
+  package learned that it might be running with no network, because none of them
+  ever asks: `core` and `createSyncEngine` are handed a transport, and 5e had
+  already shown a resume that never builds one.
