@@ -228,61 +228,6 @@ importers:
         specifier: ^4.19.0
         version: 4.22.4
 
-  apps/web-spike:
-    dependencies:
-      '@leapsake/bytes':
-        specifier: workspace:*
-        version: link:../../packages/bytes
-      '@leapsake/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@leapsake/crypto':
-        specifier: workspace:*
-        version: link:../../packages/crypto
-      '@leapsake/data':
-        specifier: workspace:*
-        version: link:../../packages/data
-      '@leapsake/schema':
-        specifier: workspace:*
-        version: link:../../packages/schema
-      '@leapsake/sync':
-        specifier: workspace:*
-        version: link:../../packages/sync
-      '@leapsake/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      '@leapsake/view-models':
-        specifier: workspace:*
-        version: link:../../packages/view-models
-      '@sqlite.org/sqlite-wasm':
-        specifier: 3.53.0-build1
-        version: 3.53.0-build1
-      react:
-        specifier: 19.2.3
-        version: 19.2.3
-      react-dom:
-        specifier: 19.2.3
-        version: 19.2.3(react@19.2.3)
-    devDependencies:
-      '@types/node':
-        specifier: ^25.9.1
-        version: 25.9.1
-      '@types/react':
-        specifier: ^19.2.15
-        version: 19.2.15
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.15)
-      '@vitejs/plugin-react':
-        specifier: ^5.2.0
-        version: 5.2.0(vite@7.3.3(@types/node@25.9.1)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
-      tsx:
-        specifier: ^4.19.0
-        version: 4.22.4
-      vite:
-        specifier: ^7.3.3
-        version: 7.3.3(@types/node@25.9.1)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
-
   packages/bytes:
     dependencies:
       '@noble/ciphers':
@@ -2414,10 +2359,6 @@ packages:
   '@sindresorhus/is@4.6.0':
     resolution: {integrity: sha512-t09vSN3MdfsyCHoFcTRCH/iUtG7OJ0CsjzB8cjAmKc/va/kIgeDI/TxsigdncE/4be734m0cvIYwNaV4i2XqAw==}
     engines: {node: '>=10'}
-
-  '@sqlite.org/sqlite-wasm@3.53.0-build1':
-    resolution: {integrity: sha512-PfWPWN2n+/37doa8oh2/oUXk4OOsRYZsxc1W1sDXIGb/Pu5Yrb+f2eyYpgQMGITVX7HVgxhs9P18Rc6I97ym/g==}
-    engines: {node: '>=22'}
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -6873,8 +6814,6 @@ snapshots:
   '@sinclair/typebox@0.27.10': {}
 
   '@sindresorhus/is@4.6.0': {}
-
-  '@sqlite.org/sqlite-wasm@3.53.0-build1': {}
 
   '@standard-schema/spec@1.1.0': {}
 

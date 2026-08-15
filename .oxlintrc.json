@@ -7,5 +7,5 @@
   "rules": {
     "unicorn/no-array-sort": "off"
   },
-  "ignorePatterns": ["**/dist/**", "**/out/**", "**/node_modules/**", "apps/web-spike/**"]
+  "ignorePatterns": ["**/dist/**", "**/out/**", "**/node_modules/**"]
 }

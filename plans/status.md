@@ -7,19 +7,11 @@
 
 ## In flight
 
-**The web spike — two checks, then tear it down.** It stays in flight until it is finished, and it
-comes before 08 *(owner, 2026-08-14)*.
-
-Both checks need the **owner at a keyboard**: a **Firefox** walk-through with
-`javascript.enabled=false` (a browser pref), and **installing** `/client-pwa` to read whether an
-installed origin gets durable storage (a native dialog). An agent must not attempt them.
-
-**The runbook is written and its setup is verified end to end:**
-[`v0-1_web-spike-runbook.md`](./v0-1_web-spike-runbook.md) — ~15 minutes, and the answers get
-written into its own §5. Nothing else needs reading first.
-
-**Only once the owner reports both answers:** the teardown, which needs no owner — runbook §4.
-**No more measurement** *(owner, 2026-08-14)* — the phone row is a standing risk, not a task.
+**Nothing.** The web spike closed 2026-08-15 — both owner checks answered, `apps/web-spike`
+deleted, code at the tag `web-spike-final`. What it inherits to a future web client is
+[`v0-1_web-spike.md`](./v0-1_web-spike.md); the rule it produced is
+[`encryption/model.md`](./encryption/model.md) §10.1 — **web and PWA require a sync account**,
+because browser storage is evictable even when installed.
 
 ## Next
 
