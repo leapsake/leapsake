@@ -2,23 +2,51 @@
  * The driver-contract conformance suite: one reusable spec that pins any
  * {@link SqliteDriver} implementation to identical *observable* behavior.
  *
- * Leapsake ships two real drivers built on unrelated native libraries —
- * `encryptedSqliteDriver` (desktop, `better-sqlite3-multiple-ciphers`) and
- * `expoSqliteDriver` (mobile, `expo-sqlite`) — behind this one port. Everything
- * above the port is written once and assumed to behave the same on either backend;
- * this suite is what *enforces* that, guarding the seam directly under at-rest
- * encryption. See `plans/testing/` for the strategy (this is the keystone).
+ * **This is the keystone of the testing strategy** — the smallest test that must
+ * touch a real engine, and the thing every mobile tier leans on. Leapsake ships
+ * two real drivers built on unrelated native libraries, behind this one port, and
+ * they have genuinely divergent seams that the repos above them paper over:
+ *
+ * - **desktop** `encryptedSqliteDriver` — `better-sqlite3-multiple-ciphers`,
+ *   **synchronous**, BLOBs come back as `Buffer`, manual `BEGIN/COMMIT/ROLLBACK`.
+ * - **mobile** `expoSqliteDriver` — expo-sqlite, **async**, `getFirstAsync`
+ *   returns `null` (coerced to `undefined`), manual `BEGIN/COMMIT/ROLLBACK`.
+ *
+ * Nothing else guarantees those behave identically. Everything above the port is
+ * written once and *assumed* to work on either backend; this suite is what turns
+ * that assumption into a checked one, guarding the seam directly under at-rest
+ * encryption.
  *
  * The suite is framework-agnostic by design: it imports nothing from a test runner
  * and instead receives the test primitives ({@link TestApi}) and a driver
  * {@link DriverFactory} as parameters. Desktop supplies Vitest's
- * `describe`/`it`/`expect`; the future mobile native tier will supply its own
- * runner's equivalents and run this *exact* spec unchanged.
+ * `describe`/`it`/`expect`; the mobile in-app self-test supplies its own shim and
+ * runs this *exact* spec unchanged against the real engine on a device
+ * (`apps/mobile/README.md` → *Why the driver test needs a device*).
  *
  * It is also schema-independent: each case creates its own throwaway table via
  * `exec`, so it tests the driver, not the app schema or migrations. Each case
  * provisions and tears down its own driver (`try`/`finally`), so the {@link TestApi}
  * needs no `beforeEach`/`afterEach` hooks — keeping it portable to a bare runner.
+ *
+ * ## Keeping this contract from going stale
+ *
+ * The risk is not *which* cases run — both consumers call this one function, so a
+ * new case appears on both engines automatically. The risk is the **contract
+ * failing to grow when a driver does**. Two levers hold it:
+ *
+ * - **The coverage gate is the authoring forcer.** Desktop's Vitest run gates the
+ *   driver file at 100% coverage (`vitest.coverage.config.ts`), so a new desktop
+ *   driver code path *mechanically* fails until a case here exercises it.
+ *   Desktop-only, because the mobile driver cannot load under Node; its equivalent
+ *   lives in the in-app self-test.
+ * - **A zero-case run reads FAIL**, not vacuous green — the self-test screen
+ *   requires `total > 0`, so a broken import cannot masquerade as a pass.
+ *
+ * Where native SQLite libraries most plausibly diverge next, if you are adding
+ * cases: type/affinity coercion (int/real/text, BigInt, empty-string vs NULL,
+ * boolean), large BLOBs, constraint-violation error shape, nested transactions,
+ * collation/Unicode ordering — and any new {@link SqliteDriver} method.
  */
 import type { SqliteDriver } from "../driver.js";
 

@@ -1,7 +1,7 @@
 # Mobile native test tier — Maestro harness
 
 This directory holds the **blackbox harness** for the mobile driver-contract self-test
-(testing backlog **step 3b**; see [`plans/testing/`](../../../plans/testing/)). It drives
+(see [`../README.md`](../README.md) → *Why the driver test needs a device*). It drives
 the in-app self-test on an emulator/simulator and asserts **PASS** from the command line,
 so the mobile driver leg is a _terminal, automated_ gate — not a human opening
 `leapsake://dev-selftest` and reading the screen (principle #1: automate over manual).

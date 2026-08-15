@@ -42,6 +42,62 @@ Against a local relay, the simulators reach the host differently:
 Start the relay with `pnpm --filter @leapsake/server dev` — see
 [`@leapsake/server`](../server/README.md) → *Running*.
 
+## Why the driver test needs a device
+
+**expo-sqlite's real engine cannot run in a headless Node/Vitest process.** It is a native
+module: its graph resolves to `requireNativeModule('ExpoSQLite')`, which throws without an Expo
+native runtime. That is structural, not a missing config — and it is why the mobile driver is
+proven on an emulator instead of in the fast local suite.
+
+Three substitutes were verified against expo-sqlite's shipped source and all fail. **Do not
+re-litigate them:**
+
+1. **The native path throws.** `build/index.js → SQLiteDatabase → ExpoSQLite.js →
+   requireNativeModule('ExpoSQLite')`. No native runtime in Node ⇒ throws at import.
+2. **The Node branch is a no-op stub.** `ExpoSQLite.web.js`'s `typeof window === 'undefined'`
+   branch loads `web/SQLiteModule.node`, whose own header calls it a *"dummy implementation for
+   the server runtime."* Every method no-ops, so the contract suite would pass while asserting
+   nothing — the "fake it" trap in its purest form.
+3. **The wa-sqlite WASM build is a different engine.** `web/SQLiteModule.ts` is real SQLite in
+   WASM, but it is a *browser* artifact (`new Worker`, SharedArrayBuffer/`Atomics`, needs
+   `window`) and it is the **web** engine — not the iOS/Android native SQLCipher build that
+   ships. A different engine violates "match production".
+
+**jest-expo** *mocks* the native module and **wa-sqlite** is the wrong engine, so neither is
+prod-faithful. (jest-expo remains fine for pure-JS mobile *unit* tests — just not for the
+driver.) Using **better-sqlite3** "as mobile" is the same trap from the other side: that is
+desktop's engine.
+
+So the real `expoSqliteDriver` runs **inside the app on a simulator/emulator**: a `__DEV__`-gated
+route builds a real `openDatabaseAsync(...)` → `expoSqliteDriver` and runs the **shared
+`runDriverContract` spec** — the same one desktop runs — in-process against the real engine and
+real SQLCipher. A Maestro flow launches the app on a booted device, deep-links to it, and asserts
+the result from the command line, which is what makes an emulator run *automated* rather than
+manual.
+
+**The harness assertion contract:** wait for `testID=driver-selftest-status` and assert its
+`accessibilityLabel` reads `PASS` — `FAIL` on any failed case *or* a zero-case run, `ERROR` if
+the suite could not start. Key on that stable token, never the human-readable `N/N` count.
+
+### Why Maestro *(owner-confirmed)*
+
+The harness also founds the mobile E2E tier, so the choice was weighed long-term rather than for
+this one self-test.
+
+| | **Maestro** | **Detox** | Appium |
+|---|---|---|---|
+| Model | **Blackbox** UI (YAML flows) | Gray-box (instruments the RN bridge) | Blackbox (WebDriver) |
+| Sync / flakiness | retries + timeouts | **bridge-idle sync** (fewest flakes) | manual waits (flakiest) |
+| Install weight | single binary | npm + jest + native build config | heavy server + drivers |
+| App coupling | none (drives the installed app) | instruments the build | none |
+| Fit to "as blackbox as possible" | **best** | weaker | ok |
+
+Maestro wins on blackbox fit and install weight, and it is *arch-agnostic* — it never touches the
+RN bridge, so New-Architecture/Fabric is a non-issue, whereas Detox's instrumented build is the
+part most likely to fight it. **Detox stays in reserve** for the day an elaborate flow
+(sync/pairing) turns flaky and its bridge-idle determinism earns back the gray-box cost; the
+tool-agnostic flow catalog keeps that switch cheap. Appium is overkill here.
+
 ## `__DEV__` deep links
 
 ```sh

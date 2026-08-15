@@ -192,8 +192,35 @@ the main process and forwards over IPC; mobile (V2) builds it in-process.
 
 ## Testing
 
-Strategy, principles, and the driver-contract keystone live in
-[`plans/testing/`](plans/testing/); this is the operational summary.
+The principles below are the lens every testing decision is judged against — each one *cuts
+options* rather than being a slogan, and between them they have already decided our tools.
+
+1. **Automate over manual.** A manual check is a temporary bridge, never a destination.
+2. **Match production as closely as possible.** Signal strength scales with runtime fidelity; a
+   different engine/bundler/module-graph than ships is a *smell*. This one rule rejects both
+   mocked SQLite and WASM SQLite for the mobile driver — see
+   [`apps/mobile/README.md`](apps/mobile/README.md) → *Why the driver test needs a device*.
+3. **Test what's observable to the consumer.** Assert only on the surface the thing's *consumer*
+   sees — a port's return values, a package's public API, text/pixels on screen — never
+   internals. In practice: `expoSqliteDriver`/`encryptedSqliteDriver` → their `SqliteDriver`
+   port's return values; a `packages/data` repo → its method results; `packages/core` →
+   `CoreApi` results; an **app** → what's on screen.
+4. **As blackbox as possible.** Drive the subject through its real boundary; don't reach inside.
+5. **Full trophy, every app and package.** Static + unit + integration + E2E each have a home for
+   each app and package — not just desktop.
+6. **Everything reachable from the dev machine — or a documented, vendor-neutral host for the
+   platform.** No hosted CI is assumed. **Carve-out:** native-platform E2E is intrinsically
+   multi-host (a prod-faithful Windows/Linux run can't happen on an Apple-silicon Mac), so a
+   platform's E2E gate is *blocked* — not waived — until its host exists.
+7. **Incremental, no middling-confidence hacks.** Reorder freely to lay the best next brick;
+   don't ship a shortcut that only buys partial confidence.
+
+**The consequence that keeps the mobile tier small:** because the repo/service logic is shared
+and driver-injected, we do *not* re-prove it per platform by re-running every integration suite
+on every engine. We prove the **driver** is equivalent (the contract suite below), and the
+shared logic's desktop run carries over.
+
+The tiers themselves:
 
 - **Unit**: schema validation + pure domain logic (role algebra, gender
   derivation, milestone precision, normalization) in `packages/schema`.
@@ -215,7 +242,9 @@ Strategy, principles, and the driver-contract keystone live in
   asserts PASS from the CLI — the mobile driver leg is a terminal automated gate, not a
   manual screen read. The Maestro flow is byte-identical across platforms.
 - **E2E** (blocked, not built): the crucial-flow catalog per platform — desktop
-  Playwright/Electron, mobile **Maestro** (committed). See `plans/testing/`.
+  Playwright/Electron, mobile **Maestro** (committed). The catalog is
+  `plans/testing/crucial-flows.md`; the release-gate policy is
+  `plans/v0-1_06_e2e-and-release-gate.md`.
 
 ### Running them
 

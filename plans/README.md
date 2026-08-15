@@ -47,7 +47,7 @@ enclave key lives in [`@leapsake/key-custody`](../packages/key-custody/README.md
 | **Know the user / client / account model** | [`@leapsake/key-custody`](../packages/key-custody/README.md) → *The product model this serves* |
 | Understand the encryption / privacy / sync **design** | [`encryption/`](./encryption/) — start at its `README.md`. Design only; no backlog |
 | **Understand how key custody works** | [`@leapsake/key-custody`](../packages/key-custody/README.md) — the one place custody is *specified*, and the code map for it |
-| Understand the testing strategy | [`testing/`](./testing/) — principles, the driver-contract keystone, the flow catalog |
+| Understand the testing strategy | [`../AGENTS.md`](../AGENTS.md) → *Testing* — the principles and the tiers. The E2E flow catalog is [`testing/crucial-flows.md`](./testing/crucial-flows.md) |
 | Understand the file/media (photos) design | [`v0-2.md`](./v0-2.md) → *Files and media* — encrypted-blob invariants, pinned before build |
 | Know how the SQLite native-ABI dance bites (and how it ends) | [`../AGENTS.md`](../AGENTS.md) today · [`v0-2.md`](./v0-2.md) → *The N-API exit* |
 | Understand a shared package's architecture | its own `README.md` — [`schema`](../packages/schema/README.md), [`data`](../packages/data/README.md), [`core`](../packages/core/README.md), [`crypto`](../packages/crypto/README.md), [`reminders`](../packages/reminders/README.md), [`ui`](../packages/ui/README.md), [`view-models`](../packages/view-models/README.md) |
@@ -77,7 +77,8 @@ schema  →  data  →  core  →  clients (apps/desktop, apps/mobile)
 Tests are Vitest: unit tests on `schema`'s pure logic, integration tests running every
 repo/service against the real production desktop engine. **`pnpm test`** runs the fast local
 suite; **`pnpm test:all`** adds the still-blocked native/E2E tiers as explicit ⏳ rows. The
-orchestrator is `scripts/test-all.mjs`; the full strategy is in [`testing/`](./testing/).
+orchestrator is `scripts/test-all.mjs`; the principles are [`../AGENTS.md`](../AGENTS.md) →
+*Testing*.
 
 ## The one rule
 

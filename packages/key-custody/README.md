@@ -473,6 +473,6 @@ suite in `apps/server/test/relay.test.ts`). The split is not redundancy:
 
 **Not covered by either: mobile.** `apps/mobile/lib/merge-account.ts` imports
 `expo-sqlite`, whose native engine cannot load headlessly
-(`plans/testing/mobile-engine.md`), so its relay flows are exercised on-device by
+(`apps/mobile/README.md` → *Why the driver test needs a device*), so its relay flows are exercised on-device by
 `apps/mobile/test/custody-selftest.ts` against a stub — and the live equivalent
 belongs to the blocked native/E2E tier.

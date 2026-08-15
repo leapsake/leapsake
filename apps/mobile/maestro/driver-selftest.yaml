@@ -4,7 +4,7 @@
 # dev-only self-test route, wait for the async contract run to finish, then assert its
 # PASS token. This is what makes the mobile driver leg *terminal* (an automated gate)
 # instead of a human opening the screen and reading it — the project's #1 principle is
-# "automate over manual". See plans/testing/mobile-engine.md.
+# "automate over manual". See apps/mobile/README.md → Why the driver test needs a device.
 #
 # Vendor-neutral by construction: plain open-source Maestro YAML, no mobile.dev cloud
 # coupling. Runs on the local `maestro` CLI against whatever emulator/simulator is

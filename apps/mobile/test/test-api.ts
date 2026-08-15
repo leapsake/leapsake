@@ -5,7 +5,7 @@ import type { TestApi } from "@leapsake/data/testing";
  * standing in for Vitest on device: the mobile native engine (expo-sqlite) can't
  * load in Node, so the shared {@link runDriverContract} suite runs in-app against
  * the real driver and reports PASS/FAIL on screen instead of to a test runner
- * (see `plans/testing/mobile-engine.md`).
+ * (see `apps/mobile/README.md`).
  *
  * It is typed against {@link TestApi} (the exact slice the contract drives) so the
  * matcher surface here can't silently drift from what the spec needs — a missing or

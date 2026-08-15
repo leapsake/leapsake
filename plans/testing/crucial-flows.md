@@ -6,9 +6,9 @@
 > up, of the driver-contract keystone — authored once in plain language so Maestro (mobile),
 > Playwright/Electron (desktop), and any future harness encode the *same* journeys and can't
 > drift. Keeping it separate from any one tool is the core anti-lock-in move
-> ([`strategy.md`](./strategy.md#vendor-neutrality-two-layers-kept-apart)).
+> ([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*).
 >
-> Read [`strategy.md` §3](./strategy.md#3-native-platform-e2e-the-release-gate-policy)
+> Read [`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*
 > for the gate policy this implements. This file is design, not a status board — when a harness
 > lands a flow, record that in [`status.md`](../status.md), keep this stable.
 
@@ -20,7 +20,7 @@ its real boundary (principle #4) — never the app's internals, never a mocked e
 ~37 desktop integration suites prove the shared repo/service logic, so E2E only needs to prove
 the journeys those tiers *can't* — the ones that only exist once real UI, real OS key storage,
 and (for sync) two real devices are wired together. A simulator/emulator/VM is the accepted
-approximation ([`strategy.md` §3](./strategy.md#3-native-platform-e2e-the-release-gate-policy)).
+approximation ([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*).
 
 **This catalog is authored against the app as actually built.** Two consequences a harness
 author will otherwise get wrong:
@@ -96,7 +96,7 @@ person's name, the milestone note).
 
 Seven flows (Flow 7 has three variants). Each must run **automated and green** on **iOS +
 Android + macOS** before v0.1
-([`strategy.md` §3](./strategy.md#host-matrix-and-v01-scope)). Windows/Linux implement the *same* list later, no changes. Columns:
+([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*). Windows/Linux implement the *same* list later, no changes. Columns:
 **Devices** (single vs. the two-instance sync pair), and **Uniquely exercises** (why E2E — the
 surface no lower tier reaches).
 
@@ -199,7 +199,7 @@ surface no lower tier reaches).
   engines to one in-process relay; this drives two *real app instances* through the real UI and
   key store).
 - **Preconditions:** a reachable relay (local/self-hosted — the execution layer is swappable,
-  [`strategy.md` §3](./strategy.md#vendor-neutrality-two-layers-kept-apart)); Device A holds data (run Flows 2–3 first) and is still **Unauthenticated**.
+  [`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*); Device A holds data (run Flows 2–3 first) and is still **Unauthenticated**.
 - **Steps:** **Device A** → Settings → **Set up or log in to sync** → register a username +
   password (≥12 chars); **capture the phrase** shown once. **Device B** (fresh install) →
   Settings → same entry → log in with that username + password.
@@ -308,7 +308,7 @@ tier stays small). Listed so the owner can pull any into the gate:
 | 7b At-rest, phrase door | gate | gate | gate | later | 1 | key-store reset: delete `keystore.json` / `dev-clear-dbkey` |
 | 7c At-rest, password door | gate | gate | gate | later | 1 | same reset, password answer; prove both doors independent |
 
-"gate" = must be green before v0.1 on that platform ([`strategy.md` §3](./strategy.md#host-matrix-and-v01-scope): iOS + Android + macOS).
+"gate" = must be green before v0.1 on that platform ([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*: iOS + Android + macOS).
 Windows/Linux run the identical list once a host exists (deferred, blocked-not-waived).
 
 ## Open decisions for owner sign-off

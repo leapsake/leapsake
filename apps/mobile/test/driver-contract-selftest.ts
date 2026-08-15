@@ -11,7 +11,7 @@ import { type CaseResult, createCollectingTestApi } from "./test-api";
  * real, encrypted expo-sqlite database, in the app's own runtime on a
  * simulator/emulator. expo-sqlite is a native module that can't load headlessly, so
  * this is the only prod-faithful way to pin the mobile driver to the same observable
- * contract desktop's Vitest run pins its driver to (`plans/testing/mobile-engine.md`).
+ * contract desktop's Vitest run pins its driver to (`apps/mobile/README.md` → *Why the driver test needs a device*).
  */
 
 /**

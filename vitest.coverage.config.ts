@@ -13,7 +13,7 @@ import { defineConfig } from "vitest/config";
  * contract, so that half of the file is the contract's forcer specifically.
  *
  * Desktop-only: the mobile `expoSqliteDriver` can't load under Node (native module,
- * see plans/testing/mobile-engine.md); its equivalent coverage lives in the in-app
+ * see apps/mobile/README.md); its equivalent coverage lives in the in-app
  * self-test, which runs this same contract. Kept in its own config so day-to-day
  * `pnpm test:node` stays coverage-free and fast.
  */

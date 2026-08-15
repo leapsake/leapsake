@@ -8,7 +8,7 @@ import type { CaseResult } from "../test/test-api";
 /**
  * Dev-only mobile native test tier: run the shared `SqliteDriver` contract suite
  * against the real `expoSqliteDriver` in-process and render PASS/FAIL (testing
- * keystone; `plans/testing/mobile-engine.md`). Not a shipped feature — it's an
+ * keystone; `apps/mobile/README.md` → *Why the driver test needs a device*). Not a shipped feature — it's an
  * in-app test harness, the only prod-faithful way to exercise the native engine
  * (which can't load headlessly). Reached by deep link only (`leapsake://dev-selftest`),
  * with no link from any shipping screen.

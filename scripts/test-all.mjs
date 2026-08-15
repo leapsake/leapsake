@@ -6,7 +6,7 @@
 // *which* tiers run and *reports* the result). Tiers marked `blocked` are gates that
 // aren't built yet (currently just E2E — the mobile native tiers are built and `ready`) —
 // they are surfaced as ⏳ BLOCKED, never silently skipped, so principle #6 ("everything
-// reachable, or explicitly blocked — not waived") stays visible. See plans/testing/.
+// reachable, or explicitly blocked — not waived") stays visible. See AGENTS.md → Testing.
 //
 // Two kinds of BLOCKED, both ⏳: *statically* blocked (a tier not built yet, e.g. e2e) and
 // *runtime* blocked (a built tier whose environment isn't reachable here — e.g. the iOS
@@ -88,7 +88,7 @@ const TIERS = [
     // Needs a prepared Android environment (booted emulator + installed dev client +
     // running Metro); `pnpm test:native` (scripts/test-native.mjs) exits 3 (→ BLOCKED)
     // if no emulator is booted, and fails with the exact setup command if the dev client
-    // or Metro is missing. Built at plans/testing step 3b.
+    // or Metro is missing.
   },
   {
     key: "native-ios",
@@ -100,7 +100,7 @@ const TIERS = [
     device: true,
     // Same shape as Android on a booted iOS simulator; exits 3 (→ BLOCKED) when no sim
     // is booted or Xcode's simctl is absent (e.g. a non-macOS host), so the iOS gate is
-    // reported as blocked-here, never silently skipped. Built at plans/testing step 9.
+    // reported as blocked-here, never silently skipped.
   },
   {
     key: "e2e",
@@ -109,7 +109,7 @@ const TIERS = [
     script: "test:e2e",
     status: "blocked",
     device: true,
-    note: "flow catalog not built (plans/testing steps 6-10)",
+    note: "flow catalog not built (plans/testing/crucial-flows.md)",
   },
 ];
 
@@ -211,7 +211,7 @@ const failed = results.filter(
 const blocked = results.filter((r) => r.status === "blocked");
 if (blocked.length > 0) {
   console.log(
-    `⏳ ${blocked.length} tier(s) blocked (not built yet, or environment not reachable here) — see plans/testing/. Not counted as failure${strict ? " but --strict is on, so they fail this run" : ""}.`,
+    `⏳ ${blocked.length} tier(s) blocked (not built yet, or environment not reachable here) — see AGENTS.md → Testing. Not counted as failure${strict ? " but --strict is on, so they fail this run" : ""}.`,
   );
 }
 if (failed.length > 0) {
