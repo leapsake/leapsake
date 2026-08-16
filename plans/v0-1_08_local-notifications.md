@@ -155,9 +155,94 @@ parameter, plus a `reconcile(desired, pending, scheduler)` set-diff. The OS sche
 which is exactly why this is not folded into `@leapsake/reminders`, and what lets desktop share it
 later. Fully unit-testable with no device.
 
-**Inc 3 — the mobile adapter and UI.** `expo-notifications` plugin and config; the Android channel;
-the permission flow; the port implementation; the reconcile wired to the same boot / foreground /
-post-write triggers as `regenerateSystem`; the settings section listing every device with a policy.
+**Inc 3 — the mobile adapter and UI. In progress: §1, §3, §5, §6 done; §2, §4, §7 open.**
+`expo-notifications` plugin and config; the Android channel; the permission flow; the port
+implementation; the reconcile wired to the same boot / foreground / post-write triggers as
+`regenerateSystem`; the settings section listing every device with a policy. Scoped in full below,
+where each numbered item is marked done or open. **Next: §2**, the config plugin — until it's
+registered, `expo-notifications`' native permissions/manifest entries never make it into a real
+build even though the JS-level adapter (§3) is wired and correct.
+
+### Inc 3, scoped
+
+**New dependency: `expo-notifications`** (not currently in `apps/mobile/package.json`). No
+`expo-device` — a device's label is `Platform.OS`-derived ("iPhone" / "Android phone"), not a
+personalized name. A real device name is a cheap v0.2 lever if it's ever wanted; guessing at it
+now buys nothing.
+
+1. **Device id — done.** `ensureLocalDeviceId` (`packages/key-custody/src/session.ts:97`,
+   re-exported from `@leapsake/core`) is minted once at boot in `core-context.tsx`, right after
+   `secureStoreKeyStore()` is instantiated, into a `deviceId` ref alongside `coreRef`/`scheduler`.
+   Its first-ever call site.
+
+2. **Config plugin.** Add an `expo-notifications` entry to `app.json`'s `plugins` array
+   (`apps/mobile/app.json:17-25`), same shape as the existing `expo-contacts` entry —
+   permission-message strings for both platforms. Declare the Android channel in the plugin
+   config too, not at runtime, so it exists before first launch.
+
+3. **The port — done.** `expoNotificationScheduler()` (`apps/mobile/lib/notification-scheduler.ts`)
+   implements `MobileNotificationScheduler`: `schedule` → `scheduleNotificationAsync` with a `DATE`
+   trigger (`SchedulableTriggerInputTypes.DATE`) and `identifier: notification.id` — passing our own
+   id rather than letting the OS mint one, so `cancel(id)` can find it again — `cancel` →
+   `cancelScheduledNotificationAsync`, `listPending` wraps `getAllScheduledNotificationsAsync`. A
+   `DATE` trigger is confirmed (via the installed package's own `.d.ts`) to echo its `date` field
+   back verbatim rather than decomposing into iOS calendar components the way `CALENDAR` would, so
+   `fireAt` round-trips exactly with no reconstruction. Instantiated once (stateless, so lazily at
+   ref-creation rather than inside the boot effect) in `core-context.tsx`'s `notificationScheduler`
+   ref. **No `channelId` set yet** — §2 hasn't declared the Android channel, so this rides
+   `expo-notifications`' default; thread the real id through once §2 lands.
+
+4. **Permission flow.** Mirror `import.tsx`'s pattern (`apps/mobile/app/import.tsx:57-64,
+   259-274`) — the only existing precedent in the app: request at the point of opt-in (turning
+   the settings mode picker off `off`), never at launch; on denial, the same explanatory text +
+   `Linking.openSettings()` pressable. Persist the result via
+   `core.notificationSettings.setPermissionState(deviceId, state)` — the column already exists
+   (migration 29); the "only the owning device writes it" rule holds automatically since this
+   call only ever fires from this device's own toggle.
+
+5. **Reconcile — boot and foreground — done.** `reconcileNotifications` (`core-context.tsx`, next
+   to `regenerateSystemReminders`) reads this device's policy, the reminder set, calls
+   `planNotifications`, then `reconcile` — a no-op today since `notificationScheduler.current` is
+   still `null` (§3). Called once at boot immediately after `regenerateSystemReminders` — after,
+   not before, since this is "a second reconcile behind the first" — and once from the same
+   `AppState === "active"` listener.
+
+6. **Reconcile — post-write. Done, and mobile-only after all.** The original worry: `regenerateSystem()`
+   runs *inside* `@leapsake/core`'s command handlers, invisible to mobile, and `createCore` takes
+   no callback — so a naive fix would thread a new port through `packages/core`. Turned out
+   unnecessary. `@leapsake/sync` already ships exactly this mechanism for its own purposes:
+   `withSyncKick<T>(core, kick)` (`packages/sync/src/scheduler.ts:207`) wraps a `CoreApi`-shaped
+   object so every method matching `MUTATING_METHOD` calls `kick` after it resolves, recursing
+   into nested groups — mobile already wraps `bootedCore`/`joinedCore`/`recoveredCore` in it once,
+   for sync. The fix is a **second layer**: `core-context.tsx`'s new `buildCore` helper wraps
+   twice — the existing sync kick, then a notifications kick that calls the reconcile above with
+   `coreRef.current`. Zero `@leapsake/core` changes; Inc 3 stays entirely under `apps/mobile` (plus
+   one two-word regex edit below). This also folds in completion/snooze/dismissal for free —
+   `reminders.setCompleted`/`snooze`/`softDelete` already match `MUTATING_METHOD`, so they were
+   never the gap; only the *reconcile-recompute* trigger was missing, and this closes it uniformly.
+
+   **One real pre-existing gap found and fixed along the way:** `notificationSettings.setPolicy`/
+   `setPermissionState` (Inc 1) didn't match `MUTATING_METHOD`, so editing another device's policy
+   waited for the sync backstop interval instead of pushing at once — exactly the cross-device
+   responsiveness §4/§7 depend on. Added both names to the regex
+   (`packages/sync/src/scheduler.ts:195`) and to `with-sync-kick.test.ts`'s pinned surface.
+
+7. **Settings UI.** `apps/mobile/app/settings.tsx` is titled "Account & sync" and its
+   `RecoveryPhraseSection`/`SignOutSection` are gated on `status.hasAccount` — but notification
+   policy is pre-account by design (§1 above), so the new section renders **unconditionally**,
+   placed after the account/sync block and before the `hasAccount`-gated pair. A three-way mode
+   picker (`off`/`digest`/`each`) via the existing `SelectField` component
+   (`apps/mobile/components/SelectField.tsx`); a delivery-time picker (`SelectField` in
+   30-minute increments, unless that reads badly as a continuous value — try a native time
+   picker instead if so); a read-only list of every *other* device with a policy row
+   (`core.notificationSettings.list()` filtered to exclude this device), each showing
+   `label · mode`. Editing another device's row calls the same `setPolicy(otherDeviceId, patch)`
+   — no separate code path, since the repo methods already take an explicit `deviceId` rather
+   than assuming "this device" (`packages/core/src/index.ts:1329-1353`).
+
+**Not in Inc 3:** the desktop applier (out of 08 entirely, see *Scope* below); notification
+privacy levels (deliberately deferred, see *Migration 29* above); a personalized device label
+beyond `Platform.OS` (see dependency note above).
 
 ## Platform notes that bite
 

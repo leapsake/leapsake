@@ -7,16 +7,17 @@
 
 ## In flight
 
-**Nothing.** The web spike closed 2026-08-15 — both owner checks answered, `apps/web-spike`
-deleted, code at the tag `web-spike-final`. What it inherits to a future web client is
-[`web-client.md`](./web-client.md); the rule it produced is
-[`encryption/model.md`](./encryption/model.md) §10.1 — **web and PWA require a sync account**,
-because browser storage is evictable even when installed.
+**08 Inc 3 — the mobile adapter and UI** (Inc 1 and 2 are done, see
+[`@leapsake/notifications`](../packages/notifications/README.md)). §1 (device id), §3 (the real
+`expo-notifications` scheduler port), §5 (boot/foreground reconcile), and §6 (the post-write
+trigger — reuses `@leapsake/sync`'s `withSyncKick` a second time, no `packages/core` change
+needed) are done — the reconcile is live end to end. **Next: §2**, the `expo-notifications`
+config plugin — until it's registered in `app.json`, the native permission/manifest entries §3
+depends on never make it into a real build. Then §4 (permission flow), §7 (settings UI). Detail
+and per-item status in
+[`v0-1_08_local-notifications.md`](./v0-1_08_local-notifications.md) → *Inc 3, scoped*.
 
 ## Next
 
 **08 → 04 → 07**, the launch chain — [`v0-1.md`](./v0-1.md) holds the order and why 08 runs first.
-**08 Inc 1 (the policy substrate) is done** — migration 29, the repo, the allowlist guard,
-`ensureLocalDeviceId` (a device id predating any account). Next: **08 Inc 2, the planner** —
-new `@leapsake/notifications`, pure and injected-port, `planNotifications`/`reconcile`. Still no
-UI, no OS calls. 06 also waits on its *Open decisions*.
+Finishing 08 Inc 3 unblocks 04. 06 also waits on its *Open decisions*.

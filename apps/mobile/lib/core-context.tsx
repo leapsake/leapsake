@@ -36,6 +36,7 @@ import {
   createCore,
   createSyncScheduler,
   createLocalAccount,
+  ensureLocalDeviceId,
   establishKeySession,
   fetchRelayCapabilities,
   getAutoSync,
@@ -71,6 +72,10 @@ import {
   sealDbKeyForRecovery,
 } from "@leapsake/crypto";
 import {
+  planNotifications,
+  reconcile as reconcileNotificationSchedule,
+} from "@leapsake/notifications";
+import {
   createAccountRoster,
   UNAUTHENTICATED_STORE_SLOT,
   resolveActiveStore,
@@ -87,6 +92,10 @@ import { deleteAccountRoster, sqliteRosterStorage } from "../db/roster-storage";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 import { forgetAccountOnThisDevice } from "./forget-account";
 import { mergeAccountOnThisDevice, openStoreUnderKey } from "./merge-account";
+import {
+  expoNotificationScheduler,
+  type MobileNotificationScheduler,
+} from "./notification-scheduler";
 
 /**
  * Translate a relay/transport failure into copy a user can act on — the mobile
@@ -413,6 +422,23 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       (payload: { at?: number; error?: string; changed?: boolean }) => void
     >(),
   );
+  // This device's stable id (Inc 1's `ensureLocalDeviceId`,
+  // `plans/v0-1_08_local-notifications.md`) — minted once at boot,
+  // independent of any account, and read back unchanged after. Keys the
+  // `notification_settings` row this device's own reconcile and (eventually)
+  // its settings screen address.
+  const deviceId = useRef<string | null>(null);
+  // The OS-backed notification scheduler port (Inc 3 §3's
+  // `expo-notifications` adapter) — stateless, so it's built once here
+  // (lazily, the manual `useRef` equivalent of `useState`'s lazy initializer)
+  // rather than inside the boot effect, which only runs once per boot/reset
+  // but this doesn't need to wait for.
+  const notificationScheduler = useRef<MobileNotificationScheduler | null>(
+    null,
+  );
+  if (notificationScheduler.current === null) {
+    notificationScheduler.current = expoNotificationScheduler();
+  }
 
   useEffect(() => {
     /**
@@ -436,6 +462,41 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    /**
+     * The second reconcile, one layer out
+     * (`plans/v0-1_08_local-notifications.md`): compute this device's desired
+     * OS notifications from its policy + the live reminder set
+     * (`@leapsake/notifications`' `planNotifications`), diff against what the
+     * OS actually has pending, and drive the scheduler port through the delta
+     * (`reconcileNotificationSchedule`). Same triggers as
+     * `regenerateSystemReminders` above — boot, foreground — plus every
+     * mutating `CoreApi` call, via `buildCore`'s second `withSyncKick` layer
+     * below (the same "kick after every write" mechanism sync already uses),
+     * so completion, snooze, milestone edits, and this device's own policy
+     * changes all reconcile without a bespoke call at each site.
+     *
+     * `deviceId.current` is `null` only in the brief window before boot mints
+     * it (§1); every other caller runs after. Best-effort throughout, like
+     * `regenerateSystemReminders` above.
+     */
+    const reconcileNotifications = async (coreApi: CoreApi) => {
+      const scheduler = notificationScheduler.current;
+      const id = deviceId.current;
+      if (scheduler === null || id === null) return;
+      try {
+        const [policy, reminders, pending] = await Promise.all([
+          coreApi.notificationSettings.get(id),
+          coreApi.reminders.list(),
+          scheduler.listPending(),
+        ]);
+        if (policy === undefined) return;
+        const desired = planNotifications(reminders, policy, Date.now());
+        await reconcileNotificationSchedule(desired, pending, scheduler);
+      } catch (cause) {
+        console.error("notification reconcile failed:", cause);
+      }
+    };
+
     // Pull the peer's edits when the app returns to the foreground — the
     // event-driven companion to write-kicked pushes. (RN JS timers are suspended
     // in the background, so the interval is a foreground-only backstop anyway.)
@@ -444,6 +505,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       void scheduler.current?.autoTrigger();
       if (coreRef.current !== null) {
         void regenerateSystemReminders(coreRef.current);
+        void reconcileNotifications(coreRef.current);
       }
     });
 
@@ -461,6 +523,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     (async () => {
       // The same keystore instance that backs the enable-sync door below.
       const keyStore = secureStoreKeyStore();
+
+      // Mint-or-read this device's stable id (Inc 1) — touches only the OS
+      // keychain, so it's safe before custody state is even known, and must
+      // be ready before the first `reconcileNotifications` call below.
+      deviceId.current = await ensureLocalDeviceId(keyStore);
 
       // Which store, and in which custody state (@leapsake/store-layout) — settled
       // before anything is opened, because it decides whether a key is even
@@ -723,16 +790,33 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         },
       });
 
-      const bootedCore = withSyncKick(
-        // `null` is this ref's "no session"; `createCore` takes the key session as
-        // optional, which is what lets an Unauthenticated store run without one at all.
-        createCore(driver, keySession.current ?? undefined),
-        () => scheduler.current?.kick(),
-      );
+      // Wrap a freshly created core so every mutating call both kicks the
+      // background sync (the first layer, as before) and reconciles this
+      // device's local notifications (the second — Inc 3 §6). One extra
+      // `withSyncKick` layer, reusing the exact "kick after every mutation"
+      // mechanism sync already relies on, rather than threading a new port
+      // through `@leapsake/core`. `reconcileNotifications` reads
+      // `coreRef.current` rather than closing over the core being built here,
+      // since that ref is set synchronously right after, before anything can
+      // call into the wrapped object.
+      const buildCore = (session: KeySession | undefined): CoreApi =>
+        withSyncKick(
+          withSyncKick(createCore(driver, session), () =>
+            scheduler.current?.kick(),
+          ),
+          () => {
+            if (coreRef.current !== null) {
+              void reconcileNotifications(coreRef.current);
+            }
+          },
+        );
+
+      const bootedCore = buildCore(keySession.current ?? undefined);
       coreRef.current = bootedCore;
       setCore(bootedCore);
       scheduler.current.start(); // backstop interval
       void regenerateSystemReminders(bootedCore); // birthdays atop Home
+      void reconcileNotifications(bootedCore); // the second reconcile, one layer out
       void scheduler.current.autoTrigger(); // initial sync (skipped if auto off)
       /**
        * **Turn this device's Unauthenticated store into an account's encrypted one** — the
@@ -1008,9 +1092,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // (desktop does this via its IPC Proxy; here `setCore` re-renders
           // consumers with the new core).
           keySession.current = session;
-          const joinedCore = withSyncKick(createCore(driver, session), () =>
-            scheduler.current?.kick(),
-          );
+          const joinedCore = buildCore(session);
           coreRef.current = joinedCore;
           setCore(joinedCore);
           // Reconcile this device's pre-existing local people against the
@@ -1243,9 +1325,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           }
           // Adopt the recovered master key everywhere, like join.
           keySession.current = session;
-          const recoveredCore = withSyncKick(createCore(driver, session), () =>
-            scheduler.current?.kick(),
-          );
+          const recoveredCore = buildCore(session);
           coreRef.current = recoveredCore;
           setCore(recoveredCore);
           let duplicateCount = 0;

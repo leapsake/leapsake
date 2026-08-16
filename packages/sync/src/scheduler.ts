@@ -189,10 +189,14 @@ export function createSyncScheduler(opts: {
  * array consciously) and is blind to one whose name does not. A write that
  * matches nothing here is silently treated as a read: it lands locally and then
  * waits for the next scheduled tick instead of kicking a push. `snooze` was
- * added for exactly that reason.
+ * added for exactly that reason. `setPolicy`/`setPermissionState`
+ * (`@leapsake/core`'s `notificationSettings`) closed the same gap for the
+ * cross-device notification policy (`plans/v0-1_08_local-notifications.md`) —
+ * without them, editing another device's policy waited for the backstop
+ * interval instead of pushing at once.
  */
 const MUTATING_METHOD =
-  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|snooze|capture)/;
+  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|setPolicy|setPermissionState|snooze|capture)/;
 
 /**
  * Wrap a {@link CoreApi}-shaped object so that every mutating method calls `kick`
