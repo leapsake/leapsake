@@ -14,6 +14,7 @@ import {
   createObservancesRepo,
   createMilestonesRepo,
   createNotADuplicateRepo,
+  createNotificationSettingsRepo,
   createPeopleRepo,
   createPetsRepo,
   createRelationshipsRepo,
@@ -54,6 +55,8 @@ import type {
   PhoneNumber,
   PostalAddress,
   MilestoneKind,
+  NotificationMode,
+  NotificationSettings,
   ObservanceBearerType,
   Relationship,
   RelationshipNeighbor,
@@ -158,6 +161,7 @@ export type {
 // store so the next open must pass the password gate.
 export {
   ensureDeviceMasterKey,
+  ensureLocalDeviceId,
   createLocalAccount,
   bindRelayToAccount,
   sealPasswordDoor,
@@ -417,6 +421,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
   const reminderRules = createReminderRulesRepo(driver);
   const reminders = createRemindersRepo(driver);
   const self = createSelfPersonRepo(driver);
+  const notificationSettings = createNotificationSettingsRepo(driver);
   const giftIdeas = createGiftIdeasRepo(driver);
   const giftSuggestions = createGiftSuggestionsRepo(driver);
   const giftsRepo = createGiftsRepo(driver);
@@ -1319,6 +1324,32 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         await self.clearSelf();
         await regenerateSystem();
       },
+    },
+
+    // Local-notification policy (`plans/v0-1_08_local-notifications.md`), Inc 1:
+    // the substrate only — no planner, no OS calls. Every method is scoped by
+    // an explicit deviceId rather than an ambient "this device", so a
+    // cross-device settings UI can read/edit any device's row, exactly like
+    // `reminders.snooze(id, until)` takes an explicit id.
+    notificationSettings: {
+      get: (deviceId: string): Promise<NotificationSettings | undefined> =>
+        notificationSettings.get(deviceId),
+      list: (): Promise<NotificationSettings[]> => notificationSettings.list(),
+      setPolicy: (
+        deviceId: string,
+        patch: Partial<{
+          mode: NotificationMode;
+          deliveryMinute: number;
+          label: string | null;
+          platform: string | null;
+        }>,
+      ): Promise<NotificationSettings> =>
+        notificationSettings.setPolicy(deviceId, patch),
+      setPermissionState: (
+        deviceId: string,
+        state: string | null,
+      ): Promise<NotificationSettings> =>
+        notificationSettings.setPermissionState(deviceId, state),
     },
 
     // Gifts. An idea is a thing in the world (person-agnostic);

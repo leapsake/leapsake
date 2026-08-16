@@ -34,6 +34,7 @@ describe("syncableRepos — the canonical allowlist", () => {
       "mentions",
       "milestones",
       "not_a_duplicate",
+      "notification_settings",
       "observances",
       "people",
       "pets",

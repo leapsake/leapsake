@@ -4,7 +4,7 @@ import {
   createKeyWrapRepo,
   runMigrations,
 } from "@leapsake/data";
-import { ensureDeviceMasterKey } from "@leapsake/core";
+import { ensureDeviceMasterKey, ensureLocalDeviceId } from "@leapsake/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
@@ -100,5 +100,49 @@ describe("ensureDeviceMasterKey", () => {
 
     // The original session is untouched and still valid.
     expect(session.masterKey).toBeInstanceOf(Uint8Array);
+  });
+});
+
+/**
+ * The pre-account half of Phase 0 (`plans/v0-1_08_local-notifications.md`):
+ * a device id must exist before any account does, since "encryption follows
+ * custody" means {@link ensureDeviceMasterKey} never runs for a plaintext
+ * store.
+ */
+describe("ensureLocalDeviceId", () => {
+  it("mints an id touching only the keychain — no DB row", async () => {
+    const keyStore = createInMemoryKeyStore();
+    const deviceId = await ensureLocalDeviceId(keyStore);
+
+    expect(deviceId).toEqual(expect.any(String));
+    expect(await keyStore.getSecret("device-id")).toBeDefined();
+    // No enclave secret, no key_wrap row — this half of Phase 0 alone must
+    // not reach for either.
+    expect(await keyStore.getSecret("enclave")).toBeUndefined();
+  });
+
+  it("is idempotent — a second call returns the same id", async () => {
+    const keyStore = createInMemoryKeyStore();
+    const first = await ensureLocalDeviceId(keyStore);
+    const second = await ensureLocalDeviceId(keyStore);
+    expect(second).toBe(first);
+  });
+
+  it("is adopted by ensureDeviceMasterKey with no reconciliation step", async () => {
+    // A device id minted before any account exists (the account-less path)
+    // must be the exact id ensureDeviceMasterKey later mints its enclave
+    // wrap under — the whole point of sharing the DEVICE_ID_KEY entry.
+    const driver = makeEncryptedTestDriver();
+    await runMigrations(driver.driver);
+    const keyStore = createInMemoryKeyStore();
+
+    const preAccountId = await ensureLocalDeviceId(keyStore);
+    const session = await ensureDeviceMasterKey({
+      keyStore,
+      driver: driver.driver,
+    });
+
+    expect(session.deviceId).toBe(preAccountId);
+    driver.cleanup();
   });
 });

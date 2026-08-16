@@ -38,6 +38,10 @@ export {
   type SelfPersonRepo,
   createSelfPersonRepo,
 } from "./self-person-repo.js";
+export {
+  type NotificationSettingsRepo,
+  createNotificationSettingsRepo,
+} from "./notification-settings-repo.js";
 export { type GiftIdeasRepo, createGiftIdeasRepo } from "./gift-ideas-repo.js";
 export {
   type GiftSuggestionsRepo,

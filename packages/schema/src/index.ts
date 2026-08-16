@@ -74,6 +74,14 @@ export {
 } from "./self-person.js";
 export type { SelfPerson, SetSelfInput } from "./self-person.js";
 export {
+  notificationModeSchema,
+  notificationSettingsSchema,
+} from "./notification-settings.js";
+export type {
+  NotificationMode,
+  NotificationSettings,
+} from "./notification-settings.js";
+export {
   giftIdeaSchema,
   createGiftIdeaInputSchema,
   updateGiftIdeaInputSchema,

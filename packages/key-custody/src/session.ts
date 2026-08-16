@@ -78,6 +78,31 @@ export const KEYSTORE_SECRET_IDS = [
 ] as const;
 
 /**
+ * Mint-or-read this device's stable id — the keychain-only half of
+ * {@link ensureDeviceIdentity}, split out and exported so a caller can obtain a
+ * device id **before any account exists**. Under "encryption follows custody"
+ * (`plans/encryption/model.md` §7.2), {@link ensureDeviceMasterKey} runs only
+ * once a store is Authenticated, so an account-less install otherwise has no
+ * device id at all — a gap the local-notification policy needs closed, since
+ * its per-device settings row is keyed on this id pre-account too
+ * (`plans/v0-1_08_local-notifications.md`).
+ *
+ * Touches only the OS keychain — no DB write, no enclave secret, no master
+ * key — so it is safe to call regardless of custody state. Minted once, read
+ * back unchanged after. Because {@link ensureDeviceIdentity} reads this exact
+ * `DEVICE_ID_KEY` entry too, a device that already minted an id this way is
+ * automatically "adopted" as `device.id` the first time an account is
+ * created — no reconciliation step.
+ */
+export async function ensureLocalDeviceId(keyStore: KeyStore): Promise<string> {
+  const stored = await keyStore.getSecret(DEVICE_ID_KEY);
+  if (stored !== undefined) return bytesToUtf8(stored);
+  const deviceId = crypto.randomUUID();
+  await keyStore.setSecret(DEVICE_ID_KEY, utf8ToBytes(deviceId));
+  return deviceId;
+}
+
+/**
  * This device's identity in the keychain: a stable id and the enclave secret that
  * wraps the master key under it. Minted on first read, returned unchanged after.
  *
@@ -97,15 +122,10 @@ export const KEYSTORE_SECRET_IDS = [
 async function ensureDeviceIdentity(
   keyStore: KeyStore,
 ): Promise<{ deviceId: string; enclaveKey: Uint8Array }> {
-  // Stable device id — minted once, then read back each launch.
-  let deviceId: string;
-  const storedDeviceId = await keyStore.getSecret(DEVICE_ID_KEY);
-  if (storedDeviceId === undefined) {
-    deviceId = crypto.randomUUID();
-    await keyStore.setSecret(DEVICE_ID_KEY, utf8ToBytes(deviceId));
-  } else {
-    deviceId = bytesToUtf8(storedDeviceId);
-  }
+  // Stable device id — minted once, then read back each launch. Shared with
+  // ensureLocalDeviceId (same keychain entry) so a pre-account mint is found
+  // and reused here rather than replaced.
+  const deviceId = await ensureLocalDeviceId(keyStore);
 
   // Device enclave secret — the local unlock path for MK, held off-DB.
   let enclaveKey = await keyStore.getSecret(ENCLAVE_KEY);

@@ -61,6 +61,7 @@ export {
   clearLocalAccount,
   enableSync,
   ensureDeviceMasterKey,
+  ensureLocalDeviceId,
   getSyncStatus,
   joinAccount,
   reauthenticate,

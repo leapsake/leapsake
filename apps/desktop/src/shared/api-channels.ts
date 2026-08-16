@@ -77,6 +77,11 @@ export const API_CHANNELS = [
   "self.set",
   "self.clear",
 
+  "notificationSettings.get",
+  "notificationSettings.list",
+  "notificationSettings.setPolicy",
+  "notificationSettings.setPermissionState",
+
   "gifts.ideas.list",
   "gifts.ideas.get",
   "gifts.ideas.create",

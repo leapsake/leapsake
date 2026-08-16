@@ -16,5 +16,7 @@ because browser storage is evictable even when installed.
 ## Next
 
 **08 → 04 → 07**, the launch chain — [`v0-1.md`](./v0-1.md) holds the order and why 08 runs first.
-Start at **08 Inc 1, the policy substrate**: first-run device id, migration 29, the repo, the
-allowlist guard — no UI, no OS calls, no owner input. 06 also waits on its *Open decisions*.
+**08 Inc 1 (the policy substrate) is done** — migration 29, the repo, the allowlist guard,
+`ensureLocalDeviceId` (a device id predating any account). Next: **08 Inc 2, the planner** —
+new `@leapsake/notifications`, pure and injected-port, `planNotifications`/`reconcile`. Still no
+UI, no OS calls. 06 also waits on its *Open decisions*.

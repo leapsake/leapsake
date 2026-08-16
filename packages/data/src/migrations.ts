@@ -870,6 +870,50 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 29,
+    async up(driver) {
+      // Local-notification policy (`plans/v0-1_08_local-notifications.md`) — a
+      // synced, one-row-per-device settings table. **`id` holds the device id**,
+      // not a freshly minted row id: like `self_person`'s fixed PK, this rides
+      // the standard EntityRepo/defineSyncable machinery (which hardcodes
+      // `WHERE id = ?`) by making the device id *be* the primary key, rather than
+      // fighting that machinery with a custom `device_id` column + codec.
+      //
+      // Per-device, but **editable from any device** — set the phone's policy
+      // from the laptop, and vice versa. That single requirement is why this
+      // isn't device-local `AsyncStorage`: every device may write any row, and
+      // two devices racing the same row is plain last-writer-wins, correct for
+      // a preference.
+      //
+      // `label`/`platform` are denormalized here rather than joined from
+      // `device`, because `device` deliberately does not sync (migration 14's
+      // zero-knowledge boundary) — the cross-device settings UI still needs to
+      // name the devices it lists.
+      //
+      // `permission_state` is a fact ("what did the OS last say"), not a plan —
+      // it exists so a device editing a *peer's* policy doesn't lie about
+      // whether that peer can actually receive it, and it is written only by
+      // the owning device.
+      //
+      // No pending-notification data lives here — that set is derived fresh
+      // from reminder rows on every reconcile (`plans/v0-1_08_local-notifications.md`
+      // → "store what happened, never what to do next", migration 28's rule).
+      await driver.exec(`
+        CREATE TABLE notification_settings (
+          id                TEXT    PRIMARY KEY,
+          label             TEXT,
+          platform          TEXT,
+          mode              TEXT    NOT NULL DEFAULT 'off',
+          delivery_minute   INTEGER NOT NULL DEFAULT 540,
+          permission_state  TEXT,
+          created_at        INTEGER NOT NULL,
+          updated_at        INTEGER NOT NULL,
+          deleted_at        INTEGER
+        );
+      `);
+    },
+  },
 ];
 
 /**
