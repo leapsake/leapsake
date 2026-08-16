@@ -155,11 +155,13 @@ parameter, plus a `reconcile(desired, pending, scheduler)` set-diff. The OS sche
 which is exactly why this is not folded into `@leapsake/reminders`, and what lets desktop share it
 later. Fully unit-testable with no device.
 
-**Inc 3 — the mobile adapter and UI. In progress: §1, §2, §3, §5, §6 done; §4, §7 open.**
+**Inc 3 — the mobile adapter and UI. In progress: §1, §2, §3, §4, §5, §6 done; §7 open.**
 `expo-notifications` plugin and config; the Android channel; the permission flow; the port
 implementation; the reconcile wired to the same boot / foreground / post-write triggers as
 `regenerateSystem`; the settings section listing every device with a policy. Scoped in full below,
-where each numbered item is marked done or open. **Next: §4**, the permission flow.
+where each numbered item is marked done or open. **Next: §7**, the settings UI — the last item,
+and the first real call site for both §4's permission flow and the mode/delivery-time policy
+`core.notificationSettings.setPolicy` already supports.
 
 ### Inc 3, scoped
 
@@ -200,13 +202,23 @@ now buys nothing.
    ref-creation rather than inside the boot effect) in `core-context.tsx`'s `notificationScheduler`
    ref. `channelId: "reminders"` is set on every `DATE` trigger, per §2's `channelReady` promise.
 
-4. **Permission flow.** Mirror `import.tsx`'s pattern (`apps/mobile/app/import.tsx:57-64,
-   259-274`) — the only existing precedent in the app: request at the point of opt-in (turning
-   the settings mode picker off `off`), never at launch; on denial, the same explanatory text +
-   `Linking.openSettings()` pressable. Persist the result via
-   `core.notificationSettings.setPermissionState(deviceId, state)` — the column already exists
-   (migration 29); the "only the owning device writes it" rule holds automatically since this
-   call only ever fires from this device's own toggle.
+4. **Permission flow — the logic is done; its call site is §7.**
+   `requestNotificationPermissionOnThisDevice` (`apps/mobile/lib/notification-permission.ts`)
+   requests and persists in one call: injected ports (`requestPermission`,
+   `setPermissionState`), mirroring `forget-account.ts`'s convention for OS-touching calls, so
+   it's unit-tested (`notification-permission.test.ts`) without mocking `expo-notifications`.
+   Always requests, never checks first — like `import.tsx`'s `readDeviceContacts`, this trusts
+   the platform's own API to no-op a repeat ask once the user has answered. Returns
+   `{ status, canAskAgain }`; persists `status` via
+   `core.notificationSettings.setPermissionState(deviceId, state)` (the "only the owning device
+   writes it" rule holds automatically, since this only ever fires from this device's own
+   toggle). **Not wired to anything yet** — unlike §1/§3/§5/§6, this has no legitimate call site
+   before §7 exists: it must fire exactly once, at the moment the settings mode picker leaves
+   `off`, never at launch, so there's nothing to wire it to until that picker is built. §7 is
+   where the real `Notifications.requestPermissionsAsync` call gets assembled (mirror
+   `import.tsx:57-64`) and where `canAskAgain === false` decides between offering a retry and
+   showing `import.tsx`'s denial pattern (`import.tsx:259-274`): explanatory text +
+   `Linking.openSettings()` pressable.
 
 5. **Reconcile — boot and foreground — done.** `reconcileNotifications` (`core-context.tsx`, next
    to `regenerateSystemReminders`) reads this device's policy, the reminder set, calls
