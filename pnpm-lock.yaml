@@ -331,6 +331,15 @@ importers:
         specifier: workspace:*
         version: link:../schema
 
+  packages/notifications:
+    dependencies:
+      '@leapsake/reminders':
+        specifier: workspace:*
+        version: link:../reminders
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
+
   packages/reminders:
     dependencies:
       '@leapsake/bytes':
