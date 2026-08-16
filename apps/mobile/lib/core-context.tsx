@@ -338,6 +338,11 @@ interface DegradedCustody {
 // Null when this device can prove the account's master key. Defaults to null so a
 // screen rendered outside CoreProvider reads as healthy rather than throwing.
 const CustodyDegradedContext = createContext<DegradedCustody | null>(null);
+// This device's stable id (Inc 1, `ensureLocalDeviceId`) — the state mirror
+// of `CoreProvider`'s `deviceId` ref, so a screen (the notification settings
+// section, §7) can address `notificationSettings.setPolicy`/`get` for *this*
+// device without reaching into a ref.
+const DeviceIdContext = createContext<string | null>(null);
 
 /** Access the ready CoreApi. Throws if used outside a (loaded) CoreProvider. */
 export function useCore(): CoreApi {
@@ -376,6 +381,19 @@ export function useCustodyDegraded(): DegradedCustody | null {
   return useContext(CustodyDegradedContext);
 }
 
+/**
+ * This device's id (Inc 1). Throws if used outside a (loaded) CoreProvider,
+ * like {@link useCore} — by the time `core` is non-null the boot effect has
+ * already minted or read it, so the two never disagree.
+ */
+export function useDeviceId(): string {
+  const deviceId = useContext(DeviceIdContext);
+  if (deviceId === null) {
+    throw new Error("useDeviceId must be used within a CoreProvider");
+  }
+  return deviceId;
+}
+
 export function CoreProvider({ children }: { children: ReactNode }) {
   const [core, setCore] = useState<CoreApi | null>(null);
   const [sync, setSync] = useState<SyncApi | null>(null);
@@ -400,6 +418,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   // Reactive invalidation: bumped whenever a sync pull applied changes, so the
   // focused screen (via `useFocusedData` → `useDataVersion`) re-reads in place.
   const [dataVersion, setDataVersion] = useState(0);
+  // The state mirror of the `deviceId` ref below (Inc 1) — set at the same
+  // point, so a screen (the notification settings section, §7) can read this
+  // device's id via `useDeviceId()` without reaching into a ref.
+  const [deviceIdState, setDeviceIdState] = useState<string | null>(null);
   // Bumped by a factory reset to re-run the bootstrap effect after the data +
   // keys have been wiped, so the app re-mints a fresh key over an empty DB in
   // place — the mobile stand-in for desktop's process relaunch.
@@ -526,8 +548,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
       // Mint-or-read this device's stable id (Inc 1) — touches only the OS
       // keychain, so it's safe before custody state is even known, and must
-      // be ready before the first `reconcileNotifications` call below.
+      // be ready before the first `reconcileNotifications` call below. The
+      // state mirror follows in the same tick so `useDeviceId()` and this ref
+      // never disagree.
       deviceId.current = await ensureLocalDeviceId(keyStore);
+      setDeviceIdState(deviceId.current);
 
       // Which store, and in which custody state (@leapsake/store-layout) — settled
       // before anything is opened, because it decides whether a key is even
@@ -1573,18 +1598,20 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     <CoreContext.Provider value={core}>
       <SyncContext.Provider value={sync}>
         <DataVersionContext.Provider value={dataVersion}>
-          <CustodyDegradedContext.Provider value={degraded}>
-            {degraded === null ? (
-              children
-            ) : (
-              <DegradedFrame
-                degraded={degraded}
-                onSignOut={() => sync.signOut()}
-              >
-                {children}
-              </DegradedFrame>
-            )}
-          </CustodyDegradedContext.Provider>
+          <DeviceIdContext.Provider value={deviceIdState}>
+            <CustodyDegradedContext.Provider value={degraded}>
+              {degraded === null ? (
+                children
+              ) : (
+                <DegradedFrame
+                  degraded={degraded}
+                  onSignOut={() => sync.signOut()}
+                >
+                  {children}
+                </DegradedFrame>
+              )}
+            </CustodyDegradedContext.Provider>
+          </DeviceIdContext.Provider>
         </DataVersionContext.Provider>
       </SyncContext.Provider>
     </CoreContext.Provider>

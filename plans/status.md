@@ -7,17 +7,16 @@
 
 ## In flight
 
-**08 Inc 3 — the mobile adapter and UI** (Inc 1 and 2 are done, see
-[`@leapsake/notifications`](../packages/notifications/README.md)). §1 (device id), §2 (the
-`expo-notifications` config plugin), §3 (the scheduler port, with a real `channelId`), §4 (the
-permission flow — `requestNotificationPermissionOnThisDevice`, injected ports, unit-tested; not
-wired anywhere yet since it has no legitimate call site before §7), §5 (boot/foreground
-reconcile), and §6 (the post-write trigger — reuses `@leapsake/sync`'s `withSyncKick` a second
-time) are done — the reconcile is live end to end. **Next: §7**, the settings UI — the last item,
-and the first real call site for both §4 and `setPolicy`. Detail and per-item status in
-[`v0-1_08_local-notifications.md`](./v0-1_08_local-notifications.md) → *Inc 3, scoped*.
+**08 — all code is in** (Inc 1, 2, and 3 — see
+[`@leapsake/notifications`](../packages/notifications/README.md) and
+[`v0-1_08_local-notifications.md`](./v0-1_08_local-notifications.md) → *Inc 3, scoped* for the
+mobile adapter and UI, §1–§7 all done). `NotificationSettingsSection`
+(`apps/mobile/app/settings.tsx`) is a real, per-device mode/delivery-time picker plus a
+cross-device policy list, wired to the permission flow and the boot/foreground/post-write
+reconcile. **Next: the manual on-device smoke check** the plan's *Done when* section calls for —
+nothing here has run on a simulator or a phone yet. That check is what closes 08 and unblocks 04.
 
 ## Next
 
 **08 → 04 → 07**, the launch chain — [`v0-1.md`](./v0-1.md) holds the order and why 08 runs first.
-Finishing 08 Inc 3 unblocks 04. 06 also waits on its *Open decisions*.
+06 also waits on its *Open decisions*.

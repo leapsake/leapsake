@@ -155,13 +155,13 @@ parameter, plus a `reconcile(desired, pending, scheduler)` set-diff. The OS sche
 which is exactly why this is not folded into `@leapsake/reminders`, and what lets desktop share it
 later. Fully unit-testable with no device.
 
-**Inc 3 — the mobile adapter and UI. In progress: §1, §2, §3, §4, §5, §6 done; §7 open.**
+**Inc 3 — the mobile adapter and UI. All seven items (§1–§7) are done.**
 `expo-notifications` plugin and config; the Android channel; the permission flow; the port
 implementation; the reconcile wired to the same boot / foreground / post-write triggers as
-`regenerateSystem`; the settings section listing every device with a policy. Scoped in full below,
-where each numbered item is marked done or open. **Next: §7**, the settings UI — the last item,
-and the first real call site for both §4's permission flow and the mode/delivery-time policy
-`core.notificationSettings.setPolicy` already supports.
+`regenerateSystem`; the settings section listing every device with a policy. Scoped in full below.
+**Not yet done: the manual on-device smoke check** each platform needs (*Scope*, below) — nothing
+here has run on a simulator or a phone. That check, against *Done when* at the bottom of this
+doc, is what's left before this doc and its `v0-1.md` row can go.
 
 ### Inc 3, scoped
 
@@ -247,18 +247,23 @@ now buys nothing.
    responsiveness §4/§7 depend on. Added both names to the regex
    (`packages/sync/src/scheduler.ts:195`) and to `with-sync-kick.test.ts`'s pinned surface.
 
-7. **Settings UI.** `apps/mobile/app/settings.tsx` is titled "Account & sync" and its
-   `RecoveryPhraseSection`/`SignOutSection` are gated on `status.hasAccount` — but notification
-   policy is pre-account by design (§1 above), so the new section renders **unconditionally**,
-   placed after the account/sync block and before the `hasAccount`-gated pair. A three-way mode
-   picker (`off`/`digest`/`each`) via the existing `SelectField` component
-   (`apps/mobile/components/SelectField.tsx`); a delivery-time picker (`SelectField` in
-   30-minute increments, unless that reads badly as a continuous value — try a native time
-   picker instead if so); a read-only list of every *other* device with a policy row
-   (`core.notificationSettings.list()` filtered to exclude this device), each showing
-   `label · mode`. Editing another device's row calls the same `setPolicy(otherDeviceId, patch)`
-   — no separate code path, since the repo methods already take an explicit `deviceId` rather
-   than assuming "this device" (`packages/core/src/index.ts:1329-1353`).
+7. **Settings UI — done.** `NotificationSettingsSection` in `apps/mobile/app/settings.tsx`
+   renders **unconditionally** — placed after the account/sync block and before the
+   `hasAccount`-gated `RecoveryPhraseSection`/`SignOutSection` pair, since notification policy is
+   pre-account by design (§1). A three-way mode picker (`off`/`digest`/`each`) and a delivery-time
+   picker (30-minute increments, `SelectField`'s value type coerced to and from a string — a
+   native time picker wasn't needed) for *this* device, plus one `SelectField` per *other* device
+   with a policy row (`core.notificationSettings.list()` filtered to exclude this device),
+   labelled with that device's `label`/`platform` and driving its `mode`. Editing another
+   device's row calls the exact same `setPolicy(otherDeviceId, patch)` — no separate code path.
+   Loaded via `useFocusedData`, not a one-shot effect, so a peer's edit (including one landing on
+   *this* device's own row from elsewhere) shows up on refocus or the next sync pull. §4's
+   `requestNotificationPermissionOnThisDevice` is wired in here — its first real call site — fired
+   only when the mode picker leaves `off`; on a non-`granted` result the section shows the
+   explanatory text and, when `canAskAgain` is false, the `Linking.openSettings()` pressable,
+   mirroring `import.tsx`'s denied phase. `useDeviceId()` (`core-context.tsx`, a state mirror of
+   the existing `deviceId` ref) and `NotificationMode`/`NotificationSettings` (newly re-exported
+   from `@leapsake/core`) are the two small additions this needed.
 
 **Not in Inc 3:** the desktop applier (out of 08 entirely, see *Scope* below); notification
 privacy levels (deliberately deferred, see *Migration 29* above); a personalized device label

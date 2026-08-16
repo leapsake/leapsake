@@ -152,6 +152,11 @@ export type {
   ParsedContact,
 } from "@leapsake/contact-import";
 
+// The local-notification policy row shape (`plans/v0-1_08_local-notifications.md`,
+// migration 29), re-exported so the settings UI can type what `notificationSettings`
+// reads and writes.
+export type { NotificationMode, NotificationSettings } from "@leapsake/schema";
+
 // The custody Phase 0 bootstrap: the first KeyStore consumer, run between
 // migrations and createCore to make the device's master key available. Plus the
 // Phase-1/2 password unlock door: enable sync (add the password + recovery
