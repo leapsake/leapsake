@@ -17,20 +17,37 @@ export interface MobileNotificationScheduler extends NotificationScheduler {
 }
 
 /**
+ * The one Android channel this app schedules into. Channels are an OS
+ * object, not a manifest entry — `expo-notifications`' config plugin only
+ * exposes a `defaultChannel` *id* for FCM's own default-channel selection,
+ * nothing that actually creates one (confirmed against the installed
+ * package: `withNotificationsAndroid.js` writes that id straight into an FCM
+ * meta-data tag and nothing else). So "declared before it's used" means
+ * created once at the top of this module, awaited by `schedule` below —
+ * not, as `plans/v0-1_08_local-notifications.md` originally assumed, a
+ * manifest declaration ahead of first launch. iOS has no channel concept;
+ * `setNotificationChannelAsync` no-ops there (confirmed against the base,
+ * non-`.android.` implementation), so this runs unconditionally.
+ */
+const CHANNEL_ID = "reminders";
+
+const channelReady: Promise<void> = Notifications.setNotificationChannelAsync(
+  CHANNEL_ID,
+  { name: "Reminders", importance: Notifications.AndroidImportance.DEFAULT },
+).then(() => undefined);
+
+/**
  * The `expo-notifications`-backed implementation (Inc 3 §3,
  * `plans/v0-1_08_local-notifications.md`). `schedule`/`cancel` drive the OS
  * directly, addressing each notification by `DesiredNotification.id` — the
  * same id `@leapsake/notifications`' `reconcile` computed, passed straight
  * through as `NotificationRequestInput.identifier` rather than letting the OS
  * mint its own, so a later `cancel(id)` can find it again.
- *
- * No `channelId` is set on the Android trigger: §2 (the config plugin) hasn't
- * declared a channel yet, so this rides whatever default `expo-notifications`
- * falls back to. Once §2 lands a real channel, thread its id through here.
  */
 export function expoNotificationScheduler(): MobileNotificationScheduler {
   return {
     async schedule(notification: DesiredNotification): Promise<void> {
+      await channelReady;
       await Notifications.scheduleNotificationAsync({
         identifier: notification.id,
         content: {
@@ -44,6 +61,7 @@ export function expoNotificationScheduler(): MobileNotificationScheduler {
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: notification.fireAt,
+          channelId: CHANNEL_ID,
         },
       });
     },

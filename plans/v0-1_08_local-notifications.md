@@ -155,13 +155,11 @@ parameter, plus a `reconcile(desired, pending, scheduler)` set-diff. The OS sche
 which is exactly why this is not folded into `@leapsake/reminders`, and what lets desktop share it
 later. Fully unit-testable with no device.
 
-**Inc 3 — the mobile adapter and UI. In progress: §1, §3, §5, §6 done; §2, §4, §7 open.**
+**Inc 3 — the mobile adapter and UI. In progress: §1, §2, §3, §5, §6 done; §4, §7 open.**
 `expo-notifications` plugin and config; the Android channel; the permission flow; the port
 implementation; the reconcile wired to the same boot / foreground / post-write triggers as
 `regenerateSystem`; the settings section listing every device with a policy. Scoped in full below,
-where each numbered item is marked done or open. **Next: §2**, the config plugin — until it's
-registered, `expo-notifications`' native permissions/manifest entries never make it into a real
-build even though the JS-level adapter (§3) is wired and correct.
+where each numbered item is marked done or open. **Next: §4**, the permission flow.
 
 ### Inc 3, scoped
 
@@ -175,10 +173,21 @@ now buys nothing.
    `secureStoreKeyStore()` is instantiated, into a `deviceId` ref alongside `coreRef`/`scheduler`.
    Its first-ever call site.
 
-2. **Config plugin.** Add an `expo-notifications` entry to `app.json`'s `plugins` array
-   (`apps/mobile/app.json:17-25`), same shape as the existing `expo-contacts` entry —
-   permission-message strings for both platforms. Declare the Android channel in the plugin
-   config too, not at runtime, so it exists before first launch.
+2. **Config plugin — done, but not the shape this doc originally assumed.** Added a bare
+   `"expo-notifications"` entry to `app.json`'s `plugins` array (`apps/mobile/app.json:26`) — no
+   config object, unlike the `expo-contacts` entry it sits next to. Checked against the installed
+   package (`node_modules/expo-notifications/plugin/build/`): its plugin has no
+   permission-message props at all (neither platform requires one — Android's `POST_NOTIFICATIONS`
+   and iOS's request both show system-standard text, not an app-supplied string, unlike
+   `NSContactsUsageDescription`), and its only channel-shaped prop, `defaultChannel`, just writes
+   an id into an FCM meta-data tag — it doesn't create a channel. Channels are an OS object with no
+   manifest-declaration path in Android at all; they only exist once something calls
+   `setNotificationChannelAsync`. So "before first launch" isn't reachable through config the way
+   this item assumed — the achievable version is "before first use," done in
+   `notification-scheduler.ts` instead: a module-level `channelReady` promise created via
+   `setNotificationChannelAsync("reminders", { name: "Reminders", importance: DEFAULT })`, awaited
+   at the top of `schedule()`. `channelId: "reminders"` is now set on every `DATE` trigger (§3's
+   "no channelId set yet" note is resolved).
 
 3. **The port — done.** `expoNotificationScheduler()` (`apps/mobile/lib/notification-scheduler.ts`)
    implements `MobileNotificationScheduler`: `schedule` → `scheduleNotificationAsync` with a `DATE`
@@ -189,8 +198,7 @@ now buys nothing.
    back verbatim rather than decomposing into iOS calendar components the way `CALENDAR` would, so
    `fireAt` round-trips exactly with no reconstruction. Instantiated once (stateless, so lazily at
    ref-creation rather than inside the boot effect) in `core-context.tsx`'s `notificationScheduler`
-   ref. **No `channelId` set yet** — §2 hasn't declared the Android channel, so this rides
-   `expo-notifications`' default; thread the real id through once §2 lands.
+   ref. `channelId: "reminders"` is set on every `DATE` trigger, per §2's `channelReady` promise.
 
 4. **Permission flow.** Mirror `import.tsx`'s pattern (`apps/mobile/app/import.tsx:57-64,
    259-274`) — the only existing precedent in the app: request at the point of opt-in (turning

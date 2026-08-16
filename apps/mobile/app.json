@@ -21,7 +21,8 @@
       [
         "expo-contacts",
         { "contactsPermission": "Leapsake reads your contacts so you can import them as People." }
-      ]
+      ],
+      "expo-notifications"
     ]
   }
 }

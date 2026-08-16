@@ -8,13 +8,14 @@
 ## In flight
 
 **08 Inc 3 — the mobile adapter and UI** (Inc 1 and 2 are done, see
-[`@leapsake/notifications`](../packages/notifications/README.md)). §1 (device id), §3 (the real
-`expo-notifications` scheduler port), §5 (boot/foreground reconcile), and §6 (the post-write
-trigger — reuses `@leapsake/sync`'s `withSyncKick` a second time, no `packages/core` change
-needed) are done — the reconcile is live end to end. **Next: §2**, the `expo-notifications`
-config plugin — until it's registered in `app.json`, the native permission/manifest entries §3
-depends on never make it into a real build. Then §4 (permission flow), §7 (settings UI). Detail
-and per-item status in
+[`@leapsake/notifications`](../packages/notifications/README.md)). §1 (device id), §2 (the
+`expo-notifications` config plugin — no permission-message props exist for this plugin; the
+Android channel turned out to need a runtime call, not a manifest entry, see the plan doc), §3
+(the real `expo-notifications` scheduler port, now with a real `channelId`), §5
+(boot/foreground reconcile), and §6 (the post-write trigger — reuses `@leapsake/sync`'s
+`withSyncKick` a second time, no `packages/core` change needed) are done — the reconcile is live
+end to end. **Next: §4**, the permission flow — mirror `import.tsx`'s request-at-opt-in pattern.
+Then §7 (settings UI). Detail and per-item status in
 [`v0-1_08_local-notifications.md`](./v0-1_08_local-notifications.md) → *Inc 3, scoped*.
 
 ## Next
