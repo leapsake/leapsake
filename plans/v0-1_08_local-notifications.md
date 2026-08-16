@@ -159,9 +159,22 @@ later. Fully unit-testable with no device.
 `expo-notifications` plugin and config; the Android channel; the permission flow; the port
 implementation; the reconcile wired to the same boot / foreground / post-write triggers as
 `regenerateSystem`; the settings section listing every device with a policy. Scoped in full below.
-**Not yet done: the manual on-device smoke check** each platform needs (*Scope*, below) — nothing
-here has run on a simulator or a phone. That check, against *Done when* at the bottom of this
-doc, is what's left before this doc and its `v0-1.md` row can go.
+
+**iOS simulator smoke check — done, partially.** `pnpm exec expo prebuild --platform ios` +
+`pod install` pulled `ExpoNotifications` into the native project (it hadn't been since app.json's
+plugin entry postdated the last prebuild); a fresh dev-client build + Maestro confirmed, against a
+real device: the mode picker leaving `off` fires the real iOS "Would Like to Send You
+Notifications" dialog exactly once, `Allow` persists `permission_state: "granted"` and the chosen
+`mode` to `notification_settings` (read straight from the simulator's SQLite file, not just the
+UI), the delivery-time picker appears once mode ≠ `off` with the correct default (9:00 AM), and a
+second device's row — inserted directly as a stand-in for a real second device, since driving two
+booted simulators through a full sync join was out of scope for a smoke check — shows up under
+*Other devices* and its mode is editable via the exact same `setPolicy` call, verified to land on
+that device's row and leave this device's row untouched. **Not checked:** an actual delivered
+notification (no reminder was due "today" in the seeded data to produce one), `each` mode's
+one-per-reminder delivery, and completion/snooze silencing a pending one — the rest of *Done
+when*, below. Android untried. Maestro CLI is now installed on this machine
+(`~/.maestro/bin`), one-time setup per its own README.
 
 ### Inc 3, scoped
 
