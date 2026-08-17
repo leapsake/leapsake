@@ -78,6 +78,12 @@ export const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.text,
   },
+  // An empty list's message over the offers that fill it (see `EmptyState`).
+  // Padded off the top of the list so it doesn't sit flush under the header.
+  emptyState: {
+    paddingTop: 8,
+    gap: 12,
+  },
   // A detail-screen section: a header (title + "Add" action) over a list.
   section: {
     gap: 8,

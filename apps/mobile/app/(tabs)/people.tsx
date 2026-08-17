@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import type { CoreApi, EntityRow } from "@leapsake/core";
+import { EmptyState } from "../../components/EmptyState";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
@@ -72,7 +73,18 @@ export default function PeoplePetsScreen() {
             ) : null
           }
           ListEmptyComponent={
-            <Text style={styles.muted}>Nobody here yet.</Text>
+            // Both ways in, not just the one the header offers: typing someone
+            // in, and lifting the address book that's already on the phone.
+            // Import is the bigger win on a first run and has no header action
+            // of its own here (it's a link at the foot of the Add form), so an
+            // empty list is the one place it gets top billing.
+            <EmptyState
+              message="Nobody here yet."
+              actions={[
+                { href: "/add", label: "+ Add a person or pet" },
+                { href: "/import", label: "Import from your contacts" },
+              ]}
+            />
           }
           renderItem={({ item }) => (
             <EntityListRow

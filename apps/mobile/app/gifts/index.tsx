@@ -8,6 +8,7 @@ import {
   tagLabel,
 } from "@leapsake/schema";
 import { sortIdeasGivenLast } from "@leapsake/view-models";
+import { EmptyState } from "../../components/EmptyState";
 import { GiftLink } from "../../components/GiftsSection";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
@@ -62,7 +63,12 @@ export default function GiftsScreen() {
           contentContainerStyle={styles.screen}
           data={ordered}
           keyExtractor={(row) => row.idea.id}
-          ListEmptyComponent={<Text style={styles.muted}>No gifts yet.</Text>}
+          ListEmptyComponent={
+            <EmptyState
+              message="No gifts yet."
+              actions={[{ href: "/gifts/new", label: "+ Add a gift idea" }]}
+            />
+          }
           renderItem={({ item: { idea, tags, suggestions, gifts } }) => (
             <View style={styles.row}>
               <Link href={`/gifts/${idea.id}/edit`}>

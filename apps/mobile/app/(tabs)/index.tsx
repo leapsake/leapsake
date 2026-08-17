@@ -15,6 +15,7 @@ import {
 } from "@leapsake/schema";
 import { partitionReminders } from "@leapsake/view-models";
 import { Checkbox } from "../../components/Checkbox";
+import { EmptyState } from "../../components/EmptyState";
 import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
 import { stickyOrder } from "../../lib/sticky-order";
@@ -87,7 +88,12 @@ export default function RemindersScreen() {
       <FlatList
         data={ordered}
         keyExtractor={(r) => r.id}
-        ListEmptyComponent={<Text style={styles.muted}>No reminders yet.</Text>}
+        ListEmptyComponent={
+          <EmptyState
+            message="No reminders yet."
+            actions={[{ href: "/reminders/new", label: "+ Add a reminder" }]}
+          />
+        }
         renderItem={({ item }) => (
           <ReminderRow reminder={item} pin={pin} reload={reload} />
         )}
