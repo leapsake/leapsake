@@ -3,8 +3,8 @@ import { ScrollView, Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
 import { type CreatePetInput, type Gender, type Pet } from "@leapsake/schema";
 import { GenderField } from "./GenderField";
-import { ChipTextField } from "./ChipTextField";
 import { HeaderSave } from "./HeaderSave";
+import { TagsInput } from "./TagsInput";
 import { styles } from "../lib/styles";
 
 /**
@@ -65,17 +65,6 @@ export function PetFields({
         value={draft.gender}
         onChange={(value) => set("gender", value)}
       />
-
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Tags</Text>
-        <ChipTextField
-          grammar="tags"
-          style={styles.input}
-          value={draft.tags}
-          onChangeText={(value) => set("tags", value)}
-        />
-        <Text style={styles.muted}>Space-separated — each word is a tag.</Text>
-      </View>
     </>
   );
 }
@@ -134,6 +123,10 @@ export function PetForm({
         keyboardShouldPersistTaps="handled"
       >
         <PetFields draft={draft} onChange={setDraft} />
+        <TagsInput
+          value={draft.tags}
+          onChange={(value) => setDraft({ ...draft, tags: value })}
+        />
       </ScrollView>
     </>
   );

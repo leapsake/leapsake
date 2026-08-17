@@ -24,6 +24,7 @@ import {
 import { StagedContactsSection } from "../components/StagedContactsSection";
 import { StagedHolidaysSection } from "../components/StagedHolidaysSection";
 import { StagedMilestonesSection } from "../components/StagedMilestonesSection";
+import { TagsInput } from "../components/TagsInput";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -169,6 +170,18 @@ function AddEntityForm({
         )}
 
         <StagedHolidaysSection entries={holidays} onChange={setHolidays} />
+
+        {/* Last, below the staged sections rather than up with the name and
+            gender: what to tag someone with is a decision you make once the rest
+            of the record is in front of you. */}
+        <TagsInput
+          value={isPerson ? personDraft.tags : petDraft.tags}
+          onChange={(tags) =>
+            isPerson
+              ? setPersonDraft({ ...personDraft, tags })
+              : setPetDraft({ ...petDraft, tags })
+          }
+        />
 
         <Text style={styles.muted}>
           Relationships and gifts can be added from {isPerson ? "their" : "its"}{" "}

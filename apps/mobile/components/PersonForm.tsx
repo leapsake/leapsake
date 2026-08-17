@@ -7,8 +7,8 @@ import {
   type Person,
 } from "@leapsake/schema";
 import { GenderField } from "./GenderField";
-import { ChipTextField } from "./ChipTextField";
 import { HeaderSave } from "./HeaderSave";
+import { TagsInput } from "./TagsInput";
 import { styles } from "../lib/styles";
 
 /**
@@ -67,6 +67,9 @@ export function personDraftToInput(draft: PersonDraft): CreatePersonInput {
  * The person fields alone, controlled by whoever owns the draft. Split out of
  * {@link PersonForm} so the create screen can show them under its Person/Pet
  * toggle without also inheriting a second scroll view and a second Save.
+ *
+ * Tags are *not* here — they're {@link TagsInput}, rendered separately so the
+ * add screen can keep them last, below its staged sections.
  */
 export function PersonFields({
   draft,
@@ -114,17 +117,6 @@ export function PersonFields({
         value={draft.gender}
         onChange={(value) => set("gender", value)}
       />
-
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Tags</Text>
-        <ChipTextField
-          grammar="tags"
-          style={styles.input}
-          value={draft.tags}
-          onChangeText={(value) => set("tags", value)}
-        />
-        <Text style={styles.muted}>Space-separated — each word is a tag.</Text>
-      </View>
     </>
   );
 }
@@ -192,6 +184,10 @@ export function PersonForm({
         keyboardShouldPersistTaps="handled"
       >
         <PersonFields draft={draft} onChange={setDraft} />
+        <TagsInput
+          value={draft.tags}
+          onChange={(value) => setDraft({ ...draft, tags: value })}
+        />
       </ScrollView>
     </>
   );
