@@ -298,6 +298,7 @@ export default function ImportScreen() {
                 Choose which contacts to add as People. Nothing is imported
                 until you tap Import.
               </Text>
+              <Text style={styles.fieldLabel}>Search</Text>
               <View style={local.searchRow}>
                 <Checkbox
                   accessibilityLabel={
@@ -322,8 +323,7 @@ export default function ImportScreen() {
                   onChangeText={setSearch}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  placeholder="Search contacts…"
-                  placeholderTextColor={colors.muted}
+                  accessibilityLabel="Search contacts"
                 />
               </View>
             </View>
@@ -421,22 +421,24 @@ function ContactRow({
             Add a first and last name to import:
           </Text>
           <View style={local.nameFields}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              value={contact.name.firstName}
-              onChangeText={(v) => onName("firstName", v)}
-              autoCapitalize="words"
-              placeholder="First name"
-              placeholderTextColor={colors.muted}
-            />
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              value={contact.name.lastName}
-              onChangeText={(v) => onName("lastName", v)}
-              autoCapitalize="words"
-              placeholder="Last name"
-              placeholderTextColor={colors.muted}
-            />
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={styles.fieldLabel}>First name</Text>
+              <TextInput
+                style={styles.input}
+                value={contact.name.firstName}
+                onChangeText={(v) => onName("firstName", v)}
+                autoCapitalize="words"
+              />
+            </View>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={styles.fieldLabel}>Last name</Text>
+              <TextInput
+                style={styles.input}
+                value={contact.name.lastName}
+                onChangeText={(v) => onName("lastName", v)}
+                autoCapitalize="words"
+              />
+            </View>
           </View>
         </View>
       )}

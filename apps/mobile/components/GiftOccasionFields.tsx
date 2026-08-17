@@ -10,7 +10,7 @@ import {
 } from "@leapsake/ui/headless";
 import { SelectField } from "./SelectField";
 import { useCore } from "../lib/core-context";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
 
 /**
  * The occasion + partial-date pair, ported from the desktop `GiftOccasionFields`.
@@ -87,46 +87,49 @@ export function GiftOccasionFields({
         onChange={(value) => onOccasionChange(occasionOfKey(value))}
       />
 
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <TextInput
-          style={[styles.input, { flex: 1 }]}
-          value={date.year}
-          onChangeText={(value) => onDateChange({ ...date, year: value })}
-          keyboardType="number-pad"
-          placeholder="Year"
-          placeholderTextColor={colors.muted}
-          accessibilityLabel="Year"
-        />
-        <TextInput
-          style={[styles.input, { flex: 1 }]}
-          value={date.month}
-          onChangeText={(value) =>
-            onDateChange({
-              ...date,
-              month: value,
-              // A day is only meaningful alongside a month.
-              ...(value === "" ? { day: "" } : {}),
-            })
-          }
-          keyboardType="number-pad"
-          placeholder="Month"
-          placeholderTextColor={colors.muted}
-          accessibilityLabel="Month"
-        />
-        <TextInput
-          style={[
-            styles.input,
-            { flex: 1 },
-            date.month.trim() === "" && { opacity: 0.5 },
-          ]}
-          value={date.day}
-          onChangeText={(value) => onDateChange({ ...date, day: value })}
-          editable={date.month.trim() !== ""}
-          keyboardType="number-pad"
-          placeholder="Day"
-          placeholderTextColor={colors.muted}
-          accessibilityLabel="Day"
-        />
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+        <View style={[styles.field, { flex: 1 }]}>
+          <Text style={styles.fieldLabel}>Year</Text>
+          <TextInput
+            style={styles.input}
+            value={date.year}
+            onChangeText={(value) => onDateChange({ ...date, year: value })}
+            keyboardType="number-pad"
+          />
+        </View>
+        <View style={[styles.field, { flex: 1 }]}>
+          <Text style={styles.fieldLabel}>Month</Text>
+          <TextInput
+            style={styles.input}
+            value={date.month}
+            onChangeText={(value) =>
+              onDateChange({
+                ...date,
+                month: value,
+                // A day is only meaningful alongside a month.
+                ...(value === "" ? { day: "" } : {}),
+              })
+            }
+            keyboardType="number-pad"
+          />
+        </View>
+        <View style={[styles.field, { flex: 1 }]}>
+          <Text
+            style={[
+              styles.fieldLabel,
+              date.month.trim() === "" && { opacity: 0.5 },
+            ]}
+          >
+            Day
+          </Text>
+          <TextInput
+            style={[styles.input, date.month.trim() === "" && { opacity: 0.5 }]}
+            value={date.day}
+            onChangeText={(value) => onDateChange({ ...date, day: value })}
+            editable={date.month.trim() !== ""}
+            keyboardType="number-pad"
+          />
+        </View>
       </View>
 
       {fills.map((iso) => {

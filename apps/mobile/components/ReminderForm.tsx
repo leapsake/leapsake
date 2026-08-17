@@ -89,12 +89,7 @@ export function ReminderForm({
       >
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Title</Text>
-          <ChipTextField
-            style={styles.input}
-            value={title}
-            onChangeText={setTitle}
-            placeholder="Call mom"
-          />
+          <ChipTextField style={styles.input} value={title} onChangeText={setTitle} />
         </View>
 
         <View style={styles.field}>
@@ -104,12 +99,14 @@ export function ReminderForm({
             value={body}
             onChangeText={setBody}
             multiline
-            placeholder="Type @ to mention someone; add #tags inline"
           />
+          <Text style={styles.muted}>
+            Type @ to mention someone; add #tags inline.
+          </Text>
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Due date</Text>
+          <Text style={styles.fieldLabel}>Due date (YYYY-MM-DD)</Text>
           <TextInput
             style={[styles.input, !dueValid && { borderColor: colors.danger }]}
             value={due}
@@ -117,8 +114,6 @@ export function ReminderForm({
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="numbers-and-punctuation"
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={colors.muted}
           />
           {!dueValid ? (
             <Text style={styles.muted}>

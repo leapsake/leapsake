@@ -68,18 +68,19 @@ export function StagedHolidaysSection({
 
       {adding && (
         <View style={styles.inlineForm}>
-          <Typeahead
-            multi
-            label="Add a holiday"
-            value={null}
-            options={addable}
-            onChange={(h) => h !== null && onChange([...entries, h])}
-            getKey={(h) => h.id}
-            getLabel={(h) => h.name}
-            placeholder={
-              catalog === null ? "Loading holidays…" : "Search holidays…"
-            }
-          />
+          {catalog === null ? (
+            <Text style={styles.muted}>Loading holidays…</Text>
+          ) : (
+            <Typeahead
+              multi
+              label="Add a holiday"
+              value={null}
+              options={addable}
+              onChange={(h) => h !== null && onChange([...entries, h])}
+              getKey={(h) => h.id}
+              getLabel={(h) => h.name}
+            />
+          )}
           <Pressable
             accessibilityRole="button"
             onPress={() => setAdding(false)}

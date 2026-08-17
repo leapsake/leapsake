@@ -1848,27 +1848,31 @@ function RecoveryGate({
           : "Enter your recovery phrase to unlock it."}
       </Text>
       {door === "password" ? (
-        <TextInput
-          value={secret}
-          onChangeText={setSecret}
-          editable={!submitting}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          placeholder="Your password"
-          style={styles.gateInput}
-        />
+        <>
+          <Text style={styles.gateFieldLabel}>Password</Text>
+          <TextInput
+            value={secret}
+            onChangeText={setSecret}
+            editable={!submitting}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.gateInput}
+          />
+        </>
       ) : (
-        <TextInput
-          value={secret}
-          onChangeText={setSecret}
-          editable={!submitting}
-          multiline
-          autoCapitalize="none"
-          autoCorrect={false}
-          placeholder="Enter your 24-word recovery phrase…"
-          style={styles.gateInput}
-        />
+        <>
+          <Text style={styles.gateFieldLabel}>Recovery phrase</Text>
+          <TextInput
+            value={secret}
+            onChangeText={setSecret}
+            editable={!submitting}
+            multiline
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.gateInput}
+          />
+        </>
       )}
       {error !== undefined && <Text style={styles.error}>{error}</Text>}
       <Pressable
@@ -1920,6 +1924,10 @@ const styles = StyleSheet.create({
   gateBody: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  gateFieldLabel: {
+    fontSize: 13,
+    color: "#6b6b6b",
   },
   gateInput: {
     borderWidth: 1,

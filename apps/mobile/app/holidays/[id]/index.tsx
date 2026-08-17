@@ -174,7 +174,6 @@ export default function HolidayDetailScreen() {
                 {c.bearerType === "pet" ? " (pet)" : ""}
               </Text>
             )}
-            placeholder="Search people and pets…"
           />
         )}
         {observers.length === 0 ? (

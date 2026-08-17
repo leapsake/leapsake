@@ -98,8 +98,6 @@ export default function SearchScreen() {
         style={styles.input}
         value={term}
         onChangeText={setTerm}
-        placeholder="Search people, pets, tags, holidays, and gift ideas"
-        placeholderTextColor={colors.muted}
         autoCorrect={false}
         autoCapitalize="none"
         clearButtonMode="while-editing"
@@ -116,7 +114,12 @@ export default function SearchScreen() {
       */}
       {term.trim() === "" ? (
         <View>
-          <Text style={[styles.fieldLabel, { marginBottom: 4 }]}>Browse</Text>
+          <Text style={styles.muted}>
+            Search people, pets, tags, holidays, and gift ideas.
+          </Text>
+          <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 4 }]}>
+            Browse
+          </Text>
           <CatalogLinks />
         </View>
       ) : (

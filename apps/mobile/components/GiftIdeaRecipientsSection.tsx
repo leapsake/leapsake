@@ -90,7 +90,6 @@ export function GiftIdeaRecipientsSection({
         onChange={(candidate) => candidate !== null && suggestFor(candidate)}
         getKey={(c) => `${c.type}:${c.id}`}
         getLabel={(c) => c.label}
-        placeholder="Suggest for someone…"
       />
 
       {suggestions.length === 0 ? (

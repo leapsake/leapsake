@@ -9,7 +9,7 @@ import {
 import { GenderField } from "./GenderField";
 import { ChipTextField } from "./ChipTextField";
 import { HeaderSave } from "./HeaderSave";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
 
 /**
  * A person's fields as the UI holds them: every value a string or a nullable
@@ -87,20 +87,16 @@ export function PersonFields({
           value={draft.firstName}
           onChangeText={(value) => set("firstName", value)}
           autoCapitalize="words"
-          placeholder="First name"
-          placeholderTextColor={colors.muted}
         />
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Middle name</Text>
+        <Text style={styles.fieldLabel}>Middle name (optional)</Text>
         <TextInput
           style={styles.input}
           value={draft.middleName}
           onChangeText={(value) => set("middleName", value)}
           autoCapitalize="words"
-          placeholder="Middle name (optional)"
-          placeholderTextColor={colors.muted}
         />
       </View>
 
@@ -111,8 +107,6 @@ export function PersonFields({
           value={draft.lastName}
           onChangeText={(value) => set("lastName", value)}
           autoCapitalize="words"
-          placeholder="Last name"
-          placeholderTextColor={colors.muted}
         />
       </View>
 
@@ -128,8 +122,8 @@ export function PersonFields({
           style={styles.input}
           value={draft.tags}
           onChangeText={(value) => set("tags", value)}
-          placeholder="#Friend #Colleague"
         />
+        <Text style={styles.muted}>Space-separated — each word is a tag.</Text>
       </View>
     </>
   );

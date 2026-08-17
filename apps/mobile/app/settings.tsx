@@ -1548,8 +1548,6 @@ function RecoveryPhraseSection({
             secureTextEntry
             autoCapitalize="none"
             autoComplete="current-password"
-            placeholder="Your password"
-            placeholderTextColor={colors.muted}
           />
           <Text style={styles.muted}>
             Other devices on this account keep using the old phrase for their

@@ -4,7 +4,7 @@ import { Stack } from "expo-router";
 import type { GiftIdea } from "@leapsake/schema";
 import { ChipTextField } from "./ChipTextField";
 import { HeaderSave } from "./HeaderSave";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
 
 /** The structured value the form hands back; the screen owns the core call. */
 export interface GiftIdeaFormValue {
@@ -85,13 +85,7 @@ export function GiftIdeaForm({
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Title</Text>
-        <TextInput
-          style={styles.input}
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Red Ryder BB Gun"
-          placeholderTextColor={colors.muted}
-        />
+        <TextInput style={styles.input} value={title} onChangeText={setTitle} />
       </View>
 
       <View style={styles.field}>
@@ -103,8 +97,6 @@ export function GiftIdeaForm({
           keyboardType="url"
           autoCapitalize="none"
           autoCorrect={false}
-          placeholder="https://…"
-          placeholderTextColor={colors.muted}
         />
       </View>
 
@@ -115,8 +107,6 @@ export function GiftIdeaForm({
           value={notes}
           onChangeText={setNotes}
           multiline
-          placeholder="the 200-shot model; she mentioned it in June"
-          placeholderTextColor={colors.muted}
         />
       </View>
 
@@ -127,8 +117,8 @@ export function GiftIdeaForm({
           style={styles.input}
           value={tags}
           onChangeText={setTags}
-          placeholder="#books #kitchen"
         />
+        <Text style={styles.muted}>Space-separated — each word is a tag.</Text>
       </View>
     </View>
   );

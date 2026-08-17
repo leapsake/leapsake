@@ -5,7 +5,7 @@ import { type CreatePetInput, type Gender, type Pet } from "@leapsake/schema";
 import { GenderField } from "./GenderField";
 import { ChipTextField } from "./ChipTextField";
 import { HeaderSave } from "./HeaderSave";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
 
 /**
  * A pet's fields as the UI holds them — the pet half of the pair described on
@@ -58,8 +58,6 @@ export function PetFields({
           value={draft.name}
           onChangeText={(value) => set("name", value)}
           autoCapitalize="words"
-          placeholder="Name"
-          placeholderTextColor={colors.muted}
         />
       </View>
 
@@ -75,8 +73,8 @@ export function PetFields({
           style={styles.input}
           value={draft.tags}
           onChangeText={(value) => set("tags", value)}
-          placeholder="#Friend #Neighbor"
         />
+        <Text style={styles.muted}>Space-separated — each word is a tag.</Text>
       </View>
     </>
   );

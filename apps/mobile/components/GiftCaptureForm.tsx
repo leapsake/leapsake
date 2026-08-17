@@ -23,7 +23,7 @@ import { GiftOccasionFields } from "./GiftOccasionFields";
 import { HeaderSave } from "./HeaderSave";
 import { useGiftPartyLoaders } from "../lib/gifts-ports";
 import { useCore } from "../lib/core-context";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
 import { Typeahead } from "./Typeahead";
 
 /** Shortest query the idea suggestions act on — the Typeahead's floor, so the
@@ -300,13 +300,7 @@ export function GiftCaptureForm({
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Gift</Text>
-        <TextInput
-          style={styles.input}
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Red Ryder BB Gun"
-          placeholderTextColor={colors.muted}
-        />
+        <TextInput style={styles.input} value={title} onChangeText={setTitle} />
         {suggestions.map((idea) => (
           <Pressable
             key={idea.id}
@@ -320,7 +314,7 @@ export function GiftCaptureForm({
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Link</Text>
+        <Text style={styles.fieldLabel}>Link (optional)</Text>
         <TextInput
           style={styles.input}
           value={url}
@@ -328,8 +322,6 @@ export function GiftCaptureForm({
           keyboardType="url"
           autoCapitalize="none"
           autoCorrect={false}
-          placeholder="https://… (optional)"
-          placeholderTextColor={colors.muted}
         />
       </View>
 
@@ -369,7 +361,6 @@ export function GiftCaptureForm({
             }
             getKey={partyKey}
             getLabel={(c) => c.label}
-            placeholder="Search people and pets…"
           />
           {recipients.map((r) => {
             const key = partyKey(r.option);

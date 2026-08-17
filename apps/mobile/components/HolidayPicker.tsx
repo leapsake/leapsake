@@ -13,7 +13,7 @@ import { formatOccurrence } from "@leapsake/schema";
 import { splitBearerHolidays } from "@leapsake/view-models";
 import { useCore } from "../lib/core-context";
 import { useFocusedData } from "../lib/useFocusedData";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
 
 /**
  * Pick holidays for one person or pet — the screen behind the Holidays section's
@@ -95,8 +95,6 @@ export function HolidayPicker({
           value={query}
           onChangeText={setQuery}
           autoCorrect={false}
-          placeholder="Filter holidays…"
-          placeholderTextColor={colors.muted}
         />
       </View>
 

@@ -19,7 +19,7 @@ import {
 } from "@leapsake/schema";
 import { CountryField } from "./CountryField";
 import { HeaderSave } from "./HeaderSave";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
 
 /**
  * The structured value the form hands back, discriminated by kind; the screen
@@ -196,13 +196,7 @@ export function ContactMethodForm({
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Label</Text>
-        <TextInput
-          style={styles.input}
-          value={label}
-          onChangeText={setLabel}
-          placeholder="e.g. Home"
-          placeholderTextColor={colors.muted}
-        />
+        <TextInput style={styles.input} value={label} onChangeText={setLabel} />
         <View style={styles.headerActions}>
           {labelSuggestions.map((suggestion) => (
             <Pressable
@@ -226,8 +220,6 @@ export function ContactMethodForm({
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
-            placeholder="name@example.com"
-            placeholderTextColor={colors.muted}
           />
         </View>
       ) : null}
@@ -241,19 +233,15 @@ export function ContactMethodForm({
               value={number}
               onChangeText={setNumber}
               keyboardType="phone-pad"
-              placeholder="+1 555 123 4567"
-              placeholderTextColor={colors.muted}
             />
           </View>
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Extension</Text>
+            <Text style={styles.fieldLabel}>Extension (optional)</Text>
             <TextInput
               style={styles.input}
               value={extension}
               onChangeText={setExtension}
               keyboardType="number-pad"
-              placeholder="optional"
-              placeholderTextColor={colors.muted}
             />
           </View>
           <CountryField value={country} onChange={setCountry} />
@@ -276,24 +264,16 @@ export function ContactMethodForm({
       {kind === "postal" ? (
         <>
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Address line 1</Text>
-            <TextInput
-              style={styles.input}
-              value={line1}
-              onChangeText={setLine1}
-              placeholder="Street or PO box"
-              placeholderTextColor={colors.muted}
-            />
+            <Text style={styles.fieldLabel}>
+              Address line 1 (street or PO box)
+            </Text>
+            <TextInput style={styles.input} value={line1} onChangeText={setLine1} />
           </View>
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Address line 2</Text>
-            <TextInput
-              style={styles.input}
-              value={line2}
-              onChangeText={setLine2}
-              placeholder="Apt / unit / suite"
-              placeholderTextColor={colors.muted}
-            />
+            <Text style={styles.fieldLabel}>
+              Address line 2 (apt, unit, suite)
+            </Text>
+            <TextInput style={styles.input} value={line2} onChangeText={setLine2} />
           </View>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>City / town</Text>
@@ -301,17 +281,11 @@ export function ContactMethodForm({
               style={styles.input}
               value={locality}
               onChangeText={setLocality}
-              placeholderTextColor={colors.muted}
             />
           </View>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>State / province / county</Text>
-            <TextInput
-              style={styles.input}
-              value={region}
-              onChangeText={setRegion}
-              placeholderTextColor={colors.muted}
-            />
+            <TextInput style={styles.input} value={region} onChangeText={setRegion} />
           </View>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Postal code</Text>
@@ -319,7 +293,6 @@ export function ContactMethodForm({
               style={styles.input}
               value={postalCode}
               onChangeText={setPostalCode}
-              placeholderTextColor={colors.muted}
             />
           </View>
           <CountryField value={country} onChange={setCountry} />

@@ -6,7 +6,7 @@ import {
   reminderActionSchema,
 } from "@leapsake/schema";
 import { SelectField } from "./SelectField";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
 
 /** The action options in registry order, with their icon + label, for the picker. */
 const ACTION_OPTIONS: { value: ReminderAction; label: string }[] =
@@ -79,13 +79,14 @@ export function ReminderScheduleFields({
             }
           />
           {rule.action === "other" ? (
-            <TextInput
-              style={styles.input}
-              value={rule.label ?? ""}
-              onChangeText={(text) => update(i, { label: text })}
-              placeholder="e.g. Send flowers"
-              placeholderTextColor={colors.muted}
-            />
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Custom action (e.g. Send flowers)</Text>
+              <TextInput
+                style={styles.input}
+                value={rule.label ?? ""}
+                onChangeText={(text) => update(i, { label: text })}
+              />
+            </View>
           ) : null}
           <Text style={styles.fieldLabel}>Days before</Text>
           <TextInput

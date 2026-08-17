@@ -14,7 +14,7 @@ import { HeaderSave } from "./HeaderSave";
 import { SelectField } from "./SelectField";
 import { ReminderScheduleFields } from "./ReminderScheduleFields";
 import { useCore } from "../lib/core-context";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
 
 /** The structured value the form hands back; the screen supplies bearer + call. */
 export interface MilestoneFormValue {
@@ -221,8 +221,6 @@ export function MilestoneForm({
           onChangeText={setDay}
           editable={month !== ""}
           keyboardType="number-pad"
-          placeholder="—"
-          placeholderTextColor={colors.muted}
         />
       </View>
 
@@ -233,20 +231,14 @@ export function MilestoneForm({
           value={year}
           onChangeText={setYear}
           keyboardType="number-pad"
-          placeholder="—"
-          placeholderTextColor={colors.muted}
         />
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>{noteRequired ? "Label" : "Note"}</Text>
-        <TextInput
-          style={styles.input}
-          value={note}
-          onChangeText={setNote}
-          placeholder={noteRequired ? "e.g. Adoption day" : "optional"}
-          placeholderTextColor={colors.muted}
-        />
+        <Text style={styles.fieldLabel}>
+          {noteRequired ? "Label (e.g. Adoption day)" : "Note (optional)"}
+        </Text>
+        <TextInput style={styles.input} value={note} onChangeText={setNote} />
       </View>
 
       {dayWithoutMonth ? (

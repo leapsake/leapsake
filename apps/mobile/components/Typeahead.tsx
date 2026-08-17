@@ -51,7 +51,9 @@ export function Typeahead<T>({
   getLabel: (option: T) => string;
   renderOption?: (option: T) => ReactNode;
   renderValue?: (option: T) => ReactNode;
-  placeholder: string;
+  /** Rarely needed — the field's own label is already visible above it. Only
+   *  worth setting when the input carries information the label doesn't. */
+  placeholder?: string;
   clearable?: boolean;
   minChars?: number;
   /** Stay open after each pick and never show a chosen-value row. */

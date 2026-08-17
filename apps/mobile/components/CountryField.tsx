@@ -49,7 +49,6 @@ export function CountryField({
           {countryFlag(c.code)} {c.name}
         </Text>
       )}
-      placeholder="Start typing a country"
       clearable
     />
   );

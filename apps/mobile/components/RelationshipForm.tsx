@@ -9,7 +9,7 @@ import {
 } from "@leapsake/schema";
 import { HeaderSave } from "./HeaderSave";
 import { Typeahead } from "./Typeahead";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
 
 /** A role option as the shared {@link Typeahead} carries it. */
 type RoleOption = { role: RelationshipRole; label: string };
@@ -145,7 +145,6 @@ export function RelationshipForm({
             }}
             getKey={(c) => `${c.type}:${c.id}`}
             getLabel={(c) => c.label}
-            placeholder="Start typing a name"
           />
         )}
 
@@ -159,20 +158,13 @@ export function RelationshipForm({
             onChange={(option) => setRole(option?.role ?? null)}
             getKey={(r) => r.role}
             getLabel={(r) => r.label}
-            placeholder="Start typing a role"
           />
         ) : null}
 
         {noteRequired ? (
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Note</Text>
-            <TextInput
-              style={styles.input}
-              value={note}
-              onChangeText={setNote}
-              placeholder="e.g. landlord"
-              placeholderTextColor={colors.muted}
-            />
+            <Text style={styles.fieldLabel}>Note (e.g. landlord)</Text>
+            <TextInput style={styles.input} value={note} onChangeText={setNote} />
           </View>
         ) : null}
       </ScrollView>
