@@ -8,9 +8,9 @@ import { colors, styles } from "../lib/styles";
  * wears it) that no per-person screen reconstructs. They sit on the root stack,
  * so opening one pushes full-screen over the tab bar.
  *
- * This is the single source for the list because it is rendered in **two**
- * places — the Menu tab and the Search screen's empty state — and two hand-kept
- * copies would drift the first time a third catalog appears.
+ * This is the single source for the list because Search's empty state is where
+ * it's rendered, and keeping it its own module (rather than inline in that
+ * screen) is what let it also live on the Menu tab until that row moved here.
  */
 export const CATALOGS = [
   { href: "/holidays", glyph: "🎉", label: "Holidays" },
@@ -19,8 +19,8 @@ export const CATALOGS = [
 ] as const;
 
 /**
- * The catalogs as a list of rows. Deliberately headingless — each caller frames
- * it for itself (the Menu tab's own title is enough; Search labels it "Browse").
+ * The catalogs as a list of rows. Deliberately headingless — the caller frames
+ * it for itself (Search labels it "Browse").
  */
 export function CatalogLinks() {
   return (

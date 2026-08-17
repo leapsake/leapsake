@@ -41,7 +41,7 @@ const FAILURE_TITLES = {
  * a title bar repeating them says the same sentence twice. That leaves the bar
  * with the back button alone, and a native stack labels one from the *previous*
  * screen's title — which this screen can't read. So whoever pushes it names
- * itself in `?from=`: "Reminders" from the home tab, the tag from a tag page, the
+ * itself in `?from=`: "Leapsake" from the home tab, the tag from a tag page, the
  * person or pet from their "Mentioned in" list.
  *
  * "Back" is the fallback, for a deep link or a notification tap that arrived with

@@ -34,18 +34,19 @@ function passwordHint(password: string): string {
 
 /**
  * Account & sync setup (custody Phase 1/2) — the mobile mirror of desktop's
- * Settings screen. Deliberately a *stateful* screen, not a router loader: the
- * recovery key is shown exactly once and must not survive a navigation or a
- * re-run, so it lives in local state and is dropped the moment the user confirms
- * they've saved it.
+ * Settings screen, titled "Account" here since the Settings tab is this
+ * client's own overflow menu, not this screen. Deliberately a *stateful*
+ * screen, not a router loader: the recovery key is shown exactly once and must
+ * not survive a navigation or a re-run, so it lives in local state and is
+ * dropped the moment the user confirms they've saved it.
  *
  * Device-to-device sync is real now: a first
  * device sets a password + username and registers with a relay; a second device
  * logs in to the same account; "Sync now" pushes/pulls the encrypted records.
  *
- * A root-stack screen reached from the Menu tab (and from Home's "Get started"
- * onboarding nudge, which deep-links straight here). It sets its own header
- * title, which the tab navigator used to.
+ * A root-stack screen reached from the Settings tab (and from Home's "Get
+ * started" onboarding nudge, which deep-links straight here). It sets its own
+ * header title, which the tab navigator used to.
  */
 export default function SettingsScreen() {
   const sync = useSync();
@@ -78,7 +79,7 @@ export default function SettingsScreen() {
   if (revealed !== null) {
     return (
       <>
-        <Stack.Screen options={{ title: "Settings" }} />
+        <Stack.Screen options={{ title: "Account" }} />
         <RecoveryKeyReveal
           recoveryKey={revealed.phrase}
           escrowPending={revealed.escrowPending}
@@ -93,7 +94,7 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Settings" }} />
+      <Stack.Screen options={{ title: "Account" }} />
       <ScrollView contentContainerStyle={styles.screen}>
         <Text style={styles.title}>Account &amp; sync</Text>
         {status === null ? (
@@ -121,7 +122,7 @@ export default function SettingsScreen() {
           </>
         )}
         {/*
-          Getting rid of what is on this device lives on Menu > Data (app/data.tsx)
+          Getting rid of what is on this device lives on Settings > Data (app/data.tsx)
           rather than here: it is the same act whether or not an account holds the
           data, and this screen is about the account itself. What stays is what
           only makes sense with one — replacing the recovery phrase, and signing

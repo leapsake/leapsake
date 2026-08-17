@@ -7,7 +7,7 @@ import { colors, styles } from "../lib/styles";
 
 /**
  * **Data** — where data comes in and where it goes out. A root-stack screen
- * reached from the Menu tab.
+ * reached from the Settings tab.
  *
  * Import from Contacts lives here because it lost its only other entry point:
  * it used to be the third button on the "+ Add" chooser that app/add.tsx

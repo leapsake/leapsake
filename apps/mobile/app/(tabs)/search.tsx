@@ -1,7 +1,7 @@
 import type { SearchHit } from "@leapsake/schema";
 import { useEffect, useRef, useState } from "react";
 import { FlatList, Pressable, Text, TextInput, View } from "react-native";
-import { useNavigation, useRouter } from "expo-router";
+import { Link, useNavigation, useRouter } from "expo-router";
 import { CatalogLinks } from "../../components/CatalogLinks";
 import { highlightBirthday, highlightMatch } from "../../lib/highlightMatch";
 import { useCore } from "../../lib/core-context";
@@ -120,6 +120,15 @@ export default function SearchScreen() {
           <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 4 }]}>
             Browse
           </Text>
+          {/* Redundant with the People tab, but it makes this list comprehensive
+              — everything else on Browse is a root-stack screen with no tab of
+              its own, and a reader scanning for "where's people" shouldn't come
+              up empty just because this one has a shortcut elsewhere. */}
+          <Link href="/(tabs)/people" style={styles.row}>
+            <Text style={[styles.rowText, { color: colors.accent }]}>
+              👥 People & Pets
+            </Text>
+          </Link>
           <CatalogLinks />
         </View>
       ) : (

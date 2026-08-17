@@ -45,7 +45,7 @@ const TIME_OPTIONS: { value: string; label: string }[] = Array.from(
 );
 
 /**
- * **Notifications** — a root-stack screen reached from the Menu tab. Moved out
+ * **Notifications** — a root-stack screen reached from the Settings tab. Moved out
  * of Settings (which used to render it unconditionally, pre-account) to stand
  * on its own alongside Holidays, Gifts, Data, etc. — nothing about the section
  * itself changed in the move.

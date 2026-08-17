@@ -9,7 +9,7 @@ import { colors, styles } from "../../lib/styles";
 
 // The tag catalog: every tag in use, alphabetically, each row opening the tag's
 // page (everything wearing it). A catalog like Holidays and Gifts — a root-stack
-// screen reached from the Menu tab, not a tab of its own.
+// screen reached from Search's browse list, not a tab of its own.
 //
 // It earns a place next to those two for the same reason: tags are created
 // inline, scattered across people, pets, reminders, and gift ideas, so without

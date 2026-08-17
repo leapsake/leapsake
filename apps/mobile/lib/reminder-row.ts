@@ -7,11 +7,12 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
   // The combined create form, which opens on its Person half — there is no
   // person-only create route any more.
   "add-person": "/add",
-  // Settings is a root-stack screen (reached from the Menu tab), not a tab of
-  // its own, so the nudge pushes it like any other detail route. Both custody
-  // routes land there today — an accountless Settings renders `CreateAccount`
-  // above `SyncSetup`, so each nudge's target is already on screen — and they
-  // stay two routes so splitting the destination later is a table edit.
+  // Account is a root-stack screen (reached from the Settings tab), not a tab
+  // of its own, so the nudge pushes it like any other detail route. Both custody
+  // routes land there today — an accountless Account screen renders
+  // `CreateAccount` above `SyncSetup`, so each nudge's target is already on
+  // screen — and they stay two routes so splitting the destination later is a
+  // table edit.
   "connect-sync": "/settings",
   "create-account": "/settings",
   // Pick-yourself deep-links to the People list in its pick mode, where each

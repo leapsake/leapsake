@@ -23,9 +23,9 @@ const joinBits = (bits: (string | null)[]) => bits.filter(Boolean).join(", ");
  * opens its edit screen, which also manages who it's suggested for.
  *
  * A root-stack screen rather than a tab: it's the cross-recipient shopping list
- * you consult, not a place you live. It's reached from the Menu tab and from
- * Search's browse list — and, per recipient, from the `GiftsSection` on a person's
- * or pet's page. This screen owns its own header, which the tab navigator used to.
+ * you consult, not a place you live. It's reached from Search's browse list —
+ * and, per recipient, from the `GiftsSection` on a person's or pet's page. This
+ * screen owns its own header, which the tab navigator used to.
  */
 export default function GiftsScreen() {
   const core = useCore();

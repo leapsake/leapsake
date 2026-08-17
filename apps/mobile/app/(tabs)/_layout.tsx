@@ -5,17 +5,17 @@ import { colors, styles } from "../../lib/styles";
 /**
  * The app's bottom tab bar, kept to **four** standing destinations: Reminders
  * (the home/landing tab, so it lives at the group's `index` route), the combined
- * People & Pets list, global Search, and Menu.
+ * People & Pets list, global Search, and Settings.
  *
  * Everything else lives outside this group on the root stack, so navigating into
  * one pushes full-screen over the tabs — the standard pattern. That covers the
  * detail screens (people/[id], pets/[id], relationships, tags, holidays/[id],
  * gifts/[id]) and the "+ Add" chooser, and now also the two **catalogs**
- * (holidays, gifts) and Settings, which the Menu tab lists. The catalogs are
- * reference lists rather than places you live: each stays reachable from the
- * Menu tab, from Search (as a hit, and from the browse list its empty field
- * shows), and — per person or pet — from the sections on their page. A permanent
- * tab each was more prominence than either earns.
+ * (holidays, gifts) and Account, which the Settings tab lists. The catalogs are
+ * reference lists rather than places you live: each stays reachable from Search
+ * (as a hit, and from the browse list its empty field shows, which also lists
+ * People & Pets for completeness), and — per person or pet — from the sections
+ * on their page. A permanent tab each was more prominence than either earns.
  *
  * This navigator owns each tab's header (the root stack hides its own header for
  * the `(tabs)` route in app/_layout.tsx).
@@ -45,7 +45,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Reminders",
+          title: "Leapsake",
           tabBarLabel: "Home",
           tabBarIcon: ({ color }) => <TabIcon glyph="🏠" color={color} />,
           headerRight: () => (
@@ -82,8 +82,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="menu"
         options={{
-          title: "Menu",
-          tabBarIcon: ({ color }) => <TabIcon glyph="☰" color={color} />,
+          title: "Settings",
+          tabBarIcon: ({ color }) => <TabIcon glyph="⚙️" color={color} />,
         }}
       />
     </Tabs>

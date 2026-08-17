@@ -12,8 +12,8 @@ import { formatOccurrence } from "@leapsake/schema";
 // to the observer picker, which is where the feature gets its data.
 //
 // A root-stack screen rather than a tab: it's a catalog you consult, not a place
-// you live. It's reached from the Menu tab and from Search's browse list, and
-// pushes full-screen over the tab bar like every other non-tab route.
+// you live. It's reached from Search's browse list, and pushes full-screen over
+// the tab bar like every other non-tab route.
 //
 // Hidden holidays stay listed (sorted last, and marked) rather than filtered
 // out — this is the only screen that can unhide one, so removing them would

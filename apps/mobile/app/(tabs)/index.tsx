@@ -136,7 +136,7 @@ function ReminderRow({
   const open = () =>
     router.push({
       pathname: "/reminders/[id]",
-      params: { id: reminder.id, from: "Reminders" },
+      params: { id: reminder.id, from: "Leapsake" },
     });
 
   function toggle() {
