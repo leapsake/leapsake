@@ -47,7 +47,7 @@ export default function TabsLayout() {
         options={{
           title: "Reminders",
           tabBarLabel: "Home",
-          tabBarIcon: ({ color }) => <TabIcon glyph="⏰" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon glyph="🏠" color={color} />,
           headerRight: () => (
             <View style={styles.headerActions}>
               <Link href="/reminders/new" style={styles.link}>

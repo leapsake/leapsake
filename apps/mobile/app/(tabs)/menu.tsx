@@ -5,8 +5,8 @@ import { colors, styles } from "../../lib/styles";
 
 /**
  * The Menu tab — everything that isn't one of the three standing destinations
- * (Home, People & Pets, Search). That's the three catalogs plus Data and
- * Settings, neither of which is reachable from any entity.
+ * (Home, People & Pets, Search). That's the three catalogs plus Notifications,
+ * Data, and Settings, none of which is reachable from any entity.
  *
  * Deliberately *only* the overflow: People isn't listed even though a "menu"
  * might suggest a full sitemap. It's already a permanent tab, and the row would
@@ -18,10 +18,16 @@ import { colors, styles } from "../../lib/styles";
 export default function MenuScreen() {
   return (
     <View style={styles.screen}>
-      {/* One gapless wrapper so Data and Settings continue the same
-          hairline-separated list rather than floating a `screen` gap below it. */}
+      {/* One gapless wrapper so Notifications, Data, and Settings continue the
+          same hairline-separated list rather than floating a `screen` gap
+          below it. */}
       <View>
         <CatalogLinks />
+        <Link href="/notifications" style={styles.row}>
+          <Text style={[styles.rowText, { color: colors.accent }]}>
+            🔔 Notifications
+          </Text>
+        </Link>
         <Link href="/data" style={styles.row}>
           <Text style={[styles.rowText, { color: colors.accent }]}>
             💾 Data
