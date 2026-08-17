@@ -160,21 +160,35 @@ later. Fully unit-testable with no device.
 implementation; the reconcile wired to the same boot / foreground / post-write triggers as
 `regenerateSystem`; the settings section listing every device with a policy. Scoped in full below.
 
-**iOS simulator smoke check — done, partially.** `pnpm exec expo prebuild --platform ios` +
-`pod install` pulled `ExpoNotifications` into the native project (it hadn't been since app.json's
-plugin entry postdated the last prebuild); a fresh dev-client build + Maestro confirmed, against a
-real device: the mode picker leaving `off` fires the real iOS "Would Like to Send You
-Notifications" dialog exactly once, `Allow` persists `permission_state: "granted"` and the chosen
-`mode` to `notification_settings` (read straight from the simulator's SQLite file, not just the
-UI), the delivery-time picker appears once mode ≠ `off` with the correct default (9:00 AM), and a
-second device's row — inserted directly as a stand-in for a real second device, since driving two
-booted simulators through a full sync join was out of scope for a smoke check — shows up under
-*Other devices* and its mode is editable via the exact same `setPolicy` call, verified to land on
-that device's row and leave this device's row untouched. **Not checked:** an actual delivered
-notification (no reminder was due "today" in the seeded data to produce one), `each` mode's
-one-per-reminder delivery, and completion/snooze silencing a pending one — the rest of *Done
-when*, below. Android untried. Maestro CLI is now installed on this machine
-(`~/.maestro/bin`), one-time setup per its own README.
+**iOS simulator smoke check — done.** `pnpm exec expo prebuild --platform ios` + `pod install`
+pulled `ExpoNotifications` into the native project (it hadn't been since app.json's plugin entry
+postdated the last prebuild); a dev-client build + Maestro, plus direct reads of the simulator's
+SQLite file and its `~/Library/.../UserNotifications/<uuid>/{Pending,Delivered}Notifications.plist`
+(the OS's own record of what's scheduled/fired — decoded with a small `NSKeyedArchiver` walker,
+since `plutil`/`strings` alone don't resolve its object graph), confirmed against a real device the
+whole of *Done when*: the mode picker leaving `off` fires the real iOS permission dialog exactly
+once and `Allow` persists `permission_state`/`mode`; the delivery-time picker defaults to 9:00 AM;
+a digest for a reminder due "today" (seeded via a direct milestone edit, to avoid waiting for a
+real calendar day) delivered with the correct bundled copy and tap target; `each` mode delivered
+one notification per reminder, independently; completing one reminder cancelled only its pending
+notification (via a real checkbox tap — the live post-write kick, no relaunch) while a sibling
+`each` entry stayed scheduled and fired on time; snoozing another reminder cancelled its pending
+notification the same way; and a second device's row is visible under *Other devices* and editable
+via the same `setPolicy` call without touching this device's own row. Maestro CLI is now installed
+on this machine (`~/.maestro/bin`), one-time setup per its own README. **Android untried.**
+
+**One real bug found and fixed along the way:** `regenerateSystemReminders` and
+`reconcileNotifications` were fired as two unawaited `void` calls back-to-back, at both the boot
+and foreground trigger sites (`core-context.tsx`). `regenerateSystem` deliberately isn't wired to
+the auto-kick that would otherwise re-run the notifications reconcile after it (its own comment:
+"it runs off a user write, hence the explicit kick") — so nothing self-healed the race, and
+`reconcileNotifications`'s `reminders.list()` could read the pre-write `dueDate` if it won the
+race, scheduling a digest/each entry a full day off (reproduced: a same-day birthday scheduled for
+delivery *tomorrow* instead, confirmed via the pending notification's own `TriggerTimeInterval`).
+Fixed by sequencing both sites — `regenerateSystemReminders(core).then(() =>
+reconcileNotifications(core))` — instead of firing in parallel; reproduced the bug, applied the
+fix, then reproduced the same edit-then-boot scenario again and confirmed the first boot now
+schedules and delivers on the correct day.
 
 ### Inc 3, scoped
 

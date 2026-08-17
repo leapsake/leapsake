@@ -7,15 +7,14 @@
 
 ## In flight
 
-**08 — all code is in; iOS simulator smoke-checked, partially** (Inc 1, 2, and 3 — see
+**08 — all code is in; iOS simulator smoke-check done, Android untried** (Inc 1, 2, and 3 — see
 [`@leapsake/notifications`](../packages/notifications/README.md) and
 [`v0-1_08_local-notifications.md`](./v0-1_08_local-notifications.md) → *Inc 3, scoped*, §1–§7 all
-done). On a real iOS simulator: the permission dialog fires exactly once when the mode picker
-leaves `off`, `Allow` persists to `notification_settings` (checked via SQLite, not just the UI),
-and a second device's policy is visible and editable from the first (stand-in row, not a second
-booted simulator). **Next: what's left of *Done when*** — an actual delivered notification,
-`each` mode, and completion/snooze silencing one — plus Android, untried. That closes 08 and
-unblocks 04.
+done). On a real iOS simulator, all of *Done when* is now confirmed: permission-once, a delivered
+digest, `each` mode's one-per-reminder delivery, completion/snooze silencing a pending one, and a
+second device's policy editable from the first. Found and fixed a real race along the way — see
+the plan doc's Inc 3 note. **Next: Android**, untried on any platform. That closes 08 and unblocks
+04.
 
 ## Next
 

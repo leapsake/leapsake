@@ -526,8 +526,13 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       if (state !== "active") return;
       void scheduler.current?.autoTrigger();
       if (coreRef.current !== null) {
-        void regenerateSystemReminders(coreRef.current);
-        void reconcileNotifications(coreRef.current);
+        const core = coreRef.current;
+        // Sequenced, not parallel `void`s: `reconcileNotifications` reads
+        // `reminders.list()` fresh, so it must not race the regenerate write
+        // below — see the boot-time pairing's comment for the bug this fixes.
+        void regenerateSystemReminders(core).then(() =>
+          reconcileNotifications(core),
+        );
       }
     });
 
@@ -840,8 +845,13 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       coreRef.current = bootedCore;
       setCore(bootedCore);
       scheduler.current.start(); // backstop interval
-      void regenerateSystemReminders(bootedCore); // birthdays atop Home
-      void reconcileNotifications(bootedCore); // the second reconcile, one layer out
+      // Sequenced: `reconcileNotifications` reads `reminders.list()` fresh, so
+      // it must run after the regenerate write lands, not racing it — a boot
+      // right after a milestone edit or a day rollover would otherwise plan
+      // off the pre-regenerate `dueDate` and schedule a day off.
+      void regenerateSystemReminders(bootedCore).then(() =>
+        reconcileNotifications(bootedCore),
+      ); // birthdays atop Home, then the second reconcile, one layer out
       void scheduler.current.autoTrigger(); // initial sync (skipped if auto off)
       /**
        * **Turn this device's Unauthenticated store into an account's encrypted one** — the
