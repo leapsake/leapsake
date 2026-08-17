@@ -7,16 +7,16 @@
 
 ## In flight
 
-**08 — all code is in; iOS simulator smoke-check done, Android untried** (Inc 1, 2, and 3 — see
-[`@leapsake/notifications`](../packages/notifications/README.md) and
-[`v0-1_08_local-notifications.md`](./v0-1_08_local-notifications.md) → *Inc 3, scoped*, §1–§7 all
-done). On a real iOS simulator, all of *Done when* is now confirmed: permission-once, a delivered
-digest, `each` mode's one-per-reminder delivery, completion/snooze silencing a pending one, and a
-second device's policy editable from the first. Found and fixed a real race along the way — see
-the plan doc's Inc 3 note. **Next: Android**, untried on any platform. That closes 08 and unblocks
-04.
+Nothing — **08 (local notifications) is done, 2026-08-16.** All of *Done when* confirmed on both
+real iOS and Android simulators/emulators, reading each OS's own pending/delivered notification
+records directly: permission-once, a delivered digest, `each` mode's one-per-reminder delivery,
+completion/snooze silencing a pending one, and a second device's policy editable from the first.
+Found and fixed a real boot/foreground race between `regenerateSystemReminders` and
+`reconcileNotifications` along the way (`apps/mobile/lib/core-context.tsx`). See
+[`@leapsake/notifications`](../packages/notifications/README.md) for the durable design; the plan
+doc is retired per its own *Done when*.
 
 ## Next
 
-**08 → 04 → 07**, the launch chain — [`v0-1.md`](./v0-1.md) holds the order and why 08 runs first.
-06 also waits on its *Open decisions*.
+**04 → 07**, the launch chain — [`v0-1.md`](./v0-1.md) holds the order. 06 also waits on its
+*Open decisions*.
