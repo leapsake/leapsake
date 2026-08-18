@@ -107,8 +107,14 @@ surface no lower tier reaches).
 - **Preconditions:** clean install: empty OS key store, no store file, no roster.
 - **Steps:** launch the built app; wait for boot to settle.
 - **Assert (on screen):** the Reminders/Home screen is shown in its empty state (`home-empty`);
-  the top nav offers **People & Pets** and **Settings**. No `recovery-gate`. Settings offers to
-  create an account and shows **no** recovery-phrase surface.
+  the app's standing navigation offers a way to **People & Pets** and to **Settings**. No
+  `recovery-gate`. Settings offers to create an account and shows **no** recovery-phrase surface.
+  > **Where those two live is per-platform, and deliberately so** *(amended 2026-08-17, mobile
+  > navigation)*. Desktop keeps both in its top nav. Mobile's tab bar is Home, Search, New and
+  > **Settings/Account** — the fourth tab is named for custody, so *"Settings"* is itself the
+  > assertion that this device is accountless — and People & Pets is reached from Search's browse
+  > tiles rather than from a tab. Assert **reachability**, not tab labels; the shell's own shape is
+  > `apps/mobile/maestro/global-nav.yaml`'s job, not this flow's.
 - **Assert (out of band):** the store is **plaintext** and sits at `stores/local/`; the OS key
   store holds **zero** Leapsake entries; the roster holds zero accounts; no `.recovery` sidecar.
 - **Devices:** single.

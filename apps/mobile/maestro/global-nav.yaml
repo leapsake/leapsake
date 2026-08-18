@@ -1,0 +1,106 @@
+# The global navigation shell — the tab bar, the New tab, and where Back appears.
+#
+# Everything here is a claim about *navigation*, which is exactly the class of
+# thing no lower tier can check: `lib/new-action.ts` is unit-tested and proves the
+# resolver's table, but nothing below E2E proves that the table is wired to a tab
+# press, that the press is cancelled before it navigates, or that a back control
+# is absent from a tab root and present one screen up.
+#
+# Four cases, and what each goes red on if the shell regresses:
+#
+#   1. the bar holds Home, Search, New and Settings — a tab lost or renamed.
+#   2. New from Home opens the chooser **and leaves you on Home** — this is the
+#      "New never navigates" claim. Remove the `preventDefault` in
+#      `app/(tabs)/_layout.tsx` and the app navigates to the empty `new` route,
+#      so the Home title is gone and the assertion goes red.
+#   3. New from a *filtered* Search goes straight into the form, no chooser —
+#      break the `?type=` read and it falls back to the sheet, so `person-first-name`
+#      never appears.
+#   4. Back is absent on a tab root and present on a pushed screen.
+#
+# **What is deliberately not asserted: the selected-tab tint.** A tab's active
+# state is a colour, and Maestro asserts on the accessibility tree rather than on
+# pixels. Case 2 covers the property that colour is a symptom of — New does not
+# become the current screen — which is the half that can actually break. If the
+# tint is ever wrong while navigation is right, that is a styling bug and belongs
+# to a screenshot check, not here.
+#
+# Like `driver-selftest.yaml` this does not `launchApp`: a cold dev-client launch
+# lands on the launcher, and these routes only exist once JS is loaded. Open the
+# app to its home screen against a running Metro first.
+#
+#   maestro --udid <sim> test global-nav.yaml
+#
+# It creates nothing, so unlike `staged-gift-occasions.yaml` it needs no per-run
+# tag and can be re-run against the same simulator indefinitely. It does leave
+# the search tab filtered; the last step clears it so a re-run starts clean.
+#
+# The tabs are tapped by **testID** (`tab-home`, `tab-search`, `tab-new`,
+# `tab-account`), not by label. A tab's accessibility text is VoiceOver-style on
+# iOS ("Search, tab, 2 of 4") and Maestro's text selectors are full-match, so a
+# label match has to be a loose `.*New.*` — which would just as happily hit a
+# reminder titled "New camera" on the list behind the bar. The labels are still
+# *asserted* by regex in case 1, where being loose is harmless; only the taps use
+# ids. Everything else asserts on real on-screen text.
+appId: com.leapsake.app
+---
+# ------------------------------------------------------------------ case 1 of 4
+# Exactly the four standing tabs. Home is asserted by its *title* ("Leapsake")
+# rather than its tab label, which also pins that we are on the app home rather
+# than anywhere else that happens to have a tab bar.
+- tapOn:
+    id: "tab-home"
+- assertVisible: "Leapsake"
+- assertVisible: ".*Search.*"
+- assertVisible: ".*New.*"
+- assertVisible: ".*Settings.*|.*Account.*"
+# No back control on a tab root — the navigator has no back destination to give
+# one, so this is the structural half of case 4.
+- assertNotVisible: ".*Back.*"
+
+# ------------------------------------------------------------------ case 2 of 4
+# Home is about everything, so New has a real question to ask.
+- tapOn:
+    id: "tab-new"
+- assertVisible:
+    id: "create-sheet"
+# Still on Home behind the sheet: the press was cancelled rather than navigated.
+- assertVisible: "Leapsake"
+- tapOn: "Cancel"
+- assertNotVisible:
+    id: "create-sheet"
+
+# ------------------------------------------------------------------ case 3 of 4
+# A search narrowed to People & Pets has already answered "what kind of thing?",
+# so New must skip the chooser entirely.
+- tapOn:
+    id: "tab-search"
+- tapOn:
+    id: "browse-tile-people"
+- assertVisible:
+    id: "search-filter-chip"
+- tapOn:
+    id: "tab-new"
+- assertNotVisible:
+    id: "create-sheet"
+# The add person/pet form itself, by the testID the staged-gift flow already
+# relies on.
+- assertVisible:
+    id: "person-first-name"
+
+# ------------------------------------------------------------------ case 4 of 4
+# A pushed screen has somewhere to go back to, and says so. This is the same
+# screen as case 3 — reached by a push — so the pair is a genuine contrast rather
+# than two unrelated screens.
+- assertVisible: ".*Back.*"
+- tapOn: ".*Back.*"
+- assertVisible:
+    id: "search-filter-chip"
+
+# Leave the search tab unfiltered so a re-run starts where this one did.
+- tapOn:
+    id: "search-filter-chip"
+- assertNotVisible:
+    id: "search-filter-chip"
+- assertVisible:
+    id: "browse-tile-people"

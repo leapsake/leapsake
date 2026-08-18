@@ -84,6 +84,7 @@ export default function TabsLayout() {
           options={{
             title: "Leapsake",
             tabBarLabel: "Home",
+            tabBarButtonTestID: "tab-home",
             tabBarIcon: ({ color }) => <TabIcon glyph="🏠" color={color} />,
             headerRight: () => (
               <View style={styles.headerActions}>
@@ -98,6 +99,7 @@ export default function TabsLayout() {
           name="search"
           options={{
             title: "Search",
+            tabBarButtonTestID: "tab-search",
             tabBarIcon: ({ color }) => <TabIcon glyph="🔍" color={color} />,
           }}
         />
@@ -115,6 +117,10 @@ export default function TabsLayout() {
           name="new"
           options={{
             tabBarLabel: "New",
+            // Load-bearing for maestro/global-nav.yaml, not decoration: the tab
+            // labels are matched as loose regexes and "New" is a word that can
+            // appear in a reminder on the list behind the bar.
+            tabBarButtonTestID: "tab-new",
             tabBarIcon: ({ color }) => <TabIcon glyph="➕" color={color} />,
           }}
           listeners={{
@@ -141,6 +147,7 @@ export default function TabsLayout() {
           name="menu"
           options={{
             title: hasAccount === true ? "Account" : "Settings",
+            tabBarButtonTestID: "tab-account",
             tabBarIcon: ({ color }) => (
               <TabIcon
                 glyph={hasAccount === true ? "👤" : "⚙️"}

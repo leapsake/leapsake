@@ -21,6 +21,29 @@ so the mobile driver leg is a _terminal, automated_ gate — not a human opening
   through the dev-launcher's last dev server (set by `pnpm --filter @leapsake/mobile
 ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. The
   runner invokes it; you don't run it directly. It does **not** touch `driver-selftest.yaml`.
+- **`global-nav.yaml`** — the navigation shell: that the bar holds Home, Search, New
+  and Settings/Account; that **New opens the chooser without navigating** (the property
+  the "never selected" rule is really about); that New on a *filtered* Search skips the
+  chooser and lands in the form; and that a back control is absent on a tab root and
+  present one screen up. All four are claims no lower tier can check — `lib/new-action.ts`
+  is unit-tested, but nothing below E2E proves its table is wired to a tab press.
+
+  It deliberately does **not** assert the selected-tab tint: that is a colour, and Maestro
+  reads the accessibility tree rather than pixels. Verify by sabotage against case 2 —
+  drop the `preventDefault` in `app/(tabs)/_layout.tsx` and the flow goes red.
+
+  Taps use the tab buttons' `testID`s (`tab-home`, `tab-search`, `tab-new`, `tab-account`)
+  rather than their labels. Text selectors are full-match, so a tab label match has to be
+  a loose `.*New.*` — which would just as happily hit a reminder titled "New camera" on the
+  list behind the bar.
+
+  Creates nothing, so it needs no per-run tag and can be re-run indefinitely. Not wired
+  into `pnpm test:native`, which is built around one flow and a PASS token:
+
+  ```
+  maestro --udid <sim> test global-nav.yaml
+  ```
+
 - **`staged-gift-occasions.yaml`** (+ `subflows/`) — a **UI** flow rather than a contract
   one: it drives the add person/pet screen through the five ways a staged gift's occasion
   can resolve (milestone kept/removed, holiday kept/removed, and the milestone case again

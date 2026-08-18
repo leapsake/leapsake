@@ -7,14 +7,16 @@
 
 ## In flight
 
-Nothing — **08 (local notifications) is done, 2026-08-16.** All of *Done when* confirmed on both
-real iOS and Android simulators/emulators, reading each OS's own pending/delivered notification
-records directly: permission-once, a delivered digest, `each` mode's one-per-reminder delivery,
-completion/snooze silencing a pending one, and a second device's policy editable from the first.
-Found and fixed a real boot/foreground race between `regenerateSystemReminders` and
-`reconcileNotifications` along the way (`apps/mobile/lib/core-context.tsx`). See
-[`@leapsake/notifications`](../packages/notifications/README.md) for the durable design; the plan
-doc is retired per its own *Done when*.
+Nothing — **09 (mobile global navigation) is done, 2026-08-17.** Four tabs (Home, Search, **New**,
+Settings/Account); People demoted from a tab to a catalog reached from Search's browse tiles;
+Search opens pre-filtered via `?type=`; one app-drawn header on both platforms whose title shrinks
+rather than hides; warm surfaces. The durable *why* sits in `apps/mobile/app/(tabs)/_layout.tsx`
+and `components/AppHeader.tsx`; the shell's gate is `apps/mobile/maestro/global-nav.yaml`.
+Typography and icons were deliberately left alone — that pass is
+[`v0-2.md`](./v0-2.md) → *styling / the design system*.
+
+**Not yet run on a device.** `global-nav.yaml` and `staged-gift-occasions.yaml` both need a green
+run on iOS *and* Android before 04 cuts screenshots.
 
 ## Next
 
