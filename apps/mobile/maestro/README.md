@@ -19,7 +19,7 @@ so the mobile driver leg is a _terminal, automated_ gate — not a human opening
   the bundle with an `adb` deep link; on iOS that deep link is intercepted by a
   SpringBoard "Open in Leapsake?" confirm and ignored, so this flow instead reconnects
   through the dev-launcher's last dev server (set by `pnpm --filter @leapsake/mobile
-ios`), clears any SpringBoard/dev-menu overlay, and waits for the People tab. The
+ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. The
   runner invokes it; you don't run it directly. It does **not** touch `driver-selftest.yaml`.
 - **`staged-gift-occasions.yaml`** (+ `subflows/`) — a **UI** flow rather than a contract
   one: it drives the add person/pet screen through the five ways a staged gift's occasion
@@ -132,7 +132,7 @@ through the dev-launcher instead. Per-session iOS setup:
    same command (a stale build missing a new native module redboxes on launch).
 
 `scripts/test-native.mjs` then runs `ios-prepare.yaml` (which `launchApp`s, clears any
-dev-launcher/SpringBoard/dev-menu overlay, and waits for the People tab), runs the
+dev-launcher/SpringBoard/dev-menu overlay, and waits for the Search tab), runs the
 self-test flow with `maestro --udid <sim>`, and propagates its exit code — the same shape
 as Android.
 

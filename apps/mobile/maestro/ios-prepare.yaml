@@ -1,4 +1,4 @@
-# iOS-only prepare flow — get the dev client to the app's home screen (People tab).
+# iOS-only prepare flow — get the dev client to the app's home screen (the tab bar).
 #
 # The Android harness loads the JS bundle with an adb `am start` deep link
 # (leapsake://expo-development-client/?url=…). On iOS that path does NOT work: an
@@ -12,9 +12,9 @@
 # dev-launcher ("Continue"/"Scan"), may raise the SpringBoard open-confirm ("Open"), or —
 # once connected — may show the RN dev-menu overlay ("Reload"/"Close") over the app. Each
 # `runFlow: when` fires only if that control is present, so the flow tolerates whichever
-# subset appears (and their absence) and still converges on People home. The final
-# extendedWaitUntil is the readiness gate the runner relies on: People is on the app home
-# only (absent from the launcher and the dev menu).
+# subset appears (and their absence) and still converges on the app home. The final
+# extendedWaitUntil is the readiness gate the runner relies on: the Search tab is on the
+# app home only (absent from the launcher and the dev menu).
 #
 # iOS-specific and invoked by scripts/test-native.mjs; the assertion itself lives in the
 # platform-neutral driver-selftest.yaml, which this flow does not touch.
@@ -50,11 +50,18 @@ appId: com.leapsake.app
           commands:
             - tapOn: "Close"
 
-# Readiness gate: the People tab is present only on the real app home (not the
-# dev-launcher, not the RN dev menu). This absorbs the first Metro bundle build. The
-# selector is a regex — on iOS the tab's accessibility text is "People, tab, 2 of 4"
-# (VoiceOver-style), not a bare "People", and Maestro text selectors are full-match, so
-# a bare "People" would never match. `.*People.*` pins the People tab wherever it sits.
+# Readiness gate: the Search tab is present only on the real app home (not the
+# dev-launcher, not the RN dev menu). This absorbs the first Metro bundle build.
+#
+# **Search rather than Home**, which would be the obvious pick: Home's tab reads "Home"
+# but its *title* is "Leapsake", and the dev-launcher shows the app name too — so a Home
+# selector could match the launcher and gate on the wrong screen. Search appears nowhere
+# but the tab bar. (It replaced People, which was this gate until People stopped being a
+# tab.)
+#
+# The selector is a regex — on iOS the tab's accessibility text is VoiceOver-style
+# ("Search, tab, 2 of 4"), not a bare "Search", and Maestro text selectors are
+# full-match, so a bare "Search" would never match. `.*Search.*` pins it wherever it sits.
 - extendedWaitUntil:
-    visible: ".*People.*"
+    visible: ".*Search.*"
     timeout: 180000

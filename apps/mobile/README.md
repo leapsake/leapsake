@@ -8,10 +8,13 @@ same core surface backs both clients behind a swapped driver and key-store port.
 
 ```
 app/          # expo-router routes; (tabs)/index.tsx is Home (the reminders list)
-              # Four tabs — Home, People, Search, Menu. Everything else (the
-              # holidays and gifts catalogs, Data, Settings, add.tsx, every
-              # detail screen) is a root-stack route that pushes full-screen
-              # over the tab bar.
+              # Four tabs — Home, Search, New, Settings/Account. "New" never
+              # navigates: it resolves to a create screen or opens a sheet.
+              # Everything else (People & Pets, the holidays and gifts catalogs,
+              # Data, Settings, add.tsx, every detail screen) is a root-stack
+              # route that pushes full-screen over the tab bar.
+components/   # AppHeader.tsx draws the header for *both* navigators, so iOS and
+              # Android get one design; screens still just set `title`.
 db/           # the expo-sqlite driver, store conversion, and the unlock doors
 lib/          # core-context.tsx — the boot path, custody branches, and core wiring
 test/         # the on-device self-tests (driver contract + custody)

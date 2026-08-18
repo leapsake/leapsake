@@ -17,7 +17,7 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
   "create-account": "/settings",
   // Pick-yourself deep-links to the People list in its pick mode, where each
   // Person row offers "This is me".
-  "pick-self": "/(tabs)/people?pick=self",
+  "pick-self": "/people?pick=self",
 };
 
 /**

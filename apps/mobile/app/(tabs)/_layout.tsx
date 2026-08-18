@@ -77,21 +77,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="people"
-        options={{
-          title: "People & Pets",
-          tabBarLabel: "People",
-          tabBarIcon: ({ color }) => <TabIcon glyph="👥" color={color} />,
-          headerRight: () => (
-            <View style={styles.headerActions}>
-              <Link href="/add" style={styles.link}>
-                + Add
-              </Link>
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="search"
         options={{
           title: "Search",

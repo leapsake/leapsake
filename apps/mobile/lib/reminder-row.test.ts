@@ -42,7 +42,7 @@ describe("offerFor", () => {
     expect(offersFor(actions)).toEqual([
       {
         kind: "navigate",
-        path: "/(tabs)/people?pick=self",
+        path: "/people?pick=self",
         label: "Get started ›",
       },
       { kind: "snooze", until: expect.any(Number), label: "Not now" },

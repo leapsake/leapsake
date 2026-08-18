@@ -126,7 +126,7 @@ export default function SearchScreen() {
               — everything else on Browse is a root-stack screen with no tab of
               its own, and a reader scanning for "where's people" shouldn't come
               up empty just because this one has a shortcut elsewhere. */}
-          <Link href="/(tabs)/people" style={styles.row}>
+          <Link href="/people" style={styles.row}>
             <Text style={[styles.rowText, { color: colors.accent }]}>
               👥 People & Pets
             </Text>

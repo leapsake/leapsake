@@ -200,7 +200,7 @@ export default function ImportScreen() {
       result !== null && result.created > 0
         ? await core.duplicates.count().catch(() => 0)
         : 0;
-    router.replace(outstanding > 0 ? "/duplicates" : "/(tabs)/people");
+    router.replace(outstanding > 0 ? "/duplicates" : "/people");
   }
 
   // ---- Terminal / non-review states -------------------------------------
@@ -230,7 +230,7 @@ export default function ImportScreen() {
             <Pressable
               accessibilityRole="button"
               style={styles.button}
-              onPress={() => router.replace("/(tabs)/people?pick=self")}
+              onPress={() => router.replace("/people?pick=self")}
             >
               <Text style={styles.buttonText}>Pick yourself</Text>
             </Pressable>

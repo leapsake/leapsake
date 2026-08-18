@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Link, useLocalSearchParams, useRouter } from "expo-router";
+import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { CoreApi, EntityRow } from "@leapsake/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useCore } from "../../lib/core-context";
@@ -18,8 +18,14 @@ import { colors, styles } from "../../lib/styles";
 // The combined "People & Pets" list, ported from desktop's EntityList. People
 // and pets share one alphabetical list, and both row types navigate to their
 // own detail page. The muted "(pet)" suffix keeps the two entity types visually
-// distinguishable in the shared list. This screen's title and "Add" actions live
-// on the tab navigator (app/(tabs)/_layout.tsx), which owns this tab's header.
+// distinguishable in the shared list.
+//
+// **This is a root-stack screen, not a tab.** It had a permanent tab until the
+// tab bar was rebuilt around what you *do* (Home, Search, New, Account) rather
+// than what the app stores. People is the app's biggest catalog, but a catalog
+// is somewhere you go looking for a particular record — which is what Search is
+// for, and Search's browse tiles lead here. The other way in is a reference from
+// another entity, which was always the more common one.
 //
 // The duplicates link is **conditional on there being duplicates** and states
 // the count. It used to head this list permanently, advertising a chore even on
@@ -27,7 +33,7 @@ import { colors, styles } from "../../lib/styles";
 // header can just tell the truth. See the desktop EntityList mirror.
 //
 // `?pick=self` puts the screen in **pick-yourself** mode, which is where the
-// "🙋 Which of these is you?" onboarding nudge lands (app/(tabs)/index.tsx maps
+// "🙋 Which of these is you?" onboarding nudge lands (lib/reminder-row.ts maps
 // it here): each Person row grows a "This is me" action that sets the
 // self-person. Pets can't be you, so they offer
 // nothing in that mode. The picked person keeps a "(You)" badge afterwards — the
@@ -54,6 +60,20 @@ export default function PeoplePetsScreen() {
 
   return (
     <View style={styles.screen}>
+      {/* The title and "+ Add" the tab navigator used to supply for this screen
+          while it was a tab. */}
+      <Stack.Screen
+        options={{
+          title: "People & Pets",
+          headerRight: () => (
+            <View style={styles.headerActions}>
+              <Link href="/add" style={styles.link}>
+                + Add
+              </Link>
+            </View>
+          ),
+        }}
+      />
       {error !== null ? (
         <Text style={styles.danger}>{error}</Text>
       ) : entities === null ? (
@@ -161,7 +181,7 @@ function EntityListRow({
             accessibilityRole="button"
             onPress={() =>
               void pickSelf(core, entity.id, onReload, () =>
-                router.replace("/(tabs)/people"),
+                router.replace("/people"),
               )
             }
           >
