@@ -18,6 +18,5 @@ appId: com.leapsake.app
 - tapOn:
     id: "person-last-name"
 - inputText: "${LAST}"
-# Tap a static label to drop the keyboard: `hideKeyboard` taps through into
-# whatever sits under it (the Gender field, in practice) and opens that instead.
-- tapOn: "Milestones"
+- runFlow:
+    file: dismiss-keyboard.yaml

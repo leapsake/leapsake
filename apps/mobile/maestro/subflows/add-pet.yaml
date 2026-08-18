@@ -1,0 +1,23 @@
+# Open a fresh add screen, flip it to Pet, and name the pet. NAME is required —
+# the Save action stays disabled until it is set. A pet needs only the one name,
+# where a person needs a first *and* a last.
+#
+# The toggle comes before the typing, not after: flipping it remounts the form and
+# drops every draft and staged entry with it (app/add.tsx keys the form on the
+# entity type), so anything filled in first would be thrown away.
+#
+# See `add-person.yaml` for why the field is reached by `id` and why the keyboard
+# is dropped by tapping a label.
+appId: com.leapsake.app
+---
+- openLink: "leapsake://add"
+- assertVisible:
+    id: "person-first-name"
+- tapOn: "Pet"
+- assertVisible:
+    id: "pet-name"
+- tapOn:
+    id: "pet-name"
+- inputText: "${NAME}"
+- runFlow:
+    file: dismiss-keyboard.yaml

@@ -1,0 +1,22 @@
+# Save the staged record and land on the new person or pet's detail page.
+#
+# Creating a near-duplicate *person* routes to the duplicate review instead —
+# exactly what a second run of this suite's fixed names does — so the prompt's way
+# onward is taken when it appears. "Not now" replaces itself with the detail page,
+# so either path ends where the assertions expect. Pets have no such branch, so
+# there the conditional simply never fires.
+#
+# Save lives in the native header, so it needs no scrolling to reach; the gift
+# row on the page it lands on does.
+appId: com.leapsake.app
+---
+- tapOn: "Save"
+- runFlow:
+    when:
+      visible: "Not now"
+    commands:
+      - tapOn: "Not now"
+- scrollUntilVisible:
+    element:
+      text: "Gifts"
+    direction: DOWN

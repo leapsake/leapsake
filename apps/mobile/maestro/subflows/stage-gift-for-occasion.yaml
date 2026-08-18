@@ -11,6 +11,10 @@
 # on its own, and the add form is several screens long once a section expands —
 # so a step that happens to be on screen today breaks the day a section above it
 # grows a row.
+#
+# The keyboard goes down before any of that scrolling — see `dismiss-keyboard.yaml`
+# for why that is its own verified step. A pet is what caught it: its shorter form
+# leaves these gift fields sitting right under the keyboard.
 appId: com.leapsake.app
 ---
 - scrollUntilVisible:
@@ -25,7 +29,8 @@ appId: com.leapsake.app
 - tapOn:
     id: "gift-title"
 - inputText: "${TITLE}"
-- tapOn: "Gifts"
+- runFlow:
+    file: dismiss-keyboard.yaml
 - scrollUntilVisible:
     element:
       text: "+ Add a date"

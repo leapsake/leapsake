@@ -1,0 +1,36 @@
+# Put the keyboard away, and prove it went.
+#
+# This exists because Maestro reads visibility off the view hierarchy, which does
+# **not** model the keyboard as occluding anything. An element behind it still
+# counts as visible, so `scrollUntilVisible` stops as soon as it has scrolled that
+# far and the tap that follows lands on a key instead — which surfaces as a step
+# that "COMPLETED" while doing nothing, several steps before the failure.
+#
+# Neither dismissal is reliable alone:
+#
+#   - `pressKey: Enter` does nothing to a plain single-line `TextInput`. RN wires
+#     no `onSubmitEditing` here, and iOS does not blur on return by itself.
+#   - `hideKeyboard` taps through into whatever sits under it (the Gender field,
+#     in practice) and opens *that*.
+#
+# What does work is an unhandled tap: the add screen's ScrollView sets
+# `keyboardShouldPersistTaps="handled"`, so a tap on a plain `Text` — one that no
+# touchable claims — dismisses. "Milestones" is the anchor because that section
+# heading is always present on the add screen and never moves below the keyboard.
+#
+# The closing assert is the point. Without it a failed dismissal goes unnoticed
+# until something far downstream taps a key, and `scrollUntilVisible` can spin on
+# a target it keeps finding and losing rather than failing outright. `Return` is
+# the iOS keyboard's own return key — an Apple-owned id, and the one piece of
+# platform internals this suite leans on.
+appId: com.leapsake.app
+---
+- pressKey: Enter
+- runFlow:
+    when:
+      visible:
+        id: "Return"
+    commands:
+      - tapOn: "Milestones"
+- assertNotVisible:
+    id: "Return"

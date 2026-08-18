@@ -7,7 +7,7 @@
 # remaps them as it writes (`resolveStagedOccasion`), and clears any occasion
 # whose milestone/holiday is removed before saving (`pruneGiftOccasions`).
 #
-# Four cases, and each one fails differently if that machinery breaks. Verified
+# Five cases, and each one fails differently if that machinery breaks. Verified
 # by sabotage — the line each case actually goes red on is noted:
 #
 #   1. milestone kept    -> the occasion resolves to the real milestone.
@@ -26,6 +26,10 @@
 #      resolver has no reason to drop it; without the prune the gift is written
 #      "for Christmas" against someone who no longer observes it.
 #      (red on: the saved "Suggested")
+#   5. the same as case 1, but for a **pet** — the bearer type is threaded from
+#      the entity toggle through the milestone write and on into the gift's
+#      recipient party, so this is where a person-shaped assumption anywhere on
+#      that path shows up. Cases 1-4 would all still pass with it broken.
 #
 # Like `driver-selftest.yaml` this deliberately does not `launchApp`: a cold
 # dev-client launch lands on the launcher, and these routes only exist once JS is
@@ -33,9 +37,14 @@
 #
 #   maestro --udid <sim> test staged-gift-occasions.yaml
 #
-# It leaves four people behind (dev data on a simulator). Re-running is safe: the
-# post-save duplicate prompt is dismissed with "Not now" where it appears, which
-# is exactly what a second run of the same fixed names triggers.
+# It leaves four people and a pet behind (dev data on a simulator), so every run
+# stamps them with a per-run tag. That is not tidiness: with fixed names, run N
+# creates the Nth copy of each, every one of which the post-save duplicate
+# detector then has to score and render as a pair — the review screen grows a row
+# per previous run, and the suite gets slower and flakier the more it is used. A
+# unique tag means the detector finds nothing and each run is genuinely
+# independent of the last. The "Not now" fallback in `save-record.yaml` stays as a
+# safety net, but nothing here relies on it.
 #
 # The wheel: a `SelectField`'s options are not addressable on iOS — the
 # accessibility tree exposes only the picker's *current value* — so a choice is
@@ -45,14 +54,17 @@
 # that non-vacuous.
 appId: com.leapsake.app
 ---
-# ---------------------------------------------------------------- case 1 of 4
+# The per-run tag every record below is stamped with — see the note above.
+- evalScript: ${output.run = Date.now() % 1000000}
+
+# ---------------------------------------------------------------- case 1 of 5
 # A milestone occasion survives, remapped onto the id the milestone was written
 # under.
 - runFlow:
     file: subflows/add-person.yaml
     env:
       FIRST: "Casea"
-      LAST: "Milestone"
+      LAST: "Run${output.run}"
 - tapOn: "Add milestone"
 - tapOn: "Add" # a dateless Birthday — the wheel makes a month impractical
 - assertVisible: ".*Birthday.*"
@@ -62,17 +74,17 @@ appId: com.leapsake.app
       TITLE: "Telescope"
       OCCASION: "Birthday"
 - runFlow:
-    file: subflows/save-person.yaml
+    file: subflows/save-record.yaml
 - assertVisible: ".*Given.*Birthday.*"
 
-# ---------------------------------------------------------------- case 2 of 4
+# ---------------------------------------------------------------- case 2 of 5
 # The same, but the milestone is removed before saving: the occasion is dropped
 # rather than written against an id that never existed.
 - runFlow:
     file: subflows/add-person.yaml
     env:
       FIRST: "Caseb"
-      LAST: "Milestone"
+      LAST: "Run${output.run}"
 - tapOn: "Add milestone"
 - tapOn: "Add"
 - runFlow:
@@ -96,16 +108,16 @@ appId: com.leapsake.app
       text: "Suggestion"
     direction: DOWN
 - runFlow:
-    file: subflows/save-person.yaml
+    file: subflows/save-record.yaml
 - assertVisible: "Suggested"
 
-# ---------------------------------------------------------------- case 3 of 4
+# ---------------------------------------------------------------- case 3 of 5
 # A holiday occasion needs no remap — its id was real all along.
 - runFlow:
     file: subflows/add-person.yaml
     env:
       FIRST: "Casec"
-      LAST: "Holiday"
+      LAST: "Run${output.run}"
 - runFlow:
     file: subflows/stage-christmas.yaml
 - runFlow:
@@ -114,17 +126,17 @@ appId: com.leapsake.app
       TITLE: "Wreath"
       OCCASION: "Christmas (holiday)"
 - runFlow:
-    file: subflows/save-person.yaml
+    file: subflows/save-record.yaml
 - assertVisible: ".*Given.*Christmas.*"
 
-# ---------------------------------------------------------------- case 4 of 4
+# ---------------------------------------------------------------- case 4 of 5
 # The holiday is removed before saving. Nothing at write time would catch this —
 # only the prune does.
 - runFlow:
     file: subflows/add-person.yaml
     env:
       FIRST: "Cased"
-      LAST: "Holiday"
+      LAST: "Run${output.run}"
 - runFlow:
     file: subflows/stage-christmas.yaml
 - runFlow:
@@ -145,5 +157,28 @@ appId: com.leapsake.app
       text: "Suggestion"
     direction: DOWN
 - runFlow:
-    file: subflows/save-person.yaml
+    file: subflows/save-record.yaml
 - assertVisible: "Suggested"
+
+# ---------------------------------------------------------------- case 5 of 5
+# Case 1 again on the other side of the entity toggle. A pet reaches the same
+# machinery by a different route: `bearerType` is "pet" all the way from the
+# toggle through `core.milestones.create` to the gift's recipient party, and the
+# occasion pool is rebuilt from a pet's own kinds (Birthday, Death, Other — so
+# the picker still opens on Birthday). A pet also has no Contacts section, which
+# is why nothing here reaches for one.
+- runFlow:
+    file: subflows/add-pet.yaml
+    env:
+      NAME: "Casee Run${output.run}"
+- tapOn: "Add milestone"
+- tapOn: "Add"
+- assertVisible: ".*Birthday.*"
+- runFlow:
+    file: subflows/stage-gift-for-occasion.yaml
+    env:
+      TITLE: "Chewtoy"
+      OCCASION: "Birthday"
+- runFlow:
+    file: subflows/save-record.yaml
+- assertVisible: ".*Given.*Birthday.*"

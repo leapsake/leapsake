@@ -14,7 +14,8 @@ appId: com.leapsake.app
     below:
       text: "Add a holiday"
 - inputText: "Christ"
-- tapOn: "Milestones"
+- runFlow:
+    file: dismiss-keyboard.yaml
 - scrollUntilVisible:
     element:
       text: "Christmas"
