@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import { colors, styles } from "../lib/styles";
+import { colors, radius, styles } from "../lib/styles";
 
 /**
  * The mobile stand-in for desktop's `<select>` over a short, fully-known list — a
@@ -124,7 +124,7 @@ const local = StyleSheet.create({
   androidPicker: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
   row: {
     flexDirection: "row",
@@ -137,11 +137,16 @@ const local = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.25)",
+    backgroundColor: colors.scrim,
   },
   sheet: {
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.surface,
     paddingBottom: 24,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    // The rounded top corners only read as rounded if what slides under them is
+    // clipped to the same shape.
+    overflow: "hidden",
   },
   doneBar: {
     flexDirection: "row",
@@ -149,6 +154,6 @@ const local = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.divider,
   },
 });

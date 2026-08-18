@@ -1,17 +1,46 @@
 import { StyleSheet } from "react-native";
 
-// A small shared stylesheet for visual consistency across the People screens.
-// Deliberately minimal — the desktop UI is plain too; a design pass comes later.
+// A small shared stylesheet for visual consistency across the app's screens.
+//
+// The **surfaces** are warm rather than white, and the lines drawn on them are
+// warm greys rather than neutral ones. That is the whole of the visual pass so
+// far, deliberately: type and icons are untouched (still the platform font, still
+// emoji), because changing structure and appearance in one go makes a regression
+// indistinguishable from a redesign. Colour and shape are the half that can move
+// without touching a single layout.
 export const colors = {
   text: "#1a1a1a",
   muted: "#6b6b6b",
-  border: "#d4d4d4",
+  /** Warm paper — the ground every screen is drawn on. */
+  surface: "#fbf7f0",
+  /**
+   * The chrome that frames the page: the tab bar and the header. A shade deeper
+   * than {@link surface}, which is what separates them from the content without
+   * spending a hard rule on it.
+   */
+  surfaceRaised: "#f4ede1",
+  /** Outlines that enclose something — an input, a container. */
+  border: "#ded3c2",
+  /**
+   * Separators *between* things — the hairline under a list row. Lighter than
+   * {@link border}: a divider that matches the weight of an input's outline
+   * turns a list into a stack of boxes.
+   */
+  divider: "#eae1d3",
   accent: "#1f6feb",
   /** A wash of `accent` — the mention chip behind `@Name` in a composer. */
   accentTint: "rgba(31, 111, 235, 0.14)",
   danger: "#b00020",
   selectedBg: "#1f6feb",
   selectedText: "#ffffff",
+  /** Behind a bottom sheet, dimming the screen it covers. */
+  scrim: "rgba(0, 0, 0, 0.25)",
+} as const;
+
+/** Corner rounding. `sm` is a control, `lg` is a surface that sits over another. */
+export const radius = {
+  sm: 8,
+  lg: 16,
 } as const;
 
 export const styles = StyleSheet.create({
@@ -25,6 +54,11 @@ export const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 16,
     gap: 16,
+    // Painted here as well as on the navigators' own scene backgrounds
+    // (app/_layout.tsx, app/(tabs)/_layout.tsx). Both are needed: the navigator
+    // covers the overscroll region a ScrollView bounces into, this covers the
+    // content itself.
+    backgroundColor: colors.surface,
   },
   header: {
     flexDirection: "row",
@@ -55,7 +89,7 @@ export const styles = StyleSheet.create({
   row: {
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.divider,
   },
   // A list row led by a control (a checkbox) with its content beside it. Composed
   // with `row`, which keeps the padding and the separator. The gap is shared so
@@ -148,11 +182,15 @@ export const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 17,
     color: colors.text,
+    // An input is a place to put something *into*, so it reads as a well cut
+    // into the page rather than a card lying on it. On warm paper that only
+    // works if it is lighter than its ground.
+    backgroundColor: "#ffffff",
   },
   // A form embedded in another screen's scroll view (a staged milestone or
   // contact method on the create screen): the `screen` gap without its padding,
@@ -163,7 +201,7 @@ export const styles = StyleSheet.create({
   // A pressable rendered as a primary button.
   button: {
     backgroundColor: colors.accent,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },

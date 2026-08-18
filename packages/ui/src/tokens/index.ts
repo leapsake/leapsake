@@ -11,19 +11,38 @@
  * committed to a palette; desktop is unstyled semantic HTML. Nothing consumes
  * these yet. The real visual pass is a separate pre-v0.1 increment, and it is
  * expected to replace most of these numbers.
+ *
+ * The surfaces below are **warm**, mirroring mobile's navigation pass. Type is
+ * not: no family is named here and the sizes are the original ones, because
+ * mobile deliberately moved colour and shape without touching typography. When
+ * a typeface is chosen it lands here first.
  */
 
 export const color = {
   text: "#1a1a1a",
   muted: "#6b6b6b",
-  border: "#d4d4d4",
+  /** Warm paper — the ground a screen is drawn on. */
+  surface: "#fbf7f0",
+  /** Chrome that frames the page (mobile's tab bar and header), a shade deeper. */
+  surfaceRaised: "#f4ede1",
+  /** Outlines that enclose something — an input, a container. */
+  border: "#ded3c2",
+  /** Separators *between* things: lighter than {@link border}. */
+  divider: "#eae1d3",
   accent: "#1f6feb",
   /** A wash of {@link accent} — the mention chip behind `@Name` in a composer. */
   accentTint: "rgba(31, 111, 235, 0.14)",
   danger: "#b00020",
   selectedBg: "#1f6feb",
   selectedText: "#ffffff",
-  surface: "#ffffff",
+  /** Behind a sheet or dialog, dimming what it covers. */
+  scrim: "rgba(0, 0, 0, 0.25)",
+} as const;
+
+/** Corner rounding in px. `sm` is a control, `lg` a surface over another surface. */
+export const radius = {
+  sm: 8,
+  lg: 16,
 } as const;
 
 /** Spacing scale in px. Mobile's screens are built on 4/8/12/16. */

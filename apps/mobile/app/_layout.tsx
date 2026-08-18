@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { CoreProvider } from "../lib/core-context";
+import { colors } from "../lib/styles";
 
 // Root layout: build the core once (CoreProvider gates rendering on it being
 // ready) and host a native stack. The `(tabs)` group is a bottom-tab navigator
@@ -20,13 +21,30 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <CoreProvider>
-        <Stack>
+        <Stack
+          screenOptions={{
+            headerStyle: { backgroundColor: colors.surfaceRaised },
+            headerTintColor: colors.accent,
+            headerTitleStyle: { color: colors.text },
+            headerShadowVisible: false,
+            // The scene behind every pushed screen. Screens paint `styles.screen`
+            // themselves, but a ScrollView bounces past its own content and the
+            // navigator's background is what shows underneath.
+            contentStyle: { backgroundColor: colors.surface },
+          }}
+        >
           <Stack.Screen
             name="(tabs)"
             options={{ headerShown: false, title: "Back" }}
           />
         </Stack>
-        <StatusBar style="auto" />
+        {/*
+          Pinned dark, not "auto". The app has one palette and it is a light,
+          warm one (app.json pins `userInterfaceStyle` to match), so "auto" would
+          read the *OS* theme and paint light status-bar content over a light
+          header the moment the phone is in dark mode.
+        */}
+        <StatusBar style="dark" />
       </CoreProvider>
     </SafeAreaProvider>
   );

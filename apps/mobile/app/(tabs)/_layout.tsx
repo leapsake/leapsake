@@ -32,6 +32,18 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.muted,
+        // The two pieces of chrome that frame every tab. Both sit a shade deeper
+        // than the page, and neither draws the platform's default hairline —
+        // the tone change is the edge.
+        tabBarStyle: {
+          backgroundColor: colors.surfaceRaised,
+          borderTopWidth: 0,
+        },
+        headerStyle: { backgroundColor: colors.surfaceRaised },
+        headerTitleStyle: { color: colors.text },
+        headerShadowVisible: false,
+        sceneStyle: { backgroundColor: colors.surface },
         // Inset the header actions from the screen edge. The bottom-tab
         // navigator draws its header in JS and leaves a custom `headerRight`
         // flush against the edge, where the native stack header the rest of the
