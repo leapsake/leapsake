@@ -12,6 +12,7 @@ import type { CoreApi, EntityRow } from "@leapsake/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
+import { useHeaderScroll } from "../../lib/use-header-scroll";
 import { colors, styles } from "../../lib/styles";
 
 // The combined "People & Pets" list, ported from desktop's EntityList. People
@@ -48,6 +49,7 @@ export default function PeoplePetsScreen() {
     [core],
   );
   const { data, error, reload } = useFocusedData(load);
+  const scrollProps = useHeaderScroll();
   const [entities, self, duplicateCount] = data ?? [null, undefined, 0];
 
   return (
@@ -58,6 +60,7 @@ export default function PeoplePetsScreen() {
         <ActivityIndicator />
       ) : (
         <FlatList
+          {...scrollProps}
           data={entities}
           keyExtractor={(entity) => `${entity.type}:${entity.id}`}
           ListHeaderComponent={

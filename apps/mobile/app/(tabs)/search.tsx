@@ -5,6 +5,7 @@ import { Link, useNavigation, useRouter } from "expo-router";
 import { CatalogLinks } from "../../components/CatalogLinks";
 import { highlightBirthday, highlightMatch } from "../../lib/highlightMatch";
 import { useCore } from "../../lib/core-context";
+import { useHeaderScroll } from "../../lib/use-header-scroll";
 import { colors, styles } from "../../lib/styles";
 
 /**
@@ -50,6 +51,7 @@ export default function SearchScreen() {
   const inputRef = useRef<TextInput>(null);
 
   const [term, setTerm] = useState("");
+  const scrollProps = useHeaderScroll();
   const [results, setResults] = useState<SearchHit[]>([]);
 
   // A second press of the Search tab focuses the field — the standard "tab
@@ -133,6 +135,7 @@ export default function SearchScreen() {
         </View>
       ) : (
         <FlatList
+          {...scrollProps}
           data={results}
           keyboardShouldPersistTaps="handled"
           keyExtractor={(hit) => `${hit.entityType}:${hit.entityId}`}

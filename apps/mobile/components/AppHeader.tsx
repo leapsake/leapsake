@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { COLLAPSE_DISTANCE, headerScroll } from "../lib/use-header-scroll";
 import { colors } from "../lib/styles";
 
 const BACK_LABEL = "‹ Back";
+
+/** The title's size at rest, and once the screen under it has been scrolled. */
+const TITLE_SIZE = { full: 24, compact: 17 } as const;
 
 /**
  * The app's one header, drawn by us on **both** navigators rather than by each
@@ -20,6 +24,16 @@ const BACK_LABEL = "‹ Back";
  *
  * The shape is a **title, not a bar**: a thin row of actions, and under it the
  * screen's name at reading size. There is no persistent top navigation.
+ *
+ * ### The title shrinks; it never leaves
+ *
+ * Scrolling the screen under it takes the title down to a compact size and stops
+ * there, rather than sliding it away. A header that disappears buys back a line
+ * of content at the cost of the reader's answer to "where am I?" — and on a
+ * screen reached by tapping something two screens ago, that answer is worth more
+ * than the line. The scroll position arrives through
+ * {@link headerScroll}, which a screen opts into with `useHeaderScroll()`; a
+ * screen with nothing to scroll never collapses.
  *
  * ### Back is the navigator's decision, not a screen's
  *
@@ -48,6 +62,11 @@ export interface AppHeaderProps {
 
 export function AppHeader({ title, right, onBack }: AppHeaderProps) {
   const insets = useSafeAreaInsets();
+  const fontSize = headerScroll.interpolate({
+    inputRange: [0, COLLAPSE_DISTANCE],
+    outputRange: [TITLE_SIZE.full, TITLE_SIZE.compact],
+    extrapolate: "clamp",
+  });
   return (
     <View
       style={[
@@ -76,9 +95,13 @@ export function AppHeader({ title, right, onBack }: AppHeaderProps) {
           deliberately, and a blank band there would be the title bar saying the
           same sentence twice, in whitespace. */}
       {title !== "" && (
-        <Text accessibilityRole="header" numberOfLines={2} style={local.title}>
+        <Animated.Text
+          accessibilityRole="header"
+          numberOfLines={2}
+          style={[local.title, { fontSize }]}
+        >
           {title}
-        </Text>
+        </Animated.Text>
       )}
     </View>
   );
@@ -103,7 +126,7 @@ const local = StyleSheet.create({
     color: colors.accent,
   },
   title: {
-    fontSize: 24,
+    // `fontSize` is animated in, so it is deliberately absent here.
     fontWeight: "700",
     color: colors.text,
   },

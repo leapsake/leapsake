@@ -20,6 +20,7 @@ import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
 import { stickyOrder } from "../../lib/sticky-order";
 import { useFocusedData } from "../../lib/useFocusedData";
+import { useHeaderScroll } from "../../lib/use-header-scroll";
 import { colors, styles } from "../../lib/styles";
 
 /**
@@ -46,6 +47,9 @@ export default function RemindersScreen() {
   const core = useCore();
   const load = useCallback(() => core.reminders.list(), [core]);
   const { data: reminders, error, reload } = useFocusedData(load);
+  // Called before the early returns below, not beside the list it decorates:
+  // it is a hook, and the loading and error branches leave without a list.
+  const scrollProps = useHeaderScroll();
   // The order the rows were in when one of them was last toggled, which the
   // reloaded list is held to so the tapped row doesn't move out from under the
   // finger. Cleared when the screen blurs: leaving is the user's own break in the
@@ -86,6 +90,7 @@ export default function RemindersScreen() {
   return (
     <View style={styles.screen}>
       <FlatList
+        {...scrollProps}
         data={ordered}
         keyExtractor={(r) => r.id}
         ListEmptyComponent={
