@@ -24,6 +24,10 @@ import {
 import { StagedContactsSection } from "../components/StagedContactsSection";
 import { StagedHolidaysSection } from "../components/StagedHolidaysSection";
 import { StagedMilestonesSection } from "../components/StagedMilestonesSection";
+import {
+  type StagedRelationship,
+  StagedRelationshipsSection,
+} from "../components/StagedRelationshipsSection";
 import { TagsInput } from "../components/TagsInput";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
@@ -45,12 +49,15 @@ import { styles } from "../lib/styles";
  *   from a new person's page landed on Home; this screen's `replace` at the end
  *   of {@link save} does the same job.
  *
- * The form also **stages** milestones, contacts, and holidays — things that used
- * to require saving first and then walking into a section on the detail page.
- * They're held in memory and written immediately after the entity exists, since
- * every one of them is keyed to a bearer id that doesn't exist until then.
- * Relationships and gifts are deliberately not here: a relationship needs a
- * second saved party, and gift capture is a screen's worth of form on its own.
+ * The form also **stages** milestones, contacts, holidays, and relationships —
+ * things that used to require saving first and then walking into a section on the
+ * detail page. They're held in memory and written immediately after the entity
+ * exists, since every one of them is keyed to a bearer id that doesn't exist
+ * until then. A relationship's *other* end is an already-saved person or pet, so
+ * it stages like the rest; only relating two brand-new entities still needs two
+ * passes. Gifts are the one section deliberately left off: capture is a screen's
+ * worth of form on its own, and its occasion picker would have to resolve against
+ * milestones that are themselves still staged.
  */
 export default function AddScreen() {
   const [type, setType] = useState<EntityType>("person");
@@ -58,8 +65,9 @@ export default function AddScreen() {
   // Keyed on the entity type, so flipping the toggle remounts the form and drops
   // every draft and staged entry with it. That's the intended behaviour (the two
   // halves share no fields worth carrying across) and it's also the safe one:
-  // milestone kinds are constrained by bearer type, so a staged person milestone
-  // isn't necessarily a legal pet milestone.
+  // both milestone kinds and relationship roles are constrained by the subject's
+  // type, so a staged person milestone isn't necessarily a legal pet milestone,
+  // and a role picked against a person needn't be one a pet can hold.
   return <AddEntityForm key={type} type={type} onTypeChange={setType} />;
 }
 
@@ -68,6 +76,7 @@ interface StagedExtras {
   milestones: MilestoneFormValue[];
   contacts: ContactFormValue[];
   holidays: HolidayListItem[];
+  relationships: StagedRelationship[];
 }
 
 function AddEntityForm({
@@ -85,6 +94,7 @@ function AddEntityForm({
   const [milestones, setMilestones] = useState<MilestoneFormValue[]>([]);
   const [contacts, setContacts] = useState<ContactFormValue[]>([]);
   const [holidays, setHolidays] = useState<HolidayListItem[]>([]);
+  const [relationships, setRelationships] = useState<StagedRelationship[]>([]);
   const [saving, setSaving] = useState(false);
 
   const isPerson = type === "person";
@@ -96,7 +106,12 @@ function AddEntityForm({
     if (!canSave || saving) return;
     setSaving(true);
     try {
-      const extras: StagedExtras = { milestones, contacts, holidays };
+      const extras: StagedExtras = {
+        milestones,
+        contacts,
+        holidays,
+        relationships,
+      };
       if (isPerson) {
         const person = await core.people.create(
           personDraftToInput(personDraft),
@@ -169,6 +184,13 @@ function AddEntityForm({
           <StagedContactsSection entries={contacts} onChange={setContacts} />
         )}
 
+        {/* Between Milestones and Holidays, as on both detail pages. */}
+        <StagedRelationshipsSection
+          subjectType={type}
+          entries={relationships}
+          onChange={setRelationships}
+        />
+
         <StagedHolidaysSection entries={holidays} onChange={setHolidays} />
 
         {/* Last, below the staged sections rather than up with the name and
@@ -184,8 +206,7 @@ function AddEntityForm({
         />
 
         <Text style={styles.muted}>
-          Relationships and gifts can be added from {isPerson ? "their" : "its"}{" "}
-          page once saved.
+          Gifts can be added from {isPerson ? "their" : "its"} page once saved.
         </Text>
 
         {/* Pushed, not replaced: backing out of the importer returns here with
@@ -213,7 +234,7 @@ async function writeExtras(
   core: CoreApi,
   bearerType: EntityType,
   bearerId: string,
-  { milestones, contacts, holidays }: StagedExtras,
+  { milestones, contacts, holidays, relationships }: StagedExtras,
 ): Promise<void> {
   const failed: string[] = [];
 
@@ -270,6 +291,20 @@ async function writeExtras(
       ]);
     } catch {
       failed.push(holiday.name);
+    }
+  }
+
+  // The new entity is the subject; core implies its own role from the picked
+  // other-end role, exactly as the add-relationship screen's save does.
+  for (const { otherLabel, ...value } of relationships) {
+    try {
+      await core.relationships.createFromSubject({
+        subjectType: bearerType,
+        subjectId: bearerId,
+        ...value,
+      });
+    } catch {
+      failed.push(otherLabel);
     }
   }
 

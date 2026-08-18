@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
 import type { RelationshipCandidate } from "@leapsake/core";
 import {
@@ -40,10 +40,23 @@ export interface LockedOther {
  * `lockedOther` fixes the other end and hides the picker: it serves both the
  * materialise-a-derived-edge path (other endpoint known, role chosen) and the
  * edit-an-explicit-edge path (endpoints immutable, only the role changes). Like
- * the other forms, this only collects input — the screen owns the
- * `core.relationships.*` call — and hands back a {@link RelationshipFormValue} —
- * and it declares its own native header, title plus a right-aligned
- * {@link HeaderSave}, so `canSubmit` never has to be lifted out of it.
+ * the other forms, this only collects input — the caller owns the
+ * `core.relationships.*` call — and hands back a {@link RelationshipFormValue}.
+ *
+ * With `inline` it renders into the caller's layout rather than owning the
+ * screen — no scroll view of its own, since nesting one inside another of the
+ * same orientation silently breaks scrolling. That is how the create screen
+ * (app/add.tsx) stages a relationship for a subject that doesn't exist yet: the
+ * other end is an already-saved person or pet either way, so the picker, the
+ * pair-dependent role list, and the `other` note rule are all identical; only
+ * the subject id is missing, and it arrives before the write.
+ *
+ * The two modes carry the submit action in different places, which is what splits
+ * the props. On its own screen it declares the native header — `title` plus a
+ * right-aligned {@link HeaderSave} — and there is no Cancel, since "‹ Back"
+ * already leaves. Inline it keeps the in-body `Cancel  submitLabel` row: the
+ * header belongs to the screen around it, and Cancel is the only way to collapse
+ * the sub-form.
  */
 export function RelationshipForm({
   title,
@@ -52,16 +65,25 @@ export function RelationshipForm({
   lockedOther,
   initialRole,
   initialNote,
+  submitLabel,
   onSubmit,
+  onCancel,
+  inline = false,
 }: {
-  /** Native header title, set here so the header is declared in one place. */
-  title: string;
+  /** Screen mode: the native header title, set here so it's declared in one place. */
+  title?: string;
   subjectType: EntityType;
   candidates?: RelationshipCandidate[];
   lockedOther?: LockedOther;
   initialRole?: RelationshipRole;
   initialNote?: string | null;
+  /** Inline mode: the in-body submit button's label. */
+  submitLabel?: string;
   onSubmit: (value: RelationshipFormValue) => Promise<void>;
+  /** Inline mode: collapses the sub-form. */
+  onCancel?: () => void;
+  /** Render without the screen-owning scroll view, for embedding in a form. */
+  inline?: boolean;
 }) {
   const [selected, setSelected] = useState<RelationshipCandidate | null>(
     lockedOther
@@ -110,6 +132,72 @@ export function RelationshipForm({
     }
   }
 
+  const body = (
+    <>
+      {inline ? (
+        <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onCancel}
+            disabled={submitting}
+          >
+            <Text style={styles.link}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleSubmit}
+            disabled={!canSubmit}
+            style={[styles.button, !canSubmit && { opacity: 0.5 }]}
+          >
+            <Text style={styles.buttonText}>{submitLabel}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {lockedOther ? (
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Name</Text>
+          <Text style={styles.fieldValue}>{lockedOther.label}</Text>
+        </View>
+      ) : (
+        <Typeahead<RelationshipCandidate>
+          label="Name"
+          value={selected}
+          options={candidates ?? []}
+          // Re-picking the name invalidates the role (it's pair-dependent).
+          onChange={(candidate) => {
+            setSelected(candidate);
+            setRole(null);
+          }}
+          getKey={(c) => `${c.type}:${c.id}`}
+          getLabel={(c) => c.label}
+        />
+      )}
+
+      {selected !== null ? (
+        <Typeahead<RoleOption>
+          // Remount on a name change so the role's live query resets.
+          key={selected.id}
+          label="Role"
+          value={selectedRole}
+          options={roleOptions}
+          onChange={(option) => setRole(option?.role ?? null)}
+          getKey={(r) => r.role}
+          getLabel={(r) => r.label}
+        />
+      ) : null}
+
+      {noteRequired ? (
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Note (e.g. landlord)</Text>
+          <TextInput style={styles.input} value={note} onChangeText={setNote} />
+        </View>
+      ) : null}
+    </>
+  );
+
+  if (inline) return <View style={styles.inlineForm}>{body}</View>;
+
   return (
     <>
       <Stack.Screen
@@ -128,45 +216,7 @@ export function RelationshipForm({
         contentContainerStyle={styles.screen}
         keyboardShouldPersistTaps="handled"
       >
-        {lockedOther ? (
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Name</Text>
-            <Text style={styles.fieldValue}>{lockedOther.label}</Text>
-          </View>
-        ) : (
-          <Typeahead<RelationshipCandidate>
-            label="Name"
-            value={selected}
-            options={candidates ?? []}
-            // Re-picking the name invalidates the role (it's pair-dependent).
-            onChange={(candidate) => {
-              setSelected(candidate);
-              setRole(null);
-            }}
-            getKey={(c) => `${c.type}:${c.id}`}
-            getLabel={(c) => c.label}
-          />
-        )}
-
-        {selected !== null ? (
-          <Typeahead<RoleOption>
-            // Remount on a name change so the role's live query resets.
-            key={selected.id}
-            label="Role"
-            value={selectedRole}
-            options={roleOptions}
-            onChange={(option) => setRole(option?.role ?? null)}
-            getKey={(r) => r.role}
-            getLabel={(r) => r.label}
-          />
-        ) : null}
-
-        {noteRequired ? (
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Note (e.g. landlord)</Text>
-            <TextInput style={styles.input} value={note} onChangeText={setNote} />
-          </View>
-        ) : null}
+        {body}
       </ScrollView>
     </>
   );
