@@ -10,6 +10,7 @@ import {
 import { AppHeader } from "../../components/AppHeader";
 import { CreateSheet } from "../../components/CreateSheet";
 import { newActionFor } from "../../lib/new-action";
+import { useHasAccount } from "../../lib/use-has-account";
 import { colors, styles } from "../../lib/styles";
 
 /**
@@ -43,6 +44,7 @@ export default function TabsLayout() {
   const pathname = usePathname();
   const params = useLocalSearchParams<{ type?: string }>();
   const [choosing, setChoosing] = useState(false);
+  const hasAccount = useHasAccount();
 
   return (
     <>
@@ -124,11 +126,27 @@ export default function TabsLayout() {
             },
           }}
         />
+        {/*
+          One tab, two names. Signed out it is Settings — a place for the app's
+          switches, with an invitation to make an account among them. Signed in
+          it is Account, because that is what a user is looking for once they
+          have one, and burying it under "Settings" would be hiding the thing
+          they came for.
+
+          There is no separate always-visible account affordance anywhere else,
+          which is the point: an account is optional, so a permanent sign-in
+          prompt would be a wall where the product promises a nudge.
+        */}
         <Tabs.Screen
           name="menu"
           options={{
-            title: "Settings",
-            tabBarIcon: ({ color }) => <TabIcon glyph="⚙️" color={color} />,
+            title: hasAccount === true ? "Account" : "Settings",
+            tabBarIcon: ({ color }) => (
+              <TabIcon
+                glyph={hasAccount === true ? "👤" : "⚙️"}
+                color={color}
+              />
+            ),
           }}
         />
       </Tabs>
