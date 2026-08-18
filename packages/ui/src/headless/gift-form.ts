@@ -12,6 +12,7 @@ import type {
   CaptureRecipient,
   GiftGivingEntry,
   GiftOccasion,
+  GiftPartyType,
 } from "@leapsake/schema";
 import { useEffect, useRef, useState } from "react";
 import type {
@@ -85,10 +86,36 @@ export function givingsOf(rows: readonly GivingRow[]): GiftGivingEntry[] {
     }));
 }
 
+/**
+ * Rewrite a **staged** occasion onto real ids — what a create form needs, where
+ * the gift is authored before its recipient (and so before that recipient's
+ * milestones) exists.
+ *
+ * A holiday pointer is already real: holidays come from a catalog that predates
+ * the form, so it passes through untouched. A milestone pointer holds the
+ * client-minted key the create form staged it under, and is looked up in the map
+ * the caller builds as it writes those milestones.
+ *
+ * An unresolvable milestone key means that milestone never landed, so the
+ * occasion is **dropped** rather than written dangling: `gifts.capture` does not
+ * validate occasion ids, so a bad pointer would be stored as-is.
+ */
+export function resolveStagedOccasion(
+  occasion: GiftOccasion | null,
+  milestoneIds: ReadonlyMap<string, string>,
+): GiftOccasion | null {
+  if (occasion === null || occasion.type !== "milestone") return occasion;
+  const id = milestoneIds.get(occasion.id);
+  return id === undefined ? null : { type: "milestone", id };
+}
+
 /** One recipient as a capture-payload entry, carrying both arms; core reads the
- *  givings when there are any and the suggestion fields otherwise. */
+ *  givings when there are any and the suggestion fields otherwise.
+ *
+ *  Takes the bare party rather than a {@link PartyOption} — it reads only `type`
+ *  and `id`, and a create form has no label to hand it. */
 export function captureRecipientOf(
-  party: PartyOption,
+  party: { type: GiftPartyType; id: string },
   givings: readonly GivingRow[],
   suggestion: SuggestionFields,
 ): CaptureRecipient {

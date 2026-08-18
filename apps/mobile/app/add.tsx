@@ -2,11 +2,22 @@ import { useState } from "react";
 import { Alert, Pressable, ScrollView, Text } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import type { CoreApi, HolidayListItem } from "@leapsake/core";
-import { type EntityType, parseTagNames } from "@leapsake/schema";
+import {
+  type EntityType,
+  type GiftOccasion,
+  milestoneLabel,
+  parseTagNames,
+} from "@leapsake/schema";
+import {
+  type GiftOccasionChoice,
+  captureRecipientOf,
+  occasionKey,
+  resolveStagedOccasion,
+} from "@leapsake/ui/headless";
 import type { ContactFormValue } from "../components/ContactMethodForm";
 import { EntityTypeToggle } from "../components/EntityTypeToggle";
+import type { StagedGift } from "../components/GiftCaptureForm";
 import { HeaderSave } from "../components/HeaderSave";
-import type { MilestoneFormValue } from "../components/MilestoneForm";
 import {
   type PersonDraft,
   PersonFields,
@@ -22,8 +33,12 @@ import {
   petDraftValid,
 } from "../components/PetForm";
 import { StagedContactsSection } from "../components/StagedContactsSection";
+import { StagedGiftsSection } from "../components/StagedGiftsSection";
 import { StagedHolidaysSection } from "../components/StagedHolidaysSection";
-import { StagedMilestonesSection } from "../components/StagedMilestonesSection";
+import {
+  type StagedMilestone,
+  StagedMilestonesSection,
+} from "../components/StagedMilestonesSection";
 import {
   type StagedRelationship,
   StagedRelationshipsSection,
@@ -49,15 +64,22 @@ import { styles } from "../lib/styles";
  *   from a new person's page landed on Home; this screen's `replace` at the end
  *   of {@link save} does the same job.
  *
- * The form also **stages** milestones, contacts, holidays, and relationships —
- * things that used to require saving first and then walking into a section on the
- * detail page. They're held in memory and written immediately after the entity
- * exists, since every one of them is keyed to a bearer id that doesn't exist
- * until then. A relationship's *other* end is an already-saved person or pet, so
- * it stages like the rest; only relating two brand-new entities still needs two
- * passes. Gifts are the one section deliberately left off: capture is a screen's
- * worth of form on its own, and its occasion picker would have to resolve against
- * milestones that are themselves still staged.
+ * The form **stages** every section the detail pages carry — milestones,
+ * contacts, holidays, relationships, gifts — things that used to require saving
+ * first and then walking into a section on the detail page. They're held in
+ * memory and written immediately after the entity exists, since every one of them
+ * is keyed to a bearer id that doesn't exist until then. A relationship's *other*
+ * end is an already-saved person or pet, so it stages like the rest; only relating
+ * two brand-new entities still needs two passes.
+ *
+ * Gifts are the one section with a **forward reference** inside the form. A gift's
+ * occasion points at a milestone or holiday by id; a staged holiday's id is real
+ * (it comes from the catalog), but a staged milestone has none until it's written.
+ * So staged milestones carry a client-minted {@link StagedMilestone.key}, the
+ * occasion pool offers them under it, and {@link writeExtras} maps key → real id
+ * as it writes the milestones and rewrites each gift's occasions before capture.
+ * Removing a milestone or holiday a staged gift names clears that occasion — see
+ * {@link pruneGiftOccasions}.
  */
 export default function AddScreen() {
   const [type, setType] = useState<EntityType>("person");
@@ -73,10 +95,40 @@ export default function AddScreen() {
 
 /** Everything staged alongside the entity itself, written once it has an id. */
 interface StagedExtras {
-  milestones: MilestoneFormValue[];
+  milestones: StagedMilestone[];
   contacts: ContactFormValue[];
   holidays: HolidayListItem[];
   relationships: StagedRelationship[];
+  gifts: StagedGift[];
+}
+
+/**
+ * Drop any staged-gift occasion that `valid` no longer contains — what removing a
+ * staged milestone or holiday a gift named has to do.
+ *
+ * Not merely tidiness: {@link SelectField} falls back to its first option when its
+ * value matches none, so a stale pointer would *read* as "— none —" while state
+ * still held it. For a milestone the write would drop it anyway (its key stops
+ * resolving), but a holiday id stays resolvable forever, so without this a gift
+ * could be written "for Christmas" against an entity that no longer observes it.
+ */
+function pruneGiftOccasions(
+  gifts: StagedGift[],
+  valid: ReadonlySet<string>,
+): StagedGift[] {
+  const keep = (occasion: GiftOccasion | null) =>
+    occasion !== null && valid.has(occasionKey(occasion)) ? occasion : null;
+  return gifts.map((gift) => ({
+    ...gift,
+    givings: gift.givings.map((row) => ({
+      ...row,
+      occasion: keep(row.occasion),
+    })),
+    suggestion: {
+      ...gift.suggestion,
+      occasion: keep(gift.suggestion.occasion),
+    },
+  }));
 }
 
 function AddEntityForm({
@@ -91,11 +143,46 @@ function AddEntityForm({
 
   const [personDraft, setPersonDraft] = useState<PersonDraft>(emptyPersonDraft);
   const [petDraft, setPetDraft] = useState<PetDraft>(emptyPetDraft);
-  const [milestones, setMilestones] = useState<MilestoneFormValue[]>([]);
+  const [milestones, setMilestones] = useState<StagedMilestone[]>([]);
   const [contacts, setContacts] = useState<ContactFormValue[]>([]);
   const [holidays, setHolidays] = useState<HolidayListItem[]>([]);
   const [relationships, setRelationships] = useState<StagedRelationship[]>([]);
+  const [gifts, setGifts] = useState<StagedGift[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Everything a staged gift may name as its occasion, in the order
+  // `core.gifts.occasionsFor` returns the saved equivalent: own milestones, then
+  // observed holidays. A milestone is offered under its staged key, which
+  // `writeExtras` swaps for the real id.
+  const giftOccasions: GiftOccasionChoice[] = [
+    ...milestones.map((m) => ({
+      type: "milestone" as const,
+      id: m.key,
+      label: milestoneLabel(m),
+    })),
+    ...holidays.map((h) => ({
+      type: "holiday" as const,
+      id: h.id,
+      label: h.name,
+    })),
+  ];
+
+  // Removing a milestone or holiday has to clear any staged gift occasion naming
+  // it, so the two sections' change handlers go through here rather than setting
+  // state directly. The pool is recomputed from the *incoming* lists, since the
+  // state this reads hasn't updated yet.
+  function pruneAgainst(
+    nextMilestones: StagedMilestone[],
+    nextHolidays: HolidayListItem[],
+  ) {
+    const valid = new Set([
+      ...nextMilestones.map((m) =>
+        occasionKey({ type: "milestone", id: m.key }),
+      ),
+      ...nextHolidays.map((h) => occasionKey({ type: "holiday", id: h.id })),
+    ]);
+    setGifts((current) => pruneGiftOccasions(current, valid));
+  }
 
   const isPerson = type === "person";
   const canSave = isPerson
@@ -111,6 +198,7 @@ function AddEntityForm({
         contacts,
         holidays,
         relationships,
+        gifts,
       };
       if (isPerson) {
         const person = await core.people.create(
@@ -175,7 +263,10 @@ function AddEntityForm({
         <StagedMilestonesSection
           bearerType={type}
           entries={milestones}
-          onChange={setMilestones}
+          onChange={(next) => {
+            setMilestones(next);
+            pruneAgainst(next, holidays);
+          }}
         />
 
         {/* Person-only, matching the detail pages: a pet has no Contacts section
@@ -191,7 +282,19 @@ function AddEntityForm({
           onChange={setRelationships}
         />
 
-        <StagedHolidaysSection entries={holidays} onChange={setHolidays} />
+        <StagedHolidaysSection
+          entries={holidays}
+          onChange={(next) => {
+            setHolidays(next);
+            pruneAgainst(milestones, next);
+          }}
+        />
+
+        <StagedGiftsSection
+          occasions={giftOccasions}
+          entries={gifts}
+          onChange={setGifts}
+        />
 
         {/* Last, below the staged sections rather than up with the name and
             gender: what to tag someone with is a decision you make once the rest
@@ -204,10 +307,6 @@ function AddEntityForm({
               : setPetDraft({ ...petDraft, tags })
           }
         />
-
-        <Text style={styles.muted}>
-          Gifts can be added from {isPerson ? "their" : "its"} page once saved.
-        </Text>
 
         {/* Pushed, not replaced: backing out of the importer returns here with
             whatever is already typed in. */}
@@ -229,18 +328,31 @@ function AddEntityForm({
  * deleting it because a phone number failed to write would throw away more than
  * it rescued. A failure is reported by name and the caller carries on to the
  * detail page, where the section that didn't take is one tap from being redone.
+ *
+ * The order is mostly arbitrary — the sections don't depend on each other — with
+ * one exception: **milestones first, gifts last**, because a gift's occasion may
+ * name a milestone staged on the same form and needs the id its write produced.
  */
 async function writeExtras(
   core: CoreApi,
   bearerType: EntityType,
   bearerId: string,
-  { milestones, contacts, holidays, relationships }: StagedExtras,
+  { milestones, contacts, holidays, relationships, gifts }: StagedExtras,
 ): Promise<void> {
   const failed: string[] = [];
 
-  for (const value of milestones) {
+  // Staged key → the id the milestone actually got, for the gift occasions below.
+  // A milestone that failed simply isn't in the map, which is what makes its
+  // occasion resolve to nothing rather than to a dangling id.
+  const milestoneIds = new Map<string, string>();
+  for (const { key, ...value } of milestones) {
     try {
-      await core.milestones.create({ ...value, bearerType, bearerId });
+      const created = await core.milestones.create({
+        ...value,
+        bearerType,
+        bearerId,
+      });
+      milestoneIds.set(key, created.id);
     } catch {
       failed.push("a milestone");
     }
@@ -305,6 +417,36 @@ async function writeExtras(
       });
     } catch {
       failed.push(otherLabel);
+    }
+  }
+
+  // Last, so every staged milestone has been written and can be named. One
+  // `capture` per gift: the payload carries one idea and N recipients, and each
+  // staged gift is its own idea. The new entity is the sole recipient; the giver
+  // still resolves to the self-person inside `capture`.
+  for (const gift of gifts) {
+    try {
+      await core.gifts.capture({
+        giftIdea: gift.giftIdea,
+        recipients: [
+          captureRecipientOf(
+            { type: bearerType, id: bearerId },
+            gift.givings.map((row) => ({
+              ...row,
+              occasion: resolveStagedOccasion(row.occasion, milestoneIds),
+            })),
+            {
+              ...gift.suggestion,
+              occasion: resolveStagedOccasion(
+                gift.suggestion.occasion,
+                milestoneIds,
+              ),
+            },
+          ),
+        ],
+      });
+    } catch {
+      failed.push(gift.title);
     }
   }
 

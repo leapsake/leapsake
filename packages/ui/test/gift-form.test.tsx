@@ -16,6 +16,7 @@ import {
   partyKey,
   patchRecipient,
   removeRecipient,
+  resolveStagedOccasion,
   usePartyContext,
 } from "../src/headless/index.js";
 
@@ -96,6 +97,37 @@ describe("captureRecipientOf", () => {
     });
     expect(entry.givings).toEqual([]);
     expect(entry.suggestion).toEqual({ occasion: null, targetDate: null });
+  });
+});
+
+describe("resolveStagedOccasion", () => {
+  const ids = new Map([["staged-1", "m-real"]]);
+
+  it("rewrites a staged milestone onto the id it was written under", () => {
+    expect(
+      resolveStagedOccasion({ type: "milestone", id: "staged-1" }, ids),
+    ).toEqual({ type: "milestone", id: "m-real" });
+  });
+
+  it("passes a holiday through — its id was real all along", () => {
+    const occasion = { type: "holiday" as const, id: "h-1" };
+    expect(resolveStagedOccasion(occasion, ids)).toBe(occasion);
+  });
+
+  it("passes a holiday through even when its id collides with a staged key", () => {
+    expect(
+      resolveStagedOccasion({ type: "holiday", id: "staged-1" }, ids),
+    ).toEqual({ type: "holiday", id: "staged-1" });
+  });
+
+  it("drops a milestone whose write never landed, rather than dangling", () => {
+    expect(
+      resolveStagedOccasion({ type: "milestone", id: "staged-gone" }, ids),
+    ).toBeNull();
+  });
+
+  it("leaves “no occasion” alone", () => {
+    expect(resolveStagedOccasion(null, ids)).toBeNull();
   });
 });
 

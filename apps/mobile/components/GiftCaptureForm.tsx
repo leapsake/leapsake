@@ -141,6 +141,21 @@ function AlreadyGivenNotice({
 }
 
 /**
+ * A gift authored before its recipient exists — what the create screen stages.
+ * Holds the form's own representation (`GivingRow`/`SuggestionFields`, dates
+ * still strings) rather than a `CaptureRecipient`, because the party is the one
+ * thing missing and `captureRecipientOf` is what supplies it, at write time.
+ */
+export interface StagedGift {
+  /** What capture reuses or mints — resolved against `ideaPool` at stage time. */
+  giftIdea: { id: string } | { title: string; url?: string };
+  /** The typed title, for the staged row's label and the failure message. */
+  title: string;
+  givings: GivingRow[];
+  suggestion: SuggestionFields;
+}
+
+/**
  * The one consolidated "capture a gift" form — the React Native markup over
  * `@leapsake/ui/headless`'s shared capture logic, which the web
  * `GiftCaptureForm` renders too. Type a gift's name (autocompleting existing ideas)
@@ -153,7 +168,19 @@ function AlreadyGivenNotice({
  *
  * `fixedRecipient` (Person/Pet screen) and `recipientCandidates` (Gifts screen)
  * are mutually exclusive: the former hides the recipient picker, the latter shows
- * a multi-add typeahead over people/pets.
+ * a multi-add typeahead over people/pets. `onStage` is the third of these — the
+ * **create** screen (app/add.tsx), where the recipient is the person or pet being
+ * added and so has no id yet. Two things follow from that and nothing else
+ * changes: the occasion pool arrives as `stagedOccasions` because there is no
+ * party to fetch one for, and submit hands the payload back instead of writing
+ * it. The re-gift guard needs no special case — an entity that doesn't exist
+ * can't have been given anything, and `usePartyContext` is already asked for no
+ * parties in this mode.
+ *
+ * With `inline` it renders into the caller's layout: no native header, and the
+ * `Cancel  submitLabel` row in the body instead, exactly as {@link MilestoneForm}
+ * and the other staged forms do. (There's no scroll view to drop — this form
+ * never owned one; its screens supply it.)
  *
  * The title field is a plain `TextInput` with its own suggestion list rather than
  * a {@link Typeahead}: it's desktop's free-text-plus-`<datalist>` input, where an
@@ -176,9 +203,14 @@ export function GiftCaptureForm({
   recipientCandidates,
   startWithGiving = false,
   onSaved,
+  onStage,
+  stagedOccasions,
+  submitLabel,
+  onCancel,
+  inline = false,
 }: {
-  /** Native header title, set here so the header is declared in one place. */
-  title: string;
+  /** Screen mode: the native header title, set here so it's declared in one place. */
+  title?: string;
   ideaPool: GiftIdea[];
   fixedRecipient?: PartyOption;
   recipientCandidates?: PartyOption[];
@@ -187,7 +219,18 @@ export function GiftCaptureForm({
   startWithGiving?: boolean;
   /** Called after a successful save — the screen decides whether that means
    *  reloading in place (an inline section) or navigating away (a create screen). */
-  onSaved: () => void;
+  onSaved?: () => void;
+  /** Staged mode: hand the payload back rather than writing it, because the
+   *  recipient doesn't exist yet. Set alongside `stagedOccasions`. */
+  onStage?: (value: StagedGift) => void;
+  /** Staged mode: the occasion pool, there being no party to fetch one for. */
+  stagedOccasions?: readonly GiftOccasionChoice[];
+  /** Inline mode: the in-body submit button's label. */
+  submitLabel?: string;
+  /** Inline mode: collapses the sub-form. */
+  onCancel?: () => void;
+  /** Render without the native header, for embedding in a form. */
+  inline?: boolean;
 }) {
   const core = useCore();
   const partyLoaders = useGiftPartyLoaders();
@@ -259,6 +302,20 @@ export function GiftCaptureForm({
           url: url.trim() !== "" ? url.trim() : undefined,
         };
 
+    // Staged: there is no recipient to write against yet, so the whole payload
+    // goes back to the create screen, which writes it once the subject has an id.
+    // Nothing here can fail, so there is no busy state and no error to report.
+    if (onStage !== undefined) {
+      onStage({
+        giftIdea,
+        title: trimmedTitle,
+        givings: fixedGivings,
+        suggestion: fixedSuggestion,
+      });
+      reset();
+      return;
+    }
+
     const captureRecipients: CaptureRecipient[] = fixedRecipient
       ? [captureRecipientOf(fixedRecipient, fixedGivings, fixedSuggestion)]
       : recipients.map((r) =>
@@ -273,7 +330,7 @@ export function GiftCaptureForm({
         recipients: captureRecipients,
       });
       reset();
-      onSaved();
+      onSaved?.();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -284,19 +341,39 @@ export function GiftCaptureForm({
   const canSubmit = !busy && trimmedTitle !== "";
 
   return (
-    <View style={styles.section}>
-      <Stack.Screen
-        options={{
-          title: headerTitle,
-          headerRight: () => (
-            <HeaderSave
-              canSave={canSubmit}
-              saving={busy}
-              onPress={() => void submit()}
-            />
-          ),
-        }}
-      />
+    <View style={inline ? styles.inlineForm : styles.section}>
+      {inline ? (
+        <View style={[styles.headerActions, { justifyContent: "flex-end" }]}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onCancel}
+            disabled={busy}
+          >
+            <Text style={styles.link}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void submit()}
+            disabled={!canSubmit}
+            style={[styles.button, !canSubmit && { opacity: 0.5 }]}
+          >
+            <Text style={styles.buttonText}>{submitLabel}</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Stack.Screen
+          options={{
+            title: headerTitle,
+            headerRight: () => (
+              <HeaderSave
+                canSave={canSubmit}
+                saving={busy}
+                onPress={() => void submit()}
+              />
+            ),
+          }}
+        />
+      )}
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Gift</Text>
@@ -325,7 +402,25 @@ export function GiftCaptureForm({
         />
       </View>
 
-      {fixedRecipient ? (
+      {stagedOccasions !== undefined ? (
+        // Staged: the recipient is the entity being created, named by the form
+        // around this one, so there's neither a picker nor anyone to have already
+        // been given this. Only the two occasion-bearing arms remain.
+        <>
+          {fixedGivings.length === 0 && (
+            <SuggestionDisclosure
+              fields={fixedSuggestion}
+              occasions={stagedOccasions}
+              onChange={setFixedSuggestion}
+            />
+          )}
+          <GivingRows
+            rows={fixedGivings}
+            occasions={stagedOccasions}
+            onChange={setFixedGivings}
+          />
+        </>
+      ) : fixedRecipient ? (
         <>
           <AlreadyGivenNotice
             label={fixedRecipient.label}

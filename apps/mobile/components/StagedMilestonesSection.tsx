@@ -10,6 +10,19 @@ import { MilestoneForm, type MilestoneFormValue } from "./MilestoneForm";
 import { styles } from "../lib/styles";
 
 /**
+ * A staged milestone plus a client-minted key. The key exists so a staged *gift*
+ * can name this milestone as its occasion before either of them is written: the
+ * create screen maps the key to the real id as it writes, and rewrites the gift's
+ * occasion onto it (`resolveStagedOccasion`). A uuid rather than a counter or an
+ * array index — an occasion's id is a `z.uuid()`, so the placeholder stays
+ * shape-valid while it sits in form state, and it survives removing an earlier
+ * row.
+ */
+export interface StagedMilestone extends MilestoneFormValue {
+  key: string;
+}
+
+/**
  * Milestones on the **create** screen, where there is no bearer to write them to
  * yet: each one is held in a plain array and written after `core.people.create`
  * (or `core.pets.create`) returns an id. Nothing here touches the database — the
@@ -27,8 +40,8 @@ export function StagedMilestonesSection({
   onChange,
 }: {
   bearerType: MilestoneBearerType;
-  entries: MilestoneFormValue[];
-  onChange: (entries: MilestoneFormValue[]) => void;
+  entries: StagedMilestone[];
+  onChange: (entries: StagedMilestone[]) => void;
 }) {
   const [adding, setAdding] = useState(false);
 
@@ -43,11 +56,11 @@ export function StagedMilestonesSection({
         )}
       </View>
 
-      {entries.map((entry, index) => {
+      {entries.map((entry) => {
         const icon = kindDefs[entry.kind].icon;
         const date = formatMilestoneDate(entry);
         return (
-          <View key={index} style={styles.row}>
+          <View key={entry.key} style={styles.row}>
             <Text style={styles.rowText}>
               {icon ? `${icon} ` : ""}
               {milestoneLabel(entry)}
@@ -56,7 +69,9 @@ export function StagedMilestonesSection({
               <Text style={styles.muted}>{date === "" ? "—" : date}</Text>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => onChange(entries.filter((_, i) => i !== index))}
+                onPress={() =>
+                  onChange(entries.filter((e) => e.key !== entry.key))
+                }
               >
                 <Text style={[styles.link, styles.danger]}>Remove</Text>
               </Pressable>
@@ -75,7 +90,7 @@ export function StagedMilestonesSection({
           submitLabel="Add"
           onCancel={() => setAdding(false)}
           onSubmit={async (value) => {
-            onChange([...entries, value]);
+            onChange([...entries, { ...value, key: crypto.randomUUID() }]);
             setAdding(false);
           }}
         />

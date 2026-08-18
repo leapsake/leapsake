@@ -21,6 +21,7 @@ export {
   partyKey,
   patchRecipient,
   removeRecipient,
+  resolveStagedOccasion,
   usePartyContext,
 } from "./gift-form.js";
 export {
