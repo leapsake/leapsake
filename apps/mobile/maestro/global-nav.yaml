@@ -9,21 +9,30 @@
 # Four cases, and what each goes red on if the shell regresses:
 #
 #   1. the bar holds Home, Search, New and Settings — a tab lost or renamed.
-#   2. New from Home opens the chooser **and leaves you on Home** — this is the
-#      "New never navigates" claim. Remove the `preventDefault` in
-#      `app/(tabs)/_layout.tsx` and the app navigates to the empty `new` route,
-#      so the Home title is gone and the assertion goes red.
+#   2. New from Home opens the chooser at all.
 #   3. New from a *filtered* Search goes straight into the form, no chooser —
-#      break the `?type=` read and it falls back to the sheet, so `person-first-name`
-#      never appears.
-#   4. Back is absent on a tab root and present on a pushed screen.
+#      break the `?type=` read (or read the tab layout's *local* params instead
+#      of the global ones, which is how this was first written) and it falls back
+#      to the sheet, so `person-first-name` never appears.
+#   4. Back is absent on a tab root and present on a pushed screen — **and this is
+#      also what catches a New tab that navigates.** See below.
 #
-# **What is deliberately not asserted: the selected-tab tint.** A tab's active
-# state is a colour, and Maestro asserts on the accessibility tree rather than on
-# pixels. Case 2 covers the property that colour is a symptom of — New does not
-# become the current screen — which is the half that can actually break. If the
-# tint is ever wrong while navigation is right, that is a styling bug and belongs
-# to a screenshot check, not here.
+# **Where the "New never navigates" claim is actually proven: case 4, not case 2.**
+# Verified by sabotage — deleting the `preventDefault` in `app/(tabs)/_layout.tsx`
+# turns this flow red, but on case 4's post-Back assertion, because focus has moved
+# to the empty `new` route and Back from the add form therefore lands there rather
+# than on the filtered search.
+#
+# Case 2's "still on Home" assertion does **not** catch it, and the reason is worth
+# knowing before writing any assertion about which tab is current: a bottom-tab
+# navigator keeps previously-focused screens **mounted**, merely hidden, so Home's
+# title is still in the accessibility tree after navigating away from it.
+# `assertVisible` on a tab's own content can never tell you that tab is focused.
+#
+# **What is deliberately not asserted at all: the selected-tab tint.** That is a
+# colour, and Maestro reads the accessibility tree rather than pixels. Case 4
+# covers the property the colour is a symptom of. If the tint is ever wrong while
+# navigation is right, that is a styling bug for a screenshot check, not here.
 #
 # Like `driver-selftest.yaml` this does not `launchApp`: a cold dev-client launch
 # lands on the launcher, and these routes only exist once JS is loaded. Open the
@@ -32,8 +41,11 @@
 #   maestro --udid <sim> test global-nav.yaml
 #
 # It creates nothing, so unlike `staged-gift-occasions.yaml` it needs no per-run
-# tag and can be re-run against the same simulator indefinitely. It does leave
-# the search tab filtered; the last step clears it so a re-run starts clean.
+# tag. It does need to **clear the search filter it may have left behind**, and it
+# does that on the way *in* rather than only on the way out: a run that fails
+# anywhere in case 3 leaves the tab narrowed, and the next run then finds a chip
+# where it expected tiles and fails for a reason that has nothing to do with the
+# code. Cleaning up at the end is not enough when the end is what didn't happen.
 #
 # The tabs are tapped by **testID** (`tab-home`, `tab-search`, `tab-new`,
 # `tab-account`), not by label. A tab's accessibility text is VoiceOver-style on
@@ -59,7 +71,9 @@ appId: com.leapsake.app
 - assertNotVisible: ".*Back.*"
 
 # ------------------------------------------------------------------ case 2 of 4
-# Home is about everything, so New has a real question to ask.
+# Home is about everything, so New has a real question to ask. The "Leapsake"
+# assertion below is weaker than it looks — see the header — and is kept only as
+# a cheap check that the sheet did not replace the screen wholesale.
 - tapOn:
     id: "tab-new"
 - assertVisible:
@@ -75,6 +89,15 @@ appId: com.leapsake.app
 # so New must skip the chooser entirely.
 - tapOn:
     id: "tab-search"
+# Clear a filter left by an earlier failed run (see the header) so the tiles are
+# what is on screen. Guarded, so a clean start simply skips it.
+- runFlow:
+    when:
+      visible:
+        id: "search-filter-chip"
+    commands:
+      - tapOn:
+          id: "search-filter-chip"
 - tapOn:
     id: "browse-tile-people"
 - assertVisible:

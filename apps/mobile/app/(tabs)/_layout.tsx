@@ -3,7 +3,7 @@ import { type ColorValue, Text, View } from "react-native";
 import {
   Link,
   Tabs,
-  useLocalSearchParams,
+  useGlobalSearchParams,
   usePathname,
   useRouter,
 } from "expo-router";
@@ -42,7 +42,13 @@ function TabIcon({ glyph, color }: { glyph: string; color: ColorValue }) {
 export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
-  const params = useLocalSearchParams<{ type?: string }>();
+  // **Global**, not local: `useLocalSearchParams` in a layout returns that
+  // layout's own params, and the `(tabs)` route has none — so the search tab's
+  // `?type=` was invisible from here and New always fell back to the chooser.
+  // The global hook reads whichever route is actually focused. Its usual hazard,
+  // that it keeps params from a screen you have since left, is closed by
+  // `newActionFor` only consulting `type` when the pathname is the search tab.
+  const params = useGlobalSearchParams<{ type?: string }>();
   const [choosing, setChoosing] = useState(false);
   const hasAccount = useHasAccount();
 
