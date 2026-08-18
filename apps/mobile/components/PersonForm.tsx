@@ -83,9 +83,18 @@ export function PersonFields({
 
   return (
     <>
+      {/*
+        `testID`s here are load-bearing for the harness, not decoration — the
+        same anchor set `account-*` joined. An empty `TextInput` carries no
+        accessibility text, so a driver can only reach these by their *position*
+        relative to the label above them; on the add screen, where the keyboard
+        reflows a long form as it opens, that resolved to the wrong field or to
+        nothing about half the time, and the typing landed silently elsewhere.
+      */}
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>First name</Text>
         <TextInput
+          testID="person-first-name"
           style={styles.input}
           value={draft.firstName}
           onChangeText={(value) => set("firstName", value)}
@@ -96,6 +105,7 @@ export function PersonFields({
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Middle name (optional)</Text>
         <TextInput
+          testID="person-middle-name"
           style={styles.input}
           value={draft.middleName}
           onChangeText={(value) => set("middleName", value)}
@@ -106,6 +116,7 @@ export function PersonFields({
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Last name</Text>
         <TextInput
+          testID="person-last-name"
           style={styles.input}
           value={draft.lastName}
           onChangeText={(value) => set("lastName", value)}

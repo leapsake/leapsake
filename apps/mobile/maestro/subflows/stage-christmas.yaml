@@ -1,0 +1,24 @@
+# Stage Christmas as an observed holiday.
+#
+# The picker is a live-filtering typeahead that lists nothing until a couple of
+# characters are typed, and its results render *under* the keyboard — so the
+# keyboard is dropped before reaching for the match, or the tap lands on a key.
+appId: com.leapsake.app
+---
+- scrollUntilVisible:
+    element:
+      text: "Add holiday"
+    direction: DOWN
+- tapOn: "Add holiday"
+- tapOn:
+    below:
+      text: "Add a holiday"
+- inputText: "Christ"
+- tapOn: "Milestones"
+- scrollUntilVisible:
+    element:
+      text: "Christmas"
+    direction: DOWN
+- tapOn: "Christmas"
+- tapOn: "Done"
+- assertVisible: "Christmas"

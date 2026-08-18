@@ -1,0 +1,149 @@
+# Staged gift occasions on the add person/pet screen.
+#
+# The add screen stages a whole record before any of it exists, and a gift's
+# occasion points at a milestone or holiday **by id**. A staged holiday's id is
+# real (it comes from the catalog); a staged milestone has no id until it is
+# written. So the screen offers staged milestones under a client-minted key and
+# remaps them as it writes (`resolveStagedOccasion`), and clears any occasion
+# whose milestone/holiday is removed before saving (`pruneGiftOccasions`).
+#
+# Four cases, and each one fails differently if that machinery breaks. Verified
+# by sabotage — the line each case actually goes red on is noted:
+#
+#   1. milestone kept    -> the occasion resolves to the real milestone.
+#      Break the remap and the id stays a staged key, `resolveOccasionLabel`
+#      finds no such milestone, and the row loses its "— Birthday".
+#      (red on: the saved ".*Given.*Birthday.*")
+#   2. milestone removed -> the occasion is dropped, not written dangling.
+#      Break the *prune* and this goes red on the **staged** summary, before
+#      anything is written: the row still claims "1 date". Its saved outcome
+#      stays correct even so, because the removed milestone's key never enters
+#      the id map and the write-time resolver drops it anyway.
+#      (red on: the pre-save "Suggestion")
+#   3. holiday kept      -> passes through untouched; no remap involved.
+#   4. holiday removed   -> **the only case where a missing prune corrupts what
+#      is saved.** A holiday id stays resolvable forever, so the write-time
+#      resolver has no reason to drop it; without the prune the gift is written
+#      "for Christmas" against someone who no longer observes it.
+#      (red on: the saved "Suggested")
+#
+# Like `driver-selftest.yaml` this deliberately does not `launchApp`: a cold
+# dev-client launch lands on the launcher, and these routes only exist once JS is
+# loaded. Open the app to its home screen against a running Metro first.
+#
+#   maestro --udid <sim> test staged-gift-occasions.yaml
+#
+# It leaves four people behind (dev data on a simulator). Re-running is safe: the
+# post-save duplicate prompt is dismissed with "Not now" where it appears, which
+# is exactly what a second run of the same fixed names triggers.
+#
+# The wheel: a `SelectField`'s options are not addressable on iOS — the
+# accessibility tree exposes only the picker's *current value* — so a choice is
+# made by opening the field, swiping one notch, and asserting the value landed
+# on. Both occasion pickers here hold exactly two options ("— none —" plus the
+# single staged occasion), so one notch is unambiguous. The assert is what keeps
+# that non-vacuous.
+appId: com.leapsake.app
+---
+# ---------------------------------------------------------------- case 1 of 4
+# A milestone occasion survives, remapped onto the id the milestone was written
+# under.
+- runFlow:
+    file: subflows/add-person.yaml
+    env:
+      FIRST: "Casea"
+      LAST: "Milestone"
+- tapOn: "Add milestone"
+- tapOn: "Add" # a dateless Birthday — the wheel makes a month impractical
+- assertVisible: ".*Birthday.*"
+- runFlow:
+    file: subflows/stage-gift-for-occasion.yaml
+    env:
+      TITLE: "Telescope"
+      OCCASION: "Birthday"
+- runFlow:
+    file: subflows/save-person.yaml
+- assertVisible: ".*Given.*Birthday.*"
+
+# ---------------------------------------------------------------- case 2 of 4
+# The same, but the milestone is removed before saving: the occasion is dropped
+# rather than written against an id that never existed.
+- runFlow:
+    file: subflows/add-person.yaml
+    env:
+      FIRST: "Caseb"
+      LAST: "Milestone"
+- tapOn: "Add milestone"
+- tapOn: "Add"
+- runFlow:
+    file: subflows/stage-gift-for-occasion.yaml
+    env:
+      TITLE: "Refractor"
+      OCCASION: "Birthday"
+- scrollUntilVisible:
+    element:
+      text: "Add milestone"
+    direction: UP
+# Index 0 is the Milestones section's Remove; Gifts comes later in document order.
+- tapOn:
+    text: "Remove"
+    index: 0
+- assertVisible: "No milestones yet."
+# The staged row tells the truth immediately: with its only content gone, the
+# giving is blank, so the gift reads as a suggestion before it is ever written.
+- scrollUntilVisible:
+    element:
+      text: "Suggestion"
+    direction: DOWN
+- runFlow:
+    file: subflows/save-person.yaml
+- assertVisible: "Suggested"
+
+# ---------------------------------------------------------------- case 3 of 4
+# A holiday occasion needs no remap — its id was real all along.
+- runFlow:
+    file: subflows/add-person.yaml
+    env:
+      FIRST: "Casec"
+      LAST: "Holiday"
+- runFlow:
+    file: subflows/stage-christmas.yaml
+- runFlow:
+    file: subflows/stage-gift-for-occasion.yaml
+    env:
+      TITLE: "Wreath"
+      OCCASION: "Christmas (holiday)"
+- runFlow:
+    file: subflows/save-person.yaml
+- assertVisible: ".*Given.*Christmas.*"
+
+# ---------------------------------------------------------------- case 4 of 4
+# The holiday is removed before saving. Nothing at write time would catch this —
+# only the prune does.
+- runFlow:
+    file: subflows/add-person.yaml
+    env:
+      FIRST: "Cased"
+      LAST: "Holiday"
+- runFlow:
+    file: subflows/stage-christmas.yaml
+- runFlow:
+    file: subflows/stage-gift-for-occasion.yaml
+    env:
+      TITLE: "Garland"
+      OCCASION: "Christmas (holiday)"
+- scrollUntilVisible:
+    element:
+      text: "Add holiday"
+    direction: UP
+- tapOn:
+    text: "Remove"
+    index: 0
+- assertVisible: "No holidays yet."
+- scrollUntilVisible:
+    element:
+      text: "Suggestion"
+    direction: DOWN
+- runFlow:
+    file: subflows/save-person.yaml
+- assertVisible: "Suggested"

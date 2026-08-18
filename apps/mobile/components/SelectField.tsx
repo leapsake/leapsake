@@ -31,11 +31,21 @@ export function SelectField<T extends string | null>({
   value,
   options,
   onChange,
+  testID,
 }: {
   label: string;
   value: T;
   options: { value: T; label: string }[];
   onChange: (value: T) => void;
+  /**
+   * Harness anchor for the control that *opens* this field. The wheel's own
+   * options are not addressable on iOS — the accessibility tree exposes only the
+   * picker's current value — so a driver reaches a choice by opening the field,
+   * swiping a notch, and asserting the value it landed on. This id is what makes
+   * the "open the field" half of that deterministic when a screen carries more
+   * than one select.
+   */
+  testID?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -47,6 +57,10 @@ export function SelectField<T extends string | null>({
 
   const picker = (
     <Picker
+      // Android: the Picker *is* the control that opens, so the anchor sits here.
+      // On iOS it's the field row below, and the wheel this renders into is a
+      // modal the id would be wasted on.
+      testID={Platform.OS === "ios" ? undefined : testID}
       selectedValue={String(selectedIndex)}
       onValueChange={(idx) => onChange(options[Number(idx)]!.value)}
       // dropdown is the native Android affordance; ignored on iOS.
@@ -73,6 +87,7 @@ export function SelectField<T extends string | null>({
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <Pressable
+        testID={testID}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(true)}

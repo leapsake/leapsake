@@ -1,0 +1,23 @@
+# Open a fresh add screen and name the person. FIRST and LAST are required — the
+# Save action stays disabled until both are set.
+#
+# Both fields are reached by `id`, not by position: an empty TextInput carries no
+# accessibility text, and the add form is long enough that the keyboard reflows it
+# as it opens, so a positional selector lands on the wrong field or on nothing.
+#
+# The `assertVisible` is a settle: the first `inputText` after `openLink` is lost
+# if it arrives before the screen has mounted something to focus.
+appId: com.leapsake.app
+---
+- openLink: "leapsake://add"
+- assertVisible:
+    id: "person-first-name"
+- tapOn:
+    id: "person-first-name"
+- inputText: "${FIRST}"
+- tapOn:
+    id: "person-last-name"
+- inputText: "${LAST}"
+# Tap a static label to drop the keyboard: `hideKeyboard` taps through into
+# whatever sits under it (the Gender field, in practice) and opens that instead.
+- tapOn: "Milestones"

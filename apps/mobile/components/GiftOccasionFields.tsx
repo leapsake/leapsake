@@ -80,7 +80,13 @@ export function GiftOccasionFields({
     <View style={styles.section}>
       <Text style={styles.fieldLabel}>{label}</Text>
 
+      {/*
+        Not unique on the screen: a gift can carry several giving rows, each with
+        its own occasion, so a driver addresses one by `id` *plus* index. Which is
+        still far better than by position — see the note in `PersonFields`.
+      */}
       <SelectField
+        testID="gift-occasion"
         label="Occasion"
         value={occasionKey(occasion)}
         options={options}

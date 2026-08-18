@@ -1,0 +1,57 @@
+# Stage a gift named TITLE, carrying one giving row whose occasion is OCCASION —
+# the only occasion the form offers, since the caller has staged exactly one
+# milestone or holiday.
+#
+# OCCASION is asserted *inside* the open wheel, on the value the swipe landed on.
+# That assert is the whole point: the wheel's options are not addressable on iOS,
+# so without it a swipe that moved nowhere (or two notches) would pass silently
+# and the case would go green having picked "— none —".
+#
+# Every target is scrolled to first. Neither `tapOn` nor `assertVisible` scrolls
+# on its own, and the add form is several screens long once a section expands —
+# so a step that happens to be on screen today breaks the day a section above it
+# grows a row.
+appId: com.leapsake.app
+---
+- scrollUntilVisible:
+    element:
+      text: "Add gift"
+    direction: DOWN
+- tapOn: "Add gift"
+- scrollUntilVisible:
+    element:
+      id: "gift-title"
+    direction: DOWN
+- tapOn:
+    id: "gift-title"
+- inputText: "${TITLE}"
+- tapOn: "Gifts"
+- scrollUntilVisible:
+    element:
+      text: "+ Add a date"
+    direction: DOWN
+- tapOn: "+ Add a date"
+- scrollUntilVisible:
+    element:
+      id: "gift-occasion"
+    direction: DOWN
+- tapOn:
+    id: "gift-occasion"
+# One notch up the wheel: "— none —" -> the single staged occasion. Kept short and
+# slow; a long fast swipe reads as a shake and opens the Expo dev menu over the app.
+- swipe:
+    start: "50%, 87%"
+    end: "50%, 83%"
+- assertVisible: "${OCCASION}"
+- tapOn: "Done"
+- scrollUntilVisible:
+    element:
+      text: "Add"
+    direction: UP
+- tapOn: "Add"
+# The staged row's own summary, before anything is written: a giving row that
+# resolved to a real occasion counts as one.
+- scrollUntilVisible:
+    element:
+      text: "1 date"
+    direction: DOWN

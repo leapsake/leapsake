@@ -51,9 +51,11 @@ export function PetFields({
 
   return (
     <>
+      {/* Load-bearing for the harness — see the note in {@link PersonFields}. */}
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Name</Text>
         <TextInput
+          testID="pet-name"
           style={styles.input}
           value={draft.name}
           onChangeText={(value) => set("name", value)}

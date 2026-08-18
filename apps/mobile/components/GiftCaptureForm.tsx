@@ -375,9 +375,15 @@ export function GiftCaptureForm({
         />
       )}
 
+      {/* Load-bearing for the harness — see the note in `PersonFields`. */}
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Gift</Text>
-        <TextInput style={styles.input} value={title} onChangeText={setTitle} />
+        <TextInput
+          testID="gift-title"
+          style={styles.input}
+          value={title}
+          onChangeText={setTitle}
+        />
         {suggestions.map((idea) => (
           <Pressable
             key={idea.id}

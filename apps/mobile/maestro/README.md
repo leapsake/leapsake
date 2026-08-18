@@ -21,6 +21,26 @@ so the mobile driver leg is a _terminal, automated_ gate — not a human opening
   through the dev-launcher's last dev server (set by `pnpm --filter @leapsake/mobile
 ios`), clears any SpringBoard/dev-menu overlay, and waits for the People tab. The
   runner invokes it; you don't run it directly. It does **not** touch `driver-selftest.yaml`.
+- **`staged-gift-occasions.yaml`** (+ `subflows/`) — a **UI** flow rather than a contract
+  one: it drives the add person/pet screen through the four ways a staged gift's occasion
+  can resolve (milestone kept/removed, holiday kept/removed). It is the regression gate on
+  the two pieces of machinery that have no unit-testable seam at the screen level — the
+  staged-key → real-id remap and the prune-on-removal — and it is **verified non-vacuous by
+  sabotage**: breaking the remap turns case 1 red, breaking the prune turns case 2 red on
+  its pre-save assertion and case 4 red on its saved one. The flow's own header comment
+  records which line each regression lands on.
+
+  Not wired into `pnpm test:native`, which is built around one flow and a PASS token. Run
+  it directly against a **freshly loaded** app (see *Running the flow directly* below):
+
+  ```
+  maestro --udid <sim> test staged-gift-occasions.yaml
+  ```
+
+  It needs a clean start because `openLink` to a route **already in the stack reuses that
+  screen rather than remounting it** — so a previous failed run's half-filled form is still
+  there, and the next run stacks its milestones on top of it. Between its own four cases
+  this is a non-issue: each ends in a save, and the add screen `replace`s itself.
 
 ## Run it
 

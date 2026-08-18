@@ -1,0 +1,21 @@
+# Save the staged record and land on the new person's detail page.
+#
+# Creating a near-duplicate routes to the duplicate review instead — which is
+# exactly what a second run of this suite's fixed names does — so the prompt's
+# way onward is taken when it appears. "Not now" replaces itself with the detail
+# page, so either path ends where the assertions expect.
+#
+# Save lives in the native header, so it needs no scrolling to reach; the gift
+# row on the page it lands on does.
+appId: com.leapsake.app
+---
+- tapOn: "Save"
+- runFlow:
+    when:
+      visible: "Not now"
+    commands:
+      - tapOn: "Not now"
+- scrollUntilVisible:
+    element:
+      text: "Gifts"
+    direction: DOWN
