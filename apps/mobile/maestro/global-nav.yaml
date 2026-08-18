@@ -23,11 +23,18 @@
 # to the empty `new` route and Back from the add form therefore lands there rather
 # than on the filtered search.
 #
-# Case 2's "still on Home" assertion does **not** catch it, and the reason is worth
-# knowing before writing any assertion about which tab is current: a bottom-tab
-# navigator keeps previously-focused screens **mounted**, merely hidden, so Home's
-# title is still in the accessibility tree after navigating away from it.
-# `assertVisible` on a tab's own content can never tell you that tab is focused.
+# Case 2 used to assert "still on Home" by looking for Home's title behind the
+# sheet. That assertion is gone, for two reasons that are each sufficient:
+#
+#   - **It never worked.** A bottom-tab navigator keeps previously-focused screens
+#     **mounted**, merely hidden, so Home's title is still in the accessibility
+#     tree after navigating away from it. `assertVisible` on a tab's own content
+#     can never tell you that tab is focused.
+#   - **It is not portable.** On Android a React Native `Modal` is its own window,
+#     so while the sheet is up the screen behind it is not in the tree at all and
+#     the assertion fails outright — where on iOS the whole tree is visible. These
+#     flows are byte-identical across platforms by design, so an assertion that
+#     means different things on each cannot stay.
 #
 # **What is deliberately not asserted at all: the selected-tab tint.** That is a
 # colour, and Maestro reads the accessibility tree rather than pixels. Case 4
@@ -56,6 +63,18 @@
 # ids. Everything else asserts on real on-screen text.
 appId: com.leapsake.app
 ---
+# Dismiss a sheet left open by an earlier failed run, which would otherwise cover
+# the tab bar — on Android a React Native `Modal` is its own window, so nothing
+# behind it is even reachable. Same reasoning as the filter guard in case 3:
+# a flow has to prepare itself, because the run that leaves the mess is by
+# definition the run that didn't reach its cleanup.
+- runFlow:
+    when:
+      visible:
+        id: "create-sheet"
+    commands:
+      - tapOn: "Cancel"
+
 # ------------------------------------------------------------------ case 1 of 4
 # Exactly the four standing tabs. Home is asserted by its *title* ("Leapsake")
 # rather than its tab label, which also pins that we are on the app home rather
@@ -71,15 +90,13 @@ appId: com.leapsake.app
 - assertNotVisible: ".*Back.*"
 
 # ------------------------------------------------------------------ case 2 of 4
-# Home is about everything, so New has a real question to ask. The "Leapsake"
-# assertion below is weaker than it looks — see the header — and is kept only as
-# a cheap check that the sheet did not replace the screen wholesale.
+# Home is about everything, so New has a real question to ask. Nothing here
+# asserts that we are *still on Home* — see the header for why that cannot be
+# asserted portably, and where the claim is actually proven (case 4).
 - tapOn:
     id: "tab-new"
 - assertVisible:
     id: "create-sheet"
-# Still on Home behind the sheet: the press was cancelled rather than navigated.
-- assertVisible: "Leapsake"
 - tapOn: "Cancel"
 - assertNotVisible:
     id: "create-sheet"

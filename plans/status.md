@@ -15,10 +15,19 @@ and `components/AppHeader.tsx`; the shell's gate is `apps/mobile/maestro/global-
 Typography and icons were deliberately left alone — that pass is
 [`v0-2.md`](./v0-2.md) → *styling / the design system*.
 
-**Not yet run on a device.** `global-nav.yaml` and `staged-gift-occasions.yaml` both need a green
-run on iOS *and* Android before 04 cuts screenshots.
+**Green on both platforms.** `global-nav.yaml` passes on the iOS simulator and the Android
+emulator from the same byte-identical file, and is **proven non-vacuous by sabotage** — deleting
+the New tab's `preventDefault` turns it red.
 
-## Next
+⚠️ **Three mobile gates are red or blocked, all of them predating this work. 04 and 06 inherit
+them:**
 
-**04 → 07**, the launch chain — [`v0-1.md`](./v0-1.md) holds the order. 06 also waits on its
-*Open decisions*.
+- **Android's `applicationId` is `net.leapsake.mobile`**, but `app.json` (and `v0-1.md`'s
+  permanent-bundle-id decision) say `com.leapsake.app`. The committed `android/` project predates
+  that decision, so **no Maestro flow can target Android** — every one declares
+  `appId: com.leapsake.app`. The Android leg above was run against the real id from a scratch
+  copy. Bundle ids are permanent after first publish, so fix this *before* 04 uploads anything.
+- `driver-selftest.yaml` — **FAIL 40/42** on the iOS simulator; identical count on `main`.
+- `staged-gift-occasions.yaml` — dies in `stage-christmas` on `tapOn: below: "Add a holiday"`,
+  same step on `main`. The dev client's floating menu button covers that region and the tap opens
+  the dev menu instead; whether that is the whole story is unconfirmed.
