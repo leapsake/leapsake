@@ -137,13 +137,8 @@ function ReminderRow({
   // How this reminder is named, for the checkbox's accessibility label — nothing
   // else here names it now that the row's own buttons are gone.
   const label = reminderLabel(reminder);
-  // `from` names this tab on the detail screen's back button — it carries no
-  // title of its own, and a native stack can't read a tab navigator's for it.
   const open = () =>
-    router.push({
-      pathname: "/reminders/[id]",
-      params: { id: reminder.id, from: "Leapsake" },
-    });
+    router.push({ pathname: "/reminders/[id]", params: { id: reminder.id } });
 
   function toggle() {
     // Before the write, not after: the order to hold is the one the user was

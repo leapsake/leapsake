@@ -35,23 +35,20 @@ const FAILURE_TITLES = {
 } as const;
 
 /**
- * The header: no title, and a back button labelled with wherever you came from.
+ * The header: a back control and nothing else.
  *
  * No title, because the reminder's own words are the first thing in the body and
- * a title bar repeating them says the same sentence twice. That leaves the bar
- * with the back button alone, and a native stack labels one from the *previous*
- * screen's title — which this screen can't read. So whoever pushes it names
- * itself in `?from=`: "Leapsake" from the home tab, the tag from a tag page, the
- * person or pet from their "Mentioned in" list.
+ * a title bar repeating them says the same sentence twice. `AppHeader` draws no
+ * title element at all for an empty one, so this leaves a bare bar rather than a
+ * blank band.
  *
- * "Back" is the fallback, for a deep link or a notification tap that arrived with
- * no `from` — there is a screen behind this one either way (the stack roots at
- * the tabs), and an unlabelled chevron is worse than a generic label. iOS shortens
- * a back title to "Back" itself when it doesn't fit, so a long name is safe here.
+ * This screen used to be pushed with a `?from=` naming whoever pushed it, because
+ * a native stack labels its back button with the *previous* screen's title and
+ * this screen has none to give. The app draws its own header now and every back
+ * control reads a plain "‹ Back", so there is nothing left for that parameter to
+ * feed and its callers no longer send it.
  */
-function headerFor(from: string | undefined) {
-  return { title: "", headerBackTitle: from ?? "Back" };
-}
+const HEADER = { title: "" } as const;
 
 /**
  * Reminder detail: the reminder's heading with its completion checkbox, then its
@@ -75,8 +72,7 @@ function headerFor(from: string | undefined) {
 export default function ReminderDetailScreen() {
   const core = useCore();
   const router = useRouter();
-  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
-  const header = headerFor(from);
+  const { id } = useLocalSearchParams<{ id: string }>();
   const load = useCallback(
     () =>
       Promise.all([
@@ -111,7 +107,7 @@ export default function ReminderDetailScreen() {
   if (reminder === undefined) {
     return (
       <View style={styles.screen}>
-        <Stack.Screen options={header} />
+        <Stack.Screen options={HEADER} />
         <Text style={styles.muted}>This reminder no longer exists.</Text>
       </View>
     );
@@ -179,7 +175,7 @@ export default function ReminderDetailScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <Stack.Screen options={header} />
+      <Stack.Screen options={HEADER} />
 
       {/* The heading, with completion beside it — the checkbox is the only thing
           that says whether this is done now that the Status field is gone, so the

@@ -11,18 +11,8 @@ import { colors, styles } from "../lib/styles";
  * reminder. Display-only and always rendered with an empty placeholder, mirroring
  * desktop's MentionedInSection and the tag page's reminder list; a mention is
  * edited by changing the reminder text, which re-derives the backlink.
- *
- * `from` is who this list belongs to — the person's or pet's name — which labels
- * the back button on the reminder screen these rows push, since that screen shows
- * no title for a native stack to take one from.
  */
-export function MentionedInSection({
-  reminders,
-  from,
-}: {
-  reminders: Reminder[];
-  from: string;
-}) {
+export function MentionedInSection({ reminders }: { reminders: Reminder[] }) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Mentioned in</Text>
@@ -32,10 +22,7 @@ export function MentionedInSection({
         reminders.map((reminder) => (
           <Link
             key={reminder.id}
-            href={{
-              pathname: "/reminders/[id]",
-              params: { id: reminder.id, from },
-            }}
+            href={{ pathname: "/reminders/[id]", params: { id: reminder.id } }}
             style={styles.row}
           >
             <Text style={[styles.rowText, { color: colors.accent }]}>

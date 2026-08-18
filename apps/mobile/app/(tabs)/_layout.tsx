@@ -1,5 +1,6 @@
 import { type ColorValue, Text, View } from "react-native";
 import { Link, Tabs } from "expo-router";
+import { AppHeader } from "../../components/AppHeader";
 import { colors, styles } from "../../lib/styles";
 
 /**
@@ -40,18 +41,24 @@ export default function TabsLayout() {
           backgroundColor: colors.surfaceRaised,
           borderTopWidth: 0,
         },
-        headerStyle: { backgroundColor: colors.surfaceRaised },
-        headerTitleStyle: { color: colors.text },
-        headerShadowVisible: false,
         sceneStyle: { backgroundColor: colors.surface },
-        // Inset the header actions from the screen edge. The bottom-tab
-        // navigator draws its header in JS and leaves a custom `headerRight`
-        // flush against the edge, where the native stack header the rest of the
-        // app pushes gives its own buttons the platform's 16pt margin — so
-        // "+ Add" sat harder against the right edge than "‹ Back" does against
-        // the left. Set for every tab, since it is the navigator's default that
-        // is wrong rather than any one screen's.
-        headerRightContainerStyle: { paddingRight: 16 },
+        // The same header the root stack draws (app/_layout.tsx), so a tab root
+        // and a screen pushed over it are the same chrome. It takes no `onBack`
+        // here and there is nothing to pass one from: a tab root has no back
+        // destination, so the four of them cannot show a back control.
+        //
+        // This also retires `headerRightContainerStyle`, which existed only to
+        // undo the bottom-tab navigator's missing edge inset — AppHeader insets
+        // both edges itself.
+        header: ({ options, route }) => (
+          <AppHeader
+            title={options.title ?? route.name}
+            right={options.headerRight?.({
+              canGoBack: false,
+              tintColor: colors.accent,
+            })}
+          />
+        ),
       }}
     >
       <Tabs.Screen

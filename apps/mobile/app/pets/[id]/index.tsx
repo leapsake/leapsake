@@ -144,7 +144,7 @@ export default function PetDetailScreen() {
 
       <TagsField tags={tags} />
 
-      <MentionedInSection reminders={mentionedIn} from={pet.name} />
+      <MentionedInSection reminders={mentionedIn} />
 
       {/* Bookkeeping, not what the page is about — it sits below the sections a
           reader came for, just above the destructive end of the screen. */}

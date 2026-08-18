@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { AppHeader } from "../components/AppHeader";
 import { CoreProvider } from "../lib/core-context";
 import { colors } from "../lib/styles";
 
@@ -12,31 +13,47 @@ import { colors } from "../lib/styles";
 // stack screen that pushes full-screen over the tabs and sets its own title via
 // <Stack.Screen options={{ title }} />.
 //
-// The group carries a `title` despite hiding its own header, because a native
-// stack labels its back button with the *previous* screen's title: without one it
-// falls back to the route name and every pushed screen reads "‹ (tabs)". Which
-// tab you came from can't be named from here, so "Back" — the iOS generic — is
-// the honest label.
+// The header those screens get is **ours** (components/AppHeader.tsx), swapped in
+// here for the platform's, so iOS and Android draw the same chrome. Screens are
+// unaffected: they still declare `title` and `headerRight` exactly as before, and
+// this adapter is the only thing that reads them.
+//
+// Two things the native header did for free, and what replaced them:
+//
+//   - **Naming the back button after the previous screen.** Gone on purpose —
+//     every pushed screen now reads a plain "‹ Back", so the `title: "Back"` the
+//     `(tabs)` group carried to avoid "‹ (tabs)" is no longer needed, and neither
+//     is the `from` param screens used to pass to name it.
+//   - **Animating with the push transition.** A JS header cannot; the back
+//     *gesture* is untouched. That is the accepted cost of one design.
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <CoreProvider>
         <Stack
           screenOptions={{
-            headerStyle: { backgroundColor: colors.surfaceRaised },
-            headerTintColor: colors.accent,
-            headerTitleStyle: { color: colors.text },
-            headerShadowVisible: false,
+            header: ({ options, route, back, navigation }) => (
+              <AppHeader
+                title={options.title ?? route.name}
+                right={options.headerRight?.({
+                  canGoBack: back !== undefined,
+                  tintColor: colors.accent,
+                })}
+                // `back` is undefined at the root of the stack, which is what
+                // keeps a back control off the tab roots without any screen
+                // having to say so.
+                onBack={
+                  back === undefined ? undefined : () => navigation.goBack()
+                }
+              />
+            ),
             // The scene behind every pushed screen. Screens paint `styles.screen`
             // themselves, but a ScrollView bounces past its own content and the
             // navigator's background is what shows underneath.
             contentStyle: { backgroundColor: colors.surface },
           }}
         >
-          <Stack.Screen
-            name="(tabs)"
-            options={{ headerShown: false, title: "Back" }}
-          />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack>
         {/*
           Pinned dark, not "auto". The app has one palette and it is a light,

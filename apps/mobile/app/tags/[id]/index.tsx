@@ -135,12 +135,9 @@ export default function TagDetailScreen() {
           {reminders.map((reminder) => (
             <Link
               key={reminder.id}
-              // `from` labels the back button over there with this tag; the
-              // object form so a `#` in the label is escaped rather than
-              // swallowed as a fragment.
               href={{
                 pathname: "/reminders/[id]",
-                params: { id: reminder.id, from: label },
+                params: { id: reminder.id },
               }}
               style={styles.row}
             >

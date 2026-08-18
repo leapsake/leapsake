@@ -184,7 +184,7 @@ export default function PersonDetailScreen() {
 
       <TagsField tags={tags} />
 
-      <MentionedInSection reminders={mentionedIn} from={fullName(person)} />
+      <MentionedInSection reminders={mentionedIn} />
 
       {/* Bookkeeping, not what the page is about — it sits below the sections a
           reader came for, just above the destructive end of the screen. */}
