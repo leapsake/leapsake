@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, Text, View } from "react-native";
 import { Link, Stack } from "expo-router";
 import type { TagListItem } from "@leapsake/core";
 import { tagLabel } from "@leapsake/schema";
+import { SearchHereLink } from "../../components/SearchHereLink";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
@@ -26,7 +27,12 @@ export default function TagsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Tags" }} />
+      <Stack.Screen
+        options={{
+          title: "Tags",
+          headerRight: () => <SearchHereLink category="tags" />,
+        }}
+      />
       {error !== null ? (
         <View style={styles.screen}>
           <Text style={styles.danger}>{error}</Text>

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { ActivityIndicator, FlatList, Text, View } from "react-native";
 import { Link, Stack } from "expo-router";
 import type { HolidayListItem } from "@leapsake/core";
+import { SearchHereLink } from "../../components/SearchHereLink";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
@@ -26,7 +27,12 @@ export default function HolidaysScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Holidays" }} />
+      <Stack.Screen
+        options={{
+          title: "Holidays",
+          headerRight: () => <SearchHereLink category="holidays" />,
+        }}
+      />
       {error !== null ? (
         <View style={styles.screen}>
           <Text style={styles.danger}>{error}</Text>

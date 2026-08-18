@@ -18,20 +18,19 @@ describe("newActionFor", () => {
     expect(newActionFor("/search", {})).toEqual(sheet);
   });
 
-  it("goes straight to the form when a search is filtered to a type", () => {
-    expect(newActionFor("/search", { type: "person" })).toEqual(route("/add"));
-    expect(newActionFor("/search", { type: "pet" })).toEqual(route("/add"));
-    expect(newActionFor("/search", { type: "gift_idea" })).toEqual(
+  it("goes straight to the form when a search is filtered to a category", () => {
+    expect(newActionFor("/search", { type: "people" })).toEqual(route("/add"));
+    expect(newActionFor("/search", { type: "gifts" })).toEqual(
       route("/gifts/new"),
     );
   });
 
-  it("falls back to asking for a filtered type nothing can create", () => {
+  it("falls back to asking for a category nothing can create", () => {
     // A holiday comes from the seeded catalog and a tag exists only because
     // something wears it. Neither has a create screen, so New must not pretend
     // the filter answered the question.
-    expect(newActionFor("/search", { type: "holiday" })).toEqual(sheet);
-    expect(newActionFor("/search", { type: "tag" })).toEqual(sheet);
+    expect(newActionFor("/search", { type: "holidays" })).toEqual(sheet);
+    expect(newActionFor("/search", { type: "tags" })).toEqual(sheet);
   });
 
   it("does not trust an unrecognised filter", () => {

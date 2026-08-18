@@ -1,12 +1,25 @@
 import type { SearchHit } from "@leapsake/schema";
 import { useEffect, useRef, useState } from "react";
-import { FlatList, Pressable, Text, TextInput, View } from "react-native";
-import { Link, useNavigation, useRouter } from "expo-router";
-import { CatalogLinks } from "../../components/CatalogLinks";
+import {
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import {
+  Link,
+  useLocalSearchParams,
+  useNavigation,
+  useRouter,
+} from "expo-router";
+import { BrowseTiles } from "../../components/BrowseTiles";
 import { highlightBirthday, highlightMatch } from "../../lib/highlightMatch";
 import { useCore } from "../../lib/core-context";
+import { categoryFor, filterHits } from "../../lib/search-categories";
 import { useHeaderScroll } from "../../lib/use-header-scroll";
-import { colors, styles } from "../../lib/styles";
+import { colors, radius, styles } from "../../lib/styles";
 
 /**
  * Shortest query the screen acts on — mirrors the service's own floor so the
@@ -43,6 +56,20 @@ function pathFor(hit: SearchHit): string {
  * bar, and a browse list under a keyboard is a browse list nobody finds. Focus is
  * therefore on demand: tap the field (free — that's what a `TextInput` does), or
  * tap the Search tab *again* while already here (below).
+ *
+ * ### Arriving already narrowed
+ *
+ * `?type=` opens the screen filtered to one category, which is how "find me a
+ * person" is reachable from the People & Pets list without that list growing a
+ * search field of its own. The same parameter is what the tiles set when tapped,
+ * so the filter has exactly one representation — a URL — rather than a URL for
+ * arrivals and component state for taps. It is also what the New tab reads to
+ * know that a create action here is unambiguous.
+ *
+ * Filtering happens **on the results**, not in the query: the service caps at 50
+ * hits from an in-memory pass, so narrowing the answer is free, while narrowing
+ * the question would mean a new core surface and a second place for the two
+ * clients to disagree about what a "person result" is.
  */
 export default function SearchScreen() {
   const core = useCore();
@@ -50,9 +77,18 @@ export default function SearchScreen() {
   const navigation = useNavigation();
   const inputRef = useRef<TextInput>(null);
 
+  const { type } = useLocalSearchParams<{ type?: string }>();
+  const category = categoryFor(type);
+
   const [term, setTerm] = useState("");
   const scrollProps = useHeaderScroll();
   const [results, setResults] = useState<SearchHit[]>([]);
+  const shown = filterHits(results, category);
+
+  /** Narrow to a category, drop the narrowing, or swap it — one route each way,
+   *  since the filter lives in the URL rather than beside it in state. */
+  const setCategory = (key: string | undefined) =>
+    router.setParams({ type: key });
 
   // A second press of the Search tab focuses the field — the standard "tab
   // pressed while already on it" gesture (the same event other apps use to
@@ -105,38 +141,57 @@ export default function SearchScreen() {
         clearButtonMode="while-editing"
       />
 
+      {/* The active narrowing, and the way out of it. Above the results rather
+          than beside the field, so it reads as a statement about what is listed
+          below it — which is exactly what it is. */}
+      {category !== undefined && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${category.label}. Search everything instead`}
+          testID="search-filter-chip"
+          style={local.chip}
+          onPress={() => setCategory(undefined)}
+        >
+          <Text style={local.chipText}>
+            {category.glyph} {category.label} ✕
+          </Text>
+        </Pressable>
+      )}
+
       {/*
-        An empty field browses instead of searching: the catalogs that are no
-        longer tabs, so this screen answers "where is Holidays?" as well as
-        "where is Ana?". Strictly the *empty* field — the moment anything is
-        typed the results list takes over, so the one-character state stays blank
-        and "No matches." still says exactly what it used to. Offering catalogs
-        under a failed search would read as "did you mean one of these", which
-        they never are.
+        An empty field browses instead of searching, so this screen answers
+        "where is Holidays?" as well as "where is Ana?". Strictly the *empty*
+        field — the moment anything is typed the results list takes over, so the
+        one-character state stays blank and "No matches." still says exactly what
+        it used to. Offering the browse grid under a failed search would read as
+        "did you mean one of these", which it never is.
       */}
       {term.trim() === "" ? (
-        <View>
-          <Text style={styles.muted}>
-            Search people, pets, tags, holidays, and gift ideas.
-          </Text>
-          <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 4 }]}>
-            Browse
-          </Text>
-          {/* Redundant with the People tab, but it makes this list comprehensive
-              — everything else on Browse is a root-stack screen with no tab of
-              its own, and a reader scanning for "where's people" shouldn't come
-              up empty just because this one has a shortcut elsewhere. */}
-          <Link href="/people" style={styles.row}>
-            <Text style={[styles.rowText, { color: colors.accent }]}>
-              👥 People & Pets
+        category === undefined ? (
+          <View style={local.browse}>
+            <Text style={styles.muted}>
+              Search people, pets, tags, holidays, and gift ideas.
             </Text>
-          </Link>
-          <CatalogLinks />
-        </View>
+            <BrowseTiles onPick={(picked) => setCategory(picked.key)} />
+          </View>
+        ) : (
+          // Narrowed, but with nothing to narrow yet. The prompt says what
+          // typing will do now, and the link is the other reading of a tapped
+          // tile — "show me all of them" — offered here, where it answers a
+          // question the user has by now actually asked.
+          <View style={local.browse}>
+            <Text style={styles.muted}>
+              Type to search {category.label.toLocaleLowerCase()}.
+            </Text>
+            <Link href={category.browseHref} style={styles.link}>
+              See all {category.label.toLocaleLowerCase()}
+            </Link>
+          </View>
+        )
       ) : (
         <FlatList
           {...scrollProps}
-          data={results}
+          data={shown}
           keyboardShouldPersistTaps="handled"
           keyExtractor={(hit) => `${hit.entityType}:${hit.entityId}`}
           ListEmptyComponent={
@@ -158,6 +213,23 @@ export default function SearchScreen() {
     </View>
   );
 }
+
+const local = StyleSheet.create({
+  browse: {
+    gap: 16,
+  },
+  chip: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.lg,
+    backgroundColor: colors.accentTint,
+  },
+  chipText: {
+    fontSize: 13,
+    color: colors.accent,
+  },
+});
 
 function ResultRow({ hit, term }: { hit: SearchHit; term: string }) {
   // The "name" facet is already shown by the title, so only the other facets

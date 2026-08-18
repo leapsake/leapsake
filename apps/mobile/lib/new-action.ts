@@ -14,26 +14,12 @@
  * params in, an intention out.
  */
 
+import { categoryFor } from "./search-categories";
+
 /** Where New leads: straight into a create screen, or into the chooser. */
 export type NewAction = { kind: "route"; href: string } | { kind: "sheet" };
 
 const SHEET: NewAction = { kind: "sheet" };
-
-/**
- * The create screen for a searchable entity type, or `undefined` where the type
- * has no create screen at all.
- *
- * Holidays are a **seeded catalog** — you observe one, you don't author one —
- * and a tag exists only because something wears it, so neither has a route to
- * offer here. Person and pet share `/add`, which opens on Person with a toggle;
- * it takes no preselection today, so a pet-filtered search lands one tap from
- * where it was aiming rather than exactly on it.
- */
-function createRouteForType(type: string): string | undefined {
-  if (type === "person" || type === "pet") return "/add";
-  if (type === "gift_idea") return "/gifts/new";
-  return undefined;
-}
 
 /**
  * Resolve New against the screen it was tapped on.
@@ -41,19 +27,23 @@ function createRouteForType(type: string): string | undefined {
  * `pathname` is expo-router's, so the `(tabs)` group segment is already
  * stripped: Home is `/`, the search tab is `/search`.
  *
- * The two list screens below (`/people`, `/gifts`) cannot actually reach this
- * today — they push full-screen over the tab bar, so New isn't on screen to tap,
- * and each carries its own "+ Add" instead. They are in the table anyway: this
- * function should answer for a screen by what the screen *is*, not by which
- * navigator happens to host it this month.
+ * A filtered search answers the question from
+ * {@link SEARCH_CATEGORIES | the browse table} rather than from a second copy of
+ * it here — including the categories that create *nothing* (a holiday is seeded,
+ * a tag exists only because something wears it), which fall back to asking.
+ *
+ * The two list screens below cannot actually reach this today: both push
+ * full-screen over the tab bar, so New isn't on screen to tap, and each carries
+ * its own "+ Add" instead. They are in the table anyway — this function should
+ * answer for a screen by what the screen *is*, not by which navigator happens to
+ * host it this month.
  */
 export function newActionFor(
   pathname: string,
   params: { type?: string } = {},
 ): NewAction {
   if (pathname === "/search") {
-    if (params.type === undefined) return SHEET;
-    const href = createRouteForType(params.type);
+    const href = categoryFor(params.type)?.createHref;
     return href === undefined ? SHEET : { kind: "route", href };
   }
   if (pathname === "/people") return { kind: "route", href: "/add" };

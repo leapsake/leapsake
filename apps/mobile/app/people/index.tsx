@@ -10,6 +10,7 @@ import {
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { CoreApi, EntityRow } from "@leapsake/core";
 import { EmptyState } from "../../components/EmptyState";
+import { SearchHereLink } from "../../components/SearchHereLink";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { useHeaderScroll } from "../../lib/use-header-scroll";
@@ -61,12 +62,15 @@ export default function PeoplePetsScreen() {
   return (
     <View style={styles.screen}>
       {/* The title and "+ Add" the tab navigator used to supply for this screen
-          while it was a tab. */}
+          while it was a tab, plus the way into Search already narrowed to what
+          this list holds — this is where a user is standing when scrolling turns
+          into looking for someone in particular. */}
       <Stack.Screen
         options={{
           title: "People & Pets",
           headerRight: () => (
             <View style={styles.headerActions}>
+              <SearchHereLink category="people" />
               <Link href="/add" style={styles.link}>
                 + Add
               </Link>

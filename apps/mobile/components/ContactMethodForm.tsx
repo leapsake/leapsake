@@ -267,13 +267,21 @@ export function ContactMethodForm({
             <Text style={styles.fieldLabel}>
               Address line 1 (street or PO box)
             </Text>
-            <TextInput style={styles.input} value={line1} onChangeText={setLine1} />
+            <TextInput
+              style={styles.input}
+              value={line1}
+              onChangeText={setLine1}
+            />
           </View>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>
               Address line 2 (apt, unit, suite)
             </Text>
-            <TextInput style={styles.input} value={line2} onChangeText={setLine2} />
+            <TextInput
+              style={styles.input}
+              value={line2}
+              onChangeText={setLine2}
+            />
           </View>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>City / town</Text>
@@ -285,7 +293,11 @@ export function ContactMethodForm({
           </View>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>State / province / county</Text>
-            <TextInput style={styles.input} value={region} onChangeText={setRegion} />
+            <TextInput
+              style={styles.input}
+              value={region}
+              onChangeText={setRegion}
+            />
           </View>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Postal code</Text>

@@ -1,7 +1,7 @@
 # Mobile native test tier — Maestro harness
 
 This directory holds the **blackbox harness** for the mobile driver-contract self-test
-(see [`../README.md`](../README.md) → *Why the driver test needs a device*). It drives
+(see [`../README.md`](../README.md) → _Why the driver test needs a device_). It drives
 the in-app self-test on an emulator/simulator and asserts **PASS** from the command line,
 so the mobile driver leg is a _terminal, automated_ gate — not a human opening
 `leapsake://dev-selftest` and reading the screen (principle #1: automate over manual).
@@ -32,7 +32,7 @@ ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. Th
   records which line each regression lands on.
 
   Not wired into `pnpm test:native`, which is built around one flow and a PASS token. Run
-  it directly against a **freshly loaded** app (see *Running the flow directly* below):
+  it directly against a **freshly loaded** app (see _Running the flow directly_ below):
 
   ```
   maestro --udid <sim> test staged-gift-occasions.yaml
@@ -46,11 +46,10 @@ ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. Th
   Two traps it encodes, both of which cost a session each and neither of which looks like
   a harness problem when you hit it — see `subflows/dismiss-keyboard.yaml` for the long
   version:
-
   - **Maestro does not model the keyboard as occluding anything.** An element behind it
     still reads as visible, so `scrollUntilVisible` stops as soon as it has scrolled that
     far and the next tap lands on a key. The step "COMPLETED", nothing happened, and the
-    failure surfaces several steps later somewhere unrelated. Dismiss and *assert* the
+    failure surfaces several steps later somewhere unrelated. Dismiss and _assert_ the
     dismissal before reaching for anything low on the screen.
   - **Fixed record names make a data-creating flow degrade with every run.** Run N leaves
     the Nth copy of each name, and the post-save duplicate detector then has to score and

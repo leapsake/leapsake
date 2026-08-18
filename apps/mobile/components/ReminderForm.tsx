@@ -89,7 +89,11 @@ export function ReminderForm({
       >
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Title</Text>
-          <ChipTextField style={styles.input} value={title} onChangeText={setTitle} />
+          <ChipTextField
+            style={styles.input}
+            value={title}
+            onChangeText={setTitle}
+          />
         </View>
 
         <View style={styles.field}>

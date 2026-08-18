@@ -10,6 +10,7 @@ import {
 import { sortIdeasGivenLast } from "@leapsake/view-models";
 import { EmptyState } from "../../components/EmptyState";
 import { GiftLink } from "../../components/GiftsSection";
+import { SearchHereLink } from "../../components/SearchHereLink";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
@@ -43,6 +44,7 @@ export default function GiftsScreen() {
           title: "Gifts",
           headerRight: () => (
             <View style={styles.headerActions}>
+              <SearchHereLink category="gifts" />
               <Link href="/gifts/new" style={styles.link}>
                 + Add
               </Link>

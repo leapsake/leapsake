@@ -80,7 +80,9 @@ export function ReminderScheduleFields({
           />
           {rule.action === "other" ? (
             <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Custom action (e.g. Send flowers)</Text>
+              <Text style={styles.fieldLabel}>
+                Custom action (e.g. Send flowers)
+              </Text>
               <TextInput
                 style={styles.input}
                 value={rule.label ?? ""}
