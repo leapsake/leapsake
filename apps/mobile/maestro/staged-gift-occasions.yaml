@@ -26,10 +26,20 @@
 #      resolver has no reason to drop it; without the prune the gift is written
 #      "for Christmas" against someone who no longer observes it.
 #      (red on: the saved "Suggested")
-#   5. the same as case 1, but for a **pet** — the bearer type is threaded from
-#      the entity toggle through the milestone write and on into the gift's
-#      recipient party, so this is where a person-shaped assumption anywhere on
-#      that path shows up. Cases 1-4 would all still pass with it broken.
+#   5. the same as case 1, but for a **pet**. The bearer type takes two separate
+#      routes out of the entity toggle — into the milestone write, and into the
+#      gift's recipient party — and a person-shaped assumption on either is
+#      invisible to cases 1-4, where the type happens to be "person" anyway.
+#      Both were checked by sabotage, and they land on different assertions:
+#        - recipient party forced to "person": the gift is written against a
+#          person id that is really the pet's, so the pet's Gifts section is
+#          empty. (red on: the saved ".*Given.*Birthday.*")
+#        - milestone bearer forced to "person": the gift row still reads
+#          "Given — Birthday", because the occasion label resolves the milestone
+#          **by id alone** and does not care what it hangs off. Only the pet's own
+#          Milestones section can tell. (red on: the saved "🎂 Birthday")
+#      That second one passed a full green run before its assertion existed —
+#      which is why the milestone row is asserted separately from the gift row.
 #
 # Like `driver-selftest.yaml` this deliberately does not `launchApp`: a cold
 # dev-client launch lands on the launcher, and these routes only exist once JS is
@@ -76,6 +86,11 @@ appId: com.leapsake.app
 - runFlow:
     file: subflows/save-record.yaml
 - assertVisible: ".*Given.*Birthday.*"
+# The milestone landed on *this* record, not merely somewhere. The gift row above
+# says "Given — Birthday" whatever bearer the milestone ended up on, because the
+# occasion label resolves by id alone; only the Milestones section proves the
+# bearer type was right. The cake distinguishes the two rows.
+- assertVisible: "🎂 Birthday"
 
 # ---------------------------------------------------------------- case 2 of 5
 # The same, but the milestone is removed before saving: the occasion is dropped
@@ -110,6 +125,7 @@ appId: com.leapsake.app
 - runFlow:
     file: subflows/save-record.yaml
 - assertVisible: "Suggested"
+- assertVisible: "No milestones yet."
 
 # ---------------------------------------------------------------- case 3 of 5
 # A holiday occasion needs no remap — its id was real all along.
@@ -182,3 +198,8 @@ appId: com.leapsake.app
 - runFlow:
     file: subflows/save-record.yaml
 - assertVisible: ".*Given.*Birthday.*"
+# The milestone landed on *this* record, not merely somewhere. The gift row above
+# says "Given — Birthday" whatever bearer the milestone ended up on, because the
+# occasion label resolves by id alone; only the Milestones section proves the
+# bearer type was right. The cake distinguishes the two rows.
+- assertVisible: "🎂 Birthday"
