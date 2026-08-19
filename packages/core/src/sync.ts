@@ -150,6 +150,7 @@ export function syncableRepos(driver: SqliteDriver): SyncableRepo<SyncRow>[] {
     contactMethods.emails,
     contactMethods.phones,
     contactMethods.postals,
+    contactMethods.socials,
   ];
 }
 

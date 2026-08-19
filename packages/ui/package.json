@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@leapsake/contact-import": "workspace:*",
+    "@leapsake/contact-links": "workspace:*",
     "@leapsake/highlight": "workspace:*",
     "@leapsake/schema": "workspace:*",
     "@leapsake/view-models": "workspace:*"

@@ -1,4 +1,9 @@
-import { type ContactMethod, formatPostalAddress } from "@leapsake/schema";
+import {
+  type ContactMethod,
+  type ContactMethodKind,
+  formatPostalAddress,
+} from "@leapsake/schema";
+import { findPlatform } from "@leapsake/contact-links";
 import { useMessages } from "../../messages/index.js";
 import type { Messages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
@@ -6,11 +11,12 @@ import { DataTable } from "../primitives/DataTable.js";
 import { EmptyState, Section } from "../primitives/Section.js";
 
 /** The icon shown beside each contact-method kind. */
-const KIND_ICON = {
+const KIND_ICON: Record<ContactMethodKind, string> = {
   email: "✉️",
   phone: "📞",
   postal: "🏠",
-} as const;
+  social: "💬",
+};
 
 /**
  * Render a method's value: the address; the (extension-suffixed) number, flagged
@@ -30,6 +36,15 @@ function methodValue(entry: ContactMethod, m: Messages): string {
         ? number
         : m.contactMethods.phoneWithExtension(number, extension);
     return smsCapable ? withExt : m.contactMethods.phoneWithoutSms(withExt);
+  }
+  if (entry.kind === "social") {
+    // The platform's proper noun beside the handle, so a bare "@josh" says which
+    // "@josh". An unknown platform id is shown as stored rather than hidden —
+    // the whole point of the open list is that a row survives a platform this
+    // build has never heard of.
+    const { platform, handle, url } = entry.method;
+    const name = findPlatform(platform)?.name ?? platform;
+    return handle === "" ? (url ?? name) : `${name} · ${handle}`;
   }
   return formatPostalAddress(entry.method);
 }

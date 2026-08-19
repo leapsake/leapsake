@@ -2,6 +2,7 @@ import type {
   CreateEmailInput,
   CreatePhoneInput,
   CreatePostalInput,
+  CreateSocialInput,
 } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -66,6 +67,20 @@ function postal(
     region: "IL",
     postalCode: "62704",
     country: "US",
+    ...over,
+  };
+}
+
+function social(
+  ownerId: string,
+  over: Partial<CreateSocialInput> = {},
+): CreateSocialInput {
+  return {
+    ownerType: "person",
+    ownerId,
+    label: "personal",
+    platform: "instagram",
+    handle: "josh",
     ...over,
   };
 }
@@ -237,12 +252,60 @@ describe("postals", () => {
   });
 });
 
+describe("socials", () => {
+  it("derives a lowercased normalized key and re-derives it on update", async () => {
+    const created = await repo.socials.create(
+      social(crypto.randomUUID(), { handle: "JoshSmith" }),
+    );
+    // The handle is stored as the person writes it; only the key is folded.
+    expect(created.handle).toBe("JoshSmith");
+    expect(created.normalized).toBe("joshsmith");
+
+    const updated = await repo.socials.update(created.id, {
+      handle: "NewName",
+    });
+    expect(updated?.normalized).toBe("newname");
+  });
+
+  it("accepts a platform it has never heard of", async () => {
+    // The open list is the point: a row synced from a device on a newer build
+    // must survive, and a niche network must not need a migration.
+    const created = await repo.socials.create(
+      social(crypto.randomUUID(), {
+        platform: "mastodon",
+        handle: "josh@hachyderm.io",
+        url: "https://hachyderm.io/@josh",
+      }),
+    );
+    expect(created.platform).toBe("mastodon");
+    expect(created.url).toBe("https://hachyderm.io/@josh");
+  });
+
+  it("defaults the optional id and url to null", async () => {
+    const created = await repo.socials.create(social(crypto.randomUUID()));
+    expect(created.platformUserId).toBeNull();
+    expect(created.url).toBeNull();
+  });
+
+  it("allows an empty handle, since a pasted URL can carry the row", async () => {
+    const created = await repo.socials.create(
+      social(crypto.randomUUID(), {
+        handle: "",
+        url: "https://example.com/someone",
+      }),
+    );
+    expect(created.handle).toBe("");
+    expect(created.normalized).toBe("");
+  });
+});
+
 describe("listContactMethods", () => {
-  it("merges all three kinds for an owner, tagged by kind", async () => {
+  it("merges all four kinds for an owner, tagged by kind", async () => {
     const owner = crypto.randomUUID();
     await repo.emails.create(email(owner));
     await repo.phones.create(phone(owner));
     await repo.postals.create(postal(owner));
+    await repo.socials.create(social(owner));
     // Another owner's methods must not leak in.
     await repo.emails.create(email(crypto.randomUUID()));
 
@@ -250,7 +313,12 @@ describe("listContactMethods", () => {
       type: "person",
       id: owner,
     });
-    expect(methods.map((m) => m.kind)).toEqual(["email", "phone", "postal"]);
+    expect(methods.map((m) => m.kind)).toEqual([
+      "email",
+      "phone",
+      "postal",
+      "social",
+    ]);
     const phoneEntry = methods.find((m) => m.kind === "phone");
     expect(phoneEntry?.method.ownerId).toBe(owner);
   });
@@ -276,6 +344,7 @@ describe("removeAllForOwner", () => {
     await repo.emails.create(email(owner));
     await repo.phones.create(phone(owner));
     await repo.postals.create(postal(owner));
+    await repo.socials.create(social(owner));
     await repo.emails.create(email(other));
 
     await repo.removeAllForOwner("person", owner);

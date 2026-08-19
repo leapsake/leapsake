@@ -1,4 +1,5 @@
 import { type ContactMethod, formatPostalAddress } from "@leapsake/schema";
+import { findPlatform } from "@leapsake/contact-links";
 import { ConfirmDelete } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
 import { useSubmitting } from "../lib/useSubmitting";
@@ -17,6 +18,11 @@ function describe(entry: ContactMethod): string {
     return `${labelText} email ${entry.method.address}`;
   if (entry.kind === "phone")
     return `${labelText} phone ${entry.method.number}`;
+  if (entry.kind === "social") {
+    const name =
+      findPlatform(entry.method.platform)?.name ?? entry.method.platform;
+    return `${labelText} ${name} profile ${entry.method.handle}`.trimEnd();
+  }
   return `${labelText} address (${formatPostalAddress(entry.method)})`;
 }
 

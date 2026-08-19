@@ -8,6 +8,7 @@ import {
   emailLabelSuggestions,
   phoneLabelSuggestions,
   postalLabelSuggestions,
+  socialLabelSuggestions,
 } from "@leapsake/schema";
 import { useId } from "react";
 import { useMessages } from "../../messages/index.js";
@@ -22,6 +23,7 @@ const LABEL_SUGGESTIONS: Record<ContactMethodKind, readonly string[]> = {
   email: emailLabelSuggestions,
   phone: phoneLabelSuggestions,
   postal: postalLabelSuggestions,
+  social: socialLabelSuggestions,
 };
 
 /**

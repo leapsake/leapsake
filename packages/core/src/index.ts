@@ -40,6 +40,7 @@ import type {
   CreatePhoneInput,
   CreatePostalInput,
   CreateReminderInput,
+  CreateSocialInput,
   CreateRelationshipInput,
   CreateGiftIdeaInput,
   CreateGiftSuggestionInput,
@@ -54,6 +55,7 @@ import type {
   Pet,
   PhoneNumber,
   PostalAddress,
+  SocialProfile,
   MilestoneKind,
   NotificationMode,
   NotificationSettings,
@@ -80,6 +82,7 @@ import type {
   UpdatePetInput,
   UpdatePhoneInput,
   UpdatePostalInput,
+  UpdateSocialInput,
   UpdateReminderInput,
   UpdateRelationshipInput,
   UpdateGiftIdeaInput,
@@ -1879,7 +1882,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     },
 
     contactMethods: {
-      // Merged read fans out across the three typed tables; writes target one
+      // Merged read fans out across the four typed tables; writes target one
       // typed sub-repo each.
       listForOwner: (
         type: ContactOwnerType,
@@ -1932,6 +1935,21 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           driver.transaction(() => contactMethods.postals.update(id, input)),
         softDelete: (id: string): Promise<void> =>
           driver.transaction(() => contactMethods.postals.softDelete(id)),
+      },
+      socials: {
+        create: (input: CreateSocialInput): Promise<SocialProfile> =>
+          driver.transaction(async () => {
+            const created = await contactMethods.socials.create(input);
+            await publishBearerIfUnpublished(input.ownerType, input.ownerId);
+            return created;
+          }),
+        update: (
+          id: string,
+          input: UpdateSocialInput,
+        ): Promise<SocialProfile | undefined> =>
+          driver.transaction(() => contactMethods.socials.update(id, input)),
+        softDelete: (id: string): Promise<void> =>
+          driver.transaction(() => contactMethods.socials.softDelete(id)),
       },
     },
 

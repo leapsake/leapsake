@@ -59,7 +59,7 @@ export default function ContactEditScreen() {
             smsCapable: value.smsCapable,
             reachableOn: value.reachableOn,
           });
-        } else {
+        } else if (value.kind === "postal") {
           await core.contactMethods.postals.update(cid, {
             label: value.label,
             line1: value.line1,
@@ -68,6 +68,14 @@ export default function ContactEditScreen() {
             region: value.region,
             postalCode: value.postalCode,
             country: value.country,
+          });
+        } else {
+          await core.contactMethods.socials.update(cid, {
+            label: value.label,
+            platform: value.platform,
+            handle: value.handle,
+            platformUserId: value.platformUserId,
+            url: value.url,
           });
         }
         router.back();

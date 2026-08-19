@@ -381,7 +381,7 @@ async function writeExtras(
           smsCapable: value.smsCapable,
           reachableOn: value.reachableOn,
         });
-      } else {
+      } else if (value.kind === "postal") {
         await core.contactMethods.postals.create({
           ownerType: "person",
           ownerId: bearerId,
@@ -392,6 +392,16 @@ async function writeExtras(
           region: value.region,
           postalCode: value.postalCode,
           country: value.country,
+        });
+      } else {
+        await core.contactMethods.socials.create({
+          ownerType: "person",
+          ownerId: bearerId,
+          label: value.label,
+          platform: value.platform,
+          handle: value.handle,
+          platformUserId: value.platformUserId,
+          url: value.url,
         });
       }
     } catch {

@@ -41,6 +41,9 @@ importers:
       '@leapsake/contact-import':
         specifier: workspace:*
         version: link:../../packages/contact-import
+      '@leapsake/contact-links':
+        specifier: workspace:*
+        version: link:../../packages/contact-links
       '@leapsake/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -392,6 +395,9 @@ importers:
       '@leapsake/contact-import':
         specifier: workspace:*
         version: link:../contact-import
+      '@leapsake/contact-links':
+        specifier: workspace:*
+        version: link:../contact-links
       '@leapsake/highlight':
         specifier: workspace:*
         version: link:../highlight
@@ -6754,9 +6760,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

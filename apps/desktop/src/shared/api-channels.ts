@@ -111,6 +111,9 @@ export const API_CHANNELS = [
   "contactMethods.postals.create",
   "contactMethods.postals.update",
   "contactMethods.postals.softDelete",
+  "contactMethods.socials.create",
+  "contactMethods.socials.update",
+  "contactMethods.socials.softDelete",
 
   "kinship.neighborsFor",
   "kinship.genderFor",

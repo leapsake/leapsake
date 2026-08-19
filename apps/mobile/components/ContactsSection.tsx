@@ -11,6 +11,7 @@ import {
   type LinkAction,
   NATIVE_SCHEMES,
   SCHEME_PROBES,
+  findPlatform,
   resolveActions,
 } from "@leapsake/contact-links";
 import { ContactActionSheet, type SheetItem } from "./ContactActionSheet";
@@ -23,6 +24,7 @@ const KIND_ICON: Record<ContactMethodKind, string> = {
   email: "✉️",
   phone: "📞",
   postal: "🏠",
+  social: "💬",
 };
 
 /** A glyph per verb, so the sheet reads as a list of actions rather than links. */
@@ -82,6 +84,14 @@ function methodValue(entry: ContactMethod): string {
     const ext = entry.method.extension ? ` ext. ${entry.method.extension}` : "";
     const noSms = entry.method.smsCapable ? "" : " (no texts)";
     return entry.method.number + ext + noSms;
+  }
+  if (entry.kind === "social") {
+    // The platform's proper noun beside the handle, so a bare "@josh" says which
+    // "@josh". An unknown platform id is shown as stored rather than hidden —
+    // the point of an open list is that a row outlives this build's knowledge.
+    const { platform, handle, url } = entry.method;
+    const name = findPlatform(platform)?.name ?? platform;
+    return handle === "" ? (url ?? name) : `${name} · ${handle}`;
   }
   return formatPostalAddress(entry.method);
 }
@@ -161,7 +171,9 @@ export function ContactsSection({
       return () => core.contactMethods.emails.softDelete(id);
     if (entry.kind === "phone")
       return () => core.contactMethods.phones.softDelete(id);
-    return () => core.contactMethods.postals.softDelete(id);
+    if (entry.kind === "postal")
+      return () => core.contactMethods.postals.softDelete(id);
+    return () => core.contactMethods.socials.softDelete(id);
   }
 
   function confirmRemove(entry: ContactMethod) {
@@ -259,6 +271,12 @@ export function ContactsSection({
             style={styles.link}
           >
             Postal
+          </Link>
+          <Link
+            href={`/people/${ownerId}/contacts/social/new`}
+            style={styles.link}
+          >
+            Social
           </Link>
         </View>
       </View>

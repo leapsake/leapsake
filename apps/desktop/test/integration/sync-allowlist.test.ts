@@ -45,6 +45,7 @@ describe("syncableRepos — the canonical allowlist", () => {
       "reminder_rules",
       "reminders",
       "self_person",
+      "social_profiles",
       "taggings",
       "tags",
     ]);

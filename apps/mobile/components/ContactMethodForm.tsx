@@ -13,11 +13,18 @@ import {
   type EmailAddress,
   type PhoneNumber,
   type PostalAddress,
+  type SocialProfile,
   emailLabelSuggestions,
   phoneLabelSuggestions,
   postalLabelSuggestions,
+  socialLabelSuggestions,
 } from "@leapsake/schema";
-import { PHONE_PLATFORMS } from "@leapsake/contact-links";
+import {
+  HANDLE_PLATFORMS,
+  PHONE_PLATFORMS,
+  findPlatform,
+  normalizeFor,
+} from "@leapsake/contact-links";
 import { CheckboxBox } from "./Checkbox";
 import { CountryField } from "./CountryField";
 import { HeaderSave } from "./HeaderSave";
@@ -49,6 +56,14 @@ export type ContactFormValue =
       region: string | null;
       postalCode: string | null;
       country: string | null;
+    }
+  | {
+      kind: "social";
+      label: string;
+      platform: string;
+      handle: string;
+      platformUserId: string | null;
+      url: string | null;
     };
 
 /** Trim, then treat an empty optional field as absent (`null`). */
@@ -90,7 +105,7 @@ export function ContactMethodForm({
   /** Screen mode: the native header title, set here so it's declared in one place. */
   title?: string;
   kind: ContactMethodKind;
-  method?: EmailAddress | PhoneNumber | PostalAddress;
+  method?: EmailAddress | PhoneNumber | PostalAddress | SocialProfile;
   /** Inline mode: the in-body submit button's label. */
   submitLabel?: string;
   onSubmit: (value: ContactFormValue) => Promise<void>;
@@ -106,13 +121,17 @@ export function ContactMethodForm({
     kind === "phone" ? (method as PhoneNumber | undefined) : undefined;
   const postal =
     kind === "postal" ? (method as PostalAddress | undefined) : undefined;
+  const social =
+    kind === "social" ? (method as SocialProfile | undefined) : undefined;
 
   const labelSuggestions =
     kind === "email"
       ? emailLabelSuggestions
       : kind === "phone"
         ? phoneLabelSuggestions
-        : postalLabelSuggestions;
+        : kind === "postal"
+          ? postalLabelSuggestions
+          : socialLabelSuggestions;
 
   const [label, setLabel] = useState(method?.label ?? labelSuggestions[0]);
   const [address, setAddress] = useState(email?.address ?? "");
@@ -130,7 +149,17 @@ export function ContactMethodForm({
   const [country, setCountry] = useState<string | null>(
     phone?.country ?? postal?.country ?? null,
   );
+  const [platformId, setPlatformId] = useState(
+    social?.platform ?? HANDLE_PLATFORMS[0].id,
+  );
+  const [handle, setHandle] = useState(social?.handle ?? "");
+  const [platformUserId, setPlatformUserId] = useState(
+    social?.platformUserId ?? "",
+  );
+  const [url, setUrl] = useState(social?.url ?? "");
   const [submitting, setSubmitting] = useState(false);
+
+  const platform = findPlatform(platformId);
 
   const labelOk = label.trim().length > 0;
   const requiredOk =
@@ -138,7 +167,11 @@ export function ContactMethodForm({
       ? address.trim().length > 0
       : kind === "phone"
         ? number.trim().length > 0
-        : line1.trim().length > 0;
+        : kind === "postal"
+          ? line1.trim().length > 0
+          : // A social row needs *somewhere to point*: a handle, or — for a
+            // platform with no template — a pasted URL. Either alone is enough.
+            handle.trim().length > 0 || url.trim().length > 0;
   const canSubmit = !submitting && labelOk && requiredOk;
 
   async function handleSubmit() {
@@ -162,7 +195,7 @@ export function ContactMethodForm({
           smsCapable,
           reachableOn,
         });
-      } else {
+      } else if (kind === "postal") {
         await onSubmit({
           kind: "postal",
           label: trimmedLabel,
@@ -172,6 +205,18 @@ export function ContactMethodForm({
           region: blankToNull(region),
           postalCode: blankToNull(postalCode),
           country,
+        });
+      } else {
+        await onSubmit({
+          kind: "social",
+          label: trimmedLabel,
+          platform: platformId,
+          // Cleaned here rather than in the repo: what counts as a handle is a
+          // fact about the platform, and this is the only layer that knows which
+          // platform was picked. A pasted profile URL arrives as a handle.
+          handle: normalizeFor(platform, handle),
+          platformUserId: blankToNull(platformUserId),
+          url: blankToNull(url),
         });
       }
     } finally {
@@ -274,25 +319,25 @@ export function ContactMethodForm({
               form changing. */}
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Also reachable on</Text>
-            {PHONE_PLATFORMS.map((platform) => {
-              const on = reachableOn.includes(platform.id);
+            {PHONE_PLATFORMS.map((option) => {
+              const on = reachableOn.includes(option.id);
               return (
                 <Pressable
-                  key={platform.id}
+                  key={option.id}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: on }}
-                  accessibilityLabel={platform.name}
+                  accessibilityLabel={option.name}
                   style={[styles.rowWithLead, { paddingVertical: 8 }]}
                   onPress={() =>
                     setReachableOn((current) =>
                       on
-                        ? current.filter((id) => id !== platform.id)
-                        : [...current, platform.id],
+                        ? current.filter((id) => id !== option.id)
+                        : [...current, option.id],
                     )
                   }
                 >
                   <CheckboxBox checked={on} />
-                  <Text style={styles.fieldValue}>{platform.name}</Text>
+                  <Text style={styles.fieldValue}>{option.name}</Text>
                 </Pressable>
               );
             })}
@@ -347,6 +392,81 @@ export function ContactMethodForm({
             />
           </View>
           <CountryField value={country} onChange={setCountry} />
+        </>
+      ) : null}
+
+      {kind === "social" ? (
+        <>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Platform</Text>
+            <View style={styles.headerActions}>
+              {HANDLE_PLATFORMS.map((option) => (
+                <Pressable
+                  key={option.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: option.id === platformId }}
+                  onPress={() => setPlatformId(option.id)}
+                >
+                  <Text
+                    style={[
+                      styles.link,
+                      option.id === platformId && styles.linkSelected,
+                    ]}
+                  >
+                    {option.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Handle or profile link</Text>
+            <TextInput
+              style={styles.input}
+              value={handle}
+              onChangeText={setHandle}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="@name"
+            />
+          </View>
+
+          {/* Offered only where an opaque id reaches further than the handle
+              does — that is the entire reason the field exists, and showing it
+              on Telegram (whose username already opens a chat) would be asking
+              for something that buys nothing. */}
+          {platform?.acceptsUserId === true ? (
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>
+                {platform.name} user ID (optional)
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={platformUserId}
+                onChangeText={setPlatformUserId}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Text style={styles.muted}>
+                {platform.name} opens a direct message only from a numeric ID.
+                Without one this row opens their profile.
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Profile URL (optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={url}
+              onChangeText={setUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              placeholder="https://…"
+            />
+          </View>
         </>
       ) : null}
     </>

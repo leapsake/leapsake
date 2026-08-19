@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { type ContactMethodKind, formatPostalAddress } from "@leapsake/schema";
+import { findPlatform } from "@leapsake/contact-links";
 import { ContactMethodForm, type ContactFormValue } from "./ContactMethodForm";
 import { styles } from "../lib/styles";
 
@@ -9,6 +10,15 @@ const KIND_ICON: Record<ContactMethodKind, string> = {
   email: "✉️",
   phone: "📞",
   postal: "🏠",
+  social: "💬",
+};
+
+/** What each kind's add link is called. */
+const KIND_LABEL: Record<ContactMethodKind, string> = {
+  email: "Email",
+  phone: "Phone",
+  postal: "Postal",
+  social: "Social",
 };
 
 /** The one-line value shown under each staged method's label. */
@@ -18,6 +28,12 @@ function stagedValue(entry: ContactFormValue): string {
     const ext = entry.extension !== null ? ` ext. ${entry.extension}` : "";
     const noSms = entry.smsCapable ? "" : " (no texts)";
     return entry.number + ext + noSms;
+  }
+  if (entry.kind === "social") {
+    const name = findPlatform(entry.platform)?.name ?? entry.platform;
+    return entry.handle === ""
+      ? (entry.url ?? name)
+      : `${name} · ${entry.handle}`;
   }
   return formatPostalAddress(entry);
 }
@@ -50,19 +66,13 @@ export function StagedContactsSection({
         <Text style={styles.sectionTitle}>Contact methods</Text>
         {adding === null && (
           <View style={styles.rowActions}>
-            {(["email", "phone", "postal"] as const).map((kind) => (
+            {(["email", "phone", "postal", "social"] as const).map((kind) => (
               <Pressable
                 key={kind}
                 accessibilityRole="button"
                 onPress={() => setAdding(kind)}
               >
-                <Text style={styles.link}>
-                  {kind === "email"
-                    ? "Email"
-                    : kind === "phone"
-                      ? "Phone"
-                      : "Postal"}
-                </Text>
+                <Text style={styles.link}>{KIND_LABEL[kind]}</Text>
               </Pressable>
             ))}
           </View>

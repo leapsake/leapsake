@@ -1008,6 +1008,49 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 33,
+    async up(driver) {
+      // The fourth contact method: someone's account on a messaging or social
+      // platform. Same spine as the other three (polymorphic owner, free-text
+      // label, sync-safe timestamps + soft delete), with a per-owner partial
+      // index and a non-unique `normalized` index for lookup — dedupe stays
+      // permissive here as it is everywhere else.
+      //
+      // `platform` holds a `@leapsake/contact-links` id as free text. The list
+      // of known platforms deliberately does **not** reach the database: a
+      // CHECK constraint would freeze it into stored data, so a row synced from
+      // a device running a newer build would be rejected, and every new
+      // platform would cost a migration. An unknown id is stored happily and
+      // rendered from `url`.
+      //
+      // `platform_user_id` is null on almost every row. It exists because X,
+      // Discord and their like key DMs on an opaque numeric id they do not
+      // publish beside the handle, so without one a handle can only reach a
+      // profile. `url` is the escape hatch a genuinely open platform list needs:
+      // a pasted profile URL for something with no template.
+      await driver.exec(`
+        CREATE TABLE social_profiles (
+          id               TEXT    PRIMARY KEY,
+          owner_type       TEXT    NOT NULL,
+          owner_id         TEXT    NOT NULL,
+          label            TEXT    NOT NULL,
+          platform         TEXT    NOT NULL,
+          handle           TEXT    NOT NULL,
+          normalized       TEXT    NOT NULL,
+          platform_user_id TEXT,
+          url              TEXT,
+          created_at       INTEGER NOT NULL,
+          updated_at       INTEGER NOT NULL,
+          deleted_at       INTEGER
+        );
+        CREATE INDEX ix_social_profiles_owner
+          ON social_profiles(owner_type, owner_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_social_profiles_normalized
+          ON social_profiles(normalized) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**

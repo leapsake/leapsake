@@ -287,6 +287,7 @@ export {
   emailLabelSuggestions,
   phoneLabelSuggestions,
   postalLabelSuggestions,
+  socialLabelSuggestions,
   countryCodeSchema,
   emailAddressSchema,
   createEmailInputSchema,
@@ -297,8 +298,12 @@ export {
   postalAddressSchema,
   createPostalInputSchema,
   updatePostalInputSchema,
+  socialProfileSchema,
+  createSocialInputSchema,
+  updateSocialInputSchema,
   normalizeEmail,
   normalizePhone,
+  normalizeHandle,
   formatPostalAddress,
 } from "./contact-method.js";
 export type { SearchHit, SearchResultType } from "./search.js";
@@ -349,6 +354,9 @@ export type {
   PostalAddress,
   CreatePostalInput,
   UpdatePostalInput,
+  SocialProfile,
+  CreateSocialInput,
+  UpdateSocialInput,
   ContactMethod,
   ContactMethodKind,
 } from "./contact-method.js";

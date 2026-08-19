@@ -198,8 +198,8 @@ describe("app.json declares what the registry can emit", () => {
         }),
       ),
     ];
-    for (const a of everyAction.filter((a) => a.native)) {
-      expect(NATIVE_SCHEMES, a.id).toContain(schemeOf(a.url));
+    for (const native of everyAction.filter((a) => a.native)) {
+      expect(NATIVE_SCHEMES, native.id).toContain(schemeOf(native.url));
     }
   });
 });

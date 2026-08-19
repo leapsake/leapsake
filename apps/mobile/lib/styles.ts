@@ -80,6 +80,11 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.accent,
   },
+  /** The chosen one, where a row of links is really a single-choice picker. */
+  linkSelected: {
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
   danger: {
     color: colors.danger,
   },

@@ -89,6 +89,7 @@ function syncables(d: Device): SyncableRepo<SyncRow>[] {
     d.contactMethods.emails,
     d.contactMethods.phones,
     d.contactMethods.postals,
+    d.contactMethods.socials,
   ];
 }
 
@@ -159,6 +160,7 @@ describe("sync engine (all entities, in-memory transport)", () => {
       "postal_addresses",
       "relationship_dismissals",
       "relationships",
+      "social_profiles",
       "taggings",
       "tags",
     ]);

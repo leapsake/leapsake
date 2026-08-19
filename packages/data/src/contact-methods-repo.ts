@@ -4,24 +4,31 @@ import {
   type CreateEmailInput,
   type CreatePhoneInput,
   type CreatePostalInput,
+  type CreateSocialInput,
   type EmailAddress,
   type PhoneNumber,
   type PostalAddress,
+  type SocialProfile,
   type UpdateEmailInput,
   type UpdatePhoneInput,
   type UpdatePostalInput,
+  type UpdateSocialInput,
   createEmailInputSchema,
   createPhoneInputSchema,
   createPostalInputSchema,
+  createSocialInputSchema,
   type SyncRow,
   emailAddressSchema,
   normalizeEmail,
+  normalizeHandle,
   normalizePhone,
   phoneNumberSchema,
   postalAddressSchema,
+  socialProfileSchema,
   updateEmailInputSchema,
   updatePhoneInputSchema,
   updatePostalInputSchema,
+  updateSocialInputSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
 import {
@@ -45,6 +52,19 @@ interface KindRepo<T extends SyncRow, C, U> extends Omit<
   listForOwner(type: ContactOwnerType, id: string): Promise<T[]>;
 }
 
+/**
+ * Every contact-method table, for the two owner-wide operations that work by
+ * predicate rather than through a typed sub-repo (cascade delete, merge
+ * re-point). Named once so adding a fifth kind is one edit here rather than two
+ * identical lists drifting apart.
+ */
+const CONTACT_TABLES = [
+  "email_addresses",
+  "phone_numbers",
+  "postal_addresses",
+  "social_profiles",
+] as const;
+
 /** Active rows of one contact-method kind for an owner, kind-stable created_at order. */
 function listForOwner<T extends SyncRow>(
   repo: EntityRepo<T>,
@@ -62,16 +82,17 @@ export interface ContactMethodsRepo {
   emails: KindRepo<EmailAddress, CreateEmailInput, UpdateEmailInput>;
   phones: KindRepo<PhoneNumber, CreatePhoneInput, UpdatePhoneInput>;
   postals: KindRepo<PostalAddress, CreatePostalInput, UpdatePostalInput>;
+  socials: KindRepo<SocialProfile, CreateSocialInput, UpdateSocialInput>;
 
   /**
-   * Soft-delete every active contact method (all three kinds) of an owner. Used
+   * Soft-delete every active contact method (all four kinds) of an owner. Used
    * when the host entity (a Person) is deleted. Transaction-free building block —
    * the caller composes it with the entity's own delete inside one transaction.
    */
   removeAllForOwner(type: ContactOwnerType, id: string): Promise<void>;
 
   /**
-   * Re-point every active contact method (all three kinds) of `fromId` onto
+   * Re-point every active contact method (all four kinds) of `fromId` onto
    * `toId` (used when merging `fromId` into `toId`). Methods are not deduped — a
    * person can legitimately list the same number twice. Transaction-free
    * building block.
@@ -85,10 +106,10 @@ export interface ContactMethodsRepo {
 
 /**
  * The Contact Methods repository, written against the async {@link SqliteDriver}
- * port so it runs unchanged on desktop and mobile. Three typed sub-repos
- * (emails/phones/postals) over the three tables; reads exclude soft-deleted rows
- * and writes never hard-delete. The lookup `normalized` field is derived on write
- * for emails and phones (postal has none).
+ * port so it runs unchanged on desktop and mobile. Four typed sub-repos
+ * (emails/phones/postals/socials) over the four tables; reads exclude
+ * soft-deleted rows and writes never hard-delete. The lookup `normalized` field
+ * is derived on write for emails, phones and social handles (postal has none).
  */
 export function createContactMethodsRepo(
   driver: SqliteDriver,
@@ -217,16 +238,54 @@ export function createContactMethodsRepo(
     listForOwner: (type, id) => listForOwner(postalBase, type, id),
   };
 
+  const socialBase = createEntityRepo<SocialProfile>({
+    driver,
+    table: "social_profiles",
+    schema: socialProfileSchema,
+  });
+  const socials: ContactMethodsRepo["socials"] = {
+    ...socialBase,
+
+    async create(input) {
+      const parsed = createSocialInputSchema.parse(input);
+      const now = Date.now();
+      return socialBase.insert({
+        id: crypto.randomUUID(),
+        ownerType: parsed.ownerType,
+        ownerId: parsed.ownerId,
+        label: parsed.label,
+        platform: parsed.platform,
+        handle: parsed.handle,
+        normalized: normalizeHandle(parsed.handle),
+        platformUserId: parsed.platformUserId ?? null,
+        url: parsed.url ?? null,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      });
+    },
+
+    async update(id, input) {
+      const patch = updateSocialInputSchema.parse(input);
+      // Re-derive the lookup key when the handle changes.
+      return socialBase.update(
+        id,
+        patch.handle === undefined
+          ? patch
+          : { ...patch, normalized: normalizeHandle(patch.handle) },
+      );
+    },
+
+    listForOwner: (type, id) => listForOwner(socialBase, type, id),
+  };
+
   return {
     emails,
     phones,
     postals,
+    socials,
     async removeAllForOwner(type, id) {
-      for (const table of [
-        "email_addresses",
-        "phone_numbers",
-        "postal_addresses",
-      ]) {
+      for (const table of CONTACT_TABLES) {
         await softDeleteWhere(
           driver,
           table,
@@ -242,11 +301,7 @@ export function createContactMethodsRepo(
       // rewrites so it wins LWW on every device rather than tying when the merge
       // lands in the contact method's creation millisecond (see relationships-repo
       // `repointEntity`).
-      for (const table of [
-        "email_addresses",
-        "phone_numbers",
-        "postal_addresses",
-      ]) {
+      for (const table of CONTACT_TABLES) {
         await driver.run(
           `UPDATE ${table} SET owner_id = ?, updated_at = MAX(?, updated_at + 1)
              WHERE owner_type = ? AND owner_id = ? AND deleted_at IS NULL`,
@@ -258,10 +313,10 @@ export function createContactMethodsRepo(
 }
 
 /**
- * Every contact method of an owner, fanned out across the three typed tables and
+ * Every contact method of an owner, fanned out across the four typed tables and
  * merged into one tagged {@link ContactMethod} list — so screens never repeat the
- * three-way union. Emails, then phones, then postal addresses; each kind keeps
- * its own by-owner (created_at) order.
+ * four-way union. Emails, then phones, then postal addresses, then social
+ * profiles; each kind keeps its own by-owner (created_at) order.
  *
  * This is the single place the fan-out lives. When the household entity ships, an
  * owner's **effective** methods become `own ∪ household's` — a read-time union
@@ -272,14 +327,16 @@ export async function listContactMethods(
   repo: ContactMethodsRepo,
   owner: { type: ContactOwnerType; id: string },
 ): Promise<ContactMethod[]> {
-  const [emails, phones, postals] = await Promise.all([
+  const [emails, phones, postals, socials] = await Promise.all([
     repo.emails.listForOwner(owner.type, owner.id),
     repo.phones.listForOwner(owner.type, owner.id),
     repo.postals.listForOwner(owner.type, owner.id),
+    repo.socials.listForOwner(owner.type, owner.id),
   ]);
   return [
     ...emails.map((method) => ({ kind: "email" as const, method })),
     ...phones.map((method) => ({ kind: "phone" as const, method })),
     ...postals.map((method) => ({ kind: "postal" as const, method })),
+    ...socials.map((method) => ({ kind: "social" as const, method })),
   ];
 }

@@ -31,6 +31,7 @@ export interface ContactOwner {
 export const emailLabelSuggestions = ["Home", "Work"] as const;
 export const phoneLabelSuggestions = ["Mobile", "Home", "Work", "Fax"] as const;
 export const postalLabelSuggestions = ["Home", "Work"] as const;
+export const socialLabelSuggestions = ["Personal", "Work"] as const;
 
 /**
  * A country code validated *as shape* only: ISO 3166-1 alpha-2, two uppercase
@@ -220,11 +221,86 @@ export const updatePostalInputSchema = z.object({
 export type UpdatePostalInput = z.infer<typeof updatePostalInputSchema>;
 
 // ---------------------------------------------------------------------------
+// Social profiles
+// ---------------------------------------------------------------------------
+
+/**
+ * Someone's account on a messaging or social platform.
+ *
+ * `platform` is a free string, **not** an enum, and that is the load-bearing
+ * decision here. The list of platforms Leapsake knows how to open lives in
+ * `@leapsake/contact-links`, and validating against it would freeze that list
+ * into stored data: a row synced from a device on a newer build would fail
+ * validation and be dropped, and every new platform would need a migration. An
+ * id this schema has never heard of is stored happily and rendered from `url`.
+ *
+ * `handle` is what the user typed, cleaned to a bare handle at the form boundary
+ * (`bareHandle`) rather than here, since what counts as a handle is a fact about
+ * the platform. `normalized` is the lookup key, derived like every other one.
+ *
+ * `platformUserId` exists for a specific, narrow reason: X, Discord and their
+ * like key DMs on an opaque numeric id they do not publish beside the handle, so
+ * a handle alone can only reach a profile. It is null for almost every row, and
+ * the form offers it only where the registry says it buys something.
+ *
+ * `url` is the escape hatch that makes the open platform list actually work — a
+ * profile URL for a platform with no template, pasted whole.
+ */
+export const socialProfileSchema = z.object({
+  ...spine,
+  platform: z.string().min(1),
+  handle: z.string(),
+  normalized: z.string(),
+  platformUserId: z.string().min(1).nullable(),
+  url: z.string().min(1).nullable(),
+});
+
+export type SocialProfile = z.infer<typeof socialProfileSchema>;
+
+const socialInputShape = {
+  platform: z.string().min(1),
+  handle: z.string(),
+  platformUserId: z.string().min(1).nullable().optional(),
+  url: z.string().min(1).nullable().optional(),
+};
+
+export const createSocialInputSchema = z.object({
+  ...inputSpine,
+  ...socialInputShape,
+});
+
+export type CreateSocialInput = z.infer<typeof createSocialInputSchema>;
+
+export const updateSocialInputSchema = z.object({
+  label: z.string().min(1).optional(),
+  platform: z.string().min(1).optional(),
+  handle: z.string().optional(),
+  platformUserId: z.string().min(1).nullable().optional(),
+  url: z.string().min(1).nullable().optional(),
+});
+
+export type UpdateSocialInput = z.infer<typeof updateSocialInputSchema>;
+
+/**
+ * The lookup/dedupe key for a handle: trimmed and lowercased. Handles are
+ * case-insensitive on every platform Leapsake knows, so `@JoshSmith` and
+ * `@joshsmith` are one account and should match as one.
+ *
+ * Deliberately *not* the same function as `bareHandle` in
+ * `@leapsake/contact-links`: that one decides what a handle *is* (stripping an
+ * `@`, unwrapping a pasted URL), which is platform knowledge, and this package
+ * must not depend on that one — it is the other way round.
+ */
+export function normalizeHandle(raw: string): string {
+  return raw.trim().toLowerCase();
+}
+
+// ---------------------------------------------------------------------------
 // The merged view
 // ---------------------------------------------------------------------------
 
-/** Discriminates the three method shapes in a merged contact-method list. */
-export type ContactMethodKind = "email" | "phone" | "postal";
+/** Discriminates the four method shapes in a merged contact-method list. */
+export type ContactMethodKind = "email" | "phone" | "postal" | "social";
 
 /**
  * One entry in the merged list `listContactMethods` returns: a typed method
@@ -234,7 +310,8 @@ export type ContactMethodKind = "email" | "phone" | "postal";
 export type ContactMethod =
   | { kind: "email"; method: EmailAddress }
   | { kind: "phone"; method: PhoneNumber }
-  | { kind: "postal"; method: PostalAddress };
+  | { kind: "postal"; method: PostalAddress }
+  | { kind: "social"; method: SocialProfile };
 
 /**
  * A plain, **non**-country-aware one-line rendering of a postal address: the
