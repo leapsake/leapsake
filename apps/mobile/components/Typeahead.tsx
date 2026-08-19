@@ -43,6 +43,7 @@ export function Typeahead<T>({
   multi = false,
   exclude,
   createOptions,
+  testID,
 }: {
   label: string;
   value: T | null;
@@ -71,6 +72,13 @@ export function Typeahead<T>({
    * match does, and the caller tells the two apart by what it built.
    */
   createOptions?: (query: string) => readonly T[];
+  /**
+   * Put on the filter input, for the E2E harness. An empty `TextInput` carries no
+   * accessibility text, so a driver can otherwise only reach this field by its
+   * *position* — which the keyboard's reflow makes unreliable, the same trap the
+   * add screen's name fields carry `testID`s to avoid.
+   */
+  testID?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [query, setQuery] = useState("");
@@ -134,6 +142,7 @@ export function Typeahead<T>({
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
+        testID={testID}
         style={styles.input}
         value={query}
         onChangeText={setQuery}

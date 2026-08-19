@@ -187,6 +187,9 @@ export default function SearchScreen() {
         </Text>
         <TextInput
           ref={inputRef}
+          // For the E2E harness: an empty field carries no accessibility text,
+          // and its label "Search" is a word the tab bar under it also uses.
+          testID="search-field"
           style={[styles.input, local.fieldInput]}
           value={term}
           onChangeText={setTerm}

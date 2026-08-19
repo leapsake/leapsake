@@ -31,8 +31,15 @@ export type RelationshipFormValue = {
   | { other: "new"; otherName: string }
 );
 
-/** What the Name picker holds: a candidate, or a name typed past the end of the
- *  list. Both carry a `label`, which is all the picker itself renders. */
+/**
+ * What the Name picker holds: a candidate, or a name typed past the end of the
+ * list.
+ *
+ * `label` is the person's or pet's name in both cases — never the "Add … as a
+ * new person" phrasing. That phrasing belongs to the row that *offers* the
+ * option, not to the option, and putting it in `label` made the field read "Add
+ * "Jen" as a new person" after it had already been added.
+ */
 type OtherOption =
   | { kind: "existing"; type: EntityType; id: string; label: string }
   | { kind: "new"; type: EntityType; name: string; label: string };
@@ -200,6 +207,7 @@ export function RelationshipForm({
         </View>
       ) : (
         <Typeahead<OtherOption>
+          testID="relationship-other-name"
           label="Name"
           value={selected}
           options={(candidates ?? []).map((c) => ({
@@ -219,15 +227,25 @@ export function RelationshipForm({
               kind: "new" as const,
               type: "person" as const,
               name: typed,
-              label: `Add "${typed}" as a new person`,
+              label: typed,
             },
             {
               kind: "new" as const,
               type: "pet" as const,
               name: typed,
-              label: `Add "${typed}" as a new pet`,
+              label: typed,
             },
           ]}
+          // Only the offered row says "Add …". The chosen-value row renders
+          // `label`, which is the plain name, so the field reads as the person it
+          // now holds rather than as the invitation that put them there.
+          renderOption={(option) => (
+            <Text style={styles.rowText}>
+              {option.kind === "existing"
+                ? option.label
+                : `Add "${option.name}" as a new ${option.type}`}
+            </Text>
+          )}
           // Re-picking the name invalidates the role (it's pair-dependent).
           onChange={(option) => {
             setSelected(option);
@@ -242,6 +260,7 @@ export function RelationshipForm({
         <Typeahead<RoleOption>
           // Remount on a name change so the role's live query resets.
           key={otherKey(selected)}
+          testID="relationship-other-role"
           label="Role"
           value={selectedRole}
           options={roleOptions}
