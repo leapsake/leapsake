@@ -166,16 +166,16 @@ export interface StagedGift {
  * into that many **givings** — the giver defaults to you. One submit, one
  * transaction (`core.gifts.capture`).
  *
- * `fixedRecipient` (Person/Pet screen) and `recipientCandidates` (Gifts screen)
+ * `fixedRecipient` (one known recipient) and `recipientCandidates` (Gifts screen)
  * are mutually exclusive: the former hides the recipient picker, the latter shows
  * a multi-add typeahead over people/pets. `onStage` is the third of these — the
- * **create** screen (app/add.tsx), where the recipient is the person or pet being
- * added and so has no id yet. Two things follow from that and nothing else
- * changes: the occasion pool arrives as `stagedOccasions` because there is no
- * party to fetch one for, and submit hands the payload back instead of writing
- * it. The re-gift guard needs no special case — an entity that doesn't exist
- * can't have been given anything, and `usePartyContext` is already asked for no
- * parties in this mode.
+ * entity forms, which hand the payload back instead of writing it because
+ * everything on them is written in one pass on Save. Their occasion pool arrives
+ * as `stagedOccasions`, since it may name a milestone staged on the same form and
+ * so cannot be fetched. A staged form may still pass `fixedRecipient`, and the
+ * edit screen does: the person exists, so the re-gift guard has something to
+ * read. The create screen passes none — an entity that doesn't exist can't have
+ * been given anything.
  *
  * With `inline` it renders into the caller's layout: no native header, and the
  * `Cancel  submitLabel` row in the body instead, exactly as {@link MilestoneForm}
@@ -409,10 +409,19 @@ export function GiftCaptureForm({
       </View>
 
       {stagedOccasions !== undefined ? (
-        // Staged: the recipient is the entity being created, named by the form
-        // around this one, so there's neither a picker nor anyone to have already
-        // been given this. Only the two occasion-bearing arms remain.
+        // Staged: the recipient is the entity the form around this one is about,
+        // so there is no picker — only the two occasion-bearing arms. On the edit
+        // screen that entity already exists and can already have been given
+        // things, which is why the re-gift guard is still offered when the form
+        // is told who it is for; on the create screen there is no one to ask
+        // about, so `fixedRecipient` is absent and the notice never renders.
         <>
+          {fixedRecipient && (
+            <AlreadyGivenNotice
+              label={fixedRecipient.label}
+              gifts={pools.alreadyGiven(fixedRecipient, typedIdea?.id)}
+            />
+          )}
           {fixedGivings.length === 0 && (
             <SuggestionDisclosure
               fields={fixedSuggestion}

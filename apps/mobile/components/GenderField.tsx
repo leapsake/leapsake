@@ -15,9 +15,8 @@ export function GenderField({
   value,
   onChange,
 }: {
-  /** Passed through to {@link SelectField} — omitted where the field is already
-   *  named by what encloses it. */
-  label?: string;
+  /** Passed through to {@link SelectField}. */
+  label: string;
   value: Gender | null;
   onChange: (value: Gender | null) => void;
 }) {

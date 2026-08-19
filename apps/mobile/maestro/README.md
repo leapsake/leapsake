@@ -215,7 +215,7 @@ looks nothing like its cause in either case.
 - **Android**, `global-nav.yaml`: case 3's `tapOn: search-here-people` hit the bubble, and
   the run went red two lines on at `search-filter-chip is visible`.
 - **iOS**, `staged-gift-occasions.yaml`: the button's _stored position_ sat over the add
-  screen's holiday row, so `stage-christmas`'s `tapOn: below: "Add a holiday"` hit it and
+  screen's holiday row, so `stage-christmas`'s tap on the holiday field hit it and
   the flow died three cases in. Hiding it took that flow from red to **green on all five
   cases** with no edit to the flow itself.
 

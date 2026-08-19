@@ -47,6 +47,10 @@ appId: com.leapsake.app
     file: subflows/save-record.yaml
 
 # ── 2. Name somebody the list doesn't have ──────────────────────────────────
+# Relationships are added on the record's form, behind the detail screen's one
+# Edit — the page itself only reads. The header control is matched loosely
+# because it names what it edits ("Edit Sam… Carter…") for a screen reader.
+- tapOn: "Edit.*"
 - scrollUntilVisible:
     element:
       text: "Add relationship"
@@ -72,6 +76,9 @@ appId: com.leapsake.app
 - tapOn: "Wife"
 - runFlow:
     file: subflows/dismiss-keyboard.yaml
+# Twice over, and the two are different acts: "Add" stages the row on the form,
+# "Save" writes the form. Nothing reaches the database until the second.
+- tapOn: "Add"
 - tapOn: "Save"
 
 # She is on his page, as the one relationship that is her whole existence.
@@ -90,6 +97,7 @@ appId: com.leapsake.app
 # own add-relationship screen: typing her name there must turn up only the
 # offer to create *another* person by that name, never the one that exists.
 - tapOn: ".*Sam${output.run} Carter${output.run}.*"
+- tapOn: "Edit.*"
 - scrollUntilVisible:
     element:
       text: "Add relationship"
@@ -104,6 +112,8 @@ appId: com.leapsake.app
 - inputText: "Jenqx"
 - assertVisible: 'Add "Jenqx" as a new person'
 - assertNotVisible: "Jenqx${output.run}"
+# Back out of the form without saving — nothing typed here was written, which is
+# the other half of what staging buys.
 - back
 
 # ── 4. Findable through him ─────────────────────────────────────────────────

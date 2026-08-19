@@ -1,8 +1,13 @@
 # Stage Christmas as an observed holiday.
 #
-# The picker is a live-filtering typeahead that lists nothing until a couple of
-# characters are typed, and its results render *under* the keyboard — so the
-# keyboard is dropped before reaching for the match, or the tap lands on a key.
+# The section browses the catalog: opening it lists every holiday this bearer
+# could observe, with a filter above them. The filter is still used here — the
+# list is long, and scrolling a hundred rows to reach December is slower and
+# flakier than typing four letters — and the results render *under* the keyboard,
+# so the keyboard is dropped before reaching for the match, or the tap lands on a
+# key.
+#
+# The filter is addressed by `testID`: its label is "Search", which is also a tab.
 appId: com.leapsake.app
 ---
 - scrollUntilVisible:
@@ -11,15 +16,14 @@ appId: com.leapsake.app
     direction: DOWN
 - tapOn: "Add holiday"
 - tapOn:
-    below:
-      text: "Add a holiday"
+    id: "holiday-search"
 - inputText: "Christ"
 - runFlow:
     file: dismiss-keyboard.yaml
 - scrollUntilVisible:
     element:
-      text: "Christmas"
+      text: "Add Christmas"
     direction: DOWN
-- tapOn: "Christmas"
+- tapOn: "Add Christmas"
 - tapOn: "Done"
 - assertVisible: "Christmas"

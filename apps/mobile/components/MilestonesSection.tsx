@@ -14,10 +14,15 @@ import { styles } from "../lib/styles";
 /**
  * The Milestones section shared by the Person, Pet, and relationship detail
  * screens, ported from the desktop `MilestonesSection`. It lists the bearer's
- * timeline: an entry's **own** milestones are editable in place (Edit / Remove),
- * while milestones drawn from a relationship the bearer participates in are shown
- * read-only and link out to that relationship's page (labelled "· with
- * <partner>"). On the relationship detail screen every entry is `own`.
+ * timeline: an entry's **own** milestones and, on a person or pet, the ones drawn
+ * from a relationship they participate in — those labelled "· with <partner>" and
+ * linking out to that relationship's page, because they are stored on the edge.
+ *
+ * `readOnly` is how the person and pet screens render it. Their milestones are
+ * revised on the form behind that page's one Edit ({@link EntityEditForm}), so
+ * the rows here are a list to read rather than a place to write. The relationship
+ * screen keeps the in-place Add / Edit / Remove: its milestones are the only
+ * thing on it, and it has no whole-record form of its own.
  *
  * Remove deletes in place via a native `Alert` confirm — mirroring the person/pet
  * delete — then calls `onChanged` so the detail screen refetches its view.
@@ -27,11 +32,13 @@ export function MilestonesSection({
   bearerId,
   entries,
   onChanged,
+  readOnly = false,
 }: {
   bearerType: MilestoneBearerType;
   bearerId: string;
   entries: MilestoneTimelineEntry[];
   onChanged: () => void;
+  readOnly?: boolean;
 }) {
   const core = useCore();
   const basePath = `${entityBasePath(bearerType)}/${bearerId}`;
@@ -57,9 +64,11 @@ export function MilestonesSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Milestones</Text>
-        <Link href={`${basePath}/milestones/new`} style={styles.link}>
-          Add milestone
-        </Link>
+        {!readOnly && (
+          <Link href={`${basePath}/milestones/new`} style={styles.link}>
+            Add milestone
+          </Link>
+        )}
       </View>
 
       {entries.length === 0 ? (
@@ -81,8 +90,9 @@ export function MilestonesSection({
               <Text style={styles.rowText}>{heading}</Text>
               <View style={styles.rowMeta}>
                 <Text style={styles.muted}>{date === "" ? "—" : date}</Text>
-                {/* A relationship-origin entry is read-only: it lives on the
-                    relationship, which owns its Edit/Remove — link out to it. */}
+                {/* A relationship-origin entry is read-only wherever it appears:
+                    it lives on the relationship, which owns its editing — link
+                    out to it. */}
                 {fromRelationship ? (
                   entry.relationshipId !== null ? (
                     <Link
@@ -92,7 +102,7 @@ export function MilestonesSection({
                       Details
                     </Link>
                   ) : null
-                ) : (
+                ) : readOnly ? null : (
                   <View style={styles.rowActions}>
                     <Link
                       href={`${basePath}/milestones/${milestone.id}/edit`}

@@ -111,10 +111,10 @@ appId: com.leapsake.app
     element:
       text: "Add milestone"
     direction: UP
-# Index 0 is the Milestones section's Remove; Gifts comes later in document order.
-- tapOn:
-    text: "Remove"
-    index: 0
+# By the row's own accessibility label rather than by "Remove" at index 0: every
+# staged section has one, and which of them document order puts first depends on
+# what the case above happened to stage.
+- tapOn: "Remove Birthday"
 - assertVisible: "No milestones yet."
 # The staged row tells the truth immediately: with its only content gone, the
 # giving is blank, so the gift reads as a suggestion before it is ever written.
@@ -164,9 +164,7 @@ appId: com.leapsake.app
     element:
       text: "Add holiday"
     direction: UP
-- tapOn:
-    text: "Remove"
-    index: 0
+- tapOn: "Remove Christmas"
 - assertVisible: "No holidays yet."
 - scrollUntilVisible:
     element:

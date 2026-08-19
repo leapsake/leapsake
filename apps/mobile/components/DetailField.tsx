@@ -3,8 +3,8 @@ import { styles } from "../lib/styles";
 
 /**
  * One row of a detail screen's definition list: a muted label over its value.
- * Read-only — an editable one is an {@link EditableField}, which names itself in
- * its own header rather than here.
+ * Read-only, which every row on those screens now is — changing any of it is the
+ * record's form ({@link EntityEditForm}), reached from the header's one Edit.
  */
 export function DetailField({
   label,

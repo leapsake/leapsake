@@ -33,12 +33,7 @@ export function SelectField<T extends string | null>({
   onChange,
   testID,
 }: {
-  /**
-   * Omitted when the surrounding context already names the field — an inline
-   * editor opened from a detail row whose header carries the name (see
-   * {@link EditableField}). Everywhere else, pass one.
-   */
-  label?: string;
+  label: string;
   value: T;
   options: { value: T; label: string }[];
   onChange: (value: T) => void;
@@ -81,7 +76,7 @@ export function SelectField<T extends string | null>({
   if (Platform.OS !== "ios") {
     return (
       <View style={styles.field}>
-        {label !== undefined && <Text style={styles.fieldLabel}>{label}</Text>}
+        <Text style={styles.fieldLabel}>{label}</Text>
         <View style={local.androidPicker}>{picker}</View>
       </View>
     );
@@ -90,7 +85,7 @@ export function SelectField<T extends string | null>({
   // iOS: a field row showing the current value; tapping reveals the wheel.
   return (
     <View style={styles.field}>
-      {label !== undefined && <Text style={styles.fieldLabel}>{label}</Text>}
+      <Text style={styles.fieldLabel}>{label}</Text>
       <Pressable
         testID={testID}
         accessibilityRole="button"

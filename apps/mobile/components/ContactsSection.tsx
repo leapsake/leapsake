@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Alert, Linking, Pressable, Text, View } from "react-native";
-import { Link, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import {
   type ContactMethod,
@@ -16,7 +15,6 @@ import {
 } from "@leapsake/contact-links";
 import { ContactActionSheet, type SheetItem } from "./ContactActionSheet";
 import { offeredActions, targetUrl } from "../lib/contact-actions";
-import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
 /** A glyph per kind, mirroring the desktop section's leading icon. */
@@ -138,59 +136,26 @@ function useSupportedSchemes(): ReadonlySet<string> {
  *
  * Tapping a row runs its likeliest action — text a mobile, mail an address, open
  * a profile — and the `⋯` beside it opens {@link ContactActionSheet} with the
- * rest, including Edit and Remove. Those two used to live in the row as links,
- * which is exactly what made the row itself untappable; moving them into the
- * sheet is what freed the tap for something useful.
+ * rest. The sheet used to end in Edit and Remove; those went to the form behind
+ * the page's Edit ({@link StagedContactsSection}) along with every other way of
+ * changing this record, leaving the sheet as a list of things to *do* with a
+ * number rather than things to do to it.
  *
  * Which actions exist is decided by `@leapsake/contact-links`, which is pure and
  * shared; which of them this handset can actually perform is decided by
  * `lib/contact-actions.ts`. This file only renders the answer and calls
- * `Linking`. Contacts are person-owned only, so there is no subject-type axis —
- * just the `ownerId`.
+ * `Linking`. Contacts are person-owned only, so there is no subject-type axis.
  */
 export function ContactsSection({
-  ownerId,
   subjectName,
   methods,
-  onChanged,
 }: {
-  ownerId: string;
   /** Who the methods belong to, for the "Call Jane?" confirm. */
   subjectName: string;
   methods: ContactMethod[];
-  onChanged: () => void;
 }) {
-  const core = useCore();
-  const router = useRouter();
   const schemes = useSupportedSchemes();
   const [openFor, setOpenFor] = useState<string | null>(null);
-
-  function removeFn(entry: ContactMethod): () => Promise<void> {
-    const id = entry.method.id;
-    if (entry.kind === "email")
-      return () => core.contactMethods.emails.softDelete(id);
-    if (entry.kind === "phone")
-      return () => core.contactMethods.phones.softDelete(id);
-    if (entry.kind === "postal")
-      return () => core.contactMethods.postals.softDelete(id);
-    return () => core.contactMethods.socials.softDelete(id);
-  }
-
-  function confirmRemove(entry: ContactMethod) {
-    Alert.alert("Remove contact", `Remove ${entry.method.label}?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: () => {
-          removeFn(entry)().then(
-            () => onChanged(),
-            (e: unknown) => Alert.alert("Couldn't remove", String(e)),
-          );
-        },
-      },
-    ]);
-  }
 
   /** Run an action: open its best URL, or fall back to the clipboard. */
   function perform(action: LinkAction, entry: ContactMethod) {
@@ -219,7 +184,7 @@ export function ContactsSection({
     entry: ContactMethod,
     actions: LinkAction[],
   ): SheetItem[] {
-    const items: SheetItem[] = actions.map((action) => ({
+    return actions.map((action) => ({
       key: action.id,
       glyph: VERB_ICON[action.verb],
       label: actionLabel(action),
@@ -228,57 +193,12 @@ export function ContactsSection({
       hint: action.reach === "profile" ? PROFILE_HINT : undefined,
       onPress: () => perform(action, entry),
     }));
-    items.push(
-      {
-        key: "edit",
-        glyph: "✏️",
-        label: "Edit",
-        onPress: () =>
-          router.push(
-            `/people/${ownerId}/contacts/${entry.kind}/${entry.method.id}/edit`,
-          ),
-      },
-      {
-        key: "remove",
-        glyph: "🗑️",
-        label: "Remove",
-        danger: true,
-        onPress: () => confirmRemove(entry),
-      },
-    );
-    return items;
   }
 
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Contact methods</Text>
-        <View style={styles.rowActions}>
-          <Link
-            href={`/people/${ownerId}/contacts/email/new`}
-            style={styles.link}
-          >
-            Email
-          </Link>
-          <Link
-            href={`/people/${ownerId}/contacts/phone/new`}
-            style={styles.link}
-          >
-            Phone
-          </Link>
-          <Link
-            href={`/people/${ownerId}/contacts/postal/new`}
-            style={styles.link}
-          >
-            Postal
-          </Link>
-          <Link
-            href={`/people/${ownerId}/contacts/social/new`}
-            style={styles.link}
-          >
-            Social
-          </Link>
-        </View>
       </View>
 
       {methods.length === 0 ? (

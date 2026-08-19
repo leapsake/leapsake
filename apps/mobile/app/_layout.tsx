@@ -40,6 +40,10 @@ export default function RootLayout() {
             header: ({ options, route, back, navigation }) => (
               <AppHeader
                 title={options.title ?? route.name}
+                left={options.headerLeft?.({
+                  canGoBack: back !== undefined,
+                  tintColor: colors.accent,
+                })}
                 right={options.headerRight?.({
                   canGoBack: back !== undefined,
                   tintColor: colors.accent,

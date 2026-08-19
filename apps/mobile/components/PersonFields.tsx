@@ -10,11 +10,10 @@ import { styles } from "../lib/styles";
 
 /**
  * A person's fields as the UI holds them: every value a string or a nullable
- * enum, nothing trimmed or parsed yet. The **draft** is the unit both callers
- * share — the combined create screen (app/add.tsx) keeps one alongside a pet
- * draft and its staged extras, so it can hand the whole thing to
- * `core.people.create` on Save, and {@link PersonDetailFields} keeps one to seed
- * whichever group of fields is open for editing on the detail screen.
+ * enum, nothing trimmed or parsed yet. The **draft** is the unit both entity
+ * forms share, as one third of an {@link EntityFormValue}: the create screen
+ * hands it to `core.people.create` on Save, and the edit screen seeds it from a
+ * saved person and hands it to `core.people.update`.
  */
 export interface PersonDraft {
   firstName: string;
@@ -71,13 +70,15 @@ export function personDraftToInput(draft: PersonDraft): CreatePersonInput {
 }
 
 /**
- * The three parts of a person's name, controlled by whoever owns the draft.
- * Split out from {@link PersonFields} because the detail screen edits the name
- * on its own, as one group: the rule they answer to — at least one part filled
- * in ({@link personDraftValid}) — spans all three, so they are the smallest set
- * that can be validated, and therefore saved, together.
+ * Everything a person form asks up front — the three parts of a name, then the
+ * gender — controlled by whoever owns the draft. The name parts belong together
+ * because the rule they answer to spans all three: at least one filled in
+ * ({@link personDraftValid}).
+ *
+ * Tags are *not* here — they're {@link TagsInput}, rendered separately so the
+ * form can keep them last, below its staged sections.
  */
-export function PersonNameFields({
+export function PersonFields({
   draft,
   onChange,
 }: {
@@ -129,33 +130,11 @@ export function PersonNameFields({
           autoCapitalize="words"
         />
       </View>
-    </>
-  );
-}
 
-/**
- * Everything the create screen asks about a person up front — the name, then the
- * gender — controlled by whoever owns the draft. It is a create-time grouping:
- * on the detail screen these are separately editable fields, each saved on its
- * own (see {@link PersonDetailFields}).
- *
- * Tags are *not* here — they're {@link TagsInput}, rendered separately so the
- * add screen can keep them last, below its staged sections.
- */
-export function PersonFields({
-  draft,
-  onChange,
-}: {
-  draft: PersonDraft;
-  onChange: (draft: PersonDraft) => void;
-}) {
-  return (
-    <>
-      <PersonNameFields draft={draft} onChange={onChange} />
       <GenderField
         label="Gender"
         value={draft.gender}
-        onChange={(gender) => onChange({ ...draft, gender })}
+        onChange={(gender) => set("gender", gender)}
       />
     </>
   );

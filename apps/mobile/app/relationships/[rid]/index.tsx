@@ -21,9 +21,13 @@ function entityPath(type: "person" | "pet", id: string): string {
 
 // Relationship detail, ported from desktop's RelationshipView: the two partners
 // (each a link to their page) and the relationship's own milestones (a Wedding,
-// Met, First Date — facts that belong to the edge, not either partner). Editing
-// roles happens from a partner's Relationships section; this page owns the
-// relationship's milestones and a delete.
+// Met, First Date — facts that belong to the edge, not either partner). Roles are
+// re-set on a partner's own edit form, which is where their relationships live;
+// this page owns the relationship's milestones and a delete.
+//
+// It keeps the in-place Milestones section (the person and pet screens render the
+// same one `readOnly`) because those milestones are the whole of this page: there
+// is no record form here to move them into.
 export default function RelationshipDetailScreen() {
   const core = useCore();
   const router = useRouter();

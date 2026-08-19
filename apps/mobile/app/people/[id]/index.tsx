@@ -12,13 +12,14 @@ import { fullName } from "@leapsake/schema";
 import { formatTimestamp } from "@leapsake/ui/headless";
 import { ContactsSection } from "../../../components/ContactsSection";
 import { DetailField } from "../../../components/DetailField";
-import { EditableTags } from "../../../components/EditableTags";
 import { GiftsSection } from "../../../components/GiftsSection";
+import { HeaderEdit } from "../../../components/HeaderEdit";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { PersonDetailFields } from "../../../components/PersonDetailFields";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
+import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { colors, styles } from "../../../lib/styles";
@@ -36,12 +37,11 @@ export default function PersonDetailScreen() {
       Promise.all([
         core.views.person(id),
         core.reminders.mentioning("person", id),
-        // The whole catalog with this person's answers — one read serving both
-        // the Holidays section's list and its add-field's suggestions.
+        // The whole catalog with this person's answers; the section shows the
+        // ones they observe.
         core.holidays.listForBearer("person", id),
         // The Gifts section: what's suggested for them, and what they've been
-        // given. Capturing a new one is `/gifts/new`'s job, so the idea pool it
-        // autocompletes against is loaded there rather than here.
+        // given.
         core.gifts.suggestions.listForRecipient("person", id),
         core.gifts.given.listForRecipient("person", id),
         // Unresolved pairs this person is half of — both people in a pair carry
@@ -111,9 +111,16 @@ export default function PersonDetailScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      {/* No `headerRight`: this person's own fields are edited from their own
-          rows below, so the nav bar has nothing left to hold. */}
-      <Stack.Screen options={{ title: fullName(person) }} />
+      {/* Everything below is read-only; the one way to change any of it is this
+          Edit, which opens the whole record as a form. */}
+      <Stack.Screen
+        options={{
+          title: fullName(person),
+          headerLeft: () => (
+            <HeaderEdit href={`/people/${id}/edit`} what={fullName(person)} />
+          ),
+        }}
+      />
 
       {/* Both halves of an unresolved pair carry this, so the way back to the
           review is on whichever person the user opens. It stays until the pair
@@ -133,56 +140,37 @@ export default function PersonDetailScreen() {
         </Pressable>
       )}
 
-      <PersonDetailFields
-        person={person}
-        gender={gender.value}
-        tags={tags}
-        onChanged={reload}
-      />
+      <PersonDetailFields person={person} gender={gender.value} />
 
       <ContactsSection
-        ownerId={person.id}
         subjectName={fullName(person)}
         methods={contactMethods}
-        onChanged={reload}
       />
 
       <MilestonesSection
+        readOnly
         bearerType="person"
         bearerId={person.id}
         entries={timeline}
         onChanged={reload}
       />
 
-      <RelationshipsSection
-        subjectType="person"
-        subjectId={person.id}
-        relationships={relationships}
-        onChanged={reload}
-      />
+      <RelationshipsSection relationships={relationships} />
 
       <HolidaysSection
         bearerType="person"
         bearerId={person.id}
         holidays={holidays}
-        onChanged={reload}
       />
 
-      <GiftsSection
-        recipientType="person"
-        recipientId={person.id}
-        suggestions={giftSuggestions}
-        gifts={giftsGiven}
-        onChanged={reload}
-      />
+      <GiftsSection suggestions={giftSuggestions} gifts={giftsGiven} />
 
-      <EditableTags
-        tags={tags}
-        onSave={async (tagNames) => {
-          await core.people.update(person.id, {}, tagNames);
-          reload();
-        }}
-      />
+      {/* Below the sections rather than up with the name, the same reading order
+          the form puts them in: tags describe a person you have already read. */}
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Tags</Text>
+        <TagsField tags={tags} />
+      </View>
 
       <MentionedInSection reminders={mentionedIn} />
 

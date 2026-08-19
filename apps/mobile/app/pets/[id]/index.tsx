@@ -10,13 +10,14 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { formatTimestamp } from "@leapsake/ui/headless";
 import { DetailField } from "../../../components/DetailField";
-import { EditableTags } from "../../../components/EditableTags";
 import { GiftsSection } from "../../../components/GiftsSection";
+import { HeaderEdit } from "../../../components/HeaderEdit";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { PetDetailFields } from "../../../components/PetDetailFields";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
+import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
@@ -93,53 +94,37 @@ export default function PetDetailScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      {/* No `headerRight`: this pet's own fields are edited from their own rows
-          below, so the nav bar has nothing left to hold. */}
-      <Stack.Screen options={{ title: pet.name }} />
-
-      <PetDetailFields
-        pet={pet}
-        gender={gender.value}
-        tags={tags}
-        onChanged={reload}
+      {/* Read-only below, with one Edit into the whole record — see the person
+          screen, which this mirrors. */}
+      <Stack.Screen
+        options={{
+          title: pet.name,
+          headerLeft: () => (
+            <HeaderEdit href={`/pets/${id}/edit`} what={pet.name} />
+          ),
+        }}
       />
 
+      <PetDetailFields pet={pet} gender={gender.value} />
+
       <MilestonesSection
+        readOnly
         bearerType="pet"
         bearerId={pet.id}
         entries={timeline}
         onChanged={reload}
       />
 
-      <RelationshipsSection
-        subjectType="pet"
-        subjectId={pet.id}
-        relationships={relationships}
-        onChanged={reload}
-      />
+      <RelationshipsSection relationships={relationships} />
 
-      <HolidaysSection
-        bearerType="pet"
-        bearerId={pet.id}
-        holidays={holidays}
-        onChanged={reload}
-      />
+      <HolidaysSection bearerType="pet" bearerId={pet.id} holidays={holidays} />
 
-      <GiftsSection
-        recipientType="pet"
-        recipientId={pet.id}
-        suggestions={giftSuggestions}
-        gifts={giftsGiven}
-        onChanged={reload}
-      />
+      <GiftsSection suggestions={giftSuggestions} gifts={giftsGiven} />
 
-      <EditableTags
-        tags={tags}
-        onSave={async (tagNames) => {
-          await core.pets.update(pet.id, {}, tagNames);
-          reload();
-        }}
-      />
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>Tags</Text>
+        <TagsField tags={tags} />
+      </View>
 
       <MentionedInSection reminders={mentionedIn} />
 

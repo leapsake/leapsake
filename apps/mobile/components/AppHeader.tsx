@@ -55,13 +55,21 @@ const TITLE_SIZE = { full: 24, compact: 17 } as const;
  */
 export interface AppHeaderProps {
   title: string;
-  /** The screen's trailing action — its Save, Edit, or Search-here. */
+  /**
+   * The screen's leading action, drawn immediately after Back — a **way into**
+   * the screen's other mode rather than a way out of the screen. A record's
+   * **Edit** is the one that asked for this slot: it opens the form over
+   * everything the page shows, so it belongs beside the record's name and not
+   * across from it, where Save lives on the form it opens.
+   */
+  left?: ReactNode;
+  /** The screen's trailing action — its Save, or Search-here. */
   right?: ReactNode;
   /** Supplied by the navigator iff there is somewhere to go back to. */
   onBack?: () => void;
 }
 
-export function AppHeader({ title, right, onBack }: AppHeaderProps) {
+export function AppHeader({ title, left, right, onBack }: AppHeaderProps) {
   const insets = useSafeAreaInsets();
   const fontSize = headerScroll.interpolate({
     inputRange: [0, COLLAPSE_DISTANCE],
@@ -88,6 +96,7 @@ export function AppHeader({ title, right, onBack }: AppHeaderProps) {
             <Text style={local.back}>{BACK_LABEL}</Text>
           </Pressable>
         )}
+        {left}
         <View style={local.spacer} />
         {right}
       </View>
@@ -117,6 +126,9 @@ const local = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     minHeight: 36,
+    // Only ever seen between Back and a leading action; the spacer keeps the
+    // trailing one at the edge either way.
+    gap: 16,
   },
   /** Pushes `right` to the trailing edge whether or not there is a back control. */
   spacer: {

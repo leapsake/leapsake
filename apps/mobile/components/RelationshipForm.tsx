@@ -82,11 +82,11 @@ export interface LockedOther {
  *
  * With `inline` it renders into the caller's layout rather than owning the
  * screen — no scroll view of its own, since nesting one inside another of the
- * same orientation silently breaks scrolling. That is how the create screen
- * (app/add.tsx) stages a relationship for a subject that doesn't exist yet: the
- * other end never depends on the subject, so the picker, the pair-dependent role
- * list, and the `other` note rule are all identical; only the subject id is
- * missing, and it arrives before the write.
+ * same orientation silently breaks scrolling. That is how the create and edit
+ * screens stage a relationship ({@link StagedRelationshipsSection}): the other
+ * end never depends on the subject, so the picker, the pair-dependent role list,
+ * and the `other` note rule are all identical; on the create screen only the
+ * subject id is missing, and it arrives before the write.
  *
  * The two modes carry the submit action in different places, which is what splits
  * the props. On its own screen it declares the native header — `title` plus a
@@ -100,6 +100,7 @@ export function RelationshipForm({
   subjectType,
   candidates,
   lockedOther,
+  initialValue,
   initialRole,
   initialNote,
   submitLabel,
@@ -112,6 +113,13 @@ export function RelationshipForm({
   subjectType: EntityType;
   candidates?: RelationshipCandidate[];
   lockedOther?: LockedOther;
+  /**
+   * A whole draft to open on, picker included — what a staged section passes to
+   * reopen a row added on the form. Unlike `lockedOther` the other end stays
+   * changeable, because a row that has not been written yet has no endpoints to
+   * be immutable: picking somebody else is still the same unsaved row.
+   */
+  initialValue?: RelationshipFormValue & { otherLabel: string };
   initialRole?: RelationshipRole;
   initialNote?: string | null;
   /** Inline mode: the in-body submit button's label. */
@@ -122,20 +130,36 @@ export function RelationshipForm({
   /** Render without the screen-owning scroll view, for embedding in a form. */
   inline?: boolean;
 }) {
-  const [selected, setSelected] = useState<OtherOption | null>(
-    lockedOther
+  const [selected, setSelected] = useState<OtherOption | null>(() => {
+    if (lockedOther) {
+      return {
+        kind: "existing",
+        type: lockedOther.type,
+        id: lockedOther.id,
+        label: lockedOther.label,
+      };
+    }
+    if (initialValue === undefined) return null;
+    return initialValue.other === "existing"
       ? {
           kind: "existing",
-          type: lockedOther.type,
-          id: lockedOther.id,
-          label: lockedOther.label,
+          type: initialValue.otherType,
+          id: initialValue.otherId,
+          label: initialValue.otherLabel,
         }
-      : null,
-  );
+      : {
+          kind: "new",
+          type: initialValue.otherType,
+          name: initialValue.otherName,
+          label: initialValue.otherLabel,
+        };
+  });
   const [role, setRole] = useState<RelationshipRole | null>(
-    initialRole ?? null,
+    initialRole ?? initialValue?.otherRole ?? null,
   );
-  const [note, setNote] = useState(initialNote ?? "");
+  const [note, setNote] = useState(
+    initialNote ?? initialValue?.otherRoleNote ?? "",
+  );
   const [submitting, setSubmitting] = useState(false);
 
   const otherType = selected?.type ?? null;

@@ -7,6 +7,9 @@ import { styles } from "../lib/styles";
  * A pet's fields as the UI holds them — the pet half of the pair described on
  * {@link PersonDraft}. A pet is the simpler entity: one `name` rather than
  * first/middle/last, and no contact methods at all.
+ *
+ * Both drafts sit on every {@link EntityFormValue}, so the create screen's toggle
+ * can flip between them without either losing what was typed.
  */
 export interface PetDraft {
   name: string;
@@ -32,10 +35,9 @@ export function petDraftToInput(draft: PetDraft): CreatePetInput {
 }
 
 /**
- * The pet fields the create screen asks for up front, controlled by whoever owns
- * the draft — the mirror of {@link PersonFields}, and grouped for the same
- * create-time reason. There is no name/gender split to make here: a pet's name
- * is one field, so the detail screen's name editor renders that input itself.
+ * The pet fields both entity forms ask for up front, controlled by whoever owns
+ * the draft — the mirror of {@link PersonFields}. A pet is the simpler half here
+ * too: one name field rather than three.
  */
 export function PetFields({
   draft,

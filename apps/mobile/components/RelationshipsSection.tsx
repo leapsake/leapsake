@@ -1,12 +1,7 @@
-import { Alert, Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Link } from "expo-router";
-import {
-  type EntityType,
-  type RelationshipNeighbor,
-  baseRole,
-} from "@leapsake/schema";
+import { type RelationshipNeighbor, baseRole } from "@leapsake/schema";
 import { entityBasePath } from "@leapsake/ui/headless";
-import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
 /** The role shown for a neighbor: a free-text note for "other", else the label. */
@@ -17,93 +12,28 @@ function roleText(neighbor: RelationshipNeighbor): string {
 }
 
 /**
- * The Relationships section shared by the Person and Pet detail screens, ported
- * from the desktop `RelationshipsSection`. It lists the subject's neighbors —
- * both stored (explicit) edges and the ones the inference engine computes
- * (derived) — already oriented + labelled by the view layer and presented
- * uniformly: the explicit/derived distinction is a backend detail. Each row's
- * actions branch on origin: an explicit edge opens its detail page, edits by id,
- * and soft-deletes; a derived edge has no id, so editing it navigates to the add
- * screen pre-pointed at the other endpoint (which materialises a stored edge),
- * and removing it records a dismissal via `core.kinship.dismiss`.
+ * The Relationships section on the Person and Pet detail screens, ported from the
+ * desktop `RelationshipsSection`. It lists the subject's neighbors — both stored
+ * (explicit) edges and the ones the inference engine computes (derived) — already
+ * oriented + labelled by the view layer and presented uniformly: the
+ * explicit/derived distinction is a backend detail.
  *
- * Remove confirms with a native `Alert` then calls `onChanged` so the detail
- * screen refetches its view — mirroring `MilestonesSection`.
+ * Read-only, like every section on these screens: each row names who and how, and
+ * links to them and (for a stored edge) to the relationship's own page. Adding,
+ * re-roling, removing and dismissing all moved to the form behind the page's one
+ * Edit ({@link StagedRelationshipsSection}), which is also where the
+ * explicit/derived difference finally shows itself — in what saving a change to
+ * one does.
  */
 export function RelationshipsSection({
-  subjectType,
-  subjectId,
   relationships,
-  onChanged,
 }: {
-  subjectType: EntityType;
-  subjectId: string;
   relationships: RelationshipNeighbor[];
-  onChanged: () => void;
 }) {
-  const core = useCore();
-  const basePath = `${entityBasePath(subjectType)}/${subjectId}`;
-
-  function confirmRemove(neighbor: RelationshipNeighbor) {
-    const remove =
-      neighbor.origin === "explicit"
-        ? () => core.relationships.softDelete(neighbor.relationshipId)
-        : () =>
-            core.kinship.dismiss(
-              subjectType,
-              subjectId,
-              neighbor.otherType,
-              neighbor.otherId,
-              baseRole(neighbor.otherRole),
-            );
-    // An unpublished other end exists *because* of this edge and nothing else —
-    // removing it takes them with it, so the confirm must not promise otherwise.
-    // Everyone else carries on existing, which is the reassurance this line has
-    // always been here to give.
-    const consequence =
-      neighbor.otherStanding === "unpublished"
-        ? `${neighbor.otherLabel} is only recorded here, so this removes them too.`
-        : `This does not delete ${neighbor.otherLabel}.`;
-    Alert.alert(
-      "Remove relationship",
-      `Remove ${neighbor.otherLabel} (${roleText(neighbor)})? ${consequence}`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: () => {
-            remove().then(
-              () => onChanged(),
-              (e: unknown) => Alert.alert("Couldn't remove", String(e)),
-            );
-          },
-        },
-      ],
-    );
-  }
-
-  // A derived edge has no stored id, so editing it materialises a new explicit
-  // edge: the add screen receives the fixed other endpoint + current base role.
-  function editHref(neighbor: RelationshipNeighbor): string {
-    if (neighbor.origin === "explicit") {
-      return `${basePath}/relationships/${neighbor.relationshipId}/edit`;
-    }
-    const query = new URLSearchParams({
-      otherType: neighbor.otherType,
-      otherId: neighbor.otherId,
-      otherRole: baseRole(neighbor.otherRole),
-    }).toString();
-    return `${basePath}/relationships/new?${query}`;
-  }
-
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Relationships</Text>
-        <Link href={`${basePath}/relationships/new`} style={styles.link}>
-          Add relationship
-        </Link>
       </View>
 
       {relationships.length === 0 ? (
@@ -122,25 +52,16 @@ export function RelationshipsSection({
               </Link>
               <View style={styles.rowMeta}>
                 <Text style={styles.muted}>{roleText(neighbor)}</Text>
-                <View style={styles.rowActions}>
-                  {neighbor.origin === "explicit" ? (
-                    <Link
-                      href={`/relationships/${neighbor.relationshipId}`}
-                      style={styles.link}
-                    >
-                      Details
-                    </Link>
-                  ) : null}
-                  <Link href={editHref(neighbor)} style={styles.link}>
-                    Edit
-                  </Link>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => confirmRemove(neighbor)}
+                {/* Only a stored edge has a page: a derived one is an inference,
+                    with nothing of its own to show. */}
+                {neighbor.origin === "explicit" ? (
+                  <Link
+                    href={`/relationships/${neighbor.relationshipId}`}
+                    style={styles.link}
                   >
-                    <Text style={[styles.link, styles.danger]}>Remove</Text>
-                  </Pressable>
-                </View>
+                    Details
+                  </Link>
+                ) : null}
               </View>
             </View>
           );

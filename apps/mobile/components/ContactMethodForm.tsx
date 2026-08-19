@@ -86,9 +86,9 @@ function blankToNull(raw: string): string | null {
  *
  * With `inline` it renders into the caller's layout rather than owning the
  * screen — see {@link MilestoneForm}, which takes the same prop for the same
- * reason: the create screen stages contact methods for a person who doesn't
- * exist yet, and a scroll view nested in another of the same orientation
- * silently stops scrolling. The submit action moves with the mode — see
+ * reason: the create and edit screens stage contact methods rather than writing
+ * them where they stand, and a scroll view nested in another of the same
+ * orientation silently stops scrolling. The submit action moves with the mode — see
  * {@link MilestoneForm}, which splits its props the same way: a header
  * {@link HeaderSave} on its own screen, the in-body `Cancel  submitLabel` row
  * inline.
@@ -97,6 +97,7 @@ export function ContactMethodForm({
   title,
   kind,
   method,
+  value,
   submitLabel,
   onSubmit,
   onCancel,
@@ -106,6 +107,13 @@ export function ContactMethodForm({
   title?: string;
   kind: ContactMethodKind;
   method?: EmailAddress | PhoneNumber | PostalAddress | SocialProfile;
+  /**
+   * A draft to open on, taking precedence over `method`: what a staged section
+   * passes to re-open a row already filled in during this session (see
+   * {@link StagedContactsSection}). A stored method and a draft carry the same
+   * fields, so one seed serves either.
+   */
+  value?: ContactFormValue;
   /** Inline mode: the in-body submit button's label. */
   submitLabel?: string;
   onSubmit: (value: ContactFormValue) => Promise<void>;
@@ -114,15 +122,32 @@ export function ContactMethodForm({
   /** Render without the screen-owning scroll view, for embedding in a form. */
   inline?: boolean;
 }) {
-  // `method`'s shape matches `kind` (the caller guarantees it), so narrow once.
+  // `method`'s shape matches `kind` (the caller guarantees it), so narrow once;
+  // a `value` is self-describing and wins where it agrees with `kind`.
   const email =
-    kind === "email" ? (method as EmailAddress | undefined) : undefined;
+    kind === "email"
+      ? value?.kind === "email"
+        ? value
+        : (method as EmailAddress | undefined)
+      : undefined;
   const phone =
-    kind === "phone" ? (method as PhoneNumber | undefined) : undefined;
+    kind === "phone"
+      ? value?.kind === "phone"
+        ? value
+        : (method as PhoneNumber | undefined)
+      : undefined;
   const postal =
-    kind === "postal" ? (method as PostalAddress | undefined) : undefined;
+    kind === "postal"
+      ? value?.kind === "postal"
+        ? value
+        : (method as PostalAddress | undefined)
+      : undefined;
   const social =
-    kind === "social" ? (method as SocialProfile | undefined) : undefined;
+    kind === "social"
+      ? value?.kind === "social"
+        ? value
+        : (method as SocialProfile | undefined)
+      : undefined;
 
   const labelSuggestions =
     kind === "email"
@@ -133,7 +158,9 @@ export function ContactMethodForm({
           ? postalLabelSuggestions
           : socialLabelSuggestions;
 
-  const [label, setLabel] = useState(method?.label ?? labelSuggestions[0]);
+  const [label, setLabel] = useState(
+    value?.label ?? method?.label ?? labelSuggestions[0],
+  );
   const [address, setAddress] = useState(email?.address ?? "");
   const [number, setNumber] = useState(phone?.number ?? "");
   const [extension, setExtension] = useState(phone?.extension ?? "");

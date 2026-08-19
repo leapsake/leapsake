@@ -54,9 +54,10 @@ const MONTH_OPTIONS: { value: string; label: string }[] = [
  *
  * With `inline` it renders into the caller's layout rather than owning the
  * screen — no scroll view of its own, since nesting one inside another of the
- * same orientation silently breaks scrolling. That is how the create screen
- * (app/add.tsx) stages a milestone for a bearer that doesn't exist yet: same
- * fields, same validation, but `onSubmit` appends to a list instead of writing.
+ * same orientation silently breaks scrolling. That is how the create and edit
+ * screens stage a milestone ({@link StagedMilestonesSection}): same fields, same
+ * validation, but `onSubmit` writes into a list the screen holds instead of into
+ * the database.
  *
  * The two modes carry the submit action in different places, which is what splits
  * the props. On its own screen it declares the native header — `title` plus a
@@ -69,6 +70,7 @@ export function MilestoneForm({
   title,
   bearerType,
   milestone,
+  value,
   submitLabel,
   onSubmit,
   onCancel,
@@ -78,6 +80,14 @@ export function MilestoneForm({
   title?: string;
   bearerType: MilestoneBearerType;
   milestone?: Milestone;
+  /**
+   * A draft to open on, taking precedence over `milestone`: what a staged
+   * section passes to re-open a row the user has already filled in during this
+   * session, whether it was added on the form or seeded from a saved milestone.
+   * Its schedule is used as-is — the stored one below would overwrite an edit
+   * that hasn't been written yet.
+   */
+  value?: MilestoneFormValue;
   /** Inline mode: the in-body submit button's label. */
   submitLabel?: string;
   onSubmit: (value: MilestoneFormValue) => Promise<void>;
@@ -89,26 +99,32 @@ export function MilestoneForm({
   const core = useCore();
   const kinds = kindsForBearerType(bearerType);
 
-  const initialKind = milestone?.kind ?? kinds[0]?.kind ?? "birthday";
+  // Both shapes carry the same fields to open on, so one seed serves either.
+  const seed = value ?? milestone;
+  const initialKind = seed?.kind ?? kinds[0]?.kind ?? "birthday";
   const [kind, setKind] = useState<MilestoneKind>(initialKind);
-  const [month, setMonth] = useState(milestone?.month?.toString() ?? "");
-  const [day, setDay] = useState(milestone?.day?.toString() ?? "");
-  const [year, setYear] = useState(milestone?.year?.toString() ?? "");
-  const [note, setNote] = useState(milestone?.note ?? "");
+  const [month, setMonth] = useState(seed?.month?.toString() ?? "");
+  const [day, setDay] = useState(seed?.day?.toString() ?? "");
+  const [year, setYear] = useState(seed?.year?.toString() ?? "");
+  const [note, setNote] = useState(seed?.note ?? "");
   const [submitting, setSubmitting] = useState(false);
 
   // The staggered-reminder schedule to edit + submit. Seeded from the kind's
   // defaults; when editing, the milestone's stored rules are loaded in (once) to
   // replace them. Until the user touches it, switching kind re-seeds from the new
   // kind's defaults; once they edit a rule it's theirs and a kind change leaves it.
-  const [schedule, setSchedule] = useState<ReminderRuleInput[]>(() =>
-    resolveReminderSchedule(initialKind, []),
+  // A `value` arrives with a schedule the user has already had in front of them,
+  // so it counts as theirs from the start.
+  const [schedule, setSchedule] = useState<ReminderRuleInput[]>(
+    () => value?.reminderSchedule ?? resolveReminderSchedule(initialKind, []),
   );
-  const [scheduleCustomized, setScheduleCustomized] = useState(false);
+  const [scheduleCustomized, setScheduleCustomized] = useState(
+    value !== undefined,
+  );
   const hydratedRef = useRef(false);
 
   useEffect(() => {
-    if (!milestone || hydratedRef.current) return;
+    if (!milestone || value !== undefined || hydratedRef.current) return;
     hydratedRef.current = true;
     let active = true;
     void core.milestones
@@ -119,7 +135,7 @@ export function MilestoneForm({
     return () => {
       active = false;
     };
-  }, [core, milestone]);
+  }, [core, milestone, value]);
 
   const onKindChange = (next: MilestoneKind) => {
     setKind(next);
@@ -199,17 +215,17 @@ export function MilestoneForm({
         label="Kind"
         value={kind}
         options={kinds.map((k) => ({ value: k.kind, label: k.label }))}
-        onChange={(value) => onKindChange(value)}
+        onChange={(picked) => onKindChange(picked)}
       />
 
       <SelectField
         label="Month"
         value={month}
         options={MONTH_OPTIONS}
-        onChange={(value) => {
-          setMonth(value);
+        onChange={(picked) => {
+          setMonth(picked);
           // A day is only meaningful alongside a month; clearing month clears it.
-          if (value === "") setDay("");
+          if (picked === "") setDay("");
         }}
       />
 
