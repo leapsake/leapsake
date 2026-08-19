@@ -37,11 +37,19 @@ describe("newActionFor", () => {
     expect(newActionFor("/search", { type: "nonsense" })).toEqual(sheet);
   });
 
-  it("answers for the list screens by what they are, not who hosts them", () => {
-    // Neither can reach New today (both push over the tab bar), but the table
-    // is about the screen's subject rather than this month's navigator.
+  it("goes straight to the form on the two catalogs a user can add to", () => {
+    // The catalogs sit in the tab navigator, so New is on screen there — and it
+    // is the only way in, since neither carries a "+ Add" of its own any more.
     expect(newActionFor("/people")).toEqual(route("/add"));
     expect(newActionFor("/gifts")).toEqual(route("/gifts/new"));
+  });
+
+  it("asks on the two catalogs nothing can be added to", () => {
+    // Same reason as the filtered-search case above, arrived at from the other
+    // direction: New is on screen here too, and must not open a form that would
+    // have nothing to write.
+    expect(newActionFor("/holidays")).toEqual(sheet);
+    expect(newActionFor("/tags")).toEqual(sheet);
   });
 
   it("asks on a screen it has never heard of", () => {

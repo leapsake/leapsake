@@ -2,9 +2,11 @@ import { Pressable, Text } from "react-native";
 import { styles } from "../lib/styles";
 
 /**
- * The **Save** action that every entity form now carries in its native header,
- * where the tab screens put "+ Add" — replacing the in-body Cancel/Add row the
- * forms used to render. There is no Cancel beside it: the stack's own "‹ Back"
+ * The **Save** action that every entity form now carries in its header, replacing
+ * the in-body Cancel/Add row the forms used to render. It is the one thing still
+ * in that corner: the list screens' "+ Add" has gone to the New tab, but Save is
+ * not a create action — it is the end of one, on a screen the user is already
+ * finishing. There is no Cancel beside it: the stack's own "‹ Back"
  * already leaves without saving, and a second way to do the same thing was
  * competing with the one the platform draws for free.
  *

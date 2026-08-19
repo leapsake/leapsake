@@ -23,7 +23,7 @@ const joinBits = (bits: (string | null)[]) => bits.filter(Boolean).join(", ");
  * changes state); candidates not yet given lead, given ideas sink.
  *
  * Adding is a link out to `/gifts/new`, with this person or pet as the fixed
- * recipient — the same screen the Gifts catalog's "+ Add" opens, and the same one
+ * recipient — the same screen New opens from the Gifts catalog, and the same one
  * a completed gift reminder hands off to. The consolidated `GiftCaptureForm` used
  * to sit inline at the top of this section, which put a multi-field form (idea,
  * occasion, date, giver) between the reader and the list they came to read.

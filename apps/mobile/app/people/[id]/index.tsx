@@ -95,7 +95,13 @@ export default function PersonDetailScreen() {
         style: "destructive",
         onPress: () => {
           core.people.softDelete(id).then(
-            () => router.replace("/people"),
+            // **`dismissTo`, not `replace`.** People & Pets is inside the tab
+            // navigator now (`app/(tabs)/_layout.tsx`), so from up here on the
+            // root stack it is not a screen to swap this one for — it is
+            // underneath us. `replace` would put a *second* `(tabs)` on the
+            // stack; this pops back down to the one already there and selects
+            // the catalog, which also takes the deleted record out of history.
+            () => router.dismissTo("/people"),
             (e: unknown) => Alert.alert("Couldn't delete", String(e)),
           );
         },

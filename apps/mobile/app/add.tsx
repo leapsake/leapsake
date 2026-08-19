@@ -48,8 +48,8 @@ import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
 /**
- * Add a person or a pet — the single destination behind the People & Pets tab's
- * "+ Add". It replaced a chooser screen that asked "person, pet, or import?" with
+ * Add a person or a pet — the single destination behind **New** on People &
+ * Pets. It replaced a chooser screen that asked "person, pet, or import?" with
  * three buttons and then `replace`d itself with one of three forms; the question
  * is now a toggle on the form itself, which opens on **Person** because that is
  * overwhelmingly what a user is adding.

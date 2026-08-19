@@ -8,8 +8,9 @@ import { useFocusedData } from "../../lib/useFocusedData";
 import { styles } from "../../lib/styles";
 
 /**
- * Add a gift — the standalone create screen (the Gifts tab's "+ Add" action),
- * ported from desktop's `GiftCreate`. Type a name/URL to capture an idea; add
+ * Add a gift — the standalone create screen, reached with the **New** tab from
+ * the Gifts catalog, ported from desktop's `GiftCreate`. Type a name/URL to
+ * capture an idea; add
  * people/pets to suggest it; add dates under a recipient to log givings.
  *
  * Reached with a recipient already chosen (`?recipient=<type>:<id>`) from a person
@@ -20,8 +21,8 @@ import { styles } from "../../lib/styles";
  *
  * **Where saving lands depends on how you got here.** Arriving with a recipient
  * means arriving from somewhere that already shows that recipient's gifts, so it
- * goes back there; the Gifts tab's own "+ Add" has nowhere to go back to that
- * would show the new gift, so it lands on the catalog.
+ * goes back there; arriving from the catalog with no recipient has nowhere to go
+ * back to that would show the new gift, so it lands on the catalog.
  */
 export default function GiftCreateScreen() {
   const core = useCore();
@@ -84,7 +85,7 @@ export default function GiftCreateScreen() {
         startWithGiving={fixedRecipient !== undefined}
         onSaved={() =>
           fixedRecipient === undefined
-            ? router.replace("/gifts")
+            ? router.dismissTo("/gifts")
             : router.back()
         }
       />

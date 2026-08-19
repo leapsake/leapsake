@@ -86,7 +86,9 @@ export default function GiftIdeaEditScreen() {
         style: "destructive",
         onPress: () => {
           core.gifts.ideas.softDelete(id).then(
-            () => router.replace("/gifts"),
+            // Down to the catalog in the tab navigator, not a replacement for
+            // this screen — see `app/people/[id]/index.tsx`.
+            () => router.dismissTo("/gifts"),
             (e: unknown) => Alert.alert("Couldn't remove", String(e)),
           );
         },

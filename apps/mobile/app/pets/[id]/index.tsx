@@ -80,7 +80,10 @@ export default function PetDetailScreen() {
         style: "destructive",
         onPress: () => {
           core.pets.softDelete(id).then(
-            () => router.replace("/people"),
+            // `dismissTo` for the same reason as the person page: the catalog is
+            // below us in the tab navigator, not a screen to replace this one
+            // with. See `app/people/[id]/index.tsx`.
+            () => router.dismissTo("/people"),
             (e: unknown) => Alert.alert("Couldn't delete", String(e)),
           );
         },

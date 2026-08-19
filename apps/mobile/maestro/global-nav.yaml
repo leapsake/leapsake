@@ -10,14 +10,16 @@
 #
 #   1. the bar holds Home, Search, New and Settings — a tab lost or renamed.
 #   2. New from Home opens the chooser at all.
-#   3. a browse tile opens its catalog, the catalog's own Search link is what
-#      comes back narrowed, and New on that *filtered* Search goes straight into
-#      the form with no chooser — break the `?type=` read (or read the tab
-#      layout's *local* params instead of the global ones, which is how this was
-#      first written) and it falls back to the sheet, so `person-first-name`
-#      never appears.
-#   4. Back is absent on a tab root and present on a pushed screen — **and this is
-#      also what catches a New tab that navigates.** See below.
+#   3. a browse tile opens its catalog **with the bar still under it and no back
+#      control** (the catalogs are hidden members of the tab navigator, not
+#      screens pushed over it — `app/(tabs)/_layout.tsx`), the catalog's own
+#      Search link is what comes back narrowed, and New on that *filtered* Search
+#      goes straight into the form with no chooser — break the `?type=` read (or
+#      read the tab layout's *local* params instead of the global ones, which is
+#      how this was first written) and it falls back to the sheet, so
+#      `person-first-name` never appears.
+#   4. Back is absent inside the tab navigator and present on a pushed screen —
+#      **and this is also what catches a New tab that navigates.** See below.
 #
 # **Where the "New never navigates" claim is actually proven: case 4, not case 2.**
 # Verified by sabotage — deleting the `preventDefault` in `app/(tabs)/_layout.tsx`
@@ -126,6 +128,17 @@ appId: com.leapsake.app
     id: "browse-tile-people"
 - assertNotVisible:
     id: "search-filter-chip"
+# The catalog **keeps the bar and loses Back** — the two halves of one claim: it
+# is a place in the tab navigator, not a screen pushed over it. Move People &
+# Pets back onto the root stack and the first line goes red (the bar is covered)
+# and the second follows (a pushed screen gets a back control for free).
+#
+# The bar is asserted by a tab's `testID` rather than its label, for the reason
+# in the header: this one is checked while a list of people is on screen, and
+# "Home" is a thing a person could plausibly be called.
+- assertVisible:
+    id: "tab-home"
+- assertNotVisible: ".*Back.*"
 # Narrowing comes from the other end: the catalog's own Search link. Tapping it
 # by id is also what proves the tile landed us on People & Pets, since that
 # header link exists nowhere else.

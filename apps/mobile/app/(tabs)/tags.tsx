@@ -1,16 +1,17 @@
 import { useCallback } from "react";
 import { ActivityIndicator, FlatList, Text, View } from "react-native";
-import { Link, Stack } from "expo-router";
+import { Link } from "expo-router";
 import type { TagListItem } from "@leapsake/core";
 import { tagLabel } from "@leapsake/schema";
-import { SearchHereLink } from "../../components/SearchHereLink";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
 
 // The tag catalog: every tag in use, alphabetically, each row opening the tag's
-// page (everything wearing it). A catalog like Holidays and Gifts — a root-stack
-// screen reached from Search's browse list, not a tab of its own.
+// page (everything wearing it). A catalog like Holidays and Gifts — a hidden
+// member of the tab navigator reached from Search's browse list, keeping the bar
+// under it without a button of its own. Its title and "Search" link are declared
+// with the bar, in `app/(tabs)/_layout.tsx`.
 //
 // It earns a place next to those two for the same reason: tags are created
 // inline, scattered across people, pets, reminders, and gift ideas, so without
@@ -27,12 +28,6 @@ export default function TagsScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: "Tags",
-          headerRight: () => <SearchHereLink category="tags" />,
-        }}
-      />
       {error !== null ? (
         <View style={styles.screen}>
           <Text style={styles.danger}>{error}</Text>

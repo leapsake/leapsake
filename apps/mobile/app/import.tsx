@@ -200,7 +200,12 @@ export default function ImportScreen() {
       result !== null && result.created > 0
         ? await core.duplicates.count().catch(() => 0)
         : 0;
-    router.replace(outstanding > 0 ? "/duplicates" : "/people");
+    // Two different moves, because the two destinations live in different
+    // navigators: the review is another root-stack screen, so it replaces this
+    // one; People & Pets is in the tab navigator underneath, so we drop back to
+    // it rather than stacking a second copy of the tabs on top.
+    if (outstanding > 0) router.replace("/duplicates");
+    else router.dismissTo("/people");
   }
 
   // ---- Terminal / non-review states -------------------------------------
@@ -230,7 +235,7 @@ export default function ImportScreen() {
             <Pressable
               accessibilityRole="button"
               style={styles.button}
-              onPress={() => router.replace("/people?pick=self")}
+              onPress={() => router.dismissTo("/people?pick=self")}
             >
               <Text style={styles.buttonText}>Pick yourself</Text>
             </Pressable>

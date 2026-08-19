@@ -40,9 +40,10 @@ const TITLE_SIZE = { full: 24, compact: 17 } as const;
  * {@link AppHeaderProps.onBack} is supplied only where react-navigation says a
  * back destination exists — the native-stack header renderer receives a `back`
  * prop that is `undefined` at the root of a stack, and the tab header renderer
- * has no such prop at all. So the four tab roots *structurally* cannot show a
- * back control, and every pushed screen *structurally* does. No screen opts in,
- * and none can get it wrong.
+ * has no such prop at all. So anything hosted in the tab navigator
+ * *structurally* cannot show a back control — the four tabs, and the four
+ * catalogs that sit in there without a button — and every pushed screen
+ * *structurally* does. No screen opts in, and none can get it wrong.
  *
  * ### The top inset must come from the context
  *
@@ -54,7 +55,7 @@ const TITLE_SIZE = { full: 24, compact: 17 } as const;
  */
 export interface AppHeaderProps {
   title: string;
-  /** The screen's trailing action — its Save, "+ Add", or Edit. */
+  /** The screen's trailing action — its Save, Edit, or Search-here. */
   right?: ReactNode;
   /** Supplied by the navigator iff there is somewhere to go back to. */
   onBack?: () => void;

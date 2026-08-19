@@ -23,10 +23,12 @@ ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. Th
   runner invokes it; you don't run it directly. It does **not** touch `driver-selftest.yaml`.
 - **`global-nav.yaml`** — the navigation shell: that the bar holds Home, Search, New
   and Settings/Account; that **New opens the chooser without navigating** (the property
-  the "never selected" rule is really about); that New on a *filtered* Search skips the
-  chooser and lands in the form; and that a back control is absent on a tab root and
-  present one screen up. All four are claims no lower tier can check — `lib/new-action.ts`
-  is unit-tested, but nothing below E2E proves its table is wired to a tab press.
+  the "never selected" rule is really about); that a browse tile opens its catalog with
+  the bar still under it and no back control; that New on a *filtered* Search skips the
+  chooser and lands in the form; and that a back control is absent inside the tab
+  navigator and present one screen up. All of those are claims no lower tier can check —
+  `lib/new-action.ts` is unit-tested, but nothing below E2E proves its table is wired to
+  a tab press.
 
   It deliberately does **not** assert the selected-tab tint: that is a colour, and Maestro
   reads the accessibility tree rather than pixels. Verify by sabotage against case 2 —

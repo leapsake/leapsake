@@ -32,11 +32,13 @@ const SHEET: NewAction = { kind: "sheet" };
  * it here — including the categories that create *nothing* (a holiday is seeded,
  * a tag exists only because something wears it), which fall back to asking.
  *
- * The two list screens below cannot actually reach this today: both push
- * full-screen over the tab bar, so New isn't on screen to tap, and each carries
- * its own "+ Add" instead. They are in the table anyway — this function should
- * answer for a screen by what the screen *is*, not by which navigator happens to
- * host it this month.
+ * The two list screens below were unreachable from here for a while: both pushed
+ * full-screen over the tab bar, so New wasn't on screen to tap. They were in the
+ * table anyway, on the principle that this function should answer for a screen by
+ * what the screen *is* and not by which navigator happens to host it — and the
+ * catalogs are now inside the tab navigator (`app/(tabs)/_layout.tsx`), so both
+ * rows are live — and are now the *only* way in, since both catalogs gave up the
+ * "+ Add" they used to carry in the corner once New reached the same screen.
  */
 export function newActionFor(
   pathname: string,
@@ -48,6 +50,10 @@ export function newActionFor(
   }
   if (pathname === "/people") return { kind: "route", href: "/add" };
   if (pathname === "/gifts") return { kind: "route", href: "/gifts/new" };
-  // Home and Settings are both about everything, so both ask.
+  // Everything else asks, for one of two reasons. Home and Settings are about
+  // *everything*, so the question is real. Holidays and Tags are about one kind
+  // of thing each but you cannot author either of them — a holiday is seeded, a
+  // tag exists only because something wears it — so there is no create screen to
+  // send New to, and the chooser is the honest answer rather than a dead tap.
   return SHEET;
 }

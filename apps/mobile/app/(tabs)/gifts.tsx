@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { ActivityIndicator, FlatList, Text, View } from "react-native";
-import { Link, Stack } from "expo-router";
+import { Link } from "expo-router";
 import type { GiftIdeaOverview } from "@leapsake/core";
 import {
   formatGiftDate,
@@ -10,7 +10,6 @@ import {
 import { sortIdeasGivenLast } from "@leapsake/view-models";
 import { EmptyState } from "../../components/EmptyState";
 import { GiftLink } from "../../components/GiftsSection";
-import { SearchHereLink } from "../../components/SearchHereLink";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
@@ -20,14 +19,16 @@ const joinBits = (bits: (string | null)[]) => bits.filter(Boolean).join(", ");
 /**
  * The Gifts catalog — the whole gift graph keyed by idea, ported from desktop's
  * `GiftList`. Each idea shows its tags, notes, who it's **suggested** for and
- * every **giving** of it. Creating is its own screen (the "+ Add" header action
- * below), so this stays a plain list — the People & Pets pattern. Tapping an idea
- * opens its edit screen, which also manages who it's suggested for.
+ * every **giving** of it. Creating is its own screen, reached with the **New**
+ * tab from here, so this stays a plain list — the People & Pets pattern. Tapping
+ * an idea opens its edit screen, which also manages who it's suggested for.
  *
- * A root-stack screen rather than a tab: it's the cross-recipient shopping list
- * you consult, not a place you live. It's reached from Search's browse list —
- * and, per recipient, from the `GiftsSection` on a person's or pet's page. This
- * screen owns its own header, which the tab navigator used to.
+ * A hidden member of the tab navigator rather than a tab: it's the
+ * cross-recipient shopping list you consult, not a place you live, so it earns
+ * the bar under it but not a button on it. It's reached from Search's browse
+ * list — and, per recipient, from the `GiftsSection` on a person's or pet's
+ * page. Its title and header actions are declared with the bar itself, in
+ * `app/(tabs)/_layout.tsx`.
  */
 export default function GiftsScreen() {
   const core = useCore();
@@ -39,19 +40,6 @@ export default function GiftsScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: "Gifts",
-          headerRight: () => (
-            <View style={styles.headerActions}>
-              <SearchHereLink category="gifts" />
-              <Link href="/gifts/new" style={styles.link}>
-                + Add
-              </Link>
-            </View>
-          ),
-        }}
-      />
       {error !== null ? (
         <View style={styles.screen}>
           <Text style={styles.danger}>{error}</Text>

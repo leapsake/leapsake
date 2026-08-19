@@ -7,11 +7,16 @@ import { colors } from "../lib/styles";
 
 // Root layout: build the core once (CoreProvider gates rendering on it being
 // ready) and host a native stack. The `(tabs)` group is a bottom-tab navigator
-// that supplies its own per-tab headers, so the root stack hides its header for
-// that route to avoid a doubled header bar. Every other route (people/[id],
-// pets/[id], relationships, tags, the holidays and gifts catalogs, settings) is a
-// stack screen that pushes full-screen over the tabs and sets its own title via
+// that supplies its own per-screen headers, so the root stack hides its header
+// for that route to avoid a doubled header bar. Every other route (people/[id],
+// pets/[id], relationships, tags/[id], holidays/[id], gift editing, settings) is
+// a stack screen that pushes full-screen over the tabs and sets its own title via
 // <Stack.Screen options={{ title }} />.
+//
+// The split is **list vs record**, not "tab vs everything else": the four
+// catalogs (People & Pets, Gifts, Holidays, Tags) live inside `(tabs)` without a
+// button so the bar stays under them, while the record each row opens pushes
+// here. See `app/(tabs)/_layout.tsx` for why.
 //
 // The header those screens get is **ours** (components/AppHeader.tsx), swapped in
 // here for the platform's, so iOS and Android draw the same chrome. Screens are

@@ -1,8 +1,7 @@
 import { useCallback } from "react";
 import { ActivityIndicator, FlatList, Text, View } from "react-native";
-import { Link, Stack } from "expo-router";
+import { Link } from "expo-router";
 import type { HolidayListItem } from "@leapsake/core";
-import { SearchHereLink } from "../../components/SearchHereLink";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
@@ -12,9 +11,11 @@ import { formatOccurrence } from "@leapsake/schema";
 // about, when each next falls, and how many people are attached. The entry point
 // to the observer picker, which is where the feature gets its data.
 //
-// A root-stack screen rather than a tab: it's a catalog you consult, not a place
-// you live. It's reached from Search's browse list, and pushes full-screen over
-// the tab bar like every other non-tab route.
+// A hidden member of the tab navigator rather than a tab: it's a catalog you
+// consult, not a place you live, so the bar stays under it without spending a
+// button on it. It's reached from Search's browse list; its title and the
+// "Search" link beside it are declared with the bar, in `app/(tabs)/_layout.tsx`.
+// A holiday's own page still pushes onto the root stack, over the bar.
 //
 // Hidden holidays stay listed (sorted last, and marked) rather than filtered
 // out — this is the only screen that can unhide one, so removing them would
@@ -27,12 +28,6 @@ export default function HolidaysScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: "Holidays",
-          headerRight: () => <SearchHereLink category="holidays" />,
-        }}
-      />
       {error !== null ? (
         <View style={styles.screen}>
           <Text style={styles.danger}>{error}</Text>

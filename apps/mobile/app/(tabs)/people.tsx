@@ -7,10 +7,9 @@ import {
   Text,
   View,
 } from "react-native";
-import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import type { CoreApi, EntityRow } from "@leapsake/core";
 import { EmptyState } from "../../components/EmptyState";
-import { SearchHereLink } from "../../components/SearchHereLink";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { useHeaderScroll } from "../../lib/use-header-scroll";
@@ -21,12 +20,17 @@ import { colors, styles } from "../../lib/styles";
 // own detail page. The muted "(pet)" suffix keeps the two entity types visually
 // distinguishable in the shared list.
 //
-// **This is a root-stack screen, not a tab.** It had a permanent tab until the
-// tab bar was rebuilt around what you *do* (Home, Search, New, Account) rather
-// than what the app stores. People is the app's biggest catalog, but a catalog
-// is somewhere you go looking for a particular record — which is what Search is
-// for, and Search's browse tiles lead here. The other way in is a reference from
-// another entity, which was always the more common one.
+// **A hidden member of the tab navigator, not a tab.** It had a permanent tab
+// until the bar was rebuilt around what you *do* (Home, Search, New, Account)
+// rather than what the app stores. People is the app's biggest catalog, but a
+// catalog is somewhere you go looking for a particular record — which is what
+// Search is for, and Search's browse tiles lead here. The other way in is a
+// reference from another entity, which was always the more common one.
+//
+// It lives in the tab navigator all the same, so the bar stays under it and
+// leaving is a tab away rather than a Back away; its title and header actions
+// are declared with the rest of the bar in `app/(tabs)/_layout.tsx`. Rows still
+// push their person or pet onto the root stack, over the bar and with a Back.
 //
 // The duplicates link is **conditional on there being duplicates** and states
 // the count. It used to head this list permanently, advertising a chore even on
@@ -61,23 +65,6 @@ export default function PeoplePetsScreen() {
 
   return (
     <View style={styles.screen}>
-      {/* The title and "+ Add" the tab navigator used to supply for this screen
-          while it was a tab, plus the way into Search already narrowed to what
-          this list holds — this is where a user is standing when scrolling turns
-          into looking for someone in particular. */}
-      <Stack.Screen
-        options={{
-          title: "People & Pets",
-          headerRight: () => (
-            <View style={styles.headerActions}>
-              <SearchHereLink category="people" />
-              <Link href="/add" style={styles.link}>
-                + Add
-              </Link>
-            </View>
-          ),
-        }}
-      />
       {error !== null ? (
         <Text style={styles.danger}>{error}</Text>
       ) : entities === null ? (
@@ -185,6 +172,11 @@ function EntityListRow({
             accessibilityRole="button"
             onPress={() =>
               void pickSelf(core, entity.id, onReload, () =>
+                // `replace` and not `dismissTo` — unlike the calls that come
+                // *down* to this catalog from a pushed screen, this one is
+                // already here and only wants its `?pick=self` gone. Within the
+                // tab navigator a replace becomes a jump-to with fresh params,
+                // which is exactly that.
                 router.replace("/people"),
               )
             }
