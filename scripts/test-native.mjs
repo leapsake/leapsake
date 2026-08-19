@@ -128,6 +128,56 @@ function resolveAdb() {
   return "adb"; // fall back to PATH
 }
 
+// The three expo-dev-menu settings a *fresh install* gets wrong, all of which break flows
+// in ways that do not look like a harness problem:
+//
+//   - `showFab` — the floating "Tools" bubble. It is an overlay, so a `tapOn` under it
+//     reports COMPLETED while the dev menu opens instead, and the flow fails several steps
+//     later on an unrelated assertion. Confirmed on `global-nav.yaml` (case 3's
+//     `search-here-people`) and suspected on `staged-gift-occasions.yaml`.
+//   - `isOnboardingFinished` — the one-time "This is the developer menu" panel, which
+//     covers the app on first launch after an install.
+//   - `showsAtLaunch` — the dev menu opening over the app on every launch.
+//
+// The dev client reads these from SharedPreferences at start, so they are settable over
+// `adb run-as` (debuggable builds only — which a dev client always is) *while the app is
+// stopped*: a running process holds them in memory and would write its copy back over ours.
+const DEV_MENU_PREFS = `<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <boolean name="isOnboardingFinished" value="true" />
+    <boolean name="showsAtLaunch" value="false" />
+    <boolean name="showFab" value="false" />
+</map>
+`;
+const DEV_MENU_PREFS_PATH =
+  "shared_prefs/expo.modules.devmenu.sharedpreferences.xml";
+
+// Best-effort: a failure here costs flakiness, not correctness, so it warns rather than
+// failing the run — the flows themselves are still the gate.
+function settleDevMenu(adb, device) {
+  run(adb, ["-s", device, "shell", "am", "force-stop", APP_ID]);
+  const wrote = run(
+    adb,
+    [
+      "-s",
+      device,
+      "shell",
+      "run-as",
+      APP_ID,
+      "sh",
+      "-c",
+      `'cat > ${DEV_MENU_PREFS_PATH}'`,
+    ],
+    { input: DEV_MENU_PREFS },
+  );
+  if (wrote.status !== 0) {
+    console.warn(
+      "  ! could not settle the dev-menu prefs (run-as failed) — the floating Tools\n" +
+        "    button may swallow taps. Turn it off by hand: dev menu → Tools button.",
+    );
+  }
+}
+
 const androidDriver = {
   key: "android",
   label: "Android",
@@ -193,6 +243,9 @@ const androidDriver = {
       `tcp:${METRO_PORT}`,
       `tcp:${METRO_PORT}`,
     ]);
+    // Put the dev menu in a state that does not fight the flows. This force-stops the app,
+    // so it has to come before the deep link that launches it.
+    settleDevMenu(adb, device);
     // Load the JS bundle by pointing the dev client at Metro. A cold launch alone opens
     // the expo-dev-launcher; this deep link makes it load the app.
     console.log("  loading JS bundle into the dev client…");
@@ -208,14 +261,17 @@ const androidDriver = {
       DEV_CLIENT_LINK,
       APP_ID,
     ]);
-    // Wait for the app's home screen (its "People" tab — absent from the dev-launcher,
-    // which only has Home/Updates/Settings). This absorbs the first Metro bundle build.
+    // Wait for the app's home screen, keyed on the Search tab's `testID` — absent from the
+    // dev-launcher, which only has Home/Updates/Settings. This absorbs the first Metro
+    // bundle build. It is the same signal `ios-prepare.yaml` waits for, deliberately: this
+    // used to key on a "People" tab, which increment 09 removed, and the runner then spun
+    // the full timeout on an app that was in fact up. An id survives a label change.
     const started = Date.now();
     while (Date.now() - started < HOME_TIMEOUT_MS) {
       const dump =
         run(adb, ["-s", device, "exec-out", "uiautomator", "dump", "/dev/tty"])
           .stdout ?? "";
-      if (/(text|content-desc)="People"/.test(dump)) {
+      if (/resource-id="tab-search"/.test(dump)) {
         console.log(
           `  app home up (${((Date.now() - started) / 1000).toFixed(0)}s)`,
         );

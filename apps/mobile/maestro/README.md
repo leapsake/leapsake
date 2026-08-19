@@ -194,6 +194,24 @@ reload the sabotage appears to pass, and a genuinely vacuous suite would read as
 
 These cost several sessions to find. All of them look like "the app is broken" and are not.
 
+### Android: the dev client's floating "Tools" bubble swallows taps
+
+It is an **overlay**, so a `tapOn` underneath it reports **COMPLETED** while the dev menu
+opens instead — and the flow then fails somewhere unrelated, several steps later.
+Confirmed on `global-nav.yaml`: case 3's `tapOn: search-here-people` landed on the bubble,
+and the run went red two lines on, at `search-filter-chip is visible`. Hiding the bubble
+turned the same unmodified flow green.
+
+`pnpm test:native` now settles this for you — `settleDevMenu()` in
+[`scripts/test-native.mjs`](../../../scripts/test-native.mjs) writes the three prefs a
+**fresh install** gets wrong (`showFab`, `isOnboardingFinished`, `showsAtLaunch`) over
+`adb run-as` before loading the bundle. **Running a flow directly bypasses that**, so do it
+by hand once per install: dev menu (`Ctrl+m`) → **Tools button** off. A reinstall resets it.
+
+The onboarding panel is the same class of problem from the same source: the first launch
+after an install opens "This is the developer menu" **over** the app, and every selector
+misses until it is dismissed.
+
 ### A secure field needs a `testID`, not a better tap
 
 Two `secureTextEntry` fields on one screen (password + confirm password) carry **identical,
