@@ -44,13 +44,13 @@ Bundle IDs are settled in [`v0-1.md`](./v0-1.md) → *The decisions this encodes
 orphaned data under the old one — uninstall and rebuild the dev client before running
 `pnpm test:native`. `scheme: "leapsake"` is unchanged, so `leapsake://` deep links still route.
 
-⚠️ **An App Store Connect record for Leapsake already exists** *(owner, 2026-08-19)* — the form
-only, no build uploaded, nothing shared. **Check its bundle ID against `com.leapsake.app` before
-building anything.** A record's bundle ID is fixed at creation and cannot be edited; while no
-build has been uploaded the record can still be deleted and re-created for free, and after the
-first upload it cannot. If they disagree, resolving it now is a two-minute job and later is not.
-The record also means the Apple-side name is claimed — but see [`v0-1.md`](./v0-1.md) → *The one
-long clock left* for what that commits you to, and for the Play-side name, which is not.
+✅ **The App Store Connect record agrees** *(owner, 2026-08-19)* — a Leapsake record exists (the
+form only, no build uploaded, nothing shared) and its bundle ID is `com.leapsake.app`, matching
+`apps/mobile/app.json`. A record's bundle ID is fixed at creation and cannot be edited, so this
+was the last free moment to find a mismatch; there is none, and the iOS identity is settled.
+
+The record also claims the Apple-side name — see [`v0-1.md`](./v0-1.md) → *The one long clock
+left* for what that commits you to, and for the Play-side name, which is still unclaimed.
 
 **Acceptance for this part:** fresh dev install on **iOS and Android** under `com.leapsake.app`;
 `git status` clean.
