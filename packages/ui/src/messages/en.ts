@@ -83,6 +83,8 @@ export const en: Messages = {
     addEmail: "Add email",
     addPhone: "Add phone",
     addAddress: "Add address",
+    addSocial: "Add social",
+    socialHandle: (platform, handle) => `${platform} · ${handle}`,
     columnLabel: "Label",
     columnValue: "Value",
     empty: "No contact methods yet.",
@@ -240,13 +242,17 @@ export const en: Messages = {
         ? "Add email"
         : kind === "phone"
           ? "Add phone"
-          : "Add address",
+          : kind === "postal"
+            ? "Add address"
+            : "Add social profile",
     editHeading: (kind) =>
       kind === "email"
         ? "Edit email"
         : kind === "phone"
           ? "Edit phone"
-          : "Edit address",
+          : kind === "postal"
+            ? "Edit address"
+            : "Edit social profile",
     submitAdd: "Add",
     label: "Label",
     labelPlaceholder: "e.g. Home",
@@ -263,6 +269,14 @@ export const en: Messages = {
     locality: "City / town",
     region: "State / province / county",
     postalCode: "Postal code",
+    platform: "Platform",
+    handle: "Handle or profile link",
+    handlePlaceholder: "@name",
+    userId: (platform) => `${platform} user ID`,
+    userIdHint: (platform) =>
+      `${platform} opens a direct message only from a numeric ID. Without one this opens their profile.`,
+    profileUrl: "Profile URL",
+    reachableOn: "Also reachable on",
   },
 
   reminderSchedule: {

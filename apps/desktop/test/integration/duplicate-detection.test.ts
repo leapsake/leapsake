@@ -62,6 +62,64 @@ describe("createCore — duplicate detection", () => {
     expect(candidates[0].reasons).toContain("Shared email jane@example.com");
   });
 
+  it("rates a shared social handle on one platform as high", async () => {
+    const a = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      [],
+    );
+    const b = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      [],
+    );
+    for (const [id, handle] of [
+      [a.id, "SparkleJane"],
+      [b.id, "sparklejane"], // different case → same normalized key
+    ] as const) {
+      await core.contactMethods.socials.create({
+        ownerType: "person",
+        ownerId: id,
+        label: "Personal",
+        platform: "instagram",
+        handle,
+      });
+    }
+
+    const candidates = await core.duplicates.findCandidates();
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].tier).toBe("high");
+    expect(candidates[0].reasons).toContain(
+      "Shared instagram handle sparklejane",
+    );
+  });
+
+  it("does not treat one handle held on two platforms as shared", async () => {
+    const a = await core.people.create(
+      { firstName: "Jane", lastName: "A" },
+      [],
+    );
+    const b = await core.people.create(
+      { firstName: "Jane", lastName: "B" },
+      [],
+    );
+    await core.contactMethods.socials.create({
+      ownerType: "person",
+      ownerId: a.id,
+      label: "Personal",
+      platform: "instagram",
+      handle: "jane",
+    });
+    await core.contactMethods.socials.create({
+      ownerType: "person",
+      ownerId: b.id,
+      label: "Personal",
+      platform: "tiktok",
+      handle: "jane",
+    });
+
+    // Different surnames, so nothing else pairs them either.
+    expect(await core.duplicates.findCandidates()).toHaveLength(0);
+  });
+
   it("does not propose unrelated people", async () => {
     await core.people.create({ firstName: "Jane", lastName: "Doe" }, []);
     await core.people.create({ firstName: "Bob", lastName: "Roe" }, []);

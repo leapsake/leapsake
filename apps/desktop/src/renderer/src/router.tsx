@@ -20,6 +20,7 @@ import {
   updateMilestoneInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
+import { findPlatform, normalizeFor } from "@leapsake/contact-links";
 import { entityBasePath } from "@leapsake/ui/headless";
 import {
   type ActionFunctionArgs,
@@ -672,6 +673,27 @@ function readContactCountry(formData: FormData): string | null {
   return value === "" ? null : value;
 }
 
+/**
+ * Read the social-profile fields, cleaning the handle to its bare form.
+ *
+ * The cleaning happens here rather than in the repo because what counts as a
+ * handle is a fact about the platform — `@josh`, a pasted `instagram.com/josh`,
+ * and `josh` are all the same account — and this is the layer that knows which
+ * platform the form was showing.
+ */
+function readSocialFields(formData: FormData) {
+  const platform = String(formData.get("platform") ?? "");
+  return {
+    platform,
+    handle: normalizeFor(
+      findPlatform(platform),
+      String(formData.get("handle") ?? ""),
+    ),
+    platformUserId: readNote(formData, "platformUserId"),
+    url: readNote(formData, "url"),
+  };
+}
+
 /** Resolve the owning Person for the contact-method screens, or 404. */
 async function contactPersonSubject(id: string) {
   const person = await window.api.people.get(id);
@@ -705,8 +727,9 @@ async function contactMethodLoader({ params }: LoaderFunctionArgs) {
 
 /**
  * Action for the "add contact" screen. The owner is the route's Person; the kind
- * (email / phone / postal) selects the typed sub-repo and which fields are read.
- * Blank optional fields become null; the country is uppercased to ISO shape.
+ * (email / phone / postal / social) selects the typed sub-repo and which fields
+ * are read. Blank optional fields become null; the country is uppercased to ISO
+ * shape, and a social handle is reduced to its bare form.
  */
 async function contactCreateAction({ request, params }: ActionFunctionArgs) {
   const id = params.id as string;
@@ -729,6 +752,13 @@ async function contactCreateAction({ request, params }: ActionFunctionArgs) {
       extension: readNote(formData, "extension"),
       country: readContactCountry(formData),
       smsCapable: formData.has("smsCapable"),
+      reachableOn: formData.getAll("reachableOn").map(String),
+    });
+  } else if (kind === "social") {
+    await window.api.contactMethods.socials.create({
+      ...owner,
+      label,
+      ...readSocialFields(formData),
     });
   } else {
     await window.api.contactMethods.postals.create({
@@ -765,6 +795,12 @@ async function contactEditAction({ request, params }: ActionFunctionArgs) {
       extension: readNote(formData, "extension"),
       country: readContactCountry(formData),
       smsCapable: formData.has("smsCapable"),
+      reachableOn: formData.getAll("reachableOn").map(String),
+    });
+  } else if (kind === "social") {
+    await window.api.contactMethods.socials.update(methodId, {
+      label,
+      ...readSocialFields(formData),
     });
   } else {
     await window.api.contactMethods.postals.update(methodId, {
@@ -788,6 +824,8 @@ async function contactDeleteAction({ params }: ActionFunctionArgs) {
     await window.api.contactMethods.emails.softDelete(methodId);
   } else if (kind === "phone") {
     await window.api.contactMethods.phones.softDelete(methodId);
+  } else if (kind === "social") {
+    await window.api.contactMethods.socials.softDelete(methodId);
   } else {
     await window.api.contactMethods.postals.softDelete(methodId);
   }

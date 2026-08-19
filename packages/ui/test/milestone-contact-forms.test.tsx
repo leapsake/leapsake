@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { Milestone, PhoneNumber, PostalAddress } from "@leapsake/schema";
+import { PHONE_PLATFORMS } from "@leapsake/contact-links";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -173,7 +174,7 @@ describe("ContactMethodForm", () => {
     expect(screen.getByLabelText("Email")).toHaveProperty("required", true);
   });
 
-  it("asks for number, extension, country and SMS for a phone", () => {
+  it("asks for number, extension, country, SMS and by-number platforms", () => {
     const { container } = renderWithUi(
       <ContactMethodForm kind="phone" cancelTo="/back" submitting={false} />,
     );
@@ -184,6 +185,10 @@ describe("ContactMethodForm", () => {
       "extension",
       "country",
       "smsCapable",
+      // One checkbox per phone-keyed platform, rendered from the registry
+      // rather than listed here — adding one is a registry entry, not a form
+      // change, so this asserts the shape and the count comes from the source.
+      ...PHONE_PLATFORMS.map(() => "reachableOn"),
     ]);
     // Texting is assumed, so the box starts ticked.
     expect(screen.getByLabelText("Can receive texts (SMS)")).toHaveProperty(
@@ -262,6 +267,7 @@ describe("ContactMethodForm", () => {
       extension: "12",
       country: null,
       smsCapable: false,
+      reachableOn: ["whatsapp"],
     } as unknown as PhoneNumber;
 
     renderWithUi(
@@ -279,5 +285,7 @@ describe("ContactMethodForm", () => {
       "checked",
       false,
     );
+    expect(screen.getByLabelText("WhatsApp")).toHaveProperty("checked", true);
+    expect(screen.getByLabelText("Signal")).toHaveProperty("checked", false);
   });
 });

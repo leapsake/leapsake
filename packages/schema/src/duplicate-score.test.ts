@@ -6,7 +6,55 @@ const person = (over: Partial<DuplicateInput> = {}): DuplicateInput => ({
   foldedName: "jane doe",
   emails: [],
   phones: [],
+  handles: [],
   ...over,
+});
+
+describe("scoreDuplicate — social handles", () => {
+  it("treats a shared handle on one platform as a shared contact", () => {
+    const handles = [{ platform: "instagram", handle: "janedoe" }];
+    const { tier, reasons } = scoreDuplicate(
+      person({ handles }),
+      person({ handles }),
+    );
+    expect(tier).toBe("high");
+    expect(reasons).toContain("Shared instagram handle janedoe");
+  });
+
+  it("does not pair the same handle held on different platforms", () => {
+    // "@jane" on Instagram and "@jane" on TikTok are routinely different people,
+    // so this must fall back to the name-only signal rather than reading as a
+    // shared contact.
+    const { tier, reasons } = scoreDuplicate(
+      person({ handles: [{ platform: "instagram", handle: "jane" }] }),
+      person({ handles: [{ platform: "tiktok", handle: "jane" }] }),
+    );
+    expect(tier).toBe("medium");
+    expect(reasons).toEqual(['Same name "Jane Doe"']);
+  });
+
+  it("rates a shared handle alone as medium, with no name match", () => {
+    const handles = [{ platform: "x", handle: "janedoe" }];
+    const { tier } = scoreDuplicate(
+      person({ name: "Jane Doe", foldedName: "jane doe", handles }),
+      person({ name: "J. Doe", foldedName: "j doe", handles }),
+    );
+    expect(tier).toBe("medium");
+  });
+
+  it("reports one reason for a handle listed twice", () => {
+    const handles = [
+      { platform: "instagram", handle: "janedoe" },
+      { platform: "instagram", handle: "janedoe" },
+    ];
+    const { reasons } = scoreDuplicate(
+      person({ handles }),
+      person({ handles }),
+    );
+    expect(
+      reasons.filter((r) => r.startsWith("Shared instagram")),
+    ).toHaveLength(1);
+  });
 });
 
 describe("scoreDuplicate", () => {

@@ -11,6 +11,7 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
     emails: [],
     phones: [],
     postals: [],
+    socials: [],
     birthday: null,
     related: [],
     dropped: [],
@@ -42,6 +43,7 @@ function makePorts(failOn?: string) {
     },
     addPhone: async () => {},
     addPostal: async () => {},
+    addSocial: async () => {},
     addBirthday: async (personId) => {
       birthdays.push({ personId });
     },

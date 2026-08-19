@@ -10,6 +10,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@leapsake/contact-links": "workspace:*",
     "@leapsake/schema": "workspace:*",
     "zod": "^4.4.3"
   }

@@ -35,4 +35,5 @@ export type {
   ParsedName,
   ParsedPhone,
   ParsedPostal,
+  ParsedSocial,
 } from "./parsed-contact.js";

@@ -200,6 +200,10 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
     emails,
     phones,
     postals,
+    // `expo-contacts` exposes `socialProfiles` and `instantMessageAddresses`,
+    // but the import screen does not request either today — adding them is a
+    // change to what `Contact.getAllDetails` is asked for, not to this mapper.
+    socials: [],
     birthday,
     // expo-contacts does expose `relationships`, but only ever as a free-text
     // label and a name, with no role vocabulary to map — unlike a vCard's

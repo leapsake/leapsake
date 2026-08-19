@@ -37,6 +37,7 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
     emails: [],
     phones: [],
     postals: [],
+    socials: [],
     birthday: null,
     related: [],
     dropped: [],

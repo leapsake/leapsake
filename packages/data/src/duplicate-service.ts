@@ -6,6 +6,7 @@ import {
   fold,
   joinNameParts,
   normalizeEmail,
+  normalizeHandle,
   normalizePhone,
   scoreDuplicate,
 } from "@leapsake/schema";
@@ -59,13 +60,14 @@ export interface DuplicateService {
    * Score one **not-yet-stored** contact against every active person and return
    * the matches (tier `none`/`low` dropped), high first. Used by contact import
    * to flag likely-existing people in the review before anything is written. The
-   * caller passes raw name/emails/phones; this normalizes them the same way the
-   * stored rows were, so keys line up.
+   * caller passes raw name/emails/phones/handles; this normalizes them the same
+   * way the stored rows were, so keys line up.
    */
   matchContact(contact: {
     name: string;
     emails: string[];
     phones: string[];
+    handles: { platform: string; handle: string }[];
   }): Promise<DuplicateMatch[]>;
 }
 
@@ -76,6 +78,13 @@ interface PersonRow {
 }
 interface ContactRow {
   owner_id: string;
+  normalized: string;
+}
+
+/** As {@link ContactRow}, carrying the platform a handle only means anything on. */
+interface SocialRow {
+  owner_id: string;
+  platform: string;
   normalized: string;
 }
 
@@ -102,7 +111,7 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
   async function loadInputs(): Promise<
     { id: string; input: DuplicateInput }[]
   > {
-    const [people, emails, phones] = await Promise.all([
+    const [people, emails, phones, socials] = await Promise.all([
       driver.all<PersonRow>(
         `SELECT id, first_name, last_name FROM people
           WHERE deleted_at IS NULL AND ${PUBLISHED_SQL}`,
@@ -113,6 +122,10 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
       ),
       driver.all<ContactRow>(
         `SELECT owner_id, normalized FROM phone_numbers
+          WHERE deleted_at IS NULL AND owner_type = 'person' AND normalized <> ''`,
+      ),
+      driver.all<SocialRow>(
+        `SELECT owner_id, platform, normalized FROM social_profiles
           WHERE deleted_at IS NULL AND owner_type = 'person' AND normalized <> ''`,
       ),
     ]);
@@ -133,6 +146,16 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
       phonesBy.set(row.owner_id, list);
     }
 
+    const handlesBy = new Map<string, { platform: string; handle: string }[]>();
+    for (const row of socials) {
+      const list = handlesBy.get(row.owner_id) ?? [];
+      list.push({
+        platform: row.platform,
+        handle: normalizeHandle(row.normalized),
+      });
+      handlesBy.set(row.owner_id, list);
+    }
+
     return people.map((p) => {
       // Any part of a name may be absent, so the parts are joined rather than
       // interpolated — otherwise a surname-only person folds to " davis" and
@@ -143,6 +166,7 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
         foldedName: fold(name),
         emails: emailsBy.get(p.id) ?? [],
         phones: phonesBy.get(p.id) ?? [],
+        handles: handlesBy.get(p.id) ?? [],
       };
       return { id: p.id, input };
     });
@@ -186,6 +210,7 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
     name: string;
     emails: string[];
     phones: string[];
+    handles: { platform: string; handle: string }[];
   }): Promise<DuplicateMatch[]> {
     const name = contact.name.trim();
     const incoming: DuplicateInput = {
@@ -193,6 +218,10 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
       foldedName: fold(name),
       emails: contact.emails.map(normalizeEmail),
       phones: contact.phones.map(normalizePhone),
+      handles: contact.handles.map((h) => ({
+        platform: h.platform,
+        handle: normalizeHandle(h.handle),
+      })),
     };
 
     const inputs = await loadInputs();

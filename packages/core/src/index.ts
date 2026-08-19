@@ -2074,6 +2074,16 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
               country: postal.country,
             });
           },
+          addSocial: async (personId, social) => {
+            await contactMethods.socials.create({
+              ownerType: "person",
+              ownerId: personId,
+              label: social.label,
+              platform: social.platform,
+              handle: social.handle,
+              url: social.url,
+            });
+          },
           addBirthday: async (personId, birthday) => {
             await milestones.create({
               kind: "birthday",
@@ -2121,6 +2131,10 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
               name: `${contact.name.firstName} ${contact.name.lastName}`.trim(),
               emails: contact.emails.map((e) => e.address),
               phones: contact.phones.map((p) => p.number),
+              handles: contact.socials.map((s) => ({
+                platform: s.platform,
+                handle: s.handle,
+              })),
             }),
           })),
         ),

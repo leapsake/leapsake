@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@leapsake/bytes": "workspace:*",
+    "@leapsake/contact-links": "workspace:*",
     "@leapsake/crypto": "workspace:*",
     "@leapsake/schema": "workspace:*"
   }

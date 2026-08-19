@@ -94,6 +94,9 @@ export interface Messages {
     addEmail: string;
     addPhone: string;
     addAddress: string;
+    addSocial: string;
+    /** A profile, named by its platform — "Instagram · @josh". */
+    socialHandle: (platform: string, handle: string) => string;
     columnLabel: string;
     columnValue: string;
     empty: string;
@@ -260,6 +263,16 @@ export interface Messages {
     locality: string;
     region: string;
     postalCode: string;
+    platform: string;
+    handle: string;
+    handlePlaceholder: string;
+    /** The optional opaque id, named after the platform that wants one. */
+    userId: (platform: string) => string;
+    /** Why that field exists, said in terms of what the row will do without it. */
+    userIdHint: (platform: string) => string;
+    profileUrl: string;
+    /** Whether the phone reaches a platform addressed by number. */
+    reachableOn: string;
   };
 
   reminderSchedule: {

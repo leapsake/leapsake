@@ -20,8 +20,8 @@ const KIND_ICON: Record<ContactMethodKind, string> = {
 
 /**
  * Render a method's value: the address; the (extension-suffixed) number, flagged
- * when it can't receive SMS since texting is otherwise assumed; or the formatted
- * postal address.
+ * when it can't receive SMS since texting is otherwise assumed; the handle
+ * behind its platform's name; or the formatted postal address.
  *
  * The two phone shapes are catalog messages rather than concatenations here,
  * because “555-0100 ext. 12” and “555-0100 (no texts)” are sentences about a
@@ -44,15 +44,21 @@ function methodValue(entry: ContactMethod, m: Messages): string {
     // build has never heard of.
     const { platform, handle, url } = entry.method;
     const name = findPlatform(platform)?.name ?? platform;
-    return handle === "" ? (url ?? name) : `${name} · ${handle}`;
+    return handle === ""
+      ? (url ?? name)
+      : m.contactMethods.socialHandle(name, handle);
   }
   return formatPostalAddress(entry.method);
 }
 
 /**
- * The Contact section on a Person's view: the person's emails, phones, and postal
- * addresses, merged into one list by {@link ContactMethod} and rendered with a
- * per-kind Edit / Remove. The three “Add” links create one kind each. Owner is a
+ * The Contact section on a Person's view: the person's emails, phones, postal
+ * addresses and social profiles, merged into one list by {@link ContactMethod}
+ * and rendered with a per-kind Edit / Remove. Each “Add” link creates one kind.
+ *
+ * Unlike the mobile section, a row here is not a tap target — the actions in
+ * `@leapsake/contact-links` are built for a handset that has the apps installed,
+ * and “open WhatsApp” means something quite different on a laptop. Owner is a
  * Person today; when households ship the same list also surfaces the household's
  * shared methods (the union lives in `listContactMethods`, not here).
  */
@@ -80,6 +86,9 @@ export function ContactMethodsSection({
           </Link>{" "}
           <Link href={`${basePath}/contact/postal/new`}>
             {m.contactMethods.addAddress}
+          </Link>{" "}
+          <Link href={`${basePath}/contact/social/new`}>
+            {m.contactMethods.addSocial}
           </Link>
         </>
       }

@@ -102,6 +102,22 @@ export interface ParsedPostal {
 }
 
 /**
+ * One parsed social profile. `platform` is a `@leapsake/contact-links` id where
+ * the source named something recognisable, and the source's own word otherwise —
+ * a card is allowed to carry an account on a network Leapsake has never heard
+ * of, and dropping it would lose a real contact method to keep a list tidy.
+ *
+ * `url` is set when the source gave one (an `X-SOCIALPROFILE` usually does),
+ * which is what lets an unrecognised platform still open.
+ */
+export interface ParsedSocial {
+  label: string;
+  platform: string;
+  handle: string;
+  url: string | null;
+}
+
+/**
  * A birthday as a **partial** civil date — a source card may give only a month
  * and day (`--MM-DD`) with no year. `day` implies `month` (never a lone day), the
  * same rule the milestone schema enforces.
@@ -132,6 +148,7 @@ export interface ParsedContact {
   emails: ParsedEmail[];
   phones: ParsedPhone[];
   postals: ParsedPostal[];
+  socials: ParsedSocial[];
   birthday: ParsedBirthday | null;
   related: ParsedRelated[];
   dropped: DroppedField[];
@@ -178,6 +195,14 @@ export const parsedContactSchema = z.object({
       region: z.string().min(1).nullable(),
       postalCode: z.string().min(1).nullable(),
       country: z.string().nullable(),
+    }),
+  ),
+  socials: z.array(
+    z.object({
+      label: z.string().min(1),
+      platform: z.string().min(1),
+      handle: z.string(),
+      url: z.string().min(1).nullable(),
     }),
   ),
   birthday: z

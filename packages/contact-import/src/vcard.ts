@@ -8,7 +8,9 @@ import type {
   ParsedPhone,
   ParsedPostal,
   ParsedRelated,
+  ParsedSocial,
 } from "./parsed-contact.js";
+import { PLATFORMS, bareHandle, findPlatform } from "@leapsake/contact-links";
 
 /**
  * A hand-rolled vCard reader — parse-only, no dependency. vCard is a simple
@@ -42,6 +44,9 @@ const HANDLED = new Set([
   "BDAY",
   "GENDER",
   "RELATED",
+  "IMPP",
+  "X-SOCIALPROFILE",
+  "URL",
 ]);
 
 /**
@@ -324,6 +329,7 @@ function buildContact(props: Property[]): ParsedContact {
   const emails: ParsedEmail[] = [];
   const phones: ParsedPhone[] = [];
   const postals: ParsedPostal[] = [];
+  const socials: ParsedSocial[] = [];
   const related: ParsedRelated[] = [];
   const dropped: DroppedField[] = [];
   let nParts: string[] | null = null;
@@ -369,6 +375,25 @@ function buildContact(props: Property[]): ParsedContact {
         if (postal) postals.push(postal);
         break;
       }
+      case "IMPP":
+      case "X-SOCIALPROFILE": {
+        const social = socialFrom(p);
+        // A value naming no service at all stays visible in the review UI's
+        // "not imported" list rather than becoming a row pointing nowhere.
+        if (social) socials.push(social);
+        else dropField(dropped, p.name, p.value);
+        break;
+      }
+      case "URL": {
+        // A `URL` is only a social profile when its host says so — a personal
+        // homepage or a company site is not one, and guessing would turn every
+        // card's website into a fake Instagram row. Anything unrecognised keeps
+        // its old behaviour and is surfaced as dropped.
+        const social = socialFrom(p);
+        if (social && findPlatform(social.platform)) socials.push(social);
+        else dropField(dropped, "URL", p.value);
+        break;
+      }
       case "BDAY": {
         const parsed = parseBirthday(unescapeValue(p.value).trim());
         if (parsed) birthday = parsed;
@@ -401,6 +426,7 @@ function buildContact(props: Property[]): ParsedContact {
     emails,
     phones,
     postals,
+    socials,
     birthday,
     related,
     dropped,
@@ -558,6 +584,90 @@ function phoneLabel(types: string[]): string {
 
 function postalLabel(types: string[]): string {
   return labelFrom(types, { HOME: "Home", WORK: "Work" });
+}
+
+/**
+ * Map a source's word for a network onto a `@leapsake/contact-links` platform id.
+ *
+ * vCard names a service in three different ways depending on the property and
+ * the exporter: `IMPP` puts it in the URI scheme (`xmpp:`, `skype:`), and both
+ * `IMPP` and `X-SOCIALPROFILE` may repeat it in `TYPE=` or `X-SERVICE-TYPE=`.
+ * All of them are matched case-insensitively against the registry's ids and
+ * names, so "Twitter" reaches `x` via the alias table below.
+ *
+ * An unmatched word is returned lowercased and stored as-is rather than dropped:
+ * an account on a network Leapsake has never heard of is still a real way to
+ * reach somebody, and `socialProfileSchema` accepts any platform string for
+ * exactly this reason.
+ */
+const PLATFORM_ALIASES: Record<string, string> = {
+  twitter: "x",
+  messenger: "facebook",
+  fb: "facebook",
+  ig: "instagram",
+  insta: "instagram",
+  bsky: "bluesky",
+  "bluesky social": "bluesky",
+  snap: "snapchat",
+};
+
+function platformIdFor(raw: string): string {
+  const word = raw.trim().toLowerCase();
+  if (word === "") return "";
+  if (PLATFORM_ALIASES[word]) return PLATFORM_ALIASES[word];
+  const match = PLATFORMS.find(
+    (p) => p.id === word || p.name.toLowerCase() === word,
+  );
+  return match?.id ?? word;
+}
+
+/**
+ * Read an `IMPP` or `X-SOCIALPROFILE` into a {@link ParsedSocial}, or `null` when
+ * the card names no service and gives no usable value.
+ *
+ * The value may be a bare handle, a `service:handle` URI, or a full profile URL.
+ * A URL is kept in `url` as well as reduced to a handle, since that is what makes
+ * an unrecognised platform openable at all.
+ */
+function socialFrom(p: Property): ParsedSocial | null {
+  const value = unescapeValue(p.value).trim();
+  if (value === "") return null;
+
+  const serviceParam =
+    p.params.get("X-SERVICE-TYPE")?.[0] ??
+    typesOf(p).find((t) => !TYPE_NOISE.has(t) && t !== "HOME" && t !== "WORK");
+
+  // `IMPP` values are URIs; the scheme names the service when no parameter does.
+  const schemeMatch = /^([a-z][a-z0-9+.-]*):/i.exec(value);
+  const scheme = schemeMatch?.[1]?.toLowerCase();
+  const isWebUrl = scheme === "http" || scheme === "https";
+
+  const platform = platformIdFor(
+    serviceParam ?? (isWebUrl ? hostWord(value) : (scheme ?? "")),
+  );
+  if (platform === "") return null;
+
+  // Strip a non-web scheme (`xmpp:josh@host`) before handing the rest to the
+  // handle cleaner, which only knows how to unwrap URLs and `@` prefixes.
+  const rest =
+    scheme !== undefined && !isWebUrl ? value.slice(scheme.length + 1) : value;
+
+  return {
+    label: labelFrom(typesOf(p), { HOME: "Personal", WORK: "Work" }),
+    platform,
+    handle: bareHandle(rest.replace(/^\/\//, "")),
+    url: isWebUrl ? value : null,
+  };
+}
+
+/** The registrable word of a URL's host — `www.instagram.com` → `instagram`. */
+function hostWord(url: string): string {
+  const host = /^[a-z]+:\/\/([^/?#]+)/i.exec(url)?.[1] ?? "";
+  const parts = host
+    .toLowerCase()
+    .replace(/^www\./, "")
+    .split(".");
+  return parts[0] ?? "";
 }
 
 /**

@@ -144,6 +144,98 @@ describe("parseVCards — birthday", () => {
   });
 });
 
+describe("parseVCards — social profiles", () => {
+  it("reads an X-SOCIALPROFILE's service and handle", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "X-SOCIALPROFILE;TYPE=instagram:https://www.instagram.com/janedoe",
+      ),
+    );
+    expect(c.socials).toEqual([
+      {
+        label: "Instagram",
+        platform: "instagram",
+        handle: "janedoe",
+        url: "https://www.instagram.com/janedoe",
+      },
+    ]);
+  });
+
+  it("resolves the service from X-SERVICE-TYPE, as Apple exports it", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "X-SOCIALPROFILE;X-SERVICE-TYPE=Twitter:https://twitter.com/janedoe",
+      ),
+    );
+    // Twitter is an alias, so the row lands on the platform that still exists.
+    expect(c.socials[0].platform).toBe("x");
+    expect(c.socials[0].handle).toBe("janedoe");
+  });
+
+  it("falls back to the host when nothing names the service", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "X-SOCIALPROFILE:https://bsky.app/profile/jane.example",
+      ),
+    );
+    expect(c.socials[0].platform).toBe("bluesky");
+    expect(c.socials[0].handle).toBe("jane.example");
+  });
+
+  it("takes an IMPP's service from its URI scheme", () => {
+    const [c] = parseVCards(card("FN:Jane Doe", "IMPP:telegram:janedoe"));
+    expect(c.socials[0]).toMatchObject({
+      platform: "telegram",
+      handle: "janedoe",
+      url: null,
+    });
+  });
+
+  it("keeps a platform it has never heard of rather than dropping it", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "IMPP;X-SERVICE-TYPE=Matrix:matrix:@jane:example.org",
+      ),
+    );
+    // An account on an unknown network is still a real way to reach somebody.
+    expect(c.socials[0].platform).toBe("matrix");
+    expect(c.dropped).not.toContainEqual(
+      expect.objectContaining({ property: "IMPP" }),
+    );
+  });
+
+  it("imports a URL only when its host names a platform", () => {
+    const [social] = parseVCards(
+      card("FN:Jane Doe", "URL:https://www.linkedin.com/in/janedoe"),
+    );
+    expect(social.socials[0]).toMatchObject({
+      platform: "linkedin",
+      handle: "janedoe",
+    });
+
+    // A personal homepage is not a social profile, and guessing would turn
+    // every card's website into a fake row.
+    const [homepage] = parseVCards(
+      card("FN:Jane Doe", "URL:https://janedoe.example/blog"),
+    );
+    expect(homepage.socials).toEqual([]);
+    expect(homepage.dropped).toContainEqual({
+      property: "URL",
+      value: "https://janedoe.example/blog",
+    });
+  });
+
+  it("surfaces a value naming no service at all as dropped", () => {
+    const [c] = parseVCards(card("FN:Jane Doe", "IMPP:janedoe"));
+    expect(c.socials).toEqual([]);
+    expect(c.dropped).toContainEqual({ property: "IMPP", value: "janedoe" });
+  });
+});
+
 describe("parseVCards — gender & dropped", () => {
   it("maps GENDER letters to the enum", () => {
     expect(parseVCards(card("FN:A B", "GENDER:F"))[0].gender).toBe("female");

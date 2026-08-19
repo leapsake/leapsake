@@ -10,9 +10,11 @@ import {
   foldUrl,
   joinNameParts,
   normalizeEmail,
+  normalizeHandle,
   normalizePhone,
   parseBirthdayQuery,
 } from "@leapsake/schema";
+import { findPlatform } from "@leapsake/contact-links";
 import type { SqliteDriver } from "./driver.js";
 
 // `parseBirthdayQuery` now lives in `@leapsake/schema` (shared with the highlight
@@ -108,6 +110,14 @@ interface PostalMatchRow {
   postal_code: string | null;
   country: string | null;
 }
+/** Social columns: matched on `normalized`, displayed with the platform's name. */
+interface SocialMatchRow {
+  owner_type: string;
+  owner_id: string;
+  platform: string;
+  handle: string;
+  normalized: string;
+}
 /** A tagging joined to its tag: matched on `normalized`, displayed as `name`. */
 interface TagMatchRow {
   bearer_type: string;
@@ -174,6 +184,10 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     const addressQuery = foldAddress(term); // comma/whitespace-insensitive
     const urlQuery = foldUrl(term); // scheme- and "www."-insensitive
     const tagQuery = folded.replace(/^#+/, ""); // the "#" sigil is optional here
+    // A handle is written with an "@" but never stored with one, so the sigil is
+    // stripped here for the same reason "#" is above: typing it should narrow
+    // the search, not guarantee zero results.
+    const handleQuery = normalizeHandle(term).replace(/^@+/, "");
 
     const [
       people,
@@ -181,6 +195,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       emails,
       phones,
       postals,
+      socials,
       taggings,
       tagList,
       birthdays,
@@ -207,6 +222,10 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       driver.all<PostalMatchRow>(
         `SELECT owner_type, owner_id, line1, line2, locality, region, postal_code, country
            FROM postal_addresses WHERE deleted_at IS NULL`,
+      ),
+      driver.all<SocialMatchRow>(
+        `SELECT owner_type, owner_id, platform, handle, normalized
+           FROM social_profiles WHERE deleted_at IS NULL`,
       ),
       driver.all<TagMatchRow>(
         `SELECT g.bearer_type, g.bearer_id, t.name, t.normalized
@@ -484,6 +503,26 @@ export function createSearchService(driver: SqliteDriver): SearchService {
             quality(haystack, addressQuery),
           );
         }
+      }
+    }
+    // Social handles: forward substring of the normalized handle, the same rule
+    // email follows and for the same reason — typing "jane" should light up
+    // "@janedoe" and merge with her name hit. Answers "who is @foo?", which is
+    // otherwise a question the app cannot be asked. The reason line carries the
+    // platform so two people who share a handle on different networks are
+    // told apart.
+    if (handleQuery !== "") {
+      for (const so of socials) {
+        if (so.normalized === "" || !so.normalized.includes(handleQuery)) {
+          continue;
+        }
+        addOwnerHit(
+          so.owner_type,
+          so.owner_id,
+          "social",
+          `${findPlatform(so.platform)?.name ?? so.platform} · ${so.handle}`,
+          quality(so.normalized, handleQuery),
+        );
       }
     }
     // Tag-as-result: a tag has its own screen, so a matching tag surfaces as its

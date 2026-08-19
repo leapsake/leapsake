@@ -289,6 +289,43 @@ describe("searchService", () => {
     ]);
   });
 
+  it("answers 'who is @foo?' from a social handle", async () => {
+    const person = await people.create({ firstName: "Jane", lastName: "Doe" });
+    await contactMethods.socials.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Personal",
+      platform: "instagram",
+      handle: "SparkleJane",
+    });
+
+    // The stored handle keeps its casing; the query need not.
+    const hits = await search.query("sparkle");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ entityType: "person", title: "Jane Doe" });
+    expect(hits[0]?.reasons).toEqual([
+      { facet: "social", matchedText: "Instagram · SparkleJane" },
+    ]);
+
+    // The "@" people write is optional, as "#" is for tags.
+    expect(await search.query("@sparklejane")).toHaveLength(1);
+  });
+
+  it("names an unknown platform as stored in a handle's reason", async () => {
+    const person = await people.create({ firstName: "Jo", lastName: "Roe" });
+    await contactMethods.socials.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Personal",
+      platform: "mastodon",
+      handle: "jo@hachyderm.io",
+    });
+    const hits = await search.query("hachyderm");
+    expect(hits[0]?.reasons).toEqual([
+      { facet: "social", matchedText: "mastodon · jo@hachyderm.io" },
+    ]);
+  });
+
   it("groups a name + email match into one row with merged reasons", async () => {
     const person = await people.create({ firstName: "Jane", lastName: "Doe" });
     await contactMethods.emails.create({

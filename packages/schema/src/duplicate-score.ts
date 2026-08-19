@@ -37,6 +37,16 @@ export interface DuplicateInput {
   emails: string[];
   /** Normalized phones (`normalizePhone`), the strong exact-match keys. */
   phones: string[];
+  /**
+   * Social profiles as `(platform, normalized handle)` pairs.
+   *
+   * Both halves matter, which is why this is not a bare string list like the two
+   * above. A handle is only unique *within* a platform — `@jane` on Instagram and
+   * `@jane` on TikTok are routinely different people, and matching on the handle
+   * alone would pair strangers who happened to pick the same common name. Matched
+   * as a pair, a shared handle is as strong a signal as a shared email.
+   */
+  handles: { platform: string; handle: string }[];
 }
 
 /**
@@ -65,6 +75,11 @@ export interface DuplicateScore {
  * shared exact contact is rare for distinct real people, so it carries a pair
  * even without a name match. Returns one reason per shared value.
  */
+/** A handle's match key. NUL-joined so no platform or handle can forge a pair. */
+function handleKey(h: { platform: string; handle: string }): string {
+  return `${h.platform}\u0000${h.handle}`;
+}
+
 function sharedContacts(a: DuplicateInput, b: DuplicateInput): string[] {
   const reasons: string[] = [];
   const bEmails = new Set(b.emails);
@@ -74,6 +89,14 @@ function sharedContacts(a: DuplicateInput, b: DuplicateInput): string[] {
   const bPhones = new Set(b.phones);
   for (const phone of new Set(a.phones)) {
     if (bPhones.has(phone)) reasons.push(`Shared phone ${phone}`);
+  }
+  const bHandles = new Set(b.handles.map(handleKey));
+  const seen = new Set<string>();
+  for (const handle of a.handles) {
+    const k = handleKey(handle);
+    if (seen.has(k) || !bHandles.has(k)) continue;
+    seen.add(k);
+    reasons.push(`Shared ${handle.platform} handle ${handle.handle}`);
   }
   return reasons;
 }
