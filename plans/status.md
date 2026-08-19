@@ -25,9 +25,12 @@ list. Zero effort, weeks of latency, gate 05 and 07. The real critical path.
   into "the dev menu opened" (off in the iOS build via `ios.infoPlist`, and set by
   `pnpm test:native` on both); and `SelectField` is a wheel on iOS but a list dialog on
   Android, so the occasion subflow now branches. See `apps/mobile/maestro/README.md`.
-- ❌ **`driver-selftest.yaml` — FAIL 40/42, and *not* iOS-specific**: identical on Android. One
-  failing case is `leaves the live store, its roster entry and the keychain intact when the
-  login fails`; the second is unidentified. Predates all of the above, and belongs to 06.
+- ✅ **`driver-selftest.yaml` — PASS 43/43 on both.** It was red because it was **finding a real
+  bug**: expo-sqlite caches connections by name, so `storeState`'s keyless probe returned the
+  caller's own keyed connection and reported an encrypted store as `plaintext` — which made the
+  merge flow's at-rest guard refuse **every real merge on mobile**, not just the test. Fixed with
+  `useNewConnection`; see `apps/mobile/db/convert-store.ts`.
 
+**All three mobile gates are now green on both platforms.** `pnpm test:native` passes end to end.
 **Decide before 06:** [`v0-1.md`](./v0-1.md) → *Open decisions* 1 and 2 — how much of the E2E
-catalog really gates v0.1. That call makes the two items above blockers or fast-follows.
+catalog really gates v0.1.

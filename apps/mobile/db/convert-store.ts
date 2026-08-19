@@ -251,11 +251,20 @@ async function copyStoreUnderNewKey(opts: {
  * - **`encrypted` means "not readable without a key"**, which is also what a
  *   corrupt file looks like. Both are equally unsafe to write over, so the guards
  *   treat them the same.
+ *
+ * **`useNewConnection` is load-bearing, not tidiness.** expo-sqlite caches native
+ * connections *by database name*, so without it this "keyless" open silently
+ * returns the caller's own already-keyed connection whenever the store is open —
+ * the read then succeeds and an encrypted store reports `plaintext`. That is not
+ * hypothetical: it is exactly the state every caller holding a live driver is in,
+ * and it made {@link mergeAccountOnThisDevice}'s at-rest guard refuse every real
+ * merge with "This device's store is not an encrypted database." The custody
+ * self-test pins the behaviour ("reports encrypted while a keyed handle is open").
  */
 export async function storeState(
   name: string,
 ): Promise<"empty" | "plaintext" | "encrypted"> {
-  const db = await SQLite.openDatabaseAsync(name);
+  const db = await SQLite.openDatabaseAsync(name, { useNewConnection: true });
   try {
     const row = await db.getFirstAsync<{ n: number }>(
       "SELECT COUNT(*) AS n FROM sqlite_master",

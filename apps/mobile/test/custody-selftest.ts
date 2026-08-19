@@ -96,6 +96,24 @@ async function rejects(fn: () => Promise<unknown>): Promise<boolean> {
   }
 }
 
+/**
+ * The message `fn` rejects with, or `"<resolved>"` if it did not reject.
+ *
+ * Use this over {@link rejects} wherever a flow has **more than one way to
+ * throw**, which is every flow with guards in front of it. A bare "it rejected"
+ * is satisfied by a guard refusing before the flow starts, so it passes while
+ * proving nothing — that is how the merge flow's at-rest guard sat in front of
+ * the refused-password case for weeks with the case green.
+ */
+async function rejectionMessage(fn: () => Promise<unknown>): Promise<string> {
+  try {
+    await fn();
+    return "<resolved>";
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
 export function runCustodySelfTest(t: TestApi): void {
   const { describe, it, expect } = t;
 
@@ -157,6 +175,31 @@ export function runCustodySelfTest(t: TestApi): void {
     });
 
     // The negative that makes the two cases above mean something.
+    /**
+     * **The case that catches a shared native connection.** expo-sqlite caches
+     * connections by database name, so a "keyless" probe of a store the caller
+     * already holds open returns that caller's *keyed* connection — the read
+     * succeeds and an encrypted store reports `plaintext`. Every caller holding a
+     * live driver is in exactly that state, which is why this is not an exotic
+     * case: it made the merge flow's at-rest guard refuse every real merge.
+     *
+     * `storeState` passes `useNewConnection` to avoid it. Drop that option and
+     * this case goes red — and so does the merge case further down, which is the
+     * one a user would have felt.
+     */
+    it("reports encrypted while a keyed handle is open", async () => {
+      const name = scratchName("sharedconn");
+      const keyed = await SQLite.openDatabaseAsync(name);
+      await keyed.execAsync(`PRAGMA key = "${rawKeyLiteral(generateKey())}"`);
+      await keyed.execAsync("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+      try {
+        expect(await storeState(name)).toBe("encrypted");
+      } finally {
+        await keyed.closeAsync();
+        await SQLite.deleteDatabaseAsync(name);
+      }
+    });
+
     it("refuses a keyless read of a keyed database", async () => {
       const name = scratchName("keyed");
       const keyed = await SQLite.openDatabaseAsync(name);
@@ -873,8 +916,13 @@ export function runCustodySelfTest(t: TestApi): void {
     }
 
     it("re-homes the store, swaps the roster and retires the local account", async () => {
-      const localId = `local-${crypto.randomUUID()}`;
-      const syncedId = `synced-${crypto.randomUUID()}`;
+      // Bare UUIDs, not the `local-`/`synced-` labels these once carried: an
+      // account id reaches `accountSchema`, whose `id` is `z.uuid()`, so a
+      // labelled id fails validation at the first `create()` and the case never
+      // reaches what it exists to prove. The labels are recoverable from the
+      // variable names; the shape has to match production.
+      const localId = crypto.randomUUID();
+      const syncedId = crypto.randomUUID();
       const key = generateKey();
       const keyStore = createInMemoryKeyStore();
       await keyStore.setSecret(DATABASE_KEY, key);
@@ -955,8 +1003,9 @@ export function runCustodySelfTest(t: TestApi): void {
      * show, so it is the one worth having on device.
      */
     it("leaves the live store, its roster entry and the keychain intact when the login fails", async () => {
-      const localId = `local-${crypto.randomUUID()}`;
-      const syncedId = `synced-${crypto.randomUUID()}`;
+      // Bare UUIDs — see the sibling case above.
+      const localId = crypto.randomUUID();
+      const syncedId = crypto.randomUUID();
       const key = generateKey();
       const localRecoveryKey = generateKey();
       const keyStore = createInMemoryKeyStore();
@@ -974,8 +1023,11 @@ export function runCustodySelfTest(t: TestApi): void {
         await seedLocalAccount({ accountId: localId, key, firstName: "Grace" });
         const live = await reopen(localId, key);
 
+        // The *message*, not merely "it rejected": this flow has a wall of guards
+        // in front of the login, and any of them refusing would satisfy a bare
+        // rejects() while proving nothing about the restore path below.
         expect(
-          await rejects(() =>
+          await rejectionMessage(() =>
             mergeAccountOnThisDevice({
               keyStore,
               driver: live,
@@ -993,7 +1045,7 @@ export function runCustodySelfTest(t: TestApi): void {
               closeStore: () => live.close?.() ?? Promise.resolve(),
             }),
           ),
-        ).toBe(true);
+        ).toBe("Incorrect username or password.");
 
         // 1. The account the user still has: rows, identity, and no relay. Every
         //    destructive step landed on the copy.
