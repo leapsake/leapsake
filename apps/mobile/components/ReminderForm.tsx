@@ -20,7 +20,7 @@ import { ChipTextField } from "./ChipTextField";
  * The screen owns the actual core call; this component collects input and hands
  * back a {@link CreateReminderInput} (empty → null).
  *
- * Like {@link PersonForm}, it declares its own native header — title plus a
+ * Like {@link MilestoneForm}, it declares its own native header — title plus a
  * right-aligned {@link HeaderSave} — so the screen doesn't have to lift `canSubmit`
  * out of it just to render a header button.
  */

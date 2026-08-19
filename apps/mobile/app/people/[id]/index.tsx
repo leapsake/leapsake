@@ -7,28 +7,21 @@ import {
   Text,
   View,
 } from "react-native";
-import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { fullName, genderLabel } from "@leapsake/schema";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { fullName } from "@leapsake/schema";
 import { formatTimestamp } from "@leapsake/ui/headless";
 import { ContactsSection } from "../../../components/ContactsSection";
+import { DetailField } from "../../../components/DetailField";
+import { EditableTags } from "../../../components/EditableTags";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
+import { PersonDetailFields } from "../../../components/PersonDetailFields";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
-import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { colors, styles } from "../../../lib/styles";
-
-function DetailField({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Text style={styles.fieldValue}>{value}</Text>
-    </View>
-  );
-}
 
 // Person detail, ported from desktop's PersonView (core fields, gender, tags,
 // timestamps, relationships, milestones, holidays, gifts, contacts).
@@ -93,7 +86,6 @@ export default function PersonDetailScreen() {
 
   const { person, gender, tags, timeline, relationships, contactMethods } =
     view;
-  const genderText = gender.value === null ? "—" : genderLabel[gender.value];
 
   function confirmDelete() {
     Alert.alert("Delete person", `Delete ${fullName(person)}?`, [
@@ -113,16 +105,9 @@ export default function PersonDetailScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <Stack.Screen
-        options={{
-          title: fullName(person),
-          headerRight: () => (
-            <Link href={`/people/${person.id}/edit`} style={styles.link}>
-              Edit
-            </Link>
-          ),
-        }}
-      />
+      {/* No `headerRight`: this person's own fields are edited from their own
+          rows below, so the nav bar has nothing left to hold. */}
+      <Stack.Screen options={{ title: fullName(person) }} />
 
       {/* Both halves of an unresolved pair carry this, so the way back to the
           review is on whichever person the user opens. It stays until the pair
@@ -142,10 +127,12 @@ export default function PersonDetailScreen() {
         </Pressable>
       )}
 
-      <DetailField label="First name" value={person.firstName} />
-      <DetailField label="Middle name" value={person.middleName ?? "—"} />
-      <DetailField label="Last name" value={person.lastName} />
-      <DetailField label="Gender" value={genderText} />
+      <PersonDetailFields
+        person={person}
+        gender={gender.value}
+        tags={tags}
+        onChanged={reload}
+      />
 
       <ContactsSection
         ownerId={person.id}
@@ -182,7 +169,13 @@ export default function PersonDetailScreen() {
         onChanged={reload}
       />
 
-      <TagsField tags={tags} />
+      <EditableTags
+        tags={tags}
+        onSave={async (tagNames) => {
+          await core.people.update(person.id, {}, tagNames);
+          reload();
+        }}
+      />
 
       <MentionedInSection reminders={mentionedIn} />
 

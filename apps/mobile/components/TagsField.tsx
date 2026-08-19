@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Text, View } from "react-native";
+import { Text } from "react-native";
 import { useRouter } from "expo-router";
 import type { Tag } from "@leapsake/schema";
 import { tagLabel } from "@leapsake/schema";
@@ -18,31 +18,29 @@ import { colors, styles } from "../lib/styles";
  * uses. Colour alone marks the links — `styles.link` would drop them to 16pt
  * inside a 17pt field value and leave the line unevenly sized.
  *
- * Tags are edited on the entity's own form, so there is nothing to add here; an
- * entity with none keeps the same em-dash placeholder the other fields use.
+ * This is the read half only: the row's own header carries the "Tags" name and
+ * the Edit that swaps this for a {@link TagsInput}. An entity with no tags keeps
+ * the same em-dash placeholder the other fields use.
  */
 export function TagsField({ tags }: { tags: readonly Tag[] }) {
   const router = useRouter();
 
   return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>Tags</Text>
-      <Text style={styles.fieldValue}>
-        {tags.length === 0
-          ? "—"
-          : tags.map((tag, i) => (
-              <Fragment key={tag.id}>
-                {i > 0 ? " " : null}
-                <Text
-                  style={{ color: colors.accent }}
-                  accessibilityRole="link"
-                  onPress={() => router.push(`/tags/${tag.id}`)}
-                >
-                  {tagLabel(tag.name)}
-                </Text>
-              </Fragment>
-            ))}
-      </Text>
-    </View>
+    <Text style={styles.fieldValue}>
+      {tags.length === 0
+        ? "—"
+        : tags.map((tag, i) => (
+            <Fragment key={tag.id}>
+              {i > 0 ? " " : null}
+              <Text
+                style={{ color: colors.accent }}
+                accessibilityRole="link"
+                onPress={() => router.push(`/tags/${tag.id}`)}
+              >
+                {tagLabel(tag.name)}
+              </Text>
+            </Fragment>
+          ))}
+    </Text>
   );
 }

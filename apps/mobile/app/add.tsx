@@ -24,14 +24,14 @@ import {
   emptyPersonDraft,
   personDraftToInput,
   personDraftValid,
-} from "../components/PersonForm";
+} from "../components/PersonFields";
 import {
   type PetDraft,
   PetFields,
   emptyPetDraft,
   petDraftToInput,
   petDraftValid,
-} from "../components/PetForm";
+} from "../components/PetFields";
 import { StagedContactsSection } from "../components/StagedContactsSection";
 import { StagedGiftsSection } from "../components/StagedGiftsSection";
 import { StagedHolidaysSection } from "../components/StagedHolidaysSection";
@@ -300,6 +300,7 @@ function AddEntityForm({
             gender: what to tag someone with is a decision you make once the rest
             of the record is in front of you. */}
         <TagsInput
+          label="Tags"
           value={isPerson ? personDraft.tags : petDraft.tags}
           onChange={(tags) =>
             isPerson

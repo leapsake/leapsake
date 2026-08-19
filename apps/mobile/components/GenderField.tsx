@@ -11,15 +11,19 @@ const options: { value: Gender | null; label: string }[] = [
 ];
 
 export function GenderField({
+  label,
   value,
   onChange,
 }: {
+  /** Passed through to {@link SelectField} — omitted where the field is already
+   *  named by what encloses it. */
+  label?: string;
   value: Gender | null;
   onChange: (value: Gender | null) => void;
 }) {
   return (
     <SelectField
-      label="Gender"
+      label={label}
       value={value}
       options={options}
       onChange={onChange}

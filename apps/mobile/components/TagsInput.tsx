@@ -11,20 +11,24 @@ import { styles } from "../lib/styles";
  * screen puts it *last*, below the staged milestones, contacts and holidays,
  * rather than tucked in with the name and gender. Tagging is the one thing on
  * that form you can only really do once you've written down who this is, so it
- * reads as a closing step rather than another identity field. The edit forms
- * render it in the same trailing position, where it is the last field anyway.
+ * reads as a closing step rather than another identity field. On a detail screen
+ * it is its own editable field, opened from the Tags row.
  */
 export function TagsInput({
+  label,
   value,
   onChange,
 }: {
+  /** Omitted where the field is already named by what encloses it — the detail
+   *  screen's Tags row carries the name in its own header. */
+  label?: string;
   /** Space-separated tag labels, exactly as typed. */
   value: string;
   onChange: (value: string) => void;
 }) {
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>Tags</Text>
+      {label !== undefined && <Text style={styles.fieldLabel}>{label}</Text>}
       <ChipTextField
         grammar="tags"
         style={styles.input}

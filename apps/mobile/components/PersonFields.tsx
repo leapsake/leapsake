@@ -1,22 +1,19 @@
-import { useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
-import { Stack } from "expo-router";
+import { Text, TextInput, View } from "react-native";
 import {
   type CreatePersonInput,
   type Gender,
   type Person,
 } from "@leapsake/schema";
 import { GenderField } from "./GenderField";
-import { HeaderSave } from "./HeaderSave";
-import { TagsInput } from "./TagsInput";
 import { styles } from "../lib/styles";
 
 /**
  * A person's fields as the UI holds them: every value a string or a nullable
  * enum, nothing trimmed or parsed yet. The **draft** is the unit both callers
- * share — {@link PersonForm} (edit) keeps one in its own state, and the combined
- * create screen (app/add.tsx) keeps one alongside a pet draft and its staged
- * extras, so it can hand the whole thing to `core.people.create` on Save.
+ * share — the combined create screen (app/add.tsx) keeps one alongside a pet
+ * draft and its staged extras, so it can hand the whole thing to
+ * `core.people.create` on Save, and {@link PersonDetailFields} keeps one to seed
+ * whichever group of fields is open for editing on the detail screen.
  */
 export interface PersonDraft {
   firstName: string;
@@ -64,14 +61,12 @@ export function personDraftToInput(draft: PersonDraft): CreatePersonInput {
 }
 
 /**
- * The person fields alone, controlled by whoever owns the draft. Split out of
- * {@link PersonForm} so the create screen can show them under its Person/Pet
- * toggle without also inheriting a second scroll view and a second Save.
- *
- * Tags are *not* here — they're {@link TagsInput}, rendered separately so the
- * add screen can keep them last, below its staged sections.
+ * The three parts of a person's name, controlled by whoever owns the draft.
+ * Split out from {@link PersonFields} because the detail screen edits the name
+ * on its own, as one group: first and last are both required, so they are the
+ * smallest set that can be validated — and saved — together.
  */
-export function PersonFields({
+export function PersonNameFields({
   draft,
   onChange,
 }: {
@@ -123,83 +118,34 @@ export function PersonFields({
           autoCapitalize="words"
         />
       </View>
-
-      <GenderField
-        value={draft.gender}
-        onChange={(value) => set("gender", value)}
-      />
     </>
   );
 }
 
 /**
- * The **edit** form for a person, ported from the desktop `PersonForm`. Creation
- * no longer comes through here: app/add.tsx owns it, because a create form also
- * carries the Person/Pet toggle and the staged milestones/contacts/holidays that
- * an edit screen has no use for (the detail page's own sections handle those,
- * against a record that already exists).
+ * Everything the create screen asks about a person up front — the name, then the
+ * gender — controlled by whoever owns the draft. It is a create-time grouping:
+ * on the detail screen these are separately editable fields, each saved on its
+ * own (see {@link PersonDetailFields}).
  *
- * The form declares its own native header — title plus a right-aligned
- * {@link HeaderSave} — so the screen doesn't have to lift `canSubmit` out of it
- * just to render a header button. `expo-router` honours a `Stack.Screen`
- * anywhere in the screen's subtree.
+ * Tags are *not* here — they're {@link TagsInput}, rendered separately so the
+ * add screen can keep them last, below its staged sections.
  */
-export function PersonForm({
-  title,
-  person,
-  tagNames = "",
-  onSubmit,
+export function PersonFields({
+  draft,
+  onChange,
 }: {
-  /** Native header title, set here so the header is declared in one place. */
-  title: string;
-  person?: Person;
-  /** Space-separated existing tag labels. */
-  tagNames?: string;
-  onSubmit: (input: CreatePersonInput, tagsRaw: string) => Promise<void>;
+  draft: PersonDraft;
+  onChange: (draft: PersonDraft) => void;
 }) {
-  const [draft, setDraft] = useState<PersonDraft>(() =>
-    person === undefined
-      ? emptyPersonDraft()
-      : personDraftFrom(person, tagNames),
-  );
-  const [submitting, setSubmitting] = useState(false);
-
-  const canSubmit = personDraftValid(draft);
-
-  async function handleSubmit() {
-    if (!canSubmit || submitting) return;
-    setSubmitting(true);
-    try {
-      await onSubmit(personDraftToInput(draft), draft.tags);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   return (
     <>
-      <Stack.Screen
-        options={{
-          title,
-          headerRight: () => (
-            <HeaderSave
-              canSave={canSubmit}
-              saving={submitting}
-              onPress={() => void handleSubmit()}
-            />
-          ),
-        }}
+      <PersonNameFields draft={draft} onChange={onChange} />
+      <GenderField
+        label="Gender"
+        value={draft.gender}
+        onChange={(gender) => onChange({ ...draft, gender })}
       />
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        keyboardShouldPersistTaps="handled"
-      >
-        <PersonFields draft={draft} onChange={setDraft} />
-        <TagsInput
-          value={draft.tags}
-          onChange={(value) => setDraft({ ...draft, tags: value })}
-        />
-      </ScrollView>
     </>
   );
 }

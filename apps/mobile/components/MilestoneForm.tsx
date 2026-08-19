@@ -47,7 +47,7 @@ const MONTH_OPTIONS: { value: string; label: string }[] = [
  * year) and an optional note. The day⇒month rule is mirrored here for friendly
  * inline validation; the schema re-validates on submit.
  *
- * Mirroring `PetForm`, this component only collects input: the caller owns the
+ * Mirroring `PetFields`, this component only collects input: the caller owns the
  * `core.milestones.create/update` call (and supplies the bearer), and gets back
  * a structured {@link MilestoneFormValue}. When `milestone` is provided the form
  * is in edit mode and pre-fills from it.

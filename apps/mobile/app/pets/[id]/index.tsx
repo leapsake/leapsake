@@ -7,27 +7,19 @@ import {
   Text,
   View,
 } from "react-native";
-import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { genderLabel } from "@leapsake/schema";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { formatTimestamp } from "@leapsake/ui/headless";
+import { DetailField } from "../../../components/DetailField";
+import { EditableTags } from "../../../components/EditableTags";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
+import { PetDetailFields } from "../../../components/PetDetailFields";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
-import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
-
-function DetailField({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Text style={styles.fieldValue}>{value}</Text>
-    </View>
-  );
-}
 
 // Pet detail, ported from desktop's PetView (name, gender, tags, timestamps,
 // relationships, milestones, holidays, gifts).
@@ -79,7 +71,6 @@ export default function PetDetailScreen() {
   }
 
   const { pet, gender, tags, timeline, relationships } = view;
-  const genderText = gender.value === null ? "—" : genderLabel[gender.value];
 
   function confirmDelete() {
     Alert.alert("Delete pet", `Delete ${pet.name}?`, [
@@ -99,19 +90,16 @@ export default function PetDetailScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <Stack.Screen
-        options={{
-          title: pet.name,
-          headerRight: () => (
-            <Link href={`/pets/${pet.id}/edit`} style={styles.link}>
-              Edit
-            </Link>
-          ),
-        }}
-      />
+      {/* No `headerRight`: this pet's own fields are edited from their own rows
+          below, so the nav bar has nothing left to hold. */}
+      <Stack.Screen options={{ title: pet.name }} />
 
-      <DetailField label="Name" value={pet.name} />
-      <DetailField label="Gender" value={genderText} />
+      <PetDetailFields
+        pet={pet}
+        gender={gender.value}
+        tags={tags}
+        onChanged={reload}
+      />
 
       <MilestonesSection
         bearerType="pet"
@@ -142,7 +130,13 @@ export default function PetDetailScreen() {
         onChanged={reload}
       />
 
-      <TagsField tags={tags} />
+      <EditableTags
+        tags={tags}
+        onSave={async (tagNames) => {
+          await core.pets.update(pet.id, {}, tagNames);
+          reload();
+        }}
+      />
 
       <MentionedInSection reminders={mentionedIn} />
 
