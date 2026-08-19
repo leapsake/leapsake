@@ -412,6 +412,14 @@ function ContactRow({
               {topMatch.name} ({topMatch.reasons.join("; ")})
             </Text>
           )}
+          {/* Named alongside the contact rather than silently: each of these
+              becomes a person attached to them, and seeing the names is how a
+              user notices the card is bringing in more than they expected. */}
+          {contact.related.length > 0 && (
+            <Text style={styles.muted}>
+              Also adds: {contact.related.map((r) => r.name).join(", ")}
+            </Text>
+          )}
           {contact.dropped.length > 0 && (
             <Text style={styles.muted}>
               Not imported: {contact.dropped.map((d) => d.property).join(", ")}

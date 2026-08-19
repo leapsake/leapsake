@@ -1,4 +1,4 @@
-import type { Gender } from "@leapsake/schema";
+import type { Gender, RelationshipRole } from "@leapsake/schema";
 import type {
   DroppedField,
   ParsedBirthday,
@@ -7,6 +7,7 @@ import type {
   ParsedName,
   ParsedPhone,
   ParsedPostal,
+  ParsedRelated,
 } from "./parsed-contact.js";
 
 /**
@@ -32,7 +33,71 @@ export type DetectedFormat = { format: "vcard" } | { format: "unknown" };
 const DROPPED_VALUE_CAP = 300;
 
 /** vCard properties this reader maps to real Leapsake fields. */
-const HANDLED = new Set(["N", "FN", "EMAIL", "TEL", "ADR", "BDAY", "GENDER"]);
+const HANDLED = new Set([
+  "N",
+  "FN",
+  "EMAIL",
+  "TEL",
+  "ADR",
+  "BDAY",
+  "GENDER",
+  "RELATED",
+]);
+
+/**
+ * `RELATED;TYPE=` → the role the named person holds relative to the contact.
+ * The vocabulary is RFC 6350 §6.6.6; the half of it that describes a kind of
+ * acquaintance rather than a kinship has no Leapsake role and comes through as
+ * `other` carrying the source word, which is more use than dropping it.
+ */
+const RELATED_ROLES: Record<string, RelationshipRole> = {
+  spouse: "spouse",
+  child: "child",
+  parent: "parent",
+  sibling: "sibling",
+  friend: "friend",
+  neighbor: "neighbor",
+  "co-worker": "coworker",
+  colleague: "coworker",
+};
+
+/**
+ * Whether a `RELATED` value points at another card rather than naming somebody.
+ *
+ * RFC 6350 lets the value be a URI (`urn:uuid:…`, `mailto:…`) or, with
+ * `VALUE=text`, a plain name. Only names can be imported: a URI refers to a card
+ * whose own import we would have to resolve against, which needs `UID`
+ * bookkeeping and a second pass — see the TODO on {@link relatedFrom}.
+ */
+function isReference(value: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:/i.test(value.trim());
+}
+
+/**
+ * Map one `RELATED` to a named relation, or `null` when it names nobody.
+ *
+ * TODO: resolve intra-file references. A `RELATED` holding `urn:uuid:…` points at
+ * another card in the same file, and both are usually being imported together —
+ * so the pair could become a real relationship between two *published* people
+ * instead of each card growing an unpublished stub. Doing it needs `UID` out of
+ * `STRUCTURAL` (it is ignored today), a UID→id map built as the batch is written,
+ * and a second ingest pass once every card exists. Until then a reference stays
+ * in `dropped`, where the review UI already shows it as not imported.
+ */
+function relatedFrom(p: Property): ParsedRelated | null {
+  const value = unescapeValue(p.value).trim();
+  if (value === "" || isReference(value)) return null;
+  const types = typesOf(p).map((t) => t.toLowerCase());
+  const known = types.find((t) => t in RELATED_ROLES);
+  if (known !== undefined) {
+    return { name: value, role: RELATED_ROLES[known], roleNote: null };
+  }
+  // An unmapped TYPE becomes the note on an `other` role, so "TYPE=muse" reads
+  // as "muse" on the row rather than vanishing. A RELATED with no TYPE at all
+  // says only that they are related, which is what the note then says.
+  const note = types.find((t) => !TYPE_NOISE.has(t.toUpperCase())) ?? "related";
+  return { name: value, role: "other", roleNote: note };
+}
 
 /** Structural / metadata properties that are neither mapped nor user-visible
  *  data — silently ignored (not surfaced as "dropped"). */
@@ -259,6 +324,7 @@ function buildContact(props: Property[]): ParsedContact {
   const emails: ParsedEmail[] = [];
   const phones: ParsedPhone[] = [];
   const postals: ParsedPostal[] = [];
+  const related: ParsedRelated[] = [];
   const dropped: DroppedField[] = [];
   let nParts: string[] | null = null;
   let fn: string | null = null;
@@ -312,6 +378,15 @@ function buildContact(props: Property[]): ParsedContact {
       case "GENDER":
         gender = parseGender(p.value);
         break;
+      case "RELATED": {
+        const relation = relatedFrom(p);
+        // A reference to another card is not a name we can import, so it stays
+        // visible in the review UI's "not imported" list rather than silently
+        // going nowhere.
+        if (relation) related.push(relation);
+        else dropField(dropped, "RELATED", p.value);
+        break;
+      }
       default:
         if (!STRUCTURAL.has(p.name) && !HANDLED.has(p.name)) {
           dropField(dropped, p.name, p.value);
@@ -327,6 +402,7 @@ function buildContact(props: Property[]): ParsedContact {
     phones,
     postals,
     birthday,
+    related,
     dropped,
   };
 }

@@ -201,6 +201,11 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
     phones,
     postals,
     birthday,
+    // expo-contacts does expose `relationships`, but only ever as a free-text
+    // label and a name, with no role vocabulary to map — unlike a vCard's
+    // `RELATED;TYPE=`. Reading them would mean guessing at the role, so they are
+    // left alone until there is a reason to.
+    related: [],
     dropped,
   };
 }

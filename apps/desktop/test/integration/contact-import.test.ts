@@ -38,6 +38,7 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
     phones: [],
     postals: [],
     birthday: null,
+    related: [],
     dropped: [],
     ...over,
   };
@@ -177,5 +178,72 @@ describe("core.import.preview", () => {
     expect(rows[0].matches[0].name).toBe("Jane Doe");
     expect(rows[0].matches[0].reasons).toContain('Same name "Jane Doe"');
     expect(rows[1].matches).toHaveLength(0);
+  });
+});
+
+// A card that names a spouse is claiming a *name*, not a person — so that is
+// what it imports as: someone attached to the contact, out of the catalog until
+// they turn out to be more than a name.
+describe("core.import.commit — named relations", () => {
+  it("attaches a named relation as an unpublished person", async () => {
+    await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          name: { firstName: "Sam", middleName: null, lastName: "Carter" },
+          related: [{ name: "Jen Davis", role: "spouse", roleNote: null }],
+        }),
+      },
+    ]);
+
+    // Only Sam is in the catalog.
+    const listed = await core.people.list();
+    expect(listed.map((p) => p.firstName)).toEqual(["Sam"]);
+
+    // Jen is on his page, as the one edge that is her whole existence.
+    const neighbors = await core.relationships.listForEntity(
+      "person",
+      listed[0].id,
+    );
+    expect(neighbors).toHaveLength(1);
+    expect(neighbors[0]).toMatchObject({
+      otherLabel: "Jen Davis",
+      otherStanding: "unpublished",
+      otherRole: "spouse",
+    });
+  });
+
+  it("carries an unmapped role through as its note", async () => {
+    await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          related: [{ name: "Ada", role: "other", roleNote: "muse" }],
+        }),
+      },
+    ]);
+
+    const [jane] = await core.people.list();
+    const [edge] = await core.relationships.listForEntity("person", jane.id);
+    expect(edge).toMatchObject({ otherRole: "other", otherRoleNote: "muse" });
+  });
+
+  it("takes the relations with the contact when it is deleted", async () => {
+    await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          related: [
+            { name: "Jen Davis", role: "spouse", roleNote: null },
+            { name: "Ben", role: "child", roleNote: null },
+          ],
+        }),
+      },
+    ]);
+    const [jane] = await core.people.list();
+
+    await core.people.softDelete(jane.id);
+
+    expect(await core.people.list()).toEqual([]);
   });
 });

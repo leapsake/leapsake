@@ -6,6 +6,7 @@ import type {
   ParsedName,
   ParsedPhone,
   ParsedPostal,
+  ParsedRelated,
 } from "./parsed-contact.js";
 import { nameInputFrom } from "./parsed-contact.js";
 
@@ -32,6 +33,9 @@ export interface ImportPorts {
   addPhone(personId: string, phone: ParsedPhone): Promise<void>;
   addPostal(personId: string, postal: ParsedPostal): Promise<void>;
   addBirthday(personId: string, birthday: ParsedBirthday): Promise<void>;
+  /** Record somebody the card named as related, as an unpublished person hanging
+   *  off this one. */
+  addRelated(personId: string, related: ParsedRelated): Promise<void>;
   /** Run one contact's writes atomically (the real driver's `transaction`). */
   transaction<T>(body: () => Promise<T>): Promise<T>;
 }
@@ -108,6 +112,9 @@ export async function ingestContacts(
         for (const phone of contact.phones) await ports.addPhone(id, phone);
         for (const postal of contact.postals) await ports.addPostal(id, postal);
         if (contact.birthday) await ports.addBirthday(id, contact.birthday);
+        for (const relation of contact.related) {
+          await ports.addRelated(id, relation);
+        }
       });
       created++;
     } catch (err) {

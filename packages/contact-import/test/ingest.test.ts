@@ -12,6 +12,7 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
     phones: [],
     postals: [],
     birthday: null,
+    related: [],
     dropped: [],
     ...over,
   };
@@ -26,6 +27,7 @@ function makePorts(failOn?: string) {
   const people: { id: string; first: string }[] = [];
   const emails: { personId: string; address: string }[] = [];
   const birthdays: { personId: string }[] = [];
+  const relateds: { personId: string; name: string; role: string }[] = [];
   let n = 0;
 
   const ports: ImportPorts = {
@@ -43,12 +45,15 @@ function makePorts(failOn?: string) {
     addBirthday: async (personId) => {
       birthdays.push({ personId });
     },
+    addRelated: async (personId, relation) => {
+      relateds.push({ personId, name: relation.name, role: relation.role });
+    },
     // The fake runs the body directly; a thrown error propagates as a real
     // transaction would abort, so nothing partial is recorded for that contact.
     transaction: async (body) => body(),
   };
 
-  return { ports, people, emails, birthdays };
+  return { ports, people, emails, birthdays, relateds };
 }
 
 describe("ingestContacts", () => {
@@ -111,6 +116,25 @@ describe("ingestContacts", () => {
     expect(people).toHaveLength(0);
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].message).toMatch(/needs a name/i);
+  });
+
+  it("fans a card's named relations onto the person it created", async () => {
+    const { ports, relateds } = makePorts();
+    await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          related: [
+            { name: "Jen Davis", role: "spouse", roleNote: null },
+            { name: "Ben", role: "child", roleNote: null },
+          ],
+        }),
+      },
+    ]);
+    expect(relateds).toEqual([
+      { personId: "person-1", name: "Jen Davis", role: "spouse" },
+      { personId: "person-1", name: "Ben", role: "child" },
+    ]);
   });
 
   it("isolates a failing contact so the others still import", async () => {

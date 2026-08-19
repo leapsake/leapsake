@@ -1,4 +1,8 @@
-import { genderSchema } from "@leapsake/schema";
+import {
+  type RelationshipRole,
+  genderSchema,
+  relationshipRoleSchema,
+} from "@leapsake/schema";
 import { z } from "zod";
 
 /**
@@ -48,6 +52,23 @@ export function nameInputFrom(name: ParsedName): {
     middleName: clean(name.middleName),
     lastName: clean(name.lastName),
   };
+}
+
+/**
+ * Somebody the card names as related to its contact — a vCard `RELATED` giving a
+ * plain name ("Jen Davis") rather than pointing at another card.
+ *
+ * These become **unpublished** people on import: a name attached to the contact,
+ * absent from People & Pets until they turn out to be more than that. Which is
+ * exactly what the source says — the card records a spouse's name, not a spouse.
+ */
+export interface ParsedRelated {
+  /** The name as the card writes it; split into parts at write time. */
+  name: string;
+  /** The role this person holds relative to the contact. */
+  role: RelationshipRole;
+  /** The card's own `TYPE`, kept as the qualifier when `role` is `other`. */
+  roleNote: string | null;
 }
 
 /** One parsed email — the address as written plus a display label. */
@@ -112,6 +133,7 @@ export interface ParsedContact {
   phones: ParsedPhone[];
   postals: ParsedPostal[];
   birthday: ParsedBirthday | null;
+  related: ParsedRelated[];
   dropped: DroppedField[];
 }
 
@@ -165,6 +187,16 @@ export const parsedContactSchema = z.object({
       day: z.number().int().nullable(),
     })
     .nullable(),
+  // A role that isn't one Leapsake knows is a payload we refuse rather than
+  // silently coerce — the renderer's mapping and the writer's must agree, and
+  // this is the boundary that makes them.
+  related: z.array(
+    z.object({
+      name: z.string().min(1),
+      role: relationshipRoleSchema,
+      roleNote: z.string().min(1).nullable(),
+    }),
+  ),
   dropped: z.array(z.object({ property: z.string(), value: z.string() })),
 });
 

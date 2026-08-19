@@ -216,3 +216,84 @@ describe("parseVCards — format handling", () => {
     expect(c.emails).toEqual([{ label: "Home", address: "jane@home.example" }]);
   });
 });
+
+// `RELATED` names somebody the contact is connected to. When it gives a plain
+// name, that becomes an unpublished person attached to the contact — which is
+// exactly what the card is claiming: a spouse's *name*, not a spouse's record.
+describe("parseVCards — RELATED", () => {
+  it("maps a kinship TYPE to its role", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Sam Carter",
+        "RELATED;TYPE=spouse;VALUE=text:Jen Davis",
+        "RELATED;TYPE=child;VALUE=text:Ben",
+      ),
+    );
+    expect(c.related).toEqual([
+      { name: "Jen Davis", role: "spouse", roleNote: null },
+      { name: "Ben", role: "child", roleNote: null },
+    ]);
+  });
+
+  it("maps both spellings of a colleague", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Sam Carter",
+        "RELATED;TYPE=co-worker;VALUE=text:Ada",
+        "RELATED;TYPE=colleague;VALUE=text:Grace",
+      ),
+    );
+    expect(c.related.map((r) => r.role)).toEqual(["coworker", "coworker"]);
+  });
+
+  // The half of RFC 6350's vocabulary that describes a kind of acquaintance
+  // rather than a kinship has no role here, and the word is worth more on the
+  // row than in the bin.
+  it("keeps an unmapped TYPE as the note on an `other` role", () => {
+    const [c] = parseVCards(
+      card("FN:Sam Carter", "RELATED;TYPE=muse;VALUE=text:Ada"),
+    );
+    expect(c.related).toEqual([
+      { name: "Ada", role: "other", roleNote: "muse" },
+    ]);
+  });
+
+  it("falls back to a bare `related` note when the card gives no TYPE", () => {
+    const [c] = parseVCards(card("FN:Sam Carter", "RELATED;VALUE=text:Ada"));
+    expect(c.related).toEqual([
+      { name: "Ada", role: "other", roleNote: "related" },
+    ]);
+  });
+
+  // A URI points at another card, which would have to be resolved against that
+  // card's own import — see the TODO in the reader. Until then it stays visible
+  // as something that was not imported, rather than silently going nowhere.
+  it("drops a reference to another card rather than naming it", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Sam Carter",
+        "RELATED;TYPE=friend:urn:uuid:03a0e51f-d1aa-4385-8a53-e29025acd8af",
+      ),
+    );
+    expect(c.related).toEqual([]);
+    expect(c.dropped).toContainEqual({
+      property: "RELATED",
+      value: "urn:uuid:03a0e51f-d1aa-4385-8a53-e29025acd8af",
+    });
+  });
+
+  it("drops a mailto: reference too", () => {
+    const [c] = parseVCards(
+      card("FN:Sam Carter", "RELATED;TYPE=friend:mailto:ada@example.com"),
+    );
+    expect(c.related).toEqual([]);
+    expect(c.dropped.map((d) => d.property)).toContain("RELATED");
+  });
+
+  it("no longer lists a handled RELATED as dropped", () => {
+    const [c] = parseVCards(
+      card("FN:Sam Carter", "RELATED;TYPE=spouse;VALUE=text:Jen"),
+    );
+    expect(c.dropped).toEqual([]);
+  });
+});

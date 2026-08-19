@@ -2066,6 +2066,25 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
               day: birthday.day,
             });
           },
+          // Somebody the card merely named becomes an unpublished person with
+          // one edge — the same thing `relationships.createWithNewOther` makes,
+          // spelled over the raw repos because the engine is already inside a
+          // transaction and the driver's BEGIN/COMMIT doesn't nest.
+          addRelated: async (personId, relation) => {
+            const other = await people.create({
+              ...splitName(relation.name),
+              standing: "unpublished",
+            });
+            await relationships.create({
+              aType: "person",
+              aId: personId,
+              aRole: inverseRole(relation.role),
+              bType: "person",
+              bId: other.id,
+              bRole: relation.role,
+              bRoleNote: relation.roleNote,
+            });
+          },
           transaction: (body) => driver.transaction(body),
         };
         const result = await ingestContacts(ports, decisions);
