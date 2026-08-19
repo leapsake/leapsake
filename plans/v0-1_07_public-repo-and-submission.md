@@ -35,8 +35,8 @@ The final two steps, in this order. Going public first makes auto-update simpler
 
 ## B — Mobile submission
 
-**Value:** shipped mobile apps. **Blocked on Apple enrollment + [04](./v0-1_04_mobile-pipeline.md)'s
-14-day window.**
+**Value:** shipped mobile apps. **Blocked on [04](./v0-1_04_mobile-pipeline.md)'s 14-day window
+only** — Apple enrollment cleared 2026-08-19, and the App Store Connect record already exists.
 
 - iOS: TestFlight → App Store review.
 - Android: apply for production access once the closed-test criteria are met; promote.

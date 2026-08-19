@@ -10,7 +10,8 @@ on its own, not inside a signing change.
 
 **Prerequisite:** [04](./v0-1_04_mobile-pipeline.md) → *Store identity* for the version and the
 versioning scheme; the desktop bundle ID (`com.leapsake.desktop`) is set here.
-**B is blocked on Apple enrollment** — start that today (see [`v0-1.md`](./v0-1.md)).
+**B is unblocked** — Apple enrollment cleared 2026-08-19 (see [`v0-1.md`](./v0-1.md)), so the
+Developer ID cert can be issued the moment A lands.
 
 ## A — Packaging (unsigned)
 
@@ -32,7 +33,8 @@ stage rather than a step inside signing.
 
 ## B — Signing + notarization
 
-**Value:** an artifact a stranger can actually install. **Blocked on Apple enrollment.**
+**Value:** an artifact a stranger can actually install. **No longer blocked** — the Apple account
+exists as of 2026-08-19; this waits only on A.
 
 - Developer ID Application cert; hardened runtime; entitlements.
 - Notarization + stapling in the build pipeline.

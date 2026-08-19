@@ -19,7 +19,8 @@ increment carries the whole critical path.
 - Create `eas.json` with build profiles (dev / preview / production) — **none exists today**.
 - Android signing via Play App Signing; keep the upload key out of the repo.
 - First production-profile Android build → **closed testing track**; recruit ≥12 testers.
-- iOS build profile in the same pass; TestFlight upload once Apple enrollment clears.
+- iOS build profile in the same pass. **Apple enrollment cleared 2026-08-19**, so TestFlight is
+  available immediately — there is nothing left to wait on for the iOS half.
 
 ## Store identity — the free-to-fix decision this upload makes permanent
 
@@ -42,6 +43,14 @@ Bundle IDs are settled in [`v0-1.md`](./v0-1.md) → *The decisions this encodes
 `com.leapsake.app` for mobile. The new ID is a new app identity, so existing dev installs hold
 orphaned data under the old one — uninstall and rebuild the dev client before running
 `pnpm test:native`. `scheme: "leapsake"` is unchanged, so `leapsake://` deep links still route.
+
+⚠️ **An App Store Connect record for Leapsake already exists** *(owner, 2026-08-19)* — the form
+only, no build uploaded, nothing shared. **Check its bundle ID against `com.leapsake.app` before
+building anything.** A record's bundle ID is fixed at creation and cannot be edited; while no
+build has been uploaded the record can still be deleted and re-created for free, and after the
+first upload it cannot. If they disagree, resolving it now is a two-minute job and later is not.
+The record also means the Apple-side name is claimed — but see [`v0-1.md`](./v0-1.md) → *The one
+long clock left* for what that commits you to, and for the Play-side name, which is not.
 
 **Acceptance for this part:** fresh dev install on **iOS and Android** under `com.leapsake.app`;
 `git status` clean.
