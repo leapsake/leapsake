@@ -479,12 +479,18 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     type: EntityType,
     id: string,
   ): Promise<string | undefined> {
-    if (type === "person") {
-      const person = await people.get(id);
-      return person ? entityLabel("person", person) : undefined;
-    }
-    const pet = await pets.get(id);
-    return pet ? entityLabel("pet", pet) : undefined;
+    const entity = await resolveEntity(type, id);
+    return entity ? entityLabel(type, entity) : undefined;
+  }
+
+  // The row behind an endpoint, for the callers that want more of it than its
+  // label — currently its `standing`. Neither `get` filters on standing, so an
+  // unpublished entity resolves here like any other.
+  async function resolveEntity(
+    type: EntityType,
+    id: string,
+  ): Promise<Person | Pet | undefined> {
+    return type === "person" ? people.get(id) : pets.get(id);
   }
 
   // Resolve a gift suggestion's optional occasion pointer to a display label — a
@@ -575,13 +581,14 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       const otherId = subjectIsA ? rel.bId : rel.aId;
       const otherRole = subjectIsA ? rel.bRole : rel.aRole;
       const otherRoleNote = subjectIsA ? rel.bRoleNote : rel.aRoleNote;
-      const otherLabel = await resolveLabel(otherType, otherId);
-      if (otherLabel === undefined) continue; // other end gone — skip
+      const other = await resolveEntity(otherType, otherId);
+      if (other === undefined) continue; // other end gone — skip
       neighbors.push({
         relationshipId: rel.id,
         otherType,
         otherId,
-        otherLabel,
+        otherLabel: entityLabel(otherType, other),
+        otherStanding: other.standing,
         otherRole,
         otherRoleLabel: roleDefs[otherRole].label,
         otherRoleNote,

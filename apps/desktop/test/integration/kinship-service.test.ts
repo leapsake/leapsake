@@ -48,7 +48,7 @@ function person(firstName: string, over: Partial<CreatePersonInput> = {}) {
 function relate(
   aId: string,
   bId: string,
-  bRole: "father" | "brother" | "mother",
+  bRole: "father" | "brother" | "mother" | "sister",
 ) {
   const aRole = bRole === "father" || bRole === "mother" ? "child" : "sibling";
   return relationships.create({
@@ -190,5 +190,126 @@ describe("kinshipService — robustness", () => {
     expect(joshNeighbors.some((n) => n.otherId === george.id)).toBe(false);
     expect(joshNeighbors.some((n) => n.otherId === john.id)).toBe(false);
     expect((await kinship.genderFor("person", john.id)).value).toBeNull();
+  });
+});
+
+/** Store "wife is subject's spouse" — the shape this feature is built around. */
+function marry(subjectId: string, wifeId: string) {
+  return relationships.create({
+    aType: "person",
+    aId: subjectId,
+    aRole: "spouse",
+    bType: "person",
+    bId: wifeId,
+    bRole: "wife",
+  });
+}
+
+// An unpublished entity exists only as a fact about the one person it is attached
+// to. It shows on that person's page as the explicit edge it is, and takes no part
+// in inference — never a destination, never a route.
+//
+// The inference cases below use a *sibling*, not a spouse, because that is the
+// shape that actually composes today: `compositionTable` derives
+// `(parent, sibling) → pibling`, while it deliberately omits
+// `(parent, spouse) → parent`. So an unpublished aunt is a leak you can observe
+// now, whereas an unpublished stepmother is one the table has yet to permit.
+describe("kinshipService — unpublished entities", () => {
+  it("shows an unpublished spouse on her own person's page", async () => {
+    const sam = await person("Sam", { gender: "male" });
+    const jen = await people.create({
+      firstName: "Jen",
+      standing: "unpublished",
+    });
+    await marry(sam.id, jen.id);
+
+    const neighbors = await kinship.neighborsFor("person", sam.id);
+    expect(neighbors).toHaveLength(1);
+    expect(neighbors[0]).toMatchObject({
+      otherId: jen.id,
+      otherLabel: "Jen",
+      otherStanding: "unpublished",
+      origin: "explicit",
+    });
+  });
+
+  it("does not infer her onto anybody else", async () => {
+    const sam = await person("Sam", { gender: "male" });
+    const ben = await person("Ben", { gender: "male" });
+    const jen = await people.create({
+      firstName: "Jen",
+      standing: "unpublished",
+    });
+    await relate(ben.id, sam.id, "father"); // Sam is Ben's father
+    await relate(sam.id, jen.id, "sister"); // Jen is Sam's sister
+
+    // Ben's page knows his father, and nothing about his father's sister.
+    const bens = await kinship.neighborsFor("person", ben.id);
+    expect(bens.map((n) => n.otherId)).toEqual([sam.id]);
+
+    // Jen's own reading is the one edge back to Sam.
+    const jens = await kinship.neighborsFor("person", jen.id);
+    expect(jens.map((n) => n.otherId)).toEqual([sam.id]);
+  });
+
+  // The same graph with Jen published: the aunt withheld above now appears. This
+  // is the control — without it, the test above would pass just as well if the
+  // fixture were incapable of producing a derived edge at all.
+  it("infers her onto the nephew once she is published", async () => {
+    const sam = await person("Sam", { gender: "male" });
+    const ben = await person("Ben", { gender: "male" });
+    const jen = await people.create({
+      firstName: "Jen",
+      standing: "unpublished",
+    });
+    await relate(ben.id, sam.id, "father");
+    await relate(sam.id, jen.id, "sister");
+
+    await people.update(jen.id, { standing: "published" });
+
+    const bens = await kinship.neighborsFor("person", ben.id);
+    expect(bens.map((n) => n.otherId).sort()).toEqual([sam.id, jen.id].sort());
+    expect(bens.find((n) => n.otherId === jen.id)).toMatchObject({
+      origin: "derived",
+      otherStanding: "published",
+    });
+  });
+
+  // Her role still says something about the person she is attached to: that is
+  // his own edge, and reading it puts her on nobody else's page.
+  it("still lets her role imply her own person's gender", async () => {
+    const sam = await person("Sam");
+    const jen = await people.create({
+      firstName: "Jen",
+      standing: "unpublished",
+    });
+    await relationships.create({
+      aType: "person",
+      aId: sam.id,
+      aRole: "husband",
+      bType: "person",
+      bId: jen.id,
+      bRole: "wife",
+    });
+
+    expect(await kinship.genderFor("person", sam.id)).toEqual({
+      value: "male",
+      origin: "derived",
+    });
+  });
+
+  // A person with only one part of a name is exactly what this feature creates,
+  // and a relationship row is where that name gets read.
+  it("labels a one-name person without a leading space", async () => {
+    const sam = await person("Sam");
+    const davis = await people.create({
+      firstName: null,
+      lastName: "Davis",
+      standing: "unpublished",
+    });
+    await marry(sam.id, davis.id);
+
+    const neighbors = await kinship.neighborsFor("person", sam.id);
+    expect(neighbors[0].otherLabel).toBe("Davis");
   });
 });

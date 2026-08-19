@@ -1,6 +1,7 @@
 import {
   type DuplicateInput,
   type DuplicateTier,
+  PUBLISHED_SQL,
   TIER_RANK,
   fold,
   joinNameParts,
@@ -85,16 +86,26 @@ function pairKey(idA: string, idB: string): string {
 
 export function createDuplicateService(driver: SqliteDriver): DuplicateService {
   /**
-   * Load every active person as a ready {@link DuplicateInput} (id kept alongside),
-   * with contacts indexed by owner and re-normalized defensively. Shared by
-   * {@link findCandidates} (pairwise) and {@link matchContact} (one-vs-all).
+   * Load every active **published** person as a ready {@link DuplicateInput} (id
+   * kept alongside), with contacts indexed by owner and re-normalized
+   * defensively. Shared by {@link findCandidates} (pairwise) and
+   * {@link matchContact} (one-vs-all).
+   *
+   * Unpublished people are out of the pool on purpose. They exist only as facts
+   * about somebody else and are offered by no picker, so the same name arriving
+   * twice means two different people — a "Jen" on one coworker and a "Jen" on
+   * another are not a pair to review, and with names now allowed to be a single
+   * word they would collide constantly. Detection is instead run at the moment
+   * one is promoted, when they first become someone the user can pick and there
+   * is a real question of whether they are already in the list.
    */
   async function loadInputs(): Promise<
     { id: string; input: DuplicateInput }[]
   > {
     const [people, emails, phones] = await Promise.all([
       driver.all<PersonRow>(
-        "SELECT id, first_name, last_name FROM people WHERE deleted_at IS NULL",
+        `SELECT id, first_name, last_name FROM people
+          WHERE deleted_at IS NULL AND ${PUBLISHED_SQL}`,
       ),
       driver.all<ContactRow>(
         `SELECT owner_id, normalized FROM email_addresses

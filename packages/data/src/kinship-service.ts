@@ -1,12 +1,16 @@
 import {
   type EntityType,
   type Gender,
+  type Person,
+  type Pet,
   type Relationship,
   type RelationshipNeighbor,
   type RelationshipRole,
   composeRoles,
+  entityLabel,
   genderedVariant,
   impliedGender,
+  isPublished,
   labelForRole,
 } from "@leapsake/schema";
 import type { DismissalsRepo } from "./dismissals-repo.js";
@@ -87,13 +91,22 @@ export function createKinshipService(
 ): KinshipService {
   const { people, pets, relationships, dismissals } = repos;
 
+  /** The row behind an endpoint, or undefined when it's gone/soft-deleted. Note
+   *  `get` does not filter on standing, so an unpublished endpoint resolves here
+   *  like any other — this service is reached from the page it appears on. */
+  async function getEntity(
+    type: EntityType,
+    id: string,
+  ): Promise<Person | Pet | undefined> {
+    return type === "person" ? people.get(id) : pets.get(id);
+  }
+
   /** The entity's explicit gender, or undefined when the entity is gone. */
   async function explicitGender(
     type: EntityType,
     id: string,
   ): Promise<Gender | null | undefined> {
-    if (type === "person") return (await people.get(id))?.gender;
-    return (await pets.get(id))?.gender;
+    return (await getEntity(type, id))?.gender;
   }
 
   /** Display label for an entity, or undefined when it's gone/soft-deleted. */
@@ -101,11 +114,38 @@ export function createKinshipService(
     type: EntityType,
     id: string,
   ): Promise<string | undefined> {
-    if (type === "person") {
-      const person = await people.get(id);
-      return person ? `${person.firstName} ${person.lastName}` : undefined;
-    }
-    return (await pets.get(id))?.name;
+    const entity = await getEntity(type, id);
+    // Through `entityLabel` rather than interpolating the name parts: every part
+    // is optional, so a surname-less person built by hand here would come out as
+    // " Davis" — with a leading space, on every relationship row that names them.
+    return entity === undefined ? undefined : entityLabel(type, entity);
+  }
+
+  /**
+   * Whether an endpoint is one of the user's own entities, and so eligible to
+   * take part in inference. An unpublished entity is not: it exists as a fact
+   * about the one person it is attached to, and belongs on that person's page
+   * alone. Left out of the walk in both directions — never a destination, never
+   * a route.
+   *
+   * This bites today. `compositionTable` composes `(parent, sibling) → pibling`,
+   * so an unpublished sibling of someone's parent would otherwise surface as a
+   * derived aunt or uncle on that someone's page — a second page, which is the
+   * whole thing the standing is meant to prevent.
+   *
+   * It also forecloses a worse version. The table deliberately omits
+   * `(parent, spouse) → parent`, noting it as a future addition; if that lands,
+   * every unpublished spouse becomes a derived parent of their partner's
+   * children. That inference is unsound anyway — Sam's wife need not be the
+   * mother of Sam's son — but this rule means adding it cannot leak an
+   * unpublished person onto anyone's page regardless.
+   */
+  async function takesPartInInference(
+    type: EntityType,
+    id: string,
+  ): Promise<boolean> {
+    const entity = await getEntity(type, id);
+    return entity !== undefined && isPublished(entity.standing);
   }
 
   async function genderFor(
@@ -136,26 +176,43 @@ export function createKinshipService(
   ): Promise<RelationshipNeighbor[]> {
     const neighbors: RelationshipNeighbor[] = [];
 
-    // 1. Explicit edges: orient each stored relationship to the subject.
+    // 1. Explicit edges: orient each stored relationship to the subject. These
+    //    are shown whatever the other end's standing — an unpublished entity
+    //    appears here, on the page of the one person it is a fact about, and
+    //    nowhere else.
     const explicitRels = await relationships.listForEntity(type, id);
     const explicitPairs = new Set<string>();
+    // Which of the subject's own neighbours are unpublished, noted while we have
+    // each row in hand so the derivation walk below needs no further reads.
+    const inertNeighbors = new Set<string>();
     for (const rel of explicitRels) {
       const o = orient(rel, type, id);
-      const otherLabel = await resolveLabel(o.otherType, o.otherId);
-      if (otherLabel === undefined) continue; // other end gone — skip
+      const other = await getEntity(o.otherType, o.otherId);
+      if (other === undefined) continue; // other end gone — skip
+      if (!isPublished(other.standing)) {
+        inertNeighbors.add(key(o.otherType, o.otherId));
+      }
       explicitPairs.add(key(o.otherType, o.otherId));
       const otherGender = (await genderFor(o.otherType, o.otherId)).value;
       neighbors.push({
         relationshipId: rel.id,
         otherType: o.otherType,
         otherId: o.otherId,
-        otherLabel,
+        otherLabel: entityLabel(o.otherType, other),
+        otherStanding: other.standing,
         otherRole: o.otherRole,
         otherRoleLabel: labelForRole(o.otherRole, otherGender),
         otherRoleNote: o.otherRoleNote,
         origin: "explicit",
       });
     }
+
+    // An unpublished subject stops here, with its one explicit edge. The rule is
+    // symmetric — such an entity is no more a *subject* of inference than a
+    // destination of it — and without this, opening the page of someone who is
+    // barely more than a name on a relationship would offer them a derived niece
+    // and nephew inferred through the one person they hang off.
+    if (!(await takesPartInInference(type, id))) return neighbors;
 
     // 2. Derived edges: a generic depth-capped walk over explicit edges, gathering
     //    candidates whose composed role is defined. `visited` (seeded with the
@@ -175,6 +232,12 @@ export function createKinshipService(
     const visited = new Set<string>([key(type, id)]);
     let frontier: Frontier[] = explicitRels
       .map((rel) => orient(rel, type, id))
+      // An unpublished neighbour is not a route. Under the one-edge rule it could
+      // not lead anywhere new anyway (its only edge is the one back to the
+      // subject, which `visited` already blocks), so this is belt-and-braces —
+      // but it states the rule where a reader will look for it, and it holds even
+      // for a row that somehow carries a second edge.
+      .filter((o) => !inertNeighbors.has(key(o.otherType, o.otherId)))
       .map((o) => ({
         type: o.otherType,
         id: o.otherId,
@@ -189,6 +252,10 @@ export function createKinshipService(
         for (const rel of mRels) {
           const o = orient(rel, m.type, m.id);
           if (visited.has(key(o.otherType, o.otherId))) continue;
+          // ...and not a destination — see `takesPartInInference`. Without this,
+          // an unpublished sibling of a parent composes into a derived pibling and
+          // shows up on a second person's page.
+          if (!(await takesPartInInference(o.otherType, o.otherId))) continue;
           const composed = composeRoles(m.roleRelSubject, o.otherRole);
           if (composed === undefined) continue;
           candidates.push({
@@ -252,6 +319,8 @@ export function createKinshipService(
         otherType: candidate.otherType,
         otherId: candidate.otherId,
         otherLabel,
+        // Always published: the walk above admits no other kind of endpoint.
+        otherStanding: "published",
         otherRole: genderedVariant(candidate.role, otherGender),
         otherRoleLabel: labelForRole(candidate.role, otherGender),
         otherRoleNote: null,

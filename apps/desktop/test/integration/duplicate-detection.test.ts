@@ -95,3 +95,44 @@ describe("createCore — duplicate detection", () => {
     expect(await core.duplicates.findCandidates()).toHaveLength(0);
   });
 });
+
+// Unpublished people are out of the pool. They exist only as facts about other
+// people and are offered by no picker, so the same name arriving twice means two
+// different people — one coworker's wife "Jen" and another's are not a pair to
+// review. With a single word now being a whole legal name, leaving them in would
+// have made every such name collide with every other.
+describe("createCore — duplicate detection and standing", () => {
+  it("does not pair two unpublished people who share a name", async () => {
+    await core.people.create({ firstName: "Jen", standing: "unpublished" }, []);
+    await core.people.create({ firstName: "Jen", standing: "unpublished" }, []);
+
+    expect(await core.duplicates.findCandidates()).toHaveLength(0);
+  });
+
+  it("does not pair an unpublished person with a published namesake", async () => {
+    await core.people.create({ firstName: "Jen", lastName: "Davis" }, []);
+    await core.people.create(
+      { firstName: "Jen", lastName: "Davis", standing: "unpublished" },
+      [],
+    );
+
+    expect(await core.duplicates.findCandidates()).toHaveLength(0);
+  });
+
+  // ...and the pair appears the moment she stops being only a fact about someone
+  // else, which is when the question "is she already in your list?" first has any
+  // meaning. Publishing is what runs detection over her.
+  it("pairs them once the unpublished one is published", async () => {
+    await core.people.create({ firstName: "Jen", lastName: "Davis" }, []);
+    const attached = await core.people.create(
+      { firstName: "Jen", lastName: "Davis", standing: "unpublished" },
+      [],
+    );
+
+    await core.people.update(attached.id, { standing: "published" }, []);
+
+    const candidates = await core.duplicates.findCandidates();
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].reasons).toContain('Same name "Jen Davis"');
+  });
+});

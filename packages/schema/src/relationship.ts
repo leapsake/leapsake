@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Gender } from "./gender.js";
+import type { Standing } from "./standing.js";
 
 /**
  * The kinds of entity a relationship can connect. Both values are defined up
@@ -618,6 +619,14 @@ export interface RelationshipNeighbor {
   otherType: EntityType;
   otherId: string;
   otherLabel: string;
+  /**
+   * Where the other end stands in the user's catalog. Only ever `unpublished` on
+   * an **explicit** edge — an unpublished entity takes no part in inference — and
+   * when it is, this edge is the only reason that entity exists. The row that
+   * renders it needs to know, because removing such an edge takes the entity with
+   * it rather than merely unlinking two people who both carry on existing.
+   */
+  otherStanding: Standing;
   otherRole: RelationshipRole;
   otherRoleLabel: string;
   otherRoleNote: string | null;
