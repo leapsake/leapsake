@@ -70,6 +70,12 @@ function pathFor(hit: SearchHit): string {
  * search field". Arrival is still announced by the tab — "Search, tab, 2 of 4" —
  * which is the sentence a screen reader user actually hears on the way in.
  *
+ * The 🔍 is a **sibling** of the field, not part of its text: it has to outlive
+ * the placeholder, and a value read back to a user or sent to `query` must never
+ * begin with an emoji. So the box moves out to a row that wears it, and the
+ * `TextInput` inside keeps everything else — both composed from `styles.input`
+ * rather than copied out of it, so the field can't drift from the app's others.
+ *
  * Nothing here opts into `useHeaderScroll`: there is no title left to collapse.
  *
  * ### Arriving already narrowed
@@ -159,23 +165,44 @@ export default function SearchScreen() {
         },
       ]}
     >
-      <TextInput
-        ref={inputRef}
-        style={styles.input}
-        value={term}
-        onChangeText={setTerm}
-        placeholder="Search…"
-        placeholderTextColor={colors.muted}
-        // The placeholder is what a sighted user reads and the label is what a
-        // screen reader hears; both are needed, because the placeholder is gone
-        // from the accessible name as soon as there is a value to read instead.
-        accessibilityLabel="Search"
-        accessibilityRole="search"
-        returnKeyType="search"
-        autoCorrect={false}
-        autoCapitalize="none"
-        clearButtonMode="while-editing"
-      />
+      {/* A `Pressable` rather than a `View` so the strip under the glyph focuses
+          the field, as every other part of the box already does — a dead 30pt at
+          the head of a search field would be a small, constant surprise. It is
+          `accessible={false}` so it adds no stop of its own: the `TextInput`
+          inside stays the one element here. */}
+      <Pressable
+        accessible={false}
+        style={[styles.input, local.field]}
+        onPress={() => inputRef.current?.focus()}
+      >
+        {/* Decorative, and hidden from both platforms' screen readers (iOS reads
+            the first prop, Android the second): it says "search", which the
+            field's own label and role have already said properly. */}
+        <Text
+          style={local.glyph}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          🔍
+        </Text>
+        <TextInput
+          ref={inputRef}
+          style={[styles.input, local.fieldInput]}
+          value={term}
+          onChangeText={setTerm}
+          placeholder="Search…"
+          placeholderTextColor={colors.muted}
+          // The placeholder is what a sighted user reads and the label is what a
+          // screen reader hears; both are needed, because the placeholder is gone
+          // from the accessible name as soon as there is a value to read instead.
+          accessibilityLabel="Search"
+          accessibilityRole="search"
+          returnKeyType="search"
+          autoCorrect={false}
+          autoCapitalize="none"
+          clearButtonMode="while-editing"
+        />
+      </Pressable>
 
       {/* The active narrowing, and the way out of it. Above the results rather
           than beside the field, so it reads as a statement about what is listed
@@ -250,6 +277,29 @@ export default function SearchScreen() {
 const local = StyleSheet.create({
   browse: {
     gap: 16,
+  },
+  /**
+   * The row that wears `styles.input`'s box, with the glyph at its head. It adds
+   * only the arrangement: the padding it inherits from the box is what sets the
+   * height, so the field is exactly as tall as it was before the glyph.
+   */
+  field: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  glyph: {
+    fontSize: 17,
+  },
+  /** The field itself: `styles.input` minus the box the row now wears. */
+  fieldInput: {
+    flex: 1,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    paddingHorizontal: 0,
+    // Android's `TextInput` carries its own default padding; without this the
+    // text would sit lower than the glyph beside it.
+    paddingVertical: 0,
   },
   chip: {
     alignSelf: "flex-start",
