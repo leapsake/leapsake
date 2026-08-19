@@ -10,13 +10,13 @@ import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
 /**
- * A staged relationship: everything `createFromSubject` needs bar the subject,
- * plus the other end's label, resolved at pick time so a row can name it without
+ * A staged relationship: everything the write needs bar the subject, plus the
+ * other end's label, resolved at pick time so a row can name it without
  * re-consulting the candidate list.
  */
-export interface StagedRelationship extends RelationshipFormValue {
+export type StagedRelationship = RelationshipFormValue & {
   otherLabel: string;
-}
+};
 
 /** The role shown for a staged row: the free-text note for "other", else the label. */
 function roleText(entry: StagedRelationship): string {
@@ -28,14 +28,16 @@ function roleText(entry: StagedRelationship): string {
 /**
  * Relationships on the **create** screen — the staged counterpart to
  * {@link RelationshipsSection}, held in an array until the subject has an id and
- * then written through `core.relationships.createFromSubject`. See
- * {@link StagedMilestonesSection} for why staging works this way, and desktop's
- * `RelationshipFields` for the same section on that client.
+ * then written by `app/add.tsx`. See {@link StagedMilestonesSection} for why
+ * staging works this way, and desktop's `RelationshipFields` for the same section
+ * on that client.
  *
- * Only the *subject* is unsaved: the other end is always an existing person or
- * pet, so a row is fully resolved the moment it's picked. That's why this can be
- * offered at creation at all — "add a pet plus its owner in one go" needs one new
- * entity, not two. (Relating two brand-new people still takes two passes.)
+ * A row is fully resolved the moment it's picked, which is what lets it be staged
+ * at all: the other end is either an existing person or pet, or a name typed past
+ * the end of the list, and neither needs the subject to exist. Only the *subject*
+ * is unsaved. So "add a pet, its owner, and the owner's wife" is one pass;
+ * relating two brand-new **published** people still takes two, since only one new
+ * entity per pass can be the one this form is creating.
  *
  * Candidates come from `core.views.candidates()` rather than
  * `views.relationshipNew`, which needs a subject id to exclude. Nothing needs
@@ -107,13 +109,17 @@ export function StagedRelationshipsSection({
             submitLabel="Add"
             onCancel={() => setAdding(false)}
             onSubmit={async (value) => {
-              const other = candidates.find(
-                (c) => c.type === value.otherType && c.id === value.otherId,
-              );
-              onChange([
-                ...entries,
-                { ...value, otherLabel: other?.label ?? "" },
-              ]);
+              // A staged row names its other end so it can be read back without
+              // re-consulting the candidate list. For somebody being named for
+              // the first time, that name *is* the label.
+              const otherLabel =
+                value.other === "new"
+                  ? value.otherName
+                  : (candidates.find(
+                      (c) =>
+                        c.type === value.otherType && c.id === value.otherId,
+                    )?.label ?? "");
+              onChange([...entries, { ...value, otherLabel }]);
               setAdding(false);
             }}
           />

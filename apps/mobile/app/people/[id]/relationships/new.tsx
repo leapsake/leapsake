@@ -64,11 +64,20 @@ export default function PersonRelationshipNewScreen() {
       }
       initialRole={candidate ? otherRole : undefined}
       onSubmit={async (value) => {
-        await core.relationships.createFromSubject({
-          subjectType: "person",
-          subjectId: id,
-          ...value,
-        });
+        // Two calls, because the other end is either somebody already in the
+        // list or somebody being named for the first time — the second creates
+        // them as a fact about this person and nothing more.
+        await (value.other === "existing"
+          ? core.relationships.createFromSubject({
+              subjectType: "person",
+              subjectId: id,
+              ...value,
+            })
+          : core.relationships.createWithNewOther({
+              subjectType: "person",
+              subjectId: id,
+              ...value,
+            }));
         router.back();
       }}
     />

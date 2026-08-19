@@ -42,6 +42,7 @@ export function Typeahead<T>({
   minChars = 2,
   multi = false,
   exclude,
+  createOptions,
 }: {
   label: string;
   value: T | null;
@@ -60,6 +61,16 @@ export function Typeahead<T>({
   multi?: boolean;
   /** Keys already chosen — dropped from suggestions so nothing can be added twice. */
   exclude?: ReadonlySet<string>;
+  /**
+   * Extra options built from what has been typed, listed **after** the matches —
+   * how a picker offers to create the thing you were looking for.
+   *
+   * Offered alongside matches rather than only when there are none: typing "Jen"
+   * when a "Jenny" exists is still allowed to mean a new Jen. They are ordinary
+   * options, so they pick, reset the query and close the field exactly as a real
+   * match does, and the caller tells the two apart by what it built.
+   */
+  createOptions?: (query: string) => readonly T[];
 }) {
   const [editing, setEditing] = useState(false);
   const [query, setQuery] = useState("");
@@ -100,7 +111,8 @@ export function Typeahead<T>({
     );
   }
 
-  const q = query.trim().toLowerCase();
+  const typed = query.trim();
+  const q = typed.toLowerCase();
   const matches =
     q.length < minChars
       ? []
@@ -111,6 +123,12 @@ export function Typeahead<T>({
               exclude?.has(getKey(o)) !== true,
           )
           .slice(0, 20);
+  // Built from the untrimmed-case text, since it becomes a name rather than a
+  // search key. Last, so the real matches are what the eye lands on first.
+  const offered =
+    q.length < minChars
+      ? matches
+      : [...matches, ...(createOptions?.(typed) ?? [])];
 
   return (
     <View style={styles.field}>
@@ -123,10 +141,10 @@ export function Typeahead<T>({
         placeholderTextColor={colors.muted}
         autoCorrect={false}
       />
-      {q.length < minChars ? null : matches.length === 0 ? (
+      {q.length < minChars ? null : offered.length === 0 ? (
         <Text style={styles.muted}>No matches.</Text>
       ) : (
-        matches.map((option) => (
+        offered.map((option) => (
           <Pressable
             key={getKey(option)}
             accessibilityRole="button"

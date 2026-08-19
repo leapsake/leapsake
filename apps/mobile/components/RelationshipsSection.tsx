@@ -56,9 +56,17 @@ export function RelationshipsSection({
               neighbor.otherId,
               baseRole(neighbor.otherRole),
             );
+    // An unpublished other end exists *because* of this edge and nothing else —
+    // removing it takes them with it, so the confirm must not promise otherwise.
+    // Everyone else carries on existing, which is the reassurance this line has
+    // always been here to give.
+    const consequence =
+      neighbor.otherStanding === "unpublished"
+        ? `${neighbor.otherLabel} is only recorded here, so this removes them too.`
+        : `This does not delete ${neighbor.otherLabel}.`;
     Alert.alert(
       "Remove relationship",
-      `Remove ${neighbor.otherLabel} (${roleText(neighbor)})? This does not delete ${neighbor.otherLabel}.`,
+      `Remove ${neighbor.otherLabel} (${roleText(neighbor)})? ${consequence}`,
       [
         { text: "Cancel", style: "cancel" },
         {

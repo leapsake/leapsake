@@ -69,8 +69,9 @@ import { styles } from "../lib/styles";
  * first and then walking into a section on the detail page. They're held in
  * memory and written immediately after the entity exists, since every one of them
  * is keyed to a bearer id that doesn't exist until then. A relationship's *other*
- * end is an already-saved person or pet, so it stages like the rest; only relating
- * two brand-new entities still needs two passes.
+ * end needs nothing from the subject either — it is an already-saved person or
+ * pet, or a name typed past the end of the list, which becomes an unpublished
+ * entity when the batch is written — so it stages like the rest.
  *
  * Gifts are the one section with a **forward reference** inside the form. A gift's
  * occasion points at a milestone or holiday by id; a staged holiday's id is real
@@ -408,14 +409,24 @@ async function writeExtras(
   }
 
   // The new entity is the subject; core implies its own role from the picked
-  // other-end role, exactly as the add-relationship screen's save does.
+  // other-end role, exactly as the add-relationship screen's save does — including
+  // the branch for an other end that doesn't exist yet, which is created here as a
+  // fact about the entity this form just made. So "add a pet, its owner, and the
+  // owner's wife" is one pass after all; only relating two *published* new people
+  // still takes two.
   for (const { otherLabel, ...value } of relationships) {
     try {
-      await core.relationships.createFromSubject({
-        subjectType: bearerType,
-        subjectId: bearerId,
-        ...value,
-      });
+      await (value.other === "existing"
+        ? core.relationships.createFromSubject({
+            subjectType: bearerType,
+            subjectId: bearerId,
+            ...value,
+          })
+        : core.relationships.createWithNewOther({
+            subjectType: bearerType,
+            subjectId: bearerId,
+            ...value,
+          }));
     } catch {
       failed.push(otherLabel);
     }

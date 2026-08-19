@@ -64,11 +64,19 @@ export default function PetRelationshipNewScreen() {
       }
       initialRole={candidate ? otherRole : undefined}
       onSubmit={async (value) => {
-        await core.relationships.createFromSubject({
-          subjectType: "pet",
-          subjectId: id,
-          ...value,
-        });
+        // See the Person twin: an other end that isn't in the list yet is
+        // created alongside the edge, unpublished.
+        await (value.other === "existing"
+          ? core.relationships.createFromSubject({
+              subjectType: "pet",
+              subjectId: id,
+              ...value,
+            })
+          : core.relationships.createWithNewOther({
+              subjectType: "pet",
+              subjectId: id,
+              ...value,
+            }));
         router.back();
       }}
     />

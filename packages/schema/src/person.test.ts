@@ -94,7 +94,7 @@ describe("personSchema", () => {
   // predates it decodes as one of the user's own people rather than failing
   // validation — sync's `decode` runs this very schema over the payload.
   it("defaults an absent standing to published", () => {
-    const { standing, ...withoutStanding } = validPerson;
+    const { standing: _omitted, ...withoutStanding } = validPerson;
     expect(personSchema.parse(withoutStanding).standing).toBe("published");
   });
 

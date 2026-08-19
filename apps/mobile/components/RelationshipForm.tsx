@@ -14,12 +14,35 @@ import { styles } from "../lib/styles";
 /** A role option as the shared {@link Typeahead} carries it. */
 type RoleOption = { role: RelationshipRole; label: string };
 
-/** The structured value the form hands back; the screen supplies subject + call. */
-export interface RelationshipFormValue {
+/**
+ * The structured value the form hands back; the screen supplies subject + call.
+ *
+ * The other end is either somebody already in the list or somebody who isn't,
+ * named on the spot — the two need different core calls (`createFromSubject`
+ * versus `createWithNewOther`), so they are different shapes here rather than an
+ * id that is sometimes empty.
+ */
+export type RelationshipFormValue = {
   otherType: EntityType;
-  otherId: string;
   otherRole: RelationshipRole;
   otherRoleNote: string | null;
+} & (
+  | { other: "existing"; otherId: string }
+  | { other: "new"; otherName: string }
+);
+
+/** What the Name picker holds: a candidate, or a name typed past the end of the
+ *  list. Both carry a `label`, which is all the picker itself renders. */
+type OtherOption =
+  | { kind: "existing"; type: EntityType; id: string; label: string }
+  | { kind: "new"; type: EntityType; name: string; label: string };
+
+/** A stable key per option; the `new` rows key on type so the two offered for one
+ *  typed name don't collide. */
+function otherKey(option: OtherOption): string {
+  return option.kind === "existing"
+    ? `existing:${option.type}:${option.id}`
+    : `new:${option.type}`;
 }
 
 /** The fixed other end when adding/materialising/editing against a known entity. */
@@ -43,13 +66,20 @@ export interface LockedOther {
  * the other forms, this only collects input — the caller owns the
  * `core.relationships.*` call — and hands back a {@link RelationshipFormValue}.
  *
+ * The Name picker offers the people and pets already in the list, and beneath
+ * them the option to add whatever has been typed as somebody new. That second
+ * kind is how an unpublished entity comes about — a coworker's wife, existing as
+ * a fact about him and nothing else — and it is why the form's value is a union:
+ * the two need different core calls. Both entity types are offered for a new
+ * name, because the role list depends on which it is.
+ *
  * With `inline` it renders into the caller's layout rather than owning the
  * screen — no scroll view of its own, since nesting one inside another of the
  * same orientation silently breaks scrolling. That is how the create screen
  * (app/add.tsx) stages a relationship for a subject that doesn't exist yet: the
- * other end is an already-saved person or pet either way, so the picker, the
- * pair-dependent role list, and the `other` note rule are all identical; only
- * the subject id is missing, and it arrives before the write.
+ * other end never depends on the subject, so the picker, the pair-dependent role
+ * list, and the `other` note rule are all identical; only the subject id is
+ * missing, and it arrives before the write.
  *
  * The two modes carry the submit action in different places, which is what splits
  * the props. On its own screen it declares the native header — `title` plus a
@@ -85,9 +115,14 @@ export function RelationshipForm({
   /** Render without the screen-owning scroll view, for embedding in a form. */
   inline?: boolean;
 }) {
-  const [selected, setSelected] = useState<RelationshipCandidate | null>(
+  const [selected, setSelected] = useState<OtherOption | null>(
     lockedOther
-      ? { type: lockedOther.type, id: lockedOther.id, label: lockedOther.label }
+      ? {
+          kind: "existing",
+          type: lockedOther.type,
+          id: lockedOther.id,
+          label: lockedOther.label,
+        }
       : null,
   );
   const [role, setRole] = useState<RelationshipRole | null>(
@@ -121,12 +156,16 @@ export function RelationshipForm({
     if (!canSubmit || selected === null || role === null) return;
     setSubmitting(true);
     try {
-      await onSubmit({
+      const common = {
         otherType: selected.type,
-        otherId: selected.id,
         otherRole: role,
         otherRoleNote: noteRequired ? note.trim() : null,
-      });
+      };
+      await onSubmit(
+        selected.kind === "existing"
+          ? { ...common, other: "existing", otherId: selected.id }
+          : { ...common, other: "new", otherName: selected.name },
+      );
     } finally {
       setSubmitting(false);
     }
@@ -160,24 +199,49 @@ export function RelationshipForm({
           <Text style={styles.fieldValue}>{lockedOther.label}</Text>
         </View>
       ) : (
-        <Typeahead<RelationshipCandidate>
+        <Typeahead<OtherOption>
           label="Name"
           value={selected}
-          options={candidates ?? []}
+          options={(candidates ?? []).map((c) => ({
+            kind: "existing" as const,
+            type: c.type,
+            id: c.id,
+            label: c.label,
+          }))}
+          // Somebody not in the list yet: typing their name and picking one of
+          // these rows creates them alongside the relationship, as a person who
+          // exists only as this fact about the subject. Both entity types are
+          // offered because the role list below depends on which it is, so the
+          // question can't be deferred — and because a coworker's dog is as
+          // legitimate a thing to record as their wife.
+          createOptions={(typed) => [
+            {
+              kind: "new" as const,
+              type: "person" as const,
+              name: typed,
+              label: `Add "${typed}" as a new person`,
+            },
+            {
+              kind: "new" as const,
+              type: "pet" as const,
+              name: typed,
+              label: `Add "${typed}" as a new pet`,
+            },
+          ]}
           // Re-picking the name invalidates the role (it's pair-dependent).
-          onChange={(candidate) => {
-            setSelected(candidate);
+          onChange={(option) => {
+            setSelected(option);
             setRole(null);
           }}
-          getKey={(c) => `${c.type}:${c.id}`}
-          getLabel={(c) => c.label}
+          getKey={otherKey}
+          getLabel={(o) => o.label}
         />
       )}
 
       {selected !== null ? (
         <Typeahead<RoleOption>
           // Remount on a name change so the role's live query resets.
-          key={selected.id}
+          key={otherKey(selected)}
           label="Role"
           value={selectedRole}
           options={roleOptions}
