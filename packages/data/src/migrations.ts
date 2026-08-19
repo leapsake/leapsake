@@ -960,6 +960,30 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 31,
+    async up(driver) {
+      // Where an entity stands in the user's catalog (`standingSchema`). The one
+      // value in use besides the default is `unpublished`: someone who exists
+      // only as a fact about a published person — a coworker's wife, recorded as
+      // a name on the relationship — who is kept out of People & Pets, out of
+      // every picker, and out of duplicate detection until they become more than
+      // that. `draft` is reserved and nothing writes it yet.
+      //
+      // `NOT NULL DEFAULT 'published'` is what makes this a one-line ALTER
+      // instead of another rebuild: every row that already exists is one of the
+      // user's own people, which is exactly what the default says.
+      //
+      // Deliberately **no** index. Both tables are small (a personal address
+      // book), the catalog read is a full scan either way, and an index on a
+      // column with two values and a 99%-`published` distribution would earn
+      // nothing while costing a write on every update.
+      await driver.exec(`
+        ALTER TABLE people ADD COLUMN standing TEXT NOT NULL DEFAULT 'published';
+        ALTER TABLE pets   ADD COLUMN standing TEXT NOT NULL DEFAULT 'published';
+      `);
+    },
+  },
 ];
 
 /**

@@ -104,6 +104,19 @@ export function createEntityRepo<T extends SyncRow>(opts: {
   schema: ParsableSchema<T>;
   /** `list()` ORDER BY clause (raw SQL, snake_case), e.g. "last_name, first_name". */
   orderBy?: string;
+  /**
+   * An extra `WHERE` fragment (raw snake_case SQL, no parameters) that `list()`
+   * applies on top of the not-deleted rule.
+   *
+   * For the two tables carrying a `standing` this is how the catalog read leaves
+   * out entities that exist only as facts about other entities — declared once
+   * here rather than remembered at each of the call sites that build a list of
+   * people and pets. Only `list()` narrows: {@link EntityRepo.get} still fetches
+   * such a row by id (the page it appears on has to render it),
+   * {@link EntityRepo.listWhere} still reaches it with an explicit query, and the
+   * sync collector is untouched, so it still replicates.
+   */
+  listOnly?: string;
   /** Override the column list (default: the schema's field names). Rarely needed. */
   fields?: readonly string[];
   /** Fields stored as 0/1 because SQLite has no boolean type. */
@@ -161,7 +174,8 @@ export function createEntityRepo<T extends SyncRow>(opts: {
       return validated;
     },
 
-    list: () => listWhere({ where: "1 = 1", params: [], orderBy }),
+    list: () =>
+      listWhere({ where: opts.listOnly ?? "1 = 1", params: [], orderBy }),
 
     async update(id, patch) {
       const existing = await get(id);

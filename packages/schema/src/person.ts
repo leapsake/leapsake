@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { genderSchema } from "./gender.js";
+import { standingColumnSchema, standingSchema } from "./standing.js";
 
 /**
  * The three parts of a person's name, every one of them optional.
@@ -62,6 +63,10 @@ export const personSchema = z
     id: z.uuid(),
     ...nameParts,
     gender: genderSchema.nullable(), // explicit gender; null when unset
+    // Whether this is one of the user's own people or someone who exists only as
+    // a fact about one. Defaulted rather than required, which is what lets a row
+    // pulled from a peer that predates the column decode as `published`.
+    standing: standingColumnSchema,
     createdAt: z.number().int(), // epoch ms, UTC
     updatedAt: z.number().int(), // epoch ms, UTC
     deletedAt: z.number().int().nullable(),
@@ -78,6 +83,7 @@ export type Person = z.infer<typeof personSchema>;
 const personInputBase = z.object({
   ...optionalNameParts,
   gender: genderSchema.nullable().optional(),
+  standing: standingSchema.optional(),
 });
 
 /** Input accepted when creating a Person; the repository fills the rest. */

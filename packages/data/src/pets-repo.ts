@@ -1,4 +1,5 @@
 import {
+  PUBLISHED_SQL,
   type CreatePetInput,
   type Pet,
   type UpdatePetInput,
@@ -26,18 +27,25 @@ export function createPetsRepo(driver: SqliteDriver): PetsRepo {
     table: "pets",
     schema: petSchema,
     orderBy: "name",
+    // The catalog holds the user's own pets; see the People repo's note.
+    listOnly: PUBLISHED_SQL,
   });
 
   return {
     ...base,
 
     async create(input) {
-      const { name, gender = null } = createPetInputSchema.parse(input);
+      const {
+        name,
+        gender = null,
+        standing = "published",
+      } = createPetInputSchema.parse(input);
       const now = Date.now();
       return base.insert({
         id: crypto.randomUUID(),
         name,
         gender,
+        standing,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,

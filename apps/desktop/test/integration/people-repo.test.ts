@@ -209,3 +209,83 @@ describe("peopleRepo — partial names", () => {
     ]);
   });
 });
+
+// An unpublished person exists only as a fact about a published one, so they are
+// no part of the user's catalog — but they are ordinary, durable, replicating
+// data, which is what separates them from a draft.
+describe("peopleRepo — standing", () => {
+  it("defaults a created person to published", async () => {
+    const created = await repo.create({ firstName: "Ada", lastName: "L" });
+    expect(created.standing).toBe("published");
+  });
+
+  it("leaves an unpublished person out of the catalog list", async () => {
+    await repo.create({ firstName: "Sam", lastName: "Carter" });
+    await repo.create({ firstName: "Jen", standing: "unpublished" });
+
+    expect((await repo.list()).map((p) => p.firstName)).toEqual(["Sam"]);
+  });
+
+  // The page they appear on has to render them, and it reaches them by id — so
+  // `list` narrowing must not narrow `get` with it.
+  it("still returns an unpublished person by id", async () => {
+    const jen = await repo.create({
+      firstName: "Jen",
+      standing: "unpublished",
+    });
+    expect(await repo.get(jen.id)).toEqual(jen);
+  });
+
+  it("reaches unpublished rows through an explicit query", async () => {
+    await repo.create({ firstName: "Jen", standing: "unpublished" });
+    const found = await repo.listWhere({
+      where: "standing = ?",
+      params: ["unpublished"],
+    });
+    expect(found.map((p) => p.firstName)).toEqual(["Jen"]);
+  });
+
+  // Sync collects through `listChangedSince`, not `list()`, which is what keeps
+  // an unpublished person on every one of the user's devices. Being hidden from
+  // the catalog is a reading rule, not a reason to withhold the row.
+  it("offers an unpublished person to the sync collector", async () => {
+    const jen = await repo.create({
+      firstName: "Jen",
+      standing: "unpublished",
+    });
+    const changed = await repo.listChangedSince(0);
+    expect(changed.map((p) => p.id)).toContain(jen.id);
+  });
+
+  it("promotes and demotes through a plain update", async () => {
+    const jen = await repo.create({
+      firstName: "Jen",
+      standing: "unpublished",
+    });
+
+    const promoted = await repo.update(jen.id, { standing: "published" });
+    expect(promoted?.standing).toBe("published");
+    expect((await repo.list()).map((p) => p.firstName)).toEqual(["Jen"]);
+
+    await repo.update(jen.id, { standing: "unpublished" });
+    expect(await repo.list()).toEqual([]);
+  });
+
+  // The bug this guards: `standingColumnSchema` carries a default, and a
+  // defaulted schema fills itself in even under `.optional()`. An update input
+  // built from it would stamp "published" onto every patch, so correcting an
+  // unpublished person's spelling would publish them.
+  it("does not republish an unpublished person on an unrelated edit", async () => {
+    const jen = await repo.create({
+      firstName: "Jen",
+      standing: "unpublished",
+    });
+
+    const renamed = await repo.update(jen.id, { lastName: "Davis" });
+    expect(renamed?.standing).toBe("unpublished");
+
+    const gendered = await repo.update(jen.id, { gender: "female" });
+    expect(gendered?.standing).toBe("unpublished");
+    expect(await repo.list()).toEqual([]);
+  });
+});

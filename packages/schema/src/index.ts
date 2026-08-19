@@ -220,6 +220,13 @@ export { fullName, joinNameParts, entityLabel, tagLabel } from "./labels.js";
 export { genderSchema, genderLabel } from "./gender.js";
 export type { Gender } from "./gender.js";
 export {
+  PUBLISHED_SQL,
+  isPublished,
+  standingColumnSchema,
+  standingSchema,
+} from "./standing.js";
+export type { Standing } from "./standing.js";
+export {
   entityTypeSchema,
   relationshipRoleSchema,
   relationshipSchema,

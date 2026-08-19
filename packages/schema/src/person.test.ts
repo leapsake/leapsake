@@ -11,6 +11,7 @@ const validPerson = {
   middleName: null,
   lastName: "Lovelace",
   gender: null,
+  standing: "published" as const,
   createdAt: Date.now(),
   updatedAt: Date.now(),
   deletedAt: null,
@@ -86,6 +87,25 @@ describe("personSchema", () => {
         middleName: null,
         lastName: null,
       }),
+    ).toThrow();
+  });
+
+  // The column carries a default so that a record pulled from a peer that
+  // predates it decodes as one of the user's own people rather than failing
+  // validation — sync's `decode` runs this very schema over the payload.
+  it("defaults an absent standing to published", () => {
+    const { standing, ...withoutStanding } = validPerson;
+    expect(personSchema.parse(withoutStanding).standing).toBe("published");
+  });
+
+  it("accepts an unpublished standing", () => {
+    const unpublished = { ...validPerson, standing: "unpublished" as const };
+    expect(personSchema.parse(unpublished)).toEqual(unpublished);
+  });
+
+  it("rejects an unknown standing", () => {
+    expect(() =>
+      personSchema.parse({ ...validPerson, standing: "sort-of" }),
     ).toThrow();
   });
 
@@ -170,6 +190,21 @@ describe("updatePersonInputSchema", () => {
   it("accepts a patch clearing one name part", () => {
     expect(updatePersonInputSchema.parse({ lastName: null })).toEqual({
       lastName: null,
+    });
+  });
+
+  // A patch must say nothing about standing unless it was asked to. The row
+  // schema's `standing` is defaulted, and a defaulted schema fills itself in even
+  // under `.optional()` — so an input built from *that* one would stamp
+  // `standing: "published"` onto every edit and quietly republish an unpublished
+  // person who had their name corrected. Hence two schemas; this is the test that
+  // notices if they're ever collapsed back into one.
+  it("leaves standing alone unless the patch sets it", () => {
+    expect(updatePersonInputSchema.parse({ firstName: "Jen" })).toEqual({
+      firstName: "Jen",
+    });
+    expect(updatePersonInputSchema.parse({ standing: "published" })).toEqual({
+      standing: "published",
     });
   });
 });

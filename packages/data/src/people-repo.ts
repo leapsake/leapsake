@@ -1,4 +1,5 @@
 import {
+  PUBLISHED_SQL,
   type CreatePersonInput,
   type Person,
   type UpdatePersonInput,
@@ -30,6 +31,12 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
     // as somebody's spouse — in a block at the top under NULL. Sort each person
     // by whichever part they actually have.
     orderBy: "COALESCE(last_name, first_name, middle_name), first_name",
+    // `list()` is the user's catalog, so it holds only the user's own people —
+    // an unpublished person belongs to whoever they're a fact about, and is read
+    // from there by id. This one line is what keeps them out of People & Pets,
+    // out of every relationship and observer picker, and out of duplicate
+    // detection, all of which build their lists from here.
+    listOnly: PUBLISHED_SQL,
   });
 
   return {
@@ -41,6 +48,9 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
         middleName = null,
         lastName = null,
         gender = null,
+        // Spelled out rather than left to the schema's default, because the row
+        // this assembles is typed as a complete Person.
+        standing = "published",
       } = createPersonInputSchema.parse(input);
       const now = Date.now();
       return base.insert({
@@ -49,6 +59,7 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
         middleName,
         lastName,
         gender,
+        standing,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
