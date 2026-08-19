@@ -15,6 +15,13 @@ mechanism exists (`scripts/set-version.mjs`); only the choice is missing.
 ⚠️ **The two long clocks have not started** — Apple enrollment, Play enrollment, the 12-tester
 list. Zero effort, weeks of latency, gate 05 and 07. The real critical path.
 
+**Contact methods reach people** — shipped 2026-08-19, unpushed. Rows are tappable on mobile
+(primary action + `⋯` sheet), a fourth `social` kind with an open platform list
+(`@leapsake/contact-links`), and phones carry `reachableOn` for WhatsApp/Signal. Left: the URL
+templates are convention, not verified — **confirm on real hardware with the apps installed**,
+which also needs a native rebuild for `LSApplicationQueriesSchemes`. `expo-contacts`
+socialProfiles are still unmapped (a `getAllDetails` change).
+
 ## Mobile gates — **all green on both platforms**, 2026-08-18
 
 The three that were red or blocked are fixed; `pnpm test:native` passes end to end. The one
