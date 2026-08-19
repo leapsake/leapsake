@@ -1,4 +1,5 @@
 import {
+  PUBLISHED_SQL,
   type SearchHit,
   type SearchResultType,
   digits,
@@ -66,6 +67,21 @@ interface PersonRow {
 interface PetRow {
   id: string;
   name: string;
+}
+/**
+ * An entity that exists only as a fact about another, joined to that other one.
+ * Person and pet arrive down the same pipe, so the name columns of whichever it
+ * isn't come back null.
+ */
+interface AttachedRow {
+  id: string;
+  type: string;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+  pet_name: string | null;
+  anchor_type: string;
+  anchor_id: string;
 }
 /** The contact-method columns search matches (`normalized`) and displays (`address`). */
 interface EmailMatchRow {
@@ -170,11 +186,18 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       birthdays,
       holidays,
       giftIdeas,
+      attached,
     ] = await Promise.all([
+      // Published only: an unpublished entity is not a result of its own. It is
+      // still findable, but as a fact about the person it belongs to — see
+      // `attached` below.
       driver.all<PersonRow>(
-        "SELECT id, first_name, middle_name, last_name FROM people WHERE deleted_at IS NULL",
+        `SELECT id, first_name, middle_name, last_name FROM people
+          WHERE deleted_at IS NULL AND ${PUBLISHED_SQL}`,
       ),
-      driver.all<PetRow>("SELECT id, name FROM pets WHERE deleted_at IS NULL"),
+      driver.all<PetRow>(
+        `SELECT id, name FROM pets WHERE deleted_at IS NULL AND ${PUBLISHED_SQL}`,
+      ),
       driver.all<EmailMatchRow>(
         "SELECT owner_type, owner_id, address, normalized FROM email_addresses WHERE deleted_at IS NULL",
       ),
@@ -207,6 +230,32 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       ),
       driver.all<GiftIdeaRow>(
         "SELECT id, title, url FROM gift_ideas WHERE deleted_at IS NULL",
+      ),
+      // Entities that exist only as a fact about somebody else, joined to the
+      // somebody. Searching "Jen" has to find your coworker — she is on his page
+      // and nowhere else, so his row is the only place a result could lead. The
+      // `CASE`s orient each edge: the anchor is whichever end isn't the entity.
+      driver.all<AttachedRow>(
+        `SELECT e.id, e.type, e.first_name, e.middle_name, e.last_name,
+                e.pet_name, r.anchor_type, r.anchor_id
+           FROM (
+             SELECT id, 'person' AS type, first_name, middle_name, last_name,
+                    NULL AS pet_name
+               FROM people
+              WHERE deleted_at IS NULL AND standing = 'unpublished'
+             UNION ALL
+             SELECT id, 'pet' AS type, NULL, NULL, NULL, name
+               FROM pets
+              WHERE deleted_at IS NULL AND standing = 'unpublished'
+           ) e
+           JOIN (
+             SELECT a_type AS self_type, a_id AS self_id,
+                    b_type AS anchor_type, b_id AS anchor_id
+               FROM relationships WHERE deleted_at IS NULL
+             UNION ALL
+             SELECT b_type, b_id, a_type, a_id
+               FROM relationships WHERE deleted_at IS NULL
+           ) r ON r.self_type = e.type AND r.self_id = e.id`,
       ),
     ]);
 
@@ -351,6 +400,22 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         matchQuality,
       );
     };
+
+    // Someone who exists only as a fact about somebody else matches as a facet of
+    // that somebody, exactly the way a phone number or a tag does: searching
+    // "Jen" turns up your coworker's row, explained by the relationship, because
+    // his page is the only place she can be read. Runs after the entity passes
+    // above, which is what has filled `titleByEntity` with the anchors.
+    for (const row of attached) {
+      const name =
+        row.type === "person"
+          ? joinNameParts(row.first_name, row.middle_name, row.last_name)
+          : (row.pet_name ?? "");
+      if (name === "") continue;
+      const q = quality(fold(name), folded);
+      if (q === QUALITY_NONE) continue;
+      addOwnerHit(row.anchor_type, row.anchor_id, "relationship", name, q);
+    }
 
     // Email: forward substring of the normalized address. Any query of sufficient
     // length can match (typing "jane" lighting up jane@… and merging with the

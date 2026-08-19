@@ -6,6 +6,7 @@ import {
   type MilestonesRepo,
   type PeopleRepo,
   type PetsRepo,
+  type RelationshipsRepo,
   type GiftIdeasRepo,
   type SearchService,
   type SqliteDriver,
@@ -15,6 +16,7 @@ import {
   createMilestonesRepo,
   createPeopleRepo,
   createPetsRepo,
+  createRelationshipsRepo,
   createHiddenHolidaysRepo,
   createObservancesRepo,
   createSearchService,
@@ -768,5 +770,106 @@ describe("searchService — gift ideas", () => {
     expect(
       (await search.query("scarf")).some((h) => h.entityType === "gift_idea"),
     ).toBe(false);
+  });
+});
+
+// Someone who exists only as a fact about somebody else is findable by name, but
+// resolves to the person whose page they are on — the only place they can be
+// read. Structurally this is the same move a phone number makes: a facet of an
+// entity, surfaced as a reason on that entity's row.
+describe("searchService — entities that exist only as a relationship", () => {
+  let relationships: RelationshipsRepo;
+
+  beforeEach(() => {
+    relationships = createRelationshipsRepo(driver);
+  });
+
+  /** Attach an unpublished person to `subjectId`, as the form's save does. */
+  async function attach(subjectId: string, firstName: string, lastName = null) {
+    const person = await people.create({
+      firstName,
+      lastName,
+      standing: "unpublished",
+    });
+    await relationships.create({
+      aType: "person",
+      aId: subjectId,
+      aRole: "spouse",
+      bType: "person",
+      bId: person.id,
+      bRole: "wife",
+    });
+    return person;
+  }
+
+  it("returns the anchor, not the attached person", async () => {
+    const sam = await people.create({ firstName: "Sam", lastName: "Carter" });
+    await attach(sam.id, "Jen");
+
+    const hits = await search.query("jen");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({
+      entityType: "person",
+      entityId: sam.id,
+      title: "Sam Carter",
+    });
+    expect(hits[0].reasons).toContainEqual({
+      facet: "relationship",
+      matchedText: "Jen",
+    });
+  });
+
+  it("ranks the anchor below a person whose own name matched", async () => {
+    const sam = await people.create({ firstName: "Sam", lastName: "Carter" });
+    await people.create({ firstName: "Jen", lastName: "Okafor" });
+    await attach(sam.id, "Jen");
+
+    // A name match outranks a facet match, as it does for contact hits.
+    expect(await titles("jen")).toEqual(["Jen Okafor", "Sam Carter"]);
+  });
+
+  it("merges into one row when the anchor matched some other way", async () => {
+    const jenkins = await people.create({
+      firstName: "Ada",
+      lastName: "Jenkins",
+    });
+    await attach(jenkins.id, "Jen");
+
+    const hits = await search.query("jen");
+    expect(hits).toHaveLength(1);
+    expect(hits[0].reasons.map((r) => r.facet).sort()).toEqual([
+      "name",
+      "relationship",
+    ]);
+  });
+
+  it("finds an attached pet through its owner", async () => {
+    const sam = await people.create({ firstName: "Sam", lastName: "Carter" });
+    const rex = await pets.create({
+      name: "Rexington",
+      standing: "unpublished",
+    });
+    await relationships.create({
+      aType: "person",
+      aId: sam.id,
+      aRole: "owner",
+      bType: "pet",
+      bId: rex.id,
+      bRole: "pet",
+    });
+
+    const hits = await search.query("rexington");
+    expect(hits.map((h) => h.entityId)).toEqual([sam.id]);
+  });
+
+  it("returns her in her own right once she is published", async () => {
+    const sam = await people.create({ firstName: "Sam", lastName: "Carter" });
+    const jen = await attach(sam.id, "Jen");
+
+    await people.update(jen.id, { standing: "published" });
+
+    const hits = await search.query("jen");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ entityId: jen.id, title: "Jen" });
   });
 });
