@@ -20,11 +20,11 @@ list. Zero effort, weeks of latency, gate 05 and 07. The real critical path.
 - ✅ **Android bundle id.** `android/`/`ios/` are *gitignored*, not committed — a stale local
   prebuild held `net.leapsake.mobile`. `expo prebuild -p android --clean` fixed it, and
   `global-nav.yaml` now passes on **both** platforms from one byte-identical file.
-- ✅ **`staged-gift-occasions.yaml` — green on iOS**, five cases. Cause was the one guessed
-  here: the dev client's floating menu button is an overlay, so a tap under it opens the dev
-  menu instead. `pnpm test:native` now hides it on both platforms. **Still red on Android** for
-  a real, unrelated reason: `SelectField` is a wheel on iOS but a native list dialog on Android,
-  so `tapOn: "Done"` has nothing to hit. See `apps/mobile/maestro/README.md`.
+- ✅ **`staged-gift-occasions.yaml` — green on both platforms**, five cases each. Two causes,
+  both now fixed: the dev client's floating menu button is an overlay that turns a tap under it
+  into "the dev menu opened" (off in the iOS build via `ios.infoPlist`, and set by
+  `pnpm test:native` on both); and `SelectField` is a wheel on iOS but a list dialog on
+  Android, so the occasion subflow now branches. See `apps/mobile/maestro/README.md`.
 - ❌ **`driver-selftest.yaml` — FAIL 40/42, and *not* iOS-specific**: identical on Android. One
   failing case is `leaves the live store, its roster entry and the keychain intact when the
   login fails`; the second is unidentified. Predates all of the above, and belongs to 06.

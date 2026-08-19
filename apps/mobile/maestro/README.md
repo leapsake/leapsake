@@ -63,17 +63,16 @@ ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. Th
   maestro --udid <sim> test staged-gift-occasions.yaml
   ```
 
-  ⚠️ **iOS only today — and it is the one flow here that is not portable.** Green on all
-  five cases on the iOS simulator (2026-08-18, once the dev-menu floating button is hidden;
-  see the trap below). On Android it dies in `stage-gift-for-occasion.yaml` at
-  `tapOn: "Done"`, and that is a **real platform difference, not a selector to fix**: a
-  `SelectField` renders as a wheel on iOS — hence the flow's open-swipe-assert-Done dance —
-  but as a native `ListView` dialog of `CheckedTextView` rows on Android, where the options
-  are directly tappable by text and there is **no Done button at all**. Note that this makes
-  Android the *easier* platform here, the reverse of the flow's iOS-shaped assumption. A
-  portable version needs a conditional `runFlow` in that subflow, keying on whether `Done`
-  is present. Until then this flow does not gate Android, and `global-nav.yaml` is the only
-  byte-identical-across-platforms flow in this directory.
+  **Green on both platforms** (2026-08-18), from the same file — but unlike
+  `global-nav.yaml` it is not byte-identical *in behaviour*: `subflows/stage-gift-for-occasion.yaml`
+  **branches**, because a `SelectField` is a genuinely different native control on each
+  platform. iOS gets a modal wheel whose options are not addressable (hence the
+  open-swipe-assert-Done dance); Android gets a `ListView` dialog of `CheckedTextView` rows
+  that are directly tappable, with no Done button at all — the *easier* platform, the
+  reverse of the flow's original iOS-shaped assumption. Each branch asserts its own
+  selection; see that subflow for why the branch order is load-bearing.
+
+  The dev-menu floating button has to be off or this flow cannot pass — see the trap below.
 
   It needs a clean start because `openLink` to a route **already in the stack reuses that
   screen rather than remounting it** — so a previous failed run's half-filled form is still

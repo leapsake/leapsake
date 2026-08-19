@@ -2,10 +2,9 @@
 # the only occasion the form offers, since the caller has staged exactly one
 # milestone or holiday.
 #
-# OCCASION is asserted *inside* the open wheel, on the value the swipe landed on.
-# That assert is the whole point: the wheel's options are not addressable on iOS,
-# so without it a swipe that moved nowhere (or two notches) would pass silently
-# and the case would go green having picked "— none —".
+# The occasion picker is the one control here that is **not** the same on both
+# platforms — a modal wheel on iOS, a list dialog on Android — so this subflow
+# branches on it. See the comment at that step; everything else is portable.
 #
 # Every target is scrolled to first. Neither `tapOn` nor `assertVisible` scrolls
 # on its own, and the add form is several screens long once a section expands —
@@ -42,13 +41,48 @@ appId: com.leapsake.app
     direction: DOWN
 - tapOn:
     id: "gift-occasion"
-# One notch up the wheel: "— none —" -> the single staged occasion. Kept short and
-# slow; a long fast swipe reads as a shake and opens the Expo dev menu over the app.
-- swipe:
-    start: "50%, 87%"
-    end: "50%, 83%"
-- assertVisible: "${OCCASION}"
-- tapOn: "Done"
+# A `SelectField` is a **different native control on each platform**, and this is the
+# one place in the catalog where that surfaces. iOS presents a modal wheel whose
+# options are not addressable — the accessibility tree exposes only the picker's
+# current value — so the choice has to be made by swiping and then proving where it
+# landed. Android presents a plain list dialog whose options *are* addressable, so
+# the same choice is one tap and there is no confirm button at all.
+#
+# The branch keys on **"Done"**, which is the wheel's confirm button and the thing
+# that actually differs: no Done, no wheel. Keying on the presence of the option
+# text instead would be subtly wrong on iOS, where the screen *behind* a modal stays
+# in the accessibility tree and the staged milestone row is sitting right there.
+#
+# **The order of these two blocks is load-bearing, and the wrong order still passes
+# on Android.** Maestro re-evaluates each `when:` when it reaches it — these are two
+# independent conditionals, not an if/else — so with the wheel branch first, iOS runs
+# it, taps Done, and *then* satisfies `notVisible: "Done"` and runs the list branch
+# too, failing on an option that is no longer on screen. The list branch goes first
+# because it is the one that cannot manufacture the other's condition: tapping an
+# option never produces a "Done".
+- runFlow:
+    when:
+      notVisible: "Done"
+    commands:
+      - tapOn: "${OCCASION}"
+      # On the closed field, which the dialog dismissing leaves in place. This is
+      # this branch's counterpart to the wheel's in-flight assert below: without it
+      # a tap that dismissed the dialog without selecting would pass silently.
+      - assertVisible: "${OCCASION}"
+- runFlow:
+    when:
+      visible: "Done"
+    commands:
+      # One notch up the wheel: "— none —" -> the single staged occasion. Kept short
+      # and slow; a long fast swipe reads as a shake and opens the Expo dev menu.
+      - swipe:
+          start: "50%, 87%"
+          end: "50%, 83%"
+      # Inside the open wheel, on the value the swipe landed on. Without this a swipe
+      # that moved nowhere (or two notches) would pass silently and the case would go
+      # green having picked "— none —".
+      - assertVisible: "${OCCASION}"
+      - tapOn: "Done"
 - scrollUntilVisible:
     element:
       text: "Add"
