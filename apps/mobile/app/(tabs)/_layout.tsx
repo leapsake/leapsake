@@ -101,10 +101,22 @@ export default function TabsLayout() {
             ),
           }}
         />
+        {/*
+          The one tab with no header. Everywhere else the title answers "where am
+          I?", but here the search field itself is the answer — a field with a
+          "Search…" placeholder sitting where the title would be says the same
+          word twice if the title is also drawn. So the screen draws its own top
+          inset (app/(tabs)/search.tsx) and the field takes the title's place.
+
+          `tabBarLabel` is therefore explicit rather than inherited from `title`:
+          the bar still has to read "Search", and maestro/global-nav.yaml and
+          maestro/ios-prepare.yaml both gate on that word.
+        */}
         <Tabs.Screen
           name="search"
           options={{
-            title: "Search",
+            headerShown: false,
+            tabBarLabel: "Search",
             tabBarButtonTestID: "tab-search",
             tabBarIcon: ({ color }) => <TabIcon glyph="🔍" color={color} />,
           }}

@@ -14,11 +14,11 @@ import {
   useNavigation,
   useRouter,
 } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BrowseTiles } from "../../components/BrowseTiles";
 import { highlightBirthday, highlightMatch } from "../../lib/highlightMatch";
 import { useCore } from "../../lib/core-context";
 import { categoryFor, filterHits } from "../../lib/search-categories";
-import { useHeaderScroll } from "../../lib/use-header-scroll";
 import { colors, radius, styles } from "../../lib/styles";
 
 /**
@@ -57,6 +57,21 @@ function pathFor(hit: SearchHit): string {
  * therefore on demand: tap the field (free — that's what a `TextInput` does), or
  * tap the Search tab *again* while already here (below).
  *
+ * ### The field is the title
+ *
+ * This is the only screen that runs with `headerShown: false`, so it owns its top
+ * inset instead of inheriting one from `AppHeader`. A "Search…" field where the
+ * word "Search" would otherwise be printed says it once instead of twice.
+ *
+ * That trade costs a `role="header"` landmark, so the field carries the screen's
+ * name for assistive tech itself: an explicit `accessibilityLabel` (a placeholder
+ * is not a label — it is dropped from the accessible name the moment the field
+ * has a value) plus the search role, which is what makes VoiceOver say "Search,
+ * search field". Arrival is still announced by the tab — "Search, tab, 2 of 4" —
+ * which is the sentence a screen reader user actually hears on the way in.
+ *
+ * Nothing here opts into `useHeaderScroll`: there is no title left to collapse.
+ *
  * ### Arriving already narrowed
  *
  * `?type=` opens the screen filtered to one category, which is how "find me a
@@ -78,12 +93,15 @@ export default function SearchScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const inputRef = useRef<TextInput>(null);
+  // From the context, never a constant: `DegradedFrame` (lib/core-context.tsx)
+  // zeroes `top` when the custody banner has already consumed the notch. Same
+  // reasoning as `AppHeader`, which is what used to apply this inset here.
+  const insets = useSafeAreaInsets();
 
   const { type } = useLocalSearchParams<{ type?: string }>();
   const category = categoryFor(type);
 
   const [term, setTerm] = useState("");
-  const scrollProps = useHeaderScroll();
   const [results, setResults] = useState<SearchHit[]>([]);
   const shown = filterHits(results, category);
 
@@ -131,12 +149,29 @@ export default function SearchScreen() {
   }, [core, term]);
 
   return (
-    <View style={styles.screen}>
+    <View
+      style={[
+        styles.screen,
+        {
+          paddingTop: insets.top + 16,
+          paddingLeft: insets.left + 16,
+          paddingRight: insets.right + 16,
+        },
+      ]}
+    >
       <TextInput
         ref={inputRef}
         style={styles.input}
         value={term}
         onChangeText={setTerm}
+        placeholder="Search…"
+        placeholderTextColor={colors.muted}
+        // The placeholder is what a sighted user reads and the label is what a
+        // screen reader hears; both are needed, because the placeholder is gone
+        // from the accessible name as soon as there is a value to read instead.
+        accessibilityLabel="Search"
+        accessibilityRole="search"
+        returnKeyType="search"
         autoCorrect={false}
         autoCapitalize="none"
         clearButtonMode="while-editing"
@@ -191,7 +226,6 @@ export default function SearchScreen() {
         )
       ) : (
         <FlatList
-          {...scrollProps}
           data={shown}
           keyboardShouldPersistTaps="handled"
           keyExtractor={(hit) => `${hit.entityType}:${hit.entityId}`}
