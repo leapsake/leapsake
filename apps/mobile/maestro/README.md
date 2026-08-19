@@ -63,6 +63,18 @@ ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. Th
   maestro --udid <sim> test staged-gift-occasions.yaml
   ```
 
+  ⚠️ **iOS only today — and it is the one flow here that is not portable.** Green on all
+  five cases on the iOS simulator (2026-08-18, once the dev-menu floating button is hidden;
+  see the trap below). On Android it dies in `stage-gift-for-occasion.yaml` at
+  `tapOn: "Done"`, and that is a **real platform difference, not a selector to fix**: a
+  `SelectField` renders as a wheel on iOS — hence the flow's open-swipe-assert-Done dance —
+  but as a native `ListView` dialog of `CheckedTextView` rows on Android, where the options
+  are directly tappable by text and there is **no Done button at all**. Note that this makes
+  Android the *easier* platform here, the reverse of the flow's iOS-shaped assumption. A
+  portable version needs a conditional `runFlow` in that subflow, keying on whether `Done`
+  is present. Until then this flow does not gate Android, and `global-nav.yaml` is the only
+  byte-identical-across-platforms flow in this directory.
+
   It needs a clean start because `openLink` to a route **already in the stack reuses that
   screen rather than remounting it** — so a previous failed run's half-filled form is still
   there, and the next run stacks its milestones on top of it. Between its own five cases
@@ -194,23 +206,54 @@ reload the sabotage appears to pass, and a genuinely vacuous suite would read as
 
 These cost several sessions to find. All of them look like "the app is broken" and are not.
 
-### Android: the dev client's floating "Tools" bubble swallows taps
+### The dev client's floating menu button swallows taps — on **both** platforms
 
 It is an **overlay**, so a `tapOn` underneath it reports **COMPLETED** while the dev menu
-opens instead — and the flow then fails somewhere unrelated, several steps later.
-Confirmed on `global-nav.yaml`: case 3's `tapOn: search-here-people` landed on the bubble,
-and the run went red two lines on, at `search-filter-chip is visible`. Hiding the bubble
-turned the same unmodified flow green.
+opens instead, and the flow then fails somewhere unrelated, one or more steps later. This
+is the single most expensive trap in this directory: it cost two flows their whole run and
+looks nothing like its cause in either case.
 
-`pnpm test:native` now settles this for you — `settleDevMenu()` in
-[`scripts/test-native.mjs`](../../../scripts/test-native.mjs) writes the three prefs a
-**fresh install** gets wrong (`showFab`, `isOnboardingFinished`, `showsAtLaunch`) over
-`adb run-as` before loading the bundle. **Running a flow directly bypasses that**, so do it
-by hand once per install: dev menu (`Ctrl+m`) → **Tools button** off. A reinstall resets it.
+- **Android**, `global-nav.yaml`: case 3's `tapOn: search-here-people` hit the bubble, and
+  the run went red two lines on at `search-filter-chip is visible`.
+- **iOS**, `staged-gift-occasions.yaml`: the button's *stored position* sat over the add
+  screen's holiday row, so `stage-christmas`'s `tapOn: below: "Add a holiday"` hit it and
+  the flow died three cases in. Hiding it took that flow from red to **green on all five
+  cases** with no edit to the flow itself.
 
-The onboarding panel is the same class of problem from the same source: the first launch
-after an install opens "This is the developer menu" **over** the app, and every selector
-misses until it is dismissed.
+`pnpm test:native` now settles this on both platforms before loading the bundle — see
+`settleDevMenu()` / `settleDevMenuIos()` in
+[`scripts/test-native.mjs`](../../../scripts/test-native.mjs). Android writes the three
+prefs a **fresh install** gets wrong (`showFab`, `isOnboardingFinished`, `showsAtLaunch`)
+over `adb run-as`; iOS writes `EXDevMenuShowFloatingActionButton` over `simctl spawn
+defaults`.
+
+**Running a flow directly bypasses all of that**, and both of the flows documented above are
+meant to be run directly. Once per install:
+
+```sh
+# Android
+adb shell am force-stop com.leapsake.app   # then: dev menu (Ctrl+m) → Tools button → off
+# iOS
+xcrun simctl terminate <udid> com.leapsake.app
+xcrun simctl spawn <udid> defaults write com.leapsake.app \
+  EXDevMenuShowFloatingActionButton -bool false
+```
+
+The iOS key is also read from **Info.plist**, so `ios.infoPlist` in `app.json` would make it
+survive a reinstall and cover direct runs too — at the cost of a prebuild and a rebuild.
+
+Two more first-run overlays in the same family, both Android:
+
+- the **dev-menu onboarding panel** ("This is the developer menu"), which covers the app on
+  the first launch after an install until it is dismissed — handled by
+  `isOnboardingFinished` above;
+- the system's **stylus handwriting** dialog ("Try out your stylus"), which opens over the
+  app the first time a text field takes focus. It made `add-person.yaml` fail on
+  `person-last-name` with *element not found* — the id really was absent, because the whole
+  app was behind a system dialog. Disable it per emulator:
+  ```sh
+  adb shell settings put secure stylus_handwriting_enabled 0
+  ```
 
 ### A secure field needs a `testID`, not a better tap
 

@@ -7,27 +7,27 @@
 
 ## In flight
 
-Nothing — **09 (mobile global navigation) is done, 2026-08-17.** Four tabs (Home, Search, **New**,
-Settings/Account); People demoted from a tab to a catalog reached from Search's browse tiles;
-Search opens pre-filtered via `?type=`; one app-drawn header on both platforms whose title shrinks
-rather than hides; warm surfaces. The durable *why* sits in `apps/mobile/app/(tabs)/_layout.tsx`
-and `components/AppHeader.tsx`; the shell's gate is `apps/mobile/maestro/global-nav.yaml`.
-Typography and icons were deliberately left alone — that pass is
-[`v0-2.md`](./v0-2.md) → *styling / the design system*.
+**04 (mobile EAS pipeline)** — [`v0-1_04_mobile-pipeline.md`](./v0-1_04_mobile-pipeline.md).
+Nothing built; no `eas.json`. Blocked on two owner decisions in its own doc — the real `version`
+string and the `buildNumber`/`versionCode` strategy, both permanent after the first upload. The
+mechanism exists (`scripts/set-version.mjs`); only the choice is missing.
 
-**Green on both platforms.** `global-nav.yaml` passes on the iOS simulator and the Android
-emulator from the same byte-identical file, and is **proven non-vacuous by sabotage** — deleting
-the New tab's `preventDefault` turns it red.
+⚠️ **The two long clocks have not started** — Apple enrollment, Play enrollment, the 12-tester
+list. Zero effort, weeks of latency, gate 05 and 07. The real critical path.
 
-⚠️ **Three mobile gates are red or blocked, all of them predating this work. 04 and 06 inherit
-them:**
+## Mobile gates *(all re-run 2026-08-18)*
 
-- **Android's `applicationId` is `net.leapsake.mobile`**, but `app.json` (and `v0-1.md`'s
-  permanent-bundle-id decision) say `com.leapsake.app`. The committed `android/` project predates
-  that decision, so **no Maestro flow can target Android** — every one declares
-  `appId: com.leapsake.app`. The Android leg above was run against the real id from a scratch
-  copy. Bundle ids are permanent after first publish, so fix this *before* 04 uploads anything.
-- `driver-selftest.yaml` — **FAIL 40/42** on the iOS simulator; identical count on `main`.
-- `staged-gift-occasions.yaml` — dies in `stage-christmas` on `tapOn: below: "Add a holiday"`,
-  same step on `main`. The dev client's floating menu button covers that region and the tap opens
-  the dev menu instead; whether that is the whole story is unconfirmed.
+- ✅ **Android bundle id.** `android/`/`ios/` are *gitignored*, not committed — a stale local
+  prebuild held `net.leapsake.mobile`. `expo prebuild -p android --clean` fixed it, and
+  `global-nav.yaml` now passes on **both** platforms from one byte-identical file.
+- ✅ **`staged-gift-occasions.yaml` — green on iOS**, five cases. Cause was the one guessed
+  here: the dev client's floating menu button is an overlay, so a tap under it opens the dev
+  menu instead. `pnpm test:native` now hides it on both platforms. **Still red on Android** for
+  a real, unrelated reason: `SelectField` is a wheel on iOS but a native list dialog on Android,
+  so `tapOn: "Done"` has nothing to hit. See `apps/mobile/maestro/README.md`.
+- ❌ **`driver-selftest.yaml` — FAIL 40/42, and *not* iOS-specific**: identical on Android. One
+  failing case is `leaves the live store, its roster entry and the keychain intact when the
+  login fails`; the second is unidentified. Predates all of the above, and belongs to 06.
+
+**Decide before 06:** [`v0-1.md`](./v0-1.md) → *Open decisions* 1 and 2 — how much of the E2E
+catalog really gates v0.1. That call makes the two items above blockers or fast-follows.

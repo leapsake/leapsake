@@ -292,6 +292,45 @@ const androidDriver = {
 
 // --- ios driver ------------------------------------------------------------------
 
+// iOS has the same floating dev-menu button as Android and it bites the same way — an
+// overlay that turns a `tapOn` underneath it into "the dev menu opened instead". It cost
+// `staged-gift-occasions.yaml` its whole run: the button's stored position sat over the add
+// screen's holiday row, so `stage-christmas`'s `tapOn: below: "Add a holiday"` hit the
+// button and the flow died three cases in. Hiding it turned the same unmodified flow green
+// on all five cases.
+//
+// The key is read through UserDefaults (`expo-dev-menu`'s DevMenuPreferences.swift), so
+// `simctl spawn defaults write` sets it — while the app is stopped, since a running process
+// would write its own copy back over ours. Best-effort, like the Android side: a failure
+// costs flakiness, not correctness.
+//
+// A **build-level** version of this exists and is stronger — the same key read from
+// Info.plist, i.e. `ios.infoPlist` in app.json — because it survives a reinstall and covers
+// running a flow directly, which bypasses this script entirely. It needs a prebuild and a
+// rebuild, so it is deliberately not done here.
+const IOS_FAB_KEY = "EXDevMenuShowFloatingActionButton";
+
+function settleDevMenuIos(device) {
+  run("xcrun", ["simctl", "terminate", device, APP_ID]);
+  const wrote = run("xcrun", [
+    "simctl",
+    "spawn",
+    device,
+    "defaults",
+    "write",
+    APP_ID,
+    IOS_FAB_KEY,
+    "-bool",
+    "false",
+  ]);
+  if (wrote.status !== 0) {
+    console.warn(
+      "  ! could not hide the dev-menu floating button — it may swallow taps. Turn it\n" +
+        "    off by hand: dev menu → Floating action button.",
+    );
+  }
+}
+
 const iosDriver = {
   key: "ios",
   label: "iOS",
@@ -340,9 +379,10 @@ const iosDriver = {
   // iOS has no working bundle-load deep link (the SpringBoard confirm intercepts it), so
   // instead we reconnect through the dev-launcher's "Continue" (last dev server = the one
   // the `pnpm --filter @leapsake/mobile ios` prerequisite set) via a small Maestro helper
-  // flow. That flow also clears any SpringBoard/dev-menu overlay and waits for the People
+  // flow. That flow also clears any SpringBoard/dev-menu overlay and waits for the Search
   // tab, so its exit 0 *is* the "home reached" signal — no separate hierarchy poll here.
   async prepare(ctx) {
+    settleDevMenuIos(ctx.device);
     console.log("  loading JS bundle via the dev-launcher (ios-prepare)…");
     const prep = run(maestro, ["--udid", ctx.device, "test", IOS_PREPARE_FLOW]);
     if (prep.status === 0) return { ok: true };
