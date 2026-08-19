@@ -204,12 +204,10 @@ export default function SearchScreen() {
       */}
       {term.trim() === "" ? (
         category === undefined ? (
-          <View style={local.browse}>
-            <Text style={styles.muted}>
-              Search people, pets, tags, holidays, and gift ideas.
-            </Text>
-            <BrowseTiles onPick={(picked) => router.push(picked.browseHref)} />
-          </View>
+          // No prose over the tiles: they name the same four things a sentence
+          // listing them would, and the field's own placeholder has already said
+          // the word "Search".
+          <BrowseTiles onPick={(picked) => router.push(picked.browseHref)} />
         ) : (
           // Narrowed, but with nothing to narrow yet — an arrival from a
           // catalog's Search link. The prompt says what typing will do now, and
