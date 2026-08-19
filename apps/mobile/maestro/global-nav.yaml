@@ -10,10 +10,12 @@
 #
 #   1. the bar holds Home, Search, New and Settings — a tab lost or renamed.
 #   2. New from Home opens the chooser at all.
-#   3. New from a *filtered* Search goes straight into the form, no chooser —
-#      break the `?type=` read (or read the tab layout's *local* params instead
-#      of the global ones, which is how this was first written) and it falls back
-#      to the sheet, so `person-first-name` never appears.
+#   3. a browse tile opens its catalog, the catalog's own Search link is what
+#      comes back narrowed, and New on that *filtered* Search goes straight into
+#      the form with no chooser — break the `?type=` read (or read the tab
+#      layout's *local* params instead of the global ones, which is how this was
+#      first written) and it falls back to the sheet, so `person-first-name`
+#      never appears.
 #   4. Back is absent on a tab root and present on a pushed screen — **and this is
 #      also what catches a New tab that navigates.** See below.
 #
@@ -103,7 +105,8 @@ appId: com.leapsake.app
 
 # ------------------------------------------------------------------ case 3 of 4
 # A search narrowed to People & Pets has already answered "what kind of thing?",
-# so New must skip the chooser entirely.
+# so New must skip the chooser entirely — but first, the two taps that are the
+# only ways to be narrowed or unnarrowed at all.
 - tapOn:
     id: "tab-search"
 # Clear a filter left by an earlier failed run (see the header) so the tiles are
@@ -115,8 +118,19 @@ appId: com.leapsake.app
     commands:
       - tapOn:
           id: "search-filter-chip"
+# A browse tile **leaves for its catalog**; it does not narrow the search in
+# place. The chip's absence is the direct statement of that — put the old
+# `setParams` back and this line goes red immediately, one tap sooner than the
+# rest of the case would notice.
 - tapOn:
     id: "browse-tile-people"
+- assertNotVisible:
+    id: "search-filter-chip"
+# Narrowing comes from the other end: the catalog's own Search link. Tapping it
+# by id is also what proves the tile landed us on People & Pets, since that
+# header link exists nowhere else.
+- tapOn:
+    id: "search-here-people"
 - assertVisible:
     id: "search-filter-chip"
 - tapOn:

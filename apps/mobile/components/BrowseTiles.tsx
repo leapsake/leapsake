@@ -15,14 +15,17 @@ import { colors, radius } from "../lib/styles";
  * this app?". Tiles are also honest about the shape of the thing: four kinds of
  * record, all equal, none of them a sub-item of the field above them.
  *
- * A tap **narrows the search** rather than leaving for the list behind it. That
- * is what makes the filter discoverable: there is no separate control to find,
- * because the browse grid and the filter picker are the same four tiles. The way
- * on to the full list is offered once the category is chosen, where it answers a
- * question the user has by then actually asked.
+ * A tap **opens the catalog** the tile names. These tiles once narrowed the
+ * search instead, on the theory that the grid could double as the filter picker;
+ * in use that made "People & Pets" a two-tap trip through a screen nobody asked
+ * for, because a user who taps a tile on an empty search field is browsing, not
+ * searching — they have said which catalog and *not* said what to look for. The
+ * filter is still reachable, from the other end: each catalog carries a Search
+ * link that arrives here already narrowed (`components/SearchHereLink.tsx`),
+ * which is where a user has actually asked to search within a kind of thing.
  *
  * The category table lives in `lib/search-categories.ts`, shared with the filter
- * itself and with what New means on a filtered search.
+ * and with what New means on a filtered search.
  */
 export function BrowseTiles({
   onPick,

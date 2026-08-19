@@ -61,10 +61,12 @@ function pathFor(hit: SearchHit): string {
  *
  * `?type=` opens the screen filtered to one category, which is how "find me a
  * person" is reachable from the People & Pets list without that list growing a
- * search field of its own. The same parameter is what the tiles set when tapped,
- * so the filter has exactly one representation — a URL — rather than a URL for
- * arrivals and component state for taps. It is also what the New tab reads to
- * know that a create action here is unambiguous.
+ * search field of its own — see `components/SearchHereLink.tsx`. The filter
+ * therefore has exactly one representation, a URL, and it is also what the New
+ * tab reads to know that a create action here is unambiguous.
+ *
+ * Tapping a browse tile does **not** set it: a tile is a way to the catalog it
+ * names, not a way to narrow a search nobody has started. See `BrowseTiles`.
  *
  * Filtering happens **on the results**, not in the query: the service caps at 50
  * hits from an in-memory pass, so narrowing the answer is free, while narrowing
@@ -85,10 +87,9 @@ export default function SearchScreen() {
   const [results, setResults] = useState<SearchHit[]>([]);
   const shown = filterHits(results, category);
 
-  /** Narrow to a category, drop the narrowing, or swap it — one route each way,
-   *  since the filter lives in the URL rather than beside it in state. */
-  const setCategory = (key: string | undefined) =>
-    router.setParams({ type: key });
+  /** Drop the narrowing an arrival brought with it — a `setParams` rather than a
+   *  `setState`, since the filter lives in the URL rather than beside it. */
+  const clearCategory = () => router.setParams({ type: undefined });
 
   // A second press of the Search tab focuses the field — the standard "tab
   // pressed while already on it" gesture (the same event other apps use to
@@ -150,7 +151,7 @@ export default function SearchScreen() {
           accessibilityLabel={`${category.label}. Search everything instead`}
           testID="search-filter-chip"
           style={local.chip}
-          onPress={() => setCategory(undefined)}
+          onPress={clearCategory}
         >
           <Text style={local.chipText}>
             {category.glyph} {category.label} ✕
@@ -172,13 +173,13 @@ export default function SearchScreen() {
             <Text style={styles.muted}>
               Search people, pets, tags, holidays, and gift ideas.
             </Text>
-            <BrowseTiles onPick={(picked) => setCategory(picked.key)} />
+            <BrowseTiles onPick={(picked) => router.push(picked.browseHref)} />
           </View>
         ) : (
-          // Narrowed, but with nothing to narrow yet. The prompt says what
-          // typing will do now, and the link is the other reading of a tapped
-          // tile — "show me all of them" — offered here, where it answers a
-          // question the user has by now actually asked.
+          // Narrowed, but with nothing to narrow yet — an arrival from a
+          // catalog's Search link. The prompt says what typing will do now, and
+          // the link is the way back to the catalog that sent us, for a user who
+          // came here and then decided they would rather scroll after all.
           <View style={local.browse}>
             <Text style={styles.muted}>
               Type to search {category.label.toLocaleLowerCase()}.
