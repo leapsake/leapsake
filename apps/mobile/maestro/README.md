@@ -227,20 +227,21 @@ prefs a **fresh install** gets wrong (`showFab`, `isOnboardingFinished`, `showsA
 over `adb run-as`; iOS writes `EXDevMenuShowFloatingActionButton` over `simctl spawn
 defaults`.
 
-**Running a flow directly bypasses all of that**, and both of the flows documented above are
-meant to be run directly. Once per install:
+**On iOS the build itself now carries the setting** — `ios.infoPlist` in `app.json` — so a
+fresh install has the button off before anything runs, including a flow run directly. That is
+a *registered default*, though: an **explicit** `UserDefaults` value wins over it, so a
+simulator where the button was ever toggled by hand keeps whatever it was toggled to. Clear it
+once and the build's default takes over:
 
 ```sh
-# Android
-adb shell am force-stop com.leapsake.app   # then: dev menu (Ctrl+m) → Tools button → off
-# iOS
 xcrun simctl terminate <udid> com.leapsake.app
-xcrun simctl spawn <udid> defaults write com.leapsake.app \
-  EXDevMenuShowFloatingActionButton -bool false
+xcrun simctl spawn <udid> defaults delete com.leapsake.app \
+  EXDevMenuShowFloatingActionButton
 ```
 
-The iOS key is also read from **Info.plist**, so `ios.infoPlist` in `app.json` would make it
-survive a reinstall and cover direct runs too — at the cost of a prebuild and a rebuild.
+**Android has no build-level equivalent** — the pref is only ever read from
+SharedPreferences — so `pnpm test:native` is the only thing that sets it, and **running a
+flow directly bypasses that**. Once per install: dev menu (`Ctrl+m`) → **Tools button** → off.
 
 Two more first-run overlays in the same family, both Android:
 

@@ -304,10 +304,11 @@ const androidDriver = {
 // would write its own copy back over ours. Best-effort, like the Android side: a failure
 // costs flakiness, not correctness.
 //
-// A **build-level** version of this exists and is stronger — the same key read from
-// Info.plist, i.e. `ios.infoPlist` in app.json — because it survives a reinstall and covers
-// running a flow directly, which bypasses this script entirely. It needs a prebuild and a
-// rebuild, so it is deliberately not done here.
+// The build ALSO carries this key in Info.plist (`ios.infoPlist` in app.json), which is the
+// stronger half: it survives a reinstall and covers running a flow directly, which bypasses
+// this script entirely. This step stays because Info.plist only supplies a *registered
+// default* — an explicit UserDefaults value, which any dev who has ever toggled the button
+// by hand now has, silently outranks it.
 const IOS_FAB_KEY = "EXDevMenuShowFloatingActionButton";
 
 function settleDevMenuIos(device) {
