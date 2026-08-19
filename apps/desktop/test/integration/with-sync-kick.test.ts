@@ -155,6 +155,7 @@ describe("withSyncKick — pins the CoreApi mutating surface", () => {
       "pets.update",
       "relationships.create",
       "relationships.createFromSubject",
+      "relationships.createWithNewOther",
       "relationships.editFromSubject",
       "relationships.softDelete",
       "relationships.update",

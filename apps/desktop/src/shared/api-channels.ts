@@ -53,6 +53,7 @@ export const API_CHANNELS = [
   "relationships.softDelete",
   "relationships.listForEntity",
   "relationships.createFromSubject",
+  "relationships.createWithNewOther",
   "relationships.editFromSubject",
 
   "milestones.listForBearer",

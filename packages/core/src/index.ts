@@ -91,10 +91,12 @@ import {
   genderedVariant,
   impliedGender,
   inverseRole,
+  isPublished,
   isReminderEditable,
   milestoneLabel,
   parseHashtags,
   parseMentions,
+  splitName,
   resolveObservanceReminderSchedule,
   resolveReminderSchedule,
   roleDefs,
@@ -493,6 +495,153 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     return type === "person" ? people.get(id) : pets.get(id);
   }
 
+  const softDeleteEntity = (type: EntityType, id: string): Promise<void> =>
+    type === "person" ? people.softDelete(id) : pets.softDelete(id);
+
+  /**
+   * Soft-delete every fact hanging off an entity.
+   *
+   * The list the Person and Pet cascades share, in one place so the two cannot
+   * drift apart — and so the unpublished-entity cascade below sweeps exactly what
+   * a deliberate delete would. Contact methods are the one asymmetry: only a
+   * person owns them.
+   *
+   * Transaction-free, like the repo building blocks it calls; every caller is
+   * already inside one.
+   */
+  async function removeEntityFacts(
+    type: EntityType,
+    id: string,
+  ): Promise<void> {
+    await tags.removeAllForEntity(type, id);
+    await relationships.removeAllForEntity(type, id);
+    await dismissals.removeAllForEntity(type, id);
+    await milestones.removeAllForEntity(type, id);
+    if (type === "person") {
+      await contactMethods.removeAllForOwner("person", id);
+    }
+    await observances.removeAllForBearer(type, id);
+    await giftSuggestions.removeAllForRecipient(type, id);
+    await giftsRepo.removeAllForParty(type, id);
+  }
+
+  /**
+   * The entities that exist only because this one does: the unpublished ends of
+   * its explicit relationships.
+   *
+   * **Must be read before the relationships are removed**, because the edge is
+   * the only thing identifying such an entity as belonging to this one.
+   */
+  async function attachedUnpublished(
+    type: EntityType,
+    id: string,
+  ): Promise<{ type: EntityType; id: string }[]> {
+    const rows = await relationships.listForEntity(type, id);
+    const attached: { type: EntityType; id: string }[] = [];
+    for (const rel of rows) {
+      const subjectIsA = rel.aType === type && rel.aId === id;
+      const end = {
+        type: subjectIsA ? rel.bType : rel.aType,
+        id: subjectIsA ? rel.bId : rel.aId,
+      };
+      const other = await resolveEntity(end.type, end.id);
+      if (other !== undefined && !isPublished(other.standing)) {
+        attached.push(end);
+      }
+    }
+    return attached;
+  }
+
+  /**
+   * Soft-delete an entity, its facts, and anyone who existed only as a fact
+   * about it.
+   *
+   * A coworker's wife recorded as a name on his relationship is not a person the
+   * user has any other way to reach; leaving her behind when he goes would strand
+   * a row nothing links to. So she goes too — the deliberate counterpart of the
+   * catalog rule that keeps her out of every list in the first place.
+   *
+   * One level deep, and that is not an approximation: an unpublished entity holds
+   * exactly one explicit relationship, to a published one, so there is never a
+   * second rung to walk down.
+   */
+  async function softDeleteEntityCascade(
+    type: EntityType,
+    id: string,
+  ): Promise<void> {
+    const attached = await attachedUnpublished(type, id);
+    await softDeleteEntity(type, id);
+    await removeEntityFacts(type, id);
+    for (const other of attached) {
+      await softDeleteEntity(other.type, other.id);
+      await removeEntityFacts(other.type, other.id);
+    }
+  }
+
+  /**
+   * Publish an entity that has just stopped being only a fact about someone else.
+   *
+   * The rule the whole feature turns on: an unpublished entity is one that is
+   * nothing but a name on somebody's relationship, so the moment it acquires a
+   * fact of its own — a birthday, a gender, a contact method, a tag, a second
+   * relationship — it is no longer that, and belongs in the catalog. Every core
+   * write that records such a fact calls this, which is why the user never meets
+   * the idea: they fill something in, and the person is simply there afterwards.
+   *
+   * A no-op for the overwhelmingly common case of an already-published entity,
+   * and for the derived readings (a gender inferred from a role) that store
+   * nothing and so make nobody more than they were.
+   *
+   * Transaction-free: callers fold it into the transaction of the write that
+   * triggered it, so the fact and the promotion land together or not at all.
+   */
+  async function publishIfUnpublished(
+    type: EntityType,
+    id: string,
+  ): Promise<void> {
+    const entity = await resolveEntity(type, id);
+    if (entity === undefined || isPublished(entity.standing)) return;
+    if (type === "person") {
+      await people.update(id, { standing: "published" });
+    } else {
+      await pets.update(id, { standing: "published" });
+    }
+  }
+
+  /**
+   * Whether an edit to an entity's own row makes it more than a name.
+   *
+   * A name is the one thing an unpublished entity is *allowed* to have, so
+   * correcting "Jen" to "Jen Davis" leaves her exactly what she was. Anything
+   * else on the row — a gender, a pet's species — is a fact of her own, and so is
+   * a tag, which arrives beside the patch rather than in it.
+   *
+   * A patch that names `standing` itself is left alone: the caller has said what
+   * they want, and inferring over the top of that would make an explicit demotion
+   * impossible to write.
+   */
+  function promotes(
+    input: Record<string, unknown>,
+    nameFields: readonly string[],
+    tagNames: readonly string[],
+  ): boolean {
+    if ("standing" in input) return false;
+    return (
+      tagNames.length > 0 ||
+      Object.keys(input).some((field) => !nameFields.includes(field))
+    );
+  }
+
+  /** Milestones and observances also bear on relationships, which have no
+   *  standing of their own; only a person or a pet can be promoted. */
+  const publishBearerIfUnpublished = (
+    type: string,
+    id: string,
+  ): Promise<void> =>
+    type === "person" || type === "pet"
+      ? publishIfUnpublished(type, id)
+      : Promise.resolve();
+
   // Resolve a gift suggestion's optional occasion pointer to a display label — a
   // milestone's label (e.g. "Birthday") or a holiday's name — or null when there
   // is no occasion or its target is gone. The occasion is only a label; the
@@ -611,8 +760,8 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     otherRole: RelationshipRole;
     otherRoleNote?: string | null;
   }): Promise<Relationship> {
-    return driver.transaction(() =>
-      relationships.create({
+    return driver.transaction(async () => {
+      const created = await relationships.create({
         aType: input.subjectType,
         aId: input.subjectId,
         aRole: inverseRole(input.otherRole),
@@ -620,8 +769,63 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         bId: input.otherId,
         bRole: input.otherRole,
         bRoleNote: input.otherRoleNote ?? null,
-      }),
-    );
+      });
+      // An unpublished entity holds exactly one relationship — the one it was
+      // created with. Either end reaching here is therefore an end acquiring a
+      // *second*, which is a connection of its own and more than being a name on
+      // somebody else's page. Note this is how the invariant is kept: by
+      // promoting, not by refusing. `createWithNewOther` writes the first edge
+      // without coming through here, which is why it doesn't trip this.
+      await publishIfUnpublished(input.subjectType, input.subjectId);
+      await publishIfUnpublished(input.otherType, input.otherId);
+      return created;
+    });
+  }
+
+  /**
+   * Record a relationship to somebody who isn't in the user's list — creating
+   * them, unpublished, as part of the same write.
+   *
+   * This is the way an unpublished entity comes into being, and the only one:
+   * you type a name into the relationship form, nothing matches it, and you save.
+   * What you get is a person (or pet) that exists as a fact about the subject —
+   * absent from People & Pets, from every picker, and from duplicate detection —
+   * plus the single relationship that is their entire reason for being there.
+   *
+   * One transaction, because half of this is nothing: an entity with no edge is
+   * unreachable, and an edge to nobody is not writable.
+   *
+   * The name is taken **verbatim** for a pet and split on the first space for a
+   * person, the same rule the vCard reader falls back on for a bare `FN`. Nothing
+   * cleverer: "Jen" and "Jen Davis" are both whole names now, so there is no
+   * missing part to guess at, and a two-word name that isn't first-and-last is
+   * one edit away from being right on the person's own page.
+   */
+  function createWithNewOther(input: {
+    subjectType: EntityType;
+    subjectId: string;
+    otherType: EntityType;
+    otherName: string;
+    otherRole: RelationshipRole;
+    otherRoleNote?: string | null;
+  }): Promise<{ other: Person | Pet; relationship: Relationship }> {
+    return driver.transaction(async () => {
+      const name = input.otherName.trim();
+      const other =
+        input.otherType === "person"
+          ? await people.create({ ...splitName(name), standing: "unpublished" })
+          : await pets.create({ name, standing: "unpublished" });
+      const relationship = await relationships.create({
+        aType: input.subjectType,
+        aId: input.subjectId,
+        aRole: inverseRole(input.otherRole),
+        bType: input.otherType,
+        bId: other.id,
+        bRole: input.otherRole,
+        bRoleNote: input.otherRoleNote ?? null,
+      });
+      return { other, relationship };
+    });
   }
 
   // Edit a subject-scoped relationship: only the *other* end's role changes; the
@@ -858,6 +1062,11 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           const updated = await people.update(id, input);
           if (updated) {
             await tags.setEntityTags("person", id, tagNames);
+            if (
+              promotes(input, ["firstName", "middleName", "lastName"], tagNames)
+            ) {
+              await publishIfUnpublished("person", id);
+            }
           }
           return updated;
         });
@@ -869,22 +1078,14 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         await regenerateSystem();
         return person;
       },
-      // Soft-delete the person and cascade across every fact that references it.
-      // The cascade removes their milestones, so reconcile afterwards to prune any
-      // now-orphaned birthday reminder at once (same reason a milestone delete does
-      // — see `milestones.softDelete`), rather than leaving it until boot/focus.
+      // Soft-delete the person and cascade across every fact that references it,
+      // and across anyone who existed only as a fact about them — see
+      // `softDeleteEntityCascade`. The cascade removes their milestones, so
+      // reconcile afterwards to prune any now-orphaned birthday reminder at once
+      // (same reason a milestone delete does — see `milestones.softDelete`),
+      // rather than leaving it until boot/focus.
       softDelete: async (id: string): Promise<void> => {
-        await driver.transaction(async () => {
-          await people.softDelete(id);
-          await tags.removeAllForEntity("person", id);
-          await relationships.removeAllForEntity("person", id);
-          await dismissals.removeAllForEntity("person", id);
-          await milestones.removeAllForEntity("person", id);
-          await contactMethods.removeAllForOwner("person", id);
-          await observances.removeAllForBearer("person", id);
-          await giftSuggestions.removeAllForRecipient("person", id);
-          await giftsRepo.removeAllForParty("person", id);
-        });
+        await driver.transaction(() => softDeleteEntityCascade("person", id));
         await regenerateSystem();
       },
       // Absorb the `loser` person into the `survivor`, in one transaction: the
@@ -952,22 +1153,16 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           const pet = await pets.update(id, input);
           if (pet) {
             await tags.setEntityTags("pet", id, tagNames);
+            if (promotes(input, ["name"], tagNames)) {
+              await publishIfUnpublished("pet", id);
+            }
           }
           return pet;
         }),
       // Cascade-delete the pet's facts, then reconcile so its birthday reminder is
       // pruned at once (see the Person `softDelete` above for the rationale).
       softDelete: async (id: string): Promise<void> => {
-        await driver.transaction(async () => {
-          await pets.softDelete(id);
-          await tags.removeAllForEntity("pet", id);
-          await relationships.removeAllForEntity("pet", id);
-          await dismissals.removeAllForEntity("pet", id);
-          await milestones.removeAllForEntity("pet", id);
-          await observances.removeAllForBearer("pet", id);
-          await giftSuggestions.removeAllForRecipient("pet", id);
-          await giftsRepo.removeAllForParty("pet", id);
-        });
+        await driver.transaction(() => softDeleteEntityCascade("pet", id));
         await regenerateSystem();
       },
     },
@@ -1030,6 +1225,16 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         decisions: readonly ObserverDecision[],
       ): Promise<void> => {
         await holidaysApi.setObservers(holidayId, decisions);
+        // Which holidays someone keeps is a fact about them. Only the bearers
+        // being *given* the observance promote — clearing one says nothing new
+        // about anybody.
+        for (const decision of decisions) {
+          if (!decision.observes) continue;
+          await publishBearerIfUnpublished(
+            decision.bearerType,
+            decision.bearerId,
+          );
+        }
         await regenerateSystem();
       },
       setHidden: async (holidayId: string, hidden: boolean): Promise<void> => {
@@ -1062,8 +1267,26 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         input: UpdateRelationshipInput,
       ): Promise<Relationship | undefined> =>
         driver.transaction(() => relationships.update(id, input)),
+      // Removing the edge removes anyone who was only on the other end of it.
+      // For two published people this unlinks two records that both carry on
+      // existing; when one end is unpublished, that edge was the entire reason
+      // they were in the database, so the row goes with it rather than becoming
+      // unreachable. The UI says which of the two is about to happen.
       softDelete: (id: string): Promise<void> =>
-        driver.transaction(() => relationships.softDelete(id)),
+        driver.transaction(async () => {
+          const rel = await relationships.get(id);
+          await relationships.softDelete(id);
+          if (rel === undefined) return;
+          for (const end of [
+            { type: rel.aType, id: rel.aId },
+            { type: rel.bType, id: rel.bId },
+          ]) {
+            const entity = await resolveEntity(end.type, end.id);
+            if (entity === undefined || isPublished(entity.standing)) continue;
+            await softDeleteEntity(end.type, end.id);
+            await removeEntityFacts(end.type, end.id);
+          }
+        }),
       // Orient each stored row to the subject and resolve the *other* end's
       // label + role, so the caller never sees the raw a/b endpoints.
       listForEntity: (
@@ -1073,6 +1296,9 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       // Write a relationship from a subject's perspective, implying the subject's
       // own role from the chosen other role. See {@link createFromSubject}.
       createFromSubject,
+      // The same, for an other end that doesn't exist yet: creates them
+      // unpublished alongside the edge. See {@link createWithNewOther}.
+      createWithNewOther,
       // Edit a subject-scoped relationship, re-deriving the subject's own role.
       // See {@link editFromSubject}.
       editFromSubject,
@@ -1134,6 +1360,12 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
               reminderSchedule,
             );
           }
+          // A birthday is the likeliest first thing anyone records about a
+          // person they had only named, and it is a fact of that person's own.
+          await publishBearerIfUnpublished(
+            milestoneInput.bearerType,
+            milestoneInput.bearerId,
+          );
           return created;
         });
         await regenerateSystem();
@@ -1566,6 +1798,9 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           }
 
           for (const { party, givings, suggestion } of input.recipients) {
+            // Being given something, or being someone to give something to, is a
+            // fact about the recipient.
+            await publishBearerIfUnpublished(party.type, party.id);
             const entries = givings ?? [];
             if (entries.length === 0) {
               await giftSuggestions.create({
@@ -1651,9 +1886,15 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         id: string,
       ): Promise<ContactMethod[]> =>
         listContactMethods(contactMethods, { type, id }),
+      // Each `create` publishes an unpublished owner: an address or a number is a
+      // fact about that person, not about whoever they are attached to.
       emails: {
         create: (input: CreateEmailInput): Promise<EmailAddress> =>
-          driver.transaction(() => contactMethods.emails.create(input)),
+          driver.transaction(async () => {
+            const created = await contactMethods.emails.create(input);
+            await publishBearerIfUnpublished(input.ownerType, input.ownerId);
+            return created;
+          }),
         update: (
           id: string,
           input: UpdateEmailInput,
@@ -1664,7 +1905,11 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       },
       phones: {
         create: (input: CreatePhoneInput): Promise<PhoneNumber> =>
-          driver.transaction(() => contactMethods.phones.create(input)),
+          driver.transaction(async () => {
+            const created = await contactMethods.phones.create(input);
+            await publishBearerIfUnpublished(input.ownerType, input.ownerId);
+            return created;
+          }),
         update: (
           id: string,
           input: UpdatePhoneInput,
@@ -1675,7 +1920,11 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       },
       postals: {
         create: (input: CreatePostalInput): Promise<PostalAddress> =>
-          driver.transaction(() => contactMethods.postals.create(input)),
+          driver.transaction(async () => {
+            const created = await contactMethods.postals.create(input);
+            await publishBearerIfUnpublished(input.ownerType, input.ownerId);
+            return created;
+          }),
         update: (
           id: string,
           input: UpdatePostalInput,

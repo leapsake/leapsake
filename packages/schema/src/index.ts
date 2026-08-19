@@ -3,6 +3,7 @@ export {
   createPersonInputSchema,
   updatePersonInputSchema,
   hasAnyName,
+  splitName,
 } from "./person.js";
 export type { Person, CreatePersonInput, UpdatePersonInput } from "./person.js";
 export {

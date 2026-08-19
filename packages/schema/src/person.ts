@@ -44,6 +44,32 @@ export function hasAnyName(name: {
   );
 }
 
+/**
+ * Split a name typed as one string into parts: up to the first space is the
+ * first name, the remainder is the last name.
+ *
+ * For the places a name arrives as free text rather than as labelled fields —
+ * recording a relationship to somebody not in the list, or a vCard carrying only
+ * a display name. It stays deliberately dumb: "Jen" and "Jen Davis" are both
+ * complete names now, so there is no missing part to be clever about, and a
+ * name this rule reads wrongly ("Ursula K. Le Guin") is one edit away from right
+ * on the person's own page. Guessing at particles and suffixes would be wrong
+ * more often and less predictably.
+ */
+export function splitName(text: string): {
+  firstName: string | null;
+  lastName: string | null;
+} {
+  const trimmed = text.trim();
+  const space = trimmed.indexOf(" ");
+  if (trimmed === "") return { firstName: null, lastName: null };
+  if (space === -1) return { firstName: trimmed, lastName: null };
+  return {
+    firstName: trimmed.slice(0, space),
+    lastName: trimmed.slice(space + 1).trim(),
+  };
+}
+
 /** Reported against `firstName`, so a form shows it on the field you'd fix. */
 const nameRequired = {
   error: "A person needs at least one name",
