@@ -4,6 +4,7 @@ import {
   type LinkAction,
   NATIVE_SCHEMES,
   PLATFORMS,
+  SCHEME_PROBES,
   resolveActions,
 } from "../src/index.js";
 
@@ -283,6 +284,14 @@ describe("the registry as a whole", () => {
       expect(Boolean(platform.acceptsUserId), platform.id).toBe(
         platform.fromUserId !== undefined,
       );
+    }
+  });
+
+  it("gives every declared scheme something to probe with", () => {
+    for (const scheme of NATIVE_SCHEMES) {
+      const probe = SCHEME_PROBES[scheme];
+      expect(probe, scheme).toBeDefined();
+      expect(probe.startsWith(`${scheme}:`), scheme).toBe(true);
     }
   });
 

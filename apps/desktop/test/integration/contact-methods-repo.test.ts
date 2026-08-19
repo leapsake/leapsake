@@ -164,6 +164,43 @@ describe("phones", () => {
     });
     expect(reenabled?.smsCapable).toBe(true);
   });
+
+  it("round-trips reachableOn through the JSON column", async () => {
+    const unasked = await repo.phones.create(phone(crypto.randomUUID()));
+    // Nothing is assumed — Leapsake cannot know who is on WhatsApp.
+    expect(unasked.reachableOn).toEqual([]);
+
+    const created = await repo.phones.create(
+      phone(crypto.randomUUID(), { reachableOn: ["whatsapp", "signal"] }),
+    );
+    expect(created.reachableOn).toEqual(["whatsapp", "signal"]);
+    // Re-read rather than trusting the value `create` returned: the point of
+    // this test is the TEXT column decoding back to an array.
+    expect((await repo.phones.get(created.id))?.reachableOn).toEqual([
+      "whatsapp",
+      "signal",
+    ]);
+
+    const narrowed = await repo.phones.update(created.id, {
+      reachableOn: ["signal"],
+    });
+    expect(narrowed?.reachableOn).toEqual(["signal"]);
+
+    const cleared = await repo.phones.update(created.id, { reachableOn: [] });
+    expect(cleared?.reachableOn).toEqual([]);
+  });
+
+  it("reads a row predating the column as reaching nothing", async () => {
+    const created = await repo.phones.create(
+      phone(crypto.randomUUID(), { reachableOn: ["whatsapp"] }),
+    );
+    // What every row looked like before migration 32 added the column.
+    await driver.run(
+      "UPDATE phone_numbers SET reachable_on = NULL WHERE id = ?",
+      [created.id],
+    );
+    expect((await repo.phones.get(created.id))?.reachableOn).toEqual([]);
+  });
 });
 
 describe("postals", () => {

@@ -34,6 +34,7 @@ export default function ContactNewScreen() {
             extension: value.extension,
             country: value.country,
             smsCapable: value.smsCapable,
+            reachableOn: value.reachableOn,
           });
         } else {
           await core.contactMethods.postals.create({

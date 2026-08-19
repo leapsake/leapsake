@@ -5,6 +5,7 @@ export {
   PHONE_PLATFORMS,
   HANDLE_PLATFORMS,
   NATIVE_SCHEMES,
+  SCHEME_PROBES,
   findPlatform,
   normalizeFor,
 } from "./platforms.js";

@@ -112,6 +112,14 @@ export function normalizeEmail(raw: string): string {
  * person?" — and defaults to true: a number is assumed textable unless the user
  * marks it a landline/fax. Richer call-vs-text *preference* still belongs with
  * the deferred channel preferences; this is only the capability.
+ *
+ * `reachableOn` answers the *other* question a number raises: WhatsApp and
+ * Signal are addressed by phone number, so they need no contact method of their
+ * own — only the fact that this person is on them, which nothing but the user
+ * knows. The ids are `@leapsake/contact-links` platform ids, held as free
+ * strings on purpose: the registry decides which platforms exist, and validating
+ * against it here would freeze that list into stored data and reject a row
+ * synced from a device running a newer build.
  */
 export const phoneNumberSchema = z.object({
   ...spine,
@@ -120,6 +128,7 @@ export const phoneNumberSchema = z.object({
   extension: z.string().min(1).nullable(),
   country: countryCodeSchema.nullable(),
   smsCapable: z.boolean(),
+  reachableOn: z.array(z.string()).default([]),
 });
 
 export type PhoneNumber = z.infer<typeof phoneNumberSchema>;
@@ -130,6 +139,7 @@ export const createPhoneInputSchema = z.object({
   extension: z.string().min(1).nullable().optional(),
   country: countryCodeSchema.nullable().optional(),
   smsCapable: z.boolean().optional(), // defaults to true in the repo
+  reachableOn: z.array(z.string()).optional(), // defaults to [] in the repo
 });
 
 export type CreatePhoneInput = z.infer<typeof createPhoneInputSchema>;
@@ -140,6 +150,7 @@ export const updatePhoneInputSchema = z.object({
   extension: z.string().min(1).nullable().optional(),
   country: countryCodeSchema.nullable().optional(),
   smsCapable: z.boolean().optional(),
+  reachableOn: z.array(z.string()).optional(),
 });
 
 export type UpdatePhoneInput = z.infer<typeof updatePhoneInputSchema>;

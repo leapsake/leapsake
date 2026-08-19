@@ -142,6 +142,7 @@ export default function PersonDetailScreen() {
 
       <ContactsSection
         ownerId={person.id}
+        subjectName={fullName(person)}
         methods={contactMethods}
         onChanged={reload}
       />

@@ -13,6 +13,7 @@
   "dependencies": {
     "@leapsake/bytes": "workspace:*",
     "@leapsake/contact-import": "workspace:*",
+    "@leapsake/contact-links": "workspace:*",
     "@leapsake/core": "workspace:*",
     "@leapsake/crypto": "workspace:*",
     "@leapsake/data": "workspace:*",

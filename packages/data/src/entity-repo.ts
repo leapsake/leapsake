@@ -94,7 +94,8 @@ export function softDeleteRow(
  * local CRUD path and the sync path (it resolves the codec once and hands it to
  * {@link defineSyncable}), so an entity's columns are spelled exactly once — in
  * its Zod schema. Pass an explicit `codec` only when the on-wire shape differs
- * from the on-disk shape (encrypted fields — see `milestones-repo.ts`).
+ * from the on-disk shape; a column SQLite merely cannot type wants `booleans` or
+ * `json` instead.
  */
 export function createEntityRepo<T extends SyncRow>(opts: {
   driver: SqliteDriver;
@@ -121,6 +122,8 @@ export function createEntityRepo<T extends SyncRow>(opts: {
   fields?: readonly string[];
   /** Fields stored as 0/1 because SQLite has no boolean type. */
   booleans?: readonly string[];
+  /** Fields stored as JSON TEXT because SQLite has no array or object type. */
+  json?: readonly string[];
   /** A bespoke domain↔table mapping; only for shapes that differ (encryption). */
   codec?: RowCodec<T>;
   /** Narrow the merge so an untouched row never wins — see {@link defineSyncable}. */

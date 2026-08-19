@@ -17,6 +17,8 @@ import {
   phoneLabelSuggestions,
   postalLabelSuggestions,
 } from "@leapsake/schema";
+import { PHONE_PLATFORMS } from "@leapsake/contact-links";
+import { CheckboxBox } from "./Checkbox";
 import { CountryField } from "./CountryField";
 import { HeaderSave } from "./HeaderSave";
 import { styles } from "../lib/styles";
@@ -36,6 +38,7 @@ export type ContactFormValue =
       extension: string | null;
       country: string | null;
       smsCapable: boolean;
+      reachableOn: string[];
     }
   | {
       kind: "postal";
@@ -116,6 +119,9 @@ export function ContactMethodForm({
   const [number, setNumber] = useState(phone?.number ?? "");
   const [extension, setExtension] = useState(phone?.extension ?? "");
   const [smsCapable, setSmsCapable] = useState(phone?.smsCapable ?? true);
+  const [reachableOn, setReachableOn] = useState<string[]>(
+    phone?.reachableOn ?? [],
+  );
   const [line1, setLine1] = useState(postal?.line1 ?? "");
   const [line2, setLine2] = useState(postal?.line2 ?? "");
   const [locality, setLocality] = useState(postal?.locality ?? "");
@@ -154,6 +160,7 @@ export function ContactMethodForm({
           extension: blankToNull(extension),
           country,
           smsCapable,
+          reachableOn,
         });
       } else {
         await onSubmit({
@@ -257,6 +264,38 @@ export function ContactMethodForm({
           >
             <Text style={styles.fieldValue}>Can receive texts</Text>
             <Switch value={smsCapable} onValueChange={setSmsCapable} />
+          </View>
+
+          {/* Whether this number is on WhatsApp is the one thing Leapsake
+              cannot work out for itself, and the only thing standing between a
+              stored number and a tap that opens the conversation. Asked here,
+              once, rather than guessed — and rendered from the registry, so a
+              platform added to `@leapsake/contact-links` shows up without this
+              form changing. */}
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Also reachable on</Text>
+            {PHONE_PLATFORMS.map((platform) => {
+              const on = reachableOn.includes(platform.id);
+              return (
+                <Pressable
+                  key={platform.id}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  accessibilityLabel={platform.name}
+                  style={[styles.rowWithLead, { paddingVertical: 8 }]}
+                  onPress={() =>
+                    setReachableOn((current) =>
+                      on
+                        ? current.filter((id) => id !== platform.id)
+                        : [...current, platform.id],
+                    )
+                  }
+                >
+                  <CheckboxBox checked={on} />
+                  <Text style={styles.fieldValue}>{platform.name}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </>
       ) : null}

@@ -10,11 +10,18 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.leapsake.app",
       "infoPlist": {
-        "EXDevMenuShowFloatingActionButton": false
+        "EXDevMenuShowFloatingActionButton": false,
+        "LSApplicationQueriesSchemes": ["facetime", "geo"]
       }
     },
     "android": {
-      "package": "com.leapsake.app"
+      "package": "com.leapsake.app",
+      "queries": [
+        { "intent": { "action": "android.intent.action.VIEW", "data": { "scheme": "geo" } } },
+        { "intent": { "action": "android.intent.action.SENDTO", "data": { "scheme": "smsto" } } },
+        { "intent": { "action": "android.intent.action.DIAL", "data": { "scheme": "tel" } } },
+        { "intent": { "action": "android.intent.action.VIEW", "data": { "scheme": "https" } } }
+      ]
     },
     "web": {},
     "plugins": [

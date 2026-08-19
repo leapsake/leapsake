@@ -984,6 +984,30 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 32,
+    async up(driver) {
+      // Which messaging platforms a number reaches (`@leapsake/contact-links`).
+      // WhatsApp and Signal are addressed *by phone number*, so tapping through
+      // to one needs no new contact method — only the one thing Leapsake cannot
+      // work out for itself, which is whether this person is actually there. The
+      // user ticks it once on the phone form and the action appears from then on.
+      //
+      // Stored as a JSON array of platform ids in one column rather than a
+      // boolean column per platform, so that the *registry* stays the single
+      // source of which platforms exist: the form renders a checkbox per
+      // phone-keyed entry in `PHONE_PLATFORMS`, and adding Telegram-by-phone
+      // later is an entry in that file rather than a migration and a new column.
+      // Decoded by the `json` codec option (`syncable.ts`).
+      //
+      // Nullable with no backfill: a NULL decodes to `undefined`, which lets the
+      // Zod field's own `[]` default mean "not yet asked" for every row that
+      // already exists.
+      await driver.exec(`
+        ALTER TABLE phone_numbers ADD COLUMN reachable_on TEXT;
+      `);
+    },
+  },
 ];
 
 /**

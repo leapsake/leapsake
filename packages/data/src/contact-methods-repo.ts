@@ -138,6 +138,9 @@ export function createContactMethodsRepo(
     schema: phoneNumberSchema,
     // SQLite has no boolean type; `sms_capable` is stored 0/1.
     booleans: ["smsCapable"],
+    // …nor an array type; `reachable_on` is stored as JSON TEXT. A NULL (every
+    // row predating migration 32) decodes to the schema's `[]` default.
+    json: ["reachableOn"],
   });
   const phones: ContactMethodsRepo["phones"] = {
     ...phoneBase,
@@ -156,6 +159,10 @@ export function createContactMethodsRepo(
         country: parsed.country ?? null,
         // Assume textable unless the user says otherwise (landline/fax).
         smsCapable: parsed.smsCapable ?? true,
+        // Nothing is assumed here, though: whether a number is on WhatsApp is
+        // not something Leapsake can guess, so an unasked number reaches nothing
+        // until the user says otherwise.
+        reachableOn: parsed.reachableOn ?? [],
         createdAt: now,
         updatedAt: now,
         deletedAt: null,

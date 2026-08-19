@@ -24,7 +24,7 @@ ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. Th
 - **`global-nav.yaml`** — the navigation shell: that the bar holds Home, Search, New
   and Settings/Account; that **New opens the chooser without navigating** (the property
   the "never selected" rule is really about); that a browse tile opens its catalog with
-  the bar still under it and no back control; that New on a *filtered* Search skips the
+  the bar still under it and no back control; that New on a _filtered_ Search skips the
   chooser and lands in the form; and that a back control is absent inside the tab
   navigator and present one screen up. All of those are claims no lower tier can check —
   `lib/new-action.ts` is unit-tested, but nothing below E2E proves its table is wired to
@@ -64,11 +64,11 @@ ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. Th
   ```
 
   **Green on both platforms** (2026-08-18), from the same file — but unlike
-  `global-nav.yaml` it is not byte-identical *in behaviour*: `subflows/stage-gift-for-occasion.yaml`
+  `global-nav.yaml` it is not byte-identical _in behaviour_: `subflows/stage-gift-for-occasion.yaml`
   **branches**, because a `SelectField` is a genuinely different native control on each
   platform. iOS gets a modal wheel whose options are not addressable (hence the
   open-swipe-assert-Done dance); Android gets a `ListView` dialog of `CheckedTextView` rows
-  that are directly tappable, with no Done button at all — the *easier* platform, the
+  that are directly tappable, with no Done button at all — the _easier_ platform, the
   reverse of the flow's original iOS-shaped assumption. Each branch asserts its own
   selection; see that subflow for why the branch order is load-bearing.
 
@@ -214,7 +214,7 @@ looks nothing like its cause in either case.
 
 - **Android**, `global-nav.yaml`: case 3's `tapOn: search-here-people` hit the bubble, and
   the run went red two lines on at `search-filter-chip is visible`.
-- **iOS**, `staged-gift-occasions.yaml`: the button's *stored position* sat over the add
+- **iOS**, `staged-gift-occasions.yaml`: the button's _stored position_ sat over the add
   screen's holiday row, so `stage-christmas`'s `tapOn: below: "Add a holiday"` hit it and
   the flow died three cases in. Hiding it took that flow from red to **green on all five
   cases** with no edit to the flow itself.
@@ -228,7 +228,7 @@ defaults`.
 
 **On iOS the build itself now carries the setting** — `ios.infoPlist` in `app.json` — so a
 fresh install has the button off before anything runs, including a flow run directly. That is
-a *registered default*, though: an **explicit** `UserDefaults` value wins over it, so a
+a _registered default_, though: an **explicit** `UserDefaults` value wins over it, so a
 simulator where the button was ever toggled by hand keeps whatever it was toggled to. Clear it
 once and the build's default takes over:
 
@@ -249,7 +249,7 @@ Two more first-run overlays in the same family, both Android:
   `isOnboardingFinished` above;
 - the system's **stylus handwriting** dialog ("Try out your stylus"), which opens over the
   app the first time a text field takes focus. It made `add-person.yaml` fail on
-  `person-last-name` with *element not found* — the id really was absent, because the whole
+  `person-last-name` with _element not found_ — the id really was absent, because the whole
   app was behind a system dialog. Disable it per emulator:
   ```sh
   adb shell settings put secure stylus_handwriting_enabled 0

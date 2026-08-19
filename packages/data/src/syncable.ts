@@ -82,12 +82,16 @@ export function assignmentClause(
  * row (snake_case columns, the shape on disk).
  *
  * {@link defineSyncable} supplies a default codec that is a pure camelCase↔
- * snake_case rename, so a plain entity needs **no codec at all**. Pass an
- * explicit one only when the two shapes genuinely differ — today only
- * `milestones`, whose `note` is decrypted on the way out (so it rides as
- * plaintext *inside* the master-key seal) and re-sealed under this device's own
- * content key on the way in (so `content_key`/`key_wrap` rows never sync). See
- * `milestones-repo.ts` for the worked example.
+ * snake_case rename — plus the two encodings SQLite's type system forces
+ * (`booleans` as 0/1, `json` as TEXT) — so a plain entity needs **no codec at
+ * all**. Pass an explicit one only when the two shapes genuinely differ.
+ *
+ * Nothing does today. `milestones` used to, sealing its `note` under a per-item
+ * content key, until *encryption follows custody* (plans/encryption/model.md
+ * §7.2) made that layer buy nothing for a domain field. The escape hatch stays
+ * because photos will want it (plans/v0-2.md), but a shape that merely needs a
+ * non-scalar column should reach for `json` rather than hand-writing a codec and
+ * re-spelling every column in it.
  */
 export interface RowCodec<T extends SyncRow> {
   /** Domain row → table row (snake_case columns ready to bind). */
@@ -104,12 +108,14 @@ function toSnakeCase(camel: string): string {
 /**
  * Build the default {@link RowCodec} from a Zod object schema: column names are
  * the snake_case of the schema's field names, values pass through unchanged
- * except booleans, which SQLite has no type for and so store as 0/1.
+ * except the two SQLite cannot hold as they are — booleans (no boolean type, so
+ * 0/1) and `json` fields (no array or object type, so a TEXT round-trip).
  */
 function defaultCodec<T extends SyncRow>(
   schema: ParsableSchema<T>,
   fields: readonly string[] | undefined,
   booleans: readonly string[] | undefined,
+  json: readonly string[] | undefined,
 ): RowCodec<T> {
   const names = fields ?? Object.keys(schema.shape ?? {});
   if (names.length === 0) {
@@ -119,6 +125,7 @@ function defaultCodec<T extends SyncRow>(
     );
   }
   const bool = new Set(booleans ?? []);
+  const structured = new Set(json ?? []);
   return {
     toRow(row) {
       const out: Record<string, SqlValue> = {};
@@ -130,7 +137,11 @@ function defaultCodec<T extends SyncRow>(
             : value
               ? 1
               : 0
-          : (value as SqlValue);
+          : structured.has(field)
+            ? value == null
+              ? null
+              : JSON.stringify(value)
+            : (value as SqlValue);
       }
       return out;
     },
@@ -142,11 +153,33 @@ function defaultCodec<T extends SyncRow>(
           ? value == null
             ? null
             : value !== 0
-          : value;
+          : structured.has(field)
+            ? parseJsonColumn(value)
+            : value;
       }
       return schema.parse(obj);
     },
   };
+}
+
+/**
+ * Decode a `json` column. A NULL comes back as `undefined` rather than `null` so
+ * the field's own Zod default applies — a column added by a migration is NULL on
+ * every existing row, and "the schema decides what an absent value means" beats
+ * every repo hand-coding the same `?? []`.
+ *
+ * Malformed text is left to Zod as the raw string: a peer that sent us garbage
+ * should fail validation loudly at the row it belongs to, not be silently read
+ * as an empty value here.
+ */
+function parseJsonColumn(value: unknown): unknown {
+  if (value == null) return undefined;
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
 }
 
 /** The slice of a Zod object schema this helper relies on. */
@@ -166,9 +199,13 @@ export function resolveCodec<T extends SyncRow>(opts: {
   schema: ParsableSchema<T>;
   fields?: readonly string[];
   booleans?: readonly string[];
+  json?: readonly string[];
   codec?: RowCodec<T>;
 }): RowCodec<T> {
-  return opts.codec ?? defaultCodec<T>(opts.schema, opts.fields, opts.booleans);
+  return (
+    opts.codec ??
+    defaultCodec<T>(opts.schema, opts.fields, opts.booleans, opts.json)
+  );
 }
 
 /**
@@ -204,8 +241,10 @@ export function resolveCodec<T extends SyncRow>(opts: {
  *      the default can't infer:
  *        - `booleans: ["smsCapable"]` — fields SQLite stores as 0/1 (it has no
  *          boolean type). Forgetting one fails loudly on the first synced read.
+ *        - `json: ["reachableOn"]` — fields SQLite stores as TEXT (it has no
+ *          array or object type). See `contact-methods-repo.ts`.
  *        - `codec` — only when the on-wire shape differs from the on-disk shape
- *          (encrypted fields). See `milestones-repo.ts`.
+ *          (encrypted fields). No table needs one today.
  *        - `hasHistory` — only for a table whose rows two devices **mint
  *          independently under the same id**. See the option's doc-comment.
  *   4. **Register** — add the repo to the `repos` array handed to
@@ -226,6 +265,13 @@ export function defineSyncable<T extends SyncRow>(opts: {
   fields?: readonly string[];
   /** Fields stored as 0/1 because SQLite has no boolean type. */
   booleans?: readonly string[];
+  /**
+   * Fields stored as JSON TEXT because SQLite has no array or object type. A
+   * NULL column decodes to `undefined` so the schema's own default decides what
+   * an absent value means — which is what makes adding one to an existing table
+   * a plain `ALTER TABLE ... ADD COLUMN` with no backfill.
+   */
+  json?: readonly string[];
   /** A bespoke domain↔table mapping; only for shapes that differ (encryption). */
   codec?: RowCodec<T>;
   /**

@@ -185,3 +185,15 @@ export function normalizeFor(platform: Platform | undefined, raw: string) {
  * excluded for that reason.
  */
 export const NATIVE_SCHEMES: readonly string[] = ["facetime", "geo"];
+
+/**
+ * A syntactically valid throwaway URL per entry in {@link NATIVE_SCHEMES}, for a
+ * client to hand `canOpenURL` when asking whether the scheme resolves to
+ * anything. Kept beside the scheme list so the two cannot drift, and because
+ * "what does a well-formed `geo:` URL look like?" is a fact about the scheme
+ * rather than about the screen doing the asking. Never opened — only probed.
+ */
+export const SCHEME_PROBES: Readonly<Record<string, string>> = {
+  facetime: "facetime:0000000000",
+  geo: "geo:0,0",
+};
