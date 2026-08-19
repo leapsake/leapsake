@@ -2,6 +2,7 @@ export {
   personSchema,
   createPersonInputSchema,
   updatePersonInputSchema,
+  hasAnyName,
 } from "./person.js";
 export type { Person, CreatePersonInput, UpdatePersonInput } from "./person.js";
 export {
@@ -215,7 +216,7 @@ export type {
 export { dismissalSchema } from "./dismissal.js";
 export { notADuplicateSchema } from "./not-a-duplicate.js";
 export type { NotADuplicate } from "./not-a-duplicate.js";
-export { fullName, entityLabel, tagLabel } from "./labels.js";
+export { fullName, joinNameParts, entityLabel, tagLabel } from "./labels.js";
 export { genderSchema, genderLabel } from "./gender.js";
 export type { Gender } from "./gender.js";
 export {

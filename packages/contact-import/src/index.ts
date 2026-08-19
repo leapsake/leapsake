@@ -23,6 +23,7 @@ export type {
 } from "./ingest.js";
 export {
   importDecisionsSchema,
+  nameInputFrom,
   parsedContactSchema,
   parsedContactsSchema,
 } from "./parsed-contact.js";

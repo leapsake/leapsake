@@ -54,6 +54,41 @@ describe("personSchema", () => {
     ).toThrow();
   });
 
+  // A person needs *some* name, not a first one and a last one — "Jen" and
+  // "Jen Davis" are both whole people. The rule that replaced the old pair of
+  // requirements is "at least one part", and it lives on the row so that every
+  // write path inherits it: create, update, import, and sync's decode.
+  it("accepts a first name alone", () => {
+    const mononym = { ...validPerson, lastName: null };
+    expect(personSchema.parse(mononym)).toEqual(mononym);
+  });
+
+  it("accepts a last name alone", () => {
+    const surnameOnly = { ...validPerson, firstName: null };
+    expect(personSchema.parse(surnameOnly)).toEqual(surnameOnly);
+  });
+
+  it("accepts a middle name alone", () => {
+    const middleOnly = {
+      ...validPerson,
+      firstName: null,
+      middleName: "Byron",
+      lastName: null,
+    };
+    expect(personSchema.parse(middleOnly)).toEqual(middleOnly);
+  });
+
+  it("rejects a person with no name at all", () => {
+    expect(() =>
+      personSchema.parse({
+        ...validPerson,
+        firstName: null,
+        middleName: null,
+        lastName: null,
+      }),
+    ).toThrow();
+  });
+
   it("rejects a non-uuid id", () => {
     expect(() =>
       personSchema.parse({ ...validPerson, id: "not-a-uuid" }),
@@ -84,8 +119,20 @@ describe("createPersonInputSchema", () => {
     ).toEqual({ firstName: "Ada", middleName: "Byron", lastName: "Lovelace" });
   });
 
-  it("rejects a missing lastName", () => {
-    expect(() => createPersonInputSchema.parse({ firstName: "Ada" })).toThrow();
+  it("accepts a first name alone", () => {
+    expect(createPersonInputSchema.parse({ firstName: "Cher" })).toEqual({
+      firstName: "Cher",
+    });
+  });
+
+  it("accepts a last name alone", () => {
+    expect(createPersonInputSchema.parse({ lastName: "Davis" })).toEqual({
+      lastName: "Davis",
+    });
+  });
+
+  it("rejects an input with no name at all", () => {
+    expect(() => createPersonInputSchema.parse({ gender: "female" })).toThrow();
   });
 
   it("rejects an empty firstName", () => {
@@ -108,5 +155,21 @@ describe("updatePersonInputSchema", () => {
 
   it("rejects an empty firstName when present", () => {
     expect(() => updatePersonInputSchema.parse({ firstName: "" })).toThrow();
+  });
+
+  // Deliberately unrefined, unlike the create input: a patch that touches only
+  // the gender carries no name and must still be legal. The "at least one name"
+  // rule is enforced against the *merged* row by `entity-repo`'s update, which
+  // is the only place that can see what the patch would leave behind.
+  it("accepts a patch carrying no name", () => {
+    expect(updatePersonInputSchema.parse({ gender: "female" })).toEqual({
+      gender: "female",
+    });
+  });
+
+  it("accepts a patch clearing one name part", () => {
+    expect(updatePersonInputSchema.parse({ lastName: null })).toEqual({
+      lastName: null,
+    });
   });
 });

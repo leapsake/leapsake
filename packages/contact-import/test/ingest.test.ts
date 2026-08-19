@@ -79,7 +79,11 @@ describe("ingestContacts", () => {
     expect(birthdays).toEqual([{ personId: "person-1" }]);
   });
 
-  it("refuses an empty last name without fabricating one", async () => {
+  // A mononym or an organisation-only card ("Acme Corp", "Cher") is what the
+  // parser produces when it refuses to invent a surname. These used to be
+  // turned away here — the only thing stopping them was the Person schema
+  // demanding both names — and now they import as they came.
+  it("imports a card with only a first name", async () => {
     const { ports, people } = makePorts();
     const result = await ingestContacts(ports, [
       {
@@ -89,10 +93,24 @@ describe("ingestContacts", () => {
         }),
       },
     ]);
+    expect(result).toEqual({ created: 1, skipped: 0, errors: [] });
+    expect(people).toHaveLength(1);
+  });
+
+  it("refuses a card with no name at all", async () => {
+    const { ports, people } = makePorts();
+    const result = await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          name: { firstName: "", middleName: null, lastName: "" },
+        }),
+      },
+    ]);
     expect(result.created).toBe(0);
     expect(people).toHaveLength(0);
     expect(result.errors).toHaveLength(1);
-    expect(result.errors[0].message).toMatch(/first and last name/i);
+    expect(result.errors[0].message).toMatch(/needs a name/i);
   });
 
   it("isolates a failing contact so the others still import", async () => {

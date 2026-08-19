@@ -117,6 +117,7 @@ import {
   type ImportResult,
   type ParsedContact,
   ingestContacts,
+  nameInputFrom,
 } from "@leapsake/contact-import";
 import { getSyncStatus } from "@leapsake/key-custody";
 import type { KeySession } from "@leapsake/key-custody";
@@ -1762,12 +1763,11 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       commit: async (decisions: ImportDecision[]): Promise<ImportResult> => {
         const ports: ImportPorts = {
           createPerson: (name, gender) =>
-            people.create({
-              firstName: name.firstName,
-              middleName: name.middleName,
-              lastName: name.lastName,
-              gender,
-            }),
+            // Through `nameInputFrom`, not field-by-field: a card's blank part
+            // is `""`, and the Person schema spells absent as `null`. Handing it
+            // the raw strings would fail `min(1)` on exactly the mononym and
+            // organisation-only cards this import is meant to accept.
+            people.create({ ...nameInputFrom(name), gender }),
           addEmail: async (personId, email) => {
             await contactMethods.emails.create({
               ownerType: "person",

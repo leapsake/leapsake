@@ -68,7 +68,10 @@ async function seedOpenStore(key?: Uint8Array): Promise<void> {
 }
 
 /** The people in a store, read through the production encrypted open path. */
-async function readPeople(path: string, key: Uint8Array): Promise<string[]> {
+async function readPeople(
+  path: string,
+  key: Uint8Array,
+): Promise<(string | null)[]> {
   const driver = encryptedSqliteDriver(openEncryptedDatabase(path, key));
   const people = await createPeopleRepo(driver).list();
   await driver.close?.();

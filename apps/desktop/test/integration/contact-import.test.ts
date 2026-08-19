@@ -104,9 +104,10 @@ describe("core.import.commit", () => {
       { action: "skip", contact: contact({ displayName: "skipped" }) },
       {
         action: "create",
-        // Empty last name — refused without fabricating one.
+        // No name at all — the only card the engine still refuses, now that a
+        // person may be filed under any one part of a name.
         contact: contact({
-          name: { firstName: "Acme", middleName: null, lastName: "" },
+          name: { firstName: "", middleName: null, lastName: "" },
         }),
       },
     ]);
@@ -115,6 +116,26 @@ describe("core.import.commit", () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].index).toBe(2);
     expect(await core.people.list()).toHaveLength(1);
+  });
+
+  // The card the importer used to turn away. Worth an end-to-end check rather
+  // than an engine-level one, because the failure it guards against was in the
+  // *wiring*: a blank part arrives as `""`, and handing that straight to
+  // `people.create` fails the schema's `min(1)` on exactly these cards.
+  it("imports a mononym card, storing the absent surname as null", async () => {
+    const result = await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          name: { firstName: "Cher", middleName: null, lastName: "" },
+        }),
+      },
+    ]);
+    expect(result).toMatchObject({ created: 1, errors: [] });
+
+    const [person] = await core.people.list();
+    expect(person.firstName).toBe("Cher");
+    expect(person.lastName).toBeNull();
   });
 
   it("reconciles a birthday reminder for an imported birthday", async () => {

@@ -3,6 +3,7 @@ import {
   type DuplicateTier,
   TIER_RANK,
   fold,
+  joinNameParts,
   normalizeEmail,
   normalizePhone,
   scoreDuplicate,
@@ -69,8 +70,8 @@ export interface DuplicateService {
 
 interface PersonRow {
   id: string;
-  first_name: string;
-  last_name: string;
+  first_name: string | null;
+  last_name: string | null;
 }
 interface ContactRow {
   owner_id: string;
@@ -122,7 +123,10 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
     }
 
     return people.map((p) => {
-      const name = `${p.first_name} ${p.last_name}`.trim();
+      // Any part of a name may be absent, so the parts are joined rather than
+      // interpolated — otherwise a surname-only person folds to " davis" and
+      // matches nothing, including the identical person entered the other way.
+      const name = joinNameParts(p.first_name, p.last_name);
       const input: DuplicateInput = {
         name,
         foldedName: fold(name),

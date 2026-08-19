@@ -25,7 +25,11 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
     driver,
     table: "people",
     schema: personSchema,
-    orderBy: "last_name, first_name",
+    // Every name part is optional now, so a plain "last_name, first_name" would
+    // file everyone without a surname — the mononyms, and the people known only
+    // as somebody's spouse — in a block at the top under NULL. Sort each person
+    // by whichever part they actually have.
+    orderBy: "COALESCE(last_name, first_name, middle_name), first_name",
   });
 
   return {
@@ -33,9 +37,9 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
 
     async create(input) {
       const {
-        firstName,
+        firstName = null,
         middleName = null,
-        lastName,
+        lastName = null,
         gender = null,
       } = createPersonInputSchema.parse(input);
       const now = Date.now();

@@ -3,11 +3,30 @@ import type { Pet } from "./pet.js";
 import type { EntityType } from "./relationship.js";
 
 /**
+ * Join whatever name parts are actually there, single-spaced.
+ *
+ * Every part of a person's name is optional (see {@link Person}), so the parts
+ * can no longer be interpolated into a template — a surname-only person would
+ * render as `" Davis"` with a leading space, and sort and match on it. This is
+ * the one place that knows how to put the pieces back together, and it is
+ * exported because several callers assemble names from raw *rows* rather than
+ * from a `Person` (the search index, the duplicate scorer).
+ */
+export function joinNameParts(
+  ...parts: readonly (string | null | undefined)[]
+): string {
+  return parts.filter((part) => part != null && part !== "").join(" ");
+}
+
+/**
  * A person's display name, "First Last". The middle name is intentionally
- * excluded — it appears only on the View page's field list and in the forms.
+ * excluded — it appears only on the View page's field list and in the forms —
+ * *unless* it is the only name there is, since a label that renders as the empty
+ * string would leave the person unreadable on every screen at once.
  */
 export function fullName(person: Person): string {
-  return `${person.firstName} ${person.lastName}`;
+  const outer = joinNameParts(person.firstName, person.lastName);
+  return outer === "" ? (person.middleName ?? "") : outer;
 }
 
 /**

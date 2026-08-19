@@ -39,8 +39,11 @@ function nameInput(draft: PersonDraft): UpdatePersonInput {
  * relationships, holidays, gifts) are their own sections and edit themselves;
  * tags close the page as an {@link EditableTags}.
  *
- * Grouping: the three parts of a name are one field here, because first and last
- * are both required and so cannot be saved apart. Gender stands alone.
+ * Grouping: the three parts of a name are one field here, because the rule that
+ * governs them — at least one part must survive the edit (`hasAnyName`) — spans
+ * all three, so they are the smallest set that can be validated, and therefore
+ * saved, together. (This used to be a stronger claim: first and last were both
+ * required. Only the grouping outlived that.) Gender stands alone.
  */
 export function PersonDetailFields({
   person,
@@ -94,9 +97,9 @@ export function PersonDetailFields({
         onSave={() => save(nameInput(draft), tagsRaw)}
         edit={<PersonNameFields draft={draft} onChange={setDraft} />}
       >
-        <DetailField label="First name" value={person.firstName} />
+        <DetailField label="First name" value={person.firstName ?? "—"} />
         <DetailField label="Middle name" value={person.middleName ?? "—"} />
-        <DetailField label="Last name" value={person.lastName} />
+        <DetailField label="Last name" value={person.lastName ?? "—"} />
       </EditableField>
 
       <EditableField

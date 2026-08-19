@@ -76,13 +76,26 @@ function readGender(formData: FormData): Gender | null {
   return value === "" ? null : (value as Gender);
 }
 
-/** Pull the editable Person fields out of a submitted form. */
+/** A name part the form left blank is absent, not an empty string. */
+function readNamePart(formData: FormData, key: string): string | null {
+  const value = String(formData.get(key) ?? "").trim();
+  return value === "" ? null : value;
+}
+
+/**
+ * Pull the editable Person fields out of a submitted form.
+ *
+ * All three name parts are read the same way, which they weren't while first and
+ * last were `required` inputs and only the middle one could arrive blank. Now
+ * that a person may be filed under any one of them, a blank first or last name
+ * is an ordinary absence — and it has to become `null` here, because `""` is not
+ * a value `personSchema` accepts for a name part that is present.
+ */
 function readPersonInput(formData: FormData): CreatePersonInput {
-  const middleName = String(formData.get("middleName")).trim();
   return {
-    firstName: String(formData.get("firstName")),
-    middleName: middleName.length > 0 ? middleName : null,
-    lastName: String(formData.get("lastName")),
+    firstName: readNamePart(formData, "firstName"),
+    middleName: readNamePart(formData, "middleName"),
+    lastName: readNamePart(formData, "lastName"),
     gender: readGender(formData),
   };
 }

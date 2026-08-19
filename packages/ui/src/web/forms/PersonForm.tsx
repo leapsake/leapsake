@@ -50,14 +50,19 @@ export function PersonForm({
       cancelTo={cancelTo}
       submitting={submitting}
     >
+      {/* None of the three is `required` on its own any more: a person needs
+          *some* name, not a first and a last one (see `hasAnyName`). HTML5
+          validation can't say "at least one of these", so the rule is enforced
+          where it can see all three at once — `personSchema` — and a form with
+          every part blank comes back as a save error. */}
       <Field label={m.person.firstName}>
-        <input name="firstName" defaultValue={person?.firstName} required />
+        <input name="firstName" defaultValue={person?.firstName ?? ""} />
       </Field>{" "}
       <Field label={m.person.middleName}>
         <input name="middleName" defaultValue={person?.middleName ?? ""} />
       </Field>{" "}
       <Field label={m.person.lastName}>
-        <input name="lastName" defaultValue={person?.lastName} required />
+        <input name="lastName" defaultValue={person?.lastName ?? ""} />
       </Field>{" "}
       <GenderField value={person?.gender} />
       <fieldset>

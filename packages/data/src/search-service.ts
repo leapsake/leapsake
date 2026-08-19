@@ -7,6 +7,7 @@ import {
   formatMilestoneDate,
   formatPostalAddress,
   foldUrl,
+  joinNameParts,
   normalizeEmail,
   normalizePhone,
   parseBirthdayQuery,
@@ -58,9 +59,9 @@ export interface SearchService {
 
 interface PersonRow {
   id: string;
-  first_name: string;
+  first_name: string | null;
   middle_name: string | null;
-  last_name: string;
+  last_name: string | null;
 }
 interface PetRow {
   id: string;
@@ -254,15 +255,17 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       });
     };
 
-    /** Record a name match if any of `fields` matches the folded term. */
+    /** Record a name match if any of `fields` matches the folded term. An absent
+     *  part of a name is simply not a field to match against. */
     const addNameHit = (
       type: SearchResultType,
       id: string,
       title: string,
-      fields: string[],
+      fields: readonly (string | null)[],
     ) => {
       let best = QUALITY_NONE;
       for (const field of fields) {
+        if (field == null || field === "") continue;
         best = Math.min(best, quality(fold(field), folded));
       }
       if (best === QUALITY_NONE) return; // no field matched
@@ -274,14 +277,21 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       // term matched *it* specifically — so a hit explained only by the middle
       // name ("br" → "Joseph Abraham Lampe") shows why it's there, while an
       // ordinary first/last hit stays "Joseph Lampe".
-      const plain = `${p.first_name} ${p.last_name}`;
+      // Joined, not interpolated: any part of a name may be absent, and a title
+      // of " Davis" would be both wrong on screen and wrong to fold against.
+      const middle = p.middle_name ?? "";
+      const plain = joinNameParts(p.first_name, p.last_name);
       // The owner-resolution title (for contact-only hits) is always the plain
       // form — the middle name is only relevant when the *name* matched it.
-      titleByEntity.set(key("person", p.id), { type: "person", title: plain });
-      const middle = p.middle_name ?? "";
+      titleByEntity.set(key("person", p.id), {
+        type: "person",
+        // A person whose only name is their middle one would otherwise resolve
+        // to an empty row title (the same fallback `fullName` makes).
+        title: plain === "" ? middle : plain,
+      });
       const showMiddle = middle !== "" && fold(middle).includes(folded);
       const title = showMiddle
-        ? `${p.first_name} ${middle} ${p.last_name}`
+        ? joinNameParts(p.first_name, middle, p.last_name)
         : plain;
       addNameHit("person", p.id, title, [p.first_name, middle, p.last_name]);
     }

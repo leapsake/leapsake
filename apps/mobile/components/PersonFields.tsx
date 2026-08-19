@@ -3,6 +3,7 @@ import {
   type CreatePersonInput,
   type Gender,
   type Person,
+  hasAnyName,
 } from "@leapsake/schema";
 import { GenderField } from "./GenderField";
 import { styles } from "../lib/styles";
@@ -36,26 +37,35 @@ export function emptyPersonDraft(): PersonDraft {
 
 export function personDraftFrom(person: Person, tagNames: string): PersonDraft {
   return {
-    firstName: person.firstName,
+    firstName: person.firstName ?? "",
     middleName: person.middleName ?? "",
-    lastName: person.lastName,
+    lastName: person.lastName ?? "",
     gender: person.gender,
     tags: tagNames,
   };
 }
 
-/** Both names are required; everything else is optional. */
+/**
+ * Valid once **any one** part of the name is filled in — "Jen" and "Jen Davis"
+ * are both whole people (see `hasAnyName`). Asked of the input the form would
+ * actually send rather than of the draft, so the button can never enable a save
+ * the schema is about to reject.
+ */
 export function personDraftValid(draft: PersonDraft): boolean {
-  return draft.firstName.trim().length > 0 && draft.lastName.trim().length > 0;
+  return hasAnyName(personDraftToInput(draft));
 }
 
-/** Trim and collapse the empty middle name to `null`, mirroring desktop. */
+/** Trim, collapsing an untouched field to `null` — the schema's "absent". */
+function trimmed(value: string): string | null {
+  const text = value.trim();
+  return text === "" ? null : text;
+}
+
 export function personDraftToInput(draft: PersonDraft): CreatePersonInput {
-  const middleName = draft.middleName.trim();
   return {
-    firstName: draft.firstName.trim(),
-    middleName: middleName === "" ? null : middleName,
-    lastName: draft.lastName.trim(),
+    firstName: trimmed(draft.firstName),
+    middleName: trimmed(draft.middleName),
+    lastName: trimmed(draft.lastName),
     gender: draft.gender,
   };
 }
@@ -63,8 +73,9 @@ export function personDraftToInput(draft: PersonDraft): CreatePersonInput {
 /**
  * The three parts of a person's name, controlled by whoever owns the draft.
  * Split out from {@link PersonFields} because the detail screen edits the name
- * on its own, as one group: first and last are both required, so they are the
- * smallest set that can be validated — and saved — together.
+ * on its own, as one group: the rule they answer to — at least one part filled
+ * in ({@link personDraftValid}) — spans all three, so they are the smallest set
+ * that can be validated, and therefore saved, together.
  */
 export function PersonNameFields({
   draft,

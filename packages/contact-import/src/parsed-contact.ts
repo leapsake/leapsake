@@ -11,14 +11,43 @@ import { z } from "zod";
  * main process before any write.
  *
  * Names may be **incomplete** on purpose. A source card with only an `FN`
- * ("Acme Corp") or a mononym leaves `lastName` empty rather than inventing one;
- * the review UI resolves that before commit, and the ingest guard refuses to
- * create a person with an empty first/last name (never fabricating data).
+ * ("Acme Corp") or a mononym leaves `lastName` empty rather than inventing one.
+ * Leapsake now stores such a person as they came — a Person needs *some* name,
+ * not a first and a last one — so these cards import rather than being refused;
+ * only a card with no name at all is turned away.
+ *
+ * Empty string is this type's "absent", because it is what a source file's own
+ * empty field yields; {@link nameInputFrom} is the one place that translates
+ * that into the `null` the Person schema spells it with.
  */
 export interface ParsedName {
   firstName: string;
   middleName: string | null;
   lastName: string;
+}
+
+/**
+ * A {@link ParsedName} as `createPerson` input: trimmed, with every part that
+ * the card left blank collapsed to `null`.
+ *
+ * Both sides of the import need exactly this — the engine's "is there a name at
+ * all?" guard and the port that actually writes the row — and they must agree,
+ * or a card passes the guard and then fails `personSchema` mid-batch.
+ */
+export function nameInputFrom(name: ParsedName): {
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
+} {
+  const clean = (value: string | null): string | null => {
+    const text = (value ?? "").trim();
+    return text === "" ? null : text;
+  };
+  return {
+    firstName: clean(name.firstName),
+    middleName: clean(name.middleName),
+    lastName: clean(name.lastName),
+  };
 }
 
 /** One parsed email — the address as written plus a display label. */

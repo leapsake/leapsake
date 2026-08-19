@@ -1,4 +1,4 @@
-import type { Gender } from "@leapsake/schema";
+import { type Gender, hasAnyName } from "@leapsake/schema";
 import type {
   ParsedBirthday,
   ParsedContact,
@@ -7,6 +7,7 @@ import type {
   ParsedPhone,
   ParsedPostal,
 } from "./parsed-contact.js";
+import { nameInputFrom } from "./parsed-contact.js";
 
 /**
  * The write surface the ingest engine drives — the narrow slice of Leapsake's
@@ -18,8 +19,11 @@ import type {
  * after the whole batch.
  */
 export interface ImportPorts {
-  /** Create the person and return its new id. Names are already guaranteed
-   *  non-empty by the engine, so the port never has to fabricate one. */
+  /** Create the person and return its new id. The engine has already checked
+   *  there is at least one name part, so the port never has to fabricate one —
+   *  but a part the card left blank still arrives as `""`, and the implementor
+   *  is expected to put the name through {@link nameInputFrom} to spell that
+   *  the way the Person schema does. */
   createPerson(
     name: ParsedName,
     gender: Gender | null,
@@ -83,14 +87,16 @@ export async function ingestContacts(
       continue;
     }
 
-    if (
-      contact.name.firstName.trim() === "" ||
-      contact.name.lastName.trim() === ""
-    ) {
+    // A card needs *some* name, not a first and a last one — which is what the
+    // parser was already saying by leaving `lastName` empty for a mononym or an
+    // organisation-only card rather than inventing one. Until `personSchema`
+    // allowed that, every such card was refused here; now only a card with no
+    // name at all is (an `FN`-less vCard, which carries nothing to file it by).
+    if (!hasAnyName(nameInputFrom(contact.name))) {
       errors.push({
         index,
         contact,
-        message: "Needs a first and last name before it can be imported",
+        message: "Needs a name before it can be imported",
       });
       continue;
     }

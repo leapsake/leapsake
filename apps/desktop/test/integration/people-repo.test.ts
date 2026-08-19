@@ -150,3 +150,62 @@ describe("peopleRepo", () => {
     expect(await repo.get(created.id)).toBeUndefined();
   });
 });
+
+// A person needs *some* name, not a first one and a last one. Two features want
+// this — someone known only as a relation ("Jen"), and contact import, whose
+// parser deliberately yields mononyms and organisation-only cards rather than
+// inventing a surname — and both write through this repo.
+describe("peopleRepo — partial names", () => {
+  it("persists a person with only a first name", async () => {
+    const created = await repo.create({ firstName: "Cher" });
+    expect(created.lastName).toBeNull();
+    expect(await repo.get(created.id)).toEqual(created);
+  });
+
+  it("persists a person with only a last name", async () => {
+    const created = await repo.create({ lastName: "Davis" });
+    expect(created.firstName).toBeNull();
+    expect(await repo.get(created.id)).toEqual(created);
+  });
+
+  it("refuses a person with no name at all", async () => {
+    await expect(repo.create({ gender: "female" })).rejects.toThrow();
+  });
+
+  // The rule lives on the row, so `update` enforces it against the *merged*
+  // result — the update input itself can't, since a patch legitimately carries
+  // no name. This is the check that stops a name being edited away to nothing.
+  it("refuses an update that would erase every name", async () => {
+    const created = await repo.create({ firstName: "Cher" });
+    await expect(
+      repo.update(created.id, { firstName: null }),
+    ).rejects.toThrow();
+    expect((await repo.get(created.id))?.firstName).toBe("Cher");
+  });
+
+  it("allows clearing one name part while another survives", async () => {
+    const created = await repo.create({
+      firstName: "Ada",
+      lastName: "Lovelace",
+    });
+    const updated = await repo.update(created.id, { firstName: null });
+    expect(updated?.firstName).toBeNull();
+    expect(updated?.lastName).toBe("Lovelace");
+  });
+
+  // Ordering by "last_name, first_name" would file everyone without a surname
+  // in a NULL block at the top, ahead of the alphabet. Each person sorts by
+  // whichever part of their name they actually have.
+  it("sorts a surname-less person among the surnames", async () => {
+    await repo.create({ firstName: "Ada", lastName: "Lovelace" });
+    await repo.create({ firstName: "Cher" });
+    await repo.create({ firstName: "Grace", lastName: "Hopper" });
+
+    const list = await repo.list();
+    expect(list.map((p) => p.lastName ?? p.firstName)).toEqual([
+      "Cher",
+      "Hopper",
+      "Lovelace",
+    ]);
+  });
+});

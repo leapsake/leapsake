@@ -914,6 +914,52 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 30,
+    async up(driver) {
+      // A person needs *some* name, not a first one and a last one. `personSchema`
+      // now takes any one of the three parts and rejects only a person with none
+      // (`hasAnyName`); this is the storage half of that, dropping `NOT NULL`
+      // from the two columns that were enforcing the old pair of requirements.
+      //
+      // Two features wanted it independently, which is what settled it: a person
+      // known only as somebody's relation ("Jen", with no surname to give), and
+      // contact import, whose vCard reader deliberately parses a mononym or an
+      // organisation-only card with an empty `lastName` rather than inventing
+      // one — and whose ingest guard then had to refuse every such card.
+      //
+      // **SQLite cannot drop a NOT NULL in place**, so the table is rebuilt: the
+      // 12-step ALTER TABLE procedure from the SQLite docs, minus the steps that
+      // don't apply here (`people` carries no index, trigger, view or foreign
+      // key, and nothing references it — the relationship and tagging tables
+      // point at entities polymorphically, by `(type, id)` pair, with no FK).
+      //
+      // The column list is spelled out on both sides of the copy rather than
+      // relying on `SELECT *` positional order, so the rebuild survives the
+      // columns having been added over four separate migrations (1, 2, 13).
+      await driver.exec(`
+        CREATE TABLE people_new (
+          id          TEXT    PRIMARY KEY,
+          first_name  TEXT,
+          middle_name TEXT,
+          last_name   TEXT,
+          gender      TEXT,
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL,
+          deleted_at  INTEGER
+        );
+        INSERT INTO people_new
+          (id, first_name, middle_name, last_name, gender,
+           created_at, updated_at, deleted_at)
+        SELECT
+           id, first_name, middle_name, last_name, gender,
+           created_at, updated_at, deleted_at
+          FROM people;
+        DROP TABLE people;
+        ALTER TABLE people_new RENAME TO people;
+      `);
+    },
+  },
 ];
 
 /**

@@ -192,7 +192,11 @@ describe("PersonForm", () => {
     expect(screen.getByLabelText("Gender")).toHaveProperty("name", "gender");
   });
 
-  it("requires both required names and leaves the middle one optional", () => {
+  // No single name part is required any more: a person needs *some* name, not a
+  // first and a last one (`hasAnyName`). HTML5 has no way to say "at least one
+  // of these three", so the rule is enforced by `personSchema` — the only place
+  // that sees all three — and none of the inputs carries `required`.
+  it("marks no name part as individually required", () => {
     renderWithUi(
       <PersonForm
         title="Add a person"
@@ -203,14 +207,9 @@ describe("PersonForm", () => {
       />,
     );
 
-    expect(screen.getByLabelText("First name")).toHaveProperty(
-      "required",
-      true,
-    );
-    expect(screen.getByLabelText("Middle name")).toHaveProperty(
-      "required",
-      false,
-    );
+    for (const label of ["First name", "Middle name", "Last name"]) {
+      expect(screen.getByLabelText(label)).toHaveProperty("required", false);
+    }
   });
 
   it("omits relationships on edit, which manages them on the view page", () => {
