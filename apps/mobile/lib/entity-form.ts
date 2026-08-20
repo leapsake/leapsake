@@ -11,8 +11,15 @@ import {
 import type { StagedHoliday } from "../components/StagedHolidaysSection";
 import type { StagedGiftEdits } from "../components/StagedGiftsSection";
 import { emptyGiftEdits } from "../components/StagedGiftsSection";
-import type { StagedMilestone } from "../components/StagedMilestonesSection";
-import type { StagedRelationship } from "../components/StagedRelationshipsSection";
+import { milestoneDraftToValue } from "../components/MilestoneFields";
+import {
+  type StagedMilestone,
+  milestoneRowValid,
+} from "../components/StagedMilestonesSection";
+import {
+  type StagedRelationship,
+  relationshipRowValid,
+} from "../components/StagedRelationshipsSection";
 import {
   type PersonDraft,
   emptyPersonDraft,
@@ -64,12 +71,15 @@ export function emptyEntityForm(): EntityFormValue {
 /**
  * Whether the form would pass the schema — the Save gate.
  *
- * The record's own fields, plus the contact rows, which are the one staged
- * section edited **in place**: everywhere else a row reaches the form only by
- * being submitted through a sub-form that validated it, so a staged row is valid
- * by construction. A contact row is typed straight into the list and can sit
- * there half-finished, which is a thing to fix rather than to write — except when
- * it is untouched, which {@link contactRowValid} lets pass and the write skips.
+ * The record's own fields, plus every staged row that is edited **in place**.
+ * Those rows used to reach the form only through a sub-form that had already
+ * validated them, so a staged row was valid by construction; now they are typed
+ * straight into the list and can sit half-finished, which is a thing to fix
+ * rather than to write. The exception each `*RowValid` makes is for a row nobody
+ * has filled in at all — the stray "Add" tap, which the write skips instead.
+ *
+ * Holidays and gifts are absent because neither can be half-said: a holiday row
+ * is a pick, and a gift's occasion and date are both optional.
  */
 export function entityFormValid(
   type: EntityType,
@@ -79,7 +89,12 @@ export function entityFormValid(
     type === "person"
       ? personDraftValid(value.person)
       : petDraftValid(value.pet);
-  return own && value.contacts.every(contactRowValid);
+  return (
+    own &&
+    value.contacts.every(contactRowValid) &&
+    value.milestones.every(milestoneRowValid) &&
+    value.relationships.every(relationshipRowValid)
+  );
 }
 
 /**
@@ -97,7 +112,7 @@ export function giftOccasionsOf(value: EntityFormValue): GiftOccasionChoice[] {
     ...value.milestones.map((m) => ({
       type: "milestone" as const,
       id: m.key,
-      label: milestoneLabel(m),
+      label: milestoneLabel(milestoneDraftToValue(m.draft)),
     })),
     ...value.holidays.map((h) => ({
       type: "holiday" as const,

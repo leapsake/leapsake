@@ -20,7 +20,7 @@ const ACTION_OPTIONS: { value: ReminderAction; label: string }[] =
  * `ReminderScheduleFields`): a list of rules, each an action (get a gift, send a
  * card…) some number of days before the milestone, on or off. Seeded from the
  * kind's defaults (or the milestone's stored rules when editing) by the parent
- * {@link MilestoneForm}; controlled — every edit calls `onChange` with the next
+ * {@link MilestoneFields}; controlled — every edit calls `onChange` with the next
  * array. `other` reveals a free-text label, mirroring the `other` milestone kind.
  */
 export function ReminderScheduleFields({

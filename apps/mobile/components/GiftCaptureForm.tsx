@@ -178,9 +178,11 @@ export interface StagedGift {
  * been given anything.
  *
  * With `inline` it renders into the caller's layout: no native header, and the
- * `Cancel  submitLabel` row in the body instead, exactly as {@link MilestoneForm}
- * and the other staged forms do. (There's no scroll view to drop — this form
- * never owned one; its screens supply it.)
+ * `Cancel  submitLabel` row in the body instead. It is the last of the staged
+ * forms to work this way — the others became controlled field sets whose rows
+ * stay open ({@link ContactMethodFields}) — because capturing a gift is four arms
+ * of state that resolve into one payload, not a row you type into. (There's no
+ * scroll view to drop: this form never owned one; its screens supply it.)
  *
  * The title field is a plain `TextInput` with its own suggestion list rather than
  * a {@link Typeahead}: it's desktop's free-text-plus-`<datalist>` input, where an

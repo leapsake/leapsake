@@ -5,6 +5,16 @@ import {
   parseDateFields,
   resolveStagedOccasion,
 } from "@leapsake/ui/headless";
+import { milestoneDraftToValue } from "../components/MilestoneFields";
+import {
+  otherLabelOf,
+  relationshipDraftToValue,
+} from "../components/RelationshipFields";
+import {
+  type StagedMilestone,
+  milestoneRowPending,
+} from "../components/StagedMilestonesSection";
+import { relationshipRowPending } from "../components/StagedRelationshipsSection";
 import {
   type ContactFormValue,
   contactDraftToValue,
@@ -66,8 +76,11 @@ export async function applyEntityForm(
   // dangling id.
   const milestoneIds = new Map<string, string>();
   for (const row of value.milestones) {
-    const { key, saved, edited, ...fields } = row;
-    const label = milestoneLabel(row);
+    // An empty row is the "Add milestone" tap nobody followed through on.
+    if (milestoneRowPending(row)) continue;
+    const { key, saved, edited } = row;
+    const fields = milestoneDraftToValue(row.draft);
+    const label = milestoneLabel(fields);
     if (saved === undefined) {
       await attempt(label, async () => {
         const created = await core.milestones.create({
@@ -87,7 +100,9 @@ export async function applyEntityForm(
   for (const gone of removedRows(initial.milestones, value.milestones)) {
     const id = gone.saved?.id;
     if (id === undefined) continue;
-    await attempt(milestoneLabel(gone), () => core.milestones.softDelete(id));
+    await attempt(stagedMilestoneLabel(gone), () =>
+      core.milestones.softDelete(id),
+    );
   }
 
   // ---- Contact methods ----------------------------------------------------
@@ -142,17 +157,14 @@ export async function applyEntityForm(
   // takes two.
   const subject = { subjectType: bearerType, subjectId: bearerId };
   for (const row of value.relationships) {
-    // Everything the write doesn't take is peeled off here: `rel` is exactly the
-    // {@link RelationshipFormValue} the core calls below accept.
-    const {
-      key: _key,
-      otherLabel,
-      savedId,
-      derived,
-      otherUnpublished: _otherUnpublished,
-      edited,
-      ...rel
-    } = row;
+    // An unfilled row is the "Add relationship" tap nobody followed through on;
+    // a half-filled one the Save gate already refused, so `rel` is what the core
+    // calls below accept and nothing else reaches them.
+    if (relationshipRowPending(row)) continue;
+    const rel = relationshipDraftToValue(row.draft);
+    if (rel === null) continue;
+    const otherLabel = otherLabelOf(row.draft);
+    const { savedId, derived, edited } = row;
     if (savedId !== undefined) {
       if (edited === true) {
         await attempt(otherLabel, () =>
@@ -186,14 +198,15 @@ export async function applyEntityForm(
     // A stored edge is deleted; an inferred one has nothing to delete, so it is
     // *dismissed* — a remembered "no, they aren't", which is what stops the
     // engine proposing it again.
+    const label = otherLabelOf(gone.draft);
+    const other = gone.draft.other;
     if (gone.savedId !== undefined) {
       const id = gone.savedId;
-      await attempt(gone.otherLabel, () => core.relationships.softDelete(id));
-    } else if (gone.derived !== undefined && gone.other === "existing") {
-      const { otherType, otherId } = gone;
+      await attempt(label, () => core.relationships.softDelete(id));
+    } else if (gone.derived !== undefined && other?.kind === "existing") {
       const role = gone.derived.baseRole;
-      await attempt(gone.otherLabel, () =>
-        core.kinship.dismiss(bearerType, bearerId, otherType, otherId, role),
+      await attempt(label, () =>
+        core.kinship.dismiss(bearerType, bearerId, other.type, other.id, role),
       );
     }
   }
@@ -250,6 +263,11 @@ export async function applyEntityForm(
   }
 
   return failed;
+}
+
+/** What to call a staged milestone — its kind, or the note an `other` carries. */
+function stagedMilestoneLabel(row: StagedMilestone): string {
+  return milestoneLabel(milestoneDraftToValue(row.draft));
 }
 
 /** The rows that were there when the form opened and aren't there now. */

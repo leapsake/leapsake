@@ -75,9 +75,10 @@ appId: com.leapsake.app
     env:
       FIRST: "Casea"
       LAST: "Run${output.run}"
-- tapOn: "Add milestone"
-- tapOn: "Add" # a dateless Birthday — the wheel makes a month impractical
-- assertVisible: ".*Birthday.*"
+- runFlow:
+    file: subflows/stage-birthday.yaml
+    env:
+      YEAR: "1990"
 - runFlow:
     file: subflows/stage-gift-for-occasion.yaml
     env:
@@ -100,16 +101,21 @@ appId: com.leapsake.app
     env:
       FIRST: "Caseb"
       LAST: "Run${output.run}"
-- tapOn: "Add milestone"
-- tapOn: "Add"
+- runFlow:
+    file: subflows/stage-birthday.yaml
+    env:
+      YEAR: "1991"
 - runFlow:
     file: subflows/stage-gift-for-occasion.yaml
     env:
       TITLE: "Refractor"
       OCCASION: "Birthday"
+# To the section heading rather than to "Add milestone" below it: an open row is
+# most of a screen tall, so stopping at the link leaves the row's own header —
+# where Remove lives — off the top.
 - scrollUntilVisible:
     element:
-      text: "Add milestone"
+      text: "Milestones"
     direction: UP
 # By the row's own accessibility label rather than by "Remove" at index 0: every
 # staged section has one, and which of them document order puts first depends on
@@ -185,9 +191,10 @@ appId: com.leapsake.app
     file: subflows/add-pet.yaml
     env:
       NAME: "Casee Run${output.run}"
-- tapOn: "Add milestone"
-- tapOn: "Add"
-- assertVisible: ".*Birthday.*"
+- runFlow:
+    file: subflows/stage-birthday.yaml
+    env:
+      YEAR: "1994"
 - runFlow:
     file: subflows/stage-gift-for-occasion.yaml
     env:

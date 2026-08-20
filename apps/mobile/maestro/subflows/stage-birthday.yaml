@@ -1,0 +1,40 @@
+# Stage a birthday milestone, dated by its YEAR.
+#
+# "Add milestone" appends a row that is already open and live — there is no
+# sub-form and no second "Add" to press — so staging one is a matter of filling
+# it in. The row is appended where the link was, but its fields run below the
+# fold, so the year is scrolled to rather than assumed on screen.
+#
+# **The year is not decoration.** A row nobody has typed into is treated as the
+# tap nobody followed through on and is never written (`milestoneRowPending`), so
+# a milestone that is only its default kind would silently not exist after Save.
+# The year is also the only date part a driver can set: Kind and Month are
+# `SelectField`s, whose options iOS does not expose to the accessibility tree.
+#
+# The kind is left alone, which makes this a Birthday — the first kind either
+# bearer type offers, and what the picker opens on.
+appId: com.leapsake.app
+---
+- scrollUntilVisible:
+    element:
+      text: "Add milestone"
+    direction: DOWN
+- tapOn: "Add milestone"
+- scrollUntilVisible:
+    element:
+      id: "milestone-year"
+    direction: DOWN
+- tapOn:
+    id: "milestone-year"
+- inputText: "${YEAR}"
+# Back to the section heading before dropping the keyboard: `dismiss-keyboard`
+# taps "Milestones" and `tapOn` does not scroll, so the heading has to be on
+# screen — and typing into the last field of an open row is exactly where it
+# isn't.
+- scrollUntilVisible:
+    element:
+      text: "Milestones"
+    direction: UP
+- runFlow:
+    file: dismiss-keyboard.yaml
+- assertVisible: ".*Birthday.*"

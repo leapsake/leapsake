@@ -55,6 +55,8 @@ appId: com.leapsake.app
     element:
       text: "Add relationship"
     direction: DOWN
+# The link appends a row that is already open, in the space the link occupied —
+# so the picker below is that row's, and there is no sub-form to wait for.
 - tapOn: "Add relationship"
 - assertVisible:
     id: "relationship-other-name"
@@ -76,9 +78,9 @@ appId: com.leapsake.app
 - tapOn: "Wife"
 - runFlow:
     file: subflows/dismiss-keyboard.yaml
-# Twice over, and the two are different acts: "Add" stages the row on the form,
-# "Save" writes the form. Nothing reaches the database until the second.
-- tapOn: "Add"
+# One act, not two: the row was staged the moment the link appended it, and its
+# fields have been editing it in place ever since. Nothing reaches the database
+# until Save — the row's existence on the form is not a write.
 - tapOn: "Save"
 
 # She is on his page, as the one relationship that is her whole existence.

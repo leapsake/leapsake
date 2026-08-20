@@ -5,7 +5,6 @@ import type {
   GiftSuggestionForRecipient,
 } from "@leapsake/core";
 import type { GiftIdea, GiftOccasion } from "@leapsake/schema";
-import { formatGiftDate } from "@leapsake/schema";
 import { groupGiftsByIdea } from "@leapsake/view-models";
 import {
   type DateFields,
@@ -13,8 +12,6 @@ import {
   type PartyOption,
   dateFieldsOf,
   givingsOf,
-  occasionKey,
-  parseDateFields,
 } from "@leapsake/ui/headless";
 import { GiftCaptureForm, type StagedGift } from "./GiftCaptureForm";
 import { GiftLink } from "./GiftsSection";
@@ -59,8 +56,6 @@ export interface SavedGifts {
   gifts: GiftForRecipient[];
 }
 
-const joinBits = (bits: (string | null)[]) => bits.filter(Boolean).join(", ");
-
 /**
  * The one-line summary under a staged gift: how many givings it logs, or that it
  * is a shortlisted suggestion instead. The same distinction `gifts.capture` draws
@@ -71,19 +66,6 @@ function stagedSummary(entry: StagedGift): string {
   const count = givingsOf(entry.givings).length;
   if (count === 0) return "Suggestion";
   return count === 1 ? "1 date" : `${count} dates`;
-}
-
-/** What an adornment pair reads as: its occasion's name, then its date. */
-function adornmentBits(
-  value: GiftAdornments,
-  occasions: readonly GiftOccasionChoice[],
-): string {
-  const key = occasionKey(value.occasion);
-  const label = occasions.find((o) => occasionKey(o) === key)?.label ?? null;
-  const date = formatGiftDate(
-    parseDateFields(value.date) ?? { year: null, month: null, day: null },
-  );
-  return joinBits([label, date === "" ? null : date]);
 }
 
 /**
@@ -108,9 +90,10 @@ function adornmentBits(
  * {@link StagedHolidaysSection} fetches the holiday catalog.
  *
  * A **saved** row offers what the detail page's editor did and no more — its
- * occasion and date, or removal. A row **added here** offers only removal:
- * re-opening a capture that has not been written is a form with four arms to
- * re-seed, and deleting a row typed a minute ago costs one tap.
+ * occasion and date, both **open and live** as everywhere else on this form (see
+ * {@link StagedContactsSection}), or removal. A row **added here** offers only
+ * removal: it was typed into the capture form a minute ago, that form is four
+ * arms of state rather than a pair of fields, and deleting the row costs one tap.
  */
 export function StagedGiftsSection({
   occasions,
@@ -134,10 +117,6 @@ export function StagedGiftsSection({
   const core = useCore();
   const [ideaPool, setIdeaPool] = useState<GiftIdea[] | null>(null);
   const [adding, setAdding] = useState(false);
-  // The saved row being revised, if any: its key plus the pair being typed.
-  const [editing, setEditing] = useState<
-    (GiftAdornments & { key: string }) | null
-  >(null);
 
   useEffect(() => {
     let active = true;
@@ -162,75 +141,34 @@ export function StagedGiftsSection({
   const drop = (key: string) =>
     onChange({ ...value, removed: [...value.removed, key] });
 
-  function commitEditing() {
-    if (editing === null) return;
-    const { key, ...pair } = editing;
-    onChange({
-      ...value,
-      adornments: { ...value.adornments, [key]: pair },
-    });
-    setEditing(null);
-  }
+  /** Revise a saved row's pair — the change this section stages for it. */
+  const adorn = (key: string, pair: GiftAdornments) =>
+    onChange({ ...value, adornments: { ...value.adornments, [key]: pair } });
 
-  /** One saved suggestion or giving: its summary line, its actions, its editor. */
+  /** One saved suggestion or giving: what it is, its way out, and its two fields. */
   function savedRow(key: string, lead: string, stored: GiftAdornments) {
     if (removed.has(key)) return null;
-    const open = editing?.key === key;
-    const bits = adornmentBits(adornmentsOf(key, stored), occasions);
+    const pair = adornmentsOf(key, stored);
     return (
-      <View key={key}>
+      <View key={key} style={styles.inlineForm}>
         <View style={styles.rowMeta}>
-          <Text style={styles.muted}>
-            {lead}
-            {bits === "" ? "" : ` — ${bits}`}
-          </Text>
-          <View style={styles.rowActions}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() =>
-                open
-                  ? setEditing(null)
-                  : setEditing({ key, ...adornmentsOf(key, stored) })
-              }
-            >
-              <Text style={styles.link}>{open ? "Close" : "Edit"}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => drop(key)}>
-              <Text style={[styles.link, styles.danger]}>Remove</Text>
-            </Pressable>
-          </View>
+          <Text style={styles.muted}>{lead}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${lead}`}
+            onPress={() => drop(key)}
+          >
+            <Text style={[styles.link, styles.danger]}>Remove</Text>
+          </Pressable>
         </View>
-        {open && editing !== null && (
-          <View style={styles.section}>
-            <GiftOccasionFields
-              label={key.startsWith("suggestion:") ? "For…" : "Given on…"}
-              occasions={occasions}
-              occasion={editing.occasion}
-              onOccasionChange={(occasion) =>
-                setEditing({ ...editing, occasion })
-              }
-              date={editing.date}
-              onDateChange={(date) => setEditing({ ...editing, date })}
-            />
-            <View
-              style={[styles.headerActions, { justifyContent: "flex-end" }]}
-            >
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setEditing(null)}
-              >
-                <Text style={styles.link}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                onPress={commitEditing}
-                style={styles.button}
-              >
-                <Text style={styles.buttonText}>Done</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
+        <GiftOccasionFields
+          label={key.startsWith("suggestion:") ? "For…" : "Given on…"}
+          occasions={occasions}
+          occasion={pair.occasion}
+          onOccasionChange={(occasion) => adorn(key, { ...pair, occasion })}
+          date={pair.date}
+          onDateChange={(date) => adorn(key, { ...pair, date })}
+        />
       </View>
     );
   }

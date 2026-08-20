@@ -1,14 +1,21 @@
-import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import {
   type Milestone,
   type MilestoneBearerType,
+  type ReminderRuleInput,
   formatMilestoneDate,
   kindDefs,
   milestoneLabel,
-  resolveReminderSchedule,
 } from "@leapsake/schema";
-import { MilestoneForm, type MilestoneFormValue } from "./MilestoneForm";
+import {
+  type MilestoneDraft,
+  MilestoneFields,
+  emptyMilestoneDraft,
+  milestoneDraftEmpty,
+  milestoneDraftFrom,
+  milestoneDraftToValue,
+  milestoneDraftValid,
+} from "./MilestoneFields";
 import { styles } from "../lib/styles";
 
 /**
@@ -22,8 +29,9 @@ import { styles } from "../lib/styles";
  * and it survives removing an earlier row. A row seeded from a **saved**
  * milestone keys on that milestone's id, which is already a real occasion target.
  */
-export interface StagedMilestone extends MilestoneFormValue {
+export interface StagedMilestone {
   key: string;
+  draft: MilestoneDraft;
   /**
    * The milestone this row was read back from, on the edit screen. Absent on a
    * row added to the form, which is the whole difference between a create and an
@@ -31,32 +39,43 @@ export interface StagedMilestone extends MilestoneFormValue {
    */
   saved?: Milestone;
   /**
-   * Whether this row's editor has been submitted here. Only an edited row is
-   * written back: an untouched one is a faithful copy of what is already stored,
-   * and re-writing it would touch `updatedAt` for nothing — and would write the
-   * placeholder schedule below over the milestone's real one.
+   * Whether it has been typed into here. Only an edited row is written back: an
+   * untouched one is a faithful copy of what is already stored, and re-writing it
+   * would touch `updatedAt` for nothing.
    */
   edited?: boolean;
 }
 
 /**
- * A saved milestone as a staged row. Its `reminderSchedule` is a **placeholder**
- * — the kind's defaults rather than the milestone's stored rules, which live a
- * fetch away. Nothing reads it: an unedited row is never written, and opening the
- * editor hands {@link MilestoneForm} the `saved` milestone, which loads the real
- * schedule itself.
+ * A saved milestone as a staged row. The reminder schedule comes from the screen
+ * rather than from a fetch here: the row shows it, so it has to be the stored one
+ * from the start, and the screen that seeds a whole form of these reads them all
+ * in the one pass ({@link EntityEditForm}).
  */
-export function stagedMilestoneOf(milestone: Milestone): StagedMilestone {
+export function stagedMilestoneOf(
+  milestone: Milestone,
+  reminderSchedule: ReminderRuleInput[],
+): StagedMilestone {
   return {
     key: milestone.id,
     saved: milestone,
-    kind: milestone.kind,
-    year: milestone.year,
-    month: milestone.month,
-    day: milestone.day,
-    note: milestone.note,
-    reminderSchedule: resolveReminderSchedule(milestone.kind, []),
+    draft: milestoneDraftFrom(milestone, reminderSchedule),
   };
+}
+
+/**
+ * A row added here that says nothing yet — no date, no note. Neither written nor
+ * allowed to hold up the Save, for the reason {@link contactRowPending} gives: a
+ * blank row is a question the user declined to answer, and the kind showing in it
+ * is the picker's default rather than an answer of theirs.
+ */
+export function milestoneRowPending(row: StagedMilestone): boolean {
+  return row.saved === undefined && milestoneDraftEmpty(row.draft);
+}
+
+/** Whether a row would either write cleanly or be skipped — the Save gate. */
+export function milestoneRowValid(row: StagedMilestone): boolean {
+  return milestoneRowPending(row) || milestoneDraftValid(row.draft);
 }
 
 /**
@@ -67,15 +86,17 @@ export function stagedMilestoneOf(milestone: Milestone): StagedMilestone {
  * {@link MilestonesSection}, which is read-only now that this is where milestones
  * are revised.
  *
- * The form itself is the same {@link MilestoneForm} the relationship screen's
- * routes use, in `inline` mode, so a staged milestone gets the identical fields,
- * the identical validation, and the identical reminder schedule wherever it is
- * authored. Collapsed until asked for: the common case is a name and a Save.
+ * **Every row is open**, for the reason {@link StagedContactsSection} gives: a
+ * date you can retype is the same kind of thing as the name at the top of the
+ * screen, and a sub-form with its own Save asked the user to believe that Save
+ * meant something different from the form's. The fields are the same
+ * {@link MilestoneFields} the relationship screen's routes put on a screen of
+ * their own, so a milestone gets identical fields and identical validation
+ * wherever it is authored — with its reminder schedule folded away, since a form
+ * of four open milestones would otherwise be nothing but reminder rules.
  *
- * A row seeded from a saved milestone opens on the milestone itself (which loads
- * its stored reminder schedule); a row already edited here opens on what the user
- * last left in it. Removing a row only takes it out of the list — the deletion,
- * like everything else, happens when the form is saved.
+ * "Add milestone" appends a row; removing takes one out. Both are only edits to
+ * the list until the form is saved.
  */
 export function StagedMilestonesSection({
   bearerType,
@@ -86,101 +107,72 @@ export function StagedMilestonesSection({
   entries: StagedMilestone[];
   onChange: (entries: StagedMilestone[]) => void;
 }) {
-  // Which row's editor is open, by key — or "new" for the add form. One at a
-  // time, so a section of open drafts can't disagree about the same list.
-  const [open, setOpen] = useState<string | null>(null);
-  const close = () => setOpen(null);
-
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Milestones</Text>
-        {open === null && (
-          <Pressable accessibilityRole="button" onPress={() => setOpen("new")}>
-            <Text style={styles.link}>Add milestone</Text>
-          </Pressable>
-        )}
       </View>
 
       {entries.map((entry) => {
-        const icon = kindDefs[entry.kind].icon;
-        const date = formatMilestoneDate(entry);
-        if (open === entry.key) {
-          return (
-            <MilestoneForm
-              key={entry.key}
-              inline
+        const value = milestoneDraftToValue(entry.draft);
+        const label = milestoneLabel(value);
+        const icon = kindDefs[entry.draft.kind].icon;
+        const date = formatMilestoneDate(value);
+        return (
+          <View key={entry.key} style={[styles.row, styles.inlineForm]}>
+            {/* What the row is, next to the way out of it — the same line the
+                collapsed row used to be, kept because it is the only thing that
+                says which milestone's Remove this is. */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.fieldLabel}>
+                {icon ? `${icon} ` : ""}
+                {label}
+                {date === "" ? "" : ` · ${date}`}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${label}`}
+                onPress={() =>
+                  onChange(entries.filter((e) => e.key !== entry.key))
+                }
+              >
+                <Text style={[styles.link, styles.danger]}>Remove</Text>
+              </Pressable>
+            </View>
+            <MilestoneFields
+              collapseSchedule
               bearerType={bearerType}
-              // An untouched row opens on the stored milestone so the editor can
-              // load its real reminder schedule; once edited here, the draft the
-              // user left behind is the truer starting point.
-              milestone={entry.edited === true ? undefined : entry.saved}
-              value={
-                entry.edited === true || entry.saved === undefined
-                  ? entry
-                  : undefined
-              }
-              submitLabel="Save"
-              onCancel={close}
-              onSubmit={async (value) => {
+              draft={entry.draft}
+              onChange={(draft) =>
                 onChange(
                   entries.map((e) =>
-                    e.key === entry.key ? { ...e, ...value, edited: true } : e,
+                    e.key === entry.key ? { ...e, draft, edited: true } : e,
                   ),
-                );
-                close();
-              }}
+                )
+              }
             />
-          );
-        }
-        return (
-          <View key={entry.key} style={styles.row}>
-            <Text style={styles.rowText}>
-              {icon ? `${icon} ` : ""}
-              {milestoneLabel(entry)}
-            </Text>
-            <View style={styles.rowMeta}>
-              <Text style={styles.muted}>{date === "" ? "—" : date}</Text>
-              <View style={styles.rowActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Edit ${milestoneLabel(entry)}`}
-                  onPress={() => setOpen(entry.key)}
-                >
-                  <Text style={styles.link}>Edit</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${milestoneLabel(entry)}`}
-                  onPress={() =>
-                    onChange(entries.filter((e) => e.key !== entry.key))
-                  }
-                >
-                  <Text style={[styles.link, styles.danger]}>Remove</Text>
-                </Pressable>
-              </View>
-            </View>
           </View>
         );
       })}
 
-      {open === "new" ? (
-        <MilestoneForm
-          inline
-          // Remounts on a bearer-type change so the kind picker re-seeds from the
-          // new type's kinds; the create screen discards staged entries anyway.
-          key={bearerType}
-          bearerType={bearerType}
-          submitLabel="Add"
-          onCancel={close}
-          onSubmit={async (value) => {
-            onChange([...entries, { ...value, key: crypto.randomUUID() }]);
-            close();
-          }}
-        />
-      ) : entries.length === 0 ? (
+      {entries.length === 0 ? (
         <Text style={styles.muted}>No milestones yet.</Text>
       ) : null}
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() =>
+          onChange([
+            ...entries,
+            {
+              key: crypto.randomUUID(),
+              draft: emptyMilestoneDraft(bearerType),
+            },
+          ])
+        }
+      >
+        <Text style={styles.link}>Add milestone</Text>
+      </Pressable>
     </View>
   );
 }

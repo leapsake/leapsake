@@ -8,6 +8,8 @@ import type {
 } from "@leapsake/core";
 import {
   type EntityType,
+  type Milestone,
+  type ReminderRuleInput,
   type Tag,
   fullName,
   parseTagNames,
@@ -97,10 +99,28 @@ export function EntityEditForm({ type, id }: { type: EntityType; id: string }) {
           setError("Not found.");
           return;
         }
-        setValue(seedFrom(view, holidays));
+        // The rows show their reminder schedules, so the stored ones have to be
+        // in hand before the form is seeded — one query per own milestone, all
+        // of them in flight together.
+        const own = view.timeline
+          .filter((entry) => entry.origin === "own")
+          .map((entry) => entry.milestone);
+        const schedules = new Map(
+          await Promise.all(
+            own.map(
+              async (m) =>
+                [
+                  m.id,
+                  await core.milestones.reminderSchedule(m.id, m.kind),
+                ] as const,
+            ),
+          ),
+        );
+        if (!active) return;
+        setValue(seedFrom(view, holidays, own, schedules));
         // A separate copy, not the same object: the two must not share the row
         // arrays, or filtering one would empty the other.
-        setInitial(seedFrom(view, holidays));
+        setInitial(seedFrom(view, holidays, own, schedules));
         setSavedGifts({ suggestions, gifts });
         setSubject({
           type,
@@ -215,10 +235,16 @@ export function EntityEditForm({ type, id }: { type: EntityType; id: string }) {
  * A saved record as a form value. Everything the detail screen reads becomes a
  * staged row carrying the id it came from, except the milestones a relationship
  * lends the timeline: those live on the edge and are edited from its page.
+ *
+ * `own` and `schedules` are the record's own milestones and their stored reminder
+ * rules, read by the caller — a milestone row is open like every other, so it
+ * needs the real schedule rather than a placeholder to show.
  */
 function seedFrom(
   view: PersonView | PetView,
   holidays: BearerHolidayCandidate[],
+  own: Milestone[],
+  schedules: ReadonlyMap<string, ReminderRuleInput[]>,
 ): EntityFormValue {
   const tagsRaw = tagsRawOf(view.tags);
   const seeded = emptyEntityForm();
@@ -229,9 +255,9 @@ function seedFrom(
       ? personDraftFrom(view.person, tagsRaw)
       : seeded.person,
     pet: isPersonView ? seeded.pet : petDraftFrom(view.pet, tagsRaw),
-    milestones: view.timeline
-      .filter((entry) => entry.origin === "own")
-      .map((entry) => stagedMilestoneOf(entry.milestone)),
+    milestones: own.map((milestone) =>
+      stagedMilestoneOf(milestone, schedules.get(milestone.id) ?? []),
+    ),
     // Contacts are person-owned; a pet's view carries none to seed from.
     contacts: isPersonView ? view.contactMethods.map(stagedContactOf) : [],
     relationships: view.relationships.map(stagedRelationshipOf),

@@ -6,19 +6,21 @@ import {
   type RelationshipNeighbor,
   type RelationshipRole,
   baseRole,
-  labelForRole,
 } from "@leapsake/schema";
 import {
-  RelationshipForm,
-  type RelationshipFormValue,
-} from "./RelationshipForm";
+  type RelationshipDraft,
+  RelationshipFields,
+  emptyRelationshipDraft,
+  otherLabelOf,
+  relationshipDraftValid,
+} from "./RelationshipFields";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
 /**
- * A relationship being authored on a form: everything the write needs bar the
- * subject, plus the other end's label, resolved at pick time so a row can name it
- * without re-consulting the candidate list.
+ * A relationship being authored on a form: the draft the write needs bar the
+ * subject, whose other end was resolved at pick time so a row can name it without
+ * re-consulting the candidate list.
  *
  * On the edit screen a row may also stand for something already true of the
  * subject, and which of the three it is decides what saving does:
@@ -30,9 +32,9 @@ import { styles } from "../lib/styles";
  *   detail-page "Edit" did by sending you to the add form), and removing it
  *   records a dismissal instead of a deletion.
  */
-export type StagedRelationship = RelationshipFormValue & {
+export interface StagedRelationship {
   key: string;
-  otherLabel: string;
+  draft: RelationshipDraft;
   /** The stored edge this row was read back from. */
   savedId?: string;
   /** An inferred neighbour, carrying the base role a dismissal is keyed on. */
@@ -42,31 +44,33 @@ export type StagedRelationship = RelationshipFormValue & {
    * with it — the one removal on this form that is more than an unlinking.
    */
   otherUnpublished?: boolean;
-  /** Whether its editor has been submitted here — see {@link StagedMilestone}. */
+  /** Whether it has been typed into here — see {@link StagedMilestone}. */
   edited?: boolean;
-};
+}
 
 /** A subject's neighbour as a staged row. */
 export function stagedRelationshipOf(
   neighbor: RelationshipNeighbor,
 ): StagedRelationship {
-  const common = {
-    otherType: neighbor.otherType,
-    otherRole: neighbor.otherRole,
-    otherRoleNote: neighbor.otherRoleNote,
-    otherLabel: neighbor.otherLabel,
-    other: "existing" as const,
-    otherId: neighbor.otherId,
+  const draft: RelationshipDraft = {
+    other: {
+      kind: "existing",
+      type: neighbor.otherType,
+      id: neighbor.otherId,
+      label: neighbor.otherLabel,
+    },
+    role: neighbor.otherRole,
+    note: neighbor.otherRoleNote ?? "",
   };
   return neighbor.origin === "explicit"
     ? {
-        ...common,
+        draft,
         key: neighbor.relationshipId,
         savedId: neighbor.relationshipId,
         otherUnpublished: neighbor.otherStanding === "unpublished",
       }
     : {
-        ...common,
+        draft,
         // A derived neighbour has no stored id to key on, so the pair and the
         // base role name it — the same triple `kinship.dismiss` is addressed by.
         key: `derived:${neighbor.otherType}:${neighbor.otherId}:${baseRole(neighbor.otherRole)}`,
@@ -74,11 +78,23 @@ export function stagedRelationshipOf(
       };
 }
 
-/** The role shown for a staged row: the free-text note for "other", else the label. */
-function roleText(entry: StagedRelationship): string {
-  return entry.otherRole === "other" && entry.otherRoleNote
-    ? entry.otherRoleNote
-    : labelForRole(entry.otherRole);
+/** Whether the row's other end is still the row's to pick. */
+export function canChangeOther(row: StagedRelationship): boolean {
+  return row.savedId === undefined && row.derived === undefined;
+}
+
+/**
+ * A row added here with nobody picked yet — the "Add relationship" tap nobody
+ * followed through on. Neither written nor allowed to hold up the Save, for the
+ * reason {@link contactRowPending} gives.
+ */
+export function relationshipRowPending(row: StagedRelationship): boolean {
+  return canChangeOther(row) && row.draft.other === null;
+}
+
+/** Whether a row would either write cleanly or be skipped — the Save gate. */
+export function relationshipRowValid(row: StagedRelationship): boolean {
+  return relationshipRowPending(row) || relationshipDraftValid(row.draft);
 }
 
 /**
@@ -100,11 +116,10 @@ function roleText(entry: StagedRelationship): string {
  * in the list. Neither is an already-staged entity excluded: the same pair may
  * relate in more than one way, which the schema deliberately permits.
  *
- * A stored or derived row opens with its other end **locked**, because that is
- * what the write behind it allows: `editFromSubject` changes a role, never an
- * endpoint, and a derived neighbour is materialised against the pair inference
- * already found. A row added on this form has no such constraint and reopens with
- * its picker intact.
+ * **Every row is open**, for the reason {@link StagedContactsSection} gives.
+ * A stored or derived row keeps its other end **locked** even so, because that is
+ * what the write behind it allows — only the role is live there. A row added on
+ * this form has no such constraint and keeps its picker.
  */
 export function StagedRelationshipsSection({
   subjectType,
@@ -119,9 +134,6 @@ export function StagedRelationshipsSection({
   const [candidates, setCandidates] = useState<RelationshipCandidate[] | null>(
     null,
   );
-  // Which row's editor is open, by key — or "new" for the add form.
-  const [open, setOpen] = useState<string | null>(null);
-  const close = () => setOpen(null);
 
   useEffect(() => {
     let active = true;
@@ -145,7 +157,7 @@ export function StagedRelationshipsSection({
     // other change on this form, nothing happens until Save.
     Alert.alert(
       "Remove relationship",
-      `${entry.otherLabel} is only recorded here, so saving this will remove them too.`,
+      `${otherLabelOf(entry.draft)} is only recorded here, so saving this will remove them too.`,
       [
         { text: "Cancel", style: "cancel" },
         { text: "Remove", style: "destructive", onPress: drop },
@@ -157,123 +169,62 @@ export function StagedRelationshipsSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Relationships</Text>
-        {open === null && (
-          <Pressable accessibilityRole="button" onPress={() => setOpen("new")}>
-            <Text style={styles.link}>Add relationship</Text>
-          </Pressable>
-        )}
       </View>
 
       {entries.map((entry) => {
-        if (open === entry.key) {
-          const locked =
-            entry.savedId !== undefined || entry.derived !== undefined;
-          return (
-            <RelationshipForm
-              key={entry.key}
-              inline
+        const label = otherLabelOf(entry.draft);
+        return (
+          <View key={entry.key} style={[styles.row, styles.inlineForm]}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.fieldLabel}>
+                {label === "" ? "New relationship" : label}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${label}`}
+                onPress={() => remove(entry)}
+              >
+                <Text style={[styles.link, styles.danger]}>Remove</Text>
+              </Pressable>
+            </View>
+            <RelationshipFields
               subjectType={subjectType}
               candidates={candidates ?? []}
-              lockedOther={
-                locked && entry.other === "existing"
-                  ? {
-                      type: entry.otherType,
-                      id: entry.otherId,
-                      label: entry.otherLabel,
-                    }
-                  : undefined
-              }
-              initialValue={locked ? undefined : entry}
-              initialRole={locked ? entry.otherRole : undefined}
-              initialNote={locked ? entry.otherRoleNote : undefined}
-              submitLabel="Save"
-              onCancel={close}
-              onSubmit={async (value) => {
-                const otherLabel = labelFor(value, candidates ?? [], entry);
+              canChangeOther={canChangeOther(entry)}
+              draft={entry.draft}
+              onChange={(draft) =>
                 onChange(
                   entries.map((e) =>
-                    e.key === entry.key
-                      ? { ...e, ...value, otherLabel, edited: true }
-                      : e,
+                    e.key === entry.key ? { ...e, draft, edited: true } : e,
                   ),
-                );
-                close();
-              }}
+                )
+              }
             />
-          );
-        }
-        return (
-          <View key={entry.key} style={styles.row}>
-            <Text style={styles.rowText}>{entry.otherLabel}</Text>
-            <View style={styles.rowMeta}>
-              <Text style={styles.muted}>{roleText(entry)}</Text>
-              <View style={styles.rowActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Edit ${entry.otherLabel}`}
-                  onPress={() => setOpen(entry.key)}
-                >
-                  <Text style={styles.link}>Edit</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${entry.otherLabel}`}
-                  onPress={() => remove(entry)}
-                >
-                  <Text style={[styles.link, styles.danger]}>Remove</Text>
-                </Pressable>
-              </View>
-            </View>
           </View>
         );
       })}
 
-      {open === "new" ? (
-        candidates === null ? (
-          <Text style={styles.muted}>Loading people and pets…</Text>
-        ) : (
-          <RelationshipForm
-            inline
-            subjectType={subjectType}
-            candidates={candidates}
-            submitLabel="Add"
-            onCancel={close}
-            onSubmit={async (value) => {
-              onChange([
-                ...entries,
-                {
-                  ...value,
-                  key: crypto.randomUUID(),
-                  otherLabel: labelFor(value, candidates),
-                },
-              ]);
-              close();
-            }}
-          />
-        )
-      ) : entries.length === 0 ? (
+      {entries.length === 0 ? (
         <Text style={styles.muted}>No relationships yet.</Text>
       ) : null}
-    </View>
-  );
-}
 
-/**
- * What to call the other end of a submitted row, so it can be read back without
- * re-consulting the candidate list. For somebody being named for the first time,
- * that name *is* the label; for a locked row the picker never moved, so the label
- * it already had still stands.
- */
-function labelFor(
-  value: RelationshipFormValue,
-  candidates: readonly RelationshipCandidate[],
-  previous?: StagedRelationship,
-): string {
-  if (value.other === "new") return value.otherName;
-  return (
-    candidates.find((c) => c.type === value.otherType && c.id === value.otherId)
-      ?.label ??
-    previous?.otherLabel ??
-    ""
+      {/* The picker a new row opens on is the whole of it, so the link waits for
+          the candidates rather than appending a row that can't be filled in. */}
+      {candidates === null ? (
+        <Text style={styles.muted}>Loading people and pets…</Text>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
+            onChange([
+              ...entries,
+              { key: crypto.randomUUID(), draft: emptyRelationshipDraft() },
+            ])
+          }
+        >
+          <Text style={styles.link}>Add relationship</Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
