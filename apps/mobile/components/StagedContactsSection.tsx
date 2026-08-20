@@ -1,32 +1,25 @@
-import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import type { ContactMethod, ContactMethodKind } from "@leapsake/schema";
 import {
-  type ContactMethod,
-  type ContactMethodKind,
-  formatPostalAddress,
-} from "@leapsake/schema";
-import { findPlatform } from "@leapsake/contact-links";
-import { ContactMethodForm, type ContactFormValue } from "./ContactMethodForm";
+  type ContactDraft,
+  ContactMethodFields,
+  contactDraftFilled,
+  contactDraftFrom,
+  contactDraftValid,
+  emptyContactDraft,
+} from "./ContactMethodFields";
 import { styles } from "../lib/styles";
 
-/** A glyph per kind, mirroring {@link ContactsSection}. */
-const KIND_ICON: Record<ContactMethodKind, string> = {
-  email: "✉️",
-  phone: "📞",
-  postal: "🏠",
-  social: "💬",
-};
-
-/** What each kind's add link is called. */
-const KIND_LABEL: Record<ContactMethodKind, string> = {
-  email: "Email",
-  phone: "Phone",
-  postal: "Postal",
-  social: "Social",
+/** What each row calls itself, mirroring {@link ContactsSection}'s glyphs. */
+const KIND_HEADING: Record<ContactMethodKind, string> = {
+  email: "✉️ Email",
+  phone: "📞 Phone",
+  postal: "🏠 Postal address",
+  social: "💬 Social",
 };
 
 /**
- * A contact method being authored on a form: the value the write will use, a key
+ * A contact method being authored on a form: the draft the write will use, a key
  * to address the row by, and — on the edit screen — the id of the method it was
  * read back from. See {@link StagedMilestone}, which is the same idea for the
  * same reasons; a contact has no forward reference to satisfy, so its key is only
@@ -34,79 +27,37 @@ const KIND_LABEL: Record<ContactMethodKind, string> = {
  */
 export interface StagedContact {
   key: string;
-  value: ContactFormValue;
+  draft: ContactDraft;
   /** The saved method this row came from; absent on a row added to the form. */
   savedId?: string;
-  /** Whether its editor has been submitted here — see {@link StagedMilestone}. */
+  /** Whether it has been typed into here — see {@link StagedMilestone}. */
   edited?: boolean;
 }
 
 /** A saved contact method as a staged row. */
 export function stagedContactOf(entry: ContactMethod): StagedContact {
-  const key = entry.method.id;
-  const savedId = entry.method.id;
-  if (entry.kind === "email") {
-    const { label, address } = entry.method;
-    return { key, savedId, value: { kind: "email", label, address } };
-  }
-  if (entry.kind === "phone") {
-    const { label, number, extension, country, smsCapable, reachableOn } =
-      entry.method;
-    return {
-      key,
-      savedId,
-      value: {
-        kind: "phone",
-        label,
-        number,
-        extension,
-        country,
-        smsCapable,
-        reachableOn,
-      },
-    };
-  }
-  if (entry.kind === "postal") {
-    const { label, line1, line2, locality, region, postalCode, country } =
-      entry.method;
-    return {
-      key,
-      savedId,
-      value: {
-        kind: "postal",
-        label,
-        line1,
-        line2,
-        locality,
-        region,
-        postalCode,
-        country,
-      },
-    };
-  }
-  const { label, platform, handle, platformUserId, url } = entry.method;
   return {
-    key,
-    savedId,
-    value: { kind: "social", label, platform, handle, platformUserId, url },
+    key: entry.method.id,
+    savedId: entry.method.id,
+    draft: contactDraftFrom(entry),
   };
 }
 
-/** The one-line value shown under each staged method's label. */
-function stagedValue(entry: ContactFormValue): string {
-  if (entry.kind === "email") return entry.address;
-  if (entry.kind === "phone") {
-    const ext = entry.extension !== null ? ` ext. ${entry.extension}` : "";
-    const noSms = entry.smsCapable ? "" : " (no texts)";
-    return entry.number + ext + noSms;
-  }
-  if (entry.kind === "social") {
-    const name = findPlatform(entry.platform)?.name ?? entry.platform;
-    return entry.handle === ""
-      ? (entry.url ?? name)
-      : `${name} · ${entry.handle}`;
-  }
-  return formatPostalAddress(entry);
+/**
+ * A row added here that still has nothing in it — the "Add contact method" tap
+ * nobody followed through on. It is neither written nor allowed to hold up the
+ * Save: an empty row is a question the user declined to answer, and a form that
+ * refused to save until you noticed and removed it would be punishing a stray
+ * tap. A row seeded from a saved method is never pending — blanking a stored
+ * email is not how you delete it, so that stays an invalid form.
+ */
+export function contactRowPending(row: StagedContact): boolean {
+  return row.savedId === undefined && !contactDraftFilled(row.draft);
+}
+
+/** Whether a row would either write cleanly or be skipped — the Save gate. */
+export function contactRowValid(row: StagedContact): boolean {
+  return contactRowPending(row) || contactDraftValid(row.draft);
 }
 
 /**
@@ -120,10 +71,17 @@ function stagedValue(entry: ContactFormValue): string {
  * detail page, so offering one would promise a place to read it back that doesn't
  * exist. Neither entity form renders this for a pet.
  *
- * The header's four add links choose the kind up front, exactly as the detail
- * section's used to — the form's fields branch on it and can't be swapped midway.
- * A row's own Edit reopens it on that kind, which is likewise not a thing an edit
- * can change: a phone number that should have been an email is a new row.
+ * **Every row is open.** A stored email is a text field you retype, the same as
+ * the name at the top of the screen — not a summary line behind an Edit that
+ * opened a form, took a second Save, and asked the user to believe the two Saves
+ * meant different things. Nothing is written any sooner for it: the row edits its
+ * draft, and the form's one Save writes the difference.
+ *
+ * "Add contact method" appends a row rather than opening a sub-form, and the row
+ * carries the Type dropdown that a saved one doesn't — a single entry point,
+ * rather than four in the header that asked the user to classify what they were
+ * about to type before they had typed it. Removing likewise only takes the row
+ * out of the list.
  */
 export function StagedContactsSection({
   entries,
@@ -132,94 +90,60 @@ export function StagedContactsSection({
   entries: StagedContact[];
   onChange: (entries: StagedContact[]) => void;
 }) {
-  const [adding, setAdding] = useState<ContactMethodKind | null>(null);
-  // Which row's editor is open, by key. Mutually exclusive with `adding`.
-  const [open, setOpen] = useState<string | null>(null);
-  const idle = adding === null && open === null;
-
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Contact methods</Text>
-        {idle && (
-          <View style={styles.rowActions}>
-            {(["email", "phone", "postal", "social"] as const).map((kind) => (
-              <Pressable
-                key={kind}
-                accessibilityRole="button"
-                onPress={() => setAdding(kind)}
-              >
-                <Text style={styles.link}>{KIND_LABEL[kind]}</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
+        <Text style={styles.sectionTitle}>Contact</Text>
       </View>
 
-      {entries.map((entry) =>
-        open === entry.key ? (
-          <ContactMethodForm
-            key={entry.key}
-            inline
-            kind={entry.value.kind}
-            value={entry.value}
-            submitLabel="Save"
-            onCancel={() => setOpen(null)}
-            onSubmit={async (value) => {
+      {entries.map((entry) => (
+        <View key={entry.key} style={[styles.row, styles.inlineForm]}>
+          {/* What the row is, next to the way out of it. On a row being added
+              the Type dropdown below says the same thing and is the place to
+              change it; this line is what a saved row has instead. */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.fieldLabel}>
+              {KIND_HEADING[entry.draft.kind]}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${entry.draft.label}`}
+              onPress={() =>
+                onChange(entries.filter((e) => e.key !== entry.key))
+              }
+            >
+              <Text style={[styles.link, styles.danger]}>Remove</Text>
+            </Pressable>
+          </View>
+          <ContactMethodFields
+            draft={entry.draft}
+            canChangeKind={entry.savedId === undefined}
+            onChange={(draft) =>
               onChange(
                 entries.map((e) =>
-                  e.key === entry.key ? { ...e, value, edited: true } : e,
+                  e.key === entry.key ? { ...e, draft, edited: true } : e,
                 ),
-              );
-              setOpen(null);
-            }}
+              )
+            }
           />
-        ) : (
-          <View key={entry.key} style={styles.row}>
-            <Text style={styles.rowText}>
-              {KIND_ICON[entry.value.kind]} {entry.value.label}
-            </Text>
-            <View style={styles.rowMeta}>
-              <Text style={styles.muted}>{stagedValue(entry.value)}</Text>
-              <View style={styles.rowActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Edit ${entry.value.label}`}
-                  onPress={() => setOpen(entry.key)}
-                >
-                  <Text style={styles.link}>Edit</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${entry.value.label}`}
-                  onPress={() =>
-                    onChange(entries.filter((e) => e.key !== entry.key))
-                  }
-                >
-                  <Text style={[styles.link, styles.danger]}>Remove</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        ),
-      )}
+        </View>
+      ))}
 
-      {adding !== null ? (
-        <ContactMethodForm
-          inline
-          // Remount when the kind changes so the label suggestion re-seeds.
-          key={adding}
-          kind={adding}
-          submitLabel="Add"
-          onCancel={() => setAdding(null)}
-          onSubmit={async (value) => {
-            onChange([...entries, { key: crypto.randomUUID(), value }]);
-            setAdding(null);
-          }}
-        />
-      ) : entries.length === 0 && open === null ? (
+      {entries.length === 0 ? (
         <Text style={styles.muted}>No contact methods yet.</Text>
       ) : null}
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() =>
+          onChange([
+            ...entries,
+            { key: crypto.randomUUID(), draft: emptyContactDraft() },
+          ])
+        }
+      >
+        <Text style={styles.link}>Add contact method</Text>
+      </Pressable>
     </View>
   );
 }

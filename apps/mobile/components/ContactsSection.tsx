@@ -198,7 +198,7 @@ export function ContactsSection({
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Contact methods</Text>
+        <Text style={styles.sectionTitle}>Contact</Text>
       </View>
 
       {methods.length === 0 ? (

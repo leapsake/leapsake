@@ -4,7 +4,10 @@ import {
   milestoneLabel,
 } from "@leapsake/schema";
 import { type GiftOccasionChoice, occasionKey } from "@leapsake/ui/headless";
-import type { StagedContact } from "../components/StagedContactsSection";
+import {
+  type StagedContact,
+  contactRowValid,
+} from "../components/StagedContactsSection";
 import type { StagedHoliday } from "../components/StagedHolidaysSection";
 import type { StagedGiftEdits } from "../components/StagedGiftsSection";
 import { emptyGiftEdits } from "../components/StagedGiftsSection";
@@ -58,14 +61,25 @@ export function emptyEntityForm(): EntityFormValue {
   };
 }
 
-/** Whether the record's own fields would pass the schema — the Save gate. */
+/**
+ * Whether the form would pass the schema — the Save gate.
+ *
+ * The record's own fields, plus the contact rows, which are the one staged
+ * section edited **in place**: everywhere else a row reaches the form only by
+ * being submitted through a sub-form that validated it, so a staged row is valid
+ * by construction. A contact row is typed straight into the list and can sit
+ * there half-finished, which is a thing to fix rather than to write — except when
+ * it is untouched, which {@link contactRowValid} lets pass and the write skips.
+ */
 export function entityFormValid(
   type: EntityType,
   value: EntityFormValue,
 ): boolean {
-  return type === "person"
-    ? personDraftValid(value.person)
-    : petDraftValid(value.pet);
+  const own =
+    type === "person"
+      ? personDraftValid(value.person)
+      : petDraftValid(value.pet);
+  return own && value.contacts.every(contactRowValid);
 }
 
 /**

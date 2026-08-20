@@ -5,8 +5,14 @@ import {
   parseDateFields,
   resolveStagedOccasion,
 } from "@leapsake/ui/headless";
-import type { ContactFormValue } from "../components/ContactMethodForm";
-import type { StagedContact } from "../components/StagedContactsSection";
+import {
+  type ContactFormValue,
+  contactDraftToValue,
+} from "../components/ContactMethodFields";
+import {
+  type StagedContact,
+  contactRowPending,
+} from "../components/StagedContactsSection";
 import type { EntityFormValue } from "./entity-form";
 
 /**
@@ -20,8 +26,8 @@ import type { EntityFormValue } from "./entity-form";
  * **What is written is the difference**, and it is read three ways:
  *
  * - a row with no saved id is created;
- * - a row with one is updated *only if its editor was submitted here*, so
- *   untouched rows keep their stored `updatedAt` and their stored details;
+ * - a row with one is updated *only if it was edited here*, so untouched rows
+ *   keep their stored `updatedAt` and their stored details;
  * - an id in `initial` with no row in `value` is removed.
  *
  * **There is no rollback.** By the time this runs the entity exists (created a
@@ -87,7 +93,11 @@ export async function applyEntityForm(
   // ---- Contact methods ----------------------------------------------------
   // Person-owned only; neither form stages any for a pet.
   for (const row of value.contacts) {
-    const { savedId, edited, value: method } = row;
+    // A row every one of whose editors is open has to be allowed to be empty;
+    // an empty one is nothing to write.
+    if (contactRowPending(row)) continue;
+    const { savedId, edited } = row;
+    const method = contactDraftToValue(row.draft);
     if (savedId === undefined) {
       await attempt(method.label, () => createContact(core, owner, method));
     } else if (edited === true) {
@@ -97,8 +107,8 @@ export async function applyEntityForm(
   for (const gone of removedRows(initial.contacts, value.contacts)) {
     const id = gone.savedId;
     if (id === undefined) continue;
-    await attempt(gone.value.label, () =>
-      deleteContact(core, id, gone.value.kind),
+    await attempt(gone.draft.label, () =>
+      deleteContact(core, id, gone.draft.kind),
     );
   }
 
@@ -343,7 +353,7 @@ function updateContact(
 function deleteContact(
   core: CoreApi,
   id: string,
-  kind: StagedContact["value"]["kind"],
+  kind: StagedContact["draft"]["kind"],
 ): Promise<void> {
   if (kind === "email") return core.contactMethods.emails.softDelete(id);
   if (kind === "phone") return core.contactMethods.phones.softDelete(id);
