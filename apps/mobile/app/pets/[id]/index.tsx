@@ -99,7 +99,7 @@ export default function PetDetailScreen() {
       <Stack.Screen
         options={{
           title: pet.name,
-          headerLeft: () => (
+          headerRight: () => (
             <HeaderEdit href={`/pets/${id}/edit`} what={pet.name} />
           ),
         }}

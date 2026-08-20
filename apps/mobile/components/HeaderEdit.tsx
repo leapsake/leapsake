@@ -3,8 +3,8 @@ import { Link } from "expo-router";
 import { styles } from "../lib/styles";
 
 /**
- * The **Edit** a record's detail screen carries, top-left beside Back — the one
- * way into the form that revises it.
+ * The **Edit** a record's detail screen carries, top-right — the one way into
+ * the form that revises it.
  *
  * There used to be an Edit per field and an Add per section, each writing where
  * it stood. That answered "how do I change this?" everywhere on the page at the
@@ -12,12 +12,12 @@ import { styles } from "../lib/styles";
  * abandon a change once started, since each little editor wrote on its own Save.
  * One button, one form, one Save — and Back means cancel again.
  *
- * Leading rather than trailing because of what sits opposite it: the form it
- * opens carries {@link HeaderSave} on the right, and an Edit that turns into a
- * Save in the same corner reads as the same control changing its mind.
+ * Trailing, so the corner opposite Back holds this screen's action the way it
+ * does everywhere else in the app: the {@link HeaderSave} on the form this
+ * opens, Search-here on the catalogs. Edit and the Save it becomes land in the
+ * same corner, which reads as one control changing its mind.
  *
- * Rendered from a screen's `Stack.Screen options.headerLeft`, which
- * `app/_layout.tsx` draws *after* Back rather than in place of it.
+ * Rendered from a screen's `Stack.Screen options.headerRight`.
  */
 export function HeaderEdit({ href, what }: { href: string; what: string }) {
   return (

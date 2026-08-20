@@ -56,14 +56,14 @@ const TITLE_SIZE = { full: 24, compact: 17 } as const;
 export interface AppHeaderProps {
   title: string;
   /**
-   * The screen's leading action, drawn immediately after Back — a **way into**
-   * the screen's other mode rather than a way out of the screen. A record's
-   * **Edit** is the one that asked for this slot: it opens the form over
-   * everything the page shows, so it belongs beside the record's name and not
-   * across from it, where Save lives on the form it opens.
+   * The screen's leading action, drawn immediately after Back. Nothing claims
+   * this slot today — a record's **Edit** used to, and moved across to {@link
+   * AppHeaderProps.right} so that every screen's action sits in one corner — but
+   * it stays wired because it is react-navigation's own `headerLeft`, and a
+   * screen that ever needs a second action shouldn't have to add the plumbing.
    */
   left?: ReactNode;
-  /** The screen's trailing action — its Save, or Search-here. */
+  /** The screen's action — its Edit, its Save, or Search-here. */
   right?: ReactNode;
   /** Supplied by the navigator iff there is somewhere to go back to. */
   onBack?: () => void;

@@ -116,7 +116,7 @@ export default function PersonDetailScreen() {
       <Stack.Screen
         options={{
           title: fullName(person),
-          headerLeft: () => (
+          headerRight: () => (
             <HeaderEdit href={`/people/${id}/edit`} what={fullName(person)} />
           ),
         }}
