@@ -11,7 +11,9 @@
 import type {
   CaptureRecipient,
   GiftGivingEntry,
+  GiftIdeaOccasionInput,
   GiftOccasion,
+  GiftOccasionType,
   GiftPartyType,
 } from "@leapsake/schema";
 import { useEffect, useRef, useState } from "react";
@@ -21,7 +23,12 @@ import type {
   GivenRow,
   PartyOption,
 } from "./gifts-ports.js";
-import { type DateFields, emptyDate, parseDateFields } from "./partial-date.js";
+import {
+  type DateFields,
+  dateFieldsOf,
+  emptyDate,
+  parseDateFields,
+} from "./partial-date.js";
 
 /** A person or pet as one string — a React key, a Set member, a route param. */
 export const partyKey = (party: { type: string; id: string }) =>
@@ -68,6 +75,71 @@ export const newGivingRow = (): GivingRow => ({
   date: emptyDate(),
   occasion: null,
 });
+
+/**
+ * One occasion of the **idea itself** being authored — "this is a Christmas
+ * thing", said with nobody named. Same shape as a {@link GivingRow} (an occasion
+ * and a partial date, plus a stable React key), because it is edited by the same
+ * fields; a different type because it means something else and is written
+ * somewhere else.
+ */
+export interface IdeaOccasionRow {
+  id: string;
+  occasion: GiftOccasion | null;
+  date: DateFields;
+}
+
+export const newIdeaOccasionRow = (): IdeaOccasionRow => ({
+  id: crypto.randomUUID(),
+  occasion: null,
+  date: emptyDate(),
+});
+
+/**
+ * The idea's occasion rows as a capture payload. A row whose occasion is still
+ * unpicked drops out — an idea occasion *is* its pointer, so a bare target date
+ * with no occasion has nothing to say (unlike a giving, where the date alone is
+ * the fact).
+ *
+ * Duplicates are collapsed on the pointer: the picker allows the same occasion
+ * twice, and "Christmas" twice is one Christmas, not two.
+ */
+export function ideaOccasionsOf(
+  rows: readonly IdeaOccasionRow[],
+): GiftIdeaOccasionInput[] {
+  const seen = new Set<string>();
+  const out: GiftIdeaOccasionInput[] = [];
+  for (const row of rows) {
+    if (row.occasion === null) continue;
+    const key = occasionKey(row.occasion);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ occasion: row.occasion, targetDate: parseDateFields(row.date) });
+  }
+  return out;
+}
+
+/** Stored idea occasions back into editable rows (an edit form's initial state). */
+export function ideaOccasionRowsOf(
+  stored: readonly {
+    id: string;
+    occasionType: GiftOccasionType;
+    occasionId: string;
+    targetYear: number | null;
+    targetMonth: number | null;
+    targetDay: number | null;
+  }[],
+): IdeaOccasionRow[] {
+  return stored.map((row) => ({
+    id: row.id,
+    occasion: { type: row.occasionType, id: row.occasionId },
+    date: dateFieldsOf({
+      year: row.targetYear,
+      month: row.targetMonth,
+      day: row.targetDay,
+    }),
+  }));
+}
 
 export const newSuggestionFields = (): SuggestionFields => ({
   date: emptyDate(),

@@ -59,7 +59,9 @@ export default function GiftsScreen() {
               actions={[{ href: "/gifts/new", label: "+ Add a gift idea" }]}
             />
           }
-          renderItem={({ item: { idea, tags, suggestions, gifts } }) => (
+          renderItem={({
+            item: { idea, tags, occasions, suggestions, gifts },
+          }) => (
             <View style={styles.row}>
               <Link href={`/gifts/${idea.id}/edit`}>
                 <Text style={[styles.rowText, { color: colors.accent }]}>
@@ -76,6 +78,21 @@ export default function GiftsScreen() {
                 <Text style={styles.muted}>{idea.notes}</Text>
               )}
               {idea.url !== null && <GiftLink url={idea.url} />}
+
+              {/* What the idea itself is for — no recipient involved, so it
+                  reads before the per-person lines below. */}
+              {occasions.length > 0 && (
+                <Text style={styles.muted}>
+                  For{" "}
+                  {occasions
+                    .map((o) => {
+                      const target = formatGiftTargetDate(o);
+                      return joinBits([o.label, target === "" ? null : target]);
+                    })
+                    .filter((s) => s !== "")
+                    .join(" · ")}
+                </Text>
+              )}
 
               {suggestions.map((s) => {
                 const target = formatGiftTargetDate(s);

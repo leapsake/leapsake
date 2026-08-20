@@ -44,6 +44,10 @@ export {
 } from "./notification-settings-repo.js";
 export { type GiftIdeasRepo, createGiftIdeasRepo } from "./gift-ideas-repo.js";
 export {
+  type GiftIdeaOccasionsRepo,
+  createGiftIdeaOccasionsRepo,
+} from "./gift-idea-occasions-repo.js";
+export {
   type GiftSuggestionsRepo,
   createGiftSuggestionsRepo,
 } from "./gift-suggestions-repo.js";

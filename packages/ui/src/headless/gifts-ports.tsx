@@ -17,13 +17,26 @@ import { type ReactNode, createContext, useContext } from "react";
 import type { PartialDate } from "./partial-date.js";
 
 /**
- * One pickable occasion for a gift — a milestone of the recipient's, or a
- * holiday they observe.
+ * One pickable occasion for a gift — a milestone, a holiday, or a milestone
+ * *kind* for the recipientless case ("someone's birthday").
+ *
+ * `tier` and `existing` mirror `@leapsake/core`'s `GiftOccasionOption` and are
+ * optional here for the same reason the rest of this file is structural: a host
+ * that has only a flat list of choices still satisfies the interface, and a
+ * renderer that ignores them renders a plain list.
  */
 export interface GiftOccasionChoice {
   type: GiftOccasionType;
   id: string;
   label: string;
+  /** How prominent this choice is: already true of them, common, or unusual. */
+  tier?: "theirs" | "common" | "more";
+  /**
+   * Whether it exists yet. `false` means picking it *creates* something on save
+   * — the holiday observance, or a dateless milestone — which a renderer marks
+   * so the write is never a surprise.
+   */
+  existing?: boolean;
 }
 
 /** A person or pet a gift can be for. */

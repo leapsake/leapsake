@@ -405,12 +405,14 @@ describe("core.gifts.capture (the consolidated create)", () => {
 });
 
 /**
- * The occasion pool a gift form's picker draws from. Narrow by
- * design: the recipient's own milestones plus the holidays they observe — never
- * the whole catalog, which would offer "Christmas" to someone who doesn't keep it.
+ * The occasion pool a gift form's picker draws from. **Ranked, not filtered**:
+ * everything the app can name is in it, tiered by how likely it is — what is
+ * already true of this party, then the usual gift occasions, then the rest. The
+ * pool used to be only the first tier, which left it empty for anyone with no
+ * milestones and no ticked observances (i.e. almost everyone).
  */
 describe("core.gifts.occasionsFor", () => {
-  it("offers the party's own milestones and the holidays they observe", async () => {
+  it("puts the party's own milestones and observed holidays first", async () => {
     const alice = await makePerson("Alice");
     await core.milestones.create({
       bearerType: "person",
@@ -427,16 +429,90 @@ describe("core.gifts.occasionsFor", () => {
     ]);
 
     const options = await core.gifts.occasionsFor("person", alice);
-    expect(options).toEqual([
-      { type: "milestone", id: expect.any(String), label: "Birthday" },
-      { type: "holiday", id: christmas, label: "Christmas" },
+    expect(options.slice(0, 2)).toEqual([
+      {
+        type: "milestone",
+        id: expect.any(String),
+        label: "Birthday",
+        tier: "theirs",
+        existing: true,
+      },
+      {
+        type: "holiday",
+        id: christmas,
+        label: "Christmas",
+        tier: "theirs",
+        existing: true,
+      },
     ]);
+    // Everything after the first tier is offered, not owned.
+    expect(options.slice(2).every((o) => o.tier !== "theirs")).toBe(true);
   });
 
-  it("omits holidays the party doesn't observe", async () => {
+  it("offers holidays the party doesn't observe, marked as not yet theirs", async () => {
     const bob = await makePerson("Bob");
     const options = await core.gifts.occasionsFor("person", bob);
-    expect(options.filter((o) => o.type === "holiday")).toEqual([]);
+    const christmas = options.find((o) => o.id === holidayIdFor("christmas"));
+    expect(christmas).toEqual({
+      type: "holiday",
+      id: holidayIdFor("christmas"),
+      label: "Christmas",
+      tier: "common",
+      existing: false,
+    });
+    // Ranked below it: a holiday people don't exchange gifts on.
+    const labor = options.find((o) => o.id === holidayIdFor("us-labor-day"));
+    expect(labor?.tier).toBe("more");
+    expect(options.indexOf(christmas!)).toBeLessThan(options.indexOf(labor!));
+  });
+
+  it("offers a birthday for someone who has none on file", async () => {
+    const bob = await makePerson("Bob");
+    const options = await core.gifts.occasionsFor("person", bob);
+    expect(
+      options.find((o) => o.type === "kind" && o.id === "birthday"),
+    ).toEqual({
+      type: "kind",
+      id: "birthday",
+      label: "Birthday",
+      tier: "common",
+      existing: false,
+    });
+    // The unconventional ones are present too — just not near the top.
+    expect(
+      options.find((o) => o.type === "kind" && o.id === "death")?.tier,
+    ).toBe("more");
+  });
+
+  it("stops offering the kind once they have that milestone", async () => {
+    const bob = await makePerson("Bob");
+    await core.milestones.create({
+      bearerType: "person",
+      bearerId: bob,
+      kind: "birthday",
+      year: null,
+      month: 4,
+      day: 2,
+      note: null,
+    });
+    const options = await core.gifts.occasionsFor("person", bob);
+    // Otherwise "Birthday" and "Birthday 🎂 April 2" would both be listed, and
+    // only one of them carries the date.
+    expect(options.some((o) => o.type === "kind" && o.id === "birthday")).toBe(
+      false,
+    );
+  });
+
+  it("only offers kinds the bearer type can hold", async () => {
+    const pet = await core.pets.create({ name: "Rex" }, []);
+    const options = await core.gifts.occasionsFor("pet", pet.id);
+    // A wedding belongs to a relationship or a person, never a pet.
+    expect(options.some((o) => o.type === "kind" && o.id === "wedding")).toBe(
+      false,
+    );
+    expect(options.some((o) => o.type === "kind" && o.id === "birthday")).toBe(
+      true,
+    );
   });
 
   it("labels an occasion the way the row reads it back", async () => {
@@ -466,6 +542,218 @@ describe("core.gifts.occasionsFor", () => {
       alice,
     );
     expect(option?.label).toBe(suggestion?.occasionLabel);
+  });
+});
+
+/**
+ * Picking an occasion the party doesn't have yet **creates** it. "Anna gets a
+ * Christmas gift" and "Anna keeps Christmas" are the same fact, and a birthday
+ * you don't know the date of is still a birthday.
+ */
+describe("materializing an occasion", () => {
+  it("creates a dateless milestone for a kind, and points at it", async () => {
+    const anna = await makePerson("Anna");
+    const idea = await core.gifts.ideas.create({ title: "Scarf" });
+
+    const suggestion = await core.gifts.suggestions.create({
+      giftIdeaId: idea.id,
+      recipientType: "person",
+      recipientId: anna,
+      occasion: { type: "kind", id: "birthday" },
+    });
+
+    // Stored as a real pointer: the `kind` arm never reaches a suggestion row.
+    expect(suggestion.occasionType).toBe("milestone");
+    const [milestone] = await core.milestones.listForBearer("person", anna);
+    expect(milestone).toMatchObject({
+      kind: "birthday",
+      year: null,
+      month: null,
+      day: null,
+    });
+    expect(suggestion.occasionId).toBe(milestone?.id);
+  });
+
+  it("reuses the milestone rather than minting a second one", async () => {
+    const anna = await makePerson("Anna");
+    const idea = await core.gifts.ideas.create({ title: "Scarf" });
+    for (const _ of [1, 2]) {
+      await core.gifts.suggestions.create({
+        giftIdeaId: idea.id,
+        recipientType: "person",
+        recipientId: anna,
+        occasion: { type: "kind", id: "birthday" },
+      });
+    }
+    expect(await core.milestones.listForBearer("person", anna)).toHaveLength(1);
+  });
+
+  it("leaves the reminder engine alone — a dateless milestone is inert", async () => {
+    const anna = await makePerson("Anna");
+    const idea = await core.gifts.ideas.create({ title: "Scarf" });
+    await core.gifts.suggestions.create({
+      giftIdeaId: idea.id,
+      recipientType: "person",
+      recipientId: anna,
+      occasion: { type: "kind", id: "birthday" },
+    });
+    const reminders = await core.reminders.list();
+    expect(reminders.some((r) => (r.title ?? "").includes("birthday"))).toBe(
+      false,
+    );
+  });
+
+  it("marks the party as observing a holiday they're given a gift on", async () => {
+    const anna = await makePerson("Anna");
+    const christmas = holidayIdFor("christmas");
+    const idea = await core.gifts.ideas.create({ title: "Scarf" });
+
+    await core.gifts.capture({
+      giftIdea: { id: idea.id },
+      recipients: [
+        {
+          party: { type: "person", id: anna },
+          suggestion: { occasion: { type: "holiday", id: christmas } },
+        },
+      ],
+    });
+
+    const holidays = await core.holidays.listForBearer("person", anna);
+    expect(holidays.find((h) => h.id === christmas)?.observes).toBe(true);
+    // And it is now a first-tier choice for them.
+    const options = await core.gifts.occasionsFor("person", anna);
+    expect(options.find((o) => o.id === christmas)?.tier).toBe("theirs");
+  });
+
+  it("resolves a kind on a giving too, against that giving's recipient", async () => {
+    const anna = await makePerson("Anna");
+    const idea = await core.gifts.ideas.create({ title: "Scarf" });
+    await core.gifts.capture({
+      giftIdea: { id: idea.id },
+      recipients: [
+        {
+          party: { type: "person", id: anna },
+          givings: [
+            {
+              date: { year: 2025, month: 4, day: 2 },
+              occasion: { type: "kind", id: "birthday" },
+            },
+          ],
+        },
+      ],
+    });
+    const [given] = await core.gifts.given.listForRecipient("person", anna);
+    expect(given?.occasionType).toBe("milestone");
+    expect(given?.occasionLabel).toBe("Birthday");
+  });
+});
+
+/**
+ * What an idea is *for*, with nobody named — the arm that lets "this would make a
+ * good Christmas gift for someone" be a complete capture.
+ */
+describe("core.gifts.ideas occasions", () => {
+  it("captures an idea with an occasion and no recipient at all", async () => {
+    const christmas = holidayIdFor("christmas");
+    const idea = await core.gifts.capture({
+      giftIdea: { title: "Nice candle" },
+      recipients: [],
+      occasions: [
+        {
+          occasion: { type: "holiday", id: christmas },
+          targetDate: { year: 2026 },
+        },
+        { occasion: { type: "kind", id: "birthday" } },
+      ],
+    });
+
+    const occasions = await core.gifts.ideas.listOccasions(idea.id);
+    expect(occasions).toHaveLength(2);
+    expect(occasions.map((o) => o.label)).toEqual(["Christmas", "Birthday"]);
+    expect(occasions[0]?.targetYear).toBe(2026);
+    // Nobody was named, so nothing about a person was written.
+    expect(await core.gifts.suggestions.listForIdea(idea.id)).toEqual([]);
+  });
+
+  it("keeps a kind pointer as a kind — there is no one to resolve it against", async () => {
+    const idea = await core.gifts.capture({
+      giftIdea: { title: "Nice candle" },
+      recipients: [],
+      occasions: [{ occasion: { type: "kind", id: "birthday" } }],
+    });
+    const [occasion] = await core.gifts.ideas.listOccasions(idea.id);
+    expect(occasion?.occasionType).toBe("kind");
+    expect(occasion?.occasionId).toBe("birthday");
+  });
+
+  it("replaces the set, keeping the rows that survive", async () => {
+    const christmas = holidayIdFor("christmas");
+    const easter = holidayIdFor("western-easter");
+    const idea = await core.gifts.ideas.create({ title: "Nice candle" });
+    await core.gifts.ideas.setOccasions(idea.id, [
+      { occasion: { type: "holiday", id: christmas } },
+      { occasion: { type: "kind", id: "birthday" } },
+    ]);
+    const before = await core.gifts.ideas.listOccasions(idea.id);
+
+    await core.gifts.ideas.setOccasions(idea.id, [
+      {
+        occasion: { type: "holiday", id: christmas },
+        targetDate: { year: 2027 },
+      },
+      { occasion: { type: "holiday", id: easter } },
+    ]);
+    const after = await core.gifts.ideas.listOccasions(idea.id);
+
+    expect(after.map((o) => o.label)).toEqual(["Christmas", "Easter"]);
+    // The survivor kept its row (an edit, not a delete-and-recreate).
+    expect(after[0]?.id).toBe(before[0]?.id);
+    expect(after[0]?.targetYear).toBe(2027);
+  });
+
+  it("does not drop occasions when the same idea is captured again", async () => {
+    const christmas = holidayIdFor("christmas");
+    const idea = await core.gifts.capture({
+      giftIdea: { title: "Nice candle" },
+      recipients: [],
+      occasions: [{ occasion: { type: "holiday", id: christmas } }],
+    });
+    await core.gifts.capture({
+      giftIdea: { id: idea.id },
+      recipients: [],
+      occasions: [{ occasion: { type: "kind", id: "birthday" } }],
+    });
+    expect(await core.gifts.ideas.listOccasions(idea.id)).toHaveLength(2);
+
+    // And capturing the same one twice doesn't duplicate it.
+    await core.gifts.capture({
+      giftIdea: { id: idea.id },
+      recipients: [],
+      occasions: [{ occasion: { type: "holiday", id: christmas } }],
+    });
+    expect(await core.gifts.ideas.listOccasions(idea.id)).toHaveLength(2);
+  });
+
+  it("cascades with the idea", async () => {
+    const idea = await core.gifts.capture({
+      giftIdea: { title: "Nice candle" },
+      recipients: [],
+      occasions: [{ occasion: { type: "kind", id: "birthday" } }],
+    });
+    await core.gifts.ideas.softDelete(idea.id);
+    expect(await core.gifts.ideas.listOccasions(idea.id)).toEqual([]);
+  });
+
+  it("offers every holiday and every kind when there is no party", async () => {
+    const options = await core.gifts.generalOccasions();
+    expect(options.some((o) => o.id === holidayIdFor("christmas"))).toBe(true);
+    expect(options.some((o) => o.type === "kind" && o.id === "birthday")).toBe(
+      true,
+    );
+    // Nothing here creates anything — a kind is what an idea stores.
+    expect(options.every((o) => o.existing)).toBe(true);
+    // Still ranked: the common ones lead.
+    expect(options[0]?.tier).toBe("common");
   });
 });
 

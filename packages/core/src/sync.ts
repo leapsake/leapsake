@@ -15,6 +15,7 @@ import {
   createAccountRepo,
   createContactMethodsRepo,
   createDismissalsRepo,
+  createGiftIdeaOccasionsRepo,
   createGiftIdeasRepo,
   createGiftSuggestionsRepo,
   createGiftsRepo,
@@ -127,6 +128,8 @@ export function syncableRepos(driver: SqliteDriver): SyncableRepo<SyncRow>[] {
     createSelfPersonRepo(driver),
     // Gift ideas — plaintext, person-agnostic rows.
     createGiftIdeasRepo(driver),
+    // What an idea is *for* with no recipient named — "a Christmas thing".
+    createGiftIdeaOccasionsRepo(driver),
     // Gift suggestions — idea × recipient candidates.
     createGiftSuggestionsRepo(driver),
     // Gifts — dated giving events.

@@ -8,13 +8,17 @@
  */
 export {
   type GivingRow,
+  type IdeaOccasionRow,
   type PartyContexts,
   type PartyLoaders,
   type RecipientEntry,
   type SuggestionFields,
   captureRecipientOf,
   givingsOf,
+  ideaOccasionRowsOf,
+  ideaOccasionsOf,
   newGivingRow,
+  newIdeaOccasionRow,
   newSuggestionFields,
   occasionKey,
   occasionOfKey,

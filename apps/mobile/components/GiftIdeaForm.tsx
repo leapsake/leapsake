@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
-import type { GiftIdea } from "@leapsake/schema";
+import type { GiftIdea, GiftIdeaOccasionInput } from "@leapsake/schema";
+import {
+  type IdeaOccasionRow,
+  ideaOccasionRowsOf,
+  ideaOccasionsOf,
+} from "@leapsake/ui/headless";
 import { ChipTextField } from "./ChipTextField";
+import { GiftIdeaOccasionsField } from "./GiftIdeaOccasionsField";
 import { HeaderSave } from "./HeaderSave";
 import { styles } from "../lib/styles";
 
@@ -32,6 +38,7 @@ export function GiftIdeaForm({
   title: headerTitle,
   idea,
   tagNames = "",
+  occasions = [],
   onSubmit,
 }: {
   /** Native header title, set here so the header is declared in one place. */
@@ -39,12 +46,30 @@ export function GiftIdeaForm({
   idea?: GiftIdea;
   /** Space-separated existing tag labels; empty on create. */
   tagNames?: string;
-  onSubmit: (value: GiftIdeaFormValue, tagsRaw: string) => Promise<void>;
+  /** The idea's stored occasions; empty on create. */
+  occasions?: readonly {
+    id: string;
+    occasionType: GiftIdeaOccasionInput["occasion"]["type"];
+    occasionId: string;
+    targetYear: number | null;
+    targetMonth: number | null;
+    targetDay: number | null;
+  }[];
+  onSubmit: (
+    value: GiftIdeaFormValue,
+    tagsRaw: string,
+    occasions: GiftIdeaOccasionInput[],
+  ) => Promise<void>;
 }) {
   const [title, setTitle] = useState(idea?.title ?? "");
   const [url, setUrl] = useState(idea?.url ?? "");
   const [notes, setNotes] = useState(idea?.notes ?? "");
   const [tags, setTags] = useState(tagNames);
+  // Seeded once: this form is remounted per idea (the screen keys on the route),
+  // so a later prop change would be a reload, not an edit to discard.
+  const [occasionRows, setOccasionRows] = useState<IdeaOccasionRow[]>(() =>
+    ideaOccasionRowsOf(occasions),
+  );
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = title.trim().length > 0 && !submitting;
@@ -62,6 +87,7 @@ export function GiftIdeaForm({
           notes: trimmedNotes === "" ? null : trimmedNotes,
         },
         tags,
+        ideaOccasionsOf(occasionRows),
       );
     } finally {
       setSubmitting(false);
@@ -108,6 +134,19 @@ export function GiftIdeaForm({
           onChangeText={setNotes}
           multiline
         />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>What it's for</Text>
+        <GiftIdeaOccasionsField
+          label="Occasion (no recipient needed)"
+          rows={occasionRows}
+          onChange={setOccasionRows}
+        />
+        <Text style={styles.muted}>
+          Occasions the idea itself suits — "a good Christmas gift". Who it's
+          for is separate, below.
+        </Text>
       </View>
 
       <View style={styles.field}>

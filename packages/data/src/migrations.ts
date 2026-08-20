@@ -1051,6 +1051,43 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 34,
+    async up(driver) {
+      // What an idea is *for*, said about the thing rather than about a person:
+      // "this would make a good Christmas gift for someone". The one gift
+      // adornment that needs no recipient, which is why it hangs off the idea
+      // and not off a suggestion (`giftIdeaOccasionSchema`).
+      //
+      // A table rather than columns on `gift_ideas` because a candle is a
+      // birthday gift *and* a housewarming gift — and because a row per occasion
+      // merges: two devices each adding one keep both, where a column would drop
+      // one under whole-row LWW.
+      //
+      // `occasion_*` is the same polymorphic pointer the suggestion and gift
+      // rows carry, with one addition: `occasion_type = 'kind'` stores a
+      // **milestone kind** ("birthday"), not a row id, because with no recipient
+      // there is no milestone to point at. That arm exists only here — core
+      // resolves it against a real person's milestone the moment one is named.
+      // No FKs, as everywhere else; the pointer resolves at read.
+      await driver.exec(`
+        CREATE TABLE gift_idea_occasions (
+          id            TEXT    PRIMARY KEY,
+          gift_idea_id  TEXT    NOT NULL,
+          occasion_type TEXT    NOT NULL,
+          occasion_id   TEXT    NOT NULL,
+          target_year   INTEGER,
+          target_month  INTEGER,
+          target_day    INTEGER,
+          created_at    INTEGER NOT NULL,
+          updated_at    INTEGER NOT NULL,
+          deleted_at    INTEGER
+        );
+        CREATE INDEX ix_gift_idea_occasions_idea
+          ON gift_idea_occasions(gift_idea_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /**

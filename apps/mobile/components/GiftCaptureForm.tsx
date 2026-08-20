@@ -7,10 +7,12 @@ import {
   type GiftOccasionChoice,
   type GivenRow,
   type GivingRow,
+  type IdeaOccasionRow,
   type PartyOption,
   type RecipientEntry,
   type SuggestionFields,
   captureRecipientOf,
+  ideaOccasionsOf,
   newGivingRow,
   newSuggestionFields,
   parseDateFields,
@@ -19,6 +21,7 @@ import {
   removeRecipient,
   usePartyContext,
 } from "@leapsake/ui/headless";
+import { GiftIdeaOccasionsField } from "./GiftIdeaOccasionsField";
 import { GiftOccasionFields } from "./GiftOccasionFields";
 import { HeaderSave } from "./HeaderSave";
 import { useGiftPartyLoaders } from "../lib/gifts-ports";
@@ -189,10 +192,16 @@ export interface StagedGift {
  * existing idea is a shortcut and a brand-new title is the normal case, so it
  * must never collapse into a "chosen option" row.
  *
- * Both arms can name an **occasion** — a milestone of the recipient's or a holiday
- * they observe. A giving carries one per date row (two Christmases are two rows);
- * a suggestion carries one alongside its *target* date, behind a collapsed "For…"
- * link so the common case stays two fields.
+ * Both arms can name an **occasion** — one of the recipient's milestones, a
+ * holiday, or one of either that they don't have yet and picking it creates. A
+ * giving carries one per date row (two Christmases are two rows); a suggestion
+ * carries one alongside its *target* date, behind a collapsed "For…" link so the
+ * common case stays two fields.
+ *
+ * With **no recipient at all** the idea itself can name occasions
+ * ({@link GiftIdeaOccasionsField}) — "this would make a good Christmas gift for
+ * someone" is a whole capture, and it is the only arm here that writes nothing
+ * about a person.
  *
  * Like the entity forms it declares its own native header — `title` plus a
  * right-aligned {@link HeaderSave} — rather than carrying a submit button at the
@@ -247,6 +256,9 @@ export function GiftCaptureForm({
     useState<SuggestionFields>(newSuggestionFields);
   // Gifts-screen mode: recipients each carry their own.
   const [recipients, setRecipients] = useState<RecipientEntry[]>([]);
+  // The idea's own occasions — "a good Christmas gift for someone". Offered only
+  // where there is no recipient to hang them on instead (see the render below).
+  const [ideaOccasions, setIdeaOccasions] = useState<IdeaOccasionRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -287,6 +299,7 @@ export function GiftCaptureForm({
     setFixedGivings(startWithGiving ? [newGivingRow()] : []);
     setFixedSuggestion(newSuggestionFields());
     setRecipients([]);
+    setIdeaOccasions([]);
   }
 
   async function submit() {
@@ -330,6 +343,7 @@ export function GiftCaptureForm({
       await core.gifts.capture({
         giftIdea,
         recipients: captureRecipients,
+        occasions: ideaOccasionsOf(ideaOccasions),
       });
       reset();
       onSaved?.();
@@ -458,6 +472,17 @@ export function GiftCaptureForm({
         </>
       ) : (
         <View style={styles.section}>
+          {/*
+            Above the recipient picker on purpose: "a good Christmas gift for
+            someone" is a complete thought, and this is the arm that lets the form
+            be finished without naming anyone. Once a recipient *is* named, their
+            own "For…" says the more specific thing, so this stays out of the
+            fixed-recipient and staged arms entirely.
+          */}
+          <GiftIdeaOccasionsField
+            rows={ideaOccasions}
+            onChange={setIdeaOccasions}
+          />
           <Typeahead
             multi
             label="For whom? (optional)"

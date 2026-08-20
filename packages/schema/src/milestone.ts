@@ -37,6 +37,7 @@ export const milestoneKindSchema = z.enum([
   "met",
   "graduation",
   "job-start",
+  "moved",
   "other",
 ]);
 
@@ -171,6 +172,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     recursAnnually: false,
     greeting: "congratulations",
     defaultReminderSchedule: [
+      { action: "gift", offsetDays: 14, enabledByDefault: false },
       { action: "call", offsetDays: 0, enabledByDefault: false },
     ],
   },
@@ -182,6 +184,21 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     greeting: "congratulations",
     defaultReminderSchedule: [
       { action: "call", offsetDays: 0, enabledByDefault: false },
+    ],
+  },
+  moved: {
+    label: "Moved",
+    icon: "🏠",
+    allowedBearerTypes: ["person", "pet"],
+    recursAnnually: false,
+    greeting: "a happy housewarming",
+    // A housewarming is a gift occasion — offered, off (nothing but a birthday
+    // wish is on by default). TODO (v2): a move wants its own fields (the new
+    // address, and the relationship between the two homes) rather than only a
+    // date; this kind is the seam that will grow them.
+    defaultReminderSchedule: [
+      { action: "gift", offsetDays: 0, enabledByDefault: false },
+      { action: "visit", offsetDays: 0, enabledByDefault: false },
     ],
   },
   other: {
@@ -214,6 +231,23 @@ export function kindsForBearerType(
   return (Object.keys(kindDefs) as MilestoneKind[])
     .filter((kind) => kindAllowsBearer(kind, bearerType))
     .map((kind) => ({ kind, label: kindDefs[kind].label }));
+}
+
+/**
+ * Whether this kind is one people give gifts for — derived from its **own**
+ * default schedule offering a `gift` action, rather than from a second list that
+ * could disagree with it. A birthday, a wedding, a graduation and a move qualify;
+ * a death and a "met" anniversary do not.
+ *
+ * Read by the gift occasion picker, which puts these kinds at the top as the
+ * milestones it is worth *creating* on the spot ("a birthday gift for Anna", when
+ * Anna has no birthday on file yet). It ranks the picker, it never limits it —
+ * every other kind is still reachable further down the same list.
+ */
+export function isGiftBearingKind(kind: MilestoneKind): boolean {
+  return kindDefs[kind].defaultReminderSchedule.some(
+    (r) => r.action === "gift",
+  );
 }
 
 /**

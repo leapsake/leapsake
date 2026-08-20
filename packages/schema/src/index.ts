@@ -87,11 +87,16 @@ export {
   giftIdeaSchema,
   createGiftIdeaInputSchema,
   updateGiftIdeaInputSchema,
+  giftIdeaOccasionSchema,
+  giftIdeaOccasionInputSchema,
+  occasionOf,
 } from "./gift-idea.js";
 export type {
   GiftIdea,
   CreateGiftIdeaInput,
   UpdateGiftIdeaInput,
+  GiftIdeaOccasion,
+  GiftIdeaOccasionInput,
 } from "./gift-idea.js";
 export {
   giftPartyTypeSchema,
@@ -265,6 +270,7 @@ export {
   preferredBearerType,
   kindAllowsBearer,
   kindsForBearerType,
+  isGiftBearingKind,
   resolveReminderSchedule,
   datePrecisionOf,
   formatMilestoneDate,

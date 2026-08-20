@@ -16,7 +16,7 @@
  * parsed here — see {@link parseRecurrence} for why that indirection is what
  * makes a device able to relay a holiday it does not itself understand.
  */
-export { CATALOG, CATALOG_VERSION } from "./catalog.js";
+export { CATALOG, CATALOG_VERSION, isGiftGivingHoliday } from "./catalog.js";
 export type { HolidayEntry } from "./catalog.js";
 export {
   canonicalRecurrenceJson,

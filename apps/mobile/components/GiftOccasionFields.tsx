@@ -20,8 +20,10 @@ import { styles } from "../lib/styles";
  * suggestion's **target** date and a giving's **what-happened** date alike.
  *
  * The occasion picker is a {@link SelectField} (desktop's `<select>`): the pool is
- * a short, fully-known list — this recipient's own milestones plus the holidays
- * they observe — not the long unfamiliar list a `Typeahead` exists for.
+ * a short, fully-known list — not the long unfamiliar list a `Typeahead` exists
+ * for. Core hands it over already **ranked** (what is true of this recipient,
+ * then the usual gift occasions, then everything else) and already labelled, so
+ * this renders the list in the order it arrives and adds no policy of its own.
  *
  * The occasion is only a **label**: the date stays the source of truth for *when*,
  * so picking a holiday never writes a date on its own. It does offer one —
@@ -67,14 +69,27 @@ export function GiftOccasionFields({
   }, [core, holidayId, year]);
 
   // One flat option list with a leading unset — RN's picker has no optgroup, so
-  // the two kinds are distinguished by a suffix rather than by grouping.
+  // the kinds are distinguished by a suffix rather than by grouping, and the
+  // ranking core supplied (`tier`) survives as plain list order.
+  //
+  // A choice that doesn't exist yet is prefixed "＋": picking it writes something
+  // — the holiday observance, or a dateless milestone — and that is explained
+  // once, under the field, rather than guessed at from a dropdown row.
   const options = [
     { value: "", label: "— none —" },
     ...occasions.map((o) => ({
       value: occasionKey(o),
-      label: o.type === "holiday" ? `${o.label} (holiday)` : o.label,
+      label: `${o.existing === false ? "＋ " : ""}${
+        o.type === "holiday" ? `${o.label} (holiday)` : o.label
+      }`,
     })),
   ];
+
+  // Only worth explaining when the picked one actually creates something.
+  const picked = occasions.find(
+    (o) => occasionKey(o) === occasionKey(occasion),
+  );
+  const willCreate = picked?.existing === false;
 
   return (
     <View style={styles.section}>
@@ -92,6 +107,14 @@ export function GiftOccasionFields({
         options={options}
         onChange={(value) => onOccasionChange(occasionOfKey(value))}
       />
+
+      {willCreate && (
+        <Text style={styles.muted}>
+          {picked?.type === "holiday"
+            ? `Saving also records that they observe ${picked.label}.`
+            : `Saving also adds ${picked?.label.toLowerCase()} to their record — no date needed, you can fill it in later.`}
+        </Text>
+      )}
 
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
         <View style={[styles.field, { flex: 1 }]}>

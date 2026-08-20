@@ -1,6 +1,7 @@
 import {
   type CreateGiftRowInput,
   type Gift,
+  type GiftOccasion,
   type GiftParty,
   type GiftPartyType,
   type UpdateGiftInput,
@@ -51,7 +52,7 @@ function flattenGift(input: {
     month?: number | null;
     day?: number | null;
   } | null;
-  occasion?: { type: "milestone" | "holiday"; id: string } | null;
+  occasion?: GiftOccasion | null;
 }): Partial<Gift> {
   const patch: Partial<Gift> = {};
   if (input.giver !== undefined) {

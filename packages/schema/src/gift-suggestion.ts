@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { formatMilestoneDate } from "./milestone.js";
+import { formatMilestoneDate, milestoneKindSchema } from "./milestone.js";
 
 /**
  * The party a gift is suggested for (and, in a {@link Gift}, given by / to). Its
@@ -13,22 +13,52 @@ export const giftPartyTypeSchema = z.enum(["person", "pet"]);
 export type GiftPartyType = z.infer<typeof giftPartyTypeSchema>;
 
 /**
- * What a gift's **occasion** points at — a milestone or a holiday. A third type
- * is one line later. The occasion is a *label*, not the source
- * of truth for *when*: it references the **holiday** (never an observance) or the
- * milestone, and the target date + person resolve the actual occurrence — a
- * holiday reference alone is ambiguous (a lunisolar holiday can fall twice in one
- * Gregorian year, which is why the engine keys occurrences on date).
+ * What a gift's **occasion** points at — a milestone, a holiday, or a milestone
+ * *kind*. The occasion is a *label*, not the source of truth for *when*: it
+ * references the **holiday** (never an observance) or the milestone, and the
+ * target date + person resolve the actual occurrence — a holiday reference alone
+ * is ambiguous (a lunisolar holiday can fall twice in one Gregorian year, which
+ * is why the engine keys occurrences on date).
+ *
+ * `kind` is the **partyless** arm: "a good birthday gift for *someone*", where
+ * there is no bearer to hang a milestone on, so the pointer names the kind
+ * ({@link MilestoneKind}) instead of a row. It is the one occasion type whose id
+ * is not a UUID.
+ *
+ * A `kind` pointer is only ever *stored* on a {@link GiftIdeaOccasion}. The
+ * moment a party is known, core resolves it to that party's real milestone —
+ * creating a dateless one if they have none — so a suggestion or a giving always
+ * carries a concrete `milestone` pointer and every read stays a single lookup.
  */
-export const giftOccasionTypeSchema = z.enum(["milestone", "holiday"]);
+export const giftOccasionTypeSchema = z.enum(["milestone", "holiday", "kind"]);
 
 export type GiftOccasionType = z.infer<typeof giftOccasionTypeSchema>;
 
-/** A complete occasion pointer — both parts present, or the whole thing absent. */
-export const giftOccasionSchema = z.object({
-  type: giftOccasionTypeSchema,
-  id: z.uuid(),
-});
+/**
+ * A complete occasion pointer — both parts present, or the whole thing absent.
+ *
+ * Flat `{ type, id }` with a cross-field rule rather than a discriminated union,
+ * even though the id means different things per arm (a row id for
+ * `milestone`/`holiday`, a {@link MilestoneKind} for `kind`). The pointer is
+ * carried as two columns, round-tripped through the pickers as a `"type:id"`
+ * string, and read structurally by every form; a union would buy precision at
+ * these edges and cost a narrowing at each of them.
+ */
+export const giftOccasionSchema = z
+  .object({
+    type: giftOccasionTypeSchema,
+    id: z.string().min(1),
+  })
+  .refine(
+    (o) =>
+      o.type === "kind"
+        ? milestoneKindSchema.safeParse(o.id).success
+        : z.uuid().safeParse(o.id).success,
+    {
+      message: "a milestone/holiday occasion needs a uuid, a kind needs a kind",
+      path: ["id"],
+    },
+  );
 
 export type GiftOccasion = z.infer<typeof giftOccasionSchema>;
 
@@ -75,7 +105,10 @@ export const giftSuggestionSchema = z
     giftIdeaId: z.uuid(),
     recipientType: giftPartyTypeSchema,
     recipientId: z.uuid(),
-    // Occasion: a complete pointer or nothing — both parts move together.
+    // Occasion: a complete pointer or nothing — both parts move together. The id
+    // is a row id, never a `kind` slug: a suggestion has a recipient, so core
+    // resolves a partyless `kind` occasion to that recipient's real milestone
+    // before it reaches this row.
     occasionType: giftOccasionTypeSchema.nullable(),
     occasionId: z.uuid().nullable(),
     targetYear: z.number().int().nullable(),

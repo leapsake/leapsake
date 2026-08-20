@@ -72,6 +72,19 @@ export interface HolidayEntry {
    * accelerator layer is purely additive.
    */
   impliedByLocale?: boolean;
+  /**
+   * Whether people commonly exchange **gifts** on it. Ranks the gift occasion
+   * picker — Christmas near the top, Labor Day further down — and nothing else:
+   * every holiday stays pickable either way, because "unconventional" is a
+   * statement about most people, not about this user.
+   *
+   * **Display-only, and deliberately not a column.** It never reaches a
+   * `holidays` row, so it is outside the catalog's byte-pinning test and needs no
+   * {@link CATALOG_VERSION} bump: a device reads it from the build it is running,
+   * and a synced holiday this build has never heard of simply sorts as
+   * not-gift-giving.
+   */
+  giftGiving?: boolean;
   /** The catalog release's authored time, epoch ms. See the module doc. */
   authoredAt: number;
   /** Set instead of deleting; seeds as a tombstone. */
@@ -156,6 +169,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     recurrence: { type: "fixed", month: 2, day: 14 },
     familyId: "valentines",
     impliedByLocale: true,
+    giftGiving: true,
     authoredAt: V1,
   },
   {
@@ -191,6 +205,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     // Christmas-as-secular-gift-occasion is safe to imply from a US locale
     // (research §2.12) — it asserts an occasion, not a religion.
     impliedByLocale: true,
+    giftGiving: true,
     authoredAt: V1,
   },
 
@@ -203,6 +218,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     recurrence: { type: "nth-weekday", month: 5, weekday: 0, nth: 2 },
     familyId: "mothers-day",
     impliedByLocale: true,
+    giftGiving: true,
     authoredAt: V1,
   },
   {
@@ -221,6 +237,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     recurrence: { type: "nth-weekday", month: 6, weekday: 0, nth: 3 },
     familyId: "fathers-day",
     impliedByLocale: true,
+    giftGiving: true,
     authoredAt: V1,
   },
   {
@@ -249,6 +266,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     greeting: "a Happy Easter",
     recurrence: { type: "computed", algorithm: "western-easter" },
     familyId: "easter",
+    giftGiving: true,
     authoredAt: V1,
   },
   {
@@ -307,6 +325,7 @@ export const CATALOG: readonly HolidayEntry[] = [
       ],
     },
     durationDays: 8,
+    giftGiving: true,
     authoredAt: V2,
   },
   {
@@ -351,6 +370,25 @@ export const CATALOG: readonly HolidayEntry[] = [
       ],
     },
     familyId: "lunar-new-year",
+    giftGiving: true,
     authoredAt: V2,
   },
 ];
+
+/** Slugs of the entries people commonly exchange gifts on — see
+ *  {@link HolidayEntry.giftGiving}. Built once; the catalog is immutable. */
+const GIFT_GIVING_SLUGS: ReadonlySet<string> = new Set(
+  CATALOG.filter((e) => e.giftGiving === true).map((e) => e.slug),
+);
+
+/**
+ * Whether people commonly exchange gifts on the holiday with this slug — the
+ * lookup the gift occasion picker ranks by, keyed on `slug` because that is what
+ * a `holidays` **row** carries (the flag itself never becomes a column).
+ *
+ * A slug this build has never seen — a holiday that arrived over sync from a
+ * newer catalog — answers `false`: it sorts lower, and stays perfectly pickable.
+ */
+export function isGiftGivingHoliday(slug: string): boolean {
+  return GIFT_GIVING_SLUGS.has(slug);
+}

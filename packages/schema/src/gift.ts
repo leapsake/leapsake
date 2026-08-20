@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { giftIdeaOccasionInputSchema } from "./gift-idea.js";
 import {
   giftOccasionSchema,
   giftOccasionTypeSchema,
@@ -85,6 +86,9 @@ export const giftSchema = z
     month: z.number().int().min(1).max(12).nullable(),
     day: z.number().int().min(1).max(31).nullable(),
     occasionType: giftOccasionTypeSchema.nullable(),
+    // A row id, never a `kind` slug: a giving has a recipient, so core resolves
+    // a partyless `kind` occasion to that recipient's real milestone before it
+    // reaches this row. The `uuid()` is what keeps that invariant honest.
     occasionId: z.uuid().nullable(),
     createdAt: z.number().int(), // epoch ms, UTC
     updatedAt: z.number().int(),
@@ -212,6 +216,13 @@ export const captureGiftInputSchema = z.object({
   giftIdea: giftIdeaRefSchema,
   recipients: z.array(captureRecipientSchema),
   giver: giftPartySchema.nullable().optional(),
+  /**
+   * What the **idea** is for, with nobody named — "this would make a good
+   * Christmas gift for someone". The fourth outcome of a capture, alongside the
+   * three above, and the only one that needs no recipient at all
+   * ({@link giftIdeaOccasionSchema}).
+   */
+  occasions: z.array(giftIdeaOccasionInputSchema).optional(),
 });
 
 export type CaptureGiftInput = z.infer<typeof captureGiftInputSchema>;

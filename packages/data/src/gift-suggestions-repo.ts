@@ -1,5 +1,6 @@
 import {
   type CreateGiftSuggestionInput,
+  type GiftOccasion,
   type GiftPartyType,
   type GiftSuggestion,
   type UpdateGiftSuggestionInput,
@@ -44,7 +45,7 @@ export interface GiftSuggestionsRepo extends Omit<
 
 /** Flatten the nested occasion/target-date input onto the row's flat columns. */
 function flattenAdornments(input: {
-  occasion?: { type: "milestone" | "holiday"; id: string } | null;
+  occasion?: GiftOccasion | null;
   targetDate?: {
     year?: number | null;
     month?: number | null;
