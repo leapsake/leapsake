@@ -106,15 +106,24 @@ export function entityFormValid(
  * came from a saved milestone and a placeholder when it didn't; the screen's
  * write maps every key to a real id (`resolveStagedOccasion`), so the two kinds
  * are indistinguishable here on purpose.
+ *
+ * Takes the two lists rather than the whole {@link EntityFormValue}, and not
+ * merely for narrowness: the pool it builds is a prop of the Gifts section, so
+ * anything this depends on is something a keystroke elsewhere on the form can
+ * re-render that section for. Named this way it depends on the two lists that
+ * genuinely change it, and typing a name leaves it alone.
  */
-export function giftOccasionsOf(value: EntityFormValue): GiftOccasionChoice[] {
+export function giftOccasionsOf(
+  milestones: readonly StagedMilestone[],
+  holidays: readonly StagedHoliday[],
+): GiftOccasionChoice[] {
   return [
-    ...value.milestones.map((m) => ({
+    ...milestones.map((m) => ({
       type: "milestone" as const,
       id: m.key,
       label: milestoneLabel(milestoneDraftToValue(m.draft)),
     })),
-    ...value.holidays.map((h) => ({
+    ...holidays.map((h) => ({
       type: "holiday" as const,
       id: h.id,
       label: h.name,
@@ -168,6 +177,11 @@ export function pruneGiftOccasions(
 }
 
 /** The occasion keys a form's milestones and holidays currently offer. */
-export function validOccasionKeys(value: EntityFormValue): ReadonlySet<string> {
-  return new Set(giftOccasionsOf(value).map((o) => occasionKey(o)));
+export function validOccasionKeys(
+  milestones: readonly StagedMilestone[],
+  holidays: readonly StagedHoliday[],
+): ReadonlySet<string> {
+  return new Set(
+    giftOccasionsOf(milestones, holidays).map((o) => occasionKey(o)),
+  );
 }

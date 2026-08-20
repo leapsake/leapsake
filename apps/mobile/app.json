@@ -24,6 +24,9 @@
       ]
     },
     "web": {},
+    "experiments": {
+      "reactCompiler": true
+    },
     "plugins": [
       "expo-status-bar",
       ["expo-sqlite", { "useSQLCipher": true }],

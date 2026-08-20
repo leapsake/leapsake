@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Text } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { type EntityType, parseTagNames } from "@leapsake/schema";
 import { EntityFormSections } from "../components/EntityFormSections";
 import { EntityTypeToggle } from "../components/EntityTypeToggle";
-import { HeaderSave } from "../components/HeaderSave";
+import { useHeaderSave } from "../components/HeaderSave";
 import { personDraftToInput } from "../components/PersonFields";
 import { petDraftToInput } from "../components/PetFields";
 import { useCore } from "../lib/core-context";
@@ -126,20 +126,19 @@ function AddEntityForm({
     }
   }
 
+  // Both stable across a keystroke, so typing never reaches the navigator — see
+  // {@link useHeaderSave}.
+  const headerRight = useHeaderSave({
+    canSave,
+    saving,
+    onPress: () => void save(),
+  });
+  const title = isPerson ? "Add person" : "Add pet";
+  const options = useMemo(() => ({ title, headerRight }), [title, headerRight]);
+
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: isPerson ? "Add person" : "Add pet",
-          headerRight: () => (
-            <HeaderSave
-              canSave={canSave}
-              saving={saving}
-              onPress={() => void save()}
-            />
-          ),
-        }}
-      />
+      <Stack.Screen options={options} />
       <ScrollView
         contentContainerStyle={styles.screen}
         keyboardShouldPersistTaps="handled"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import type {
@@ -18,7 +18,7 @@ import {
 import type { PartyOption } from "@leapsake/ui/headless";
 import { splitBearerHolidays } from "@leapsake/view-models";
 import { EntityFormSections } from "./EntityFormSections";
-import { HeaderSave } from "./HeaderSave";
+import { useHeaderSave } from "./HeaderSave";
 import { personDraftFrom, personDraftToInput } from "./PersonFields";
 import { petDraftFrom, petDraftToInput } from "./PetFields";
 import { stagedContactOf } from "./StagedContactsSection";
@@ -136,12 +136,33 @@ export function EntityEditForm({ type, id }: { type: EntityType; id: string }) {
     };
   }, [core, id, type, isPerson]);
 
+  // Above the early returns, because they are hooks: a form that is still
+  // loading takes the same path as one that is loaded. `canSave` folds the
+  // not-yet-loaded case in rather than being computed twice.
+  const canSave = value !== null && entityFormValid(type, value);
+  const headerRight = useHeaderSave({
+    canSave,
+    saving,
+    onPress: () => void save(),
+  });
+  const title = isPerson ? "Edit person" : "Edit pet";
+  const options = useMemo(() => ({ title, headerRight }), [title, headerRight]);
+
+  // The form's updater, narrowed to the loaded case. `useCallback` because the
+  // sections' whole reason for taking an updater is that the one they are given
+  // never changes — see {@link EntityFormSections}. A revision arriving before
+  // the record has loaded is not possible (nothing is rendered to make one) but
+  // is answered by leaving state alone rather than by asserting.
+  const revise = useCallback(
+    (update: (previous: EntityFormValue) => EntityFormValue) =>
+      setValue((previous) => (previous === null ? null : update(previous))),
+    [],
+  );
+
   if (error !== null) {
     return (
       <>
-        <Stack.Screen
-          options={{ title: isPerson ? "Edit person" : "Edit pet" }}
-        />
+        <Stack.Screen options={{ title }} />
         <View style={styles.screen}>
           <Text style={styles.danger}>{error}</Text>
         </View>
@@ -152,17 +173,13 @@ export function EntityEditForm({ type, id }: { type: EntityType; id: string }) {
   if (value === null || initial === null) {
     return (
       <>
-        <Stack.Screen
-          options={{ title: isPerson ? "Edit person" : "Edit pet" }}
-        />
+        <Stack.Screen options={{ title }} />
         <View style={styles.screen}>
           <ActivityIndicator />
         </View>
       </>
     );
   }
-
-  const canSave = entityFormValid(type, value);
 
   async function save() {
     if (value === null || initial === null || !canSave || saving) return;
@@ -203,18 +220,7 @@ export function EntityEditForm({ type, id }: { type: EntityType; id: string }) {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: isPerson ? "Edit person" : "Edit pet",
-          headerRight: () => (
-            <HeaderSave
-              canSave={canSave}
-              saving={saving}
-              onPress={() => void save()}
-            />
-          ),
-        }}
-      />
+      <Stack.Screen options={options} />
       <ScrollView
         contentContainerStyle={styles.screen}
         keyboardShouldPersistTaps="handled"
@@ -222,7 +228,7 @@ export function EntityEditForm({ type, id }: { type: EntityType; id: string }) {
         <EntityFormSections
           type={type}
           value={value}
-          onChange={setValue}
+          onChange={revise}
           subject={subject ?? undefined}
           savedGifts={savedGifts ?? undefined}
         />

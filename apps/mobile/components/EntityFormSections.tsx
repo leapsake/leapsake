@@ -35,6 +35,22 @@ import {
  *
  * Contacts are person-only, matching the detail pages: a pet has no Contacts
  * section to read them back from.
+ *
+ * ### Why `onChange` takes an updater
+ *
+ * Every section is handed one slice of the value and a callback that writes it
+ * back. If that callback is built by *reading* the current value — `onChange({
+ * ...value, contacts })` — then it depends on the whole form, so it is a new
+ * function after every keystroke, so every section's props change, so every
+ * section re-renders however carefully the rest is memoized. Measured on a
+ * filled-in person that was 441 elements rebuilt per keypress, including all ten
+ * of the form's `SelectField`s — which on Android are live native pickers.
+ *
+ * Taking an **updater** removes the dependency instead of memoizing around it:
+ * {@link patch} closes over nothing that changes, so each section keeps the same
+ * `onChange` for the life of the form and re-renders only when its own slice
+ * does. That is also why the body destructures `value` up front — a prop derived
+ * from `value` rather than from a slice would put the dependency straight back.
  */
 export function EntityFormSections({
   type,
@@ -45,7 +61,8 @@ export function EntityFormSections({
 }: {
   type: EntityType;
   value: EntityFormValue;
-  onChange: (value: EntityFormValue) => void;
+  /** Revise the form. An updater, not a value — see above. */
+  onChange: (update: (previous: EntityFormValue) => EntityFormValue) => void;
   /**
    * The record being edited, where there is one. Only the Gifts section asks —
    * a recipient that already exists is a recipient who may already have been
@@ -56,76 +73,90 @@ export function EntityFormSections({
   savedGifts?: SavedGifts;
 }) {
   const isPerson = type === "person";
+  const { person, pet, milestones, contacts, relationships, holidays, gifts } =
+    value;
+
   const patch = (fields: Partial<EntityFormValue>) =>
-    onChange({ ...value, ...fields });
+    onChange((previous) => ({ ...previous, ...fields }));
 
   /**
    * Milestones and holidays are what gift occasions point at, so a change to
    * either has to take any pointer it invalidates with it. The pool is recomputed
-   * from the *incoming* lists, since the value this reads hasn't updated yet.
+   * from the *incoming* lists, since the form this is revising hasn't updated yet.
    */
-  function patchOccasionBearers(fields: {
+  const patchOccasionBearers = (fields: {
     milestones?: StagedMilestone[];
     holidays?: StagedHoliday[];
-  }) {
-    const next = { ...value, ...fields };
-    onChange({
-      ...next,
-      gifts: pruneGiftOccasions(next.gifts, validOccasionKeys(next)),
+  }) =>
+    onChange((previous) => {
+      const next = { ...previous, ...fields };
+      return {
+        ...next,
+        gifts: pruneGiftOccasions(
+          next.gifts,
+          validOccasionKeys(next.milestones, next.holidays),
+        ),
+      };
     });
-  }
 
   return (
     <>
       {isPerson ? (
         <PersonFields
-          draft={value.person}
-          onChange={(person) => patch({ person })}
+          draft={person}
+          onChange={(next) => patch({ person: next })}
         />
       ) : (
-        <PetFields draft={value.pet} onChange={(pet) => patch({ pet })} />
+        <PetFields draft={pet} onChange={(next) => patch({ pet: next })} />
       )}
 
       <StagedMilestonesSection
         bearerType={type}
-        entries={value.milestones}
-        onChange={(milestones) => patchOccasionBearers({ milestones })}
+        entries={milestones}
+        onChange={(next) => patchOccasionBearers({ milestones: next })}
       />
 
       {isPerson && (
         <StagedContactsSection
-          entries={value.contacts}
-          onChange={(contacts) => patch({ contacts })}
+          entries={contacts}
+          onChange={(next) => patch({ contacts: next })}
         />
       )}
 
       {/* Between Milestones and Holidays, as on both detail pages. */}
       <StagedRelationshipsSection
         subjectType={type}
-        entries={value.relationships}
-        onChange={(relationships) => patch({ relationships })}
+        entries={relationships}
+        onChange={(next) => patch({ relationships: next })}
       />
 
       <StagedHolidaysSection
-        entries={value.holidays}
-        onChange={(holidays) => patchOccasionBearers({ holidays })}
+        entries={holidays}
+        onChange={(next) => patchOccasionBearers({ holidays: next })}
       />
 
       <StagedGiftsSection
-        occasions={giftOccasionsOf(value)}
+        occasions={giftOccasionsOf(milestones, holidays)}
         recipient={subject}
         saved={savedGifts}
-        value={value.gifts}
-        onChange={(gifts) => patch({ gifts })}
+        value={gifts}
+        onChange={(next) => patch({ gifts: next })}
       />
 
+      {/*
+        Tags live on the record's own draft, so this writes through the draft
+        rather than beside it — and reads `previous` for the same reason `patch`
+        does, since the tags being replaced are the ones in state now.
+      */}
       <TagsInput
         label="Tags"
-        value={isPerson ? value.person.tags : value.pet.tags}
+        value={isPerson ? person.tags : pet.tags}
         onChange={(tags) =>
-          isPerson
-            ? patch({ person: { ...value.person, tags } })
-            : patch({ pet: { ...value.pet, tags } })
+          onChange((previous) =>
+            isPerson
+              ? { ...previous, person: { ...previous.person, tags } }
+              : { ...previous, pet: { ...previous.pet, tags } },
+          )
         }
       />
     </>
