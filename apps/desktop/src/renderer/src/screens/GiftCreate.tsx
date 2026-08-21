@@ -46,7 +46,7 @@ export function GiftCreate() {
         recipientCandidates={
           fixedRecipient === undefined ? candidates : undefined
         }
-        startWithGiving={fixedRecipient !== undefined}
+        startGiven={fixedRecipient !== undefined}
         // A standalone create screen is done once it saves, so it returns to the
         // list; the inline sections stay put and re-read instead.
         onSaved={() => navigate("/gifts")}

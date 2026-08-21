@@ -51,7 +51,7 @@
 #
 #   maestro --udid <sim> test global-nav.yaml
 #
-# It creates nothing, so unlike `staged-gift-occasions.yaml` it needs no per-run
+# It creates nothing, so unlike `staged-gifts.yaml` it needs no per-run
 # tag. It does need to **clear the search filter it may have left behind**, and it
 # does that on the way *in* rather than only on the way out: a run that fails
 # anywhere in case 3 leaves the tab narrowed, and the next run then finds a chip

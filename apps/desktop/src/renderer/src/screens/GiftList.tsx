@@ -1,23 +1,18 @@
 import type { GiftIdeaOverview } from "@leapsake/core";
-import {
-  formatGiftDate,
-  formatGiftTargetDate,
-  tagLabel,
-} from "@leapsake/schema";
-import { sortIdeasGivenLast } from "@leapsake/view-models";
+import { tagLabel } from "@leapsake/schema";
+import { isGiven, sortIdeasGivenLast } from "@leapsake/view-models";
 import { Fragment } from "react";
 import { Link, useLoaderData } from "react-router-dom";
 
-const joinBits = (bits: (string | null)[]) => bits.filter(Boolean).join(", ");
-
 /**
- * The Gifts screen — the whole gift graph keyed by idea. Each idea shows who it's
- * **suggested** for and every **giving** of it. Creating is its own screen (the
- * "Add a gift" link), so this stays a plain list — the People & Pets pattern.
+ * The Gifts screen — the whole gift graph keyed by idea. Each idea shows everyone
+ * it is for, ticked or not. Creating is its own screen (the "Add a gift" link),
+ * so this stays a plain list — the People & Pets pattern.
  */
 export function GiftList() {
   const loaded = useLoaderData() as GiftIdeaOverview[];
-  // Ideas already given sink to the bottom, keeping the shopping list on top.
+  // An idea everyone on it already has sinks to the bottom, keeping the shopping
+  // list on top.
   const overview = sortIdeasGivenLast(loaded);
 
   return (
@@ -32,7 +27,7 @@ export function GiftList() {
         <p>No gifts yet.</p>
       ) : (
         <ul>
-          {overview.map(({ idea, tags, suggestions, gifts }) => (
+          {overview.map(({ idea, tags, recipients }) => (
             <li key={idea.id}>
               <Link to={`/gifts/${idea.id}/edit`}>{idea.title}</Link>{" "}
               {idea.url !== null && (
@@ -60,35 +55,13 @@ export function GiftList() {
                   <small style={{ color: "#666" }}>{idea.notes}</small>
                 </div>
               )}
-              {(suggestions.length > 0 || gifts.length > 0) && (
+              {recipients.length > 0 && (
                 <ul>
-                  {suggestions.map((s) => {
-                    const target = formatGiftTargetDate(s);
-                    const bits = joinBits([
-                      s.occasionLabel,
-                      target === "" ? null : target,
-                    ]);
-                    return (
-                      <li key={s.id}>
-                        Suggested for {s.recipientLabel}
-                        {bits === "" ? "" : ` — ${bits}`}
-                      </li>
-                    );
-                  })}
-                  {gifts.map((g) => {
-                    const when = formatGiftDate(g);
-                    const bits = joinBits([
-                      when === "" ? null : when,
-                      g.giverLabel !== null ? `from ${g.giverLabel}` : null,
-                      g.occasionLabel,
-                    ]);
-                    return (
-                      <li key={g.id}>
-                        ✓ Given to {g.recipientLabel}
-                        {bits === "" ? "" : ` — ${bits}`}
-                      </li>
-                    );
-                  })}
+                  {recipients.map((row) => (
+                    <li key={row.id}>
+                      {isGiven(row) ? "✓ Given to" : "For"} {row.recipientLabel}
+                    </li>
+                  ))}
                 </ul>
               )}
             </li>

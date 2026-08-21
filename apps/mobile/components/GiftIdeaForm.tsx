@@ -1,14 +1,8 @@
 import { useState } from "react";
 import { Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
-import type { GiftIdea, GiftIdeaOccasionInput } from "@leapsake/schema";
-import {
-  type IdeaOccasionRow,
-  ideaOccasionRowsOf,
-  ideaOccasionsOf,
-} from "@leapsake/ui/headless";
+import type { GiftIdea } from "@leapsake/schema";
 import { ChipTextField } from "./ChipTextField";
-import { GiftIdeaOccasionsField } from "./GiftIdeaOccasionsField";
 import { HeaderSave } from "./HeaderSave";
 import { styles } from "../lib/styles";
 
@@ -25,6 +19,10 @@ export interface GiftIdeaFormValue {
  * write, as a Person's do — the raw text goes back to the screen, which parses it
  * with `parseTagNames`.
  *
+ * It used to carry a "What it's for" section too — occasions the idea itself
+ * suits, with nobody named. Occasions are out of v0.1 scope; who it is for lives
+ * in the section below this one.
+ *
  * There is no *create* screen behind this form on either client: a new idea is
  * captured by the `GiftCaptureForm`, which is the single-payload surface.
  *
@@ -38,7 +36,6 @@ export function GiftIdeaForm({
   title: headerTitle,
   idea,
   tagNames = "",
-  occasions = [],
   onSubmit,
 }: {
   /** Native header title, set here so the header is declared in one place. */
@@ -46,30 +43,12 @@ export function GiftIdeaForm({
   idea?: GiftIdea;
   /** Space-separated existing tag labels; empty on create. */
   tagNames?: string;
-  /** The idea's stored occasions; empty on create. */
-  occasions?: readonly {
-    id: string;
-    occasionType: GiftIdeaOccasionInput["occasion"]["type"];
-    occasionId: string;
-    targetYear: number | null;
-    targetMonth: number | null;
-    targetDay: number | null;
-  }[];
-  onSubmit: (
-    value: GiftIdeaFormValue,
-    tagsRaw: string,
-    occasions: GiftIdeaOccasionInput[],
-  ) => Promise<void>;
+  onSubmit: (value: GiftIdeaFormValue, tagsRaw: string) => Promise<void>;
 }) {
   const [title, setTitle] = useState(idea?.title ?? "");
   const [url, setUrl] = useState(idea?.url ?? "");
   const [notes, setNotes] = useState(idea?.notes ?? "");
   const [tags, setTags] = useState(tagNames);
-  // Seeded once: this form is remounted per idea (the screen keys on the route),
-  // so a later prop change would be a reload, not an edit to discard.
-  const [occasionRows, setOccasionRows] = useState<IdeaOccasionRow[]>(() =>
-    ideaOccasionRowsOf(occasions),
-  );
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = title.trim().length > 0 && !submitting;
@@ -87,7 +66,6 @@ export function GiftIdeaForm({
           notes: trimmedNotes === "" ? null : trimmedNotes,
         },
         tags,
-        ideaOccasionsOf(occasionRows),
       );
     } finally {
       setSubmitting(false);
@@ -134,19 +112,6 @@ export function GiftIdeaForm({
           onChangeText={setNotes}
           multiline
         />
-      </View>
-
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>What it's for</Text>
-        <GiftIdeaOccasionsField
-          label="Good for…"
-          rows={occasionRows}
-          onChange={setOccasionRows}
-        />
-        <Text style={styles.muted}>
-          Occasions the idea itself suits — "a good Christmas gift". Who it's
-          for is separate, below.
-        </Text>
       </View>
 
       <View style={styles.field}>

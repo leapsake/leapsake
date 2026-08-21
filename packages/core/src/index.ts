@@ -18,10 +18,8 @@ import {
   createPeopleRepo,
   createPetsRepo,
   createRelationshipsRepo,
-  createGiftIdeaOccasionsRepo,
   createGiftIdeasRepo,
-  createGiftSuggestionsRepo,
-  createGiftsRepo,
+  createGiftRecipientsRepo,
   createReminderRulesRepo,
   createRemindersRepo,
   createSearchService,
@@ -44,8 +42,7 @@ import type {
   CreateSocialInput,
   CreateRelationshipInput,
   CreateGiftIdeaInput,
-  CreateGiftSuggestionInput,
-  CreateGiftInput,
+  CreateGiftRecipientInput,
   CaptureGiftInput,
   EmailAddress,
   EntityType,
@@ -71,15 +68,9 @@ import type {
   SearchHit,
   SelfPerson,
   GiftIdea,
-  GiftIdeaOccasion,
-  GiftIdeaOccasionInput,
-  GiftOccasion,
-  GiftOccasionType,
-  GiftParty,
   GiftPartyType,
-  GiftSuggestion,
-  Gift,
-  SuggestForEntry,
+  GiftRecipient,
+  GiftRecipientEntry,
   Tag,
   UpdateEmailInput,
   UpdateMilestoneInput,
@@ -91,21 +82,15 @@ import type {
   UpdateReminderInput,
   UpdateRelationshipInput,
   UpdateGiftIdeaInput,
-  UpdateGiftSuggestionInput,
-  UpdateGiftInput,
+  UpdateGiftRecipientInput,
 } from "@leapsake/schema";
 import {
   entityLabel,
   genderedVariant,
   impliedGender,
   inverseRole,
-  isGiftBearingKind,
   isPublished,
   isReminderEditable,
-  kindDefs,
-  kindsForBearerType,
-  milestoneKindSchema,
-  milestoneLabel,
   parseHashtags,
   parseMentions,
   splitName,
@@ -135,7 +120,6 @@ import {
 } from "@leapsake/contact-import";
 import { getSyncStatus } from "@leapsake/key-custody";
 import type { KeySession } from "@leapsake/key-custody";
-import { isGiftGivingHoliday } from "@leapsake/holidays";
 import {
   type ObserverDecision,
   createHolidaysApi,
@@ -255,54 +239,28 @@ export type {
 } from "./holidays.js";
 
 /**
- * A gift suggestion joined for the recipient's "Gift ideas" section: the row plus
- * its idea's title/url and its occasion's resolved label. The idea is always live
- * (deleting an idea cascades to its suggestions), so the title is non-null.
+ * A gift link joined for the recipient's "Gifts" section: the row plus its idea's
+ * title and url. The idea is always live (deleting an idea cascades to its
+ * links), so the title is non-null.
  */
-export type GiftSuggestionForRecipient = GiftSuggestion & {
+export type GiftForRecipient = GiftRecipient & {
   ideaTitle: string;
   ideaUrl: string | null;
-  occasionLabel: string | null;
 };
 
 /**
- * A gift suggestion joined for an idea's "Suggested for" section: the row plus its
- * recipient's display label and its occasion's resolved label. A suggestion whose
- * recipient is gone is dropped by the reader, so the label is non-null.
+ * A gift link joined for an idea's "For…" section: the row plus its recipient's
+ * display label. A link whose recipient is gone is dropped by the reader, so the
+ * label is non-null.
  */
-export type GiftSuggestionForIdea = GiftSuggestion & {
+export type GiftForIdea = GiftRecipient & {
   recipientLabel: string;
-  occasionLabel: string | null;
-};
-
-/**
- * A gift (a giving) joined for a recipient's "Gifts given" section: the row plus
- * its idea's title/url, its giver's resolved label (null for an unknown giver),
- * and its occasion's resolved label. The idea is always live (deleting an idea
- * cascades to its gifts), so the title is non-null.
- */
-export type GiftForRecipient = Gift & {
-  ideaTitle: string;
-  ideaUrl: string | null;
-  giverLabel: string | null;
-  occasionLabel: string | null;
-};
-
-/**
- * A gift (a giving) joined for an idea's row in the Gifts overview: the row plus
- * its recipient's and giver's resolved labels (giver null = unknown) and its
- * occasion label. A gift whose recipient is gone is dropped by the reader.
- */
-export type GiftForIdea = Gift & {
-  recipientLabel: string;
-  giverLabel: string | null;
-  occasionLabel: string | null;
 };
 
 /**
  * A `🎁 gift` system reminder paired with the person/pet it's about — what turns
  * "Get @Alice a gift" from a note into a loop: the client links it to Alice's
- * gifts, and once it's done, to logging what was actually given
+ * gifts, and once it's done, to ticking off what was actually given
  *. Derived from the engine's own desired-set walk,
  * so it lights up on exactly the reminders the engine minted — never a stored
  * column, in keeping with the id-convention the onboarding CTAs established.
@@ -314,83 +272,13 @@ export interface GiftReminderTarget {
 }
 
 /**
- * Which tier of the occasion picker an option belongs to. The picker is a single
- * ranked list, not a filtered one — everything the app knows about is in it, and
- * the tier only decides how far down.
- *
- * - `theirs` — a milestone this party already has, or a holiday they already
- *   observe. Nothing to create; it is simply true of them.
- * - `common` — what most people give gifts for: a birthday, a wedding, a
- *   graduation, a move, Christmas, Valentine's Day. Picking one **materialises**
- *   it (see {@link GiftOccasionOption.existing}).
- * - `more` — everything else the app can name: Memorial Day, a death
- *   anniversary, "Met". Unusual as a gift occasion, never unavailable — a user
- *   who wants to give a gift on one of these is not wrong, just uncommon.
- */
-export type GiftOccasionTier = "theirs" | "common" | "more";
-
-/**
- * One pickable occasion for a gift to or from a given party, already labelled the
- * way `resolveOccasionLabel` reads it back, so the picker and the rendered row
- * can't disagree.
- *
- * It used to be **narrow** — this party's own milestones plus the holidays they
- * observe — on the reasoning that offering the whole catalog would suggest
- * "Christmas" for someone who doesn't keep it. In practice that made the picker
- * *empty* for almost everyone: `implicitObservers` is still a stub, so nobody
- * observes anything until it is ticked by hand, and a person with no birthday on
- * file has no milestones either. A dropdown whose only entry is "— none —" is
- * worse than a presumptuous one.
- *
- * So the pool is now everything, **ranked** ({@link GiftOccasionTier}) rather
- * than filtered, and picking something this party doesn't have yet creates it —
- * the observance, or a dateless milestone. "Anna gets a Christmas gift" and "Anna
- * keeps Christmas" are the same fact; there is no reason to make the user say it
- * twice.
- */
-/** Listing order of the tiers. A stable sort on this is the whole ranking — the
- *  order *within* a tier is the order each source produced it in. */
-function tierRank(tier: GiftOccasionTier): number {
-  return tier === "theirs" ? 0 : tier === "common" ? 1 : 2;
-}
-
-export interface GiftOccasionOption {
-  type: GiftOccasionType;
-  id: string;
-  label: string;
-  tier: GiftOccasionTier;
-  /**
-   * Whether the thing this points at exists yet. `false` means picking it
-   * **writes** on save — an observance for a holiday they don't keep, a dateless
-   * milestone for a kind they have no row for — which is why a client marks these
-   * rather than showing them as ordinary choices.
-   *
-   * Always `true` in the `theirs` tier, and always `false` for a `kind`: a kind
-   * pointer is a stand-in for a milestone that doesn't exist yet, by definition.
-   */
-  existing: boolean;
-}
-
-/**
- * One of an idea's own occasions, with its pointer resolved to a label the same
- * way a suggestion's is — "Christmas", "Birthday" — or null if whatever it named
- * is gone. A `kind` pointer always resolves, having nothing to point at.
- */
-export interface ResolvedIdeaOccasion extends GiftIdeaOccasion {
-  label: string | null;
-}
-
-/**
  * One row of the Gifts overview (the `/gifts` screen, keyed by idea): an idea
- * with its tags, what it is *for*, everyone it's suggested for, and every giving
- * of it.
+ * with its tags and everyone it is for, given or not.
  */
 export interface GiftIdeaOverview {
   idea: GiftIdea;
   tags: Tag[];
-  occasions: ResolvedIdeaOccasion[];
-  suggestions: GiftSuggestionForIdea[];
-  gifts: GiftForIdea[];
+  recipients: GiftForIdea[];
 }
 
 // The scheduling layer that turns the manual one-shot sync into seamless
@@ -496,9 +384,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
   const self = createSelfPersonRepo(driver);
   const notificationSettings = createNotificationSettingsRepo(driver);
   const giftIdeas = createGiftIdeasRepo(driver);
-  const giftIdeaOccasions = createGiftIdeaOccasionsRepo(driver);
-  const giftSuggestions = createGiftSuggestionsRepo(driver);
-  const giftsRepo = createGiftsRepo(driver);
+  const giftRecipients = createGiftRecipientsRepo(driver);
   const mentions = createMentionsRepo(driver);
   const holidays = createHolidaysRepo(driver);
   const observances = createObservancesRepo(driver);
@@ -587,8 +473,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       await contactMethods.removeAllForOwner("person", id);
     }
     await observances.removeAllForBearer(type, id);
-    await giftSuggestions.removeAllForRecipient(type, id);
-    await giftsRepo.removeAllForParty(type, id);
+    await giftRecipients.removeAllForRecipient(type, id);
   }
 
   /**
@@ -708,173 +593,22 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       ? publishIfUnpublished(type, id)
       : Promise.resolve();
 
-  // Resolve a gift occasion pointer to a display label — a milestone's label
-  // (e.g. "Birthday 🎂 March 9"), a holiday's name, or a bare milestone *kind*
-  // ("Birthday") for the partyless pointer an idea can carry — or null when there
-  // is no occasion or its target is gone. The occasion is only a label; the
-  // target date remains the source of truth for *when*.
-  async function resolveOccasionLabel(
-    occasionType: GiftOccasionType | null,
-    occasionId: string | null,
-  ): Promise<string | null> {
-    if (occasionType === null || occasionId === null) return null;
-    if (occasionType === "milestone") {
-      const m = await milestones.get(occasionId);
-      return m ? milestoneLabel(m) : null;
-    }
-    // A kind needs no lookup at all — it *is* its own label, which is the point
-    // of the arm: it names an occasion nobody has had to record yet.
-    if (occasionType === "kind") {
-      const kind = milestoneKindSchema.safeParse(occasionId);
-      return kind.success ? kindDefs[kind.data].label : null;
-    }
-    const holiday = await holidays.get(occasionId);
-    return holiday ? holiday.name : null;
-  }
-
-  /**
-   * Resolve an occasion **against the party it is for**, creating whatever it
-   * names but doesn't have yet, and return the concrete pointer to store.
-   *
-   * This is what lets the picker offer more than a party's existing facts. Three
-   * cases, all idempotent:
-   *
-   * - **`kind`** → their milestone of that kind, or a **dateless** one created
-   *   here. "I want to give Anna this for her birthday, whenever that is" is a
-   *   real thing to say, and a milestone with no `month`/`day` is inert to the
-   *   reminder engine (`listRemindEligible` filters them out), so it records the
-   *   fact without inventing a date or firing anything.
-   * - **`holiday`** → unchanged, but the party is marked as **observing** it if
-   *   they weren't. Giving someone a Christmas gift says they keep Christmas.
-   * - **`milestone`** → unchanged; it already points at a row.
-   *
-   * Callers are already inside a transaction, so this writes through the repos
-   * directly rather than through `milestones.create`/`holidaysApi.setObservers`,
-   * which open their own (the drivers do not nest `BEGIN`). It therefore skips
-   * their post-commit `regenerateSystem()`, and deliberately: neither thing it
-   * creates has a reminder to generate. A dateless milestone is filtered out of
-   * `listRemindEligible` entirely, and a brand-new observance can only carry the
-   * default schedule, every action of which ships **off**. The next ordinary
-   * write reconciles anyway.
-   *
-   * TODO: a dateless milestone created here is a question the app now knows to
-   * ask — "when is Anna's birthday?". The reminder engine already
-   * content-addresses system reminders under disjoint namespaces (`milestone:`,
-   * `holiday:`, `onboarding:`, `duplicates:`); an `undated:` one would put that
-   * nudge on Home with a deep link to the milestone. Deliberately not in this
-   * pass — it is an engine feature, not a gift-form one.
-   */
-  async function materializeOccasion(
-    occasion: GiftOccasion | null | undefined,
-    party: GiftParty,
-  ): Promise<GiftOccasion | null> {
-    if (occasion === null || occasion === undefined) return null;
-
-    if (occasion.type === "kind") {
-      // Throws on a pointer that names no kind, rather than minting a milestone
-      // of a kind nothing can render.
-      const kind = milestoneKindSchema.parse(occasion.id);
-      const own = await milestones.listForBearer(party.type, party.id);
-      const existing = own.find((m) => m.kind === kind);
-      if (existing !== undefined) return { type: "milestone", id: existing.id };
-      const created = await milestones.create({
-        kind,
-        bearerType: party.type,
-        bearerId: party.id,
-      });
-      await publishBearerIfUnpublished(party.type, party.id);
-      return { type: "milestone", id: created.id };
-    }
-
-    if (occasion.type === "holiday") {
-      // Only write when the answer actually changes: an explicit row is "the user
-      // said so", and `setObservance` is the one call that can turn an inferred
-      // answer into an asserted one (holidays.ts `setObservers`).
-      const stored = await observances.listForBearer(party.type, party.id);
-      const current = stored.find((o) => o.holidayId === occasion.id);
-      if (current?.observes !== true) {
-        await observances.setObservance(
-          occasion.id,
-          party.type,
-          party.id,
-          true,
-        );
-        await publishBearerIfUnpublished(party.type, party.id);
-      }
-      return occasion;
-    }
-
-    return occasion;
-  }
-
-  // An idea's own occasions with their labels resolved. Shared by the idea's
-  // form and the Gifts overview.
-  async function resolvedIdeaOccasions(
-    ideaId: string,
-  ): Promise<ResolvedIdeaOccasion[]> {
-    const rows = await giftIdeaOccasions.listForIdea(ideaId);
-    return Promise.all(
-      rows.map(async (row) => ({
-        ...row,
-        label: await resolveOccasionLabel(row.occasionType, row.occasionId),
-      })),
-    );
-  }
-
-  // An idea's suggestions joined with each recipient's current label + occasion
-  // label (a suggestion whose recipient is gone is dropped). Shared by the idea's
-  // "Suggested for" section and the Gifts overview.
-  async function giftSuggestionsForIdea(
-    ideaId: string,
-  ): Promise<GiftSuggestionForIdea[]> {
-    const rows = await giftSuggestions.listForIdea(ideaId);
+  // An idea's links joined with each recipient's current label (a link whose
+  // recipient is gone is dropped). Shared by the idea's "For…" section and the
+  // Gifts overview.
+  async function giftRecipientsForIdea(ideaId: string): Promise<GiftForIdea[]> {
+    const rows = await giftRecipients.listForIdea(ideaId);
     const joined = await Promise.all(
-      rows.map(async (s) => {
+      rows.map(async (row) => {
         const recipientLabel = await resolveLabel(
-          s.recipientType,
-          s.recipientId,
+          row.recipientType,
+          row.recipientId,
         );
         if (recipientLabel === undefined) return null;
-        return {
-          ...s,
-          recipientLabel,
-          occasionLabel: await resolveOccasionLabel(
-            s.occasionType,
-            s.occasionId,
-          ),
-        };
+        return { ...row, recipientLabel };
       }),
     );
-    return joined.filter((s): s is GiftSuggestionForIdea => s !== null);
-  }
-
-  // An idea's givings joined with each recipient's + giver's label and occasion
-  // label (a giving whose recipient is gone is dropped). The Gifts overview reader.
-  async function giftsForIdea(ideaId: string): Promise<GiftForIdea[]> {
-    const rows = await giftsRepo.listForIdea(ideaId);
-    const joined = await Promise.all(
-      rows.map(async (g) => {
-        const recipientLabel = await resolveLabel(
-          g.recipientType,
-          g.recipientId,
-        );
-        if (recipientLabel === undefined) return null;
-        const giverLabel =
-          g.giverType !== null && g.giverId !== null
-            ? ((await resolveLabel(g.giverType, g.giverId)) ?? null)
-            : null;
-        return {
-          ...g,
-          recipientLabel,
-          giverLabel,
-          occasionLabel: await resolveOccasionLabel(
-            g.occasionType,
-            g.occasionId,
-          ),
-        };
-      }),
-    );
-    return joined.filter((g): g is GiftForIdea => g !== null);
+    return joined.filter((row): row is GiftForIdea => row !== null);
   }
 
   // Orient each stored row touching the subject and resolve the *other* end's
@@ -1270,8 +1004,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           await milestones.repointEntity("person", loserId, survivorId);
           await contactMethods.repointOwner("person", loserId, survivorId);
           await observances.repointBearer("person", loserId, survivorId);
-          await giftSuggestions.repointRecipient("person", loserId, survivorId);
-          await giftsRepo.repointParty("person", loserId, survivorId);
+          await giftRecipients.repointRecipient("person", loserId, survivorId);
           // Carry the "not a duplicate" memory across so the merge doesn't strand
           // or self-pair a rejection (it re-canonicalizes and drops self/dupes).
           await notADuplicate.repointEntity(loserId, survivorId);
@@ -1759,43 +1492,29 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         notificationSettings.setPermissionState(deviceId, state),
     },
 
-    // Gifts. An idea is a thing in the world (person-agnostic);
-    // a suggestion pairs an idea with a recipient (a candidate). Givings (dated
-    // events) join this namespace in a later slice.
+    // Gifts. An idea is a thing in the world (person-agnostic); a recipient link
+    // pairs an idea with a person or pet and says whether they have been given
+    // it. Two tables, not the three this had while a giving carried a date — see
+    // `gift-recipient.ts`.
     gifts: {
       ideas: {
         list: (): Promise<GiftIdea[]> => giftIdeas.list(),
         get: (id: string): Promise<GiftIdea | undefined> => giftIdeas.get(id),
         // Single-payload create (share-target ready): capture an idea and,
-        // optionally, suggest it for zero-to-many recipients in one transaction.
-        // `tagNames` rides along the same way a Person's does — the whole desired
-        // set, committed with the row.
+        // optionally, attach it to zero-to-many people or pets in one
+        // transaction. `tagNames` rides along the same way a Person's does — the
+        // whole desired set, committed with the row.
         create: (
           {
-            suggestFor,
-            occasions,
+            recipients,
             ...ideaInput
-          }: CreateGiftIdeaInput & {
-            suggestFor?: SuggestForEntry[];
-            /** What the idea is *for*, with nobody named — see `setOccasions`. */
-            occasions?: GiftIdeaOccasionInput[];
-          },
+          }: CreateGiftIdeaInput & { recipients?: GiftRecipientEntry[] },
           tagNames?: string[],
         ): Promise<GiftIdea> =>
           driver.transaction(async () => {
             const idea = await giftIdeas.create(ideaInput);
-            for (const entry of suggestFor ?? []) {
-              await giftSuggestions.create({
-                giftIdeaId: idea.id,
-                ...entry,
-                occasion: await materializeOccasion(entry.occasion, {
-                  type: entry.recipientType,
-                  id: entry.recipientId,
-                }),
-              });
-            }
-            for (const entry of occasions ?? []) {
-              await giftIdeaOccasions.create(idea.id, entry);
+            for (const entry of recipients ?? []) {
+              await giftRecipients.create({ giftIdeaId: idea.id, ...entry });
             }
             if (tagNames) {
               await tags.setEntityTags("gift_idea", idea.id, tagNames);
@@ -1818,239 +1537,72 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
             return idea;
           }),
 
-        // What this idea is *for*, with its labels resolved the same way a
-        // suggestion's occasion is. Its own read rather than a field on the idea:
-        // the row it decorates is one column wider than the idea itself.
-        listOccasions: (ideaId: string): Promise<ResolvedIdeaOccasion[]> =>
-          resolvedIdeaOccasions(ideaId),
-
-        /**
-         * Make an idea's occasions exactly this set — the same "whole desired
-         * set" contract `tagNames` has, and for the same reason: the form that
-         * edits them saves the list, not a diff.
-         *
-         * Rows are matched on the **pointer**, so an occasion that survives keeps
-         * its row (and only writes when its target date actually moved). Two
-         * devices editing different occasions of one idea therefore merge, which
-         * is the whole reason this is a table rather than a column.
-         */
-        setOccasions: (
-          ideaId: string,
-          occasions: GiftIdeaOccasionInput[],
-        ): Promise<void> =>
-          driver.transaction(async () => {
-            const existing = await giftIdeaOccasions.listForIdea(ideaId);
-            const wantedKeys = new Set(
-              occasions.map((o) => `${o.occasion.type}:${o.occasion.id}`),
-            );
-            for (const row of existing) {
-              if (!wantedKeys.has(`${row.occasionType}:${row.occasionId}`)) {
-                await giftIdeaOccasions.softDelete(row.id);
-              }
-            }
-            for (const wanted of occasions) {
-              const key = `${wanted.occasion.type}:${wanted.occasion.id}`;
-              const row = existing.find(
-                (r) => `${r.occasionType}:${r.occasionId}` === key,
-              );
-              if (row === undefined) {
-                await giftIdeaOccasions.create(ideaId, wanted);
-                continue;
-              }
-              const date = wanted.targetDate ?? null;
-              const unchanged =
-                row.targetYear === (date?.year ?? null) &&
-                row.targetMonth === (date?.month ?? null) &&
-                row.targetDay === (date?.day ?? null);
-              if (!unchanged) await giftIdeaOccasions.update(row.id, wanted);
-            }
-          }),
-
-        // Removing an idea cascades to its occasions, suggestions, givings, and
-        // taggings — nothing references a deleted idea, and a live suggestion/gift
-        // must always point at a live idea.
+        // Removing an idea cascades to its recipient links and taggings —
+        // nothing references a deleted idea, and a live link must always point at
+        // a live idea.
         softDelete: (id: string): Promise<void> =>
           driver.transaction(async () => {
             await giftIdeas.softDelete(id);
-            await giftIdeaOccasions.removeAllForIdea(id);
-            await giftSuggestions.removeAllForIdea(id);
-            await giftsRepo.removeAllForIdea(id);
+            await giftRecipients.removeAllForIdea(id);
             await tags.removeAllForEntity("gift_idea", id);
           }),
       },
 
-      suggestions: {
-        // The recipient's "Gift ideas" section: each suggestion joined with its
-        // idea's title/url and its occasion label. A suggestion whose idea is
-        // somehow gone is dropped (defensive — the idea cascade prevents it).
-        listForRecipient: async (
-          type: GiftPartyType,
-          id: string,
-        ): Promise<GiftSuggestionForRecipient[]> => {
-          const rows = await giftSuggestions.listForRecipient(type, id);
-          const joined = await Promise.all(
-            rows.map(async (s) => {
-              const idea = await giftIdeas.get(s.giftIdeaId);
-              if (idea === undefined) return null;
-              return {
-                ...s,
-                ideaTitle: idea.title,
-                ideaUrl: idea.url,
-                occasionLabel: await resolveOccasionLabel(
-                  s.occasionType,
-                  s.occasionId,
-                ),
-              };
-            }),
-          );
-          return joined.filter(
-            (s): s is GiftSuggestionForRecipient => s !== null,
-          );
-        },
-        // An idea's "Suggested for" section: each suggestion joined with its
-        // recipient's current label (dropped when the recipient is gone).
-        listForIdea: (ideaId: string): Promise<GiftSuggestionForIdea[]> =>
-          giftSuggestionsForIdea(ideaId),
-        // The occasion is resolved against the recipient on the way in, so an
-        // occasion they don't have yet (a birthday nobody has recorded, a holiday
-        // they aren't yet marked as keeping) becomes one — see
-        // `materializeOccasion`.
-        create: (input: CreateGiftSuggestionInput): Promise<GiftSuggestion> =>
-          driver.transaction(async () =>
-            giftSuggestions.create({
-              ...input,
-              occasion: await materializeOccasion(input.occasion, {
-                type: input.recipientType,
-                id: input.recipientId,
-              }),
-            }),
-          ),
-        update: (
-          id: string,
-          input: UpdateGiftSuggestionInput,
-        ): Promise<GiftSuggestion | undefined> =>
-          driver.transaction(async () => {
-            // The recipient is the row's, not the caller's: editing a suggestion
-            // can't move it to someone else, and the occasion has to resolve
-            // against whoever it is actually for.
-            const row = await giftSuggestions.get(id);
-            if (row === undefined) return undefined;
-            return giftSuggestions.update(id, {
-              ...input,
-              ...(input.occasion === undefined
-                ? {}
-                : {
-                    occasion: await materializeOccasion(input.occasion, {
-                      type: row.recipientType,
-                      id: row.recipientId,
-                    }),
-                  }),
-            });
-          }),
-        softDelete: (id: string): Promise<void> =>
-          driver.transaction(() => giftSuggestions.softDelete(id)),
-      },
-
-      // Givings — the dated events. The "Gifts given" section on a recipient, and
-      // the source of the "✓ given" annotation the suggestion list reads over
-      // `(gift_idea_id, recipient)`.
-      given: {
-        // A recipient's gifts, each joined with its idea's title/url, its giver's
-        // label ("You" resolves to the self-person's real name; null = unknown),
-        // and its occasion label. A gift whose idea is gone is dropped (defensive
-        // — the idea cascade prevents it).
+      // The links themselves — an idea paired with a person or pet, ticked or
+      // not. This was two namespaces, `suggestions` and `given`, back when a
+      // giving was a separate dated row; "has it been given" is now a column, so
+      // it is one namespace with a `setGiven`.
+      recipients: {
+        // A party's "Gifts" section: each link joined with its idea's title/url.
+        // A link whose idea is somehow gone is dropped (defensive — the idea
+        // cascade prevents it).
         listForRecipient: async (
           type: GiftPartyType,
           id: string,
         ): Promise<GiftForRecipient[]> => {
-          const rows = await giftsRepo.listForRecipient(type, id);
+          const rows = await giftRecipients.listForRecipient(type, id);
           const joined = await Promise.all(
-            rows.map(async (g) => {
-              const idea = await giftIdeas.get(g.giftIdeaId);
+            rows.map(async (row) => {
+              const idea = await giftIdeas.get(row.giftIdeaId);
               if (idea === undefined) return null;
-              const giverLabel =
-                g.giverType !== null && g.giverId !== null
-                  ? ((await resolveLabel(g.giverType, g.giverId)) ?? null)
-                  : null;
-              return {
-                ...g,
-                ideaTitle: idea.title,
-                ideaUrl: idea.url,
-                giverLabel,
-                occasionLabel: await resolveOccasionLabel(
-                  g.occasionType,
-                  g.occasionId,
-                ),
-              };
+              return { ...row, ideaTitle: idea.title, ideaUrl: idea.url };
             }),
           );
-          return joined.filter((g): g is GiftForRecipient => g !== null);
+          return joined.filter((row): row is GiftForRecipient => row !== null);
         },
-        // Log a giving; mints the idea in the same transaction when `giftIdea`
-        // isn't an existing id. An existing-id reference is
-        // verified so a gift never points at a missing idea.
-        create: (input: CreateGiftInput): Promise<Gift> =>
+        // An idea's "For…" section: each link joined with its recipient's current
+        // label (dropped when the recipient is gone).
+        listForIdea: (ideaId: string): Promise<GiftForIdea[]> =>
+          giftRecipientsForIdea(ideaId),
+        // Attaching a gift to someone is a fact about them, so it publishes an
+        // unpublished party the same way a milestone or a contact method does.
+        create: (input: CreateGiftRecipientInput): Promise<GiftRecipient> =>
           driver.transaction(async () => {
-            let giftIdeaId: string;
-            if ("id" in input.giftIdea) {
-              const idea = await giftIdeas.get(input.giftIdea.id);
-              if (idea === undefined) throw new Error("gift idea not found");
-              giftIdeaId = idea.id;
-            } else {
-              const idea = await giftIdeas.create({
-                title: input.giftIdea.title,
-                url: input.giftIdea.url ?? null,
-              });
-              giftIdeaId = idea.id;
-            }
-            return giftsRepo.create({
-              giftIdeaId,
-              recipient: input.recipient,
-              giver: input.giver,
-              date: input.date,
-              occasion: await materializeOccasion(
-                input.occasion,
-                input.recipient,
-              ),
-            });
+            await publishBearerIfUnpublished(input.party.type, input.party.id);
+            return giftRecipients.create(input);
           }),
+        // Tick or untick the box — the only edit a link has, which is why it is
+        // the ordinary `update` rather than a `setGiven`: anything else would
+        // fall outside `withSyncKick`'s mutating-method predicate and a ticked
+        // box would never kick a sync. The repo makes it a no-op when the row
+        // already says so, so this is safe to call from a checkbox that doesn't
+        // track its own previous state.
         update: (
           id: string,
-          input: UpdateGiftInput,
-        ): Promise<Gift | undefined> =>
-          driver.transaction(async () => {
-            // As with a suggestion: the occasion resolves against the giving's
-            // own recipient, which an edit cannot change.
-            const row = await giftsRepo.get(id);
-            if (row === undefined) return undefined;
-            return giftsRepo.update(id, {
-              ...input,
-              ...(input.occasion === undefined
-                ? {}
-                : {
-                    occasion: await materializeOccasion(input.occasion, {
-                      type: row.recipientType,
-                      id: row.recipientId,
-                    }),
-                  }),
-            });
-          }),
+          input: UpdateGiftRecipientInput,
+        ): Promise<GiftRecipient | undefined> =>
+          driver.transaction(() => giftRecipients.update(id, input)),
         softDelete: (id: string): Promise<void> =>
-          driver.transaction(() => giftsRepo.softDelete(id)),
+          driver.transaction(() => giftRecipients.softDelete(id)),
       },
 
-      // The one consolidated create: an
-      // idea (existing or minted) captured with zero-to-many recipients and
-      // zero-to-many givings, all in one transaction. No recipients ⇒ just the
-      // idea; recipients with no givings ⇒ a suggestion each; recipients with
-      // givings ⇒ a gift per (recipient × giving). Returns the resolved idea.
-      //
-      // `occasions` is the recipientless arm — "this would make a good Christmas
-      // gift for someone" — and rides the same payload because it is the same
-      // sentence with the recipient left out.
+      // The one consolidated create: an idea (existing or minted) captured with
+      // zero-to-many recipients, all in one transaction. No recipients ⇒ just the
+      // idea; each recipient ⇒ one link, ticked or not. Returns the resolved
+      // idea.
       capture: (input: CaptureGiftInput): Promise<GiftIdea> =>
         driver.transaction(async () => {
-          // Resolve (or mint) the idea once, so N gifts of a new idea don't mint
+          // Resolve (or mint) the idea once, so N links to a new idea don't mint
           // N ideas.
           let idea: GiftIdea;
           if ("id" in input.giftIdea) {
@@ -2064,199 +1616,39 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
             });
           }
 
-          // "I gave it": the giver defaults to the self-person when unspecified.
-          let giver = input.giver;
-          if (giver === undefined) {
-            const selfRow = await self.getSelf();
-            giver =
-              selfRow !== undefined
-                ? { type: "person", id: selfRow.personId }
-                : null;
-          }
-
-          for (const { party, givings, suggestion } of input.recipients) {
-            // Being given something, or being someone to give something to, is a
-            // fact about the recipient.
-            await publishBearerIfUnpublished(party.type, party.id);
-            const entries = givings ?? [];
-            if (entries.length === 0) {
-              await giftSuggestions.create({
-                giftIdeaId: idea.id,
-                recipientType: party.type,
-                recipientId: party.id,
-                // The candidate's adornments — "for Christmas 2026". Only this
-                // arm reads them; a recipient with givings gets each giving's own.
-                occasion: await materializeOccasion(
-                  suggestion?.occasion,
-                  party,
-                ),
-                targetDate: suggestion?.targetDate,
-              });
+          for (const entry of input.recipients) {
+            // Being someone to give something to is a fact about the recipient.
+            await publishBearerIfUnpublished(entry.party.type, entry.party.id);
+            // Capture is an *add* surface — it can name an existing idea — so a
+            // party already on this idea is updated rather than doubled. Ticking
+            // is one-way here: capture says "and I gave them this", never "and I
+            // did not", which is the checkbox's job on a row that already exists.
+            const existing = (await giftRecipients.listForIdea(idea.id)).find(
+              (row) =>
+                row.recipientType === entry.party.type &&
+                row.recipientId === entry.party.id,
+            );
+            if (existing !== undefined) {
+              if (entry.given === true) {
+                await giftRecipients.update(existing.id, { given: true });
+              }
               continue;
             }
-            // A giver can't be the recipient (schema rule) — e.g. logging a gift
-            // to yourself — so fall back to an unknown giver there.
-            const giftGiver =
-              giver !== null &&
-              giver.type === party.type &&
-              giver.id === party.id
-                ? null
-                : giver;
-            for (const giving of entries) {
-              await giftsRepo.create({
-                giftIdeaId: idea.id,
-                recipient: party,
-                giver: giftGiver,
-                date: giving.date,
-                occasion: await materializeOccasion(giving.occasion, party),
-              });
-            }
+            await giftRecipients.create({ giftIdeaId: idea.id, ...entry });
           }
 
-          // The idea's own occasions, added to whatever it already carries —
-          // capture is an *add* surface (it can name an existing idea), so it
-          // must not silently drop occasions a previous capture recorded. The
-          // set-replace lives on `ideas.setOccasions`, which is what the idea's
-          // own form calls.
-          if (input.occasions !== undefined && input.occasions.length > 0) {
-            const already = await giftIdeaOccasions.listForIdea(idea.id);
-            for (const entry of input.occasions) {
-              const duplicate = already.some(
-                (row) =>
-                  row.occasionType === entry.occasion.type &&
-                  row.occasionId === entry.occasion.id,
-              );
-              if (!duplicate) await giftIdeaOccasions.create(idea.id, entry);
-            }
-          }
           return idea;
         }),
 
-      // Every occasion a gift for this party can name, ranked rather than
-      // filtered (see {@link GiftOccasionOption}): what is already true of them,
-      // then what most people give gifts for, then everything else the app can
-      // name. Both arms of the gift forms read it — a suggestion's "for
-      // Christmas" and a giving's "it was their birthday".
-      //
-      // Anything in the last two tiers that this party doesn't have yet comes
-      // back `existing: false`, and `materializeOccasion` creates it if the user
-      // picks it. Nothing is written by *reading* this list.
-      occasionsFor: async (
-        type: GiftPartyType,
-        id: string,
-      ): Promise<GiftOccasionOption[]> => {
-        const [own, holidayCandidates] = await Promise.all([
-          milestones.listForBearer(type, id),
-          holidaysApi.listForBearer(type, id),
-        ]);
-        const ownKinds = new Set(own.map((m) => m.kind));
-
-        // A kind they already have is reachable as the milestone itself, above —
-        // offering "Birthday" *and* "Birthday 🎂 March 9" would be two names for
-        // one thing, and only one of them carries the date.
-        const kinds = kindsForBearerType(type)
-          .filter((k) => !ownKinds.has(k.kind))
-          .map((k) => ({
-            type: "kind" as const,
-            id: k.kind,
-            label: k.label,
-            tier: isGiftBearingKind(k.kind)
-              ? ("common" as const)
-              : ("more" as const),
-            // A kind is a stand-in for a milestone that doesn't exist yet.
-            existing: false,
-          }));
-
-        return [
-          ...own.map((m) => ({
-            type: "milestone" as const,
-            id: m.id,
-            label: milestoneLabel(m),
-            tier: "theirs" as const,
-            existing: true,
-          })),
-          ...holidayCandidates
-            .filter((h) => h.observes)
-            .map((h) => ({
-              type: "holiday" as const,
-              id: h.id,
-              label: h.name,
-              tier: "theirs" as const,
-              existing: true,
-            })),
-          ...kinds.filter((k) => k.tier === "common"),
-          // A holiday they don't keep — pickable, and picking it says they keep
-          // it. Hidden holidays stay out: offering one would be offering a no-op
-          // (holidays.ts §2.6).
-          ...holidayCandidates
-            .filter((h) => !h.observes && !h.hidden)
-            .map((h) => ({
-              type: "holiday" as const,
-              id: h.id,
-              label: h.name,
-              tier: isGiftGivingHoliday(h.slug)
-                ? ("common" as const)
-                : ("more" as const),
-              existing: false,
-            })),
-          ...kinds.filter((k) => k.tier === "more"),
-        ].sort((a, b) => tierRank(a.tier) - tierRank(b.tier));
-      },
-
-      /**
-       * The same pool with **no party** — what a gift idea itself can be for
-       * ("a good Christmas gift for someone"). Two differences, both forced by
-       * there being nobody to ask about: every holiday is offered rather than
-       * ranked by what one person keeps, and a milestone occasion can only be a
-       * `kind`, since a milestone row belongs to a bearer.
-       *
-       * Everything here is `existing: true` — nothing is materialised, because a
-       * kind pointer *is* what an idea stores, and the holidays already exist.
-       */
-      generalOccasions: async (): Promise<GiftOccasionOption[]> => {
-        const [holidayRows, hiddenIds] = await Promise.all([
-          holidays.list(),
-          hiddenHolidays.listHiddenIds(),
-        ]);
-        // Every kind a person or a pet could hold: the idea has no bearer type
-        // to narrow by, and `materializeOccasion` re-checks against the real
-        // party if the idea is ever suggested for someone.
-        const kinds = kindsForBearerType("person").map((k) => ({
-          type: "kind" as const,
-          id: k.kind,
-          label: k.label,
-          tier: isGiftBearingKind(k.kind)
-            ? ("common" as const)
-            : ("more" as const),
-          existing: true,
-        }));
-        return [
-          ...kinds,
-          ...holidayRows
-            .filter((h) => !hiddenIds.has(h.id))
-            .map((h) => ({
-              type: "holiday" as const,
-              id: h.id,
-              label: h.name,
-              tier: isGiftGivingHoliday(h.slug)
-                ? ("common" as const)
-                : ("more" as const),
-              existing: true,
-            })),
-        ].sort((a, b) => tierRank(a.tier) - tierRank(b.tier));
-      },
-
-      // The Gifts screen, keyed by idea: every idea with everyone it's suggested
-      // for and every giving of it. Ideas keep their newest-first list order.
+      // The Gifts screen, keyed by idea: every idea with everyone it is for.
+      // Ideas keep their newest-first list order.
       overview: async (): Promise<GiftIdeaOverview[]> => {
         const ideas = await giftIdeas.list();
         return Promise.all(
           ideas.map(async (idea) => ({
             idea,
             tags: await tags.listForEntity("gift_idea", idea.id),
-            occasions: await resolvedIdeaOccasions(idea.id),
-            suggestions: await giftSuggestionsForIdea(idea.id),
-            gifts: await giftsForIdea(idea.id),
+            recipients: await giftRecipientsForIdea(idea.id),
           })),
         );
       },

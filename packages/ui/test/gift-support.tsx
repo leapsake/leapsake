@@ -10,21 +10,16 @@ import {
 import { testAdapter } from "./support.js";
 
 /**
- * A fake for the application's gift ports: every read resolves empty and every
- * write resolves, unless a test overrides it. Returned so a test can assert what
- * the UI asked the application to do.
+ * A fake for the application's gift ports: every write resolves, unless a test
+ * overrides it. Returned so a test can assert what the UI asked the application
+ * to do.
  */
 export function fakeGiftsPorts(over: Partial<GiftsPorts> = {}): GiftsPorts {
   return {
-    loadOccasions: vi.fn(async () => []),
-    loadGiven: vi.fn(async () => []),
-    loadOccurrences: vi.fn(async () => []),
     capture: vi.fn(async () => {}),
-    createSuggestion: vi.fn(async () => {}),
-    updateSuggestion: vi.fn(async () => {}),
-    removeSuggestion: vi.fn(async () => {}),
-    updateGiving: vi.fn(async () => {}),
-    removeGiving: vi.fn(async () => {}),
+    attachRecipient: vi.fn(async () => {}),
+    setGiven: vi.fn(async () => {}),
+    detachRecipient: vi.fn(async () => {}),
     ...over,
   };
 }

@@ -1,8 +1,4 @@
-import type {
-  BearerHolidayCandidate,
-  GiftForRecipient,
-  GiftSuggestionForRecipient,
-} from "@leapsake/core";
+import type { BearerHolidayCandidate, GiftForRecipient } from "@leapsake/core";
 import type {
   GiftIdea,
   MilestoneTimelineEntry,
@@ -25,7 +21,6 @@ export function PetView() {
     timeline,
     mentionedIn,
     holidays,
-    giftSuggestions,
     giftIdeaPool,
     giftsGiven,
   } = useLoaderData() as {
@@ -36,7 +31,6 @@ export function PetView() {
     timeline: MilestoneTimelineEntry[];
     mentionedIn: Reminder[];
     holidays: BearerHolidayCandidate[];
-    giftSuggestions: GiftSuggestionForRecipient[];
     giftIdeaPool: GiftIdea[];
     giftsGiven: GiftForRecipient[];
   };
@@ -52,7 +46,6 @@ export function PetView() {
       timeline={timeline}
       mentionedIn={mentionedIn}
       holidays={holidays}
-      giftSuggestions={giftSuggestions}
       giftsGiven={giftsGiven}
       giftIdeaPool={giftIdeaPool}
       onSetObserves={(holidayId, observes) =>

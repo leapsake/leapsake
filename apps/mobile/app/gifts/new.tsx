@@ -10,14 +10,13 @@ import { styles } from "../../lib/styles";
 /**
  * Add a gift — the standalone create screen, reached with the **New** tab from
  * the Gifts catalog, ported from desktop's `GiftCreate`. Type a name/URL to
- * capture an idea; add
- * people/pets to suggest it; add dates under a recipient to log givings.
+ * capture an idea; add people/pets it would suit; tick anyone who already has it.
  *
  * Reached with a recipient already chosen (`?recipient=<type>:<id>`) from a person
  * or pet's Gifts section, and when a completed `🎁 gift` reminder hands off — then
- * the picker collapses to that one person or pet and the form opens on a date row,
- * since the answer to "record what you gave" is a giving, not a shortlist. An
- * unresolvable id falls back to the ordinary picker.
+ * the picker collapses to that one person or pet and the form opens **ticked**,
+ * since the answer to "record what you gave" is that you gave it. An unresolvable
+ * id falls back to the ordinary picker.
  *
  * **Where saving lands depends on how you got here.** Arriving with a recipient
  * means arriving from somewhere that already shows that recipient's gifts, so it
@@ -83,7 +82,7 @@ export default function GiftCreateScreen() {
         recipientCandidates={
           fixedRecipient === undefined ? candidates : undefined
         }
-        startWithGiving={fixedRecipient !== undefined}
+        startGiven={fixedRecipient !== undefined}
         onSaved={() =>
           fixedRecipient === undefined
             ? router.dismissTo("/gifts")

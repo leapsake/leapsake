@@ -7,47 +7,23 @@
  * a React context is neutral and belongs here.
  */
 export {
-  type GivingRow,
-  type IdeaOccasionRow,
-  type PartyContexts,
-  type PartyLoaders,
   type RecipientEntry,
-  type SuggestionFields,
   captureRecipientOf,
-  captureRecipientOfDraft,
   giftIdeaOf,
-  givingsOf,
-  ideaOccasionRowsOf,
-  ideaOccasionsOf,
-  newGivingRow,
-  newIdeaOccasionRow,
-  newSuggestionFields,
-  occasionKey,
-  occasionOfKey,
+  newRecipientEntry,
   partyKey,
   patchRecipient,
   removeRecipient,
-  resolveStagedOccasion,
-  usePartyContext,
 } from "./gift-form.js";
 export { giftUrlLabel, giftUrlOf, pastedIntoField } from "./gift-url.js";
-export {
-  type GiftAdornmentKind,
-  type WhenChoice,
-  UNDATED_KEY,
-  whenChoices,
-  whenKeyOf,
-} from "./gift-when.js";
 export {
   GiftsPortsProvider,
   useGiftsPorts,
   type GiftCaptureInput,
-  type GiftOccasionChoice,
+  type GiftRecipientRow,
   type GiftsPorts,
-  type GivenRow,
-  type IdeaSuggestionRow,
+  type IdeaRecipientRow,
   type PartyOption,
-  type SuggestionRow,
 } from "./gifts-ports.js";
 export {
   type DateFields,

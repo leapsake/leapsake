@@ -46,31 +46,27 @@ ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. Th
   maestro --udid <sim> test global-nav.yaml
   ```
 
-- **`staged-gift-occasions.yaml`** (+ `subflows/`) — a **UI** flow rather than a contract
-  one: it drives the add person/pet screen through the five ways a staged gift's occasion
-  can resolve (milestone kept/removed, holiday kept/removed, and the milestone case again
-  for a pet, where the bearer type takes a different route). It is the regression gate on
-  the two pieces of machinery that have no unit-testable seam at the screen level — the
-  staged-key → real-id remap and the prune-on-removal — and it is **verified non-vacuous by
-  sabotage**: breaking the remap turns case 1 red, breaking the prune turns case 2 red on
-  its pre-save assertion and case 4 red on its saved one. The flow's own header comment
-  records which line each regression lands on.
+- **`staged-gifts.yaml`** — a **UI** flow rather than a contract one: it drives a person's
+  edit form through adding a gift as an open row, saving, reading it back on the page as
+  not-given, then flipping its switch and reading it back as given. It is the regression
+  gate on the two screen-level seams the staged Gifts section has — that "Add gift" appends
+  a row the form's own Save writes, and that a tick typed into a saved row is applied — and
+  it is **verified non-vacuous by sabotage**: making `applyEntityForm` skip
+  `value.gifts.added` turns case 2 red, skipping `value.gifts.given` turns case 3 red.
 
   Not wired into `pnpm test:native`, which is built around one flow and a PASS token. Run
   it directly against a **freshly loaded** app (see _Running the flow directly_ below):
 
   ```
-  maestro --udid <sim> test staged-gift-occasions.yaml
+  maestro --udid <sim> test staged-gifts.yaml
   ```
 
-  **Green on both platforms** (2026-08-18), from the same file — but unlike
-  `global-nav.yaml` it is not byte-identical _in behaviour_: `subflows/stage-gift-for-occasion.yaml`
-  **branches**, because a `SelectField` is a genuinely different native control on each
-  platform. iOS gets a modal wheel whose options are not addressable (hence the
-  open-swipe-assert-Done dance); Android gets a `ListView` dialog of `CheckedTextView` rows
-  that are directly tappable, with no Done button at all — the _easier_ platform, the
-  reverse of the flow's original iOS-shaped assumption. Each branch asserts its own
-  selection; see that subflow for why the branch order is load-bearing.
+  ⚠️ **Not yet run on a simulator** — written 2026-08-20 alongside the gift-scope cut, and
+  typecheck-verified only. It replaces `staged-gift-occasions.yaml` (+
+  `subflows/stage-gift-for-occasion.yaml`), which was green on both platforms and drove the
+  occasion picker through the five ways a staged occasion could resolve. Occasions left
+  v0.1 scope; that flow and its platform-branching `SelectField` subflow went with them, and
+  with it the only place a flow here had to branch per platform at all.
 
   The dev-menu floating button has to be off or this flow cannot pass — see the trap below.
 
@@ -214,8 +210,8 @@ looks nothing like its cause in either case.
 
 - **Android**, `global-nav.yaml`: case 3's `tapOn: search-here-people` hit the bubble, and
   the run went red two lines on at `search-filter-chip is visible`.
-- **iOS**, `staged-gift-occasions.yaml`: the button's _stored position_ sat over the add
-  screen's holiday row, so `stage-christmas`'s tap on the holiday field hit it and
+- **iOS**, the retired `staged-gift-occasions.yaml`: the button's _stored position_ sat over
+  the add screen's holiday row, so `stage-christmas`'s tap on the holiday field hit it and
   the flow died three cases in. Hiding it took that flow from red to **green on all five
   cases** with no edit to the flow itself.
 

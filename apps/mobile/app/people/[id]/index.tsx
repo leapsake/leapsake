@@ -42,8 +42,7 @@ export default function PersonDetailScreen() {
         core.holidays.listForBearer("person", id),
         // The Gifts section: what's suggested for them, and what they've been
         // given.
-        core.gifts.suggestions.listForRecipient("person", id),
-        core.gifts.given.listForRecipient("person", id),
+        core.gifts.recipients.listForRecipient("person", id),
         // Unresolved pairs this person is half of — both people in a pair carry
         // the banner, so whichever one the user opens leads back to the review.
         core.duplicates.findFor(id),
@@ -68,14 +67,7 @@ export default function PersonDetailScreen() {
     );
   }
 
-  const [
-    view,
-    mentionedIn,
-    holidays,
-    giftSuggestions,
-    giftsGiven,
-    duplicateCandidates,
-  ] = data;
+  const [view, mentionedIn, holidays, gifts, duplicateCandidates] = data;
   if (view === null) {
     return (
       <View style={styles.screen}>
@@ -163,7 +155,7 @@ export default function PersonDetailScreen() {
         holidays={holidays}
       />
 
-      <GiftsSection suggestions={giftSuggestions} gifts={giftsGiven} />
+      <GiftsSection gifts={gifts} />
 
       {/* Below the sections rather than up with the name, the same reading order
           the form puts them in: tags describe a person you have already read. */}

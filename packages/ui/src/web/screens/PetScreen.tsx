@@ -8,7 +8,7 @@ import type {
 } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
-import type { GivenRow, SuggestionRow } from "../../headless/index.js";
+import type { GiftRecipientRow } from "../../headless/index.js";
 import { Breadcrumbs, type Crumb } from "../primitives/Breadcrumbs.js";
 import { DetailList } from "../primitives/DetailList.js";
 import { GenderValue, type GenderResult } from "../primitives/GenderValue.js";
@@ -36,7 +36,6 @@ export function PetScreen({
   timeline,
   mentionedIn,
   holidays,
-  giftSuggestions,
   giftsGiven,
   giftIdeaPool,
   onSetObserves,
@@ -50,8 +49,7 @@ export function PetScreen({
   timeline: readonly MilestoneTimelineEntry[];
   mentionedIn: readonly Reminder[];
   holidays: readonly BearerHoliday[];
-  giftSuggestions: readonly SuggestionRow[];
-  giftsGiven: readonly GivenRow[];
+  giftsGiven: readonly GiftRecipientRow[];
   giftIdeaPool: readonly GiftIdea[];
   onSetObserves: (holidayId: string, observes: boolean) => Promise<unknown>;
   onChanged: () => void;
@@ -101,7 +99,6 @@ export function PetScreen({
         recipientType="pet"
         recipientId={pet.id}
         recipientLabel={pet.name}
-        suggestions={giftSuggestions}
         gifts={giftsGiven}
         ideaPool={giftIdeaPool}
         onChanged={onChanged}

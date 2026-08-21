@@ -4,50 +4,38 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GiftIdeaRecipientsSection,
   GiftsSection,
-  type GivenRow,
-  type IdeaSuggestionRow,
-  type SuggestionRow,
+  type GiftRecipientRow,
+  type IdeaRecipientRow,
 } from "../src/web/index.js";
 import { fakeGiftsPorts, renderWithGifts } from "./gift-support.js";
 
 afterEach(cleanup);
 
-const suggestion = (over: Partial<SuggestionRow> = {}): SuggestionRow => ({
-  id: "s-1",
+const STAMP = 1_760_000_000_000;
+
+const gift = (over: Partial<GiftRecipientRow> = {}): GiftRecipientRow => ({
+  id: "r-1",
   giftIdeaId: "i-1",
   ideaTitle: "Kite",
   ideaUrl: null,
-  occasionLabel: null,
-  occasionType: null,
-  occasionId: null,
-  targetYear: null,
-  targetMonth: null,
-  targetDay: null,
+  givenAt: null,
   ...over,
 });
 
-const given = (over: Partial<GivenRow> = {}): GivenRow => ({
-  id: "g-1",
-  giftIdeaId: "i-2",
-  ideaTitle: "Book",
-  ideaUrl: null,
-  giverLabel: null,
-  occasionLabel: null,
-  occasionType: null,
-  occasionId: null,
-  year: 2024,
-  month: 12,
-  day: 25,
+const forIdea = (over: Partial<IdeaRecipientRow> = {}): IdeaRecipientRow => ({
+  id: "r-1",
+  recipientType: "person",
+  recipientId: "p-1",
+  recipientLabel: "Ada",
+  givenAt: null,
   ...over,
 });
 
 function renderGifts({
-  suggestions = [],
   gifts = [],
   ports = fakeGiftsPorts(),
 }: {
-  suggestions?: SuggestionRow[];
-  gifts?: GivenRow[];
+  gifts?: GiftRecipientRow[];
   ports?: ReturnType<typeof fakeGiftsPorts>;
 } = {}) {
   const onChanged = vi.fn();
@@ -56,7 +44,6 @@ function renderGifts({
       recipientType="person"
       recipientId="p-1"
       recipientLabel="Ada"
-      suggestions={suggestions}
       gifts={gifts}
       ideaPool={[]}
       onChanged={onChanged}
@@ -70,39 +57,40 @@ function renderGifts({
 const ideaOrder = () =>
   screen.getAllByRole("link").map((a) => a.textContent ?? "");
 
-/** An open adornments editor, probed by its own Save button: `<fieldset>` carries
- *  role=group, and the capture form above the list has several of its own. */
-const openEditors = () => screen.queryAllByRole("button", { name: "Save" });
-const editButtons = () => screen.getAllByRole("button", { name: "Edit" });
+/** The list's own ticks. The capture form above carries one of its own, which is
+ *  labelled "Already gave it to …" rather than "Given". */
+const listTicks = () =>
+  screen.getAllByRole("checkbox", { name: "Given" }) as HTMLInputElement[];
 
 describe("GiftsSection", () => {
-  it("unions suggestions and givings of one idea into a single entry", () => {
+  it("lists what this person is down for", () => {
     renderGifts({
-      suggestions: [suggestion({ giftIdeaId: "i-1", ideaTitle: "Kite" })],
-      gifts: [given({ giftIdeaId: "i-1", ideaTitle: "Kite" })],
+      gifts: [
+        gift({ ideaTitle: "Kite" }),
+        gift({ id: "r-2", ideaTitle: "Book" }),
+      ],
     });
-
-    expect(ideaOrder()).toEqual(["Kite"]);
-    expect(screen.getByText(/Suggested/)).toBeTruthy();
-    expect(screen.getByText(/✓ Given/)).toBeTruthy();
+    expect(ideaOrder()).toEqual(["Book", "Kite"]);
   });
 
-  it("keeps not-yet-given ideas on top and sinks given ones", () => {
-    // A given idea is still a fine idea to give again, so it stays listed —
-    // it just stops being the shopping list.
+  it("keeps outstanding ideas on top and sinks given ones", () => {
     renderGifts({
-      suggestions: [
-        suggestion({ id: "s-1", giftIdeaId: "i-1", ideaTitle: "Given one" }),
-        suggestion({
-          id: "s-2",
-          giftIdeaId: "i-2",
-          ideaTitle: "Unauthenticated one",
-        }),
+      gifts: [
+        gift({ id: "r-1", ideaTitle: "Accordion", givenAt: STAMP }),
+        gift({ id: "r-2", ideaTitle: "Zither" }),
       ],
-      gifts: [given({ giftIdeaId: "i-1", ideaTitle: "Given one" })],
     });
+    expect(ideaOrder()).toEqual(["Zither", "Accordion"]);
+  });
 
-    expect(ideaOrder()).toEqual(["Unauthenticated one", "Given one"]);
+  it("shows the tick for a gift already given", () => {
+    renderGifts({ gifts: [gift({ givenAt: STAMP })] });
+    expect(listTicks()[0]?.checked).toBe(true);
+  });
+
+  it("shows an outstanding gift unticked", () => {
+    renderGifts({ gifts: [gift()] });
+    expect(listTicks()[0]?.checked).toBe(false);
   });
 
   it("says so when there is nothing for this recipient", () => {
@@ -110,76 +98,62 @@ describe("GiftsSection", () => {
     expect(screen.getByText("No gifts yet.")).toBeTruthy();
   });
 
-  it("removes a suggestion through the application's port", async () => {
-    const { ports, onChanged } = renderGifts({
-      suggestions: [suggestion()],
+  it("ticks a gift through the application's port", async () => {
+    const { ports, onChanged } = renderGifts({ gifts: [gift()] });
+
+    await act(async () => {
+      fireEvent.click(listTicks()[0]);
     });
 
-    await act(async () =>
-      screen.getAllByRole("button", { name: "Remove" })[0]?.click(),
-    );
-
-    expect(ports.removeSuggestion).toHaveBeenCalledWith("s-1");
+    expect(ports.setGiven).toHaveBeenCalledWith("r-1", true);
     expect(onChanged).toHaveBeenCalled();
   });
 
-  it("removes a giving through its own port, not the suggestion one", async () => {
-    const { ports } = renderGifts({ gifts: [given()] });
+  it("unticks a gift that was already given", async () => {
+    const { ports } = renderGifts({ gifts: [gift({ givenAt: STAMP })] });
 
-    await act(async () =>
-      screen.getAllByRole("button", { name: "Remove" })[0]?.click(),
-    );
-
-    expect(ports.removeGiving).toHaveBeenCalledWith("g-1");
-    expect(ports.removeSuggestion).not.toHaveBeenCalled();
-  });
-
-  it("opens one adornments editor at a time", async () => {
-    // Otherwise the list grows a form per row.
-    renderGifts({
-      suggestions: [
-        suggestion({ id: "s-1", giftIdeaId: "i-1", ideaTitle: "A" }),
-        suggestion({ id: "s-2", giftIdeaId: "i-2", ideaTitle: "B" }),
-      ],
+    await act(async () => {
+      fireEvent.click(listTicks()[0]);
     });
 
-    await act(async () => editButtons()[0]?.click());
-    expect(openEditors()).toHaveLength(1);
+    expect(ports.setGiven).toHaveBeenCalledWith("r-1", false);
+  });
 
-    await act(async () => editButtons()[1]?.click());
-    expect(openEditors()).toHaveLength(1);
+  it("removes a gift through the application's port", async () => {
+    const { ports } = renderGifts({ gifts: [gift()] });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    });
+
+    expect(ports.detachRecipient).toHaveBeenCalledWith("r-1");
+  });
+
+  it("links the idea's own page and its external link", () => {
+    renderGifts({ gifts: [gift({ ideaUrl: "https://kites.example" })] });
+    expect(
+      screen.getByRole("link", { name: "Kite" }).getAttribute("href"),
+    ).toBe("/gifts/i-1/edit");
+    expect(
+      screen.getByRole("link", { name: "link" }).getAttribute("href"),
+    ).toBe("https://kites.example");
   });
 });
 
-const ideaSuggestion = (
-  over: Partial<IdeaSuggestionRow> = {},
-): IdeaSuggestionRow => ({
-  id: "s-1",
-  giftIdeaId: "i-1",
-  recipientType: "person",
-  recipientId: "p-1",
-  recipientLabel: "Ada",
-  occasionLabel: null,
-  occasionType: null,
-  occasionId: null,
-  targetYear: null,
-  targetMonth: null,
-  targetDay: null,
-  ...over,
-});
-
-const candidates = [
-  { type: "person" as const, id: "p-1", label: "Ada" },
-  { type: "person" as const, id: "p-2", label: "Grace" },
-];
-
-function renderIdeaRecipients(suggestions: IdeaSuggestionRow[]) {
-  const ports = fakeGiftsPorts();
+function renderIdeaRecipients({
+  recipients = [],
+  candidates = [],
+  ports = fakeGiftsPorts(),
+}: {
+  recipients?: IdeaRecipientRow[];
+  candidates?: { type: "person" | "pet"; id: string; label: string }[];
+  ports?: ReturnType<typeof fakeGiftsPorts>;
+} = {}) {
   const onChanged = vi.fn();
   renderWithGifts(
     <GiftIdeaRecipientsSection
       ideaId="i-1"
-      suggestions={suggestions}
+      recipients={recipients}
       candidates={candidates}
       onChanged={onChanged}
     />,
@@ -189,8 +163,14 @@ function renderIdeaRecipients(suggestions: IdeaSuggestionRow[]) {
 }
 
 describe("GiftIdeaRecipientsSection", () => {
-  it("does not offer someone the idea is already suggested for", () => {
-    renderIdeaRecipients([ideaSuggestion()]);
+  it("does not offer someone the idea is already for", () => {
+    renderIdeaRecipients({
+      recipients: [forIdea()],
+      candidates: [
+        { type: "person", id: "p-1", label: "Ada" },
+        { type: "person", id: "p-2", label: "Bob" },
+      ],
+    });
 
     fireEvent.change(screen.getByRole("combobox"), {
       target: { value: "ada" },
@@ -200,25 +180,71 @@ describe("GiftIdeaRecipientsSection", () => {
     );
   });
 
-  it("writes the same suggestion row a person page would", async () => {
-    const { ports } = renderIdeaRecipients([]);
+  it("keys a person and a pet with the same id apart when excluding", () => {
+    renderIdeaRecipients({
+      recipients: [forIdea({ recipientType: "person", recipientId: "x" })],
+      candidates: [
+        { type: "person", id: "x", label: "Xander" },
+        { type: "pet", id: "x", label: "Xanthe" },
+      ],
+    });
 
+    // The person with id "x" is already on the idea; the *pet* with the same id
+    // is a different party and stays offered.
     fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "grace" },
+      target: { value: "xan" },
     });
-    await act(async () =>
-      fireEvent.mouseDown(screen.getByRole("option", { name: "Grace" })),
-    );
-
-    expect(ports.createSuggestion).toHaveBeenCalledWith({
-      giftIdeaId: "i-1",
-      recipientType: "person",
-      recipientId: "p-2",
-    });
+    expect(screen.queryAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Xanthe",
+    ]);
   });
 
-  it("says so when the idea is suggested for nobody", () => {
-    renderIdeaRecipients([]);
-    expect(screen.getByText("Not suggested for anyone yet.")).toBeTruthy();
+  it("writes the same link a person page would", async () => {
+    const { ports, onChanged } = renderIdeaRecipients({
+      candidates: [{ type: "person", id: "p-2", label: "Bob" }],
+    });
+
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "bob" },
+    });
+    await act(async () =>
+      fireEvent.mouseDown(screen.getByRole("option", { name: "Bob" })),
+    );
+
+    expect(ports.attachRecipient).toHaveBeenCalledWith({
+      giftIdeaId: "i-1",
+      party: { type: "person", id: "p-2" },
+    });
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("ticks a recipient from the idea's end", async () => {
+    const { ports } = renderIdeaRecipients({ recipients: [forIdea()] });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("checkbox", { name: "Given to Ada" }));
+    });
+
+    expect(ports.setGiven).toHaveBeenCalledWith("r-1", true);
+  });
+
+  it("sinks the people who already have it", () => {
+    renderIdeaRecipients({
+      recipients: [
+        forIdea({ id: "r-1", recipientLabel: "Ada", givenAt: STAMP }),
+        forIdea({ id: "r-2", recipientLabel: "Zed" }),
+      ],
+    });
+
+    const labels = screen
+      .getAllByRole("listitem")
+      .map((li) => li.textContent ?? "");
+    expect(labels[0]).toContain("Zed");
+    expect(labels[1]).toContain("Ada");
+  });
+
+  it("says so when the idea is for nobody", () => {
+    renderIdeaRecipients();
+    expect(screen.getByText("Not for anyone in particular yet.")).toBeTruthy();
   });
 });

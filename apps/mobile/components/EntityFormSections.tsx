@@ -1,25 +1,15 @@
+import type { GiftForRecipient } from "@leapsake/core";
 import type { EntityType } from "@leapsake/schema";
 import type { PartyOption } from "@leapsake/ui/headless";
 import { PersonFields } from "./PersonFields";
 import { PetFields } from "./PetFields";
 import { StagedContactsSection } from "./StagedContactsSection";
-import { type SavedGifts, StagedGiftsSection } from "./StagedGiftsSection";
-import {
-  type StagedHoliday,
-  StagedHolidaysSection,
-} from "./StagedHolidaysSection";
-import {
-  type StagedMilestone,
-  StagedMilestonesSection,
-} from "./StagedMilestonesSection";
+import { StagedGiftsSection } from "./StagedGiftsSection";
+import { StagedHolidaysSection } from "./StagedHolidaysSection";
+import { StagedMilestonesSection } from "./StagedMilestonesSection";
 import { StagedRelationshipsSection } from "./StagedRelationshipsSection";
 import { TagsInput } from "./TagsInput";
-import {
-  type EntityFormValue,
-  giftOccasionsOf,
-  pruneGiftOccasions,
-  validOccasionKeys,
-} from "../lib/entity-form";
+import type { EntityFormValue } from "../lib/entity-form";
 
 /**
  * Everything a person or pet form asks, in the order it asks it — the body of
@@ -65,12 +55,11 @@ export function EntityFormSections({
   onChange: (update: (previous: EntityFormValue) => EntityFormValue) => void;
   /**
    * The record being edited, where there is one. Only the Gifts section asks —
-   * a recipient that already exists is a recipient who may already have been
-   * given the thing being typed.
+   * it names the recipient in each row's "Already gave it to …".
    */
   subject?: PartyOption;
   /** The gifts already recorded for this recipient — the edit screen's only. */
-  savedGifts?: SavedGifts;
+  savedGifts?: GiftForRecipient[];
 }) {
   const isPerson = type === "person";
   const { person, pet, milestones, contacts, relationships, holidays, gifts } =
@@ -78,26 +67,6 @@ export function EntityFormSections({
 
   const patch = (fields: Partial<EntityFormValue>) =>
     onChange((previous) => ({ ...previous, ...fields }));
-
-  /**
-   * Milestones and holidays are what gift occasions point at, so a change to
-   * either has to take any pointer it invalidates with it. The pool is recomputed
-   * from the *incoming* lists, since the form this is revising hasn't updated yet.
-   */
-  const patchOccasionBearers = (fields: {
-    milestones?: StagedMilestone[];
-    holidays?: StagedHoliday[];
-  }) =>
-    onChange((previous) => {
-      const next = { ...previous, ...fields };
-      return {
-        ...next,
-        gifts: pruneGiftOccasions(
-          next.gifts,
-          validOccasionKeys(next.milestones, next.holidays),
-        ),
-      };
-    });
 
   return (
     <>
@@ -113,7 +82,7 @@ export function EntityFormSections({
       <StagedMilestonesSection
         bearerType={type}
         entries={milestones}
-        onChange={(next) => patchOccasionBearers({ milestones: next })}
+        onChange={(next) => patch({ milestones: next })}
       />
 
       {isPerson && (
@@ -132,12 +101,11 @@ export function EntityFormSections({
 
       <StagedHolidaysSection
         entries={holidays}
-        onChange={(next) => patchOccasionBearers({ holidays: next })}
+        onChange={(next) => patch({ holidays: next })}
       />
 
       <StagedGiftsSection
-        occasions={giftOccasionsOf(milestones, holidays)}
-        recipient={subject}
+        recipientLabel={subject?.label}
         saved={savedGifts}
         value={gifts}
         onChange={(next) => patch({ gifts: next })}

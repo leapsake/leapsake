@@ -1,9 +1,4 @@
-import {
-  type EntityType,
-  type GiftOccasion,
-  milestoneLabel,
-} from "@leapsake/schema";
-import { type GiftOccasionChoice, occasionKey } from "@leapsake/ui/headless";
+import type { EntityType } from "@leapsake/schema";
 import {
   type StagedContact,
   contactRowValid,
@@ -14,7 +9,6 @@ import {
   emptyGiftEdits,
   giftRowsValid,
 } from "../components/StagedGiftsSection";
-import { milestoneDraftToValue } from "../components/MilestoneFields";
 import {
   type StagedMilestone,
   milestoneRowValid,
@@ -82,10 +76,10 @@ export function emptyEntityForm(): EntityFormValue {
  * has filled in at all — the stray "Add" tap, which the write skips instead.
  *
  * Holidays are absent because a holiday row cannot be half-said: it is a pick.
- * Gifts used to be absent for a like reason — their occasion and date are both
- * optional, and the sub-form that staged them had already insisted on a name.
- * Now that a gift is typed straight into the list it can sit there having been
- * given an occasion but never named, which is a thing to fix rather than write.
+ * Gifts used to be absent for a like reason — the sub-form that staged them had
+ * already insisted on a name. Now that a gift is typed straight into the list it
+ * can sit there having been given a link but never named, which is a thing to fix
+ * rather than write.
  */
 export function entityFormValid(
   type: EntityType,
@@ -101,97 +95,5 @@ export function entityFormValid(
     value.milestones.every(milestoneRowValid) &&
     value.relationships.every(relationshipRowValid) &&
     giftRowsValid(value.gifts)
-  );
-}
-
-/**
- * Everything a gift on this form may name as its occasion, in the order
- * `core.gifts.occasionsFor` returns the saved equivalent: own milestones, then
- * observed holidays.
- *
- * A milestone is offered under its staged key, which is its **id** when the row
- * came from a saved milestone and a placeholder when it didn't; the screen's
- * write maps every key to a real id (`resolveStagedOccasion`), so the two kinds
- * are indistinguishable here on purpose.
- *
- * Takes the two lists rather than the whole {@link EntityFormValue}, and not
- * merely for narrowness: the pool it builds is a prop of the Gifts section, so
- * anything this depends on is something a keystroke elsewhere on the form can
- * re-render that section for. Named this way it depends on the two lists that
- * genuinely change it, and typing a name leaves it alone.
- */
-export function giftOccasionsOf(
-  milestones: readonly StagedMilestone[],
-  holidays: readonly StagedHoliday[],
-): GiftOccasionChoice[] {
-  return [
-    ...milestones.map((m) => ({
-      type: "milestone" as const,
-      id: m.key,
-      label: milestoneLabel(milestoneDraftToValue(m.draft)),
-    })),
-    ...holidays.map((h) => ({
-      type: "holiday" as const,
-      id: h.id,
-      label: h.name,
-    })),
-  ];
-}
-
-/**
- * Drop any staged gift occasion that `valid` no longer contains — what removing a
- * milestone or holiday a gift names has to do.
- *
- * Not merely tidiness: {@link SelectField} falls back to its first option when
- * its value matches none, so a stale pointer would *read* as "— none —" while
- * state still held it. For a milestone the write would drop it anyway (its key
- * stops resolving), but a holiday id stays resolvable forever, so without this a
- * gift could be written "for Christmas" against an entity that no longer observes
- * it.
- *
- * Only what this form is about to write is pruned — gifts being added, and
- * revisions typed into saved rows. A saved row nobody touched keeps whatever it
- * has stored: rewriting rows the user never opened, because they mention a
- * milestone being removed in the same pass, is a larger promise than the form
- * makes anywhere else.
- */
-export function pruneGiftOccasions(
-  gifts: StagedGiftEdits,
-  valid: ReadonlySet<string>,
-): StagedGiftEdits {
-  const keep = (occasion: GiftOccasion | null) =>
-    occasion !== null && valid.has(occasionKey(occasion)) ? occasion : null;
-  return {
-    ...gifts,
-    added: gifts.added.map((gift) => ({
-      ...gift,
-      draft: {
-        ...gift.draft,
-        givings: gift.draft.givings.map((row) => ({
-          ...row,
-          occasion: keep(row.occasion),
-        })),
-        suggestion: {
-          ...gift.draft.suggestion,
-          occasion: keep(gift.draft.suggestion.occasion),
-        },
-      },
-    })),
-    adornments: Object.fromEntries(
-      Object.entries(gifts.adornments).map(([key, pair]) => [
-        key,
-        { ...pair, occasion: keep(pair.occasion) },
-      ]),
-    ),
-  };
-}
-
-/** The occasion keys a form's milestones and holidays currently offer. */
-export function validOccasionKeys(
-  milestones: readonly StagedMilestone[],
-  holidays: readonly StagedHoliday[],
-): ReadonlySet<string> {
-  return new Set(
-    giftOccasionsOf(milestones, holidays).map((o) => occasionKey(o)),
   );
 }

@@ -1,14 +1,13 @@
-import { useState } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
-import type { GiftSuggestionForIdea } from "@leapsake/core";
+import { Alert, Pressable, Switch, Text, View } from "react-native";
+import type { GiftForIdea } from "@leapsake/core";
 import type { GiftPartyType } from "@leapsake/schema";
-import { dateFieldsOf } from "@leapsake/ui/headless";
-import { GiftAdornmentsEditor } from "./GiftAdornmentsEditor";
+import { partyKey } from "@leapsake/ui/headless";
+import { isGiven, sortGiftsGivenLast } from "@leapsake/view-models";
 import { Typeahead } from "./Typeahead";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
-/** A person/pet the idea can be suggested for — the add field's pool. */
+/** A person/pet the idea can be for — the add field's pool. */
 export interface RecipientCandidate {
   type: GiftPartyType;
   id: string;
@@ -16,38 +15,42 @@ export interface RecipientCandidate {
 }
 
 /**
- * The "Suggested for" section on a gift idea's edit screen, ported from the
- * desktop `GiftIdeaRecipientsSection` — the idea end of a gift suggestion. The
- * mirror of a recipient's "Gifts" section: adding a recipient here writes the
- * same suggestion row a person page would.
+ * The "For…" section on a gift idea's edit screen, ported from the desktop
+ * `GiftIdeaRecipientsSection` — the idea end of the same link a person's "Gifts"
+ * section shows from the other side. Adding someone here writes the row their
+ * page would; ticking the switch here is the tick they would see.
+ *
+ * Each row used to open an occasion/target-date editor behind an Edit. Occasion
+ * and date were the only things it edited, so with those gone the row's whole
+ * state is its switch, and it sits in the row rather than behind anything.
  */
 export function GiftIdeaRecipientsSection({
   ideaId,
-  suggestions,
+  recipients,
   candidates,
   onChanged,
 }: {
   ideaId: string;
-  suggestions: GiftSuggestionForIdea[];
+  recipients: GiftForIdea[];
   candidates: RecipientCandidate[];
   onChanged: () => void;
 }) {
   const core = useCore();
-  // The suggestion whose occasion/target-date editor is open — the same edit the
-  // recipient's own Gifts section offers, from the idea end.
-  const [editing, setEditing] = useState<string | null>(null);
 
-  // Recipients already suggested drop out of the add field.
+  // Parties already on this idea drop out of the add field.
   const already = new Set(
-    suggestions.map((s) => `${s.recipientType}:${s.recipientId}`),
+    recipients.map((r) =>
+      partyKey({ type: r.recipientType, id: r.recipientId }),
+    ),
   );
 
-  function suggestFor(candidate: RecipientCandidate) {
-    core.gifts.suggestions
+  const ordered = sortGiftsGivenLast(recipients, (row) => row.recipientLabel);
+
+  function addFor(candidate: RecipientCandidate) {
+    core.gifts.recipients
       .create({
         giftIdeaId: ideaId,
-        recipientType: candidate.type,
-        recipientId: candidate.id,
+        party: { type: candidate.type, id: candidate.id },
       })
       .then(
         () => onChanged(),
@@ -55,17 +58,24 @@ export function GiftIdeaRecipientsSection({
       );
   }
 
-  function confirmRemove(suggestion: GiftSuggestionForIdea) {
+  function setGiven(row: GiftForIdea, given: boolean) {
+    core.gifts.recipients.update(row.id, { given }).then(
+      () => onChanged(),
+      (e: unknown) => Alert.alert("Couldn't save", String(e)),
+    );
+  }
+
+  function confirmRemove(row: GiftForIdea) {
     Alert.alert(
-      "Remove suggestion",
-      `Stop suggesting this for ${suggestion.recipientLabel}?`,
+      "Remove recipient",
+      `Stop listing this for ${row.recipientLabel}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Remove",
           style: "destructive",
           onPress: () => {
-            core.gifts.suggestions.softDelete(suggestion.id).then(
+            core.gifts.recipients.softDelete(row.id).then(
               () => onChanged(),
               (e: unknown) => Alert.alert("Couldn't remove", String(e)),
             );
@@ -78,79 +88,44 @@ export function GiftIdeaRecipientsSection({
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Suggested for</Text>
+        <Text style={styles.sectionTitle}>For…</Text>
       </View>
 
       <Typeahead
         multi
-        label="Suggest this for a person or pet"
+        label="Add a person or pet this would suit"
         value={null}
         options={candidates}
         exclude={already}
-        onChange={(candidate) => candidate !== null && suggestFor(candidate)}
-        getKey={(c) => `${c.type}:${c.id}`}
+        onChange={(candidate) => candidate !== null && addFor(candidate)}
+        getKey={partyKey}
         getLabel={(c) => c.label}
       />
 
-      {suggestions.length === 0 ? (
-        <Text style={styles.muted}>Not suggested for anyone yet.</Text>
+      {ordered.length === 0 ? (
+        <Text style={styles.muted}>Not for anyone in particular yet.</Text>
       ) : (
-        suggestions.map((suggestion) => (
-          <View key={suggestion.id} style={styles.row}>
-            <Text style={styles.rowText}>
-              {suggestion.recipientLabel}
-              {suggestion.occasionLabel !== null &&
-                ` — ${suggestion.occasionLabel}`}
-            </Text>
+        ordered.map((row) => (
+          <View key={row.id} style={styles.row}>
             <View style={styles.rowMeta}>
-              <View />
-              <View style={styles.rowActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() =>
-                    setEditing(editing === suggestion.id ? null : suggestion.id)
-                  }
-                >
-                  <Text style={styles.link}>
-                    {editing === suggestion.id ? "Close" : "Edit"}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => confirmRemove(suggestion)}
-                >
-                  <Text style={[styles.link, styles.danger]}>Remove</Text>
-                </Pressable>
-              </View>
-            </View>
-            {editing === suggestion.id && (
-              <GiftAdornmentsEditor
-                kind="suggestion"
-                rowId={suggestion.id}
-                recipient={{
-                  type: suggestion.recipientType,
-                  id: suggestion.recipientId,
-                }}
-                occasion={
-                  suggestion.occasionType !== null &&
-                  suggestion.occasionId !== null
-                    ? {
-                        type: suggestion.occasionType,
-                        id: suggestion.occasionId,
-                      }
-                    : null
-                }
-                date={dateFieldsOf({
-                  year: suggestion.targetYear,
-                  month: suggestion.targetMonth,
-                  day: suggestion.targetDay,
-                })}
-                onDone={() => {
-                  setEditing(null);
-                  onChanged();
-                }}
+              <Text style={styles.rowText}>{row.recipientLabel}</Text>
+              <Switch
+                value={isGiven(row)}
+                onValueChange={(given) => setGiven(row, given)}
               />
-            )}
+            </View>
+            <View style={styles.rowMeta}>
+              <Text style={styles.muted}>
+                {isGiven(row) ? "✓ Given" : "Not given yet"}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${row.recipientLabel}`}
+                onPress={() => confirmRemove(row)}
+              >
+                <Text style={[styles.link, styles.danger]}>Remove</Text>
+              </Pressable>
+            </View>
           </View>
         ))
       )}

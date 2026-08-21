@@ -134,7 +134,7 @@ function resolveAdb() {
 //   - `showFab` — the floating "Tools" bubble. It is an overlay, so a `tapOn` under it
 //     reports COMPLETED while the dev menu opens instead, and the flow fails several steps
 //     later on an unrelated assertion. Confirmed on `global-nav.yaml` (case 3's
-//     `search-here-people`) and suspected on `staged-gift-occasions.yaml`.
+//     `search-here-people`) and suspected on the retired `staged-gift-occasions.yaml`.
 //   - `isOnboardingFinished` — the one-time "This is the developer menu" panel, which
 //     covers the app on first launch after an install.
 //   - `showsAtLaunch` — the dev menu opening over the app on every launch.
@@ -294,7 +294,7 @@ const androidDriver = {
 
 // iOS has the same floating dev-menu button as Android and it bites the same way — an
 // overlay that turns a `tapOn` underneath it into "the dev menu opened instead". It cost
-// `staged-gift-occasions.yaml` its whole run: the button's stored position sat over the add
+// the retired `staged-gift-occasions.yaml` its whole run: the button's stored position sat over the add
 // screen's holiday row, so `stage-christmas`'s `tapOn: below: "Add a holiday"` hit the
 // button and the flow died three cases in. Hiding it turned the same unmodified flow green
 // on all five cases.

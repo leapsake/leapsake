@@ -254,9 +254,8 @@ async function personLoader({ params }: LoaderFunctionArgs) {
     view,
     mentionedIn,
     holidays,
-    giftSuggestions,
-    giftIdeaPool,
     giftsGiven,
+    giftIdeaPool,
     duplicateCandidates,
   ] = await Promise.all([
     window.api.views.person(id),
@@ -264,13 +263,10 @@ async function personLoader({ params }: LoaderFunctionArgs) {
     // The whole catalog with this person's answers — one read serving both the
     // Holidays section's list and the pool its add-field suggests from.
     window.api.holidays.listForBearer("person", id),
-    // The person's gift suggestions plus the full idea pool the add-field
-    // suggests from (it filters out the already-suggested).
-    window.api.gifts.suggestions.listForRecipient("person", id),
+    // What this person is down for, plus the full idea pool the capture form's
+    // datalist suggests from.
+    window.api.gifts.recipients.listForRecipient("person", id),
     window.api.gifts.ideas.list(),
-    // Gifts given to this person — the "Gifts given" section, and the source of
-    // the suggestion list's "✓ given" annotation + re-gift guard.
-    window.api.gifts.given.listForRecipient("person", id),
     // Unresolved pairs this person is half of — both people in a pair carry the
     // banner, so whichever one the user opens leads back to the review.
     window.api.duplicates.findFor(id),
@@ -280,7 +276,6 @@ async function personLoader({ params }: LoaderFunctionArgs) {
     ...view,
     mentionedIn,
     holidays,
-    giftSuggestions,
     giftIdeaPool,
     giftsGiven,
     duplicateCandidates,
@@ -294,27 +289,19 @@ async function personLoader({ params }: LoaderFunctionArgs) {
  */
 async function petLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
-  const [
-    view,
-    mentionedIn,
-    holidays,
-    giftSuggestions,
-    giftIdeaPool,
-    giftsGiven,
-  ] = await Promise.all([
-    window.api.views.pet(id),
-    window.api.reminders.mentioning("pet", id),
-    window.api.holidays.listForBearer("pet", id),
-    window.api.gifts.suggestions.listForRecipient("pet", id),
-    window.api.gifts.ideas.list(),
-    window.api.gifts.given.listForRecipient("pet", id),
-  ]);
+  const [view, mentionedIn, holidays, giftsGiven, giftIdeaPool] =
+    await Promise.all([
+      window.api.views.pet(id),
+      window.api.reminders.mentioning("pet", id),
+      window.api.holidays.listForBearer("pet", id),
+      window.api.gifts.recipients.listForRecipient("pet", id),
+      window.api.gifts.ideas.list(),
+    ]);
   if (!view) throw new Response("Pet not found", { status: 404 });
   return {
     ...view,
     mentionedIn,
     holidays,
-    giftSuggestions,
     giftIdeaPool,
     giftsGiven,
   };
@@ -985,10 +972,10 @@ async function giftIdeaLoader({ params }: LoaderFunctionArgs) {
  */
 async function giftIdeaEditLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
-  const [idea, tags, suggestions, entities] = await Promise.all([
+  const [idea, tags, recipients, entities] = await Promise.all([
     window.api.gifts.ideas.get(id),
     window.api.tags.listForGiftIdea(id),
-    window.api.gifts.suggestions.listForIdea(id),
+    window.api.gifts.recipients.listForIdea(id),
     window.api.views.entityList(),
   ]);
   if (!idea) throw new Response("Gift idea not found", { status: 404 });
@@ -1000,7 +987,7 @@ async function giftIdeaEditLoader({ params }: LoaderFunctionArgs) {
   return {
     idea,
     tagNames: tags.map((t) => t.name).join(", "),
-    suggestions,
+    recipients,
     candidates,
   };
 }

@@ -1,0 +1,97 @@
+# Recording a gift on the form behind a person's Edit, and ticking it off.
+#
+# The staged Gifts section is the one place a gift is typed *beside* the record
+# it belongs to, rather than on the standalone capture screen — and the only
+# place the two halves of a gift row meet: the shared identity fields
+# (`GiftIdentityFields`, a name-or-link input) and the recipient's own tick
+# (`GiftGivenToggle`).
+#
+# Three claims, none of which a lower tier can make. The repo and core tests
+# prove the write does the right thing when asked; this proves the screen asks.
+#
+#   1. "Add gift" appends an **open row** — no sub-form, no `Cancel  Add` — and
+#      the form's one Save writes what is in it.
+#   2. The gift lands on the person's page, marked not-given.
+#   3. Re-opening the form and flipping the row's switch marks it given, and the
+#      page reads it back that way.
+#
+# This replaces `staged-gift-occasions.yaml` and its
+# `subflows/stage-gift-for-occasion.yaml`, which drove the occasion picker and
+# the "When?" row through four places a gift could name one. Occasions and dates
+# left v0.1 scope; what is left of a gift is a name and a switch.
+#
+# Verify non-vacuous by sabotage: make `applyEntityForm` skip
+# `value.gifts.added` and case 2 goes red; make it skip `value.gifts.given` and
+# case 3 does.
+#
+# Like the other flows here it deliberately does not `launchApp`: a cold
+# dev-client launch lands on the launcher, and these routes only exist once JS
+# is loaded. Open the app to its home screen against a running Metro first.
+#
+#   maestro --udid <sim> test staged-gifts.yaml
+#
+# It leaves a person and a gift idea behind (dev data on a simulator), so both
+# carry a per-run tag: with fixed names, run N leaves the Nth copy for the
+# duplicate detector to score and for the idea typeahead to offer.
+appId: com.leapsake.app
+---
+- evalScript: ${output.run = Date.now() % 1000000}
+
+# ── 1. Somebody to give something to ────────────────────────────────────────
+- runFlow:
+    file: subflows/add-person.yaml
+    env:
+      FIRST: "Wren${output.run}"
+      LAST: "Ashby${output.run}"
+- runFlow:
+    file: subflows/save-record.yaml
+
+# ── 2. Add a gift on the form behind Edit ───────────────────────────────────
+# The header control names what it edits ("Edit Wren… Ashby…") for a screen
+# reader, so it is matched loosely.
+- tapOn: "Edit.*"
+- scrollUntilVisible:
+    element:
+      text: "Add gift"
+    direction: DOWN
+# The link appends a row that is already open, in the space the link occupied —
+# the fields below are that row's, with no sub-form to wait for.
+- tapOn: "Add gift"
+- tapOn:
+    id: "gift-title"
+- inputText: "Kite${output.run}"
+- runFlow:
+    file: subflows/dismiss-keyboard.yaml
+# The row's identity line takes the name as it is typed, which is how we know
+# the draft reached the section's state rather than only the input.
+- assertVisible: "Kite${output.run}"
+- runFlow:
+    file: subflows/save-record.yaml
+
+# ── 3. It reads back on the page, not yet given ─────────────────────────────
+- scrollUntilVisible:
+    element:
+      text: "Kite${output.run}"
+    direction: DOWN
+# The page marks an outstanding gift "○" and a given one "✓" — the same bit the
+# switch sets, rendered where it is only read.
+- assertVisible: "○"
+
+# ── 4. Tick it off ──────────────────────────────────────────────────────────
+- tapOn: "Edit.*"
+- scrollUntilVisible:
+    element:
+      text: "Already gave it to Wren${output.run} Ashby${output.run}"
+    direction: DOWN
+# The toggle is the row's own control rather than something behind an Edit:
+# with occasions and dates gone there is nothing else on the row to revise.
+- tapOn: "Already gave it to Wren${output.run} Ashby${output.run}"
+- runFlow:
+    file: subflows/save-record.yaml
+
+- scrollUntilVisible:
+    element:
+      text: "Kite${output.run}"
+    direction: DOWN
+- assertVisible: "✓"
+- assertNotVisible: "○"

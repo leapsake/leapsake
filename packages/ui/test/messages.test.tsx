@@ -70,13 +70,6 @@ describe("the English catalog", () => {
     expect(en.holidays.hiddenName("Diwali")).toBe("Diwali (hidden)");
   });
 
-  it("separates lists in the catalog, where a locale can change the separator", () => {
-    expect(en.gifts.given(["Dec 25", "from Ada"])).toBe(
-      "✓ Given — Dec 25, from Ada",
-    );
-    expect(en.gifts.given([])).toBe("✓ Given");
-  });
-
   it("says the same thing about a person and a pet without splicing the type in", () => {
     // `Add a holiday this ${bearerType} observes` was untranslatable; two whole
     // sentences are not.

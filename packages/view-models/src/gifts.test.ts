@@ -1,57 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { groupGiftsByIdea, sortIdeasGivenLast } from "./gifts.js";
+import { isGiven, sortGiftsGivenLast, sortIdeasGivenLast } from "./gifts.js";
 
-/** A suggestion row, trimmed to what the grouping reads (plus an id to assert on). */
-const suggestion = (id: string, ideaId: string, title: string) => ({
-  id,
-  giftIdeaId: ideaId,
-  ideaTitle: title,
-  ideaUrl: null,
+/** A link row, trimmed to what the sorts read (plus a title to assert on). */
+const link = (title: string, givenAt: number | null = null) => ({
+  title,
+  givenAt,
 });
 
-/** A giving row, same shape. */
-const giving = (id: string, ideaId: string, title: string) => ({
-  id,
-  giftIdeaId: ideaId,
-  ideaTitle: title,
-  ideaUrl: null,
+const titleOf = (row: { title: string }) => row.title;
+
+describe("isGiven", () => {
+  it("reads the stamp as a boolean and nothing more", () => {
+    expect(isGiven({ givenAt: null })).toBe(false);
+    expect(isGiven({ givenAt: 0 })).toBe(true);
+    expect(isGiven({ givenAt: Date.now() })).toBe(true);
+  });
 });
 
-describe("groupGiftsByIdea", () => {
-  it("unions both tables into one entry per idea", () => {
-    const groups = groupGiftsByIdea(
-      [suggestion("s1", "idea-a", "Kite"), suggestion("s2", "idea-a", "Kite")],
-      [giving("g1", "idea-a", "Kite")],
-    );
+describe("sortGiftsGivenLast", () => {
+  it("sinks given links below outstanding ones, alphabetically within each half", () => {
+    const rows = [
+      link("Zither", 1),
+      link("Banjo"),
+      link("Accordion", 2),
+      link("Anvil"),
+    ];
 
-    expect(groups).toHaveLength(1);
-    expect(groups[0].ideaId).toBe("idea-a");
-    expect(groups[0].suggestions.map((s) => s.id)).toEqual(["s1", "s2"]);
-    expect(groups[0].gifts.map((g) => g.id)).toEqual(["g1"]);
-  });
-
-  it("carries the idea's title and url from whichever row arrives first", () => {
-    const groups = groupGiftsByIdea(
-      [],
-      [{ ...giving("g1", "idea-a", "Kite"), ideaUrl: "https://kites.example" }],
-    );
-
-    expect(groups[0].title).toBe("Kite");
-    expect(groups[0].url).toBe("https://kites.example");
-  });
-
-  it("sinks given ideas below candidates, alphabetically within each half", () => {
-    const groups = groupGiftsByIdea(
-      [
-        suggestion("s1", "given-z", "Zither"),
-        suggestion("s2", "open-b", "Banjo"),
-        suggestion("s3", "given-a", "Accordion"),
-        suggestion("s4", "open-a", "Anvil"),
-      ],
-      [giving("g1", "given-z", "Zither"), giving("g2", "given-a", "Accordion")],
-    );
-
-    expect(groups.map((g) => g.title)).toEqual([
+    expect(sortGiftsGivenLast(rows, titleOf).map(titleOf)).toEqual([
       "Anvil",
       "Banjo",
       "Accordion",
@@ -59,25 +34,51 @@ describe("groupGiftsByIdea", () => {
     ]);
   });
 
-  it("keeps a giving-only idea in the list", () => {
-    const groups = groupGiftsByIdea([], [giving("g1", "idea-a", "Kite")]);
+  it("does not mutate the caller's array", () => {
+    const rows = [link("Zither", 1), link("Anvil")];
+    sortGiftsGivenLast(rows, titleOf);
 
-    expect(groups.map((g) => g.ideaId)).toEqual(["idea-a"]);
-    expect(groups[0].suggestions).toEqual([]);
+    expect(rows.map(titleOf)).toEqual(["Zither", "Anvil"]);
   });
 
-  it("returns nothing for a recipient with no gifts either way", () => {
-    expect(groupGiftsByIdea([], [])).toEqual([]);
+  it("returns nothing for a party with no gifts", () => {
+    expect(sortGiftsGivenLast([], titleOf)).toEqual([]);
   });
 });
 
 describe("sortIdeasGivenLast", () => {
-  it("sinks ideas that have been given, keeping the incoming order within each half", () => {
+  it("sinks an idea once everyone on it has been given it", () => {
     const rows = [
-      { id: "given-first", gifts: [{}] },
-      { id: "open-first", gifts: [] },
-      { id: "given-second", gifts: [{}, {}] },
-      { id: "open-second", gifts: [] },
+      { id: "all-given", recipients: [link("x", 1), link("y", 2)] },
+      { id: "none-given", recipients: [link("x"), link("y")] },
+      { id: "part-given", recipients: [link("x", 1), link("y")] },
+    ];
+
+    expect(sortIdeasGivenLast(rows).map((r) => r.id)).toEqual([
+      "none-given",
+      "part-given",
+      "all-given",
+    ]);
+  });
+
+  it("keeps an idea nobody is down for on top — it is still a thing to give", () => {
+    const rows = [
+      { id: "given", recipients: [link("x", 1)] },
+      { id: "nobody", recipients: [] },
+    ];
+
+    expect(sortIdeasGivenLast(rows).map((r) => r.id)).toEqual([
+      "nobody",
+      "given",
+    ]);
+  });
+
+  it("keeps the incoming order within each half", () => {
+    const rows = [
+      { id: "given-first", recipients: [link("x", 1)] },
+      { id: "open-first", recipients: [link("x")] },
+      { id: "given-second", recipients: [link("y", 2)] },
+      { id: "open-second", recipients: [link("y")] },
     ];
 
     expect(sortIdeasGivenLast(rows).map((r) => r.id)).toEqual([
@@ -89,9 +90,9 @@ describe("sortIdeasGivenLast", () => {
   });
 
   it("does not mutate the caller's array", () => {
-    const rows = [{ gifts: [{}] }, { gifts: [] }];
+    const rows = [{ recipients: [link("x", 1)] }, { recipients: [] }];
     sortIdeasGivenLast(rows);
 
-    expect(rows[0].gifts).toHaveLength(1);
+    expect(rows[0].recipients).toHaveLength(1);
   });
 });

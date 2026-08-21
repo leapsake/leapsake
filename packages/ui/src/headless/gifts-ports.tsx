@@ -6,38 +6,8 @@
  * renderer reads the same interface a web one does. The provider's JSX renders a
  * context, never a host element, which is why this is the one `.tsx` here.
  */
-import type {
-  CaptureRecipient,
-  GiftOccasion,
-  GiftOccasionType,
-  GiftParty,
-  GiftPartyType,
-} from "@leapsake/schema";
+import type { GiftPartyType } from "@leapsake/schema";
 import { type ReactNode, createContext, useContext } from "react";
-import type { PartialDate } from "./partial-date.js";
-
-/**
- * One pickable occasion for a gift — a milestone, a holiday, or a milestone
- * *kind* for the recipientless case ("someone's birthday").
- *
- * `tier` and `existing` mirror `@leapsake/core`'s `GiftOccasionOption` and are
- * optional here for the same reason the rest of this file is structural: a host
- * that has only a flat list of choices still satisfies the interface, and a
- * renderer that ignores them renders a plain list.
- */
-export interface GiftOccasionChoice {
-  type: GiftOccasionType;
-  id: string;
-  label: string;
-  /** How prominent this choice is: already true of them, common, or unusual. */
-  tier?: "theirs" | "common" | "more";
-  /**
-   * Whether it exists yet. `false` means picking it *creates* something on save
-   * — the holiday observance, or a dateless milestone — which a renderer marks
-   * so the write is never a surprise.
-   */
-  existing?: boolean;
-}
 
 /** A person or pet a gift can be for. */
 export interface PartyOption {
@@ -47,96 +17,70 @@ export interface PartyOption {
 }
 
 /**
- * A giving of an idea to someone — what the “✓ given” rows and the re-gift guard
- * read.
+ * One gift idea a party is down for, from the **party's** end — what a person's
+ * or pet's Gifts section lists.
  *
  * Declared structurally, listing only the fields these components render, rather
  * than importing `@leapsake/core`'s `GiftForRecipient`. Core's type stays
  * assignable to it, and the package stays off the data layer — the same choice
  * `GenderResult` and `BearerHoliday` make.
  */
-export interface GivenRow extends PartialDate {
+export interface GiftRecipientRow {
   id: string;
   giftIdeaId: string;
   ideaTitle: string;
   ideaUrl: string | null;
-  giverLabel: string | null;
-  occasionLabel: string | null;
-  occasionType: GiftOccasionType | null;
-  occasionId: string | null;
+  /** When the box was ticked; `null` while it is still outstanding. Read as a
+   *  boolean — it is a stamp, not a date anyone typed. */
+  givenAt: number | null;
 }
 
-/** A suggestion of an idea for someone, from the recipient's end. */
-export interface SuggestionRow {
+/** The same link seen from the **idea's** end, where the party is what varies. */
+export interface IdeaRecipientRow {
   id: string;
-  giftIdeaId: string;
-  ideaTitle: string;
-  ideaUrl: string | null;
-  occasionLabel: string | null;
-  occasionType: GiftOccasionType | null;
-  occasionId: string | null;
-  targetYear: number | null;
-  targetMonth: number | null;
-  targetDay: number | null;
-}
-
-/** The same suggestion seen from the idea's end, where the recipient is what varies. */
-export interface IdeaSuggestionRow extends Omit<
-  SuggestionRow,
-  "ideaTitle" | "ideaUrl"
-> {
   recipientType: GiftPartyType;
   recipientId: string;
   recipientLabel: string;
+  givenAt: number | null;
 }
 
 /** What one submit of the capture form writes, in one transaction. */
 export interface GiftCaptureInput {
   giftIdea: { id: string } | { title: string; url?: string };
-  recipients: CaptureRecipient[];
+  recipients: {
+    party: { type: GiftPartyType; id: string };
+    given?: boolean;
+  }[];
 }
 
 /**
- * Everything the gift surfaces need from the application: the reads that fill
- * their pickers and the writes they perform.
+ * Everything the gift surfaces need from the application: one read-free capture
+ * and the three edits a link supports.
  *
  * Supplied through context rather than props because four screens render gift
  * components — a person, a pet, the gift-idea editor and the standalone create
- * screen — and the components nest three deep. Threading nine functions through
- * that by hand would put most of them on components that only forward them.
+ * screen — and the components nest two deep.
  *
  * This is the same shape as the repo's other ports (`SqliteDriver`, `KeyStore`,
  * `ImportPorts`): an interface the composition root implements — over
  * `window.api` on desktop, over an in-process `CoreApi` on mobile, and over
  * whatever the web app's transport turns out to be.
+ *
+ * It used to carry three reads as well (`loadOccasions`, `loadGiven`,
+ * `loadOccurrences`), which filled the occasion picker and the re-gift guard.
+ * Occasions are gone, and the guard is now structural: a party already down for
+ * an idea is already in the list, with their state showing, so there is nothing
+ * to warn about.
  */
 export interface GiftsPorts {
-  /** Occasions this party can name — their milestones plus holidays they observe. */
-  loadOccasions(party: GiftParty): Promise<GiftOccasionChoice[]>;
-  /** What this party has already been given; the re-gift guard's source. */
-  loadGiven(party: GiftParty): Promise<GivenRow[]>;
-  /**
-   * The real date(s) a holiday falls on in a year. A lunisolar holiday can fall
-   * **twice** in one Gregorian year, so this returns every occurrence and the UI
-   * assumes none of them.
-   */
-  loadOccurrences(holidayId: string, year: number): Promise<string[]>;
   capture(input: GiftCaptureInput): Promise<unknown>;
-  createSuggestion(input: {
+  attachRecipient(input: {
     giftIdeaId: string;
-    recipientType: GiftPartyType;
-    recipientId: string;
+    party: { type: GiftPartyType; id: string };
   }): Promise<unknown>;
-  updateSuggestion(
-    id: string,
-    patch: { occasion: GiftOccasion | null; targetDate: PartialDate | null },
-  ): Promise<unknown>;
-  removeSuggestion(id: string): Promise<unknown>;
-  updateGiving(
-    id: string,
-    patch: { occasion: GiftOccasion | null; date: PartialDate | null },
-  ): Promise<unknown>;
-  removeGiving(id: string): Promise<unknown>;
+  /** Tick or untick one link. Safe to call with the state it already has. */
+  setGiven(id: string, given: boolean): Promise<unknown>;
+  detachRecipient(id: string): Promise<unknown>;
 }
 
 const GiftsPortsContext = createContext<GiftsPorts | null>(null);

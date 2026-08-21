@@ -1,74 +1,52 @@
 /**
- * The two fields every gift row — a suggestion or a giving — carries about the
- * idea it points at. Both clients' row types (core's `GiftSuggestionForRecipient`
- * / `GiftForRecipient`) satisfy it structurally, and the grouping is generic over
- * the rest of the row so each client keeps its own type on the way out.
+ * What every gift list sorts on: whether it has been given. `givenAt` is a stamp
+ * recording when the box was ticked, never a date anyone typed, so the only thing
+ * read off it here is whether it is set.
  */
-export interface GiftIdeaRef {
-  giftIdeaId: string;
-  ideaTitle: string;
-  ideaUrl: string | null;
+export interface GiftGivenState {
+  givenAt: number | null;
 }
 
-/** One gift idea's standing for a recipient: its suggestion(s), if any, and its
- *  giving(s), if any — the two tables unioned by idea for a single list. */
-export interface IdeaGroup<S extends GiftIdeaRef, G extends GiftIdeaRef> {
-  ideaId: string;
-  title: string;
-  url: string | null;
-  suggestions: S[];
-  gifts: G[];
-}
+/** Whether this link has been ticked. The one question `givenAt` answers. */
+export const isGiven = (row: GiftGivenState): boolean => row.givenAt !== null;
 
 /**
- * The list behind the Gifts section on a Person or Pet screen: one entry per
- * idea, combining **suggestions** (candidates) with **givings** (dated events).
- * A giving points at the idea, never at the suggestion, so "✓ given" is a fact
- * read alongside the candidate rather than a state the suggestion moves through.
+ * Gift rows in the order every list wants them: **outstanding first, given last**
+ * — the shopping list stays on top — alphabetically within each half by the
+ * caller's chosen label.
  *
- * Candidates not yet given lead and given ideas sink — the shopping list stays on
- * top — alphabetically within each half. Nothing is dropped: an idea given once
- * is still a fine idea to give again.
+ * Nothing is dropped: an idea given once is still a fine idea to give again.
+ *
+ * This used to be `groupGiftsByIdea`, which unioned `gift_suggestions` and
+ * `gifts` into one entry per idea, because "✓ given" lived in a second table and
+ * a recipient could hold both a candidate row and N giving rows for the same
+ * idea. One table with a `given_at` column makes that a sort.
  */
-export function groupGiftsByIdea<S extends GiftIdeaRef, G extends GiftIdeaRef>(
-  suggestions: readonly S[],
-  gifts: readonly G[],
-): IdeaGroup<S, G>[] {
-  const groups = new Map<string, IdeaGroup<S, G>>();
-  const groupFor = (row: GiftIdeaRef) => {
-    const existing = groups.get(row.giftIdeaId);
-    if (existing) return existing;
-    const created: IdeaGroup<S, G> = {
-      ideaId: row.giftIdeaId,
-      title: row.ideaTitle,
-      url: row.ideaUrl,
-      suggestions: [],
-      gifts: [],
-    };
-    groups.set(row.giftIdeaId, created);
-    return created;
-  };
-  for (const s of suggestions) groupFor(s).suggestions.push(s);
-  for (const g of gifts) groupFor(g).gifts.push(g);
-
-  return [...groups.values()].sort((a, b) => {
-    const aGiven = a.gifts.length > 0 ? 1 : 0;
-    const bGiven = b.gifts.length > 0 ? 1 : 0;
-    return aGiven - bGiven || a.title.localeCompare(b.title);
-  });
-}
-
-/**
- * The Gifts screen's order (the whole graph keyed by idea): ideas already given
- * sink to the bottom, keeping the shopping list on top — the same posture
- * {@link groupGiftsByIdea} takes on a Person or Pet screen. Within each half the
- * caller's incoming order stands (the repo's newest-first), so this sorts on the
- * one bit and nothing else, and never hides a row.
- */
-export function sortIdeasGivenLast<T extends { gifts: readonly unknown[] }>(
+export function sortGiftsGivenLast<T extends GiftGivenState>(
   rows: readonly T[],
+  label: (row: T) => string,
 ): T[] {
   return [...rows].sort(
-    (a, b) => (a.gifts.length > 0 ? 1 : 0) - (b.gifts.length > 0 ? 1 : 0),
+    (a, b) =>
+      Number(isGiven(a)) - Number(isGiven(b)) ||
+      label(a).localeCompare(label(b)),
   );
+}
+
+/**
+ * The Gifts screen's order (the whole catalog, keyed by idea): an idea everybody
+ * on it has already been given sinks to the bottom, keeping the shopping list on
+ * top. Within each half the caller's incoming order stands (the repo's
+ * newest-first), so this sorts on the one bit and nothing else, and never hides a
+ * row.
+ *
+ * An idea with **no** recipients counts as outstanding — it is a thing you might
+ * still give someone, which is the whole reason a recipientless idea can exist.
+ */
+export function sortIdeasGivenLast<
+  T extends { recipients: readonly GiftGivenState[] },
+>(rows: readonly T[]): T[] {
+  const done = (row: T) =>
+    row.recipients.length > 0 && row.recipients.every(isGiven);
+  return [...rows].sort((a, b) => Number(done(a)) - Number(done(b)));
 }

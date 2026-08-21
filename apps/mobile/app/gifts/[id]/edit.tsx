@@ -20,13 +20,13 @@ import { styles } from "../../../lib/styles";
 
 /**
  * A gift idea's own page, ported from desktop's `GiftIdeaEdit`: the editable idea
- * (title, link, notes, tags, and what occasions it suits) plus the "Suggested
- * for" recipient manager — the idea end of a gift suggestion. It is also where a gift-idea search hit and a tag
- * page's gift-idea row land, since an idea has no read-only view on either client.
+ * (title, link, notes, tags) plus the "For…" recipient manager — the idea end of
+ * a gift link. It is also where a gift-idea search hit and a tag page's gift-idea
+ * row land, since an idea has no read-only view on either client.
  *
- * Removing the idea cascades to its suggestions, givings, and tags (core owns
- * that), so it asks first — via the native `Alert` the other mobile deletes use,
- * rather than desktop's separate confirm screen.
+ * Removing the idea cascades to its recipient links and tags (core owns that), so
+ * it asks first — via the native `Alert` the other mobile deletes use, rather
+ * than desktop's separate confirm screen.
  */
 export default function GiftIdeaEditScreen() {
   const core = useCore();
@@ -38,8 +38,7 @@ export default function GiftIdeaEditScreen() {
       Promise.all([
         core.gifts.ideas.get(id),
         core.tags.listForGiftIdea(id),
-        core.gifts.ideas.listOccasions(id),
-        core.gifts.suggestions.listForIdea(id),
+        core.gifts.recipients.listForIdea(id),
         core.views.entityList(),
       ]),
     [core, id],
@@ -62,7 +61,7 @@ export default function GiftIdeaEditScreen() {
     );
   }
 
-  const [idea, tags, occasions, suggestions, entities] = data;
+  const [idea, tags, recipients, entities] = data;
 
   if (idea === undefined) {
     return (
@@ -110,21 +109,15 @@ export default function GiftIdeaEditScreen() {
         idea={idea}
         // Same round-trip as a Person's tags: labels in, parseTagNames out.
         tagNames={tags.map((tag) => tagLabel(tag.name)).join(" ")}
-        occasions={occasions}
-        onSubmit={async (value, tagsRaw, ideaOccasions) => {
-          // Two writes, not one: `update` owns the row and its tags, and
-          // `setOccasions` is a set-replace of its own table. Both are
-          // transactional in core, and neither can leave the other half-applied
-          // in a way the next reload wouldn't show.
+        onSubmit={async (value, tagsRaw) => {
           await core.gifts.ideas.update(id, value, parseTagNames(tagsRaw));
-          await core.gifts.ideas.setOccasions(id, ideaOccasions);
           router.back();
         }}
       />
 
       <GiftIdeaRecipientsSection
         ideaId={idea.id}
-        suggestions={suggestions}
+        recipients={recipients}
         candidates={candidates}
         onChanged={reload}
       />

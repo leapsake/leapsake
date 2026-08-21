@@ -5,7 +5,6 @@ import {
   runMigrations,
   seedHolidayCatalog,
 } from "@leapsake/core";
-import { holidayIdFor } from "@leapsake/data";
 import { type CivilDate, reminderLabel, todayCivil } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
@@ -17,8 +16,8 @@ let core: CoreApi;
 beforeEach(async () => {
   ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
-  // The bundled catalog: an occasion can point at a holiday, so these tests need
-  // real holiday rows to point at (and to observe).
+  // The bundled catalog: the reminder engine's holiday families need real rows,
+  // and `giftTargets` reads over what the engine mints.
   await seedHolidayCatalog({ driver });
   core = createCore(driver);
 });
@@ -27,30 +26,44 @@ afterEach(() => {
   cleanup();
 });
 
+/** Create a Person and return its id. */
+async function makePerson(name: string): Promise<string> {
+  const person = await core.people.create(
+    { firstName: name, middleName: null, lastName: "X", gender: null },
+    [],
+  );
+  return person.id;
+}
+
+/** Create a Pet and return its id. */
+async function makePet(name: string): Promise<string> {
+  const pet = await core.pets.create({ name }, []);
+  return pet.id;
+}
+
 describe("core.gifts.ideas", () => {
   it("creates, lists, updates, and removes a gift idea", async () => {
-    expect(await core.gifts.ideas.list()).toEqual([]);
-
-    const created = await core.gifts.ideas.create({
+    const idea = await core.gifts.ideas.create({
       title: "Red Ryder BB Gun",
       url: "https://example.com/bb-gun",
     });
-    expect(created.title).toBe("Red Ryder BB Gun");
-    expect(created.url).toBe("https://example.com/bb-gun");
-    expect(created.notes).toBeNull();
+    expect(await core.gifts.ideas.get(idea.id)).toMatchObject({
+      title: "Red Ryder BB Gun",
+      url: "https://example.com/bb-gun",
+      notes: null,
+    });
 
-    expect(await core.gifts.ideas.get(created.id)).toEqual(created);
-    expect((await core.gifts.ideas.list()).map((i) => i.id)).toEqual([
-      created.id,
-    ]);
-
-    const updated = await core.gifts.ideas.update(created.id, {
+    const renamed = await core.gifts.ideas.update(idea.id, {
+      title: "BB Gun",
       notes: "the 200-shot model",
     });
-    expect(updated?.notes).toBe("the 200-shot model");
+    expect(renamed).toMatchObject({
+      title: "BB Gun",
+      notes: "the 200-shot model",
+    });
 
-    await core.gifts.ideas.softDelete(created.id);
-    expect(await core.gifts.ideas.get(created.id)).toBeUndefined();
+    await core.gifts.ideas.softDelete(idea.id);
+    expect(await core.gifts.ideas.get(idea.id)).toBeUndefined();
     expect(await core.gifts.ideas.list()).toEqual([]);
   });
 
@@ -65,775 +78,331 @@ describe("core.gifts.ideas", () => {
     ]);
     expect(scarf.createdAt).toBeGreaterThanOrEqual(socks.createdAt);
   });
-});
 
-/** Create a Person and return its id. */
-async function makePerson(name: string): Promise<string> {
-  const person = await core.people.create(
-    { firstName: name, middleName: null, lastName: "X", gender: null },
-    [],
-  );
-  return person.id;
-}
-
-describe("core.gifts.suggestions", () => {
-  it("suggestFor mints the idea and suggestions in one call, joined for the recipient", async () => {
+  it("attaches recipients in the same call that mints the idea", async () => {
     const alice = await makePerson("Alice");
+    const rufus = await makePet("Rufus");
+
     const idea = await core.gifts.ideas.create({
-      title: "BB Gun",
-      suggestFor: [{ recipientType: "person", recipientId: alice }],
+      title: "Tennis balls",
+      recipients: [
+        { party: { type: "person", id: alice } },
+        { party: { type: "pet", id: rufus }, given: true },
+      ],
     });
 
-    const forAlice = await core.gifts.suggestions.listForRecipient(
-      "person",
-      alice,
-    );
-    expect(forAlice).toHaveLength(1);
-    expect(forAlice[0]?.giftIdeaId).toBe(idea.id);
-    expect(forAlice[0]?.ideaTitle).toBe("BB Gun");
-    expect(forAlice[0]?.occasionLabel).toBeNull();
-  });
-
-  it("joins listForIdea with the recipient's current label", async () => {
-    const alice = await makePerson("Alice");
-    const idea = await core.gifts.ideas.create({ title: "Scarf" });
-    await core.gifts.suggestions.create({
-      giftIdeaId: idea.id,
-      recipientType: "person",
-      recipientId: alice,
-    });
-
-    const forIdea = await core.gifts.suggestions.listForIdea(idea.id);
-    expect(forIdea).toHaveLength(1);
-    expect(forIdea[0]?.recipientLabel).toBe("Alice X");
-  });
-
-  it("resolves a milestone occasion to its label", async () => {
-    const alice = await makePerson("Alice");
-    const birthday = await core.milestones.create({
-      kind: "birthday",
-      bearerType: "person",
-      bearerId: alice,
-      month: 6,
-      day: 1,
-    });
-    const idea = await core.gifts.ideas.create({ title: "Cake" });
-    await core.gifts.suggestions.create({
-      giftIdeaId: idea.id,
-      recipientType: "person",
-      recipientId: alice,
-      occasion: { type: "milestone", id: birthday.id },
-      targetDate: { year: 2026, month: 6, day: 1 },
-    });
-
-    const [s] = await core.gifts.suggestions.listForRecipient("person", alice);
-    expect(s?.occasionLabel).toBe("Birthday");
-    expect(s?.targetYear).toBe(2026);
-  });
-
-  it("cascades: deleting the idea removes its suggestions", async () => {
-    const alice = await makePerson("Alice");
-    const idea = await core.gifts.ideas.create({
-      title: "Socks",
-      suggestFor: [{ recipientType: "person", recipientId: alice }],
-    });
-    await core.gifts.ideas.softDelete(idea.id);
-    expect(
-      await core.gifts.suggestions.listForRecipient("person", alice),
-    ).toEqual([]);
-  });
-
-  it("cascades: deleting the recipient removes their suggestions", async () => {
-    const alice = await makePerson("Alice");
-    const idea = await core.gifts.ideas.create({
-      title: "Socks",
-      suggestFor: [{ recipientType: "person", recipientId: alice }],
-    });
-    await core.people.softDelete(alice);
-    expect(await core.gifts.suggestions.listForIdea(idea.id)).toEqual([]);
-  });
-
-  it("repoints a loser's suggestions onto the survivor on merge", async () => {
-    const alice = await makePerson("Alice");
-    const bob = await makePerson("Bob");
-    const idea = await core.gifts.ideas.create({
-      title: "Socks",
-      suggestFor: [{ recipientType: "person", recipientId: bob }],
-    });
-
-    await core.people.merge(alice, bob); // survivor=alice, loser=bob
-
-    expect(
-      await core.gifts.suggestions.listForRecipient("person", bob),
-    ).toEqual([]);
-    const moved = await core.gifts.suggestions.listForRecipient(
-      "person",
-      alice,
-    );
-    expect(moved.map((s) => s.giftIdeaId)).toEqual([idea.id]);
+    const links = await core.gifts.recipients.listForIdea(idea.id);
+    expect(links.map((l) => l.recipientLabel).sort()).toEqual([
+      "Alice X",
+      "Rufus",
+    ]);
+    expect(links.find((l) => l.recipientId === rufus)?.givenAt).not.toBeNull();
+    expect(links.find((l) => l.recipientId === alice)?.givenAt).toBeNull();
   });
 });
 
-describe("core.gifts.given", () => {
-  it("logs a giving against an existing idea, joined for the recipient", async () => {
+describe("core.gifts.recipients", () => {
+  it("joins a party's links with the idea's title and url", async () => {
     const alice = await makePerson("Alice");
-    const self = await makePerson("Me");
-    await core.self.set(self);
-    const idea = await core.gifts.ideas.create({ title: "BB Gun" });
-
-    const gift = await core.gifts.given.create({
-      giftIdea: { id: idea.id },
-      recipient: { type: "person", id: alice },
-      giver: { type: "person", id: self },
-      date: { year: 1941, month: 12, day: 25 },
+    const idea = await core.gifts.ideas.create({
+      title: "Kite",
+      url: "https://kites.example",
     });
-    expect(gift.giftIdeaId).toBe(idea.id);
-
-    const [row] = await core.gifts.given.listForRecipient("person", alice);
-    expect(row?.ideaTitle).toBe("BB Gun");
-    expect(row?.giverLabel).toBe("Me X");
-    expect(row?.year).toBe(1941);
-  });
-
-  it("mints a new idea in the same transaction when logging a giving", async () => {
-    const alice = await makePerson("Alice");
-    expect(await core.gifts.ideas.list()).toHaveLength(0);
-
-    await core.gifts.given.create({
-      giftIdea: { title: "Homemade jam" },
-      recipient: { type: "person", id: alice },
+    await core.gifts.recipients.create({
+      giftIdeaId: idea.id,
+      party: { type: "person", id: alice },
     });
 
-    const ideas = await core.gifts.ideas.list();
-    expect(ideas.map((i) => i.title)).toEqual(["Homemade jam"]);
-    const [row] = await core.gifts.given.listForRecipient("person", alice);
-    expect(row?.giverLabel).toBeNull(); // no giver given ⇒ unknown
-  });
-
-  it("rejects logging a giving against a missing idea id", async () => {
-    const alice = await makePerson("Alice");
-    await expect(
-      core.gifts.given.create({
-        giftIdea: { id: crypto.randomUUID() },
-        recipient: { type: "person", id: alice },
-      }),
-    ).rejects.toThrow(/gift idea not found/);
-  });
-
-  it("deleting the idea cascades to its gifts", async () => {
-    const alice = await makePerson("Alice");
-    const idea = await core.gifts.ideas.create({ title: "Socks" });
-    await core.gifts.given.create({
-      giftIdea: { id: idea.id },
-      recipient: { type: "person", id: alice },
+    const rows = await core.gifts.recipients.listForRecipient("person", alice);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      ideaTitle: "Kite",
+      ideaUrl: "https://kites.example",
+      givenAt: null,
     });
+  });
+
+  it("joins an idea's links with the recipient's current label", async () => {
+    const alice = await makePerson("Alice");
+    const idea = await core.gifts.ideas.create({ title: "Kite" });
+    await core.gifts.recipients.create({
+      giftIdeaId: idea.id,
+      party: { type: "person", id: alice },
+    });
+
+    await core.people.update(alice, { firstName: "Alicia" }, []);
+
+    expect(
+      (await core.gifts.recipients.listForIdea(idea.id)).map(
+        (l) => l.recipientLabel,
+      ),
+    ).toEqual(["Alicia X"]);
+  });
+
+  it("ticks and unticks the box", async () => {
+    const alice = await makePerson("Alice");
+    const idea = await core.gifts.ideas.create({ title: "Kite" });
+    const link = await core.gifts.recipients.create({
+      giftIdeaId: idea.id,
+      party: { type: "person", id: alice },
+    });
+
+    const ticked = await core.gifts.recipients.update(link.id, {
+      given: true,
+    });
+    expect(ticked?.givenAt).not.toBeNull();
+
+    const unticked = await core.gifts.recipients.update(link.id, {
+      given: false,
+    });
+    expect(unticked?.givenAt).toBeNull();
+  });
+
+  it("publishes an unpublished party when a gift is attached to them", async () => {
+    // Being someone to give something to is a fact about them — the same rule
+    // that promotes an unpublished person when they get a milestone.
+    const alice = await makePerson("Alice");
+    const idea = await core.gifts.ideas.create({ title: "Kite" });
+    await core.gifts.recipients.create({
+      giftIdeaId: idea.id,
+      party: { type: "person", id: alice },
+    });
+
+    expect(await core.people.get(alice)).toBeDefined();
+  });
+
+  it("cascades: deleting the idea removes its links", async () => {
+    const alice = await makePerson("Alice");
+    const idea = await core.gifts.ideas.create({ title: "Kite" });
+    await core.gifts.recipients.create({
+      giftIdeaId: idea.id,
+      party: { type: "person", id: alice },
+    });
+
     await core.gifts.ideas.softDelete(idea.id);
-    expect(await core.gifts.given.listForRecipient("person", alice)).toEqual(
-      [],
-    );
+    expect(
+      await core.gifts.recipients.listForRecipient("person", alice),
+    ).toEqual([]);
   });
 
-  it("deleting a recipient cascades to their gifts", async () => {
+  it("cascades: deleting the recipient removes their links", async () => {
     const alice = await makePerson("Alice");
-    await core.gifts.given.create({
-      giftIdea: { title: "Socks" },
-      recipient: { type: "person", id: alice },
+    const idea = await core.gifts.ideas.create({ title: "Kite" });
+    await core.gifts.recipients.create({
+      giftIdeaId: idea.id,
+      party: { type: "person", id: alice },
     });
+
     await core.people.softDelete(alice);
-    // Re-created probe recipient to prove the store isn't globally empty would be
-    // overkill; the delete cascade is asserted directly by the repo test.
-    expect(await core.gifts.given.listForRecipient("person", alice)).toEqual(
-      [],
-    );
+    expect(await core.gifts.recipients.listForIdea(idea.id)).toEqual([]);
   });
 
-  it("repoints gifts on merge and drops a self-referential result", async () => {
+  it("repoints a loser's links onto the survivor on merge", async () => {
     const alice = await makePerson("Alice");
     const bob = await makePerson("Bob");
-    // Alice gave Bob a gift → after merging Bob into Alice it's Alice→Alice, dropped.
-    await core.gifts.given.create({
-      giftIdea: { title: "Book" },
-      recipient: { type: "person", id: bob },
-      giver: { type: "person", id: alice },
+    const idea = await core.gifts.ideas.create({ title: "Kite" });
+    await core.gifts.recipients.create({
+      giftIdeaId: idea.id,
+      party: { type: "person", id: alice },
     });
-    await core.people.merge(alice, bob); // survivor=alice, loser=bob
-    expect(await core.gifts.given.listForRecipient("person", alice)).toEqual(
-      [],
-    );
+
+    await core.people.merge(bob, alice);
+
+    expect(
+      await core.gifts.recipients.listForRecipient("person", alice),
+    ).toEqual([]);
+    expect(
+      (await core.gifts.recipients.listForRecipient("person", bob)).map(
+        (l) => l.ideaTitle,
+      ),
+    ).toEqual(["Kite"]);
+  });
+
+  it("collapses a merge's duplicate ideas, keeping the ✓", async () => {
+    // Both were down for the same thing and one of them got it. The survivor
+    // should hold one row, still ticked — not the same idea listed twice.
+    const alice = await makePerson("Alice");
+    const bob = await makePerson("Bob");
+    const idea = await core.gifts.ideas.create({ title: "Kite" });
+    await core.gifts.recipients.create({
+      giftIdeaId: idea.id,
+      party: { type: "person", id: bob },
+    });
+    await core.gifts.recipients.create({
+      giftIdeaId: idea.id,
+      party: { type: "person", id: alice },
+      given: true,
+    });
+
+    await core.people.merge(bob, alice);
+
+    const rows = await core.gifts.recipients.listForRecipient("person", bob);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.givenAt).not.toBeNull();
   });
 });
 
 describe("core.gifts.capture (the consolidated create)", () => {
   it("with no recipients, just creates the idea", async () => {
-    await core.gifts.capture({ giftIdea: { title: "Socks" }, recipients: [] });
-    expect((await core.gifts.ideas.list()).map((i) => i.title)).toEqual([
-      "Socks",
-    ]);
+    const idea = await core.gifts.capture({
+      giftIdea: { title: "Socks" },
+      recipients: [],
+    });
+    expect((await core.gifts.ideas.list()).map((i) => i.id)).toEqual([idea.id]);
+    expect(await core.gifts.recipients.listForIdea(idea.id)).toEqual([]);
   });
 
-  it("with recipients and no givings, creates a suggestion each", async () => {
+  it("mints the idea once, however many recipients it has", async () => {
     const alice = await makePerson("Alice");
     const bob = await makePerson("Bob");
-    await core.gifts.capture({
-      giftIdea: { title: "Scarf" },
+
+    const idea = await core.gifts.capture({
+      giftIdea: { title: "Scarf", url: "https://scarves.example" },
       recipients: [
         { party: { type: "person", id: alice } },
-        { party: { type: "person", id: bob } },
-      ],
-    });
-    expect(
-      await core.gifts.suggestions.listForRecipient("person", alice),
-    ).toHaveLength(1);
-    expect(
-      await core.gifts.suggestions.listForRecipient("person", bob),
-    ).toHaveLength(1);
-    expect(await core.gifts.given.listForRecipient("person", alice)).toEqual(
-      [],
-    );
-  });
-
-  it("attaches givings to their own recipient, not to every recipient", async () => {
-    const alice = await makePerson("Alice");
-    const bob = await makePerson("Bob");
-    const me = await makePerson("Me");
-    await core.self.set(me);
-
-    // Alice gets two dated givings; Bob gets none (just a suggestion).
-    await core.gifts.capture({
-      giftIdea: { title: "BB Gun" },
-      recipients: [
-        {
-          party: { type: "person", id: alice },
-          givings: [{ date: { year: 1941 } }, { date: { year: 1942 } }],
-        },
-        { party: { type: "person", id: bob } },
+        { party: { type: "person", id: bob }, given: true },
       ],
     });
 
-    const aliceGifts = await core.gifts.given.listForRecipient("person", alice);
-    expect(aliceGifts).toHaveLength(2);
-    expect(aliceGifts.every((g) => g.giverLabel === "Me X")).toBe(true);
-    // Bob got a suggestion and NO gift — the dates were Alice's alone.
-    expect(await core.gifts.given.listForRecipient("person", bob)).toEqual([]);
-    expect(
-      await core.gifts.suggestions.listForRecipient("person", bob),
-    ).toHaveLength(1);
-    // Two givings of one idea mint exactly one idea, not two.
     expect(await core.gifts.ideas.list()).toHaveLength(1);
-    // Alice's dated entry is a giving, not a suggestion.
-    expect(
-      await core.gifts.suggestions.listForRecipient("person", alice),
-    ).toEqual([]);
-  });
+    expect(idea.url).toBe("https://scarves.example");
 
-  it("falls back to an unknown giver when the recipient is the self-person", async () => {
-    const me = await makePerson("Me");
-    await core.self.set(me);
-    // Logging a gift to yourself: giver would be you == recipient, which the
-    // schema forbids, so it records an unknown giver instead of throwing.
-    await core.gifts.capture({
-      giftIdea: { title: "Treat" },
-      recipients: [
-        {
-          party: { type: "person", id: me },
-          givings: [{ date: { year: 2026 } }],
-        },
-      ],
-    });
-    const [g] = await core.gifts.given.listForRecipient("person", me);
-    expect(g?.giverLabel).toBeNull();
-  });
-
-  it("carries the suggestion arm's occasion and target date onto the candidate", async () => {
-    const alice = await makePerson("Alice");
-    const christmas = holidayIdFor("christmas");
-    await core.gifts.capture({
-      giftIdea: { title: "Scarf" },
-      recipients: [
-        {
-          party: { type: "person", id: alice },
-          suggestion: {
-            occasion: { type: "holiday", id: christmas },
-            targetDate: { year: 2026, month: 12, day: 25 },
-          },
-        },
-      ],
-    });
-
-    const [s] = await core.gifts.suggestions.listForRecipient("person", alice);
-    expect(s?.occasionType).toBe("holiday");
-    expect(s?.occasionId).toBe(christmas);
-    expect(s?.occasionLabel).toBe("Christmas");
-    expect([s?.targetYear, s?.targetMonth, s?.targetDay]).toEqual([
-      2026, 12, 25,
-    ]);
-  });
-
-  it("ignores the suggestion arm when the recipient has givings", async () => {
-    const alice = await makePerson("Alice");
-    // Givings win: this recipient is a fact, not a candidate, so nothing reads
-    // the suggestion adornments and no suggestion row is written at all.
-    await core.gifts.capture({
-      giftIdea: { title: "Scarf" },
-      recipients: [
-        {
-          party: { type: "person", id: alice },
-          givings: [{ date: { year: 1941 } }],
-          suggestion: { targetDate: { year: 2026 } },
-        },
-      ],
-    });
-
-    expect(
-      await core.gifts.suggestions.listForRecipient("person", alice),
-    ).toEqual([]);
-    const [g] = await core.gifts.given.listForRecipient("person", alice);
-    expect(g?.year).toBe(1941);
+    const links = await core.gifts.recipients.listForIdea(idea.id);
+    expect(links).toHaveLength(2);
+    expect(links.find((l) => l.recipientId === bob)?.givenAt).not.toBeNull();
+    expect(links.find((l) => l.recipientId === alice)?.givenAt).toBeNull();
   });
 
   it("reuses an existing idea by id rather than minting a duplicate", async () => {
     const alice = await makePerson("Alice");
-    const idea = await core.gifts.ideas.create({ title: "Scarf" });
+    const existing = await core.gifts.ideas.create({ title: "Socks" });
+
+    const idea = await core.gifts.capture({
+      giftIdea: { id: existing.id },
+      recipients: [{ party: { type: "person", id: alice } }],
+    });
+
+    expect(idea.id).toBe(existing.id);
+    expect(await core.gifts.ideas.list()).toHaveLength(1);
+  });
+
+  it("rejects a capture against a missing idea id", async () => {
+    await expect(
+      core.gifts.capture({
+        giftIdea: { id: crypto.randomUUID() },
+        recipients: [],
+      }),
+    ).rejects.toThrow(/gift idea not found/);
+  });
+
+  it("does not double a party already on the idea", async () => {
+    // Capture is an *add* surface — it can name an idea somebody is already
+    // down for, and saying so again must not list them twice.
+    const alice = await makePerson("Alice");
+    const idea = await core.gifts.ideas.create({ title: "Socks" });
+    await core.gifts.recipients.create({
+      giftIdeaId: idea.id,
+      party: { type: "person", id: alice },
+    });
+
     await core.gifts.capture({
       giftIdea: { id: idea.id },
       recipients: [{ party: { type: "person", id: alice } }],
     });
-    expect(await core.gifts.ideas.list()).toHaveLength(1);
-    const [s] = await core.gifts.suggestions.listForRecipient("person", alice);
-    expect(s?.giftIdeaId).toBe(idea.id);
-  });
-});
 
-/**
- * The occasion pool a gift form's picker draws from. **Ranked, not filtered**:
- * everything the app can name is in it, tiered by how likely it is — what is
- * already true of this party, then the usual gift occasions, then the rest. The
- * pool used to be only the first tier, which left it empty for anyone with no
- * milestones and no ticked observances (i.e. almost everyone).
- */
-describe("core.gifts.occasionsFor", () => {
-  it("puts the party's own milestones and observed holidays first", async () => {
+    expect(await core.gifts.recipients.listForIdea(idea.id)).toHaveLength(1);
+  });
+
+  it("ticks a party already on the idea when the capture says they got it", async () => {
     const alice = await makePerson("Alice");
-    await core.milestones.create({
-      bearerType: "person",
-      bearerId: alice,
-      kind: "birthday",
-      year: 1990,
-      month: 3,
-      day: 9,
-      note: null,
+    const idea = await core.gifts.ideas.create({ title: "Socks" });
+    await core.gifts.recipients.create({
+      giftIdeaId: idea.id,
+      party: { type: "person", id: alice },
     });
-    const christmas = holidayIdFor("christmas");
-    await core.holidays.setObservers(christmas, [
-      { bearerType: "person", bearerId: alice, observes: true },
-    ]);
 
-    const options = await core.gifts.occasionsFor("person", alice);
-    expect(options.slice(0, 2)).toEqual([
-      {
-        type: "milestone",
-        id: expect.any(String),
-        label: "Birthday",
-        tier: "theirs",
-        existing: true,
-      },
-      {
-        type: "holiday",
-        id: christmas,
-        label: "Christmas",
-        tier: "theirs",
-        existing: true,
-      },
-    ]);
-    // Everything after the first tier is offered, not owned.
-    expect(options.slice(2).every((o) => o.tier !== "theirs")).toBe(true);
-  });
-
-  it("offers holidays the party doesn't observe, marked as not yet theirs", async () => {
-    const bob = await makePerson("Bob");
-    const options = await core.gifts.occasionsFor("person", bob);
-    const christmas = options.find((o) => o.id === holidayIdFor("christmas"));
-    expect(christmas).toEqual({
-      type: "holiday",
-      id: holidayIdFor("christmas"),
-      label: "Christmas",
-      tier: "common",
-      existing: false,
+    await core.gifts.capture({
+      giftIdea: { id: idea.id },
+      recipients: [{ party: { type: "person", id: alice }, given: true }],
     });
-    // Ranked below it: a holiday people don't exchange gifts on.
-    const labor = options.find((o) => o.id === holidayIdFor("us-labor-day"));
-    expect(labor?.tier).toBe("more");
-    expect(options.indexOf(christmas!)).toBeLessThan(options.indexOf(labor!));
+
+    const [link] = await core.gifts.recipients.listForIdea(idea.id);
+    expect(link?.givenAt).not.toBeNull();
   });
 
-  it("offers a birthday for someone who has none on file", async () => {
-    const bob = await makePerson("Bob");
-    const options = await core.gifts.occasionsFor("person", bob);
-    expect(
-      options.find((o) => o.type === "kind" && o.id === "birthday"),
-    ).toEqual({
-      type: "kind",
-      id: "birthday",
-      label: "Birthday",
-      tier: "common",
-      existing: false,
-    });
-    // The unconventional ones are present too — just not near the top.
-    expect(
-      options.find((o) => o.type === "kind" && o.id === "death")?.tier,
-    ).toBe("more");
-  });
-
-  it("stops offering the kind once they have that milestone", async () => {
-    const bob = await makePerson("Bob");
-    await core.milestones.create({
-      bearerType: "person",
-      bearerId: bob,
-      kind: "birthday",
-      year: null,
-      month: 4,
-      day: 2,
-      note: null,
-    });
-    const options = await core.gifts.occasionsFor("person", bob);
-    // Otherwise "Birthday" and "Birthday 🎂 April 2" would both be listed, and
-    // only one of them carries the date.
-    expect(options.some((o) => o.type === "kind" && o.id === "birthday")).toBe(
-      false,
-    );
-  });
-
-  it("only offers kinds the bearer type can hold", async () => {
-    const pet = await core.pets.create({ name: "Rex" }, []);
-    const options = await core.gifts.occasionsFor("pet", pet.id);
-    // A wedding belongs to a relationship or a person, never a pet.
-    expect(options.some((o) => o.type === "kind" && o.id === "wedding")).toBe(
-      false,
-    );
-    expect(options.some((o) => o.type === "kind" && o.id === "birthday")).toBe(
-      true,
-    );
-  });
-
-  it("labels an occasion the way the row reads it back", async () => {
-    // The picker's label and `resolveOccasionLabel`'s must agree, or picking
-    // "Birthday" would render as something else on the saved row.
+  it("never unticks an existing link — that is the checkbox's job", async () => {
+    // Capture says "and I gave them this", never "and I did not": re-capturing
+    // an idea from a share sheet must not undo a ✓ recorded on their page.
     const alice = await makePerson("Alice");
-    const milestone = await core.milestones.create({
-      bearerType: "person",
-      bearerId: alice,
-      kind: "other",
-      year: null,
-      month: 6,
-      day: 1,
-      note: "Graduation",
-    });
-    const idea = await core.gifts.ideas.create({ title: "Pen" });
-    await core.gifts.suggestions.create({
+    const idea = await core.gifts.ideas.create({ title: "Socks" });
+    await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      recipientType: "person",
-      recipientId: alice,
-      occasion: { type: "milestone", id: milestone.id },
+      party: { type: "person", id: alice },
+      given: true,
     });
-
-    const [option] = await core.gifts.occasionsFor("person", alice);
-    const [suggestion] = await core.gifts.suggestions.listForRecipient(
-      "person",
-      alice,
-    );
-    expect(option?.label).toBe(suggestion?.occasionLabel);
-  });
-});
-
-/**
- * Picking an occasion the party doesn't have yet **creates** it. "Anna gets a
- * Christmas gift" and "Anna keeps Christmas" are the same fact, and a birthday
- * you don't know the date of is still a birthday.
- */
-describe("materializing an occasion", () => {
-  it("creates a dateless milestone for a kind, and points at it", async () => {
-    const anna = await makePerson("Anna");
-    const idea = await core.gifts.ideas.create({ title: "Scarf" });
-
-    const suggestion = await core.gifts.suggestions.create({
-      giftIdeaId: idea.id,
-      recipientType: "person",
-      recipientId: anna,
-      occasion: { type: "kind", id: "birthday" },
-    });
-
-    // Stored as a real pointer: the `kind` arm never reaches a suggestion row.
-    expect(suggestion.occasionType).toBe("milestone");
-    const [milestone] = await core.milestones.listForBearer("person", anna);
-    expect(milestone).toMatchObject({
-      kind: "birthday",
-      year: null,
-      month: null,
-      day: null,
-    });
-    expect(suggestion.occasionId).toBe(milestone?.id);
-  });
-
-  it("reuses the milestone rather than minting a second one", async () => {
-    const anna = await makePerson("Anna");
-    const idea = await core.gifts.ideas.create({ title: "Scarf" });
-    for (const _ of [1, 2]) {
-      await core.gifts.suggestions.create({
-        giftIdeaId: idea.id,
-        recipientType: "person",
-        recipientId: anna,
-        occasion: { type: "kind", id: "birthday" },
-      });
-    }
-    expect(await core.milestones.listForBearer("person", anna)).toHaveLength(1);
-  });
-
-  it("leaves the reminder engine alone — a dateless milestone is inert", async () => {
-    const anna = await makePerson("Anna");
-    const idea = await core.gifts.ideas.create({ title: "Scarf" });
-    await core.gifts.suggestions.create({
-      giftIdeaId: idea.id,
-      recipientType: "person",
-      recipientId: anna,
-      occasion: { type: "kind", id: "birthday" },
-    });
-    const reminders = await core.reminders.list();
-    expect(reminders.some((r) => (r.title ?? "").includes("birthday"))).toBe(
-      false,
-    );
-  });
-
-  it("marks the party as observing a holiday they're given a gift on", async () => {
-    const anna = await makePerson("Anna");
-    const christmas = holidayIdFor("christmas");
-    const idea = await core.gifts.ideas.create({ title: "Scarf" });
 
     await core.gifts.capture({
       giftIdea: { id: idea.id },
-      recipients: [
-        {
-          party: { type: "person", id: anna },
-          suggestion: { occasion: { type: "holiday", id: christmas } },
-        },
-      ],
+      recipients: [{ party: { type: "person", id: alice } }],
     });
 
-    const holidays = await core.holidays.listForBearer("person", anna);
-    expect(holidays.find((h) => h.id === christmas)?.observes).toBe(true);
-    // And it is now a first-tier choice for them.
-    const options = await core.gifts.occasionsFor("person", anna);
-    expect(options.find((o) => o.id === christmas)?.tier).toBe("theirs");
+    const [link] = await core.gifts.recipients.listForIdea(idea.id);
+    expect(link?.givenAt).not.toBeNull();
   });
 
-  it("resolves a kind on a giving too, against that giving's recipient", async () => {
-    const anna = await makePerson("Anna");
-    const idea = await core.gifts.ideas.create({ title: "Scarf" });
-    await core.gifts.capture({
-      giftIdea: { id: idea.id },
-      recipients: [
-        {
-          party: { type: "person", id: anna },
-          givings: [
-            {
-              date: { year: 2025, month: 4, day: 2 },
-              occasion: { type: "kind", id: "birthday" },
-            },
-          ],
-        },
-      ],
-    });
-    const [given] = await core.gifts.given.listForRecipient("person", anna);
-    expect(given?.occasionType).toBe("milestone");
-    expect(given?.occasionLabel).toBe("Birthday");
-  });
-});
-
-/**
- * What an idea is *for*, with nobody named — the arm that lets "this would make a
- * good Christmas gift for someone" be a complete capture.
- */
-describe("core.gifts.ideas occasions", () => {
-  it("captures an idea with an occasion and no recipient at all", async () => {
-    const christmas = holidayIdFor("christmas");
+  it("attaches a pet as readily as a person", async () => {
+    const rufus = await makePet("Rufus");
     const idea = await core.gifts.capture({
-      giftIdea: { title: "Nice candle" },
-      recipients: [],
-      occasions: [
-        {
-          occasion: { type: "holiday", id: christmas },
-          targetDate: { year: 2026 },
-        },
-        { occasion: { type: "kind", id: "birthday" } },
-      ],
+      giftIdea: { title: "Chew toy" },
+      recipients: [{ party: { type: "pet", id: rufus }, given: true }],
     });
 
-    const occasions = await core.gifts.ideas.listOccasions(idea.id);
-    expect(occasions).toHaveLength(2);
-    expect(occasions.map((o) => o.label)).toEqual(["Christmas", "Birthday"]);
-    expect(occasions[0]?.targetYear).toBe(2026);
-    // Nobody was named, so nothing about a person was written.
-    expect(await core.gifts.suggestions.listForIdea(idea.id)).toEqual([]);
-  });
-
-  it("keeps a kind pointer as a kind — there is no one to resolve it against", async () => {
-    const idea = await core.gifts.capture({
-      giftIdea: { title: "Nice candle" },
-      recipients: [],
-      occasions: [{ occasion: { type: "kind", id: "birthday" } }],
-    });
-    const [occasion] = await core.gifts.ideas.listOccasions(idea.id);
-    expect(occasion?.occasionType).toBe("kind");
-    expect(occasion?.occasionId).toBe("birthday");
-  });
-
-  it("replaces the set, keeping the rows that survive", async () => {
-    const christmas = holidayIdFor("christmas");
-    const easter = holidayIdFor("western-easter");
-    const idea = await core.gifts.ideas.create({ title: "Nice candle" });
-    await core.gifts.ideas.setOccasions(idea.id, [
-      { occasion: { type: "holiday", id: christmas } },
-      { occasion: { type: "kind", id: "birthday" } },
-    ]);
-    const before = await core.gifts.ideas.listOccasions(idea.id);
-
-    await core.gifts.ideas.setOccasions(idea.id, [
-      {
-        occasion: { type: "holiday", id: christmas },
-        targetDate: { year: 2027 },
-      },
-      { occasion: { type: "holiday", id: easter } },
-    ]);
-    const after = await core.gifts.ideas.listOccasions(idea.id);
-
-    expect(after.map((o) => o.label)).toEqual(["Christmas", "Easter"]);
-    // The survivor kept its row (an edit, not a delete-and-recreate).
-    expect(after[0]?.id).toBe(before[0]?.id);
-    expect(after[0]?.targetYear).toBe(2027);
-  });
-
-  it("does not drop occasions when the same idea is captured again", async () => {
-    const christmas = holidayIdFor("christmas");
-    const idea = await core.gifts.capture({
-      giftIdea: { title: "Nice candle" },
-      recipients: [],
-      occasions: [{ occasion: { type: "holiday", id: christmas } }],
-    });
-    await core.gifts.capture({
-      giftIdea: { id: idea.id },
-      recipients: [],
-      occasions: [{ occasion: { type: "kind", id: "birthday" } }],
-    });
-    expect(await core.gifts.ideas.listOccasions(idea.id)).toHaveLength(2);
-
-    // And capturing the same one twice doesn't duplicate it.
-    await core.gifts.capture({
-      giftIdea: { id: idea.id },
-      recipients: [],
-      occasions: [{ occasion: { type: "holiday", id: christmas } }],
-    });
-    expect(await core.gifts.ideas.listOccasions(idea.id)).toHaveLength(2);
-  });
-
-  it("cascades with the idea", async () => {
-    const idea = await core.gifts.capture({
-      giftIdea: { title: "Nice candle" },
-      recipients: [],
-      occasions: [{ occasion: { type: "kind", id: "birthday" } }],
-    });
-    await core.gifts.ideas.softDelete(idea.id);
-    expect(await core.gifts.ideas.listOccasions(idea.id)).toEqual([]);
-  });
-
-  it("offers every holiday and every kind when there is no party", async () => {
-    const options = await core.gifts.generalOccasions();
-    expect(options.some((o) => o.id === holidayIdFor("christmas"))).toBe(true);
-    expect(options.some((o) => o.type === "kind" && o.id === "birthday")).toBe(
-      true,
-    );
-    // Nothing here creates anything — a kind is what an idea stores.
-    expect(options.every((o) => o.existing)).toBe(true);
-    // Still ranked: the common ones lead.
-    expect(options[0]?.tier).toBe("common");
-  });
-});
-
-/**
- * The reverse fill: an occasion + a year resolves back to a
- * date, so "Christmas 1941" can fill in Dec 25 without the user counting.
- */
-describe("core.holidays.occurrencesIn", () => {
-  it("resolves a fixed holiday's date in a given year", async () => {
     expect(
-      await core.holidays.occurrencesIn(holidayIdFor("christmas"), 1941),
-    ).toEqual(["1941-12-25"]);
-  });
-
-  it("resolves a computed holiday's date in a given year", async () => {
+      (await core.gifts.recipients.listForRecipient("pet", rufus)).map(
+        (l) => l.ideaTitle,
+      ),
+    ).toEqual(["Chew toy"]);
     expect(
-      await core.holidays.occurrencesIn(holidayIdFor("us-mothers-day"), 2026),
-    ).toEqual(["2026-05-10"]);
-  });
-
-  it("returns nothing for an unknown holiday", async () => {
-    expect(
-      await core.holidays.occurrencesIn(holidayIdFor("nope"), 2026),
-    ).toEqual([]);
+      (await core.gifts.recipients.listForIdea(idea.id))[0]?.recipientLabel,
+    ).toBe("Rufus");
   });
 });
 
 describe("core.gifts.overview (the Gifts screen, keyed by idea)", () => {
-  it("returns each idea with its suggestions and givings joined", async () => {
+  it("returns each idea with everyone it is for", async () => {
     const alice = await makePerson("Alice");
     const bob = await makePerson("Bob");
-    const me = await makePerson("Me");
-    await core.self.set(me);
 
-    // One idea suggested for Alice and Bob, and given to Alice.
-    await core.gifts.capture({
-      giftIdea: { title: "BB Gun" },
+    const idea = await core.gifts.capture({
+      giftIdea: { title: "Kite" },
       recipients: [
         { party: { type: "person", id: alice } },
-        { party: { type: "person", id: bob } },
-      ],
-    });
-    await core.gifts.capture({
-      giftIdea: { title: "BB Gun" }, // exact-title reuse isn't core's job; new call
-      recipients: [
-        {
-          party: { type: "person", id: alice },
-          givings: [{ date: { year: 1941 } }],
-        },
+        { party: { type: "person", id: bob }, given: true },
       ],
     });
 
-    const overview = await core.gifts.overview();
-    const bbGun = overview.filter((o) => o.idea.title === "BB Gun");
-    // Two ideas were minted (core doesn't dedupe by title); find the suggested one.
-    const suggested = bbGun.find((o) => o.suggestions.length > 0);
-    expect(suggested?.suggestions.map((s) => s.recipientLabel).sort()).toEqual([
+    const [row] = await core.gifts.overview();
+    expect(row?.idea.id).toBe(idea.id);
+    expect(row?.recipients.map((r) => r.recipientLabel).sort()).toEqual([
       "Alice X",
       "Bob X",
     ]);
-    const given = bbGun.find((o) => o.gifts.length > 0);
-    expect(given?.gifts[0]?.recipientLabel).toBe("Alice X");
-    expect(given?.gifts[0]?.giverLabel).toBe("Me X");
+    expect(
+      row?.recipients
+        .filter((r) => r.givenAt !== null)
+        .map((r) => r.recipientLabel),
+    ).toEqual(["Bob X"]);
   });
 
-  it("lists an idea with no suggestions or gifts (a bare idea)", async () => {
+  it("lists an idea nobody is down for (a bare idea)", async () => {
     await core.gifts.ideas.create({ title: "Socks" });
-    const overview = await core.gifts.overview();
-    expect(overview).toHaveLength(1);
-    expect(overview[0]?.idea.title).toBe("Socks");
-    expect(overview[0]?.suggestions).toEqual([]);
-    expect(overview[0]?.gifts).toEqual([]);
+    const [row] = await core.gifts.overview();
+    expect(row?.idea.title).toBe("Socks");
+    expect(row?.recipients).toEqual([]);
+    expect(row?.tags).toEqual([]);
   });
 });
 
-/**
- * Tags on gift ideas: `gift_idea` joined
- * `tagBearerTypeSchema` as one more bearer, so an idea list stays browsable once
- * it's long. The tag set rides the idea's create/update the way a Person's does.
- */
 describe("core.gifts.ideas — tags", () => {
   it("saves an idea's tags with the idea itself", async () => {
     const idea = await core.gifts.ideas.create({ title: "Wool socks" }, [
@@ -936,7 +505,7 @@ function civilDaysFromToday(days: number): CivilDate {
  * The reminder loop: the `🎁 gift` action has
  * always minted "Get @Alice a gift"; `giftTargets` is what tells a client which
  * reminders those are and who they're for, so it can link to the recipient's
- * gifts and — once done — to logging what was given.
+ * gifts and — once done — to ticking off what was given.
  */
 describe("core.reminders.giftTargets", () => {
   /** A person with a birthday `days` out whose schedule turns the gift action on. */
@@ -987,7 +556,7 @@ describe("core.reminders.giftTargets", () => {
     expect(labels).toEqual(["🎁 Get @Alice X a gift"]);
   });
 
-  it("keeps naming the reminder once it's completed, so the giving can be logged", async () => {
+  it("keeps naming the reminder once it's completed, so the gift can be recorded", async () => {
     const alice = await personWithGiftReminder(20, "Alice");
     const [target] = await core.reminders.giftTargets();
     await core.reminders.setCompleted(target.reminderId, true);
@@ -1020,9 +589,9 @@ describe("core.reminders.giftTargets", () => {
     expect(await core.reminders.giftTargets()).toEqual([]);
   });
 
-  it("hands the recipient to a giving that closes the loop", async () => {
+  it("hands the recipient to a capture that closes the loop", async () => {
     // What the completed-reminder CTA does: capture a gift for the named
-    // recipient, which then reads back on their page as a logged giving.
+    // recipient, already ticked, which then reads back on their page as given.
     const alice = await personWithGiftReminder(20, "Alice");
     const [target] = await core.reminders.giftTargets();
 
@@ -1031,12 +600,13 @@ describe("core.reminders.giftTargets", () => {
       recipients: [
         {
           party: { type: target.recipientType, id: target.recipientId },
-          givings: [{ date: { year: 2026, month: 3, day: 9 } }],
+          given: true,
         },
       ],
     });
 
-    const given = await core.gifts.given.listForRecipient("person", alice);
-    expect(given.map((g) => g.ideaTitle)).toEqual(["Scarf"]);
+    const rows = await core.gifts.recipients.listForRecipient("person", alice);
+    expect(rows.map((r) => r.ideaTitle)).toEqual(["Scarf"]);
+    expect(rows[0]?.givenAt).not.toBeNull();
   });
 });

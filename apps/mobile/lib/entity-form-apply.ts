@@ -1,11 +1,6 @@
 import type { CoreApi } from "@leapsake/core";
 import { type EntityType, milestoneLabel } from "@leapsake/schema";
-import {
-  captureRecipientOfDraft,
-  giftIdeaOf,
-  parseDateFields,
-  resolveStagedOccasion,
-} from "@leapsake/ui/headless";
+import { captureRecipientOf, giftIdeaOf } from "@leapsake/ui/headless";
 import { giftDraftEmpty } from "../components/GiftFields";
 import { milestoneDraftToValue } from "../components/MilestoneFields";
 import {
@@ -48,9 +43,11 @@ import type { EntityFormValue } from "./entity-form";
  * by name and returned; the caller names them and carries on to the detail page,
  * where whatever didn't take is one tap from being redone.
  *
- * The order is mostly arbitrary — the sections don't depend on each other — with
- * one exception: **milestones first, gifts last**, because a gift's occasion may
- * name a milestone staged on the same form and needs the id its write produced.
+ * The order is arbitrary — the sections don't depend on each other. It used to
+ * have one exception, **milestones first and gifts last**, because a gift's
+ * occasion could name a milestone staged on the same form and needed the id its
+ * write produced; a gift names nothing but its recipient now, so the constraint
+ * and the staged-key map that served it are both gone.
  */
 export async function applyEntityForm(
   core: CoreApi,
@@ -72,29 +69,18 @@ export async function applyEntityForm(
   }
 
   // ---- Milestones ---------------------------------------------------------
-  // Staged key → the id the milestone actually has, for the gift occasions
-  // below. A saved row maps to itself; a row that failed to write simply isn't in
-  // the map, which is what makes its occasion resolve to nothing rather than to a
-  // dangling id.
-  const milestoneIds = new Map<string, string>();
   for (const row of value.milestones) {
     // An empty row is the "Add milestone" tap nobody followed through on.
     if (milestoneRowPending(row)) continue;
-    const { key, saved, edited } = row;
+    const { saved, edited } = row;
     const fields = milestoneDraftToValue(row.draft);
     const label = milestoneLabel(fields);
     if (saved === undefined) {
-      await attempt(label, async () => {
-        const created = await core.milestones.create({
-          ...fields,
-          bearerType,
-          bearerId,
-        });
-        milestoneIds.set(key, created.id);
-      });
+      await attempt(label, () =>
+        core.milestones.create({ ...fields, bearerType, bearerId }),
+      );
       continue;
     }
-    milestoneIds.set(key, saved.id);
     if (edited === true) {
       await attempt(label, () => core.milestones.update(saved.id, fields));
     }
@@ -214,32 +200,16 @@ export async function applyEntityForm(
   }
 
   // ---- Gifts --------------------------------------------------------------
-  // Last, so every staged milestone has been written and can be named.
   const dropped = new Set(value.gifts.removed);
-  for (const [key, pair] of Object.entries(value.gifts.adornments)) {
-    if (dropped.has(key)) continue;
-    const [kind, ...rest] = key.split(":");
-    const id = rest.join(":");
-    const occasion = resolveStagedOccasion(pair.occasion, milestoneIds);
-    const date = parseDateFields(pair.date);
-    await attempt("a gift", () =>
-      kind === "suggestion"
-        ? core.gifts.suggestions.update(id, { occasion, targetDate: date })
-        : core.gifts.given.update(id, { occasion, date }),
-    );
+  for (const [id, given] of Object.entries(value.gifts.given)) {
+    if (dropped.has(id)) continue;
+    await attempt("a gift", () => core.gifts.recipients.update(id, { given }));
   }
-  for (const key of value.gifts.removed) {
-    const [kind, ...rest] = key.split(":");
-    const id = rest.join(":");
-    await attempt("a gift", () =>
-      kind === "suggestion"
-        ? core.gifts.suggestions.softDelete(id)
-        : core.gifts.given.softDelete(id),
-    );
+  for (const id of value.gifts.removed) {
+    await attempt("a gift", () => core.gifts.recipients.softDelete(id));
   }
   // One `capture` per added gift: the payload carries one idea and N recipients,
-  // and each staged gift is its own idea. The entity is the sole recipient; the
-  // giver still resolves to the self-person inside `capture`.
+  // and each staged gift is its own idea. The entity is the sole recipient.
   //
   // A row nobody filled in is skipped rather than written — the "Add gift" tap
   // that went nowhere, exactly as an empty contact row is skipped. The pool is
@@ -255,23 +225,7 @@ export async function applyEntityForm(
       core.gifts.capture({
         giftIdea: giftIdeaOf(draft, ideaPool),
         recipients: [
-          captureRecipientOfDraft(
-            { type: bearerType, id: bearerId },
-            {
-              kind: draft.kind,
-              givings: draft.givings.map((row) => ({
-                ...row,
-                occasion: resolveStagedOccasion(row.occasion, milestoneIds),
-              })),
-              suggestion: {
-                ...draft.suggestion,
-                occasion: resolveStagedOccasion(
-                  draft.suggestion.occasion,
-                  milestoneIds,
-                ),
-              },
-            },
-          ),
+          captureRecipientOf({ type: bearerType, id: bearerId }, draft.given),
         ],
       }),
     );

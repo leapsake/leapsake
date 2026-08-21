@@ -10,6 +10,15 @@ export interface Migration {
  * The ordered migration list. Append new migrations with the next integer
  * version; never edit or reorder existing ones. Portable SQL only, so the same
  * migrations run on node:sqlite (desktop) and expo-sqlite (mobile).
+ *
+ * **Versions 26 and 34 are absent, deliberately.** They created
+ * `gift_suggestions`/`gifts` and `gift_idea_occasions`; the gift model collapsed
+ * to two tables when occasions and dates left v0.1 scope, and under the pre-v0.1
+ * latitude in AGENTS.md they were rewritten in place rather than migrated away
+ * from — the version numbers were not reused, so a stale profile fails loudly on
+ * a missing table rather than quietly on a renumbered one. The runner filters and
+ * sorts by version, so gaps cost nothing. **Delete the dev profile and relaunch**
+ * if yours predates this. The rule above resumes at v0.1.
  */
 export const migrations: Migration[] = [
   {
@@ -709,8 +718,8 @@ export const migrations: Migration[] = [
     async up(driver) {
       // Gift ideas — "a thing in the world", reusable
       // and person-agnostic: `title` (required) plus optional `url` and `notes`.
-      // The first of the three gift tables; a suggestion pairs an idea with a
-      // recipient and a giving is a dated event, but an idea alone is a standalone
+      // The first of the two gift tables; `gift_recipients` pairs an idea with a
+      // person or pet, but an idea alone is a standalone
       // shopping/idea list. Plaintext synced row (no per-item content key), like
       // reminders — not a share target, protected by whole-DB-at-rest + the
       // master-key sync seal. Near-duplicate titles are tolerated by design (the
@@ -731,82 +740,45 @@ export const migrations: Migration[] = [
   {
     version: 25,
     async up(driver) {
-      // Gift suggestions — a candidate: one gift
-      // idea paired with a recipient ("Ralphie would like a BB gun"). NOT a giving
-      // (that's the dated `gifts` table, later): a suggestion carries no state and
-      // no "given" column, because whether it was given is a query over gifts, not
-      // a mutation here. No note, no giver in v1 (a suggestion implicitly
-      // originates with the user).
+      // Gift recipients — one gift idea paired with one person or pet, and
+      // whether it has been given to them ("Ralphie would like a BB gun", and
+      // later, "…and now he has one").
       //
-      // `occasion_*` is an optional polymorphic pointer (milestone | holiday) —
-      // both parts move together (enforced in Zod). It's a *label*: the
-      // `target_*` partial date is the source of truth for *when* (reusing the
-      // milestone day⇒month shape, distinct column names so intent never blurs
-      // with a gift's what-happened date). `recipient_*` is polymorphic
-      // (person | pet), reserving `relationship` for later with no schema change.
-      // Plaintext synced row, no FKs — recipient/idea/occasion resolve at read.
+      // This replaces what were two tables: `gift_suggestions` (a candidate) and
+      // `gifts` (a *dated* giving, with a giver and an occasion). That split was
+      // load-bearing only while a giving carried a date — it is what made the
+      // cardinalities differ, one suggestion to N givings. With dates and
+      // occasions out of v0.1 scope, "given twice" is unrepresentable and the
+      // query over the second table returns a boolean, so the two rows are one
+      // row with a stamp. See `gift-recipient.ts`; `git log` at `41ee888` has the
+      // model that had both.
+      //
+      // `given_at` is NULLABLE and records **when the box was ticked**, not when
+      // the gift changed hands — an audit stamp in the `created_at` family. Every
+      // read treats it as a boolean; nothing formats it. A real gift date, if it
+      // ever comes back, is a different column.
+      //
+      // `recipient_*` is polymorphic (person | pet), reserving `relationship` for
+      // later with no schema change. No unique index on
+      // `(gift_idea_id, recipient_*)`: two devices can each mint a row for the
+      // same pair, and the rest of the sync model dedupes on read rather than at
+      // the constraint. Plaintext synced row, no FKs — recipient and idea resolve
+      // at read.
       await driver.exec(`
-        CREATE TABLE gift_suggestions (
+        CREATE TABLE gift_recipients (
           id             TEXT    PRIMARY KEY,
           gift_idea_id   TEXT    NOT NULL,
           recipient_type TEXT    NOT NULL,
           recipient_id   TEXT    NOT NULL,
-          occasion_type  TEXT,
-          occasion_id    TEXT,
-          target_year    INTEGER,
-          target_month   INTEGER,
-          target_day     INTEGER,
+          given_at       INTEGER,
           created_at     INTEGER NOT NULL,
           updated_at     INTEGER NOT NULL,
           deleted_at     INTEGER
         );
-        CREATE INDEX ix_gift_suggestions_recipient
-          ON gift_suggestions(recipient_type, recipient_id) WHERE deleted_at IS NULL;
-        CREATE INDEX ix_gift_suggestions_idea
-          ON gift_suggestions(gift_idea_id) WHERE deleted_at IS NULL;
-      `);
-    },
-  },
-  {
-    version: 26,
-    async up(driver) {
-      // Gifts — a dated **event**: something changed hands
-      // ("Ralphie was given a BB gun, Christmas 1941"). A giving points at the
-      // **idea**, never a suggestion — so "✓ given" is a query on
-      // `(gift_idea_id, recipient)` with no state column, and the scotch you give
-      // every Christmas is one suggestion and N gifts.
-      //
-      // `gift_idea_id` required. `giver_*` NULLABLE = "unknown who gave it" (NOT
-      // "me" — "I gave it" points the giver at the self-person, a real Person).
-      // `recipient_*` required. Both parties polymorphic (person | pet). Plain
-      // `year`/`month`/`day` = *what happened* (distinct from a suggestion's
-      // `target_*` intent), reusing the milestone day⇒month shape. Optional
-      // `occasion_*` pointer (milestone | holiday). Plaintext synced row, no FKs —
-      // idea/parties/occasion resolve at read (the giver≠recipient and
-      // both-or-neither rules live in Zod).
-      await driver.exec(`
-        CREATE TABLE gifts (
-          id             TEXT    PRIMARY KEY,
-          gift_idea_id   TEXT    NOT NULL,
-          giver_type     TEXT,
-          giver_id       TEXT,
-          recipient_type TEXT    NOT NULL,
-          recipient_id   TEXT    NOT NULL,
-          year           INTEGER,
-          month          INTEGER,
-          day            INTEGER,
-          occasion_type  TEXT,
-          occasion_id    TEXT,
-          created_at     INTEGER NOT NULL,
-          updated_at     INTEGER NOT NULL,
-          deleted_at     INTEGER
-        );
-        CREATE INDEX ix_gifts_recipient
-          ON gifts(recipient_type, recipient_id) WHERE deleted_at IS NULL;
-        CREATE INDEX ix_gifts_giver
-          ON gifts(giver_type, giver_id) WHERE deleted_at IS NULL;
-        CREATE INDEX ix_gifts_idea
-          ON gifts(gift_idea_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_gift_recipients_recipient
+          ON gift_recipients(recipient_type, recipient_id) WHERE deleted_at IS NULL;
+        CREATE INDEX ix_gift_recipients_idea
+          ON gift_recipients(gift_idea_id) WHERE deleted_at IS NULL;
       `);
     },
   },
@@ -1048,43 +1020,6 @@ export const migrations: Migration[] = [
           ON social_profiles(owner_type, owner_id) WHERE deleted_at IS NULL;
         CREATE INDEX ix_social_profiles_normalized
           ON social_profiles(normalized) WHERE deleted_at IS NULL;
-      `);
-    },
-  },
-  {
-    version: 34,
-    async up(driver) {
-      // What an idea is *for*, said about the thing rather than about a person:
-      // "this would make a good Christmas gift for someone". The one gift
-      // adornment that needs no recipient, which is why it hangs off the idea
-      // and not off a suggestion (`giftIdeaOccasionSchema`).
-      //
-      // A table rather than columns on `gift_ideas` because a candle is a
-      // birthday gift *and* a housewarming gift — and because a row per occasion
-      // merges: two devices each adding one keep both, where a column would drop
-      // one under whole-row LWW.
-      //
-      // `occasion_*` is the same polymorphic pointer the suggestion and gift
-      // rows carry, with one addition: `occasion_type = 'kind'` stores a
-      // **milestone kind** ("birthday"), not a row id, because with no recipient
-      // there is no milestone to point at. That arm exists only here — core
-      // resolves it against a real person's milestone the moment one is named.
-      // No FKs, as everywhere else; the pointer resolves at read.
-      await driver.exec(`
-        CREATE TABLE gift_idea_occasions (
-          id            TEXT    PRIMARY KEY,
-          gift_idea_id  TEXT    NOT NULL,
-          occasion_type TEXT    NOT NULL,
-          occasion_id   TEXT    NOT NULL,
-          target_year   INTEGER,
-          target_month  INTEGER,
-          target_day    INTEGER,
-          created_at    INTEGER NOT NULL,
-          updated_at    INTEGER NOT NULL,
-          deleted_at    INTEGER
-        );
-        CREATE INDEX ix_gift_idea_occasions_idea
-          ON gift_idea_occasions(gift_idea_id) WHERE deleted_at IS NULL;
       `);
     },
   },

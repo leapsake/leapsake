@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import type {
   BearerHolidayCandidate,
+  GiftForRecipient,
   PersonView,
   PetView,
 } from "@leapsake/core";
@@ -22,7 +23,7 @@ import { useHeaderSave } from "./HeaderSave";
 import { personDraftFrom, personDraftToInput } from "./PersonFields";
 import { petDraftFrom, petDraftToInput } from "./PetFields";
 import { stagedContactOf } from "./StagedContactsSection";
-import { type SavedGifts, emptyGiftEdits } from "./StagedGiftsSection";
+import { emptyGiftEdits } from "./StagedGiftsSection";
 import { stagedMilestoneOf } from "./StagedMilestonesSection";
 import { stagedRelationshipOf } from "./StagedRelationshipsSection";
 import { useCore } from "../lib/core-context";
@@ -77,7 +78,7 @@ export function EntityEditForm({ type, id }: { type: EntityType; id: string }) {
   // `initial` is the only trace left of what the user took out.
   const [value, setValue] = useState<EntityFormValue | null>(null);
   const [initial, setInitial] = useState<EntityFormValue | null>(null);
-  const [savedGifts, setSavedGifts] = useState<SavedGifts | null>(null);
+  const [savedGifts, setSavedGifts] = useState<GiftForRecipient[] | null>(null);
   // Who the form is about, as the Gifts section wants it: only its label is
   // needed here, and only to say who was already given something.
   const [subject, setSubject] = useState<PartyOption | null>(null);
@@ -88,11 +89,10 @@ export function EntityEditForm({ type, id }: { type: EntityType; id: string }) {
     let active = true;
     void (async () => {
       try {
-        const [view, holidays, suggestions, gifts] = await Promise.all([
+        const [view, holidays, gifts] = await Promise.all([
           isPerson ? core.views.person(id) : core.views.pet(id),
           core.holidays.listForBearer(type, id),
-          core.gifts.suggestions.listForRecipient(type, id),
-          core.gifts.given.listForRecipient(type, id),
+          core.gifts.recipients.listForRecipient(type, id),
         ]);
         if (!active) return;
         if (view === null) {
@@ -121,7 +121,7 @@ export function EntityEditForm({ type, id }: { type: EntityType; id: string }) {
         // A separate copy, not the same object: the two must not share the row
         // arrays, or filtering one would empty the other.
         setInitial(seedFrom(view, holidays, own, schedules));
-        setSavedGifts({ suggestions, gifts });
+        setSavedGifts(gifts);
         setSubject({
           type,
           id,

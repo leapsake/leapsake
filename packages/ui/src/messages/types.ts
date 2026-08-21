@@ -123,16 +123,8 @@ export interface Messages {
     empty: string;
     /** The idea's external link. */
     link: string;
-    /**
-     * A candidate, with its occasion and target date if it has them. Takes the
-     * details as a list rather than a joined string: separators are a language's
-     * decision (`Intl.ListFormat`), not a component's.
-     */
-    suggested: (details: readonly string[]) => string;
-    /** A logged giving, with its date, giver and occasion if known. */
-    given: (details: readonly string[]) => string;
-    /** Who a giving came from, when known. */
-    fromGiver: (giver: string) => string;
+    /** The tick beside a gift on a person's or pet's list. */
+    given: string;
   };
 
   giftIdeaRecipients: {
@@ -140,25 +132,8 @@ export interface Messages {
     addLabel: string;
     addPlaceholder: string;
     empty: string;
-    /** A recipient the idea is suggested for, with its occasion when it has one. */
-    recipientLine: (recipient: string, occasion: string | null) => string;
-  };
-
-  giftAdornments: {
-    suggestionLegend: string;
-    givingLegend: string;
-  };
-
-  giftOccasion: {
-    occasionLabel: string;
-    noOccasion: string;
-    milestoneGroup: string;
-    holidayGroup: string;
-    year: string;
-    month: string;
-    day: string;
-    /** Offer a date the occasion actually falls on. */
-    useDate: (iso: string) => string;
+    /** The tick beside one party on an idea's list. */
+    givenTo: (recipient: string) => string;
   };
 
   giftCapture: {
@@ -169,16 +144,10 @@ export interface Messages {
     addRecipientLabel: string;
     addRecipientPlaceholder: string;
     removeRecipient: string;
-    addDate: string;
-    removeDate: string;
-    givingLegend: string;
-    suggestionSummary: string;
-    suggestionLegend: string;
-    /** The re-gift guard, phrased without a giver: what matters is they have one. */
-    alreadyGiven: (recipient: string, when: readonly string[]) => string;
+    /** The capture form's tick: this one is already in their hands. */
+    alreadyGiven: (recipient: string) => string;
     missingTitle: string;
-    submitSuggestion: string;
-    submitGiving: string;
+    submit: string;
   };
 
   relationshipForm: {

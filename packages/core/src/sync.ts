@@ -15,10 +15,8 @@ import {
   createAccountRepo,
   createContactMethodsRepo,
   createDismissalsRepo,
-  createGiftIdeaOccasionsRepo,
   createGiftIdeasRepo,
-  createGiftSuggestionsRepo,
-  createGiftsRepo,
+  createGiftRecipientsRepo,
   createHiddenHolidaysRepo,
   createHolidaysRepo,
   createMilestonesRepo,
@@ -128,12 +126,8 @@ export function syncableRepos(driver: SqliteDriver): SyncableRepo<SyncRow>[] {
     createSelfPersonRepo(driver),
     // Gift ideas — plaintext, person-agnostic rows.
     createGiftIdeasRepo(driver),
-    // What an idea is *for* with no recipient named — "a Christmas thing".
-    createGiftIdeaOccasionsRepo(driver),
-    // Gift suggestions — idea × recipient candidates.
-    createGiftSuggestionsRepo(driver),
-    // Gifts — dated giving events.
-    createGiftsRepo(driver),
+    // Gift recipients — idea × person/pet, and whether it has been given.
+    createGiftRecipientsRepo(driver),
     // Holidays: the catalog syncs alongside user data so only ONE device ever
     // needs internet — a laptop that updates at a coffee shop can carry the new
     // catalog to every other device over an internet-less LAN relay. The usual

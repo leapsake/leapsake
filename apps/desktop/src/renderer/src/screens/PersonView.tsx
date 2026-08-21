@@ -2,7 +2,6 @@ import type {
   BearerHolidayCandidate,
   DuplicateCandidate,
   GiftForRecipient,
-  GiftSuggestionForRecipient,
 } from "@leapsake/core";
 import type {
   ContactMethod,
@@ -34,7 +33,6 @@ export function PersonView() {
     contactMethods,
     mentionedIn,
     holidays,
-    giftSuggestions,
     giftIdeaPool,
     giftsGiven,
     duplicateCandidates,
@@ -47,7 +45,6 @@ export function PersonView() {
     contactMethods: ContactMethod[];
     mentionedIn: Reminder[];
     holidays: BearerHolidayCandidate[];
-    giftSuggestions: GiftSuggestionForRecipient[];
     giftIdeaPool: GiftIdea[];
     giftsGiven: GiftForRecipient[];
     duplicateCandidates: DuplicateCandidate[];
@@ -65,7 +62,6 @@ export function PersonView() {
       contactMethods={contactMethods}
       mentionedIn={mentionedIn}
       holidays={holidays}
-      giftSuggestions={giftSuggestions}
       giftsGiven={giftsGiven}
       giftIdeaPool={giftIdeaPool}
       duplicateCount={duplicateCandidates.length}

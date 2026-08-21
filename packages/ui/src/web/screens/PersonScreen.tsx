@@ -10,7 +10,7 @@ import type {
 import { fullName } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
-import type { GivenRow, SuggestionRow } from "../../headless/index.js";
+import type { GiftRecipientRow } from "../../headless/index.js";
 import { Breadcrumbs, type Crumb } from "../primitives/Breadcrumbs.js";
 import { DetailList } from "../primitives/DetailList.js";
 import { GenderValue, type GenderResult } from "../primitives/GenderValue.js";
@@ -43,7 +43,6 @@ export function PersonScreen({
   contactMethods,
   mentionedIn,
   holidays,
-  giftSuggestions,
   giftsGiven,
   giftIdeaPool,
   duplicateCount,
@@ -59,8 +58,7 @@ export function PersonScreen({
   contactMethods: readonly ContactMethod[];
   mentionedIn: readonly Reminder[];
   holidays: readonly BearerHoliday[];
-  giftSuggestions: readonly SuggestionRow[];
-  giftsGiven: readonly GivenRow[];
+  giftsGiven: readonly GiftRecipientRow[];
   giftIdeaPool: readonly GiftIdea[];
   /** How many other people look like this one; 0 hides the review banner. */
   duplicateCount: number;
@@ -134,7 +132,6 @@ export function PersonScreen({
         recipientType="person"
         recipientId={person.id}
         recipientLabel={name}
-        suggestions={giftSuggestions}
         gifts={giftsGiven}
         ideaPool={giftIdeaPool}
         onChanged={onChanged}

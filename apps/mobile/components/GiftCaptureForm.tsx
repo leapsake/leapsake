@@ -1,30 +1,24 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Stack } from "expo-router";
-import type { CaptureRecipient, GiftIdea } from "@leapsake/schema";
+import type { GiftIdea } from "@leapsake/schema";
 import {
-  type IdeaOccasionRow,
   type PartyOption,
   type RecipientEntry,
-  captureRecipientOfDraft,
+  captureRecipientOf,
   giftIdeaOf,
-  ideaOccasionsOf,
-  newGivingRow,
-  newSuggestionFields,
+  newRecipientEntry,
   partyKey,
   patchRecipient,
   removeRecipient,
-  usePartyContext,
 } from "@leapsake/ui/headless";
 import {
   type GiftDraft,
+  GiftGivenToggle,
   GiftIdentityFields,
-  GiftRecipientArm,
   emptyGiftDraft,
 } from "./GiftFields";
-import { GiftIdeaOccasionsField } from "./GiftIdeaOccasionsField";
 import { HeaderSave } from "./HeaderSave";
-import { useGiftPartyLoaders } from "../lib/gifts-ports";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 import { Typeahead } from "./Typeahead";
@@ -32,44 +26,32 @@ import { Typeahead } from "./Typeahead";
 /**
  * The one consolidated "capture a gift" **screen** — a {@link GiftDraft} plus
  * whoever it is for, and the single `core.gifts.capture` that writes them. The
- * fields themselves are {@link GiftIdentityFields} and {@link GiftRecipientArm},
+ * fields themselves are {@link GiftIdentityFields} and {@link GiftGivenToggle},
  * which the entity forms' {@link StagedGiftsSection} renders directly; this is
  * the wrapper that owns state and has a Save.
  *
  * Name a gift (autocompleting existing ideas) or paste a link; that alone
  * captures an **idea**. On the Gifts screen you then add **recipients**; on a
- * Person/Pet screen the recipient is fixed. One submit, one transaction.
+ * Person/Pet screen the recipient is fixed. Tick anyone who already has it. One
+ * submit, one transaction.
  *
  * `fixedRecipient` (one known recipient) and `recipientCandidates` (Gifts screen)
  * are mutually exclusive: the former hides the recipient picker, the latter shows
  * a multi-add typeahead over people/pets, each picked party carrying **its own**
- * arm (a date under Alice is a gift to Alice) while the name and kind above are
- * shared.
+ * tick while the name above is shared.
  *
- * This form used to have a third mode — `inline`, with `onStage` handing the
- * payload back and a `Cancel  Add` row in the body — for the entity create and
- * edit screens. It was the last staged form to work that way, on the grounds that
- * capturing a gift was several arms of state resolving into one payload rather
- * than a row you type into. Once the arms became a single controlled draft that
- * stopped being true, and {@link StagedGiftsSection} now appends open rows like
- * every other staged section ({@link ContactMethodFields}).
- *
- * With **no recipient at all** the idea itself can name occasions
- * ({@link GiftIdeaOccasionsField}) — "this would make a good Christmas gift for
- * someone" is a whole capture, and it is the only arm here that writes nothing
- * about a person. It belongs to the Idea arm alone: an idea suits an occasion,
- * whereas a gift you have already handed over was given to somebody.
- *
- * Like the entity forms it declares its own native header — `title` plus a
- * right-aligned {@link HeaderSave} — rather than carrying a submit button at the
- * foot of a form this long.
+ * This form used to open by asking which of two things it was — "Idea" or
+ * "Already gave it" — because the answer chose which table the submit wrote to,
+ * and reshaped every field below it into either dated giving rows or a target
+ * occasion. With one table there is nothing to ask, and the answer is the
+ * checkbox on each recipient.
  */
 export function GiftCaptureForm({
   title: headerTitle,
   ideaPool,
   fixedRecipient,
   recipientCandidates,
-  startWithGiving = false,
+  startGiven = false,
   onSaved,
 }: {
   /** The native header title, set here so it's declared in one place. */
@@ -77,64 +59,30 @@ export function GiftCaptureForm({
   ideaPool: GiftIdea[];
   fixedRecipient?: PartyOption;
   recipientCandidates?: PartyOption[];
-  /** Open on the "Already gave it" segment, so the form reads as "log a giving"
-   *  rather than "shortlist an idea" (the completed-gift-reminder hand-off). */
-  startWithGiving?: boolean;
+  /** Open with the box already ticked — the completed-gift-reminder hand-off,
+   *  where the answer to "record what you gave" is that you gave it. */
+  startGiven?: boolean;
   /** Called after a successful save — the screen decides whether that means
    *  reloading in place or navigating away. */
   onSaved?: () => void;
 }) {
   const core = useCore();
-  const partyLoaders = useGiftPartyLoaders();
 
-  const initial = () =>
-    emptyGiftDraft(startWithGiving ? "giving" : "suggestion");
-  const [draft, setDraft] = useState<GiftDraft>(initial);
-  // Gifts-screen mode: recipients each carry their own arm.
+  const [draft, setDraft] = useState<GiftDraft>(() =>
+    emptyGiftDraft(startGiven),
+  );
+  // Gifts-screen mode: recipients each carry their own tick.
   const [recipients, setRecipients] = useState<RecipientEntry[]>([]);
-  // The idea's own occasions — "a good Christmas gift for someone". Offered only
-  // where there is no recipient to hang them on instead (see the render below).
-  const [ideaOccasions, setIdeaOccasions] = useState<IdeaOccasionRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Bumped by `reset` and keyed onto the fields, so they remount with it. A
-  // sub-form's own disclosure state — whether `WhenField` is showing its
-  // year/month/day — is not something `reset` can reach by clearing values, and a
-  // form that has just saved should not open on the last one's opened triple.
-  const [generation, setGeneration] = useState(0);
 
   const chosenKeys = new Set(recipients.map((r) => partyKey(r.option)));
-
-  // One context per party in play — the fixed recipient, or everyone picked.
-  const pools = usePartyContext(
-    fixedRecipient ? [fixedRecipient] : recipients.map((r) => r.option),
-    partyLoaders,
-  );
-
   const trimmedTitle = draft.title.trim();
 
-  // The exact-title match submitting would reuse. A brand-new title can't have
-  // been given before, so the re-gift guard keys off the same match.
-  const typedIdea =
-    trimmedTitle === ""
-      ? undefined
-      : ideaPool.find(
-          (i) => i.title.toLowerCase() === trimmedTitle.toLowerCase(),
-        );
-
   function reset() {
-    setDraft(initial());
+    setDraft(emptyGiftDraft(startGiven));
     setRecipients([]);
-    setIdeaOccasions([]);
-    setGeneration((n) => n + 1);
   }
-
-  /** One recipient's arms as the capture payload — see
-   *  {@link captureRecipientOfDraft} for why the unchosen one is dropped. */
-  const payloadFor = (
-    party: PartyOption,
-    entry: Pick<RecipientEntry, "givings" | "suggestion">,
-  ) => captureRecipientOfDraft(party, { ...entry, kind: draft.kind });
 
   async function submit() {
     if (trimmedTitle === "") {
@@ -142,21 +90,9 @@ export function GiftCaptureForm({
       return;
     }
 
-    // Saying "I gave it" and naming nobody is the one contradiction the segmented
-    // control introduced, and only this arm can reach it — the other is told who
-    // the gift is for.
-    if (
-      draft.kind === "giving" &&
-      fixedRecipient === undefined &&
-      recipients.length === 0
-    ) {
-      setError("Who did you give it to?");
-      return;
-    }
-
-    const captureRecipients: CaptureRecipient[] = fixedRecipient
-      ? [payloadFor(fixedRecipient, draft)]
-      : recipients.map((r) => payloadFor(r.option, r));
+    const captureRecipients = fixedRecipient
+      ? [captureRecipientOf(fixedRecipient, draft.given)]
+      : recipients.map((r) => captureRecipientOf(r.option, r.given));
 
     setBusy(true);
     setError(null);
@@ -164,10 +100,6 @@ export function GiftCaptureForm({
       await core.gifts.capture({
         giftIdea: giftIdeaOf(draft, ideaPool),
         recipients: captureRecipients,
-        // Zeroed in the "gave it" arm for the same reason as `payloadFor`'s: the
-        // field is hidden there, and what it holds is last-time's answer.
-        occasions:
-          draft.kind === "suggestion" ? ideaOccasionsOf(ideaOccasions) : [],
       });
       reset();
       onSaved?.();
@@ -202,55 +134,23 @@ export function GiftCaptureForm({
       />
 
       {fixedRecipient ? (
-        <GiftRecipientArm
-          key={generation}
-          kind={draft.kind}
+        <GiftGivenToggle
+          testID="gift-given"
           label={fixedRecipient.label}
-          given={pools.alreadyGiven(fixedRecipient, typedIdea?.id)}
-          occasions={pools.occasionsFor(fixedRecipient)}
-          givings={draft.givings}
-          onGivingsChange={(givings) => setDraft({ ...draft, givings })}
-          suggestion={draft.suggestion}
-          onSuggestionChange={(suggestion) =>
-            setDraft({ ...draft, suggestion })
-          }
+          value={draft.given}
+          onChange={(given) => setDraft({ ...draft, given })}
         />
       ) : (
         <View style={styles.section}>
-          {/*
-            Above the recipient picker on purpose: "a good Christmas gift for
-            someone" is a complete thought, and this is the arm that lets the form
-            be finished without naming anyone. Once a recipient *is* named, their
-            own {@link GiftRecipientArm} says the more specific thing — and a gift
-            already handed over went to somebody, so this stays out of both the
-            fixed-recipient and the gave-it arms entirely.
-          */}
-          {draft.kind === "suggestion" && (
-            <GiftIdeaOccasionsField
-              rows={ideaOccasions}
-              onChange={setIdeaOccasions}
-            />
-          )}
           <Typeahead
             multi
-            label={
-              draft.kind === "giving"
-                ? "Who did you give it to?"
-                : "Who's it for? (optional)"
-            }
+            label="Who's it for? (optional)"
             value={null}
             options={recipientCandidates ?? []}
             exclude={chosenKeys}
             onChange={(option) =>
               option !== null &&
-              setRecipients((prev) => [
-                ...prev,
-                {
-                  option,
-                  givings: draft.kind === "giving" ? [newGivingRow()] : [],
-                  suggestion: newSuggestionFields(),
-                },
-              ])
+              setRecipients((prev) => [...prev, newRecipientEntry(option)])
             }
             getKey={partyKey}
             getLabel={(c) => c.label}
@@ -258,11 +158,12 @@ export function GiftCaptureForm({
           {recipients.map((r) => {
             const key = partyKey(r.option);
             return (
-              <View key={key} style={styles.section}>
+              <View key={key} style={styles.row}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>{r.option.label}</Text>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityLabel={`Remove ${r.option.label}`}
                     onPress={() =>
                       setRecipients((prev) => removeRecipient(prev, key))
                     }
@@ -270,21 +171,11 @@ export function GiftCaptureForm({
                     <Text style={[styles.link, styles.danger]}>Remove</Text>
                   </Pressable>
                 </View>
-                <GiftRecipientArm
-                  kind={draft.kind}
-                  label={r.option.label}
-                  given={pools.alreadyGiven(r.option, typedIdea?.id)}
-                  occasions={pools.occasionsFor(r.option)}
-                  givings={r.givings}
-                  onGivingsChange={(givings) =>
+                <GiftGivenToggle
+                  value={r.given}
+                  onChange={(given) =>
                     setRecipients((prev) =>
-                      patchRecipient(prev, key, { givings }),
-                    )
-                  }
-                  suggestion={r.suggestion}
-                  onSuggestionChange={(suggestion) =>
-                    setRecipients((prev) =>
-                      patchRecipient(prev, key, { suggestion }),
+                      patchRecipient(prev, key, { given }),
                     )
                   }
                 />

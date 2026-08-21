@@ -234,23 +234,6 @@ export function kindsForBearerType(
 }
 
 /**
- * Whether this kind is one people give gifts for — derived from its **own**
- * default schedule offering a `gift` action, rather than from a second list that
- * could disagree with it. A birthday, a wedding, a graduation and a move qualify;
- * a death and a "met" anniversary do not.
- *
- * Read by the gift occasion picker, which puts these kinds at the top as the
- * milestones it is worth *creating* on the spot ("a birthday gift for Anna", when
- * Anna has no birthday on file yet). It ranks the picker, it never limits it —
- * every other kind is still reachable further down the same list.
- */
-export function isGiftBearingKind(kind: MilestoneKind): boolean {
-  return kindDefs[kind].defaultReminderSchedule.some(
-    (r) => r.action === "gift",
-  );
-}
-
-/**
  * The effective staggered-reminder schedule to show/edit for a milestone:
  * `storedRules` when the milestone has been customised (at least one rule row),
  * otherwise the `kind`'s {@link MilestoneKindDef.defaultReminderSchedule}

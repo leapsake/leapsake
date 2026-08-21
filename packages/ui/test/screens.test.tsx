@@ -39,7 +39,6 @@ function renderPerson(over: { duplicateCount?: number } = {}) {
       contactMethods={[]}
       mentionedIn={[]}
       holidays={[]}
-      giftSuggestions={[]}
       giftsGiven={[]}
       giftIdeaPool={[]}
       duplicateCount={over.duplicateCount ?? 0}
@@ -137,7 +136,6 @@ describe("PetScreen", () => {
         timeline={[]}
         mentionedIn={[]}
         holidays={[]}
-        giftSuggestions={[]}
         giftsGiven={[]}
         giftIdeaPool={[]}
         onSetObserves={vi.fn(async () => {})}

@@ -11,8 +11,8 @@
  * importing core's — each function constrains only the fields it reads, so core's
  * types stay assignable without this package depending on the data layer.
  */
-export { groupGiftsByIdea, sortIdeasGivenLast } from "./gifts.js";
-export type { GiftIdeaRef, IdeaGroup } from "./gifts.js";
+export { isGiven, sortGiftsGivenLast, sortIdeasGivenLast } from "./gifts.js";
+export type { GiftGivenState } from "./gifts.js";
 export { splitBearerHolidays } from "./holidays.js";
 export type { BearerHolidayFacts } from "./holidays.js";
 export {

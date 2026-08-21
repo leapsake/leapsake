@@ -59,13 +59,11 @@ export {
   GiftsPortsProvider,
   useGiftsPorts,
   type GiftCaptureInput,
-  type GiftOccasionChoice,
+  type GiftRecipientRow,
   type GiftsPorts,
-  type GivenRow,
-  type IdeaSuggestionRow,
+  type IdeaRecipientRow,
   type PartialDate,
   type PartyOption,
-  type SuggestionRow,
 } from "../headless/index.js";
 export { GiftCaptureForm } from "./gifts/GiftCaptureForm.js";
 export { GiftsSection } from "./sections/GiftsSection.js";

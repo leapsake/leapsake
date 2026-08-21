@@ -110,36 +110,15 @@ export const en: Messages = {
     title: "Gifts",
     empty: "No gifts yet.",
     link: "link",
-    suggested: (details) =>
-      details.length === 0 ? "Suggested" : `Suggested — ${list(details)}`,
-    given: (details) =>
-      details.length === 0 ? "✓ Given" : `✓ Given — ${list(details)}`,
-    fromGiver: (giver) => `from ${giver}`,
+    given: "Given",
   },
 
   giftIdeaRecipients: {
-    title: "Suggested for",
-    addLabel: "Suggest this idea for a person or pet",
-    addPlaceholder: "Suggest for someone…",
-    empty: "Not suggested for anyone yet.",
-    recipientLine: (recipient, occasion) =>
-      occasion === null ? recipient : `${recipient} — ${occasion}`,
-  },
-
-  giftAdornments: {
-    suggestionLegend: "For…",
-    givingLegend: "Given on…",
-  },
-
-  giftOccasion: {
-    occasionLabel: "Occasion",
-    noOccasion: "— none —",
-    milestoneGroup: "Milestones",
-    holidayGroup: "Holidays",
-    year: "Year",
-    month: "Month",
-    day: "Day",
-    useDate: (iso) => `Use ${iso}`,
+    title: "For…",
+    addLabel: "Add a person or pet this would suit",
+    addPlaceholder: "For whom?",
+    empty: "Not for anyone in particular yet.",
+    givenTo: (recipient) => `Given to ${recipient}`,
   },
 
   giftCapture: {
@@ -150,18 +129,9 @@ export const en: Messages = {
     addRecipientLabel: "Add a person or pet to gift",
     addRecipientPlaceholder: "For whom? (optional)",
     removeRecipient: "Remove",
-    addDate: "+ Add a date",
-    removeDate: "Remove date",
-    givingLegend: "Given on… (a date makes it a logged gift, not a suggestion)",
-    suggestionSummary: "For… (an occasion or a target date, optional)",
-    suggestionLegend: "For…",
-    alreadyGiven: (recipient, when) =>
-      when.length === 0
-        ? `⚠ ${recipient} was already given this.`
-        : `⚠ ${recipient} was already given this — ${list(when)}.`,
+    alreadyGiven: (recipient) => `Already gave it to ${recipient}`,
     missingTitle: "A gift needs a name.",
-    submitSuggestion: "Add",
-    submitGiving: "Log gift",
+    submit: "Add",
   },
 
   relationshipForm: {

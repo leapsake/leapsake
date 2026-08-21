@@ -1,9 +1,9 @@
-import type { GiftSuggestionForIdea } from "@leapsake/core";
 import type { GiftIdea } from "@leapsake/schema";
 import {
   Breadcrumbs,
   GiftIdeaForm,
   GiftIdeaRecipientsSection,
+  type IdeaRecipientRow,
   type PartyOption,
 } from "@leapsake/ui/web";
 import { useLoaderData, useRevalidator } from "react-router-dom";
@@ -12,10 +12,10 @@ import { searchEntities } from "../lib/search";
 import { useSubmitting } from "../lib/useSubmitting";
 
 export function GiftIdeaEdit() {
-  const { idea, tagNames, suggestions, candidates } = useLoaderData() as {
+  const { idea, tagNames, recipients, candidates } = useLoaderData() as {
     idea: GiftIdea;
     tagNames: string;
-    suggestions: GiftSuggestionForIdea[];
+    recipients: IdeaRecipientRow[];
     candidates: PartyOption[];
   };
   // The section writes directly rather than through a route action, so it
@@ -41,7 +41,7 @@ export function GiftIdeaEdit() {
 
       <GiftIdeaRecipientsSection
         ideaId={idea.id}
-        suggestions={suggestions}
+        recipients={recipients}
         candidates={candidates}
         onChanged={() => revalidator.revalidate()}
       />
