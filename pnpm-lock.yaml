@@ -53,6 +53,9 @@ importers:
       '@leapsake/data':
         specifier: workspace:*
         version: link:../../packages/data
+      '@leapsake/flags':
+        specifier: workspace:*
+        version: link:../../packages/flags
       '@leapsake/highlight':
         specifier: workspace:*
         version: link:../../packages/highlight
@@ -126,6 +129,9 @@ importers:
       '@leapsake/data':
         specifier: workspace:*
         version: link:../../packages/data
+      '@leapsake/flags':
+        specifier: workspace:*
+        version: link:../../packages/flags
       '@leapsake/highlight':
         specifier: workspace:*
         version: link:../../packages/highlight
@@ -371,6 +377,9 @@ importers:
       '@leapsake/bytes':
         specifier: workspace:*
         version: link:../bytes
+      '@leapsake/flags':
+        specifier: workspace:*
+        version: link:../flags
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema
@@ -6768,9 +6777,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

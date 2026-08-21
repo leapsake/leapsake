@@ -11,6 +11,7 @@ import {
   onboardingRouteOf,
   runMigrations,
 } from "@leapsake/core";
+import { resetFlagOverrides, setLocalFlagOverrides } from "@leapsake/flags";
 import {
   type CivilDate,
   compareReminderDue,
@@ -30,10 +31,15 @@ beforeEach(async () => {
   ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   core = createCore(driver);
+  // This suite covers the sign-in nudge end to end, and that nudge is gated
+  // behind `multiDevice` — off in what v0.1 ships. The gate's own behaviour is
+  // covered in `packages/reminders/test/onboarding.test.ts`.
+  setLocalFlagOverrides({ multiDevice: true });
 });
 
 afterEach(() => {
   cleanup();
+  resetFlagOverrides();
 });
 
 /** The `system` reminders currently live, via the normal core read. */

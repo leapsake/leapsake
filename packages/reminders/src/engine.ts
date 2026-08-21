@@ -1,4 +1,5 @@
 import { deterministicUuid } from "@leapsake/bytes";
+import { flag } from "@leapsake/flags";
 import {
   type CivilDate,
   type MilestoneBearerType,
@@ -353,7 +354,15 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     // `syncConnected` alone left a user who created a local-only account being
     // nudged toward a flow that could not satisfy the condition — the deep-link
     // lands on Settings, which has no sign-in to offer once an account exists.
-    applies: (s) => !s.syncConnected && !s.hasAccount,
+    //
+    // The `multiDevice` gate is the same argument one step earlier: with the
+    // flag off there is no sign-in on Settings for *anyone*, so the nudge would
+    // deep-link into a screen that cannot satisfy it. The invitation is the
+    // feature's front door, and leaving it up while the destination is shut is
+    // worse than either state. Note that flipping the flag off retires the row
+    // by tombstone like any unmet step, and retirement is permanent — flipping
+    // back on will not resurrect it in a profile that already saw it.
+    applies: (s) => flag("multiDevice") && !s.syncConnected && !s.hasAccount,
     // A user who says "not now" here almost certainly has no other device, so
     // asking once more and then dropping it is the whole budget.
     snoozeDurationDays: 3,

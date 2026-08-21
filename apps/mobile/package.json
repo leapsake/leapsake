@@ -17,6 +17,7 @@
     "@leapsake/core": "workspace:*",
     "@leapsake/crypto": "workspace:*",
     "@leapsake/data": "workspace:*",
+    "@leapsake/flags": "workspace:*",
     "@leapsake/highlight": "workspace:*",
     "@leapsake/notifications": "workspace:*",
     "@leapsake/schema": "workspace:*",

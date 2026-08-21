@@ -41,6 +41,12 @@ import {
 } from "@leapsake/core";
 import type { KeyStore } from "@leapsake/crypto";
 import {
+  flag,
+  flagSnapshot,
+  parseFlagOverrides,
+  setFlagOverrides,
+} from "@leapsake/flags";
+import {
   createEmailInputSchema,
   createMilestoneInputSchema,
   createPersonInputSchema,
@@ -1250,6 +1256,19 @@ function requestUnlock({ error, doors }: UnlockRequest): Promise<UnlockAnswer> {
   });
 }
 
+// Feature flags for this launch (@leapsake/flags), read once here and served to
+// the preload synchronously below — the renderer never reads the environment
+// itself, so the two halves cannot disagree about a flag mid-session. An unknown
+// name throws before a window exists, which is the point: a dev switch that
+// silently does nothing costs more than a loud boot failure.
+setFlagOverrides(parseFlagOverrides(process.env.LEAPSAKE_FLAGS));
+
+// `sendSync` rather than `invoke`: the renderer must know its flags before its
+// first render, and a promise would put a flag-less frame on screen first.
+ipcMain.on("flags:snapshot", (event) => {
+  event.returnValue = flagSnapshot();
+});
+
 void app.whenReady().then(async () => {
   userDataPath = app.getPath("userData");
   keystorePath = join(userDataPath, "keystore.json");
@@ -1271,6 +1290,10 @@ void app.whenReady().then(async () => {
   scheduler = createSyncScheduler({
     autoEnabled: await getAutoSync({ driver }),
     run: async () => {
+      // The outermost guard, and the one that makes "sync is held back" true of
+      // the background too: with `multiDevice` off nothing on this device may
+      // talk to a relay, however the store got bound.
+      if (!flag("multiDevice")) return undefined;
       if (keySession === undefined || storeSwapping) return undefined;
       const status = await getSyncStatus({ driver });
       if (!status.hasAccount || status.relayUrl === undefined) return undefined;

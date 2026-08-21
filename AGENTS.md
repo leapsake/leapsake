@@ -81,6 +81,13 @@ schema  →  data  →  core  →  clients
   `contact-import`, `highlight`, `ui`, `view-models`. **New domain logic gets its
   own package** with injected ports rather than a new folder inside `core`.
 
+**Some shipped code is deliberately unreachable.** A feature can be finished and
+still held back from a release by a flag in `@leapsake/flags` — today that is
+`multiDevice`, which shuts every door to relay sync for v0.1. If a surface you
+expect to find is missing from the running app, check there before concluding it
+was never built; that README lists the gates and how to flip a switch for a
+session.
+
 **Each package's own `README.md` is the authority on why it is shaped the way it
 is**, and `ls packages/` is the authority on which exist — do not keep a copy of
 either here. The project map is [`plans/README.md`](plans/README.md);

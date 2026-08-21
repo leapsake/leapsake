@@ -10,6 +10,7 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { Link, Stack } from "expo-router";
 import { MIN_PASSWORD_LENGTH, type SyncStatus } from "@leapsake/core";
+import { flag } from "@leapsake/flags";
 import { useCore, useCustodyDegraded, useSync } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
 
@@ -96,7 +97,14 @@ export default function SettingsScreen() {
     <>
       <Stack.Screen options={{ title: "Account" }} />
       <ScrollView contentContainerStyle={styles.screen}>
-        <Text style={styles.title}>Account &amp; sync</Text>
+        {/*
+          The heading names sync only when there is sync to name — with
+          `multiDevice` held back the word would be the only place a v0.1 user
+          meets the idea, and it would go nowhere.
+        */}
+        <Text style={styles.title}>
+          {flag("multiDevice") ? "Account & sync" : "Account"}
+        </Text>
         {status === null ? (
           <Text style={styles.muted}>Loading…</Text>
         ) : status.hasAccount ? (
@@ -113,12 +121,18 @@ export default function SettingsScreen() {
                 setRevealed({ phrase, escrowPending: false })
               }
             />
-            <SyncSetup
-              onEnabled={(phrase) =>
-                setRevealed({ phrase, escrowPending: false })
-              }
-              onJoined={onJoined}
-            />
+            {/*
+              Creating an account stays — it is what turns encryption on, and it
+              is entirely local. Only the relay half is held back.
+            */}
+            {flag("multiDevice") && (
+              <SyncSetup
+                onEnabled={(phrase) =>
+                  setRevealed({ phrase, escrowPending: false })
+                }
+                onJoined={onJoined}
+              />
+            )}
           </>
         )}
         {/*
@@ -247,7 +261,14 @@ function AccountEnabled({
         sync controls are not shown rather than shown and failing: every one of
         them would have ended in "Sync is not enabled for this store."
       */}
-      {status.relayUrl === undefined ? (
+      {/*
+        `multiDevice` off takes this branch whatever the account holds: a store
+        that got relay-bound while the flag was on is a developer-only state, and
+        showing sync controls in a build with no way to reach them would be the
+        worse half of the trade. The copy below is written for a local-only
+        account and reads as a small lie in that one state.
+      */}
+      {status.relayUrl === undefined || !flag("multiDevice") ? (
         <>
           <Text style={styles.muted}>
             This account is on this device only. Nothing is sent anywhere, so
@@ -263,13 +284,21 @@ function AccountEnabled({
             those they want before they know any of the mechanics. The 409 fork
             inside `StartSyncing` is what carries the person who guessed wrong
             across to the other one.
+
+            Both are relay work, so both wait for `multiDevice`. What is left
+            without them is the true statement that this account is local, which
+            is the whole of what v0.1 has to say here.
           */}
-          <StartSyncing
-            username={status.username}
-            onBound={() => onMerged(0)}
-            onMerged={onMerged}
-          />
-          <MergeSetup username={status.username} onMerged={onMerged} />
+          {flag("multiDevice") && (
+            <>
+              <StartSyncing
+                username={status.username}
+                onBound={() => onMerged(0)}
+                onMerged={onMerged}
+              />
+              <MergeSetup username={status.username} onMerged={onMerged} />
+            </>
+          )}
         </>
       ) : degraded !== null ? (
         /*

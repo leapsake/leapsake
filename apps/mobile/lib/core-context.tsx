@@ -60,6 +60,7 @@ import {
   setAutoSync,
   withSyncKick,
 } from "@leapsake/core";
+import { flag } from "@leapsake/flags";
 import {
   DATABASE_KEY,
   RECOVERY_KEY,
@@ -786,6 +787,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       scheduler.current = createSyncScheduler({
         autoEnabled: await getAutoSync({ driver }),
         run: async () => {
+          // The outermost guard, and the one that makes "sync is held back"
+          // true of the background too: with `multiDevice` off nothing on this
+          // device may talk to a relay, however the store got bound.
+          if (!flag("multiDevice")) return undefined;
           const session = keySession.current;
           if (session === null) return undefined;
           const status = await getSyncStatus({ driver });

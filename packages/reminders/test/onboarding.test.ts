@@ -5,7 +5,12 @@ import {
   compareReminderDue,
   resolveReminderSchedule,
 } from "@leapsake/schema";
-import { beforeEach, describe, expect, it } from "vitest";
+import {
+  resetFlagOverrides,
+  setLocalFlagOverrides,
+  withFlags,
+} from "@leapsake/flags";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   ONBOARDING_REMINDERS,
   type OnboardingRoute,
@@ -14,6 +19,14 @@ import {
   regenerateSystemReminders,
   snoozePolicyOf,
 } from "../src/index.js";
+
+/**
+ * These tests describe the world where multi-device sync exists, so they turn it
+ * on: the sign-in nudge is gated behind `multiDevice`, which is off in what v0.1
+ * ships. What the shipping default does instead is the last describe below.
+ */
+beforeEach(() => setLocalFlagOverrides({ multiDevice: true }));
+afterEach(resetFlagOverrides);
 
 /** A fixed local "today" (no milestones under test, so the value is immaterial). */
 const TODAY: CivilDate = { year: 2026, month: 6, day: 1 };
@@ -573,6 +586,48 @@ function birthday(
     day: occ.day,
   };
 }
+
+/**
+ * The shipping default — every other test in this file has turned `multiDevice`
+ * on, so this is the only place that sees what a v0.1 user gets.
+ */
+describe("with multi-device held back", () => {
+  beforeEach(resetFlagOverrides);
+
+  it("seeds no sign-in nudge, leaving the rest of onboarding intact", async () => {
+    const h = makeHarness();
+    await regenerateSystemReminders(h.deps);
+
+    const routes = h.activeSystem().map((r) => onboardingRouteOf(r.id));
+    expect(routes).not.toContain("connect-sync");
+    expect(routes).toContain("add-person");
+  });
+
+  it("still invites an account, which is the encryption story rather than sync", async () => {
+    const h = makeHarness();
+    h.signals.hasEntities = true;
+    await regenerateSystemReminders(h.deps);
+
+    const routes = h.activeSystem().map((r) => onboardingRouteOf(r.id));
+    expect(routes).toContain("create-account");
+  });
+
+  it("retires a sign-in nudge left behind by a build that had it", async () => {
+    const h = makeHarness();
+    // Seeded while the flag was on — the state a developer toggling the switch
+    // lands in, and the one a v0.1 user must never see a stale row from.
+    await withFlags({ multiDevice: true }, () =>
+      regenerateSystemReminders(h.deps),
+    );
+    const signIn = ONBOARDING_REMINDERS.find(
+      (r) => r.route === "connect-sync",
+    )!.id;
+    expect(h.byId(signIn)?.deletedAt).toBeNull();
+
+    await regenerateSystemReminders(h.deps);
+    expect(h.byId(signIn)?.deletedAt).not.toBeNull();
+  });
+});
 
 describe("onboarding + milestone families coexist", () => {
   it("keeps a birthday reminder and the onboarding nudges in one reconcile", async () => {

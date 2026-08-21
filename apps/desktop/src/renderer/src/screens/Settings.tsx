@@ -1,4 +1,5 @@
 import { MIN_PASSWORD_LENGTH, type SyncStatus } from "@leapsake/core";
+import { flag } from "@leapsake/flags";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -80,7 +81,12 @@ export function Settings() {
         <Link to="/">&larr; Back</Link>
       </p>
       <h1>Settings</h1>
-      <h2>Account &amp; sync</h2>
+      {/*
+        The heading names sync only when there is sync to name — with
+        `multiDevice` held back the word would be the only place a v0.1 user
+        meets the idea, and it would go nowhere.
+      */}
+      <h2>{flag("multiDevice") ? "Account & sync" : "Account"}</h2>
 
       {status === null ? (
         <p>Loading…</p>
@@ -98,13 +104,21 @@ export function Settings() {
               setRevealed({ phrase, escrowPending: false })
             }
           />
-          <hr />
-          <SyncSetup
-            onEnabled={(phrase) =>
-              setRevealed({ phrase, escrowPending: false })
-            }
-            onJoined={onJoined}
-          />
+          {/*
+            Creating an account stays — it is what turns encryption on, and it is
+            entirely local. Only the relay half is held back.
+          */}
+          {flag("multiDevice") && (
+            <>
+              <hr />
+              <SyncSetup
+                onEnabled={(phrase) =>
+                  setRevealed({ phrase, escrowPending: false })
+                }
+                onJoined={onJoined}
+              />
+            </>
+          )}
         </>
       )}
 
@@ -446,7 +460,14 @@ function AccountEnabled({
         has nothing to sync to. The controls are not shown rather than shown and
         failing: every one of them ended in "Sync is not enabled for this store."
       */}
-      {status.relayUrl === undefined ? (
+      {/*
+        `multiDevice` off takes this branch whatever the account holds: a store
+        that got relay-bound while the flag was on is a developer-only state, and
+        showing sync controls in a build with no way to reach them would be the
+        worse half of the trade. The copy below is written for a local-only
+        account and reads as a small lie in that one state.
+      */}
+      {status.relayUrl === undefined || !flag("multiDevice") ? (
         <>
           <p>
             This account is on this computer only. Nothing is sent anywhere, so
@@ -462,13 +483,21 @@ function AccountEnabled({
             those they want before they know any of the mechanics. The 409 fork
             inside `StartSyncing` is what carries the person who guessed wrong
             across to the other one.
+
+            Both are relay work, so both wait for `multiDevice`. What is left
+            without them is the true statement that this account is local, which
+            is the whole of what v0.1 has to say here.
           */}
-          <StartSyncing
-            username={status.username}
-            onBound={() => onJoined(0)}
-            onMerged={onJoined}
-          />
-          <MergeSetup username={status.username} onMerged={onJoined} />
+          {flag("multiDevice") && (
+            <>
+              <StartSyncing
+                username={status.username}
+                onBound={() => onJoined(0)}
+                onMerged={onJoined}
+              />
+              <MergeSetup username={status.username} onMerged={onJoined} />
+            </>
+          )}
         </>
       ) : degraded ? (
         /*

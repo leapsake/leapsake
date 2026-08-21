@@ -3,6 +3,7 @@ import {
   type Reminder,
   compareReminderDue,
 } from "@leapsake/schema";
+import { withFlags } from "@leapsake/flags";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   ONBOARDING_REMINDERS,
@@ -186,22 +187,26 @@ describe("duplicates nudge", () => {
     expect(h.activeSystem()).toHaveLength(0);
   });
 
+  // Ranking is only interesting with both custody nudges present, and the
+  // sign-in one is gated behind `multiDevice` — off in what v0.1 ships.
   it("ranks below the onboarding nudges on Home", async () => {
-    // Accountless brings both custody nudges back into the set (the harness's
-    // entities satisfy the account invitation's other half).
-    h.state.syncConnected = false;
-    h.state.hasAccount = false;
-    h.state.pairs = ["a:b"];
-    await regenerateSystemReminders(h.deps);
+    await withFlags({ multiDevice: true }, async () => {
+      // Accountless brings both custody nudges back into the set (the harness's
+      // entities satisfy the account invitation's other half).
+      h.state.syncConnected = false;
+      h.state.hasAccount = false;
+      h.state.pairs = ["a:b"];
+      await regenerateSystemReminders(h.deps);
 
-    // Both families are dateless, so the createdAt back-off is what orders them:
-    // finish setting up before being sent to reconcile the list.
-    const ordered = h.activeSystem().sort(compareReminderDue);
-    expect(ordered.map((r) => r.id)).toEqual([
-      ONBOARDING_REMINDERS.find((r) => r.route === "connect-sync")!.id,
-      ONBOARDING_REMINDERS.find((r) => r.route === "create-account")!.id,
-      duplicatesReminderId(["a:b"]),
-    ]);
+      // Both families are dateless, so the createdAt back-off is what orders
+      // them: finish setting up before being sent to reconcile the list.
+      const ordered = h.activeSystem().sort(compareReminderDue);
+      expect(ordered.map((r) => r.id)).toEqual([
+        ONBOARDING_REMINDERS.find((r) => r.route === "connect-sync")!.id,
+        ONBOARDING_REMINDERS.find((r) => r.route === "create-account")!.id,
+        duplicatesReminderId(["a:b"]),
+      ]);
+    });
   });
 
   it("adds no rows when the port is omitted", async () => {
