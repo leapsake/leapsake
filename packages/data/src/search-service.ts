@@ -178,7 +178,11 @@ interface Accumulator {
 export function createSearchService(driver: SqliteDriver): SearchService {
   async function query(term: string): Promise<SearchHit[]> {
     if (term.trim().length < MIN_QUERY_LENGTH) return [];
-    const folded = fold(term);
+    // Trimmed: leading/trailing space is typing, not intent. Without this the
+    // half-typed "john " matches nothing at all, so a result that was on screen
+    // for "john" vanishes the moment the space before the surname is typed.
+    // (The other facets' query normalizers already trim.)
+    const folded = fold(term).trim();
     const emailQuery = normalizeEmail(term); // trimmed + lowercased
     const phoneQuery = normalizePhone(term); // leading "+" + digits only
     const addressQuery = foldAddress(term); // comma/whitespace-insensitive
@@ -323,18 +327,25 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       });
     };
 
-    /** Record a name match if any of `fields` matches the folded term. An absent
-     *  part of a name is simply not a field to match against. */
+    /**
+     * Record a name match if any of `candidates` matches the folded term. An
+     * absent part of a name is simply not a candidate to match against.
+     *
+     * Callers pass the individual parts *and* the assembled whole-name forms:
+     * a query is one string, so "john appleseed" can never be a substring of
+     * any single part, and matching parts alone would drop a person the moment
+     * the user typed past their first name.
+     */
     const addNameHit = (
       type: SearchResultType,
       id: string,
       title: string,
-      fields: readonly (string | null)[],
+      candidates: readonly (string | null)[],
     ) => {
       let best = QUALITY_NONE;
-      for (const field of fields) {
-        if (field == null || field === "") continue;
-        best = Math.min(best, quality(fold(field), folded));
+      for (const candidate of candidates) {
+        if (candidate == null || candidate === "") continue;
+        best = Math.min(best, quality(fold(candidate), folded));
       }
       if (best === QUALITY_NONE) return; // no field matched
       record(type, id, title, true, "name", title, best);
@@ -357,11 +368,25 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         // to an empty row title (the same fallback `fullName` makes).
         title: plain === "" ? middle : plain,
       });
-      const showMiddle = middle !== "" && fold(middle).includes(folded);
-      const title = showMiddle
-        ? joinNameParts(p.first_name, middle, p.last_name)
-        : plain;
-      addNameHit("person", p.id, title, [p.first_name, middle, p.last_name]);
+      const withMiddle = joinNameParts(p.first_name, middle, p.last_name);
+      const showMiddle =
+        middle !== "" &&
+        (fold(middle).includes(folded) ||
+          // Or the term spans the middle name ("joseph abraham"), which only the
+          // with-middle whole name can match — the same reason to show it.
+          (fold(withMiddle).includes(folded) && !fold(plain).includes(folded)));
+      const title = showMiddle ? withMiddle : plain;
+      // Parts first, then both whole-name forms — with and without the middle
+      // name — so "john appleseed" and "john q appleseed" both land, and a
+      // whole-name match still reports the quality of its best *part* (typing
+      // a surname in full stays an exact match, not a substring one).
+      addNameHit("person", p.id, title, [
+        p.first_name,
+        middle,
+        p.last_name,
+        plain,
+        withMiddle,
+      ]);
     }
     for (const pet of pets) {
       titleByEntity.set(key("pet", pet.id), { type: "pet", title: pet.name });

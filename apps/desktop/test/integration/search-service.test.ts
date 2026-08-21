@@ -72,6 +72,75 @@ describe("searchService", () => {
     expect(await titles("armi")).toEqual(["José Armisen"]);
   });
 
+  it("matches a whole name typed across its parts", async () => {
+    await people.create({ firstName: "John", lastName: "Appleseed" });
+    expect(await titles("john appleseed")).toEqual(["John Appleseed"]);
+    // Every intermediate state of typing that name keeps the row on screen —
+    // including the moment the separating space is typed and nothing follows it.
+    expect(await titles("john")).toEqual(["John Appleseed"]);
+    expect(await titles("john ")).toEqual(["John Appleseed"]);
+    expect(await titles("john app")).toEqual(["John Appleseed"]);
+  });
+
+  it("ignores surrounding whitespace in the term", async () => {
+    await people.create({ firstName: "John", lastName: "Appleseed" });
+    expect(await titles("  john appleseed  ")).toEqual(["John Appleseed"]);
+  });
+
+  it("does not match a whole-name term against a person sharing only one part", async () => {
+    await people.create({ firstName: "John", lastName: "Appleseed" });
+    await people.create({ firstName: "John", lastName: "Smith" });
+    await people.create({ firstName: "Bob", lastName: "Appleseed" });
+    expect(await titles("john appleseed")).toEqual(["John Appleseed"]);
+  });
+
+  it("keeps finding someone by name once their email has stopped matching", async () => {
+    const person = await people.create({
+      firstName: "John",
+      lastName: "Appleseed",
+    });
+    await contactMethods.emails.create({
+      ownerType: "person",
+      ownerId: person.id,
+      label: "Home",
+      address: "John-Appleseed@mac.com",
+    });
+    // "john" matches both the name and the email; the two merge into one row.
+    const partial = await search.query("john");
+    expect(partial).toHaveLength(1);
+    expect(partial[0]?.reasons.map((r) => r.facet)).toEqual(["name", "email"]);
+    // Typing the surname takes the email out of it — the name match must carry
+    // the row on its own rather than letting the result vanish mid-word.
+    const full = await search.query("john appleseed");
+    expect(full).toHaveLength(1);
+    expect(full[0]?.title).toBe("John Appleseed");
+    expect(full[0]?.reasons).toEqual([
+      { facet: "name", matchedText: "John Appleseed" },
+    ]);
+  });
+
+  it("matches a whole name that spans the middle name, and shows it", async () => {
+    await people.create({
+      firstName: "Joseph",
+      middleName: "Abraham",
+      lastName: "Lampe",
+    });
+    // Spanning the middle name only matches the with-middle form, so the title
+    // surfaces it for the same reason a bare middle-name match does.
+    expect(await titles("joseph abraham")).toEqual(["Joseph Abraham Lampe"]);
+    expect(await titles("abraham lampe")).toEqual(["Joseph Abraham Lampe"]);
+    expect(await titles("joseph abraham lampe")).toEqual([
+      "Joseph Abraham Lampe",
+    ]);
+    // The plain form still matches, and still hides the middle name.
+    expect(await titles("joseph lampe")).toEqual(["Joseph Lampe"]);
+  });
+
+  it("matches a pet whose name is more than one word", async () => {
+    await pets.create({ name: "Mr Bigglesworth" });
+    expect(await titles("mr biggles")).toEqual(["Mr Bigglesworth"]);
+  });
+
   it("shows the middle name in the title only when the term matched it", async () => {
     await people.create({
       firstName: "Joseph",
