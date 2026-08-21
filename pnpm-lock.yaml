@@ -328,6 +328,8 @@ importers:
         specifier: workspace:*
         version: link:../schema
 
+  packages/flags: {}
+
   packages/highlight:
     dependencies:
       '@leapsake/schema':
