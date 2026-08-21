@@ -70,9 +70,10 @@ export default function GiftCreateScreen() {
       keyboardShouldPersistTaps="handled"
     >
       {fixedRecipient !== undefined && (
-        <Text style={styles.muted}>
-          Recording a gift for {fixedRecipient.label}.
-        </Text>
+        // Who, not what: the form's own first control now says whether this is an
+        // idea or something already given, and arriving here only settles the
+        // recipient. It is also the sole mention of them, the picker being hidden.
+        <Text style={styles.muted}>A gift for {fixedRecipient.label}.</Text>
       )}
 
       <GiftCaptureForm

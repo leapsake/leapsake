@@ -17,6 +17,7 @@ import type {
   GiftPartyType,
 } from "@leapsake/schema";
 import { useEffect, useRef, useState } from "react";
+import type { GiftAdornmentKind } from "./gift-when.js";
 import type {
   GiftOccasionChoice,
   GiftsPorts,
@@ -199,6 +200,53 @@ export function captureRecipientOf(
       targetDate: parseDateFields(suggestion.date),
     },
   };
+}
+
+/**
+ * The idea a capture should point at: the one already in the pool whose title
+ * matches exactly (case-insensitively), or a brand-new one. Near-duplicate
+ * *different* titles are still allowed — tolerated by design, and the
+ * reconciliation pass is where that is dealt with.
+ *
+ * `core.gifts.capture` does no such matching of its own — handed a title it mints
+ * an idea — so this is the only thing standing between "Socks" typed twice and
+ * two Socks. It lives here because both writers need it and they are nowhere near
+ * each other: the capture screen, which has the pool on hand, and the entity
+ * form's save, which lists it at write time.
+ */
+export function giftIdeaOf(
+  draft: { title: string; url: string },
+  pool: readonly { id: string; title: string }[],
+): { id: string } | { title: string; url?: string } {
+  const title = draft.title.trim();
+  const found = pool.find((i) => i.title.toLowerCase() === title.toLowerCase());
+  if (found !== undefined) return { id: found.id };
+  const url = draft.url.trim();
+  return { title, ...(url === "" ? {} : { url }) };
+}
+
+/**
+ * One recipient as a capture payload, with the arm the draft's `kind` did *not*
+ * select zeroed.
+ *
+ * `gifts.capture` reads the givings when there are any and the suggestion
+ * otherwise, so a draft that says "Idea" while still holding date rows typed
+ * before the segment was flipped would write a giving. Both writers — the capture
+ * screen and the entity form's save — go through here so that neither can forget.
+ */
+export function captureRecipientOfDraft(
+  party: { type: GiftPartyType; id: string },
+  draft: {
+    kind: GiftAdornmentKind;
+    givings: readonly GivingRow[];
+    suggestion: SuggestionFields;
+  },
+): CaptureRecipient {
+  return captureRecipientOf(
+    party,
+    draft.kind === "giving" ? draft.givings : [],
+    draft.kind === "suggestion" ? draft.suggestion : newSuggestionFields(),
+  );
 }
 
 /** Replace one recipient's fields, addressed by {@link partyKey}. */

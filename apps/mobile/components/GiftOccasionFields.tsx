@@ -1,23 +1,33 @@
 import { useEffect, useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Text, View } from "react-native";
 import type { GiftOccasion } from "@leapsake/schema";
 import {
   type DateFields,
+  type GiftAdornmentKind,
   type GiftOccasionChoice,
   datePart,
   occasionKey,
   occasionOfKey,
 } from "@leapsake/ui/headless";
 import { SelectField } from "./SelectField";
+import { WhenField } from "./WhenField";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
+/** What the occasion picker calls itself, in each of the two tenses. */
+const OCCASION_LABEL: Record<GiftAdornmentKind, string> = {
+  suggestion: "For which occasion?",
+  giving: "What was the occasion?",
+};
+
 /**
- * The occasion + partial-date pair, ported from the desktop `GiftOccasionFields`.
- * Authored together because their *meanings* come from the pair:
- * "Christmas, no year" is a standing intent, "Christmas 2026" is one specific one,
- * a bare date is an arbitrary deadline, and neither is "someday". Serves a
- * suggestion's **target** date and a giving's **what-happened** date alike.
+ * The occasion + date pair, ported from the desktop `GiftOccasionFields`.
+ * Authored together because their *meanings* come from the pair: "Christmas, no
+ * year" is a standing intent, "Christmas 2026" is one specific one, a bare date
+ * is an arbitrary deadline, and neither is "someday". Serves a suggestion's
+ * **target** date and a giving's **what-happened** date alike — which is what
+ * `kind` names, and it is the field's whole tense: the picker's label above, and
+ * which years {@link WhenField} offers below.
  *
  * The occasion picker is a {@link SelectField} (desktop's `<select>`): the pool is
  * a short, fully-known list — not the long unfamiliar list a `Typeahead` exists
@@ -27,19 +37,22 @@ import { styles } from "../lib/styles";
  *
  * The occasion is only a **label**: the date stays the source of truth for *when*,
  * so picking a holiday never writes a date on its own. It does offer one —
- * `holidays.occurrencesIn` resolves "Christmas" + 1941 to Dec 25, surfaced as a
- * button the user presses. A lunisolar holiday can fall **twice** in one Gregorian
- * year, so every occurrence is offered and none is assumed.
+ * `holidays.occurrencesIn` resolves "Christmas" + 1941 to Dec 25, handed to
+ * `WhenField` as further taps. A lunisolar holiday can fall **twice** in one
+ * Gregorian year, so every occurrence is offered and none is assumed.
  */
 export function GiftOccasionFields({
-  label,
+  kind,
+  label = OCCASION_LABEL[kind],
   occasions,
   occasion,
   onOccasionChange,
   date,
   onDateChange,
 }: {
-  label: string;
+  kind: GiftAdornmentKind;
+  /** Overridden where the surrounding form has already set the tense in words. */
+  label?: string;
   occasions: readonly GiftOccasionChoice[];
   occasion: GiftOccasion | null;
   onOccasionChange: (occasion: GiftOccasion | null) => void;
@@ -93,8 +106,6 @@ export function GiftOccasionFields({
 
   return (
     <View style={styles.section}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-
       {/*
         Not unique on the screen: a gift can carry several giving rows, each with
         its own occasion, so a driver addresses one by `id` *plus* index. Which is
@@ -102,7 +113,7 @@ export function GiftOccasionFields({
       */}
       <SelectField
         testID="gift-occasion"
-        label="Occasion"
+        label={label}
         value={occasionKey(occasion)}
         options={options}
         onChange={(value) => onOccasionChange(occasionOfKey(value))}
@@ -116,73 +127,12 @@ export function GiftOccasionFields({
         </Text>
       )}
 
-      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-        <View style={[styles.field, { flex: 1 }]}>
-          <Text style={styles.fieldLabel}>Year</Text>
-          <TextInput
-            style={styles.input}
-            value={date.year}
-            onChangeText={(value) => onDateChange({ ...date, year: value })}
-            keyboardType="number-pad"
-          />
-        </View>
-        <View style={[styles.field, { flex: 1 }]}>
-          <Text style={styles.fieldLabel}>Month</Text>
-          <TextInput
-            style={styles.input}
-            value={date.month}
-            onChangeText={(value) =>
-              onDateChange({
-                ...date,
-                month: value,
-                // A day is only meaningful alongside a month.
-                ...(value === "" ? { day: "" } : {}),
-              })
-            }
-            keyboardType="number-pad"
-          />
-        </View>
-        <View style={[styles.field, { flex: 1 }]}>
-          <Text
-            style={[
-              styles.fieldLabel,
-              date.month.trim() === "" && { opacity: 0.5 },
-            ]}
-          >
-            Day
-          </Text>
-          <TextInput
-            style={[styles.input, date.month.trim() === "" && { opacity: 0.5 }]}
-            value={date.day}
-            onChangeText={(value) => onDateChange({ ...date, day: value })}
-            editable={date.month.trim() !== ""}
-            keyboardType="number-pad"
-          />
-        </View>
-      </View>
-
-      {fills.map((iso) => {
-        const [y, m, d] = iso.split("-");
-        if (y === undefined || m === undefined || d === undefined) return null;
-        const already =
-          date.month === String(Number(m)) && date.day === String(Number(d));
-        if (already) return null;
-        return (
-          <Pressable
-            key={iso}
-            accessibilityRole="button"
-            onPress={() =>
-              onDateChange({
-                year: String(Number(y)),
-                month: String(Number(m)),
-                day: String(Number(d)),
-              })
-            }
-          >
-            <Text style={styles.link}>Use {iso}</Text>
-          </Pressable>
-        );
-      })}
+      <WhenField
+        kind={kind}
+        date={date}
+        onChange={onDateChange}
+        fills={fills}
+      />
     </View>
   );
 }

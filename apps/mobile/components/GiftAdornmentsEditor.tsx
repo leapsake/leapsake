@@ -77,7 +77,7 @@ export function GiftAdornmentsEditor({
   return (
     <View style={styles.section}>
       <GiftOccasionFields
-        label={kind === "suggestion" ? "For…" : "Given on…"}
+        kind={kind}
         occasions={occasions}
         occasion={occasion}
         onOccasionChange={setOccasion}

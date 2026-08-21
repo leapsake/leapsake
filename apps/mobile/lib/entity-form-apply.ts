@@ -1,10 +1,12 @@
 import type { CoreApi } from "@leapsake/core";
 import { type EntityType, milestoneLabel } from "@leapsake/schema";
 import {
-  captureRecipientOf,
+  captureRecipientOfDraft,
+  giftIdeaOf,
   parseDateFields,
   resolveStagedOccasion,
 } from "@leapsake/ui/headless";
+import { giftDraftEmpty } from "../components/GiftFields";
 import { milestoneDraftToValue } from "../components/MilestoneFields";
 import {
   otherLabelOf,
@@ -238,23 +240,36 @@ export async function applyEntityForm(
   // One `capture` per added gift: the payload carries one idea and N recipients,
   // and each staged gift is its own idea. The entity is the sole recipient; the
   // giver still resolves to the self-person inside `capture`.
-  for (const gift of value.gifts.added) {
-    await attempt(gift.title, () =>
+  //
+  // A row nobody filled in is skipped rather than written — the "Add gift" tap
+  // that went nowhere, exactly as an empty contact row is skipped. The pool is
+  // listed once, and only if there is anything to write: `giftIdeaOf` needs it to
+  // reuse an existing idea rather than mint a second one under the same title,
+  // and unlike the capture screen this write has no pool of its own to hand.
+  const addedGifts = value.gifts.added.filter(
+    (gift) => !giftDraftEmpty(gift.draft),
+  );
+  const ideaPool = addedGifts.length === 0 ? [] : await core.gifts.ideas.list();
+  for (const { draft } of addedGifts) {
+    await attempt(draft.title, () =>
       core.gifts.capture({
-        giftIdea: gift.giftIdea,
+        giftIdea: giftIdeaOf(draft, ideaPool),
         recipients: [
-          captureRecipientOf(
+          captureRecipientOfDraft(
             { type: bearerType, id: bearerId },
-            gift.givings.map((row) => ({
-              ...row,
-              occasion: resolveStagedOccasion(row.occasion, milestoneIds),
-            })),
             {
-              ...gift.suggestion,
-              occasion: resolveStagedOccasion(
-                gift.suggestion.occasion,
-                milestoneIds,
-              ),
+              kind: draft.kind,
+              givings: draft.givings.map((row) => ({
+                ...row,
+                occasion: resolveStagedOccasion(row.occasion, milestoneIds),
+              })),
+              suggestion: {
+                ...draft.suggestion,
+                occasion: resolveStagedOccasion(
+                  draft.suggestion.occasion,
+                  milestoneIds,
+                ),
+              },
             },
           ),
         ],

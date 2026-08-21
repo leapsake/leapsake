@@ -8,6 +8,8 @@ import {
   type PartyOption,
   type RecipientEntry,
   captureRecipientOf,
+  captureRecipientOfDraft,
+  giftIdeaOf,
   givingsOf,
   newGivingRow,
   newSuggestionFields,
@@ -28,6 +30,81 @@ const rex: PartyOption = { type: "pet", id: "t-1", label: "Rex" };
 const dated = (date: Partial<GivingRow["date"]>): GivingRow => ({
   ...newGivingRow(),
   date: { year: "", month: "", day: "", ...date },
+});
+
+describe("giftIdeaOf", () => {
+  const pool = [
+    { id: "i-1", title: "Socks" },
+    { id: "i-2", title: "Telescope" },
+  ];
+
+  it("reuses an existing idea rather than minting a second under one title", () => {
+    expect(giftIdeaOf({ title: "Socks", url: "" }, pool)).toEqual({
+      id: "i-1",
+    });
+  });
+
+  it("matches regardless of case and surrounding space", () => {
+    expect(giftIdeaOf({ title: "  sOcKs ", url: "" }, pool)).toEqual({
+      id: "i-1",
+    });
+  });
+
+  it("mints a new idea for an unseen title, carrying the link", () => {
+    expect(
+      giftIdeaOf({ title: "Wreath", url: "https://example.com" }, pool),
+    ).toEqual({ title: "Wreath", url: "https://example.com" });
+  });
+
+  it("omits an empty link rather than minting a blank one", () => {
+    expect(giftIdeaOf({ title: "Wreath", url: "  " }, pool)).toEqual({
+      title: "Wreath",
+    });
+  });
+
+  // A near-duplicate is tolerated by design; reconciliation is where it is dealt
+  // with, not the capture field.
+  it("leaves a near-duplicate title alone", () => {
+    expect(giftIdeaOf({ title: "Wool socks", url: "" }, pool)).toEqual({
+      title: "Wool socks",
+    });
+  });
+});
+
+describe("captureRecipientOfDraft", () => {
+  const dates = [
+    { ...newGivingRow(), date: { year: "2026", month: "", day: "" } },
+  ];
+  const target = {
+    ...newSuggestionFields(),
+    date: { year: "2027", month: "", day: "" },
+  };
+
+  it("writes the givings and drops the target when the draft says giving", () => {
+    const out = captureRecipientOfDraft(ada, {
+      kind: "giving",
+      givings: dates,
+      suggestion: target,
+    });
+    expect(out.givings).toHaveLength(1);
+    expect(out.suggestion?.targetDate).toBeNull();
+  });
+
+  // The whole reason this exists: typing dates, flipping the segment back to
+  // Idea, and saving must not write the giving those dates would have made.
+  it("drops the givings when the draft says suggestion", () => {
+    const out = captureRecipientOfDraft(ada, {
+      kind: "suggestion",
+      givings: dates,
+      suggestion: target,
+    });
+    expect(out.givings).toEqual([]);
+    expect(out.suggestion?.targetDate).toEqual({
+      year: 2027,
+      month: null,
+      day: null,
+    });
+  });
 });
 
 describe("givingsOf", () => {

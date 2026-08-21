@@ -14,6 +14,8 @@ export {
   type RecipientEntry,
   type SuggestionFields,
   captureRecipientOf,
+  captureRecipientOfDraft,
+  giftIdeaOf,
   givingsOf,
   ideaOccasionRowsOf,
   ideaOccasionsOf,
@@ -28,6 +30,14 @@ export {
   resolveStagedOccasion,
   usePartyContext,
 } from "./gift-form.js";
+export { giftUrlLabel, giftUrlOf, pastedIntoField } from "./gift-url.js";
+export {
+  type GiftAdornmentKind,
+  type WhenChoice,
+  UNDATED_KEY,
+  whenChoices,
+  whenKeyOf,
+} from "./gift-when.js";
 export {
   GiftsPortsProvider,
   useGiftsPorts,

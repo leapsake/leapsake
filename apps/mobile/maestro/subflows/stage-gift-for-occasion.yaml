@@ -2,6 +2,10 @@
 # the only occasion the form offers, since the caller has staged exactly one
 # milestone or holiday.
 #
+# "Add gift" appends an **open row** to the Gifts section, which this then types
+# into; there is nothing to submit afterwards, the entity form's own Save being
+# what writes it. See the note at the foot of this file.
+#
 # The occasion picker is the one control here that is **not** the same on both
 # platforms — a modal wheel on iOS, a list dialog on Android — so this subflow
 # branches on it. See the comment at that step; everything else is portable.
@@ -21,6 +25,16 @@ appId: com.leapsake.app
       text: "Add gift"
     direction: DOWN
 - tapOn: "Add gift"
+# The form's first control, and the reason there is a giving row to fill in at
+# all: its two segments are Idea (the default, one target occasion) and Already
+# gave it (dated rows). This used to be "+ Add a date" *below* the title, because
+# adding a date is what used to turn a suggestion into a giving; the form now
+# asks outright, so the answer is given before anything is typed.
+- scrollUntilVisible:
+    element:
+      text: "Already gave it"
+    direction: DOWN
+- tapOn: "Already gave it"
 - scrollUntilVisible:
     element:
       id: "gift-title"
@@ -30,11 +44,6 @@ appId: com.leapsake.app
 - inputText: "${TITLE}"
 - runFlow:
     file: dismiss-keyboard.yaml
-- scrollUntilVisible:
-    element:
-      text: "+ Add a date"
-    direction: DOWN
-- tapOn: "+ Add a date"
 - scrollUntilVisible:
     element:
       id: "gift-occasion"
@@ -83,14 +92,9 @@ appId: com.leapsake.app
       # green having picked "— none —".
       - assertVisible: "${OCCASION}"
       - tapOn: "Done"
-- scrollUntilVisible:
-    element:
-      text: "Add"
-    direction: UP
-- tapOn: "Add"
-# The staged row's own summary, before anything is written: a giving row that
-# resolved to a real occasion counts as one.
-- scrollUntilVisible:
-    element:
-      text: "1 date"
-    direction: DOWN
+# No commit step: "Add gift" appended a row and this filled it in. It used to
+# open a sub-form with its own `Cancel  Add`, whose Add moved a frozen payload
+# into the list as a summary line ("1 date") — which is what this asserted on. The
+# row is the draft now, so what proves the same thing is the picker still reading
+# back the occasion that was chosen, which both platform branches above assert
+# before leaving the field.

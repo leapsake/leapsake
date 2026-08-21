@@ -30,7 +30,7 @@ import { styles } from "../lib/styles";
 export function GiftIdeaOccasionsField({
   rows,
   onChange,
-  label = "For… (an occasion, no recipient needed)",
+  label = "Good for…",
 }: {
   rows: IdeaOccasionRow[];
   onChange: (rows: IdeaOccasionRow[]) => void;
@@ -60,6 +60,9 @@ export function GiftIdeaOccasionsField({
       {rows.map((row) => (
         <View key={row.id} style={styles.section}>
           <GiftOccasionFields
+            // An idea's occasion is a target, like a suggestion's: what it would
+            // be good *for*, never a thing that has happened.
+            kind="suggestion"
             label={label}
             occasions={occasions}
             occasion={row.occasion}

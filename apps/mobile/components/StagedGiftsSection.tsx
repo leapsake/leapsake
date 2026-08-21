@@ -11,9 +11,17 @@ import {
   type GiftOccasionChoice,
   type PartyOption,
   dateFieldsOf,
-  givingsOf,
+  giftIdeaOf,
+  usePartyContext,
 } from "@leapsake/ui/headless";
-import { GiftCaptureForm, type StagedGift } from "./GiftCaptureForm";
+import { useGiftPartyLoaders } from "../lib/gifts-ports";
+import {
+  type GiftDraft,
+  GiftIdentityFields,
+  GiftRecipientArm,
+  emptyGiftDraft,
+  giftDraftValid,
+} from "./GiftFields";
 import { GiftLink } from "./GiftsSection";
 import { GiftOccasionFields } from "./GiftOccasionFields";
 import { useCore } from "../lib/core-context";
@@ -28,6 +36,17 @@ import { styles } from "../lib/styles";
 export interface GiftAdornments {
   occasion: GiftOccasion | null;
   date: DateFields;
+}
+
+/**
+ * A gift being authored on this form: the draft the write will use, plus a key to
+ * address the row by. See {@link StagedContact}, which is the same idea for the
+ * same reasons — a gift has no saved counterpart here (a *revision* to a saved
+ * row is staged separately, in `adornments`), so there is no `savedId`.
+ */
+export interface StagedGift {
+  key: string;
+  draft: GiftDraft;
 }
 
 /** Everything this section holds until the form is saved. */
@@ -50,22 +69,14 @@ export const emptyGiftEdits = (): StagedGiftEdits => ({
   removed: [],
 });
 
+/** Whether every added row would write cleanly or be skipped — the Save gate. */
+export const giftRowsValid = (value: StagedGiftEdits): boolean =>
+  value.added.every((row) => giftDraftValid(row.draft));
+
 /** The saved rows the edit screen reads back; the create screen has none. */
 export interface SavedGifts {
   suggestions: GiftSuggestionForRecipient[];
   gifts: GiftForRecipient[];
-}
-
-/**
- * The one-line summary under a staged gift: how many givings it logs, or that it
- * is a shortlisted suggestion instead. The same distinction `gifts.capture` draws
- * — dates make it a giving, no dates make it a suggestion — read off the same
- * `givingsOf`, so a row of blank date fields counts as no giving here too.
- */
-function stagedSummary(entry: StagedGift): string {
-  const count = givingsOf(entry.givings).length;
-  if (count === 0) return "Suggestion";
-  return count === 1 ? "1 date" : `${count} dates`;
 }
 
 /**
@@ -89,11 +100,17 @@ function stagedSummary(entry: StagedGift): string {
  * it from a route loader this section doesn't have, so this fetches it the way
  * {@link StagedHolidaysSection} fetches the holiday catalog.
  *
- * A **saved** row offers what the detail page's editor did and no more — its
- * occasion and date, both **open and live** as everywhere else on this form (see
- * {@link StagedContactsSection}), or removal. A row **added here** offers only
- * removal: it was typed into the capture form a minute ago, that form is four
- * arms of state rather than a pair of fields, and deleting the row costs one tap.
+ * **Every row is open** — the saved ones and the added ones alike. A saved row
+ * offers what the detail page's editor did and no more: its occasion and date, or
+ * removal. An added row is a whole {@link GiftDraft}, typed straight into the
+ * list. That last part is new: adding a gift used to open a *sub-form* with its
+ * own `Cancel  Add` pair, which committed a frozen payload the list could then
+ * only show as a summary line and a Remove — the reasoning being that capturing a
+ * gift was several arms of state resolving into one payload rather than a row you
+ * type into. Once those arms became one controlled draft that stopped being true,
+ * and this section now matches every other staged one
+ * ({@link StagedContactsSection}): "Add gift" appends a row, Remove takes it out,
+ * and the form's one Save writes the difference.
  */
 export function StagedGiftsSection({
   occasions,
@@ -106,7 +123,7 @@ export function StagedGiftsSection({
   occasions: readonly GiftOccasionChoice[];
   /**
    * Who the gifts are for, where that is already somebody: it buys the capture
-   * form's re-gift guard ("she was already given this"). Absent on the create
+   * fields' re-gift guard ("she was already given this"). Absent on the create
    * screen, where the recipient has no id to ask about yet.
    */
   recipient?: PartyOption;
@@ -115,8 +132,20 @@ export function StagedGiftsSection({
   onChange: (value: StagedGiftEdits) => void;
 }) {
   const core = useCore();
-  const [ideaPool, setIdeaPool] = useState<GiftIdea[] | null>(null);
-  const [adding, setAdding] = useState(false);
+  const partyLoaders = useGiftPartyLoaders();
+  const [ideaPool, setIdeaPool] = useState<GiftIdea[]>([]);
+
+  // The re-gift guard's source: what the entity has already been given. Only the
+  // edit screen has a `recipient` to ask about — on the create screen there is no
+  // one yet, and an entity that doesn't exist can't have been given anything.
+  const pools = usePartyContext(recipient ? [recipient] : [], partyLoaders);
+
+  /** The existing idea a row's title names, if any — what the guard keys off. A
+   *  brand-new title can't have been given before. */
+  const typedIdeaId = (draft: GiftDraft) => {
+    const idea = giftIdeaOf(draft, ideaPool);
+    return "id" in idea ? idea.id : undefined;
+  };
 
   useEffect(() => {
     let active = true;
@@ -162,7 +191,7 @@ export function StagedGiftsSection({
           </Pressable>
         </View>
         <GiftOccasionFields
-          label={key.startsWith("suggestion:") ? "For…" : "Given on…"}
+          kind={key.startsWith("suggestion:") ? "suggestion" : "giving"}
           occasions={occasions}
           occasion={pair.occasion}
           onOccasionChange={(occasion) => adorn(key, { ...pair, occasion })}
@@ -173,15 +202,19 @@ export function StagedGiftsSection({
     );
   }
 
+  /** Replace one added row's draft, addressed by its key. */
+  const patchAdded = (key: string, draft: GiftDraft) =>
+    onChange({
+      ...value,
+      added: value.added.map((row) =>
+        row.key === key ? { ...row, draft } : row,
+      ),
+    });
+
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Gifts</Text>
-        {!adding && (
-          <Pressable accessibilityRole="button" onPress={() => setAdding(true)}>
-            <Text style={styles.link}>Add gift</Text>
-          </Pressable>
-        )}
       </View>
 
       {ordered.map((group) => {
@@ -229,47 +262,83 @@ export function StagedGiftsSection({
         );
       })}
 
-      {value.added.map((entry, index) => (
-        <View key={index} style={styles.row}>
-          <Text style={styles.rowText}>{entry.title}</Text>
-          <View style={styles.rowMeta}>
-            <Text style={styles.muted}>{stagedSummary(entry)}</Text>
+      {value.added.map((row) => (
+        <View key={row.key} style={[styles.row, styles.inlineForm]}>
+          {/* The row's identity line, as every staged section has: what it is so
+              far, next to the way out of it. Blank until it is named, because
+              "New gift" is the one thing the fields below already say. */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.fieldLabel}>
+              {row.draft.title.trim() === ""
+                ? "New gift"
+                : row.draft.title.trim()}
+            </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Remove ${entry.title}`}
+              accessibilityLabel={`Remove ${
+                row.draft.title.trim() === "" ? "new gift" : row.draft.title
+              }`}
               onPress={() =>
                 onChange({
                   ...value,
-                  added: value.added.filter((_, i) => i !== index),
+                  added: value.added.filter((r) => r.key !== row.key),
                 })
               }
             >
               <Text style={[styles.link, styles.danger]}>Remove</Text>
             </Pressable>
           </View>
+
+          <GiftIdentityFields
+            draft={row.draft}
+            onChange={(draft) => patchAdded(row.key, draft)}
+            ideaPool={ideaPool}
+          />
+          <GiftRecipientArm
+            kind={row.draft.kind}
+            label={recipient?.label}
+            given={
+              recipient === undefined
+                ? []
+                : pools.alreadyGiven(recipient, typedIdeaId(row.draft))
+            }
+            occasions={occasions}
+            givings={row.draft.givings}
+            onGivingsChange={(givings) =>
+              patchAdded(row.key, { ...row.draft, givings })
+            }
+            suggestion={row.draft.suggestion}
+            onSuggestionChange={(suggestion) =>
+              patchAdded(row.key, { ...row.draft, suggestion })
+            }
+          />
+
+          {/* The one thing a gift cannot do without, said where it is missing
+              rather than only as a disabled Save at the top of the screen. */}
+          {!giftDraftValid(row.draft) && (
+            <Text style={styles.danger}>This gift needs a name.</Text>
+          )}
         </View>
       ))}
 
-      {adding ? (
-        ideaPool === null ? (
-          <Text style={styles.muted}>Loading gifts…</Text>
-        ) : (
-          <GiftCaptureForm
-            inline
-            ideaPool={ideaPool}
-            fixedRecipient={recipient}
-            stagedOccasions={occasions}
-            submitLabel="Add"
-            onCancel={() => setAdding(false)}
-            onStage={(entry) => {
-              onChange({ ...value, added: [...value.added, entry] });
-              setAdding(false);
-            }}
-          />
-        )
-      ) : ordered.length === 0 && value.added.length === 0 ? (
+      {ordered.length === 0 && value.added.length === 0 && (
         <Text style={styles.muted}>No gifts yet.</Text>
-      ) : null}
+      )}
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() =>
+          onChange({
+            ...value,
+            added: [
+              ...value.added,
+              { key: crypto.randomUUID(), draft: emptyGiftDraft() },
+            ],
+          })
+        }
+      >
+        <Text style={styles.link}>Add gift</Text>
+      </Pressable>
     </View>
   );
 }

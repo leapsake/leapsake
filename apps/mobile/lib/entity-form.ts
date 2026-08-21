@@ -10,7 +10,10 @@ import {
 } from "../components/StagedContactsSection";
 import type { StagedHoliday } from "../components/StagedHolidaysSection";
 import type { StagedGiftEdits } from "../components/StagedGiftsSection";
-import { emptyGiftEdits } from "../components/StagedGiftsSection";
+import {
+  emptyGiftEdits,
+  giftRowsValid,
+} from "../components/StagedGiftsSection";
 import { milestoneDraftToValue } from "../components/MilestoneFields";
 import {
   type StagedMilestone,
@@ -78,8 +81,11 @@ export function emptyEntityForm(): EntityFormValue {
  * rather than to write. The exception each `*RowValid` makes is for a row nobody
  * has filled in at all — the stray "Add" tap, which the write skips instead.
  *
- * Holidays and gifts are absent because neither can be half-said: a holiday row
- * is a pick, and a gift's occasion and date are both optional.
+ * Holidays are absent because a holiday row cannot be half-said: it is a pick.
+ * Gifts used to be absent for a like reason — their occasion and date are both
+ * optional, and the sub-form that staged them had already insisted on a name.
+ * Now that a gift is typed straight into the list it can sit there having been
+ * given an occasion but never named, which is a thing to fix rather than write.
  */
 export function entityFormValid(
   type: EntityType,
@@ -93,7 +99,8 @@ export function entityFormValid(
     own &&
     value.contacts.every(contactRowValid) &&
     value.milestones.every(milestoneRowValid) &&
-    value.relationships.every(relationshipRowValid)
+    value.relationships.every(relationshipRowValid) &&
+    giftRowsValid(value.gifts)
   );
 }
 
@@ -158,13 +165,16 @@ export function pruneGiftOccasions(
     ...gifts,
     added: gifts.added.map((gift) => ({
       ...gift,
-      givings: gift.givings.map((row) => ({
-        ...row,
-        occasion: keep(row.occasion),
-      })),
-      suggestion: {
-        ...gift.suggestion,
-        occasion: keep(gift.suggestion.occasion),
+      draft: {
+        ...gift.draft,
+        givings: gift.draft.givings.map((row) => ({
+          ...row,
+          occasion: keep(row.occasion),
+        })),
+        suggestion: {
+          ...gift.draft.suggestion,
+          occasion: keep(gift.draft.suggestion.occasion),
+        },
       },
     })),
     adornments: Object.fromEntries(

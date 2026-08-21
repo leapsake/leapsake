@@ -15,11 +15,11 @@
 #      finds no such milestone, and the row loses its "— Birthday".
 #      (red on: the saved ".*Given.*Birthday.*")
 #   2. milestone removed -> the occasion is dropped, not written dangling.
-#      Break the *prune* and this goes red on the **staged** summary, before
-#      anything is written: the row still claims "1 date". Its saved outcome
-#      stays correct even so, because the removed milestone's key never enters
-#      the id map and the write-time resolver drops it anyway.
-#      (red on: the pre-save "Suggestion")
+#      Break the *prune* and this goes red on the **staged row**, before anything
+#      is written: its occasion picker still names the milestone that is gone. Its
+#      saved outcome stays correct even so, because the removed milestone's key
+#      never enters the id map and the write-time resolver drops it anyway.
+#      (red on: the pre-save "— none —")
 #   3. holiday kept      -> passes through untouched; no remap involved.
 #   4. holiday removed   -> **the only case where a missing prune corrupts what
 #      is saved.** A holiday id stays resolvable forever, so the write-time
@@ -122,11 +122,14 @@ appId: com.leapsake.app
 # what the case above happened to stage.
 - tapOn: "Remove Birthday"
 - assertVisible: "No milestones yet."
-# The staged row tells the truth immediately: with its only content gone, the
-# giving is blank, so the gift reads as a suggestion before it is ever written.
+# The staged row tells the truth immediately, and now says it in the picker
+# itself: the gift's occasion is gone from the pool, so the field it was chosen in
+# reads back the unset. It used to be asserted one step further downstream, on a
+# summary line ("Suggestion") that a blank giving row produced — the row was a
+# committed payload then rather than the open fields it is now.
 - scrollUntilVisible:
     element:
-      text: "Suggestion"
+      text: "— none —"
     direction: DOWN
 - runFlow:
     file: subflows/save-record.yaml
@@ -172,9 +175,10 @@ appId: com.leapsake.app
     direction: UP
 - tapOn: "Remove Christmas"
 - assertVisible: "No holidays yet."
+# The picker reads back the unset, as in case 2 — see the note there.
 - scrollUntilVisible:
     element:
-      text: "Suggestion"
+      text: "— none —"
     direction: DOWN
 - runFlow:
     file: subflows/save-record.yaml

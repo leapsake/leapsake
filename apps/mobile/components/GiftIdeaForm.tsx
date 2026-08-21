@@ -139,7 +139,7 @@ export function GiftIdeaForm({
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>What it's for</Text>
         <GiftIdeaOccasionsField
-          label="Occasion (no recipient needed)"
+          label="Good for…"
           rows={occasionRows}
           onChange={setOccasionRows}
         />
