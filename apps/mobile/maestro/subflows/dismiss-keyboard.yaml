@@ -13,10 +13,16 @@
 #   - `hideKeyboard` taps through into whatever sits under it (the Gender field,
 #     in practice) and opens *that*.
 #
-# What does work is an unhandled tap: the add screen's ScrollView sets
+# What does work is an unhandled tap: every form's ScrollView sets
 # `keyboardShouldPersistTaps="handled"`, so a tap on a plain `Text` — one that no
-# touchable claims — dismisses. "Milestones" is the anchor because that section
-# heading is always present on the add screen and never moves below the keyboard.
+# touchable claims — dismisses.
+#
+# **ANCHOR is that text**, and it is the caller's to name because the forms no
+# longer share one. "Milestones" serves the add screen, where that section
+# heading is always present and never moves below the keyboard; a small screen
+# off a record's page has no sections, so it names one of its field labels
+# instead. Whatever is picked must be a plain `Text` — tapping a `Pressable`
+# would be handled, and so would not dismiss.
 #
 # The closing assert is the point. Without it a failed dismissal goes unnoticed
 # until something far downstream taps a key, and `scrollUntilVisible` can spin on
@@ -31,6 +37,6 @@ appId: com.leapsake.app
       visible:
         id: "Return"
     commands:
-      - tapOn: "Milestones"
+      - tapOn: "${ANCHOR}"
 - assertNotVisible:
     id: "Return"

@@ -47,16 +47,14 @@ appId: com.leapsake.app
     file: subflows/save-record.yaml
 
 # ── 2. Name somebody the list doesn't have ──────────────────────────────────
-# Relationships are added on the record's form, behind the detail screen's one
-# Edit — the page itself only reads. The header control is matched loosely
-# because it names what it edits ("Edit Sam… Carter…") for a screen reader.
-- tapOn: "Edit.*"
+# A relationship is added from the Relationships section on the record's own
+# page, which pushes a screen holding one relationship and its own Save. The
+# scroll is UP because `save-record.yaml` leaves the page at its Gifts section,
+# which sits below this one.
 - scrollUntilVisible:
     element:
       text: "Add relationship"
-    direction: DOWN
-# The link appends a row that is already open, in the space the link occupied —
-# so the picker below is that row's, and there is no sub-form to wait for.
+    direction: UP
 - tapOn: "Add relationship"
 - assertVisible:
     id: "relationship-other-name"
@@ -76,11 +74,14 @@ appId: com.leapsake.app
 # is the input, leaving the role unset and Save disabled several steps later.
 - inputText: "Wif"
 - tapOn: "Wife"
+# "Name" is this screen's dismissal anchor: it has no section headings, and the
+# Typeahead's own label is a plain `Text` sitting above the fold.
 - runFlow:
     file: subflows/dismiss-keyboard.yaml
-# One act, not two: the row was staged the moment the link appended it, and its
-# fields have been editing it in place ever since. Nothing reaches the database
-# until Save — the row's existence on the form is not a write.
+    env:
+      ANCHOR: "Name"
+# Save writes this one relationship — and, because nothing matched her name, the
+# person on the other end of it — then returns to his page.
 - tapOn: "Save"
 
 # She is on his page, as the one relationship that is her whole existence.
@@ -99,7 +100,6 @@ appId: com.leapsake.app
 # own add-relationship screen: typing her name there must turn up only the
 # offer to create *another* person by that name, never the one that exists.
 - tapOn: ".*Sam${output.run} Carter${output.run}.*"
-- tapOn: "Edit.*"
 - scrollUntilVisible:
     element:
       text: "Add relationship"
@@ -114,8 +114,8 @@ appId: com.leapsake.app
 - inputText: "Jenqx"
 - assertVisible: 'Add "Jenqx" as a new person'
 - assertNotVisible: "Jenqx${output.run}"
-# Back out of the form without saving — nothing typed here was written, which is
-# the other half of what staging buys.
+# Back out without saving. The screen has no Cancel because "‹ Back" is one:
+# nothing typed here was written, which is what makes leaving safe.
 - back
 
 # ── 4. Findable through him ─────────────────────────────────────────────────

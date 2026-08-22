@@ -20,3 +20,5 @@ appId: com.leapsake.app
 - inputText: "${LAST}"
 - runFlow:
     file: dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Milestones"

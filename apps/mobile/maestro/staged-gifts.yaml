@@ -1,4 +1,4 @@
-# Recording a gift on the form behind a person's Edit, and ticking it off.
+# Recording a gift beside the person it is for, and ticking it off on their page.
 #
 # The staged Gifts section is the one place a gift is typed *beside* the record
 # it belongs to, rather than on the standalone capture screen — and the only
@@ -7,22 +7,22 @@
 # (`GiftGivenToggle`).
 #
 # Three claims, none of which a lower tier can make. The repo and core tests
-# prove the write does the right thing when asked; this proves the screen asks.
+# prove the write does the right thing when asked; this proves the screens ask.
 #
-#   1. "Add gift" appends an **open row** — no sub-form, no `Cancel  Add` — and
-#      the form's one Save writes what is in it.
+#   1. "Add gift" on the create form appends an **open row** — no sub-form, no
+#      `Cancel  Add` — and the form's one Save writes what is in it.
 #   2. The gift lands on the person's page, marked not-given.
-#   3. Re-opening the form and flipping the row's switch marks it given, and the
-#      page reads it back that way.
+#   3. The row's own ✓/○ on that page marks it given, with no form and no Save,
+#      and the page reads it back that way.
 #
-# This replaces `staged-gift-occasions.yaml` and its
-# `subflows/stage-gift-for-occasion.yaml`, which drove the occasion picker and
-# the "When?" row through four places a gift could name one. Occasions and dates
-# left v0.1 scope; what is left of a gift is a name and a switch.
+# Case 3 used to reopen the record's whole form to reach a switch. That form is
+# gone: a gift link is ticked or it isn't, so there is no draft to hold back and
+# the tick writes where it stands. It is asserted through the toggle's
+# accessibility label rather than the ✓/○ glyph, because the label is what a
+# screen reader is given and the glyph is inside it.
 #
-# Verify non-vacuous by sabotage: make `applyEntityForm` skip
-# `value.gifts.added` and case 2 goes red; make it skip `value.gifts.given` and
-# case 3 does.
+# Verify non-vacuous by sabotage: make `applyEntityForm` skip `value.gifts` and
+# case 2 goes red; make `GiftsSection`'s `setGiven` a no-op and case 3 does.
 #
 # Like the other flows here it deliberately does not `launchApp`: a cold
 # dev-client launch lands on the launcher, and these routes only exist once JS
@@ -43,25 +43,22 @@ appId: com.leapsake.app
     env:
       FIRST: "Wren${output.run}"
       LAST: "Ashby${output.run}"
-- runFlow:
-    file: subflows/save-record.yaml
 
-# ── 2. Add a gift on the form behind Edit ───────────────────────────────────
-# The header control names what it edits ("Edit Wren… Ashby…") for a screen
-# reader, so it is matched loosely.
-- tapOn: "Edit.*"
+# ── 2. Stage a gift on the same form ────────────────────────────────────────
+# The link appends a row that is already open, in the space the link occupied —
+# the fields below are that row's, with no sub-form to wait for.
 - scrollUntilVisible:
     element:
       text: "Add gift"
     direction: DOWN
-# The link appends a row that is already open, in the space the link occupied —
-# the fields below are that row's, with no sub-form to wait for.
 - tapOn: "Add gift"
 - tapOn:
     id: "gift-title"
 - inputText: "Kite${output.run}"
 - runFlow:
     file: subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Milestones"
 # The row's identity line takes the name as it is typed, which is how we know
 # the draft reached the section's state rather than only the input.
 - assertVisible: "Kite${output.run}"
@@ -71,27 +68,10 @@ appId: com.leapsake.app
 # ── 3. It reads back on the page, not yet given ─────────────────────────────
 - scrollUntilVisible:
     element:
-      text: "Kite${output.run}"
+      text: "Kite${output.run} — not given yet"
     direction: DOWN
-# The page marks an outstanding gift "○" and a given one "✓" — the same bit the
-# switch sets, rendered where it is only read.
-- assertVisible: "○"
 
-# ── 4. Tick it off ──────────────────────────────────────────────────────────
-- tapOn: "Edit.*"
-- scrollUntilVisible:
-    element:
-      text: "Already gave it to Wren${output.run} Ashby${output.run}"
-    direction: DOWN
-# The toggle is the row's own control rather than something behind an Edit:
-# with occasions and dates gone there is nothing else on the row to revise.
-- tapOn: "Already gave it to Wren${output.run} Ashby${output.run}"
-- runFlow:
-    file: subflows/save-record.yaml
-
-- scrollUntilVisible:
-    element:
-      text: "Kite${output.run}"
-    direction: DOWN
-- assertVisible: "✓"
-- assertNotVisible: "○"
+# ── 4. Tick it off, on the row ──────────────────────────────────────────────
+- tapOn: "Kite${output.run} — not given yet"
+- assertVisible: "Kite${output.run} — given"
+- assertNotVisible: "Kite${output.run} — not given yet"

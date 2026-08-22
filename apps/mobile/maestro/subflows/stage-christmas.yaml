@@ -20,6 +20,8 @@ appId: com.leapsake.app
 - inputText: "Christ"
 - runFlow:
     file: dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Milestones"
 - scrollUntilVisible:
     element:
       text: "Add Christmas"

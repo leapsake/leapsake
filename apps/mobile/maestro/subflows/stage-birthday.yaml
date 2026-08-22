@@ -37,4 +37,6 @@ appId: com.leapsake.app
     direction: UP
 - runFlow:
     file: dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Milestones"
 - assertVisible: ".*Birthday.*"

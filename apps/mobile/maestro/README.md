@@ -46,13 +46,17 @@ ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. Th
   maestro --udid <sim> test global-nav.yaml
   ```
 
-- **`staged-gifts.yaml`** — a **UI** flow rather than a contract one: it drives a person's
-  edit form through adding a gift as an open row, saving, reading it back on the page as
-  not-given, then flipping its switch and reading it back as given. It is the regression
-  gate on the two screen-level seams the staged Gifts section has — that "Add gift" appends
-  a row the form's own Save writes, and that a tick typed into a saved row is applied — and
-  it is **verified non-vacuous by sabotage**: making `applyEntityForm` skip
-  `value.gifts.added` turns case 2 red, skipping `value.gifts.given` turns case 3 red.
+- **`staged-gifts.yaml`** — a **UI** flow rather than a contract one: it drives the create
+  form through adding a gift as an open row, saving, reading it back on the person's page
+  as not-given, then ticking it off on the row itself and reading it back as given. It is
+  the regression gate on the two screen-level seams a gift has — that "Add gift" appends a
+  row the form's own Save writes, and that the row's own ✓/○ applies where it stands — and
+  it is **verified non-vacuous by sabotage**: making `applyEntityForm` skip `value.gifts`
+  turns case 2 red, making `GiftsSection`'s `setGiven` a no-op turns case 3 red.
+
+  It used to reopen the whole record's edit form to reach the tick. That form is gone —
+  each part of a saved person is now its own small screen, and a gift's tick is not a draft
+  at all — so the second half of the flow acts on the detail page directly.
 
   Not wired into `pnpm test:native`, which is built around one flow and a PASS token. Run
   it directly against a **freshly loaded** app (see _Running the flow directly_ below):
@@ -61,8 +65,9 @@ ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. Th
   maestro --udid <sim> test staged-gifts.yaml
   ```
 
-  ⚠️ **Not yet run on a simulator** — written 2026-08-20 alongside the gift-scope cut, and
-  typecheck-verified only. It replaces `staged-gift-occasions.yaml` (+
+  ⚠️ **Not yet run on a simulator** — written 2026-08-20 alongside the gift-scope cut and
+  revised 2026-08-22 for the per-item edit screens; reviewed against the source both times,
+  never executed. It replaces `staged-gift-occasions.yaml` (+
   `subflows/stage-gift-for-occasion.yaml`), which was green on both platforms and drove the
   occasion picker through the five ways a staged occasion could resolve. Occasions left
   v0.1 scope; that flow and its platform-branching `SelectField` subflow went with them, and
