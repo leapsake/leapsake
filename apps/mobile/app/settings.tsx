@@ -74,13 +74,20 @@ export default function SettingsScreen() {
 
   useEffect(refreshStatus, [sync]);
 
+  // The screen used to repeat its own name as an in-body <h1> under the header
+  // that already says it. The header carries it alone now, including the wording
+  // that used to live in the body: it names sync only when there is sync to name
+  // — with `multiDevice` held back the word would be the only place a v0.1 user
+  // meets the idea, and it would go nowhere.
+  const title = flag("multiDevice") ? "Account & sync" : "Account";
+
   // One-time reveal takes over the screen until acknowledged. It keeps the same
   // header title as the screen it took over, so each branch declares it — the
   // shape holidays/[id] uses for its own two branches.
   if (revealed !== null) {
     return (
       <>
-        <Stack.Screen options={{ title: "Account" }} />
+        <Stack.Screen options={{ title }} />
         <RecoveryKeyReveal
           recoveryKey={revealed.phrase}
           escrowPending={revealed.escrowPending}
@@ -95,16 +102,8 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Account" }} />
+      <Stack.Screen options={{ title }} />
       <ScrollView contentContainerStyle={styles.screen}>
-        {/*
-          The heading names sync only when there is sync to name — with
-          `multiDevice` held back the word would be the only place a v0.1 user
-          meets the idea, and it would go nowhere.
-        */}
-        <Text style={styles.title}>
-          {flag("multiDevice") ? "Account & sync" : "Account"}
-        </Text>
         {status === null ? (
           <Text style={styles.muted}>Loading…</Text>
         ) : status.hasAccount ? (
@@ -374,8 +373,9 @@ function AccountEnabled({
 /**
  * **Create an account on this device** (`model.md` §7.2.1) — the act that turns
  * encryption on. Entirely local: no relay, no email, nothing transmitted. The
- * mobile mirror of desktop's `CreateAccount`, down to the copy, which is
- * load-bearing in two ways worth keeping identical across the clients:
+ * mobile mirror of desktop's `CreateAccount`. The copy is a tightened version of
+ * desktop's (two paragraphs down to one, *owner, 2026-08-21*) rather than a
+ * different message — both points below still have to survive the trim:
  *
  * 1. **Promise access, not safety.** An account protects against *this device
  *    losing its security settings*; it does nothing about a lost or broken
@@ -430,14 +430,9 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Protect your data</Text>
       <Text style={styles.muted}>
-        Right now anyone who can unlock this phone can read your Leapsake data.
-        Setting up a username and password encrypts it on this device.
-      </Text>
-      <Text style={styles.muted}>
-        This stays on this phone — there's no email, no server, and nothing is
-        sent anywhere. It protects access to your data, not the data itself: if
-        this phone is lost or breaks, a password won't bring your data back. Set
-        up sync or keep a backup for that.
+        A username and password encrypt your Leapsake data on this phone —
+        nothing is sent anywhere. They protect access to your data, not the data
+        itself: if this phone is lost or breaks, only a backup brings it back.
       </Text>
       {/*
         `testID`s here are load-bearing for the harness, not decoration. Both
