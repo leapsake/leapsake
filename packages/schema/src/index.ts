@@ -277,6 +277,7 @@ export {
   normalizePhone,
   normalizeHandle,
   formatPostalAddress,
+  postalAddressLines,
 } from "./contact-method.js";
 export type { SearchHit, SearchResultType } from "./search.js";
 export {

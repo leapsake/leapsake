@@ -313,24 +313,51 @@ export type ContactMethod =
   | { kind: "postal"; method: PostalAddress }
   | { kind: "social"; method: SocialProfile };
 
-/**
- * A plain, **non**-country-aware one-line rendering of a postal address: the
- * present fields joined in a conventional Western order. The country-aware
- * formatter (which reorders by locale) is explicitly deferred; this keeps the
- * address legible until then.
- */
-export function formatPostalAddress(addr: {
+/** The fields a postal address is rendered from, by either formatter below. */
+interface PostalAddressParts {
   line1: string;
   line2: string | null;
   locality: string | null;
   region: string | null;
   postalCode: string | null;
   country: string | null;
-}): string {
+}
+
+/**
+ * A postal address as the lines you would write on an envelope: street, then
+ * any second line, then "Springfield, IL 62704" as one unit, then the country.
+ * Empty fields collapse rather than leaving a blank line.
+ *
+ * This is the field order — {@link formatPostalAddress} is these lines joined
+ * with commas, not a second ordering that has to be kept in step with this one.
+ *
+ * Like the one-line form it is **non**-country-aware: the formatter that
+ * reorders by locale is still deferred, and this is the conventional Western
+ * shape until it lands.
+ */
+export function postalAddressLines(addr: PostalAddressParts): string[] {
+  // "IL 62704" is one unit and never takes an internal comma; the comma belongs
+  // after the city, and only when there is a city for it to follow.
   const regionPostal = [addr.region, addr.postalCode]
     .filter((p): p is string => p !== null && p !== "")
     .join(" ");
-  return [addr.line1, addr.line2, addr.locality, regionPostal, addr.country]
-    .filter((p): p is string => p !== null && p !== "")
-    .join(", ");
+  const city = addr.locality ?? "";
+  const cityLine =
+    city !== "" && regionPostal !== ""
+      ? `${city}, ${regionPostal}`
+      : city + regionPostal;
+
+  return [addr.line1, addr.line2, cityLine, addr.country].filter(
+    (p): p is string => p !== null && p !== "",
+  );
+}
+
+/**
+ * A plain, **non**-country-aware one-line rendering of a postal address: the
+ * present fields joined in a conventional Western order. Used where an address
+ * has to be a single string — a map query, the clipboard, a search result, a
+ * sentence — while {@link postalAddressLines} is what a screen displays.
+ */
+export function formatPostalAddress(addr: PostalAddressParts): string {
+  return postalAddressLines(addr).join(", ");
 }

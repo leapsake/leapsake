@@ -6,6 +6,7 @@ import {
   formatPostalAddress,
   normalizeEmail,
   normalizePhone,
+  postalAddressLines,
 } from "./contact-method.js";
 
 describe("normalizeEmail", () => {
@@ -66,6 +67,57 @@ describe("formatPostalAddress", () => {
         country: null,
       }),
     ).toBe("PO Box 5");
+  });
+});
+
+describe("postalAddressLines", () => {
+  it("puts city, region and postal code on one line", () => {
+    expect(
+      postalAddressLines({
+        line1: "1 Main St",
+        line2: "Apt 3",
+        locality: "Springfield",
+        region: "IL",
+        postalCode: "62704",
+        country: "US",
+      }),
+    ).toEqual(["1 Main St", "Apt 3", "Springfield, IL 62704", "US"]);
+  });
+  it("collapses absent fields rather than leaving blank lines", () => {
+    expect(
+      postalAddressLines({
+        line1: "PO Box 5",
+        line2: null,
+        locality: null,
+        region: null,
+        postalCode: null,
+        country: null,
+      }),
+    ).toEqual(["PO Box 5"]);
+  });
+  it("keeps the comma with the city when the region is missing", () => {
+    expect(
+      postalAddressLines({
+        line1: "3 Rue Cler",
+        line2: null,
+        locality: "Paris",
+        region: null,
+        postalCode: "75007",
+        country: "FR",
+      }),
+    ).toEqual(["3 Rue Cler", "Paris, 75007", "FR"]);
+  });
+  it("drops the comma when only a region or postal code is present", () => {
+    expect(
+      postalAddressLines({
+        line1: "1 Main St",
+        line2: null,
+        locality: null,
+        region: "IL",
+        postalCode: "62704",
+        country: null,
+      }),
+    ).toEqual(["1 Main St", "IL 62704"]);
   });
 });
 
