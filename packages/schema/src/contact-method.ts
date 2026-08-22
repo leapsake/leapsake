@@ -29,7 +29,10 @@ export interface ContactOwner {
  * verbatim as the display label, so they are the user-facing strings, not codes.
  */
 export const emailLabelSuggestions = ["Home", "Work"] as const;
-export const phoneLabelSuggestions = ["Mobile", "Home", "Work", "Fax"] as const;
+// No "Fax": these are the labels worth *offering*, and a fax line is a rarity
+// the free-text field still takes. An imported one keeps its label — nothing
+// here constrains what is stored, only what the picker puts in front of you.
+export const phoneLabelSuggestions = ["Mobile", "Home", "Work"] as const;
 export const postalLabelSuggestions = ["Home", "Work"] as const;
 export const socialLabelSuggestions = ["Personal", "Work"] as const;
 
