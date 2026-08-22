@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import type { ContactMethod, ContactMethodKind } from "@leapsake/schema";
+import { findPlatform } from "@leapsake/contact-links";
 import {
   type ContactDraft,
   ContactMethodFields,
@@ -17,6 +18,18 @@ const KIND_HEADING: Record<ContactMethodKind, string> = {
   postal: "🏠 Postal address",
   social: "💬 Social",
 };
+
+/**
+ * A row's heading. A social row says which platform, since that is now what the
+ * user picked it as — an unknown id shown as stored, the same call
+ * {@link ContactsSection} makes — and falls back to "Social" only while the
+ * catch-all is waiting to be told.
+ */
+function headingFor(draft: ContactDraft): string {
+  if (draft.kind !== "social") return KIND_HEADING[draft.kind];
+  const named = findPlatform(draft.platform)?.name ?? draft.platform.trim();
+  return named === "" ? KIND_HEADING.social : `💬 ${named}`;
+}
 
 /**
  * A contact method being authored on a form: the draft the write will use, a key
@@ -102,9 +115,7 @@ export function StagedContactsSection({
               the Type dropdown below says the same thing and is the place to
               change it; this line is what a saved row has instead. */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.fieldLabel}>
-              {KIND_HEADING[entry.draft.kind]}
-            </Text>
+            <Text style={styles.fieldLabel}>{headingFor(entry.draft)}</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Remove ${entry.draft.label}`}

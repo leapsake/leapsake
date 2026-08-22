@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Pressable, Switch, Text, TextInput, View } from "react-native";
 import {
   type ContactMethod,
@@ -16,15 +17,59 @@ import {
 import { CheckboxBox } from "./Checkbox";
 import { CountryField } from "./CountryField";
 import { SelectField } from "./SelectField";
+import { SuggestField } from "./SuggestField";
 import { styles } from "../lib/styles";
 
-/** The kinds a new method can be, in the order the Type dropdown offers them. */
-const KIND_OPTIONS: { value: ContactMethodKind; label: string }[] = [
+/**
+ * The prefix marking a Type option as "social, on this platform"; the rest of
+ * the value is the platform id, and {@link OTHER_SOCIAL} — the prefix with no id
+ * after it — is the one that names no platform. A prefix rather than a second
+ * dropdown because *what a contact method is* is one question to the user:
+ * "Instagram" is an answer to it in the same way "Email" is, and asking for the
+ * kind first only to ask which platform second was making them spell out a
+ * classification they had already made.
+ */
+const SOCIAL_PREFIX = "social:";
+
+/** A profile on a platform the registry has no template for — see below. */
+const OTHER_SOCIAL = SOCIAL_PREFIX;
+
+/**
+ * What a new method can be, in the order the Type dropdown offers them: the
+ * three kinds that are their own answer, then every platform Leapsake knows how
+ * to open, then the catch-all for the ones it doesn't.
+ *
+ * The platforms come from the registry rather than being listed here, so adding
+ * one to `@leapsake/contact-links` puts it in this dropdown — the same bargain
+ * `PHONE_PLATFORMS` makes with the "Also reachable on" checkboxes.
+ */
+const TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "email", label: "Email" },
   { value: "phone", label: "Phone" },
   { value: "postal", label: "Postal address" },
-  { value: "social", label: "Social" },
+  ...HANDLE_PLATFORMS.map((platform) => ({
+    value: `${SOCIAL_PREFIX}${platform.id}`,
+    label: platform.name,
+  })),
+  { value: OTHER_SOCIAL, label: "Other" },
 ];
+
+/** The Platform dropdown on a saved social row, which has no Type dropdown. */
+const PLATFORM_OPTIONS = TYPE_OPTIONS.filter((option) =>
+  option.value.startsWith(SOCIAL_PREFIX),
+);
+
+/**
+ * Which Type option a draft is sitting on. A social row answers with its
+ * platform, and a platform the registry has never heard of — one the user named
+ * by hand — answers with the catch-all, which is exactly where they typed it.
+ */
+function typeValueOf(draft: ContactDraft): string {
+  if (draft.kind !== "social") return draft.kind;
+  return findPlatform(draft.platform) === undefined
+    ? OTHER_SOCIAL
+    : `${SOCIAL_PREFIX}${draft.platform}`;
+}
 
 /** The label chips offered for a kind. */
 function labelSuggestionsFor(kind: ContactMethodKind): readonly string[] {
@@ -208,7 +253,8 @@ export function contactDraftToValue(draft: ContactDraft): ContactFormValue {
   return {
     kind: "social",
     label,
-    platform: draft.platform,
+    // Trimmed because it may be a name the user typed rather than a registry id.
+    platform: draft.platform.trim(),
     // Cleaned here rather than in the repo: what counts as a handle is a fact
     // about the platform, and this is the only layer that knows which platform
     // was picked. A pasted profile URL arrives as a handle.
@@ -235,7 +281,14 @@ export function contactDraftFilled(draft: ContactDraft): boolean {
 
 /** Whether the draft would pass its kind's schema. */
 export function contactDraftValid(draft: ContactDraft): boolean {
-  return draft.label.trim().length > 0 && contactDraftFilled(draft);
+  if (draft.label.trim().length === 0) return false;
+  // A social row picked from the catch-all starts with no platform at all, and
+  // `socialProfileSchema` wants one: the write would fail where the form can
+  // just wait. Every other kind carries its platform implicitly or not at all.
+  if (draft.kind === "social" && draft.platform.trim().length === 0) {
+    return false;
+  }
+  return contactDraftFilled(draft);
 }
 
 /**
@@ -255,8 +308,16 @@ export function contactDraftValid(draft: ContactDraft): boolean {
  * you pick; on a row read back from a saved method it is fixed, since a phone
  * number that should have been an email is a new row, not an edit.
  *
- * The label is free text; the kind's suggestions render as tappable chips — the
- * RN equivalent of desktop's `<datalist>`.
+ * That dropdown answers "what is this?" once, platform and all — Instagram sits
+ * in it beside Email — so a row being added never picks Social and then picks
+ * again. A saved social row, having no Type dropdown to change, gets the same
+ * list without the kinds as its Platform field; see {@link TYPE_OPTIONS}.
+ *
+ * The label is free text over a short list of usual answers — desktop's
+ * `<datalist>`, rendered here as a {@link SuggestField} whose sheet holds both.
+ * Everywhere but postal it shares a line with the address, number or handle it
+ * names, since a screen that stacks several of these rows can't afford a whole
+ * line for one word.
  */
 export function ContactMethodFields({
   draft,
@@ -276,14 +337,18 @@ export function ContactMethodFields({
   const platform = findPlatform(draft.platform);
 
   /**
-   * Switching kinds carries the label over only if the user typed one of their
-   * own: a label that is still one of the old kind's suggestions was chosen for a
-   * kind this row no longer is, so it re-seeds from the new kind's — "Fax" has no
+   * Point the row at a different kind, and — where the answer named one — a
+   * platform, in the one move the user made.
+   *
+   * Switching carries the label over only if the user typed one of their own: a
+   * label that is still one of the old kind's suggestions was chosen for a kind
+   * this row no longer is, so it re-seeds from the new kind's — "Mobile" has no
    * business surviving a switch to Email.
    */
-  function setKind(next: ContactMethodKind) {
+  function retarget(next: ContactMethodKind, rest: Partial<ContactDraft> = {}) {
     onChange({
       ...draft,
+      ...rest,
       kind: next,
       label: labelSuggestions.includes(draft.label)
         ? labelSuggestionsFor(next)[0]!
@@ -291,62 +356,90 @@ export function ContactMethodFields({
     });
   }
 
+  /** Answer the Type dropdown: a bare kind, or social plus which platform. */
+  function setType(value: string) {
+    if (!value.startsWith(SOCIAL_PREFIX)) {
+      retarget(value as ContactMethodKind);
+      return;
+    }
+    const id = value.slice(SOCIAL_PREFIX.length);
+    // The catch-all names no platform, so it blanks the one a listed option had
+    // set — the row is something we have no template for, and the free-text
+    // field it reveals is where the user says what. A name they had already
+    // typed there survives the round trip, for the reason the draft is a
+    // superset at all: switching away and back shouldn't cost you "Mastodon".
+    const keepTyped = id === "" && platform === undefined;
+    retarget("social", { platform: keepTyped ? draft.platform : id });
+  }
+
+  /**
+   * A one-word name for the row, free text with the kind's usual answers behind
+   * a sheet. Narrow by nature, so wherever the kind has a single field that *is*
+   * the row — an address, a number, a handle — it shares that field's line
+   * rather than spending one of its own: see {@link pairedWithLabel}.
+   */
+  const labelField = (
+    <SuggestField
+      label="Label"
+      value={draft.label}
+      suggestions={labelSuggestions}
+      onChange={(value) => set("label", value)}
+    />
+  );
+
+  /** Label beside the one field it names. */
+  const pairedWithLabel = (field: ReactNode) => (
+    <View style={styles.fieldPair}>
+      <View style={styles.fieldPairNarrow}>{labelField}</View>
+      <View style={styles.fieldPairWide}>{field}</View>
+    </View>
+  );
+
   return (
     <>
       {canChangeKind ? (
         <SelectField
           label="Type"
-          value={kind}
-          options={KIND_OPTIONS}
-          onChange={setKind}
+          value={typeValueOf(draft)}
+          options={TYPE_OPTIONS}
+          onChange={setType}
         />
       ) : null}
 
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Label</Text>
-        <TextInput
-          style={styles.input}
-          value={draft.label}
-          onChangeText={(value) => set("label", value)}
-        />
-        <View style={styles.headerActions}>
-          {labelSuggestions.map((suggestion) => (
-            <Pressable
-              key={suggestion}
-              accessibilityRole="button"
-              onPress={() => set("label", suggestion)}
-            >
-              <Text style={styles.link}>{suggestion}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
+      {/* Postal keeps the Label on its own line: it has five fields of its own
+          and no single one of them is the one the Label names. The other three
+          kinds pair it with theirs, below. */}
+      {kind === "postal" ? labelField : null}
 
-      {kind === "email" ? (
-        <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Email</Text>
-          <TextInput
-            style={styles.input}
-            value={draft.address}
-            onChangeText={(value) => set("address", value)}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-      ) : null}
+      {kind === "email"
+        ? pairedWithLabel(
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Email</Text>
+              <TextInput
+                style={styles.input}
+                value={draft.address}
+                onChangeText={(value) => set("address", value)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>,
+          )
+        : null}
 
       {kind === "phone" ? (
         <>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Number</Text>
-            <TextInput
-              style={styles.input}
-              value={draft.number}
-              onChangeText={(value) => set("number", value)}
-              keyboardType="phone-pad"
-            />
-          </View>
+          {pairedWithLabel(
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Number</Text>
+              <TextInput
+                style={styles.input}
+                value={draft.number}
+                onChangeText={(value) => set("number", value)}
+                keyboardType="phone-pad"
+              />
+            </View>,
+          )}
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Extension (optional)</Text>
             <TextInput
@@ -434,21 +527,33 @@ export function ContactMethodFields({
               onChangeText={(value) => set("line2", value)}
             />
           </View>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>City / town</Text>
-            <TextInput
-              style={styles.input}
-              value={draft.locality}
-              onChangeText={(value) => set("locality", value)}
-            />
-          </View>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>State / province / county</Text>
-            <TextInput
-              style={styles.input}
-              value={draft.region}
-              onChangeText={(value) => set("region", value)}
-            />
+          {/* "City" and "State" rather than the full "City / town" and
+              "State / province / county": the slash-lists were the honest label
+              for an address form that doesn't know which country it is in, but
+              they cost two lines to say what one word gets across, and the
+              country is right below. When the form learns to name these from
+              the country, it names them one word at a time. */}
+          <View style={styles.fieldPair}>
+            <View style={styles.fieldPairWide}>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>City</Text>
+                <TextInput
+                  style={styles.input}
+                  value={draft.locality}
+                  onChangeText={(value) => set("locality", value)}
+                />
+              </View>
+            </View>
+            <View style={styles.fieldPairNarrow}>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>State</Text>
+                <TextInput
+                  style={styles.input}
+                  value={draft.region}
+                  onChangeText={(value) => set("region", value)}
+                />
+              </View>
+            </View>
           </View>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Postal code</Text>
@@ -467,42 +572,54 @@ export function ContactMethodFields({
 
       {kind === "social" ? (
         <>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Platform</Text>
-            <View style={styles.headerActions}>
-              {HANDLE_PLATFORMS.map((option) => (
-                <Pressable
-                  key={option.id}
-                  accessibilityRole="button"
-                  accessibilityState={{
-                    selected: option.id === draft.platform,
-                  }}
-                  onPress={() => set("platform", option.id)}
-                >
-                  <Text
-                    style={[
-                      styles.link,
-                      option.id === draft.platform && styles.linkSelected,
-                    ]}
-                  >
-                    {option.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Handle or profile link</Text>
-            <TextInput
-              style={styles.input}
-              value={draft.handle}
-              onChangeText={(value) => set("handle", value)}
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder="@name"
+          {/* A saved row's kind is fixed, so it has no Type dropdown to change
+              the platform from — this is that dropdown with the kinds taken
+              out, and the only place a stored Instagram profile can become a
+              Telegram one. A row being added doesn't need it: Type just said. */}
+          {canChangeKind ? null : (
+            <SelectField
+              label="Platform"
+              value={typeValueOf(draft)}
+              options={PLATFORM_OPTIONS}
+              onChange={setType}
             />
-          </View>
+          )}
+
+          {/* The catch-all's one field, and the reason `platform` is a free
+              string rather than an enum: a profile on something Leapsake has no
+              template for is still worth keeping, and a name the user typed
+              reads back better than a bare URL. Shown whenever the platform
+              isn't one the registry knows — which is both the row that just
+              picked "Other" and the saved row that did so months ago. */}
+          {platform === undefined ? (
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Platform name</Text>
+              <TextInput
+                style={styles.input}
+                value={draft.platform}
+                onChangeText={(value) => set("platform", value)}
+                autoCorrect={false}
+                placeholder="e.g. Mastodon"
+              />
+            </View>
+          ) : null}
+
+          {/* "…or link" rather than "…or profile link": sharing the line costs
+              this field a third of the width, and the Profile URL field below
+              says the longer word anyway. */}
+          {pairedWithLabel(
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Handle or link</Text>
+              <TextInput
+                style={styles.input}
+                value={draft.handle}
+                onChangeText={(value) => set("handle", value)}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder="@name"
+              />
+            </View>,
+          )}
 
           {/* Offered only where an opaque id reaches further than the handle
               does — that is the entire reason the field exists, and showing it

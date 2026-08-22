@@ -210,11 +210,110 @@ export const styles = StyleSheet.create({
     // works if it is lighter than its ground.
     backgroundColor: "#ffffff",
   },
+  // Two form fields sharing one line, where one of them is short enough to give
+  // the width away: a contact method's Label ("Mobile") beside the address or
+  // number it names. The widths are proportional rather than fixed so the pair
+  // still holds on the narrowest phone. Bottom-aligned, not top-: that keeps the
+  // two inputs on one line even when the wider field's caption wraps — the
+  // captions go ragged instead, which is much the lesser of the two.
+  fieldPair: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 12,
+  },
+  // The two halves of a `fieldPair`, a third and two thirds of it. Which field
+  // takes which is the caller's call — the Label is the narrow one beside an
+  // email address, and so is State beside City.
+  fieldPairNarrow: {
+    flex: 1,
+  },
+  fieldPairWide: {
+    flex: 2,
+  },
   // A form embedded in another screen's scroll view (a staged milestone or
   // contact method on the create screen): the `screen` gap without its padding,
   // which the host screen has already applied.
   inlineForm: {
     gap: 16,
+  },
+
+  // --- A field with a glyph at its head ------------------------------------
+  // The 🔍 field, in both places one appears: the Search tab and the filter
+  // inside a `SuggestField`'s sheet. The glyph is a **sibling** of the input
+  // rather than part of its text — it has to outlive the placeholder, and a
+  // value read back to a user must never begin with an emoji — so the box moves
+  // out to a row that wears it and the `TextInput` keeps everything else.
+  //
+  // Composed from `input` rather than copied out of it, at both levels: the row
+  // wears the box (its inherited padding is what sets the height, so the field
+  // is exactly as tall as a plain one), and the input inside takes the same
+  // style back minus the box, which is what keeps the type identical.
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  searchGlyph: {
+    fontSize: 17,
+  },
+  searchRowInput: {
+    flex: 1,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    paddingHorizontal: 0,
+    // Android's `TextInput` carries its own default padding; without this the
+    // text would sit lower than the glyph beside it.
+    paddingVertical: 0,
+  },
+
+  // --- Bottom sheets -------------------------------------------------------
+  // A field whose value is chosen somewhere else — the row you tap to open the
+  // sheet, wearing the input's own outline so a form reads as one column of
+  // controls whether or not you can type into them (see `SelectField`,
+  // `SuggestField`). Composed with `input`.
+  pickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  chevron: {
+    fontSize: 20,
+    color: colors.muted,
+  },
+  // A value the field doesn't have yet, standing in the place it will occupy.
+  fieldPlaceholder: {
+    color: colors.muted,
+  },
+  // Everything above the sheet: dims the screen and, being the flexible half of
+  // the modal, is also what pins the sheet to the bottom of it.
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: colors.scrim,
+  },
+  sheet: {
+    backgroundColor: colors.surface,
+    paddingBottom: 24,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    // The rounded top corners only read as rounded if what slides under them is
+    // clipped to the same shape.
+    overflow: "hidden",
+  },
+  // The sheet's top bar: its way out, and where it says what it is.
+  sheetBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
+  },
+  sheetTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: colors.text,
   },
   // A pressable rendered as a primary button.
   button: {

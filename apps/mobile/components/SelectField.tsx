@@ -91,10 +91,10 @@ export function SelectField<T extends string | null>({
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(true)}
-        style={[styles.input, local.row]}
+        style={[styles.input, styles.pickerRow]}
       >
         <Text style={styles.fieldValue}>{selectedLabel}</Text>
-        <Text style={local.chevron}>›</Text>
+        <Text style={styles.chevron}>›</Text>
       </Pressable>
 
       <Modal
@@ -103,9 +103,12 @@ export function SelectField<T extends string | null>({
         animationType="slide"
         onRequestClose={() => setOpen(false)}
       >
-        <Pressable style={local.backdrop} onPress={() => setOpen(false)} />
-        <View style={local.sheet}>
-          <View style={local.doneBar}>
+        <Pressable
+          style={styles.sheetBackdrop}
+          onPress={() => setOpen(false)}
+        />
+        <View style={styles.sheet}>
+          <View style={[styles.sheetBar, local.doneOnly]}>
             <Pressable
               accessibilityRole="button"
               onPress={() => setOpen(false)}
@@ -126,34 +129,9 @@ const local = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.sm,
   },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  chevron: {
-    fontSize: 20,
-    color: colors.muted,
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: colors.scrim,
-  },
-  sheet: {
-    backgroundColor: colors.surface,
-    paddingBottom: 24,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    // The rounded top corners only read as rounded if what slides under them is
-    // clipped to the same shape.
-    overflow: "hidden",
-  },
-  doneBar: {
-    flexDirection: "row",
+  // The wheel says what the field is, so this bar carries only the way out of
+  // it — no title to sit opposite, so Done takes the whole width and the end.
+  doneOnly: {
     justifyContent: "flex-end",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.divider,
   },
 });
