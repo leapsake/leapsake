@@ -1,8 +1,15 @@
 import { useCallback } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { EditLink } from "../../../components/EditLink";
 import { GiftsSection } from "../../../components/GiftsSection";
-import { HeaderEdit } from "../../../components/HeaderEdit";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
@@ -18,6 +25,7 @@ import { styles } from "../../../lib/styles";
 // relationships, milestones, holidays, gifts).
 export default function PetDetailScreen() {
   const core = useCore();
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   // Load the view and the reminders that @mention this pet together, so the
   // "Mentioned in" backlink refreshes on focus alongside the rest of the page.
@@ -63,20 +71,38 @@ export default function PetDetailScreen() {
 
   const { pet, gender, tags, timeline, relationships } = view;
 
+  function confirmDelete() {
+    Alert.alert("Delete pet", `Delete ${pet.name}?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          core.pets.softDelete(id).then(
+            // `dismissTo` for the same reason as the person page: the catalog is
+            // below us in the tab navigator, not a screen to replace this one
+            // with. See `app/people/[id]/index.tsx`.
+            () => router.dismissTo("/people"),
+            (e: unknown) => Alert.alert("Couldn't delete", String(e)),
+          );
+        },
+      },
+    ]);
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      {/* Read-only below, with one Edit into the whole record — see the person
-          screen, which this mirrors. */}
-      <Stack.Screen
-        options={{
-          title: pet.name,
-          headerRight: () => (
-            <HeaderEdit href={`/pets/${id}/edit`} what={pet.name} />
-          ),
-        }}
-      />
+      {/* An Edit beside each part of the record rather than one in the header —
+          see the person screen, which this mirrors. */}
+      <Stack.Screen options={{ title: pet.name }} />
 
-      <PetDetailFields pet={pet} gender={gender.value} />
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Details</Text>
+          <EditLink href={`/pets/${id}/edit`} what={pet.name} />
+        </View>
+        <PetDetailFields pet={pet} gender={gender.value} />
+      </View>
 
       <MilestonesSection
         readOnly
@@ -92,15 +118,24 @@ export default function PetDetailScreen() {
 
       <GiftsSection gifts={gifts} />
 
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Tags</Text>
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Tags</Text>
+          <EditLink href={`/pets/${id}/tags/edit`} what="tags" />
+        </View>
         <TagsField tags={tags} />
       </View>
 
       <MentionedInSection reminders={mentionedIn} />
 
+      {/* Above the timestamps, so the page ends on the record's bookkeeping
+          rather than on a destructive button — see the person screen. */}
+      <Pressable accessibilityRole="button" onPress={confirmDelete}>
+        <Text style={[styles.link, styles.danger]}>Delete pet</Text>
+      </Pressable>
+
       {/* Bookkeeping, as a caption at the foot of the screen — see the person
-          screen, which this mirrors. Deleting is the form's job now. */}
+          screen, which this mirrors. */}
       <RecordTimestamps createdAt={pet.createdAt} updatedAt={pet.updatedAt} />
     </ScrollView>
   );

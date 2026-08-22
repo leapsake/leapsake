@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   Text,
@@ -9,8 +10,8 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName } from "@leapsake/schema";
 import { ContactsSection } from "../../../components/ContactsSection";
+import { EditLink } from "../../../components/EditLink";
 import { GiftsSection } from "../../../components/GiftsSection";
-import { HeaderEdit } from "../../../components/HeaderEdit";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
@@ -77,18 +78,33 @@ export default function PersonDetailScreen() {
   const { person, gender, tags, timeline, relationships, contactMethods } =
     view;
 
+  function confirmDelete() {
+    Alert.alert("Delete person", `Delete ${fullName(person)}?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          core.people.softDelete(id).then(
+            // **`dismissTo`, not `replace`.** People & Pets is inside the tab
+            // navigator now (`app/(tabs)/_layout.tsx`), so from up here on the
+            // root stack it is not a screen to swap this one for — it is
+            // underneath us. `replace` would put a *second* `(tabs)` on the
+            // stack; this pops back down to the one already there and selects
+            // the catalog, which also takes the deleted record out of history.
+            () => router.dismissTo("/people"),
+            (e: unknown) => Alert.alert("Couldn't delete", String(e)),
+          );
+        },
+      },
+    ]);
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      {/* Everything below is read-only; the one way to change any of it is this
-          Edit, which opens the whole record as a form. */}
-      <Stack.Screen
-        options={{
-          title: fullName(person),
-          headerRight: () => (
-            <HeaderEdit href={`/people/${id}/edit`} what={fullName(person)} />
-          ),
-        }}
-      />
+      {/* No Edit in the header: each part of the record carries its own, beside
+          the part it changes. */}
+      <Stack.Screen options={{ title: fullName(person) }} />
 
       {/* Both halves of an unresolved pair carry this, so the way back to the
           review is on whichever person the user opens. It stays until the pair
@@ -108,7 +124,15 @@ export default function PersonDetailScreen() {
         </Pressable>
       )}
 
-      <PersonDetailFields person={person} gender={gender.value} />
+      {/* The record's own fields are a section like any other, so that the Edit
+          which changes them can sit where every other section's action sits. */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Details</Text>
+          <EditLink href={`/people/${id}/edit`} what={fullName(person)} />
+        </View>
+        <PersonDetailFields person={person} gender={gender.value} />
+      </View>
 
       <ContactsSection
         subjectName={fullName(person)}
@@ -134,9 +158,13 @@ export default function PersonDetailScreen() {
       <GiftsSection gifts={gifts} />
 
       {/* Below the sections rather than up with the name, the same reading order
-          the form puts them in: tags describe a person you have already read. */}
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Tags</Text>
+          the create form puts them in: tags describe a person you have already
+          read. */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Tags</Text>
+          <EditLink href={`/people/${id}/tags/edit`} what="tags" />
+        </View>
         <TagsField tags={tags} />
       </View>
 
@@ -157,9 +185,16 @@ export default function PersonDetailScreen() {
         </Pressable>
       )}
 
+      {/* Deleting the record is the largest change to it, and every change to it
+          is made from this page again — so this is where it belongs. It sits
+          *above* the timestamps rather than last, so the page still ends on the
+          record's bookkeeping rather than on a destructive button. */}
+      <Pressable accessibilityRole="button" onPress={confirmDelete}>
+        <Text style={[styles.link, styles.danger]}>Delete person</Text>
+      </Pressable>
+
       {/* Bookkeeping, not what the page is about — a caption at the very foot of
-          the screen, below everything a reader came for. Deleting the record is
-          the form's, not this screen's: see `EntityEditForm`. */}
+          the screen, below everything a reader came for. */}
       <RecordTimestamps
         createdAt={person.createdAt}
         updatedAt={person.updatedAt}

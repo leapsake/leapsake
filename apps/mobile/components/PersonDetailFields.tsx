@@ -5,13 +5,10 @@ import { DetailField } from "./DetailField";
  * A person's own scalar fields at the top of their detail screen — the name
  * parts, then gender — read only.
  *
- * They were editable in place for a while, each field with its own Edit and its
- * own Save, and the sections below them wrote from their rows the same way. That
- * is gone: the screen now has one **Edit** in its header, opening a form over the
- * whole record ({@link EntityEditForm}). A page that can be changed in a dozen
- * places is a page you cannot cancel, and revising a person is usually more than
- * one field's worth of thought — the name you fix is the same visit as the
- * birthday you were actually there for.
+ * All four move together, behind the one **Edit** on the section header above
+ * them (`app/people/[id]/edit.tsx`). They each had an Edit and a Save of their
+ * own once, which made fixing a spelling three taps and made the top of the page
+ * a column of buttons; a name is one thought, not three or four.
  */
 export function PersonDetailFields({
   person,
