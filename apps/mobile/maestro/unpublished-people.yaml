@@ -67,19 +67,21 @@ appId: com.leapsake.app
 - assertVisible: 'Add "Jenqx${output.run}" as a new person'
 - tapOn: 'Add "Jenqx${output.run}" as a new person'
 
+# Role is a collapsed row over a sheet, not an inline field: forty-one roles
+# don't fit the third of a line it shares with Name. So the row opens the sheet
+# and the sheet's own filter is what gets typed into.
 - tapOn:
     id: "relationship-other-role"
-# Deliberately a *partial* query. Typing the whole word puts "Wife" in the input
+- tapOn:
+    id: "relationship-other-role-filter"
+# Deliberately a *partial* query. Typing the whole word puts "Wife" in the filter
 # as well as on the option beneath it, and `tapOn` takes the first match — which
-# is the input, leaving the role unset and Save disabled several steps later.
+# is the filter, leaving the role unset and Save disabled a step later.
 - inputText: "Wif"
 - tapOn: "Wife"
-# "Name" is this screen's dismissal anchor: it has no section headings, and the
-# Typeahead's own label is a plain `Text` sitting above the fold.
-- runFlow:
-    file: subflows/dismiss-keyboard.yaml
-    env:
-      ANCHOR: "Name"
+# No keyboard to dismiss: picking a role closes the sheet, and the sheet is what
+# the keyboard belonged to. Save is in the native header either way.
+#
 # Save writes this one relationship — and, because nothing matched her name, the
 # person on the other end of it — then returns to his page.
 - tapOn: "Save"

@@ -214,8 +214,10 @@ export {
   composeRoles,
   inverseRole,
   holderAllows,
+  holderTypesFor,
   rolesForHolder,
   rolesForPair,
+  rolesForSubject,
   spouseNeighbors,
 } from "./relationship.js";
 export type {

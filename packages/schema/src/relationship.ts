@@ -505,9 +505,59 @@ export function rolesForPair(
   otherType: EntityType,
   subjectType: EntityType,
 ): { role: RelationshipRole; label: string }[] {
-  return rolesForHolder(otherType).filter((r) =>
-    holderAllows(inverseRole(r.role), subjectType),
-  );
+  return (Object.keys(roleDefs) as RelationshipRole[])
+    .filter(
+      (role) =>
+        holderAllows(role, otherType) && subjectAllows(role, subjectType),
+    )
+    .map((role) => ({ role, label: roleDefs[role].label }));
+}
+
+/**
+ * Whether a subject of this type may stand at the near end of `role` — that is,
+ * whether it can hold the inverse the write will derive for it.
+ */
+function subjectAllows(
+  role: RelationshipRole,
+  subjectType: EntityType,
+): boolean {
+  return holderAllows(inverseRole(role), subjectType);
+}
+
+/**
+ * Every role the other end could hold for **this subject**, whoever that other
+ * turns out to be — {@link rolesForPair} with the half that depends on the other
+ * end left out.
+ *
+ * This is what a role picker offers when nobody has been picked yet, and asking
+ * the question in this order is what lets it: only two roles in the registry
+ * constrain the other end at all (`owner` must be a person, `pet` must be a pet),
+ * and they are inverses, so exactly one of them survives for a given subject —
+ * 41 roles on a person's page, 41 on a pet's, differing in that one. Every
+ * kinship role is `holderTypes: "any"`, so a role is almost never a claim about
+ * what the other end *is*.
+ *
+ * Picking one then narrows the other end instead of the other way round; see
+ * {@link holderTypesFor}. The old arrangement had to know the other end first
+ * and re-derived the role list from it, which meant re-picking a name silently
+ * discarded a role that was still perfectly legal.
+ */
+export function rolesForSubject(
+  subjectType: EntityType,
+): { role: RelationshipRole; label: string }[] {
+  return (Object.keys(roleDefs) as RelationshipRole[])
+    .filter((role) => subjectAllows(role, subjectType))
+    .map((role) => ({ role, label: roleDefs[role].label }));
+}
+
+/**
+ * Which entity types may hold `role` — the constraint a chosen role puts on the
+ * other end of the relationship. `"any"` in the registry means both, spelled out
+ * here so callers can filter a candidate list without a special case.
+ */
+export function holderTypesFor(role: RelationshipRole): readonly EntityType[] {
+  const { holderTypes } = roleDefs[role];
+  return holderTypes === "any" ? entityTypeSchema.options : holderTypes;
 }
 
 /**

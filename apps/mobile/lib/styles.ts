@@ -221,6 +221,12 @@ export const styles = StyleSheet.create({
     alignItems: "flex-end",
     gap: 12,
   },
+  // Overrides the above where one half of the pair *grows* — a Typeahead listing
+  // its matches under the field. Bottom-aligning there would carry the narrow
+  // half down the page beside the list instead of leaving it on the input's line.
+  fieldPairTop: {
+    alignItems: "flex-start",
+  },
   // The two halves of a `fieldPair`, a third and two thirds of it. Which field
   // takes which is the caller's call — the Label is the narrow one beside an
   // email address, and so is State beside City.

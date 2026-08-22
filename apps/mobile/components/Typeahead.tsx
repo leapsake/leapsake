@@ -1,16 +1,24 @@
 import { type ReactNode, useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
-import { colors, styles } from "../lib/styles";
+import { Pressable, Text, View } from "react-native";
+import { SearchInput } from "./SearchInput";
+import { styles } from "../lib/styles";
 
 /**
  * The mobile stand-in for desktop's `<datalist>` — a labelled autocomplete over a
- * long or possibly-unfamiliar list (a relationship Role, a Country, a relationship
- * candidate). Short, fully-known enums use the native {@link SelectField} instead.
+ * long or possibly-unfamiliar list (a Country, a relationship candidate). Short,
+ * fully-known enums use the native {@link SelectField} instead; a long list on a
+ * field too narrow to show its matches inline uses {@link PickerField}.
  *
  * A chosen value shows as a row with a *Change* action (plus *Clear* when
- * `clearable`); otherwise a filter `TextInput` drives a pressable list. It's
+ * `clearable`); otherwise a filter field drives a pressable list. It's
  * autocomplete-style: nothing lists until `minChars` are typed (default 2,
  * matching the search tab) so the field never dumps its whole list.
+ *
+ * **That filter is the Search tab's own field** ({@link SearchInput}), which is
+ * what it has always behaved like: type, and rows appear underneath. It used to
+ * be a plain box, so the one control in the app that searches as you type looked
+ * like the ones that don't — and unlike them it has no submit, which the 🔍 is
+ * what says.
  *
  * Generic over the option object `T`. The caller maps its own value to/from an
  * option (`getKey`/`getLabel`, and the `value`/`onChange` pair); list rows and the
@@ -141,14 +149,11 @@ export function Typeahead<T>({
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
+      <SearchInput
         testID={testID}
-        style={styles.input}
         value={query}
         onChangeText={setQuery}
         placeholder={placeholder}
-        placeholderTextColor={colors.muted}
-        autoCorrect={false}
       />
       {q.length < minChars ? null : offered.length === 0 ? (
         <Text style={styles.muted}>No matches.</Text>
