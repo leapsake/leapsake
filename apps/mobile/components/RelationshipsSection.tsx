@@ -70,12 +70,15 @@ export function RelationshipsSection({
     if (neighbor.origin === "explicit") {
       return `${basePath}/relationships/${neighbor.relationshipId}/edit`;
     }
-    const query = new URLSearchParams({
-      otherType: neighbor.otherType,
-      otherId: neighbor.otherId,
-      otherRole: neighbor.otherRole,
-    });
-    return `${basePath}/relationships/new?${query.toString()}`;
+    // Assembled by hand rather than with `URLSearchParams`, whose `toString`
+    // React Native's URL shim does not implement. Every value here is an id or
+    // an enum, so encoding is belt-and-braces.
+    const query = [
+      `otherType=${encodeURIComponent(neighbor.otherType)}`,
+      `otherId=${encodeURIComponent(neighbor.otherId)}`,
+      `otherRole=${encodeURIComponent(neighbor.otherRole)}`,
+    ].join("&");
+    return `${basePath}/relationships/new?${query}`;
   }
 
   function confirmRemove(neighbor: RelationshipNeighbor) {
