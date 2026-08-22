@@ -4,9 +4,8 @@ import {
   contactRowValid,
 } from "../components/StagedContactsSection";
 import type { StagedHoliday } from "../components/StagedHolidaysSection";
-import type { StagedGiftEdits } from "../components/StagedGiftsSection";
 import {
-  emptyGiftEdits,
+  type StagedGift,
   giftRowsValid,
 } from "../components/StagedGiftsSection";
 import {
@@ -29,15 +28,15 @@ import {
 } from "../components/PetFields";
 
 /**
- * A person or pet as a form holds it — the record's own fields plus everything
- * the detail screen shows beside them, none of it written yet.
+ * A person or pet as the create form holds it — the record's own fields plus
+ * everything their detail screen will show beside them, none of it written yet.
  *
- * **One shape, two screens.** `app/add.tsx` starts from {@link emptyEntityForm}
- * and turns the result into creates; `components/EntityEditForm.tsx` seeds it
- * from a saved record and turns the difference into creates, updates and
- * deletes. They render the identical body ({@link EntityFormSections}) because a
- * form that adds a milestone and a form that revises one are asking the same
- * questions — the only difference is what the answers are applied to.
+ * Staging is what the create screen needs and the *only* thing that needs it:
+ * every staged row is keyed to a bearer id that doesn't exist until the record
+ * is written, so there is nowhere for a row to go one at a time. A saved record
+ * has no such problem, and each part of one is edited on a small screen with a
+ * Save of its own — the asymmetry is the point. This shape briefly served both,
+ * seeded from a saved record and applied as a diff.
  *
  * Both drafts are kept even though only one is in use: the create screen's toggle
  * flips between them, and holding both means the shared sections don't have to
@@ -50,7 +49,7 @@ export interface EntityFormValue {
   contacts: StagedContact[];
   relationships: StagedRelationship[];
   holidays: StagedHoliday[];
-  gifts: StagedGiftEdits;
+  gifts: StagedGift[];
 }
 
 export function emptyEntityForm(): EntityFormValue {
@@ -61,7 +60,7 @@ export function emptyEntityForm(): EntityFormValue {
     contacts: [],
     relationships: [],
     holidays: [],
-    gifts: emptyGiftEdits(),
+    gifts: [],
   };
 }
 

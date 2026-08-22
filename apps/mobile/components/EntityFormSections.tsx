@@ -1,6 +1,4 @@
-import type { GiftForRecipient } from "@leapsake/core";
 import type { EntityType } from "@leapsake/schema";
-import type { PartyOption } from "@leapsake/ui/headless";
 import { PersonFields } from "./PersonFields";
 import { PetFields } from "./PetFields";
 import { StagedContactsSection } from "./StagedContactsSection";
@@ -12,11 +10,11 @@ import { TagsInput } from "./TagsInput";
 import type { EntityFormValue } from "../lib/entity-form";
 
 /**
- * Everything a person or pet form asks, in the order it asks it — the body of
- * both `app/add.tsx` and {@link EntityEditForm}, so that creating a record and
- * revising one are the same screen with different starting values. It renders
- * nothing of its own: no header, no Save, no scroll view; the screen around it
- * owns those.
+ * Everything the create form asks, in the order it asks it — the body of
+ * `app/add.tsx`. It renders nothing of its own: no header, no Save, no scroll
+ * view; the screen around it owns those. It is still its own component rather
+ * than inlined, because that separation is what keeps the order and the reasons
+ * for it in one readable place, and because it once had a second caller.
  *
  * The order is the detail screen's, top to bottom: the record's own fields, then
  * the sections that hang off it, then tags. Tags come **last**, below the
@@ -46,20 +44,11 @@ export function EntityFormSections({
   type,
   value,
   onChange,
-  subject,
-  savedGifts,
 }: {
   type: EntityType;
   value: EntityFormValue;
   /** Revise the form. An updater, not a value — see above. */
   onChange: (update: (previous: EntityFormValue) => EntityFormValue) => void;
-  /**
-   * The record being edited, where there is one. Only the Gifts section asks —
-   * it names the recipient in each row's "Already gave it to …".
-   */
-  subject?: PartyOption;
-  /** The gifts already recorded for this recipient — the edit screen's only. */
-  savedGifts?: GiftForRecipient[];
 }) {
   const isPerson = type === "person";
   const { person, pet, milestones, contacts, relationships, holidays, gifts } =
@@ -105,9 +94,7 @@ export function EntityFormSections({
       />
 
       <StagedGiftsSection
-        recipientLabel={subject?.label}
-        saved={savedGifts}
-        value={gifts}
+        entries={gifts}
         onChange={(next) => patch({ gifts: next })}
       />
 

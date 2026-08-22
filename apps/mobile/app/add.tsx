@@ -36,12 +36,17 @@ import { styles } from "../lib/styles";
  * The form **stages** every section the detail pages carry — milestones,
  * contacts, holidays, relationships, gifts — because they are keyed to a bearer
  * id that doesn't exist until the entity is written. That body is
- * {@link EntityFormSections}, shared with the edit screen, so adding a milestone
- * and revising one are the same form; {@link applyEntityForm} writes it.
- * A relationship's *other* end needs nothing from the subject either — it is an
- * already-saved person or pet, or a name typed past the end of the list, which
- * becomes an unpublished entity when the batch is written — so it stages like the
- * rest.
+ * {@link EntityFormSections}; {@link applyEntityForm} writes it in one pass once
+ * the record exists. A relationship's *other* end needs nothing from the subject
+ * either — it is an already-saved person or pet, or a name typed past the end of
+ * the list, which becomes an unpublished entity when the batch is written — so
+ * it stages like the rest.
+ *
+ * **This is the last whole-record form, and deliberately so.** Every part of a
+ * *saved* person or pet is edited on a small screen of its own, each with a Save
+ * that writes one thing. Here nothing is real yet and everything is provisional,
+ * so one Save for the lot is the honest shape; there is no half-created person
+ * to leave a milestone hanging off.
  */
 export default function AddScreen() {
   const [type, setType] = useState<EntityType>("person");
@@ -89,16 +94,9 @@ function AddEntityForm({
             )
           ).id;
 
-      // Everything staged, against the entity that now exists. Nothing was there
-      // before, so every row is a create — the same pass the edit screen makes
-      // with a record's own rows as its starting point.
-      const failed = await applyEntityForm(
-        core,
-        type,
-        id,
-        value,
-        emptyEntityForm(),
-      );
+      // Everything staged, against the entity that now exists — every row a
+      // create, since nothing was there before.
+      const failed = await applyEntityForm(core, type, id, value);
       if (failed.length > 0) {
         Alert.alert(
           "Saved, but not everything",

@@ -1,87 +1,39 @@
 import { useEffect, useState } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import type { RelationshipCandidate } from "@leapsake/core";
-import {
-  type EntityType,
-  type RelationshipNeighbor,
-  type RelationshipRole,
-  baseRole,
-} from "@leapsake/schema";
+import type { EntityType } from "@leapsake/schema";
 import {
   type RelationshipDraft,
   RelationshipFields,
   emptyRelationshipDraft,
   otherLabelOf,
-  relationshipDraftFrom,
   relationshipDraftValid,
 } from "./RelationshipFields";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
 /**
- * A relationship being authored on a form: the draft the write needs bar the
- * subject, whose other end was resolved at pick time so a row can name it without
- * re-consulting the candidate list.
+ * A relationship being authored on the create form: the draft the write needs
+ * bar the subject, whose other end was resolved at pick time so a row can name
+ * it without re-consulting the candidate list.
  *
- * On the edit screen a row may also stand for something already true of the
- * subject, and which of the three it is decides what saving does:
- *
- * - **added here** (neither `savedId` nor `derived`) — a create.
- * - **`savedId`** — a stored edge; an edit changes its role, a removal deletes it.
- * - **`derived`** — a neighbour the inference engine computed, which has no row
- *   to change. Editing it *materialises* a stored edge (the same thing the old
- *   detail-page "Edit" did by sending you to the add form), and removing it
- *   records a dismissal instead of a deletion.
+ * Every row here is a create. A saved record's neighbours — a stored edge to
+ * re-role, an inferred one to materialise or dismiss — are each their own screen
+ * off that record's page, and the three-way distinction that used to live on
+ * this type lives in the route that writes.
  */
 export interface StagedRelationship {
   key: string;
   draft: RelationshipDraft;
-  /** The stored edge this row was read back from. */
-  savedId?: string;
-  /** An inferred neighbour, carrying the base role a dismissal is keyed on. */
-  derived?: { baseRole: RelationshipRole };
-  /**
-   * The other end exists only because of this edge, so removing it takes them
-   * with it — the one removal on this form that is more than an unlinking.
-   */
-  otherUnpublished?: boolean;
-  /** Whether it has been typed into here — see {@link StagedMilestone}. */
-  edited?: boolean;
-}
-
-/** A subject's neighbour as a staged row. */
-export function stagedRelationshipOf(
-  neighbor: RelationshipNeighbor,
-): StagedRelationship {
-  const draft = relationshipDraftFrom(neighbor);
-  return neighbor.origin === "explicit"
-    ? {
-        draft,
-        key: neighbor.relationshipId,
-        savedId: neighbor.relationshipId,
-        otherUnpublished: neighbor.otherStanding === "unpublished",
-      }
-    : {
-        draft,
-        // A derived neighbour has no stored id to key on, so the pair and the
-        // base role name it — the same triple `kinship.dismiss` is addressed by.
-        key: `derived:${neighbor.otherType}:${neighbor.otherId}:${baseRole(neighbor.otherRole)}`,
-        derived: { baseRole: baseRole(neighbor.otherRole) },
-      };
-}
-
-/** Whether the row's other end is still the row's to pick. */
-export function canChangeOther(row: StagedRelationship): boolean {
-  return row.savedId === undefined && row.derived === undefined;
 }
 
 /**
- * A row added here with nobody picked yet — the "Add relationship" tap nobody
- * followed through on. Neither written nor allowed to hold up the Save, for the
- * reason {@link contactRowPending} gives.
+ * A row with nobody picked yet — the "Add relationship" tap nobody followed
+ * through on. Neither written nor allowed to hold up the Save, for the reason
+ * {@link contactRowPending} gives.
  */
 export function relationshipRowPending(row: StagedRelationship): boolean {
-  return canChangeOther(row) && row.draft.other === null;
+  return row.draft.other === null;
 }
 
 /** Whether a row would either write cleanly or be skipped — the Save gate. */
@@ -90,8 +42,8 @@ export function relationshipRowValid(row: StagedRelationship): boolean {
 }
 
 /**
- * Relationships on the **create** and **edit** screens — the staged counterpart
- * to {@link RelationshipsSection}, held in an array until the form is saved. See
+ * Relationships on the **create** screen — the staged counterpart to
+ * {@link RelationshipsSection}, held in an array until the form is saved. See
  * {@link StagedMilestonesSection} for why staging works this way, and desktop's
  * `RelationshipFields` for the same section on that client.
  *
@@ -108,10 +60,10 @@ export function relationshipRowValid(row: StagedRelationship): boolean {
  * in the list. Neither is an already-staged entity excluded: the same pair may
  * relate in more than one way, which the schema deliberately permits.
  *
- * **Every row is open**, for the reason {@link StagedContactsSection} gives.
- * A stored or derived row keeps its other end **locked** even so, because that is
- * what the write behind it allows — only the role is live there. A row added on
- * this form has no such constraint and keeps its picker.
+ * **Every row is open**, for the reason {@link StagedContactsSection} gives, and
+ * every row keeps its picker: each one is a create, so nothing here is
+ * constrained by an endpoint a write cannot move. That constraint belongs to the
+ * screens off a saved record's page — see {@link RelationshipForm}.
  */
 export function StagedRelationshipsSection({
   subjectType,
@@ -137,26 +89,6 @@ export function StagedRelationshipsSection({
     };
   }, [core]);
 
-  /** Take a row out of the list — saying so first where that removes a person. */
-  function remove(entry: StagedRelationship) {
-    const drop = () => onChange(entries.filter((e) => e.key !== entry.key));
-    if (entry.otherUnpublished !== true) {
-      drop();
-      return;
-    }
-    // The one removal here with a consequence beyond this list, and the user is
-    // told about it while it can still be reconsidered — even though, like every
-    // other change on this form, nothing happens until Save.
-    Alert.alert(
-      "Remove relationship",
-      `${otherLabelOf(entry.draft)} is only recorded here, so saving this will remove them too.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Remove", style: "destructive", onPress: drop },
-      ],
-    );
-  }
-
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
@@ -174,7 +106,9 @@ export function StagedRelationshipsSection({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Remove ${label}`}
-                onPress={() => remove(entry)}
+                onPress={() =>
+                  onChange(entries.filter((e) => e.key !== entry.key))
+                }
               >
                 <Text style={[styles.link, styles.danger]}>Remove</Text>
               </Pressable>
@@ -182,12 +116,11 @@ export function StagedRelationshipsSection({
             <RelationshipFields
               subjectType={subjectType}
               candidates={candidates ?? []}
-              canChangeOther={canChangeOther(entry)}
               draft={entry.draft}
               onChange={(draft) =>
                 onChange(
                   entries.map((e) =>
-                    e.key === entry.key ? { ...e, draft, edited: true } : e,
+                    e.key === entry.key ? { ...e, draft } : e,
                   ),
                 )
               }
