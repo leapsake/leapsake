@@ -118,9 +118,19 @@ export default function PetDetailScreen() {
         onChanged={reload}
       />
 
-      <HolidaysSection bearerType="pet" bearerId={pet.id} holidays={holidays} />
+      <HolidaysSection
+        bearerType="pet"
+        bearerId={pet.id}
+        holidays={holidays}
+        onChanged={reload}
+      />
 
-      <GiftsSection gifts={gifts} />
+      <GiftsSection
+        recipientType="pet"
+        recipientId={pet.id}
+        gifts={gifts}
+        onChanged={reload}
+      />
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>

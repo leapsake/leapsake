@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import type { HolidayListItem } from "@leapsake/core";
 import { formatOccurrence } from "@leapsake/schema";
 import { splitBearerHolidays } from "@leapsake/view-models";
+import { HolidayBrowser } from "./HolidayBrowser";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -34,12 +35,10 @@ export interface StagedHoliday {
  * `splitBearerHolidays` to apply the same rule the detail section got for free:
  * never offer a hidden holiday, since observing one would be a no-op.
  *
- * **The whole catalog is browsable, not just searchable.** Adding used to be a
- * two-character typeahead here and a pushed picker screen on the detail page —
- * and the typeahead was the worse half, because a user who didn't already know a
- * holiday's name couldn't find it at all. Now that both screens stage their
- * holidays, the picker's list comes with them: the filter narrows what is already
- * on show rather than being the only way to see anything.
+ * Browsing the catalog is {@link HolidayBrowser}, shared with the "Add holiday"
+ * screen a saved record's page pushes to — one list, so the create and edit
+ * paths cannot drift. What this supplies is the list of what is still addable:
+ * the whole catalog minus what is already staged here.
  *
  * Per-observance reminder schedules aren't offered here. They belong to the
  * observance rather than the holiday, and the row that edits them lives on the
@@ -55,7 +54,6 @@ export function StagedHolidaysSection({
   const core = useCore();
   const [catalog, setCatalog] = useState<HolidayListItem[] | null>(null);
   const [adding, setAdding] = useState(false);
-  const [query, setQuery] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -71,11 +69,6 @@ export function StagedHolidaysSection({
   const { addable } = splitBearerHolidays(
     (catalog ?? []).map((h) => ({ ...h, observes: staged.has(h.id) })),
   );
-  const q = query.trim().toLowerCase();
-  const matches =
-    q === ""
-      ? addable
-      : addable.filter((h) => h.name.toLowerCase().includes(q));
 
   return (
     <View style={styles.section}>
@@ -93,56 +86,14 @@ export function StagedHolidaysSection({
           {catalog === null ? (
             <Text style={styles.muted}>Loading holidays…</Text>
           ) : (
-            <>
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Search</Text>
-                {/* By `testID` for the harness, not by its label: "Search" is
-                    also a tab, and an empty input carries no accessibility text
-                    of its own — see the note in `PersonFields`. */}
-                <TextInput
-                  testID="holiday-search"
-                  style={styles.input}
-                  value={query}
-                  onChangeText={setQuery}
-                  autoCorrect={false}
-                />
-              </View>
-
-              {matches.length === 0 ? (
-                <Text style={styles.muted}>
-                  {addable.length === 0
-                    ? "Every holiday is already on this list."
-                    : "No holidays match."}
-                </Text>
-              ) : (
-                matches.map((holiday) => (
-                  <View key={holiday.id} style={styles.row}>
-                    <Text style={styles.rowText}>{holiday.name}</Text>
-                    <View style={styles.rowMeta}>
-                      <Text style={styles.muted}>
-                        {holiday.nextOccurrence === null
-                          ? "—"
-                          : formatOccurrence(holiday.nextOccurrence)}
-                      </Text>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Add ${holiday.name}`}
-                        onPress={() => onChange([...entries, holiday])}
-                      >
-                        <Text style={styles.link}>Add</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ))
-              )}
-            </>
+            <HolidayBrowser
+              addable={addable}
+              onAdd={(holiday) => onChange([...entries, holiday])}
+            />
           )}
           <Pressable
             accessibilityRole="button"
-            onPress={() => {
-              setAdding(false);
-              setQuery("");
-            }}
+            onPress={() => setAdding(false)}
           >
             <Text style={styles.link}>Done</Text>
           </Pressable>

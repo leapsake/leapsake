@@ -159,9 +159,15 @@ export default function PersonDetailScreen() {
         bearerType="person"
         bearerId={person.id}
         holidays={holidays}
+        onChanged={reload}
       />
 
-      <GiftsSection gifts={gifts} />
+      <GiftsSection
+        recipientType="person"
+        recipientId={person.id}
+        gifts={gifts}
+        onChanged={reload}
+      />
 
       {/* Below the sections rather than up with the name, the same reading order
           the create form puts them in: tags describe a person you have already
