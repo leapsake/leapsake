@@ -18,11 +18,10 @@ import { styles } from "../lib/styles";
  * from a relationship they participate in — those labelled "· with <partner>" and
  * linking out to that relationship's page, because they are stored on the edge.
  *
- * `readOnly` is how the person and pet screens render it. Their milestones are
- * revised on the form behind that page's one Edit ({@link EntityEditForm}), so
- * the rows here are a list to read rather than a place to write. The relationship
- * screen keeps the in-place Add / Edit / Remove: its milestones are the only
- * thing on it, and it has no whole-record form of its own.
+ * Every bearer gets the same Add / Edit / Remove. The person and pet screens
+ * rendered it `readOnly` for a while, their milestones having been folded into
+ * the one form behind the page's Edit; that prop is gone with the form, and
+ * three screens now agree on what a milestone row can do.
  *
  * Remove deletes in place via a native `Alert` confirm — mirroring the person/pet
  * delete — then calls `onChanged` so the detail screen refetches its view.
@@ -32,13 +31,11 @@ export function MilestonesSection({
   bearerId,
   entries,
   onChanged,
-  readOnly = false,
 }: {
   bearerType: MilestoneBearerType;
   bearerId: string;
   entries: MilestoneTimelineEntry[];
   onChanged: () => void;
-  readOnly?: boolean;
 }) {
   const core = useCore();
   const basePath = `${entityBasePath(bearerType)}/${bearerId}`;
@@ -64,11 +61,9 @@ export function MilestonesSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Milestones</Text>
-        {!readOnly && (
-          <Link href={`${basePath}/milestones/new`} style={styles.link}>
-            Add milestone
-          </Link>
-        )}
+        <Link href={`${basePath}/milestones/new`} style={styles.link}>
+          Add milestone
+        </Link>
       </View>
 
       {entries.length === 0 ? (
@@ -102,7 +97,7 @@ export function MilestonesSection({
                       Details
                     </Link>
                   ) : null
-                ) : readOnly ? null : (
+                ) : (
                   <View style={styles.rowActions}>
                     <Link
                       href={`${basePath}/milestones/${milestone.id}/edit`}

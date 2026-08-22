@@ -142,14 +142,18 @@ export default function PersonDetailScreen() {
       />
 
       <MilestonesSection
-        readOnly
         bearerType="person"
         bearerId={person.id}
         entries={timeline}
         onChanged={reload}
       />
 
-      <RelationshipsSection relationships={relationships} />
+      <RelationshipsSection
+        subjectType="person"
+        subjectId={person.id}
+        relationships={relationships}
+        onChanged={reload}
+      />
 
       <HolidaysSection
         bearerType="person"

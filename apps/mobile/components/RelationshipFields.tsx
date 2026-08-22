@@ -3,6 +3,7 @@ import { Text, TextInput, View } from "react-native";
 import type { RelationshipCandidate } from "@leapsake/core";
 import {
   type EntityType,
+  type RelationshipNeighbor,
   type RelationshipRole,
   rolesForPair,
 } from "@leapsake/schema";
@@ -63,6 +64,27 @@ export interface RelationshipDraft {
 
 export function emptyRelationshipDraft(): RelationshipDraft {
   return { other: null, role: null, note: "" };
+}
+
+/**
+ * A subject's neighbour as a draft — the seed for both a row on the create form
+ * and the screen that revises one, and for a *derived* neighbour also the seed
+ * for materialising it, since what gets written is exactly what was inferred
+ * until the user changes the role.
+ */
+export function relationshipDraftFrom(
+  neighbor: RelationshipNeighbor,
+): RelationshipDraft {
+  return {
+    other: {
+      kind: "existing",
+      type: neighbor.otherType,
+      id: neighbor.otherId,
+      label: neighbor.otherLabel,
+    },
+    role: neighbor.otherRole,
+    note: neighbor.otherRoleNote ?? "",
+  };
 }
 
 /** What to call the other end — for a row's heading, and for naming a failure. */

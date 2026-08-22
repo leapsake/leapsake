@@ -105,14 +105,18 @@ export default function PetDetailScreen() {
       </View>
 
       <MilestonesSection
-        readOnly
         bearerType="pet"
         bearerId={pet.id}
         entries={timeline}
         onChanged={reload}
       />
 
-      <RelationshipsSection relationships={relationships} />
+      <RelationshipsSection
+        subjectType="pet"
+        subjectId={pet.id}
+        relationships={relationships}
+        onChanged={reload}
+      />
 
       <HolidaysSection bearerType="pet" bearerId={pet.id} holidays={holidays} />
 

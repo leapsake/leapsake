@@ -12,6 +12,7 @@ import {
   RelationshipFields,
   emptyRelationshipDraft,
   otherLabelOf,
+  relationshipDraftFrom,
   relationshipDraftValid,
 } from "./RelationshipFields";
 import { useCore } from "../lib/core-context";
@@ -52,16 +53,7 @@ export interface StagedRelationship {
 export function stagedRelationshipOf(
   neighbor: RelationshipNeighbor,
 ): StagedRelationship {
-  const draft: RelationshipDraft = {
-    other: {
-      kind: "existing",
-      type: neighbor.otherType,
-      id: neighbor.otherId,
-      label: neighbor.otherLabel,
-    },
-    role: neighbor.otherRole,
-    note: neighbor.otherRoleNote ?? "",
-  };
+  const draft = relationshipDraftFrom(neighbor);
   return neighbor.origin === "explicit"
     ? {
         draft,
