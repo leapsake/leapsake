@@ -131,7 +131,10 @@ describe("offerFor", () => {
     expect(offersFor(actionsFor("gift", 0, NOW, giftContext))).toEqual([
       {
         kind: "navigate",
-        path: "/gifts/new?recipient=person%3Ap1",
+        // `given=1`, because this hand-off is the one that means "already
+        // given" — the recipient alone cannot say so, the same person's Gifts
+        // section linking here to add one they haven't.
+        path: "/gifts/new?recipient=person%3Ap1&given=1",
         label: "Record what you gave ›",
       },
     ]);

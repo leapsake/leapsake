@@ -79,11 +79,15 @@ const ONBOARDING_LABEL: Record<OnboardingRoute, string> = {
 /** A `🎁 gift` reminder's CTA path. The target flips once the reminder is done
  *  (see `reminderCtaOf`, which holds the *why*): from the recipient's own page,
  *  whose Gifts section lists what's suggested for them, to the capture form fixed
- *  to them, to log what was actually given. */
+ *  to them, to log what was actually given.
+ *
+ *  `given=1` is what opens that form ticked, and it is sent from here rather than
+ *  inferred from the recipient — the same person's Gifts section links to the same
+ *  form with the same recipient and means the opposite. */
 function giftPath(cta: Extract<ReminderCta, { kind: "gift" }>): string {
   const party = `${cta.recipientType}:${cta.recipientId}`;
   return cta.action === "record-giving"
-    ? `/gifts/new?recipient=${encodeURIComponent(party)}`
+    ? `/gifts/new?recipient=${encodeURIComponent(party)}&given=1`
     : `${cta.recipientType === "pet" ? "/pets" : "/people"}/${cta.recipientId}`;
 }
 

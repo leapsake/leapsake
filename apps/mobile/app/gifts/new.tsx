@@ -13,10 +13,15 @@ import { styles } from "../../lib/styles";
  * capture an idea; add people/pets it would suit; tick anyone who already has it.
  *
  * Reached with a recipient already chosen (`?recipient=<type>:<id>`) from a person
- * or pet's Gifts section, and when a completed `🎁 gift` reminder hands off — then
- * the picker collapses to that one person or pet and the form opens **ticked**,
- * since the answer to "record what you gave" is that you gave it. An unresolvable
- * id falls back to the ordinary picker.
+ * or pet's Gifts section, and when a completed `🎁 gift` reminder hands off. Then
+ * the picker collapses to that one person or pet. An unresolvable id falls back
+ * to the ordinary picker.
+ *
+ * **`?given=1` is what ticks the box, not the recipient.** The reminder hand-off
+ * sends it, because the answer to "record what you gave" is that you gave it. The
+ * Gifts section's own "Add gift" does not: that list is a list of things to get
+ * somebody, so a gift added to it is one you haven't. Both arrive with a
+ * recipient, which is why having a recipient cannot be the signal.
  *
  * **Where saving lands depends on how you got here.** Arriving with a recipient
  * means arriving from somewhere that already shows that recipient's gifts, so it
@@ -26,7 +31,10 @@ import { styles } from "../../lib/styles";
 export default function GiftCreateScreen() {
   const core = useCore();
   const router = useRouter();
-  const { recipient } = useLocalSearchParams<{ recipient?: string }>();
+  const { recipient, given } = useLocalSearchParams<{
+    recipient?: string;
+    given?: string;
+  }>();
 
   const load = useCallback(
     () => Promise.all([core.gifts.ideas.list(), core.views.entityList()]),
@@ -82,7 +90,7 @@ export default function GiftCreateScreen() {
         recipientCandidates={
           fixedRecipient === undefined ? candidates : undefined
         }
-        startGiven={fixedRecipient !== undefined}
+        startGiven={given === "1"}
         onSaved={() =>
           fixedRecipient === undefined
             ? router.dismissTo("/gifts")
