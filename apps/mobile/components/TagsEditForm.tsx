@@ -7,8 +7,18 @@ import { TagsInput, tagsRawOf } from "./TagsInput";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
-/** The native header title, declared here so both routes agree on it. */
-export const TAGS_EDIT_TITLE = "Edit tags";
+/**
+ * The plain title, for the moment before the record has loaded and the screen
+ * cannot yet know which of the two below it is.
+ */
+export const TAGS_TITLE = "Tags";
+
+/**
+ * What the screen calls itself, matching the link that opened it: a record with
+ * no tags is offered **Add tags**, and landing on a screen headed "Edit tags"
+ * would be a different screen from the one that was tapped.
+ */
+const titleFor = (count: number) => (count === 0 ? "Add tags" : "Edit tags");
 
 /**
  * A record's tags on a screen of their own — behind the **Edit** on the Tags row
@@ -72,10 +82,11 @@ export function TagsEditForm({
     saving,
     onPress: () => void save(),
   });
-  const options = useMemo(
-    () => ({ title: TAGS_EDIT_TITLE, headerRight }),
-    [headerRight],
-  );
+  // Fixed at what the screen opened as, not recomputed from what is typed: a
+  // title that flipped to "Edit tags" on the first keystroke would be the header
+  // narrating the field below it.
+  const [title] = useState(() => titleFor(tags.length));
+  const options = useMemo(() => ({ title, headerRight }), [title, headerRight]);
 
   return (
     <>

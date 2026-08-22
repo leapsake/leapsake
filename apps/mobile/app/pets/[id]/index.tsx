@@ -135,7 +135,11 @@ export default function PetDetailScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Tags</Text>
-          <EditLink href={`/pets/${id}/tags/edit`} what="tags" />
+          <EditLink
+            href={`/pets/${id}/tags/edit`}
+            what="tags"
+            action={tags.length === 0 ? "add" : "edit"}
+          />
         </View>
         <TagsField tags={tags} />
       </View>

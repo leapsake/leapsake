@@ -175,7 +175,11 @@ export default function PersonDetailScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Tags</Text>
-          <EditLink href={`/people/${id}/tags/edit`} what="tags" />
+          <EditLink
+            href={`/people/${id}/tags/edit`}
+            what="tags"
+            action={tags.length === 0 ? "add" : "edit"}
+          />
         </View>
         <TagsField tags={tags} />
       </View>

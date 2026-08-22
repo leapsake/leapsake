@@ -14,16 +14,35 @@ import { styles } from "../lib/styles";
  *
  * `what` is spelled out for a screen reader, which would otherwise hear a page
  * of bare "Edit"s with nothing to tell them apart.
+ *
+ * `action` draws that whole phrase instead of the bare word, and is how a
+ * section with nothing in it yet can say **Add** — "Edit" over an empty Tags row
+ * offers to change something that isn't there. Only sections that can be empty
+ * need it; a person always has a name to edit.
  */
-export function EditLink({ href, what }: { href: string; what: string }) {
+export function EditLink({
+  href,
+  what,
+  action,
+}: {
+  href: string;
+  what: string;
+  /** Spell the whole phrase out on screen, with this verb. */
+  action?: "add" | "edit";
+}) {
+  const label =
+    action === undefined
+      ? `Edit ${what}`
+      : `${action === "add" ? "Add" : "Edit"} ${what}`;
+
   return (
     <Link
       href={href}
       accessibilityRole="button"
-      accessibilityLabel={`Edit ${what}`}
+      accessibilityLabel={label}
       style={styles.link}
     >
-      Edit
+      {action === undefined ? "Edit" : label}
     </Link>
   );
 }

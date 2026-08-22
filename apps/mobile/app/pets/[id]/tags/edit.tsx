@@ -1,10 +1,7 @@
 import { useCallback } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
-import {
-  TAGS_EDIT_TITLE,
-  TagsEditForm,
-} from "../../../../components/TagsEditForm";
+import { TAGS_TITLE, TagsEditForm } from "../../../../components/TagsEditForm";
 import { useCore } from "../../../../lib/core-context";
 import { useFocusedData } from "../../../../lib/useFocusedData";
 import { styles } from "../../../../lib/styles";
@@ -22,7 +19,7 @@ export default function PetTagsEditScreen() {
   if (error !== null || data === null || data.view === null) {
     return (
       <>
-        <Stack.Screen options={{ title: TAGS_EDIT_TITLE }} />
+        <Stack.Screen options={{ title: TAGS_TITLE }} />
         <View style={styles.screen}>
           {error !== null ? (
             <Text style={styles.danger}>{error}</Text>
