@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Link, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import {
   type ContactMethod,
@@ -22,6 +23,8 @@ import {
 } from "@leapsake/contact-links";
 import { ContactActionSheet, type SheetItem } from "./ContactActionSheet";
 import { offeredActions, targetUrl } from "../lib/contact-actions";
+import { deleteContact } from "../lib/contact-writes";
+import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
 /**
@@ -183,10 +186,11 @@ function useSupportedSchemes(): ReadonlySet<string> {
  * for the likeliest action, and the `⋯` opens {@link ContactActionSheet} with
  * everything the buttons hold back (see {@link buttonActions}).
  *
- * The sheet used to end in Edit and Remove; those went to the form behind the
- * page's Edit ({@link StagedContactsSection}) along with every other way of
- * changing this record, leaving the sheet as a list of things to *do* with a
- * number rather than things to do to it.
+ * The sheet ends in **Edit** and **Remove**, which is where changing a row
+ * belongs on a page whose rows are otherwise things to do: they are the only two
+ * items about the record rather than about the person, so they sit last and
+ * Remove wears the danger colour. Putting them in the sheet rather than in the
+ * row is also what freed the row body to be the tap that calls.
  *
  * Which actions exist is decided by `@leapsake/contact-links`, which is pure and
  * shared; which of them this handset can actually perform is decided by
@@ -194,15 +198,39 @@ function useSupportedSchemes(): ReadonlySet<string> {
  * `Linking`. Contacts are person-owned only, so there is no subject-type axis.
  */
 export function ContactsSection({
+  ownerId,
   subjectName,
   methods,
+  onChanged,
 }: {
+  /** The person these belong to, for the add/edit routes and the removals. */
+  ownerId: string;
   /** Who the methods belong to, for the "Call Jane?" confirm. */
   subjectName: string;
   methods: ContactMethod[];
+  /** Refetch the page — a removal writes in place, with nothing to navigate to. */
+  onChanged: () => void;
 }) {
+  const core = useCore();
+  const router = useRouter();
   const schemes = useSupportedSchemes();
   const [openFor, setOpenFor] = useState<string | null>(null);
+
+  function confirmRemove(entry: ContactMethod) {
+    Alert.alert("Remove contact", `Remove ${entry.method.label}?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => {
+          deleteContact(core, entry.method.id, entry.kind).then(
+            () => onChanged(),
+            (e: unknown) => Alert.alert("Couldn't remove", String(e)),
+          );
+        },
+      },
+    ]);
+  }
 
   /** Run an action: open its best URL, or fall back to the clipboard. */
   function perform(action: LinkAction, entry: ContactMethod) {
@@ -231,21 +259,49 @@ export function ContactsSection({
     entry: ContactMethod,
     actions: LinkAction[],
   ): SheetItem[] {
-    return actions.map((action) => ({
-      key: action.id,
-      glyph: VERB_ICON[action.verb],
-      label: actionLabel(action),
-      // Said only where a link lands somewhere other than a conversation, so
-      // the row never implies a DM it cannot open.
-      hint: action.reach === "profile" ? PROFILE_HINT : undefined,
-      onPress: () => perform(action, entry),
-    }));
+    return [
+      ...actions.map((action) => ({
+        key: action.id,
+        glyph: VERB_ICON[action.verb],
+        label: actionLabel(action),
+        // Said only where a link lands somewhere other than a conversation, so
+        // the row never implies a DM it cannot open.
+        hint: action.reach === "profile" ? PROFILE_HINT : undefined,
+        onPress: () => perform(action, entry),
+      })),
+      {
+        key: "edit",
+        glyph: "✏️",
+        label: "Edit",
+        onPress: () =>
+          router.push(`/people/${ownerId}/contacts/${entry.method.id}/edit`),
+      },
+      {
+        key: "remove",
+        glyph: "🗑️",
+        label: "Remove",
+        danger: true,
+        onPress: () => confirmRemove(entry),
+      },
+    ];
   }
 
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Contact</Text>
+        {/* One way in, not four. The header used to offer Email / Phone /
+            Postal / Social side by side, which asked the user to classify what
+            they were about to type before they had typed it; the form's own
+            Type dropdown asks the same question in the place where the answer
+            is about to matter. */}
+        <Link
+          href={`/people/${ownerId}/contacts/new`}
+          style={styles.link}
+          accessibilityRole="button"
+        >
+          Add contact method
+        </Link>
       </View>
 
       {methods.length === 0 ? (

@@ -12,14 +12,9 @@ import {
   milestoneRowPending,
 } from "../components/StagedMilestonesSection";
 import { relationshipRowPending } from "../components/StagedRelationshipsSection";
-import {
-  type ContactFormValue,
-  contactDraftToValue,
-} from "../components/ContactMethodFields";
-import {
-  type StagedContact,
-  contactRowPending,
-} from "../components/StagedContactsSection";
+import { contactDraftToValue } from "../components/ContactMethodFields";
+import { contactRowPending } from "../components/StagedContactsSection";
+import { createContact, deleteContact, updateContact } from "./contact-writes";
 import type { EntityFormValue } from "./entity-form";
 
 /**
@@ -246,104 +241,4 @@ function removedRows<T extends { key: string }>(
 ): T[] {
   const kept = new Set(current.map((row) => row.key));
   return initial.filter((row) => !kept.has(row.key));
-}
-
-/** A staged contact method as its kind's `create` call. */
-function createContact(
-  core: CoreApi,
-  owner: { ownerType: "person"; ownerId: string },
-  value: ContactFormValue,
-): Promise<unknown> {
-  if (value.kind === "email") {
-    return core.contactMethods.emails.create({
-      ...owner,
-      label: value.label,
-      address: value.address,
-    });
-  }
-  if (value.kind === "phone") {
-    return core.contactMethods.phones.create({
-      ...owner,
-      label: value.label,
-      number: value.number,
-      extension: value.extension,
-      country: value.country,
-      smsCapable: value.smsCapable,
-      reachableOn: value.reachableOn,
-    });
-  }
-  if (value.kind === "postal") {
-    return core.contactMethods.postals.create({
-      ...owner,
-      label: value.label,
-      line1: value.line1,
-      line2: value.line2,
-      locality: value.locality,
-      region: value.region,
-      postalCode: value.postalCode,
-      country: value.country,
-    });
-  }
-  return core.contactMethods.socials.create({
-    ...owner,
-    label: value.label,
-    platform: value.platform,
-    handle: value.handle,
-    platformUserId: value.platformUserId,
-    url: value.url,
-  });
-}
-
-/** The same value as its kind's `update` call — the owner never moves. */
-function updateContact(
-  core: CoreApi,
-  id: string,
-  value: ContactFormValue,
-): Promise<unknown> {
-  if (value.kind === "email") {
-    return core.contactMethods.emails.update(id, {
-      label: value.label,
-      address: value.address,
-    });
-  }
-  if (value.kind === "phone") {
-    return core.contactMethods.phones.update(id, {
-      label: value.label,
-      number: value.number,
-      extension: value.extension,
-      country: value.country,
-      smsCapable: value.smsCapable,
-      reachableOn: value.reachableOn,
-    });
-  }
-  if (value.kind === "postal") {
-    return core.contactMethods.postals.update(id, {
-      label: value.label,
-      line1: value.line1,
-      line2: value.line2,
-      locality: value.locality,
-      region: value.region,
-      postalCode: value.postalCode,
-      country: value.country,
-    });
-  }
-  return core.contactMethods.socials.update(id, {
-    label: value.label,
-    platform: value.platform,
-    handle: value.handle,
-    platformUserId: value.platformUserId,
-    url: value.url,
-  });
-}
-
-/** Which table a removed row belongs to is the only thing its kind decides. */
-function deleteContact(
-  core: CoreApi,
-  id: string,
-  kind: StagedContact["draft"]["kind"],
-): Promise<void> {
-  if (kind === "email") return core.contactMethods.emails.softDelete(id);
-  if (kind === "phone") return core.contactMethods.phones.softDelete(id);
-  if (kind === "postal") return core.contactMethods.postals.softDelete(id);
-  return core.contactMethods.socials.softDelete(id);
 }

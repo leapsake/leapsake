@@ -135,8 +135,10 @@ export default function PersonDetailScreen() {
       </View>
 
       <ContactsSection
+        ownerId={person.id}
         subjectName={fullName(person)}
         methods={contactMethods}
+        onChanged={reload}
       />
 
       <MilestonesSection
