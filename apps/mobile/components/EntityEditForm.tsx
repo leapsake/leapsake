@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { Stack, useRouter } from "expo-router";
 import type {
   BearerHolidayCandidate,
@@ -61,7 +68,16 @@ const tagsRawOf = (tags: readonly Tag[]) =>
  *   still lists them, read-only, with a link out.
  * - **Reminder schedules for an observed holiday.** They belong to the
  *   observance, which doesn't exist until this form has written it.
- * - **Deleting the record**, which is not an edit and stays where it was.
+ *
+ * ### Deleting
+ *
+ * **Delete lives here**, at the foot of the form, and not on the detail screen —
+ * which is only somewhere you look. Changing the record is what this screen is
+ * for, and deleting it is the largest of those changes; putting it under the
+ * reading page meant every glance at a person ended at a destructive button.
+ * Unlike everything above it, it does not wait for Save: it asks, and then it
+ * acts, discarding whatever edits are in the form — there is nothing to keep
+ * about a record that is going away.
  *
  * The load is deliberately **one-shot** rather than the app's usual refetch-on-
  * focus ({@link useFocusedData}): a background sync landing mid-edit would
@@ -218,6 +234,34 @@ export function EntityEditForm({ type, id }: { type: EntityType; id: string }) {
     }
   }
 
+  function confirmDelete() {
+    if (saving) return;
+    // `subject` is set alongside `value`, so by the time this button exists the
+    // name is in hand; the fallback is only for the type.
+    const what = subject?.label ?? (isPerson ? "this person" : "this pet");
+    Alert.alert(isPerson ? "Delete person" : "Delete pet", `Delete ${what}?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          (isPerson
+            ? core.people.softDelete(id)
+            : core.pets.softDelete(id)
+          ).then(
+            // **`dismissTo`, not `back`.** Behind this form is the detail screen
+            // of the record just deleted, and behind that the catalog inside the
+            // tab navigator (`app/(tabs)/_layout.tsx`) — not a screen to replace
+            // this one with, but one already underneath us. This pops down to
+            // it, which also takes the deleted record out of history.
+            () => router.dismissTo("/people"),
+            (e: unknown) => Alert.alert("Couldn't delete", String(e)),
+          );
+        },
+      },
+    ]);
+  }
+
   return (
     <>
       <Stack.Screen options={options} />
@@ -232,6 +276,12 @@ export function EntityEditForm({ type, id }: { type: EntityType; id: string }) {
           subject={subject ?? undefined}
           savedGifts={savedGifts ?? undefined}
         />
+
+        <Pressable accessibilityRole="button" onPress={confirmDelete}>
+          <Text style={[styles.link, styles.danger]}>
+            {isPerson ? "Delete person" : "Delete pet"}
+          </Text>
+        </Pressable>
       </ScrollView>
     </>
   );

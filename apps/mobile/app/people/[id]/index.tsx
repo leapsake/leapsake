@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   Text,
@@ -9,15 +8,14 @@ import {
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName } from "@leapsake/schema";
-import { formatTimestamp } from "@leapsake/ui/headless";
 import { ContactsSection } from "../../../components/ContactsSection";
-import { DetailField } from "../../../components/DetailField";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HeaderEdit } from "../../../components/HeaderEdit";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { PersonDetailFields } from "../../../components/PersonDetailFields";
+import { RecordTimestamps } from "../../../components/RecordTimestamps";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
 import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
@@ -78,28 +76,6 @@ export default function PersonDetailScreen() {
 
   const { person, gender, tags, timeline, relationships, contactMethods } =
     view;
-
-  function confirmDelete() {
-    Alert.alert("Delete person", `Delete ${fullName(person)}?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          core.people.softDelete(id).then(
-            // **`dismissTo`, not `replace`.** People & Pets is inside the tab
-            // navigator now (`app/(tabs)/_layout.tsx`), so from up here on the
-            // root stack it is not a screen to swap this one for — it is
-            // underneath us. `replace` would put a *second* `(tabs)` on the
-            // stack; this pops back down to the one already there and selects
-            // the catalog, which also takes the deleted record out of history.
-            () => router.dismissTo("/people"),
-            (e: unknown) => Alert.alert("Couldn't delete", String(e)),
-          );
-        },
-      },
-    ]);
-  }
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
@@ -166,14 +142,6 @@ export default function PersonDetailScreen() {
 
       <MentionedInSection reminders={mentionedIn} />
 
-      {/* Bookkeeping, not what the page is about — it sits below the sections a
-          reader came for, just above the destructive end of the screen. */}
-      <DetailField label="Created" value={formatTimestamp(person.createdAt)} />
-      <DetailField
-        label="Last Updated"
-        value={formatTimestamp(person.updatedAt)}
-      />
-
       {/* Offered only when detection has something to offer it for. It used to
           stand on every person, advertising a chore on pages where there was
           nothing to merge — the same thing the People list's duplicates link
@@ -189,9 +157,13 @@ export default function PersonDetailScreen() {
         </Pressable>
       )}
 
-      <Pressable accessibilityRole="button" onPress={confirmDelete}>
-        <Text style={[styles.link, styles.danger]}>Delete person</Text>
-      </Pressable>
+      {/* Bookkeeping, not what the page is about — a caption at the very foot of
+          the screen, below everything a reader came for. Deleting the record is
+          the form's, not this screen's: see `EntityEditForm`. */}
+      <RecordTimestamps
+        createdAt={person.createdAt}
+        updatedAt={person.updatedAt}
+      />
     </ScrollView>
   );
 }

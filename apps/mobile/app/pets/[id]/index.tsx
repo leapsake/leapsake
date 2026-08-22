@@ -1,21 +1,13 @@
 import { useCallback } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { formatTimestamp } from "@leapsake/ui/headless";
-import { DetailField } from "../../../components/DetailField";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HeaderEdit } from "../../../components/HeaderEdit";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { PetDetailFields } from "../../../components/PetDetailFields";
+import { RecordTimestamps } from "../../../components/RecordTimestamps";
 import { RelationshipsSection } from "../../../components/RelationshipsSection";
 import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
@@ -26,7 +18,6 @@ import { styles } from "../../../lib/styles";
 // relationships, milestones, holidays, gifts).
 export default function PetDetailScreen() {
   const core = useCore();
-  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   // Load the view and the reminders that @mention this pet together, so the
   // "Mentioned in" backlink refreshes on focus alongside the rest of the page.
@@ -72,25 +63,6 @@ export default function PetDetailScreen() {
 
   const { pet, gender, tags, timeline, relationships } = view;
 
-  function confirmDelete() {
-    Alert.alert("Delete pet", `Delete ${pet.name}?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          core.pets.softDelete(id).then(
-            // `dismissTo` for the same reason as the person page: the catalog is
-            // below us in the tab navigator, not a screen to replace this one
-            // with. See `app/people/[id]/index.tsx`.
-            () => router.dismissTo("/people"),
-            (e: unknown) => Alert.alert("Couldn't delete", String(e)),
-          );
-        },
-      },
-    ]);
-  }
-
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       {/* Read-only below, with one Edit into the whole record — see the person
@@ -127,17 +99,9 @@ export default function PetDetailScreen() {
 
       <MentionedInSection reminders={mentionedIn} />
 
-      {/* Bookkeeping, not what the page is about — it sits below the sections a
-          reader came for, just above the destructive end of the screen. */}
-      <DetailField label="Created" value={formatTimestamp(pet.createdAt)} />
-      <DetailField
-        label="Last Updated"
-        value={formatTimestamp(pet.updatedAt)}
-      />
-
-      <Pressable accessibilityRole="button" onPress={confirmDelete}>
-        <Text style={[styles.link, styles.danger]}>Delete pet</Text>
-      </Pressable>
+      {/* Bookkeeping, as a caption at the foot of the screen — see the person
+          screen, which this mirrors. Deleting is the form's job now. */}
+      <RecordTimestamps createdAt={pet.createdAt} updatedAt={pet.updatedAt} />
     </ScrollView>
   );
 }

@@ -183,6 +183,19 @@ export const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.text,
   },
+  // A record's bookkeeping footer (see `RecordTimestamps`): both timestamps on
+  // one line, small and muted. Wraps instead of clipping, so the narrowest
+  // phones get two short lines rather than a truncated date.
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  metaText: {
+    fontSize: 11,
+    color: colors.muted,
+  },
   // Form input.
   input: {
     borderWidth: 1,

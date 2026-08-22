@@ -41,7 +41,7 @@ export {
   relationshipRemovePath,
   searchHitPath,
 } from "./routes.js";
-export { formatTimestamp } from "./timestamps.js";
+export { formatTimestamp, formatTimestampCompact } from "./timestamps.js";
 export { useDebouncedSearch } from "./useDebouncedSearch.js";
 export { useSerializedWrites } from "./useSerializedWrites.js";
 export { useTypeahead } from "./useTypeahead.js";
