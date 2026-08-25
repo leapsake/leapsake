@@ -4,6 +4,12 @@
 > signing setup) documents itself; anything a future maintainer needs goes in
 > `apps/mobile/README.md`.
 
+⚠️ **The iOS half of this doc is superseded** *(2026-08-25)*. The first iOS build is on TestFlight,
+the two permanent store-identity decisions are made and encoded, and **EAS is out** — the pipeline
+is local `xcodebuild` with manual signing. See
+[`ios-release-pipeline.md`](./ios-release-pipeline.md). What survives here is **Play**: the
+closed-test track, the 14-day clock, and the tester list.
+
 **Value:** starts the 14-day Play clock. Ships nothing to the public, unblocks everything.
 
 **Prerequisites, all hard:** the account merge, the account invitation, and the verified restore

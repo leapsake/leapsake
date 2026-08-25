@@ -7,23 +7,23 @@
 
 ## In flight
 
-**04 (mobile EAS pipeline)** — [`v0-1_04_mobile-pipeline.md`](./v0-1_04_mobile-pipeline.md).
-Nothing built; no `eas.json`. Blocked on two owner decisions in its own doc — the real `version`
-string and the `buildNumber`/`versionCode` strategy, both permanent after the first upload. The
-mechanism exists (`scripts/set-version.mjs`); only the choice is missing.
+**04 (mobile release pipeline)** — Play half in
+[`v0-1_04_mobile-pipeline.md`](./v0-1_04_mobile-pipeline.md), iOS in
+[`ios-release-pipeline.md`](./ios-release-pipeline.md). ✅ Version scheme and build numbers are
+decided and encoded; the **first iOS build reached TestFlight 2026-08-25** by hand through Xcode.
+⚠️ Nothing is scripted, and **EAS is out** *(owner, 2026-08-24)*: local `xcodebuild`, manual
+signing, ASC API key.
 
-✅ **Both developer accounts exist** *(owner, 2026-08-19)*, and App Store Connect holds a Leapsake
-record — form only, no build. Apple no longer gates 05B or 07B. ⚠️ **04 is now the whole critical
-path**: Play's 14 days start only once a build is uploaded, and the **12-tester list is empty**.
+⚠️ **Play is now the whole critical path**: its 14 days start only once a build is uploaded,
+nothing is uploaded yet, and the **12-tester list is empty**.
 
 **Contact methods reach people** — built 2026-08-19. Tappable rows on mobile, a fourth `social`
 kind over an open platform list (`@leapsake/contact-links`), `reachableOn` on phones. Left: the
 URL templates are convention, not verified — **confirm on real hardware with the apps installed**
-(no simulator can), which needs a native rebuild for `LSApplicationQueriesSchemes`; fold it into
-04's first build. `expo-contacts` socialProfiles stay unmapped for now.
+(no simulator can). ✅ Unblocked: the TestFlight build carries the `LSApplicationQueriesSchemes`
+rebuild and is on a real iPhone. `expo-contacts` socialProfiles stay unmapped for now.
 
-Mobile gates are green on both platforms as of 2026-08-18 — `pnpm test:native` passes end to
-end.
+Mobile gates are green on both platforms as of 2026-08-18 — `pnpm test:native` passes end to end.
 
 **Decide before 06:** [`v0-1.md`](./v0-1.md) → *Open decisions* 1 and 2 — how much of the E2E
 catalog really gates v0.1.
