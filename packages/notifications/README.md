@@ -24,15 +24,42 @@ The OS pending set is **derived state**, rebuilt from reminder rows on every rec
 this package persists "the next digest fires on 15 August" — `planNotifications` recomputes the
 whole desired set from scratch every call, keyed on `now`.
 
-## The 30-day horizon is not enforced here — it falls out of the caller's data
+## The horizon is the caller's, the budget is this package's
 
-iOS caps pending local notifications at 64 and silently drops the rest. That looks like the
-dominant constraint; it isn't, because a `system` reminder doesn't exist in the store until its
-due date is within `@leapsake/reminders`' `LEAD_DAYS` (30) of today. So `planNotifications` reads
-reminder rows as-is and applies no independent horizon filter — the bound is a property of what
-the composition root hands it, not something this package re-derives. A far-future `user`
-reminder just adds one more candidate; `each` mode's `NOTIFICATION_BUDGET` (60, not 64 — headroom
-for a stray notification scheduled elsewhere) is the real backstop.
+`planNotifications` applies no horizon filter of its own — how far ahead to look is a property of
+what the composition root hands it. Historically that made the horizon ~30 days by accident: a
+`system` reminder isn't a row until its due date is within `@leapsake/reminders`' `LEAD_DAYS`, so
+planning from stored rows could only reach that far. That was a bug, not a design: notifications
+are only ever scheduled while the app is running, so a device left unopened worked through 30 days
+of plan and then went quiet — failing exactly the user a reminder app exists for. Callers now pass
+a year's worth via `listNotifiableReminders`, which computes the reminders that *will* exist
+without writing them (see `@leapsake/reminders`' `NOTIFICATION_WINDOW_DAYS`).
+
+What this package does own is the **budget**: both modes are capped to the soonest
+`options.budget`, defaulting to `NOTIFICATION_BUDGET` (60 — the tightest platform ceiling, iOS's
+64 minus headroom; each platform's real number lives with the code that knows its platform). The
+cap applies to `digest` as well as `each`, because the 30-day bound that made digest hard to
+overshoot no longer exists — and never covered far-future `user` reminders anyway.
+
+## One slot is spent telling the user the schedule is running out
+
+The plan reserves a slot for a **service notice** (`tripwireFor` in `planner.ts`) that fires 30
+days before the last scheduled notification: _"Your reminders are running out — open Leapsake to
+keep them coming."_ Coverage lapsing is otherwise indistinguishable, from the outside, from having
+no birthdays coming up.
+
+Three properties it gets from the reconcile design rather than from logic of its own: it can only
+fire if the device is genuinely dormant (every app open re-plans it further out), it cannot nag
+(scheduling requires a running app, so a dormant device gets exactly one), and its `fireAt` tracks
+coverage rather than `now`, so a steady-state reconcile stays a no-op.
+
+The slot is taken back only if a notice is actually warranted — holding one unconditionally would
+burn it on nothing whenever coverage is already too short to warn about, which is the
+heaviest-user case that can least afford it.
+
+This is the **one** app-generated notification allowed through; onboarding nudges are still barred
+(`onboardingRouteOf`). The distinction to hold: a service notice reports that something the user
+asked for is about to stop working; re-engagement tells them they'd get more out of coming back.
 
 ## `digest` vs `each` — same schedule, different tap targets
 

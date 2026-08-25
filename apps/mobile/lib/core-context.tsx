@@ -95,6 +95,7 @@ import { forgetAccountOnThisDevice } from "./forget-account";
 import { mergeAccountOnThisDevice, openStoreUnderKey } from "./merge-account";
 import {
   expoNotificationScheduler,
+  PLATFORM_NOTIFICATION_BUDGET,
   type MobileNotificationScheduler,
 } from "./notification-scheduler";
 
@@ -509,11 +510,17 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       try {
         const [policy, reminders, pending] = await Promise.all([
           coreApi.notificationSettings.get(id),
-          coreApi.reminders.list(),
+          // `listNotifiable`, not `list`: the reminder *list* deliberately
+          // shows only the `LEAD_DAYS` horizon, while the schedule has to
+          // reach a year out — nothing else advances it until the app is
+          // opened again.
+          coreApi.reminders.listNotifiable(),
           scheduler.listPending(),
         ]);
         if (policy === undefined) return;
-        const desired = planNotifications(reminders, policy, Date.now());
+        const desired = planNotifications(reminders, policy, Date.now(), {
+          budget: PLATFORM_NOTIFICATION_BUDGET,
+        });
         await reconcileNotificationSchedule(desired, pending, scheduler);
       } catch (cause) {
         console.error("notification reconcile failed:", cause);

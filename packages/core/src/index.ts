@@ -102,6 +102,7 @@ import {
 import {
   type ReminderEngineDeps,
   duplicatesReminderId,
+  listNotifiableReminders,
   listSystemReminderTargets,
   regenerateSystemReminders,
 } from "@leapsake/reminders";
@@ -911,6 +912,19 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     removed: number;
   }> => regenerateSystemReminders(systemReminderDeps());
 
+  /**
+   * The notification planner's input — a year of reminders, most of which are
+   * not rows yet (see the engine's `listNotifiableReminders`). Deliberately
+   * *not* folded into `reminders.list()`: that feeds the reminder **list**,
+   * which shows the {@link LEAD_DAYS} horizon on purpose. Two questions, two
+   * readers.
+   *
+   * Returns bare rows, no tags/mentions join — a notification renders plain
+   * text, so the joins `reminders.list()` does for the UI would be waste.
+   */
+  const listNotifiable = (): Promise<Reminder[]> =>
+    listNotifiableReminders(systemReminderDeps());
+
   const views = createViews({
     people: { list: () => people.list(), get: (id) => people.get(id) },
     pets: { list: () => pets.list(), get: (id) => pets.get(id) },
@@ -1314,6 +1328,12 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           })),
         );
       },
+      /**
+       * What a device should plan **notifications** from — a year ahead, most
+       * of it not yet rows. See `listNotifiable` above for why this is a
+       * separate read from `list` rather than a wider one.
+       */
+      listNotifiable,
       get: async (id: string): Promise<ReminderWithTags | undefined> => {
         const reminder = await reminders.get(id);
         if (!reminder) return undefined;

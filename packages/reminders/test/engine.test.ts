@@ -10,6 +10,7 @@ import {
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   type ReminderEngineDeps,
+  listNotifiableReminders,
   listSystemReminderTargets,
   regenerateSystemReminders,
 } from "../src/index.js";
@@ -443,5 +444,111 @@ describe("listSystemReminderTargets", () => {
     h.setSchedule("m1", [{ action: "gift", offsetDays: 30, enabled: true }]);
     await listSystemReminderTargets(h.deps);
     expect(h.activeSystem()).toEqual([]);
+  });
+});
+
+/**
+ * The notification planner's input. Its whole reason to exist is that a
+ * `system` reminder is not a row until it is within `LEAD_DAYS`, so planning
+ * from stored rows alone can only ever schedule ~30 days of notifications —
+ * and that horizon advances only when the app is opened, which is precisely
+ * what a notification exists to spare the user.
+ */
+describe("listNotifiableReminders", () => {
+  /** ~183 days out: far past `LEAD_DAYS`, comfortably inside the year. */
+  const FAR: CivilDate = { year: 2026, month: 12, day: 1 };
+
+  it("sees milestones that regenerate would not yet materialize", async () => {
+    const h = makeHarness();
+    h.setMilestones([birthday("m1", "p1", FAR)]);
+    h.labels.set("p1", "Alice");
+
+    await regenerateSystemReminders(h.deps);
+    expect(h.activeSystem()).toEqual([]); // beyond the row horizon
+
+    const notifiable = await listNotifiableReminders(h.deps);
+    expect(notifiable).toHaveLength(1);
+    expect(notifiable[0].dueDate).toBe(dueDateMs(FAR));
+  });
+
+  // Widening the *row* horizon instead would flood the reminder list with a
+  // year of future rows and sync them to every device.
+  it("persists nothing", async () => {
+    const h = makeHarness();
+    h.setMilestones([birthday("m1", "p1", FAR)]);
+    h.labels.set("p1", "Alice");
+
+    await listNotifiableReminders(h.deps);
+
+    expect([...h.rows.values()]).toEqual([]);
+  });
+
+  // Planning off a synthesized copy would re-notify for something already
+  // dealt with, so a materialized row wins over the computed one.
+  it("returns the real row, with its state, when one exists", async () => {
+    const h = makeHarness();
+    const soon = daysOut(10);
+    h.setMilestones([birthday("m1", "p1", soon)]);
+    h.labels.set("p1", "Alice");
+    await regenerateSystemReminders(h.deps);
+
+    const [row] = h.activeSystem();
+    h.rows.set(row.id, { ...row, completedAt: 123 });
+
+    const notifiable = await listNotifiableReminders(h.deps);
+
+    expect(notifiable).toHaveLength(1);
+    expect(notifiable[0].completedAt).toBe(123);
+  });
+
+  // The same resurrection guard `reconcile` applies: a dismissed reminder must
+  // not come back as a notification. Its id stays in the desired set until the
+  // occurrence passes, so this is the common case, not an edge one.
+  it("skips a dismissed (tombstoned) reminder", async () => {
+    const h = makeHarness();
+    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    h.labels.set("p1", "Alice");
+    await regenerateSystemReminders(h.deps);
+
+    const [row] = h.activeSystem();
+    h.rows.set(row.id, { ...row, deletedAt: Date.now() });
+
+    expect(await listNotifiableReminders(h.deps)).toEqual([]);
+  });
+
+  // User reminders are rows the moment they are created, at any due date, so
+  // they need none of the prospective machinery — but must still be included.
+  it("includes user reminders alongside the computed system ones", async () => {
+    const h = makeHarness();
+    h.setMilestones([birthday("m1", "p1", FAR)]);
+    h.labels.set("p1", "Alice");
+    h.rows.set("u1", {
+      id: "u1",
+      title: "Book flights",
+      body: null,
+      completedAt: null,
+      dueDate: dueDateMs(daysOut(3)),
+      snoozedUntil: null,
+      snoozeCount: 0,
+      source: "user",
+      createdAt: 0,
+      updatedAt: 0,
+      deletedAt: null,
+    });
+
+    const notifiable = await listNotifiableReminders(h.deps);
+
+    expect(notifiable.map((r) => r.source).sort()).toEqual(["system", "user"]);
+  });
+
+  // The window is a parameter so the two callers can ask different questions of
+  // the same walk; at `LEAD_DAYS` it must agree with what regenerate stored.
+  it("narrows to the row horizon when asked for one", async () => {
+    const h = makeHarness();
+    h.setMilestones([birthday("m1", "p1", FAR)]);
+    h.labels.set("p1", "Alice");
+
+    expect(await listNotifiableReminders(h.deps, 30)).toEqual([]);
+    expect(await listNotifiableReminders(h.deps, 365)).toHaveLength(1);
   });
 });

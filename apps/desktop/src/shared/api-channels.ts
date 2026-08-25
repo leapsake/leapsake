@@ -64,6 +64,9 @@ export const API_CHANNELS = [
   "milestones.softDelete",
 
   "reminders.list",
+  // Exposed for completeness, unused by the desktop client today: it schedules
+  // no local notifications yet, and this read exists to feed that planner.
+  "reminders.listNotifiable",
   "reminders.get",
   "reminders.create",
   "reminders.update",

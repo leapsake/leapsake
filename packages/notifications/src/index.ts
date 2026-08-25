@@ -18,6 +18,7 @@ export type {
   NotifiableReminder,
   NotificationMode,
   NotificationPolicy,
+  PlanOptions,
 } from "./planner.js";
 export { reconcile } from "./reconcile.js";
 export type {

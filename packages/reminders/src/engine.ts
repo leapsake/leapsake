@@ -569,19 +569,28 @@ export function snoozePolicyOf(
 }
 
 /**
- * Whether a rule's reminder should exist today: its due date (the occurrence
- * shifted back by `offsetDays`) is at most {@link LEAD_DAYS} away, and the
- * occurrence itself hasn't passed. `days` is `daysUntil(today, occurrence)`, so
- * the due date is `days - offsetDays` away — bounded above by `LEAD_DAYS` and
- * held open until the occurrence day (`days >= 0`) so a not-yet-actioned
- * reminder keeps nagging up to the event rather than vanishing on its due date.
+ * Whether a rule's reminder falls inside `windowDays`: its due date (the
+ * occurrence shifted back by `offsetDays`) is at most `windowDays` away, and
+ * the occurrence itself hasn't passed. `days` is `daysUntil(today,
+ * occurrence)`, so the due date is `days - offsetDays` away — bounded above by
+ * `windowDays` and held open until the occurrence day (`days >= 0`) so a
+ * not-yet-actioned reminder keeps nagging up to the event rather than
+ * vanishing on its due date.
+ *
+ * The window is a parameter, not {@link LEAD_DAYS}, because two callers want
+ * different answers from the same walk: materialization asks "what should be a
+ * *row* today" ({@link LEAD_DAYS} — how far ahead the reminder list looks), and
+ * notification planning asks "what will come due before the schedule needs
+ * refreshing" ({@link NOTIFICATION_WINDOW_DAYS}). Conflating them would either
+ * flood the list or starve the schedule.
  */
 function isWithinWindow(
   daysUntilOccurrence: number,
   offsetDays: number,
+  windowDays: number,
 ): boolean {
   return (
-    daysUntilOccurrence >= 0 && daysUntilOccurrence - offsetDays <= LEAD_DAYS
+    daysUntilOccurrence >= 0 && daysUntilOccurrence - offsetDays <= windowDays
   );
 }
 
@@ -612,7 +621,7 @@ function isWithinWindow(
 export async function regenerateSystemReminders(
   deps: ReminderEngineDeps,
 ): Promise<{ created: number; updated: number; removed: number }> {
-  return reconcile(deps, await computeDesired(deps));
+  return reconcile(deps, await computeDesired(deps, LEAD_DAYS));
 }
 
 /**
@@ -629,14 +638,117 @@ export async function regenerateSystemReminders(
 export async function listSystemReminderTargets(
   deps: ReminderEngineDeps,
 ): Promise<SystemReminderTarget[]> {
-  const desired = await computeDesired(deps);
+  const desired = await computeDesired(deps, LEAD_DAYS);
   return [...desired.values()].flatMap((row) =>
     row.target === undefined ? [] : [{ id: row.id, ...row.target }],
   );
 }
 
+/**
+ * How far ahead {@link listNotifiableReminders} looks — deliberately **one
+ * year**, and not a tuning knob.
+ *
+ * Every recurring fact this app tracks (birthdays, anniversaries, holidays)
+ * comes round once a year, so a year covers each of them exactly once.
+ * Stretching further would schedule a *second* copy of the same birthday, which
+ * is pure waste: it spends a scarce OS notification slot on content that will
+ * be re-planned long before it could fire. Shortening it would leave a user who
+ * hasn't opened the app in a while with nothing scheduled at all.
+ *
+ * Distinct from {@link LEAD_DAYS}, which governs what becomes a *row* — see
+ * {@link isWithinWindow} for why the two must not be conflated.
+ */
+export const NOTIFICATION_WINDOW_DAYS = 365;
+
+/**
+ * Every reminder a device should consider **notifying** about within
+ * `windowDays` — the read-only, longer-sighted sibling of
+ * {@link regenerateSystemReminders}, and the input
+ * `@leapsake/notifications`' `planNotifications` plans from.
+ *
+ * The problem it solves: a `system` reminder is not a row until its due date is
+ * within {@link LEAD_DAYS}, so planning from stored rows alone can only ever
+ * schedule ~30 days of notifications — and that horizon advances only when the
+ * app is opened, which is exactly what a notification exists to avoid needing.
+ * This walks the same occurrence computation over a wider window and answers
+ * with rows that *will* exist, without writing any of them.
+ *
+ * **Nothing is persisted.** Widening the materialization window instead would
+ * flood the reminder list with a year of future rows and sync them to every
+ * device; the list's horizon is a product decision that stays at
+ * {@link LEAD_DAYS}.
+ *
+ * Three states a desired id can be in, and why each is handled the way it is:
+ *
+ * - **A live row already** — return the real row, so a completion, a snooze, or
+ *   an edited title is reflected. Planning off the synthesized copy would
+ *   re-notify for something already dealt with.
+ * - **A tombstone** — skip it. Same resurrection guard {@link reconcile}
+ *   applies: a reminder the user dismissed must not come back as a
+ *   notification, and the id stays in the desired set until its occurrence
+ *   passes, so this is the common case rather than an edge one.
+ * - **Absent** — synthesize it. It is beyond the materialization horizon, so it
+ *   has no state to preserve: un-completed, un-snoozed, alive. Its id is the
+ *   same deterministic one the row will be minted under, so a notification
+ *   scheduled now still deep-links correctly once the row exists — boot runs
+ *   {@link regenerateSystemReminders} before any route resolves.
+ *
+ * `user` reminders need none of this: they are rows the moment they are
+ * created, at any due date, so they are read straight from the store.
+ *
+ * Costs one point lookup per desired id, mirroring what {@link reconcile}
+ * already pays — but over a wider window, so ~12× the ids. If that ever shows
+ * up in a profile, the fix is a bulk id fetch, not a narrower window.
+ */
+export async function listNotifiableReminders(
+  deps: ReminderEngineDeps,
+  windowDays: number = NOTIFICATION_WINDOW_DAYS,
+): Promise<Reminder[]> {
+  const desired = await computeDesired(deps, windowDays);
+
+  const rows: Reminder[] = [];
+  for (const want of desired.values()) {
+    const existing = await deps.reminders.getIncludingDeleted(want.id);
+    if (existing !== undefined) {
+      if (existing.deletedAt === null) rows.push(existing);
+      continue;
+    }
+    rows.push(synthesize(want));
+  }
+
+  const userRows = await deps.reminders.listWhere({
+    where: "source = ?",
+    params: ["user"],
+  });
+  return [...rows, ...userRows];
+}
+
+/**
+ * A desired row as it *would* be minted, for a reminder that has no row yet.
+ * Only the fields the notification planner reads are meaningful; the
+ * bookkeeping stamps are filled with values true of a not-yet-existing row
+ * rather than invented ones, so this can never be mistaken for something
+ * persisted.
+ */
+function synthesize(want: DesiredReminder): Reminder {
+  return {
+    id: want.id,
+    title: want.title,
+    body: null,
+    completedAt: null,
+    dueDate: want.dueDate,
+    snoozedUntil: null,
+    snoozeCount: 0,
+    source: "system",
+    createdAt: 0,
+    updatedAt: 0,
+    deletedAt: null,
+  };
+}
+
 async function computeDesired(
   deps: ReminderEngineDeps,
+  windowDays: number,
 ): Promise<Map<string, DesiredReminder>> {
   const milestones = await deps.milestones.listRemindEligible();
 
@@ -652,7 +764,7 @@ async function computeDesired(
     // and inside their own due-date window. Resolve the schedule up front and skip
     // the (potentially encrypted) label lookup entirely when nothing applies.
     const rules = (await deps.resolveSchedule(m)).filter(
-      (r) => r.enabled && isWithinWindow(days, r.offsetDays),
+      (r) => r.enabled && isWithinWindow(days, r.offsetDays, windowDays),
     );
     if (rules.length === 0) continue;
 
@@ -744,7 +856,7 @@ async function computeDesired(
         if (days < 0) continue; // already passed
 
         const rules = (await deps.holidays.resolveSchedule(candidate)).filter(
-          (r) => r.enabled && isWithinWindow(days, r.offsetDays),
+          (r) => r.enabled && isWithinWindow(days, r.offsetDays, windowDays),
         );
         if (rules.length === 0) continue;
 

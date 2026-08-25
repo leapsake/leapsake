@@ -5,7 +5,26 @@
     "suspicious": "warn"
   },
   "rules": {
-    "unicorn/no-array-sort": "off"
+    "unicorn/no-array-sort": "off",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "expo-notifications",
+            "message": "Schedule through `apps/mobile/lib/notification-scheduler.ts` instead. Every pending notification competes for a platform budget the planner sizes (PLATFORM_NOTIFICATION_BUDGET), and one scheduled outside it is invisible to that accounting — on iOS it silently pushes a real reminder past the 64-request ceiling. If you genuinely need a second call site, add it to the override in .oxlintrc.json deliberately."
+          }
+        ]
+      }
+    ]
   },
+  "overrides": [
+    {
+      "files": ["apps/mobile/lib/notification-scheduler.ts", "apps/mobile/app/notifications.tsx"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
   "ignorePatterns": ["**/dist/**", "**/out/**", "**/node_modules/**"]
 }
