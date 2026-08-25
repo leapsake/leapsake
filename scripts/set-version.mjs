@@ -19,9 +19,14 @@
 // it is created rather than the day someone remembers this file exists.
 //
 // Mobile is deliberately absent from the write set: `apps/mobile/app.json` no longer
-// carries a version at all. `apps/mobile/app.config.ts` injects it from that app's
+// carries a version at all. `apps/mobile/app.config.ts` derives it from that app's
 // package.json, so Expo has one source rather than a copy to drift. The check enforces
 // that arrangement instead of the value.
+//
+// A pre-release suffix (`0.1.0-alpha.1`) is valid here and is the normal state between
+// releases. Stores reject non-numeric version strings, so app.config.ts strips the
+// suffix for `expo.version` and derives the per-upload build numbers separately — the
+// repo keeps real semver, the stores see `0.1.0`.
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -70,10 +75,10 @@ const MOBILE_APP_JSON = join(ROOT, "apps", "mobile", "app.json");
 const MOBILE_APP_CONFIG = join(ROOT, "apps", "mobile", "app.config.ts");
 
 /**
- * Mobile's arrangement, checked structurally: `app.json` must *not* carry a version,
- * and `app.config.ts` must exist to supply one. Together these say "there is exactly
- * one place the Expo version comes from". Reinstating `expo.version` in app.json would
- * silently win back a second source, so it fails the check.
+ * Mobile's arrangement, checked structurally: `app.json` must *not* carry a version or
+ * a build number, and `app.config.ts` must exist to derive them. Together these say
+ * "there is exactly one place each of these comes from". Reinstating any of them in
+ * app.json would silently win back a second source, so it fails the check.
  */
 function mobileProblems() {
   const problems = [];
@@ -83,6 +88,20 @@ function mobileProblems() {
       `${relative(ROOT, MOBILE_APP_JSON)} carries expo.version — it must come from ` +
         "app.config.ts (which reads the app's package.json) so there is one source",
     );
+  }
+  // Static build numbers are the failure this is guarding against: app.json wins over
+  // nothing (app.config.ts overrides it), so a stale number here would look
+  // authoritative while doing nothing — or worse, get edited instead of the derivation.
+  for (const [platform, field] of [
+    ["ios", "buildNumber"],
+    ["android", "versionCode"],
+  ]) {
+    if (appJson.expo?.[platform]?.[field] !== undefined) {
+      problems.push(
+        `${relative(ROOT, MOBILE_APP_JSON)} carries ${platform}.${field} — build ` +
+          "numbers are derived per-upload in app.config.ts, not pinned here",
+      );
+    }
   }
   try {
     readFileSync(MOBILE_APP_CONFIG);
@@ -140,12 +159,14 @@ if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(arg)) {
   process.exit(1);
 }
 if (arg.includes("-")) {
-  // Worth saying out loud rather than discovering at upload time: the App Store and
-  // Play both reject a non-numeric version string, and `expo.version` is derived from
-  // the same number this writes.
-  console.warn(
-    `! "${arg}" has a pre-release suffix, which app stores reject. Fine for local ` +
-      "builds; not for anything uploaded to TestFlight or Play.",
+  // Not a warning: the suffix is supported on purpose. Both stores reject a
+  // non-numeric version string, so `apps/mobile/app.config.ts` strips the suffix when
+  // it derives `expo.version` — the repo runs on real semver and the stores see the
+  // numeric core. Said out loud here because the number a build carries then differs
+  // from the one in package.json, and that should never be a surprise at upload time.
+  const [numeric] = arg.split("-");
+  console.log(
+    `  (pre-release: stores will see ${numeric}; the suffix stays repo-side)`,
   );
 }
 
