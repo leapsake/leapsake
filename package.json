@@ -11,6 +11,7 @@
     "format": "oxfmt . '!**/*.md'",
     "format:check": "oxfmt --check . '!**/*.md'",
     "lint": "oxlint",
+    "release": "node scripts/release/index.mjs",
     "typecheck": "pnpm -r typecheck",
     "test": "node scripts/test-all.mjs --fast",
     "test:all": "node scripts/test-all.mjs",
