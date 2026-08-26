@@ -2,8 +2,8 @@
 // the path — `expo prebuild` generates the project, `xcodebuild` archives and exports it,
 // and `altool` uploads it with an API key rather than an Apple ID session.
 //
-// Two constraints shape everything here, both learned the expensive way and recorded in
-// `plans/ios-release-pipeline.md`:
+// Two constraints shape everything here, both learned the expensive way during the first
+// upload — which was done by hand through the Xcode GUI, and is the reason this file exists:
 //
 //  1. **`apps/mobile/ios/` is generated** by `expo prebuild` and gitignored. Nothing may
 //     originate there — not the team, not the signing identity, not the build number.
@@ -99,7 +99,7 @@ const exportCompliance = {
       readAppJson(root).expo?.ios?.infoPlist?.ITSAppUsesNonExemptEncryption;
     return typeof value === "boolean"
       ? undefined
-      : "apps/mobile/app.json sets no ios.infoPlist.ITSAppUsesNonExemptEncryption — every upload will stall at Missing Compliance (plans/ios-release-pipeline.md)";
+      : "apps/mobile/app.json sets no ios.infoPlist.ITSAppUsesNonExemptEncryption — every upload will stall at Missing Compliance, undistributable until answered by hand";
   },
 };
 

@@ -45,6 +45,32 @@ Against a local relay, the simulators reach the host differently:
 Start the relay with `pnpm --filter @leapsake/server dev` — see
 [`@leapsake/server`](../server/README.md) → _Running_.
 
+## Cutting a release
+
+```sh
+pnpm release alpha --only=ios --dry-run   # what is this rung waiting on?
+pnpm release alpha --only=ios             # bump, tag, archive, export, upload
+```
+
+`scripts/release/` owns the rules and documents them in its own header; `pnpm release
+--help` prints the current rung/platform matrix. Credentials live in an untracked `.env`
+(copy `.env.example`) — team, provisioning profile, and an App Store Connect API key.
+
+Three things about this app specifically, all of which cost an evening to learn once:
+
+- **`ios/` is deleted and regenerated on every release.** It is `expo prebuild` output and
+  gitignored, so nothing may originate there — signing is passed at invocation instead. A
+  release therefore leaves you needing a fresh `pnpm --filter @leapsake/mobile ios` before
+  the next dev-client run.
+- **The suite's iOS tier needs a dev client that has been launched at least once against
+  the running Metro**, because the harness reconnects through the dev-launcher's remembered
+  server. If it times out at 180s having found no *Continue* button, that list is empty (or
+  its stored URL is a LAN address that has since changed) — relaunch the dev client rather
+  than debugging the flow.
+- **Export compliance is declared in `app.json`**, not answered per upload. Without
+  `ITSAppUsesNonExemptEncryption` a build lands at *Missing Compliance* and cannot be
+  distributed to anyone, internal testers included.
+
 ## Why the driver test needs a device
 
 **expo-sqlite's real engine cannot run in a headless Node/Vitest process.** It is a native

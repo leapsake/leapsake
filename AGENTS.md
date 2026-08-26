@@ -299,6 +299,42 @@ dev app was never started. The whole dance disappears if the N-API fork ever rel
 tsconfig's `include`, or its type errors go unchecked (`pnpm test:types` only
 sees included files). All current test dirs are covered; verify when adding one.
 
+## Versioning and releases
+
+**One version across every manifest in `apps/` and `packages/`**, so that iOS `1.2.3` and
+macOS `1.2.3` are known to work together. New workspaces join at whatever the repo is on:
+`scripts/set-version.mjs` *discovers* manifests rather than listing them, and
+`pnpm test:versions` fails the suite when they disagree. Both stores reject a non-numeric
+version string, so `apps/mobile/app.config.ts` strips any pre-release suffix — the repo
+runs on real semver and the stores see the numeric core, distinguished by a build number
+derived from the clock.
+
+> ⚠️ **The number is the promise, not the mechanism.** What actually makes two
+> separately-installed artifacts compatible is `@leapsake/schema` migrations,
+> `@leapsake/sync`, and identical `@leapsake/flags` state. A flag that differs between two
+> platforms shipped from the same tag makes the promise false while the numbers agree.
+
+**`main` is the only long-lived branch** — there is no `dev`. Branch only when `main` would
+otherwise be unreleasable. `release/X.Y.Z` exists for exactly one situation, stabilizing a
+release while unrelated work keeps landing, and is deleted once the release ships.
+
+**A release is a tag, and `scripts/release/` is the whole policy.** The ladder
+(`alpha` → `beta` → `rc` → final), what each rung requires per platform, and every
+precondition are enforced there, not described here — read its header for the reasoning and
+run `pnpm release --help` for the current rules. **A human chooses the rung; the number is
+computed** from the tags that already exist. The one hand-picked number is the base `X.Y.Z`,
+once per release train (`--base=`).
+
+Targets are a registry in the same shape as the test tiers, `ready` or `blocked`, so a
+platform that cannot ship is **reported, never silently skipped**. `pnpm release <stage>
+--dry-run` answers "what is this platform waiting on?" without building anything.
+Credentials come from an untracked `.env` (copy `.env.example`); the environment wins over
+the file, so a runner's secrets are never shadowed by a local copy.
+
+**The script tags and never pushes.** Store version strings are permanent and monotonic, a
+Play closed test starts a 14-day clock at its first upload, and a notarized artifact is
+public the moment its feed sees it — so the irreversible step stays a person's.
+
 ## Desktop app (`apps/desktop`)
 
 Electron app built with electron-vite (`src/main`, `src/preload`,

@@ -5,7 +5,7 @@
 > the testing strategy.
 
 The final two steps, in this order. Going public first makes auto-update simpler
-([05C](./v0-1_05_desktop-packaging-and-signing.md)) and is the cheaper mistake to make early.
+([desktop-packaging.md](./desktop-packaging.md) → C) and is the cheaper mistake to make early.
 
 ## A — Public repo
 

@@ -43,6 +43,8 @@ enclave key lives in [`@leapsake/key-custody`](../packages/key-custody/README.md
 | **Know what's in flight** | [`status.md`](./status.md) |
 | **Know what to build next** | [`v0-1.md`](./v0-1.md) → the numbered doc it points at |
 | **Find something we deliberately deferred** | [`v0-2.md`](./v0-2.md) |
+| **Cut a release, or add a platform to the pipeline** | [`../AGENTS.md`](../AGENTS.md) → *Versioning and releases* for the rules, `pnpm release --help` for the current rung/platform matrix, and `scripts/release/` for the policy itself |
+| **Ship the desktop app** | [`desktop-packaging.md`](./desktop-packaging.md) — packaging, notarization and auto-update, deferred past v0.1 |
 | **Build the web / PWA client for real** | [`web-client.md`](./web-client.md) — what the spike proved and what an `apps/web` inherits — then [`v0-2.md`](./v0-2.md) → *Post-launch* item 1. The rule it produced is [`encryption/model.md`](./encryption/model.md) §10.1: **web requires a sync account** |
 | **Know the product posture (laypeople-first, pre-v0.1 latitude)** | [`../AGENTS.md`](../AGENTS.md) → *Product posture* |
 | **Know the user / client / account model** | [`@leapsake/key-custody`](../packages/key-custody/README.md) → *The product model this serves* |

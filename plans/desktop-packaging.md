@@ -1,8 +1,20 @@
-# v0.1 · 05 — Desktop packaging, signing, and auto-update
+# Desktop packaging, signing, and auto-update
 
+> **Deferred past v0.1** *(owner, 2026-08-26)* — the desktop app ships in a later release, so
+> this is no longer a numbered gating doc and no longer holds a place in the v0.1 order. It
+> keeps its detail rather than being folded into [`v0-2.md`](./v0-2.md) because the sequencing
+> below (A before B before C) is the whole value, and it is still correct.
+>
 > **Delete this doc when the work lands.** The packaging configuration documents itself; the
 > native-module constraint below is already recorded beside the code it constrains
 > (`scripts/ensure-sqlite-abi.mjs`, [`../AGENTS.md`](../AGENTS.md), and [`v0-2.md`](./v0-2.md)).
+
+**Where this plugs in:** `scripts/release/targets/mac.mjs`, a `blocked` stub today. Note what
+that target does *not* need — **Xcode is not in this path at all.** The app is Electron, so
+packaging is electron-builder and the Apple half is `codesign` → `xcrun notarytool submit
+--wait` → `xcrun stapler staple` → `spctl -a -vvv -t exec`, all of which live in the Command
+Line Tools. The App Store Connect API key the iOS target already uses authenticates
+notarization too, so B below inherits a credential rather than introducing one.
 
 Three stages of one job: turn `out/` into something a stranger can install and that can fix
 itself later. Split into A/B/C because **A is the classic Electron failure** and deserves to fail
