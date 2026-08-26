@@ -30,6 +30,15 @@
 // no hosted CI is assumed). Anything a workflow file could do that this cannot is a bug
 // in this file.
 //
+// ## The gate
+//
+// Every rung runs `pnpm test:all`. Beta and above run it `--strict`, where a tier that is
+// blocked — not built yet, or needing a device that is not booted — fails the release.
+// Alpha does not: it goes to internal TestFlight, which is named App Store Connect users
+// and no one else. See `isStrict` below.
+//
+// Credentials come from `.env` (see `.env.example`), or from the environment, which wins.
+//
 // ## What it will not do
 //
 // It never pushes. A store version string is permanent and monotonic, a Play closed test
@@ -212,12 +221,42 @@ function run(command, args) {
 const setVersion = (version) =>
   run(process.execPath, ["scripts/set-version.mjs", version]);
 
+/**
+ * Load `.env` if there is one, so the credentials a release needs are a file rather than
+ * a block of exports retyped each time. `.env.example` is the template; `.gitignore`
+ * keeps the real one out of the repo.
+ *
+ * A variable already present in the environment **wins over the file** (Node's own
+ * precedence for `--env-file`), which is the behaviour a runner needs: secrets injected
+ * by CI are not quietly overridden by a stray checked-out `.env`.
+ */
+function loadEnvFile() {
+  try {
+    process.loadEnvFile(join(ROOT, ".env"));
+  } catch {
+    // No .env is the normal case on a runner, where the environment carries the secrets.
+  }
+}
+
+/**
+ * Whether a red-or-*blocked* tier stops the release.
+ *
+ * Every rung runs the same suite; what changes is whether a tier that is merely *not
+ * built yet* is fatal. `--strict` is release-gate mode, and the gate's own policy is
+ * about the first release of Leapsake **on a platform** — the rungs where people who are
+ * not the author install the build. An alpha goes to internal TestFlight: named App Store
+ * Connect users, capped at 100. Holding it to the full gate would mean no build at all
+ * until the E2E catalog exists, which trades a real alpha for a theoretical one.
+ */
+const isStrict = (stage) => stage !== "alpha";
+
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.flags.has("help")) {
     printHelp();
     return 0;
   }
+  loadEnvFile();
 
   const dryRun = opts.flags.has("dry-run");
   const manifestVersion = JSON.parse(
@@ -316,7 +355,11 @@ async function main() {
 
   if (dryRun) {
     console.log("\nWould, in order:");
-    console.log("  1. run pnpm test:all --strict");
+    console.log(
+      `  1. run pnpm test:all${isStrict(stage) ? " --strict" : ""}${
+        isStrict(stage) ? "" : `  (${stage} does not gate on unbuilt tiers)`
+      }`,
+    );
     if (mode === "local") {
       console.log(
         `  2. set every manifest to ${version}, commit, and tag ${tag}`,
@@ -346,8 +389,10 @@ async function main() {
     if (setVersion(version).status !== 0) return 1;
   }
 
-  console.log("\n→ pnpm test:all --strict");
-  if (run("pnpm", ["run", "test:all", "--", "--strict"]).status !== 0) {
+  const strict = isStrict(stage);
+  const suiteArgs = strict ? ["--strict"] : [];
+  console.log(`\n→ pnpm test:all${strict ? " --strict" : ""}`);
+  if (run("pnpm", ["run", "test:all", "--", ...suiteArgs]).status !== 0) {
     if (mode === "local") {
       console.error(
         `\n✗ the suite is red — restoring the manifests to ${manifestVersion}`,

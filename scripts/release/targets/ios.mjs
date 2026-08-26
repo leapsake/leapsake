@@ -209,7 +209,12 @@ export default {
     alpha: {
       name: "internal TestFlight",
       requires: [],
-      manual: ["testers must be App Store Connect users (≤100)"],
+      manual: [
+        "testers must be App Store Connect users (≤100)",
+        // True at every rung, including this one: until the plist key is set, the build
+        // sits at Missing Compliance and cannot be distributed to anyone at all.
+        "export compliance is asked in App Store Connect on every upload",
+      ],
     },
     beta: {
       name: "external TestFlight",

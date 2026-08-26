@@ -24,6 +24,13 @@ AuthKey_*.p8
 *.keystore
 credentials.json
 
+# Local configuration — where the credentials above live on this machine, and anything
+# else a build needs that is not the same everywhere. `.env.example` is the tracked
+# template and must stay tracked.
+.env
+.env.*
+!.env.example
+
 *.swp
 *.swo
 
