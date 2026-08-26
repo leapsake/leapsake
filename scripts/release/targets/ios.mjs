@@ -23,7 +23,7 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-import { envSet } from "../checks.mjs";
+import { envSet, fileAt } from "../checks.mjs";
 
 const MOBILE = (root) => join(root, "apps", "mobile");
 
@@ -118,28 +118,11 @@ const cocoapods = {
 // One App Store Connect API key covers the upload here and macOS notarization later, and
 // unlike an Apple ID session it runs unattended.
 const ascKey = [
-  {
-    // `altool` does not take a path: it searches a private-keys directory for a file named
-    // `AuthKey_<key id>.p8`. So the name matters as much as the location, and getting it
-    // wrong fails at the upload — after the archive, which is the expensive part. The
-    // repo already assumes this shape: `.gitignore` excludes `AuthKey_*.p8` at any depth.
-    name: "ASC_KEY_PATH",
-    check: () => {
-      const path = process.env.ASC_KEY_PATH?.trim();
-      if (!path)
-        return "ASC_KEY_PATH is not set — the upload authenticates with it";
-      if (!existsSync(path))
-        return `ASC_KEY_PATH points at "${path}", which does not exist`;
-      const keyId = process.env.ASC_KEY_ID?.trim();
-      const expected = keyId ? `AuthKey_${keyId}.p8` : null;
-      if (expected && !path.endsWith(`/${expected}`)) {
-        return `ASC_KEY_PATH must be named ${expected} for altool to find it, got "${path}"`;
-      }
-      return path.endsWith(".p8")
-        ? undefined
-        : `ASC_KEY_PATH should name a .p8 file, got "${path}"`;
-    },
-  },
+  // The key is handed to altool by path (`--p8-file-path`), so only its existence
+  // matters — not its name, and not which directory it sits in. Keeping the downloaded
+  // `AuthKey_<key id>.p8` filename is still wise: `.gitignore` excludes that shape at any
+  // depth, and a key named anything else is one `git add` away from being published.
+  fileAt("ASC_KEY_PATH", "the upload authenticates with it", { suffix: ".p8" }),
   envSet("ASC_KEY_ID", "it identifies which App Store Connect key is in use"),
   envSet("ASC_ISSUER_ID", "App Store Connect keys are scoped to an issuer"),
 ];
@@ -339,49 +322,37 @@ export default {
    * be cleaned up by hand.
    */
   async publish({ artifact }) {
-    const keyPath = process.env.ASC_KEY_PATH.trim();
-    // altool locates the key by name inside a directory, so it is told the directory and
-    // the key id rather than the path — see the ASC_KEY_PATH check above.
-    const env = {
-      ...process.env,
-      API_PRIVATE_KEYS_DIR: dirname(resolve(keyPath)),
-    };
+    // `--p8-file-path` names the key directly. Without it, altool searches four fixed
+    // directories for a file called `AuthKey_<key id>.p8` — which would make the key's
+    // *filename* load-bearing, and would fail at the upload, after the archive.
     const credentials = [
-      "--apiKey",
+      "--api-key",
       process.env.ASC_KEY_ID.trim(),
-      "--apiIssuer",
+      "--api-issuer",
       process.env.ASC_ISSUER_ID.trim(),
+      "--p8-file-path",
+      resolve(process.env.ASC_KEY_PATH.trim()),
     ];
 
-    must(
-      "altool --validate-app",
-      "xcrun",
-      [
-        "altool",
-        "--validate-app",
-        "--type",
-        "ios",
-        "--file",
-        artifact.ipa,
-        ...credentials,
-      ],
-      { env },
-    );
+    must("altool --validate-app", "xcrun", [
+      "altool",
+      "--validate-app",
+      "-f",
+      artifact.ipa,
+      "-t",
+      "ios",
+      ...credentials,
+    ]);
 
-    must(
-      "altool --upload-app",
-      "xcrun",
-      [
-        "altool",
-        "--upload-app",
-        "--type",
-        "ios",
-        "--file",
-        artifact.ipa,
-        ...credentials,
-      ],
-      { env },
-    );
+    must("altool --upload-app", "xcrun", [
+      "altool",
+      "--upload-app",
+      "-f",
+      artifact.ipa,
+      "-t",
+      "ios",
+      ...credentials,
+    ]);
 
     console.log(
       `   uploaded build ${artifact.buildNumber} — App Store Connect takes a few minutes to finish processing it`,
