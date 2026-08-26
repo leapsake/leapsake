@@ -75,11 +75,22 @@ const appIcon = {
 };
 
 /**
- * Every upload sits at *Missing Compliance* — and is undistributable — until export
- * compliance is answered. Encoding the answer retires the per-upload prompt, but only once
- * the underlying question is settled: Leapsake implements standard algorithms *in the app*
- * (XChaCha20-Poly1305, Argon2id, HKDF-SHA256, AES-256 via SQLCipher), not merely OS crypto,
- * so `false` is not the honest answer and the EAR exemption question is still open.
+ * Export compliance, asserted by the build rather than answered by hand.
+ *
+ * Without this key every upload lands at *Missing Compliance* and cannot be distributed to
+ * anyone — not even an internal tester — until someone clicks through App Store Connect.
+ * With it, the question is never asked.
+ *
+ * The value is a **declaration about export control, not a build setting**. Leapsake
+ * implements standard algorithms in the app (XChaCha20-Poly1305, Argon2id, HKDF-SHA256,
+ * AES-256 via SQLCipher) rather than merely calling the OS, so the honest answer to Apple's
+ * first question is "standard algorithms, in addition to". `false` here then asserts the
+ * narrower thing: that this use is *exempt*. That is the answer already on record for
+ * builds 340027 and 341572, made through Apple's own UI *(owner, 2026-08-26)*.
+ *
+ * So this check exists to keep the declaration from silently disappearing — deleting the
+ * key would not fail a build, it would just quietly reinstate the manual step. If the EAR
+ * determination ever changes, `apps/mobile/app.json` is the one place to change it.
  */
 const exportCompliance = {
   name: "export compliance",
@@ -190,14 +201,11 @@ export default {
 
   tiers: {
     alpha: {
+      // Export compliance is required at *every* rung, not just the ones strangers see:
+      // without it the build is undistributable even to an internal tester.
       name: "internal TestFlight",
-      requires: [],
-      manual: [
-        "testers must be App Store Connect users (≤100)",
-        // True at every rung, including this one: until the plist key is set, the build
-        // sits at Missing Compliance and cannot be distributed to anyone at all.
-        "export compliance is asked in App Store Connect on every upload",
-      ],
+      requires: [exportCompliance],
+      manual: ["testers must be App Store Connect users (≤100)"],
     },
     beta: {
       name: "external TestFlight",

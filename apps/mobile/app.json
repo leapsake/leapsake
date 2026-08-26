@@ -11,6 +11,7 @@
       "bundleIdentifier": "com.leapsake.app",
       "infoPlist": {
         "EXDevMenuShowFloatingActionButton": false,
+        "ITSAppUsesNonExemptEncryption": false,
         "LSApplicationQueriesSchemes": ["facetime", "geo"]
       }
     },
