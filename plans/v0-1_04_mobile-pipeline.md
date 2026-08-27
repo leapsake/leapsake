@@ -21,13 +21,16 @@ takes as long, and no amount of engineering shortens it.
 ⚠️ Two halves, and only one of them is code:
 
 1. The `android` target below — days of work at most.
-2. **Recruiting 12 real humans for 14 continuous days**, which is a logistics task and is open
-   decision 4 in [`v0-1.md`](./v0-1.md). **Start the list before the target is finished**, not
-   after; the build is not the constraint.
+2. The wall in front of production, which is **calendar time, not engineering**, and whose shape
+   is an open question: 12 testers for 14 continuous days if v0.1 publishes from the *personal*
+   account, or a D-U-N-S wait of up to 30 days if the owner forms the legal entity first
+   (leaning that way as of 2026-08-26). Open decision 4 in [`v0-1.md`](./v0-1.md).
 
-Also still unclaimed: **the Play-side app name**. Creating the Play Console record claims it,
-names are first-come-first-served per store, and the Apple side is already committed. See
-[`v0-1.md`](./v0-1.md) → *The one long clock left*.
+⚠️ **This changes where the target stops.** A package name is claimed on Play by the account
+that first uploads it, and the Play-side app name is claimed by whichever account creates the
+record — so **uploading from the personal account forecloses the org choice** and turns it into
+a transfer. Until decision 4 is settled, build and verify the target **locally**, and stop
+before the upload. That is the last step, and it is the only one that is hard to undo.
 
 ## What the Android target has to do
 
@@ -54,9 +57,13 @@ what follows is only what is *Android-specific*.
   `--dry-run` rather than discovered mid-upload: the keystore file and its passwords, the
   service-account JSON, and the Play track being reachable with the credentials given.
 
-**Acceptance:** `pnpm release beta --only=android` produces a signed AAB from a clean checkout
-and uploads it to closed testing, with no Play Console interaction. `pnpm release beta` with no
-`--only` ships both platforms from one tag.
+**Acceptance, in two stages** — because the second one is the irreversible half:
+
+1. **Now:** `pnpm release beta --only=android --dry-run` passes every preflight, and the target
+   produces a signed AAB from a clean checkout that installs and runs on a device. No upload.
+2. **Once decision 4 is settled:** the same command without `--dry-run` uploads to the chosen
+   track from the chosen account, with no Play Console interaction — and `pnpm release beta`
+   with no `--only` ships both platforms from one tag.
 
 ## The version-parity check this makes possible
 
