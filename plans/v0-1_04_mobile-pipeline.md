@@ -26,10 +26,11 @@ takes as long, and no amount of engineering shortens it.
    account, or a D-U-N-S wait of up to 30 days if the owner forms the legal entity first
    (leaning that way as of 2026-08-26). Open decision 4 in [`v0-1.md`](./v0-1.md).
 
-⚠️ **This changes where the target stops.** A package name is claimed on Play by the account
-that first uploads it, and the Play-side app name is claimed by whichever account creates the
-record — so **uploading from the personal account forecloses the org choice** and turns it into
-a transfer. Until decision 4 is settled, build and verify the target **locally**, and stop
+⚠️ **This changes where the target stops.** `com.leapsake.app` is claimed on Play by the account
+that **first uploads** it — globally unique, permanent, bound to that account — so **uploading
+from the personal account forecloses the org choice** and turns it into a transfer. (The Play
+*title* is a separate matter and not at risk: Play titles are not exclusively reserved, checked
+2026-08-26.) Until decision 4 is settled, build and verify the target **locally**, and stop
 before the upload. That is the last step, and it is the only one that is hard to undo.
 
 ## What the Android target has to do
