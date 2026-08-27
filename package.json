@@ -25,6 +25,7 @@
     "test:coverage": "node scripts/ensure-sqlite-abi.mjs node && vitest run --config vitest.coverage.config.ts",
     "test:unit": "node scripts/ensure-sqlite-abi.mjs node && vitest run packages",
     "test:integration": "node scripts/ensure-sqlite-abi.mjs node && vitest run apps",
+    "test:bundle": "pnpm --filter @leapsake/desktop check:bundle",
     "test:native": "node scripts/test-native.mjs",
     "test:e2e": "node scripts/test-all.mjs --only=e2e",
     "server": "pnpm --filter @leapsake/server dev"

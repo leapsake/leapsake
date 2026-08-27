@@ -5,6 +5,10 @@
     "suspicious": "warn"
   },
   "rules": {
+    // Off because `packages/*` run on mobile's Hermes engine, where `Array#toSorted`
+    // does not exist — the rule's suggested fix is the one thing we cannot ship. The
+    // floor is enforced in `tsconfig.packages.json` (`lib: ES2022`), which makes the
+    // unsupported call a typecheck error; this rule would push code toward it.
     "unicorn/no-array-sort": "off",
     "no-restricted-imports": [
       "error",

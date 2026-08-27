@@ -19,7 +19,7 @@ const outDir = resolve(appRoot, "out/renderer/assets");
 
 // Build fresh with sourcemaps so the check never reads a stale artifact.
 rmSync(resolve(appRoot, "out/renderer"), { recursive: true, force: true });
-execFileSync("npx", ["electron-vite", "build", "--sourcemap"], {
+execFileSync("pnpm", ["exec", "electron-vite", "build", "--sourcemap"], {
   cwd: appRoot,
   stdio: ["ignore", "ignore", "inherit"],
 });

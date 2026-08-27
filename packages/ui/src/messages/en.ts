@@ -25,7 +25,7 @@ export const en: Messages = {
     cancel: "Cancel",
     close: "Close",
     none: "—",
-    saveFailed: (error) => `Couldn't save: ${error}`,
+    saveFailed: (error) => `Couldn’t save: ${error}`,
   },
 
   breadcrumbs: {

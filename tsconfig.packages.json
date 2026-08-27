@@ -1,0 +1,19 @@
+{
+  // The base every `packages/*` extends — shared code, and therefore code that runs on
+  // **mobile's Hermes engine**, which lags the JS a desktop/Node target would accept.
+  //
+  // `lib` is the enforcement: it caps the standard library these packages may call at the
+  // Hermes floor, so an ES2023-only method (`Array#toSorted`, `toReversed`, `with`,
+  // `toSpliced`, `Object.groupBy`) is a **typecheck error** here rather than a crash on a
+  // device. Use `[...arr].sort(...)` instead of `toSorted`. This is also why
+  // `unicorn/no-array-sort` is off in `.oxlintrc.json`.
+  //
+  // `apps/*` do not extend this: desktop and server target Node/Electron and are free to
+  // use whatever their runtime has. Raise the cap only when the Hermes in mobile's pinned
+  // Expo SDK genuinely supports the newer level.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "noEmit": true
+  }
+}
