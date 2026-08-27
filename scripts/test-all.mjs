@@ -64,6 +64,17 @@ const TIERS = [
     status: "ready",
   },
   {
+    // Same shape of guard as `versions`, for the same reason: the app icons are generated
+    // from one SVG and committed, so the failure mode is a source edit that never got
+    // re-rendered — invisible until a store listing wears the old face. Compares hashes
+    // rather than re-rendering, so it needs no rasterizer and stays a static tier.
+    key: "icons",
+    layer: "static",
+    label: "icon agreement (every raster matches assets/icon/leapsake.svg)",
+    script: "test:icons",
+    status: "ready",
+  },
+  {
     key: "node",
     layer: "unit + integration",
     label: "unit + integration (vitest, real desktop engine)",

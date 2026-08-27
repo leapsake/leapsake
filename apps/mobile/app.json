@@ -6,6 +6,7 @@
     "scheme": "leapsake",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.leapsake.app",
@@ -17,6 +18,10 @@
     },
     "android": {
       "package": "com.leapsake.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#fbf7f0"
+      },
       "queries": [
         { "intent": { "action": "android.intent.action.VIEW", "data": { "scheme": "geo" } } },
         { "intent": { "action": "android.intent.action.SENDTO", "data": { "scheme": "smsto" } } },

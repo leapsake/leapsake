@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   type AccountRoster,
@@ -1171,10 +1172,30 @@ function registerSyncIpc(): void {
   });
 }
 
+/**
+ * The window icon, generated from `assets/icon/leapsake.svg` by `pnpm icons`.
+ *
+ * Windows and Linux take the icon from the window; **macOS ignores this entirely** and
+ * reads the app bundle instead, so this does nothing on the machine most of this is
+ * developed on. It is still worth setting, because until desktop packaging lands
+ * (plans/v0-2.md) a window icon is the *only* place the desktop app wears its own face
+ * rather than the stock Electron one.
+ *
+ * The path is resolved from the built `out/main/`, which reaches the repo copy in dev and
+ * in an unpackaged build. A packaged build puts resources somewhere else; that path is a
+ * decision for electron-builder to make when it arrives, so this stays optional rather
+ * than asserting a file that will legitimately move.
+ */
+const windowIcon = (): string | undefined => {
+  const path = join(__dirname, "../../resources/icon.png");
+  return existsSync(path) ? path : undefined;
+};
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 900,
     height: 700,
+    icon: windowIcon(),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,
