@@ -30,6 +30,7 @@ import {
   redirect,
 } from "react-router-dom";
 import { App } from "./App";
+import { Acknowledgements } from "./screens/Acknowledgements";
 import { ContactMethodCreate } from "./screens/ContactMethodCreate";
 import { ContactMethodDelete } from "./screens/ContactMethodDelete";
 import { ContactMethodEdit } from "./screens/ContactMethodEdit";
@@ -1110,6 +1111,12 @@ const routes: RouteObject[] = [
         // reveal must not survive a loader re-run), so no loader/action here.
         path: "settings",
         element: <Settings />,
+      },
+      {
+        // Static, and deliberately so: no loader, no account, no data. The list it
+        // renders is a compile-time constant shared with `apps/mobile`.
+        path: "acknowledgements",
+        element: <Acknowledgements />,
       },
       {
         // Review duplicates: propose candidate pairs (reconciliation Increment

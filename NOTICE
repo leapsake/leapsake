@@ -1,0 +1,32 @@
+Leapsake
+Copyright (c) Josh Smith
+
+Leapsake itself is licensed under the GNU Affero General Public License v3.0.
+The full text is in LICENSE, and it governs everything in this repository that
+is not listed below.
+
+This file records third-party work that Leapsake redistributes under a licence
+of its own. It is the repository's copy; the same credits ship inside the app,
+under Settings -> Acknowledgements, because these licences ask for attribution
+wherever the work is distributed and a shipped binary is distribution. Both are
+generated from nothing -- the app's list lives in
+packages/ui/src/headless/acknowledgements.ts, and this file is maintained by
+hand alongside it.
+
+--------------------------------------------------------------------------------
+
+OpenMoji
+https://openmoji.org
+
+  Leapsake's app icon is OpenMoji's "Frog" (U+1F438), used unmodified. The
+  source file is assets/icon/leapsake.svg; every icon the apps ship is
+  rasterized from it by `pnpm icons`, which changes the framing and background
+  around the artwork but not the artwork itself.
+
+  Licensed under the Creative Commons Attribution-ShareAlike 4.0 International
+  License (CC BY-SA 4.0).
+  https://creativecommons.org/licenses/by-sa/4.0/
+
+  ShareAlike note: CC BY-SA applies to the artwork and to adaptations of it. It
+  does not extend to Leapsake's own source, which is separately licensed under
+  the AGPL as above.

@@ -335,6 +335,25 @@ the file, so a runner's secrets are never shadowed by a local copy.
 Play closed test starts a 14-day clock at its first upload, and a notarized artifact is
 public the moment its feed sees it — so the irreversible step stays a person's.
 
+## App icons
+
+**One vector source, `assets/icon/leapsake.svg`; every PNG the apps ship is generated from
+it by `pnpm icons`.** The generated files are committed, because `expo prebuild`, EAS and
+electron-builder run where no SVG rasterizer exists — `pnpm test:icons` is the guard that
+keeps source and rasters in agreement, and it compares hashes rather than re-rendering so
+it needs no rasterizer of its own.
+
+Regenerating needs `brew install librsvg imagemagick`; nothing else does. **Never hand-edit
+a generated PNG** — the check fails on it, by design. Read `scripts/icons.mjs` for why the
+framing constants are what they are; the short version is that they are measured (an
+Android circular mask crops a naive "66 of 108" adaptive icon) rather than chosen.
+
+The artwork is OpenMoji's, under CC BY-SA 4.0. That licence wants attribution wherever the
+work is distributed, so the credit exists twice on purpose: `NOTICE` for the repo, and
+`packages/ui/src/headless/acknowledgements.ts` for the list both clients render under
+Settings → Acknowledgements. **Adding third-party work that ships means adding it to
+both.**
+
 ## Desktop app (`apps/desktop`)
 
 Electron app built with electron-vite (`src/main`, `src/preload`,

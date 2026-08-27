@@ -33,6 +33,9 @@ const ROWS = [
   { href: "/settings", glyph: "👤", label: "Account" },
   { href: "/data", glyph: "💾", label: "Data" },
   { href: "/notifications", glyph: "🔔", label: "Notifications" },
+  // Last, and about the app rather than about you — the only row here that is a
+  // licence obligation as well as a screen (see app/acknowledgements.tsx).
+  { href: "/acknowledgements", glyph: "💚", label: "Acknowledgements" },
 ] as const;
 
 export default function MenuScreen() {

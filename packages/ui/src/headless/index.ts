@@ -6,6 +6,7 @@
  * Native components. Anything that renders a *host* element belongs in `../web`;
  * a React context is neutral and belongs here.
  */
+export { type Acknowledgement, ACKNOWLEDGEMENTS } from "./acknowledgements.js";
 export {
   type RecipientEntry,
   captureRecipientOf,

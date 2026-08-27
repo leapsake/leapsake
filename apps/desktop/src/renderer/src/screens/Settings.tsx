@@ -147,6 +147,17 @@ export function Settings() {
             <FactoryReset />
           </>
         ))}
+
+      {/*
+        Last, and outside the custody branch above on purpose: it is about the app
+        rather than about this device's account, so it is here in both states and
+        readable before anyone has one.
+      */}
+      <hr />
+      <h2>About</h2>
+      <p>
+        <Link to="/acknowledgements">Acknowledgements</Link>
+      </p>
     </main>
   );
 }
