@@ -1,32 +1,45 @@
 /*
- * The app's name and mark, at the top of the global header.
+ * The top line of the global header: the mark at the left edge, the search field centred.
  *
  * Nearly all of this renderer is unstyled semantic HTML on purpose, and this does not
- * change that: it is the smallest rule set that puts a mark and a word on one baseline,
- * with no colours, no fonts and no opinions about the chrome around it. The sizes are in
- * `rem` so the lockup follows the user's text size rather than pinning itself to pixels.
+ * change that — it is the smallest rule set that places two things on one line, with no
+ * colours, no fonts and no opinions about the chrome around it.
  */
-.brand {
-  display: flex;
+
+/*
+ * Three columns rather than `space-between`, because the field is centred on the *header*
+ * and not on the space the mark leaves behind. The outer tracks are both `1fr`, so they
+ * stay equal whatever the mark's width — the field's centre is the window's centre, and
+ * stays there if the mark is ever resized. A flex row could only centre the field within
+ * the leftover space, which drifts right as the mark grows.
+ *
+ * The third track is deliberately empty. It is what balances the first.
+ */
+.bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1rem;
 }
 
 /*
- * `em`, so the mark scales with the wordmark beside it — the desktop equivalent of the
- * mobile header shrinking the two together. Slightly larger than 1em because a glyph set
- * to a font's size reads smaller than the letters next to it: the point size spans
- * ascender to descender, while the drawing fills its whole box.
+ * `rem`, not `em`: this used to sit beside a wordmark and scale with it, and now it stands
+ * alone with no text to track. Sized off the root so it still follows the user's text size
+ * rather than pinning itself to device pixels.
  */
 .mark {
-  width: 1.35em;
-  height: 1.35em;
+  width: 1.75rem;
+  height: 1.75rem;
   /* The source is square and tightly cropped, so this only guards against a future
      replacement with different proportions. */
   object-fit: contain;
 }
 
-.wordmark {
-  font-size: 1.25rem;
-  font-weight: 700;
+/*
+ * Stated rather than left to auto-placement, which would put the field here anyway: the
+ * centre track is the whole point of the layout, and a third item added to this row later
+ * should land in the empty track instead of silently displacing the field.
+ */
+.search {
+  grid-column: 2;
 }

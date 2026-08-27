@@ -13,7 +13,7 @@ import { desktopUiAdapter } from "./lib/ui-adapter";
 import logo from "./assets/logo.png";
 import styles from "./App.module.css";
 
-/** The app's own name, in the one place the chrome says it. */
+/** The app's own name. Not drawn — it is what the header's mark is labelled with. */
 const APP_NAME = "Leapsake";
 
 /**
@@ -68,24 +68,24 @@ export function App() {
           >
             <header>
               {/*
-                The mark and the name, the desktop half of the lockup mobile draws on Home
-                (apps/mobile/components/AppHeader.tsx). It leads the header rather than
-                sitting inside the nav: it is not somewhere to go.
+                The mark at the left edge and the search field centred, on one line.
 
-                Deliberately *not* an <h1>. Every screen below already provides the page's
-                heading, and a banner that also claimed h1 would give each page two — the
-                app's name would then outrank the name of what you are actually looking at
-                in a screen reader's outline.
+                The mark carries its name in `alt` rather than the empty string a
+                decorative image would take. It sat beside the word “Leapsake” until that
+                text came out of the header, and with the word gone this image *is* the
+                only thing in the chrome that says which app this is — a screen reader with
+                nothing here would land on an unnamed banner.
 
-                The image is decorative, so `alt=""` rather than "Leapsake": the word is
-                right beside it, and a screen reader announcing the name twice would be
-                describing the layout rather than the app.
+                Still not an <h1>. Every screen below already provides the page's heading,
+                and a banner that also claimed h1 would give each page two, letting the
+                app's name outrank the name of what you are actually looking at.
               */}
-              <div className={styles.brand}>
-                <img className={styles.mark} src={logo} alt="" />
-                <span className={styles.wordmark}>{APP_NAME}</span>
+              <div className={styles.bar}>
+                <img className={styles.mark} src={logo} alt={APP_NAME} />
+                <div className={styles.search}>
+                  <SearchBar search={searchEntities} onNavigate={navigate} />
+                </div>
               </div>
-              <SearchBar search={searchEntities} onNavigate={navigate} />
               <nav>
                 <Link to="/reminders">Reminders</Link>{" "}
                 <Link to="/people">People &amp; Pets</Link>{" "}
