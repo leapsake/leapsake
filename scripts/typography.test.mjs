@@ -14,10 +14,17 @@
 // file from disk. It is a build-time guard over the repo, in the same shape as
 // `tsconfig-coverage.test.mjs`, and the natural place to add the two gaps below.
 //
+// **Scope is app-authored copy, and only that** *(owner-confirmed 2026-08-26)*. Text the
+// *user* typed is never subject to this rule — we do not rewrite someone's punctuation.
+// That distinction is why the catalog is the unit checked rather than "strings in the
+// repo": a fixture like `"🎂 @Alice Ng's day"` in `packages/schema` is a user's own words
+// standing in for what they would type, and flagging it would be a bug in the guard.
+//
 // Not covered, and known: `@leapsake/schema`'s label tables (`genderLabel`, `kindDefs`,
 // the role labels) and the strings still inline in `apps/desktop` screens. Both are
-// user-visible and both are waiting on the same move into the catalog — see
-// `packages/ui/README.md` → *Text*.
+// app-authored and both are waiting on the same move into the catalog — see
+// `packages/ui/README.md` → *Text*. Widening to them means moving them, not loosening
+// this file.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, test } from "vitest";
