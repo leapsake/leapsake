@@ -168,6 +168,19 @@ const OUTPUTS = [
     note: "drawn in-app beside the Leapsake wordmark (components/AppHeader.tsx)",
   },
   {
+    // The desktop half of the same lockup. A second copy rather than a shared one because
+    // each client bundles its own assets — Metro from `apps/mobile/assets`, Vite from the
+    // renderer tree — and a path that reached across apps would be a build-graph edge
+    // between two things that are otherwise independent. The bytes are identical; the
+    // manifest is what keeps them that way.
+    path: "apps/desktop/src/renderer/src/assets/logo.png",
+    source: SOURCES.color,
+    size: 256,
+    fraction: FRACTIONS.bare,
+    background: undefined,
+    note: "drawn in-app beside the Leapsake wordmark (renderer App.tsx)",
+  },
+  {
     path: "apps/desktop/resources/icon.png",
     source: SOURCES.color,
     size: 1024,

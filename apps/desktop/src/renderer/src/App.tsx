@@ -10,6 +10,11 @@ import { desktopGiftsPorts } from "./lib/gifts-ports";
 import { searchEntities } from "./lib/search";
 import { commitImport, previewImport } from "./lib/import-ports";
 import { desktopUiAdapter } from "./lib/ui-adapter";
+import logo from "./assets/logo.png";
+import styles from "./App.module.css";
+
+/** The app's own name, in the one place the chrome says it. */
+const APP_NAME = "Leapsake";
 
 /**
  * Root layout. A persistent global search bar sits at the top as shared app
@@ -62,6 +67,24 @@ export function App() {
             }}
           >
             <header>
+              {/*
+                The mark and the name, the desktop half of the lockup mobile draws on Home
+                (apps/mobile/components/AppHeader.tsx). It leads the header rather than
+                sitting inside the nav: it is not somewhere to go.
+
+                Deliberately *not* an <h1>. Every screen below already provides the page's
+                heading, and a banner that also claimed h1 would give each page two — the
+                app's name would then outrank the name of what you are actually looking at
+                in a screen reader's outline.
+
+                The image is decorative, so `alt=""` rather than "Leapsake": the word is
+                right beside it, and a screen reader announcing the name twice would be
+                describing the layout rather than the app.
+              */}
+              <div className={styles.brand}>
+                <img className={styles.mark} src={logo} alt="" />
+                <span className={styles.wordmark}>{APP_NAME}</span>
+              </div>
               <SearchBar search={searchEntities} onNavigate={navigate} />
               <nav>
                 <Link to="/reminders">Reminders</Link>{" "}

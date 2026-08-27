@@ -1,0 +1,32 @@
+/*
+ * The app's name and mark, at the top of the global header.
+ *
+ * Nearly all of this renderer is unstyled semantic HTML on purpose, and this does not
+ * change that: it is the smallest rule set that puts a mark and a word on one baseline,
+ * with no colours, no fonts and no opinions about the chrome around it. The sizes are in
+ * `rem` so the lockup follows the user's text size rather than pinning itself to pixels.
+ */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/*
+ * `em`, so the mark scales with the wordmark beside it — the desktop equivalent of the
+ * mobile header shrinking the two together. Slightly larger than 1em because a glyph set
+ * to a font's size reads smaller than the letters next to it: the point size spans
+ * ascender to descender, while the drawing fills its whole box.
+ */
+.mark {
+  width: 1.35em;
+  height: 1.35em;
+  /* The source is square and tightly cropped, so this only guards against a future
+     replacement with different proportions. */
+  object-fit: contain;
+}
+
+.wordmark {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
