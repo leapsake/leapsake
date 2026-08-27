@@ -1,35 +1,64 @@
 {
-  "source": "assets/icon/leapsake.svg",
-  "sourceSha256": "a4bd1ed60698b6869a0d108179cfad3efbaf6245a20b770a1e4487289249004a",
-  "contentBox": {
-    "x": 11.6015625,
-    "y": 12.796875,
-    "width": 48.515625,
-    "height": 49.21875,
-    "contentRadius": 0.7020741864399418
+  "sources": {
+    "assets/icon/logo_color.svg": {
+      "sha256": "183da2f12b374f2a53c141fa025518e4c70e4340918484a0dec6ba64612f0bdd",
+      "contentBox": {
+        "x": 11.6015625,
+        "y": 12.796875,
+        "width": 48.515625,
+        "height": 49.21875,
+        "contentRadius": 0.7020741864399418
+      }
+    },
+    "assets/icon/logo_bw.svg": {
+      "sha256": "12fb871343c6d77dbae774cca285a4eb865b4112d59c95628c3486fc146cdf0e",
+      "contentBox": {
+        "x": 11.6015625,
+        "y": 12.796875,
+        "width": 48.515625,
+        "height": 49.21875,
+        "contentRadius": 0.7020741864399418
+      }
+    }
   },
   "outputs": [
     {
       "path": "apps/mobile/assets/icon.png",
+      "source": "assets/icon/logo_color.svg",
       "size": 1024,
       "fraction": 0.72,
       "background": "#fbf7f0",
+      "tint": null,
       "note": "expo.icon — iOS AppIcon at every size, and the Android legacy icon",
       "sha256": "ef083b049194be406e29ae8aff413c6ad54e5dd4d9351276984bea48bea64771"
     },
     {
       "path": "apps/mobile/assets/adaptive-icon.png",
+      "source": "assets/icon/logo_color.svg",
       "size": 1024,
       "fraction": 0.49,
       "background": null,
+      "tint": null,
       "note": "expo.android.adaptiveIcon.foregroundImage — backgroundColor supplies the layer behind it",
       "sha256": "0e73f11b26111091e80771b969fb555fbc64ce3834ee7c585218175934812875"
     },
     {
+      "path": "apps/mobile/assets/notification-icon.png",
+      "source": "assets/icon/logo_bw.svg",
+      "size": 96,
+      "fraction": 0.85,
+      "background": null,
+      "tint": "#ffffff",
+      "note": "expo-notifications plugin `icon` — Android reads its alpha only and tints the result",
+      "sha256": "12f2558d6625ecb633411b96aeabf32a43334e0557db47a463af4b300a31e66a"
+    },
+    {
       "path": "apps/desktop/resources/icon.png",
+      "source": "assets/icon/logo_color.svg",
       "size": 1024,
       "fraction": 0.72,
       "background": "#fbf7f0",
+      "tint": null,
       "note": "the Electron window icon, and the master electron-builder will slice when desktop packaging lands (plans/v0-2.md)",
       "sha256": "ef083b049194be406e29ae8aff413c6ad54e5dd4d9351276984bea48bea64771"
     }

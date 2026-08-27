@@ -1173,7 +1173,7 @@ function registerSyncIpc(): void {
 }
 
 /**
- * The window icon, generated from `assets/icon/leapsake.svg` by `pnpm icons`.
+ * The window icon, generated from `assets/icon/logo_color.svg` by `pnpm icons`.
  *
  * Windows and Linux take the icon from the window; **macOS ignores this entirely** and
  * reads the app bundle instead, so this does nothing on the machine most of this is

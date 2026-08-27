@@ -41,7 +41,13 @@
         "expo-contacts",
         { "contactsPermission": "Leapsake reads your contacts so you can import them as People." }
       ],
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1f6feb"
+        }
+      ]
     ]
   }
 }

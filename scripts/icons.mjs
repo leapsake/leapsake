@@ -1,15 +1,19 @@
-// The app-icon generator — one vector source, every raster an app store asks for.
+// The app-icon generator — two vector sources, every raster an app store asks for.
 //
-// `assets/icon/leapsake.svg` is the only hand-edited icon file in the repo. Everything
-// below is derived from it and **committed**, because the things that consume these PNGs
-// (`expo prebuild`, EAS, electron-builder) run on machines that have no SVG rasterizer and
-// no business acquiring one. Generated-and-committed is the same bargain `pnpm build`
-// makes; the part that needs guarding is that the two halves stay in agreement, which is
-// what `--check` is for.
+// `assets/icon/` holds the only hand-edited icon files in the repo:
+//
+//   logo_color.svg   the frog as it is seen — launcher and dock icons
+//   logo_bw.svg      the same frog as line art only, for surfaces that get one colour
+//
+// Everything else is derived from them and **committed**, because the things that consume
+// these PNGs (`expo prebuild`, EAS, electron-builder) run on machines that have no SVG
+// rasterizer and no business acquiring one. Generated-and-committed is the same bargain
+// `pnpm build` makes; the part that needs guarding is that the two halves stay in
+// agreement, which is what `--check` is for.
 //
 // Usage:
 //   node scripts/icons.mjs           re-render every output and rewrite the manifest
-//   node scripts/icons.mjs --check   verify the committed PNGs match the source (no render)
+//   node scripts/icons.mjs --check   verify the committed PNGs match the sources (no render)
 //
 // `--check` is deliberately a *hash* comparison against `assets/icon/generated.json`
 // rather than a re-render. Re-rendering would make the check need librsvg — turning a
@@ -33,8 +37,16 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE = "assets/icon/leapsake.svg";
 const MANIFEST = "assets/icon/generated.json";
+
+/**
+ * The hand-edited artwork. `color` is the frog; `mono` is the same drawing with its fill
+ * dropped, which is what a surface that renders one colour has to be given.
+ */
+const SOURCES = {
+  color: "assets/icon/logo_color.svg",
+  mono: "assets/icon/logo_bw.svg",
+};
 
 /**
  * The colour behind the artwork, which is `tokens.surface` from `@leapsake/ui` — the same
@@ -67,20 +79,26 @@ const BACKGROUND = "#fbf7f0";
  *   the artwork's true corner radius inside the 66dp circle's 0.3055 gives 0.49. The
  *   `contentRadius` recorded in the manifest is that measurement, so this number can be
  *   re-derived rather than re-guessed if the artwork ever changes.
+ *
+ * - **0.85 (`notification-icon.png`)** — Android's status bar draws the small icon into a
+ *   24dp box and expects roughly 2dp of breathing room inside it, which is where this
+ *   comes from. There is no mask to dodge here, so it is the loosest of the three.
  */
-const FRACTIONS = { masked: 0.72, adaptive: 0.49 };
+const FRACTIONS = { masked: 0.72, adaptive: 0.49, notification: 0.85 };
 
 /**
  * What gets written, and who reads it.
  *
  * `background: undefined` means a transparent canvas. That is not a style choice in either
- * direction — iOS **rejects** an app icon with an alpha channel, and an Android adaptive
- * foreground **must** have one so the background layer shows through behind it. The same
- * artwork therefore has to be rendered twice.
+ * direction — iOS **rejects** an app icon with an alpha channel, and both the Android
+ * adaptive foreground and the notification icon **must** have one, the first so the
+ * background layer shows through and the second because Android reads nothing else. The
+ * same artwork therefore has to be rendered more than once.
  */
 const OUTPUTS = [
   {
     path: "apps/mobile/assets/icon.png",
+    source: SOURCES.color,
     size: 1024,
     fraction: FRACTIONS.masked,
     background: BACKGROUND,
@@ -88,13 +106,37 @@ const OUTPUTS = [
   },
   {
     path: "apps/mobile/assets/adaptive-icon.png",
+    source: SOURCES.color,
     size: 1024,
     fraction: FRACTIONS.adaptive,
     background: undefined,
     note: "expo.android.adaptiveIcon.foregroundImage — backgroundColor supplies the layer behind it",
   },
   {
+    /**
+     * The Android status-bar icon, and the one output whose rules are unlike the rest.
+     *
+     * **Android throws the colours away.** A notification small icon is drawn from its
+     * *alpha channel* alone and tinted by the system, so the full-colour frog would arrive
+     * as a solid white square — every opaque pixel, which for an icon with a background is
+     * all of them. That is why this one is drawn from `logo_bw.svg`, whose body has no
+     * fill: what survives is the outline, which is legible at 24dp precisely because it is
+     * mostly holes.
+     *
+     * 96px because that is the largest size the expo-notifications plugin asks for
+     * (24dp × 4 for xxxhdpi); it downscales for the other four densities itself.
+     */
+    path: "apps/mobile/assets/notification-icon.png",
+    source: SOURCES.mono,
+    size: 96,
+    fraction: FRACTIONS.notification,
+    background: undefined,
+    tint: "#ffffff",
+    note: "expo-notifications plugin `icon` — Android reads its alpha only and tints the result",
+  },
+  {
     path: "apps/desktop/resources/icon.png",
+    source: SOURCES.color,
     size: 1024,
     fraction: FRACTIONS.masked,
     background: BACKGROUND,
@@ -136,6 +178,11 @@ function requireTools() {
  * render once with a transparent background, and ask ImageMagick for the bounding box of
  * the non-transparent pixels (`%@`). Measuring beats parsing path geometry, and beats
  * hard-coding numbers that would silently stop being true the day the artwork changes.
+ *
+ * Each source is measured separately even though both are the same drawing: `logo_bw.svg`
+ * has no fill, so its ink is the stroke *outline* and its box is very slightly larger than
+ * the filled one's. Sharing a measurement between them would be a guess that happens to be
+ * nearly right, which is the worst kind.
  */
 function measureContent(source) {
   const probe = 1024;
@@ -183,19 +230,41 @@ function measureContent(source) {
  * geometry makes `preserveAspectRatio="xMidYMid meet"` do the fit and the centring, which
  * is exactly the arithmetic that is easy to get subtly wrong by hand. Stroke widths scale
  * with it, which is what a line-art glyph wants.
+ *
+ * `tint` recolours every drawn pixel without touching its alpha, via `feColorMatrix`: the
+ * last row passes alpha through while the first three ignore the source colour and emit a
+ * constant. It has to be a filter rather than a `fill`/`stroke` override, because those are
+ * presentation attributes set on the artwork's own elements — a parent cannot win against
+ * them, and a blanket `fill` would turn `logo_bw.svg`'s deliberately unfilled body into a
+ * solid blob.
+ *
+ * The filter hangs on a `<g>` *inside* the nested `<svg>`, not on the nested `<svg>` itself.
+ * That placement is load-bearing: librsvg stops honouring the inner viewport when the
+ * element carrying it is also filtered, and renders the artwork oversized and anchored to
+ * the corner instead of fitted and centred. The `<g>` keeps the two jobs on separate
+ * elements, which is the arrangement both actually specify.
  */
-function wrap({ inner, box, size, fraction, background }) {
+function wrap({ inner, box, size, fraction, background, tint }) {
   const inset = ((1 - fraction) / 2) * size;
   const edge = size - inset * 2;
   const rect = background
     ? `<rect width="${size}" height="${size}" fill="${background}"/>`
     : "";
+  const [r, g, b] = tint
+    ? [1, 3, 5].map((at) => Number.parseInt(tint.slice(at, at + 2), 16) / 255)
+    : [];
+  const filter = tint
+    ? `<filter id="tint" color-interpolation-filters="sRGB">` +
+      `<feColorMatrix type="matrix" values="0 0 0 0 ${r} 0 0 0 0 ${g} 0 0 0 0 ${b} 0 0 0 1 0"/>` +
+      "</filter>"
+    : "";
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
+    filter +
     rect +
     `<svg x="${inset}" y="${inset}" width="${edge}" height="${edge}"` +
     ` viewBox="${box.x} ${box.y} ${box.width} ${box.height}" preserveAspectRatio="xMidYMid meet">` +
-    inner +
+    (tint ? `<g filter="url(#tint)">${inner}</g>` : inner) +
     "</svg></svg>"
   );
 }
@@ -248,11 +317,21 @@ function contentsOf(source) {
 
 function generate() {
   requireTools();
-  const box = measureContent(SOURCE);
-  const inner = contentsOf(SOURCE);
+
+  // Measured and peeled once per source rather than once per output — four outputs share
+  // two drawings, and measuring is the expensive half.
+  const sources = {};
+  for (const source of new Set(OUTPUTS.map((output) => output.source))) {
+    sources[source] = {
+      sha256: sha256(read(source)),
+      contentBox: measureContent(source),
+      inner: contentsOf(source),
+    };
+  }
 
   const outputs = OUTPUTS.map((output) => {
-    const svg = wrap({ inner, box, ...output });
+    const { inner, contentBox } = sources[output.source];
+    const svg = wrap({ inner, box: contentBox, ...output });
     const png = execFileSync(
       "rsvg-convert",
       ["-w", String(output.size), "-h", String(output.size)],
@@ -267,9 +346,11 @@ function generate() {
     );
     return {
       path: output.path,
+      source: output.source,
       size: output.size,
       fraction: output.fraction,
       background: output.background ?? null,
+      tint: output.tint ?? null,
       note: output.note,
       sha256: sha256(png),
     };
@@ -277,13 +358,18 @@ function generate() {
 
   const manifest = {
     // Regenerate with `pnpm icons`; `pnpm test:icons` fails if this drifts from the files.
-    source: SOURCE,
-    sourceSha256: sha256(read(SOURCE)),
-    contentBox: box,
+    sources: Object.fromEntries(
+      Object.entries(sources).map(([path, { sha256: hash, contentBox }]) => [
+        path,
+        { sha256: hash, contentBox },
+      ]),
+    ),
     outputs,
   };
   writeFileSync(join(ROOT, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
-  console.log(`\n${outputs.length} icons written from ${SOURCE}`);
+  console.log(
+    `\n${outputs.length} icons written from ${Object.keys(sources).length} sources`,
+  );
 }
 
 function check() {
@@ -297,10 +383,21 @@ function check() {
   }
 
   const problems = [];
-  if (sha256(read(manifest.source)) !== manifest.sourceSha256) {
-    problems.push(
-      `${manifest.source} has changed since the icons were generated — run \`pnpm icons\``,
-    );
+  for (const [source, recorded] of Object.entries(manifest.sources)) {
+    let actual;
+    try {
+      actual = sha256(read(source));
+    } catch {
+      problems.push(
+        `${source} is missing, but ${MANIFEST} says the icons were generated from it`,
+      );
+      continue;
+    }
+    if (actual !== recorded.sha256) {
+      problems.push(
+        `${source} has changed since the icons were generated — run \`pnpm icons\``,
+      );
+    }
   }
   for (const output of manifest.outputs) {
     let actual;
@@ -323,7 +420,7 @@ function check() {
     return;
   }
   console.log(
-    `icons agree with ${manifest.source} (${manifest.outputs.length} outputs)`,
+    `icons agree with ${Object.keys(manifest.sources).join(" and ")} (${manifest.outputs.length} outputs)`,
   );
 }
 

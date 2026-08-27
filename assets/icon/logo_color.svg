@@ -6,9 +6,9 @@
   Used unmodified; framing, background and scaling live in scripts/icons.mjs rather than
   in this file, so the artwork stays byte-identical to what OpenMoji publishes.
 
-  This is the only hand-edited icon file in the repo. Every PNG the apps ship is generated
-  from it by `pnpm icons`, and `pnpm test:icons` fails if the two ever disagree. See NOTICE
-  for the attribution that ships with the app.
+  This and logo_bw.svg are the only hand-edited icon files in the repo. Every PNG the apps
+  ship is generated from one of them by `pnpm icons`, and `pnpm test:icons` fails if the two
+  halves ever disagree. See NOTICE for the attribution that ships with the app.
 -->
 <svg id="emoji" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
   <g id="color">

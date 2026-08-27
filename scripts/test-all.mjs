@@ -70,7 +70,7 @@ const TIERS = [
     // rather than re-rendering, so it needs no rasterizer and stays a static tier.
     key: "icons",
     layer: "static",
-    label: "icon agreement (every raster matches assets/icon/leapsake.svg)",
+    label: "icon agreement (every raster matches its source in assets/icon/)",
     script: "test:icons",
     status: "ready",
   },

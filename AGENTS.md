@@ -337,16 +337,25 @@ public the moment its feed sees it — so the irreversible step stays a person's
 
 ## App icons
 
-**One vector source, `assets/icon/leapsake.svg`; every PNG the apps ship is generated from
-it by `pnpm icons`.** The generated files are committed, because `expo prebuild`, EAS and
-electron-builder run where no SVG rasterizer exists — `pnpm test:icons` is the guard that
-keeps source and rasters in agreement, and it compares hashes rather than re-rendering so
-it needs no rasterizer of its own.
+**Two vector sources in `assets/icon/`; every PNG the apps ship is generated from them by
+`pnpm icons`.** `logo_color.svg` is the frog as it is seen (launcher and dock icons);
+`logo_bw.svg` is the same drawing as line art only, for surfaces that get one colour —
+today the Android notification icon, which Android renders from *alpha alone* and tints, so
+a full-colour icon would arrive as a solid white square.
+
+The generated files are committed, because `expo prebuild`, EAS and electron-builder run
+where no SVG rasterizer exists — `pnpm test:icons` is the guard that keeps sources and
+rasters in agreement, and it compares hashes rather than re-rendering so it needs no
+rasterizer of its own.
 
 Regenerating needs `brew install librsvg imagemagick`; nothing else does. **Never hand-edit
 a generated PNG** — the check fails on it, by design. Read `scripts/icons.mjs` for why the
 framing constants are what they are; the short version is that they are measured (an
 Android circular mask crops a naive "66 of 108" adaptive icon) rather than chosen.
+
+**Changing an icon means re-running `expo prebuild` for the platform you want to see it
+on.** `pnpm ios` / `pnpm android` build the *existing* native project; they do not re-run
+the icon pipeline that writes into it.
 
 The artwork is OpenMoji's, under CC BY-SA 4.0. That licence wants attribution wherever the
 work is distributed, so the credit exists twice on purpose: `NOTICE` for the repo, and

@@ -18,10 +18,12 @@ hand alongside it.
 OpenMoji
 https://openmoji.org
 
-  Leapsake's app icon is OpenMoji's "Frog" (U+1F438), used unmodified. The
-  source file is assets/icon/leapsake.svg; every icon the apps ship is
-  rasterized from it by `pnpm icons`, which changes the framing and background
-  around the artwork but not the artwork itself.
+  Leapsake's app icon is OpenMoji's "Frog" (U+1F438), used unmodified. Two of
+  OpenMoji's variants are here: assets/icon/logo_color.svg is the colour frog,
+  and assets/icon/logo_bw.svg is its black outline, used for the Android
+  notification icon. Every icon the apps ship is rasterized from one of them by
+  `pnpm icons`, which changes the framing, background and tint around the
+  artwork but not the artwork itself.
 
   Licensed under the Creative Commons Attribution-ShareAlike 4.0 International
   License (CC BY-SA 4.0).
