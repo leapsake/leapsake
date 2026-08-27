@@ -32,6 +32,12 @@
 //
 // ## The gate
 //
+// The suite is run with `--provision`, so the device tiers boot their own simulator,
+// install their own dev client and start their own Metro. A release has to be one command
+// on a machine that has nothing prepared — that is the whole point of it being runnable by
+// a CI runner. `--no-provision` opts out when the environment is already up and the extra
+// probing is just latency.
+//
 // Every rung runs `pnpm test:all`. Beta and above run it `--strict`, where a tier that is
 // blocked — not built yet, or needing a device that is not booted — fails the release.
 // Alpha does not: it goes to internal TestFlight, which is named App Store Connect users
@@ -51,6 +57,7 @@
 //   node scripts/release/index.mjs --from-tag=<tag>
 //   node scripts/release/index.mjs ... --only=ios,android   default: every ready target
 //   node scripts/release/index.mjs ... --dry-run            preflight and plan, no changes
+//   node scripts/release/index.mjs ... --no-provision       assume the devices are ready
 //   node scripts/release/index.mjs --help                   the stage/target matrix
 //
 // Exit code: 2 for a usage error, 1 for a refused or failed release, 0 when every selected
@@ -259,6 +266,7 @@ async function main() {
   loadEnvFile();
 
   const dryRun = opts.flags.has("dry-run");
+  const provision = !opts.flags.has("no-provision");
   const manifestVersion = JSON.parse(
     readFileSync(join(ROOT, "package.json"), "utf8"),
   ).version;
@@ -357,9 +365,17 @@ async function main() {
     console.log("\nWould, in order:");
     console.log(
       `  1. run pnpm test:all${isStrict(stage) ? " --strict" : ""}${
-        isStrict(stage) ? "" : `  (${stage} does not gate on unbuilt tiers)`
-      }`,
+        provision ? " --provision" : ""
+      }${isStrict(stage) ? "" : `  (${stage} does not gate on unbuilt tiers)`}`,
     );
+    if (provision) {
+      console.log(
+        "     device tiers will boot a simulator/emulator, install the dev client and",
+      );
+      console.log(
+        "     start Metro as needed — first run on a cold machine takes a while",
+      );
+    }
     if (mode === "local") {
       console.log(
         `  2. set every manifest to ${version}, commit, and tag ${tag}`,
@@ -390,8 +406,13 @@ async function main() {
   }
 
   const strict = isStrict(stage);
-  const suiteArgs = strict ? ["--strict"] : [];
-  console.log(`\n→ pnpm test:all${strict ? " --strict" : ""}`);
+  const suiteArgs = [
+    ...(strict ? ["--strict"] : []),
+    ...(provision ? ["--provision"] : []),
+  ];
+  console.log(
+    `\n→ pnpm test:all${suiteArgs.length ? ` ${suiteArgs.join(" ")}` : ""}`,
+  );
   if (run("pnpm", ["run", "test:all", "--", ...suiteArgs]).status !== 0) {
     if (mode === "local") {
       console.error(

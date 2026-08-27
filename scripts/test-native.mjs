@@ -22,10 +22,16 @@
 //     (Android deep-links over adb; iOS drives the dev-launcher via a small Maestro helper
 //     flow, because the iOS deep-link path is intercepted by a SpringBoard confirm).
 //
-// It ASSUMES a prepared environment per platform — a booted device, the installed
-// dev-client build, and a running Metro dev server — and fails with the exact command to
-// run for whichever prerequisite is missing (it does not boot/install/start them; that is
-// heavier and is the developer's one-time setup, documented in the maestro README).
+// By default it ASSUMES a prepared environment per platform — a booted device, the
+// installed dev-client build, and a running Metro dev server — and fails with the exact
+// command to run for whichever prerequisite is missing. That is the right answer for the
+// inner loop, where the developer already has all three and a "here is the command"
+// failure beats a ten-minute native rebuild they did not ask for.
+//
+// `--provision` inverts it: instead of printing the command, run it. Boot an emulator or
+// simulator, build + install the dev client, start Metro — so `pnpm release` is one
+// command on a machine (or a CI runner) that has nothing prepared. See the provisioning
+// section below for what it starts and what it cleans up.
 //
 // Platforms: with no flag, BOTH platforms are attempted and each self-classifies
 // (pass / fail / blocked) — an un-booted simulator prints as BLOCKED, never silently
@@ -35,7 +41,7 @@
 // failed; 1 = a device was booted but the flow went RED or the env is broken (Metro down
 // / app not installed / prepare never reached home); 3 = nothing reachable here (no device
 // booted, or the platform toolchain is absent) — *blocked*, not a failure.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
@@ -54,17 +60,14 @@ const METRO_URL = `http://localhost:${METRO_PORT}`;
 const DEV_CLIENT_LINK = `${SCHEME}://expo-development-client/?url=${encodeURIComponent(METRO_URL)}`;
 const SELFTEST_LINK = `${SCHEME}://dev-selftest`;
 
-const MAESTRO_DIR = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "apps",
-  "mobile",
-  "maestro",
-);
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const MAESTRO_DIR = join(ROOT, "apps", "mobile", "maestro");
 const FLOW = join(MAESTRO_DIR, "driver-selftest.yaml"); // the shared assertion
 const IOS_PREPARE_FLOW = join(MAESTRO_DIR, "ios-prepare.yaml"); // iOS bundle-load helper
 
 const HOME_TIMEOUT_MS = 180_000; // budget for the first Metro bundle build → app home
+const BOOT_TIMEOUT_MS = 300_000; // budget for a cold emulator/simulator boot
+const METRO_TIMEOUT_MS = 120_000; // budget for `expo start` → packager-status:running
 
 // Per-platform outcomes. These are aggregated into the process exit code at the end.
 const PASS = "pass"; // device booted, flow green
@@ -103,6 +106,86 @@ async function metroReachable() {
   return metroCache;
 }
 
+// --- shared: provisioning (--provision) ------------------------------------------
+//
+// Everything below exists so that `pnpm release` can be ONE command. The rest of this
+// file deliberately assumes a prepared environment and fails with the command to run;
+// under `--provision` it runs those commands itself instead.
+//
+// It stays opt-in because the two callers want opposite things. A developer in the inner
+// loop already has a simulator up and a dev client installed, and would not thank a test
+// run for booting a second one or spending ten minutes on a native rebuild — for them the
+// "here is the command" failure is the faster answer. A release, and a CI runner, start
+// from nothing and must not need a human. So: `pnpm test:native` behaves as it always has,
+// and `pnpm release` passes `--provision`.
+//
+// **What it starts, it stops — and only what it started.** A Metro this script spawned is
+// killed on the way out; a Metro that was already serving is left alone, because it is
+// almost certainly the developer's own and killing it would be a surprising thing for a
+// test run to do. Devices are the other way round: booting one is slow and shutting it
+// down again would only make the next run slow too, so they are left booted and reported.
+
+/** The Metro we spawned, if we spawned one. Never a Metro that was already serving. */
+let metroStarted = null;
+
+/**
+ * Ensure Metro is serving, starting it if it is not.
+ *
+ * The readiness signal is the same `/status` probe the non-provisioning path uses, polled
+ * rather than assumed: `expo start` returns long before the packager answers, so spawning
+ * it and proceeding would just move the failure to the next step.
+ */
+async function ensureMetro() {
+  // Drop a memoized *negative*: `expo run:<platform>` starts a dev server of its own, so
+  // a `false` probed before the install step may no longer be true. A memoized `true`
+  // cannot go stale in the other direction within one run.
+  if (metroCache !== true) metroCache = undefined;
+  if (await metroReachable()) return { ok: true };
+
+  console.log("  starting Metro (expo start --dev-client)…");
+  // detached so it survives this process and can be signalled as a group; Expo spawns
+  // workers that would outlive a bare kill of the parent.
+  const child = spawn("pnpm", ["--filter", "@leapsake/mobile", "dev"], {
+    cwd: ROOT,
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
+  metroStarted = child;
+
+  const started = Date.now();
+  while (Date.now() - started < METRO_TIMEOUT_MS) {
+    await sleep(1000);
+    metroCache = undefined; // re-probe; the memoized `false` is what we are fixing
+    if (await metroReachable()) {
+      console.log(
+        `  Metro up (${((Date.now() - started) / 1000).toFixed(0)}s)`,
+      );
+      return { ok: true };
+    }
+  }
+  return {
+    ok: false,
+    detail:
+      `Metro did not start serving within ${METRO_TIMEOUT_MS / 1000}s. Run it in its own ` +
+      "terminal to see why:\n    pnpm --filter @leapsake/mobile dev",
+  };
+}
+
+/** Kill a Metro this script started. A pre-existing one is never touched. */
+function stopMetroIfStarted() {
+  if (!metroStarted) return;
+  const { pid } = metroStarted;
+  metroStarted = null;
+  // Negative pid signals the whole process group — see `detached` above.
+  try {
+    process.kill(-pid, "SIGTERM");
+    console.log("\n  stopped the Metro this run started");
+  } catch {
+    // Already gone, which is the outcome we wanted anyway.
+  }
+}
+
 // Run the shared Maestro assertion flow against a specific device. Returns its exit code
 // (0 = self-test reported PASS; non-zero = FAIL/ERROR, or it never finished). Both
 // platforms select the device with the top-level `--udid <device>` flag — required here
@@ -116,6 +199,39 @@ function runFlow(device) {
   return flow.status ?? 1;
 }
 
+/**
+ * Build + install the dev client with `expo run:<platform>`, targeting one device.
+ *
+ * `--device` is passed explicitly rather than letting Expo choose: with more than one
+ * simulator booted it prompts interactively, which would hang a release. Output is
+ * streamed because this is the slowest step by an order of magnitude (a full native
+ * build) and a silent ten minutes is indistinguishable from a hang.
+ *
+ * On iOS this prebuilds a *debug* `apps/mobile/ios/`. That is harmless: the release's own
+ * `build()` deletes the directory and prebuilds again for the Release archive, and the
+ * gate runs to completion before shipping starts — so nothing from here can reach the
+ * artifact.
+ */
+function installDevClient(platform, device) {
+  console.log(
+    `  building + installing the dev client (expo run:${platform}) — several minutes…`,
+  );
+  const built = spawnSync(
+    "pnpm",
+    [
+      "--filter",
+      "@leapsake/mobile",
+      "exec",
+      "expo",
+      `run:${platform}`,
+      "--device",
+      device,
+    ],
+    { cwd: ROOT, stdio: "inherit" },
+  );
+  return built.status === 0;
+}
+
 // --- android driver --------------------------------------------------------------
 
 // `adb` from the Android SDK (ANDROID_HOME / ANDROID_SDK_ROOT), else PATH.
@@ -126,6 +242,24 @@ function resolveAdb() {
     if (existsSync(p)) return p;
   }
   return "adb"; // fall back to PATH
+}
+
+/** The first attached, fully-booted device serial, or undefined. */
+const bootedSerial = (adb) =>
+  run(adb, ["devices"])
+    .stdout.split("\n")
+    .slice(1)
+    .filter((l) => l.endsWith("\tdevice"))
+    .map((l) => l.split("\t")[0])[0];
+
+/** `emulator` from the SDK, else PATH — the same resolution order as `adb`. */
+function resolveEmulator() {
+  const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT;
+  if (sdk) {
+    const p = join(sdk, "emulator", "emulator");
+    if (existsSync(p)) return p;
+  }
+  return "emulator";
 }
 
 // The three expo-dev-menu settings a *fresh install* gets wrong, all of which break flows
@@ -194,11 +328,7 @@ const androidDriver = {
       };
     }
     // A booted device/emulator must be attached.
-    const serial = run(adb, ["devices"])
-      .stdout.split("\n")
-      .slice(1)
-      .filter((l) => l.endsWith("\tdevice"))
-      .map((l) => l.split("\t")[0])[0];
+    const serial = bootedSerial(adb);
     if (!serial) {
       return {
         status: BLOCKED,
@@ -229,6 +359,72 @@ const androidDriver = {
   installHint:
     `the dev-client build (${APP_ID}) is not installed. Build + install it with:\n` +
     "    pnpm --filter @leapsake/mobile android",
+
+  // --provision: boot the first defined AVD and wait for Android to finish coming up.
+  // `sys.boot_completed` is the signal rather than adb's mere presence — the daemon
+  // answers well before the framework is up, and installing into a half-booted system
+  // fails in ways that read like a build error.
+  async boot() {
+    const emulator = resolveEmulator();
+    const list = run(emulator, ["-list-avds"]);
+    if (list.status !== 0) {
+      return {
+        ok: false,
+        detail:
+          "`emulator` not found — install the Android SDK emulator package and set " +
+          "ANDROID_HOME (Android Studio → SDK Manager).",
+      };
+    }
+    // `-list-avds` prints one name per line, but the binary also emits the odd INFO
+    // banner; an AVD name has no whitespace, which is enough to tell them apart.
+    const avd = list.stdout
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !/\s/.test(l))[0];
+    if (!avd) {
+      return {
+        ok: false,
+        detail:
+          "no AVD is defined — create one in Android Studio → Device Manager, then " +
+          "re-run.",
+      };
+    }
+
+    console.log(`  booting the Android emulator (${avd})…`);
+    const child = spawn(emulator, ["-avd", avd], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+
+    const adb = resolveAdb();
+    const started = Date.now();
+    while (Date.now() - started < BOOT_TIMEOUT_MS) {
+      const serial = bootedSerial(adb);
+      if (
+        serial &&
+        run(adb, [
+          "-s",
+          serial,
+          "shell",
+          "getprop",
+          "sys.boot_completed",
+        ]).stdout?.trim() === "1"
+      ) {
+        console.log(
+          `  emulator up (${((Date.now() - started) / 1000).toFixed(0)}s)`,
+        );
+        return { ok: true };
+      }
+      await sleep(2000);
+    }
+    return {
+      ok: false,
+      detail: `the emulator did not finish booting within ${BOOT_TIMEOUT_MS / 1000}s`,
+    };
+  },
+
+  install: (ctx) => installDevClient("android", ctx.device),
 
   // Load the JS bundle and wait for the app home. On Android a deep link does this
   // deterministically (no SpringBoard-style confirm), so we drive it over adb here rather
@@ -377,6 +573,51 @@ const iosDriver = {
     `the dev-client build (${APP_ID}) is not installed on the simulator. Build + install ` +
     "it with:\n    pnpm --filter @leapsake/mobile ios",
 
+  // --provision: boot the first available iPhone simulator. An iPhone specifically —
+  // the flows are phone-shaped, and `simctl list` will happily offer an iPad or a Watch.
+  async boot() {
+    const available = run("xcrun", [
+      "simctl",
+      "list",
+      "devices",
+      "available",
+    ]).stdout;
+    const match = available
+      .split("\n")
+      .map((line) =>
+        line.match(/^\s+(iPhone[^(]*)\(([0-9A-Fa-f-]{36})\) \(Shutdown\)/),
+      )
+      .find(Boolean);
+    if (!match) {
+      return {
+        ok: false,
+        detail:
+          "no available iPhone simulator — add a runtime in Xcode → Settings → " +
+          "Components, then re-run.",
+      };
+    }
+    const [, name, udid] = match;
+
+    console.log(`  booting the iOS simulator (${name.trim()})…`);
+    if (run("xcrun", ["simctl", "boot", udid]).status !== 0) {
+      return { ok: false, detail: `could not boot the simulator ${udid}` };
+    }
+    // Bring the Simulator UI up: Maestro drives the window, and a headless-booted device
+    // has no window to drive.
+    run("open", ["-a", "Simulator"]);
+    // `bootstatus -b` blocks until the device is all the way up, so no poll is needed.
+    if (run("xcrun", ["simctl", "bootstatus", udid, "-b"]).status !== 0) {
+      return {
+        ok: false,
+        detail: `the simulator ${udid} never finished booting`,
+      };
+    }
+    console.log("  simulator up");
+    return { ok: true };
+  },
+
+  install: (ctx) => installDevClient("ios", ctx.device),
+
   // iOS has no working bundle-load deep link (the SpringBoard confirm intercepts it), so
   // instead we reconnect through the dev-launcher's "Continue" (last dev server = the one
   // the `pnpm --filter @leapsake/mobile ios` prerequisite set) via a small Maestro helper
@@ -404,7 +645,7 @@ const DRIVERS = { android: androidDriver, ios: iosDriver };
 // --- run one platform ------------------------------------------------------------
 
 // Drive a single platform end to end, returning { key, label, status, detail }.
-async function runPlatform(driver) {
+async function runPlatform(driver, provision) {
   const wrap = (status, detail) => ({
     key: driver.key,
     label: driver.label,
@@ -413,8 +654,24 @@ async function runPlatform(driver) {
   });
 
   // 1. toolchain present + a device booted (else blocked — not reachable here).
-  const ctx = driver.detect();
-  if (ctx.status === BLOCKED) return wrap(BLOCKED, ctx.detail);
+  let ctx = driver.detect();
+  if (ctx.status === BLOCKED) {
+    if (!provision) return wrap(BLOCKED, ctx.detail);
+    // Under --provision an un-booted device is a thing to fix, not a verdict. A missing
+    // *toolchain* still is one, and stays BLOCKED: `boot()` reports "no emulator binary"
+    // and "no AVD defined" the same way, because neither is something this can install.
+    console.log(`\n→ test:native — ${driver.label}: preparing the environment`);
+    const booted = await driver.boot();
+    if (!booted.ok) return wrap(BLOCKED, booted.detail);
+    ctx = driver.detect();
+    if (ctx.status === BLOCKED) {
+      // Booted, and still not visible — that is a broken environment, not an absent one.
+      return wrap(
+        FAIL,
+        `booted, but no device was detected afterwards:\n${ctx.detail}`,
+      );
+    }
+  }
 
   console.log(
     `\n→ test:native — ${driver.label} driver-contract self-test (Maestro)`,
@@ -422,10 +679,27 @@ async function runPlatform(driver) {
   console.log(`  device: ${ctx.device}`);
 
   // 2. dev-client installed (booted but not installed = broken env → fail).
-  if (!driver.installed(ctx)) return wrap(FAIL, driver.installHint);
+  if (!driver.installed(ctx)) {
+    if (!provision) return wrap(FAIL, driver.installHint);
+    if (!driver.install(ctx)) {
+      return wrap(
+        FAIL,
+        `expo run:${driver.key} failed — the build output above says why`,
+      );
+    }
+    if (!driver.installed(ctx)) {
+      return wrap(
+        FAIL,
+        `expo run:${driver.key} reported success but ${APP_ID} is still not installed`,
+      );
+    }
+  }
 
   // 3. Metro serving (host-side, shared across platforms).
-  if (!(await metroReachable())) {
+  if (provision) {
+    const metro = await ensureMetro();
+    if (!metro.ok) return wrap(FAIL, metro.detail);
+  } else if (!(await metroReachable())) {
     return wrap(
       FAIL,
       `Metro dev server is not reachable at ${METRO_URL}. Start it with:\n` +
@@ -468,8 +742,23 @@ if (!maestroPresent()) {
 // shows as BLOCKED rather than being silently skipped (principle #6).
 const selected = requested ? [DRIVERS[requested]] : [androidDriver, iosDriver];
 
+// --provision: prepare whatever is missing rather than reporting it. Off by default —
+// see the provisioning section. `pnpm release` passes it; the inner loop does not.
+const provision = args.includes("--provision");
+
+// A Metro we started is ours to clean up however this run ends, including Ctrl-C.
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => {
+    stopMetroIfStarted();
+    process.exit(130);
+  });
+}
+
 const results = [];
-for (const driver of selected) results.push(await runPlatform(driver));
+for (const driver of selected) {
+  results.push(await runPlatform(driver, provision));
+}
+stopMetroIfStarted();
 
 // Summary — one line per platform, with the guidance for anything not green.
 const icon = { [PASS]: "✅", [FAIL]: "❌", [BLOCKED]: "⏳" };

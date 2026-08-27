@@ -22,6 +22,7 @@
 //   node scripts/test-all.mjs --fast          static + node only (skip native/e2e rows)
 //   node scripts/test-all.mjs --only=lint,node   just those tiers (by key)
 //   node scripts/test-all.mjs --strict        a BLOCKED tier fails the run (release-gate mode)
+//   node scripts/test-all.mjs --provision     device tiers prepare their own environment
 //
 // Exit code: non-zero if any *ready* tier failed, if `--only` names a blocked tier, or if
 // `--strict` and any blocked tier was in scope. Blocked tiers otherwise don't fail the run.
@@ -145,6 +146,10 @@ const TIERS = [
 const args = process.argv.slice(2);
 const fast = args.includes("--fast");
 const strict = args.includes("--strict");
+// Forwarded to the `device: true` tiers, which are the only ones with an environment to
+// prepare. See scripts/test-native.mjs → provisioning. `pnpm release` passes this so a
+// release is one command; the inner loop leaves it off and gets the faster failure.
+const provision = args.includes("--provision");
 const onlyArg = args.find((a) => a.startsWith("--only="));
 const only = onlyArg
   ? new Set(
@@ -197,10 +202,14 @@ for (const tier of selected) {
     results.push({ tier, status: failed ? "blocked-fail" : "blocked", ms: 0 });
     continue;
   }
-  const argStr = tier.args?.length ? ` ${tier.args.join(" ")}` : "";
+  const extra = [
+    ...(tier.args ?? []),
+    ...(provision && tier.device ? ["--provision"] : []),
+  ];
+  const argStr = extra.length ? ` ${extra.join(" ")}` : "";
   console.log(`\n→ ${tier.label}  [pnpm ${tier.script}${argStr}]`);
   const start = Date.now();
-  const run = spawnPnpm(tier.script, tier.args);
+  const run = spawnPnpm(tier.script, extra);
   const ms = Date.now() - start;
   // A ready tier's child exit code: 0 = pass, 3 = runtime-blocked (environment not
   // reachable here, e.g. no device booted — reported ⏳, not a failure), else fail. Only
