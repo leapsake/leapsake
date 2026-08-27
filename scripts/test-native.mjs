@@ -708,7 +708,20 @@ async function runPlatform(driver, provision) {
   }
 
   // 4. load the bundle + wait for the app home (platform-specific prepare).
-  const prep = await driver.prepare(ctx);
+  let prep = await driver.prepare(ctx);
+  if (!prep.ok && provision) {
+    // The gap `installed()` cannot see: iOS reconnects through the dev-launcher's
+    // *remembered* dev server, which is set by launching the dev client — not by
+    // installing it. A build that is present but has never been launched against this
+    // Metro therefore passes step 2 and then times out here. `expo run:` both installs
+    // and launches, so running it once is the repair; incremental, so it is cheap when
+    // the native side is already built. Once only — a second failure is a real one.
+    console.log("  prepare failed — relaunching the dev client against Metro…");
+    if (!driver.install(ctx)) {
+      return wrap(FAIL, `expo run:${driver.key} failed:\n${prep.detail}`);
+    }
+    prep = await driver.prepare(ctx);
+  }
   if (!prep.ok) return wrap(FAIL, prep.detail);
 
   // 5. run the shared assertion flow; its exit code is the verdict.

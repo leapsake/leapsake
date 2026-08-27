@@ -66,7 +66,8 @@ Three things about this app specifically, all of which cost an evening to learn 
   the running Metro**, because the harness reconnects through the dev-launcher's remembered
   server. If it times out at 180s having found no *Continue* button, that list is empty (or
   its stored URL is a LAN address that has since changed) — relaunch the dev client rather
-  than debugging the flow.
+  than debugging the flow. `pnpm test:native --provision` (which is what a release runs)
+  repairs this itself by relaunching once and retrying; without the flag it is yours to fix.
 - **Export compliance is declared in `app.json`**, not answered per upload. Without
   `ITSAppUsesNonExemptEncryption` a build lands at *Missing Compliance* and cannot be
   distributed to anyone, internal testers included.
