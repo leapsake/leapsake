@@ -3,7 +3,7 @@
 // physical copy (classically pulled in by a transitive dep like
 // react-router-dom that resolves its own nested React) yields "Invalid hook
 // call" / null-dispatcher crashes — a white screen at runtime, with a clean
-// build. See AGENTS.md "React version policy (monorepo)".
+// build. See ../README.md → "React lives at this app's version, not the workspace's".
 //
 // We assert against the built sourcemap because that lists every source module
 // actually included, which is the only faithful signal: Node/default resolution

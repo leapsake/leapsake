@@ -3,7 +3,7 @@
 // This mirrors the tier registry in `scripts/test-all.mjs` on purpose, down to the
 // `ready` / `blocked` vocabulary: a target that cannot ship is **reported ⏳, never
 // silently omitted**, so "everything reachable, or explicitly blocked — not waived"
-// (AGENTS.md → Testing, principle 6) holds for shipping as well as for testing. A release
+// (CONTRIBUTING.md → Testing, principle 6) holds for shipping as well as for testing. A release
 // that quietly skipped a platform would be indistinguishable from one that shipped it.
 //
 // ## The contract

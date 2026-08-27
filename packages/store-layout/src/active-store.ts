@@ -13,7 +13,7 @@ import type { RosterEntry } from "./roster.js";
  * follows custody, and they are spelled apart because `plans/v0-2.md`
  * expects a user to opt out of encryption while holding an account. When that
  * lands, this discriminant is the one that changes and the state names do not. See
- * `AGENTS.md` → *Custody vocabulary*.
+ * `packages/key-custody/README.md` → *Three questions, three vocabularies*.
  *
  * It is a pure function of facts gathered *before* anything is opened — the roster
  * (§7.4) and whether a pre-custody store is sitting there — because the boot path

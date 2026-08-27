@@ -47,9 +47,42 @@ custody, so "start syncing later" adds a relay binding rather than a new ritual.
 > Why that separation is worth keeping explicit: [`plans/v0-2.md`](../../plans/v0-2.md)
 > anticipates a user **opting out of encryption while holding an account**, which severs
 > exactly this implication. When that lands, only the *Store on disk* row changes — the state
-> itself still means what it says. The file's own vocabulary is **plaintext / encrypted**
-> (`resolveActiveStore`'s `custody` discriminant), and the session's is **Locked / unlocked**.
-> Three axes, three vocabularies; see [`AGENTS.md`](../../AGENTS.md) → *Custody vocabulary*.
+> itself still means what it says.
+
+### Three questions, three vocabularies
+
+Three **independent** questions get asked about a running client. They have three separate
+vocabularies **on purpose**: an earlier single word ("Open") collided with the verb *open*,
+with an open reminder, and with the encryption state — and made a good default sound like a
+vulnerability.
+
+| Question | Vocabulary | Answered by | Lives in |
+|---|---|---|---|
+| Does an account exist on this device? | **Unauthenticated / Authenticated** | the roster on disk | [`@leapsake/store-layout`](../store-layout/README.md) |
+| Is the file on disk encrypted? | **plaintext / encrypted** | the roster, today | `resolveActiveStore`'s `custody` discriminant |
+| Can this device read its data right now? | **Locked / unlocked** | the OS keychain (is the db-key there?) | this package |
+
+**Do not collapse them**, even though two of them currently always agree:
+
+- **Authenticated ⇒ encrypted is true today, and is a consequence, not a definition** — the
+  opt-out above is what severs it. Code asking *"how do I open this file?"* must read the
+  file axis, never infer it from the account.
+- **Locked is a sub-state of Authenticated, never a peer.** Signing out (`lockThisDevice`)
+  deletes exactly two keychain secrets and touches nothing else: the roster entry, the account
+  row, the encrypted file and both sidecars all survive. A signed-out device is fully
+  Authenticated and merely Locked. The reverse cannot happen — an Unauthenticated device has
+  no keys to forget, so it can never be Locked.
+- **Degraded** is Authenticated *and* unlocked *and* still broken: the device holds its db-key
+  but cannot prove the account's master key. If the axes were one enum it would have nowhere
+  to live.
+
+**The ELI5 test** — *can you use the app right now without typing anything?* Unauthenticated:
+yes, everything works, there is simply no lock on the door. Locked: no, your data is right
+there and sealed.
+
+**These are internal names, not user-facing copy.** They are for code and design docs. The UI
+says whatever is clearest for a layperson — "Protect your data", "Set up your login", "Sync
+across devices". Never surface "Unauthenticated" to a user.
 
 ## First launch, and the "Already using Leapsake?" branch
 

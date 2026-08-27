@@ -1,285 +1,132 @@
 # AGENTS.md
 
-## Project Overview
+Guardrails and conventions. **This file is deliberately short.** It holds only what is both
+(a) likely to be counterintuitive, and (b) applicable across most work in the repo.
+Everything else lives next to the code it constrains — and anything a program can check is a
+check, not a paragraph here.
 
-Leapsake is a privacy-first people management app. Data lives locally in SQLite;
-no cloud dependency in V1. The architecture is designed to grow incrementally:
-desktop (V1) → mobile (V2) → sync + web (V3). It is a personal project, restarted
-from scratch after a prior version became overcomplicated on an unfamiliar stack
-(Rust/Tauri) — hence the bias toward incremental, shippable delivery and a lean,
-mostly-stdlib dependency set.
+| You want… | Go to |
+|---|---|
+| What to work on next | [`plans/status.md`](plans/status.md) — the single status oracle |
+| The project map | [`plans/README.md`](plans/README.md) |
+| Setup, testing philosophy, release rules | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| How the shared layer is arranged | [`packages/README.md`](packages/README.md) |
+| Why a package is shaped the way it is | that package's own `README.md` |
+| How an app runs, and its platform traps | that app's own `README.md` |
 
-> **For what to work on next, see [`plans/status.md`](plans/status.md)** (the single status
-> oracle); for the project map, [`plans/README.md`](plans/README.md). This file is
-> conventions and guardrails, not status.
+## Principles
 
-## Guiding Principles
+- **Simpler is better.** Prefer less code, but prefer legible code over concise code.
+- **Small, incremental, independently committable changes.** Massive commits create errors.
+- **Offline-first, progressively enhanced.** No cloud dependency to use the app.
+- **Generalized logic goes in `packages/`; client-specific logic in that client's `apps/`
+  project.** New domain logic gets its own package, not a folder inside `core`.
+- **Add a dependency only when it pays for itself, and say why** where it lands (the
+  package's README, or the commit that adds it). The set is deliberately lean;
+  `package.json` is the list, and there is no second copy of it to consult.
+- **Tests over docs.** A well-written test cannot drift from behavior; a doc can. Prefer
+  well-named code over comments, but comments over unclear behavior.
+- **Test the thing as a black box.** Assert what the consumer sees, not the implementation.
+- **Use the right quotation marks** in anything a person reads — “Father’s Day”, not
+  "Father's Day". Enforced for the message catalog by `scripts/typography.test.mjs`.
 
-- Simpler is better than more complex.
-- Always prefer small, incremental, independently commitable changes that can deliver independent value. Massive commits create more errors.
-- Approach applications from an offline-first, progressively enhanced perspective.
-- Always use pnpm as the package manager, and pnpm workspaces to manage the independent workspaces
-- Use TypeScript whenever possible.
-- Prefer less code over more code, but prefer legible code over concise code or "code golf"
-- Add a dependency only when it pays for itself across more than one place, and say why
-  where it lands (the package's README, or the commit that adds it). The dependency set is
-  deliberately lean — `package.json` is the list; there is no second copy of it to consult.
-- Well-written tests are preferable to docs or code comments that can drift to not reflect accurate behavior.
-- Tests should generally treat the thing they are testing as a black box, and not care about the implementation.
-- Well-named, legible functions and code are preferable to code comments or docs, but code comments and docs are preferable to unclear code or behavior.
-- Use docs for
-  - explaining infrequently-changing architecture that cuts across many files in a more succinct way
-  - steps that a human needs to take to interact with the codebase
-  - planning steps
-- As much generalized logic as possible should live in packages/, so that we can share logic across clients
-- Specific logic that's only used for a given client or app should be located in that relevant apps/ project.
-- For code comments, docs, string content, text in the UI, and anywhere else appropriate, be sure to use the appropriate quotation marks, e.g. “Father’s Day” instead of "Father's Day".
+## Product posture — why it must feel this way *(decided 2026-07-05)*
 
-### Product posture — the "why it must feel this way" *(decided 2026-07-05)*
+Stable, and shapes *how* every increment is built rather than what gets built next.
 
-These are stable and shape *how* every increment is built, not what gets built next.
-
-- **Laypeople first, power users under the hood.** Defaults must work for someone who has never
-  heard of a key or a relay; every stronger-or-different choice is a **visible-but-optional
-  dial, never a prerequisite**. When a security default would add a hoop for a layperson, the
-  hoop becomes opt-in. The reasoning is `plans/encryption/model.md` §1.
-- **Interact like a typical, centralized SaaS app — but with better protections underneath.**
-  The mechanism must serve that layperson mental model, not leak through it. A user should
-  **not have to manage multiple accounts** on a single device or relay: *one identity, one
-  credential set*. A credential set is a password plus its recovery backstop — the familiar
-  arrangement (Proton, Bitwarden) — not several coequal secrets to juggle.
-- **The recovery phrase is a backstop, not a ritual.** Shown once, in the role every SaaS user
-  already understands: *forgot password*.
+- **Laypeople first, power users under the hood.** Defaults must work for someone who has
+  never heard of a key or a relay. Every stronger-or-different choice is a **visible-but-
+  optional dial, never a prerequisite**; when a security default would add a hoop for a
+  layperson, the hoop becomes opt-in. Reasoning: `plans/encryption/model.md` §1.
+- **Interact like a typical centralized SaaS app — with better protections underneath.** The
+  mechanism must serve that mental model, not leak through it. A user should **not have to
+  manage multiple accounts** on one device or relay: *one identity, one credential set* — a
+  password plus its recovery backstop, the familiar arrangement, not several coequal secrets.
+- **The recovery phrase is a backstop, not a ritual.** Shown once, in the role every SaaS
+  user already understands: *forgot password*.
 - **An account is invited, never required.** Single-device, local-only use is fully
   layperson-complete with no account at all; the invitation arrives once there is data worth
   protecting. A nudge, never a wall — see [`@leapsake/reminders`](packages/reminders/README.md).
-- **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev install
-  are fine.** There are no real users, so a migration is only worth writing when it is genuinely
-  cheaper than "delete the profile and relaunch" — prefer the simpler code. **This expires at
-  v0.1.** Until then it is why several stores, key formats, and door layouts were replaced
-  rather than migrated.
 
+> ⚠️ **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev
+> install are fine.** There are no real users, so a migration is worth writing only when it
+> is genuinely cheaper than "delete the profile and relaunch" — prefer the simpler code.
+> **This expires at v0.1.** Until then it is why several stores, key formats and door layouts
+> were replaced rather than migrated.
 
-## Repository Structure
+## Data model
 
-`apps/{desktop,mobile,server,web}` over `packages/*`, wired in one direction:
+The domain is people, pets, tags, a relationship graph with derived kinship and dismissals,
+milestones, typed contact methods, holidays and observances, reminders, gifts, and the V3
+account/key/sync tables. **The forward-only migrations in `packages/data/src/migrations.ts`
+are the current shape; the Zod schemas in `packages/schema/src` are the current types.** Read
+those — a summary here would be one more thing to keep in step, and would lose.
 
+The conventions they follow are asserted, not described:
+`apps/desktop/test/integration/schema-conventions.test.ts` proves the `TEXT` `id` primary
+key, the `INTEGER` epoch-ms `created_at`/`updated_at`/`deleted_at` stamps, `snake_case`, and
+the absence of `CHECK` constraints. Its header explains why each rule exists.
+
+Two things that test cannot prove, and you must hold:
+
+- **Never hard-delete a row.** A hard delete cannot replicate — a row that is simply gone is
+  indistinguishable from one a device has not seen yet — so a tombstone (`deleted_at`) is the
+  only durable way to say "gone". The column is checked; *using* it instead of `DELETE` is on
+  you.
+- **Primary keys are client-generated UUIDs, and must be deterministic** (content- or
+  key-derived) wherever two offline devices could assert the same fact. Otherwise they mint
+  two rows that collide on a partial unique index at sync time.
+
+## User-visible text
+
+Leapsake will be localized. Two rules, and they apply to new UI code **now** rather than at
+translation time, because they are far cheaper to keep than to retrofit:
+
+1. **No component contains a user-visible string.** In `packages/ui`, primitives take text as
+   props and everything above them reads the catalog (`@leapsake/ui/messages`). Elsewhere,
+   keep strings at the top of a module so the later sweep is mechanical.
+2. **Never build a sentence out of fragments.** No `` `${name} (hidden)` ``, no
+   `" · with " + label`, no `parts.join(", ")`, no `count === 1 ? … : …` in a component. A
+   message that takes values is a **function the catalog owns**, so plural rules, word order
+   and list separators belong to the language rather than to render code.
+
+Dates and numbers already go through `toLocaleDateString`/`toLocaleString`; keep it that way.
+The full reasoning, and the two known gaps, are in [`packages/ui/README.md`](packages/ui/README.md) → *Text*.
+
+## Two traps specific to working here
+
+### `pnpm test` cannot complete in a sandboxed agent shell
+
+The failure looks like a broken repo rather than a missing network. `test:node` and
+`test:coverage` both start with `scripts/ensure-sqlite-abi.mjs`, which shells out to
+`prebuild-install` — a network fetch. Sandboxed, it is **SIGKILLed mid-run, which can delete
+the native binary on its way out.** Both tiers then FAIL while the static tiers pass.
+
+Instead: run the tiers that need no native module, and run Vitest **directly**.
+
+```sh
+pnpm exec node scripts/test-all.mjs --only=format,lint,typecheck,versions,icons,bundle
+pnpm exec vitest run     # after restoring the binary, below
 ```
-schema  →  data  →  core  →  clients
-```
 
-- **`schema`** — Zod schemas → inferred types, plus pure portable domain logic
-  (formatters, role algebra, normalization, search folding). Zero platform deps.
-- **`data`** — the `SqliteDriver` port, the migration runner, per-entity
-  repositories, cross-repo services (kinship, search, timeline), and the sync
-  substrate (`defineSyncable`, `sync_state`). Imports no DB driver.
-- **`core`** — the client-agnostic `CoreApi` that every client wires up. It is
-  the composition root: it owns the syncable-repo allowlist and the relay wiring,
-  and it is the only package that depends on the others.
-- **Everything else is a narrow package `core` composes** — `sync`,
-  `key-custody`, `store-layout`, `crypto`, `bytes`, `holidays`, `reminders`,
-  `contact-import`, `highlight`, `ui`, `view-models`. **New domain logic gets its
-  own package** with injected ports rather than a new folder inside `core`.
-
-**Some shipped code is deliberately unreachable.** A feature can be finished and
-still held back from a release by a flag in `@leapsake/flags` — today that is
-`multiDevice`, which shuts every door to relay sync for v0.1. If a surface you
-expect to find is missing from the running app, check there before concluding it
-was never built; that README lists the gates and how to flip a switch for a
-session.
-
-**Each package's own `README.md` is the authority on why it is shaped the way it
-is**, and `ls packages/` is the authority on which exist — do not keep a copy of
-either here. The project map is [`plans/README.md`](plans/README.md);
-`plans/` itself is forward-looking only.
-
-Client-specific logic lives in that client's `apps/` project; anything two
-clients could share belongs in a package.
-
-## Data Model
-
-The domain is **people, pets, tags, a relationship graph with derived kinship +
-dismissals, milestones, typed contact methods** (email/phone/postal), holidays and
-observances, reminders, gifts, and the V3 account/key/sync tables. The forward-only
-migrations in `packages/data/src/migrations.ts` are the current shape; the Zod
-schemas in `packages/schema/src` are the current types. Read those — a summary
-here would be one more thing to keep in step, and would lose.
-
-The conventions they all follow, which *are* this file's business:
-
-- **Primary key**: client-generated UUID, stored as `TEXT`. Deterministic
-  (content- or key-derived) where two offline devices could assert the same fact —
-  otherwise they mint two rows that collide on a partial unique index at sync time.
-- **`created_at` / `updated_at`**: `INTEGER` epoch milliseconds, UTC.
-- **`deleted_at`**: nullable `INTEGER` epoch ms. **Never hard-delete a row** — a
-  hard delete cannot replicate, so a tombstone is the only durable way to say
-  "gone".
-- The DB is `snake_case`; repositories map to camelCase at the boundary.
-- **Value constraints (enums, partial-date rules) live in Zod, not the DB**, so the
-  same portable SQL runs on both engines.
-
-## Custody vocabulary
-
-Three **independent** questions get asked about a running client. They are answered by
-three different lookups, and they have three separate vocabularies **on purpose** — an
-earlier single word ("Open") collided with the verb *open*, with an open reminder, and
-with the encryption state, and made a good default sound like a vulnerability.
-
-| Question | Vocabulary | Answered by | Lives in |
-|---|---|---|---|
-| Does an account exist on this device? | **Unauthenticated / Authenticated** | the roster on disk | `@leapsake/store-layout` |
-| Is the file on disk encrypted? | **plaintext / encrypted** | the roster, today | `resolveActiveStore`'s `custody` discriminant |
-| Can this device read its data right now? | **Locked / unlocked** | the OS keychain (is the db-key there?) | `@leapsake/key-custody` |
-
-**Do not collapse them**, even though two currently always agree:
-
-- **Authenticated ⇒ encrypted is true today, and is a consequence, not a definition.**
-  `plans/v0-2.md` anticipates a user opting out of encryption while holding an account
-  (*user-toggleable encryption beyond custody*). When that lands, the account axis is
-  unchanged and only the file axis moves. Code that asks "how do I open this file?" must
-  read the file axis, never infer it from the account.
-- **Locked is a sub-state of Authenticated, never a peer.** Sign out (`lockThisDevice`)
-  deletes exactly two keychain secrets and touches nothing else — the roster entry, the
-  account row, the encrypted file and both sidecars all survive. A signed-out device is
-  fully Authenticated and merely Locked. The reverse cannot happen: an Unauthenticated
-  device has no keys to forget, so it can never be Locked.
-- The **Degraded** state is Authenticated *and* unlocked *and* still broken (the device
-  holds its db-key but cannot prove the account's master key). If the axes were one
-  enum it would have nowhere to live.
-
-**The ELI5 test** — *can you use the app right now without typing anything?*
-Unauthenticated: yes, everything works, there is simply no lock on the door.
-Locked: no, your data is right there and sealed.
-
-**Internal names are not user-facing copy.** These words are for code and design docs.
-The UI says whatever is clearest for a layperson — "Protect your data", "Set up your
-login", "Sync across devices" — and `@leapsake/key-custody` licenses that
-explicitly. Never surface "Unauthenticated" to a user.
-
-The full design lives in `packages/key-custody/README.md`; this section is the
-vocabulary only, so it stays true as that design evolves.
-
-## SqliteDriver Port
-
-Every repository is written against one small async interface
-(`packages/data/src/driver.ts`) so it runs unchanged on
-`better-sqlite3-multiple-ciphers` (desktop, `apps/desktop/src/main/db/encrypted-sqlite-driver.ts`)
-and expo-sqlite/SQLCipher (mobile, `apps/mobile/db/expo-sqlite-driver.ts`). Both
-adapters are pinned to identical observable behavior by one shared contract suite —
-see *Testing*.
-
-**Shared packages run on the Hermes floor.** `packages/*` execute on mobile's
-Hermes engine, which lags on newer JS. Two consequences, both learned the hard way:
-(1) avoid ES2023-only methods like `Array#toSorted` — use `[...arr].sort(...)`
-(the `unicorn/no-array-sort` lint rule is disabled for this reason); (2) host
-capabilities the shared code assumes (the `crypto.randomUUID` Web Standard) are
-established at each app's entry, not wrapped in the shared code. Hermes ships *no*
-global `crypto`, so `apps/mobile/index.ts` builds it from `expo-crypto` (native v4,
-canonical lowercase — format-identical to Node/desktop and browser/web, so PKs are
-platform-indistinguishable for sync). Keep new shared code to features Hermes
-supports. Note: adding/removing a native module needs a Metro `--clear` restart.
-
-## Application Surface (`packages/core`)
-
-`createCore(driver)` wires every repository + service over one `SqliteDriver`
-and returns a `CoreApi` — the client-agnostic application surface (transactional
-writes, cascade deletes, relationship orientation, and view-model builders in
-`core/views.ts`). It is free of any transport/UI concern. Desktop builds it in
-the main process and forwards over IPC; mobile (V2) builds it in-process.
-
-## IPC Design
-
-- A single typed `api` surface on `window.api` via `contextBridge`.
-- `ipcMain.handle` handlers validate inputs with Zod, then forward to one
-  `CoreApi` method. They are a **thin bridge** — do **not** open a
-  `driver.transaction` in a handler; `core` already owns atomicity.
-- The preload's `Api` type **is** `CoreApi` (`export type Api = CoreApi`), and
-  the runtime `api` object `satisfies CoreApi`, so the bridge can't drift from
-  core. The renderer never imports SQLite — only `window.api`.
-
-## Testing
-
-The principles below are the lens every testing decision is judged against — each one *cuts
-options* rather than being a slogan, and between them they have already decided our tools.
-
-1. **Automate over manual.** A manual check is a temporary bridge, never a destination.
-2. **Match production as closely as possible.** Signal strength scales with runtime fidelity; a
-   different engine/bundler/module-graph than ships is a *smell*. This one rule rejects both
-   mocked SQLite and WASM SQLite for the mobile driver — see
-   [`apps/mobile/README.md`](apps/mobile/README.md) → *Why the driver test needs a device*.
-3. **Test what's observable to the consumer.** Assert only on the surface the thing's *consumer*
-   sees — a port's return values, a package's public API, text/pixels on screen — never
-   internals. In practice: `expoSqliteDriver`/`encryptedSqliteDriver` → their `SqliteDriver`
-   port's return values; a `packages/data` repo → its method results; `packages/core` →
-   `CoreApi` results; an **app** → what's on screen.
-4. **As blackbox as possible.** Drive the subject through its real boundary; don't reach inside.
-5. **Full trophy, every app and package.** Static + unit + integration + E2E each have a home for
-   each app and package — not just desktop.
-6. **Everything reachable from the dev machine — or a documented, vendor-neutral host for the
-   platform.** No hosted CI is assumed. **Carve-out:** native-platform E2E is intrinsically
-   multi-host (a prod-faithful Windows/Linux run can't happen on an Apple-silicon Mac), so a
-   platform's E2E gate is *blocked* — not waived — until its host exists.
-7. **Incremental, no middling-confidence hacks.** Reorder freely to lay the best next brick;
-   don't ship a shortcut that only buys partial confidence.
-
-**The consequence that keeps the mobile tier small:** because the repo/service logic is shared
-and driver-injected, we do *not* re-prove it per platform by re-running every integration suite
-on every engine. We prove the **driver** is equivalent (the contract suite below), and the
-shared logic's desktop run carries over.
-
-The tiers themselves:
-
-- **Unit**: schema validation + pure domain logic (role algebra, gender
-  derivation, milestone precision, normalization) in `packages/schema`.
-- **Integration**: every repository and cross-repo service against the **real
-  production desktop engine** (`better-sqlite3-multiple-ciphers` via
-  `makeEncryptedTestDriver`) — run migrations, then exercise CRUD, soft-delete,
-  cascades, kinship, search, timeline.
-- **Component**: `packages/ui`'s presentational components under
-  `@testing-library/react`. Vitest runs `node` by default, so these files opt into
-  a DOM with a `// @vitest-environment jsdom` docblock; they also need an explicit
-  `afterEach(cleanup)`, since the suite runs without globals and Testing Library
-  can't register its own. Assert what a user perceives (roles, text, the `name` a
-  field submits under), not internals.
-- **Driver contract**: one shared spec (`@leapsake/data/testing` →
-  `runDriverContract`) pins every `SqliteDriver` impl to identical observable
-  behavior; desktop runs it under Vitest, mobile via the in-app self-test.
-- **Mobile native** (built, Android + iOS): `pnpm test:native` drives the in-app
-  self-test on a booted Android emulator **and/or** iOS simulator via **Maestro** and
-  asserts PASS from the CLI — the mobile driver leg is a terminal automated gate, not a
-  manual screen read. The Maestro flow is byte-identical across platforms.
-- **E2E** (blocked, not built): the crucial-flow catalog per platform — desktop
-  Playwright/Electron, mobile **Maestro** (committed). The catalog is
-  `plans/testing/crucial-flows.md`; the release-gate policy is
-  `plans/v0-1_06_e2e-and-release-gate.md`.
-
-### Running them
-
-`scripts/test-all.mjs` is the orchestrator and documents its own tier registry,
-flags, and exit codes in its header — read that rather than a list here, and
-`package.json` for what each `pnpm test:*` actually runs. In the inner loop:
-**`pnpm test`** (fast: static + unit + integration + the coverage gate, no
-emulator), **`pnpm test:all`** (everything reachable, with unreachable tiers
-reported ⏳ BLOCKED rather than skipped), **`pnpm test:node`** (just Vitest).
-
-> ⚠️ **`pnpm test` cannot complete in a sandboxed agent shell**, and the failure looks like
-> a broken repo rather than a missing network. `test:node` and `test:coverage` both start
-> with `scripts/ensure-sqlite-abi.mjs`, which shells out to `prebuild-install` — a network
-> fetch. Sandboxed, it is **SIGKILLed mid-run**, which can *delete* the native binary on its
-> way out. Both tiers then FAIL while the static tiers pass.
->
-> Run the tiers that don't need the native module (`pnpm exec node scripts/test-all.mjs
-> --only=format,lint,typecheck,versions`), and run Vitest **directly** — `pnpm exec vitest
-> run` — after restoring the binary from the local prebuild cache (below). Never "fix"
-> `ensure-sqlite-abi.mjs` to work around this: it is correct, and on a developer machine with
-> network `pnpm test` runs the whole trophy as designed.
+**Never "fix" `ensure-sqlite-abi.mjs` to work around this.** It is correct, and on a
+developer machine with network `pnpm test` runs the whole trophy as designed.
 
 ### The native SQLite ABI, and how it bites
 
-The single native `.node` carries one ABI at a time. **Running the desktop app in any form —
-`dev`, `build`, `check:bundle` — flips it to the Electron ABI**, and the next `vitest` run then
-dies with dozens of *"Worker exited unexpectedly"* rather than an honest ABI error. A bare
-`require()` still succeeds, so the failure is delayed and misleading.
+The single native `.node` carries one ABI at a time, and it is loaded from **two** runtimes:
+Electron (the app) and Node (Vitest). **Running the desktop app — `pnpm dev`, `pnpm start` —
+flips it to the Electron ABI**, and the next `vitest` run then dies with dozens of *"Worker
+exited unexpectedly"* rather than an honest ABI error. A bare `require()` still succeeds, so
+the failure is delayed and misleading. It has been observed already flipped in sessions where
+the dev app was never started, so check before trusting a green run.
+
+**Which ABI is installed is a file-size check**, since both builds share a name:
+
+| Bytes | ABI |
+|---|---|
+| `2217120` | Node — what Vitest needs |
+| `2217808` | Electron — what the app needs |
 
 Restore the Node build by extracting the cached prebuild — **not** with `prebuild-install
 --force`, which can clear the cache before its own download is killed:
@@ -289,213 +136,6 @@ cd node_modules/better-sqlite3-multiple-ciphers
 tar -xzf ~/.npm/_prebuilds/*better-sqlite3-multiple-ciphers-*-node-v137-darwin-arm64.tar.gz
 ```
 
-**Which ABI is installed is a file-size check**, since both builds share a name and the
-tarballs preserve mtimes: `2217120` bytes = Node, `2217808` = Electron. Check it before
-trusting a green run — the binary has been observed flipped to Electron in sessions where the
-dev app was never started. The whole dance disappears if the N-API fork ever releases; see
-[`plans/v0-2.md`](plans/v0-2.md) → *The N-API exit*.
-
-**tsconfig-include invariant**: a new test directory must sit under some project
-tsconfig's `include`, or its type errors go unchecked (`pnpm test:types` only
-sees included files). All current test dirs are covered; verify when adding one.
-
-## Versioning and releases
-
-**One version across every manifest in `apps/` and `packages/`**, so that iOS `1.2.3` and
-macOS `1.2.3` are known to work together. New workspaces join at whatever the repo is on:
-`scripts/set-version.mjs` *discovers* manifests rather than listing them, and
-`pnpm test:versions` fails the suite when they disagree. Both stores reject a non-numeric
-version string, so `apps/mobile/app.config.ts` strips any pre-release suffix — the repo
-runs on real semver and the stores see the numeric core, distinguished by a build number
-derived from the clock.
-
-> ⚠️ **The number is the promise, not the mechanism.** What actually makes two
-> separately-installed artifacts compatible is `@leapsake/schema` migrations,
-> `@leapsake/sync`, and identical `@leapsake/flags` state. A flag that differs between two
-> platforms shipped from the same tag makes the promise false while the numbers agree.
-
-**`main` is the only long-lived branch** — there is no `dev`. Branch only when `main` would
-otherwise be unreleasable. `release/X.Y.Z` exists for exactly one situation, stabilizing a
-release while unrelated work keeps landing, and is deleted once the release ships.
-
-**A release is a tag, and `scripts/release/` is the whole policy.** The ladder
-(`alpha` → `beta` → `rc` → final), what each rung requires per platform, and every
-precondition are enforced there, not described here — read its header for the reasoning and
-run `pnpm release --help` for the current rules. **A human chooses the rung; the number is
-computed** from the tags that already exist. The one hand-picked number is the base `X.Y.Z`,
-once per release train (`--base=`).
-
-Targets are a registry in the same shape as the test tiers, `ready` or `blocked`, so a
-platform that cannot ship is **reported, never silently skipped**. `pnpm release <stage>
---dry-run` answers "what is this platform waiting on?" without building anything.
-Credentials come from an untracked `.env` (copy `.env.example`); the environment wins over
-the file, so a runner's secrets are never shadowed by a local copy.
-
-**The script tags and never pushes.** Store version strings are permanent and monotonic, a
-Play closed test starts a 14-day clock at its first upload, and a notarized artifact is
-public the moment its feed sees it — so the irreversible step stays a person's.
-
-## App icons
-
-**Two vector sources in `assets/icon/`; every PNG the apps ship is generated from them by
-`pnpm icons`.** `logo_color.svg` is the frog as it is seen (launcher and dock icons);
-`logo_bw.svg` is the same drawing as line art only, for surfaces that get one colour —
-today the Android notification icon, which Android renders from *alpha alone* and tints, so
-a full-colour icon would arrive as a solid white square.
-
-The generated files are committed, because `expo prebuild`, EAS and electron-builder run
-where no SVG rasterizer exists — `pnpm test:icons` is the guard that keeps sources and
-rasters in agreement, and it compares hashes rather than re-rendering so it needs no
-rasterizer of its own.
-
-Regenerating needs `brew install librsvg imagemagick`; nothing else does. **Never hand-edit
-a generated PNG** — the check fails on it, by design. Read `scripts/icons.mjs` for why the
-framing constants are what they are; the short version is that they are measured (an
-Android circular mask crops a naive "66 of 108" adaptive icon) rather than chosen.
-
-**Changing an icon means re-running `expo prebuild` for the platform you want to see it
-on.** `pnpm ios` / `pnpm android` build the *existing* native project; they do not re-run
-the icon pipeline that writes into it.
-
-The artwork is OpenMoji's, under CC BY-SA 4.0. That licence wants attribution wherever the
-work is distributed, so the credit exists twice on purpose: `NOTICE` for the repo, and
-`packages/ui/src/headless/acknowledgements.ts` for the list both clients render under
-Settings → Acknowledgements. **Adding third-party work that ships means adding it to
-both.**
-
-## Desktop app (`apps/desktop`)
-
-Electron app built with electron-vite (`src/main`, `src/preload`,
-`src/renderer`). The main process opens the encrypted store, runs migrations,
-builds the `core`, and forwards it over typed IPC; the renderer is React +
-react-router. See `apps/desktop/README.md` for the dev workflow.
-
-> ⚠️ **The database is a native module, and the ABI matters.** At-rest encryption
-> cost us the original `node:sqlite` choice: desktop runs
-> `better-sqlite3-multiple-ciphers`, whose prebuilt binary is compiled per ABI and
-> is loaded from **two** runtimes — Electron (the app) and Node (Vitest). Whichever
-> ran last wins, so running the app flips the binary and the next `vitest` run dies
-> with *"Worker exited unexpectedly"* rather than an ABI error.
-> `scripts/ensure-sqlite-abi.mjs` papers over this before `dev`/`start`/`test`; which
-> build is installed is a **file-size check**, since both share a name
-> (`2217120` bytes = Node, `2217808` = Electron). The exit from the whole problem
-> class is [`plans/v0-2.md`](plans/v0-2.md) → *The N-API exit* — a watch-item,
-> blocked on the fork rebasing onto N-API.
-
-## Mobile app (`apps/mobile`)
-
-Expo app (V2). Builds the `core` in-process over an expo-sqlite driver; screens
-are React Native + expo-router. Forms are ports of the desktop forms — keep them
-behaviorally faithful (same fields, same validation), adapting only the input
-controls to native idioms.
-
-### Form input controls
-
-React Native has no `<select>`/`<datalist>`, so each desktop control maps to one
-of three native-feeling patterns. **Pick by the option list, mirroring how the
-desktop form already chose `<select>` vs `<datalist>`:**
-
-- **`SelectField`** (native `@react-native-picker/picker`) — for a *short,
-  fully-known* enum the user can scan: milestone Kind/Month, Gender. This is the
-  mobile `<select>`. iOS shows a value row that opens the wheel in a Done-
-  dismissable bottom sheet; Android renders the inline native dropdown dialog.
-- **`Typeahead`** (filter `TextInput` + pressable list; chosen value shows with a
-  *Change*, and optional *Clear*, affordance) — for a *long or possibly-unfamiliar*
-  list: relationship Role (~40 once gendered variants are included), Country (183),
-  the relationship-candidate name picker. This is the mobile `<datalist>`. It is
-  autocomplete-style: nothing lists until `minChars` are typed (default 2,
-  matching the search tab's floor) rather than dumping the full list. The shared
-  generic component is `components/Typeahead.tsx`; `CountryField` and
-  `RelationshipForm` are the callers — map your value to/from an option via
-  `getKey`/`getLabel`, and give the element a React `key` to reset its live query
-  when a parent selection moves (e.g. Role after the Name changes).
-- **Free text + suggestions** (a plain `TextInput` with a pressable suggestion
-  list under it, same 2-char floor) — for a desktop `<datalist>` whose input is
-  *free text with shortcuts*, where a brand-new value is the normal case: the
-  gift-capture title field (`components/GiftCaptureForm.tsx`). A `Typeahead`
-  would be wrong here — it collapses to a "chosen option" row, which a new title
-  can never be.
-- **Pills / segmented control** — reserved for a genuinely small, glanceable,
-  mutually-exclusive choice. **Not currently used** (the old `OptionPills` was
-  retired because it scaled badly past ~4 options); reintroduce only if a true
-  segmented-control case appears.
-
-Prefer native elements over novel custom UI for these common cases.
-
-## User-visible text
-
-Leapsake will be localized. Two rules follow, and they apply to new UI code now
-rather than at translation time, because they are far cheaper to keep than to
-retrofit:
-
-1. **No component contains a user-visible string.** In `packages/ui`, primitives
-   take text as props and everything above them reads the catalog
-   (`@leapsake/ui/messages`). Elsewhere, keep strings at the top of a module
-   rather than inline, so the later sweep is mechanical.
-2. **Never build a sentence out of fragments.** No `` `${name} (hidden)` ``, no
-   `" · with " + label`, no `parts.join(", ")`, no `count === 1 ? … : …` in a
-   component. A message that takes values is a **function** the catalog owns, so
-   plural rules, word order and list separators belong to the language rather
-   than to render code.
-
-Dates and numbers already go through `toLocaleDateString`/`toLocaleString`; keep
-it that way. Still English and not yet covered: `@leapsake/schema`'s label tables
-(`genderLabel`, `kindDefs`, the role labels), which both clients read, and the
-`apps/desktop` screens not yet moved into `packages/ui`.
-
-## React version policy (monorepo)
-
-**Each app owns its React version; we do not lock React across the workspace.**
-Mobile's React is hard-pinned by its Expo SDK (exact `react@19.2.x`); desktop is
-free to track a newer `react`/`react-dom` on its own schedule. This is safe
-because the apps are separate bundles/processes that share **no** React-consuming
-runtime code (mobile uses `expo-router`, desktop uses `react-router-dom`), so
-there is no cross-app React instance to keep aligned.
-
-React's "single copy" rule is **per-bundle, not per-monorepo**: within one app,
-everything that calls hooks — app code, `react-router-dom`, any component lib —
-must import the *same physical* React, because the hook dispatcher is a
-module-level singleton. Two instances in one bundle produce "Invalid hook call" /
-`useContext` is null crashes.
-
-We enforce that **at the bundler**, not with a workspace-wide version lock:
-`apps/desktop/electron.vite.config.ts` sets `renderer.resolve.dedupe:
-["react", "react-dom"]`, collapsing every React import in the desktop bundle
-(including transitive ones) to desktop's own copy. Desktop also pins `react` and
-`react-dom` to the **same exact** version (React requires the pair to match).
-
-**The rule that triggers a dedupe:** the workspace uses `nodeLinker: hoisted`
-(see `pnpm-workspace.yaml`), so pnpm hoists exactly one React version to the root
-`node_modules`. An app that runs that *same* version needs nothing — its whole
-tree shares the hoisted copy. An app that runs a **different** version than the
-hoisted root forces a second, nested copy that a React library (e.g.
-`react-router-dom`) can latch onto — so **that** app must dedupe at its bundler.
-
-- **Desktop** runs a newer React than the hoisted root, so it dedupes (above).
-- **Mobile** *is* the hoisted root version (Expo hard-pins `react@19.2.x` and the
-  entire mobile tree agrees on it), so there is no second copy and Metro needs no
-  equivalent today. If mobile ever diverges its React version, add the Metro
-  equivalent (force `react`/`react-dom` to one path via
-  `config.resolver.resolveRequest` or `extraNodeModules` in `metro.config.js`).
-- **Do not** add a global `pnpm.overrides` forcing one `react`/`react-dom`
-  version across the repo — that recouples desktop to Expo's pinned version,
-  which is the opposite of what we want.
-- **A shared UI package declares React as a `peerDependency`, never a
-  dependency** (`packages/ui`). A direct dep would put a second physical React in
-  desktop's bundle — the exact failure the dedupe exists to prevent.
-- **The workspace root pins a matching `react`/`react-dom` pair** (mobile's
-  version) purely so the component tests render against one. Before that, root
-  hoisting produced a *mismatched* pair — mobile's `react` beside desktop's
-  `react-dom`, the only `react-dom` consumer — which renders nothing and reports
-  a bogus `act(…)` warning, because React 19's `act` queue lives in `react` while
-  the work lives in `react-dom`. Root is pinned to mobile's version deliberately:
-  moving it would push mobile off the hoisted copy and into the nested case Metro
-  currently doesn't have to handle. Desktop keeps its own newer pair, nested.
-
-**Regression guard:** `pnpm --filter @leapsake/desktop check:bundle` builds the
-renderer and asserts the bundle contains exactly one `react` and one `react-dom`
-(it inspects the sourcemap's source list — the only faithful signal, since
-on-disk/Node resolution legitimately sees two copies that the bundler dedupes).
-It fails loudly if the dedupe is dropped or the React pair drifts. Run it in CI
-when CI lands; until then run it after touching React deps or the renderer
-bundler config.
+`pnpm test:bundle` does **not** flip the ABI, despite building the renderer: electron-vite
+externalizes the module and never loads it. The whole dance disappears if the N-API fork ever
+releases — see [`plans/v0-2.md`](plans/v0-2.md) → *The N-API exit*.

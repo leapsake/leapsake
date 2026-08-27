@@ -4,7 +4,7 @@
  * node:sqlite (desktop) is synchronous and expo-sqlite (mobile, V2) is
  * asynchronous; both satisfy this async interface, so the repository and
  * migration runner are written once and ported, not rewritten. See
- * (AGENTS.md, SqliteDriver port).
+ * (see this package's README → *The `SqliteDriver` port*).
  */
 export interface SqliteDriver {
   /** Execute one or more statements with no parameters and no result. */

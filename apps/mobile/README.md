@@ -127,6 +127,28 @@ part most likely to fight it. **Detox stays in reserve** for the day an elaborat
 (sync/pairing) turns flaky and its bridge-idle determinism earns back the gray-box cost; the
 tool-agnostic flow catalog keeps that switch cheap. Appium is overkill here.
 
+## Form controls: the four pickers
+
+Forms here are ports of the desktop forms — keep them behaviorally faithful (same fields,
+same validation) and adapt only the input controls, because React Native has no `<select>`
+and no `<datalist>`.
+
+Four components cover every case, and each one's doc-comment states which list shape it is
+for and why the other three are wrong for it — read those rather than a table here, since
+they sit next to the code that has to honour them:
+
+| Component | The list it is for |
+|---|---|
+| [`SelectField`](./components/SelectField.tsx) | a short, finite enum — the native wheel/dropdown |
+| [`SuggestField`](./components/SuggestField.tsx) | free text with a handful of usual answers |
+| [`Typeahead`](./components/Typeahead.tsx) | a long list picked *inline*, where the field can afford the width |
+| [`PickerField`](./components/PickerField.tsx) | a long **closed** list picked in a sheet, when it cannot |
+
+[`SegmentedControl`](./components/SegmentedControl.tsx) is the fifth, and not a picker: it
+is for a genuinely small, glanceable, mutually-exclusive choice (`EntityTypeToggle`).
+
+Prefer a native element over novel custom UI for any of these.
+
 ## `__DEV__` deep links
 
 ```sh

@@ -199,6 +199,63 @@ not substitutes:
 Exporting to a portable format (rather than copying files) is the vCard exporter in
 [`plans/v0-2.md`](../../plans/v0-2.md).
 
+## IPC: a thin bridge, not a layer
+
+The renderer talks to one typed `api` surface on `window.api`, exposed via
+`contextBridge`. `ipcMain.handle` handlers validate their inputs with Zod and forward to a
+single `CoreApi` method — **that is all they do**. In particular, do not open a
+`driver.transaction` in a handler: `@leapsake/core` already owns atomicity, and a second
+transaction around one that exists is either a no-op or a deadlock waiting for a slow disk.
+
+The bridge cannot drift from core, by construction: the preload's `Api` type **is**
+`CoreApi` (`export type Api = CoreApi`) and the runtime `api` object `satisfies CoreApi`, so
+a method added to core without a handler is a type error rather than a missing feature
+discovered at runtime.
+
+## React lives at this app's version, not the workspace's
+
+**Each app owns its React version.** Mobile's is hard-pinned by its Expo SDK; desktop tracks
+a newer `react`/`react-dom` pair on its own schedule. That is safe because the two apps are
+separate bundles that share **no** React-consuming runtime code — mobile uses `expo-router`,
+desktop `react-router-dom` — so there is no cross-app React instance to keep aligned.
+
+React's "single copy" rule is **per-bundle, not per-monorepo**. Within one app, everything
+that calls hooks must import the *same physical* React, because the hook dispatcher is a
+module-level singleton; two instances in one bundle produce "Invalid hook call" and null
+`useContext` crashes — a white screen, from a clean build.
+
+We enforce that **at the bundler**. `electron.vite.config.ts` sets
+`renderer.resolve.dedupe: ["react", "react-dom"]`, collapsing every React import in this
+bundle (transitive ones included) to desktop's own copy. Desktop also pins `react` and
+`react-dom` to the **same exact** version, which React requires of the pair.
+
+**What decides whether an app needs that dedupe** is the workspace's `nodeLinker: hoisted`
+(`pnpm-workspace.yaml`): pnpm hoists exactly one React to the root `node_modules`. An app on
+that same version needs nothing. An app on a **different** version forces a second, nested
+copy that a React library like `react-router-dom` can latch onto — so that app must dedupe.
+
+- **Desktop** runs a newer React than the hoisted root, so it dedupes.
+- **Mobile** *is* the hoisted root version, so no second copy exists and Metro needs no
+  equivalent. If mobile ever diverges, add one (force `react`/`react-dom` to a single path
+  via `resolver.resolveRequest` or `extraNodeModules` in `metro.config.js`).
+- **Never** add a global `pnpm.overrides` forcing one React across the repo — that recouples
+  desktop to Expo's pin, which is the opposite of the point.
+- **A shared UI package declares React as a `peerDependency`, never a dependency**
+  (`packages/ui`). A direct dep puts a second physical React in this bundle — the exact
+  failure the dedupe prevents.
+- **The workspace root pins a matching `react`/`react-dom` pair** (mobile's version) purely
+  so `packages/ui`'s component tests render against one. Before that, hoisting produced a
+  *mismatched* pair — mobile's `react` beside desktop's `react-dom`, its only consumer —
+  which renders nothing and reports a bogus `act(…)` warning, because React 19's `act` queue
+  lives in `react` while the work lives in `react-dom`. Root stays on mobile's version
+  deliberately: moving it would push mobile off the hoisted copy into the nested case Metro
+  does not currently have to handle.
+
+**The guard is a test, not this document.** `pnpm test:bundle` (the `bundle` tier, in
+`pnpm test`) builds the renderer and asserts the bundle contains exactly one `react` and one
+`react-dom`, reading the sourcemap's source list — the only faithful signal, since on-disk
+resolution legitimately sees two copies the bundler collapses.
+
 ## Notes
 
 - In `dev`/`start` (unpackaged) Electron prints a Content-Security-Policy

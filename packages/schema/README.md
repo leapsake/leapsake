@@ -35,6 +35,6 @@ Person. Use `Person` / `people` / `peopleRepo` consistently.
 
 - **Value constraints (enums, partial-date rules) live here, not in the DB** — so the same
   portable SQL runs on `node:sqlite` (desktop) and expo-sqlite (mobile).
-- **Runs on the Hermes floor** (see [`AGENTS.md`](../../AGENTS.md)) — no ES2023-only methods
+- **Runs on the Hermes floor** (see [`packages/README.md`](../README.md)) — no ES2023-only methods
   (e.g. `Array#toSorted`) in shared code; host capabilities like `crypto.randomUUID` are
   established at each app's entry, not assumed here.

@@ -2,7 +2,7 @@
 // driver-contract self-test on a booted device — Android emulator and/or iOS simulator —
 // from the command line and assert PASS, so the mobile driver leg is a *terminal,
 // automated* gate rather than a human opening `leapsake://dev-selftest` and reading the
-// screen (principle #1: automate over manual). See AGENTS.md → Testing for the principles and
+// screen (principle #1: automate over manual). See CONTRIBUTING.md → Testing for the principles and
 // `apps/mobile/README.md` → *Why the driver test needs a device* for why this must run on a real device (expo-sqlite's
 // native engine can't load headlessly).
 //

@@ -374,7 +374,7 @@ encryption reintroduces a native or WASM dependency on **desktop**:
 - **OS-level** (encrypted container / keychain-gated file) — weakest match to
   "portable + unqueryable," OS-specific.
 
-Mitigations: the `SqliteDriver` port (`AGENTS.md`, [`packages/data`](../../packages/data/README.md)) was explicitly built so the
+Mitigations: the `SqliteDriver` port ([`packages/data`](../../packages/data/README.md)) was explicitly built so the
 backend is "a one-adapter swap" — an encrypted backend is the same kind of swap.
 **Mobile** is easier: expo-sqlite has a SQLCipher path (verify current SDK-56 state
 before relying on it), plausibly a config + key-supply change rather than a new

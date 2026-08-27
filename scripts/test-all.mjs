@@ -6,7 +6,8 @@
 // *which* tiers run and *reports* the result). Tiers marked `blocked` are gates that
 // aren't built yet (currently just E2E — the mobile native tiers are built and `ready`) —
 // they are surfaced as ⏳ BLOCKED, never silently skipped, so principle #6 ("everything
-// reachable, or explicitly blocked — not waived") stays visible. See AGENTS.md → Testing.
+// reachable, or explicitly blocked — not waived") stays visible. See CONTRIBUTING.md →
+// Testing for the principles this registry answers to.
 //
 // Two kinds of BLOCKED, both ⏳: *statically* blocked (a tier not built yet, e.g. e2e) and
 // *runtime* blocked (a built tier whose environment isn't reachable here — e.g. the iOS
@@ -239,7 +240,7 @@ const failed = results.filter(
 const blocked = results.filter((r) => r.status === "blocked");
 if (blocked.length > 0) {
   console.log(
-    `⏳ ${blocked.length} tier(s) blocked (not built yet, or environment not reachable here) — see AGENTS.md → Testing. Not counted as failure${strict ? " but --strict is on, so they fail this run" : ""}.`,
+    `⏳ ${blocked.length} tier(s) blocked (not built yet, or environment not reachable here) — see CONTRIBUTING.md → Testing. Not counted as failure${strict ? " but --strict is on, so they fail this run" : ""}.`,
   );
 }
 if (failed.length > 0) {

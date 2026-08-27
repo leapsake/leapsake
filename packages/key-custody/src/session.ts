@@ -271,7 +271,7 @@ export async function ensureDeviceMasterKey(opts: {
  *
  * **`hasAccount`, not `enabled`.** The field was named for sync and meant custody,
  * which read as "does this store sync" — false for the local-only account that
- * `relayUrl` actually answers for. Renamed 2026-07-31; see `AGENTS.md` →
+ * `relayUrl` actually answers for. Renamed 2026-07-31; see this package's README →
  * *Custody vocabulary*.
  */
 export interface SyncStatus {

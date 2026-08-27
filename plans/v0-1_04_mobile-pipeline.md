@@ -69,7 +69,7 @@ what follows is only what is *Android-specific*.
 ## The version-parity check this makes possible
 
 Once both targets are `ready`, one tag ships two artifacts that claim to work together —
-which is the point of the single-version rule ([`../AGENTS.md`](../AGENTS.md) → *Versioning and
+which is the point of the single-version rule ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and
 releases*) and also the first moment it can be **wrong**: identical version numbers say nothing
 if the two builds resolve `@leapsake/flags` differently.
 

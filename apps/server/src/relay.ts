@@ -74,7 +74,7 @@ export type { RateLimit };
  * exposes (README.md).
  */
 
-// --- Trust-boundary validation (AGENTS.md: Zod at every boundary). ----------
+// --- Trust-boundary validation: every field off the wire is parsed, never trusted. ---
 
 const base64 = z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/, "expected base64");
 

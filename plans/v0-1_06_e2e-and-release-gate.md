@@ -1,7 +1,7 @@
 # v0.1 · 06 — Crucial-flow E2E
 
 > **Delete this doc when the work lands.** The tiers and the testing principles are permanent
-> and live in [`../AGENTS.md`](../AGENTS.md) → *Testing*; the flow catalog is
+> and live in [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Testing*; the flow catalog is
 > [`testing/crucial-flows.md`](./testing/crucial-flows.md).
 
 **Value:** the first automated proof a real user can complete the crucial journeys.

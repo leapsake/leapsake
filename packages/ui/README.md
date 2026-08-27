@@ -146,7 +146,8 @@ sees one import surface.
 ## React is a peer dependency
 
 Never a direct one. Desktop and mobile run deliberately different React versions
-(`AGENTS.md` → _React version policy_), and a `dependency` here would put a second
+([`apps/desktop/README.md`](../../apps/desktop/README.md) → _React lives at this app's
+version_), and a `dependency` here would put a second
 physical React in desktop's bundle, whose module-level hook dispatcher then throws
 “Invalid hook call”. The regression guard is
 `pnpm --filter @leapsake/desktop check:bundle`; run it after touching this package's

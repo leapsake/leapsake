@@ -40,7 +40,7 @@ export default defineConfig({
     // singleton, so two physical React instances in one bundle produce "Invalid
     // hook call" / null-dispatcher crashes. Deduping here lets each app own its
     // React version independently (mobile is Expo-pinned, desktop is not) without
-    // a workspace-wide version lock. See AGENTS.md "React version policy".
+    // a workspace-wide version lock. See this app's README → "React lives at this app's version".
     resolve: {
       dedupe: ["react", "react-dom"],
     },

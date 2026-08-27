@@ -3,7 +3,7 @@
 // A release is a **tag**, and this decides what a tag means: which version it names, what
 // must hold before it exists, and which platforms it ships to. The rules are here rather
 // than in a document because a rule a script enforces cannot go stale against the script,
-// and a rule a document states can. What is left in AGENTS.md is the handful of judgments
+// and a rule a document states can. What is left in CONTRIBUTING.md is the handful of judgments
 // no program can make.
 //
 // ## The model
@@ -26,7 +26,7 @@
 //   pnpm release --from-tag=v0.1.0-beta.1 ship a tag that already exists
 //
 // The second is what a runner calls on a tag push, and it is the *same code* — CI is one
-// caller among others, never the owner of the process (AGENTS.md → Testing, principle 6:
+// caller among others, never the owner of the process (CONTRIBUTING.md → Testing, principle 6:
 // no hosted CI is assumed). Anything a workflow file could do that this cannot is a bug
 // in this file.
 //
