@@ -53,6 +53,16 @@
       "sha256": "12f2558d6625ecb633411b96aeabf32a43334e0557db47a463af4b300a31e66a"
     },
     {
+      "path": "apps/mobile/assets/logo.png",
+      "source": "assets/icon/logo_color.svg",
+      "size": 256,
+      "fraction": 0.96,
+      "background": null,
+      "tint": null,
+      "note": "drawn in-app beside the Leapsake wordmark (components/AppHeader.tsx)",
+      "sha256": "db70f1fdbc5a0dc438887385cdaaec451de77d8b7ef7cc3fbbd52155c64020c3"
+    },
+    {
       "path": "apps/desktop/resources/icon.png",
       "source": "assets/icon/logo_color.svg",
       "size": 1024,

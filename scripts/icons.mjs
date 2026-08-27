@@ -83,8 +83,18 @@ const BACKGROUND = "#fbf7f0";
  * - **0.85 (`notification-icon.png`)** — Android's status bar draws the small icon into a
  *   24dp box and expects roughly 2dp of breathing room inside it, which is where this
  *   comes from. There is no mask to dodge here, so it is the loosest of the three.
+ *
+ * - **0.96 (`logo.png`)** — nothing masks or pads a mark drawn inside the app, so this is
+ *   as tight as the artwork goes. Not 1.0 only because the measured box is the *rendered*
+ *   ink including its antialiased edge, and filling the canvas exactly would put that soft
+ *   edge on the boundary where a later resize can clip it.
  */
-const FRACTIONS = { masked: 0.72, adaptive: 0.49, notification: 0.85 };
+const FRACTIONS = {
+  masked: 0.72,
+  adaptive: 0.49,
+  notification: 0.85,
+  bare: 0.96,
+};
 
 /**
  * What gets written, and who reads it.
@@ -133,6 +143,29 @@ const OUTPUTS = [
     background: undefined,
     tint: "#ffffff",
     note: "expo-notifications plugin `icon` — Android reads its alpha only and tints the result",
+  },
+  {
+    /**
+     * The mark as the app draws it *inside itself* — today beside the app's name in the
+     * mobile Home title.
+     *
+     * Transparent, and that is the whole reason it is not `icon.png`: a launcher icon
+     * carries its own cream background, which against the header's `surfaceRaised` would
+     * read as a slightly-wrong square rather than as a frog. Tightly cropped for the same
+     * reason — the padding in the launcher icons is there to survive a mask, and inside
+     * the app it would just look like a gap.
+     *
+     * 256px is a single density rather than the `@2x`/`@3x` set React Native also
+     * understands: it is drawn at ~26pt, so even a 3× screen asks for 78px and everything
+     * here is downscaling. Three files to avoid one cheap downscale is not a trade worth
+     * making.
+     */
+    path: "apps/mobile/assets/logo.png",
+    source: SOURCES.color,
+    size: 256,
+    fraction: FRACTIONS.bare,
+    background: undefined,
+    note: "drawn in-app beside the Leapsake wordmark (components/AppHeader.tsx)",
   },
   {
     path: "apps/desktop/resources/icon.png",

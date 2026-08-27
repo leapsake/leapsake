@@ -117,9 +117,16 @@ export default function TabsLayout() {
           // This also retires `headerRightContainerStyle`, which existed only to
           // undo the bottom-tab navigator's missing edge inset — AppHeader insets
           // both edges itself.
+          //
+          // `showLogo` is decided here, by route, rather than offered as a screen option:
+          // react-navigation's options are a fixed shape, and the alternative — smuggling a
+          // custom key through it — would be a second, weaker way to say something this
+          // navigator already knows. Home is the only title that is the app's *name*
+          // (below), so it is the only one the mark belongs to.
           header: ({ options, route }) => (
             <AppHeader
               title={options.title ?? route.name}
+              showLogo={route.name === "index"}
               right={options.headerRight?.({
                 canGoBack: false,
                 tintColor: colors.accent,
