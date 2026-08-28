@@ -1195,35 +1195,41 @@ const resource = (name: string): string | undefined => {
 const windowIcon = (): string | undefined => resource("icon.png");
 
 /**
- * There is deliberately **no `app.setName("Leapsake")` here**, and that is worth a comment
- * because it is the obvious thing to reach for and it looks harmless.
+ * Every build is "Leapsake" (`productName`, which Electron reads before any of this runs);
+ * an unpackaged one is "Leapsake Dev".
  *
- * `app.name` is not a label. Electron derives three things from it, and only the first is
- * cosmetic:
+ * **`app.name` is not a label**, which is the whole reason this is three lines and a long
+ * comment. Electron derives three things from it, and only the first is cosmetic:
  *
- *   1. the wording *inside* the macOS app menu — "About @leapsake/desktop", "Quit …";
+ *   1. the wording *inside* the macOS app menu — "About Leapsake Dev", "Quit …";
  *   2. `app.getPath("userData")`, i.e. where this device's whole store lives;
  *   3. on macOS, the **Keychain item safeStorage wraps keys with** — the service is
- *      `<app.name> Safe Storage`, so a rename silently points the enclave at a different
- *      key and every value in `keystore.json` stops decrypting.
+ *      `<app.name> Safe Storage`, so the name decides which key `keystore.json` is sealed
+ *      under. There is no API to ask safeStorage for a different one.
  *
- * (3) is the one that bites, and it is not fixable the way (2) is. `app.setPath` can pin
- * the store back to where it was, so a rename *looks* survivable; there is no equivalent
- * API for the Keychain service, and no way to ask safeStorage for the old name. The result
- * on any device with an account is a store that opens, a `keystore.json` that no longer
- * decrypts, and a recovery prompt on next launch. Measured, not assumed: renaming to
- * "Leapsake" creates a fresh `Leapsake Safe Storage` item rather than reusing
- * `@leapsake/desktop Safe Storage`.
+ * (3) is why a rename cannot be undone by pinning. `app.setPath` can put `userData` back,
+ * which makes a late rename *look* survivable while the enclave has quietly moved to a key
+ * that decrypts none of the existing wraps.
  *
- * So the app's *name* stays this package's name, and the two surfaces that can be reached
- * without touching it are set instead — `scripts/name-dev-bundle.mjs` for the menu-bar
- * title, and the Dock icon in `whenReady` below. Menu **items** keep saying
- * "@leapsake/desktop" in dev, which is the price, and which packaging ends by giving the
- * app a real name from the start rather than renaming a running one.
+ * What makes this call safe is that it is not a *change* of name: it runs at module scope,
+ * before `whenReady` and before anything has read `app.name`, and it runs identically on
+ * every launch. A dev device is therefore only ever "Leapsake Dev" — store, Keychain item
+ * and menu all agreeing from its first launch. Verified rather than assumed: with
+ * `productName` "Leapsake", this lands `userData` on `…/Leapsake Dev` and safeStorage on
+ * `Leapsake Dev Safe Storage`.
  *
- * Renaming for real is a data migration, not an edit here. See the desktop README →
- * *The app's face on macOS*.
+ * The split is deliberate and not only cosmetic. `pnpm dev` ships breaking schema changes
+ * without migrations (see the repo's pre-v0.1 stance), so a dev build must not be able to
+ * open the store an installed Leapsake is using. Keeping the names apart is what enforces
+ * that. **Changing either name is a data migration** — desktop README → *The app's face on
+ * macOS*.
+ *
+ * `scripts/name-dev-bundle.mjs` stamps the same string onto the dev bundle, because the
+ * menu-bar *title* comes from `CFBundleName` and is out of reach from here.
  */
+// `app.getName()` is still `productName` at this point, so the suffix is the only thing
+// stated here and the product is named in exactly one place — `package.json`.
+if (!app.isPackaged) app.setName(`${app.getName()} Dev`);
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({

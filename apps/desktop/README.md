@@ -19,7 +19,7 @@ src/
 
 **Where the data lives depends on custody.** A device with no account holds a
 _plaintext_ store at `stores/local/leapsake.db` under Electron's `userData` path
-(`~/Library/Application Support/@leapsake/desktop/` on macOS); once an account
+(`~/Library/Application Support/Leapsake Dev/` in dev on macOS, `…/Leapsake` packaged); once an account
 exists the store is encrypted and lives at `stores/<accountId>/leapsake.db`, with
 its two unlock doors beside it as sidecar files. The roster
 (`accounts.json`) sits outside every store and is what the boot path reads to
@@ -35,12 +35,13 @@ pnpm --filter @leapsake/desktop build   # production bundle into out/
 pnpm --filter @leapsake/desktop start   # preview the built app
 ```
 
-`dev` puts this device's userData at `~/Library/Application Support/@leapsake/desktop` — the
-dev app, **not** the packaged `…/Leapsake`. It stays that way even though the app now calls
-itself Leapsake; see *The app's face on macOS* below.
+`dev` and `start` are unpackaged, so they run as **Leapsake Dev** and put this device's
+userData at `~/Library/Application Support/Leapsake Dev` — deliberately not the packaged
+`…/Leapsake`. See *The app's name, and why it is a data boundary* below; it is a boundary
+worth understanding before changing either name.
 
-`dev` and `start` each run two `node_modules` chores first: the SQLite ABI flip below, and
-`scripts/name-dev-bundle.mjs`, which puts Leapsake's name on the dev Electron bundle. Both are
+Both also run two `node_modules` chores first: the SQLite ABI flip below, and
+`scripts/name-dev-bundle.mjs`, which puts that name on the dev Electron bundle. Both are
 idempotent, and both re-apply themselves after an install wipes them.
 
 > ⚠️ Any of these flips the native SQLite binary to the Electron ABI, which breaks the next
@@ -59,6 +60,7 @@ different moments:
 | --- | --- | --- |
 | Dock icon | `app.dock.setIcon(resources/icon-macos.png)` | `src/main/index.ts`, after `whenReady` |
 | Menu-bar title | `CFBundleName` in the dev bundle's `Info.plist` | `scripts/name-dev-bundle.mjs`, run by `dev`/`start` |
+| Menu wording (About…, Quit…) | `productName`, plus a dev suffix | `package.json`; `src/main/index.ts` |
 | Window title | the renderer's own `<title>` | `src/renderer/index.html` |
 
 The second row is the awkward one: AppKit takes the menu title from the bundle and nothing at
@@ -70,36 +72,54 @@ linker-signed with its `Info.plist` unsealed, and the copy is this repo's own.
 supplies no mask of its own and wants the rounded tile in the pixels; see
 [`assets/icon/README.md`](../../assets/icon/README.md).
 
-### Why the app is not simply renamed
+## The app's name, and why it is a data boundary
 
-The menu **items** still say "About @leapsake/desktop" in dev, and the one-line fix —
-`app.setName("Leapsake")` — is a trap worth documenting, because it looks cosmetic and is not.
+Every build is **Leapsake**; an unpackaged one is **Leapsake Dev**. That is one field and one
+guarded line:
 
-`app.name` feeds three things. The menu wording is one. `app.getPath("userData")` is the
-second, and that one at least has a lever: `app.setPath` can pin the store back where it was.
-The third has no lever. On macOS, safeStorage wraps keys with a Keychain item whose service is
-**`<app.name> Safe Storage`**, and there is no API to ask it for a different name. Rename the
-app and this device's enclave quietly points at a new key, so `keystore.json` stops decrypting:
-the store still opens, custody is degraded, and every existing device meets a recovery prompt
-on next launch.
+```jsonc
+// package.json — read by Electron before any app code runs
+"productName": "Leapsake"
+```
+```ts
+// src/main/index.ts, at module scope
+if (!app.isPackaged) app.setName(`${app.getName()} Dev`);
+```
 
-Measured rather than assumed — renaming to "Leapsake" creates a fresh `Leapsake Safe Storage`
-item rather than reusing the existing `@leapsake/desktop Safe Storage`.
+Alpha, beta, RC and stable are all packaged, so they are all plain "Leapsake" with nothing to
+configure. `app.isPackaged` is the only distinction that matters here.
 
-So **renaming the app is a data migration, not a rename.** If it is ever worth doing, the
-mechanism is `productName` in this package's `package.json` — which Electron reads before any
-app code runs, so the name is right from the start and nothing has to be un-done — plus a plan
-for the two things that move with it:
+**`app.name` is not a label.** Electron derives three things from it, and only the first is
+cosmetic:
 
-- the store, `~/Library/Application Support/@leapsake/desktop` → `…/<new name>`; and
-- the wrapped keys, which **cannot** be moved. Once the name changes, the old Keychain item is
-  unreachable, so an encrypted device has to come back through a password or recovery-phrase
-  door and re-wrap. A device with no account (plaintext store) is unaffected.
+1. the wording *inside* the macOS app menu — "About Leapsake Dev", "Quit …";
+2. `app.getPath("userData")` — where this device's whole store lives;
+3. on macOS, the **Keychain item safeStorage wraps keys with**: the service is
+   `<app.name> Safe Storage`, so the name decides which key `keystore.json` is sealed under.
 
-Note also that whatever name is chosen becomes the *packaged* app's directory too. Sharing one
-with dev means a dev build running unmigrated schema changes against the store the installed
-app uses — see the pre-v0.1 stance on breaking changes without migrations. A distinct dev name
-(`"productName": "Leapsake Dev"`) buys the honest menu wording without that.
+The third has no lever. `app.setPath` can put `userData` back where it was, which makes a late
+rename *look* survivable while the enclave has quietly moved to a key that decrypts none of the
+existing wraps. There is no equivalent API for the Keychain service.
+
+What makes the dev rename safe is that it is not a *change* of name. It runs at module scope,
+before anything has read `app.name`, and identically on every launch — so a dev device is only
+ever "Leapsake Dev", with store, Keychain item and menu agreeing from its first launch.
+
+**So the two names are a data boundary, not decoration.** `dev` ships breaking schema changes
+without migrations (see the repo's pre-v0.1 stance); the separate name is what stops a dev
+build opening the store an installed Leapsake is using.
+
+### Renaming either one is a migration
+
+Two things move with a name, and only one of them can be carried:
+
+- **the store** — `mv "~/Library/Application Support/<old>" "~/Library/Application Support/<new>"`;
+- **the wrapped keys**, which cannot move. The old Keychain item becomes unreachable, so an
+  encrypted device comes back through its password or recovery-phrase door and re-wraps on the
+  way in. A device with no account (plaintext store) just moves.
+
+`keystore.json` does not travel between machines anyway — see *Backing up and restoring* — so
+this is the same path a restore onto a new machine already takes.
 
 ### More than one device at once
 
@@ -187,8 +207,8 @@ recovering an account is what converts it and mints the db-key. The boot path is
 whole answer, and it works in every custody state. On macOS:
 
 ```
-~/Library/Application Support/Leapsake/          # packaged
-~/Library/Application Support/@leapsake/desktop/ # dev
+~/Library/Application Support/Leapsake/     # packaged
+~/Library/Application Support/Leapsake Dev/ # dev
   accounts.json          # the roster — which accounts this device knows
   stores/local/leapsake.db          # Unauthenticated: plaintext
   stores/<accountId>/leapsake.db    # Authenticated: ciphertext

@@ -1,10 +1,14 @@
-// Give the *dev* Electron bundle Leapsake's name, so macOS's menu bar does too.
+// Give the *dev* Electron bundle the dev app's name, so macOS's menu bar does too.
 //
 // macOS takes the name beside the Apple logo from the running bundle's `CFBundleName`, and
 // nothing the app does at runtime can reach it: `app.setName` renames everything *inside*
 // that menu — About…, Hide…, Quit… — and leaves the title itself alone. In dev the bundle
 // is `node_modules/electron/dist/Electron.app`, so the title is “Electron”, and the app is
 // nameless on the one platform it is developed on.
+//
+// The name written here must match what `src/main/index.ts` calls an unpackaged build, or
+// the menu bar and its own items disagree. Both derive it from `productName` and append the
+// same suffix; that suffix is the one thing stated in two files.
 //
 // Editing someone else's package is not free, so the reasons this is the cheap side of the
 // trade, in order:
@@ -23,11 +27,16 @@
 // Idempotent, and **never fatal**: a cosmetic name is not worth failing a dev launch over,
 // so anything unexpected is a warning and the app starts with the stock title.
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
-const NAME = "Leapsake";
+/**
+ * `productName` with the dev suffix — the same string `src/main/index.ts` gives an
+ * unpackaged build. Read from `package.json` rather than written out, so renaming the
+ * product is one edit in one file.
+ */
+const NAME = `${JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).productName} Dev`;
 
 /**
  * `Info.plist` of the Electron.app that `electron-vite dev` is about to launch.
