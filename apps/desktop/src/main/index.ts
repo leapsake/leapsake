@@ -1173,29 +1173,65 @@ function registerSyncIpc(): void {
 }
 
 /**
+ * A file in `resources/`, or `undefined` if it is not there.
+ *
+ * Resolved from the built `out/main/`, which reaches the repo copy in dev and in an
+ * unpackaged build. A packaged build puts resources somewhere else; that path is a
+ * decision for electron-builder to make when it arrives (plans/v0-2.md), so every caller
+ * here treats a miss as "no icon" rather than asserting a file that will legitimately
+ * move. An app that boots without its face is a better failure than one that does not boot.
+ */
+const resource = (name: string): string | undefined => {
+  const path = join(__dirname, "../../resources", name);
+  return existsSync(path) ? path : undefined;
+};
+
+/**
  * The window icon, generated from `assets/icon/logo_color.svg` by `pnpm icons`.
  *
  * Windows and Linux take the icon from the window; **macOS ignores this entirely** and
- * reads the app bundle instead, so this does nothing on the machine most of this is
- * developed on. It is still worth setting, because until desktop packaging lands
- * (plans/v0-2.md) a window icon is the *only* place the desktop app wears its own face
- * rather than the stock Electron one.
- *
- * The path is resolved from the built `out/main/`, which reaches the repo copy in dev and
- * in an unpackaged build. A packaged build puts resources somewhere else; that path is a
- * decision for electron-builder to make when it arrives, so this stays optional rather
- * than asserting a file that will legitimately move.
+ * reads the app bundle instead — {@link setMacIdentity} is the macOS half.
  */
-const windowIcon = (): string | undefined => {
-  const path = join(__dirname, "../../resources/icon.png");
-  return existsSync(path) ? path : undefined;
-};
+const windowIcon = (): string | undefined => resource("icon.png");
+
+/**
+ * The name macOS puts inside its own menus — "About Leapsake", "Hide Leapsake", "Quit
+ * Leapsake" — which Electron builds from `app.name` and which is otherwise this package's
+ * name, `@leapsake/desktop`.
+ *
+ * It does **not** set the menu's *title*: AppKit takes that from the running bundle's
+ * `CFBundleName`, out of reach of anything at runtime, and in dev the bundle is
+ * `node_modules/electron/dist/Electron.app`. `scripts/name-dev-bundle.mjs` handles that
+ * half on the way into `dev`; the two halves together are what make the menu read
+ * "Leapsake" throughout. The Dock icon is a third, in `whenReady` below.
+ *
+ * **The rename is deliberately cosmetic, and the second line is what keeps it that way.**
+ * `userData` is derived from the app's name, so `setName` alone would move this device's
+ * whole store — from `@leapsake/desktop` to `Leapsake`, which is precisely the packaged
+ * app's directory and precisely the one dev is meant to stay out of (README → "Where the
+ * data lives depends on custody"). Re-pinning the path to what it already resolved to
+ * keeps the two apart in dev, and changes nothing once packaged, where the name resolved
+ * to Leapsake before this ran.
+ *
+ * Runs before `whenReady`, because startup reads both the name and the path.
+ */
+function setMacIdentity(): void {
+  if (process.platform !== "darwin") return;
+  const storeRoot = app.getPath("userData");
+  app.setName("Leapsake");
+  app.setPath("userData", storeRoot);
+}
+
+setMacIdentity();
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 900,
     height: 700,
     icon: windowIcon(),
+    // The title until the renderer's own `<title>` takes over — a frame of "Electron"
+    // otherwise, since a window with no title falls back to the bundle's name.
+    title: "Leapsake",
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -1291,6 +1327,16 @@ ipcMain.on("flags:snapshot", (event) => {
 });
 
 void app.whenReady().then(async () => {
+  // The Dock icon, which macOS reads from the app bundle rather than from the window — so
+  // in dev it is Electron's atom until something says otherwise. Here rather than beside
+  // {@link setMacIdentity} only because there is no Dock to set an icon on before ready.
+  //
+  // `icon-macos.png` rather than `icon.png`: macOS composites the file exactly as given
+  // and supplies no mask, so the rounded tile and the margin it reserves for the badge and
+  // the drop shadow have to be in the pixels. See `scripts/icons.mjs` → `PLATE`.
+  const dockIcon = resource("icon-macos.png");
+  if (dockIcon !== undefined) app.dock?.setIcon(dockIcon);
+
   userDataPath = app.getPath("userData");
   keystorePath = join(userDataPath, "keystore.json");
   keyStore = safeStorageKeyStore(keystorePath);

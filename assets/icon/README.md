@@ -18,7 +18,20 @@ Regenerating needs `brew install librsvg imagemagick`. Nothing else does.
 
 > **Changing an icon means re-running `expo prebuild`** for the platform you want to see it
 > on. `pnpm ios` / `pnpm android` build the *existing* native project; they do not re-run the
-> pipeline that writes into it.
+> pipeline that writes into it. The desktop app needs no such step — it reads its PNGs from
+> `apps/desktop/resources/` at launch.
+
+## Why macOS gets its own file
+
+`icon-macos.png` is the same frog as `icon.png` and is not a duplicate. iOS and Android are
+handed a full-bleed square and round it off themselves; macOS composites the file exactly as
+given, so the rounded tile *and* the ~10% margin macOS reserves for the badge and the drop
+shadow have to be drawn into the pixels. A full-bleed square in the Dock is a hard-edged tile
+sitting slightly larger than every icon beside it.
+
+It is applied at runtime by `app.dock.setIcon` in the desktop main process, because until
+packaging lands there is no app bundle to read an icon *from* — see
+[`apps/desktop/README.md`](../../apps/desktop/README.md) → *The app's face on macOS*.
 
 ## Attribution
 

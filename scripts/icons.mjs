@@ -97,6 +97,32 @@ const FRACTIONS = {
 };
 
 /**
+ * The rounded square a macOS icon is drawn *on*, rather than masked *to*.
+ *
+ * This is the one platform that does not supply the shape itself. iOS and Android are
+ * handed a full-bleed square and round it off; macOS composites the PNG as-is, so a
+ * full-bleed square is exactly what the Dock shows — a hard-edged tile beside a row of
+ * squircles. The shape has to be in the pixels.
+ *
+ * Both numbers are Apple's macOS icon grid (Big Sur onward), stated as fractions of the
+ * 1024px canvas so they survive a size change:
+ *
+ * - **0.8047 (`fraction`)** — the icon body is 824 of 1024, and the ~100px margin on each
+ *   side is not decoration: macOS reserves it for the badge, the bounce, and the drop
+ *   shadow it draws behind the tile. An icon that fills its canvas renders *larger* than
+ *   every neighbour in the Dock, which reads as a mistake rather than as emphasis.
+ *
+ * - **0.225 (`radius`)** — 185.4 of the 824px body. Close enough to iOS's ~0.2237 that
+ *   `FRACTIONS.masked` can describe the artwork inside both, which is why the frog is the
+ *   same relative size on a Mac dock as on an iPhone home screen.
+ *
+ * An output with a `plate` measures its `fraction` against the plate's edge rather than
+ * the canvas, and keeps its alpha channel — the canvas outside the tile must be
+ * transparent or the shape is not a shape.
+ */
+const PLATE = { fraction: 824 / 1024, radius: 185.4 / 824 };
+
+/**
  * What gets written, and who reads it.
  *
  * `background: undefined` means a transparent canvas. That is not a style choice in either
@@ -181,12 +207,33 @@ const OUTPUTS = [
     note: "drawn in-app beside the Leapsake wordmark (renderer App.tsx)",
   },
   {
+    // Full-bleed, because Windows and Linux want the square and draw their own framing
+    // around it. macOS ignores a window icon entirely — see `icon-macos.png` below.
     path: "apps/desktop/resources/icon.png",
     source: SOURCES.color,
     size: 1024,
     fraction: FRACTIONS.masked,
     background: BACKGROUND,
-    note: "the Electron window icon, and the master electron-builder will slice when desktop packaging lands (plans/v0-2.md)",
+    note: "the Electron window icon on Windows and Linux, and the master electron-builder will slice when desktop packaging lands (plans/v0-2.md)",
+  },
+  {
+    /**
+     * The macOS Dock icon, which is a separate file from `icon.png` rather than a crop of
+     * it because the two platforms disagree about who draws the shape (see `PLATE`).
+     *
+     * Set at runtime by `app.dock.setIcon` in the main process, which is what makes it
+     * work in `pnpm desktop`: unpackaged Electron has no bundle of its own to read an
+     * icon from, so without this the Dock shows the stock Electron atom no matter what
+     * the window is given. The same file is the master electron-builder will turn into
+     * `icon.icns` when packaging lands.
+     */
+    path: "apps/desktop/resources/icon-macos.png",
+    source: SOURCES.color,
+    size: 1024,
+    fraction: FRACTIONS.masked,
+    plate: PLATE,
+    background: BACKGROUND,
+    note: "app.dock.setIcon in the main process, and the master for icon.icns when desktop packaging lands (plans/v0-2.md)",
   },
 ];
 
@@ -289,12 +336,28 @@ function measureContent(source) {
  * element carrying it is also filtered, and renders the artwork oversized and anchored to
  * the corner instead of fitted and centred. The `<g>` keeps the two jobs on separate
  * elements, which is the arrangement both actually specify.
+ *
+ * `plate` (see `PLATE`) turns the background from a full-bleed fill into a centred rounded
+ * square, and makes `fraction` a measurement against *that* square rather than the canvas.
+ * Both halves of that matter: an output with a plate is asking for the artwork to sit the
+ * same way inside the visible tile as a full-bleed one does inside its canvas, so the
+ * margin the plate adds has to come off the artwork too rather than only off the fill.
  */
-function wrap({ inner, box, size, fraction, background, tint }) {
-  const inset = ((1 - fraction) / 2) * size;
+function wrap({ inner, box, size, fraction, background, tint, plate }) {
+  const plateEdge = plate ? plate.fraction * size : size;
+  const inset = (size - plateEdge * fraction) / 2;
   const edge = size - inset * 2;
+  const platedRect = () => {
+    const at = (size - plateEdge) / 2;
+    return (
+      `<rect x="${at}" y="${at}" width="${plateEdge}" height="${plateEdge}"` +
+      ` rx="${plate.radius * plateEdge}" fill="${background}"/>`
+    );
+  };
   const rect = background
-    ? `<rect width="${size}" height="${size}" fill="${background}"/>`
+    ? plate
+      ? platedRect()
+      : `<rect width="${size}" height="${size}" fill="${background}"/>`
     : "";
   const [r, g, b] = tint
     ? [1, 3, 5].map((at) => Number.parseInt(tint.slice(at, at + 2), 16) / 255)
@@ -326,7 +389,11 @@ function wrap({ inner, box, size, fraction, background, tint }) {
  * anything this script asked for. Asserting it here turns a future rasterizer change into
  * a failed `pnpm icons` instead of a failed release.
  */
-function assertAlpha(png, { path, background }) {
+function assertAlpha(png, { path, background, plate }) {
+  // A plated icon has a background *and* an alpha channel, and needs both: the fill is the
+  // tile, the transparency is everything around it. It is the one output where the two are
+  // not opposites, so it takes the `background`-implies-opaque rule out of play.
+  const opaque = background !== undefined && plate === undefined;
   // `%[channels]` reads "srgba 4.0" / "srgb 3.0" — the colourspace token carries the
   // alpha, and the channel count trailing it is why this is parsed rather than suffixed.
   const channels = execFileSync(
@@ -336,16 +403,16 @@ function assertAlpha(png, { path, background }) {
   );
   const [colorspace] = channels.trim().split(/\s+/);
   const hasAlpha = colorspace.endsWith("a");
-  if (background && hasAlpha) {
+  if (opaque && hasAlpha) {
     throw new Error(
       `${path} carries an alpha channel; iOS rejects an app icon that does. ` +
         "The rasterizer no longer drops it for an opaque canvas — flatten before writing.",
     );
   }
-  if (!background && !hasAlpha) {
+  if (!opaque && !hasAlpha) {
     throw new Error(
-      `${path} lost its alpha channel; an Android adaptive foreground needs one, ` +
-        "or it paints over the background layer it is meant to sit on.",
+      `${path} lost its alpha channel; an Android adaptive foreground needs one so it does ` +
+        "not paint over the layer it sits on, and a macOS plate needs one to have a shape.",
     );
   }
 }
@@ -396,6 +463,7 @@ function generate() {
       size: output.size,
       fraction: output.fraction,
       background: output.background ?? null,
+      plate: output.plate ?? null,
       tint: output.tint ?? null,
       note: output.note,
       sha256: sha256(png),

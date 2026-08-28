@@ -36,11 +36,43 @@ pnpm --filter @leapsake/desktop start   # preview the built app
 ```
 
 `dev` puts this device's userData at `~/Library/Application Support/@leapsake/desktop` — the
-dev app, **not** the packaged `…/Leapsake`.
+dev app, **not** the packaged `…/Leapsake`. It stays that way even though the app now calls
+itself Leapsake; see *The app's face on macOS* below.
+
+`dev` and `start` each run two `node_modules` chores first: the SQLite ABI flip below, and
+`scripts/name-dev-bundle.mjs`, which puts Leapsake's name on the dev Electron bundle. Both are
+idempotent, and both re-apply themselves after an install wipes them.
 
 > ⚠️ Any of these flips the native SQLite binary to the Electron ABI, which breaks the next
 > Vitest run in a misleading way. See [`../../AGENTS.md`](../../AGENTS.md) → *The native SQLite
 > ABI, and how it bites*.
+
+## The app's face on macOS
+
+The Dock icon and the name beside the Apple logo are both read from the **app bundle**, and
+in dev the bundle is `node_modules/electron/dist/Electron.app` — someone else's icon, someone
+else's name. Packaging will supply a real one (plans/v0-2.md); until it does, three small
+pieces stand in, and they are in three different places because macOS reads them at three
+different moments:
+
+| Surface | Set by | Where |
+| --- | --- | --- |
+| Dock icon | `app.dock.setIcon(resources/icon-macos.png)` | `src/main/index.ts`, after `whenReady` |
+| Menu-bar title | `CFBundleName` in the dev bundle's `Info.plist` | `scripts/name-dev-bundle.mjs`, run by `dev`/`start` |
+| Everything in that menu (About…, Hide…, Quit…) | `app.setName("Leapsake")` | `src/main/index.ts`, before `whenReady` |
+
+The middle row is the awkward one: AppKit takes the menu title from the bundle and nothing at
+runtime can reach it, so `dev` stamps the downloaded bundle on its way past. That is safe here
+and the script says why at length — the short version is that the bundle is ad-hoc
+linker-signed with its `Info.plist` unsealed, and the copy is this repo's own.
+
+> ⚠️ **`app.setName` moves `userData` if you let it**, from `@leapsake/desktop` to `Leapsake` —
+> which is the packaged app's directory and the one dev is meant to stay out of. `setMacIdentity`
+> re-pins the path immediately, so the rename stays cosmetic. Do not drop that line.
+
+`icon-macos.png` is a separate file from `icon.png` rather than a crop of it, because macOS
+supplies no mask of its own and wants the rounded tile in the pixels; see
+[`assets/icon/README.md`](../../assets/icon/README.md).
 
 ### More than one device at once
 
