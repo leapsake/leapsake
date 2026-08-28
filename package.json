@@ -27,7 +27,7 @@
     "test:integration": "node scripts/ensure-sqlite-abi.mjs node && vitest run apps",
     "test:bundle": "pnpm --filter @leapsake/desktop check:bundle",
     "test:native": "node scripts/test-native.mjs",
-    "test:e2e": "node scripts/test-all.mjs --only=e2e",
+    "test:e2e": "node scripts/test-e2e.mjs",
     "server": "pnpm --filter @leapsake/server dev"
   },
   "devDependencies": {
