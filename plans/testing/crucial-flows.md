@@ -174,13 +174,13 @@ surface no lower tier reaches).
   driven through the real UI, plus the OS key store's transition from empty to populated. Both
   clients' converters are covered a tier down; what only E2E proves is that the **running app**
   survives its own store being swapped and remains usable immediately afterwards.
-- **Harness note:** desktop offers a local-only account (no relay). Mobile today reaches account
-  creation only through the relay-bound signup path, so on mobile this flow runs as Flow 6's
-  signup step until a local-only entry exists there. Same journey, different entry point — the
-  assertions above are unchanged. **That is a product gap, not just a harness one** — under
-  *encryption follows custody* it means a mobile-only user cannot encrypt at all — and it is
-  tracked as **slice 7c** in [`../status.md`](../status.md). Fold this note back in when 7c
-  lands and the entry points converge.
+- **Harness note:** ~~Mobile today reaches account creation only through the relay-bound signup
+  path~~ — **stale, corrected 2026-08-27.** Both clients now offer a local-only account with no
+  relay: mobile renders `CreateAccount` outside the `multiDevice` gate
+  (`apps/mobile/app/settings.tsx:118`), because the flag's line is the relay, not the login. The
+  entry points have converged, so this flow runs the same way on both. The assertions above are
+  unchanged, and the product gap this note used to record — a mobile-only user unable to encrypt
+  at all under *encryption follows custody* — is closed.
 
 ### Flow 5 — Reminder with an `@mention` and a `#tag` (Home round-trip)
 
@@ -302,17 +302,23 @@ tier stays small). Listed so the owner can pull any into the gate:
 
 ## Per-platform × per-flow matrix (the gate at a glance)
 
-| Flow | macOS | Android | iOS | Win/Linux | Devices | Harness notes |
-|---|---|---|---|---|---|---|
-| 1 First run (Unauthenticated, mints nothing) | gate | gate | gate | later | 1 | fresh profile per run; asserts the key store is empty |
-| 2 Person + relationship | gate | gate | gate | later | 1 | — |
-| 3 Milestone | gate | gate | gate | later | 1 | relaunch to prove persistence |
-| 4 Create an account | gate | gate | gate | later | 1 | must run on a store **with** data; capture the phrase here |
-| 5 Reminder @/# round-trip | gate | gate | gate | later | 1 | drives the compose pickers |
-| 6 Enable sync + pair | gate | gate | gate | later | **2** | needs a relay + two instances; Flow 4's assertions apply to A |
-| 7a Cross-device recovery | gate | gate | gate | later | 2 | includes wrong-phrase negative |
-| 7b At-rest, phrase door | gate | gate | gate | later | 1 | key-store reset: delete `keystore.json` / `dev-clear-dbkey` |
-| 7c At-rest, password door | gate | gate | gate | later | 1 | same reset, password answer; prove both doors independent |
+| Flow | Gates at | macOS | Android | iOS | Win/Linux | Devices | Harness notes |
+|---|---|---|---|---|---|---|---|
+| 1 First run (Unauthenticated, mints nothing) | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | fresh profile per run; asserts the key store is empty |
+| 2 Person + relationship | **beta** | gate | gate | gate | later | 1 | — |
+| 3 Milestone | **beta** | gate | gate | gate | later | 1 | relaunch to prove persistence |
+| 4 Create an account | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | must run on a store **with** data; capture the phrase here |
+| 5 Reminder @/# round-trip | **beta** | gate | gate | gate | later | 1 | drives the compose pickers |
+| 6 Enable sync + pair | with sync (v0.2) | gate | gate | gate | later | **2** | needs a relay + two instances; Flow 4's assertions apply to A |
+| 7a Cross-device recovery | with sync (v0.2) | gate | gate | gate | later | 2 | includes wrong-phrase negative |
+| 7b At-rest, phrase door | **rc** | gate | gate | gate | later | 1 | key-store reset: delete `keystore.json` / `dev-clear-dbkey` |
+| 7c At-rest, password door | **rc** | gate | gate | gate | later | 1 | same reset, password answer; prove both doors independent |
+
+**"Gates at"** is the release rung by which a flow must be green, per
+[`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → §C's rung table
+*(drafted 2026-08-27, pending sign-off — [`../v0-1.md`](../v0-1.md) → open decision 1)*. It grades
+*when*, never *whether*: every core flow still gates v0.1, and `rc` is inside v0.1. Flows 6/7a are
+the exception and leave v0.1 entirely, per open decision 2.
 
 "gate" = must be green before v0.1 on that platform ([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*: iOS + Android + macOS).
 Windows/Linux run the identical list once a host exists (deferred, blocked-not-waived).

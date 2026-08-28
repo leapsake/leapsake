@@ -74,9 +74,35 @@ holds — a real-device farm never becomes a hard dependency.
 | Windows desktop | the Windows app on Windows | ❌ needs a Windows host (VM / NUC / self-hosted runner) |
 | Linux desktop | the Linux app on Linux + xvfb | ❌ needs a Linux container/VM |
 
-**As written, the v0.1 gate is iOS + Android + macOS.** Windows and Linux are *deliberately
-deferred* — blocked on a host, not waived; shipping a subset is an explicit, supported outcome.
-Whether the full catalog on all three really gates v0.1 is **open decision 1** above.
+**The v0.1 gate is iOS + Android.** *(It read "iOS + Android + macOS" until desktop left v0.1
+on 2026-08-26.)* Windows and Linux are *deliberately deferred* — blocked on a host, not waived;
+shipping a subset is an explicit, supported outcome. **How much of the catalog is required at
+which rung** is the amendment below, and remains **open decision 1** until it is signed off.
+
+⚠️ **Amended 2026-08-27 — drafted, pending owner sign-off** ([`v0-1.md`](./v0-1.md) →
+*Open decisions* 1). **The rule's unit is *platform × rung*, not platform.** The catalog is
+still required in full before Leapsake is a product anyone can buy into; what changes is that
+the earliest rung a stranger installs does not have to carry the whole of it on day one.
+
+| Rung | Who installs it | What must be green |
+|---|---|---|
+| `alpha` | internal TestFlight — named App Store Connect users, ≤100 | the suite **without** `--strict`; the `e2e` tier may not exist yet *(already true — §B)* |
+| `beta` | external TestFlight — the first strangers | Flows **1, 2, 3, 4, 5**, **on-screen assertions only**, on iOS **and** Android. The `e2e` tier is `ready` and **passes** under `--strict` |
+| `rc` | external TestFlight, ship-ready | the above **plus** Flows **7b, 7c** and **every out-of-band custody assertion** |
+| `final` | the App Store — the public | `rc`'s bar, unchanged. Flows 6/7a are *open decision* 2 and ship with sync, not with v0.1 |
+
+**What the grading does not touch, and must not:** `--strict` stays strict at every rung above
+`alpha`, and a `blocked` tier stays a failure. [`10`](./v0-1_10_external-testflight.md) warns
+against exempting `beta` from the gate; this changes what the gate **contains**, not whether it
+runs. A subset that is merely *skipped* would be the thing 10 forbids.
+
+**Why the line falls there.** `beta` proves the app does not lose data in normal use; `rc` proves
+it can give the data back when the OS loses the key. The deferred set is exactly the set that is
+expensive for a reason unrelated to risk — the out-of-band assertions need a mobile inspection
+surface that does not exist, and 6/7a need two instances — with one deliberate exception: **the
+recovery doors (7b/7c) are cheap and still deferred**, and that is the trade the owner is signing
+off on. The residual risk and its mitigation are stated in [`v0-1.md`](./v0-1.md) → *Open
+decisions* 1.
 
 **Vendor-neutrality is two layers, kept apart.** The **authoring layer** — the flow catalog and
 its harness specs (Maestro flows, Playwright/Electron specs) — is open-source, portable, drives
@@ -84,6 +110,34 @@ the app through OS/UI, and is what we own and keep. The **execution layer** — 
 runs: local, self-hosted VM/NUC, or (if ever) a farm — is a swappable backend. The rule that
 keeps them apart: **never bake a farm's proprietary API into a spec.** A spec that runs locally
 must run on a self-hosted host with only config changes.
+
+## D — Building the beta bar
+
+Five flows, on-screen only. Most of the authoring is composition, not net-new YAML.
+
+- ✅ **The runner is built** *(2026-08-28)*. `test:e2e` was `test-all --only=e2e` while the
+  tier's own script was `test:e2e`, so flipping the tier to `ready` would have made it spawn
+  itself forever — safe only because `blocked` short-circuits before the spawn. It is now
+  **`scripts/test-e2e.mjs`**, a sibling of `test-native.mjs`, and everything both need —
+  device detection, provisioning, the dev-client install, Metro, the per-platform prepare —
+  was extracted to **`scripts/lib/mobile-harness.mjs`** rather than duplicated. Flows **1-3
+  are written and green on the iOS simulator**; 4 and 5 are what the `beta` rung still owes,
+  and the tier stays `blocked` until they land.
+- **Both mobile platforms, one authoring pass.** `--strict` runs the whole suite regardless of
+  which target ships ([`10`](./v0-1_10_external-testflight.md)), so an iOS-only beta still needs
+  Android green — but the cost is not doubled: Maestro flows are byte-identical across the two
+  ([`../apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md)).
+- **Reuse what `maestro/subflows/` already holds** — `add-person`, `add-pet`, `stage-birthday`,
+  `save-record`, `dismiss-keyboard`. Flows 2 and 3 are largely arrangement of these.
+- **Flow 4 needs no new app surface.** Maestro's `copyTextFrom` captures the one-time phrase;
+  nothing has to be revealed twice to make it testable.
+- **Three anchors, not five.** `home-empty`, `home-ready`, `recovery-phrase`. `recovery-gate`
+  waits for 7b/7c at `rc`; `sync-status` waits for sync entirely.
+- **Encode the escalation as a check, not as prose.** `scripts/release/targets/ios.mjs` carries
+  the `rc` bar as a `manual:` line today ("the crucial-flow catalog green on a real device").
+  Make it a `requires:` check that every catalog flow has a registered Maestro flow, so `rc`
+  refuses to build with the beta subset still standing in for the whole. A rule a program can
+  check does not belong in a sentence ([`README.md`](./README.md) → *the five kinds of knowledge*).
 
 ## Deferred out of this increment
 
