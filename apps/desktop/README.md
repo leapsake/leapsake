@@ -50,22 +50,32 @@ idempotent, and both re-apply themselves after an install wipes them.
 
 ## The app's face on macOS
 
-The Dock icon and the name beside the Apple logo are both read from the **app bundle**, and
-in dev the bundle is `node_modules/electron/dist/Electron.app` — someone else's icon, someone
-else's name. Packaging will supply a real one (plans/v0-2.md); until it does, three small
-pieces stand in, and they are in three different places because macOS reads them at three
-different moments:
+The Dock icon and the name beside the Apple logo are both read from the **app bundle**, and in
+dev the bundle is the downloaded one under `node_modules/electron/dist/` — someone else's icon,
+someone else's name. Packaging will supply a real one (plans/v0-2.md); until it does, a few
+small pieces stand in, and they are in different places because macOS reads the name at
+several different moments from several different sources:
 
 | Surface | Set by | Where |
 | --- | --- | --- |
 | Dock icon | `app.dock.setIcon(resources/icon-macos.png)` | `src/main/index.ts`, after `whenReady` |
+| Dock tile name | the bundle's **directory name** on disk | `scripts/name-dev-bundle.mjs`, run by `dev`/`start` |
 | Menu-bar title | `CFBundleName` in the dev bundle's `Info.plist` | `scripts/name-dev-bundle.mjs`, run by `dev`/`start` |
 | Menu wording (About…, Quit…) | `productName`, plus a dev suffix | `package.json`; `src/main/index.ts` |
 | Window title | the renderer's own `<title>` | `src/renderer/index.html` |
 
-The second row is the awkward one: AppKit takes the menu title from the bundle and nothing at
-runtime can reach it, so `dev` stamps the downloaded bundle on its way past. That is safe here
-and the script says why at length — the short version is that the bundle is ad-hoc
+The two bundle rows are the awkward ones, and they are two rows because **the Dock does not
+read the plist.** macOS resolves an app's display name from its filename and disregards
+`CFBundleDisplayName` when the two disagree, so a bundle called `Electron.app` shows
+“Electron” under the icon no matter what is stamped inside it — while `NSRunningApplication`
+and LaunchServices, which the menu bar and ⌘-Tab follow, happily report the stamped name. Both
+therefore have to change: `dev` renames the bundle directory to `Leapsake Dev.app` *and*
+stamps the plist on its way past.
+
+Renaming the directory is not renaming the **executable**, which must not happen — see the
+data boundary below. `Contents/MacOS/Electron` keeps its name; the `electron` package finds it
+through `path.txt`, which the script rewrites to match. Editing someone else's package is safe
+here and the script says why at length — the short version is that the bundle is ad-hoc
 linker-signed with its `Info.plist` unsealed, and the copy is this repo's own.
 
 `icon-macos.png` is a separate file from `icon.png` rather than a crop of it, because macOS
@@ -108,6 +118,12 @@ ever "Leapsake Dev", with store, Keychain item and menu agreeing from its first 
 **So the two names are a data boundary, not decoration.** `dev` ships breaking schema changes
 without migrations (see the repo's pre-v0.1 stance); the separate name is what stops a dev
 build opening the store an installed Leapsake is using.
+
+The switch between them is `app.isPackaged`, which Electron derives from the **basename of
+`process.execPath`** — an executable not called `electron` is taken to be packaged. That is
+why `scripts/name-dev-bundle.mjs` renames the `.app` directory and never the binary inside it:
+renaming the binary makes an unpackaged build report `isPackaged` true, which skips the dev
+rename above and lands this device's store on the packaged app's path. Probed, both ways.
 
 ### Renaming either one is a migration
 
