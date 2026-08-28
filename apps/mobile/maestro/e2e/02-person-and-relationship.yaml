@@ -1,0 +1,104 @@
+# Flow 2 — Create a person and a relationship.
+# plans/testing/crucial-flows.md → Flow 2. Runs at the `beta` rung.
+#
+# **What this proves that no lower tier can:** the whole renderer path — form → core →
+# repo → write → re-read → render — through the real UI. The component layer under it has
+# no test at any tier; a repo test proves the row was written, not that a human could
+# write it.
+#
+# Inherits Flow 1's state (a reset, accountless app) and leaves two people behind for
+# Flow 3. The names are the catalog's, and they are fixed rather than randomised: a
+# second run of this arc re-creates the same two, which is what makes the duplicate
+# branch in `save-record.yaml` a path this flow deliberately exercises rather than a
+# surprise.
+appId: com.leapsake.app
+---
+# --- the two people ----------------------------------------------------------------
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Ada"
+      LAST: "Lovelace"
+- runFlow: ../subflows/save-record.yaml
+- assertVisible: "Ada Lovelace"
+
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Augustus"
+      LAST: "De Morgan"
+- runFlow: ../subflows/save-record.yaml
+- assertVisible: "Augustus De Morgan"
+
+# --- both are in the catalog they belong to -----------------------------------------
+# **Back to the tab navigator first.** A saved person's page is a root-level route pushed
+# *over* the tabs (`app/people/[id]/`), the same shape `app/data.tsx` and
+# `app/settings.tsx` have, so there is no tab bar under it — `save-record.yaml` leaves us
+# on Augustus's page, where `tab-search` does not exist. The deep link pops back to the
+# navigator; the journey from there is the real one a user takes.
+#
+# People & Pets is reached from Search's browse tiles, not from a tab (increment 09).
+- openLink: "leapsake://"
+- tapOn:
+    id: "tab-search"
+- tapOn:
+    id: "browse-tile-people"
+# **A list row's accessibility text carries a trailing space** — the hierarchy reads
+# "Ada Lovelace ", not "Ada Lovelace". Maestro matches text in *full*, so the bare name
+# never matches a row, and the failure is maximally confusing: the name is plainly on
+# screen in the failure screenshot. The detail-page assertions above get away with the
+# exact string because there it is the screen's own title, which has no such padding.
+# Anything selected out of a list is wrapped.
+- assertVisible: ".*Ada Lovelace.*"
+- assertVisible: ".*Augustus De Morgan.*"
+
+# --- the relationship, from Ada -----------------------------------------------------
+- tapOn: ".*Ada Lovelace.*"
+- scrollUntilVisible:
+    element:
+      text: "Add relationship"
+    direction: DOWN
+- tapOn: "Add relationship"
+
+# Role first, name second — the form is built that way round on purpose: a chosen role
+# narrows which entities may hold the other end (`holderTypesFor`), and picking the name
+# first would let a later role silently drop it.
+#
+# The picker is a modal list, not a wheel, so its options *are* addressable — unlike the
+# Kind and Month `SelectField`s a milestone has, whose options iOS does not expose. The
+# filter narrows a list of 41 roles to the one row this taps.
+- tapOn:
+    id: "relationship-other-role"
+- tapOn:
+    id: "relationship-other-role-filter"
+- inputText: "Friend"
+# **The option row, not the field that now also reads "Friend".** Typing into the filter
+# makes the input's own text match the role's label, and a bare `tapOn: "Friend"` takes
+# the input — which raises iOS's Paste/Select callout and leaves the modal open, so the
+# failure lands two steps later on a Name field that is behind it. `below` is what
+# separates the row from the box.
+- tapOn:
+    text: "Friend"
+    below:
+      id: "relationship-other-role-filter"
+
+# "Friend" is symmetric — its inverse is itself — so the row this writes reads the same
+# from either end, and the assertion below does not have to reason about which direction
+# the edge was stored in.
+- tapOn:
+    id: "relationship-other-name"
+- inputText: "Augustus"
+- tapOn: ".*Augustus De Morgan.*"
+
+- tapOn: "Save"
+
+# --- and it renders on the person it was created from --------------------------------
+# Back on Ada's page: the other end by name, and the role beside it. Asserting the role
+# too is the point of the flow — an edge that saved with no role would still show the
+# name.
+- scrollUntilVisible:
+    element:
+      text: "Relationships"
+    direction: DOWN
+- assertVisible: ".*Augustus De Morgan.*"
+- assertVisible: ".*Friend.*"

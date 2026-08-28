@@ -202,6 +202,69 @@ xcrun simctl openurl <udid> "exp+leapsake://expo-development-client/?url=http%3A
 This bites hardest when deliberately breaking a case to confirm it goes RED: without the
 reload the sabotage appears to pass, and a genuinely vacuous suite would read as verified.
 
+## `e2e/` — the crucial-flow catalog
+
+`e2e/` holds the [crucial-flow catalog](../../../plans/testing/crucial-flows.md) — the tier
+that proves a real user can complete the journeys, as opposed to `driver-selftest.yaml`
+which proves the driver contract. It is run by `pnpm test:e2e`
+(`scripts/test-e2e.mjs`), a sibling of `pnpm test:native`; both sit on the shared harness
+in `scripts/lib/mobile-harness.mjs`, which owns device detection, provisioning, the
+dev-client install, Metro, and the per-platform bundle-load prepare.
+
+**These flows are an ordered arc, not a set.** `01` resets the app and asserts a first run,
+`02` fills it with Ada Lovelace and Augustus De Morgan, `03` writes a milestone onto Ada.
+They share app state on purpose (the catalog takes 1→4 as one arc), so the runner stops a
+platform at the first red flow rather than reporting three failures that are really one.
+**A consequence worth knowing before you debug one:** a flow run *standalone* after a failed
+run may not start, because the app is wherever the last failure left it — a modal still
+open, a form still half-filled. `01`'s relaunch is what clears that, so re-run the arc
+rather than the flow.
+
+What is here covers the **`beta` rung** — Flows 1-5, on-screen assertions only. The
+out-of-band custody assertions and Flows 7b/7c belong to `rc`; see
+[`plans/v0-1_06_e2e-and-release-gate.md`](../../../plans/v0-1_06_e2e-and-release-gate.md)
+→ §C's rung table. Flows 4 and 5 are not written yet, which is why the `e2e` tier in
+`scripts/test-all.mjs` is still `blocked`: a partial catalog that ran and went green would
+read as the gate being met.
+
+### What the app's own state looks like from here
+
+- **Reset through the app, not through the harness.** `clearState`, `simctl uninstall` and
+  `adb pm clear` also erase the dev-menu preferences the runner just settled and, on iOS,
+  the dev-launcher's memory of which dev server to load — so the next flow opens the
+  launcher instead of Leapsake. `subflows/factory-reset.yaml` drives Settings → Data →
+  Factory reset instead, which erases exactly the app's own state.
+- **A factory reset is not a first run, and its aftermath is racy.** The reminders engine
+  reconciles asynchronously and the in-place provider rebuild does not wait for it: reset
+  twice and Home comes back once empty and once already showing the `add-first-person`
+  nudge. The subflow relaunches and *waits* for the nudge, which is deterministic. Assert
+  nothing about the screen between the erase and the relaunch.
+- **Assert specific expected text, never emptiness or counts.** Home is time-dependent —
+  the reminders and holidays engines mint `system` rows by date — and it is *not* empty on
+  a first run: the `add-first-person` nudge is there, and it is the better assertion
+  because it also proves the engine ran.
+
+### Two selector traps this tier added to the list below
+
+- **A list row's accessibility text carries a trailing space.** The hierarchy reads
+  `"Ada Lovelace "`, and Maestro matches in full, so `assertVisible: "Ada Lovelace"` fails
+  against a row that is plainly on screen while the same string passes on the detail page,
+  where it is the screen title. Wrap anything selected out of a list: `.*Ada Lovelace.*`.
+- **A filter box makes its own text a decoy.** Type "Friend" into a picker's filter and the
+  *input* now matches `tapOn: "Friend"` as well as the option row does — Maestro takes the
+  input, iOS raises its Paste/Select callout, and the modal stays open. The failure then
+  lands two steps later on a field that is behind the modal. Constrain the row with
+  `below: {id: <the filter's id>}`.
+
+### Screens that are pushed *over* the tab navigator
+
+`app/data.tsx`, `app/settings.tsx` and `app/people/[id]/` are root-level routes: they are
+pushed over the tabs and have a Back control instead of a tab bar, so **`tapOn: {id:
+tab-home}` fails from any of them**. Hop back with `openLink: "leapsake://"` first. The
+fourth tab is also a *menu* (`app/(tabs)/menu.tsx`) rather than the account screen — its
+rows read "<glyph> <label>", so reaching the account screen is `tab-account` then
+`.*Account.*`.
+
 ## Driving forms and fields — the traps, in the order you'll hit them
 
 These cost several sessions to find. All of them look like "the app is broken" and are not.

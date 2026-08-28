@@ -1,0 +1,83 @@
+# Flow 1 — First run reaches a usable empty state, and mints nothing.
+# plans/testing/crucial-flows.md → Flow 1. Runs at the `beta` rung, on-screen half only.
+#
+# **What this proves that no lower tier can:** the Unauthenticated boot path, whose
+# defining property is an absence. Every tier below this injects a fake key store, so
+# none of them can catch a regression that re-introduces key minting on first launch.
+#
+# ## Two departures from the catalog's text, both deliberate
+#
+# 1. **Home is not empty on a first run, so this does not assert that it is.** The
+#    reminders engine mints a dateless onboarding nudge whenever the store holds no
+#    entities (`ONBOARDING_STEPS` → `add-first-person`, `packages/reminders/src/engine.ts`),
+#    so a fresh install shows a row rather than an empty state. The catalog's `home-empty`
+#    anchor would therefore be asserting something untrue of the build. Asserting the
+#    nudge's own text instead is both correct and stronger: it proves the reminders engine
+#    ran and reconciled, which an empty list would not. It is also what
+#    `plans/v0-1_06_e2e-and-release-gate.md` → §A's *time-dependent Home* hazard asks for —
+#    assert specific expected text, never emptiness or counts.
+#
+#    Note which nudges are *absent* and why, because it is what makes this stable rather
+#    than lucky: `create-account` and `pick-self` both require `hasEntities`, and
+#    `sync-devices` is behind the `multiDevice` flag, which v0.1 ships off. On a store
+#    with no rows, `add-first-person` is the only one that applies.
+#
+# 2. **The at-rest gate's title is "Unlock your data"**, not the catalog's "Restore access
+#    to your data" (`lib/core-context.tsx` → `RecoveryGate`). Asserting the real string.
+#
+# ## The out-of-band half is not here
+#
+# The catalog also asks that the store be plaintext, the OS key store hold zero Leapsake
+# entries, and no `.recovery` sidecar exist. None of that is reachable from Maestro, which
+# reads the accessibility tree and nothing else — it needs an inspection surface the app
+# does not have. That is `rc`'s work, not `beta`'s
+# (`plans/v0-1_06_e2e-and-release-gate.md` → §C's rung table). Until it lands, "mints
+# nothing" is asserted only as far as the screen shows it.
+appId: com.leapsake.app
+---
+# The precondition. Everything below is a claim about a store with nothing in it, so the
+# reset is part of the flow rather than something the runner is trusted to have done.
+- runFlow: ../subflows/factory-reset.yaml
+
+# --- the app booted all the way, and the reminders engine ran ----------------------
+- assertVisible: ".*Add your first person to get started.*"
+
+# --- no boot gate stands in front of a store that has no keys ----------------------
+# The negative half of "mints nothing": a device that minted a key on first launch and
+# then could not find it again is exactly how this gate appears when it should not.
+- assertNotVisible: "Unlock your data"
+
+# --- the standing navigation offers the two things a first-run user needs ----------
+# Reachability, not tab labels: which tab holds what is the shell's own business and is
+# `global-nav.yaml`'s gate, not this flow's.
+#
+# People & Pets is reached from Search's browse tiles rather than from a tab (increment
+# 09 demoted it), so this asserts the tile, not a tab.
+- tapOn:
+    id: "tab-search"
+- assertVisible:
+    id: "browse-tile-people"
+
+# Settings offers to create an account. Two hops, because the fourth tab is a *menu*
+# (`app/(tabs)/menu.tsx`) rather than the account screen itself: the tab lists Account,
+# Data, Notifications, Acknowledgements, and `app/settings.tsx` is the row behind
+# "Account". Its rows read "<glyph> <label>", so the selector cannot be the bare word.
+#
+# The screen it opens is named for custody — with no account it titles itself "Account",
+# not "Account & sync" — and "Protect your data" is the create-an-account offer's own
+# heading.
+- tapOn:
+    id: "tab-account"
+- tapOn: ".*Account.*"
+- assertVisible: "Protect your data"
+
+# And the phrase is offered nowhere, because there is no account to have one. A build that
+# revealed a recovery phrase to an accountless device would be minting keys. This is the
+# screen that would show it (`RecoveryKeyReveal` takes this screen over when it fires), so
+# it is the screen the absence has to be asserted on.
+- assertNotVisible: "Save your recovery phrase"
+
+# Leave the app where the next flow expects to start. A deep link, not a tab tap: like
+# `app/data.tsx`, the account screen is a root-level route pushed *over* the tab navigator,
+# so there is no tab bar under it to tap.
+- openLink: "leapsake://"

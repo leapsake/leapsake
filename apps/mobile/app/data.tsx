@@ -289,7 +289,14 @@ function FactoryResetSection() {
             <Text style={styles.fieldLabel}>
               Type {FACTORY_RESET_PHRASE} to confirm
             </Text>
+            {/*
+              The E2E catalog resets the app through this screen rather than through
+              `clearState` or a container wipe: those also erase the dev-launcher's
+              remembered dev server, and the next flow would find the launcher instead
+              of the app. Empty, the field offers a driver nothing to select it by.
+            */}
             <TextInput
+              testID="factory-reset-confirm"
               style={styles.input}
               value={typed}
               onChangeText={setTyped}

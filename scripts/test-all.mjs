@@ -135,11 +135,20 @@ const TIERS = [
   {
     key: "e2e",
     layer: "E2E",
-    label: "crucial-flow catalog (Playwright / Maestro, per platform)",
+    label: "crucial-flow catalog (Maestro, iOS + Android)",
     script: "test:e2e",
     status: "blocked",
     device: true,
-    note: "flow catalog not built (plans/testing/crucial-flows.md)",
+    // Flows 1-3 are built and runnable today (`pnpm test:e2e`); the `beta` rung needs
+    // 1-5 (plans/v0-1_06_e2e-and-release-gate.md → §C's rung table). This stays
+    // `blocked` until 4 and 5 land, which is what stops a `--strict` release from
+    // passing on a partial catalog — a subset that ran and went green would look like
+    // the gate being met. Flip to `ready` in the same commit as Flow 5.
+    //
+    // Note `test:e2e` is `scripts/test-e2e.mjs`, NOT `test-all --only=e2e`: the tier's
+    // own script running the orchestrator would loop, exactly as test-native.mjs's
+    // header describes for the native tiers.
+    note: "Flows 1-3 built, 4-5 outstanding (plans/testing/crucial-flows.md)",
   },
 ];
 
@@ -147,7 +156,7 @@ const args = process.argv.slice(2);
 const fast = args.includes("--fast");
 const strict = args.includes("--strict");
 // Forwarded to the `device: true` tiers, which are the only ones with an environment to
-// prepare. See scripts/test-native.mjs → provisioning. `pnpm release` passes this so a
+// prepare. See scripts/lib/mobile-harness.mjs → provisioning. `pnpm release` passes this so a
 // release is one command; the inner loop leaves it off and gets the faster failure.
 const provision = args.includes("--provision");
 const onlyArg = args.find((a) => a.startsWith("--only="));

@@ -269,7 +269,13 @@ export function MilestoneFields({
         <Text style={styles.fieldLabel}>
           {noteRequired ? "Label (e.g. Adoption day)" : "Note (optional)"}
         </Text>
+        {/*
+          Addressable for the same reason `milestone-year` above is: empty, it offers a
+          driver nothing to select it by, and Flow 3 of the crucial-flow catalog types a
+          note here and reads it back off the person's page.
+        */}
         <TextInput
+          testID="milestone-note"
           style={styles.input}
           value={draft.note}
           onChangeText={(value) => set("note", value)}

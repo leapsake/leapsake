@@ -1,0 +1,109 @@
+# Put the app back to a genuine first-run state: no people, no pets, no reminders, no
+# account, no keys — and then **relaunch**, because a reset alone does not get there.
+#
+# ## Why the app's own factory reset, and not the harness's obvious tools
+#
+# Maestro's `clearState`, `simctl uninstall` and `adb pm clear` all wipe more than the
+# app's data: they take the expo-dev-menu preferences the runner just settled and, on iOS,
+# the dev-launcher's memory of which dev server to load. The next flow would open the
+# launcher instead of Leapsake, and the failure reads as "the app never came up" rather
+# than "the harness erased its own setup". `sync.factoryReset()` erases exactly the app's
+# own state — store, doors, account roster, every keystore secret — and rebuilds the
+# provider down the *Unauthenticated* path (`lib/core-context.tsx`).
+#
+# ## Why it relaunches, which is the part that is not obvious
+#
+# **The state a factory reset leaves behind is racy, and a first run's is not.** Measured
+# on the simulator, 2026-08-28: reset twice in a row, Home came back once reading "No
+# reminders yet." and once already showing the `add-first-person` nudge. The reminders
+# engine reconciles asynchronously and the in-place provider rebuild does not wait for it,
+# so whether the nudge is on screen right after a reset is a timing question. A relaunch
+# settles it — the bootstrap reconciles before Home renders — which is also what the
+# catalog's "launch the built app; wait for boot to settle" asks for.
+#
+# So **nothing here asserts on the post-reset screen**; the assertion is made after the
+# relaunch, where it is deterministic.
+#
+# ## Two traps this encodes, both hit on the first run of this flow
+#
+#   1. **Never end on `assertNotVisible: "Erasing…"`.** The button reads "Erase
+#      everything" until the tap takes effect, so that assertion passes just as happily
+#      when nothing happened. Both exits below are positive assertions instead.
+#   2. **`app/data.tsx` is a root-level route pushed over the tab navigator** — its header
+#      is a Back control, and there is no `tab-home` to tap from it.
+#
+# Only offered while this device is Unauthenticated; with an account the same act is
+# "Forget this account". Nothing in Flows 1-3 creates one, and Flow 4 is the arc's last
+# flow for that reason.
+appId: com.leapsake.app
+---
+- openLink: "leapsake://data"
+- assertVisible: "Factory reset"
+
+# Idempotent on purpose: `openLink` does not remount a route that is already mounted, so a
+# previous run that died mid-confirm leaves this screen armed and the button gone. The
+# ellipsis is what separates the button from the section heading above it, which is the
+# plain word and is not tappable.
+- runFlow:
+    when:
+      visible: "Factory reset…"
+    commands:
+      - tapOn: "Factory reset…"
+
+- assertVisible:
+    id: "factory-reset-confirm"
+- tapOn:
+    id: "factory-reset-confirm"
+# For the same reason: a field left holding ERASE from a dead run would otherwise become
+# ERASEERASE, which does not arm the button, and the flow would fail on a disabled button.
+- eraseText
+- inputText: "ERASE"
+
+# **Put the keyboard away before reaching for the button.** "Erase everything" sits within
+# a few pixels of the keyboard's top edge on an iPhone 16 Pro, and Maestro does not model
+# the keyboard as occluding anything — so the tap lands on the keyboard, reports
+# COMPLETED, and erases nothing. This flow passed and failed alternately for two runs on
+# exactly that: the erase only happened when the keyboard happened to be down.
+#
+# It is the hazard `dismiss-keyboard.yaml` was written for, and the reason a *silent* one
+# matters here more than elsewhere: the failure does not surface at the tap, it surfaces
+# later as a first-run assertion failing against a store still full of the previous arc's
+# people.
+#
+# "Factory reset" is the section's own heading — a plain `Text` (so the tap is unhandled
+# and dismisses), always on screen, and well clear of the keyboard.
+- runFlow:
+    file: dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Factory reset"
+
+- tapOn: "Erase everything"
+
+# Off the Data screen and wait for the rebuilt app to be interactive again before killing
+# it. This is a settle, not an assertion: the reset deletes the store, the doors, the
+# roster and every keystore secret, and stopping the app in the middle of that would leave
+# a half-erased device that the next launch has to make sense of.
+- openLink: "leapsake://"
+- extendedWaitUntil:
+    visible:
+      id: "tab-search"
+    timeout: 30000
+
+# The relaunch, and the one assertion. It is non-vacuous in exactly the way the vacuous
+# `assertNotVisible` above was not: `add-first-person` applies only while the store holds
+# no entities, and retirement is a permanent tombstone — so an erase that silently did
+# nothing leaves the previous arc's people in place, the step unmet, and this red.
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "tab-search"
+    timeout: 60000
+#
+# **Waited for, not asserted outright.** The reconcile is asynchronous and a visible tab
+# bar is not a signal that it has run: asserting immediately after the relaunch went red
+# on one run and green on the next. The wait is what makes this deterministic, and it
+# stays non-vacuous — a nudge that never arrives still fails, it is simply given time to.
+- extendedWaitUntil:
+    visible: ".*Add your first person to get started.*"
+    timeout: 30000
