@@ -78,9 +78,10 @@ cheapest form of that guarantee. Worth doing while the second target is fresh.
 
 ## Still open, and not blocking Android
 
-- **The app icon is Expo's default placeholder.** Fine for internal testing on either store;
-  **not** fine for external TestFlight, closed testing, or a listing. The release refuses it
-  from `beta` upward on iOS already — Android needs the equivalent once its rungs are real.
+- ✅ **The app icon is real** *(2026-08-26)* — generated from one vector source in
+  `assets/icon/`, with `pnpm test:icons` guarding every raster against it. iOS' `beta` rung
+  checks it (`scripts/release/targets/ios.mjs`); Android needs the equivalent once its rungs
+  are real.
 - **dSYMs are missing** for React Native's prebuilt XCFrameworks (`React`,
   `ReactNativeDependencies`, `hermesvm`), so crash reports will not symbolicate frames inside
   them. Our own code symbolicates fine. Decide whether to care before external testers start
