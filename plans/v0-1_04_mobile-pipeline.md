@@ -4,7 +4,7 @@
 > [`apps/mobile/README.md`](../apps/mobile/README.md); the rules belong in `scripts/release/`,
 > which documents itself. This file exists only for the part that is not built yet.
 
-✅ **The iOS half is done** *(2026-08-26)*. `pnpm release alpha --only=ios` cuts a tag, gates on
+✅ **The iOS half is done** *(2026-08-26)*. `pnpm release alpha` cuts a tag, gates on
 the suite, prebuilds, archives with manual signing, exports, validates and uploads —
 `0.1.0-alpha.2` (build 341572) reached TestFlight that way with no Xcode session. EAS is out;
 the whole path is local `xcodebuild` plus an App Store Connect API key. Store identity and
@@ -60,11 +60,18 @@ what follows is only what is *Android-specific*.
 
 **Acceptance, in two stages** — because the second one is the irreversible half:
 
-1. **Now:** `pnpm release beta --only=android --dry-run` passes every preflight, and the target
-   produces a signed AAB from a clean checkout that installs and runs on a device. No upload.
-2. **Once decision 4 is settled:** the same command without `--dry-run` uploads to the chosen
-   track from the chosen account, with no Play Console interaction — and `pnpm release beta`
-   with no `--only` ships both platforms from one tag.
+1. **Now:** `pnpm release beta --dry-run` reports a clean `android` row — every preflight
+   passing — and the target produces a signed AAB from a clean checkout that installs and runs
+   on a device. No upload.
+2. **Once decision 4 is settled:** the same command without `--dry-run` ships both platforms
+   from one tag, uploading to the chosen track from the chosen account with no Play Console
+   interaction.
+
+⚠️ **Neither step reaches for `--only`, deliberately.** A release is all-or-nothing across every
+ready target, and selecting one by hand is the habit that makes that untrue — see
+[`10`](./v0-1_10_external-testflight.md) → *Not gating*. Until decision 4 is settled the thing
+that must hold Android back is its own `blocked` status in `android.mjs`, which the release
+refuses and explains, rather than a flag someone has to remember to leave off.
 
 ## The version-parity check this makes possible
 

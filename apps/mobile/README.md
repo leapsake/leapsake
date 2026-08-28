@@ -48,9 +48,13 @@ Start the relay with `pnpm --filter @leapsake/server dev` — see
 ## Cutting a release
 
 ```sh
-pnpm release alpha --only=ios --dry-run   # what is this rung waiting on?
-pnpm release alpha --only=ios             # bump, tag, archive, export, upload
+pnpm release alpha --dry-run   # what is this rung waiting on?
+pnpm release alpha             # bump, tag, archive, export, upload
 ```
+
+**Name no platform.** A tag ships every target that is `ready` and reports the rest as ⏳ with
+the reason, so a platform is held back by its own status in `scripts/release/targets/`, never
+by a flag left off the command line.
 
 `scripts/release/` owns the rules and documents them in its own header; `pnpm release
 --help` prints the current rung/platform matrix. Credentials live in an untracked `.env`
