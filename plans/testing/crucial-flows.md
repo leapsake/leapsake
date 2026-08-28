@@ -106,7 +106,11 @@ surface no lower tier reaches).
   and **no key material anywhere** — no crash, no stuck gate, no ceremony.
 - **Preconditions:** clean install: empty OS key store, no store file, no roster.
 - **Steps:** launch the built app; wait for boot to settle.
-- **Assert (on screen):** the Reminders/Home screen is shown in its empty state (`home-empty`);
+- **Assert (on screen):** ⚠️ *corrected 2026-08-28 — Home is **not** empty on a first run:
+  the reminders engine mints the `add-first-person` onboarding nudge whenever the store holds
+  no entities, so `01-first-run.yaml` asserts that nudge's own text instead, which is both
+  true of the build and stronger (it proves the engine reconciled). The gate's title is also
+  "Unlock your data", not the wording below.* The Reminders/Home screen is reached;
   the app's standing navigation offers a way to **People & Pets** and to **Settings**. No
   `recovery-gate`. Settings offers to create an account and shows **no** recovery-phrase surface.
   > **Where those two live is per-platform, and deliberately so** *(amended 2026-08-17, mobile
@@ -141,8 +145,12 @@ surface no lower tier reaches).
 - **Preconditions:** at least one person (Flow 2).
 - **Steps:** open a person; add a milestone with a date and a note ("Met at the Analytical
   Engine talk").
-- **Assert:** the milestone and its note render on the person's timeline; relaunch (or navigate
-  away and back) and the note still reads correctly.
+- **Assert:** the milestone renders on the person's timeline; relaunch (or navigate away and
+  back) and it still reads correctly. ⚠️ *Corrected 2026-08-28: the person page never renders a
+  milestone's **note** — a row is icon + label + date (`components/MilestonesSection.tsx`), and
+  the note reaches the screen only for an `other` milestone, where it is the label. So
+  `03-milestone.yaml` reads the note back out of the edit form, which proves more than the
+  timeline could: the value came out of storage and back into a field.*
 - **Devices:** single.
 - **Uniquely exercises:** write→store→relaunch→read through real storage in the production
   runtime, rather than an in-memory session.

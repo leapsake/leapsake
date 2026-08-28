@@ -1,0 +1,110 @@
+# Flow 5 — A reminder with an `@mention` and a `#tag`, and the round trip back.
+# plans/testing/crucial-flows.md → Flow 5. Runs at the `beta` rung.
+#
+# **What this proves that no lower tier can:** the compose interaction itself — the `@`
+# typeahead splicing a token into a live text field — and the backlinks it creates,
+# rendered on two other screens. `packages/schema`'s draft helpers are unit-tested;
+# `ChipTextField` and `ReminderForm` are not tested anywhere below this.
+#
+# Inherits Ada from Flow 2. Runs while the store is still Unauthenticated: nothing here
+# needs an account, and Flow 4 is deliberately last in the arc (see `test-e2e.mjs`).
+#
+# The `#birthday` tag is typed rather than picked. The picker offers *existing* tags, and
+# on a store this young there are none — typing the token is how the first one is made,
+# which is also the path a real first-time user takes.
+appId: com.leapsake.app
+---
+- openLink: "leapsake://reminders/new"
+- assertVisible: "Add reminder"
+
+# Title first. Both fields are `ChipTextField`s and both are empty, so they are reached by
+# id — an empty TextInput carries no accessibility text to tell them apart by.
+- tapOn:
+    id: "reminder-title"
+- inputText: "Send a card"
+
+# --- the mention, spliced by the picker rather than typed -----------------------------
+# Typing "@Ada" and moving on would prove nothing about the picker: the token has to be
+# *picked* for this flow to be about the compose interaction at all. The row is what
+# `pick()` runs on, and it is what turns the fragment into a chip.
+- tapOn:
+    id: "reminder-body"
+- inputText: "@Ada"
+- tapOn:
+    text: ".*Ada Lovelace.*"
+    below:
+      id: "reminder-body"
+
+# --- and the tag, typed inline ---------------------------------------------------------
+# The trailing space is what closes the tag fragment; without it the token is still being
+# composed and the picker is still open over the Save.
+- inputText: " #birthday "
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Details"
+- tapOn: "Save"
+
+# --- (a) it is on Home -----------------------------------------------------------------
+# **Go to Home rather than trusting the pop.** The form's own `onSubmit` calls
+# `router.back()`, which returns to whatever was under it — and a deep-linked
+# `reminders/new` is pushed onto whatever stack already exists. Run this flow after
+# anything else that pushed a route and "back" is that route, not Home. (Found the honest
+# way: it landed on the driver self-test screen left over from a `pnpm test:native` run.)
+- openLink: "leapsake://"
+- extendedWaitUntil:
+    visible: ".*Send a card.*"
+    timeout: 20000
+
+# --- (c) Ada's page lists the reminder that mentions her --------------------------------
+# The backlink half of the round trip: written by the mention, read by a screen the
+# composer never touched. Reached from the catalog rather than by tapping the row on Home,
+# which carries a completion checkbox on its leading edge — a tap there marks the reminder
+# done instead of opening it, which is how an earlier draft of this flow silently
+# completed its own fixture.
+- tapOn:
+    id: "tab-search"
+- tapOn:
+    id: "browse-tile-people"
+- tapOn: ".*Ada Lovelace.*"
+# Scroll to the **row**, not to the heading. `scrollUntilVisible` stops the moment its
+# target is on screen, and a section heading is on screen while everything under it is
+# still below the fold — which is how this first failed, one line short of the thing it
+# was looking for. Asserting the heading afterwards is what keeps the claim "in this
+# section" rather than merely "somewhere on this page".
+- scrollUntilVisible:
+    element:
+      text: ".*Send a card.*"
+    direction: DOWN
+- assertVisible: "Mentioned in"
+
+# --- (b) the mention is a link, and it leads back to Ada ---------------------------------
+- tapOn: ".*Send a card.*"
+
+# **The mention's own text, not the line it sits in.** RN cannot nest a `<Link>` inside a
+# `<Text>`, so `ReminderText` renders each mention as a nested `<Text accessibilityRole=
+# "link">` with its own `onPress`. The parent Text reads "@Ada Lovelace #birthday", so a
+# loose `.*Ada Lovelace.*` matches the parent — which has no press handler — and the flow
+# then asserts against a screen it never left. Matching the mention exactly is what picks
+# the link out of the line.
+- assertVisible: "@Ada Lovelace"
+- tapOn: "@Ada Lovelace"
+# "Relationships" is a person page's own section and appears on no reminder screen, so it
+# is the assertion that the link actually navigated. Ada's name would not be: the reminder
+# detail we just left says "@Ada Lovelace" too.
+- assertVisible: "Relationships"
+
+# --- (d) and the tag's own page lists it too ---------------------------------------------
+- openLink: "leapsake://"
+- tapOn:
+    id: "tab-search"
+- tapOn:
+    id: "browse-tile-tags"
+# This assertion found a real accessibility defect rather than a harness problem: the tag
+# rows were **absent from the accessibility tree**, legible on screen and invisible to
+# VoiceOver, because `Link` renders a `Text` and the row nested a `View` inside it. Fixed
+# in `app/(tabs)/tags.tsx` (and `holidays.tsx`, same shape) rather than worked around —
+# there was nothing here to work around *with*, which is the tell that it was the app.
+- assertVisible: ".*birthday.*"
+- tapOn: ".*birthday.*"
+- assertVisible: ".*Send a card.*"

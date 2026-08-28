@@ -90,6 +90,7 @@ export function ReminderForm({
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Title</Text>
           <ChipTextField
+            testID="reminder-title"
             style={styles.input}
             value={title}
             onChangeText={setTitle}
@@ -99,6 +100,7 @@ export function ReminderForm({
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Details</Text>
           <ChipTextField
+            testID="reminder-body"
             style={[styles.input, { minHeight: 96, textAlignVertical: "top" }]}
             value={body}
             onChangeText={setBody}

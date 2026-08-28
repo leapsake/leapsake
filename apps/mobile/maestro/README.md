@@ -351,10 +351,16 @@ simulator (done on this machine's iPhone 16 Pro).
 - With two account forms on screen, every duplicated label ("Username", "Password") needs an
   explicit `index` — or, better, an id.
 
-### One flow still can't be driven
+### The Forget-account confirmation *is* drivable now
 
-The **last-device Forget-account confirmation**: the keyboard covers "Delete all data", and
-dismissing it first does not help because the layout reflows as the keyboard goes and the tap
-lands on whatever moved under it (the tab bar, in practice). The screen wants a
-`KeyboardAvoidingView`; fix that before trying to make this cycle an E2E flow. There is no
-harness-side workaround worth having.
+This section used to say the **last-device Forget-account confirmation** could not be driven —
+the keyboard covers "Delete all data", and dismissing it was thought not to help because the
+layout reflows as the keyboard goes and the tap lands on whatever moved under it. Retried while
+building the E2E arc *(2026-08-28)* and it works, with the same two things the Factory-reset
+confirmation needs: an `id` on the confirm field, and `dismiss-keyboard.yaml` anchored on a
+plain `Text` *above* the reflow — the section title, not the button.
+`subflows/factory-reset.yaml` drives it, which is what makes the arc re-runnable: Flow 4
+leaves an account behind, and this is the only in-app way back.
+
+The screen would still be better with a `KeyboardAvoidingView`; that is now a UX preference
+rather than a harness blocker.

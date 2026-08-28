@@ -137,18 +137,18 @@ const TIERS = [
     layer: "E2E",
     label: "crucial-flow catalog (Maestro, iOS + Android)",
     script: "test:e2e",
-    status: "blocked",
+    status: "ready",
     device: true,
-    // Flows 1-3 are built and runnable today (`pnpm test:e2e`); the `beta` rung needs
-    // 1-5 (plans/v0-1_06_e2e-and-release-gate.md → §C's rung table). This stays
-    // `blocked` until 4 and 5 land, which is what stops a `--strict` release from
-    // passing on a partial catalog — a subset that ran and went green would look like
-    // the gate being met. Flip to `ready` in the same commit as Flow 5.
+    // Flows 1-5 — the whole `beta` bar (plans/v0-1_06_e2e-and-release-gate.md → §C's
+    // rung table). `rc` additionally owes 7b/7c and the out-of-band custody assertions;
+    // 6/7a ship with sync. Green on the iOS simulator and re-runnable; the Android leg
+    // is written but has not been run, so the first `--strict` release will be the first
+    // time it is exercised (an un-booted emulator reports BLOCKED via exit 3, which
+    // --strict correctly treats as a failure).
     //
     // Note `test:e2e` is `scripts/test-e2e.mjs`, NOT `test-all --only=e2e`: the tier's
     // own script running the orchestrator would loop, exactly as test-native.mjs's
     // header describes for the native tiers.
-    note: "Flows 1-3 built, 4-5 outstanding (plans/testing/crucial-flows.md)",
   },
 ];
 

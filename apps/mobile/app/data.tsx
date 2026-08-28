@@ -166,7 +166,11 @@ function ForgetAccountSection() {
               <Text style={styles.fieldLabel}>
                 Type {FORGET_ACCOUNT_PHRASE} to confirm
               </Text>
+              {/* The Authenticated half of the reset the E2E arc drives — see the
+                  note on `factory-reset-confirm` above. Empty, it offers a driver
+                  nothing to select it by. */}
               <TextInput
+                testID="forget-account-confirm"
                 style={styles.input}
                 value={typed}
                 onChangeText={setTyped}

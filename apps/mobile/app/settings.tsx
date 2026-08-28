@@ -1394,7 +1394,17 @@ function RecoveryKeyReveal({
       )}
       <View style={[styles.rowMeta, { marginTop: 0 }]}>
         <Text style={styles.fieldValue}>I've saved my recovery phrase</Text>
-        <Switch value={acknowledged} onValueChange={setAcknowledged} />
+        {/*
+          A `Switch` carries no text of its own, and the label beside it belongs to a
+          sibling `Text` — so a driver has only geometry to find it by, and a relative
+          selector picked the wrong element outright, leaving Done disabled and the
+          failure two steps away. The same reason the account fields above carry ids.
+        */}
+        <Switch
+          testID="recovery-acknowledged"
+          value={acknowledged}
+          onValueChange={setAcknowledged}
+        />
       </View>
       <Pressable
         style={[

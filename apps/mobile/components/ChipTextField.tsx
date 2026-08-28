@@ -83,6 +83,7 @@ export function ChipTextField({
   style,
   multiline,
   placeholder,
+  testID,
 }: {
   /** Which text this field holds, and therefore how it spells its tags. */
   grammar?: "prose" | "tags";
@@ -91,6 +92,14 @@ export function ChipTextField({
   style?: StyleProp<TextStyle>;
   multiline?: boolean;
   placeholder?: string;
+  /**
+   * Harness anchor for the input itself. An empty `TextInput` carries no
+   * accessibility text, so two of these on one screen — a reminder's Title and
+   * its Details — are indistinguishable to a driver, the same problem the add
+   * screen's name fields and the account form's two password fields already
+   * carry ids for.
+   */
+  testID?: string;
 }) {
   const prose = grammar === "prose";
   const core = useCore();
@@ -214,6 +223,7 @@ export function ChipTextField({
       {/* Children, not `value`: RN takes the text from them, which is what lets
           each chip run carry its own style. */}
       <TextInput
+        testID={testID}
         ref={inputRef}
         style={style}
         selection={selection}

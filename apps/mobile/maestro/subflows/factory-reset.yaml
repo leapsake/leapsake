@@ -32,52 +32,86 @@
 #   2. **`app/data.tsx` is a root-level route pushed over the tab navigator** — its header
 #      is a Back control, and there is no `tab-home` to tap from it.
 #
-# Only offered while this device is Unauthenticated; with an account the same act is
-# "Forget this account". Nothing in Flows 1-3 creates one, and Flow 4 is the arc's last
-# flow for that reason.
+# ## One act, two names — and this is what makes the arc re-runnable
+#
+# The reset is only called "Factory reset" while the device is Unauthenticated. With an
+# account it is **Forget account**, which erases the same things under the name that fits
+# (`app/data.tsx`). Flow 4 creates an account, so the *next* run of the arc arrives here
+# with only the second name on offer — a subflow that knew only the first would leave the
+# suite good for exactly one run.
+#
+# So both are driven, branching on which confirmation this device offers. They differ in
+# their confirm word (ERASE vs DELETE) and their button, and in nothing else that matters
+# here.
 appId: com.leapsake.app
 ---
 - openLink: "leapsake://data"
-- assertVisible: "Factory reset"
 
-# Idempotent on purpose: `openLink` does not remount a route that is already mounted, so a
-# previous run that died mid-confirm leaves this screen armed and the button gone. The
-# ellipsis is what separates the button from the section heading above it, which is the
-# plain word and is not tappable.
+# Open whichever confirmation this device offers. Every step here is conditional, because
+# `openLink` does not remount a route that is already mounted: a previous run that died
+# mid-confirm leaves this screen already armed and the opening button gone. The ellipsis
+# separates each button from the section heading above it, which is the plain word and is
+# not tappable.
 - runFlow:
     when:
       visible: "Factory reset…"
     commands:
       - tapOn: "Factory reset…"
-
-- assertVisible:
-    id: "factory-reset-confirm"
-- tapOn:
-    id: "factory-reset-confirm"
-# For the same reason: a field left holding ERASE from a dead run would otherwise become
-# ERASEERASE, which does not arm the button, and the flow would fail on a disabled button.
-- eraseText
-- inputText: "ERASE"
-
-# **Put the keyboard away before reaching for the button.** "Erase everything" sits within
-# a few pixels of the keyboard's top edge on an iPhone 16 Pro, and Maestro does not model
-# the keyboard as occluding anything — so the tap lands on the keyboard, reports
-# COMPLETED, and erases nothing. This flow passed and failed alternately for two runs on
-# exactly that: the erase only happened when the keyboard happened to be down.
-#
-# It is the hazard `dismiss-keyboard.yaml` was written for, and the reason a *silent* one
-# matters here more than elsewhere: the failure does not surface at the tap, it surfaces
-# later as a first-run assertion failing against a store still full of the previous arc's
-# people.
-#
-# "Factory reset" is the section's own heading — a plain `Text` (so the tap is unhandled
-# and dismisses), always on screen, and well clear of the keyboard.
 - runFlow:
-    file: dismiss-keyboard.yaml
-    env:
-      ANCHOR: "Factory reset"
+    when:
+      visible: "Forget account…"
+    commands:
+      - tapOn: "Forget account…"
+      # Entering this confirmation asks the relay whether it keeps a durable copy, so the
+      # fields arrive a beat after the tap. Waiting for the field is the difference
+      # between branching on custody and branching on a render race.
+      - extendedWaitUntil:
+          visible:
+            id: "forget-account-confirm"
+          timeout: 20000
 
-- tapOn: "Erase everything"
+# Fill and fire whichever is now open. `eraseText` first, because a field still holding the
+# word from a dead run would otherwise become ERASEERASE, which arms nothing — and the flow
+# would fail on a disabled button rather than on anything real.
+- runFlow:
+    when:
+      visible:
+        id: "factory-reset-confirm"
+    commands:
+      - tapOn:
+          id: "factory-reset-confirm"
+      - eraseText
+      - inputText: "ERASE"
+      - runFlow:
+          file: dismiss-keyboard.yaml
+          env:
+            ANCHOR: "Factory reset"
+      - tapOn: "Erase everything"
+- runFlow:
+    when:
+      visible:
+        id: "forget-account-confirm"
+    commands:
+      - tapOn:
+          id: "forget-account-confirm"
+      - eraseText
+      - inputText: "DELETE"
+      # The title, not the button: "Delete all data on this device" is a plain `Text` at
+      # the head of the section, while "Delete all data" is what we are about to press.
+      - runFlow:
+          file: dismiss-keyboard.yaml
+          env:
+            ANCHOR: "Delete all data on this device"
+      - tapOn: "Delete all data"
+
+# **Both branches put the keyboard away before reaching for their button.** Each sits
+# within a few pixels of the keyboard's top edge on an iPhone 16 Pro, and Maestro does not
+# model the keyboard as occluding anything — so the tap lands on the keyboard, reports
+# COMPLETED, and erases nothing. This flow passed and failed alternately for two runs on
+# exactly that: the erase only happened when the keyboard happened to be down. It is the
+# hazard `dismiss-keyboard.yaml` was written for, and a silent one matters more here than
+# anywhere else, because the failure surfaces later — as a first-run assertion failing
+# against a store still full of the previous arc's people.
 
 # Off the Data screen and wait for the rebuilt app to be interactive again before killing
 # it. This is a settle, not an assertion: the reset deletes the store, the doors, the

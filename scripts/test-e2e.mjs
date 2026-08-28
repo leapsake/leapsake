@@ -14,11 +14,9 @@
 // by design (the catalog takes 1→4 as one arc), so the harness stops the platform at the
 // first red flow rather than reporting three failures that are really one.
 //
-// **The bar this meets is the `beta` rung, not the whole catalog** — Flows 1–5,
-// on-screen assertions only (`plans/v0-1_06_e2e-and-release-gate.md` → §C's rung table).
-// 7b/7c and the out-of-band custody assertions are `rc`'s. The tier stays `blocked` in
-// `scripts/test-all.mjs` until Flows 4 and 5 land, so a `--strict` release cannot pass on
-// a partial catalog; `pnpm test:e2e` runs what exists in the meantime.
+// **The bar this meets is the `beta` rung, not the whole catalog** — Flows 1–5, on-screen
+// assertions only (`plans/v0-1_06_e2e-and-release-gate.md` → §C's rung table). 7b/7c and
+// the out-of-band custody assertions are `rc`'s, and Flows 6/7a ship with sync.
 import { join } from "node:path";
 
 import { MAESTRO_DIR, runSuite } from "./lib/mobile-harness.mjs";
@@ -29,12 +27,24 @@ await runSuite({
   key: "test:e2e",
   title: "test:e2e — crucial-flow catalog (mobile)",
   what: "crucial-flow catalog",
-  // Order is load-bearing: 01 leaves a fresh, accountless app; 02 puts Ada and Augustus
-  // in it; 03 writes a milestone onto Ada. Inserting a flow means deciding what state it
-  // inherits and what it leaves behind.
+  // Order is load-bearing: 01 leaves a fresh, accountless app; 02 puts Ada and Augustus in
+  // it; 03 writes a milestone onto Ada; 05 writes a reminder that mentions her. Inserting
+  // a flow means deciding what state it inherits and what it leaves behind.
+  //
+  // **04 runs last, out of catalog order, because it is the one that ends the
+  // Unauthenticated state.** Every flow before it is about the ordinary accountless app a
+  // v0.1 user starts in, and 04's whole subject is the conversion away from it — so it
+  // reads better as the arc's destination than as its middle, and nothing else has to run
+  // under encryption to prove what it proves. The arc stays re-runnable either way:
+  // `subflows/factory-reset.yaml` drives the reset under both of its names.
   flows: [
     flow("01-first-run.yaml", "Flow 1 — first run reaches a usable state"),
     flow("02-person-and-relationship.yaml", "Flow 2 — person + relationship"),
     flow("03-milestone.yaml", "Flow 3 — milestone survives a relaunch"),
+    flow(
+      "05-reminder-mention-tag.yaml",
+      "Flow 5 — reminder @mention + #tag round trip",
+    ),
+    flow("04-create-account.yaml", "Flow 4 — an account turns encryption on"),
   ],
 });

@@ -115,14 +115,16 @@ must run on a self-hosted host with only config changes.
 
 Five flows, on-screen only. Most of the authoring is composition, not net-new YAML.
 
-- ✅ **The runner is built** *(2026-08-28)*. `test:e2e` was `test-all --only=e2e` while the
-  tier's own script was `test:e2e`, so flipping the tier to `ready` would have made it spawn
-  itself forever — safe only because `blocked` short-circuits before the spawn. It is now
-  **`scripts/test-e2e.mjs`**, a sibling of `test-native.mjs`, and everything both need —
-  device detection, provisioning, the dev-client install, Metro, the per-platform prepare —
-  was extracted to **`scripts/lib/mobile-harness.mjs`** rather than duplicated. Flows **1-3
-  are written and green on the iOS simulator**; 4 and 5 are what the `beta` rung still owes,
-  and the tier stays `blocked` until they land.
+- ✅ **The beta bar is built and the tier is `ready`** *(2026-08-28)*. `test:e2e` was
+  `test-all --only=e2e` while the tier's own script was `test:e2e`, so flipping the tier to
+  `ready` would have made it spawn itself forever — safe only because `blocked`
+  short-circuits before the spawn. It is now **`scripts/test-e2e.mjs`**, a sibling of
+  `test-native.mjs`, over a shared **`scripts/lib/mobile-harness.mjs`**. **Flows 1-5 are
+  written and green on the iOS simulator**, and the arc is **re-runnable**: Flow 4 leaves an
+  account behind, and the reset subflow drives the reset under both of its names
+  (*Factory reset* while Unauthenticated, *Forget account* once an account exists).
+  ⚠️ **The Android leg is written but has never been run** — the flows are byte-identical
+  across platforms, but the first `--strict` release will be the first time that is tested.
 - **Both mobile platforms, one authoring pass.** `--strict` runs the whole suite regardless of
   which target ships ([`10`](./v0-1_10_external-testflight.md)), so an iOS-only beta still needs
   Android green — but the cost is not doubled: Maestro flows are byte-identical across the two

@@ -1,0 +1,97 @@
+# Flow 4 — Create an account: the act that turns encryption on.
+# plans/testing/crucial-flows.md → Flow 4. Runs at the `beta` rung, on-screen half only.
+#
+# **What this proves that no lower tier can:** that the *running app* survives its own
+# store being replaced underneath it. Both clients' converters are covered a tier down;
+# what only E2E shows is that an Unauthenticated store full of real rows becomes an
+# encrypted one in place, and that everything the user typed is still there and still
+# readable immediately afterwards.
+#
+# **Last in the arc, deliberately.** Everything before it runs against an Unauthenticated
+# store, and this is the step that ends that. It matters for re-runnability: once an
+# account exists the reset in `subflows/factory-reset.yaml` is a different act under a
+# different name, which that subflow handles — but there is no reason to make every other
+# flow run under encryption to find out.
+#
+# **The out-of-band half belongs to `rc`.** The catalog also asks that the store be
+# ciphertext under `stores/<accountId>/`, that the Unauthenticated store be gone, and that
+# the OS key store now hold four secrets. None of it is reachable from Maestro.
+appId: com.leapsake.app
+---
+- openLink: "leapsake://settings"
+- assertVisible: "Protect your data"
+
+# Both password fields are `secureTextEntry` with identical (empty) accessibility text, so
+# all three are reached by id — the ids exist for this flow, and the comment beside them in
+# `app/settings.tsx` says so.
+#
+# iOS draws no dots in a `newPassword` field under automation, so do not judge these by
+# looking: the evidence they landed is the submit below getting past validation, which
+# refuses a password under 12 characters or a mismatched confirmation.
+- tapOn:
+    id: "account-username"
+- inputText: "ada"
+- tapOn:
+    id: "account-password"
+- inputText: "correct-horse-battery-staple"
+- tapOn:
+    id: "account-confirm-password"
+- inputText: "correct-horse-battery-staple"
+
+# The submit sits under the keyboard on a phone-sized screen. "Username" is this screen's
+# first field label, a plain `Text` well above the keyboard.
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Username"
+- tapOn:
+    id: "account-submit"
+
+# --- the one-time reveal ----------------------------------------------------------------
+# Waited for rather than asserted: the button reads "Encrypting your data…" while the store
+# is converted, and how long that takes is a property of the data, not of the harness.
+- extendedWaitUntil:
+    visible: "Save your recovery phrase"
+    timeout: 60000
+
+# It has taken the screen over rather than appearing beneath the form — which is the
+# assertable half of the catalog's "the app chrome is not reachable while it is up". The
+# account screen is pushed over the tab navigator and never had a tab bar to hide, so
+# asserting the tab bar's absence here would pass whatever the reveal did.
+- assertNotVisible: "Protect your data"
+
+# 24 words, and exactly 24. The grid numbers them, so the last one and the absence of a
+# twenty-fifth is a cheaper and more exact claim than counting elements.
+- assertVisible: '24\. .*'
+- assertNotVisible: '25\. .*'
+
+# The acknowledgement `Switch`, by id: it carries no text, its label is a sibling `Text`,
+# and a `rightOf:` selector picked something else entirely — leaving the switch off, Done
+# disabled, and the tap below doing nothing. "Done" staying disabled until the switch is on
+# is what turns that into a failure rather than an unacknowledged phrase.
+- tapOn:
+    id: "recovery-acknowledged"
+- tapOn: "Done"
+
+# --- the app continues in place ----------------------------------------------------------
+- assertVisible: "Your account is set up."
+# Shown once means once. A build that re-offered the phrase would be handing out a second
+# copy of the only thing that can open the store.
+- assertNotVisible: "Save your recovery phrase"
+
+# --- and the data survived being encrypted underneath it ----------------------------------
+# The point of the flow. Ada, her milestone and her relationship were all written into a
+# plaintext store; they must still be there, and still readable, out of an encrypted one.
+- openLink: "leapsake://"
+- tapOn:
+    id: "tab-search"
+- tapOn:
+    id: "browse-tile-people"
+- assertVisible: ".*Ada Lovelace.*"
+- tapOn: ".*Ada Lovelace.*"
+- scrollUntilVisible:
+    element:
+      text: ".*Birthday.*"
+    direction: DOWN
+- assertVisible: ".*1815.*"
+- assertVisible: ".*Augustus De Morgan.*"

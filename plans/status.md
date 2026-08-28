@@ -19,11 +19,11 @@ but do not upload** — the first upload claims the package name for whichever a
 [`v0-1.md`](./v0-1.md) → *Open decisions* 4.
 
 **10 (external TestFlight)** — [`v0-1_10_external-testflight.md`](./v0-1_10_external-testflight.md).
-`pnpm release beta` to external testers, unattended. **Independent of 04** — iOS only, so it does
-not wait on Play, and either may be picked up first. Gated on **06**: `beta` runs the suite
-`--strict` and the `e2e` tier is not built. **Settle [`v0-1.md`](./v0-1.md) → *Open decisions* 1
-before starting** — smaller again if the first beta is iOS-only, since it then sets the mobile
-bar for one platform rather than two.
+`pnpm release beta`, unattended. **Independent of 04** — iOS only. ✅ **06's blocker is gone**
+*(2026-08-28)*: the `e2e` tier is `ready` — Flows 1-5 green on the iOS simulator, re-runnable —
+so `--strict` no longer fails on a blocked tier. Left: **run the arc on Android once** (written,
+never exercised), sign off [`v0-1.md`](./v0-1.md) → *Open decisions* 1, then the App Store
+Connect API work itself.
 
 **Contact methods reach people** — built 2026-08-19. Left: the URL templates are convention,
 not verified — **confirm on real hardware with the apps installed** (no simulator can). ✅
