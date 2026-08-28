@@ -1,10 +1,16 @@
 // Give the *dev* Electron bundle the dev app's name, so macOS's menu bar does too.
 //
-// macOS takes the name beside the Apple logo from the running bundle's `CFBundleName`, and
-// nothing the app does at runtime can reach it: `app.setName` renames everything *inside*
-// that menu — About…, Hide…, Quit… — and leaves the title itself alone. In dev the bundle
-// is `node_modules/electron/dist/Electron.app`, so the title is “Electron”, and the app is
-// nameless on the one platform it is developed on.
+// macOS takes the name beside the Apple logo — and the one the Dock shows under the icon —
+// from the running bundle, and nothing the app does at runtime can reach either:
+// `app.setName` renames everything *inside* the app menu (About…, Hide…, Quit…) and leaves
+// the title and the Dock alone. In dev the bundle is
+// `node_modules/electron/dist/Electron.app`, so both say “Electron”, and the app is nameless
+// on the one platform it is developed on.
+//
+// Renaming the *executable* would fix the Dock too and must not be done: Electron derives
+// `app.isPackaged` from its basename, so a renamed binary makes an unpackaged build claim to
+// be packaged — which skips the dev rename in `src/main/index.ts` and puts this device's
+// store on the packaged app's path. Measured, not guessed.
 //
 // The name written here must match what `src/main/index.ts` calls an unpackaged build, or
 // the menu bar and its own items disagree. Both derive it from `productName` and append the
@@ -39,19 +45,40 @@ import { dirname, join } from "node:path";
 const NAME = `${JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).productName} Dev`;
 
 /**
- * `Info.plist` of the Electron.app that `electron-vite dev` is about to launch.
+ * The Electron.app that `electron-vite dev` is about to launch.
  *
  * Resolved through `require.resolve` rather than a hand-written `node_modules` path so it
  * follows whatever layout the package manager chose. `undefined` if the binary has not
  * been downloaded yet, which is not this script's problem to report — the launch that
  * follows will say so far more clearly.
  */
-function bundlePlist() {
+function bundle() {
   const path = join(
     dirname(createRequire(import.meta.url).resolve("electron")),
-    "dist/Electron.app/Contents/Info.plist",
+    "dist/Electron.app",
   );
-  return existsSync(path) ? path : undefined;
+  return existsSync(join(path, "Contents/Info.plist")) ? path : undefined;
+}
+
+/**
+ * Tell LaunchServices to re-read the bundle it has already catalogued.
+ *
+ * Editing `Info.plist` is not enough on its own, because **two different things read the
+ * name.** AppKit reads the plist live, which is why the menu bar changes on the next
+ * launch; the Dock reads LaunchServices' *database record* for the bundle, which is a
+ * cached copy taken when the bundle was first seen. Leave it and the Dock keeps saying
+ * “Electron” under an icon and a menu that say otherwise — the app looks half-renamed,
+ * which is worse than not renaming it.
+ *
+ * Only called when a key actually changed, since re-registering is the slow part and the
+ * overwhelmingly common case is a stamp that is already correct.
+ */
+function reregister(path) {
+  execFileSync(
+    "/System/Library/Frameworks/CoreServices.framework/Frameworks" +
+      "/LaunchServices.framework/Support/lsregister",
+    ["-f", path],
+  );
 }
 
 /** One string key, or `undefined` if it is absent or unreadable. */
@@ -70,17 +97,21 @@ function main() {
   // window, which the app already sets for itself.
   if (process.platform !== "darwin") return;
 
-  const plist = bundlePlist();
-  if (plist === undefined) return;
+  const path = bundle();
+  if (path === undefined) return;
+  const plist = join(path, "Contents/Info.plist");
 
   // Both keys, because they are two different surfaces and a half-rename reads as a bug:
   // `CFBundleName` is the menu-bar title, `CFBundleDisplayName` is what the Finder and the
   // ⌘-Tab switcher show. `plutil -replace` inserts a key that is missing.
+  let changed = false;
   for (const key of ["CFBundleName", "CFBundleDisplayName"]) {
     if (read(plist, key) === NAME) continue;
     execFileSync("plutil", ["-replace", key, "-string", NAME, plist]);
+    changed = true;
     console.log(`named the dev Electron bundle: ${key} → ${NAME}`);
   }
+  if (changed) reregister(path);
 }
 
 try {
@@ -88,6 +119,6 @@ try {
 } catch (error) {
   console.warn(
     `could not name the dev Electron bundle (${error.message}) — ` +
-      "the macOS menu bar will say “Electron”. Continuing.",
+      "macOS will call the app “Electron”. Continuing.",
   );
 }
