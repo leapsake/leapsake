@@ -1190,39 +1190,40 @@ const resource = (name: string): string | undefined => {
  * The window icon, generated from `assets/icon/logo_color.svg` by `pnpm icons`.
  *
  * Windows and Linux take the icon from the window; **macOS ignores this entirely** and
- * reads the app bundle instead — {@link setMacIdentity} is the macOS half.
+ * reads the app bundle instead — the Dock icon set in `whenReady` is the macOS half.
  */
 const windowIcon = (): string | undefined => resource("icon.png");
 
 /**
- * The name macOS puts inside its own menus — "About Leapsake", "Hide Leapsake", "Quit
- * Leapsake" — which Electron builds from `app.name` and which is otherwise this package's
- * name, `@leapsake/desktop`.
+ * There is deliberately **no `app.setName("Leapsake")` here**, and that is worth a comment
+ * because it is the obvious thing to reach for and it looks harmless.
  *
- * It does **not** set the menu's *title*: AppKit takes that from the running bundle's
- * `CFBundleName`, out of reach of anything at runtime, and in dev the bundle is
- * `node_modules/electron/dist/Electron.app`. `scripts/name-dev-bundle.mjs` handles that
- * half on the way into `dev`; the two halves together are what make the menu read
- * "Leapsake" throughout. The Dock icon is a third, in `whenReady` below.
+ * `app.name` is not a label. Electron derives three things from it, and only the first is
+ * cosmetic:
  *
- * **The rename is deliberately cosmetic, and the second line is what keeps it that way.**
- * `userData` is derived from the app's name, so `setName` alone would move this device's
- * whole store — from `@leapsake/desktop` to `Leapsake`, which is precisely the packaged
- * app's directory and precisely the one dev is meant to stay out of (README → "Where the
- * data lives depends on custody"). Re-pinning the path to what it already resolved to
- * keeps the two apart in dev, and changes nothing once packaged, where the name resolved
- * to Leapsake before this ran.
+ *   1. the wording *inside* the macOS app menu — "About @leapsake/desktop", "Quit …";
+ *   2. `app.getPath("userData")`, i.e. where this device's whole store lives;
+ *   3. on macOS, the **Keychain item safeStorage wraps keys with** — the service is
+ *      `<app.name> Safe Storage`, so a rename silently points the enclave at a different
+ *      key and every value in `keystore.json` stops decrypting.
  *
- * Runs before `whenReady`, because startup reads both the name and the path.
+ * (3) is the one that bites, and it is not fixable the way (2) is. `app.setPath` can pin
+ * the store back to where it was, so a rename *looks* survivable; there is no equivalent
+ * API for the Keychain service, and no way to ask safeStorage for the old name. The result
+ * on any device with an account is a store that opens, a `keystore.json` that no longer
+ * decrypts, and a recovery prompt on next launch. Measured, not assumed: renaming to
+ * "Leapsake" creates a fresh `Leapsake Safe Storage` item rather than reusing
+ * `@leapsake/desktop Safe Storage`.
+ *
+ * So the app's *name* stays this package's name, and the two surfaces that can be reached
+ * without touching it are set instead — `scripts/name-dev-bundle.mjs` for the menu-bar
+ * title, and the Dock icon in `whenReady` below. Menu **items** keep saying
+ * "@leapsake/desktop" in dev, which is the price, and which packaging ends by giving the
+ * app a real name from the start rather than renaming a running one.
+ *
+ * Renaming for real is a data migration, not an edit here. See the desktop README →
+ * *The app's face on macOS*.
  */
-function setMacIdentity(): void {
-  if (process.platform !== "darwin") return;
-  const storeRoot = app.getPath("userData");
-  app.setName("Leapsake");
-  app.setPath("userData", storeRoot);
-}
-
-setMacIdentity();
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -1328,8 +1329,8 @@ ipcMain.on("flags:snapshot", (event) => {
 
 void app.whenReady().then(async () => {
   // The Dock icon, which macOS reads from the app bundle rather than from the window — so
-  // in dev it is Electron's atom until something says otherwise. Here rather than beside
-  // {@link setMacIdentity} only because there is no Dock to set an icon on before ready.
+  // in dev it is Electron's atom until something says otherwise. Here rather than at module
+  // scope only because there is no Dock to set an icon on before ready.
   //
   // `icon-macos.png` rather than `icon.png`: macOS composites the file exactly as given
   // and supplies no mask, so the rounded tile and the margin it reserves for the badge and

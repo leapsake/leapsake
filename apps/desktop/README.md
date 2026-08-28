@@ -59,20 +59,47 @@ different moments:
 | --- | --- | --- |
 | Dock icon | `app.dock.setIcon(resources/icon-macos.png)` | `src/main/index.ts`, after `whenReady` |
 | Menu-bar title | `CFBundleName` in the dev bundle's `Info.plist` | `scripts/name-dev-bundle.mjs`, run by `dev`/`start` |
-| Everything in that menu (About…, Hide…, Quit…) | `app.setName("Leapsake")` | `src/main/index.ts`, before `whenReady` |
+| Window title | the renderer's own `<title>` | `src/renderer/index.html` |
 
-The middle row is the awkward one: AppKit takes the menu title from the bundle and nothing at
+The second row is the awkward one: AppKit takes the menu title from the bundle and nothing at
 runtime can reach it, so `dev` stamps the downloaded bundle on its way past. That is safe here
 and the script says why at length — the short version is that the bundle is ad-hoc
 linker-signed with its `Info.plist` unsealed, and the copy is this repo's own.
 
-> ⚠️ **`app.setName` moves `userData` if you let it**, from `@leapsake/desktop` to `Leapsake` —
-> which is the packaged app's directory and the one dev is meant to stay out of. `setMacIdentity`
-> re-pins the path immediately, so the rename stays cosmetic. Do not drop that line.
-
 `icon-macos.png` is a separate file from `icon.png` rather than a crop of it, because macOS
 supplies no mask of its own and wants the rounded tile in the pixels; see
 [`assets/icon/README.md`](../../assets/icon/README.md).
+
+### Why the app is not simply renamed
+
+The menu **items** still say "About @leapsake/desktop" in dev, and the one-line fix —
+`app.setName("Leapsake")` — is a trap worth documenting, because it looks cosmetic and is not.
+
+`app.name` feeds three things. The menu wording is one. `app.getPath("userData")` is the
+second, and that one at least has a lever: `app.setPath` can pin the store back where it was.
+The third has no lever. On macOS, safeStorage wraps keys with a Keychain item whose service is
+**`<app.name> Safe Storage`**, and there is no API to ask it for a different name. Rename the
+app and this device's enclave quietly points at a new key, so `keystore.json` stops decrypting:
+the store still opens, custody is degraded, and every existing device meets a recovery prompt
+on next launch.
+
+Measured rather than assumed — renaming to "Leapsake" creates a fresh `Leapsake Safe Storage`
+item rather than reusing the existing `@leapsake/desktop Safe Storage`.
+
+So **renaming the app is a data migration, not a rename.** If it is ever worth doing, the
+mechanism is `productName` in this package's `package.json` — which Electron reads before any
+app code runs, so the name is right from the start and nothing has to be un-done — plus a plan
+for the two things that move with it:
+
+- the store, `~/Library/Application Support/@leapsake/desktop` → `…/<new name>`; and
+- the wrapped keys, which **cannot** be moved. Once the name changes, the old Keychain item is
+  unreachable, so an encrypted device has to come back through a password or recovery-phrase
+  door and re-wrap. A device with no account (plaintext store) is unaffected.
+
+Note also that whatever name is chosen becomes the *packaged* app's directory too. Sharing one
+with dev means a dev build running unmigrated schema changes against the store the installed
+app uses — see the pre-v0.1 stance on breaking changes without migrations. A distinct dev name
+(`"productName": "Leapsake Dev"`) buys the honest menu wording without that.
 
 ### More than one device at once
 
