@@ -48,7 +48,24 @@ export default function TagsScreen() {
             </Text>
           }
           renderItem={({ item: tag }) => (
-            <Link href={`/tags/${tag.id}`} style={styles.row}>
+            /*
+              `accessible` + a label, because `Link` renders a `Text` and the `View`
+              below is therefore a view nested in text — which iOS drops from the
+              accessibility tree entirely. The row is legible on screen and invisible
+              to VoiceOver, and to any driver: `maestro hierarchy` finds no trace of a
+              tag on this screen. Grouping the row under one label restores both.
+              `app/(tabs)/holidays.tsx` has the same shape and the same fix; the People
+              and Gift catalogs nest text rather than a view, so they were never
+              affected.
+            */
+            <Link
+              href={`/tags/${tag.id}`}
+              style={styles.row}
+              accessible
+              accessibilityLabel={`${tagLabel(tag.name)}, ${
+                tag.usageCount === 1 ? "1 item" : `${tag.usageCount} items`
+              }`}
+            >
               <View>
                 <Text style={[styles.rowText, { color: colors.accent }]}>
                   {tagLabel(tag.name)}

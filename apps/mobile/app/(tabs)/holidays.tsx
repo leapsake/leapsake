@@ -45,7 +45,16 @@ export default function HolidaysScreen() {
             <Text style={styles.muted}>No holidays yet.</Text>
           }
           renderItem={({ item: holiday }) => (
-            <Link href={`/holidays/${holiday.id}`} style={styles.row}>
+            /* A view nested in `Link`'s text is dropped from the accessibility
+               tree on iOS — see the note in `app/(tabs)/tags.tsx`. */
+            <Link
+              href={`/holidays/${holiday.id}`}
+              style={styles.row}
+              accessible
+              accessibilityLabel={`${holiday.name}${
+                holiday.hidden ? " (hidden)" : ""
+              }`}
+            >
               <View>
                 <Text style={[styles.rowText, { color: colors.accent }]}>
                   {holiday.name}
