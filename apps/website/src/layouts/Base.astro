@@ -37,6 +37,7 @@ const customProperties = [
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
     <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+    <slot name="head" />
     <style is:global set:html={`:root {\n      ${customProperties}\n    }`}></style>
     <style is:global>
       *,

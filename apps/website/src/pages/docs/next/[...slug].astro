@@ -1,0 +1,38 @@
+---
+import type { GetStaticPaths, InferGetStaticPropsType } from "astro";
+import { getCollection, render } from "astro:content";
+
+import Base from "../../../layouts/Base.astro";
+
+/**
+ * The unreleased working copy of every doc, at `/docs/next/<section>/<name>`.
+ *
+ * `noindex`: these describe a build nobody can install yet, so they are here to be
+ * previewed and linked in review, not found in a search result. The permanent
+ * addresses are the versioned snapshots (`/docs/v0.4/…`), which arrive with the
+ * release step that creates them — see `apps/website/README.md`.
+ *
+ * An entry's `id` is its slug, so it is already the `section/name` path this route
+ * takes as a rest parameter.
+ */
+export const getStaticPaths = (async () => {
+  const docs = await getCollection("docs");
+  return docs.map((doc) => ({ params: { slug: doc.id }, props: { doc } }));
+}) satisfies GetStaticPaths;
+
+type Props = InferGetStaticPropsType<typeof getStaticPaths>;
+
+const { doc } = Astro.props;
+const { Content } = await render(doc);
+---
+
+<Base title={`${doc.data.title} — Leapsake`} description={doc.data.description}>
+  <Fragment slot="head">
+    <meta name="robots" content="noindex" />
+  </Fragment>
+  <h1>{doc.data.title}</h1>
+  <Content />
+  <footer>
+    <a href="/">Leapsake</a>
+  </footer>
+</Base>

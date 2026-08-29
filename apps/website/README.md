@@ -44,6 +44,59 @@ which is why the site could go live before the repo went public.
 DNS is Cloudflare's; the registrar is unchanged. The apex serves the site and `www`
 redirects to it.
 
+## Documentation
+
+**A `slug` in a markdown file's frontmatter is what publishes it**, from anywhere in
+the repository:
+
+```yaml
+---
+slug: contacts/importing
+title: Importing contacts
+since: "0.4"
+---
+```
+
+Nothing about a file's location makes it a doc, so a guide can sit beside the code it
+describes — the arrangement the rest of the repo already uses for its stable "why".
+A markdown file with no `slug` is technical documentation and is passed over. There is
+no second flag to forget, because the slug *is* the URL: a doc without one has nowhere
+to be published to.
+
+The slug is explicit rather than derived from the filename so that a doc keeps its
+public URL when its package is renamed or split — which `packages/README.md` says will
+happen. The section is a **content** taxonomy from the closed set in
+`src/content.config.ts`, never a package name; being closed is also the reserved-word
+check, since a slug then cannot begin `next` or `v0.4` and shadow a version segment.
+
+What this gives up is seeing the published set from a file tree.
+`docs-manifest.json` buys it back and more: it maps every public URL to the file that
+claims it, it is committed, and `pnpm test:docs` fails when it is stale — so a changed
+URL appears in a pull request diff rather than only in a deploy.
+
+### Versioned URLs
+
+| Path | Serves |
+| --- | --- |
+| `/docs/v0.4/contacts/importing` | a released snapshot — permanent, and **what the app links to**, using its own version |
+| `/docs/contacts/importing` | alias to the newest version, for humans and search |
+| `/docs/next/contacts/importing` | the unreleased working copy, `noindex` |
+
+The app linking versioned while humans get the alias is what makes version-specific
+docs work: someone still on 0.3 reaches 0.3's pages from inside the app, while a
+search result lands on current.
+
+**Only `/docs/next/*` is built today.** The snapshots arrive with the release step
+that creates them: `pnpm release` copies the living docs into
+`src/content/docs/v0.4/`, and from then on that copy is editable in place. Copying is
+the point — rendering a snapshot from a git tag would avoid the duplication but would
+put a typo fix behind moving a tag, which is exactly the coupling this site exists
+without.
+
+The drift rule, so "which one is canonical?" is never a live question: **the in-tree
+copy is the unreleased version; `vX.Y/` are released ones.** They are never canonical
+for the same thing.
+
 ## Two traps
 
 **Do not add React.** Astro does not need it and `@leapsake/ui/tokens` is plain data

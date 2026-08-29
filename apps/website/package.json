@@ -11,7 +11,8 @@
   "dependencies": {
     "@astrojs/markdown-satteri": "^0.3.8",
     "@leapsake/ui": "workspace:*",
-    "astro": "^7.2.9"
+    "astro": "^7.2.9",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10"

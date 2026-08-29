@@ -77,6 +77,17 @@ const TIERS = [
     status: "ready",
   },
   {
+    // A third guard of the same family as `versions` and `icons`: what it protects is
+    // a *public URL*. A slug in a markdown file's frontmatter publishes it to
+    // leapsake.com, so a renamed slug silently moves a page that links already point
+    // at — and nothing else in the repo would notice.
+    key: "docs",
+    layer: "static",
+    label: "docs manifest (every published slug is recorded)",
+    script: "test:docs",
+    status: "ready",
+  },
+  {
     key: "node",
     layer: "unit + integration",
     label: "unit + integration (vitest, real desktop engine)",
