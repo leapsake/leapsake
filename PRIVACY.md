@@ -1,18 +1,16 @@
 <!-- Published as Leapsake's privacy policy URL, which App Store Connect requires before
      external testing. Two placeholders below MUST be filled before this is published:
      <PUBLISHER> and <CONTACT EMAIL>. Every factual claim here was checked against the
-     shipped build on 2026-08-28 — if the app gains a network call, an SDK, or a
-     permission, this file changes in the same commit. -->
+     shipped build on 2026-08-28 — if the app gains a network call, an SDK, a permission,
+     or reaches a relay (sync is built but every door to it is shut), this file changes in
+     the same commit. -->
 
 # Leapsake Privacy Policy
 
 _Last updated 28 August 2026._
 
-Leapsake is an address book with a memory: the people and pets in your life, how they are
-related, and the dates that matter. It runs entirely on your device.
-
-**We do not collect, store, or transmit any of your information.** There is no account to
-create with us, no server to sign in to, and nothing to opt out of.
+**We do not collect, store, or transmit any of your information.** Leapsake runs on your
+device, with no server involved and nothing to opt out of.
 
 ## What we collect
 
@@ -21,13 +19,15 @@ trackers. It sends nothing to us, and nothing to anyone else.
 
 ## Where your information lives
 
-Everything you enter — people, pets, relationships, dates, reminders, notes, tags — is
-stored in a database on your device and nowhere else. We cannot see it, we cannot retrieve
-it, and we hold no copy of it.
+Everything you enter is stored in a database on your device and nowhere else. We cannot see
+it, we cannot retrieve it, and we hold no copy of it.
 
-If you create an account inside Leapsake, that account is created **on your device only**.
-It sets a password that encrypts your data where it sits. It is not registered with us, and
-nothing about it is sent anywhere.
+If you create an account in Leapsake, it is created **on your device only**. It sets a
+password that encrypts your data where it sits. It is not registered with us, and nothing
+about it is sent anywhere.
+
+Delete the app, or erase your data from within it, and it is gone. Because we never had a
+copy, there is nothing to ask us to delete.
 
 ## Permissions the app asks for
 
@@ -43,27 +43,6 @@ nothing about it is sent anywhere.
 Tapping a phone number, an email address, or a website hands it to your phone's own app for
 that thing. What happens next is covered by that app's privacy policy and your carrier's,
 not by this one.
-
-## Deleting your information
-
-Open the **Settings** tab — it is called **Account** once you have created one — and choose
-**Data**. Or delete the app. Either removes your information from your device.
-
-Because we never had a copy, there is nothing to ask us to delete and no request for us to
-answer.
-
-## Children
-
-Leapsake is not directed at children, and it collects nothing from anyone.
-
-## Future versions
-
-A future version may offer optional syncing between your own devices. It is switched off and
-unreachable in this one. If that ships, this policy will say so before it does.
-
-## Changes
-
-If this policy changes, the updated version appears here with a new date.
 
 ## Contact
 
