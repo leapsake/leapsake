@@ -1,0 +1,13 @@
+{
+  // Astro generates `.astro/types.d.ts` (route and collection types) on `astro sync`,
+  // which `astro check` runs first — so this include is what makes `astro:content`
+  // resolve. The root config already supplies everything else Astro wants
+  // (strict, ESNext, bundler resolution).
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["astro/client"]
+  },
+  "include": [".astro/types.d.ts", "src", "test", "*.mjs"],
+  "exclude": ["dist"]
+}

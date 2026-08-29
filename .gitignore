@@ -5,6 +5,10 @@ dist/
 build/
 out/
 
+# Astro's generated route and content-collection types (apps/website), written by
+# `astro sync` — which `astro check` runs for us, so there is nothing to commit.
+.astro/
+
 # SQLite databases
 *.db
 *.db-journal

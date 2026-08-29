@@ -15,6 +15,8 @@ export default defineConfig({
       "apps/server/{src,test}/**/*.test.ts",
       "apps/desktop/test/**/*.test.ts",
       "apps/mobile/lib/**/*.test.ts",
+      // Builds the site and asserts the artifact — see the file's own header.
+      "apps/website/test/**/*.test.ts",
     ],
   },
 });

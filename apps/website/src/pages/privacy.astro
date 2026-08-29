@@ -1,0 +1,31 @@
+---
+import { getEntry, render } from "astro:content";
+
+import Base from "../layouts/Base.astro";
+
+/**
+ * The URL App Store Connect requires. Everything on this page comes from the
+ * repository's own `PRIVACY.md` — see `src/content.config.ts` for why it is read
+ * rather than copied.
+ */
+const entry = await getEntry("legal", "privacy");
+
+if (!entry) {
+  throw new Error(
+    "PRIVACY.md was not found at the repository root. This page is the policy URL " +
+      "the App Store listing points at, so an empty build is worse than a failed one.",
+  );
+}
+
+const { Content } = await render(entry);
+---
+
+<Base
+  title="Privacy Policy — Leapsake"
+  description="Leapsake collects nothing. It runs on your device, with no server involved."
+>
+  <Content />
+  <footer>
+    <a href="/">Leapsake</a>
+  </footer>
+</Base>

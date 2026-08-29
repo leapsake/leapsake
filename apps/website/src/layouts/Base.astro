@@ -1,0 +1,106 @@
+---
+/**
+ * The page shell, and the only stylesheet.
+ *
+ * Deliberately plain. `@leapsake/ui/tokens` calls itself "a seed, not a design
+ * system" and the app's real visual pass is still ahead — so this lays out readable
+ * text on the product's palette and stops there. When that pass happens it happens
+ * once, for app and site together, and this file inherits it by re-reading the same
+ * tokens.
+ *
+ * The custom properties are *derived* from the token objects rather than written
+ * out, so there is no second copy of a colour to update.
+ */
+import { color, fontSize, radius, space } from "@leapsake/ui/tokens";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+
+const kebab = (key: string) => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+
+const customProperties = [
+  ...Object.entries(color).map(([k, v]) => `--color-${kebab(k)}: ${v};`),
+  ...Object.entries(space).map(([k, v]) => `--space-${kebab(k)}: ${v}px;`),
+  ...Object.entries(fontSize).map(([k, v]) => `--font-size-${kebab(k)}: ${v}px;`),
+  ...Object.entries(radius).map(([k, v]) => `--radius-${kebab(k)}: ${v}px;`),
+].join("\n      ");
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+    <style is:global set:html={`:root {\n      ${customProperties}\n    }`}></style>
+    <style is:global>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: var(--space-xl) var(--space-lg);
+        background: var(--color-surface);
+        color: var(--color-text);
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        font-size: var(--font-size-body);
+        line-height: 1.6;
+      }
+
+      main {
+        /* ~65 characters: the measure long-form prose is comfortable at. */
+        max-width: 34rem;
+        margin: 0 auto;
+      }
+
+      h1,
+      h2 {
+        line-height: 1.25;
+      }
+
+      h1 {
+        font-size: var(--font-size-title);
+      }
+
+      h2 {
+        font-size: var(--font-size-section-title);
+        margin-top: var(--space-xl);
+      }
+
+      a {
+        color: var(--color-accent);
+      }
+
+      em {
+        color: var(--color-muted);
+        font-style: normal;
+        font-size: var(--font-size-detail);
+      }
+
+      footer {
+        margin-top: var(--space-xl);
+        padding-top: var(--space-lg);
+        border-top: 1px solid var(--color-divider);
+        color: var(--color-muted);
+        font-size: var(--font-size-detail);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <slot />
+    </main>
+  </body>
+</html>
