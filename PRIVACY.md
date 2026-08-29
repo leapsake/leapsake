@@ -1,9 +1,13 @@
 <!-- Published as Leapsake's privacy policy URL, which App Store Connect requires before
-     external testing. Two placeholders below MUST be filled before this is published:
-     <PUBLISHER> and <CONTACT EMAIL>. Every factual claim here was checked against the
-     shipped build on 2026-08-28 — if the app gains a network call, an SDK, a permission,
-     or reaches a relay (sync is built but every door to it is shut), this file changes in
-     the same commit. -->
+     external testing.
+
+     Every factual claim here was checked against the shipped build on 2026-08-28 — if the
+     app gains a network call, an SDK, a permission, or reaches a relay (sync is built but
+     every door to it is shut), this file changes in the same commit.
+
+     The publisher is named as an individual because that is what the Apple account is, and
+     it must keep matching the App Store seller name. Incorporating changes it — see
+     plans/v0-1.md → Open decisions 4. -->
 
 # Leapsake Privacy Policy
 
@@ -46,6 +50,6 @@ not by this one.
 
 ## Contact
 
-Questions about this policy: <CONTACT EMAIL>
+Questions about this policy: hello@leapsake.com
 
-Leapsake is published by <PUBLISHER>.
+Leapsake is published by Joshua Smith.
