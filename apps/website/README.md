@@ -39,10 +39,37 @@ which is why the site could go live before the repo went public.
 | Output directory | `apps/website/dist` |
 | Root directory | repository root |
 | `NODE_VERSION` | `24.16.0` — set explicitly rather than relying on `.tool-versions` |
-| Path filter | `apps/website/**`, `PRIVACY.md`, `packages/ui/**` |
+
+Root directory is the **repository root**, not this folder: the site depends on
+`@leapsake/ui` through `workspace:*`, and an install scoped to `apps/website` cannot
+resolve it.
+
+**Every push to `main` builds — deliberately no path filter.** Scoping the build to
+`apps/website/**` looks obviously right and is wrong here: a `slug` publishes a
+markdown file from *anywhere* in the repository, so a doc added beside the feature it
+describes would never trigger a deploy. The build takes about a second, which is far
+cheaper than that failure would be to find.
+
+The root `pnpm install` runs Electron's postinstall and downloads a binary the site
+has no use for. If trimming it is worth the extra moving part, the build command can
+do its own scoped install instead:
+
+```
+pnpm install --ignore-scripts --filter @leapsake/website... && pnpm --filter @leapsake/website build
+```
 
 DNS is Cloudflare's; the registrar is unchanged. The apex serves the site and `www`
-redirects to it.
+redirects to it with a 301 redirect rule — `www` is deliberately *not* a second custom
+domain on the Pages project, which would serve the same pages at two URLs and
+contradict the canonical tag.
+
+⚠️ **The domain also carries live email** — `hello@leapsake.com`, the address the
+privacy policy prints. Its MX, SPF, DKIM and DMARC records share the Cloudflare zone
+with the site's, so a DNS change made for the website is a change to mail delivery
+too. Two things follow: moving or re-creating the zone must carry those records
+across, and the DKIM CNAMEs must stay **DNS-only** — proxying them breaks signing, and
+the symptom is mail quietly landing in spam rather than anything that looks like an
+error.
 
 ## Documentation
 
