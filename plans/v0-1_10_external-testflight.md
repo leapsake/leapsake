@@ -57,8 +57,17 @@ these, and it will keep reporting them until they are done.
    a login that does not exist. Say plainly that Leapsake needs no account and works fully
    local.
 5. ⏳ **A privacy policy URL that resolves.** The app record's `privacyPolicyUrl` is `null`.
-   **Start this first** — it needs real hosting, and it is the only item here whose latency is
-   not under anyone's control.
+   ✅ The policy itself is **written** — [`../PRIVACY.md`](../PRIVACY.md), publisher and contact
+   filled in *(owner, 2026-08-28)*. What is left is a **URL**, which is hosting, and it is the
+   only item here whose latency is not purely yours.
+
+   **Two ways, and the choice is a sequencing one.** Making the repo public
+   ([`07`](./v0-1_07_public-repo-and-submission.md)) gives that file a resolving URL for free —
+   but the owner is **not ready to go public yet** *(2026-08-28)*, and 07 sits *after* this doc
+   in the chain for reasons of its own. So either host the page somewhere first, or accept that
+   this item waits on 07 and that the two swap order. **Do not let this default silently into
+   "wait for 07"** — that is how the one long-latency item on the list becomes the thing that
+   held the beta.
 6. ⏳ **The App Privacy questionnaire.** Certainly required before App Store submission; verify
    whether it also gates external testing. The contacts import makes this real work.
 7. ⏳ **Add testers to the group.**
@@ -83,38 +92,3 @@ targets, and leaves the build *In Beta Review* with its notes and group already 
 no App Store Connect session anywhere in the path. A day later a tester who is not the owner
 installs it from TestFlight. **Everything up to the first half of that sentence is built and
 unblocked; the second half waits on the seven items above.**
-
-## Not gating: making a re-run idempotent
-
-*Separate work, in `scripts/release/index.mjs` only, that landed in the same conversation.
-If it does not land with the above, move it to [`v0-2.md`](./v0-2.md) rather than leaving it
-here.*
-
-**The goal:** a release is all-or-nothing across every ready target, and the recovery for any
-failure is to fix it and run **the same command again** — never `--only`, which is to be
-retired as a routine tool.
-
-For **test** failures this is already true and needs nothing: the gate runs one repo-wide
-suite, so a red iOS tier aborts before any tag exists and restores every manifest. Proven on
-`alpha.2` ([`06`](./v0-1_06_e2e-and-release-gate.md) §B).
-
-The gap is the phase **after** the tag, which is per-target (`index.mjs:439`). If iOS uploads
-and Android fails, there is a tag, one shipped platform and one not — and a bare re-run
-computes the *next* number rather than retrying, then re-uploads the platform that already
-succeeded. Two changes close it:
-
-- **Resume the existing tag instead of minting a new one** when the previous release did not
-  finish. Largely derivable: after a partial release HEAD *is* the tag and the manifests
-  agree, which is already the `--from-tag` precondition.
-- **Record which targets shipped**, keyed by tag and including the build number — a
-  *successful* release leaves the same shape as a partial one, and must still cut the next
-  rung. The build number has to be in the record because it is clock-derived: without it a
-  retry mints a different one and re-uploads instead of resuming. `LEAPSAKE_BUILD_NUMBER`
-  already exists for exactly this and is the mechanism to reuse.
-
-⚠️ **Gate platforms in the registry, never with a flag.** This is what `--only`'s retirement
-depends on: when the Android target flips to `ready`, a bare `pnpm release beta` would start
-Play's 14-day closed-test clock, which [`status.md`](./status.md) says explicitly not to do
-yet. That belongs in `android.mjs` as a `blocked` status or a failing `requires` check on the
-rung — something the release refuses and explains — not in a flag someone has to remember to
-leave off.
