@@ -36,13 +36,27 @@ export const fileAt = (name, why, { suffix } = {}) => ({
   },
 });
 
-/** Run a list of checks against a context, returning one `{ name, reason }` per failure. */
-export function runChecks(checks, ctx) {
+/**
+ * Run a list of checks against a context, returning one `{ name, reason }` per failure.
+ *
+ * **`check` may be async**, and the result is awaited. Almost every check here is offline
+ * and synchronous on purpose — a preflight that needs the network is a preflight that
+ * fails when the network does — but one is not: `targets/ios.mjs` makes a single live App
+ * Store Connect call to catch a wrongly-scoped API key *before* a twenty-minute archive
+ * rather than after the upload it cannot follow. Awaiting here is what makes that
+ * possible; without it a promise would be truthy and every async check would "fail" with
+ * its own object as the reason.
+ *
+ * Sequential rather than parallel: checks are ordered cheapest-first so the common failure
+ * is reported without paying for the expensive ones, and the output reads in the order the
+ * list is written.
+ */
+export async function runChecks(checks, ctx) {
   const failures = [];
   for (const { name, check } of checks) {
     let reason;
     try {
-      reason = check(ctx);
+      reason = await check(ctx);
     } catch (error) {
       reason = `check threw: ${error.message}`;
     }

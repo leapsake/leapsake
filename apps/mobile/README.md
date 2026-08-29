@@ -60,6 +60,29 @@ by a flag left off the command line.
 --help` prints the current rung/platform matrix. Credentials live in an untracked `.env`
 (copy `.env.example`) — team, provisioning profile, and an App Store Connect API key.
 
+**From `beta` up, the release does not stop at the upload.** `alpha` hands the `.ipa` to
+App Store Connect and ends there, which is all an internal build needs. `beta` and `rc` go
+on to wait out processing, attach *What to Test*, add the build to the external tester
+group, and submit it for Beta App Review — so a build reaches strangers with no App Store
+Connect session anywhere in the path. Two things follow that nothing else in the repo
+implies:
+
+- **The API key must be App Manager.** A *Developer* key uploads builds perfectly well and
+  cannot do any of the four steps above. The preflight is otherwise entirely offline and
+  makes one deliberate exception — a live read of the app record — to catch that before the
+  archive rather than after the upload. A role change means a **new key**, because the
+  `.p8` downloads exactly once. The same probe reports what the record is still missing:
+  Test Information, Beta App Review contact and notes, the tester group.
+- **`release-notes/what-to-test.txt` is release copy, not a changelog.** It is what every
+  external tester reads before installing, it is plain text because TestFlight renders no
+  Markdown, and at this rung it has to say that the build is not a sole copy of anything.
+  Preflight fails in the first ten seconds if it is missing, because the alternative is
+  finding out after a twenty-minute archive.
+
+Beta App Review runs **per version, not per build** — `0.1.0-beta.1` pays the day and
+`beta.2` onwards go out in minutes — and the internal alphas buy no credit toward it,
+since internal builds skip beta review entirely.
+
 Three things about this app specifically, all of which cost an evening to learn once:
 
 - **`ios/` is deleted and regenerated on every release.** It is `expo prebuild` output and

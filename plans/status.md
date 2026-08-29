@@ -19,11 +19,14 @@ but do not upload** — the first upload claims the package name for whichever a
 [`v0-1.md`](./v0-1.md) → *Open decisions* 4.
 
 **10 (external TestFlight)** — [`v0-1_10_external-testflight.md`](./v0-1_10_external-testflight.md).
-`pnpm release beta`, unattended. **Independent of 04** — iOS only. ✅ **06's blocker is gone**
-*(2026-08-28)*: the `e2e` tier is `ready` — Flows 1-5 green on the iOS simulator, re-runnable —
-so `--strict` no longer fails on a blocked tier. Left: **run the arc on Android once** (written,
-never exercised), sign off [`v0-1.md`](./v0-1.md) → *Open decisions* 1, then the App Store
-Connect API work itself.
+`pnpm release beta`, unattended. **Independent of 04** — iOS only. ✅ **The code is done**
+*(2026-08-28)*: an App Store Connect client and a `publish()` that carries a build from
+uploaded to *In Beta Review* with its notes and group attached, and the `e2e` gate is green on
+**iOS and Android** — the Android leg has now actually been run. Left: **the App Store Connect
+record**, which is all a person's — a privacy policy URL that resolves (needs hosting; the only
+item with latency no one controls), Test Information, Beta App Review notes, testers. Doc 10
+lists them, and `pnpm release beta --only=ios --dry-run` reports them. Also: sign off
+[`v0-1.md`](./v0-1.md) → *Open decisions* 1, which the beta bar was built against.
 
 **Contact methods reach people** — built 2026-08-19. Left: the URL templates are convention,
 not verified — **confirm on real hardware with the apps installed** (no simulator can). ✅

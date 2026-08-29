@@ -1,0 +1,29 @@
+Leapsake is a private address book with a memory: the people and pets in your life,
+how they are related, the dates that matter, and reminders that reach you before them.
+
+Everything is stored on your phone. There is no sign-in, no account, and no server —
+you can use every part of this build without creating anything or giving us an email
+address. If a screen looks like it is waiting for a login, that is a bug; please report
+it.
+
+Please try, in roughly this order:
+
+1. Open the app and add the first person. The home screen nudges you.
+2. Add a second person, then relate the two (partner, parent, sibling — anything).
+   Check the relationship reads correctly from both people's pages.
+3. Put a birthday or an anniversary on someone, then reopen the app and confirm it is
+   still there and that a reminder appears ahead of it.
+4. Write a reminder that @mentions a person and carries a #tag, then find it again by
+   that tag.
+5. Allow notifications when asked, and see whether the reminder actually arrives.
+6. Optionally: create an account in Settings. It stays on this device — it turns on
+   encryption and gives you a recovery phrase. Write the phrase down.
+
+Things we know are unfinished: syncing between devices is switched off in this build,
+photos are not in yet, and the typography and icons are placeholders.
+
+Please do not keep anything here that you have no other copy of. This is an early beta,
+and recovering a store whose key is lost is not something we have finished testing yet
+— a device restore or an iOS reset can take the key with it.
+
+Tell us anything that felt slow, confusing, or wrong, however small.

@@ -304,7 +304,7 @@ async function main() {
   console.log(`  from         ${ctx.branch} @ ${mode}`);
 
   // ── Preflight, repo-wide ────────────────────────────────────────────────────────────
-  const repoFailures = runChecks(
+  const repoFailures = await runChecks(
     mode === "local" ? LOCAL_CHECKS : FROM_TAG_CHECKS,
     ctx,
   );
@@ -328,7 +328,7 @@ async function main() {
       ]);
       continue;
     }
-    const failures = runChecks(
+    const failures = await runChecks(
       [...(target.preflight ?? []), ...(tier.requires ?? [])],
       ctx,
     );

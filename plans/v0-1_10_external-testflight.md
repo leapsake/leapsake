@@ -10,99 +10,61 @@ no App Store Connect session in the path — the same standard `alpha` already m
 up. It is the last rung before a store listing, and the first one where a stranger installs
 Leapsake.
 
-✅ **The alpha half is done** *(2026-08-26)*. Tag, gate, prebuild, archive, export, validate,
-upload — all of it stage-agnostic already. `pnpm release beta` gets further than it looks:
-the ladder computes `0.1.0-beta.1`, the store still sees `0.1.0`, preflight passes, and
-`scripts/release/targets/ios.mjs:210` already declares the `beta` rung as *external
-TestFlight* gated on a real app icon and export compliance. Two things stop it, and they are
-different in kind.
+## ✅ The engineering is done *(2026-08-28)*
 
-## The blocker that is not Apple
+All of it, and it is not repeated here — the rules live next to the code that enforces them,
+which is the point of this doc being deletable:
 
-`isStrict` (`scripts/release/index.mjs:258`) is `stage !== "alpha"`, so **beta runs
-`pnpm test:all --strict`**, and the `e2e` tier is statically `blocked`
-(`scripts/test-all.mjs:136`). Strict turns a blocked tier into a failure. `pnpm release beta`
-therefore fails before it touches Apple at all.
+- **`scripts/release/asc.mjs`** — the App Store Connect client. ES256 JWT out of `node:crypto`
+  alone, no dependency, and `scripts/release/asc.test.mjs` holds it to the two things that
+  fail silently: the raw `R‖S` signature JWS wants, and Apple's `errors[].detail` reaching
+  whoever ran the release.
+- **`publish()` in `targets/ios.mjs`** goes past the upload for any rung whose tier is
+  `external` (`beta` and `rc`): wait out processing with a real timeout and a progress line,
+  attach *What to Test*, add the build to the group, submit for beta review tolerating an
+  implicit submission Apple may have made first.
+- **The preflights**, including the one deliberate live probe — widened, from what this doc
+  planned, to read the app record's TestFlight setup as well as the key's role. Same
+  authenticated session, same argument: each extra request replaces a failure that would
+  otherwise cost a whole build. It is the check that produced the punch list below.
+- **`release-notes/what-to-test.txt`**, `ASC_BETA_GROUP` in `.env.example`, and the `beta`
+  rung's `manual:` list down to the review wait alone.
+- **The rule this bends** — automating the step that reaches strangers — is argued in
+  `targets/ios.mjs`'s own header, where the rule it bends is stated, rather than here.
 
-⚠️ **Do not soften this by extending the alpha exemption.** That exemption was justified in
-[`06`](./v0-1_06_e2e-and-release-gate.md) §B by *who installs the build* — internal
-TestFlight is named App Store Connect users and no one else. §C's rule is that the
-crucial-flow catalog must be green before the first release on a platform **where someone who
-is not the author installs it**, and external TestFlight is precisely that rung. Exempting
-beta would not be a smaller version of the same argument; it would contradict it.
+**The gate it depends on is green on both platforms** *(2026-08-28)*. The Android leg of the
+E2E arc had never been run when this doc was written; running it took three harness bugs and
+one app fix, all of them recorded where they bite —
+[`apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md) and
+`scripts/lib/mobile-harness.mjs`.
 
-**So [`06`](./v0-1_06_e2e-and-release-gate.md) is a hard dependency, and it is the long pole
-here** — the Apple plumbing below is a day or two. What 06 now needs is only its mobile half
-(Maestro on iOS and Android); its desktop leg left v0.1 with desktop packaging.
+## What is left, and none of it is code
 
-Note also that `--strict` runs the **whole** suite regardless of which targets ship, so a
-beta needs a booted Android emulator as well as an iOS simulator. `--provision` boots them,
-which is what a release passes — but it is on the critical path, not a background detail.
+Everything below is an App Store Connect action by a person. The list is **measured, not
+guessed**: `pnpm release beta --only=ios --dry-run` reads the app record and reports exactly
+these, and it will keep reporting them until they are done.
 
-## What the iOS target has to do
-
-`altool` puts the `.ipa` in App Store Connect and stops (`ios.mjs:332`). Everything that
-makes a build reach an external tester is App Store Connect **API** work, and there is no
-ASC API client anywhere in the repo today.
-
-- **`scripts/release/asc.mjs`** — a small client for the App Store Connect REST API. An
-  ES256 JWT signed with the `.p8` the release already uses, 20-minute expiry, and a
-  `request()` that surfaces Apple's `errors[].detail`, which is unusually informative.
-  `node:crypto` does all of this alone (`createPrivateKey`, then `sign` with
-  `dsaEncoding: "ieee-p1363"` for the raw R‖S signature JWS wants) — **no dependency**, in
-  keeping with the rest of `scripts/`.
-- **Extend `publish()` past the upload** when the rung calls for it. Branch on `ctx.stage`,
-  which `publish` already receives. Four steps: wait for `processingState` to reach `VALID`
-  (5–20 minutes, needs a real timeout and a progress line, and must throw on `INVALID`);
-  attach the *What to Test* text; add the build to the external group; submit for beta
-  review, tolerating the already-submitted error, because recent App Store Connect often
-  submits implicitly on group assignment.
-- **Resolve the app by bundle ID**, not by a new secret. `filter[bundleId]` against
-  `app.json` keeps `com.leapsake.app` the single identity the release knows.
-- **The *What to Test* text comes from a repo file**, checked at preflight. Deriving it from
-  `git log` produces notes written for us rather than for testers. The check matters more
-  than the file: a missing note must fail in the first ten seconds, not after a 20-minute
-  archive.
-- **Preflights in the iOS shape**: the group name from `.env`, the notes file, and — a
-  deliberate departure, since every check today is offline — **one live API call** proving
-  the key can read `/v1/betaGroups`. That single request is what catches a Developer-role key
-  before an archive instead of after an upload, and the cost of the inconsistency is smaller
-  than the cost of the failure.
-- **`.env.example`** gains the tester group name. Nothing else.
-- **The `manual:` list on the beta rung shrinks** to the review wait alone. The beta
-  description and *What to Test* entries stop being prerequisites a human supplies.
-
-⚠️ **This softens a stated rule, so say so in the header rather than doing it quietly.**
-`scripts/release/index.mjs` makes a principle of leaving the irreversible outward step to a
-person. Uploading is already automated at alpha; *distributing to strangers* is a step
-further. Automating it is right — cutting the tag is the consent gesture, and one command is
-the whole point — but the reasoning belongs next to the rule it bends.
-
-## What only a human can do
-
-Nothing in the Apple Developer portal: the existing distribution certificate and App Store
-provisioning profile cover external TestFlight unchanged.
-
-In App Store Connect, **once**:
-
-1. **Check the API key's role.** Uploading works with *Developer*; beta groups, build
-   localizations and review submissions need **App Manager**. If the current key is
-   Developer, mint a new one and swap the three variables — the `.p8` downloads exactly once.
-2. **Create the external tester group.** Its name is the contract with `.env`. Decide public
-   link versus email invites now.
-3. **Test Information** — beta description and feedback email.
-4. **Beta App Review Information** — contact details and review notes. State plainly that no
-   sign-in is required: Leapsake works fully local with no account, and a reviewer who
-   assumes otherwise is a rejection.
-5. **A privacy policy URL that resolves.** Required for external testing.
-6. **App Privacy questionnaire** — certainly required before App Store submission; verify
-   whether it also gates external TestFlight. The contacts import makes this real work, not a
-   checkbox.
-7. **Add testers.**
+1. ✅ **The API key's role is fine.** It reads `/v1/betaGroups`, which a *Developer*-role key
+   cannot — so no new `.p8` is needed. *(Checked 2026-08-28.)*
+2. ✅ **The external group exists**: `Beta`, external, email invites rather than a public link.
+   Put `ASC_BETA_GROUP=Beta` in `.env`. **It has no testers in it** — adding them is item 7.
+3. ⏳ **Test Information** — beta description and feedback email. Currently empty.
+4. ⏳ **Beta App Review Information** — contact name, phone and email; review notes; and
+   `demoAccountRequired = false`. **All three are currently unset, and the third is the one
+   that gets a build rejected**: a reviewer who assumes there is a sign-in fails the build for
+   a login that does not exist. Say plainly that Leapsake needs no account and works fully
+   local.
+5. ⏳ **A privacy policy URL that resolves.** The app record's `privacyPolicyUrl` is `null`.
+   **Start this first** — it needs real hosting, and it is the only item here whose latency is
+   not under anyone's control.
+6. ⏳ **The App Privacy questionnaire.** Certainly required before App Store submission; verify
+   whether it also gates external testing. The contacts import makes this real work.
+7. ⏳ **Add testers to the group.**
 
 3 and 4 *could* be pushed from the repo via `betaAppLocalizations` / `betaAppReviewDetails`,
 which would make the app record reproducible. Not worth building: someone has to write the
-copy either way, and it is set once.
+copy either way, and it is set once. The preflight already refuses to release without them,
+which is the part that mattered.
 
 ## The wait that stays
 
@@ -117,7 +79,8 @@ review entirely, so the first external build of `0.1.0` still waits.
 **Acceptance:** from a clean checkout, `pnpm release beta` cuts the tag, ships the ready
 targets, and leaves the build *In Beta Review* with its notes and group already attached —
 no App Store Connect session anywhere in the path. A day later a tester who is not the owner
-installs it from TestFlight.
+installs it from TestFlight. **Everything up to the first half of that sentence is built and
+unblocked; the second half waits on the seven items above.**
 
 ## Not gating: making a re-run idempotent
 
