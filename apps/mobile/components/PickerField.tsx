@@ -162,6 +162,20 @@ export function PickerField<T>({
                 matches.map((option) => (
                   <Pressable
                     key={getKey(option)}
+                    // A harness anchor, for the same reason the secure fields
+                    // have them: an option is otherwise addressable only by its
+                    // own label, and the label is a decoy twice over. It is what
+                    // the *filter* now reads, and — the one that cost a session —
+                    // it is what the **Android keyboard's suggestion strip**
+                    // reads, which sits below the filter and so satisfies the
+                    // `below:` that separates the row from the box. Maestro
+                    // tapped Gboard's suggestion, reported COMPLETED, and the
+                    // sheet stayed open. An id belongs to the row alone.
+                    testID={
+                      testID === undefined
+                        ? undefined
+                        : `${testID}-option-${getKey(option)}`
+                    }
                     accessibilityRole="button"
                     accessibilityState={{
                       selected:

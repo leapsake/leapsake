@@ -50,9 +50,17 @@ appId: com.leapsake.app
 # --- the one-time reveal ----------------------------------------------------------------
 # Waited for rather than asserted: the button reads "Encrypting your data…" while the store
 # is converted, and how long that takes is a property of the data, not of the harness.
+#
+# **Three minutes, because the Android emulator needs them.** This was 60s and green on the
+# iOS simulator across four runs; the first Android run failed here with the button still
+# reading "Encrypting your data…", and the reveal was on screen shortly after Maestro gave
+# up. Argon2id is deliberately slow and an emulator is the slowest place we run it, so the
+# budget is set for the slowest device this suite touches rather than the fastest. Costing
+# an extra two minutes when the app is genuinely broken is the cheaper mistake: the other
+# way round, the gate goes red on a build that works.
 - extendedWaitUntil:
     visible: "Save your recovery phrase"
-    timeout: 60000
+    timeout: 180000
 
 # It has taken the screen over rather than appearing beneath the form — which is the
 # assertable half of the catalog's "the app chrome is not reachable while it is up". The

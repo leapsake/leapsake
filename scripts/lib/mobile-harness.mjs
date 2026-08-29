@@ -203,9 +203,11 @@ function stopMetroIfStarted() {
  * Build + install the dev client with `expo run:<platform>`, targeting one device.
  *
  * `--device` is passed explicitly rather than letting Expo choose: with more than one
- * simulator booted it prompts interactively, which would hang a release. Output is
- * streamed because this is the slowest step by an order of magnitude (a full native
- * build) and a silent ten minutes is indistinguishable from a hang.
+ * simulator booted it prompts interactively, which would hang a release. It takes the name
+ * *Expo* knows the device by, which on Android is not the adb serial — see
+ * `androidExpoName`. Output is streamed because this is the slowest step by an order of
+ * magnitude (a full native build) and a silent ten minutes is indistinguishable from a
+ * hang.
  *
  * On iOS this prebuilds a *debug* `apps/mobile/ios/`. That is harmless: the release's own
  * `build()` deletes the directory and prebuilds again for the Release archive, and the
@@ -252,6 +254,34 @@ const bootedSerial = (adb) =>
     .filter((l) => l.endsWith("\tdevice"))
     .map((l) => l.split("\t")[0])[0];
 
+/**
+ * What `expo run:android --device` calls this device — which is **not** its adb serial.
+ *
+ * Expo resolves the flag against its own device list, and that list names a booted
+ * emulator by its **AVD** (`adb emu avd name`), a physical device by its `model:` prop.
+ * Passing `emulator-5554` therefore fails with "Could not find device with name:
+ * emulator-5554" *while that emulator is plainly attached* — which reads like a broken
+ * emulator rather than a wrong flag. Maestro is the other way round and wants the serial,
+ * so the two identifiers coexist on purpose: `ctx.device` is the serial everything else
+ * uses, and this is the one place that needs Expo's name for it.
+ *
+ * Falls back to the serial rather than throwing: if the mapping ever fails, letting Expo
+ * report what it could not find beats inventing a second error message here.
+ */
+function androidExpoName(adb, serial) {
+  if (serial.startsWith("emulator-")) {
+    const name = run(adb, ["-s", serial, "emu", "avd", "name"])
+      .stdout?.split("\n")
+      .map((line) => line.trim())
+      .find((line) => line && line !== "OK");
+    if (name) return name;
+  }
+  const model = run(adb, ["-s", serial, "shell", "getprop", "ro.product.model"])
+    .stdout?.trim()
+    .replace(/\s+/g, "_");
+  return model || serial;
+}
+
 /** `emulator` from the SDK, else PATH — the same resolution order as `adb`. */
 function resolveEmulator() {
   const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT;
@@ -276,6 +306,13 @@ function resolveEmulator() {
 // The dev client reads these from SharedPreferences at start, so they are settable over
 // `adb run-as` (debuggable builds only — which a dev client always is) *while the app is
 // stopped*: a running process holds them in memory and would write its copy back over ours.
+//
+// `mkdir -p` first, because under `--provision` this runs immediately after a **fresh
+// install**, and `shared_prefs/` is created by the app's first launch rather than by the
+// installer. Without it the redirect fails with "No such file or directory", the run
+// continues with the Tools bubble still on, and the flow that dies is several steps later
+// somewhere unrelated — the most expensive trap in this harness, arriving through its own
+// mitigation.
 const DEV_MENU_PREFS = `<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
 <map>
     <boolean name="isOnboardingFinished" value="true" />
@@ -300,7 +337,7 @@ function settleDevMenu(adb, device) {
       APP_ID,
       "sh",
       "-c",
-      `'cat > ${DEV_MENU_PREFS_PATH}'`,
+      `'mkdir -p ${dirname(DEV_MENU_PREFS_PATH)} && cat > ${DEV_MENU_PREFS_PATH}'`,
     ],
     { input: DEV_MENU_PREFS },
   );
@@ -310,6 +347,44 @@ function settleDevMenu(adb, device) {
         "    button may swallow taps. Turn it off by hand: dev menu → Tools button.",
     );
   }
+}
+
+/**
+ * Every installed package that claims `leapsake://`.
+ *
+ * More than one is an environment fault with a distinctive failure: Android answers the
+ * deep link with an **"Open with" chooser** listing two apps called Leapsake, the chooser
+ * sits over everything, and the flow fails on whatever it asserted next — `tab-search is
+ * not visible`, which reads as a broken app or a wrong selector. It cost a session on the
+ * first Android E2E run, where the second claimant was this repo's own **previous package
+ * name** (`net.leapsake.mobile`, renamed to `com.leapsake.app`) still installed on the
+ * emulator from before the rename.
+ *
+ * Detected rather than worked around, because there is nothing to work around: Maestro's
+ * `openLink` cannot name a package, so a device with two claimants cannot run these flows
+ * at all. What the harness owes is a failure that says so.
+ */
+function schemeClaimants(adb, device) {
+  const out = run(adb, [
+    "-s",
+    device,
+    "shell",
+    "cmd",
+    "package",
+    "query-activities",
+    "-a",
+    "android.intent.action.VIEW",
+    "-c",
+    "android.intent.category.BROWSABLE",
+    "-d",
+    `${SCHEME}://`,
+  ]).stdout;
+  if (!out) return [];
+  const names = out
+    .split("\n")
+    .map((line) => line.match(/^\s*packageName=(\S+)/)?.[1])
+    .filter(Boolean);
+  return [...new Set(names)];
 }
 
 const androidDriver = {
@@ -424,13 +499,29 @@ const androidDriver = {
     };
   },
 
-  install: (ctx) => installDevClient("android", ctx.device),
+  install: (ctx) =>
+    installDevClient("android", androidExpoName(ctx.adb, ctx.device)),
 
   // Load the JS bundle and wait for the app home. On Android a deep link does this
   // deterministically (no SpringBoard-style confirm), so we drive it over adb here rather
   // than through Maestro. Returns { ok, detail }.
   async prepare(ctx) {
     const { adb, device } = ctx;
+    // Exactly one app may answer `leapsake://`, or the chooser eats every deep link.
+    const claimants = schemeClaimants(adb, device);
+    const strangers = claimants.filter((name) => name !== APP_ID);
+    if (strangers.length > 0) {
+      return {
+        ok: false,
+        detail:
+          `${claimants.length} installed apps claim ${SCHEME}:// on this device, so ` +
+          'Android answers every deep link with an "Open with" chooser that covers the\n' +
+          "  app — the flows cannot drive past it. Uninstall the others:\n" +
+          strangers
+            .map((name) => `    adb -s ${device} uninstall ${name}`)
+            .join("\n"),
+      };
+    }
     // Reverse-tunnel so the emulator reaches the host's Metro at localhost:8081.
     run(adb, [
       "-s",

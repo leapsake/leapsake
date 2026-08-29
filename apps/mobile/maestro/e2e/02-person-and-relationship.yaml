@@ -72,15 +72,25 @@ appId: com.leapsake.app
 - tapOn:
     id: "relationship-other-role-filter"
 - inputText: "Friend"
-# **The option row, not the field that now also reads "Friend".** Typing into the filter
-# makes the input's own text match the role's label, and a bare `tapOn: "Friend"` takes
-# the input — which raises iOS's Paste/Select callout and leaves the modal open, so the
-# failure lands two steps later on a Name field that is behind it. `below` is what
-# separates the row from the box.
+# **The option row by id, because its label is a decoy from two directions at once.**
+# Typing into the filter makes the *input* read "Friend", so a bare `tapOn: "Friend"` takes
+# the box — which raises iOS's Paste/Select callout and leaves the sheet open. `below:` was
+# the fix for that, and on Android it is not enough: **Gboard's suggestion strip also reads
+# "Friend"**, and it sits below the filter too. Maestro tapped the keyboard's suggestion at
+# (251, 1575), reported COMPLETED, selected nothing, and the flow failed two steps on at a
+# Name field still behind the sheet. It looked exactly like a slow list — the same two
+# commands pass by hand a minute later, once the strip has stopped offering the word.
+#
+# `PickerField` gives every option an id for this, and an id belongs to the row alone.
 - tapOn:
-    text: "Friend"
-    below:
-      id: "relationship-other-role-filter"
+    id: "relationship-other-role-option-friend"
+# The sheet is gone and the form is addressable again — asserted rather than assumed, so a
+# tap that selected nothing fails here, where the cause is still on screen, instead of
+# somewhere downstream.
+- extendedWaitUntil:
+    visible:
+      id: "relationship-other-name"
+    timeout: 10000
 
 # "Friend" is symmetric — its inverse is itself — so the row this writes reads the same
 # from either end, and the assertion below does not have to reason about which direction

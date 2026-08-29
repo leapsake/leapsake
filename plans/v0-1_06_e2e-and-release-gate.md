@@ -123,8 +123,19 @@ Five flows, on-screen only. Most of the authoring is composition, not net-new YA
   written and green on the iOS simulator**, and the arc is **re-runnable**: Flow 4 leaves an
   account behind, and the reset subflow drives the reset under both of its names
   (*Factory reset* while Unauthenticated, *Forget account* once an account exists).
-  ⚠️ **The Android leg is written but has never been run** — the flows are byte-identical
-  across platforms, but the first `--strict` release will be the first time that is tested.
+  ✅ **And green on Android too** *(2026-08-28)*. "Byte-identical across platforms" survived
+  the first real run, but only after the *environment* around them was fixed: three harness
+  bugs on the provisioning path (Expo names an emulator by its AVD, not its adb serial;
+  `shared_prefs/` does not exist to write the dev-menu settle into until the app has run
+  once; a stale install of the repo's own former package name made every deep link raise an
+  "Open with" chooser) and one real selector fix — **Gboard's suggestion strip offers the
+  word you just typed, below the filter box**, so `below:` did not separate the option row
+  from it. `PickerField`'s options now carry ids. And one **budget**: Flow 4's wait on the
+  account conversion was set for the iOS simulator and is not enough for an emulator's
+  Argon2id — byte-identical flows still need timeouts sized for the slowest device the
+  suite runs on. All five are written down where they bite:
+  [`../apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md) and
+  `scripts/lib/mobile-harness.mjs`.
 - **Both mobile platforms, one authoring pass.** `--strict` runs the whole suite regardless of
   which target ships ([`10`](./v0-1_10_external-testflight.md)), so an iOS-only beta still needs
   Android green — but the cost is not doubled: Maestro flows are byte-identical across the two

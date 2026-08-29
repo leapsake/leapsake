@@ -223,9 +223,9 @@ rather than the flow.
 What is here covers the **`beta` rung** — Flows 1-5, on-screen assertions only. The
 out-of-band custody assertions and Flows 7b/7c belong to `rc`; see
 [`plans/v0-1_06_e2e-and-release-gate.md`](../../../plans/v0-1_06_e2e-and-release-gate.md)
-→ §C's rung table. Flows 4 and 5 are not written yet, which is why the `e2e` tier in
-`scripts/test-all.mjs` is still `blocked`: a partial catalog that ran and went green would
-read as the gate being met.
+→ §C's rung table. All five are written, and the `e2e` tier in `scripts/test-all.mjs` is
+`ready` — it went `ready` only once the *whole* beta bar was there, because a partial
+catalog that ran and went green would read as the gate being met.
 
 ### What the app's own state looks like from here
 
@@ -244,7 +244,7 @@ read as the gate being met.
   a first run: the `add-first-person` nudge is there, and it is the better assertion
   because it also proves the engine ran.
 
-### Two selector traps this tier added to the list below
+### Three selector traps this tier added to the list below
 
 - **A list row's accessibility text carries a trailing space.** The hierarchy reads
   `"Ada Lovelace "`, and Maestro matches in full, so `assertVisible: "Ada Lovelace"` fails
@@ -255,6 +255,33 @@ read as the gate being met.
   input, iOS raises its Paste/Select callout, and the modal stays open. The failure then
   lands two steps later on a field that is behind the modal. Constrain the row with
   `below: {id: <the filter's id>}`.
+- **On Android the keyboard is a *second* decoy for the same word, and `below:` does not
+  escape it.** Gboard's suggestion strip offers the word you just typed, and the strip sits
+  below the filter — so it satisfies the very constraint that separates the row from the
+  box. Maestro picked the suggestion (`resource-id=com.google.android.inputmethod.latin:…`,
+  `accessibilityText=Friend`), tapped it, reported **COMPLETED**, and selected nothing; the
+  sheet stayed open and Flow 2 failed two steps on. It reads as a slow list, because the
+  identical two commands pass by hand a minute later — the strip has stopped offering the
+  word by then. `maestro.log` is what identifies it: the `Tapping on element:` line names
+  the keyboard package outright.
+
+  There is no selector-shaped fix — anything matching the label matches all three. **Give
+  the rows ids.** `PickerField` now does (`<field testID>-option-<key>`, e.g.
+  `relationship-other-role-option-friend`), which is the same answer as the secure fields
+  below, for the same reason.
+
+### Budget the waits for the emulator, not for the simulator
+
+The flows are byte-identical across platforms; their **timeouts** still have to suit the
+slowest device the suite runs on, and that is the Android emulator. Flow 4's wait on the
+account conversion was 60s and green on the iOS simulator four runs running; on Android the
+button was still reading "Encrypting your data…" when Maestro gave up, and the reveal
+appeared shortly after. Argon2id is deliberately slow and an emulator is the slowest place
+we run it.
+
+A generous budget is the cheap mistake here. Too long costs a couple of extra minutes on a
+build that is genuinely broken; too short turns the gate red on a build that works, which is
+the failure that gets a gate ignored.
 
 ### Screens that are pushed *over* the tab navigator
 
