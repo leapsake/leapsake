@@ -79,22 +79,38 @@ on 2026-08-26.)* Windows and Linux are *deliberately deferred* — blocked on a 
 shipping a subset is an explicit, supported outcome. **How much of the catalog is required at
 which rung** is the amendment below, and remains **open decision 1** until it is signed off.
 
-⚠️ **Amended 2026-08-27 — drafted, pending owner sign-off** ([`v0-1.md`](./v0-1.md) →
-*Open decisions* 1). **The rule's unit is *platform × rung*, not platform.** The catalog is
+✅ **Amended 2026-08-27, settled 2026-08-28** *(owner — [`v0-1.md`](./v0-1.md) → *Open
+decisions* 1)*. **The rule's unit is *platform × rung*, not platform.** The catalog is
 still required in full before Leapsake is a product anyone can buy into; what changes is that
 the earliest rung a stranger installs does not have to carry the whole of it on day one.
 
-| Rung | Who installs it | What must be green |
-|---|---|---|
-| `alpha` | internal TestFlight — named App Store Connect users, ≤100 | the suite **without** `--strict`; the `e2e` tier may not exist yet *(already true — §B)* |
-| `beta` | external TestFlight — the first strangers | Flows **1, 2, 3, 4, 5**, **on-screen assertions only**, on iOS **and** Android. The `e2e` tier is `ready` and **passes** under `--strict` |
-| `rc` | external TestFlight, ship-ready | the above **plus** Flows **7b, 7c** and **every out-of-band custody assertion** |
-| `final` | the App Store — the public | `rc`'s bar, unchanged. Flows 6/7a are *open decision* 2 and ship with sync, not with v0.1 |
+| Rung | Who installs it | What its worst failure costs them | What must be green |
+|---|---|---|---|
+| `alpha` | internal TestFlight — named App Store Connect users, ≤100 | nothing; they are us | the suite **without** `--strict`; the `e2e` tier may not exist yet *(already true — §B)* |
+| `beta` | external TestFlight — the first strangers | an evening of typing, and only if they ignored the notes | Flows **1, 2, 3, 4, 5**, **on-screen assertions only**, on iOS **and** Android. The `e2e` tier is `ready` and **passes** under `--strict` |
+| `rc` | external TestFlight, ship-ready | records they have started to rely on | the above **plus** Flows **7b, 7c** and **every out-of-band custody assertion** |
+| `final` | the App Store — the public | the thing the product exists to hold | `rc`'s bar, unchanged. Flows 6/7a are *open decision* 2 and ship with sync, not with v0.1 |
 
 **What the grading does not touch, and must not:** `--strict` stays strict at every rung above
 `alpha`, and a `blocked` tier stays a failure. [`10`](./v0-1_10_external-testflight.md) warns
 against exempting `beta` from the gate; this changes what the gate **contains**, not whether it
 runs. A subset that is merely *skipped* would be the thing 10 forbids.
+
+**What the rungs ratchet on is data loss, not defect count** *(owner, 2026-08-28)*. Alpha and
+beta are allowed to be buggy — the aim is high, but a bug at those rungs costs a tester an
+annoyance and costs us a report, which is the entire point of putting a build in front of
+people. What may not survive into a **stable v0.1** is anything that can lose someone's data,
+and at **v1.0** it is unacceptable outright. So the table above is a one-way ratchet, and it
+is deliberately steepest exactly where the catalog is about *getting data back* — 7b, 7c and
+the custody assertions land at `rc`, the last rung before anyone keeps real records here.
+
+That axis is what makes the trade legible rather than merely convenient: **the question at
+each rung is not "how good is this build" but "what does its worst failure cost the person
+holding it".** A beta tester who loses a toy dataset typed twenty minutes ago has lost twenty
+minutes. That sentence is only true while the tester has been *told* it is a beta and not a
+vault — which is why
+[`../release-notes/what-to-test.txt`](../release-notes/what-to-test.txt) saying so is a
+**preflight requirement** rather than a nicety, and why `rc` is where it stops being enough.
 
 **Why the line falls there.** `beta` proves the app does not lose data in normal use; `rc` proves
 it can give the data back when the OS loses the key. The deferred set is exactly the set that is

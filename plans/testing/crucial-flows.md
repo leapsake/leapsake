@@ -315,18 +315,35 @@ tier stays small). Listed so the owner can pull any into the gate:
 | 1 First run (Unauthenticated, mints nothing) | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | fresh profile per run; asserts the key store is empty |
 | 2 Person + relationship | **beta** | gate | gate | gate | later | 1 | — |
 | 3 Milestone | **beta** | gate | gate | gate | later | 1 | relaunch to prove persistence |
-| 4 Create an account | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | must run on a store **with** data; capture the phrase here |
+| 4 Create an account | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | must run on a store **with** data; the phrase capture 7b needs is **not yet built** — see below |
 | 5 Reminder @/# round-trip | **beta** | gate | gate | gate | later | 1 | drives the compose pickers |
 | 6 Enable sync + pair | with sync (v0.2) | gate | gate | gate | later | **2** | needs a relay + two instances; Flow 4's assertions apply to A |
 | 7a Cross-device recovery | with sync (v0.2) | gate | gate | gate | later | 2 | includes wrong-phrase negative |
-| 7b At-rest, phrase door | **rc** | gate | gate | gate | later | 1 | key-store reset: delete `keystore.json` / `dev-clear-dbkey` |
+| 7b At-rest, phrase door | **rc** | gate | gate | gate | later | 1 | key-store reset: delete `keystore.json` / `dev-clear-dbkey`. **Carries the phrase-capture cost** |
 | 7c At-rest, password door | **rc** | gate | gate | gate | later | 1 | same reset, password answer; prove both doors independent |
 
 **"Gates at"** is the release rung by which a flow must be green, per
 [`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → §C's rung table
-*(drafted 2026-08-27, pending sign-off — [`../v0-1.md`](../v0-1.md) → open decision 1)*. It grades
+*(settled 2026-08-28 — [`../v0-1.md`](../v0-1.md) → open decision 1)*. It grades
 *when*, never *whether*: every core flow still gates v0.1, and `rc` is inside v0.1. Flows 6/7a are
 the exception and leave v0.1 entirely, per open decision 2.
+
+⚠️ **The phrase capture is the one unbuilt prerequisite in this table** *(checked 2026-08-28)*.
+Every variant of Flow 7 "depends on a phrase captured during Flow 4 or Flow 6", and Flow 4 as
+built does **not** capture it — it asserts the grid has a 24th word and no 25th, which is all
+the `beta` bar asks. The reveal renders the words as 24 separately-numbered `Text` nodes, so
+capture means 24 `copyTextFrom` calls stitched together, or a new surface exposing the phrase
+as one string, which the no-new-app-surface rule would have to be argued past. **Price it into
+7b, not into Flow 4.** 7c escapes it entirely: the password door is answered with the password
+Flow 4 already typed, and both `dev-clear-dbkey` and the `RecoveryGate` are already built — it
+needs three `testID`s on the gate and a flow. **If only one door can be afforded at `rc`, 7c is
+the cheaper one and 7b is the one that covers the harder case.**
+
+**The column reads as a ratchet on data loss.** A flow gates at the rung by which its failure
+would start costing someone something they cannot retype — which is why the *screen* halves of
+1 and 4 gate at `beta` (they prove the app does not drop data in ordinary use) while their
+out-of-band halves and both doors of 7 wait for `rc` (they prove data comes *back*, which only
+matters once someone is relying on it). Beta may be buggy; stable v0.1 may not lose data.
 
 "gate" = must be green before v0.1 on that platform ([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*: iOS + Android + macOS).
 Windows/Linux run the identical list once a host exists (deferred, blocked-not-waived).

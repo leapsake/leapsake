@@ -32,7 +32,9 @@ which is the point of this doc being deletable:
 - **The rule this bends** — automating the step that reaches strangers — is argued in
   `targets/ios.mjs`'s own header, where the rule it bends is stated, rather than here.
 
-**The gate it depends on is green on both platforms** *(2026-08-28)*. The Android leg of the
+**The gate it depends on is settled and green on both platforms** *(2026-08-28)*. The rung
+grading it was built against is signed off ([`v0-1.md`](./v0-1.md) → *Open decisions* 1), so
+nothing here is waiting on a judgment any more. The Android leg of the
 E2E arc had never been run when this doc was written; running it took three harness bugs and
 one app fix, all of them recorded where they bite —
 [`apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md) and

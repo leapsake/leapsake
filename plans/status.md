@@ -25,8 +25,9 @@ uploaded to *In Beta Review* with its notes and group attached, and the `e2e` ga
 **iOS and Android** — the Android leg has now actually been run. Left: **the App Store Connect
 record**, which is all a person's — a privacy policy URL that resolves (needs hosting; the only
 item with latency no one controls), Test Information, Beta App Review notes, testers. Doc 10
-lists them, and `pnpm release beta --only=ios --dry-run` reports them. Also: sign off
-[`v0-1.md`](./v0-1.md) → *Open decisions* 1, which the beta bar was built against.
+lists them, and `pnpm release beta --only=ios --dry-run` reports them. ✅ *Open decisions* 1 is
+**settled** *(owner, 2026-08-28)*: the gate is graded by rung, and it ratchets on **data loss**
+— beta may be buggy, stable v0.1 may not lose data, v1.0 not at all.
 
 **Contact methods reach people** — built 2026-08-19. Left: the URL templates are convention,
 not verified — **confirm on real hardware with the apps installed** (no simulator can). ✅
