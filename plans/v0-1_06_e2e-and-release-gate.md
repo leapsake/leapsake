@@ -168,6 +168,59 @@ Five flows, on-screen only. Most of the authoring is composition, not net-new YA
   refuses to build with the beta subset still standing in for the whole. A rule a program can
   check does not belong in a sentence ([`README.md`](./README.md) → *the five kinds of knowledge*).
 
+## Known defects this gate found, carried into beta *(2026-08-31)*
+
+Both surfaced on the first real `pnpm release beta`, and both are recorded rather than
+fixed because the bar this increment is measured against grades on **data loss**
+([`v0-1.md`](./v0-1.md) → *Open decisions* 1), and neither loses data — the second erases
+data the user asked to erase. **Both must go before `rc`.** Waiving them was a decision
+*(owner, 2026-08-31)*, not an oversight, and this section is the price of that: a green
+gate that does not say what it is not covering is worth less than a red one.
+
+### 1. The arc is not re-runnable, so a green run depends on its starting state
+
+[`subflows/factory-reset.yaml`](../apps/mobile/maestro/subflows/factory-reset.yaml) was
+written for exactly this — "one act, two names" — because the reset is **Factory reset**
+while Unauthenticated and **Forget account** once Flow 4 has made an account. It handles
+both *names*. It does not survive the second path's *behaviour* (defect 2 below).
+
+So a first run against a clean install takes the Factory-reset path and passes; the next
+run arrives with Flow 4's account still there, takes the Forget-account path, and fails in
+Flow 1. That is the whole of the iOS/Android flip-flop on 2026-08-30 — the two devices were
+in different starting states, not behaving differently, and reading it as a platform
+difference costs an hour.
+
+**The consequence for the gate, which is the part that matters:** a green catalog run means
+what it appears to mean **only from a clean install**. A re-run proves strictly less than
+the first run did, and nothing in the runner says so. Until this is fixed, treat a green
+re-run as unproven and clear app data first.
+
+### 2. Forget account can leave the app on a blank screen
+
+Android dev client, measured 2026-08-31 00:20. After Forget account completed and the app
+relaunched, Home never rendered — a spinner for 34s, until Maestro timed out waiting for
+`tab-search`. Underneath it, two best-effort reconciles failed:
+
+```
+notification reconcile failed:      Call to function 'NativeDatabase.prepareAsync'
+regenerate system reminders failed:   → Caused by: Access to closed resource
+```
+
+Those are the **symptom, not the cause**. Both are caught and logged by design
+([`../apps/mobile/lib/core-context.tsx`](../apps/mobile/lib/core-context.tsx) — the two
+`console.error`s, whose comments say a failure must never break the app), and they reach
+the screen at all only because dev builds overlay `console.error` in LogBox. What they
+evidence is that the **provider rebuild after the reset did not complete**, leaving async
+work holding a database handle the reset had already closed.
+
+**This is not test-only.** Forget account is a real control in `app/data.tsx`, so a user
+who taps it can land here. What is *unmeasured*: whether it reproduces on a production
+build rather than a dev client, whether iOS has it, and whether it eventually recovers
+past the 34s the harness waited.
+
+Artifacts at time of writing: `~/.maestro/tests/2026-08-31_001911/`, whose
+`01-first-run/screenshots/step-023-assertCondition-tab-search.png` is the blank screen.
+
 ## Deferred out of this increment
 
 **Two-instance E2E (Flows 6, 7a).** [`testing/crucial-flows.md`](./testing/crucial-flows.md)
