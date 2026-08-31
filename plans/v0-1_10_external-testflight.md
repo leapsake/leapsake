@@ -68,8 +68,25 @@ these, and it will keep reporting them until they are done.
    this item waits on 07 and that the two swap order. **Do not let this default silently into
    "wait for 07"** — that is how the one long-latency item on the list becomes the thing that
    held the beta.
-6. ⏳ **The App Privacy questionnaire.** Certainly required before App Store submission; verify
-   whether it also gates external testing. The contacts import makes this real work.
+6. ⏳ **The App Privacy questionnaire — two minutes, not the work this doc predicted**
+   *(corrected 2026-08-31)*. It sits under **App Privacy**, the same page as item 5's URL, and
+   the whole of it is the first question: *do you or your third-party partners collect data
+   from this app?* The answer is **no**.
+
+   The earlier note here said "the contacts import makes this real work". That was wrong, and
+   the reason is worth keeping: Apple defines *collect* as **transmitting data off the
+   device**, and data that stays on the device is explicitly not collection. Importing
+   contacts copies them into the local database and uploads nothing, so it declares nothing.
+   The same answer covers third parties, there being no SDK, no analytics and no crash
+   reporter — the claim [`../PRIVACY.md`](../PRIVACY.md) already makes against the shipped
+   build, in Apple's vocabulary rather than ours.
+
+   Two things that are still real: the answers sit in a **draft until Published**, which is a
+   quiet way to be incomplete while believing otherwise; and this is an attestation, so it is
+   only true while the build sends nothing — the same invariant `PRIVACY.md`'s header already
+   binds to. Whether it gates *external* testing was never resolved and no longer matters at
+   two minutes' cost. Answering "no" also yields Apple's strongest privacy label, which for
+   this product is a listing asset rather than a compliance chore.
 7. ⏳ **Add testers to the group.**
 
 3 and 4 *could* be pushed from the repo via `betaAppLocalizations` / `betaAppReviewDetails`,
