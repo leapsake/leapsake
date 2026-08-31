@@ -9,7 +9,7 @@
      it must keep matching the App Store seller name. Incorporating changes it — see
      plans/v0-1.md → Open decisions 4. -->
 
-# Leapsake Privacy Policy
+# Privacy Policy
 
 _Last updated 28 August 2026._
 

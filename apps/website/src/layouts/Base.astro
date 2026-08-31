@@ -11,7 +11,7 @@
  * The custom properties are *derived* from the token objects rather than written
  * out, so there is no second copy of a colour to update.
  */
-import { color, fontSize, radius, space } from "@leapsake/ui/tokens";
+import { color, fontSize, fontWeight, radius, space } from "@leapsake/ui/tokens";
 
 interface Props {
   title: string;
@@ -26,6 +26,7 @@ const customProperties = [
   ...Object.entries(color).map(([k, v]) => `--color-${kebab(k)}: ${v};`),
   ...Object.entries(space).map(([k, v]) => `--space-${kebab(k)}: ${v}px;`),
   ...Object.entries(fontSize).map(([k, v]) => `--font-size-${kebab(k)}: ${v}px;`),
+  ...Object.entries(fontWeight).map(([k, v]) => `--font-weight-${kebab(k)}: ${v};`),
   ...Object.entries(radius).map(([k, v]) => `--radius-${kebab(k)}: ${v}px;`),
 ].join("\n      ");
 ---
@@ -60,10 +61,21 @@ const customProperties = [
         line-height: 1.6;
       }
 
+      header,
       main {
         /* ~65 characters: the measure long-form prose is comfortable at. */
         max-width: 34rem;
         margin: 0 auto;
+      }
+
+      header {
+        margin-bottom: var(--space-xl);
+      }
+
+      header a {
+        color: var(--color-text);
+        font-weight: var(--font-weight-semibold);
+        text-decoration: none;
       }
 
       h1,
@@ -100,6 +112,9 @@ const customProperties = [
     </style>
   </head>
   <body>
+    <header>
+      <a href="/">Leapsake</a>
+    </header>
     <main>
       <slot />
     </main>

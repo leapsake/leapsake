@@ -39,6 +39,13 @@ describe("the published privacy policy", () => {
     expect(html).toContain("Leapsake is published by Joshua Smith.");
   });
 
+  it("carries the site header, since it comes from the shared layout", () => {
+    // Asserted on this page rather than the home page precisely because it is not
+    // the home page: the header lives in `Base.astro`, so proving it here proves it
+    // is global rather than something the landing page happens to render.
+    expect(html).toContain('<header><a href="/">Leapsake</a></header>');
+  });
+
   it("does not leak the internal notes in PRIVACY.md's header comment", () => {
     // The source file opens with an HTML comment recording how each claim was
     // verified and pointing at `plans/v0-1.md`. Astro renders raw HTML in markdown
