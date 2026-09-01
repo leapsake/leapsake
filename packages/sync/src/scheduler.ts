@@ -203,6 +203,16 @@ export function createSyncScheduler(opts: {
  * replaced: every `set*` on the surface is a write, and a hypothetical read named
  * `settingsFor` costing one wasted push is the cheap direction to err in — a
  * missed write costs a stale device instead.
+ *
+ * TODO: consider retiring the predicate for **observation** instead of naming.
+ * Have {@link SqliteDriver} raise a dirty flag on `run`/`exec` and kick when a
+ * wrapped call flips it — then "did this write?" is answered by what the call
+ * actually did, there is no list to keep, and the whole class of bug this comment
+ * documents stops existing. Not done yet because it needs a decision about the
+ * writes that should *not* push: migrations, and the internal reconciles
+ * (`regenerateSystem`) that already ride their caller's kick. The surface pin in
+ * `with-sync-kick.test.ts` makes the naming approach survivable in the meantime,
+ * so this is a cleanup to take when it next causes trouble, not a live defect.
  */
 const MUTATING_METHOD =
   /^(create|update|edit|softDelete|merge|dismiss|undismiss|reject|set|clear|snooze|capture|commit|regenerate)/;
