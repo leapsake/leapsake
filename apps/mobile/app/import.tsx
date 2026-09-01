@@ -13,6 +13,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import {
   Contact,
+  ContactField,
   ContactsSortOrder,
   requestPermissionsAsync,
 } from "expo-contacts";
@@ -20,7 +21,6 @@ import type { ParsedContact } from "@leapsake/contact-import";
 import { kindDefs } from "@leapsake/schema";
 import type { DuplicateMatch, ImportResult } from "@leapsake/core";
 import { Checkbox, CheckboxBox } from "../components/Checkbox";
-import { CONTACT_FIELDS } from "../lib/device-contact-fields";
 import { deviceContactToParsed } from "../lib/device-contacts";
 import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
@@ -34,6 +34,32 @@ import { colors, styles } from "../lib/styles";
  * the same write path (and duplicate/birthday reconciliation) manual creation and
  * the desktop importer use. Nothing is written until the user taps Import.
  */
+
+/**
+ * The fields the mapper reads — kept in sync with `DeviceContact` in
+ * {@link ../lib/device-contacts}, which types the slice it consumes.
+ *
+ * Lives here rather than beside the mapper because this is a *value* import from
+ * `expo-contacts`, whose entrypoint calls `requireNativeModule` at module scope —
+ * next to the mapper it would cost `device-contacts.ts` the purity that lets it
+ * unit-test under node.
+ */
+const CONTACT_FIELDS: ContactField[] = [
+  ContactField.GIVEN_NAME,
+  ContactField.MIDDLE_NAME,
+  ContactField.FAMILY_NAME,
+  ContactField.FULL_NAME,
+  ContactField.COMPANY,
+  ContactField.NOTE,
+  ContactField.EMAILS,
+  ContactField.PHONES,
+  ContactField.ADDRESSES,
+  // Both date sources. `BIRTHDAY` is iOS-only (Android's `ContactField` enum has
+  // no such member and its detail record no such property); `DATES` carries
+  // anniversaries on both platforms and, on Android, the birthday itself.
+  ContactField.BIRTHDAY,
+  ContactField.DATES,
+];
 
 const TIER_LABEL: Record<string, string> = {
   high: "Very likely already in Leapsake",

@@ -177,6 +177,60 @@ is for a genuinely small, glanceable, mutually-exclusive choice (`EntityTypeTogg
 
 Prefer a native element over novel custom UI for any of these.
 
+## Debugging a native module
+
+Two traps that cost a day chasing an `expo-contacts` bug (birthdays never reaching the contact
+import). Neither is contacts-specific — both apply to **any** Expo native module.
+
+**The Swift in `node_modules/<module>/ios/` is not what runs.** Several Expo pods ship a
+**precompiled `.xcframework`** (look for `ios/artifacts/*.tar.gz` and a `*.xcframework` under
+`ios/Pods/<Module>/`); those sources are reference material. Reading them and reasoning about
+what "must" happen proves nothing. Inspect the **binary** instead:
+
+```sh
+APP=$(xcrun simctl get_app_container booted com.leapsake.app)
+nm -a "$APP/Frameworks/ExpoContacts.framework/ExpoContacts" | grep getPaginated
+echo '<mangled symbol>' | xcrun swift-demangle
+```
+
+A changed signature names the version outright — `getPaginated(… unifyResults: Bool?)` was
+56.0.10, `Bool` was 56.0.13. That settled in one command what source-reading could not.
+
+**Bumping the package is not enough.** After `pnpm install` + `pod install`, Xcode unpacked the
+new xcframework into `Build/Products/…/XCFrameworkIntermediates` but left a **stale copy inside
+`Leapsake.app/Frameworks`**, so the rebuilt app still ran the old code and the upgrade looked
+like a no-op. Compare the two with `nm`; if they disagree, delete the copy under
+`…/Build/Products/Debug-iphonesimulator/Leapsake.app/Frameworks/<Module>.framework` and rebuild.
+
+The iOS Contacts framework logs every fetch it performs — `keysToFetch` and `unifyResults`
+included — which is how the non-unified fetch was first spotted. React Native's `console.log`
+does **not** reach `os_log`, but this does:
+
+```sh
+xcrun simctl spawn booted log show --last 3m --style compact \
+  --predicate 'processImagePath CONTAINS "Leapsake"'
+```
+
+### On a physical device
+
+```sh
+xcrun devicectl device info details --device <udid> | grep -i developerMode
+CI=1 pnpm --filter @leapsake/mobile exec expo run:ios --device <udid>
+xcrun devicectl device process launch --device <udid> \
+  --payload-url "leapsake://dev-selftest" com.leapsake.app
+```
+
+- `devicectl list devices` **caches** `developerModeStatus` and will report `disabled` long after
+  it is on. `device info details` queries the device and is the one to trust.
+- `CI=1` avoids interactive prompts (team selection resolves itself from the existing
+  provisioning profile) but also **skips starting Metro** — have a dev server up, or the Debug
+  build installs and then has no bundle to load.
+- **There is no `simctl io … screenshot` equivalent for a physical device.** `devicectl device
+  copy` can pull the app container; otherwise a human has to read the screen. On the simulator,
+  screenshots plus querying the app's sqlite directly
+  (`$(xcrun simctl get_app_container booted com.leapsake.app data)/Documents/SQLite/…`) make a
+  much faster loop — reproduce there first if you can.
+
 ## `__DEV__` deep links
 
 ```sh
