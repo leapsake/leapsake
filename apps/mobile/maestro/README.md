@@ -21,23 +21,35 @@ so the mobile driver leg is a _terminal, automated_ gate — not a human opening
   through the dev-launcher's last dev server (set by `pnpm --filter @leapsake/mobile
 ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. The
   runner invokes it; you don't run it directly. It does **not** touch `driver-selftest.yaml`.
-- **`global-nav.yaml`** — the navigation shell: that the bar holds Home, Search, New
-  and Settings/Account; that **New opens the chooser without navigating** (the property
-  the "never selected" rule is really about); that a browse tile opens its catalog with
-  the bar still under it and no back control; that New on a _filtered_ Search skips the
-  chooser and lands in the form; and that a back control is absent inside the tab
-  navigator and present one screen up. All of those are claims no lower tier can check —
-  `lib/new-action.ts` is unit-tested, but nothing below E2E proves its table is wired to
-  a tab press.
+- **`global-nav.yaml`** — the navigation shell: that the bar holds Home, Search, People
+  and Settings; that **each screen's ➕ makes the thing that screen is about** (Home a
+  reminder, People a person or pet, Gifts a gift idea); that a browse tile opens a
+  tab-less catalog with the bar still under it and no back control; that such a catalog
+  carries **both** header glyphs, 🔍 and ➕, in its one right-hand slot; and that a back
+  control is absent inside the tab navigator and present one screen up. All of those are
+  claims no lower tier can check — nothing below E2E proves a header action is wired to
+  the route its tab entry names.
+
+  That last pair is also what holds up `components/AppHeader.tsx`'s single row, which puts
+  a screen's actions on the title's line: it is safe only because Back and the glyph pair
+  can never share that row, Back coming from the native stack and the glyphs being
+  declared only on tab-navigator screens.
 
   It deliberately does **not** assert the selected-tab tint: that is a colour, and Maestro
-  reads the accessibility tree rather than pixels. Verify by sabotage against case 2 —
-  drop the `preventDefault` in `app/(tabs)/_layout.tsx` and the flow goes red.
+  reads the accessibility tree rather than pixels.
 
-  Taps use the tab buttons' `testID`s (`tab-home`, `tab-search`, `tab-new`, `tab-account`)
-  rather than their labels. Text selectors are full-match, so a tab label match has to be
-  a loose `.*New.*` — which would just as happily hit a reminder titled "New camera" on the
-  list behind the bar.
+  Taps use the tab buttons' `testID`s (`tab-home`, `tab-search`, `tab-people`,
+  `tab-settings`) rather than their labels. Text selectors are full-match, so a tab label
+  match has to be a loose `.*Search.*` — which would just as happily hit a reminder titled
+  "Search for a new camera" on the list behind the bar. The header glyphs are tapped by id
+  for a stronger reason: they render as a bare ➕ and 🔍, so their only text is the
+  `accessibilityLabel` each sets (`header-new-home`, `header-new-people`,
+  `header-new-gifts`, `search-here-<category>`).
+
+  Every assertion in it is about something either on screen or **not mounted at all**. A
+  bottom-tab navigator keeps previously-focused screens mounted but hidden, so their text
+  stays in the accessibility tree — arrival is therefore asserted on *pushed* screens (a
+  pop unmounts them) and on the tab bar, never on "is Home's title still in the tree".
 
   Creates nothing, so it needs no per-run tag and can be re-run indefinitely. Not wired
   into `pnpm test:native`, which is built around one flow and a PASS token:
@@ -362,7 +374,7 @@ pnpm test:e2e --platform=ios        # with the emulator shut down
 pushed over the tabs and have a Back control instead of a tab bar, so **`tapOn: {id:
 tab-home}` fails from any of them**. Hop back with `openLink: "leapsake://"` first. The
 fourth tab is also a *menu* (`app/(tabs)/menu.tsx`) rather than the account screen — its
-rows read "<glyph> <label>", so reaching the account screen is `tab-account` then
+rows read "<glyph> <label>", so reaching the account screen is `tab-settings` then
 `.*Account.*`.
 
 ## Driving forms and fields — the traps, in the order you'll hit them

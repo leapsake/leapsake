@@ -53,8 +53,9 @@ function pathFor(hit: SearchHit): string {
  * **Arriving here does not raise the keyboard.** The field used to `autoFocus`,
  * which put the keyboard over the bottom two thirds of the screen before the
  * user had seen any of it — fine when there was nothing under the field, but this
- * screen now doubles as the browse surface for the catalogs that left the tab
- * bar, and a browse list under a keyboard is a browse list nobody finds. Focus is
+ * screen doubles as the browse surface for the catalogs that have no tab of
+ * their own, and a browse list under a keyboard is a browse list nobody finds.
+ * Focus is
  * therefore on demand: tap the field (free — that's what a `TextInput` does), or
  * tap the Search tab *again* while already here (below).
  *
@@ -82,8 +83,12 @@ function pathFor(hit: SearchHit): string {
  * `?type=` opens the screen filtered to one category, which is how "find me a
  * person" is reachable from the People & Pets list without that list growing a
  * search field of its own — see `components/SearchHereLink.tsx`. The filter
- * therefore has exactly one representation, a URL, and it is also what the New
- * tab reads to know that a create action here is unambiguous.
+ * therefore has exactly one representation, a URL.
+ *
+ * A filtered arrival offers **no create action**, which it briefly did: the New
+ * tab read `?type=` to work out that "add" was unambiguous here. There is no
+ * header on this screen to put a ➕ in, and the catalog the filter names is one
+ * tap away below with a ➕ of its own — see `app/(tabs)/_layout.tsx`.
  *
  * Tapping a browse tile does **not** set it: a tile is a way to the catalog it
  * names, not a way to narrow a search nobody has started. See `BrowseTiles`.

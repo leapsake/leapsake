@@ -3,28 +3,28 @@ import { Link } from "expo-router";
 import { colors, styles } from "../../lib/styles";
 
 /**
- * The Settings / Account tab — everything that isn't Home or Search, none of
- * which is reachable from any entity: Notifications, Data, and the account
- * screen itself.
+ * The Settings tab — everything that isn't Home, Search or People, none of which
+ * is reachable from any entity: Notifications, Data, and the account screen
+ * itself.
  *
- * **The tab's name follows custody** (`lib/use-has-account.ts`, read by
- * `(tabs)/_layout.tsx`) but its rows no longer do. They used to: signed out, the
+ * **Neither the tab nor its rows follow custody.** Both used to. Signed out, the
  * account row was worded as an offer ("✨ Create an account") and sat *last*,
- * among the switches. One row that renamed and moved itself out from under the
+ * among the switches; one row that renamed and moved itself out from under the
  * user was a worse trade than the invitation was worth (owner, 2026-08-21), so
- * the row is now "Account" in both states and always leads.
+ * the row became "Account" in both states and always leads. The tab above it
+ * held out longer as "Settings or Account", on the same reasoning — until the
+ * row below it made the name redundant. A tab that renames itself to match the
+ * first thing inside it is a box labelled with its contents.
  *
  * Both states push to the same `app/settings.tsx`, which already branches on
  * custody far more finely than a menu row could; splitting it in two here would
  * mean two doors onto one screen that then has to work out which one you came
  * through.
  *
- * Deliberately *only* the overflow: People & Pets isn't listed even though a
- * settings screen might suggest a full sitemap. It belongs to Search's browse
- * tiles, which is one place rather than two that can disagree.
- *
- * The catalogs (Holidays, Gifts, Tags) used to live here too and moved to those
- * same tiles.
+ * Deliberately *only* the overflow, not a sitemap: People & Pets isn't listed,
+ * because it is a tab two buttons to the left of this one. The catalogs
+ * (Holidays, Gifts, Tags) used to live here and moved to Search's browse tiles,
+ * which is one place rather than two that can disagree.
  */
 
 /** The rows, in the order they're offered — the same list whether or not an

@@ -24,8 +24,12 @@ import { colors, radius } from "../lib/styles";
  * link that arrives here already narrowed (`components/SearchHereLink.tsx`),
  * which is where a user has actually asked to search within a kind of thing.
  *
- * The category table lives in `lib/search-categories.ts`, shared with the filter
- * and with what New means on a filtered search.
+ * People keeps a tile even though it also has a tab of its own. The grid answers
+ * "what kinds of thing are in here?", and dropping the biggest one to avoid
+ * repeating a button would make the answer wrong to save a duplicate that costs
+ * nothing.
+ *
+ * The category table lives in `lib/search-categories.ts`, shared with the filter.
  */
 export function BrowseTiles({
   onPick,

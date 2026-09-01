@@ -25,9 +25,12 @@ export interface SheetItem {
  * Moving them here is what freed the tap.
  *
  * Built on the same `Modal` + backdrop + bottom panel as
- * {@link CreateSheet}, deliberately rather than by extracting a shared sheet:
- * two sheets is not yet a pattern, and the layout is small enough that a
- * premature abstraction would cost more than the duplication.
+ * {@link SelectField}'s picker, deliberately rather than by extracting a shared
+ * sheet: two sheets is not yet a pattern, and the layout is small enough that a
+ * premature abstraction would cost more than the duplication. There were three
+ * for a while — the New tab's chooser was the other — and it went with the tab
+ * rather than being generalised, which is the outcome the duplication was
+ * betting on.
  */
 export function ContactActionSheet({
   visible,

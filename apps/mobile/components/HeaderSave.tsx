@@ -4,12 +4,12 @@ import { styles } from "../lib/styles";
 
 /**
  * The **Save** action that every entity form now carries in its header, replacing
- * the in-body Cancel/Add row the forms used to render. It is the one thing still
- * in that corner: the list screens' "+ Add" has gone to the New tab, but Save is
- * not a create action — it is the end of one, on a screen the user is already
- * finishing. There is no Cancel beside it: the stack's own "‹ Back"
- * already leaves without saving, and a second way to do the same thing was
- * competing with the one the platform draws for free.
+ * the in-body Cancel/Add row the forms used to render. It shares the corner's
+ * *position* with the list screens' ➕ ({@link NewLink}) but never the screen:
+ * a ➕ starts a create and Save ends one, so a form is always somewhere the ➕
+ * has already been tapped. There is no Cancel beside it either — the stack's own
+ * "‹ Back" already leaves without saving, and a second way to do the same thing
+ * was competing with the one the platform draws for free.
  *
  * Rendered from a screen's `Stack.Screen options.headerRight`. It stays mounted
  * while disabled rather than disappearing, so the action's place on screen never

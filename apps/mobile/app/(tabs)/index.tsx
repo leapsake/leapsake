@@ -31,10 +31,12 @@ import { colors, styles } from "../../lib/styles";
  * user's finger found it, struck through, rather than sliding down to the
  * completed tail and pulling the next row up under the finger that just tapped it
  * (see {@link stickyOrder}). Every *other* action a reminder offers lives on its
- * detail screen, which the row text taps through to. Creating one is the **New**
- * tab's job and this screen's header carries nothing (app/(tabs)/_layout.tsx);
- * New from here opens the chooser, since Home is the one screen that is about
- * every kind of record rather than one.
+ * detail screen, which the row text taps through to. Creating one is the **➕**
+ * in this screen's own top-right corner, declared with its title in
+ * `app/(tabs)/_layout.tsx`; it goes straight to the reminder form and asks
+ * nothing on the way. That question — "person, reminder, or gift idea?" — was
+ * what a create control shared with every other screen had to ask here, and this
+ * screen had already answered it.
  *
  * That split is why this screen reads nothing but the list. The gift targets and
  * the duplicates-nudge id it used to fetch existed only to decide which offers a

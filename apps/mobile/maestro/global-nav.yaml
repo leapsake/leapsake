@@ -1,49 +1,50 @@
-# The global navigation shell — the tab bar, the New tab, and where Back appears.
+# The global navigation shell — the tab bar, the ➕ each screen carries, and where
+# Back appears.
 #
 # Everything here is a claim about *navigation*, which is exactly the class of
-# thing no lower tier can check: `lib/new-action.ts` is unit-tested and proves the
-# resolver's table, but nothing below E2E proves that the table is wired to a tab
-# press, that the press is cancelled before it navigates, or that a back control
-# is absent from a tab root and present one screen up.
+# thing no lower tier can check: nothing below E2E proves that a tab exists, that
+# a header's ➕ is wired to the create screen its own tab entry names, that a
+# catalog keeps the bar under it, or that a back control is absent from a tab root
+# and present one screen up.
 #
 # Four cases, and what each goes red on if the shell regresses:
 #
-#   1. the bar holds Home, Search, New and Settings — a tab lost or renamed.
-#   2. New from Home opens the chooser at all.
-#   3. a browse tile opens its catalog **with the bar still under it and no back
-#      control** (the catalogs are hidden members of the tab navigator, not
-#      screens pushed over it — `app/(tabs)/_layout.tsx`), the catalog's own
-#      Search link is what comes back narrowed, and New on that *filtered* Search
-#      goes straight into the form with no chooser — break the `?type=` read (or
-#      read the tab layout's *local* params instead of the global ones, which is
-#      how this was first written) and it falls back to the sheet, so
-#      `person-first-name` never appears.
-#   4. Back is absent inside the tab navigator and present on a pushed screen —
-#      **and this is also what catches a New tab that navigates.** See below.
+#   1. the bar holds Home, Search, People and Settings — a tab lost or renamed.
+#      This is also the only guard on the fourth tab's name, which used to follow
+#      custody and no longer does (`app/(tabs)/menu.tsx`).
+#   2. Home's ➕ goes straight into the reminder form. Home is a list of one kind
+#      of thing and its create action says so; a ➕ that asked "what are you
+#      adding?" here is exactly what this shell replaced.
+#   3. People is a **tab**, its ➕ makes a person or pet, and the form it opens is
+#      a push that has a Back where the tab under it does not. People spent a
+#      while as a hidden catalog behind Search's browse tiles, so "there is a
+#      button in the bar that lands on People & Pets" is a claim worth holding.
+#   4. a browse tile opens a catalog that has no tab **with the bar still under it
+#      and no back control** (the three remaining catalogs are hidden members of
+#      the tab navigator, not screens pushed over it — `app/(tabs)/_layout.tsx`),
+#      that catalog carries **both** header glyphs, and its 🔍 is what comes back
+#      narrowed.
 #
-# **Where the "New never navigates" claim is actually proven: case 4, not case 2.**
-# Verified by sabotage — deleting the `preventDefault` in `app/(tabs)/_layout.tsx`
-# turns this flow red, but on case 4's post-Back assertion, because focus has moved
-# to the empty `new` route and Back from the add form therefore lands there rather
-# than on the filtered search.
+# **Cases 3 and 4 together are what hold the single-row header up.**
+# `components/AppHeader.tsx` puts a screen's actions on the title's line, which is
+# only safe because Back and the 🔍/➕ pair can never occupy that row together —
+# Back comes from the native stack, the glyphs are declared only on tab-navigator
+# screens. Case 4 is glyphs with no Back; case 3 is Back on the screen pushed over
+# them.
 #
-# Case 2 used to assert "still on Home" by looking for Home's title behind the
-# sheet. That assertion is gone, for two reasons that are each sufficient:
-#
-#   - **It never worked.** A bottom-tab navigator keeps previously-focused screens
-#     **mounted**, merely hidden, so Home's title is still in the accessibility
-#     tree after navigating away from it. `assertVisible` on a tab's own content
-#     can never tell you that tab is focused.
-#   - **It is not portable.** On Android a React Native `Modal` is its own window,
-#     so while the sheet is up the screen behind it is not in the tree at all and
-#     the assertion fails outright — where on iOS the whole tree is visible. These
-#     flows are byte-identical across platforms by design, so an assertion that
-#     means different things on each cannot stay.
+# **Every assertion here is about something that is either on screen or not
+# mounted at all**, and that is a constraint rather than a style. A bottom-tab
+# navigator keeps previously-focused screens **mounted**, merely hidden, so their
+# text stays in the accessibility tree: `assertVisible` on a tab's own content can
+# never tell you that tab is focused, and `assertNotVisible` on it can go red for
+# a screen the user left ten taps ago. So arrival is asserted on **pushed** screens
+# (a push covers the tabs and a pop unmounts it) and on the tab **bar**, never on
+# "is Home's title still somewhere in the tree".
 #
 # **What is deliberately not asserted at all: the selected-tab tint.** That is a
-# colour, and Maestro reads the accessibility tree rather than pixels. Case 4
-# covers the property the colour is a symptom of. If the tint is ever wrong while
-# navigation is right, that is a styling bug for a screenshot check, not here.
+# colour, and Maestro reads the accessibility tree rather than pixels. If the tint
+# is ever wrong while navigation is right, that is a styling bug for a screenshot
+# check, not here.
 #
 # Like `driver-selftest.yaml` this does not `launchApp`: a cold dev-client launch
 # lands on the launcher, and these routes only exist once JS is loaded. Open the
@@ -51,34 +52,26 @@
 #
 #   maestro --udid <sim> test global-nav.yaml
 #
-# It creates nothing, so unlike `staged-gifts.yaml` it needs no per-run
-# tag. It does need to **clear the search filter it may have left behind**, and it
-# does that on the way *in* rather than only on the way out: a run that fails
-# anywhere in case 3 leaves the tab narrowed, and the next run then finds a chip
-# where it expected tiles and fails for a reason that has nothing to do with the
-# code. Cleaning up at the end is not enough when the end is what didn't happen.
+# It creates nothing — every form it opens is left by Back — so unlike
+# `staged-gifts.yaml` it needs no per-run tag. It does need to **clear the search
+# filter it may have left behind**, and it does that on the way *in* rather than
+# only on the way out: a run that fails anywhere in case 4 leaves the tab narrowed,
+# and the next run then finds a chip where it expected tiles and fails for a reason
+# that has nothing to do with the code. Cleaning up at the end is not enough when
+# the end is what didn't happen.
 #
-# The tabs are tapped by **testID** (`tab-home`, `tab-search`, `tab-new`,
-# `tab-account`), not by label. A tab's accessibility text is VoiceOver-style on
+# The tabs are tapped by **testID** (`tab-home`, `tab-search`, `tab-people`,
+# `tab-settings`), not by label. A tab's accessibility text is VoiceOver-style on
 # iOS ("Search, tab, 2 of 4") and Maestro's text selectors are full-match, so a
-# label match has to be a loose `.*New.*` — which would just as happily hit a
-# reminder titled "New camera" on the list behind the bar. The labels are still
-# *asserted* by regex in case 1, where being loose is harmless; only the taps use
-# ids. Everything else asserts on real on-screen text.
+# label match has to be a loose `.*Search.*` — which would just as happily hit a
+# reminder titled "Search for a new camera" on the list behind the bar. The labels
+# are still *asserted* by regex in case 1, where being loose is harmless; only the
+# taps use ids.
+#
+# The header glyphs are tapped by testID for a stronger reason still: they render
+# as a bare ➕ and 🔍, so their only text is the `accessibilityLabel` each one sets.
 appId: com.leapsake.app
 ---
-# Dismiss a sheet left open by an earlier failed run, which would otherwise cover
-# the tab bar — on Android a React Native `Modal` is its own window, so nothing
-# behind it is even reachable. Same reasoning as the filter guard in case 3:
-# a flow has to prepare itself, because the run that leaves the mess is by
-# definition the run that didn't reach its cleanup.
-- runFlow:
-    when:
-      visible:
-        id: "create-sheet"
-    commands:
-      - tapOn: "Cancel"
-
 # ------------------------------------------------------------------ case 1 of 4
 # Exactly the four standing tabs. Home is asserted by its *title* ("Leapsake")
 # rather than its tab label, which also pins that we are on the app home rather
@@ -87,28 +80,52 @@ appId: com.leapsake.app
     id: "tab-home"
 - assertVisible: "Leapsake"
 - assertVisible: ".*Search.*"
-- assertVisible: ".*New.*"
-- assertVisible: ".*Settings.*|.*Account.*"
+- assertVisible: ".*People.*"
+# Settings in both custody states, signed in or out — the word appears on no other
+# screen, so putting the old Settings-or-Account rename back turns this red on a
+# device that has an account. Asserted positively rather than by ruling "Account"
+# out: that word is a row *inside* this tab (`app/(tabs)/menu.tsx`) and would still
+# be in the tree from an earlier visit.
+- assertVisible: ".*Settings.*"
 # No back control on a tab root — the navigator has no back destination to give
-# one, so this is the structural half of case 4.
+# one, so this is half of the claim case 3 finishes.
 - assertNotVisible: ".*Back.*"
 
 # ------------------------------------------------------------------ case 2 of 4
-# Home is about everything, so New has a real question to ask. Nothing here
-# asserts that we are *still on Home* — see the header for why that cannot be
-# asserted portably, and where the claim is actually proven (case 4).
+# Home's ➕ makes a reminder and asks nothing on the way. `reminder-title` is the
+# form's own field, so nothing short of arriving in the form satisfies it — and
+# its *absence* after Back is what proves the push was popped, which "is Home
+# visible?" could not (see the header).
 - tapOn:
-    id: "tab-new"
+    id: "header-new-home"
 - assertVisible:
-    id: "create-sheet"
-- tapOn: "Cancel"
+    id: "reminder-title"
+- tapOn: ".*Back.*"
 - assertNotVisible:
-    id: "create-sheet"
+    id: "reminder-title"
 
 # ------------------------------------------------------------------ case 3 of 4
-# A search narrowed to People & Pets has already answered "what kind of thing?",
-# so New must skip the chooser entirely — but first, the two taps that are the
-# only ways to be narrowed or unnarrowed at all.
+# People is reachable from the bar, and its own ➕ makes a person or pet. The title
+# is asserted between the two taps because the bar's label ("People") and the
+# screen's title ("People & Pets") are deliberately different words, and only the
+# second one says that a pet belongs in there too.
+- tapOn:
+    id: "tab-people"
+- assertVisible: "People & Pets"
+- tapOn:
+    id: "header-new-people"
+- assertVisible:
+    id: "person-first-name"
+# A pushed screen has somewhere to go back to and says so — the contrast with case
+# 1, on a screen reached from the tab that case 1 checked was absent a Back.
+- assertVisible: ".*Back.*"
+- tapOn: ".*Back.*"
+- assertNotVisible:
+    id: "person-first-name"
+
+# ------------------------------------------------------------------ case 4 of 4
+# A catalog with no tab of its own. Gifts is reached the way all three now are,
+# through a browse tile.
 - tapOn:
     id: "tab-search"
 # Clear a filter left by an earlier failed run (see the header) so the tiles are
@@ -125,42 +142,29 @@ appId: com.leapsake.app
 # `setParams` back and this line goes red immediately, one tap sooner than the
 # rest of the case would notice.
 - tapOn:
-    id: "browse-tile-people"
+    id: "browse-tile-gifts"
 - assertNotVisible:
     id: "search-filter-chip"
 # The catalog **keeps the bar and loses Back** — the two halves of one claim: it
-# is a place in the tab navigator, not a screen pushed over it. Move People &
-# Pets back onto the root stack and the first line goes red (the bar is covered)
-# and the second follows (a pushed screen gets a back control for free).
+# is a place in the tab navigator, not a screen pushed over it. Move Gifts back
+# onto the root stack and the first line goes red (the bar is covered) and the
+# second follows (a pushed screen gets a back control for free).
 #
 # The bar is asserted by a tab's `testID` rather than its label, for the reason
-# in the header: this one is checked while a list of people is on screen, and
-# "Home" is a thing a person could plausibly be called.
+# in the header.
 - assertVisible:
     id: "tab-home"
 - assertNotVisible: ".*Back.*"
-# Narrowing comes from the other end: the catalog's own Search link. Tapping it
-# by id is also what proves the tile landed us on People & Pets, since that
-# header link exists nowhere else.
-- tapOn:
-    id: "search-here-people"
+# Both glyphs, sharing the one right-hand slot. Drop either and the header is
+# quietly back to a single action. This is also what proves the tile landed us on
+# Gifts, since `search-here-gifts` exists nowhere else.
 - assertVisible:
-    id: "search-filter-chip"
-- tapOn:
-    id: "tab-new"
-- assertNotVisible:
-    id: "create-sheet"
-# The add person/pet form itself, by the testID the staged-gift flow already
-# relies on.
+    id: "search-here-gifts"
 - assertVisible:
-    id: "person-first-name"
-
-# ------------------------------------------------------------------ case 4 of 4
-# A pushed screen has somewhere to go back to, and says so. This is the same
-# screen as case 3 — reached by a push — so the pair is a genuine contrast rather
-# than two unrelated screens.
-- assertVisible: ".*Back.*"
-- tapOn: ".*Back.*"
+    id: "header-new-gifts"
+# Narrowing comes from the catalog's own 🔍, and from nowhere else.
+- tapOn:
+    id: "search-here-gifts"
 - assertVisible:
     id: "search-filter-chip"
 

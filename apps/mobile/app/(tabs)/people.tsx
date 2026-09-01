@@ -20,17 +20,19 @@ import { colors, styles } from "../../lib/styles";
 // own detail page. The muted "(pet)" suffix keeps the two entity types visually
 // distinguishable in the shared list.
 //
-// **A hidden member of the tab navigator, not a tab.** It had a permanent tab
-// until the bar was rebuilt around what you *do* (Home, Search, New, Account)
-// rather than what the app stores. People is the app's biggest catalog, but a
-// catalog is somewhere you go looking for a particular record — which is what
-// Search is for, and Search's browse tiles lead here. The other way in is a
-// reference from another entity, which was always the more common one.
+// **A tab.** It briefly wasn't: the bar was rebuilt around what you *do* (Home,
+// Search, New, Account) and this screen became a hidden member of the tab
+// navigator, reachable through Search's browse tiles on the theory that a
+// catalog is somewhere you go looking for a particular record. In use that made
+// the app's biggest list — and the thing it is mostly about — a two-tap trip,
+// which is a lot to charge for the seat a create button was sitting in. The seat
+// is People's again and creating moved to this screen's own corner.
 //
-// It lives in the tab navigator all the same, so the bar stays under it and
-// leaving is a tab away rather than a Back away; its title and header actions
-// are declared with the rest of the bar in `app/(tabs)/_layout.tsx`. Rows still
-// push their person or pet onto the root stack, over the bar and with a Back.
+// Its title ("People & Pets", where the bar's label is just "People") and its
+// header actions are declared with the rest of the bar in
+// `app/(tabs)/_layout.tsx`: 🔍 into a search already narrowed to people and
+// pets, and ➕ to `/add`. Rows still push their person or pet onto the root
+// stack, over the bar and with a Back.
 //
 // The duplicates link is **conditional on there being duplicates** and states
 // the count. It used to head this list permanently, advertising a chore even on

@@ -74,7 +74,21 @@ export const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 16,
+  },
+  /**
+   * A header action drawn as a bare glyph — the 🔍 and ➕ a catalog carries
+   * (`components/SearchHereLink.tsx`, `components/NewLink.tsx`).
+   *
+   * Smaller than the title it sits beside and larger than a {@link link}: it has
+   * to read as a control at a glance without competing with the screen's name,
+   * and an emoji fills more of its box than letters fill theirs. It does **not**
+   * take `colors.accent` — an emoji ignores `color` on both platforms, so the
+   * tint would be a lie in the stylesheet that the screen never shows.
+   */
+  headerGlyph: {
+    fontSize: 20,
   },
   link: {
     fontSize: 16,

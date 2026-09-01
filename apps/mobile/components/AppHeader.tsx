@@ -33,8 +33,22 @@ const LOGO_SIZE = { full: 26, compact: 19 } as const;
  * design, and a native header is the one piece of chrome that cannot be made to
  * agree across the two.
  *
- * The shape is a **title, not a bar**: a thin row of actions, and under it the
- * screen's name at reading size. There is no persistent top navigation.
+ * ### One row: back, title, actions
+ *
+ * The actions sit **on the title's line**, not above it. They had their own row
+ * for as long as the only thing in it was a lone link, and a lone link floating
+ * over a heading reads as a stray — it belongs to the title, so it sits with it.
+ *
+ * The row survives the crowding it looks like it should cause, because the two
+ * clusters that could fill it **never appear together**. Back reaches a screen
+ * only through the native stack (see below), and the create/search actions are
+ * declared only on screens inside the tab navigator, which structurally cannot
+ * receive one. So a header is either `‹ Back · Title · Edit` or
+ * `Title · 🔍 ➕`, and never both at once.
+ *
+ * The title is still a **title and not a bar**: it sits at reading size on the
+ * leading edge rather than centred and shrunk to fit between two controls, which
+ * is the part of the old shape that was worth keeping.
  *
  * ### The title shrinks; it never leaves
  *
@@ -46,15 +60,23 @@ const LOGO_SIZE = { full: 26, compact: 19 } as const;
  * {@link headerScroll}, which a screen opts into with `useHeaderScroll()`; a
  * screen with nothing to scroll never collapses.
  *
+ * The actions keep their size through that collapse. They are controls rather
+ * than typography, and a control that shrinks as you scroll is a control that
+ * gets harder to hit the further you read.
+ *
  * ### Back is the navigator's decision, not a screen's
  *
  * {@link AppHeaderProps.onBack} is supplied only where react-navigation says a
  * back destination exists — the native-stack header renderer receives a `back`
  * prop that is `undefined` at the root of a stack, and the tab header renderer
  * has no such prop at all. So anything hosted in the tab navigator
- * *structurally* cannot show a back control — the four tabs, and the four
+ * *structurally* cannot show a back control — the four tabs, and the three
  * catalogs that sit in there without a button — and every pushed screen
  * *structurally* does. No screen opts in, and none can get it wrong.
+ *
+ * That is also what makes the single row above safe rather than lucky: it is not
+ * that back and a create action happen not to co-occur today, it is that the
+ * navigator that grants one cannot grant the other.
  *
  * ### The top inset must come from the context
  *
@@ -74,7 +96,11 @@ export interface AppHeaderProps {
    * screen that ever needs a second action shouldn't have to add the plumbing.
    */
   left?: ReactNode;
-  /** The screen's action — its Edit, its Save, or Search-here. */
+  /**
+   * The screen's action, or actions — its Edit, its Save, or the 🔍 and ➕ a
+   * catalog carries. More than one arrives as a single node already laid out
+   * (`styles.headerActions`), so this slot never has to know how many there are.
+   */
   right?: ReactNode;
   /** Supplied by the navigator iff there is somewhere to go back to. */
   onBack?: () => void;
@@ -115,55 +141,56 @@ export function AppHeader({
       style={[
         local.header,
         {
-          paddingTop: insets.top,
+          paddingTop: insets.top + 8,
           paddingLeft: insets.left + 16,
           paddingRight: insets.right + 16,
         },
       ]}
     >
-      {/* Always drawn, even when it holds nothing, so the title sits at the same
-          height on every screen. A row that collapsed when a screen had no
-          actions would make the title jump as you moved between tabs. */}
-      <View style={local.actions}>
+      <View style={local.row}>
         {onBack !== undefined && (
           <Pressable accessibilityRole="button" onPress={onBack} hitSlop={8}>
             <Text style={local.back}>{BACK_LABEL}</Text>
           </Pressable>
         )}
         {left}
+        {/* An empty title renders nothing rather than an empty word. A screen whose
+            own first words are its heading — the reminder detail — sets `title: ""`
+            deliberately, and a blank run there would be the title bar saying the
+            same sentence twice, in whitespace. The spacer below still holds the
+            actions at the trailing edge without it. */}
+        {title !== "" && (
+          <View style={local.titleRow}>
+            {showLogo && (
+              /*
+                Decorative, and deliberately left out of the accessibility tree: the word
+                beside it says the same thing and already carries the `header` role. A screen
+                reader that announced “Leapsake” twice would be describing the layout rather
+                than the app.
+              */
+              <Animated.Image
+                source={logo}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                resizeMode="contain"
+                style={{ width: logoSize, height: logoSize }}
+              />
+            )}
+            <Animated.Text
+              accessibilityRole="header"
+              numberOfLines={2}
+              style={[local.title, { fontSize }]}
+            >
+              {title}
+            </Animated.Text>
+          </View>
+        )}
+        {/* Always drawn, so the actions sit at the trailing edge whether the row
+            holds a title, a back control, both, or neither — and so a screen with
+            no actions still has its title in the same place as one that has them. */}
         <View style={local.spacer} />
         {right}
       </View>
-      {/* An empty title renders nothing rather than an empty line. A screen whose
-          own first words are its heading — the reminder detail — sets `title: ""`
-          deliberately, and a blank band there would be the title bar saying the
-          same sentence twice, in whitespace. */}
-      {title !== "" && (
-        <View style={local.titleRow}>
-          {showLogo && (
-            /*
-              Decorative, and deliberately left out of the accessibility tree: the word
-              beside it says the same thing and already carries the `header` role. A screen
-              reader that announced “Leapsake” twice would be describing the layout rather
-              than the app.
-            */
-            <Animated.Image
-              source={logo}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              resizeMode="contain"
-              style={{ width: logoSize, height: logoSize }}
-            />
-          )}
-          <Animated.Text
-            accessibilityRole="header"
-            numberOfLines={2}
-            style={[local.title, { fontSize }]}
-          >
-            {title}
-          </Animated.Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -173,15 +200,15 @@ const local = StyleSheet.create({
     backgroundColor: colors.surfaceRaised,
     paddingBottom: 12,
   },
-  actions: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
+    // Holds the row open on the one screen with no title and no actions, so the
+    // header never collapses to a bare band of colour.
     minHeight: 36,
-    // Only ever seen between Back and a leading action; the spacer keeps the
-    // trailing one at the edge either way.
-    gap: 16,
+    gap: 12,
   },
-  /** Pushes `right` to the trailing edge whether or not there is a back control. */
+  /** Pushes `right` to the trailing edge whatever precedes it. */
   spacer: {
     flex: 1,
   },
@@ -189,12 +216,14 @@ const local = StyleSheet.create({
     fontSize: 16,
     color: colors.accent,
   },
-  // Holds the mark and the title on one baseline. Drawn even without a logo so that
-  // adding one cannot shift the title a screen already sits under.
+  // Holds the mark and the title on one baseline. `flexShrink` is what keeps a
+  // long name from pushing the actions off the trailing edge: the title gives up
+  // width (and wraps to its second line) before the row overflows.
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    flexShrink: 1,
   },
   title: {
     // `fontSize` is animated in, so it is deliberately absent here.

@@ -51,23 +51,27 @@ appId: com.leapsake.app
 # Reachability, not tab labels: which tab holds what is the shell's own business and is
 # `global-nav.yaml`'s gate, not this flow's.
 #
-# People & Pets is reached from Search's browse tiles rather than from a tab (increment
-# 09 demoted it), so this asserts the tile, not a tab.
-- tapOn:
-    id: "tab-search"
+# People & Pets is a tab again. It was demoted to a catalog behind Search's browse tiles
+# for a while (increment 09), which is why this used to hop through Search to assert a
+# tile; the tile still exists, but the tab is the shorter and more honest statement of
+# "a first-run user can reach the list they are about to fill".
 - assertVisible:
-    id: "browse-tile-people"
+    id: "tab-people"
 
 # Settings offers to create an account. Two hops, because the fourth tab is a *menu*
 # (`app/(tabs)/menu.tsx`) rather than the account screen itself: the tab lists Account,
 # Data, Notifications, Acknowledgements, and `app/settings.tsx` is the row behind
 # "Account". Its rows read "<glyph> <label>", so the selector cannot be the bare word.
 #
+# The tab is `tab-settings` in both custody states. It used to rename itself to "Account"
+# once one existed — which is why the id said `tab-account` — and no longer does: the row
+# below it already says the word.
+#
 # The screen it opens is named for custody — with no account it titles itself "Account",
 # not "Account & sync" — and "Protect your data" is the create-an-account offer's own
 # heading.
 - tapOn:
-    id: "tab-account"
+    id: "tab-settings"
 - tapOn: ".*Account.*"
 - assertVisible: "Protect your data"
 
