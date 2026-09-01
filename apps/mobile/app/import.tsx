@@ -13,13 +13,14 @@ import {
 import { Stack, useRouter } from "expo-router";
 import {
   Contact,
-  ContactField,
   ContactsSortOrder,
   requestPermissionsAsync,
 } from "expo-contacts";
 import type { ParsedContact } from "@leapsake/contact-import";
+import { kindDefs } from "@leapsake/schema";
 import type { DuplicateMatch, ImportResult } from "@leapsake/core";
 import { Checkbox, CheckboxBox } from "../components/Checkbox";
+import { CONTACT_FIELDS } from "../lib/device-contact-fields";
 import { deviceContactToParsed } from "../lib/device-contacts";
 import { useCore } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
@@ -33,20 +34,6 @@ import { colors, styles } from "../lib/styles";
  * the same write path (and duplicate/birthday reconciliation) manual creation and
  * the desktop importer use. Nothing is written until the user taps Import.
  */
-
-/** The fields the mapper reads — kept in sync with `DeviceContact`. */
-const CONTACT_FIELDS: ContactField[] = [
-  ContactField.GIVEN_NAME,
-  ContactField.MIDDLE_NAME,
-  ContactField.FAMILY_NAME,
-  ContactField.FULL_NAME,
-  ContactField.COMPANY,
-  ContactField.NOTE,
-  ContactField.EMAILS,
-  ContactField.PHONES,
-  ContactField.ADDRESSES,
-  ContactField.BIRTHDAY,
-];
 
 const TIER_LABEL: Record<string, string> = {
   high: "Very likely already in Leapsake",
@@ -463,7 +450,8 @@ function ContactDetail({ contact }: { contact: ParsedContact }) {
   const bits: string[] = [];
   for (const e of contact.emails) bits.push(e.address);
   for (const p of contact.phones) bits.push(p.number);
-  if (contact.birthday) bits.push("🎂");
+  if (contact.birthday) bits.push(kindDefs.birthday.icon ?? "Birthday");
+  for (const d of contact.dates) bits.push(kindDefs[d.kind].icon ?? d.label);
   if (bits.length === 0) return null;
   return <Text style={styles.muted}>{bits.join(" · ")}</Text>;
 }

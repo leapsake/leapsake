@@ -1887,6 +1887,21 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
               day: birthday.day,
             });
           },
+          // The parser already resolved the source label to a kind, so this only
+          // writes it. The source's own wording is kept as the `note` for an
+          // `other`-kind date — that kind has no label of its own and leans on
+          // `note` for one — and dropped for a kind that names itself.
+          addDate: async (personId, date) => {
+            await milestones.create({
+              kind: date.kind,
+              bearerType: "person",
+              bearerId: personId,
+              year: date.date.year,
+              month: date.date.month,
+              day: date.date.day,
+              note: date.kind === "other" ? date.label : null,
+            });
+          },
           // Somebody the card merely named becomes an unpublished person with
           // one edge — the same thing `relationships.createWithNewOther` makes,
           // spelled over the raw repos because the engine is already inside a

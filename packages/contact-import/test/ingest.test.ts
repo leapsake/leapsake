@@ -14,6 +14,7 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
     socials: [],
     birthday: null,
     related: [],
+    dates: [],
     dropped: [],
     ...over,
   };
@@ -28,6 +29,7 @@ function makePorts(failOn?: string) {
   const people: { id: string; first: string }[] = [];
   const emails: { personId: string; address: string }[] = [];
   const birthdays: { personId: string }[] = [];
+  const dates: { personId: string; kind: string }[] = [];
   const relateds: { personId: string; name: string; role: string }[] = [];
   let n = 0;
 
@@ -47,6 +49,9 @@ function makePorts(failOn?: string) {
     addBirthday: async (personId) => {
       birthdays.push({ personId });
     },
+    addDate: async (personId, date) => {
+      dates.push({ personId, kind: date.kind });
+    },
     addRelated: async (personId, relation) => {
       relateds.push({ personId, name: relation.name, role: relation.role });
     },
@@ -55,7 +60,7 @@ function makePorts(failOn?: string) {
     transaction: async (body) => body(),
   };
 
-  return { ports, people, emails, birthdays, relateds };
+  return { ports, people, emails, birthdays, dates, relateds };
 }
 
 describe("ingestContacts", () => {
@@ -84,6 +89,28 @@ describe("ingestContacts", () => {
     expect(result.created).toBe(1);
     expect(emails).toEqual([{ personId: "person-1", address: "jane@x.com" }]);
     expect(birthdays).toEqual([{ personId: "person-1" }]);
+  });
+
+  it("writes a card's other dates alongside its birthday", async () => {
+    const { ports, birthdays, dates } = makePorts();
+    const result = await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          birthday: { year: null, month: 3, day: 9 },
+          dates: [
+            {
+              kind: "anniversary",
+              label: "Anniversary",
+              date: { year: 2015, month: 6, day: 20 },
+            },
+          ],
+        }),
+      },
+    ]);
+    expect(result.created).toBe(1);
+    expect(birthdays).toEqual([{ personId: "person-1" }]);
+    expect(dates).toEqual([{ personId: "person-1", kind: "anniversary" }]);
   });
 
   // A mononym or an organisation-only card ("Acme Corp", "Cher") is what the

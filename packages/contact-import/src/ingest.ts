@@ -2,6 +2,7 @@ import { type Gender, hasAnyName } from "@leapsake/schema";
 import type {
   ParsedBirthday,
   ParsedContact,
+  ParsedDate,
   ParsedEmail,
   ParsedName,
   ParsedPhone,
@@ -35,6 +36,9 @@ export interface ImportPorts {
   addPostal(personId: string, postal: ParsedPostal): Promise<void>;
   addSocial(personId: string, social: ParsedSocial): Promise<void>;
   addBirthday(personId: string, birthday: ParsedBirthday): Promise<void>;
+  /** Record a dated occasion other than the birthday (an anniversary), as a
+   *  milestone of the kind the parser resolved from the source's own label. */
+  addDate(personId: string, date: ParsedDate): Promise<void>;
   /** Record somebody the card named as related, as an unpublished person hanging
    *  off this one. */
   addRelated(personId: string, related: ParsedRelated): Promise<void>;
@@ -115,6 +119,7 @@ export async function ingestContacts(
         for (const postal of contact.postals) await ports.addPostal(id, postal);
         for (const social of contact.socials) await ports.addSocial(id, social);
         if (contact.birthday) await ports.addBirthday(id, contact.birthday);
+        for (const date of contact.dates) await ports.addDate(id, date);
         for (const relation of contact.related) {
           await ports.addRelated(id, relation);
         }

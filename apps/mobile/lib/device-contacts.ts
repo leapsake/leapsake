@@ -1,11 +1,14 @@
 import type {
   DroppedField,
   ParsedContact,
+  ParsedDate,
   ParsedEmail,
+  ParsedPartialDate,
   ParsedPhone,
   ParsedPostal,
 } from "@leapsake/contact-import";
-import type { ContactDetails } from "expo-contacts";
+import type { MilestoneKind } from "@leapsake/schema";
+import type { ContactDate, ContactDetails } from "expo-contacts";
 
 /**
  * The mobile counterpart to the desktop vCard parser (`@leapsake/contact-import`'s
@@ -40,6 +43,7 @@ export type DeviceContact = Pick<
   | "phones"
   | "addresses"
   | "birthday"
+  | "dates"
 >;
 
 /** Trim to a non-empty string, or `null` — the shape the parsed schemas want. */
@@ -123,12 +127,61 @@ function label(value: string | null | undefined): string {
   );
 }
 
+/**
+ * Date labels Leapsake has a milestone kind for, keyed by the label lower-cased.
+ * Deliberately tiny: a label with no kind here is surfaced in `dropped[]` rather
+ * than guessed into `other`, so a card's "Graduation" or "Beach house closing"
+ * stays visible in the review without every stray date minting a milestone.
+ *
+ * `birthday` is absent on purpose — a birthday-labelled date never becomes a
+ * {@link ParsedDate}; it fills `ParsedContact.birthday`. See
+ * {@link deviceContactToParsed}.
+ */
+const DATE_KINDS: Record<string, MilestoneKind> = {
+  anniversary: "anniversary",
+};
+
+/**
+ * An `expo-contacts` {@link ContactDate} as Leapsake's partial civil date, or
+ * `null` when it carries no usable month. `month` is already 1-indexed (1-12) on
+ * both platforms, so it maps straight across; `year` is optional (a date without
+ * one recurs annually) and `day` is defensive — the platform types promise it,
+ * a malformed record need not.
+ */
+function partialDateFrom(
+  value: ContactDate | null | undefined,
+): ParsedPartialDate | null {
+  if (value == null) return null;
+  if (!(value.month >= 1 && value.month <= 12)) return null;
+  return {
+    year: value.year ?? null,
+    month: value.month,
+    day: value.day ?? null,
+  };
+}
+
+/** A partial date as compact text, for a `dropped[]` entry's value. */
+function partialDateText(date: ParsedPartialDate): string {
+  return [
+    date.year === null ? "" : String(date.year).padStart(4, "0"),
+    date.month === null ? "" : String(date.month).padStart(2, "0"),
+    date.day === null ? "" : String(date.day).padStart(2, "0"),
+  ]
+    .filter((part) => part !== "")
+    .join("-");
+}
+
 const NOTE_CAP = 300;
 
 /**
  * Map one device contact to a {@link ParsedContact}. Pure — no permission checks,
- * no native calls. `birthday.month` from `expo-contacts` is already 1-indexed
- * (1-12), so it maps straight onto Leapsake's civil-date month.
+ * no native calls. Every date from `expo-contacts` is already 1-indexed (1-12) in
+ * its month, so it maps straight onto Leapsake's civil-date month.
+ *
+ * The two date sources are handled asymmetrically on purpose: the dedicated
+ * birthday field is authoritative where the platform has one (iOS), and the
+ * labelled `dates` list supplies the birthday only where it doesn't (Android),
+ * plus any anniversary on either.
  */
 export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
   const firstName = clean(contact.givenName) ?? "";
@@ -173,19 +226,47 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
     ];
   });
 
-  const birthday =
-    contact.birthday != null &&
-    contact.birthday.month >= 1 &&
-    contact.birthday.month <= 12
-      ? {
-          year: contact.birthday.year ?? null,
-          month: contact.birthday.month,
-          day: contact.birthday.day ?? null,
-        }
-      : null;
+  // iOS keeps the birthday in its own dedicated field (`CNContactBirthdayKey`),
+  // which is authoritative when present. Android has no such field at all — its
+  // `GetContactDetailsRecord` carries none — and keeps the birthday in `dates`
+  // under a "birthday" label, which is why the fallback below exists.
+  const dedicatedBirthday = partialDateFrom(contact.birthday);
 
   // Surface what we read but can't store, so the review shows "Not imported: …".
   const dropped: DroppedField[] = [];
+
+  // The platform's "other dates" list. Everything here is labelled, and the label
+  // is the only thing saying what the date *is* — so it is routed through
+  // {@link DATE_KINDS} rather than assumed. Three outcomes, in order:
+  //
+  //  1. "birthday" — the Android birthday (that platform has no dedicated field).
+  //     It fills the birthday only if the dedicated field was empty, so on iOS a
+  //     duplicate entry can never mint a second birthday milestone.
+  //  2. a label with a kind — an anniversary today.
+  //  3. anything else — dropped, and *named*, so the review says "Not imported:
+  //     Date (Graduation)" rather than losing it in silence.
+  const dates: ParsedDate[] = [];
+  let birthdayFromDates: ParsedPartialDate | null = null;
+  for (const entry of contact.dates ?? []) {
+    const date = partialDateFrom(entry.date);
+    if (date === null) continue; // no usable month ⇒ nothing to record
+    const text = label(entry.label);
+    const token = text.toLowerCase();
+    if (token === "birthday") {
+      birthdayFromDates ??= date;
+      continue;
+    }
+    const kind = DATE_KINDS[token];
+    if (kind === undefined) {
+      dropped.push({
+        property: `Date (${text})`,
+        value: partialDateText(date),
+      });
+      continue;
+    }
+    dates.push({ kind, label: text, date });
+  }
+
   const company = clean(contact.company);
   if (company !== null)
     dropped.push({ property: "Organization", value: company });
@@ -204,7 +285,8 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
     // but the import screen does not request either today — adding them is a
     // change to what `Contact.getAllDetails` is asked for, not to this mapper.
     socials: [],
-    birthday,
+    birthday: dedicatedBirthday ?? birthdayFromDates,
+    dates,
     // expo-contacts does expose `relationships`, but only ever as a free-text
     // label and a name, with no role vocabulary to map — unlike a vCard's
     // `RELATED;TYPE=`. Reading them would mean guessing at the role, so they are

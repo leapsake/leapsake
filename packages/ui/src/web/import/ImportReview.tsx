@@ -305,6 +305,10 @@ function ContactDetail({
   if (contact.birthday) {
     bits.push(m.import.birthday(formatBirthday(contact.birthday)));
   }
+  // The source's own label, not the kind's — the review's job is to show what
+  // the card said, and the label is what the user will recognise.
+  for (const d of contact.dates)
+    bits.push(m.import.labelledValue(d.label, formatBirthday(d.date)));
   if (bits.length === 0) return null;
   return <p className={styles.detail}>{m.import.detailLine(bits)}</p>;
 }

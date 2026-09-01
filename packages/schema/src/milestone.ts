@@ -34,6 +34,7 @@ export const milestoneKindSchema = z.enum([
   "death",
   "first-date",
   "wedding",
+  "anniversary",
   "met",
   "graduation",
   "job-start",
@@ -152,6 +153,26 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     greeting: "a happy anniversary",
     defaultReminderSchedule: [
       { action: "gift", offsetDays: 7, enabledByDefault: false },
+      { action: "call", offsetDays: 0, enabledByDefault: false },
+    ],
+  },
+  anniversary: {
+    label: "Anniversary",
+    icon: "\u{1F389}",
+    // **Person-first, unlike `wedding`.** An anniversary usually arrives from a
+    // contact card (iOS/Android both record one against the *contact*, with no
+    // second party named), so its preferred bearer is the person it was imported
+    // onto. That also keeps it out of the "with whom?" step, which fires on
+    // `preferredBearerType(kind) === "relationship"` and has no unbound escape
+    // outside Wedding. `relationship` stays allowed so a later re-point is a
+    // normal bearer update.
+    allowedBearerTypes: ["person", "relationship"],
+    recursAnnually: true,
+    greeting: "a happy anniversary",
+    // A card and a call, both offered and both off — the source card says a date
+    // matters to this person, not what the user wants done about it.
+    defaultReminderSchedule: [
+      { action: "card", offsetDays: 7, enabledByDefault: false },
       { action: "call", offsetDays: 0, enabledByDefault: false },
     ],
   },
@@ -411,11 +432,7 @@ export type UpdateMilestoneInput = z.infer<typeof updateMilestoneInputSchema>;
  * exhaustive (a lone day can't occur).
  */
 export type DatePrecision =
-  | "none"
-  | "year"
-  | "year-month"
-  | "recurring"
-  | "full";
+  "none" | "year" | "year-month" | "recurring" | "full";
 
 /** Derive a milestone's {@link DatePrecision} from its present date parts. */
 export function datePrecisionOf(m: {

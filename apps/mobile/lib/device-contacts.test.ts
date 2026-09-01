@@ -14,6 +14,7 @@ function device(overrides: Partial<DeviceContact> = {}): DeviceContact {
     phones: [],
     addresses: [],
     birthday: null,
+    dates: [],
     ...overrides,
   };
 }
@@ -84,6 +85,87 @@ describe("deviceContactToParsed", () => {
       device({ birthday: { month: 0, day: 0 } as never }),
     );
     expect(parsed.birthday).toBeNull();
+  });
+
+  it("maps an anniversary from the dates list, unwrapping Apple's label", () => {
+    const parsed = deviceContactToParsed(
+      device({
+        dates: [
+          {
+            id: "1",
+            label: "_$!<Anniversary>!$_",
+            date: { year: 2015, month: 6, day: 20 },
+          },
+        ],
+      }),
+    );
+    expect(parsed.dates).toEqual([
+      {
+        kind: "anniversary",
+        label: "Anniversary",
+        date: { year: 2015, month: 6, day: 20 },
+      },
+    ]);
+    // An anniversary is not a birthday, and must not be mistaken for one.
+    expect(parsed.birthday).toBeNull();
+  });
+
+  it("takes a birthday from the dates list only when there is no dedicated one", () => {
+    // Android: no dedicated birthday field at all, so `dates` is the only source.
+    const android = deviceContactToParsed(
+      device({
+        dates: [
+          { id: "1", label: "birthday", date: { year: 1988, month: 2, day: 9 } },
+        ],
+      }),
+    );
+    expect(android.birthday).toEqual({ year: 1988, month: 2, day: 9 });
+    // It fills the birthday rather than becoming a second dated milestone.
+    expect(android.dates).toEqual([]);
+
+    // iOS: the dedicated field wins, and a duplicate entry mints nothing extra.
+    const ios = deviceContactToParsed(
+      device({
+        birthday: { year: 1990, month: 3, day: 14 },
+        dates: [
+          {
+            id: "1",
+            label: "_$!<Birthday>!$_",
+            date: { year: 1990, month: 3, day: 14 },
+          },
+        ],
+      }),
+    );
+    expect(ios.birthday).toEqual({ year: 1990, month: 3, day: 14 });
+    expect(ios.dates).toEqual([]);
+  });
+
+  it("names a date it has no kind for in dropped, rather than guessing", () => {
+    const parsed = deviceContactToParsed(
+      device({
+        dates: [
+          { id: "1", label: "Graduation", date: { month: 5, day: 30 } as never },
+        ],
+      }),
+    );
+    expect(parsed.dates).toEqual([]);
+    expect(parsed.dropped).toContainEqual({
+      property: "Date (Graduation)",
+      value: "05-30",
+    });
+  });
+
+  it("ignores a date entry with no usable month", () => {
+    const parsed = deviceContactToParsed(
+      device({
+        dates: [
+          { id: "1", label: "anniversary", date: { month: 13, day: 1 } },
+          { id: "2", label: "anniversary" },
+        ],
+      }),
+    );
+    expect(parsed.dates).toEqual([]);
+    expect(parsed.dropped).toEqual([]);
   });
 
   it("keeps a postal country only when it is an ISO alpha-2 code", () => {

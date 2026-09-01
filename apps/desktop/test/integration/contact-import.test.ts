@@ -40,6 +40,7 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
     socials: [],
     birthday: null,
     related: [],
+    dates: [],
     dropped: [],
     ...over,
   };

@@ -1,6 +1,8 @@
 import {
+  type MilestoneKind,
   type RelationshipRole,
   genderSchema,
+  milestoneKindSchema,
   relationshipRoleSchema,
 } from "@leapsake/schema";
 import { z } from "zod";
@@ -118,14 +120,43 @@ export interface ParsedSocial {
 }
 
 /**
- * A birthday as a **partial** civil date — a source card may give only a month
- * and day (`--MM-DD`) with no year. `day` implies `month` (never a lone day), the
- * same rule the milestone schema enforces.
+ * A **partial** civil date — a source card may give only a month and day
+ * (`--MM-DD`) with no year. `day` implies `month` (never a lone day), the same
+ * rule the milestone schema enforces.
  */
-export interface ParsedBirthday {
+export interface ParsedPartialDate {
   year: number | null;
   month: number | null;
   day: number | null;
+}
+
+/**
+ * The birthday-shaped spelling of {@link ParsedPartialDate}, kept because
+ * `ParsedContact.birthday` reads better with it and because it is the name this
+ * package already exports. The two are the same shape: a birthday was the only
+ * date Leapsake imported until anniversaries joined it.
+ */
+export type ParsedBirthday = ParsedPartialDate;
+
+/**
+ * A dated occasion a source card records **besides** the birthday — an iOS/Android
+ * contact "date" entry, or a vCard `ANNIVERSARY`.
+ *
+ * The `kind` is resolved by the *parser* (the format-specific half), the same
+ * division {@link ParsedRelated} uses for `RELATED;TYPE=` → `RelationshipRole`:
+ * only labels Leapsake has a kind for become entries here, and everything else
+ * is surfaced in `dropped[]` instead. That keeps the guesswork in one place and
+ * lets the boundary schema validate against the real milestone vocabulary.
+ *
+ * A card's birthday never arrives here — it fills {@link ParsedContact.birthday},
+ * whichever field the platform happened to carry it in.
+ */
+export interface ParsedDate {
+  /** The milestone kind this date lands on. */
+  kind: MilestoneKind;
+  /** The source's own label, for the review UI and for an `other` kind's note. */
+  label: string;
+  date: ParsedPartialDate;
 }
 
 /**
@@ -150,6 +181,8 @@ export interface ParsedContact {
   postals: ParsedPostal[];
   socials: ParsedSocial[];
   birthday: ParsedBirthday | null;
+  /** Dated occasions other than the birthday (anniversaries today). */
+  dates: ParsedDate[];
   related: ParsedRelated[];
   dropped: DroppedField[];
 }
@@ -212,6 +245,20 @@ export const parsedContactSchema = z.object({
       day: z.number().int().nullable(),
     })
     .nullable(),
+  // A kind that isn't one Leapsake knows is refused rather than coerced, for the
+  // same reason `related.role` is: the parser's mapping and the writer's must
+  // agree, and this is the boundary that makes them.
+  dates: z.array(
+    z.object({
+      kind: milestoneKindSchema,
+      label: z.string().min(1),
+      date: z.object({
+        year: z.number().int().nullable(),
+        month: z.number().int().nullable(),
+        day: z.number().int().nullable(),
+      }),
+    }),
+  ),
   // A role that isn't one Leapsake knows is a payload we refuse rather than
   // silently coerce — the renderer's mapping and the writer's must agree, and
   // this is the boundary that makes them.

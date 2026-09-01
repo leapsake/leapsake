@@ -3,8 +3,10 @@ import type {
   DroppedField,
   ParsedBirthday,
   ParsedContact,
+  ParsedDate,
   ParsedEmail,
   ParsedName,
+  ParsedPartialDate,
   ParsedPhone,
   ParsedPostal,
   ParsedRelated,
@@ -42,6 +44,7 @@ const HANDLED = new Set([
   "TEL",
   "ADR",
   "BDAY",
+  "ANNIVERSARY",
   "GENDER",
   "RELATED",
   "IMPP",
@@ -331,6 +334,7 @@ function buildContact(props: Property[]): ParsedContact {
   const postals: ParsedPostal[] = [];
   const socials: ParsedSocial[] = [];
   const related: ParsedRelated[] = [];
+  const dates: ParsedDate[] = [];
   const dropped: DroppedField[] = [];
   let nParts: string[] | null = null;
   let fn: string | null = null;
@@ -395,9 +399,24 @@ function buildContact(props: Property[]): ParsedContact {
         break;
       }
       case "BDAY": {
-        const parsed = parseBirthday(unescapeValue(p.value).trim());
+        const parsed = parsePartialDate(unescapeValue(p.value).trim());
         if (parsed) birthday = parsed;
         else dropField(dropped, "BDAY", p.value);
+        break;
+      }
+      // RFC 6350 §6.2.6. The property names the occasion but not the couple, so
+      // it lands on the `anniversary` kind rather than `wedding` — the card does
+      // not say which anniversary this is, and inventing one would be the same
+      // guess `RELATED` refuses to make about an unmapped role.
+      case "ANNIVERSARY": {
+        const parsed = parsePartialDate(unescapeValue(p.value).trim());
+        if (parsed) {
+          dates.push({
+            kind: "anniversary",
+            label: "Anniversary",
+            date: parsed,
+          });
+        } else dropField(dropped, "ANNIVERSARY", p.value);
         break;
       }
       case "GENDER":
@@ -428,6 +447,7 @@ function buildContact(props: Property[]): ParsedContact {
     postals,
     socials,
     birthday,
+    dates,
     related,
     dropped,
   };
@@ -508,12 +528,13 @@ function mapAddress(
 }
 
 /**
- * Parse a `BDAY` into a partial civil date. Handles v4 basic `19920309`, extended
- * `1992-03-09`, year-less `--0309` / `--03-09`, year-only `1992`, and any leading
- * date of a date-time (`…T…`). Upholds day⇒month (a lone day is dropped). Returns
- * `null` when nothing usable is present.
+ * Parse a vCard date value (`BDAY`, `ANNIVERSARY`) into a partial civil date.
+ * Handles v4 basic `19920309`, extended `1992-03-09`, year-less `--0309` /
+ * `--03-09`, year-only `1992`, and any leading date of a date-time (`…T…`).
+ * Upholds day⇒month (a lone day is dropped). Returns `null` when nothing usable
+ * is present.
  */
-function parseBirthday(raw: string): ParsedBirthday | null {
+function parsePartialDate(raw: string): ParsedPartialDate | null {
   const dateOnly = raw.split("T")[0].trim();
   if (dateOnly === "") return null;
 

@@ -20,6 +20,7 @@ const contact = (over: Partial<ParsedContact> = {}): ParsedContact =>
     phones: [],
     postals: [],
     birthday: null,
+    dates: [],
     dropped: [],
     ...over,
   }) as ParsedContact;

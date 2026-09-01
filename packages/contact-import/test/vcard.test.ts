@@ -144,6 +144,35 @@ describe("parseVCards — birthday", () => {
   });
 });
 
+describe("parseVCards — anniversary", () => {
+  it("parses an ANNIVERSARY onto the anniversary kind", () => {
+    const [c] = parseVCards(card("FN:Jane Doe", "ANNIVERSARY:2015-06-20"));
+    expect(c.dates).toEqual([
+      {
+        kind: "anniversary",
+        label: "Anniversary",
+        date: { year: 2015, month: 6, day: 20 },
+      },
+    ]);
+    // Not a wedding: the property names the occasion, not the couple.
+    expect(c.birthday).toBeNull();
+  });
+
+  it("accepts a year-less ANNIVERSARY", () => {
+    const [c] = parseVCards(card("FN:Jane Doe", "ANNIVERSARY:--0620"));
+    expect(c.dates[0].date).toEqual({ year: null, month: 6, day: 20 });
+  });
+
+  it("surfaces an unparseable ANNIVERSARY as dropped", () => {
+    const [c] = parseVCards(card("FN:Jane Doe", "ANNIVERSARY:sometime"));
+    expect(c.dates).toEqual([]);
+    expect(c.dropped).toContainEqual({
+      property: "ANNIVERSARY",
+      value: "sometime",
+    });
+  });
+});
+
 describe("parseVCards — social profiles", () => {
   it("reads an X-SOCIALPROFILE's service and handle", () => {
     const [c] = parseVCards(
