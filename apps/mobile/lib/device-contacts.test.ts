@@ -115,7 +115,11 @@ describe("deviceContactToParsed", () => {
     const android = deviceContactToParsed(
       device({
         dates: [
-          { id: "1", label: "birthday", date: { year: 1988, month: 2, day: 9 } },
+          {
+            id: "1",
+            label: "birthday",
+            date: { year: 1988, month: 2, day: 9 },
+          },
         ],
       }),
     );
@@ -144,7 +148,11 @@ describe("deviceContactToParsed", () => {
     const parsed = deviceContactToParsed(
       device({
         dates: [
-          { id: "1", label: "Graduation", date: { month: 5, day: 30 } as never },
+          {
+            id: "1",
+            label: "Graduation",
+            date: { month: 5, day: 30 } as never,
+          },
         ],
       }),
     );

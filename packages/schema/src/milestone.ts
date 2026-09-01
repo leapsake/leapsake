@@ -432,7 +432,11 @@ export type UpdateMilestoneInput = z.infer<typeof updateMilestoneInputSchema>;
  * exhaustive (a lone day can't occur).
  */
 export type DatePrecision =
-  "none" | "year" | "year-month" | "recurring" | "full";
+  | "none"
+  | "year"
+  | "year-month"
+  | "recurring"
+  | "full";
 
 /** Derive a milestone's {@link DatePrecision} from its present date parts. */
 export function datePrecisionOf(m: {

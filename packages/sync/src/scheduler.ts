@@ -91,7 +91,8 @@ export function createSyncScheduler(opts: {
 
   let autoEnabled = autoEnabledInit;
   let inFlight:
-    Promise<{ at: number; applied?: number } | undefined> | undefined;
+    | Promise<{ at: number; applied?: number } | undefined>
+    | undefined;
   let interval: ReturnType<typeof setInterval> | undefined;
   let kickTimer: ReturnType<typeof setTimeout> | undefined;
 
