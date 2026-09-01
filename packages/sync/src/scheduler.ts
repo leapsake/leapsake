@@ -193,10 +193,17 @@ export function createSyncScheduler(opts: {
  * (`@leapsake/core`'s `notificationSettings`) closed the same gap for the
  * cross-device notification policy (`plans/v0-1_08_local-notifications.md`) —
  * without them, editing another device's policy waited for the backstop
- * interval instead of pushing at once.
+ * interval instead of pushing at once. `commit` is `import.commit`, the contact
+ * importer's write: a whole address book could land locally and then sit unpushed
+ * until the next tick, which is the largest single write the app makes.
+ *
+ * **Other writes still fall through** — `people.merge`, `duplicates.reject`,
+ * `self.set`/`self.clear`, and the three `holidays.set*` — because a predicate on
+ * *names* can only ever catch the names it was told about. That is the standing
+ * weakness of this approach, not an oversight in this list.
  */
 const MUTATING_METHOD =
-  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|setPolicy|setPermissionState|snooze|capture)/;
+  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|setPolicy|setPermissionState|snooze|capture|commit)/;
 
 /**
  * Wrap a {@link CoreApi}-shaped object so that every mutating method calls `kick`
