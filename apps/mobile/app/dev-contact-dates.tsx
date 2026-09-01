@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -32,6 +32,22 @@ import { styles } from "../lib/styles";
  * instead. It also prints the raw `dates` array, so an anniversary or an
  * Android-style birthday-labelled entry can be seen exactly as the platform
  * returns it, next to what the mapper made of it.
+ *
+ * **It has already earned its keep once.** It found that `expo-contacts@56.0.10`
+ * returned `null` for every `birthday` from `getAllDetails` while the per-contact
+ * read returned the real date — an upstream bug (`unifyResults` hardcoded false),
+ * fixed in `56.0.13`. Two things about that hunt are worth keeping:
+ *
+ * 1. Reading the Swift in `node_modules/expo-contacts/ios/` proves nothing about
+ *    what runs. The pod ships a **precompiled `ExpoContacts.xcframework`**; those
+ *    sources are reference material. Check the binary instead — `nm` the embedded
+ *    framework and demangle, e.g. `getPaginated`'s `unifyResults: Bool?` (56.0.10)
+ *    versus `Bool` (56.0.13).
+ * 2. Bumping the package is not enough. Xcode unpacked the new xcframework into
+ *    `Build/Products/.../XCFrameworkIntermediates` but left a stale copy inside
+ *    `Leapsake.app/Frameworks`, so the rebuilt app still ran the old code and the
+ *    upgrade looked like it had done nothing. Deleting that copy and rebuilding
+ *    fixed it.
  *
  * Reached by deep link only (`leapsake://dev-contact-dates`), gated by `__DEV__`
  * and linked from no shipping screen — the same conditions as `dev-selftest`,
@@ -111,6 +127,13 @@ function ContactDatesProbe() {
       setRunning(false);
     }
   }
+
+  // Auto-run once on mount: this is a probe, and its whole job is to produce a
+  // reading. The button stays for re-running after changing the filter.
+  useEffect(() => {
+    void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
