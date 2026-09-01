@@ -576,11 +576,23 @@ async function attachWhatToTest(asc, buildId, whatsNew) {
   say(`"What to Test" attached (${whatsNew.length} characters)`);
 }
 
-/** Add the build to the external group. This is what makes it a *beta* build. */
+/**
+ * Add the build to the external group. This is what makes it a *beta* build.
+ *
+ * A build already in the group is success, not an error: the client retries a call whose
+ * connection dropped, and a write that reached Apple before the socket died would come
+ * back a conflict on the second try. Tolerating it is what makes that retry safe.
+ */
 async function addToGroup(asc, groupId, buildId, groupName) {
-  await asc.post(`/v1/betaGroups/${groupId}/relationships/builds`, {
-    body: { data: [{ type: "builds", id: buildId }] },
-  });
+  try {
+    await asc.post(`/v1/betaGroups/${groupId}/relationships/builds`, {
+      body: { data: [{ type: "builds", id: buildId }] },
+    });
+  } catch (error) {
+    if (!(error instanceof AscError) || error.status !== 409) throw error;
+    say(`already in "${groupName}"`);
+    return;
+  }
   say(`added to "${groupName}"`);
 }
 

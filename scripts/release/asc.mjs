@@ -32,6 +32,18 @@ const BASE = "https://api.appstoreconnect.apple.com";
 const TOKEN_TTL_S = 20 * 60;
 const TOKEN_RENEW_MARGIN_S = 60;
 
+// A transient failure here is disproportionately expensive: by the time this client runs,
+// a release has already spent five minutes archiving and uploading an `.ipa`, and the
+// documented repair for losing the distribute half is to archive and upload *again* under
+// a fresh build number. One dropped connection should not cost that, so a handful of
+// retries is cheap insurance — the first beta run lost the whole distribute phase to a
+// bare `TypeError: fetch failed` on the first call after a successful upload.
+const MAX_ATTEMPTS = 4;
+const BACKOFF_MS = [1_000, 4_000, 10_000];
+// Apple's own ceiling for `Retry-After`. A header asking for longer is honoured up to this
+// and no further, so a stray value cannot park a release for an hour.
+const MAX_RETRY_AFTER_MS = 60_000;
+
 /**
  * A failed App Store Connect request, carrying what Apple said about it.
  *
@@ -42,12 +54,14 @@ const TOKEN_RENEW_MARGIN_S = 60;
  * to *tolerate*, not to fail on, and the code is how it is recognized.
  */
 export class AscError extends Error {
-  constructor(message, { status, errors = [] }) {
+  constructor(message, { status, errors = [], retryAfterMs }) {
     super(message);
     this.name = "AscError";
     this.status = status;
     this.errors = errors;
     this.codes = errors.map((error) => error.code).filter(Boolean);
+    // Only ever set on a 429, and only when Apple sent a `Retry-After` worth obeying.
+    this.retryAfterMs = retryAfterMs;
   }
 
   /** Whether any of Apple's error codes matches — the tolerate-this-one predicate. */
@@ -73,7 +87,7 @@ export function ascFromEnv() {
   });
 }
 
-export function createAsc({ keyId, issuerId, keyPath }) {
+export function createAsc({ keyId, issuerId, keyPath, onRetry = warn }) {
   // Read and parse the key once, at construction: a malformed `.p8` should fail where the
   // client is created, not twenty minutes into a poll.
   const privateKey = createPrivateKey(readFileSync(keyPath, "utf8"));
@@ -118,23 +132,8 @@ export function createAsc({ keyId, issuerId, keyPath }) {
     return cached.jwt;
   }
 
-  /**
-   * One API call. `path` is a route (`/v1/builds`); `query` is an object whose values are
-   * strings or arrays, so Apple's `filter[...]`/`fields[...]` keys stay readable at the
-   * call site.
-   *
-   * Returns the parsed body, or `undefined` for the 204s that relationship writes answer
-   * with. Anything non-2xx throws an `AscError` carrying Apple's own explanation.
-   */
-  async function request(method, path, { query, body } = {}) {
-    const url = new URL(path, BASE);
-    for (const [key, value] of Object.entries(query ?? {})) {
-      if (value === undefined || value === null) continue;
-      for (const one of Array.isArray(value) ? value : [value]) {
-        url.searchParams.append(key, String(one));
-      }
-    }
-
+  /** One HTTP call, with no opinion about retrying — that lives in `request`. */
+  async function attempt(method, path, url, body) {
     const response = await fetch(url, {
       method,
       headers: {
@@ -163,10 +162,55 @@ export function createAsc({ keyId, issuerId, keyPath }) {
         : text.slice(0, 500) || response.statusText;
       throw new AscError(
         `App Store Connect ${method} ${path} → ${response.status}: ${detail}`,
-        { status: response.status, errors },
+        {
+          status: response.status,
+          errors,
+          retryAfterMs: retryAfterOf(response),
+        },
       );
     }
     return parsed;
+  }
+
+  /**
+   * One API call. `path` is a route (`/v1/builds`); `query` is an object whose values are
+   * strings or arrays, so Apple's `filter[...]`/`fields[...]` keys stay readable at the
+   * call site.
+   *
+   * Returns the parsed body, or `undefined` for the 204s that relationship writes answer
+   * with. Anything non-2xx throws an `AscError` carrying Apple's own explanation.
+   *
+   * **Retries are not method-aware, on purpose.** The textbook rule is to retry only reads,
+   * because a write that reached Apple before the connection died would be applied twice.
+   * Every write this client makes is safe to repeat anyway — `attachWhatToTest` PATCHes a
+   * localization to a fixed value, `addToGroup` puts a build in a group it may already be
+   * in, and `submitForBetaReview` already treats Apple's "already submitted" 409 as
+   * success — so restricting retries to GET would forfeit the distribute phase to protect
+   * against a duplicate that cannot happen. A future write without that property must
+   * either be idempotent too or opt out here.
+   */
+  async function request(method, path, { query, body } = {}) {
+    const url = new URL(path, BASE);
+    for (const [key, value] of Object.entries(query ?? {})) {
+      if (value === undefined || value === null) continue;
+      for (const one of Array.isArray(value) ? value : [value]) {
+        url.searchParams.append(key, String(one));
+      }
+    }
+
+    for (let attemptNo = 1; ; attemptNo++) {
+      try {
+        return await attempt(method, path, url, body);
+      } catch (error) {
+        const delay = retryDelay(error, attemptNo);
+        if (delay === undefined) throw error;
+        onRetry(
+          `App Store Connect ${method} ${path} — ${reason(error)}; retrying in ` +
+            `${Math.round(delay / 1000)}s (attempt ${attemptNo + 1} of ${MAX_ATTEMPTS})`,
+        );
+        await sleep(delay);
+      }
+    }
   }
 
   return {
@@ -177,6 +221,65 @@ export function createAsc({ keyId, issuerId, keyPath }) {
     patch: (path, options) => request("PATCH", path, options),
   };
 }
+
+/**
+ * How long to wait before trying again, or `undefined` for "do not".
+ *
+ * Two things are worth retrying and nothing else is. A **transport failure** — the socket
+ * dropped, DNS blinked, the 60s ceiling fired — never reached Apple's opinion at all, and
+ * surfaces as a bare `TypeError: fetch failed` or an abort, which is why those names are
+ * matched rather than caught wholesale: a genuine bug in this file should still crash the
+ * release rather than be tried four times. A **429 or 5xx** is Apple saying "not now",
+ * which is the one HTTP class where the same request later is expected to work. Every
+ * other status is a verdict — a 401 on a bad key, a 403 on a wrong role, a 409 on a build
+ * already submitted — and repeating it only wastes a release's time.
+ */
+function retryDelay(error, attemptNo) {
+  if (attemptNo >= MAX_ATTEMPTS) return undefined;
+  const backoff = BACKOFF_MS[attemptNo - 1];
+
+  if (error instanceof AscError) {
+    if (error.status === 429) return error.retryAfterMs ?? backoff;
+    return error.status >= 500 ? backoff : undefined;
+  }
+  // `TimeoutError` is what `AbortSignal.timeout` throws; `TypeError` is how undici reports
+  // every connection-level failure, including the `fetch failed` that started all this.
+  const transport =
+    error?.name === "TimeoutError" ||
+    error?.name === "AbortError" ||
+    error instanceof TypeError;
+  return transport ? backoff : undefined;
+}
+
+/** `Retry-After` in milliseconds — seconds or an HTTP date, capped, ignored if nonsense. */
+function retryAfterOf(response) {
+  const header = response.headers?.get?.("retry-after");
+  if (!header) return undefined;
+  const seconds = Number(header);
+  const ms = Number.isFinite(seconds)
+    ? seconds * 1000
+    : Date.parse(header) - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return undefined;
+  return Math.min(ms, MAX_RETRY_AFTER_MS);
+}
+
+/** What to call this failure in the retry notice — Apple's words, or the transport's. */
+function reason(error) {
+  if (error instanceof AscError) return `HTTP ${error.status}`;
+  return error?.name === "TimeoutError" || error?.name === "AbortError"
+    ? "timed out"
+    : (error?.message ?? "request failed");
+}
+
+const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+
+/**
+ * The default retry notice. It goes to stderr rather than nowhere: a release that pauses
+ * fourteen seconds mid-distribute should say why, or the next person reads the gap as a
+ * hang. The indent matches the progress lines in `targets/ios.mjs`; a caller that formats
+ * differently passes its own `onRetry`.
+ */
+const warn = (message) => console.warn(`   ${message}`);
 
 /** Apple has been known to answer with HTML from an edge layer; do not die on it. */
 function safeJson(text) {
