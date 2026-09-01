@@ -91,8 +91,7 @@ export function createSyncScheduler(opts: {
 
   let autoEnabled = autoEnabledInit;
   let inFlight:
-    | Promise<{ at: number; applied?: number } | undefined>
-    | undefined;
+    Promise<{ at: number; applied?: number } | undefined> | undefined;
   let interval: ReturnType<typeof setInterval> | undefined;
   let kickTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -182,28 +181,31 @@ export function createSyncScheduler(opts: {
  * sync. Everything else (`list`/`get`/`*For*`/`query`/the view builders) is a
  * read and passes through untouched.
  *
- * **This list must grow by hand when a write is named something new.**
- * `with-sync-kick.test.ts` pins the set, but it builds its snapshot by filtering
- * the real `CoreApi` through *this same predicate* — so it catches a write whose
- * name already matches (a new `people.updateX` must be added to the expected
- * array consciously) and is blind to one whose name does not. A write that
+ * **This list must grow by hand when a write is named something new**, because a
+ * predicate on *names* can only catch the names it was told about. A write that
  * matches nothing here is silently treated as a read: it lands locally and then
- * waits for the next scheduled tick instead of kicking a push. `snooze` was
- * added for exactly that reason. `setPolicy`/`setPermissionState`
- * (`@leapsake/core`'s `notificationSettings`) closed the same gap for the
- * cross-device notification policy (`plans/v0-1_08_local-notifications.md`) —
- * without them, editing another device's policy waited for the backstop
- * interval instead of pushing at once. `commit` is `import.commit`, the contact
- * importer's write: a whole address book could land locally and then sit unpushed
- * until the next tick, which is the largest single write the app makes.
+ * waits for the next scheduled tick instead of kicking a push.
  *
- * **Other writes still fall through** — `people.merge`, `duplicates.reject`,
- * `self.set`/`self.clear`, and the three `holidays.set*` — because a predicate on
- * *names* can only ever catch the names it was told about. That is the standing
- * weakness of this approach, not an oversight in this list.
+ * What stops that going unnoticed is `with-sync-kick.test.ts`, which pins the
+ * **whole** `CoreApi` surface with each method classified `read` or `write` by
+ * hand. Any method added to core fails that test until it is classified, and any
+ * method classified `write` that this predicate does not match fails it too. An
+ * earlier version pinned only the predicate's own output, which could not work:
+ * filtering the surface through the very predicate under test makes a write it
+ * does not match invisible rather than wrong. Every entry below past the original
+ * `create|update|edit|softDelete` was a gap found in production, not by a test —
+ * `snooze`, then `setPolicy`/`setPermissionState` for the cross-device
+ * notification policy (`plans/v0-1_08_local-notifications.md`), then a batch of
+ * nine (`commit`, `merge`, `reject`, `clear`, `regenerate`, and `set` widened to
+ * cover `holidays.set*` and `self.set`).
+ *
+ * `set` is deliberately the bare prefix rather than the three exact names it
+ * replaced: every `set*` on the surface is a write, and a hypothetical read named
+ * `settingsFor` costing one wasted push is the cheap direction to err in — a
+ * missed write costs a stale device instead.
  */
 const MUTATING_METHOD =
-  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|setPolicy|setPermissionState|snooze|capture|commit)/;
+  /^(create|update|edit|softDelete|merge|dismiss|undismiss|reject|set|clear|snooze|capture|commit|regenerate)/;
 
 /**
  * Wrap a {@link CoreApi}-shaped object so that every mutating method calls `kick`

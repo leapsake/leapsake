@@ -85,7 +85,7 @@ describe("withSyncKick — kick after mutations", () => {
 // Mirror of the predicate in sync-scheduler.ts; kept here so this test fails
 // loudly if the source predicate and the real surface ever diverge.
 const isMutating = (name: string) =>
-  /^(create|update|edit|softDelete|dismiss|undismiss|setCompleted|setPolicy|setPermissionState|snooze|capture|commit)/.test(
+  /^(create|update|edit|softDelete|merge|dismiss|undismiss|reject|set|clear|snooze|capture|commit|regenerate)/.test(
     name,
   );
 
@@ -99,6 +99,138 @@ function collectFnPaths(value: unknown, prefix = ""): string[] {
   }
   return [];
 }
+
+/**
+ * **Every** method on the `CoreApi`, each classified by hand as a `read` or a
+ * `write` — a write being any call that changes stored state and therefore needs
+ * to reach the user's other devices.
+ *
+ * The whole surface is listed, not just the writes, and that is the point. This
+ * file used to pin only the *output* of {@link isMutating}, which could never
+ * catch the bug it existed to catch: filtering the surface through the predicate
+ * under test means a write the predicate does not match is simply absent from
+ * both sides of the comparison. Nine real writes sat unsynced behind a green
+ * test that way — `import.commit`, `people.merge`, `duplicates.reject`,
+ * `self.set`/`self.clear`, the three `holidays.set*`, and
+ * `reminders.regenerateSystem`.
+ *
+ * Listing the surface inverts that: a method added to core is missing from this
+ * map, so the test fails until somebody says which it is — and if they say
+ * `write`, the second assertion fails too unless the predicate actually matches
+ * it. Neither failure can be satisfied without a deliberate decision.
+ */
+const SURFACE: Record<string, "read" | "write"> = {
+  "contactMethods.emails.create": "write",
+  "contactMethods.emails.softDelete": "write",
+  "contactMethods.emails.update": "write",
+  "contactMethods.listForOwner": "read",
+  "contactMethods.phones.create": "write",
+  "contactMethods.phones.softDelete": "write",
+  "contactMethods.phones.update": "write",
+  "contactMethods.postals.create": "write",
+  "contactMethods.postals.softDelete": "write",
+  "contactMethods.postals.update": "write",
+  "contactMethods.socials.create": "write",
+  "contactMethods.socials.softDelete": "write",
+  "contactMethods.socials.update": "write",
+  "duplicates.count": "read",
+  "duplicates.findCandidates": "read",
+  "duplicates.findFor": "read",
+  "duplicates.nudgeId": "read",
+  "duplicates.reject": "write",
+  "gifts.capture": "write",
+  "gifts.ideas.create": "write",
+  "gifts.ideas.get": "read",
+  "gifts.ideas.list": "read",
+  "gifts.ideas.softDelete": "write",
+  "gifts.ideas.update": "write",
+  "gifts.overview": "read",
+  "gifts.recipients.create": "write",
+  "gifts.recipients.listForIdea": "read",
+  "gifts.recipients.listForRecipient": "read",
+  "gifts.recipients.softDelete": "write",
+  "gifts.recipients.update": "write",
+  "holidays.get": "read",
+  "holidays.getObservanceSchedule": "read",
+  "holidays.list": "read",
+  "holidays.listForBearer": "read",
+  "holidays.listObservers": "read",
+  "holidays.occurrencesIn": "read",
+  "holidays.setHidden": "write",
+  "holidays.setObservanceSchedule": "write",
+  "holidays.setObservers": "write",
+  "import.commit": "write",
+  "import.preview": "read",
+  "kinship.dismiss": "write",
+  "kinship.genderFor": "read",
+  "kinship.neighborsFor": "read",
+  "kinship.undismiss": "write",
+  "milestones.create": "write",
+  "milestones.listForBearer": "read",
+  "milestones.reminderSchedule": "read",
+  "milestones.softDelete": "write",
+  "milestones.timelineFor": "read",
+  "milestones.update": "write",
+  "notificationSettings.get": "read",
+  "notificationSettings.list": "read",
+  "notificationSettings.setPermissionState": "write",
+  "notificationSettings.setPolicy": "write",
+  "people.create": "write",
+  "people.get": "read",
+  "people.list": "read",
+  "people.merge": "write",
+  "people.softDelete": "write",
+  "people.update": "write",
+  "pets.create": "write",
+  "pets.get": "read",
+  "pets.list": "read",
+  "pets.softDelete": "write",
+  "pets.update": "write",
+  "relationships.create": "write",
+  "relationships.createFromSubject": "write",
+  "relationships.createWithNewOther": "write",
+  "relationships.editFromSubject": "write",
+  "relationships.get": "read",
+  "relationships.listForEntity": "read",
+  "relationships.softDelete": "write",
+  "relationships.update": "write",
+  "reminders.create": "write",
+  "reminders.get": "read",
+  "reminders.giftTargets": "read",
+  "reminders.list": "read",
+  "reminders.listNotifiable": "read",
+  "reminders.mentioning": "read",
+  "reminders.regenerateSystem": "write",
+  "reminders.setCompleted": "write",
+  "reminders.snooze": "write",
+  "reminders.softDelete": "write",
+  "reminders.update": "write",
+  "search.query": "read",
+  "self.clear": "write",
+  "self.get": "read",
+  "self.set": "write",
+  "tags.get": "read",
+  "tags.giftIdeasForTag": "read",
+  "tags.list": "read",
+  "tags.listForGiftIdea": "read",
+  "tags.listForPerson": "read",
+  "tags.listForPet": "read",
+  "tags.peopleForTag": "read",
+  "tags.petsForTag": "read",
+  "tags.remindersForTag": "read",
+  "tags.softDelete": "write",
+  "views.candidates": "read",
+  "views.derivedRelationship": "read",
+  "views.entityList": "read",
+  "views.milestoneBearer": "read",
+  "views.milestoneNew": "read",
+  "views.person": "read",
+  "views.pet": "read",
+  "views.relationship": "read",
+  "views.relationshipForSubject": "read",
+  "views.relationshipNew": "read",
+  "views.relationshipPartners": "read",
+};
 
 describe("withSyncKick — pins the CoreApi mutating surface", () => {
   let core: ReturnType<typeof createCore>;
@@ -115,57 +247,24 @@ describe("withSyncKick — pins the CoreApi mutating surface", () => {
     cleanup();
   });
 
-  it("treats exactly the write methods as mutations", () => {
-    const mutating = collectFnPaths(core)
-      .filter((path) => isMutating(path.split(".").at(-1) ?? ""))
+  it("classifies every method on the surface", () => {
+    // Fails on a net-new method, a removed one, or a rename. The fix is to
+    // classify it in SURFACE — which is the moment somebody has to decide
+    // whether it writes.
+    expect(collectFnPaths(core).sort()).toEqual(Object.keys(SURFACE).sort());
+  });
+
+  it("matches the predicate to every method classified as a write", () => {
+    const misclassified = Object.entries(SURFACE)
+      .filter(
+        ([path, kind]) =>
+          isMutating(path.split(".").at(-1) ?? "") !== (kind === "write"),
+      )
+      .map(
+        ([path, kind]) => `${path} is a ${kind} the predicate disagrees with`,
+      )
       .sort();
 
-    expect(mutating).toEqual([
-      "contactMethods.emails.create",
-      "contactMethods.emails.softDelete",
-      "contactMethods.emails.update",
-      "contactMethods.phones.create",
-      "contactMethods.phones.softDelete",
-      "contactMethods.phones.update",
-      "contactMethods.postals.create",
-      "contactMethods.postals.softDelete",
-      "contactMethods.postals.update",
-      "contactMethods.socials.create",
-      "contactMethods.socials.softDelete",
-      "contactMethods.socials.update",
-      "gifts.capture",
-      "gifts.ideas.create",
-      "gifts.ideas.softDelete",
-      "gifts.ideas.update",
-      "gifts.recipients.create",
-      "gifts.recipients.softDelete",
-      "gifts.recipients.update",
-      "import.commit",
-      "kinship.dismiss",
-      "kinship.undismiss",
-      "milestones.create",
-      "milestones.softDelete",
-      "milestones.update",
-      "notificationSettings.setPermissionState",
-      "notificationSettings.setPolicy",
-      "people.create",
-      "people.softDelete",
-      "people.update",
-      "pets.create",
-      "pets.softDelete",
-      "pets.update",
-      "relationships.create",
-      "relationships.createFromSubject",
-      "relationships.createWithNewOther",
-      "relationships.editFromSubject",
-      "relationships.softDelete",
-      "relationships.update",
-      "reminders.create",
-      "reminders.setCompleted",
-      "reminders.snooze",
-      "reminders.softDelete",
-      "reminders.update",
-      "tags.softDelete",
-    ]);
+    expect(misclassified).toEqual([]);
   });
 });
