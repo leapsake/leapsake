@@ -117,11 +117,17 @@ One-time / per-session setup, Android:
    curl -Ls "https://get.maestro.mobile.dev" | bash
    ```
    Then restart your shell (or ensure `~/.maestro/bin` is on `PATH`).
-2. **A booted Android emulator:**
+2. **A booted Android emulator**, with cores *and memory* — see
+   [Budget the waits for the emulator](#budget-the-waits-for-the-emulator-not-for-the-simulator)
+   for why the default AVD is not enough:
    ```
    emulator -list-avds
-   emulator -avd <name>
+   emulator -avd <name> -cores 6 -memory 8192
    ```
+   Boot **one** device per platform. With two emulators up (or a phone plugged in) the
+   harness refuses rather than guessing which to drive, and tells you how to pick:
+   `--device=<serial|udid|name>`, or `LEAPSAKE_E2E_DEVICE`. Under `--provision` it shuts
+   the extras down instead, since nobody is watching.
 3. **The dev-client build installed + Metro running.** The simplest way to get both is:
    ```
    pnpm --filter @leapsake/mobile android   # builds, installs, and starts Metro
@@ -145,10 +151,11 @@ Metro, then run the flow. `pnpm test:native` does this for you.
 
 ## iOS (step 9 — done)
 
-The self-test flow (`driver-selftest.yaml`) runs unchanged on iOS. The only iOS-specific
-piece is the **prepare** step: the Android bundle-load deep link does not work on iOS (a
-SpringBoard confirm intercepts it), so the runner drives `ios-prepare.yaml` to reconnect
-through the dev-launcher instead. Per-session iOS setup:
+The self-test flow (`driver-selftest.yaml`) runs unchanged on iOS. The **prepare** step is
+now the same shape as Android's — the harness opens the bundle-load deep link
+(`leapsake://expo-development-client/?url=http://localhost:8081`) with `xcrun simctl
+openurl` — and `ios-prepare.yaml` only settles overlays and waits for home afterwards.
+Per-session iOS setup:
 
 1. **Maestro CLI** — same one-time install as Android (above).
 2. **A booted iOS simulator** — e.g. from Xcode, or:
@@ -156,37 +163,41 @@ through the dev-launcher instead. Per-session iOS setup:
    xcrun simctl list devices available
    xcrun simctl boot <udid> && open -a Simulator
    ```
-3. **The dev-client build installed + Metro running + a "last dev server" set.** The one
-   command that does all three:
+3. **The dev-client build installed + Metro running.** The one command that does both:
    ```
    pnpm --filter @leapsake/mobile ios   # builds, installs, launches, starts Metro
    ```
-   This must have connected the dev client to Metro at least once — the iOS prepare's
-   "Continue"/`launchApp` reconnect relies on that remembered server (the symmetric
-   counterpart to Android's `adb`-loaded bundle). The self-test screen is `__DEV__`-only,
-   so this must be a dev-client build. If you add/remove a native module, rebuild with the
-   same command (a stale build missing a new native module redboxes on launch).
+   The self-test screen is `__DEV__`-only, so this must be a dev-client build. If you
+   add/remove a native module, rebuild with the same command (a stale build missing a new
+   native module redboxes on launch).
 
-`scripts/test-native.mjs` then runs `ios-prepare.yaml` (which `launchApp`s, clears any
-dev-launcher/SpringBoard/dev-menu overlay, and waits for the Search tab), runs the
-self-test flow with `maestro --udid <sim>`, and propagates its exit code — the same shape
-as Android.
+`scripts/test-native.mjs` then opens the deep link, runs `ios-prepare.yaml` (which clears
+any SpringBoard/dev-menu overlay and waits for the Search tab), runs the self-test flow
+with `maestro --udid <sim>`, and propagates its exit code — the same shape as Android.
 
-### When the prepare step can't find the dev server
+### The prepare no longer depends on a remembered dev server — keep it that way
 
-`ios-prepare.yaml` reconnects through the dev-launcher's _remembered_ server. That memory
-is not always there — a simulator that has been shut down, or a dev client that was
-terminated while on the launcher screen, can come back to **"No development servers
-found"**, at which point `pnpm test:native` fails with "the app's home screen never
-appeared" no matter how many times you re-run it. Reconnect explicitly, by URL:
+It used to. `ios-prepare.yaml` tapped the dev-launcher's **"Continue"**, which reopens the
+last dev server *by the absolute URL it was loaded from* — `http://192.168.1.16:8081`, the
+Mac's LAN address at the time. Change networks, or just get a new DHCP lease, and that
+address answers nothing: the dev client shows the launcher, "Continue" is not on the screen
+at all, and prepare burns its whole budget before reporting "the app's home screen never
+appeared". Nothing in that failure mentions the machine's IP, and re-running never helps.
+It cost a session on 2026-08-31, with `.16` and `.42` remembered and the host on `.9`.
+
+The deep link names `localhost`, which the simulator resolves to the host, so it is the
+same address on every machine and every network. (The deep link *was* rejected on iOS when
+this tier was written — a SpringBoard confirm, and the launcher ignoring the `?url=` behind
+it, verified 2026-07-18. Re-verified 2026-08-31 on the same simulator: it now launches the
+app straight onto home, no confirm.) To do it by hand:
 
 ```
-xcrun simctl openurl <udid> "exp+leapsake://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+xcrun simctl openurl <udid> "leapsake://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
 ```
 
-Then run the flow directly (`maestro --udid <udid> test driver-selftest.yaml`) rather than
-through `pnpm test:native`, whose prepare step `launchApp`s cold and can land back on the
-launcher.
+**Do not put `launchApp` back into `ios-prepare.yaml`.** Maestro force-stops the app as
+part of launching it, which throws away the bundle the deep link just loaded and drops the
+simulator back on the launcher — the state the flow cannot get out of on its own.
 
 ### Editing a test? The deep link does not reload the bundle
 
@@ -196,7 +207,7 @@ exactly like a passing run of the new one. Force a fresh bundle between edits:
 
 ```
 xcrun simctl terminate <udid> com.leapsake.app
-xcrun simctl openurl <udid> "exp+leapsake://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+xcrun simctl openurl <udid> "leapsake://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
 ```
 
 This bites hardest when deliberately breaking a case to confirm it goes RED: without the
@@ -229,11 +240,21 @@ catalog that ran and went green would read as the gate being met.
 
 ### What the app's own state looks like from here
 
-- **Reset through the app, not through the harness.** `clearState`, `simctl uninstall` and
-  `adb pm clear` also erase the dev-menu preferences the runner just settled and, on iOS,
-  the dev-launcher's memory of which dev server to load — so the next flow opens the
-  launcher instead of Leapsake. `subflows/factory-reset.yaml` drives Settings → Data →
-  Factory reset instead, which erases exactly the app's own state.
+- **Every run starts from a wiped app, and the harness is what guarantees it.** Before the
+  first flow, `mobile-harness.mjs` → `wipe` clears the app's data from *outside*: `adb
+  shell pm clear` on Android, and on iOS a delete of `Documents/SQLite` (stores, doors,
+  roster) plus `simctl keychain reset` (expo-secure-store's secrets). That is what makes a
+  run's verdict independent of the run before it — the arc ends on Flow 4 with an account
+  and keys, and a wedged app cannot be driven to its own reset screen at all.
+- **The blunt tools are still the wrong ones**, which is why the iOS wipe is assembled by
+  hand: `clearState` and `simctl uninstall` take the whole data container, including
+  `Library/Preferences` — the dev-menu preferences the runner just settled and the
+  dev-launcher's own state. The wipe above touches neither.
+- **`subflows/factory-reset.yaml` stays, and is not redundant.** The harness wipe is the
+  *precondition*; the subflow is the *coverage* — the only thing in the suite that drives
+  the erase a user would perform, on a store whose contents are known. It also means the
+  reset always takes its "Factory reset" branch rather than "Forget account", because the
+  device now always arrives unauthenticated.
 - **A factory reset is not a first run, and its aftermath is racy.** The reminders engine
   reconciles asynchronously and the in-place provider rebuild does not wait for it: reset
   twice and Home comes back once empty and once already showing the `add-first-person`
@@ -282,6 +303,58 @@ we run it.
 A generous budget is the cheap mistake here. Too long costs a couple of extra minutes on a
 build that is genuinely broken; too short turns the gate red on a build that works, which is
 the failure that gets a gate ignored.
+
+**But fix the emulator before you touch a timeout.** Android Studio creates AVDs with as
+little as **one CPU core and 2GB of RAM**, and a React Native dev client on one of those is
+not merely slow — it is a different machine. Both halves of that were measured on this
+repo's own `Medium_Phone_API_36.0`, one commit, one emulator image, 2026-08-31:
+
+- **Cores.** With `hw.cpu.ncore=1`, a factory reset's relaunch needed over 90s to reach the
+  tab bar — 13-second GC pauses in the logcat — and Flow 1 went red on a 60s wait. Booted
+  with `-cores 6`, the same commit reached the app home in **7s**.
+- **Memory, which was much harder to see.** At `-memory 4096` the guest sat at ~3.7GB of
+  4GB with ~800MB in swap, and Flow 4's account conversion went **bimodal**: ~50s when it
+  fit in RAM, **four to seven minutes when it did not**, red about half the time on a build
+  that was working. Argon2id is *memory-hard* by design — a 19MiB buffer touched at random —
+  so it is the worst thing in the suite to page out. `adb shell cat /proc/vmstat` is what
+  identifies it: `pswpout` had passed 1.4M pages (~5.6GB) on an emulator up for an hour. At
+  `-memory 8192` the suite passed three runs running, conversion back at ~50-80s.
+
+`--provision` now boots with `-cores 6 -memory 8192` (`EMULATOR_SIZE` in the harness), and
+the Android prepare warns when it lands on a device with fewer than four cores — an
+emulator someone else started, from Android Studio or `expo run:android`, still gets
+whatever its AVD config says. Boot it yourself with:
+
+```
+emulator -avd <name> -cores 6 -memory 8192
+```
+
+or raise both in Android Studio → Device Manager → Edit. A suite tuned to pass on a starved
+emulator is one that can no longer tell slow from broken, which is why the knob to reach for
+is the device.
+
+### Do not leave both devices booted at once
+
+The two platforms run in sequence; their **hardware** did not, until 2026-08-31. An Android
+emulator and an iOS simulator booted together are two VMs on the same cores and the same
+RAM, which is the pressure the section above shows Flow 4 cannot absorb.
+
+This is the smaller half of that story — the emulator's own memory mattered more — but it
+compounds, and it crosses platforms in a way that is very hard to read from a log: an
+Android phase cut off mid-conversion leaves the app burning a core, and the **iOS** phase
+after it then fails on a Maestro `testmanagerd` snapshot timeout that has nothing to do
+with iOS. That happened, and it is why the harness now stops the app on the way out of a
+platform however it ended.
+
+`--provision` also shuts each platform's device down as soon as its flows are done —
+**every platform, including the last**, so a provisioned run is boot → run → shut down and
+inherits nothing from the run before it. Running the suite by hand, the devices are yours,
+so it only warns: **run one platform at a time**, with only that platform's device booted.
+
+```
+pnpm test:e2e --platform=android    # with the simulator shut down
+pnpm test:e2e --platform=ios        # with the emulator shut down
+```
 
 ### Screens that are pushed *over* the tab navigator
 

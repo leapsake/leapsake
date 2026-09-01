@@ -466,6 +466,34 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     /**
+     * Is this core still the live one?
+     *
+     * **Both reconciles below outlive the core they were handed.** They are
+     * fired-and-forgotten at boot, on foreground, and after every write, and
+     * each awaits several round trips to SQLite — while a factory reset,
+     * forget-account, join or recover can close that driver and swap the core
+     * mid-flight. What the old core then throws is
+     * `ERR_ACCESS_CLOSED_RESOURCE` ("Call to function
+     * 'NativeDatabase.prepareAsync' has been rejected → Access to closed
+     * resource"), and the `catch`es below used to report it as a failure.
+     *
+     * It is not one — the work was simply cancelled — and reporting it costs
+     * more than noise: on a dev client every `console.error` raises a LogBox
+     * banner across the bottom of the screen, exactly where the tab bar is, so
+     * a reset that worked perfectly leaves the app looking broken and the tab
+     * bar unhittable. That is how it was found (Flow 1, Android, 2026-08-31):
+     * the erase succeeded and the flow died on `tab-search is not visible`.
+     *
+     * The identity check is the whole test, because every path that closes a
+     * driver nulls or replaces `coreRef.current` in the same breath, before
+     * awaiting anything. Checked *before* starting (nothing to do) and again in
+     * the `catch` (the teardown happened mid-flight), and it guards the writes
+     * too: a stale reconcile must not bump `dataVersion` or kick the scheduler
+     * for a store that is gone.
+     */
+    const isLiveCore = (coreApi: CoreApi) => coreRef.current === coreApi;
+
+    /**
      * Reconcile automated (`system`) reminders — upcoming birthdays — against the
      * given core, then, only if anything changed, bump the data version so the
      * focused screen re-reads and kick a sync so the rows propagate. Runs at boot
@@ -474,14 +502,17 @@ export function CoreProvider({ children }: { children: ReactNode }) {
      * sync-kicking mutation (it runs off a user write), hence the explicit kick.
      */
     const regenerateSystemReminders = async (coreApi: CoreApi) => {
+      if (!isLiveCore(coreApi)) return;
       try {
         const { created, updated, removed } =
           await coreApi.reminders.regenerateSystem();
+        if (!isLiveCore(coreApi)) return;
         if (created > 0 || updated > 0 || removed > 0) {
           setDataVersion((v) => v + 1);
           scheduler.current?.kick();
         }
       } catch (cause) {
+        if (!isLiveCore(coreApi)) return; // torn down mid-flight, not a failure
         console.error("regenerate system reminders failed:", cause);
       }
     };
@@ -507,6 +538,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       const scheduler = notificationScheduler.current;
       const id = deviceId.current;
       if (scheduler === null || id === null) return;
+      if (!isLiveCore(coreApi)) return;
       try {
         const [policy, reminders, pending] = await Promise.all([
           coreApi.notificationSettings.get(id),
@@ -517,12 +549,13 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           coreApi.reminders.listNotifiable(),
           scheduler.listPending(),
         ]);
-        if (policy === undefined) return;
+        if (policy === undefined || !isLiveCore(coreApi)) return;
         const desired = planNotifications(reminders, policy, Date.now(), {
           budget: PLATFORM_NOTIFICATION_BUDGET,
         });
         await reconcileNotificationSchedule(desired, pending, scheduler);
       } catch (cause) {
+        if (!isLiveCore(coreApi)) return; // torn down mid-flight, not a failure
         console.error("notification reconcile failed:", cause);
       }
     };

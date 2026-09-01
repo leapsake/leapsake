@@ -3,13 +3,21 @@
 #
 # ## Why the app's own factory reset, and not the harness's obvious tools
 #
-# Maestro's `clearState`, `simctl uninstall` and `adb pm clear` all wipe more than the
-# app's data: they take the expo-dev-menu preferences the runner just settled and, on iOS,
-# the dev-launcher's memory of which dev server to load. The next flow would open the
-# launcher instead of Leapsake, and the failure reads as "the app never came up" rather
-# than "the harness erased its own setup". `sync.factoryReset()` erases exactly the app's
-# own state — store, doors, account roster, every keystore secret — and rebuilds the
-# provider down the *Unauthenticated* path (`lib/core-context.tsx`).
+# Maestro's `clearState` and `simctl uninstall` wipe more than the app's data: they take
+# the expo-dev-menu preferences the runner just settled and, on iOS, the dev-launcher's
+# memory of which dev server to load. The next flow would open the launcher instead of
+# Leapsake, and the failure reads as "the app never came up" rather than "the harness
+# erased its own setup". `sync.factoryReset()` erases exactly the app's own state — store,
+# doors, account roster, every keystore secret — and rebuilds the provider down the
+# *Unauthenticated* path (`lib/core-context.tsx`).
+#
+# **The harness wipes too, and this is still not redundant.** `scripts/lib/
+# mobile-harness.mjs` → `wipe` clears the app's data from outside before the suite starts,
+# because a run whose app is wedged cannot be driven to this screen at all, and because
+# the arc must not inherit the previous run's account. That is the *precondition*. This
+# subflow is the *coverage*: it is the only thing in the suite that drives the erase a
+# user would perform, and Flow 1 is where a build that quietly stopped erasing has to show
+# up. Running both means the erase happens on a store whose contents are known.
 #
 # ## Why it relaunches, which is the part that is not obvious
 #
@@ -36,13 +44,15 @@
 #
 # The reset is only called "Factory reset" while the device is Unauthenticated. With an
 # account it is **Forget account**, which erases the same things under the name that fits
-# (`app/data.tsx`). Flow 4 creates an account, so the *next* run of the arc arrives here
-# with only the second name on offer — a subflow that knew only the first would leave the
-# suite good for exactly one run.
+# (`app/data.tsx`). Flow 4 creates an account, so before the harness wipe existed the
+# *next* run of the arc arrived here with only the second name on offer — a subflow that
+# knew only the first would leave the suite good for exactly one run.
 #
-# So both are driven, branching on which confirmation this device offers. They differ in
-# their confirm word (ERASE vs DELETE) and their button, and in nothing else that matters
-# here.
+# The harness wipe now settles which one it is: the device always arrives Unauthenticated,
+# so it is always "Factory reset". The Forget branch stays because it costs one guarded
+# block and it is what the flow falls back on if it is ever run by hand against a device
+# that has an account. They differ in their confirm word (ERASE vs DELETE) and their
+# button, and in nothing else that matters here.
 appId: com.leapsake.app
 ---
 - openLink: "leapsake://data"
@@ -57,6 +67,19 @@ appId: com.leapsake.app
       visible: "Factory reset…"
     commands:
       - tapOn: "Factory reset…"
+      # **Wait for the field, exactly as the Forget branch below does.** Without this the
+      # `when: visible: factory-reset-confirm` gate underneath is evaluated a few
+      # milliseconds after the tap, before the confirmation has rendered — so it reads
+      # false, the fill-and-fire block is SKIPPED, and **the flow erases nothing while
+      # every step still reports COMPLETED**. Seen on Android 2026-08-31: `Tap on
+      # "Factory reset…" COMPLETED` followed immediately by `Run flow when id:
+      # factory-reset-confirm is visible... SKIPPED`, and Flow 1 then asserting a first
+      # run against the previous arc's store. It is the same silent class as the keyboard
+      # trap below, and worse, because it can leave the whole suite green on stale state.
+      - extendedWaitUntil:
+          visible:
+            id: "factory-reset-confirm"
+          timeout: 20000
 - runFlow:
     when:
       visible: "Forget account…"
@@ -118,10 +141,14 @@ appId: com.leapsake.app
 # roster and every keystore secret, and stopping the app in the middle of that would leave
 # a half-erased device that the next launch has to make sense of.
 - openLink: "leapsake://"
+# 60s, not 30: this waits out the *provider rebuild* the reset kicks off — a new store
+# opened, the schema created, the reminders engine reconciled — not a screen transition.
+# On a loaded machine 30s was not enough for it, and the flow then died here having done
+# everything right (Android, 2026-08-31).
 - extendedWaitUntil:
     visible:
       id: "tab-search"
-    timeout: 30000
+    timeout: 60000
 
 # The relaunch, and the one assertion. It is non-vacuous in exactly the way the vacuous
 # `assertNotVisible` above was not: `add-first-person` applies only while the store holds
@@ -151,10 +178,15 @@ appId: com.leapsake.app
       visible: ".*localhost:8081.*"
     commands:
       - tapOn: ".*localhost:8081.*"
+# 120s, matching the harness's own `HOME_TIMEOUT_MS` for the same act: this is a **cold**
+# dev-client launch — a fresh process fetching the whole JS bundle from Metro and booting
+# it — which is the slowest thing in the suite and has nothing to do with how fast the app
+# is. At 60s it went red on an emulator that reached the tab bar seconds later; the budget
+# was measuring the machine, not the build.
 - extendedWaitUntil:
     visible:
       id: "tab-search"
-    timeout: 60000
+    timeout: 120000
 #
 # **Waited for, not asserted outright.** The reconcile is asynchronous and a visible tab
 # bar is not a signal that it has run: asserting immediately after the relaunch went red
