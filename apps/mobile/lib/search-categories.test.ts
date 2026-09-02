@@ -2,7 +2,12 @@ import type { SearchHit } from "@leapsake/schema";
 import { describe, expect, it } from "vitest";
 import {
   SEARCH_CATEGORIES,
+  SEARCH_FACETS,
   categoryFor,
+  facetParam,
+  facetPhrase,
+  facetsFor,
+  facetsOf,
   filterHits,
 } from "./search-categories";
 
@@ -27,7 +32,7 @@ const HITS = [
 const titles = (hits: SearchHit[]) => hits.map((h) => h.title);
 
 describe("categoryFor", () => {
-  it("finds a category by the key its URL carries", () => {
+  it("finds a category by the key a catalog's 🔍 carries", () => {
     expect(categoryFor("people")?.label).toBe("People & Pets");
   });
 
@@ -37,45 +42,92 @@ describe("categoryFor", () => {
   });
 });
 
-describe("filterHits", () => {
-  it("does not narrow when nothing is filtered", () => {
-    expect(titles(filterHits(HITS, undefined))).toEqual(titles(HITS));
+describe("facetsOf", () => {
+  it("hands a catalog's 🔍 one facet per kind of record it holds", () => {
+    // People & Pets is one catalog and two chips: the whole point of the split.
+    expect(facetsOf(categoryFor("people")!).map((f) => f.type)).toEqual([
+      "person",
+      "pet",
+    ]);
+    expect(facetsOf(categoryFor("gifts")!).map((f) => f.type)).toEqual([
+      "gift_idea",
+    ]);
+  });
+});
+
+describe("facetsFor / facetParam", () => {
+  it("round-trips a selection through the URL", () => {
+    const facets = facetsOf(categoryFor("people")!);
+    expect(facetParam(facets)).toBe("person,pet");
+    expect(facetsFor("person,pet")).toEqual(facets);
   });
 
-  it("keeps people and pets together under one category", () => {
-    // Two record types, one idea — a user looking for "the people I know" is
-    // not making the distinction the schema makes.
-    expect(titles(filterHits(HITS, categoryFor("people")))).toEqual([
+  it("writes no param for an empty selection, which is an unfiltered search", () => {
+    // `undefined` is what expo-router drops, so dropping the last chip clears
+    // `?type=` rather than leaving `?type=` behind matching nothing.
+    expect(facetParam([])).toBeUndefined();
+    expect(facetsFor(undefined)).toEqual([]);
+  });
+
+  it("reads back in table order, not the order the user dropped things in", () => {
+    expect(facetsFor("pet,person").map((f) => f.type)).toEqual([
+      "person",
+      "pet",
+    ]);
+  });
+
+  it("drops unrecognised tokens rather than filtering to nothing", () => {
+    // A stale link should widen to a search that shows too much, never one that
+    // shows nothing with no visible reason.
+    expect(facetsFor("nonsense").map((f) => f.type)).toEqual([]);
+    expect(facetsFor("person,nonsense").map((f) => f.type)).toEqual(["person"]);
+  });
+});
+
+describe("facetPhrase", () => {
+  it("says a selection the way a sentence would", () => {
+    expect(facetPhrase(facetsFor("person"))).toBe("people");
+    expect(facetPhrase(facetsFor("person,pet"))).toBe("people and pets");
+    expect(facetPhrase(facetsFor("person,pet,tag"))).toBe(
+      "people, pets and tags",
+    );
+  });
+});
+
+describe("filterHits", () => {
+  it("does not narrow when nothing is filtered", () => {
+    expect(titles(filterHits(HITS, []))).toEqual(titles(HITS));
+  });
+
+  it("narrows to a single kind of record", () => {
+    expect(titles(filterHits(HITS, facetsFor("person")))).toEqual(["Ada"]);
+    expect(titles(filterHits(HITS, facetsFor("pet")))).toEqual(["Biscuit"]);
+  });
+
+  it("keeps people and pets when both chips are up", () => {
+    expect(titles(filterHits(HITS, facetsFor("person,pet")))).toEqual([
       "Ada",
       "Biscuit",
     ]);
   });
 
-  it("narrows to a single-type category", () => {
-    expect(titles(filterHits(HITS, categoryFor("gifts")))).toEqual([
-      "A telescope",
-    ]);
-    expect(titles(filterHits(HITS, categoryFor("tags")))).toEqual(["family"]);
-  });
-
-  it("returns nothing rather than everything when a category matches no hit", () => {
-    expect(filterHits([hit("person", "Ada")], categoryFor("holidays"))).toEqual(
+  it("returns nothing rather than everything when a facet matches no hit", () => {
+    expect(filterHits([hit("person", "Ada")], facetsFor("holiday"))).toEqual(
       [],
     );
   });
 
   it("does not hand back the caller's array to mutate", () => {
     const source = [hit("person", "Ada")];
-    expect(filterHits(source, undefined)).not.toBe(source);
+    expect(filterHits(source, [])).not.toBe(source);
   });
 });
 
-describe("the category table", () => {
+describe("the tables", () => {
   it("covers every hit type the search service can return", () => {
-    // A new SearchResultType with no category would be invisible on the browse
+    // A new SearchResultType with no facet would be invisible on the browse
     // grid and silently dropped by every filter that isn't its own.
-    const covered = new Set(SEARCH_CATEGORIES.flatMap((c) => c.types));
-    expect([...covered].sort()).toEqual([
+    expect(SEARCH_FACETS.map((f) => f.type).sort()).toEqual([
       "gift_idea",
       "holiday",
       "person",
@@ -84,7 +136,25 @@ describe("the category table", () => {
     ]);
   });
 
-  it("keys are unique, since a URL resolves to exactly one", () => {
+  it("gives every category's types a facet to render", () => {
+    for (const category of SEARCH_CATEGORIES) {
+      expect(facetsOf(category).map((f) => f.type)).toEqual([
+        ...category.types,
+      ]);
+    }
+  });
+
+  it("sends a tile and its facets to the same catalog", () => {
+    // "See all pets" under a narrowed search and the People & Pets tile are the
+    // same journey; they should not be able to disagree about where it goes.
+    for (const category of SEARCH_CATEGORIES) {
+      for (const facet of facetsOf(category)) {
+        expect(facet.browseHref).toBe(category.browseHref);
+      }
+    }
+  });
+
+  it("keys are unique, since a 🔍 resolves to exactly one", () => {
     const keys = SEARCH_CATEGORIES.map((c) => c.key);
     expect(new Set(keys).size).toBe(keys.length);
   });

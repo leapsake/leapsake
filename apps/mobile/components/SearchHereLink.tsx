@@ -1,5 +1,6 @@
 import { Pressable, Text } from "react-native";
 import { useRouter } from "expo-router";
+import { categoryFor, facetParam, facetsOf } from "../lib/search-categories";
 import { styles } from "../lib/styles";
 
 const GLYPH = "🔍";
@@ -16,6 +17,18 @@ const GLYPH = "🔍";
  * tiles open the catalogs rather than filtering — which is the right shape:
  * narrowing is a thing you ask for from inside a catalog, having decided that
  * scrolling it is not working.
+ *
+ * ### It sends kinds of record, not a catalog
+ *
+ * The prop is the catalog (`people`), and what travels is the record kinds that
+ * catalog holds (`person,pet`), because the search screen shows one removable
+ * chip per kind: People & Pets arrives as two chips, and a user hunting for a
+ * person can drop the pets without losing the narrowing entirely. The key stays
+ * the prop so the header ids (`search-here-<category>`) keep naming the screen
+ * they sit on.
+ *
+ * An unknown key narrows nothing rather than narrowing to nothing — a search
+ * that shows everything is a recoverable wrong answer, an empty one is not.
  *
  * ### A glyph, because it shares the corner
  *
@@ -35,6 +48,8 @@ const GLYPH = "🔍";
  */
 export function SearchHereLink({ category }: { category: string }) {
   const router = useRouter();
+  const found = categoryFor(category);
+  const type = found === undefined ? undefined : facetParam(facetsOf(found));
   return (
     <Pressable
       accessibilityRole="button"
@@ -46,7 +61,7 @@ export function SearchHereLink({ category }: { category: string }) {
       onPress={() =>
         router.navigate({
           pathname: "/(tabs)/search",
-          params: { type: category },
+          params: { type },
         })
       }
     >

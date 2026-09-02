@@ -122,6 +122,36 @@ appId: com.leapsake.app
 - tapOn: ".*Back.*"
 - assertNotVisible:
     id: "person-first-name"
+# The 🔍 sharing that corner opens Search already narrowed to what this catalog
+# holds — and this one holds two kinds of thing, so it arrives as **two** chips.
+# Each is dropped on its own: take the pets away and the people are still
+# narrowed, which is the whole reason a chip is a record kind rather than a
+# catalog. Collapse the two back into one chip and the third line goes red.
+- tapOn:
+    id: "search-here-people"
+- assertVisible:
+    id: "search-filter-chip-person"
+- assertVisible:
+    id: "search-filter-chip-pet"
+- tapOn:
+    id: "search-filter-chip-pet"
+- assertNotVisible:
+    id: "search-filter-chip-pet"
+- assertVisible:
+    id: "search-filter-chip-person"
+# Dropping the *last* chip is how the filter clears altogether — no param, no
+# narrowing, and the browse grid back under an empty field.
+- tapOn:
+    id: "search-filter-chip-person"
+- assertNotVisible:
+    id: "search-filter-chip-person"
+- assertVisible:
+    id: "browse-tile-people"
+# Leave on a catalog, so case 4 *arrives* at Search: pressing `tab-search` while
+# already there focuses the field instead, and the keyboard would cover the tiles
+# case 4 taps.
+- tapOn:
+    id: "tab-people"
 
 # ------------------------------------------------------------------ case 4 of 4
 # A catalog with no tab of its own. Gifts is reached the way all three now are,
@@ -130,13 +160,13 @@ appId: com.leapsake.app
     id: "tab-search"
 # Clear a filter left by an earlier failed run (see the header) so the tiles are
 # what is on screen. Guarded, so a clean start simply skips it.
-- runFlow:
-    when:
+- repeat:
+    while:
       visible:
-        id: "search-filter-chip"
+        id: "search-filter-chip-.*"
     commands:
       - tapOn:
-          id: "search-filter-chip"
+          id: "search-filter-chip-.*"
 # A browse tile **leaves for its catalog**; it does not narrow the search in
 # place. The chip's absence is the direct statement of that — put the old
 # `setParams` back and this line goes red immediately, one tap sooner than the
@@ -144,7 +174,7 @@ appId: com.leapsake.app
 - tapOn:
     id: "browse-tile-gifts"
 - assertNotVisible:
-    id: "search-filter-chip"
+    id: "search-filter-chip-.*"
 # The catalog **keeps the bar and loses Back** — the two halves of one claim: it
 # is a place in the tab navigator, not a screen pushed over it. Move Gifts back
 # onto the root stack and the first line goes red (the bar is covered) and the
@@ -166,12 +196,12 @@ appId: com.leapsake.app
 - tapOn:
     id: "search-here-gifts"
 - assertVisible:
-    id: "search-filter-chip"
+    id: "search-filter-chip-gift_idea"
 
 # Leave the search tab unfiltered so a re-run starts where this one did.
 - tapOn:
-    id: "search-filter-chip"
+    id: "search-filter-chip-gift_idea"
 - assertNotVisible:
-    id: "search-filter-chip"
+    id: "search-filter-chip-gift_idea"
 - assertVisible:
     id: "browse-tile-people"

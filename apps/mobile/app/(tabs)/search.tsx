@@ -19,7 +19,13 @@ import { BrowseTiles } from "../../components/BrowseTiles";
 import { SearchInput } from "../../components/SearchInput";
 import { highlightBirthday, highlightMatch } from "../../lib/highlightMatch";
 import { useCore } from "../../lib/core-context";
-import { categoryFor, filterHits } from "../../lib/search-categories";
+import {
+  type SearchFacet,
+  facetParam,
+  facetPhrase,
+  facetsFor,
+  filterHits,
+} from "../../lib/search-categories";
 import { colors, radius, styles } from "../../lib/styles";
 
 /**
@@ -80,10 +86,18 @@ function pathFor(hit: SearchHit): string {
  *
  * ### Arriving already narrowed
  *
- * `?type=` opens the screen filtered to one category, which is how "find me a
- * person" is reachable from the People & Pets list without that list growing a
- * search field of its own — see `components/SearchHereLink.tsx`. The filter
- * therefore has exactly one representation, a URL.
+ * `?type=` opens the screen filtered, which is how "find me a person" is
+ * reachable from the People & Pets list without that list growing a search field
+ * of its own — see `components/SearchHereLink.tsx`. The filter therefore has
+ * exactly one representation, a URL.
+ *
+ * It carries a **list** of record kinds, one chip each, each dropped on its own.
+ * A catalog's 🔍 hands over everything that catalog holds, and People & Pets
+ * holds two things: a user who came here to find a person can drop the pets and
+ * keep searching, where a single "People & Pets" chip left them nothing to say
+ * short of clearing the filter and getting the gifts and holidays back too. The
+ * grid above still shows the catalog whole — see `lib/search-categories.ts` for
+ * why a tile and a chip are different units.
  *
  * A filtered arrival offers **no create action**, which it briefly did: the New
  * tab read `?type=` to work out that "add" was unambiguous here. There is no
@@ -109,15 +123,19 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
 
   const { type } = useLocalSearchParams<{ type?: string }>();
-  const category = categoryFor(type);
+  const facets = facetsFor(type);
 
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<SearchHit[]>([]);
-  const shown = filterHits(results, category);
+  const shown = filterHits(results, facets);
 
-  /** Drop the narrowing an arrival brought with it — a `setParams` rather than a
-   *  `setState`, since the filter lives in the URL rather than beside it. */
-  const clearCategory = () => router.setParams({ type: undefined });
+  /** Drop one chip, leaving the rest — a `setParams` rather than a `setState`,
+   *  since the filter lives in the URL rather than beside it. Dropping the last
+   *  one writes no param at all, which is an unfiltered search. */
+  const dropFacet = (dropped: SearchFacet) =>
+    router.setParams({
+      type: facetParam(facets.filter((facet) => facet !== dropped)),
+    });
 
   // A second press of the Search tab focuses the field — the standard "tab
   // pressed while already on it" gesture (the same event other apps use to
@@ -189,19 +207,28 @@ export default function SearchScreen() {
 
       {/* The active narrowing, and the way out of it. Above the results rather
           than beside the field, so it reads as a statement about what is listed
-          below it — which is exactly what it is. */}
-      {category !== undefined && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${category.label}. Search everything instead`}
-          testID="search-filter-chip"
-          style={local.chip}
-          onPress={clearCategory}
-        >
-          <Text style={local.chipText}>
-            {category.glyph} {category.label} ✕
-          </Text>
-        </Pressable>
+          below it — which is exactly what it is. One chip per kind of record, so
+          the way out is per kind too: the row is the sentence "people and pets",
+          and a tap deletes a word from it rather than the whole sentence. */}
+      {facets.length > 0 && (
+        <View style={local.chips}>
+          {facets.map((facet) => (
+            <Pressable
+              key={facet.type}
+              accessibilityRole="button"
+              // Says what tapping does, not what the chip is: the glyph and label
+              // are already read, and "✕" on its own is not an instruction.
+              accessibilityLabel={`${facet.label}. Remove this filter`}
+              testID={`search-filter-chip-${facet.type}`}
+              style={local.chip}
+              onPress={() => dropFacet(facet)}
+            >
+              <Text style={local.chipText}>
+                {facet.glyph} {facet.label} ✕
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       )}
 
       {/*
@@ -213,7 +240,7 @@ export default function SearchScreen() {
         "did you mean one of these", which it never is.
       */}
       {term.trim() === "" ? (
-        category === undefined ? (
+        facets.length === 0 ? (
           // No prose over the tiles: they name the same four things a sentence
           // listing them would, and the field's own placeholder has already said
           // the word "Search".
@@ -225,10 +252,13 @@ export default function SearchScreen() {
           // came here and then decided they would rather scroll after all.
           <View style={local.browse}>
             <Text style={styles.muted}>
-              Type to search {category.label.toLocaleLowerCase()}.
+              Type to search {facetPhrase(facets)}.
             </Text>
-            <Link href={category.browseHref} style={styles.link}>
-              See all {category.label.toLocaleLowerCase()}
+            {/* Every facet still selected came from one catalog's 🔍, so the
+                first one names the list to go back to — pets are listed in
+                People & Pets, which is the list this link opens for either. */}
+            <Link href={facets[0].browseHref} style={styles.link}>
+              See all {facetPhrase(facets)}
             </Link>
           </View>
         )
@@ -260,6 +290,11 @@ export default function SearchScreen() {
 const local = StyleSheet.create({
   browse: {
     gap: 16,
+  },
+  chips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
   chip: {
     alignSelf: "flex-start",
