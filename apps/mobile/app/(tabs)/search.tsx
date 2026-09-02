@@ -8,12 +8,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  Link,
-  useLocalSearchParams,
-  useNavigation,
-  useRouter,
-} from "expo-router";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BrowseTiles } from "../../components/BrowseTiles";
 import { SearchInput } from "../../components/SearchInput";
@@ -22,7 +17,6 @@ import { useCore } from "../../lib/core-context";
 import {
   type SearchFacet,
   facetParam,
-  facetPhrase,
   facetsFor,
   filterHits,
 } from "../../lib/search-categories";
@@ -101,8 +95,14 @@ function pathFor(hit: SearchHit): string {
  *
  * A filtered arrival offers **no create action**, which it briefly did: the New
  * tab read `?type=` to work out that "add" was unambiguous here. There is no
- * header on this screen to put a ➕ in, and the catalog the filter names is one
- * tap away below with a ➕ of its own — see `app/(tabs)/_layout.tsx`.
+ * header on this screen to put a ➕ in, and the catalog the filter names is the
+ * screen the user just left — Back, or the chips' own ✕ to bring the grid back —
+ * where the ➕ lives now (`app/(tabs)/_layout.tsx`).
+ *
+ * It also offers no prose. A narrowed arrival with an empty field once carried a
+ * "Type to search people and pets." prompt and a "See all people and pets" link;
+ * both restated what the chips and the tab bar were already saying, in the one
+ * spot on the screen where a user is about to start typing.
  *
  * Tapping a browse tile does **not** set it: a tile is a way to the catalog it
  * names, not a way to narrow a search nobody has started. See `BrowseTiles`.
@@ -240,28 +240,18 @@ export default function SearchScreen() {
         "did you mean one of these", which it never is.
       */}
       {term.trim() === "" ? (
+        // No prose over the tiles: they name the same four things a sentence
+        // listing them would, and the field's own placeholder has already said
+        // the word "Search".
+        //
+        // A *narrowed* arrival gets nothing at all under its chips — no prompt,
+        // no way back to the catalog. Both used to be here, and both restated
+        // what was already on screen: the chips say what is filtered, and the
+        // catalog is straight back the way the user came. What is left is the
+        // field, the filter, and room to type.
         facets.length === 0 ? (
-          // No prose over the tiles: they name the same four things a sentence
-          // listing them would, and the field's own placeholder has already said
-          // the word "Search".
           <BrowseTiles onPick={(picked) => router.push(picked.browseHref)} />
-        ) : (
-          // Narrowed, but with nothing to narrow yet — an arrival from a
-          // catalog's Search link. The prompt says what typing will do now, and
-          // the link is the way back to the catalog that sent us, for a user who
-          // came here and then decided they would rather scroll after all.
-          <View style={local.browse}>
-            <Text style={styles.muted}>
-              Type to search {facetPhrase(facets)}.
-            </Text>
-            {/* Every facet still selected came from one catalog's 🔍, so the
-                first one names the list to go back to — pets are listed in
-                People & Pets, which is the list this link opens for either. */}
-            <Link href={facets[0].browseHref} style={styles.link}>
-              See all {facetPhrase(facets)}
-            </Link>
-          </View>
-        )
+        ) : null
       ) : (
         <FlatList
           data={shown}
@@ -288,9 +278,6 @@ export default function SearchScreen() {
 }
 
 const local = StyleSheet.create({
-  browse: {
-    gap: 16,
-  },
   chips: {
     flexDirection: "row",
     flexWrap: "wrap",

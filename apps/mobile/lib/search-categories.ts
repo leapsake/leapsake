@@ -15,27 +15,21 @@ export interface SearchFacet {
   type: SearchResultType;
   label: string;
   glyph: string;
-  /** The catalog this kind of record is listed in, for browsing rather than searching. */
-  browseHref: string;
 }
 
 /**
  * Every kind of record search can return, in the order chips appear.
  *
- * People and pets share `/people` because they share a list — the two facets
- * differ in what they *match*, not in where they are kept.
+ * No `browseHref` here, unlike a {@link SearchCategory}: a chip is a thing to
+ * *drop*, never a way somewhere. Where pets are listed is a question the browse
+ * grid answers, and it answers it about the catalog they live in.
  */
 export const SEARCH_FACETS: readonly SearchFacet[] = [
-  { type: "person", label: "People", glyph: "👤", browseHref: "/people" },
-  { type: "pet", label: "Pets", glyph: "🐾", browseHref: "/people" },
-  {
-    type: "gift_idea",
-    label: "Gift ideas",
-    glyph: "🎁",
-    browseHref: "/gifts",
-  },
-  { type: "holiday", label: "Holidays", glyph: "🎉", browseHref: "/holidays" },
-  { type: "tag", label: "Tags", glyph: "🏷️", browseHref: "/tags" },
+  { type: "person", label: "People", glyph: "👤" },
+  { type: "pet", label: "Pets", glyph: "🐾" },
+  { type: "gift_idea", label: "Gift ideas", glyph: "🎁" },
+  { type: "holiday", label: "Holidays", glyph: "🎉" },
+  { type: "tag", label: "Tags", glyph: "🏷️" },
 ];
 
 /**
@@ -149,16 +143,6 @@ export function facetParam(facets: readonly SearchFacet[]): string | undefined {
 /** The facets a catalog's 🔍 starts with, in table order. */
 export function facetsOf(category: SearchCategory): SearchFacet[] {
   return SEARCH_FACETS.filter((facet) => category.types.includes(facet.type));
-}
-
-/**
- * The selection, said out loud: "people", "people and pets", "people, pets and
- * tags". Lower-cased, because every use of it is mid-sentence.
- */
-export function facetPhrase(facets: readonly SearchFacet[]): string {
-  const labels = facets.map((facet) => facet.label.toLocaleLowerCase());
-  if (labels.length < 2) return labels.join("");
-  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
 }
 
 /**

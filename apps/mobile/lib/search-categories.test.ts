@@ -5,7 +5,6 @@ import {
   SEARCH_FACETS,
   categoryFor,
   facetParam,
-  facetPhrase,
   facetsFor,
   facetsOf,
   filterHits,
@@ -84,16 +83,6 @@ describe("facetsFor / facetParam", () => {
   });
 });
 
-describe("facetPhrase", () => {
-  it("says a selection the way a sentence would", () => {
-    expect(facetPhrase(facetsFor("person"))).toBe("people");
-    expect(facetPhrase(facetsFor("person,pet"))).toBe("people and pets");
-    expect(facetPhrase(facetsFor("person,pet,tag"))).toBe(
-      "people, pets and tags",
-    );
-  });
-});
-
 describe("filterHits", () => {
   it("does not narrow when nothing is filtered", () => {
     expect(titles(filterHits(HITS, []))).toEqual(titles(HITS));
@@ -141,16 +130,6 @@ describe("the tables", () => {
       expect(facetsOf(category).map((f) => f.type)).toEqual([
         ...category.types,
       ]);
-    }
-  });
-
-  it("sends a tile and its facets to the same catalog", () => {
-    // "See all pets" under a narrowed search and the People & Pets tile are the
-    // same journey; they should not be able to disagree about where it goes.
-    for (const category of SEARCH_CATEGORIES) {
-      for (const facet of facetsOf(category)) {
-        expect(facet.browseHref).toBe(category.browseHref);
-      }
     }
   });
 
