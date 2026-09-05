@@ -48,3 +48,6 @@ yarn-error.log*
 
 package-lock.json
 yarn.lock
+
+# tsc --build leaves these beside the tsconfig they belong to.
+*.tsbuildinfo
