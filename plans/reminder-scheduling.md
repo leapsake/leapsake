@@ -1,4 +1,4 @@
-# Reminders — the prompt, `verb:qualifier` identity, and the rule cascade
+# Reminders — `verb:qualifier` identity, the rule cascade, and presets
 
 > **Delete this doc when the work lands.** The durable *why* goes into
 > [`@leapsake/reminders`](../packages/reminders/README.md) beside the onboarding-nudge reasoning
@@ -15,18 +15,18 @@ reasoning now lives in [`@leapsake/reminders`](../packages/reminders/README.md) 
 [`@leapsake/view-models`](../packages/view-models/README.md); what follows is what is still ahead
 of it.
 
-There is a second cause underneath that first one, and windows alone do not reach it. The engine has to
-decide what to remind you about before you have decided anything, so it **guesses** — and a guess
-that is right for some people is noise for the rest. You do not know in October which of forty
-people you will post a card to in November; the engine certainly does not. Every speculative row it
-mints is a row you have to learn to ignore, and a list you have learned to ignore is broken however
-well it is bucketed.
+There was a second cause underneath that first one, which windows alone do not reach: the engine has
+to decide what to remind you about before you have decided anything, so it **guesses**. **That half
+is now built too** — an unconfigured occasion mints one `plan` prompt instead of errands, on both
+clients, answerable in one tap. The reasoning lives in
+[`@leapsake/reminders`](../packages/reminders/README.md) → *The prompt*.
 
 ## The model
 
 Nine decisions, settled in design *(owner, 2026-09-02 and 2026-09-04)*. Everything below
 implements them; none of them is open. Exactly one sub-question is deliberately deferred — how a
 kind-level rule interacts with the prompt — and it is parked in Increment 6, where it lands.
+Decisions 1, 5 and 7 are **built**; what landed differently from the sketch is noted on each.
 
 1. **Two numbers per rule** *(built)*. `offsetDays` — when it is **due**, measured back from the
    occurrence. `activeDays` — how many days **before that** it goes on display. A
@@ -49,15 +49,22 @@ kind-level rule interacts with the prompt — and it is parked in Increment 6, w
    stands.
 6. **Rules resolve through a four-level cascade**, per action, most specific winning.
 7. **The engine never guesses. An unconfigured occasion gets a question, not errands**
-   *(owner, 2026-09-04)*. The first thing a birthday puts on your list is "Alice's birthday is in
-   eight weeks — how do you want to recognise it?", with a checkbox per offered action. Answering
-   writes the rules; the actions you ticked are what the engine mints from then on. See
-   Increment 3.
+   *(owner, 2026-09-04)* — **built**. The reasoning is now in
+   [`@leapsake/reminders`](../packages/reminders/README.md) → *The prompt*. ⚠️ Three things
+   landed differently from this doc's sketch, all found in the code:
 
-   The point is *when* the question is asked. Configuring forty people up front is work nobody
-   will do, and it demands a judgement — is Alice a card person? — at the one moment you have no
-   context for it. Asked eight weeks out, with the occasion named, it is a five-second decision
-   you are actually equipped to make.
+   - **Snooze was not "already available to it".** `snoozePolicyOf` answers `null` for anything
+     that is not an onboarding nudge, and without a branch of its own an ignored prompt would sit
+     in `owed` for the six weeks between its due date and the birthday — a wall, not a nudge. It
+     now takes the nudges' floor of two *not now*s, clamped to its own due date while that is
+     still ahead.
+   - **Deleting an occasion's rules does not restore the prompt within the same year.** Answering
+     tombstones the row and the id is keyed on the occurrence year; undoing that needs a runtime
+     hard delete, which no repo has and which a peer's tombstone would re-pull. Not built
+     *(owner, 2026-09-04)* — the prompt returns next year.
+   - **Only birthdays, weddings and anniversaries prompt.** `first-date` and `met` offer one
+     action each, and a question with one answer is not a question. One `kindDefs` line each when
+     that changes.
 
 8. **The shipped birthday default stays `wish`, alone** — exactly what ships today
    (`kindDefs.birthday.defaultReminderSchedule`, all of `gift`/`card`/`call`/`text` at
@@ -72,11 +79,11 @@ kind-level rule interacts with the prompt — and it is parked in Increment 6, w
    nothing, and "unanswered" therefore needs no fallback rule of its own, because it already
    **is** the default schedule.
 
-9. **An answer persists; only a changed offer set re-asks** *(owner, 2026-09-04)*. Next year the
-   rules simply apply and no prompt is minted. Re-asking annually would turn forty birthdays into
-   forty questions a year forever — the same recurring load this workstream exists to remove,
-   wearing a better hat. Staleness has two escapes instead: the milestone's own settings screen,
-   and an automatic re-ask when the **offer set changes** — see Increment 3.
+9. **An answer persists; only a changed offer set re-asks** *(owner, 2026-09-04)*. The persisting
+   half is built: an answer writes the full offer set, rows-existing is the "answered" marker, so
+   next year the rules simply apply. That stored set is also the record of *what was offered*.
+   ⚠️ **The differ that compares it is not built** — see *Not in scope*; nothing re-asks on its
+   own.
 
 ⚠️ **Action names below are the post-split `verb:qualifier` ones from Increment 4**, written that
 way because they read better. The shipped registry is still flat, so until that increment lands:
@@ -86,6 +93,7 @@ way because they read better. The shipped registry is still flat, so until that 
 | `get:gift` | `gift` ("Get a gift") | `offset 12, active 30` |
 | `send:card` | `card` ("Send a card") | `offset 7, active 14` |
 | `get:card` | — | arrives with the split, at `get:gift`'s numbers |
+| `plan` | `plan` ("Decide how to mark it") | `offset` derived, `active 14` |
 
 The buying half of a card does not exist yet, and that is deliberate: today's single `card` action
 is the *sending* one by its own label, so it keeps the shorter run-up until there is a separate
@@ -104,137 +112,6 @@ deterministic ids re-mint everything still wanted. Sweep the table, don't reason
 
 ---
 
-## Increment 3 — the prompt
-
-**The biggest reduction on the list, and the one that changes what the list is.** The windows and
-the buckets made the guessing quieter; this stops the guessing.
-
-An occasion with no rules of its own mints exactly one reminder — a `plan` row — well ahead of
-everything else:
-
-> 🗓 **Alice's birthday is in eight weeks.** How do you want to recognise it?
-> ☑ 🎉 Wish them · ☐ 💌 Send a card · ☐ 🎁 Get a gift · ☐ 📞 Give a call · ☐ 🏡 Visit
-
-The checkbox labels are `actionDefs[...].label` verbatim, not new copy. They are already written as
-offers ("Send a card", "Give a call") because that registry was built to populate the schedule
-editor — which is the same list asked at a different moment.
-
-Answering writes ordinary rules and the engine takes it from there. Nothing else about the
-engine changes.
-
-**It needs no new storage.** `reminderRuleBearerTypeSchema` is already `milestone | observance`,
-and a birthday rule hangs off **the person's own birthday milestone row** — which is precisely the
-"person + occasion" level. The answer is a write of plain `reminder_rules` at a level that exists
-today. ⚠️ **This increment therefore does not depend on Increment 6's cascade**, and must not be
-built as though it does; the cascade widens where an answer *can* be written, not whether this
-works.
-
-**It does need one thing the engine cannot currently say: where a schedule came from.**
-`resolveReminderSchedule` returns `ReminderRuleInput[]` and throws away whether it read stored rows
-or fell back to `kindDefs` — but "no rules of its own" is exactly the condition that mints a
-prompt. Return the source alongside the rules. It is a one-field change, and it is the first half
-of the provenance that Increment 6 needs as product surface anyway, so build it in that shape
-rather than as a private boolean.
-
-### Timing is derived, never chosen
-
-The prompt is useless if it arrives after the window of something it offers. Tick "send a card"
-and the card reminder must still have its full run-up, not appear already past due. So:
-
-```
-plan.offsetDays = max(offsetDays + activeDays) over the offered set
-plan.activeDays = PLAN_LEAD_DAYS
-```
-
-With the shipped numbers the widest is `get:gift` at `12 + 30 = 42`, so the prompt is **due 42 days
-out** and, at `PLAN_LEAD_DAYS = 14`, **appears 56 days out**. Increment 4's `get:card` lands on the
-same pair, so the split does not move it. Copy renders the real distance (`formatDueIn` already
-does this) — do not write "next month" into a template; the number moves.
-
-Deriving it is the whole point of extensibility. Ship a commissioned-gift action at `activeDays 60`
-and every prompt slides earlier by itself, with no second constant to *choose*. One to **check**,
-though: `DISPLAY_WINDOW_DAYS` must stay at or above `MAX_ACTIVE_DAYS`, so an action with a run-up
-wider than the list's horizon widens the horizon too. The test says so and fails loudly; it is a
-consequence to know about, not a decision to make. And ⚠️ **if eight weeks turns out to feel too
-early to be asked, the dial to turn is `get:gift`'s `activeDays`, not the prompt's** — that is the correct place for the pressure to land, and `actionDefs` already says
-those numbers expect to be corrected against real use.
-
-`plan` gets `offsetDays` derived as above and `activeDays = 14`; it is a decision rather than an
-errand, so it should sit patiently in *Available* and only reach *Today* on its due date.
-
-### Unanswered, and answered-with-nothing
-
-- **Unanswered is not silence.** An ignored prompt leaves the milestone riding its kind defaults,
-  which is `wish` day-of (decision 8). You never lose the birthday. This needs no code: it is what
-  happens already when no rules exist.
-- **An ignored prompt stays answerable.** The engine's second aliveness clause is the
-  *occurrence*, not the due date, so the prompt survives its own deadline as **past due** right up
-  to the birthday. The list already refuses to gate the checkbox on activity, so a late answer
-  works — the chosen actions simply materialise with compressed windows, some of them immediately
-  past due, which is honest.
-- ⚠️ **Ticking nothing must be distinguishable from never being asked**, or the prompt returns
-  every year. The answer writes the **full offer set**, including `enabled: false` rows for the
-  unticked ones. Rows-existing is then the "answered" marker — no new column, and it works with
-  `resolveReminderSchedule` exactly as written today, whose rule is already "any stored rows
-  replace the kind defaults".
-- Deleting a milestone's rules therefore restores the prompt. That is the free, obvious "ask me
-  again" gesture, and the settings screen should present it as one.
-
-### Next year
-
-The answer persists (decision 9): with rules stored, no `plan` row is ever minted again. Two
-escapes from staleness:
-
-- **Manual** — the milestone's reminder settings screen, which is where the user goes to say "I'm
-  not really in touch with John any more". This already exists as the schedule editor, behind
-  core's `milestones.reminderSchedule`; it needs the prompt's vocabulary, not a new screen.
-- **Automatic, and only on new information** — re-ask when the **offer set changes**: a contact
-  method appears and makes `message:discord` offerable, or Leapsake ships a new verb. Record what
-  was offered at answer time so that diff is computable. ⚠️ **Record it, but building the diff is
-  not this increment** — persisting silently is correct on its own, and an offer-set differ with
-  nothing to compare against is speculative work. Store the list; wire the re-ask when a second
-  offer set actually exists.
-
-### The row is a form, not a checkbox
-
-⚠️ **This is the increment's real risk.** A decision costs more than a dismissal. Trading five
-passive rows for one row that demands a screen visit only wins if **the prompt is cheaper to answer
-than the old rows were to ignore**. That is a build constraint, not a nicety:
-
-- The row's primary affordance is a CTA, not a bare tick. `reminderCtaOf` in
-  `packages/view-models/src/reminders.ts` is the seam — add a `plan` kind beside
-  `onboarding`/`duplicates`/`gift` and let each client route it, as they already do.
-- It must offer **one-tap "just the day"** on the row itself. That is the common answer, and
-  making it free is what keeps the arithmetic honest. It writes the same full offer set with only
-  `wish` enabled, so it counts as answered.
-- Snooze is already available to it via `snoozePolicyOf`, and "ask me nearer the time" is a
-  coherent thing to want from this row specifically. ⚠️ But the prompt's due date is a real
-  deadline, not a preference — snoozing past it silently forfeits the long-lead options. Either
-  clamp the snooze to the due date or say what is being given up.
-- ⚠️ *A nudge, never a wall* — the reminders README's rule, and it binds here hardest of anywhere.
-  The prompt must never be the only path to a birthday reminder.
-
-### Identity, and the kinds beyond birthdays
-
-- One `plan` row per bearer, per occasion, per year: `milestone:<id>:<year>:plan`, the same
-  year-keyed shape as everything else. Add `plan` to `reminderActionSchema` with an `actionDefs`
-  entry — one enum line, no migration, exactly as that schema's doc-comment promises.
-- **Whether an occasion prompts is a property of its kind**, declared in `kindDefs` beside
-  `defaultReminderSchedule`: does it prompt, what does it offer, what is pre-ticked. Birthdays and
-  anniversaries prompt; `death` must **not** — a checkbox list of ways to recognise a death
-  anniversary is exactly the wrong object, and its single quiet `remember` is already right.
-- ⚠️ **The mechanism generalises to holidays; the prompt shape does not.** A milestone is one
-  person, so one prompt is one decision. A holiday is one occasion across everyone — per-observance
-  prompts mean forty questions in November, which is the disease and not the cure. Christmas wants
-  a *single* prompt that lists people ("who are you sending cards to?") writing the same
-  observance-bearer rules. Same writes, different presentation. Build the per-bearer shape here;
-  see Not in scope.
-
-**Done when** a fresh person with a birthday two months out puts exactly one row on Home, ticking
-"send a card" on it produces a card reminder at its proper due date, ignoring it entirely still
-produces the day-of wish, and next year's birthday produces neither a prompt nor anything the user
-did not tick.
-
 ## Increment 4 — `verb:qualifier` identity
 
 Mostly invisible, and everything after it depends on it.
@@ -248,7 +125,7 @@ exactly what the gift-then-post chain needs, so this must be fixed before that c
 
 - Split the flat `reminderActionSchema` into a **verb** (small, closed, Zod-validated) and an
   open **qualifier**. Verbs: `get`, `send`, `visit`, `call`, `message`, `post`, `wish`,
-  `remember`, `plan`, `other`. `plan` (Increment 3) never takes a qualifier — it is a question
+  `remember`, `plan`, `other`. `plan` (already shipped) never takes a qualifier — it is a question
   about the occasion, not an action toward the person. Qualifiers are `card`/`gift`, or a platform id from
   `packages/contact-links`' registry, or absent.
 - The stored action string is `verb:qualifier` (or bare `verb`). The DB column is already free
@@ -338,17 +215,17 @@ shipped default       `wish`
   `resolveReminderSchedule` uses stored rules *instead of* kind defaults the moment one row
   exists. With four levels that would mean setting a person default silently wipes the birthday
   defaults. Each action must resolve independently up the chain.
-- ⚠️ **This changes the prompt's "answered" marker, and the change must be deliberate.** Increment
-  3 relies on stored rows replacing the kind defaults wholesale. Under per-action resolution a
+- ⚠️ **This changes the prompt's "answered" marker, and the change must be deliberate.** The
+  shipped prompt relies on stored rows replacing the kind defaults wholesale. Under per-action resolution a
   partial row set falls *through* to the level above instead — but the prompt always writes the
   **full** offer set, disabled rows included, so both readings agree for anything it touched.
   Keep it that way: whatever answers a prompt must write the whole set, not just the ticks.
 - ⚠️ **Open: does a kind-level rule seed the prompt, or suppress it?** *(deferred to this
   increment by the owner, 2026-09-04.)* Seeding — the prompt arrives with the user's own defaults
-  pre-ticked, and they still confirm per person — keeps the contextual choice that Increment 3
-  exists for. Suppressing spares the question from users who already answered it globally. The
-  likely shape is seed-by-default plus a per-kind "don't ask me per person" switch, but it is not
-  settled and nothing in Increments 3–5 depends on it.
+  pre-ticked, and they still confirm per person — keeps the contextual choice the prompt exists
+  for. Suppressing spares the question from users who already answered it globally. The likely
+  shape is seed-by-default plus a per-kind "don't ask me per person" switch, but it is not settled
+  and nothing shipped depends on it.
 - **`enabled: false` is how a specific level says "not this one."** The mechanism already exists:
   the engine mints only enabled rules and `resolveSchedule`'s doc-comment says disabled entries
   are returned but ignored. No new concept needed.
@@ -377,7 +254,7 @@ question that will certainly be asked.
 
 ## Increment 7 — presets
 
-⚠️ **Increment 3 absorbs most of this, and it should be re-read before being built.** Presets exist
+⚠️ **The shipped prompt absorbs most of this, and should be looked at first.** Presets exist
 because "nobody should configure a chain by typing offsets" — and the prompt is a better answer to
 that same problem, because it asks at the moment the answer is obvious rather than building a mode
 to be configured in advance. What survives is the *question*, which is a strong candidate for a
@@ -409,9 +286,9 @@ them?** — picks a rule set:
   priorities land. The one-method case is not special-cased; it is the same rule with one button.
 - **The cascade's editing UI.** Four levels × N actions × per-person is a large settings surface
   and the owner wants it designed against the stronger onboarding flow, which is later work.
-  Nothing above depends on it: increments 3–5 need no *cascade* settings screen. Increment 3 needs
-  the prompt itself and the existing per-milestone schedule editor, and neither is this.
-- **The holiday prompt.** Increment 3's per-bearer shape is right for milestones and wrong for
+  Nothing above depends on it: increments 4–6 need no *cascade* settings screen, and the shipped
+  prompt needs only itself and the existing per-milestone schedule editor.
+- **The holiday prompt.** The shipped per-bearer shape is right for milestones and wrong for
   holidays, where one occasion spans everyone: Christmas wants a single prompt listing people, not
   one per observance. It writes the same rules through the same path, so it is a presentation to
   add later, not a mechanism to design now — but ⚠️ **do not ship per-observance prompts in the
@@ -420,7 +297,7 @@ them?** — picks a rule set:
 - **Batching prompts.** Three birthdays landing in the same fortnight are three separate `plan`
   rows today. Answering them together is a natural later move, and shares its shape with the
   holiday prompt above — which is a reason to do them together rather than either one twice.
-- **The offer-set differ** that re-asks when a new action becomes available (decision 9).
-  Increment 3 records what was offered; nothing yet compares it.
+- **The offer-set differ** that re-asks when a new action becomes available (decision 9). The
+  answer already records what was offered; nothing yet compares it.
 - **Per-action grace periods**, **snooze for user reminders** (the open question flagged in
   `partitionReminders`' doc-comment), and **user-defined milestone kinds**.

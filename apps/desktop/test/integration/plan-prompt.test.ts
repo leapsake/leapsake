@@ -91,6 +91,13 @@ describe("the plan prompt, end to end through core", () => {
     const [target] = await core.reminders.planTargets();
     expect(target.milestoneId).toBe(milestone.id);
     expect(target.milestoneKind).toBe("birthday");
+    expect(target.subject).toBe("Alice Ng");
+    // ⚠️ The occasion, **not** the prompt's own due date. The row renders its
+    // distance from `dueDate` — six weeks earlier — so the screen that asks the
+    // question needs this to say when the birthday actually is.
+    expect(
+      daysUntil(todayCivil(), civilFromDueMs(target.occurrenceDate!)),
+    ).toBe(APPEARS_DAYS);
     // The kind's own offers, `enabled` carrying which arrive pre-ticked: the
     // wish alone, exactly what ships today.
     expect(target.offers.map((o) => o.action)).toEqual([

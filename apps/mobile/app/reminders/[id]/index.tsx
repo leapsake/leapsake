@@ -13,6 +13,7 @@ import {
   formatDueIn,
   isReminderEditable,
   isoFromDueMs,
+  kindDefs,
   reminderLabel,
 } from "@leapsake/schema";
 import { reminderActionsOf } from "@leapsake/view-models";
@@ -277,6 +278,21 @@ export default function ReminderDetailScreen() {
           making the answer cheap. "Just the day" is among the offers below; it
           is the answer most people give, so it costs one tap and no scrolling
           past the list. */}
+      {/* ⚠️ The "Due" above is the prompt's own deadline, six weeks before the
+          occasion — the same convention every reminder row uses. So the
+          occasion's real date is said here rather than left to be inferred from
+          a countdown that is about something else. */}
+      {planTarget?.occurrenceDate != null && (
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>
+            {kindDefs[planTarget.milestoneKind].label}
+          </Text>
+          <Text style={styles.fieldValue}>
+            {isoFromDueMs(planTarget.occurrenceDate)} (
+            {formatDueIn(planTarget.occurrenceDate)})
+          </Text>
+        </View>
+      )}
       {planTarget !== undefined && (
         <View style={styles.field}>
           <ReminderPromptFields

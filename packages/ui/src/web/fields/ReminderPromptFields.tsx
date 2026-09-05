@@ -35,8 +35,10 @@ export function ReminderPromptFields({
     );
 
   return (
-    <fieldset>
-      <legend>{m.reminderPrompt.legend}</legend>
+    // Labelled, not captioned: the surface that renders this already asks the
+    // question as its heading — the prompt screen on desktop, the reminder's own
+    // title on mobile — so a visible legend would say the same sentence twice.
+    <fieldset aria-label={m.reminderPrompt.legend}>
       <ul>
         {value.map((rule, i) => {
           const def = actionDefs[rule.action];

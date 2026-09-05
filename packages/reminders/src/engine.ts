@@ -293,6 +293,16 @@ export interface SystemReminderTarget {
    * encodes it but is a one-way hash, so it has to travel.
    */
   milestone?: { id: string; kind: MilestoneKind };
+  /**
+   * The day this row counts down to, as a stored due-date epoch — the occasion
+   * itself, not the row's own deadline.
+   *
+   * A prompt is the case that needs it. Every row renders its trailing distance
+   * from `dueDate`, which for a prompt is *decide by*, six weeks before the
+   * birthday — so the screen that asks the question has to be able to say when
+   * the occasion actually is, or "in 2 weeks" reads as the birthday.
+   */
+  occurrenceDate?: number | null;
 }
 
 /** The identity string a milestone occurrence + rule is content-addressed under,
@@ -783,7 +793,9 @@ export async function listSystemReminderTargets(
 ): Promise<SystemReminderTarget[]> {
   const desired = await computeDesired(deps, ownActiveDays);
   return [...desired.values()].flatMap((row) =>
-    row.target === undefined ? [] : [{ id: row.id, ...row.target }],
+    row.target === undefined
+      ? []
+      : [{ id: row.id, occurrenceDate: row.occurrenceDate, ...row.target }],
   );
 }
 

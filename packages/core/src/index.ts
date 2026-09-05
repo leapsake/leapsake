@@ -305,6 +305,20 @@ export interface PlanReminderTarget {
   /** The person or pet the occasion belongs to, for the prompt's own heading. */
   bearerType: GiftPartyType;
   bearerId: string;
+  /** That bearer's display label, so the screen can name who it is asking about. */
+  subject: string;
+  /**
+   * The occasion itself, as a stored due-date epoch.
+   *
+   * ⚠️ Not the same as the reminder's `dueDate`, and the difference is the whole
+   * reason this is here. Every row renders its trailing distance from `dueDate`,
+   * which for a prompt is *decide by* — six weeks before the birthday. On the
+   * row that reads correctly, in the same convention every other reminder uses.
+   * On the screen that asks the question there is room to say when the occasion
+   * actually is, and saying it is what stops "in 2 weeks" being read as the
+   * birthday.
+   */
+  occurrenceDate: number | null;
   /** Every action offered, `enabled` carrying which arrive pre-ticked. */
   offers: ReminderRuleInput[];
 }
@@ -1575,19 +1589,23 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       // same answer the resolver would give, reached without a second read.
       planTargets: async (): Promise<PlanReminderTarget[]> => {
         const targets = await listSystemReminderTargets(systemReminderDeps());
-        return targets.flatMap((t) =>
-          t.action !== "plan" || t.milestone === undefined
-            ? []
-            : [
-                {
-                  reminderId: t.id,
-                  milestoneId: t.milestone.id,
-                  milestoneKind: t.milestone.kind,
-                  bearerType: t.bearerType,
-                  bearerId: t.bearerId,
-                  offers: resolveReminderSchedule(t.milestone.kind, []).rules,
-                },
-              ],
+        const prompts = targets.filter(
+          (t) => t.action === "plan" && t.milestone !== undefined,
+        );
+        // One label lookup per outstanding prompt. There are only ever a handful
+        // — a prompt stands for eight weeks per occasion, once — so this stays
+        // cheap even though the lookup may be an encrypted read.
+        return Promise.all(
+          prompts.map(async (t) => ({
+            reminderId: t.id,
+            milestoneId: t.milestone!.id,
+            milestoneKind: t.milestone!.kind,
+            bearerType: t.bearerType,
+            bearerId: t.bearerId,
+            subject: (await resolveLabel(t.bearerType, t.bearerId)) ?? "",
+            occurrenceDate: t.occurrenceDate ?? null,
+            offers: resolveReminderSchedule(t.milestone!.kind, []).rules,
+          })),
         );
       },
     },

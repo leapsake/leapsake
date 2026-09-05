@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { Form, Link, useLoaderData } from "react-router-dom";
 import type { PlanReminderTarget } from "@leapsake/core";
-import type { ReminderRuleInput } from "@leapsake/schema";
+import {
+  type ReminderRuleInput,
+  formatDueIn,
+  isoFromDueMs,
+  kindDefs,
+} from "@leapsake/schema";
 import { ReminderPromptFields } from "@leapsake/ui/web";
 
 /**
@@ -21,9 +26,25 @@ export function MilestonePlanPrompt() {
   const { target } = useLoaderData() as { target: PlanReminderTarget };
   const [schedule, setSchedule] = useState<ReminderRuleInput[]>(target.offers);
 
+  const occasion =
+    kindDefs[target.milestoneKind].prompt?.occasion ??
+    kindDefs[target.milestoneKind].label.toLowerCase();
+
   return (
     <main>
-      <h1>How do you want to mark it?</h1>
+      <h1>
+        How do you want to mark {target.subject}&rsquo;s {occasion}?
+      </h1>
+      {/* ⚠️ The row this came from shows the distance to the prompt&rsquo;s own
+          deadline — the same convention every reminder row uses, and six weeks
+          earlier than the occasion. So the occasion&rsquo;s real date is said
+          here, where there is room, rather than left to be inferred. */}
+      {target.occurrenceDate !== null && (
+        <p>
+          Their {occasion} is on {isoFromDueMs(target.occurrenceDate)} (
+          {formatDueIn(target.occurrenceDate)}).
+        </p>
+      )}
       <Form method="post">
         <ReminderPromptFields value={schedule} onChange={setSchedule} />
         <input

@@ -20,6 +20,8 @@ scoped. The composition root wires the repos.
 | Why a not-yet-active reminder can still be ticked | `materializeReminder` in `src/engine.ts` |
 | The onboarding nudge definitions and their copy | `ONBOARDING_STEPS` in `src/engine.ts` |
 | How snooze budgets are read | `snoozePolicyOf`, beside `ONBOARDING_STEPS` |
+| Why an unconfigured occasion gets a question instead of errands | the `plan` synthesis in `computeDesired`, and *The prompt* below |
+| When that question is asked | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers |
 | Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps` |
 
 ## Windows — the product design behind them
@@ -128,6 +130,101 @@ tombstone, which is never resurrected. That is the intended reading, and it is p
 `BELATED_DAYS` is one dial for every action. A missed phone call is arguably stale sooner than a
 missed gift, and per-action belated windows are a plausible refinement — deliberately not built
 before there is evidence about which actions want what.
+
+## The prompt — the product design behind it
+
+The mechanics are on the `plan` synthesis in `computeDesired` and on `actionDefs.plan`. This is the
+reasoning.
+
+### The engine cannot know, so it must not guess
+
+Windows made the noise quieter. Underneath them sat a second cause no window reaches: the engine has
+to decide what to remind you about **before you have decided anything**, so it guesses — and a guess
+that is right for some people is noise for the rest. You do not know in October which of forty
+people you will post a card to in November; the engine certainly does not. Every speculative row it
+mints is a row you have to learn to ignore, and a list you have learned to ignore is broken however
+well it is bucketed.
+
+So an occasion with no rules of its own mints exactly one reminder, and that reminder is a
+**question**. Answering it writes ordinary `reminder_rules`, and the engine takes it from there.
+
+The point is *when* it asks. Configuring forty people up front is work nobody will do, and it
+demands a judgement — is Alice a card person? — at the one moment you have no context for it. Asked
+eight weeks out, with the occasion named, it is a five-second decision you are equipped to make.
+
+### A question costs more than a row, so answering has to be cheap
+
+⚠️ **This is the design's real risk, and a build constraint rather than a nicety.** Trading several
+passive rows for one row that demands a decision only wins if the prompt is **cheaper to answer than
+the old rows were to ignore** — and ignoring a row is free. A prompt you must open a screen to
+answer, forty times a year, is the first-run wizard this package already rejected, wearing a better
+hat.
+
+Hence the one-tap *just the day*: the answer most people give most of the time, so it is a button on
+the row rather than a control on a form. It writes the same full offer set the form does.
+
+### Nothing about the timing is chosen
+
+```
+plan.offsetDays = max(offsetDays + activeDays) over the offered set   ← promptOffsetDays
+plan.activeDays = 14                                                  ← actionDefs.plan
+```
+
+Due at the furthest reach of anything it offers, so ticking the gift still leaves the gift its full
+thirty days rather than handing it back already past due. Ship a longer-lead action later and every
+prompt slides earlier by itself, with no second constant to keep in step. ⚠️ If eight weeks turns
+out to feel too early, **the dial to turn is `gift`'s `activeDays`, not the prompt's** — that is
+where the pressure actually comes from, and where the arithmetic reads it.
+
+### Answered, unanswered, and answered-with-nothing
+
+- **Unanswered is not silence.** An ignored prompt leaves the occasion riding its kind defaults,
+  which is `wish` day-of. You never lose the birthday, and that guarantee is what makes the question
+  safe to ignore.
+- **An ignored prompt stays answerable.** The window closes on the *occurrence*, not on the
+  prompt's own deadline, so it survives as past due right up to the day. A late answer works; the
+  chosen actions simply materialise with compressed windows, which is honest.
+- ⚠️ **Ticking nothing must be distinguishable from never being asked**, or the question returns
+  every year. So an answer writes the **full offer set**, `enabled: false` rows included, and
+  rows-existing is the "answered" marker. No new column — and it doubles as the record of *what was
+  offered*, which a future offer-set differ will need.
+
+### An unanswered question must never become a wall
+
+An ignored prompt is alive from its due date to the occurrence — six weeks in *past due*, and
+therefore six weeks in `owed`. Left there it would make the day unfinishable, for every person you
+have. *A nudge, never a wall* binds here as hard as anywhere, so the prompt takes the escape the
+onboarding nudges take: two *not now*s, then *don't ask again*, on the same floor of two and for the
+same reason recorded below.
+
+⚠️ Its snooze is **clamped to its own due date while that is still ahead**. The deadline is a real
+one — the last day on which ticking "get a gift" still leaves the gift its run-up — so a plain
+week's *not now* offered just before it would silently forfeit the long-lead options. Past it there
+is nothing left to protect, and all that matters is keeping the question answerable, so it snoozes
+the full period.
+
+### ⚠️ The mechanism generalises to holidays; the shape does not
+
+A milestone is one person, so one prompt is one decision. A holiday is one occasion across everyone
+— per-observance prompts would mean forty questions in November, which is the disease this
+workstream exists to cure rather than the cure. Christmas wants a **single** prompt listing people
+("who are you sending cards to?"), writing the same observance-bearer rules through the same path.
+Same writes, different presentation. **Do not ship per-observance prompts in the meantime.**
+
+### Known limitations
+
+- **Deleting an occasion's rules does not restore the prompt within the same year.** Answering
+  retires the row by soft delete, `reconcile` never resurrects a tombstone, and the id is keyed on
+  the occurrence year. Undoing that needs a runtime hard delete, which no repo has and which a
+  peer's tombstone would re-pull on the next sync. The prompt returns next year.
+- **A row's trailing countdown is its own deadline, not the occasion** — the same convention every
+  reminder row uses, and six weeks earlier than the birthday. The surfaces that ask the question say
+  when the occasion actually is; the row does not, so a reader could take "in 2 weeks" for the
+  birthday. Worth watching in real use.
+- **Only birthdays, weddings and anniversaries prompt.** `death` must not — a checkbox list of ways
+  to recognise a death anniversary is exactly the wrong object, and its single quiet `remember` is
+  already right. The same reasoning excludes any kind offering one action: a question with one
+  answer is not a question. Adding a kind is one `kindDefs` line.
 
 ## The onboarding nudges — the product design behind them
 
