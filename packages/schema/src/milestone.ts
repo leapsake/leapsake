@@ -127,6 +127,27 @@ export interface MilestoneKindDef {
    */
   belatedGreeting?: string;
   /**
+   * The title a **`wish` about your own occasion** takes, in place of the
+   * third-person template — "🎂 It's your birthday!" rather than "Wish @You a
+   * happy birthday". Carries its own icon, because it replaces the whole title
+   * rather than being interpolated into one (the reminders engine's
+   * `renderTitle`), and its own belated form for the days a row lingers after
+   * the occasion.
+   *
+   * ⚠️ **Written out per kind rather than derived, for the same reason
+   * {@link MilestoneKindDef.belatedGreeting} is.** There is no rule that turns a
+   * kind's name into this sentence: a `job-start` is "your **work**
+   * anniversary", a `first-date` is just "your anniversary", and a `graduation`
+   * needs the word spelled out. Splicing {@link MilestoneKindDef.label} into a
+   * template would produce "It's your started a job!".
+   *
+   * **Optional, and absent means the ordinary copy stands.** `met` has none
+   * deliberately — it records the day you met *someone else*, so a `met` borne by
+   * you is not a thing to word — and neither do the kinds whose schedule offers
+   * no `wish` at all (`death`, `moved`, `other`).
+   */
+  selfWish?: { plain: string; belated: string };
+  /**
    * Whether an *unconfigured* occasion of this kind asks the user how they want
    * to mark it, and — when it does — the bare noun that question names it by
    * ("How do you want to mark @Alice's **birthday**?").
@@ -162,6 +183,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     recursAnnually: true,
     greeting: "a happy birthday",
     belatedGreeting: "a happy belated birthday",
+    selfWish: {
+      plain: "🎂 It's your birthday!",
+      belated: "🎂 It was your birthday!",
+    },
     prompt: { occasion: "birthday" },
     // "Wish them a happy birthday" day-of is the one reminder on by default
     // anywhere; the staggered gift, card and message actions are offered but
@@ -205,7 +230,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
     greeting: "a happy anniversary",
-    belatedGreeting: "a happy belated anniversary",
+    selfWish: {
+      plain: "\u{1F49E} It's your anniversary!",
+      belated: "\u{1F49E} It was your anniversary",
+    },
     // It prompts, and — alone among the kinds that do — only for a relationship
     // **the user is in** *(owner, 2026-09-05)*.
     //
@@ -231,7 +259,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
     greeting: "a happy anniversary",
-    belatedGreeting: "a happy belated anniversary",
+    selfWish: {
+      plain: "\u{1F48D} It's your wedding anniversary!",
+      belated: "\u{1F48D} It was your wedding anniversary",
+    },
     // Named "wedding anniversary", not "wedding": the milestone records the day
     // they married, but the occasion the prompt is asking about is its return.
     prompt: { occasion: "wedding anniversary" },
@@ -254,6 +285,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     recursAnnually: true,
     greeting: "a happy anniversary",
     belatedGreeting: "a happy belated anniversary",
+    selfWish: {
+      plain: "\u{1F389} It's your anniversary!",
+      belated: "\u{1F389} It was your anniversary",
+    },
     prompt: { occasion: "anniversary" },
     // A card and an acknowledgment, both offered and both off — the source card
     // says a date matters to this person, not what the user wants done about it.
@@ -265,6 +300,8 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
   met: {
     label: "Met",
     icon: "🤝",
+    // No `selfWish`: a `met` records the day you met *someone else*, so one
+    // borne by you is not an occasion there is anything to say about.
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
     greeting: "a happy anniversary",
@@ -280,6 +317,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     recursAnnually: false,
     greeting: "congratulations",
     belatedGreeting: "belated congratulations",
+    selfWish: {
+      plain: "\u{1F393} It's your graduation!",
+      belated: "\u{1F393} Congratulations on graduating!",
+    },
     defaultReminderSchedule: [
       { action: "get:gift", offsetDays: 14, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: false },
@@ -292,6 +333,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     recursAnnually: false,
     greeting: "congratulations",
     belatedGreeting: "belated congratulations",
+    selfWish: {
+      plain: "\u{1F4BC} It's your first day!",
+      belated: "\u{1F4BC} Congratulations on the new job!",
+    },
     defaultReminderSchedule: [
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],

@@ -410,11 +410,12 @@ function selfOverrideOf(
   kind: MilestoneKind,
 ): { plain: string; belated: string } | null {
   if (!isSelf) return null;
-  if (verbOf(action) === "wish" && kind === "birthday")
-    return {
-      plain: "🎂 It's your birthday!",
-      belated: "🎂 It was your birthday!",
-    };
+  // Read from the registry rather than branched on here: which kinds have a
+  // self-directed wish, and how each is worded, is a per-kind fact with no rule
+  // behind it (`selfWish` in `@leapsake/schema`). This used to be a hardcoded
+  // `kind === "birthday"`, which left every other self-borne occasion telling
+  // you to wish *yourself* a happy anniversary.
+  if (verbOf(action) === "wish") return kindDefs[kind].selfWish ?? null;
   if (verbOf(action) === "plan") {
     const title =
       `${actionDefOf(action).icon ?? ""} How do you want to mark your own ${

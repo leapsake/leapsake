@@ -219,6 +219,38 @@ describe("regenerateSystemReminders", () => {
     expect(reminder.dueDate).toBe(dueDateMs(daysOut(0)));
   });
 
+  // The bug the registry lookup fixed: only `birthday` had a self-directed
+  // wish, so every other occasion of your own told you to wish *yourself* one —
+  // "🎉 Wish @You a happy anniversary", with a link to your own page.
+  it("renders your own anniversary self-directed too, not only your birthday", async () => {
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
+    h.setSelf("p1");
+    h.setMilestones([
+      { ...birthday("m1", "p1", daysOut(0)), kind: "wedding" as const },
+    ]);
+
+    await regenerateSystemReminders(h.deps);
+
+    const [reminder] = h.activeSystem();
+    expect(reminder.title).toBe("💍 It's your wedding anniversary!");
+    expect(reminder.title).not.toContain("@[");
+  });
+
+  // A kind with no `selfWish` keeps the ordinary copy rather than being handed a
+  // spliced one — `met` records the day you met someone else, so a `met` of your
+  // own is not an occasion there is anything to say about.
+  it("leaves a kind with no self wording on its ordinary copy", async () => {
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
+    h.setSelf("p1");
+    h.setMilestones([
+      { ...birthday("m1", "p1", daysOut(0)), kind: "met" as const },
+    ]);
+
+    await regenerateSystemReminders(h.deps);
+
+    expect(h.activeSystem()[0].title).toContain("@[");
+  });
+
   it("leaves a non-self birthday's wish unchanged when a self-person is set", async () => {
     h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.setSelf("p2"); // someone else is you
