@@ -73,11 +73,29 @@ kind-level rule interacts with the prompt — and it is parked in Increment 6, w
    wearing a better hat. Staleness has two escapes instead: the milestone's own settings screen,
    and an automatic re-ask when the **offer set changes** — see Increment 3.
 
+⚠️ **Action names below are the post-split `verb:qualifier` ones from Increment 4**, written that
+way because they read better. The shipped registry is still flat, so until that increment lands:
+
+| written as | shipped today | numbers |
+|---|---|---|
+| `get:gift` | `gift` ("Get a gift") | `offset 12, active 30` |
+| `send:card` | `card` ("Send a card") | `offset 7, active 14` |
+| `get:card` | — | arrives with the split, at `get:gift`'s numbers |
+
+The buying half of a card does not exist yet, and that is deliberate: today's single `card` action
+is the *sending* one by its own label, so it keeps the shorter run-up until there is a separate
+errand to give the longer one to *(owner, 2026-09-04)*.
+
 **Existing data is disposable** *(owner, 2026-09-02)* — pre-release, no real users. Where an
-increment changes reminder identity, drop `source = 'system'` rows outright rather than migrating.
-This matters more than it looks: system reminder ids are keyed on the occurrence **year**, and
-`reconcile` never resurrects a tombstone (`engine.ts`, the resurrection guard), so a pruned row
-would otherwise stay dead for the rest of the year. Sweep the table, don't reason about it.
+increment changes what the engine wants — a changed reminder identity, but equally a **narrowed
+window** — drop `source = 'system'` rows outright rather than reasoning about them.
+
+This matters more than it looks. `reconcile` retires a row it no longer wants by **soft-deleting**
+it, and never resurrects a tombstone (`engine.ts`, the resurrection guard); ids are keyed on the
+occurrence **year**, so a row pruned by an upgrade stays dead for the rest of the year — costing
+the user a birthday on the very morning it mattered. Migration 34 is the precedent and the shape to
+copy: a plain `DELETE FROM reminders WHERE source = 'system'`, tombstones included, after which the
+deterministic ids re-mint everything still wanted. Sweep the table, don't reason about it.
 
 ---
 
@@ -116,7 +134,9 @@ owner wants both readings available; which one the UI celebrates is a design cal
   own comment explains why a parallel implementation would silently drift.
 - It must return each row's **activation date** (`activeFrom`, epoch ms) alongside the row, since
   the client buckets *coming* items by when they will land and cannot derive that from a bare
-  `Reminder` — the action is not a column.
+  `Reminder` — the action is not a column. The engine can: it is
+  `dueDate − actionDefs[action].activeDays`, known at the point the desired row is built and thrown
+  away immediately afterwards. Carry it on `DesiredReminder` rather than recomputing it anywhere.
 - **Do not gate the checkbox on activity.** Everything can be done early; the active window exists
   only to decide when the app *prompts* you. Ticking a not-yet-materialized row has to create the
   real row at that moment.
@@ -173,10 +193,10 @@ plan.offsetDays = max(offsetDays + activeDays) over the offered set
 plan.activeDays = PLAN_LEAD_DAYS
 ```
 
-With the shipped numbers the maximum is `get:card`/`get:gift` at `12 + 30 = 42`, so the prompt is
-**due 42 days out** and, at `PLAN_LEAD_DAYS = 14`, **appears 56 days out**. Copy renders the real
-distance (`formatDueIn` already does this) — do not write "next month" into a template; the number
-moves.
+With the shipped numbers the widest is `get:gift` at `12 + 30 = 42`, so the prompt is **due 42 days
+out** and, at `PLAN_LEAD_DAYS = 14`, **appears 56 days out**. Increment 4's `get:card` lands on the
+same pair, so the split does not move it. Copy renders the real distance (`formatDueIn` already
+does this) — do not write "next month" into a template; the number moves.
 
 Deriving it is the whole point of extensibility. Ship a commissioned-gift action at `activeDays 60`
 and every prompt slides earlier by itself, with no second constant to remember. And ⚠️ **if eight
