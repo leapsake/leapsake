@@ -48,6 +48,9 @@ const OFFER_LABELS = {
   // The partnership question. Worded as the answer, not the question again: the
   // row already asked, and the button is what answers it.
   addDate: "Add the date ›",
+  // An unbound wedding. Worded as the offer, not as a reproach for an incomplete
+  // record — the reminder works perfectly well without it.
+  linkPartner: "Add who it's with ›",
   // No "›": the prompt is answered **on this screen**, not somewhere else. It is
   // the one CTA that navigates nowhere, which is why `RowOffer` needed a fourth
   // kind rather than a fourth path.
@@ -161,6 +164,19 @@ function ctaOffer(cta: ReminderCta): RowOffer {
         kind: "navigate",
         path: `/relationships/${cta.relationshipId}/milestones/new?kind=${cta.milestoneKind}`,
         label: OFFER_LABELS.addDate,
+      };
+    // ⚠️ **A different destination from desktop's, deliberately.** Desktop sends
+    // the user to the rebind screen, which re-points the milestone onto the
+    // relationship; this client has no "with whom?" step to rebind *through*, so
+    // it goes to the relationship form instead. Recording the spouse is the part
+    // that matters — the reminder already works, and a milestone left on the
+    // person keeps working. Rebinding is tidying, and it can wait for the screen
+    // that does it.
+    case "link-partner":
+      return {
+        kind: "navigate",
+        path: `/people/${cta.personId}/relationships/new`,
+        label: OFFER_LABELS.linkPartner,
       };
   }
 }

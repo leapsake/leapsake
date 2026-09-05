@@ -322,6 +322,25 @@ export interface SystemReminderTargets {
   plans: PlanReminderTarget[];
   contacts: ContactReminderTarget[];
   partnerships: PartnershipReminderTarget[];
+  linkPartners: LinkPartnerReminderTarget[];
+}
+
+/**
+ * A wedding reminder with nobody on the other side of the wedding.
+ *
+ * The dual of {@link PartnershipReminderTarget}: that one knows the couple and
+ * wants the date, this one knows the date and wants the couple. Both exist
+ * because a wedding can be recorded from one person's page before its other
+ * party is in the app at all — the create form offers "unknown" for exactly that.
+ *
+ * ⚠️ Costs no row of its own. It is an affordance on a reminder that already
+ * exists, like the contact-collection CTA, which is why it is not weighed against
+ * the compounding rule in `@leapsake/reminders` → *Collecting what is missing*.
+ */
+export interface LinkPartnerReminderTarget {
+  reminderId: string;
+  milestoneId: string;
+  personId: string;
 }
 
 /**
@@ -1985,7 +2004,22 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           partnerId: p.partnerId,
         }));
 
-        return { gifts, plans, contacts, partnerships };
+        // Weddings stored on a person with their other party unknown. No query:
+        // a wedding whose bearer is a person *is* unbound, since its preferred
+        // bearer is the relationship and "unknown" is the only way it gets here.
+        const linkPartners: LinkPartnerReminderTarget[] = targets.flatMap((t) =>
+          t.milestone?.kind === "wedding" && t.bearerType === "person"
+            ? [
+                {
+                  reminderId: t.id,
+                  milestoneId: t.milestone.id,
+                  personId: t.bearerId,
+                },
+              ]
+            : [],
+        );
+
+        return { gifts, plans, contacts, partnerships, linkPartners };
       },
     },
 

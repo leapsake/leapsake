@@ -287,6 +287,21 @@ export interface PartnershipReminderSubject {
   partnerId: string;
 }
 
+/**
+ * An unbound wedding's subject: the milestone with nobody on the other side of
+ * it, and the person it is currently stored on.
+ *
+ * ⚠️ **Weddings only, and that is not an oversight.** A wedding is the one
+ * occasion between two people that can be recorded knowing only one of them —
+ * the create form offers "unknown" for it and for nothing else. A `first-date` or
+ * a `met` stored on a person *is* about that person, so asking who it is with
+ * would be asking a question whose answer is in the row.
+ */
+export interface LinkPartnerReminderSubject {
+  milestoneId: string;
+  personId: string;
+}
+
 export type ReminderCta =
   | { kind: "onboarding"; route: OnboardingRoute }
   | { kind: "duplicates" }
@@ -296,7 +311,8 @@ export type ReminderCta =
       action: "see-gifts" | "record-giving";
     } & GiftReminderSubject)
   | { kind: "contact"; personId: string }
-  | ({ kind: "partnership" } & PartnershipReminderSubject);
+  | ({ kind: "partnership" } & PartnershipReminderSubject)
+  | ({ kind: "link-partner" } & LinkPartnerReminderSubject);
 
 /**
  * The call to action a reminder row offers, or `null` for the ordinary reminders
@@ -353,6 +369,9 @@ export function reminderCtaOf(
     /** Set when this row is a partnership question — see
      *  {@link PartnershipReminderSubject}. */
     partnershipTarget?: PartnershipReminderSubject;
+    /** Set when this row is about a wedding with nobody on the other side of it
+     *  — see {@link LinkPartnerReminderSubject}. */
+    linkPartnerTarget?: LinkPartnerReminderSubject;
   } = {},
 ): ReminderCta | null {
   const onboardingRoute = onboardingRouteOf(reminder.id);
@@ -371,6 +390,11 @@ export function reminderCtaOf(
   }
   if (context.partnershipTarget !== undefined)
     return { kind: "partnership", ...context.partnershipTarget };
+  // Ahead of `contact` below: who your anniversary is *with* is closer to the
+  // point of the row than how to reach them, and on a wedding of your own the
+  // contact CTA would be offering you a way to reach yourself.
+  if (context.linkPartnerTarget !== undefined)
+    return { kind: "link-partner", ...context.linkPartnerTarget };
   // Last, and only for the unreachable case: a person you *can* reach needs no
   // call to action, because the client is rendering their methods as buttons.
   if (context.contactTarget !== undefined && !context.contactTarget.hasMethods)
@@ -459,6 +483,8 @@ export function reminderActionsOf(
     contactTarget?: ContactReminderSubject;
     /** Set when this row is a partnership question — see {@link reminderCtaOf}. */
     partnershipTarget?: PartnershipReminderSubject;
+    /** Set when this row is about an unbound wedding — see {@link reminderCtaOf}. */
+    linkPartnerTarget?: LinkPartnerReminderSubject;
   } = {},
   now: number = Date.now(),
 ): ReminderRowAction[] {

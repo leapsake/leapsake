@@ -24,6 +24,7 @@ export {
 } from "./reminders.js";
 export type {
   ContactReminderSubject,
+  LinkPartnerReminderSubject,
   PartnershipReminderSubject,
   GiftReminderSubject,
   PlanReminderSubject,

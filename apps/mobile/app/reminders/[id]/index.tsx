@@ -158,6 +158,9 @@ export default function ReminderDetailScreen() {
     // have a partner and not the date. Its CTA opens the milestone form already
     // on the right kind.
     partnershipTarget: targets.partnerships.find((t) => t.reminderId === id),
+    // A wedding whose other party was left unknown — the dual question: this one
+    // knows the date and wants the couple.
+    linkPartnerTarget: targets.linkPartners.find((t) => t.reminderId === id),
     contactTarget:
       contactTarget === undefined
         ? undefined

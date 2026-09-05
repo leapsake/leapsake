@@ -1,6 +1,7 @@
 import type {
   ContactReminderTarget,
   GiftReminderTarget,
+  LinkPartnerReminderTarget,
   PartnershipReminderTarget,
   PlanReminderTarget,
   ReminderInWindow,
@@ -53,6 +54,7 @@ function ReminderRow({
   planTarget,
   contactTarget,
   partnershipTarget,
+  linkPartnerTarget,
   isDuplicatesNudge = false,
 }: {
   reminder: ReminderInWindow;
@@ -73,6 +75,9 @@ function ReminderRow({
   /** Set when this row is a partnership question — "when is your anniversary?"
    *  — whose CTA opens the milestone form on the kind it asked about. */
   partnershipTarget?: PartnershipReminderTarget;
+  /** Set when this row is about a wedding whose other party is unknown, whose
+   *  CTA opens the rebind flow. */
+  linkPartnerTarget?: LinkPartnerReminderTarget;
   /** Set when this row is the duplicates nudge, whose CTA opens the review. */
   isDuplicatesNudge?: boolean;
 }) {
@@ -92,6 +97,7 @@ function ReminderRow({
     isDuplicatesNudge,
     planTarget,
     partnershipTarget,
+    linkPartnerTarget,
     contactTarget:
       contactTarget === undefined
         ? undefined
@@ -214,6 +220,9 @@ export function ReminderList() {
   const partnershipTargetById = new Map(
     targets.partnerships.map((t) => [t.reminderId, t]),
   );
+  const linkPartnerTargetById = new Map(
+    targets.linkPartners.map((t) => [t.reminderId, t]),
+  );
   const { pastDue, belated, today, available, coming, done, owed, actionable } =
     bucketReminders(reminders);
 
@@ -225,6 +234,7 @@ export function ReminderList() {
       planTarget={planTargetById.get(reminder.id)}
       contactTarget={contactTargetById.get(reminder.id)}
       partnershipTarget={partnershipTargetById.get(reminder.id)}
+      linkPartnerTarget={linkPartnerTargetById.get(reminder.id)}
       isDuplicatesNudge={withNudgeCta && reminder.id === duplicatesNudgeId}
     />
   );

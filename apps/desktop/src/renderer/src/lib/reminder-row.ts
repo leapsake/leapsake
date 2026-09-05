@@ -83,6 +83,15 @@ export function ctaLinkFor(cta: ReminderCta): { path: string; label: string } {
         path: `/relationships/${cta.relationshipId}/milestones/new?kind=${cta.milestoneKind}`,
         label: "Add the date →",
       };
+    // A wedding whose other party was left unknown. Straight to the rebind
+    // screen, which is the flow written for exactly this and which both binds an
+    // existing relationship and creates a missing one. Mobile has no rebind
+    // screen and so goes somewhere else — see its `ctaOffer`.
+    case "link-partner":
+      return {
+        path: `/people/${cta.personId}/milestones/${cta.milestoneId}/rebind`,
+        label: "Add who it's with →",
+      };
   }
 }
 

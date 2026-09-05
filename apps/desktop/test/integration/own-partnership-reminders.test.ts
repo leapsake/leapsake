@@ -336,3 +336,78 @@ describe("the partnership question, against real repositories", () => {
     expect(ids).toContain(partnerships[0].reminderId);
   });
 });
+
+describe("a wedding with nobody on the other side of it", () => {
+  // The user's own case: an anniversary recorded before the spouse is in the app
+  // at all. It reminds — that was never in question — and now it also offers to
+  // collect the half it is missing.
+  it("offers to say who it is with", async () => {
+    const { me } = await twoPeople();
+    const milestone = await core.milestones.create({
+      kind: "wedding",
+      bearerType: "person",
+      bearerId: me.id,
+      year: 2015,
+      month: civilDaysFromToday(45).month,
+      day: civilDaysFromToday(45).day,
+    });
+
+    const { linkPartners } = await core.reminders.targets();
+
+    expect(linkPartners).not.toHaveLength(0);
+    expect(linkPartners[0].milestoneId).toBe(milestone.id);
+    expect(linkPartners[0].personId).toBe(me.id);
+    // And it still reminds, which is the half that must never depend on the
+    // record being complete.
+    expect(await titles()).toContain(
+      "🗓 How do you want to mark your own wedding anniversary?",
+    );
+  });
+
+  // Once it is bound, there is nothing left to ask.
+  it("stops offering once the wedding is bound to a relationship", async () => {
+    const { me, partner } = await twoPeople();
+    const rel = await core.relationships.create({
+      aType: "person",
+      aId: me.id,
+      aRole: "spouse",
+      bType: "person",
+      bId: partner.id,
+      bRole: "spouse",
+    });
+    await core.milestones.create({
+      kind: "wedding",
+      bearerType: "relationship",
+      bearerId: rel.id,
+      year: 2015,
+      month: civilDaysFromToday(45).month,
+      day: civilDaysFromToday(45).day,
+    });
+
+    expect((await core.reminders.targets()).linkPartners).toHaveLength(0);
+  });
+
+  // ⚠️ Weddings only. A first date stored on a person *is* about that person, so
+  // asking who it is with would be asking a question whose answer is the row.
+  it("says nothing about a first date, whose other party is the bearer", async () => {
+    const { me, partner } = await twoPeople();
+    await core.relationships.create({
+      aType: "person",
+      aId: me.id,
+      aRole: "partner",
+      bType: "person",
+      bId: partner.id,
+      bRole: "partner",
+    });
+    await core.milestones.create({
+      kind: "first-date",
+      bearerType: "person",
+      bearerId: partner.id,
+      year: null,
+      month: FIRST_DATE_SOON.month,
+      day: FIRST_DATE_SOON.day,
+    });
+
+    expect((await core.reminders.targets()).linkPartners).toHaveLength(0);
+  });
+});

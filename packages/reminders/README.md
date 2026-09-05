@@ -497,6 +497,27 @@ happened once ("when **was**").
 - **The id carries the kind, not just the relationship.** Dismissing "when was your first date?" is
   a dismissal of *that question*; a couple who later marry are still asked their anniversary.
 
+### The same question from the other side
+
+A wedding can be recorded from one person's page before its other party is in the app at all — the
+create form offers "unknown" for it, and for nothing else. So there are two shapes of the same gap,
+and they are duals: the partnership question knows the couple and wants the date; the unbound
+wedding knows the date and wants the couple, and offers to collect it
+(`linkPartners` in `@leapsake/core`).
+
+⚠️ **Weddings only.** A `first-date` or a `met` stored on a person *is* about that person, so asking
+who it is with would be asking a question whose answer is already the row.
+
+⚠️ **That one costs no row.** It is an affordance on a reminder that already exists — like the
+contact-collection CTA — so it is not weighed against the compounding rule above, which is about
+rows that ask for screen space of their own.
+
+The two clients send the user to different places, deliberately and for a documented reason: desktop
+has a rebind screen that re-points the milestone onto the relationship, and this client does not,
+so it goes to the relationship form instead. Recording the spouse is the part that matters — a
+milestone left on the person keeps working, now that a relationship bearer works too. Rebinding is
+tidying.
+
 ### It has to be escapable
 
 A dateless row is *owed*, and owed rows gate "done for the day" — so a question that could not be
