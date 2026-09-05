@@ -64,7 +64,7 @@ function makeHarness() {
       // every date in this file have to be Christmas.
       resolveSchedule: async (c) =>
         schedules.get(c.observanceId) ?? [
-          { action: "gift", label: null, offsetDays: 0, enabled: true },
+          { action: "get:gift", label: null, offsetDays: 0, enabled: true },
         ],
       resolveLabel: async (_type, id) => labels.get(id) ?? null,
     },
@@ -173,7 +173,7 @@ describe("holiday reminders", () => {
     expect(ids).toContain(
       deterministicUuid(
         SYSTEM_REMINDER_NAMESPACE,
-        "observance:obs-christmas-alice:2026-12-25:gift",
+        "observance:obs-christmas-alice:2026-12-25:get:gift",
       ),
     );
   });
@@ -186,7 +186,7 @@ describe("holiday reminders", () => {
     expect(row.id).not.toBe(
       deterministicUuid(
         SYSTEM_REMINDER_NAMESPACE,
-        "milestone:obs-christmas-alice:2026:gift",
+        "milestone:obs-christmas-alice:2026:get:gift",
       ),
     );
   });
@@ -235,7 +235,7 @@ describe("holiday reminders", () => {
     // gift reminder while Grandma only gets a call.
     h.setCandidates([candidate()]);
     h.setSchedule("obs-christmas-alice", [
-      { action: "gift", label: null, offsetDays: 30, enabled: true },
+      { action: "get:gift", label: null, offsetDays: 30, enabled: true },
       { action: "wish", label: null, offsetDays: 0, enabled: false },
     ]);
     await regenerateSystemReminders(h.deps);

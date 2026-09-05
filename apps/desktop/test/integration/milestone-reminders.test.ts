@@ -49,11 +49,12 @@ describe("core.milestones — reminder schedule", () => {
       "birthday",
     );
     expect(resolved.map((r) => r.action)).toEqual([
-      "gift",
-      "card",
+      "get:gift",
+      "get:card",
+      "send:card",
       "wish",
       "call",
-      "text",
+      "message:sms",
     ]);
     // Only the birthday wish is on by default.
     expect(resolved.filter((r) => r.enabled).map((r) => r.action)).toEqual([
@@ -70,7 +71,7 @@ describe("core.milestones — reminder schedule", () => {
 
   it("persists a submitted schedule atomically with the milestone", async () => {
     const milestone = await birthdayFor([
-      { action: "gift", label: null, offsetDays: 21, enabled: true },
+      { action: "get:gift", label: null, offsetDays: 21, enabled: true },
       { action: "call", label: null, offsetDays: 0, enabled: false },
     ]);
 
@@ -78,14 +79,14 @@ describe("core.milestones — reminder schedule", () => {
       milestone.id,
       "birthday",
     );
-    expect(resolved.map((r) => r.action)).toEqual(["gift", "call"]);
+    expect(resolved.map((r) => r.action)).toEqual(["get:gift", "call"]);
     expect(resolved[0]).toMatchObject({ offsetDays: 21, enabled: true });
     expect(resolved[1]).toMatchObject({ offsetDays: 0, enabled: false });
   });
 
   it("replaces the schedule on update", async () => {
     const milestone = await birthdayFor([
-      { action: "gift", label: null, offsetDays: 21, enabled: true },
+      { action: "get:gift", label: null, offsetDays: 21, enabled: true },
     ]);
     await core.milestones.update(milestone.id, {
       reminderSchedule: [
@@ -112,7 +113,7 @@ describe("core.milestones — reminder schedule", () => {
 
   it("leaves the stored rules untouched when update omits a schedule", async () => {
     const milestone = await birthdayFor([
-      { action: "gift", label: null, offsetDays: 21, enabled: true },
+      { action: "get:gift", label: null, offsetDays: 21, enabled: true },
     ]);
     await core.milestones.update(milestone.id, { note: "First one" });
 
@@ -120,12 +121,12 @@ describe("core.milestones — reminder schedule", () => {
       milestone.id,
       "birthday",
     );
-    expect(resolved.map((r) => r.action)).toEqual(["gift"]);
+    expect(resolved.map((r) => r.action)).toEqual(["get:gift"]);
   });
 
   it("drops the reminder rules when the milestone is deleted", async () => {
     const milestone = await birthdayFor([
-      { action: "gift", label: null, offsetDays: 21, enabled: true },
+      { action: "get:gift", label: null, offsetDays: 21, enabled: true },
     ]);
     await core.milestones.softDelete(milestone.id);
 

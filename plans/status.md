@@ -30,9 +30,10 @@ lists them, and `pnpm release beta --only=ios --dry-run` reports them. ✅ *Open
 — beta may be buggy, stable v0.1 may not lose data, v1.0 not at all.
 
 **Reminder scheduling** — [`reminder-scheduling.md`](./reminder-scheduling.md), off the v0.1
-critical path. ✅ Per-action windows and the **prompt** are in. Left: the `verb:qualifier` split
-— which fixes a live bug, two rules sharing an action collapsing into one reminder — then the
-cascade.
+critical path. ✅ Per-action windows, the **prompt**, and the `verb:qualifier` identity split
+are in — the last of those closing the collapse bug (two rules sharing an action becoming one
+reminder) and adding `get:card` beside `get:gift`. Left: `wish` adapting to contact methods,
+then the four-level cascade.
 
 **Contact methods reach people** — built 2026-08-19. Left: the URL templates are convention,
 not verified — **confirm on real hardware with the apps installed** (no simulator can). ✅

@@ -1567,10 +1567,14 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       // turn that into a link to Alice's gifts and, once done, into a logged
       // giving. Covers both dated families (a birthday's gift rule and a
       // holiday observance's), since both mint the same action.
+      //
+      // ⚠️ `get:gift` exactly, not any `get`. Its sibling `get:card` is a shop
+      // trip on the same clock but it is not a *present*, so it has nothing to
+      // record against the recipient's gift history.
       giftTargets: async (): Promise<GiftReminderTarget[]> => {
         const targets = await listSystemReminderTargets(systemReminderDeps());
         return targets
-          .filter((t) => t.action === "gift")
+          .filter((t) => t.action === "get:gift")
           .map((t) => ({
             reminderId: t.id,
             recipientType: t.bearerType,

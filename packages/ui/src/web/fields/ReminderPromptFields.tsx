@@ -1,4 +1,4 @@
-import { type ReminderRuleInput, actionDefs } from "@leapsake/schema";
+import { type ReminderRuleInput, actionDefOf } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
 
 /**
@@ -12,7 +12,7 @@ import { useMessages } from "../../messages/index.js";
  * the point; the timings are the ones the actions already declare, and the full
  * editor is a link away for the rare user who wants to move one.
  *
- * The labels are `actionDefs[...].label` **verbatim** rather than new copy. That
+ * The labels are `actionDefOf(...).label` **verbatim** rather than new copy. That
  * registry was written as offers — "Send a card", "Give a call" — for the
  * schedule editor, which is the same list asked at a different moment.
  *
@@ -41,7 +41,7 @@ export function ReminderPromptFields({
     <fieldset aria-label={m.reminderPrompt.legend}>
       <ul>
         {value.map((rule, i) => {
-          const def = actionDefs[rule.action];
+          const def = actionDefOf(rule.action);
           return (
             // Positional, like the schedule editor: no stable id until saved.
             <li key={i}>

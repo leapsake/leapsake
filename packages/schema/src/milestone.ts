@@ -1,10 +1,11 @@
 import { z } from "zod";
 import {
-  type ReminderAction,
+  type KnownReminderAction,
   type ReminderRule,
   type ReminderRuleInput,
-  actionDefs,
+  actionDefOf,
   reminderRuleInputSchema,
+  verbOf,
 } from "./reminder-rule.js";
 
 /**
@@ -54,7 +55,13 @@ export type MilestoneKind = z.infer<typeof milestoneKindSchema>;
  * off". A milestone with no stored rules resolves against this list.
  */
 export interface DefaultReminderRule {
-  action: ReminderAction;
+  /**
+   * A **registered** action, not the open {@link ReminderAction} — the point of
+   * authoring against the narrower type is that a typo here (`"gift"` for
+   * `"get:gift"`, say) fails to compile instead of shipping a kind whose
+   * defaults render through {@link actionDefOf}'s generic fallback.
+   */
+  action: KnownReminderAction;
   offsetDays: number;
   enabledByDefault: boolean;
 }
@@ -131,17 +138,24 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     greeting: "a happy birthday",
     prompt: { occasion: "birthday" },
     // "Wish them a happy birthday" day-of is the one reminder on by default
-    // anywhere; the staggered gift/card/call/text are offered but start off, for
-    // the user to opt into.
+    // anywhere; the staggered gift, card and message actions are offered but
+    // start off, for the user to opt into.
     defaultReminderSchedule: [
       // Due a dozen days out, not thirty: a gift is chosen over weeks (which is
-      // what `actionDefs.gift.activeDays` says) but it only has to be *in hand*
-      // with enough slack to wrap and hand over. The old 30 conflated the two.
-      { action: "gift", offsetDays: 12, enabledByDefault: false },
-      { action: "card", offsetDays: 7, enabledByDefault: false },
+      // what `actionDefs["get:gift"].activeDays` says) but it only has to be
+      // *in hand* with enough slack to wrap and hand over. The old 30 conflated
+      // the two.
+      { action: "get:gift", offsetDays: 12, enabledByDefault: false },
+      // Buying the card and posting it are two errands on two clocks, which is
+      // the whole reason the action carries a qualifier: before the split, one
+      // `card` action had to be both and could only have one due date. Both are
+      // due when the card has to be *in hand*; `send:card`'s shorter
+      // `activeDays` is what makes it the later of the two on the list.
+      { action: "get:card", offsetDays: 12, enabledByDefault: false },
+      { action: "send:card", offsetDays: 7, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: true },
       { action: "call", offsetDays: 0, enabledByDefault: false },
-      { action: "text", offsetDays: 0, enabledByDefault: false },
+      { action: "message:sms", offsetDays: 0, enabledByDefault: false },
     ],
   },
   death: {
@@ -163,7 +177,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     recursAnnually: true,
     greeting: "a happy anniversary",
     defaultReminderSchedule: [
-      { action: "card", offsetDays: 7, enabledByDefault: false },
+      { action: "send:card", offsetDays: 7, enabledByDefault: false },
       { action: "call", offsetDays: 0, enabledByDefault: false },
     ],
   },
@@ -177,7 +191,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     // they married, but the occasion the prompt is asking about is its return.
     prompt: { occasion: "wedding anniversary" },
     defaultReminderSchedule: [
-      { action: "gift", offsetDays: 7, enabledByDefault: false },
+      { action: "get:gift", offsetDays: 7, enabledByDefault: false },
       { action: "call", offsetDays: 0, enabledByDefault: false },
     ],
   },
@@ -198,7 +212,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     // A card and a call, both offered and both off — the source card says a date
     // matters to this person, not what the user wants done about it.
     defaultReminderSchedule: [
-      { action: "card", offsetDays: 7, enabledByDefault: false },
+      { action: "send:card", offsetDays: 7, enabledByDefault: false },
       { action: "call", offsetDays: 0, enabledByDefault: false },
     ],
   },
@@ -219,7 +233,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     recursAnnually: false,
     greeting: "congratulations",
     defaultReminderSchedule: [
-      { action: "gift", offsetDays: 14, enabledByDefault: false },
+      { action: "get:gift", offsetDays: 14, enabledByDefault: false },
       { action: "call", offsetDays: 0, enabledByDefault: false },
     ],
   },
@@ -244,7 +258,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     // address, and the relationship between the two homes) rather than only a
     // date; this kind is the seam that will grow them.
     defaultReminderSchedule: [
-      { action: "gift", offsetDays: 0, enabledByDefault: false },
+      { action: "get:gift", offsetDays: 0, enabledByDefault: false },
       { action: "visit", offsetDays: 0, enabledByDefault: false },
     ],
   },
@@ -319,7 +333,7 @@ export function resolveReminderSchedule(
   kind: MilestoneKind,
   storedRules: ReminderRule[],
 ): ResolvedReminderSchedule {
-  const stored = storedRules.filter((r) => r.action !== "plan");
+  const stored = storedRules.filter((r) => verbOf(r.action) !== "plan");
   const source: ReminderScheduleSource =
     stored.length > 0 ? "stored" : "kind-default";
   const rules: ReminderRuleInput[] =
@@ -365,7 +379,7 @@ export function promptOffsetDays(kind: MilestoneKind): number {
   return Math.max(
     0,
     ...kindDefs[kind].defaultReminderSchedule.map(
-      (d) => d.offsetDays + actionDefs[d.action].activeDays,
+      (d) => d.offsetDays + actionDefOf(d.action).activeDays,
     ),
   );
 }

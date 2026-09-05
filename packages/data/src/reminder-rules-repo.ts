@@ -2,8 +2,8 @@ import {
   type ReminderRule,
   type ReminderRuleBearerType,
   type ReminderRuleInput,
-  reminderRuleInputSchema,
   reminderRuleSchema,
+  reminderScheduleInputSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
 import {
@@ -28,6 +28,14 @@ export interface ReminderRulesRepo extends EntityRepo<ReminderRule> {
    * reminders" — the milestone then rides its kind defaults again). Rows get
    * fresh random ids on each save, matching contact methods' set-replace: rules
    * aren't deduped across devices, just merged by whole-row LWW.
+   *
+   * ⚠️ **The set is validated as a set**, not row by row, because the one rule
+   * a per-row schema cannot see is the one that matters here: two rules sharing
+   * an identity collapse into a single reminder downstream (the engine keys its
+   * desired set by derived id), silently, with the later winning. Nothing in the
+   * DB prevents writing them — there is no unique constraint on `reminder_rules`
+   * — so this is the guard, and it sits here because every writer goes through
+   * it: both schedule editors and the prompt's answer.
    *
    * Transaction-free building block — the caller composes it with the milestone
    * write inside one transaction so the schedule and the milestone never
@@ -80,8 +88,9 @@ export function createReminderRulesRepo(
       }),
 
     async replaceForBearer(bearerType, bearerId, rules) {
-      // Validate the whole set up front so a bad row can't half-apply.
-      const parsed = rules.map((r) => reminderRuleInputSchema.parse(r));
+      // Validate the whole set up front so a bad row can't half-apply — and so
+      // a duplicate identity, which no single row reveals, is caught at all.
+      const parsed = reminderScheduleInputSchema.parse(rules);
       await softDeleteWhere(
         driver,
         "reminder_rules",

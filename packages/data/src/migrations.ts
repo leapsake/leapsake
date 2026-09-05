@@ -1049,6 +1049,50 @@ export const migrations: Migration[] = [
       await driver.exec(`DELETE FROM reminders WHERE source = 'system'`);
     },
   },
+  {
+    version: 35,
+    async up(driver) {
+      // **Reminder actions became `verb:qualifier`.** The action string is a
+      // reminder's identity, and a flat one could not tell buying a card from
+      // posting it — two errands on two clocks that had to share a single `card`
+      // action, and therefore a single derived id. Splitting the verb from an
+      // open qualifier is what lets them be two reminders (schema's
+      // `ReminderAction`).
+      //
+      // **Rewrite, don't drop.** These rows are the user's own configured
+      // schedules, and — since rows-existing is how the `plan` prompt knows an
+      // occasion has been answered — dropping them would also un-answer every
+      // prompt anyone had answered. The rename is exact, so there is nothing to
+      // reason about. It is not optional either: `reminderRuleSchema` parses on
+      // every read, and a leftover `gift` would fail the read outright rather
+      // than degrade.
+      //
+      // `text` becomes `message:sms` rather than `send:text`: `message` is the
+      // verb that takes the platform qualifiers (`message:discord`), and SMS is
+      // simply the first of them.
+      await driver.exec(`
+        UPDATE reminder_rules SET action = 'get:gift'    WHERE action = 'gift';
+        UPDATE reminder_rules SET action = 'send:card'   WHERE action = 'card';
+        UPDATE reminder_rules SET action = 'message:sms' WHERE action = 'text';
+      `);
+
+      // Then migration 34's sweep, for migration 34's reason. Three of those
+      // actions just changed identity, so the rows minted under the old ids are
+      // no longer wanted — and the engine retires an unwanted row by **soft
+      // delete**, which it never resurrects. Since a system reminder's id is
+      // keyed on the occurrence **year**, a row pruned today would stay dead
+      // until the occasion came round again: the upgrade would silently cost the
+      // user this year's birthday, on the morning it mattered. A soft delete
+      // cannot be undone from inside the engine, so it is undone from
+      // underneath it.
+      //
+      // Hard delete rather than a resurrection rule: the ids are deterministic,
+      // so everything still wanted is re-minted on the next reconcile. The cost
+      // is that a genuine "dismiss this" is forgotten once — acceptable
+      // pre-release (owner, 2026-09-04).
+      await driver.exec(`DELETE FROM reminders WHERE source = 'system'`);
+    },
+  },
 ];
 
 /**

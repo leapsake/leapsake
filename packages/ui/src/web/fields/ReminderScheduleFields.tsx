@@ -2,7 +2,8 @@ import {
   type ReminderAction,
   type ReminderRuleInput,
   SCHEDULABLE_ACTIONS,
-  actionDefs,
+  actionDefOf,
+  verbOf,
 } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
 
@@ -73,18 +74,19 @@ export function ReminderScheduleFields({
                   // Entering `other` needs an editable label; leaving it clears one.
                   update(i, {
                     action,
-                    label: action === "other" ? (rule.label ?? "") : null,
+                    label:
+                      verbOf(action) === "other" ? (rule.label ?? "") : null,
                   });
                 }}
               >
                 {ACTIONS.map((a) => (
                   <option key={a} value={a}>
-                    {actionDefs[a].icon ? `${actionDefs[a].icon} ` : ""}
-                    {actionDefs[a].label}
+                    {actionDefOf(a).icon ? `${actionDefOf(a).icon} ` : ""}
+                    {actionDefOf(a).label}
                   </option>
                 ))}
               </select>{" "}
-              {rule.action === "other" && (
+              {verbOf(rule.action) === "other" && (
                 <input
                   aria-label={m.reminderSchedule.label}
                   value={rule.label ?? ""}

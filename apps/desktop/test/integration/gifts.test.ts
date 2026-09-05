@@ -523,7 +523,7 @@ describe("core.reminders.giftTargets", () => {
       month: occ.month,
       day: occ.day,
       reminderSchedule: [
-        { action: "gift", label: null, offsetDays: 30, enabled: true },
+        { action: "get:gift", label: null, offsetDays: 30, enabled: true },
         { action: "wish", label: null, offsetDays: 0, enabled: true },
       ],
     });

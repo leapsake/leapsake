@@ -247,7 +247,9 @@ describe("regenerateSystemReminders", () => {
     // A gift is a project — 30 days of run-up, due 12 days out, so it lands 42
     // days ahead. One day earlier than that is one day too early.
     h.setMilestones([birthday("m1", "p1", daysOut(43))]);
-    h.setSchedule("m1", [{ action: "gift", offsetDays: 12, enabled: true }]);
+    h.setSchedule("m1", [
+      { action: "get:gift", offsetDays: 12, enabled: true },
+    ]);
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.activeSystem()).toHaveLength(0);
@@ -375,9 +377,9 @@ describe("regenerateSystemReminders", () => {
   it("mints one reminder per enabled rule, each due at its own offset", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
     h.setSchedule("m1", [
-      { action: "gift", offsetDays: 12, enabled: true },
-      { action: "card", offsetDays: 7, enabled: true },
-      { action: "text", offsetDays: 0, enabled: false }, // stays off
+      { action: "get:gift", offsetDays: 12, enabled: true },
+      { action: "send:card", offsetDays: 7, enabled: true },
+      { action: "message:sms", offsetDays: 0, enabled: false }, // stays off
     ]);
 
     const result = await regenerateSystemReminders(h.deps);
@@ -399,6 +401,58 @@ describe("regenerateSystemReminders", () => {
     expect(gift?.id).not.toBe(card?.id);
   });
 
+  // The bug the `verb:qualifier` split exists to fix. The desired set is keyed
+  // by derived id, and the id is keyed on the action — so while the action was a
+  // flat verb, two `get` rules were one reminder, silently, with the later
+  // winning. Two errands that share a verb and differ only by what is being got
+  // is exactly what a birthday wants.
+  it("keeps two qualifiers of one verb apart", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.setSchedule("m1", [
+      { action: "get:gift", offsetDays: 12, enabled: true },
+      { action: "get:card", offsetDays: 5, enabled: true },
+    ]);
+
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 2, updated: 0, removed: 0 });
+
+    const rows = h.activeSystem();
+    expect(new Set(rows.map((r) => r.id)).size).toBe(2);
+    expect(rows.map((r) => r.title).sort()).toEqual([
+      `🎁 Get ${mentionToken("Alice", "person", "p1")} a gift`,
+      `🛒 Get a card for ${mentionToken("Alice", "person", "p1")}`,
+    ]);
+    // Two due dates, each its own rule's lead time before the birthday.
+    expect(rows.map((r) => r.dueDate).sort()).toEqual(
+      [
+        dueDateMs(daysOut(20)) - 12 * 86_400_000,
+        dueDateMs(daysOut(20)) - 5 * 86_400_000,
+      ].sort(),
+    );
+  });
+
+  // `other` carries nothing in its action at all — the errand is its label — so
+  // its identity has to fold the label in, or two custom rows collapse the same
+  // way two `get`s used to.
+  it("keeps two `other` rules apart by their labels", async () => {
+    // Day-of: `other` takes no run-up of its own (the user chose the lead time
+    // with `offsetDays`), so both rows arrive on the birthday itself.
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
+    h.setSchedule("m1", [
+      { action: "other", label: "Send flowers", offsetDays: 0, enabled: true },
+      { action: "other", label: "Book a table", offsetDays: 0, enabled: true },
+    ]);
+
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 2, updated: 0, removed: 0 });
+    expect(
+      h
+        .activeSystem()
+        .map((r) => r.title)
+        .sort(),
+    ).toEqual(["🔔 Book a table", "🔔 Send flowers"]);
+  });
+
   it("surfaces a long errand well before a short one", async () => {
     // 40 days out. The gift has 30 days of run-up before a due date 12 days
     // ahead of the birthday, so it is already on display; the card's fortnight
@@ -406,8 +460,8 @@ describe("regenerateSystemReminders", () => {
     // point of `activeDays`: three actions on one birthday, three arrival dates.
     h.setMilestones([birthday("m1", "p1", daysOut(40))]);
     h.setSchedule("m1", [
-      { action: "gift", offsetDays: 12, enabled: true },
-      { action: "card", offsetDays: 7, enabled: true },
+      { action: "get:gift", offsetDays: 12, enabled: true },
+      { action: "send:card", offsetDays: 7, enabled: true },
       { action: "wish", offsetDays: 0, enabled: true },
     ]);
 
@@ -460,7 +514,9 @@ describe("regenerateSystemReminders", () => {
     // — still salvageable, so it stays. The aliveness test closes on the
     // occurrence, deliberately, not on the rule's own deadline.
     h.setMilestones([birthday("m1", "p1", daysOut(3))]);
-    h.setSchedule("m1", [{ action: "card", offsetDays: 7, enabled: true }]);
+    h.setSchedule("m1", [
+      { action: "send:card", offsetDays: 7, enabled: true },
+    ]);
 
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
@@ -504,7 +560,7 @@ describe("listSystemReminderTargets", () => {
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     h.setSchedule("m1", [
       { action: "wish", offsetDays: 0, enabled: true },
-      { action: "gift", offsetDays: 12, enabled: true },
+      { action: "get:gift", offsetDays: 12, enabled: true },
     ]);
     await regenerateSystemReminders(h.deps);
 
@@ -518,7 +574,7 @@ describe("listSystemReminderTargets", () => {
         .map((r) => r.id)
         .sort(),
     );
-    expect(targets.map((t) => t.action).sort()).toEqual(["gift", "wish"]);
+    expect(targets.map((t) => t.action).sort()).toEqual(["get:gift", "wish"]);
     for (const target of targets) {
       expect(target.bearerType).toBe("person");
       expect(target.bearerId).toBe("p1");
@@ -529,7 +585,9 @@ describe("listSystemReminderTargets", () => {
     // The whole point of the completed-state CTA ("record what you gave"): a
     // manual completion doesn't change the desired set, so the target survives.
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
-    h.setSchedule("m1", [{ action: "gift", offsetDays: 12, enabled: true }]);
+    h.setSchedule("m1", [
+      { action: "get:gift", offsetDays: 12, enabled: true },
+    ]);
     await regenerateSystemReminders(h.deps);
     const [row] = h.activeSystem();
     h.rows.set(row.id, { ...row, completedAt: Date.now() });
@@ -541,7 +599,7 @@ describe("listSystemReminderTargets", () => {
   it("omits a disabled action and one outside its window", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
     h.setSchedule("m1", [
-      { action: "gift", offsetDays: 12, enabled: false }, // would be in window
+      { action: "get:gift", offsetDays: 12, enabled: false }, // would be in window
       { action: "wish", offsetDays: 0, enabled: true }, // enabled, not yet due
     ]);
     expect(await listSystemReminderTargets(h.deps)).toEqual([]);
@@ -567,7 +625,9 @@ describe("listSystemReminderTargets", () => {
 
   it("writes nothing — it is a read", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
-    h.setSchedule("m1", [{ action: "gift", offsetDays: 12, enabled: true }]);
+    h.setSchedule("m1", [
+      { action: "get:gift", offsetDays: 12, enabled: true },
+    ]);
     await listSystemReminderTargets(h.deps);
     expect(h.activeSystem()).toEqual([]);
   });
@@ -693,7 +753,7 @@ describe("the window facts a row reports", () => {
     h.labels.set("p1", "Alice");
     // A gift is due 12 days out and carries a 30-day run-up; a wish is day-of.
     h.setSchedule("m1", [
-      { action: "gift", label: null, offsetDays: 12, enabled: true },
+      { action: "get:gift", label: null, offsetDays: 12, enabled: true },
       { action: "wish", label: null, offsetDays: 0, enabled: true },
     ]);
 

@@ -1,32 +1,146 @@
 import { z } from "zod";
 
 /**
- * The closed set of reminder **actions** — the "what to do" of a staggered
- * reminder (get a gift, send a card, give a call…). A starter set; adding an
- * action later is one enum line plus an `actionDefs` entry, never a migration
- * (the DB stores the action as free text, constrained here in Zod). Insertion
- * order is the UI listing order. `other` is the escape hatch and leans on the
- * per-rule free-text `label`, exactly like the `other` milestone kind leans on
- * its `note`.
+ * The closed set of reminder **verbs** — the "what kind of thing to do" half of
+ * an action. Small, closed, and Zod-validated, because the verb is what the code
+ * ever branches on; the {@link ReminderAction} qualifier beside it is open.
  *
- * One member is **not** a thing the user schedules: `plan` is the engine's
- * question — *"how do you want to mark this?"* — asked of an occasion nobody has
- * configured. It is synthesized per reconcile and never stored as a rule, so the
- * set a schedule may draw from is {@link SCHEDULABLE_ACTIONS}, not this enum.
+ * Two members are not things the user schedules. `plan` is the engine's question
+ * — *"how do you want to mark this?"* — asked of an occasion nobody has
+ * configured; it is synthesized per reconcile, never stored as a rule, and never
+ * takes a qualifier (it is a question about the occasion, not an action toward
+ * the person). `other` is the escape hatch, and leans on the per-rule free-text
+ * `label` exactly like the `other` milestone kind leans on its `note`.
+ *
+ * `post` is declared with no registry entry of its own. A bare "post" is not an
+ * errand — the errand is `post:instagram` — and the picker that would choose a
+ * platform does not exist yet. Declaring the verb now costs one line and is what
+ * lets a `post:instagram` synced from a later version parse instead of failing
+ * the row.
  */
-export const reminderActionSchema = z.enum([
-  "wish",
-  "gift",
-  "card",
-  "call",
-  "text",
+export const reminderVerbSchema = z.enum([
+  "get",
+  "send",
   "visit",
+  "call",
+  "message",
+  "post",
+  "wish",
   "remember",
   "plan",
   "other",
 ]);
 
-export type ReminderAction = z.infer<typeof reminderActionSchema>;
+export type ReminderVerb = z.infer<typeof reminderVerbSchema>;
+
+/**
+ * A reminder **action**: a {@link ReminderVerb}, optionally followed by `:` and
+ * a qualifier — `wish`, `get:gift`, `send:card`, `message:discord`.
+ *
+ * **The action string is the reminder's identity**, and it never moves. A system
+ * reminder's id is `milestone:<id>:<year>:<action>`, so the action is the whole
+ * of what keeps two reminders for one birthday distinct. Two consequences worth
+ * holding on to:
+ *
+ * - **A verb alone is not enough.** Getting a gift and getting a card are two
+ *   errands with two due dates, and before the qualifier existed they could not
+ *   both be scheduled — the engine keys its desired set by derived id, so two
+ *   rules sharing an action silently collapsed into one reminder. The qualifier
+ *   is what makes them distinct; {@link reminderScheduleInputSchema} is what
+ *   stops a genuine duplicate re-creating the collapse by another route.
+ * - **Nothing that is merely *true about* a reminder may reach the action.** How
+ *   you happen to be able to contact someone is derived at render (see
+ *   {@link ReminderActionDef.template}); if adding a phone number moved a row
+ *   from `wish` to `message:sms`, the old id would be tombstoned — permanently,
+ *   since the engine never resurrects a tombstone — and a birthday the user had
+ *   already ticked would come back unticked under a new id.
+ *
+ * **The verb half is closed; the qualifier half is deliberately open.** Verbs are
+ * branched on and so must be enumerable. Qualifiers are `card`/`gift` or a
+ * platform id from `@leapsake/contact-links` — a registry this package does not
+ * (and should not) depend on — so they are validated by *shape*, not membership.
+ * The type is a template literal rather than a plain `string` so the compiler
+ * still rejects `"gift"`, which is a qualifier wearing a verb's clothes.
+ *
+ * Stored as free text: the DB column is unconstrained, so adding an action is an
+ * {@link actionDefs} entry and (for a new verb) one enum line, never a migration.
+ */
+export type ReminderAction = ReminderVerb | `${ReminderVerb}:${string}`;
+
+const VERBS: readonly string[] = reminderVerbSchema.options;
+
+/** A qualifier is a lowercase slug: it rides in a deterministic id and in a
+ *  free-text column, so it stays boring on purpose. */
+const QUALIFIER_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Whether `value` is a well-formed {@link ReminderAction} — a known verb, at
+ * most one colon, and a slug qualifier. `plan` is rejected *with* a qualifier
+ * (see {@link reminderVerbSchema}); every other verb accepts one or none.
+ */
+export function isReminderAction(value: unknown): value is ReminderAction {
+  if (typeof value !== "string") return false;
+  const parts = value.split(":");
+  if (parts.length > 2) return false;
+  const [verb, qualifier] = parts;
+  if (!VERBS.includes(verb)) return false;
+  if (qualifier === undefined) return true;
+  if (verb === "plan") return false;
+  return QUALIFIER_RE.test(qualifier);
+}
+
+/**
+ * The action column's validator. A `z.custom` rather than a `z.enum` because the
+ * qualifier half is open — the value set is infinite, so membership is a
+ * predicate rather than a list.
+ *
+ * ⚠️ It stays **permissive about verbs it has no {@link actionDefs} entry for**.
+ * A row's action only has to be well-*formed* here; whether the app knows how to
+ * render it is {@link actionDefOf}'s problem, and it answers with a generic def
+ * rather than `undefined`. That split is what keeps a peer on a later version
+ * from syncing a row this one cannot parse — a sync failure, which is much worse
+ * than a dull reminder.
+ */
+export const reminderActionSchema = z.custom<ReminderAction>(isReminderAction, {
+  message: "not a reminder action",
+});
+
+/** An action split into its two halves; `qualifier` is null for a bare verb. */
+export interface ParsedReminderAction {
+  verb: ReminderVerb;
+  qualifier: string | null;
+}
+
+/** Split an action into its verb and qualifier. */
+export function parseAction(action: ReminderAction): ParsedReminderAction {
+  const i = action.indexOf(":");
+  return i === -1
+    ? { verb: action as ReminderVerb, qualifier: null }
+    : {
+        verb: action.slice(0, i) as ReminderVerb,
+        qualifier: action.slice(i + 1),
+      };
+}
+
+/** The verb half of an action — the half anything branching should read. */
+export function verbOf(action: ReminderAction): ReminderVerb {
+  return parseAction(action).verb;
+}
+
+/** The qualifier half of an action, or null for a bare verb. */
+export function qualifierOf(action: ReminderAction): string | null {
+  return parseAction(action).qualifier;
+}
+
+/** Join a verb and an optional qualifier back into an action string. */
+export function formatAction(
+  verb: ReminderVerb,
+  qualifier?: string | null,
+): ReminderAction {
+  return qualifier == null || qualifier === ""
+    ? verb
+    : (`${verb}:${qualifier}` as ReminderAction);
+}
 
 /**
  * What a reminder's copy is written about: who, and what occasion.
@@ -35,6 +149,12 @@ export type ReminderAction = z.infer<typeof reminderActionSchema>;
  * added when holidays joined milestones as a reminder source, and a forgotten
  * positional argument would have silently rendered birthday copy for Christmas
  * — a failure that typechecks and reads fine in review.
+ *
+ * Note what is **not** here: the qualifier. Each concrete action has its own
+ * {@link actionDefs} entry and so writes its own sentence ("Get {subject} a
+ * gift", "Get {subject} a card") — the qualifier is baked into the template that
+ * was chosen by it, rather than threaded through as another field every template
+ * would have to remember to read.
  */
 export interface ReminderCopyContext {
   /** The bearer's display label, already mention-wrapped where applicable. */
@@ -80,6 +200,11 @@ export interface ReminderActionDef {
    * active 0, so it shows up on the day. Required rather than optional so a new
    * action cannot silently inherit a window nobody chose for it.
    *
+   * ⚠️ It is a property of the **whole** action, not of its verb. `get:gift` and
+   * `get:card` are both projects at 30 days, but `send:card` is a fortnight —
+   * the same card, a different errand — so a verb-keyed number could not express
+   * the registry as it already stands.
+   *
    * **Provisional numbers, not architecture** — data, like the onboarding snooze
    * dials in `@leapsake/reminders`, and expected to be corrected once real use
    * disagrees.
@@ -97,11 +222,26 @@ export interface ReminderActionDef {
   template: (context: ReminderCopyContext) => string;
 }
 
+/** `other`'s display label, hoisted out of the registry so its own template can
+ *  reach it: the registry's type is inferred (see the `satisfies` below), so a
+ *  self-reference in the initializer would be circular. */
+const OTHER_LABEL = "Other";
+
 /**
- * The reminder-action registry, parallel to `kindDefs`. Insertion order matches
- * {@link reminderActionSchema} and is the UI listing order.
+ * The reminder-action registry, parallel to `kindDefs`, keyed by the **whole**
+ * `verb:qualifier` action rather than by verb.
+ *
+ * Keying it by verb was the obvious reading of the split and is the wrong one:
+ * every field here varies by qualifier. `get:gift` and `get:card` want different
+ * labels, different icons and different sentences, and `send:card` wants a
+ * different `activeDays` from both. A verb-keyed registry would need a parallel
+ * per-qualifier registry to put all of that back, which is two tables to keep in
+ * step where one will do.
+ *
+ * What the verb *does* carry is the fallback for a qualifier nobody registered —
+ * see {@link actionDefOf}. Insertion order is the UI listing order.
  */
-export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
+export const actionDefs = {
   wish: {
     label: "Wish them",
     icon: "🎉",
@@ -115,7 +255,7 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
     // upgrade; with a holiday's it reads "Wish @Alice a Merry Christmas".
     template: ({ subject, greeting }) => `Wish ${subject} ${greeting}`,
   },
-  gift: {
+  "get:gift": {
     label: "Get a gift",
     icon: "🎁",
     // The longest window of any action: choosing a gift is the one errand here
@@ -124,12 +264,24 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
     activeDays: 30,
     template: ({ subject }) => `Get ${subject} a gift`,
   },
-  card: {
+  "get:card": {
+    label: "Get a card",
+    icon: "🛒",
+    // The buying half of a card, at the buying half of a gift's numbers: a shop
+    // trip is a shop trip, and the thing that makes a card different from a gift
+    // is the *posting*, which is `send:card`'s problem and keeps its own shorter
+    // window. Splitting the two is the point of the verb/qualifier identity —
+    // before it, one `card` action had to mean both and could only have one
+    // due date.
+    activeDays: 30,
+    template: ({ subject }) => `Get a card for ${subject}`,
+  },
+  "send:card": {
     label: "Send a card",
     icon: "💌",
-    // *Send*, per the label — buying it is `gift`'s cousin and gets its own
-    // action when the verb/qualifier split lands. A fortnight is enough runway
-    // to write and post one.
+    // *Send*, per the label. A fortnight is enough runway to write and post one
+    // — and deliberately shorter than `get:card`'s month, because this is the
+    // errand that has a postal deadline rather than the one that has a shop.
     activeDays: 14,
     template: ({ subject }) => `Send ${subject} a card`,
   },
@@ -140,9 +292,12 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
     activeDays: 0,
     template: ({ subject }) => `Call ${subject}`,
   },
-  text: {
+  "message:sms": {
     label: "Send a text",
     icon: "💬",
+    // A channel qualifier, and the first one: `message` is the verb that takes
+    // the platform ids from `@leapsake/contact-links` (`message:discord`,
+    // `message:whatsapp`) once something can pick one.
     activeDays: 0,
     template: ({ subject }) => `Text ${subject}`,
   },
@@ -174,8 +329,8 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
     // errands it unlocks would have needed starting.
     //
     // ⚠️ If eight weeks turns out to feel too early to be asked, the dial to
-    // turn is `gift`'s `activeDays`, not this one: that is where the pressure
-    // actually comes from, and it is where the arithmetic reads it.
+    // turn is `get:gift`'s `activeDays`, not this one: that is where the
+    // pressure actually comes from, and it is where the arithmetic reads it.
     activeDays: 14,
     // Names the occasion rather than wishing it — see `occasion` on
     // {@link ReminderCopyContext}. No distance in the copy: the row's countdown
@@ -185,18 +340,68 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
       `How do you want to mark ${subject}'s ${occasion}?`,
   },
   other: {
-    label: "Other",
+    label: OTHER_LABEL,
     icon: "🔔",
     // The user picked the lead time themselves, via the rule's own `offsetDays`;
     // a window on top of it would be second-guessing them.
     activeDays: 0,
     // No fixed copy — the rule's free-text `label` is the reminder text.
-    template: () => actionDefs.other.label,
+    template: () => OTHER_LABEL,
   },
-};
+} satisfies Record<string, ReminderActionDef>;
 
 /**
- * The actions a **schedule** may contain — every action except `plan`.
+ * The actions the app ships a definition for — the closed half of an otherwise
+ * open type, and what {@link DefaultReminderRule} and the pickers are written
+ * against, so a typo in a kind's defaults fails to compile.
+ */
+export type KnownReminderAction = keyof typeof actionDefs & ReminderAction;
+
+/** Every registered action, in registry (UI listing) order. */
+export const KNOWN_ACTIONS = Object.keys(
+  actionDefs,
+) as readonly KnownReminderAction[];
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * The definition for an action — its registry entry, or a generic one derived
+ * from its verb when nothing has registered that qualifier.
+ *
+ * **Every lookup goes through this, never through {@link actionDefs} directly.**
+ * The action type is open, so an index would be a possible `undefined` at every
+ * call site, and the one that mattered would be inside the engine's reconcile,
+ * where a throw aborts the transaction and leaves the user's whole reminder list
+ * unreconciled.
+ *
+ * The fallback is a safety net, not a product surface: no picker can reach it
+ * today, and the only way to hold an unregistered action is to sync one from a
+ * later version. So it is deliberately dull — the plainest copy that names the
+ * right person, and `activeDays: 0`, which is the one window that cannot be
+ * wrong in the expensive direction (a row that appears late is a row that
+ * appears; a row given an invented month-long window is a month of noise).
+ */
+export function actionDefOf(action: ReminderAction): ReminderActionDef {
+  const known = (actionDefs as Record<string, ReminderActionDef>)[action];
+  if (known !== undefined) return known;
+  const { verb, qualifier } = parseAction(action);
+  const label =
+    qualifier === null
+      ? capitalize(verb)
+      : `${capitalize(verb)} (${qualifier})`;
+  return {
+    label,
+    activeDays: 0,
+    template: ({ subject }) =>
+      qualifier === null
+        ? `${capitalize(verb)} ${subject}`
+        : `${capitalize(verb)} ${subject} (${qualifier})`,
+  };
+}
+
+/**
+ * The actions a **schedule** may contain — every registered action except
+ * `plan`.
  *
  * `plan` is the engine's own question about an unconfigured occasion, not an
  * errand the user picks: it is synthesized per reconcile from
@@ -204,24 +409,26 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
  * occasion that has by definition already been answered and offer "decide how to
  * mark it" as one of the things you might decide to do.
  *
- * So this, and not `reminderActionSchema.options`, is what a picker lists and
- * what {@link reminderRuleInputSchema} accepts. Both schedule editors read it
+ * So this, and not {@link KNOWN_ACTIONS}, is what a picker lists and what
+ * {@link reminderRuleInputSchema} accepts. Both schedule editors read it
  * directly, which is why it lives here rather than being filtered at each of
  * them.
  */
-export const SCHEDULABLE_ACTIONS = reminderActionSchema.options.filter(
-  (action) => action !== "plan",
-) as [ReminderAction, ...ReminderAction[]];
+export const SCHEDULABLE_ACTIONS: readonly KnownReminderAction[] =
+  KNOWN_ACTIONS.filter((action) => action !== "plan");
 
 /**
- * The widest {@link ReminderActionDef.activeDays} any action declares.
+ * The widest {@link ReminderActionDef.activeDays} any registered action
+ * declares.
  *
  * For callers that must narrow a set of *candidate occurrences* before they know
  * which actions will apply to them — `@leapsake/core`'s holiday candidate walk
  * pairs this with the widest `offsetDays` actually in use. Taking the two maxima
  * independently is deliberately generous: the sum only has to **bound** the real
  * (offset + active) reach of any single rule, never match it, and an
- * under-estimate would silently drop occurrences instead of failing.
+ * under-estimate would silently drop occurrences instead of failing. An
+ * unregistered action cannot raise it, since {@link actionDefOf} gives those
+ * `activeDays: 0`.
  */
 export const MAX_ACTIVE_DAYS: number = Math.max(
   ...Object.values(actionDefs).map((def) => def.activeDays),
@@ -269,7 +476,7 @@ export const reminderRuleSchema = z.object({
   bearerType: reminderRuleBearerTypeSchema,
   bearerId: z.uuid(),
   action: reminderActionSchema,
-  /** Free-text label; carries the user's text when `action === "other"`, else null. */
+  /** Free-text label; carries the user's text when the verb is `other`, else null. */
   label: z.string().nullable(),
   /** Lead days before the occurrence; 0 = day-of. */
   offsetDays: z.number().int().min(0),
@@ -289,30 +496,97 @@ export type ReminderRule = z.infer<typeof reminderRuleSchema>;
  *
  * ⚠️ Note the asymmetry between the check and the type. The runtime check
  * rejects `plan`; the inferred `action` type stays the full
- * {@link ReminderAction} union, because {@link SCHEDULABLE_ACTIONS} is typed as
- * an array *of* that union. That is deliberate, and it is what lets the engine
- * hand its synthesized prompt rule — a `plan`, which is not user input and is
- * never parsed — through the same shape the resolver returns, instead of
- * splitting one schedule into two types everything downstream would have to
- * discriminate.
+ * {@link ReminderAction}, which is open. That is deliberate, and it is what lets
+ * the engine hand its synthesized prompt rule — a `plan`, which is not user
+ * input and is never parsed — through the same shape the resolver returns,
+ * instead of splitting one schedule into two types everything downstream would
+ * have to discriminate.
  */
 export const reminderRuleInputSchema = z
   .object({
-    // The schedulable set, not the full enum: a `plan` rule is never stored (see
-    // {@link SCHEDULABLE_ACTIONS}). The stored-row schema above stays on the
-    // full enum deliberately — narrowing it there would make a peer's row fail
+    // A well-formed action that is not `plan`: a `plan` rule is never stored
+    // (see {@link SCHEDULABLE_ACTIONS}). The stored-row schema above stays
+    // permissive deliberately — narrowing it there would make a peer's row fail
     // to parse, which is a sync failure rather than a validation one.
-    action: z.enum(SCHEDULABLE_ACTIONS),
+    action: reminderActionSchema.refine((a) => verbOf(a) !== "plan", {
+      message: "'plan' is the engine's own question, not a schedulable action",
+    }),
     label: z.string().nullable().optional(),
     offsetDays: z.number().int().min(0),
     enabled: z.boolean(),
   })
-  .refine((r) => r.action !== "other" || (r.label ?? "").trim().length > 0, {
-    message: "an 'other' reminder needs a label",
-    path: ["label"],
-  });
+  .refine(
+    (r) => verbOf(r.action) !== "other" || (r.label ?? "").trim().length > 0,
+    {
+      message: "an 'other' reminder needs a label",
+      path: ["label"],
+    },
+  );
 
 export type ReminderRuleInput = z.infer<typeof reminderRuleInputSchema>;
+
+/**
+ * What makes two rules on one bearer **the same reminder** — the string folded
+ * into the deterministic id, and the key the duplicate check below compares.
+ *
+ * It is the action for everything except `other`, whose action carries no
+ * information at all: the errand *is* its free-text label, so two `other` rules
+ * are distinct exactly when their labels are. Keying them on `other` alone would
+ * have collapsed "Send flowers" and "Book the restaurant" into one reminder —
+ * the same bug the qualifier fixes for `get:gift` and `get:card`, in the form
+ * that is easiest to reach, since the schedule editor visibly invites a second
+ * custom row.
+ *
+ * Compared case- and whitespace-insensitively, so re-capitalising a custom
+ * errand is an edit rather than a new reminder. ⚠️ Genuinely **renaming** one
+ * still re-keys it: the old id is tombstoned and a fresh row minted, losing a
+ * tick. That is the intended reading — the label is the reminder's whole
+ * content, so a renamed errand is a different errand — but it is the one place
+ * where editing a rule can cost a completion, and it is why the copy a *derived*
+ * fact contributes (a contact method, `isSelf`) must never reach identity.
+ */
+export function actionKeyOf(rule: {
+  action: ReminderAction;
+  label?: string | null;
+}): string {
+  if (verbOf(rule.action) !== "other") return rule.action;
+  return `other:${(rule.label ?? "").trim().toLowerCase()}`;
+}
+
+/**
+ * A bearer's whole schedule as the editors and the prompt emit it — and the only
+ * place a **duplicate** is caught.
+ *
+ * It has to be caught somewhere, and a per-row schema cannot see it. The engine
+ * keys its desired set by derived id so that two devices minting "the same"
+ * reminder converge on one row; the flip side is that two *different* rules
+ * sharing an identity collapse into one, silently, with the later one winning.
+ * Nothing in the DB prevents writing them — there is no unique constraint on
+ * `reminder_rules` — so the set-level parse is the guard, and it sits on the one
+ * write path both editors and the prompt's answer go through
+ * (`reminderRulesRepo.replaceForBearer`).
+ *
+ * Reported against the *second* occurrence's index, so a form can mark the row
+ * the user just added rather than the one they already had.
+ */
+export const reminderScheduleInputSchema = z
+  .array(reminderRuleInputSchema)
+  .superRefine((rules, ctx) => {
+    const seen = new Map<string, number>();
+    rules.forEach((rule, i) => {
+      const key = actionKeyOf(rule);
+      const first = seen.get(key);
+      if (first === undefined) {
+        seen.set(key, i);
+        return;
+      }
+      ctx.addIssue({
+        code: "custom",
+        message: `duplicate reminder: "${reminderRuleLabel(rule)}" is already scheduled`,
+        path: [i, verbOf(rule.action) === "other" ? "label" : "action"],
+      });
+    });
+  });
 
 /**
  * The display label for a reminder rule: the action's registry label, except
@@ -321,8 +595,8 @@ export type ReminderRuleInput = z.infer<typeof reminderRuleInputSchema>;
  */
 export function reminderRuleLabel(rule: {
   action: ReminderAction;
-  label: string | null;
+  label?: string | null;
 }): string {
-  if (rule.action === "other") return rule.label ?? actionDefs.other.label;
-  return actionDefs[rule.action].label;
+  if (verbOf(rule.action) === "other") return rule.label ?? OTHER_LABEL;
+  return actionDefOf(rule.action).label;
 }

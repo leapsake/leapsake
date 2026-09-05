@@ -161,7 +161,7 @@ describe("holiday reminders", () => {
     await createReminderRulesRepo(driver).replaceForBearer(
       "observance",
       observanceId,
-      [{ action: "card", offsetDays: 7, enabled: true }],
+      [{ action: "send:card", offsetDays: 7, enabled: true }],
     );
     await core.reminders.regenerateSystem();
 
@@ -339,7 +339,7 @@ describe("observance reminder schedule", () => {
     const person = await alice(core);
 
     await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
-      { action: "gift", label: null, offsetDays: 21, enabled: true },
+      { action: "get:gift", label: null, offsetDays: 21, enabled: true },
     ]);
 
     const schedule = await core.holidays.getObservanceSchedule(
@@ -349,7 +349,7 @@ describe("observance reminder schedule", () => {
     );
     expect(schedule).toEqual([
       expect.objectContaining({
-        action: "gift",
+        action: "get:gift",
         offsetDays: 21,
         enabled: true,
       }),
@@ -409,7 +409,7 @@ describe("observance reminder schedule", () => {
     ]);
 
     await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
-      { action: "gift", label: null, offsetDays: 21, enabled: true },
+      { action: "get:gift", label: null, offsetDays: 21, enabled: true },
     ]);
     await core.holidays.setObservanceSchedule(CHRISTMAS, "person", grandma.id, [
       { action: "call", label: null, offsetDays: 0, enabled: true },

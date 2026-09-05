@@ -126,7 +126,12 @@ const planTarget = {
   milestoneId: "m1",
   milestoneKind: "birthday" as const,
   offers: [
-    { action: "gift" as const, label: null, offsetDays: 12, enabled: false },
+    {
+      action: "get:gift" as const,
+      label: null,
+      offsetDays: 12,
+      enabled: false,
+    },
     { action: "wish" as const, label: null, offsetDays: 0, enabled: true },
     { action: "call" as const, label: null, offsetDays: 0, enabled: false },
   ],
@@ -312,7 +317,7 @@ describe("reminderActionsOf", () => {
       kind: "answer-plan",
       milestoneId: "m1",
       schedule: [
-        { action: "gift", label: null, offsetDays: 12, enabled: false },
+        { action: "get:gift", label: null, offsetDays: 12, enabled: false },
         { action: "wish", label: null, offsetDays: 0, enabled: true },
         { action: "call", label: null, offsetDays: 0, enabled: false },
       ],

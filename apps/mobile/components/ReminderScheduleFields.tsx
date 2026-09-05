@@ -3,7 +3,8 @@ import {
   type ReminderAction,
   type ReminderRuleInput,
   SCHEDULABLE_ACTIONS,
-  actionDefs,
+  actionDefOf,
+  verbOf,
 } from "@leapsake/schema";
 import { SelectField } from "./SelectField";
 import { styles } from "../lib/styles";
@@ -14,7 +15,7 @@ import { styles } from "../lib/styles";
 const ACTION_OPTIONS: { value: ReminderAction; label: string }[] =
   SCHEDULABLE_ACTIONS.map((a) => ({
     value: a,
-    label: `${actionDefs[a].icon ? `${actionDefs[a].icon} ` : ""}${actionDefs[a].label}`,
+    label: `${actionDefOf(a).icon ? `${actionDefOf(a).icon} ` : ""}${actionDefOf(a).label}`,
   }));
 
 /**
@@ -76,11 +77,11 @@ export function ReminderScheduleFields({
               // Entering `other` needs an editable label; leaving it clears one.
               update(i, {
                 action,
-                label: action === "other" ? (rule.label ?? "") : null,
+                label: verbOf(action) === "other" ? (rule.label ?? "") : null,
               })
             }
           />
-          {rule.action === "other" ? (
+          {verbOf(rule.action) === "other" ? (
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>
                 Custom action (e.g. Send flowers)

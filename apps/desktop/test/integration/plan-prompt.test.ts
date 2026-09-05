@@ -101,11 +101,12 @@ describe("the plan prompt, end to end through core", () => {
     // The kind's own offers, `enabled` carrying which arrive pre-ticked: the
     // wish alone, exactly what ships today.
     expect(target.offers.map((o) => o.action)).toEqual([
-      "gift",
-      "card",
+      "get:gift",
+      "get:card",
+      "send:card",
       "wish",
       "call",
-      "text",
+      "message:sms",
     ]);
     expect(target.offers.filter((o) => o.enabled).map((o) => o.action)).toEqual(
       ["wish"],
@@ -126,7 +127,7 @@ describe("the plan prompt, end to end through core", () => {
     await core.milestones.update(milestone.id, {
       reminderSchedule: target.offers.map((offer) => ({
         ...offer,
-        enabled: offer.action === "wish" || offer.action === "card",
+        enabled: offer.action === "wish" || offer.action === "send:card",
       })),
     });
 
@@ -157,7 +158,7 @@ describe("the plan prompt, end to end through core", () => {
     );
     // The full set is stored, not just the tick — that is what makes "asked" a
     // fact rather than an inference, so next year's occurrence asks nothing.
-    expect(schedule).toHaveLength(5);
+    expect(schedule).toHaveLength(6);
     expect(schedule.filter((r) => r.enabled).map((r) => r.action)).toEqual([
       "wish",
     ]);

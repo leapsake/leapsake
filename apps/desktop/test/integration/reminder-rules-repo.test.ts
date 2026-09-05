@@ -17,8 +17,8 @@ const MILESTONE = crypto.randomUUID();
 
 /** The birthday-style default set, furthest-out first. */
 const schedule: ReminderRuleInput[] = [
-  { action: "gift", label: null, offsetDays: 30, enabled: true },
-  { action: "card", label: null, offsetDays: 7, enabled: true },
+  { action: "get:gift", label: null, offsetDays: 30, enabled: true },
+  { action: "send:card", label: null, offsetDays: 7, enabled: true },
   { action: "call", label: null, offsetDays: 0, enabled: false },
   { action: "other", label: "Bake a cake", offsetDays: 0, enabled: true },
 ];
@@ -39,8 +39,8 @@ describe("reminderRulesRepo", () => {
     const rows = await repo.listForBearer("milestone", MILESTONE);
 
     expect(rows.map((r) => r.action)).toEqual([
-      "gift",
-      "card",
+      "get:gift",
+      "send:card",
       "call",
       "other",
     ]);
@@ -54,6 +54,46 @@ describe("reminderRulesRepo", () => {
       expect(row.bearerId).toBe(MILESTONE);
       expect(row.deletedAt).toBeNull();
     }
+  });
+
+  // The set-level guard, on the write path every editor and the prompt's answer
+  // go through. A duplicate identity is invisible to a per-row schema and there
+  // is no unique constraint on the table, so if it were not caught here it would
+  // reach the engine — which keys its desired set by derived id and would
+  // quietly keep one of the two.
+  it("rejects a duplicate action, writing nothing", async () => {
+    await repo.replaceForBearer("milestone", MILESTONE, schedule);
+    await expect(
+      repo.replaceForBearer("milestone", MILESTONE, [
+        { action: "get:gift", label: null, offsetDays: 30, enabled: true },
+        { action: "get:gift", label: null, offsetDays: 5, enabled: true },
+      ]),
+    ).rejects.toThrow();
+    // Validated up front, so the existing schedule is untouched.
+    const rows = await repo.listForBearer("milestone", MILESTONE);
+    expect(rows).toHaveLength(4);
+  });
+
+  it("accepts two qualifiers of one verb, and two labelled `other`s", async () => {
+    await repo.replaceForBearer("milestone", MILESTONE, [
+      { action: "get:gift", label: null, offsetDays: 12, enabled: true },
+      { action: "get:card", label: null, offsetDays: 5, enabled: true },
+      { action: "other", label: "Send flowers", offsetDays: 0, enabled: true },
+      { action: "other", label: "Book a table", offsetDays: 0, enabled: true },
+    ]);
+    const rows = await repo.listForBearer("milestone", MILESTONE);
+    expect(rows.map((r) => r.action)).toEqual([
+      "get:gift",
+      "get:card",
+      "other",
+      "other",
+    ]);
+    expect(rows.map((r) => r.label)).toEqual([
+      null,
+      null,
+      "Send flowers",
+      "Book a table",
+    ]);
   });
 
   it("replaces the whole set — the prior rules are soft-deleted", async () => {
@@ -84,8 +124,8 @@ describe("reminderRulesRepo", () => {
     const reopened = createReminderRulesRepo(reopen());
     const rows = await reopened.listForBearer("milestone", MILESTONE);
     expect(rows.map((r) => r.action)).toEqual([
-      "gift",
-      "card",
+      "get:gift",
+      "send:card",
       "call",
       "other",
     ]);

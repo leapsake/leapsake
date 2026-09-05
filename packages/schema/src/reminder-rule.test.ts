@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   type ReminderRule,
+  actionDefOf,
   actionDefs,
+  actionKeyOf,
+  formatAction,
+  isReminderAction,
   kindDefs,
-  reminderActionSchema,
+  KNOWN_ACTIONS,
+  parseAction,
   reminderRuleInputSchema,
   reminderRuleLabel,
   reminderRuleSchema,
+  reminderScheduleInputSchema,
   resolveReminderSchedule,
   SCHEDULABLE_ACTIONS,
   promptOffsetDays,
@@ -30,33 +36,103 @@ function rule(over: Partial<ReminderRule>): ReminderRule {
 }
 
 describe("reminderActionSchema / actionDefs", () => {
-  it("has a registry entry for every action", () => {
-    for (const action of reminderActionSchema.options) {
-      expect(actionDefs[action]).toBeDefined();
-      expect(actionDefs[action].label.length).toBeGreaterThan(0);
+  it("has a usable registry entry for every registered action", () => {
+    for (const action of KNOWN_ACTIONS) {
+      expect(actionDefOf(action).label.length).toBeGreaterThan(0);
     }
   });
 
   // `plan` is the engine's own question, synthesized per reconcile — never a
   // row a user schedules. Anything that lists actions for a picker must read
-  // this and not the enum, so the editors can't quietly start offering "decide
-  // how to mark it" as a thing to decide to do.
+  // this and not the registry, so the editors can't quietly start offering
+  // "decide how to mark it" as a thing to decide to do.
   it("excludes `plan` from the schedulable set, and nothing else", () => {
     expect(SCHEDULABLE_ACTIONS).not.toContain("plan");
-    expect(SCHEDULABLE_ACTIONS.length).toBe(
-      reminderActionSchema.options.length - 1,
+    expect(SCHEDULABLE_ACTIONS.length).toBe(KNOWN_ACTIONS.length - 1);
+  });
+
+  // The whole point of the split: one verb, two errands, two identities. Before
+  // it, `get:gift` and `get:card` would have been one `get` action and the
+  // engine's id-keyed desired set would have silently collapsed them.
+  it("keeps a verb's qualifiers apart, with their own numbers", () => {
+    expect(parseAction("get:gift")).toEqual({ verb: "get", qualifier: "gift" });
+    expect(parseAction("wish")).toEqual({ verb: "wish", qualifier: null });
+    expect(formatAction("get", "card")).toBe("get:card");
+    expect(formatAction("wish", null)).toBe("wish");
+    // Buying a card is a shop trip like buying a gift; *posting* it is the
+    // errand with the shorter fuse.
+    expect(actionDefOf("get:card").activeDays).toBe(
+      actionDefOf("get:gift").activeDays,
     );
+    expect(actionDefOf("send:card").activeDays).toBeLessThan(
+      actionDefOf("get:card").activeDays,
+    );
+  });
+
+  it("validates the shape of an action, not membership of a qualifier list", () => {
+    expect(isReminderAction("wish")).toBe(true);
+    expect(isReminderAction("message:discord")).toBe(true);
+    // A qualifier wearing a verb's clothes — the pre-split name.
+    expect(isReminderAction("gift")).toBe(false);
+    expect(isReminderAction("get:")).toBe(false);
+    expect(isReminderAction("get:a:b")).toBe(false);
+    expect(isReminderAction("get:Gift")).toBe(false);
+    // `plan` is a question about the occasion, never an action toward a person.
+    expect(isReminderAction("plan:birthday")).toBe(false);
+  });
+
+  // The stored-row schema parses on **every** read, so this is what migration 35
+  // had to rewrite rows for rather than leave them: a leftover pre-split action
+  // does not degrade, it fails the read of that rule outright. Worth asserting
+  // because `z.custom` is the one Zod combinator that could plausibly wave an
+  // absent value through.
+  it("fails a stored row whose action is pre-split, absent or null", () => {
+    const row = {
+      id: crypto.randomUUID(),
+      bearerType: "milestone",
+      bearerId: crypto.randomUUID(),
+      label: null,
+      offsetDays: 0,
+      enabled: true,
+      createdAt: 1,
+      updatedAt: 1,
+      deletedAt: null,
+    };
+    expect(reminderRuleSchema.safeParse(row).success).toBe(false);
+    expect(reminderRuleSchema.safeParse({ ...row, action: null }).success).toBe(
+      false,
+    );
+    expect(
+      reminderRuleSchema.safeParse({ ...row, action: "gift" }).success,
+    ).toBe(false);
+    expect(
+      reminderRuleSchema.safeParse({ ...row, action: "get:gift" }).success,
+    ).toBe(true);
+  });
+
+  // A row from a later version has to render, not throw: the throw would land
+  // inside the engine's reconcile transaction and cost the user their whole
+  // list. Dull copy and a zero window are the safe answer.
+  it("answers for an action it has never heard of", () => {
+    const def = actionDefOf("post:instagram");
+    expect(def.activeDays).toBe(0);
+    expect(def.label.length).toBeGreaterThan(0);
+    expect(
+      def.template({ subject: "@Alice", greeting: "hi", occasion: "birthday" }),
+    ).toContain("@Alice");
   });
 });
 
 describe("promptOffsetDays", () => {
-  // The furthest reach of anything a birthday offers: `gift` at offset 12 with
-  // its own 30-day run-up. Ticking the gift on the prompt has to leave that run
+  // The furthest reach of anything a birthday offers: `get:gift` at offset 12
+  // with its own 30-day run-up. Ticking the gift on the prompt has to leave that run
   // -up intact, so the question is due before the errand would have started.
   it("is the widest (offset + run-up) of the offered set", () => {
-    expect(promptOffsetDays("birthday")).toBe(12 + actionDefs.gift.activeDays);
+    expect(promptOffsetDays("birthday")).toBe(
+      12 + actionDefOf("get:gift").activeDays,
+    );
     expect(promptOffsetDays("anniversary")).toBe(
-      7 + actionDefs.card.activeDays,
+      7 + actionDefOf("send:card").activeDays,
     );
   });
 
@@ -78,11 +154,24 @@ describe("promptOffsetDays", () => {
 describe("reminderRuleInputSchema", () => {
   it("accepts a normal action with no label", () => {
     const parsed = reminderRuleInputSchema.parse({
-      action: "gift",
+      action: "get:gift",
       offsetDays: 30,
       enabled: true,
     });
-    expect(parsed.action).toBe("gift");
+    expect(parsed.action).toBe("get:gift");
+  });
+
+  // The pre-split names are not merely unknown, they are malformed: a bare
+  // qualifier has no verb. Rejecting them is what stops a stale caller writing
+  // rows the resolver would then have to guess at.
+  it("rejects a bare qualifier", () => {
+    expect(() =>
+      reminderRuleInputSchema.parse({
+        action: "gift",
+        offsetDays: 12,
+        enabled: true,
+      }),
+    ).toThrow();
   });
 
   it("rejects a stored `plan` rule", () => {
@@ -126,8 +215,8 @@ describe("reminderRuleInputSchema", () => {
 
 describe("reminderRuleLabel", () => {
   it("uses the action's registry label for a typed action", () => {
-    expect(reminderRuleLabel({ action: "gift", label: null })).toBe(
-      actionDefs.gift.label,
+    expect(reminderRuleLabel({ action: "get:gift", label: null })).toBe(
+      actionDefOf("get:gift").label,
     );
   });
 
@@ -144,19 +233,20 @@ describe("reminderRuleLabel", () => {
 describe("resolveReminderSchedule", () => {
   it("falls back to the kind defaults when there are no stored rules", () => {
     const { rules, source } = resolveReminderSchedule("birthday", []);
-    // Furthest-out first: gift a dozen days out, card a week out, then the
-    // day-of group. `offsetDays` is when a thing is *due*; how long it then
+    // Furthest-out first: the two shop trips a dozen days out, posting the card
+    // a week out, then the day-of group. `offsetDays` is when a thing is *due*; how long it then
     // sits on the list is the action's own `activeDays`.
     expect(rules.map((r) => r.action)).toEqual([
-      "gift",
-      "card",
+      "get:gift",
+      "get:card",
+      "send:card",
       "wish",
       "call",
-      "text",
+      "message:sms",
     ]);
-    expect(rules.map((r) => r.offsetDays)).toEqual([12, 7, 0, 0, 0]);
+    expect(rules.map((r) => r.offsetDays)).toEqual([12, 12, 7, 0, 0, 0]);
     // "Wish them a happy birthday" is the only rule on by default; the staggered
-    // gift/card/call/text are offered but start off.
+    // gift, card and message actions are offered but start off.
     const enabled = rules.filter((r) => r.enabled).map((r) => r.action);
     expect(enabled).toEqual(["wish"]);
     // The condition the prompt is minted on — not a diagnostic.
@@ -168,16 +258,18 @@ describe("resolveReminderSchedule", () => {
     expect(rules.map((r) => r.action)).toEqual(["remember"]);
     // Nothing but a birthday wish is on by default — the death "remember" is off.
     expect(rules.every((r) => !r.enabled)).toBe(true);
-    expect(rules.some((r) => r.action === "text")).toBe(false);
+    expect(rules.some((r) => r.action === "message:sms")).toBe(false);
     // The kind registry itself excludes it (the "disabled entirely" case).
     expect(
-      kindDefs.death.defaultReminderSchedule.some((d) => d.action === "text"),
+      kindDefs.death.defaultReminderSchedule.some(
+        (d) => d.action === "message:sms",
+      ),
     ).toBe(false);
   });
 
   it("uses the stored rules verbatim when the milestone is customised", () => {
     const stored = [
-      rule({ action: "gift", offsetDays: 14, enabled: false }),
+      rule({ action: "get:gift", offsetDays: 14, enabled: false }),
       rule({
         action: "other",
         label: "Bake a cake",
@@ -187,7 +279,7 @@ describe("resolveReminderSchedule", () => {
     ];
     const { rules, source } = resolveReminderSchedule("birthday", stored);
     // Stored set wins over the kind defaults, furthest-out first.
-    expect(rules.map((r) => r.action)).toEqual(["gift", "other"]);
+    expect(rules.map((r) => r.action)).toEqual(["get:gift", "other"]);
     expect(rules[0]).toMatchObject({ offsetDays: 14, enabled: false });
     expect(rules[1]).toMatchObject({ label: "Bake a cake", offsetDays: 0 });
     // Rows existing is the "answered" marker the prompt reads.
@@ -201,7 +293,7 @@ describe("resolveReminderSchedule", () => {
   it("treats an all-disabled stored set as answered", () => {
     const stored = [
       rule({ action: "wish", offsetDays: 0, enabled: false }),
-      rule({ action: "gift", offsetDays: 12, enabled: false }),
+      rule({ action: "get:gift", offsetDays: 12, enabled: false }),
     ];
     expect(resolveReminderSchedule("birthday", stored).source).toBe("stored");
   });
@@ -214,5 +306,66 @@ describe("resolveReminderSchedule", () => {
     const { rules, source } = resolveReminderSchedule("birthday", stored);
     expect(source).toBe("kind-default");
     expect(rules.some((r) => r.action === "plan")).toBe(false);
+  });
+});
+
+// The set-level guard. A per-row schema cannot see a duplicate, and nothing in
+// the DB prevents one — so this is the only thing standing between the schedule
+// editor and the collapse the qualifier was introduced to fix.
+/** A rule input from just the parts a duplicate test cares about. */
+const at = (action: string, over: Record<string, unknown> = {}) => ({
+  action,
+  offsetDays: 0,
+  enabled: true,
+  ...over,
+});
+
+describe("reminderScheduleInputSchema", () => {
+  it("accepts two qualifiers of one verb", () => {
+    const parsed = reminderScheduleInputSchema.parse([
+      at("get:gift", { offsetDays: 12 }),
+      at("get:card", { offsetDays: 5 }),
+    ]);
+    expect(parsed).toHaveLength(2);
+  });
+
+  it("rejects the same action twice on one bearer", () => {
+    const result = reminderScheduleInputSchema.safeParse([
+      at("get:gift", { offsetDays: 12 }),
+      at("get:gift", { offsetDays: 5 }),
+    ]);
+    expect(result.success).toBe(false);
+    // Flagged against the *second* row — the one the user just added.
+    expect(result.error?.issues[0].path).toEqual([1, "action"]);
+  });
+
+  // `other` carries no information in its action at all: the errand is its
+  // label. Two custom rows are the most reachable form of the collapse, since
+  // the editor visibly invites a second one.
+  it("keeps two `other` rules apart by their labels", () => {
+    const parsed = reminderScheduleInputSchema.parse([
+      at("other", { label: "Send flowers" }),
+      at("other", { label: "Book the restaurant" }),
+    ]);
+    expect(parsed).toHaveLength(2);
+    const clash = reminderScheduleInputSchema.safeParse([
+      at("other", { label: "Send flowers" }),
+      at("other", { label: "  send FLOWERS " }),
+    ]);
+    expect(clash.success).toBe(false);
+    expect(clash.error?.issues[0].path).toEqual([1, "label"]);
+  });
+});
+
+describe("actionKeyOf", () => {
+  it("is the action itself, except for `other`", () => {
+    expect(actionKeyOf({ action: "get:gift", label: null })).toBe("get:gift");
+    expect(actionKeyOf({ action: "other", label: "Bake a cake" })).toBe(
+      "other:bake a cake",
+    );
+    // Re-capitalising a custom errand is an edit, not a new reminder.
+    expect(actionKeyOf({ action: "other", label: " Bake A Cake " })).toBe(
+      actionKeyOf({ action: "other", label: "bake a cake" }),
+    );
   });
 });

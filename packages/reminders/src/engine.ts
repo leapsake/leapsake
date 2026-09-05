@@ -9,7 +9,8 @@ import {
   type ReminderAction,
   type ReminderRuleInput,
   type ResolvedReminderSchedule,
-  actionDefs,
+  actionDefOf,
+  actionKeyOf,
   daysUntil,
   dueDateMs,
   kindDefs,
@@ -18,6 +19,7 @@ import {
   promptOffsetDays,
   recentOccurrence,
   reminderRuleLabel,
+  verbOf,
 } from "@leapsake/schema";
 
 /** Milliseconds in a civil day — a stored due date is UTC midnight, so shifting
@@ -308,14 +310,17 @@ export interface SystemReminderTarget {
 /** The identity string a milestone occurrence + rule is content-addressed under,
  *  so two devices generating "the same" reminder derive the **same** id and the
  *  existing whole-row merge dedups them (plans automated-reminders, cross-cutting).
- *  Keyed on the rule's `action` so a milestone's staggered reminders (gift, card,
- *  wish…) get distinct, non-colliding ids for the same occurrence. */
+ *  Keyed on the rule's identity (schema's `actionKeyOf` — the full
+ *  `verb:qualifier`, or the label for an `other`) so a milestone's staggered
+ *  reminders get distinct, non-colliding ids for the same occurrence. The action
+ *  carries a colon of its own, which costs nothing: nothing ever *parses* one of
+ *  these names, or the id derived from it. */
 function occurrenceName(
   milestoneId: string,
   occurrenceYear: number,
-  action: string,
+  actionKey: string,
 ): string {
-  return `milestone:${milestoneId}:${occurrenceYear}:${action}`;
+  return `milestone:${milestoneId}:${occurrenceYear}:${actionKey}`;
 }
 
 /**
@@ -560,9 +565,9 @@ function duplicatesTitle(n: number): string {
 function observanceOccurrenceName(
   observanceId: string,
   occurrenceIso: string,
-  action: string,
+  actionKey: string,
 ): string {
-  return `observance:${observanceId}:${occurrenceIso}:${action}`;
+  return `observance:${observanceId}:${occurrenceIso}:${actionKey}`;
 }
 
 /** `YYYY-MM-DD` for a civil date — the occurrence key above. */
@@ -744,7 +749,7 @@ function isWithinWindow(
 type ActiveDaysOf = (action: ReminderAction) => number;
 
 /** The materialization window: every action's own declared run-up. */
-const ownActiveDays: ActiveDaysOf = (action) => actionDefs[action].activeDays;
+const ownActiveDays: ActiveDaysOf = (action) => actionDefOf(action).activeDays;
 
 /**
  * Compute the set of `system` reminders that *should* exist for `today` and
@@ -1146,15 +1151,19 @@ async function computeDesired(
       for (const rule of rules) {
         const id = deterministicUuid(
           SYSTEM_REMINDER_NAMESPACE,
-          occurrenceName(m.id, occ.year, rule.action),
+          occurrenceName(m.id, occ.year, actionKeyOf(rule)),
         );
-        const def = actionDefs[rule.action];
+        const def = actionDefOf(rule.action);
         let title: string;
-        if (bearerIsSelf && rule.action === "wish" && m.kind === "birthday") {
+        if (
+          bearerIsSelf &&
+          verbOf(rule.action) === "wish" &&
+          m.kind === "birthday"
+        ) {
           // Your own birthday — addressed *to* you, so no "@You" mention token and
           // a celebratory icon in place of "Wish @You a happy birthday".
           title = "🎂 It's your birthday!";
-        } else if (bearerIsSelf && rule.action === "plan") {
+        } else if (bearerIsSelf && verbOf(rule.action) === "plan") {
           // Same branch, same reason: "How do you want to mark @You's birthday?"
           // is the third person about the second. Keyed on a fact about the
           // bearer, never on identity — the row is still `...:plan`.
@@ -1166,7 +1175,7 @@ async function computeDesired(
           // happy birthday", "Get @Alice a gift". `other` has no template; it is the
           // user's own free text, so it names no subject (nothing to interpolate).
           const body =
-            rule.action === "other"
+            verbOf(rule.action) === "other"
               ? reminderRuleLabel({
                   action: rule.action,
                   label: rule.label ?? null,
@@ -1260,11 +1269,15 @@ async function computeDesired(
         for (const rule of rules) {
           const id = deterministicUuid(
             SYSTEM_REMINDER_NAMESPACE,
-            observanceOccurrenceName(candidate.observanceId, iso, rule.action),
+            observanceOccurrenceName(
+              candidate.observanceId,
+              iso,
+              actionKeyOf(rule),
+            ),
           );
-          const def = actionDefs[rule.action];
+          const def = actionDefOf(rule.action);
           const body =
-            rule.action === "other"
+            verbOf(rule.action) === "other"
               ? reminderRuleLabel({
                   action: rule.action,
                   label: rule.label ?? null,

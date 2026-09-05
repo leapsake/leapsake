@@ -1,4 +1,4 @@
-# Reminders — `verb:qualifier` identity, the rule cascade, and presets
+# Reminders — the rule cascade, and presets
 
 > **Delete this doc when the work lands.** The durable *why* goes into
 > [`@leapsake/reminders`](../packages/reminders/README.md) beside the onboarding-nudge reasoning
@@ -21,23 +21,38 @@ is now built too** — an unconfigured occasion mints one `plan` prompt instead 
 clients, answerable in one tap. The reasoning lives in
 [`@leapsake/reminders`](../packages/reminders/README.md) → *The prompt*.
 
+Under both sat a third thing, invisible until you tried to schedule two errands of a kind: the
+action string is a reminder's **identity**, and a flat one could not say "get" separately from
+"what", so two `get` rules collapsed into one reminder. **That is now built too** — actions are
+`verb:qualifier`, the closed half validated and the qualifier half open. The reasoning lives in
+[`@leapsake/reminders`](../packages/reminders/README.md) → *Identity*.
+
 ## The model
 
 Nine decisions, settled in design *(owner, 2026-09-02 and 2026-09-04)*. Everything below
 implements them; none of them is open. Exactly one sub-question is deliberately deferred — how a
 kind-level rule interacts with the prompt — and it is parked in Increment 6, where it lands.
-Decisions 1, 5 and 7 are **built**; what landed differently from the sketch is noted on each.
+Decisions 1, 2, 5 and 7 are **built**, and 3 has its mechanism; what landed differently from the
+sketch is noted on each.
 
 1. **Two numbers per rule** *(built)*. `offsetDays` — when it is **due**, measured back from the
    occurrence. `activeDays` — how many days **before that** it goes on display. A
    `wish` is `offset 0, active 0`: it appears on the day. A `get:gift` is `offset 12, active 30`:
    it appears six weeks before the birthday and is due twelve days before it.
-2. **Identity is `verb:qualifier`, and it never moves.** The reminder id is
-   `milestone:<id>:<year>:<action>`, so the action string is what keeps two reminders for one
-   birthday distinct. A closed verb enum, an open qualifier (`get:card`, `message:discord`).
+2. **Identity is `verb:qualifier`, and it never moves** *(built)*. The reasoning now lives in
+   [`@leapsake/reminders`](../packages/reminders/README.md) → *Identity*, and on
+   `ReminderAction` / `actionKeyOf` in `@leapsake/schema`. ⚠️ One thing landed that this doc's
+   sketch did not have: **`other` keys on its label**. Its action carries no information at all —
+   the errand *is* the free text — so two custom rows were the collapse in its most reachable
+   form, since the editor visibly invites a second one. The cost is that *renaming* an `other`
+   re-keys its reminder; that is the intended reading, and the reason the derived cases (a contact
+   method, `isSelf`) must stay out of the key.
 3. **Anything you would tick independently is its own reminder.** Text in the morning, call at
    night, and post on Instagram are three rows and three checkboxes, never one row with three
-   buttons.
+   buttons. **The mechanism is built** — a qualifier makes each its own identity — but only for
+   the actions the registry ships. Nothing yet lets a user *choose* a platform qualifier, so
+   `post` is a declared verb with no `actionDefs` entry and `message` has only `sms`. See *Not in
+   scope*: no increment below owns that picker.
 4. **Copy and affordances are derived at render, never stored.** Adding a phone number rewords an
    existing reminder; it must never mint a new one or resurrect a completed one.
 5. **The screen is owed / available / coming**, and only *owed* gates "done for the day"
@@ -67,8 +82,8 @@ Decisions 1, 5 and 7 are **built**; what landed differently from the sketch is n
      that changes.
 
 8. **The shipped birthday default stays `wish`, alone** — exactly what ships today
-   (`kindDefs.birthday.defaultReminderSchedule`, all of `gift`/`card`/`call`/`text` at
-   `enabledByDefault: false`). ⚠️ **This supersedes the 2026-09-02 decision** to ship `get:card`
+   (`kindDefs.birthday.defaultReminderSchedule`, all of
+   `get:gift`/`get:card`/`send:card`/`call`/`message:sms` at `enabledByDefault: false`). ⚠️ **This supersedes the 2026-09-02 decision** to ship `get:card`
    and `send:card` enabled, and its standing-load arithmetic with it *(owner, 2026-09-04)*.
 
    The tactile-engagement argument that motivated that decision survives, relocated: the card is
@@ -85,20 +100,6 @@ Decisions 1, 5 and 7 are **built**; what landed differently from the sketch is n
    ⚠️ **The differ that compares it is not built** — see *Not in scope*; nothing re-asks on its
    own.
 
-⚠️ **Action names below are the post-split `verb:qualifier` ones from Increment 4**, written that
-way because they read better. The shipped registry is still flat, so until that increment lands:
-
-| written as | shipped today | numbers |
-|---|---|---|
-| `get:gift` | `gift` ("Get a gift") | `offset 12, active 30` |
-| `send:card` | `card` ("Send a card") | `offset 7, active 14` |
-| `get:card` | — | arrives with the split, at `get:gift`'s numbers |
-| `plan` | `plan` ("Decide how to mark it") | `offset` derived, `active 14` |
-
-The buying half of a card does not exist yet, and that is deliberate: today's single `card` action
-is the *sending* one by its own label, so it keeps the shorter run-up until there is a separate
-errand to give the longer one to *(owner, 2026-09-04)*.
-
 **Existing data is disposable** *(owner, 2026-09-02)* — pre-release, no real users. Where an
 increment changes what the engine wants — a changed reminder identity, but equally a **narrowed
 window** — drop `source = 'system'` rows outright rather than reasoning about them.
@@ -106,42 +107,17 @@ window** — drop `source = 'system'` rows outright rather than reasoning about 
 This matters more than it looks. `reconcile` retires a row it no longer wants by **soft-deleting**
 it, and never resurrects a tombstone (`engine.ts`, the resurrection guard); ids are keyed on the
 occurrence **year**, so a row pruned by an upgrade stays dead for the rest of the year — costing
-the user a birthday on the very morning it mattered. Migration 34 is the precedent and the shape to
-copy: a plain `DELETE FROM reminders WHERE source = 'system'`, tombstones included, after which the
-deterministic ids re-mint everything still wanted. Sweep the table, don't reason about it.
+the user a birthday on the very morning it mattered. Migrations 34 and 35 are the precedent and the
+shape to copy: a plain `DELETE FROM reminders WHERE source = 'system'`, tombstones included, after
+which the deterministic ids re-mint everything still wanted. Sweep the table, don't reason about it.
+
+⚠️ **`reminder_rules` is the exception, and migration 35 is the precedent for that too.** Rules are
+the user's own configured schedules, and since rows-existing is how the prompt knows an occasion has
+been answered, dropping them un-answers every prompt anyone answered. Where a rule's *shape*
+changes, rewrite the rows — and it is not optional, since `reminderRuleSchema` parses on every read
+and a stale value fails the read outright.
 
 ---
-
-## Increment 4 — `verb:qualifier` identity
-
-Mostly invisible, and everything after it depends on it.
-
-⚠️ **There is a live bug here today.** The desired set is keyed by derived id
-(`engine.ts`, "keyed by (deterministic) id so duplicate identities collapse"), and the id is keyed
-on `action` — so **two rules with the same action silently collapse into one reminder**. Nothing
-prevents creating them: there is no unique constraint on `reminder_rules` and
-`resolveReminderSchedule` passes rules straight through. Two `get` rules at different offsets is
-exactly what the gift-then-post chain needs, so this must be fixed before that can exist.
-
-- Split the flat `reminderActionSchema` into a **verb** (small, closed, Zod-validated) and an
-  open **qualifier**. Verbs: `get`, `send`, `visit`, `call`, `message`, `post`, `wish`,
-  `remember`, `plan`, `other`. `plan` (already shipped) never takes a qualifier — it is a question
-  about the occasion, not an action toward the person. Qualifiers are `card`/`gift`, or a platform id from
-  `packages/contact-links`' registry, or absent.
-- The stored action string is `verb:qualifier` (or bare `verb`). The DB column is already free
-  text — the `reminderActionSchema` comment says adding an action is "one enum line plus an
-  `actionDefs` entry, never a migration" — so this needs no schema migration.
-- Safe on ids: nothing ever **parses** a reminder id. `onboardingStepOf` and
-  `duplicatesReminderId` recompute and compare. An extra colon-delimited segment costs nothing.
-- `actionDefs` becomes keyed by verb, with the qualifier feeding the copy template. Templates
-  already take a `ReminderCopyContext` (`{ subject, greeting }`); widen it rather than adding a
-  parallel mechanism, and keep the `greeting` doc-comment's warning about positional arguments in
-  mind.
-- Reject duplicate `verb:qualifier` rules on the same bearer at the input schema, so the collapse
-  cannot recur by a different route.
-
-**Done when** `get:card` and `get:gift` on one birthday produce two independent reminders at two
-different due dates.
 
 ## Increment 5 — `wish` adapts, and collects
 
@@ -286,7 +262,7 @@ them?** — picks a rule set:
   priorities land. The one-method case is not special-cased; it is the same rule with one button.
 - **The cascade's editing UI.** Four levels × N actions × per-person is a large settings surface
   and the owner wants it designed against the stronger onboarding flow, which is later work.
-  Nothing above depends on it: increments 4–6 need no *cascade* settings screen, and the shipped
+  Nothing above depends on it: increments 5–6 need no *cascade* settings screen, and the shipped
   prompt needs only itself and the existing per-milestone schedule editor.
 - **The holiday prompt.** The shipped per-bearer shape is right for milestones and wrong for
   holidays, where one occasion spans everyone: Christmas wants a single prompt listing people, not
@@ -299,5 +275,12 @@ them?** — picks a rule set:
   holiday prompt above — which is a reason to do them together rather than either one twice.
 - **The offer-set differ** that re-asks when a new action becomes available (decision 9). The
   answer already records what was offered; nothing yet compares it.
+- **A picker for platform-qualified actions** — scheduling `message:discord` or `post:instagram`
+  rather than only the shipped set (decision 3). The identity half is built and the qualifier is
+  open by design, so this is a UI that reads `@leapsake/contact-links`' registry and writes an
+  ordinary rule; nothing about the mechanism has to change. ⚠️ **Increment 5 is not it.** That
+  increment derives a `wish` row's *affordances* from the contact methods a person has — buttons
+  to act now — which is a different thing from letting the user schedule a reminder to post on
+  Instagram, and deliberately so: a contact method must never reach identity.
 - **Per-action grace periods**, **snooze for user reminders** (the open question flagged in
   `partitionReminders`' doc-comment), and **user-defined milestone kinds**.

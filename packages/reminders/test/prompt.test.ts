@@ -204,7 +204,7 @@ describe("the plan prompt", () => {
   it("is not minted for an answer of `nothing`", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(APPEARS_DAYS))]);
     h.setSchedule("m1", [
-      { action: "gift", offsetDays: 12, enabled: false },
+      { action: "get:gift", offsetDays: 12, enabled: false },
       { action: "wish", offsetDays: 0, enabled: false },
     ]);
 

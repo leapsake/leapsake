@@ -128,8 +128,8 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
       // a week ahead, both on. Twenty days out, the gift's 30-day run-up and the
       // card's fortnight both have them on display already.
       reminderSchedule: [
-        { action: "gift", label: null, offsetDays: 12, enabled: true },
-        { action: "card", label: null, offsetDays: 7, enabled: true },
+        { action: "get:gift", label: null, offsetDays: 12, enabled: true },
+        { action: "send:card", label: null, offsetDays: 7, enabled: true },
       ],
     });
 
@@ -557,6 +557,75 @@ describe("migration 34 sweeps the generated reminders", () => {
   });
 });
 
+/**
+ * Migration 35 renames the stored actions to `verb:qualifier`.
+ *
+ * It is the half of that migration that could not be a sweep. Reminder *rules*
+ * are the user's own configured schedules, and — since rows-existing is how the
+ * `plan` prompt knows an occasion has been answered — dropping them would also
+ * un-answer every prompt anyone had answered. Nor is rewriting optional:
+ * `reminderRuleSchema` parses on every read, so a leftover flat `gift` fails the
+ * read outright rather than degrading.
+ */
+describe("migration 35 renames the stored reminder actions", () => {
+  it("rewrites a pre-split schedule in place, and the engine reads it", async () => {
+    const person = await core.people.create(
+      { firstName: "Otto", middleName: null, lastName: "Reid", gender: null },
+      [],
+    );
+    const occ = civilDaysFromToday(10);
+    const milestone = await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: person.id,
+      month: occ.month,
+      day: occ.day,
+      reminderSchedule: WISH_ONLY,
+    });
+
+    // Stand in for a schedule written before the split: the flat action names,
+    // straight into the column, since nothing in the app can produce them now.
+    const legacy: [string, string, number][] = [
+      ["gift", "get:gift", 12],
+      ["card", "send:card", 7],
+      ["text", "message:sms", 0],
+    ];
+    await driver.exec(`DELETE FROM reminder_rules`);
+    for (const [before, , offsetDays] of legacy) {
+      await driver.run(
+        `INSERT INTO reminder_rules
+           (id, bearer_type, bearer_id, action, label, offset_days, enabled,
+            created_at, updated_at, deleted_at)
+         VALUES (?, 'milestone', ?, ?, NULL, ?, 1, 1, 1, NULL)`,
+        [crypto.randomUUID(), milestone.id, before, offsetDays],
+      );
+    }
+
+    // Rewind the schema version and re-run, so only migration 35 applies.
+    await driver.exec("PRAGMA user_version = 34");
+    await runMigrations(driver);
+
+    const resolved = await core.milestones.reminderSchedule(
+      milestone.id,
+      "birthday",
+    );
+    expect(resolved.map((r) => r.action)).toEqual(
+      legacy.map(([, after]) => after),
+    );
+    // Every rule survived as itself — this is a rename, not a reset, so the
+    // prompt still counts this occasion as answered.
+    expect(resolved.every((r) => r.enabled)).toBe(true);
+
+    // And the engine mints from the renamed rules: the gift is 12 days before a
+    // birthday 10 days out, so it is past due but still within its window.
+    await core.reminders.regenerateSystem();
+    const titles = (await systemReminders()).map((r) => r.title);
+    expect(titles).toContain(
+      `🎁 Get ${mentionToken("Otto Reid", "person", person.id)} a gift`,
+    );
+  });
+});
+
 describe("core.reminders.listInWindow (what the list shows)", () => {
   /** A person with a birthday `days` out, configured to just the day-of wish
    *  unless a schedule is supplied — these are about what the *window* shows,
@@ -624,7 +693,7 @@ describe("core.reminders.listInWindow (what the list shows)", () => {
   // date, and well before the birthday it counts down to.
   it("dates a gift by its own run-up, not by the occasion", async () => {
     await birthdayIn(20, [
-      { action: "gift", label: null, offsetDays: 12, enabled: true },
+      { action: "get:gift", label: null, offsetDays: 12, enabled: true },
     ]);
 
     const [gift] = await windowed();

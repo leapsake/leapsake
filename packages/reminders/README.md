@@ -13,6 +13,7 @@ scoped. The composition root wires the repos.
 | You want | Read |
 |---|---|
 | How reconcile decides what to insert, refresh, or tombstone | `computeDesired` + `reconcile` in `src/engine.ts` |
+| What makes two reminders for one occasion different reminders | `ReminderAction` and `actionKeyOf` in `@leapsake/schema`, and *Identity* below |
 | When a reminder goes on display, and when it stops | `isWithinWindow` in `src/engine.ts` |
 | How long a given errand sits on the list | `activeDays` on `actionDefs`, in `@leapsake/schema` |
 | How far ahead the *list* looks, versus the *notification schedule* | `DISPLAY_WINDOW_DAYS` and `NOTIFICATION_WINDOW_DAYS` in `src/engine.ts` |
@@ -23,6 +24,58 @@ scoped. The composition root wires the repos.
 | Why an unconfigured occasion gets a question instead of errands | the `plan` synthesis in `computeDesired`, and *The prompt* below |
 | When that question is asked | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers |
 | Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps` |
+
+## Identity — what makes two reminders different reminders
+
+A `system` reminder has no random id. It is content-addressed:
+`milestone:<id>:<year>:<action>`, hashed, so two devices minting "the same" reminder derive the
+**same** id and the existing whole-row merge dedups them instead of showing it twice. The action
+string is therefore the whole of what keeps two reminders for one birthday apart — and it is also
+the whole of what can accidentally merge them.
+
+### A flat action could not say what the errand was
+
+Buying a card and posting it are two errands on two clocks. So are buying a gift and buying a
+card. A flat action had one name for each — `gift`, `card` — and no way to say "get" separately
+from "what", so the moment two rules wanted the same verb they collapsed: the desired set is keyed
+by derived id, and the later of the two silently won. Nothing prevented writing them, either.
+
+Hence `verb:qualifier`. The **verb is closed** and Zod-validated, because it is what the code
+branches on; the **qualifier is open**, because it is `gift`/`card` today and a platform id from
+`@leapsake/contact-links` tomorrow, and `@leapsake/schema` neither has nor wants that dependency.
+It is validated by shape, not by membership in a list. The action stays one free-text column and
+one segment of a hashed name, so this needed no schema change — and nothing anywhere *parses* a
+reminder id, so an action carrying a colon of its own costs nothing.
+
+Two rules that fall out of it, both easy to break:
+
+- **A verb-keyed registry cannot hold this.** `actionDefs` is keyed by the whole action, because
+  everything on it varies by qualifier: `get:gift` and `get:card` are both 30-day projects,
+  `send:card` is a fortnight. Every lookup goes through `actionDefOf`, never an index — the type
+  is open, so an index is a possible `undefined`, and the one that matters is inside reconcile,
+  where a throw aborts the transaction and leaves the whole list unreconciled. An action from a
+  later version renders dull copy instead.
+- **`other` keys on its label** (`actionKeyOf`), because its action carries no information at all
+  — the errand *is* the free text. Two custom rows were the most reachable form of the collapse,
+  since the editor visibly invites a second one.
+
+### Nothing merely *true about* a reminder may reach its identity
+
+Copy is derived at render; identity is not. If adding a phone number moved a row from `wish` to
+`message:sms`, the old id would be tombstoned — permanently, since reconcile never resurrects one
+— and a birthday the user had already ticked would come back **unticked** under a new id. Same
+reminder, different words, is already the pattern: `isSelf` flips "Wish @You a happy birthday" to
+"It's your birthday!" without touching the row's identity.
+
+The one place editing a rule *does* re-key it is renaming an `other` — deliberate, since the label
+is that reminder's entire content, and the reason the derived cases must stay out of the key.
+
+### A duplicate has to be caught as a set
+
+A per-row schema cannot see one, and there is no unique constraint on `reminder_rules`. So
+`reminderScheduleInputSchema` validates the whole set, on the one write path everything goes
+through — `reminderRulesRepo.replaceForBearer`, which both schedule editors and the prompt's
+answer reach.
 
 ## Windows — the product design behind them
 
@@ -43,12 +96,12 @@ stayed per-kind, because that genuinely does vary by occasion: a card for a wedd
 same clock as a card for a birthday.
 
 Two numbers, and each lives where its variation is. A `wish` is `offset 0, active 0` and arrives on
-the morning it is owed. A `gift` is `active 30` whatever the occasion, because a gift is a project.
+the morning it is owed. A `get:gift` is `active 30` whatever the occasion, because a gift is a project.
 
 **The numbers themselves are data, not architecture** — the same posture as the snooze dials below,
 and for the same reason. They are one owner's estimates and expect to be corrected against real
 use; changing one is editing a literal in `actionDefs`, never touching logic. If the eight-week
-prompt in a later increment feels too early, the dial to turn is `gift`'s `activeDays`, because
+prompt in a later increment feels too early, the dial to turn is `get:gift`'s `activeDays`, because
 that is where the pressure actually comes from.
 
 ### Two ways to miss something, and they are not the same
@@ -67,7 +120,7 @@ nothing extra computed — both fall out of the arithmetic the aliveness test al
 | **belated** | `daysUntilOccurrence < 0` | the occasion has passed; only acknowledgment is left |
 
 It falls out per action with no configuration. A day-of action's due date *is* the occurrence, so it
-can never be past due and goes straight to belated; a `card` at `offset 7` is past due for up to a
+can never be past due and goes straight to belated; a `send:card` at `offset 7` is past due for up to a
 week first. `BELATED_DAYS` bounds **only** the belated tail — past due needs no dial of its own,
 because the occurrence bounds it.
 
@@ -173,7 +226,7 @@ plan.activeDays = 14                                                  ← action
 Due at the furthest reach of anything it offers, so ticking the gift still leaves the gift its full
 thirty days rather than handing it back already past due. Ship a longer-lead action later and every
 prompt slides earlier by itself, with no second constant to keep in step. ⚠️ If eight weeks turns
-out to feel too early, **the dial to turn is `gift`'s `activeDays`, not the prompt's** — that is
+out to feel too early, **the dial to turn is `get:gift`'s `activeDays`, not the prompt's** — that is
 where the pressure actually comes from, and where the arithmetic reads it.
 
 ### Answered, unanswered, and answered-with-nothing

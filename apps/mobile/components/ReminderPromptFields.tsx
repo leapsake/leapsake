@@ -1,5 +1,5 @@
 import { Pressable, Switch, Text, View } from "react-native";
-import { type ReminderRuleInput, actionDefs } from "@leapsake/schema";
+import { type ReminderRuleInput, actionDefOf } from "@leapsake/schema";
 import { styles } from "../lib/styles";
 
 /**
@@ -9,7 +9,7 @@ import { styles } from "../lib/styles";
  * Deliberately not {@link ReminderScheduleFields}, though they write the same
  * rows — that editor is for someone tuning a schedule, this is asked of someone
  * who has not decided anything yet, and its whole value is that answering it is
- * nearly free. Labels are `actionDefs[...].label` verbatim, the same offers the
+ * nearly free. Labels are `actionDefOf(...).label` verbatim, the same offers the
  * schedule editor lists.
  *
  * Controlled, and hands back the **whole** set with `enabled` flipped rather
@@ -31,7 +31,7 @@ export function ReminderPromptFields({
   return (
     <View>
       {value.map((rule, i) => {
-        const def = actionDefs[rule.action];
+        const def = actionDefOf(rule.action);
         return (
           // Positional, like the schedule editor: no stable id until saved.
           <Pressable

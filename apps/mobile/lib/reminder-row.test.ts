@@ -39,7 +39,12 @@ const planContext = {
     milestoneId: "m1",
     milestoneKind: "birthday" as const,
     offers: [
-      { action: "gift" as const, label: null, offsetDays: 12, enabled: false },
+      {
+        action: "get:gift" as const,
+        label: null,
+        offsetDays: 12,
+        enabled: false,
+      },
       { action: "wish" as const, label: null, offsetDays: 0, enabled: true },
     ],
   },
@@ -181,7 +186,7 @@ describe("offerFor", () => {
         milestoneId: "m1",
         // The **whole** offer set, wish alone enabled — not just the tick.
         schedule: [
-          { action: "gift", label: null, offsetDays: 12, enabled: false },
+          { action: "get:gift", label: null, offsetDays: 12, enabled: false },
           { action: "wish", label: null, offsetDays: 0, enabled: true },
         ],
         label: "Just the day",
