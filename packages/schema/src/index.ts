@@ -233,6 +233,8 @@ export {
   rolesForHolder,
   rolesForPair,
   rolesForSubject,
+  isRomanticRole,
+  relationshipPairLabel,
   spouseNeighbors,
 } from "./relationship.js";
 export type {

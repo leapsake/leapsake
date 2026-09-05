@@ -698,3 +698,35 @@ export function spouseNeighbors(
     (n) => n.origin === "explicit" && baseRole(n.otherRole) === "spouse",
   );
 }
+
+/**
+ * Whether a role makes its relationship a **romantic partnership** — married or
+ * not, so `spouse` and `partner` both, and every gendered variant of them via
+ * {@link baseRole} (`husband`, `wife`).
+ *
+ * It exists for one job: deciding whether a milestone is about a relationship
+ * *the user is in*, which is what gates the `first-date` prompt (see
+ * `MilestoneKindDef.prompt`). Kept beside {@link spouseNeighbors} because the
+ * two are the same shape of question one notch apart — that one asks who could
+ * hold a **wedding**, which is marriage specifically, and this one asks who
+ * could hold a **first date**, which is not.
+ */
+export function isRomanticRole(role: RelationshipRole): boolean {
+  const base = baseRole(role);
+  return base === "spouse" || base === "partner";
+}
+
+/**
+ * What a relationship is called when it has to name itself — "Bob & Carol" —
+ * for a reminder borne by the relationship rather than by either person.
+ *
+ * ⚠️ **Not for a relationship the user is in.** "You & Alice" is the wrong
+ * subject for "Wish … a happy anniversary": you do not wish yourself one. A
+ * relationship with the self-person at one end resolves to the *other* end
+ * instead (`@leapsake/core`, the engine's `resolveLabel` port), and the
+ * self-directed half of the copy is handled where every other one is, in the
+ * reminders engine's `selfOverrideOf`.
+ */
+export function relationshipPairLabel(a: string, b: string): string {
+  return `${a} & ${b}`;
+}

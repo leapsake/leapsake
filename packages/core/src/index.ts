@@ -91,8 +91,10 @@ import {
   inverseRole,
   isPublished,
   isReminderEditable,
+  isRomanticRole,
   parseHashtags,
   parseMentions,
+  relationshipPairLabel,
   splitName,
   resolveObservanceReminderSchedule,
   resolveReminderSchedule,
@@ -354,8 +356,11 @@ export interface PlanReminderTarget {
   /** Named for what it is: a reminder CTA discriminates on `kind`, so the
    *  view-model this feeds keeps the two apart. */
   milestoneKind: MilestoneKind;
-  /** The person or pet the occasion belongs to, for the prompt's own heading. */
-  bearerType: GiftPartyType;
+  /**
+   * Who the occasion belongs to, for the prompt's own heading — a person, a pet,
+   * or the **relationship** a wedding anniversary or a first date is linked to.
+   */
+  bearerType: MilestoneBearerType;
   bearerId: string;
   /** That bearer's display label, so the screen can name who it is asking about. */
   subject: string;
@@ -549,6 +554,64 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     id: string,
   ): Promise<Person | Pet | undefined> {
     return type === "person" ? people.get(id) : pets.get(id);
+  }
+
+  /** A relationship's two endpoints as `(type, id)` pairs; `[]` when it is gone. */
+  function endpointsOf(
+    rel: Relationship | undefined,
+  ): { type: EntityType; id: string }[] {
+    return rel === undefined
+      ? []
+      : [
+          { type: rel.aType, id: rel.aId },
+          { type: rel.bType, id: rel.bId },
+        ];
+  }
+
+  /**
+   * What to call a milestone borne by a **relationship** — "Bob & Carol", or just
+   * "Alice" for a relationship the self-person is one end of, since a reminder
+   * about your own anniversary is addressed to you and names your partner.
+   *
+   * `undefined` only when there is no name left to use: the relationship is gone,
+   * or both its endpoints are. That distinction is the whole reason this exists —
+   * the reminder engine reads a null label as "the bearer is gone" and skips the
+   * milestone, so answering null merely because a bearer type had no formatter
+   * silently suppressed every relationship-borne reminder (see the
+   * `resolveLabel` port).
+   */
+  /**
+   * Any milestone bearer, named — the person, the pet, or the relationship. The
+   * engine's `resolveLabel` port and the `reminders.targets` reads both go
+   * through it so a relationship cannot be named one way in the reminder's text
+   * and another on the screen that answers it.
+   */
+  async function milestoneBearerLabel(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<string | null> {
+    return bearerType === "relationship"
+      ? relationshipLabel(bearerId)
+      : ((await resolveLabel(bearerType, bearerId)) ?? null);
+  }
+
+  async function relationshipLabel(id: string): Promise<string | null> {
+    const rel = await relationships.get(id);
+    if (rel === undefined) return null;
+    const selfId = (await self.getSelf())?.personId;
+    const ends = endpointsOf(rel).filter(
+      (e) => !(e.type === "person" && e.id === selfId),
+    );
+    const named = (
+      await Promise.all(ends.map((e) => resolveLabel(e.type, e.id)))
+    ).filter((label): label is string => label !== undefined);
+    if (named.length === 0) return null;
+    // One name is the ordinary case for a relationship you are in, and also what
+    // a half-deleted pair degrades to — better a reminder naming whoever is left
+    // than none at all.
+    return named.length === 1
+      ? named[0]
+      : relationshipPairLabel(named[0], named[1]);
   }
 
   const softDeleteEntity = (type: EntityType, id: string): Promise<void> =>
@@ -945,17 +1008,59 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         await mentions.removeAllForBearer("reminder", id);
       },
     },
-    // Birthdays only bear on a person/pet; a relationship bearer (future kinds)
-    // has no single label, so it's skipped rather than mislabelled.
-    resolveLabel: async (bearerType, bearerId) =>
-      bearerType === "relationship"
-        ? null
-        : ((await resolveLabel(bearerType, bearerId)) ?? null),
-    // Is a milestone's bearer the self-person? Flips your own birthday's wish to
-    // its self-directed copy. Only a person can be
-    // self, so a pet/relationship bearer is `false` without a lookup.
-    isSelf: async (bearerType, bearerId) =>
-      bearerType === "person" && bearerId === (await self.getSelf())?.personId,
+    // A milestone's bearer, named. `null` means **gone**, and only gone: the
+    // engine skips a row it cannot name, so answering `null` for a bearer type
+    // that merely had no formatter is how relationship-borne milestones — every
+    // wedding anniversary linked to its relationship — silently produced no
+    // reminders at all until 2026-09-05.
+    resolveLabel: milestoneBearerLabel,
+    // Is this milestone about *you*? Flips your own birthday's wish, and your own
+    // anniversary's prompt, to their self-directed copy. A relationship you are
+    // one end of counts — that is what makes "your own wedding anniversary" ask
+    // about itself rather than about the pair.
+    isSelf: async (bearerType, bearerId) => {
+      const selfId = (await self.getSelf())?.personId;
+      if (selfId === undefined) return false;
+      if (bearerType === "person") return bearerId === selfId;
+      if (bearerType === "relationship")
+        return endpointsOf(await relationships.get(bearerId)).some(
+          (e) => e.type === "person" && e.id === selfId,
+        );
+      return false; // a pet is never you
+    },
+    // Is this milestone about a romantic partnership *the user is in*? Gates the
+    // `first-date` prompt, and nothing else (`kindDefs`, `prompt`).
+    //
+    // Two shapes, because a first date can be recorded either way: borne by the
+    // relationship, or borne by the partner while the relationship is only
+    // implied. The second is the common one — a milestone is created from a
+    // person's page — and it is why this is not simply `isSelf`.
+    isOwnPartnership: async (bearerType, bearerId) => {
+      const selfId = (await self.getSelf())?.personId;
+      if (selfId === undefined) return false; // nobody has said who they are
+      if (bearerType === "relationship") {
+        const rel = await relationships.get(bearerId);
+        if (rel === undefined) return false;
+        return (
+          endpointsOf(rel).some(
+            (e) => e.type === "person" && e.id === selfId,
+          ) &&
+          (isRomanticRole(rel.aRole) || isRomanticRole(rel.bRole))
+        );
+      }
+      if (bearerType !== "person") return false;
+      // Borne by the partner: is there a stored romantic edge between them and
+      // you? Read from the milestone's bearer rather than from the self-person,
+      // since one person has few relationships and "you" may have many.
+      const edges = await relationships.listForEntity("person", bearerId);
+      return edges.some(
+        (rel) =>
+          endpointsOf(rel).some(
+            (e) => e.type === "person" && e.id === selfId,
+          ) &&
+          (isRomanticRole(rel.aRole) || isRomanticRole(rel.bRole)),
+      );
+    },
     today: todayCivil(),
     transaction: (body) => driver.transaction(body),
     // The first-run signals for the onboarding nudges. `hasAnyEntity` gates the
@@ -1679,13 +1784,23 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         // record against the recipient's gift history. Covers both dated
         // families (a birthday's gift rule and a holiday observance's), since
         // both mint the same action.
+        // ⚠️ A relationship is excluded, and not merely for the types' sake: a
+        // gift is recorded against whoever received it, and "Bob & Carol" is not
+        // a recipient the gift history can hold. A relationship-borne `get:gift`
+        // still shows as a reminder; it just records nothing when ticked.
         const gifts: GiftReminderTarget[] = targets
           .filter((t) => t.action === "get:gift")
-          .map((t) => ({
-            reminderId: t.id,
-            recipientType: t.bearerType,
-            recipientId: t.bearerId,
-          }));
+          .flatMap((t) =>
+            t.bearerType === "relationship"
+              ? []
+              : [
+                  {
+                    reminderId: t.id,
+                    recipientType: t.bearerType,
+                    recipientId: t.bearerId,
+                  },
+                ],
+          );
 
         // The offers come from the kind defaults rather than from stored rows on
         // purpose. A prompt exists precisely because the milestone has none, so
@@ -1704,7 +1819,8 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
               milestoneKind: t.milestone!.kind,
               bearerType: t.bearerType,
               bearerId: t.bearerId,
-              subject: (await resolveLabel(t.bearerType, t.bearerId)) ?? "",
+              subject:
+                (await milestoneBearerLabel(t.bearerType, t.bearerId)) ?? "",
               occurrenceDate: t.occurrenceDate ?? null,
               offers: resolveReminderSchedule(t.milestone!.kind, []).rules,
             })),
@@ -1729,7 +1845,8 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           wishes.map(async (t) => ({
             reminderId: t.id,
             personId: t.bearerId,
-            subject: (await resolveLabel(t.bearerType, t.bearerId)) ?? "",
+            // `wishes` is filtered to people above, so the bearer is one.
+            subject: (await resolveLabel("person", t.bearerId)) ?? "",
             methods: reachableMethods(
               await listContactMethods(contactMethods, {
                 type: "person",

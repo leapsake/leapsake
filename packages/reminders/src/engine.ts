@@ -117,21 +117,53 @@ export interface ReminderEngineDeps {
   /**
    * Resolve a milestone bearer to its display label, or `null` when the bearer is
    * gone (a dangling milestone) — a null label skips the reminder.
+   *
+   * ⚠️ **`null` means gone, never "this bearer type has no name".** A
+   * `relationship` bearer answered `null` for exactly that second reason until
+   * 2026-09-05, and because the two meanings share one value the engine read it
+   * as a dangling milestone and skipped the row: every wedding anniversary
+   * linked to its relationship — the flow both clients invite — generated no
+   * reminders at all, silently, including its prompt. The composition root now
+   * names a relationship by its endpoints, and a relationship the **self-person**
+   * is one end of resolves to the *other* end, since "Wish You & Alice a happy
+   * anniversary" is not a thing anyone wants to be told.
    */
   resolveLabel(
     bearerType: MilestoneBearerType,
     bearerId: string,
   ): Promise<string | null>;
   /**
-   * Whether a milestone bearer is the **self-person** —
-   * flips the birthday *wish* copy from "Wish @You a happy birthday" to a self-
-   * directed "It's your birthday!". A single branch in the copy layer, keyed on
-   * `getSelf()`, **not** a filter: your own birthday is still reminded, just
-   * addressed to you. **Optional**, like `onboarding`/`holidays`, so engine unit
-   * tests may omit it (the wish then always uses the third-party copy); the
-   * composition root supplies it.
+   * Whether a milestone is **about you** — the self-person, or a relationship the
+   * self-person is one end of. Flips the birthday *wish* copy from "Wish @You a
+   * happy birthday" to a self-directed "It's your birthday!", and the prompt's
+   * to "How do you want to mark your own wedding anniversary?". A single branch
+   * in the copy layer, keyed on `getSelf()`, **not** a filter: your own birthday
+   * is still reminded, just addressed to you. **Optional**, like
+   * `onboarding`/`holidays`, so engine unit tests may omit it (the copy then
+   * always uses the third-party form); the composition root supplies it.
    */
   isSelf?(bearerType: MilestoneBearerType, bearerId: string): Promise<boolean>;
+  /**
+   * Whether a milestone is about a **romantic partnership the user is in** —
+   * their own relationship, whether it is stored on the relationship itself or
+   * on the partner as a person.
+   *
+   * It gates one thing: the prompt of a kind declaring
+   * `prompt.onlyOwnPartnership` (`first-date`, and only it). Separate from
+   * {@link ReminderEngineDeps.isSelf} because the two answer different
+   * questions and must not be conflated — your wife is not *you*, and a milestone
+   * borne by her must never take the self-directed copy that would give her
+   * birthday "It's your birthday!".
+   *
+   * **Optional, and its absence fails closed**: with no port, a gated prompt is
+   * not minted. The composition root supplies it, and the alternative default
+   * would ask about other people's first dates whenever wiring was forgotten —
+   * the exact question the gate exists to prevent.
+   */
+  isOwnPartnership?(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<boolean>;
   /** The **local civil** "today" reconcile runs against (see reminder-schedule). */
   today: CivilDate;
   /** Run the reconcile body atomically (the real driver's `transaction`). */
@@ -404,8 +436,15 @@ function selfOverrideOf(
 export interface SystemReminderTarget {
   id: string;
   action: ReminderAction;
-  /** Always a person or pet: a relationship-borne milestone carries no target. */
-  bearerType: HolidayBearerType;
+  /**
+   * Who or what the row is about. A **relationship** reaches here too, and must:
+   * a wedding anniversary linked to its relationship is answered by writing
+   * rules against that milestone like any other, so withholding the target would
+   * put an unanswerable question on the screen — the one failure
+   * *A nudge, never a wall* exists to prevent. Consumers that genuinely need a
+   * person or a pet (a gift's recipient) filter for one.
+   */
+  bearerType: MilestoneBearerType;
   bearerId: string;
   /**
    * The milestone this row was minted from, for the rows that came from one —
@@ -1268,9 +1307,20 @@ async function computeDesired(
     // /refresh/prune and the tombstone guard below with no second code path.
     // Whether a kind asks at all is `kindDefs[kind].prompt`; when it is due is
     // derived from what it offers (`promptOffsetDays`), never chosen.
+    //
+    // A kind may also narrow *who* it asks (`prompt.onlyOwnPartnership`, which
+    // only `first-date` sets). The check is a port call, so it is made last and
+    // only when a prompt would otherwise be minted — the common case never pays
+    // for it.
     const prompt = kindDefs[m.kind].prompt;
+    const wantsPrompt =
+      resolved.source === "kind-default" &&
+      prompt !== undefined &&
+      (prompt.onlyOwnPartnership !== true ||
+        (deps.isOwnPartnership !== undefined &&
+          (await deps.isOwnPartnership(m.bearerType, m.bearerId))));
     const schedule: ReminderRuleInput[] =
-      resolved.source === "kind-default" && prompt !== undefined
+      wantsPrompt && prompt !== undefined
         ? [
             {
               action: "plan",
@@ -1300,19 +1350,25 @@ async function computeDesired(
         if (label === null) break; // bearer gone — nothing to name the reminder
         // Wrap the subject in an inline mention token so the name links to the
         // person/pet page (the reminder text is the single source of truth for the
-        // mention; core re-derives the backlink from it). A relationship bearer has
-        // no single entity to point at, so it stays plain text — though in practice a
-        // relationship never reaches here (its label resolves to null above).
+        // mention; core re-derives the backlink from it). A relationship bearer
+        // has no single entity to point at, so it stays **plain text** — its label
+        // is either both endpoints ("Bob & Carol", two entities, and a token names
+        // one) or, for a relationship you are in, the other end, whose id this
+        // loop does not have. Losing the backlink is the accepted cost of the row
+        // existing at all; before 2026-09-05 a relationship never reached here,
+        // because its label resolved to null and the milestone was skipped.
         subject =
           m.bearerType === "relationship"
             ? label
             : mentionToken(label, m.bearerType, m.bearerId);
-        // Is this milestone's bearer *you*? A single copy-layer branch (below)
-        // flips the birthday wish to self-directed rather than filtering your own
-        // birthday out — you are not excluded. Only a person can be self, and
-        // only when the port is supplied.
+        // Is this milestone about *you*? A single copy-layer branch (below) flips
+        // the birthday wish and the prompt to self-directed rather than filtering
+        // your own occasions out — you are not excluded. A relationship you are
+        // one end of counts, which is what makes your own wedding anniversary ask
+        // "your own", so every bearer type is offered to the port rather than
+        // only `person`.
         bearerIsSelf =
-          m.bearerType === "person" && deps.isSelf !== undefined
+          deps.isSelf !== undefined
             ? await deps.isSelf(m.bearerType, m.bearerId)
             : false;
       }
@@ -1358,17 +1414,12 @@ async function computeDesired(
           dueDate,
           activeFrom: dueDate - ownActiveDays(rule.action) * DAY_MS,
           occurrenceDate: dueDateMs(occ),
-          // A relationship bearer names no single entity, so it carries no target
-          // (and in practice never reaches here — its label resolves to null).
-          target:
-            m.bearerType === "relationship"
-              ? undefined
-              : {
-                  action: rule.action,
-                  bearerType: m.bearerType,
-                  bearerId: m.bearerId,
-                  milestone: { id: m.id, kind: m.kind },
-                },
+          target: {
+            action: rule.action,
+            bearerType: m.bearerType,
+            bearerId: m.bearerId,
+            milestone: { id: m.id, kind: m.kind },
+          },
         });
       }
     }

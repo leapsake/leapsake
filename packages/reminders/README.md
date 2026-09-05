@@ -25,6 +25,7 @@ scoped. The composition root wires the repos.
 | How snooze budgets are read | `snoozePolicyOf`, beside `ONBOARDING_STEPS` |
 | Why an unconfigured occasion gets a question instead of errands | the `plan` synthesis in `computeDesired`, and *The prompt* below |
 | When that question is asked | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers |
+| Why `first-date` asks only about your own partner | `prompt.onlyOwnPartnership` in `kindDefs`, and *Who gets asked* below |
 | Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps` |
 | Why a schedule has two levels and not four | `resolveReminderSchedule` in `@leapsake/schema`, and *Schedules* below |
 
@@ -319,6 +320,55 @@ week's *not now* offered just before it would silently forfeit the long-lead opt
 is nothing left to protect, and all that matters is keeping the question answerable, so it snoozes
 the full period.
 
+### Who gets asked, where that is narrower than which kinds ask
+
+`first-date` asks only about a **romantic partnership the user is in** *(owner, 2026-09-05)*, and it
+is the only kind that narrows its audience. Two decisions are stacked there, and they are worth
+keeping apart.
+
+That it asks at all is the argument `wedding` already made: both its actions ship off, so without a
+question a first date you record generates *nothing*, which makes recording one pointless.
+
+That it asks **narrowly** is where it parts from `wedding`, and the line is not "is this mine". It
+is whether a third party normally marks the occasion. Someone else's wedding anniversary is a thing
+people acknowledge, so `wedding` keeps asking about everyone's; someone else's first date is not,
+and a question about one reads as the app having misunderstood what it is for.
+
+⚠️ **The gate fails closed**, and that is the deliberate half. `isOwnPartnership` is an optional
+port, and with no port wired the gated prompt is minted for nobody — because the failure it exists
+to prevent is asking about other people's, and a wiring mistake defaulting the other way would
+restore that everywhere at once.
+
+⚠️ **It reads data the user may not have entered**, which is the accepted cost. A first date is
+usually recorded on the *partner*, not on the relationship, so the check looks for a stored
+`spouse`/`partner` edge (`isRomanticRole`, which takes the gendered variants through `baseRole`)
+between them and the self-person. No self-person, or no role set, means no question — silence in
+exactly the case that wanted asking. The alternative was asking about everyone, and between a
+question that sometimes fails to appear and one that appears where it makes no sense, this one was
+chosen knowingly.
+
+### A relationship is a bearer like any other, and once was not
+
+A milestone borne by a **relationship** — a wedding anniversary linked to the marriage it belongs
+to, which both clients invite you to do — generated **nothing at all** until 2026-09-05. Not the
+reminders, not the prompt. The composition root answered `null` to the label port for that bearer
+type, meaning "no formatter for this"; the engine reads `null` as "the bearer is gone" and skips the
+milestone. One value, two meanings, and the losing one was silent on both sides.
+
+The fix is that a relationship now has a name: both endpoints (`relationshipPairLabel` — "Bob &
+Carol"), or, when the self-person is one end, **the other end**, since "Wish You & Alice a happy
+anniversary" is not a thing to tell anyone. `null` again means only *gone*.
+
+Two consequences worth holding on to:
+
+- **`isSelf` is asked about every bearer type, not just people.** A relationship you are one end of
+  is "about you", which is what makes your own anniversary's prompt say *your own*. It stays
+  distinct from `isOwnPartnership` above: your wife is not *you*, and conflating them would give her
+  birthday "It's your birthday!".
+- ⚠️ **A relationship-borne row carries no mention backlink.** Its label is either two entities or an
+  entity the loop does not hold the id of, and a mention token names exactly one. The row is plain
+  text, which is the accepted cost of it existing at all.
+
 ### ⚠️ The mechanism generalises to holidays; the shape does not
 
 A milestone is one person, so one prompt is one decision. A holiday is one occasion across everyone
@@ -337,10 +387,10 @@ Same writes, different presentation. **Do not ship per-observance prompts in the
   reminder row uses, and six weeks earlier than the birthday. The surfaces that ask the question say
   when the occasion actually is; the row does not, so a reader could take "in 2 weeks" for the
   birthday. Worth watching in real use.
-- **Only birthdays, weddings and anniversaries prompt.** `death` must not — a checkbox list of ways
-  to recognise a death anniversary is exactly the wrong object, and its single quiet `remember` is
-  already right. The same reasoning excludes any kind offering one action: a question with one
-  answer is not a question. Adding a kind is one `kindDefs` line.
+- **Not every kind prompts.** `death` must not — a checkbox list of ways to recognise a death
+  anniversary is exactly the wrong object, and its single quiet `remember` is already right. The
+  same reasoning excludes any kind offering one action: a question with one answer is not a
+  question. Adding a kind is one `kindDefs` line.
 
 ## Schedules — where a rule comes from
 

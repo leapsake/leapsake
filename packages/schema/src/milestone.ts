@@ -141,8 +141,12 @@ export interface MilestoneKindDef {
    * death anniversary is exactly the wrong object; its single quiet `remember`
    * is already right. The same reasoning excludes any kind whose schedule offers
    * only one action — a question with one answer is not a question.
+   *
+   * `onlyOwnPartnership` narrows *who* gets asked, and only `first-date` sets it
+   * — see the comment on that kind for why the line falls between it and
+   * `wedding` rather than around "is this mine".
    */
-  prompt?: { occasion: string };
+  prompt?: { occasion: string; onlyOwnPartnership?: true };
 }
 
 /**
@@ -202,6 +206,20 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     recursAnnually: true,
     greeting: "a happy anniversary",
     belatedGreeting: "a happy belated anniversary",
+    // It prompts, and — alone among the kinds that do — only for a relationship
+    // **the user is in** *(owner, 2026-09-05)*.
+    //
+    // That it prompts at all is the same argument `wedding` makes: both its
+    // actions ship off, so without the question a first date you record
+    // generates nothing at all, which makes recording one pointless.
+    //
+    // That it prompts *narrowly* is where it parts from `wedding`, and the line
+    // is not "is this mine" — it is whether a third party normally marks the
+    // occasion. Someone else's wedding anniversary is a thing people
+    // acknowledge; someone else's first date is not, and a question about one
+    // reads as the app having misunderstood what it is for. `wedding` therefore
+    // keeps asking about everyone's.
+    prompt: { occasion: "first date", onlyOwnPartnership: true },
     defaultReminderSchedule: [
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: false },
