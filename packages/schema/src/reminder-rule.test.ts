@@ -15,6 +15,7 @@ import {
   reminderScheduleInputSchema,
   resolveReminderSchedule,
   SCHEDULABLE_ACTIONS,
+  nextSchedulableRule,
   promptOffsetDays,
 } from "./index.js";
 
@@ -42,13 +43,48 @@ describe("reminderActionSchema / actionDefs", () => {
     }
   });
 
-  // `plan` is the engine's own question, synthesized per reconcile — never a
-  // row a user schedules. Anything that lists actions for a picker must read
-  // this and not the registry, so the editors can't quietly start offering
-  // "decide how to mark it" as a thing to decide to do.
-  it("excludes `plan` from the schedulable set, and nothing else", () => {
-    expect(SCHEDULABLE_ACTIONS).not.toContain("plan");
-    expect(SCHEDULABLE_ACTIONS.length).toBe(KNOWN_ACTIONS.length - 1);
+  // Two exclusions, for two unrelated reasons, and an explicit list rather than
+  // an arithmetic check on the registry's length — the count said "everything
+  // but `plan`", which stopped being the rule the day a channel stopped being an
+  // errand, and a length assertion would have gone on passing while offering the
+  // wrong set.
+  //
+  // `plan` is the engine's own question, synthesized per reconcile — never a row
+  // a user schedules. `call` and `message:sms` are the channel actions: how you
+  // reach someone is a button on the acknowledgment, not an errand scheduled
+  // weeks ahead. Anything that lists actions for a picker must read this and not
+  // the registry.
+  it("offers neither `plan` nor a channel", () => {
+    expect(SCHEDULABLE_ACTIONS).toEqual([
+      "wish",
+      "get:gift",
+      "get:card",
+      "send:card",
+      "visit",
+      "remember",
+      "other",
+    ]);
+    // ⚠️ The unoffered ones keep their registry entries on purpose: a rule stored
+    // under one before this narrowed still has to render its real copy.
+    for (const action of ["plan", "call", "message:sms"] as const) {
+      expect(KNOWN_ACTIONS).toContain(action);
+      expect(SCHEDULABLE_ACTIONS).not.toContain(action);
+    }
+  });
+
+  // Pressing Add twice used to append the same action twice, which
+  // `reminderScheduleInputSchema` then rejected as a duplicate — the collapse
+  // whole-set validation exists to catch, reachable from a button.
+  it("seeds a new rule with an action the schedule does not already hold", () => {
+    expect(nextSchedulableRule([]).action).toBe("wish");
+    expect(nextSchedulableRule([{ action: "wish" }]).action).toBe("get:gift");
+    // Every offered action taken: `other` is the escape hatch, and the one
+    // action a schedule may hold more than one of, since its identity is its
+    // label.
+    expect(
+      nextSchedulableRule(SCHEDULABLE_ACTIONS.map((action) => ({ action })))
+        .action,
+    ).toBe("other");
   });
 
   // The whole point of the split: one verb, two errands, two identities. Before
@@ -241,10 +277,12 @@ describe("resolveReminderSchedule", () => {
       "get:card",
       "send:card",
       "wish",
-      "call",
-      "message:sms",
     ]);
-    expect(rules.map((r) => r.offsetDays)).toEqual([12, 12, 7, 0, 0, 0]);
+    expect(rules.map((r) => r.offsetDays)).toEqual([12, 12, 7, 0]);
+    // ⚠️ No `call`, no `message:sms`. They sat in this list until 2026-09-05 and
+    // folded into the one `wish` row: a channel is a button on the
+    // acknowledgment, not a second errand to tick.
+    expect(rules.map((r) => r.action)).not.toContain("call");
     // "Wish them a happy birthday" is the only rule on by default; the staggered
     // gift, card and message actions are offered but start off.
     const enabled = rules.filter((r) => r.enabled).map((r) => r.action);

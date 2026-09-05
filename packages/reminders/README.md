@@ -43,11 +43,20 @@ from "what", so the moment two rules wanted the same verb they collapsed: the de
 by derived id, and the later of the two silently won. Nothing prevented writing them, either.
 
 Hence `verb:qualifier`. The **verb is closed** and Zod-validated, because it is what the code
-branches on; the **qualifier is open**, because it is `gift`/`card` today and a platform id from
-`@leapsake/contact-links` tomorrow, and `@leapsake/schema` neither has nor wants that dependency.
-It is validated by shape, not by membership in a list. The action stays one free-text column and
-one segment of a hashed name, so this needed no schema change — and nothing anywhere *parses* a
-reminder id, so an action carrying a colon of its own costs nothing.
+branches on; the **qualifier is open**, because it is `gift`/`card` today and could be a platform
+id from `@leapsake/contact-links` later, and `@leapsake/schema` neither has nor wants that
+dependency. It is validated by shape, not by membership in a list. The action stays one free-text
+column and one segment of a hashed name, so this needed no schema change — and nothing anywhere
+*parses* a reminder id, so an action carrying a colon of its own costs nothing.
+
+⚠️ **A channel qualifier is not what that openness is for, and is not coming soon** *(owner,
+2026-09-05)*. `call` and `message:sms` were offered as errands of their own until then, and are
+not any more: how you reach someone is an **affordance on the acknowledgment** — a button on
+"wish them a happy birthday" — not a row you schedule weeks ahead. They keep their `actionDefs`
+entries so a rule stored under one still renders its real copy, and they are excluded from
+`SCHEDULABLE_ACTIONS`, which is the list every picker reads. The distinction that matters here is
+that this is a decision about **what the UI offers**, not about what an action can express: the
+identity split below is untouched, and getting specific again is an edit to one filter.
 
 Two rules that fall out of it, both easy to break:
 

@@ -88,7 +88,7 @@ export interface MilestoneKindDef {
   /**
    * The kind's default staggered-reminder schedule — the set of actions and lead
    * times a fresh milestone of this kind offers, each with whether it starts on
-   * (birthdays offer a gift, a card, a call and a text but only the day-of wish
+   * (a birthday offers a gift and two halves of a card, but only the day-of wish
    * is on; a death anniversary offers only a quiet "remember", off). This is the
    * **sole** driver of what the engine generates by default: a milestone with no
    * stored rules rides this list (`resolveReminderSchedule`), and the engine
@@ -175,9 +175,12 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
       // `activeDays` is what makes it the later of the two on the list.
       { action: "get:card", offsetDays: 12, enabledByDefault: false },
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
+      // Nothing channel-specific beside it: `call` and `message:sms` used to sit
+      // here and were folded into this one row on 2026-09-05 (see
+      // `SCHEDULABLE_ACTIONS`). A channel is a button on the acknowledgment, not
+      // a second errand to tick, so "wish them" is the whole of the day-of offer
+      // and the person's contact methods hang off the reminder it mints.
       { action: "wish", offsetDays: 0, enabledByDefault: true },
-      { action: "call", offsetDays: 0, enabledByDefault: false },
-      { action: "message:sms", offsetDays: 0, enabledByDefault: false },
     ],
   },
   death: {
@@ -201,7 +204,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     belatedGreeting: "a happy belated anniversary",
     defaultReminderSchedule: [
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
-      { action: "call", offsetDays: 0, enabledByDefault: false },
+      { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
   },
   wedding: {
@@ -216,7 +219,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     prompt: { occasion: "wedding anniversary" },
     defaultReminderSchedule: [
       { action: "get:gift", offsetDays: 7, enabledByDefault: false },
-      { action: "call", offsetDays: 0, enabledByDefault: false },
+      { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
   },
   anniversary: {
@@ -234,11 +237,11 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     greeting: "a happy anniversary",
     belatedGreeting: "a happy belated anniversary",
     prompt: { occasion: "anniversary" },
-    // A card and a call, both offered and both off — the source card says a date
-    // matters to this person, not what the user wants done about it.
+    // A card and an acknowledgment, both offered and both off — the source card
+    // says a date matters to this person, not what the user wants done about it.
     defaultReminderSchedule: [
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
-      { action: "call", offsetDays: 0, enabledByDefault: false },
+      { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
   },
   met: {
@@ -249,7 +252,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     greeting: "a happy anniversary",
     belatedGreeting: "a happy belated anniversary",
     defaultReminderSchedule: [
-      { action: "call", offsetDays: 0, enabledByDefault: false },
+      { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
   },
   graduation: {
@@ -261,7 +264,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     belatedGreeting: "belated congratulations",
     defaultReminderSchedule: [
       { action: "get:gift", offsetDays: 14, enabledByDefault: false },
-      { action: "call", offsetDays: 0, enabledByDefault: false },
+      { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
   },
   "job-start": {
@@ -272,7 +275,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     greeting: "congratulations",
     belatedGreeting: "belated congratulations",
     defaultReminderSchedule: [
-      { action: "call", offsetDays: 0, enabledByDefault: false },
+      { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
   },
   moved: {

@@ -235,8 +235,11 @@ export const observanceDefaultReminderSchedule: DefaultReminderRule[] = [
   { action: "get:gift", offsetDays: 12, enabledByDefault: false },
   { action: "get:card", offsetDays: 12, enabledByDefault: false },
   { action: "send:card", offsetDays: 7, enabledByDefault: false },
+  // No `call` beside it: it sat here until 2026-09-05 and came out with the
+  // milestone kinds' channel actions (see `SCHEDULABLE_ACTIONS`). An observance
+  // needs no replacement the way `met` or `job-start` did — `wish` was already
+  // on the list, so this is a plain removal.
   { action: "wish", offsetDays: 0, enabledByDefault: false },
-  { action: "call", offsetDays: 0, enabledByDefault: false },
 ];
 
 /**

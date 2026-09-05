@@ -126,6 +126,7 @@ export {
   actionKeyOf,
   KNOWN_ACTIONS,
   SCHEDULABLE_ACTIONS,
+  nextSchedulableRule,
   MAX_ACTIVE_DAYS,
   reminderRuleBearerTypeSchema,
   reminderRuleSchema,

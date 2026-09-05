@@ -285,6 +285,11 @@ export const actionDefs = {
     activeDays: 14,
     template: ({ subject }) => `Send ${subject} a card`,
   },
+  // ⚠️ The two channel actions below are **registered but not offered** — see
+  // `UNOFFERED_ACTIONS` beside `SCHEDULABLE_ACTIONS` for why (a channel is an
+  // affordance, not an errand). They stay here, and must, so a rule stored under
+  // one before that decision still renders its real copy rather than
+  // `actionDefOf`'s generic fallback. Do not delete them to tidy up.
   call: {
     label: "Give a call",
     icon: "📞",
@@ -295,9 +300,10 @@ export const actionDefs = {
   "message:sms": {
     label: "Send a text",
     icon: "💬",
-    // A channel qualifier, and the first one: `message` is the verb that takes
-    // the platform ids from `@leapsake/contact-links` (`message:discord`,
-    // `message:whatsapp`) once something can pick one.
+    // A channel qualifier, and the first one: `message` is the verb that would
+    // take the platform ids from `@leapsake/contact-links` (`message:discord`,
+    // `message:whatsapp`) if anything ever picked one. Nothing does, and under
+    // the 2026-09-05 decision nothing is meant to.
     activeDays: 0,
     template: ({ subject }) => `Text ${subject}`,
   },
@@ -400,8 +406,10 @@ export function actionDefOf(action: ReminderAction): ReminderActionDef {
 }
 
 /**
- * The actions a **schedule** may contain — every registered action except
- * `plan`.
+ * The actions a schedule editor **offers**, which is deliberately narrower than
+ * the actions a schedule may *hold*.
+ *
+ * Two exclusions, for two unrelated reasons.
  *
  * `plan` is the engine's own question about an unconfigured occasion, not an
  * errand the user picks: it is synthesized per reconcile from
@@ -409,13 +417,65 @@ export function actionDefOf(action: ReminderAction): ReminderActionDef {
  * occasion that has by definition already been answered and offer "decide how to
  * mark it" as one of the things you might decide to do.
  *
- * So this, and not {@link KNOWN_ACTIONS}, is what a picker lists and what
- * {@link reminderRuleInputSchema} accepts. Both schedule editors read it
- * directly, which is why it lives here rather than being filtered at each of
- * them.
+ * `call` and `message:sms` are excluded on a product decision *(owner,
+ * 2026-09-05)*: **a channel is an affordance, not an errand.** How you reach
+ * someone is a button on the acknowledgment — one row, *wish them a happy
+ * birthday*, with their contact methods on it — rather than a row of its own you
+ * schedule in advance. Scheduling "call Alice" and "text Alice" as separate
+ * errands asks the user, weeks ahead, a question they can only answer in the
+ * moment, and answers it with two rows to tick where one would do.
+ *
+ * ⚠️ **They keep their {@link actionDefs} entries, and that is the point.** A
+ * rule already stored under one — a prompt answered before this narrowed, or a
+ * peer on an older build — still resolves to proper copy instead of falling
+ * through to {@link actionDefOf}'s deliberately dull generic. Nothing about the
+ * data model changed: {@link reminderRuleInputSchema} validates an action by
+ * *shape* and never against this list, so narrowing it cannot fail the read of a
+ * stored row, and getting specific again later is an edit to this filter rather
+ * than a rebuild.
+ *
+ * So this, and not {@link KNOWN_ACTIONS}, is what a picker lists. Both schedule
+ * editors read it directly, which is why it lives here rather than being
+ * filtered at each of them.
  */
+const UNOFFERED_ACTIONS: readonly KnownReminderAction[] = [
+  "plan",
+  "call",
+  "message:sms",
+];
+
 export const SCHEDULABLE_ACTIONS: readonly KnownReminderAction[] =
-  KNOWN_ACTIONS.filter((action) => action !== "plan");
+  KNOWN_ACTIONS.filter((action) => !UNOFFERED_ACTIONS.includes(action));
+
+/**
+ * The rule an editor's **Add** button should append, given what the schedule
+ * already holds: the first offered action not already in it.
+ *
+ * It lives here rather than in each editor for the same reason
+ * {@link SCHEDULABLE_ACTIONS} does — there are two of them, on two clients, and
+ * a seed chosen locally is a seed that drifts. Both used to append a fixed
+ * `call` row, which this replaces on two counts: `call` is no longer offered at
+ * all, and a *fixed* seed of any action is a latent bug, since pressing Add
+ * twice appends the same action twice and
+ * {@link reminderScheduleInputSchema} rejects the set as a duplicate — the very
+ * collapse that whole-set validation exists to catch.
+ *
+ * Falls back to `other` when every offered action is already present: it is the
+ * free-text escape hatch, so it is the one action a schedule can hold more than
+ * one of (its identity is its label — see `actionKeyOf`), and a full schedule
+ * should still be able to grow a custom row.
+ *
+ * `offsetDays: 7` is carried over unchanged from the seed this replaces. It is a
+ * starting point the user edits on the row, not a recommendation for any
+ * particular action.
+ */
+export function nextSchedulableRule(
+  existing: readonly { action: ReminderAction }[],
+): ReminderRuleInput {
+  const taken = new Set(existing.map((rule) => rule.action));
+  const action = SCHEDULABLE_ACTIONS.find((a) => !taken.has(a)) ?? "other";
+  return { action, label: null, offsetDays: 7, enabled: true };
+}
 
 /**
  * The widest {@link ReminderActionDef.activeDays} any registered action

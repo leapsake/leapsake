@@ -10,20 +10,17 @@
 ⚠️ **Read this first, and move the marker when a slice lands.** Everything below is reasoning;
 this is the queue. Each entry names one unit of work and the section that specifies it.
 
-1. **Increment 5 slice B — narrow what the UI offers** ← **the next unit of work.** Take `call`
-   and `message:sms` out of `SCHEDULABLE_ACTIONS` and out of every kind's
-   `defaultReminderSchedule`, replacing them with `wish` on the six kinds where `call` was the
-   only acknowledgment. Their `actionDefs` entries stay. No migration, and the prompt's offer set
-   follows for free. Specified in *Increment 5* → *The slices* → **B**, which carries the exact
-   per-kind mapping and the two consequences to expect.
-2. **Increment 5 slice C — the contact affordances and the collect CTA.** The only product surface
-   left in the increment, and mobile-weighted for a reason the slice explains.
-3. **Increment 6 — the cascade, and provenance.** Four levels, resolved per action.
-4. **Increment 7 — presets**, most of which the shipped prompt already absorbed. Read its warning
+1. **Increment 5 slice C — the contact affordances and the collect CTA** ← **the next unit of
+   work.** The only product surface left in the increment, and mobile-weighted for a reason the
+   slice explains. Specified in *Increment 5* → *The slices* → **C**, which names where the row
+   learns who it is about, which component to reuse, and what desktop should and should not get.
+2. **Increment 6 — the cascade, and provenance.** Four levels, resolved per action.
+3. **Increment 7 — presets**, most of which the shipped prompt already absorbed. Read its warning
    before starting: it may be a second question on the prompt rather than a surface of its own.
 
 **Already landed; do not re-plan it.** Per-action windows, the `plan` prompt, the `verb:qualifier`
-identity split, and Increment 5 slice A (the derive-at-read seam). `git log` is the record of what
+identity split, and Increment 5 slices A (the derive-at-read seam) and B (no channel is offered
+anywhere). `git log` is the record of what
 was done and the package READMEs hold the reasoning — `@leapsake/reminders` most of all.
 
 ## The problem
@@ -222,46 +219,37 @@ all.
   steady state — but it now has exactly one customer, and the forward references should be read as
   history rather than as plans.
 
-- **B — narrow what the UI offers.** The mechanical half of decision 3, and the piece with the
-  sharp edge on it.
+- **B ✅ — narrow what the UI offers** *(shipped 2026-09-05)*. `call` and `message:sms` are out of
+  `SCHEDULABLE_ACTIONS` and out of every default schedule; their `actionDefs` entries stay, so a
+  rule stored under one still renders its real copy rather than `actionDefOf`'s generic. The
+  per-kind mapping landed exactly as specified — `wedding` → `[get:gift, wish]`, `anniversary` →
+  `[send:card, wish]`, `met` → `[wish]`, `first-date` → `[send:card, wish]`, `graduation` →
+  `[get:gift, wish]`, `job-start` → `[wish]`, and on `birthday` the two simply folded into the
+  `wish` already there. No migration: `reminderRuleInputSchema` validates an action by shape and
+  never against the offered list, which was checked rather than assumed. The durable reasoning is
+  on `SCHEDULABLE_ACTIONS` / `UNOFFERED_ACTIONS` in `@leapsake/schema` and in
+  [`@leapsake/reminders`](../packages/reminders/README.md) → *Identity*.
 
-  `call` and `message:sms` come out of `SCHEDULABLE_ACTIONS` (the two schedule-editor pickers,
-  `packages/ui/src/web/fields/ReminderScheduleFields.tsx` and its mobile twin, are its only
-  readers) and out of every kind's `defaultReminderSchedule`. **Their `actionDefs` entries stay**,
-  so a rule already stored under one — an answered prompt, or a peer on an older build — still
-  renders proper copy instead of falling through to `actionDefOf`'s dull generic.
+  ⚠️ **Two sites this spec did not list, both found by grep rather than by reading it.** Worth
+  knowing that the six kinds were not the whole of it:
 
-  ⚠️ **`call` is load-bearing on six kinds, and removing it naively guts four of them.** It is not
-  only birthdays: today `wedding` is `[get:gift, call]`, `anniversary` is `[send:card, call]`,
-  `met` and `job-start` are `[call]` **alone**, `first-date` is `[send:card, call]`, and
-  `graduation` is `[get:gift, call]`. Strike `call` out and `met` and `job-start` offer *nothing*,
-  while `wedding` and `anniversary` — both of which **prompt** — are left with a single option,
-  which this doc's own rule says is not a question.
+  - **`observanceDefaultReminderSchedule` in `holiday.ts`** carried a `call` too — holidays are
+    borne by observances, not kinds, so "every kind's defaults" missed it. A plain removal there,
+    with no replacement needed: `wish` was already on the list.
+  - **Both schedule editors seeded their *Add* button with a literal `call` row.** That had to
+    change whatever replaced it, and a fixed seed of *any* action turned out to be a latent bug:
+    pressing Add twice appended the same action twice, which `reminderScheduleInputSchema` then
+    rejected as a duplicate — the collapse whole-set validation exists to catch, reachable from a
+    button. It is now `nextSchedulableRule` in `@leapsake/schema`, the first offered action the
+    schedule does not already hold, falling back to `other`. It lives there rather than in either
+    editor for the same reason `SCHEDULABLE_ACTIONS` does: there are two of them, and a seed
+    chosen locally drifts.
 
-  The fix is the reversal's own logic rather than a special case: on those kinds `call` was
-  standing in for *acknowledge them somehow*, and the generic form of that is `wish`. **Settled:
-  defer to `wish`** *(owner, 2026-09-05)* — so **replace it, don't delete it** — `wedding` → `[get:gift, wish]`, `anniversary` → `[send:card, wish]`,
-  `met` → `[wish]`, `first-date` → `[send:card, wish]`, `graduation` → `[get:gift, wish]`,
-  `job-start` → `[wish]`. Every greeting already reads correctly under `wish` ("Wish @Alice
-  congratulations", "Wish @Alice a happy anniversary"), because the greeting is what varies by kind
-  and `wish` is the action written to interpolate it. On `birthday` there is nothing to replace:
-  `wish` is already there and already the enabled default, so `call` and `message:sms` simply
-  collapse into it.
-
-  Two consequences worth noticing rather than tripping over:
-
-  - **`first-date` becomes prompt-*eligible*** — two actions where it had one, which was the stated
-    reason it does not ask. Eligible is not automatic; adding the prompt is one `kindDefs` line and
-    a separate decision.
-  - **`reminder-rule.test.ts` asserts `SCHEDULABLE_ACTIONS.length === KNOWN_ACTIONS.length - 1`**,
-    which is the "everything but `plan`" invariant. That invariant is what this slice breaks on
-    purpose, so the assertion becomes an explicit list.
-
-  **No migration, and this is worth checking rather than assuming.** `reminderRuleInputSchema`
-  validates the action with `reminderActionSchema` — shape only, plus a refusal of `plan` — and
-  *not* against `SCHEDULABLE_ACTIONS`, so narrowing that list cannot fail the read of a stored row.
-  Existing `call` rules from an answered prompt keep working and keep minting their reminders,
-  which is the right outcome: the user chose them, and the reversal is about what we *offer*.
+  The two predicted consequences both landed. `first-date` now offers two actions and so is
+  **prompt-eligible** — still a separate decision, and decision 7's bullet carries the warning.
+  And the schema test that asserted "everything but `plan` is schedulable" as an arithmetic check
+  on the registry's length is now an explicit list: the count would have gone on passing while the
+  set was wrong.
 
 - **C — the affordances and the collect CTA.** What used to be slice D, and now the only product
   surface in the increment. Three things a fresh reader needs before starting it, none of them

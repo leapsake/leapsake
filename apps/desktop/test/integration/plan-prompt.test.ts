@@ -105,8 +105,6 @@ describe("the plan prompt, end to end through core", () => {
       "get:card",
       "send:card",
       "wish",
-      "call",
-      "message:sms",
     ]);
     expect(target.offers.filter((o) => o.enabled).map((o) => o.action)).toEqual(
       ["wish"],
@@ -158,7 +156,10 @@ describe("the plan prompt, end to end through core", () => {
     );
     // The full set is stored, not just the tick — that is what makes "asked" a
     // fact rather than an inference, so next year's occurrence asks nothing.
-    expect(schedule).toHaveLength(6);
+    // Measured against what was *offered* rather than against a written-down
+    // count, so narrowing the offer set (as 2026-09-05 did, by two) moves this
+    // with it instead of breaking it.
+    expect(schedule).toHaveLength(target.offers.length);
     expect(schedule.filter((r) => r.enabled).map((r) => r.action)).toEqual([
       "wish",
     ]);

@@ -3,12 +3,14 @@ import {
   type ReminderRuleInput,
   SCHEDULABLE_ACTIONS,
   actionDefOf,
+  nextSchedulableRule,
   verbOf,
 } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
 
-/** The action options in registry order, for the per-row picker. `plan` is not
- *  among them: it is the engine's own question, never a rule a user schedules. */
+/** The action options in registry order, for the per-row picker. Neither `plan`
+ *  (the engine's own question, never a rule a user schedules) nor the channel
+ *  actions are among them — see `SCHEDULABLE_ACTIONS`. */
 const ACTIONS = SCHEDULABLE_ACTIONS;
 
 /**
@@ -42,11 +44,9 @@ export function ReminderScheduleFields({
     );
   const remove = (index: number) =>
     onChange(value.filter((_, i) => i !== index));
-  const add = () =>
-    onChange([
-      ...value,
-      { action: "call", label: null, offsetDays: 7, enabled: true },
-    ]);
+  // What Add appends is `@leapsake/schema`'s decision, not this component's:
+  // there are two of these editors and a locally-chosen seed drifts.
+  const add = () => onChange([...value, nextSchedulableRule(value)]);
 
   return (
     <fieldset>

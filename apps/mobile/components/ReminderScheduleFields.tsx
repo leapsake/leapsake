@@ -4,14 +4,15 @@ import {
   type ReminderRuleInput,
   SCHEDULABLE_ACTIONS,
   actionDefOf,
+  nextSchedulableRule,
   verbOf,
 } from "@leapsake/schema";
 import { SelectField } from "./SelectField";
 import { styles } from "../lib/styles";
 
 /** The action options in registry order, with their icon + label, for the picker.
- *  `plan` is not among them: it is the engine's own question, never a rule a
- *  user schedules. */
+ *  Neither `plan` (the engine's own question, never a rule a user schedules) nor
+ *  the channel actions are among them — see `SCHEDULABLE_ACTIONS`. */
 const ACTION_OPTIONS: { value: ReminderAction; label: string }[] =
   SCHEDULABLE_ACTIONS.map((a) => ({
     value: a,
@@ -39,11 +40,9 @@ export function ReminderScheduleFields({
     );
   const remove = (index: number) =>
     onChange(value.filter((_, i) => i !== index));
-  const add = () =>
-    onChange([
-      ...value,
-      { action: "call", label: null, offsetDays: 7, enabled: true },
-    ]);
+  // What Add appends is `@leapsake/schema`'s decision, not this component's:
+  // there are two of these editors and a locally-chosen seed drifts.
+  const add = () => onChange([...value, nextSchedulableRule(value)]);
 
   return (
     <View style={styles.field}>

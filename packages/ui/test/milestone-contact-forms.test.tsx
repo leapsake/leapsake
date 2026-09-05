@@ -116,9 +116,29 @@ describe("ReminderScheduleFields", () => {
     renderWithUi(<ReminderScheduleFields value={[]} onChange={onChange} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Add reminder" }));
+    // The seed is `nextSchedulableRule`'s answer, not this component's: the
+    // first offered action the schedule does not already hold.
     expect(onChange).toHaveBeenCalledWith([
-      { action: "call", label: null, offsetDays: 7, enabled: true },
+      { action: "wish", label: null, offsetDays: 7, enabled: true },
     ]);
+  });
+
+  it("offers no channel action in the picker", () => {
+    // A channel is a button on the acknowledgment, not an errand you schedule
+    // (owner, 2026-09-05), so neither of them may appear as an option here.
+    renderWithUi(
+      <ReminderScheduleFields
+        value={[{ action: "wish", label: null, offsetDays: 0, enabled: true }]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    const options = [
+      ...screen.getByLabelText("Reminder action").querySelectorAll("option"),
+    ].map((o) => o.getAttribute("value"));
+    expect(options).not.toContain("call");
+    expect(options).not.toContain("message:sms");
+    expect(options).toContain("wish");
   });
 
   it("reveals a label field for the `other` action and clears it on the way out", () => {
@@ -136,9 +156,9 @@ describe("ReminderScheduleFields", () => {
       "Send flowers",
     );
 
-    select("Reminder action", "call");
+    select("Reminder action", "visit");
     expect(onChange).toHaveBeenCalledWith([
-      { ...rule, action: "call", label: null },
+      { ...rule, action: "visit", label: null },
     ]);
   });
 
@@ -147,7 +167,7 @@ describe("ReminderScheduleFields", () => {
     const onChange = vi.fn();
     renderWithUi(
       <ReminderScheduleFields
-        value={[{ action: "call", label: null, offsetDays: 7, enabled: true }]}
+        value={[{ action: "visit", label: null, offsetDays: 7, enabled: true }]}
         onChange={onChange}
       />,
     );

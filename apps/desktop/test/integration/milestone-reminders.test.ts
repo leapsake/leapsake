@@ -53,8 +53,6 @@ describe("core.milestones — reminder schedule", () => {
       "get:card",
       "send:card",
       "wish",
-      "call",
-      "message:sms",
     ]);
     // Only the birthday wish is on by default.
     expect(resolved.filter((r) => r.enabled).map((r) => r.action)).toEqual([
