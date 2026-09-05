@@ -1,14 +1,37 @@
-import type { GiftReminderTarget } from "@leapsake/core";
-import {
-  type ReminderWithTags,
-  formatDueIn,
-  isReminderEditable,
-} from "@leapsake/schema";
+import type { GiftReminderTarget, ReminderInWindow } from "@leapsake/core";
+import { formatDueIn, isReminderEditable } from "@leapsake/schema";
 import { ReminderText } from "@leapsake/ui/web";
-import { partitionReminders, reminderActionsOf } from "@leapsake/view-models";
+import {
+  bucketReminders,
+  groupComingByActivation,
+  reminderActionsOf,
+} from "@leapsake/view-models";
 import { Fragment } from "react";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
 import { rowAffordanceFor, showsRemove } from "../lib/reminder-row";
+
+/**
+ * Every user-visible string on this screen, in one place so the later
+ * message-catalog sweep is mechanical (AGENTS.md → *User-visible text*). None
+ * of them takes a value; the counts are rendered beside them rather than
+ * interpolated in, so no sentence is built out of fragments here.
+ */
+const TEXT = {
+  title: "Reminders",
+  add: "Add reminder",
+  pastDue: "Past due",
+  belated: "Belated",
+  today: "Today",
+  available: "Available",
+  coming: "Coming",
+  completed: "Completed",
+  /** Nothing owed, but something is still there to do if you want to. */
+  noneOwed: "Nothing owed today.",
+  /** Nothing owed and nothing available either. */
+  allClear: "Nothing to do. You’re all caught up.",
+  /** No reminders at all — a first run, not a finished day. */
+  empty: "No reminders yet.",
+} as const;
 
 /**
  * One reminder row: a done/reopen toggle, the reminder's heading, whatever the
@@ -22,7 +45,7 @@ function ReminderRow({
   giftTarget,
   isDuplicatesNudge = false,
 }: {
-  reminder: ReminderWithTags;
+  reminder: ReminderInWindow;
   /** Set when this is a `🎁 gift` reminder — see {@link giftCtaFor}. */
   giftTarget?: GiftReminderTarget;
   /** Set when this row is the duplicates nudge, whose CTA opens the review. */
@@ -70,7 +93,7 @@ function ReminderRow({
       {/* Automatic (birthday) reminders aren't content-editable — the engine owns
           their text — so only user reminders get an Edit link. Done/Reopen stays
           available on every reminder; Remove doesn't (see `showsRemove`). */}
-      {isReminderEditable(reminder) && (
+      {isReminderEditable(reminder) && reminder.materialized && (
         <>
           <Link to={`/reminders/${reminder.id}/edit`}>Edit</Link>{" "}
         </>
@@ -98,7 +121,7 @@ function ReminderRow({
           </Fragment>
         );
       })}
-      {showsRemove(actions, done) && (
+      {showsRemove(actions, done, reminder.materialized) && (
         <Link to={`/reminders/${reminder.id}/delete`}>Remove</Link>
       )}
       {reminder.title !== null && reminder.body !== null && (
@@ -115,56 +138,92 @@ function ReminderRow({
 }
 
 /**
- * The Reminders screen — the app's home: a standalone list of user-created
- * reminders. Open reminders lead; completed ones collapse into a details
- * disclosure below.
+ * The Reminders screen — the app's home, split by **when**.
+ *
+ * Four headed lists lead — past due, belated, today, available — then *coming*
+ * and *completed* in disclosures. The reasoning for the split, and for which of
+ * them "done for the day" counts, is on `bucketReminders`; this screen owns only
+ * how it looks. Copy is kept in one table below so the later message-catalog
+ * sweep is mechanical.
  */
 export function ReminderList() {
   const { reminders, giftTargets, duplicatesNudgeId } = useLoaderData() as {
-    reminders: ReminderWithTags[];
+    reminders: ReminderInWindow[];
     giftTargets: GiftReminderTarget[];
     /** The id of today's duplicates nudge, or null when there are no pairs. */
     duplicatesNudgeId: string | null;
   };
   const giftTargetById = new Map(giftTargets.map((t) => [t.reminderId, t]));
-  // Open reminders lead; completed ones collapse into the disclosure below.
-  const { open, done } = partitionReminders(reminders);
+  const { pastDue, belated, today, available, coming, done, owed, actionable } =
+    bucketReminders(reminders);
+
+  const row = (reminder: ReminderInWindow, withNudgeCta = true) => (
+    <ReminderRow
+      key={reminder.id}
+      reminder={reminder}
+      giftTarget={giftTargetById.get(reminder.id)}
+      isDuplicatesNudge={withNudgeCta && reminder.id === duplicatesNudgeId}
+    />
+  );
+
+  const section = (heading: string, rows: ReminderInWindow[]) =>
+    rows.length === 0 ? null : (
+      <section>
+        <h2>{heading}</h2>
+        <ul>{rows.map((r) => row(r))}</ul>
+      </section>
+    );
 
   return (
     <main>
-      <h1>Reminders</h1>
+      <h1>{TEXT.title}</h1>
 
       <p>
-        <Link to="/reminders/new">Add reminder</Link>
+        <Link to="/reminders/new">{TEXT.add}</Link>
       </p>
 
-      {open.length === 0 ? (
-        <p>No open reminders.</p>
-      ) : (
-        <ul>
-          {open.map((reminder) => (
-            <ReminderRow
-              key={reminder.id}
-              reminder={reminder}
-              giftTarget={giftTargetById.get(reminder.id)}
-              isDuplicatesNudge={reminder.id === duplicatesNudgeId}
-            />
+      {/* Past due leads: its deadline blew but the occasion is still ahead, so
+          acting now has more value than anything else on the screen. Belated
+          follows — prominent, but nothing there can be recovered, only
+          acknowledged. */}
+      {section(TEXT.pastDue, pastDue)}
+      {section(TEXT.belated, belated)}
+      {section(TEXT.today, today)}
+
+      {/* Which kind of done was reached, said where the owed sections would have
+          been. Nothing owed is the line worth saying out loud; nothing left at
+          all is a different, quieter one. */}
+      {reminders.length > 0 && owed === 0 && (
+        <p>{actionable === 0 ? TEXT.allClear : TEXT.noneOwed}</p>
+      )}
+      {reminders.length === 0 && <p>{TEXT.empty}</p>}
+
+      {/* A month-long gift lives here the whole time, and deliberately does not
+          stand between the user and a finished day. */}
+      {section(TEXT.available, available)}
+
+      {coming.length > 0 && (
+        <details>
+          <summary>
+            {TEXT.coming} ({coming.length})
+          </summary>
+          {groupComingByActivation(coming).map((group) => (
+            <section key={group.activeFrom}>
+              {/* The distance is a moving number, so it is formatted, never
+                  written in. */}
+              <h3>{formatDueIn(group.activeFrom)}</h3>
+              <ul>{group.reminders.map((r) => row(r))}</ul>
+            </section>
           ))}
-        </ul>
+        </details>
       )}
 
       {done.length > 0 && (
         <details>
-          <summary>Completed ({done.length})</summary>
-          <ul>
-            {done.map((reminder) => (
-              <ReminderRow
-                key={reminder.id}
-                reminder={reminder}
-                giftTarget={giftTargetById.get(reminder.id)}
-              />
-            ))}
-          </ul>
+          <summary>
+            {TEXT.completed} ({done.length})
+          </summary>
+          <ul>{done.map((r) => row(r, false))}</ul>
         </details>
       )}
     </main>

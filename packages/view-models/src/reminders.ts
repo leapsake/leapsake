@@ -3,7 +3,13 @@ import {
   onboardingRouteOf,
   snoozePolicyOf,
 } from "@leapsake/reminders";
-import { type GiftPartyType, compareReminderDue } from "@leapsake/schema";
+import {
+  type GiftPartyType,
+  civilFromDueMs,
+  compareReminderDue,
+  daysUntil,
+  todayCivil,
+} from "@leapsake/schema";
 
 /** What the reminders list partitions and orders on. `ReminderWithTags` satisfies it. */
 export interface ReminderStanding {
@@ -54,6 +60,177 @@ export function partitionReminders<R extends ReminderStanding>(
     done: reminders.filter((r) => r.completedAt !== null),
     snoozed: active.filter(isSnoozed),
   };
+}
+
+/**
+ * What the reminders list buckets on: a row's standing, plus the two dates only
+ * the engine can supply. Core's `listInWindow` rows satisfy it; both extras are
+ * optional so a plain `ReminderWithTags` still does, and falls into the
+ * bucketing a dateless row gets.
+ */
+export interface ReminderTiming extends ReminderStanding {
+  /**
+   * When this row goes on display. Null (or absent) means **already on
+   * display** — a dateless nudge, or a user reminder, which is a row from the
+   * moment it is written.
+   */
+  activeFrom?: number | null;
+  /**
+   * The occasion this row counts down to, if it has one. It is what separates
+   * *past due* from *belated*; see {@link bucketReminders}.
+   */
+  occurrenceDate?: number | null;
+}
+
+/** Which part of the reminders list a row belongs in. */
+export type ReminderBucket =
+  | "past-due"
+  | "belated"
+  | "today"
+  | "available"
+  | "coming";
+
+/**
+ * The reminders list, split the way the screen shows it — the display half of
+ * what the engine's window already knows, and a strict refinement of
+ * {@link partitionReminders}, which it calls first and whose `done` / `snoozed`
+ * buckets it passes straight through.
+ *
+ * The problem it solves: one flat list of everything open makes a month-long
+ * gift errand indistinguishable from the wish owed this morning, so there is no
+ * way to clear the screen and feel finished. Five buckets, split by **due
+ * date**, with activity deciding only whether a row is on the main screen at
+ * all:
+ *
+ * - **past due** — the deadline blew while the occasion is still ahead. Acting
+ *   now still has the most value of anything on the screen (the card missed its
+ *   post date, but the birthday is Tuesday, so pay for express), which is the
+ *   argument for putting it first.
+ * - **belated** — the occasion itself has gone. Prominent, but below past due:
+ *   nothing can be recovered here, only acknowledged.
+ * - **today** — due today, plus every dateless row (see below).
+ * - **available** — on display, but due later. A month-long gift lives here the
+ *   whole time. It is visible, it is tickable, and it deliberately does **not**
+ *   count against being done today.
+ * - **coming** — not active yet. Behind an expander, ordered by when it lands.
+ *
+ * ⚠️ **`owed` is what "done for the day" measures** — past due + belated +
+ * today, and nothing else. That separation is the whole point: a gift project
+ * that sits on screen for a month must never make the day unfinishable. Both
+ * readings are returned, `owed` and `actionable`, so the copy can say which kind
+ * of done was reached; which one it celebrates is the client's call.
+ *
+ * **Dateless rows are owed** *(owner, 2026-09-04)*. An onboarding nudge, the
+ * duplicates nudge and an undated user reminder have no due date to sort on, and
+ * they go in `today` alongside the dated rows rather than sinking into
+ * `available`. The consequence is deliberate and known: a nudge that waits for
+ * an account rather than for days keeps the day unfinishable while it stands.
+ *
+ * ⚠️ **A row with no occurrence is never belated.** An overdue user reminder is
+ * still salvageable — nothing has *passed* — so it reads as past due. Belated
+ * requires a known occasion that has gone, which is why `occurrenceDate` has to
+ * travel with the row: `dueDate` alone cannot recover it, the action not being a
+ * column.
+ *
+ * Every comparison is whole civil days ({@link daysUntil}), never elapsed
+ * milliseconds, so the buckets flip at the viewer's local midnight exactly as
+ * the engine's own window does. `now` is a parameter for the same reason
+ * {@link partitionReminders} takes one.
+ */
+export function bucketReminders<R extends ReminderTiming>(
+  reminders: readonly R[],
+  now: number = Date.now(),
+): {
+  pastDue: R[];
+  belated: R[];
+  today: R[];
+  available: R[];
+  coming: R[];
+  done: R[];
+  snoozed: R[];
+  /** past due + belated + today — what "done for the day" measures. */
+  owed: number;
+  /** owed + available — everything that could possibly be done right now. */
+  actionable: number;
+} {
+  const { open, done, snoozed } = partitionReminders(reminders, now);
+  const todayCivilDate = todayCivil(now);
+  const daysTo = (ms: number) => daysUntil(todayCivilDate, civilFromDueMs(ms));
+
+  const pastDue: R[] = [];
+  const belated: R[] = [];
+  const today: R[] = [];
+  const available: R[] = [];
+  const coming: R[] = [];
+
+  for (const reminder of open) {
+    const { activeFrom, dueDate, occurrenceDate } = reminder;
+    if (
+      activeFrom !== null &&
+      activeFrom !== undefined &&
+      daysTo(activeFrom) > 0
+    ) {
+      coming.push(reminder);
+    } else if (dueDate === null) {
+      today.push(reminder);
+    } else {
+      const untilDue = daysTo(dueDate);
+      if (untilDue > 0) available.push(reminder);
+      else if (untilDue === 0) today.push(reminder);
+      else if (
+        occurrenceDate !== null &&
+        occurrenceDate !== undefined &&
+        daysTo(occurrenceDate) < 0
+      )
+        belated.push(reminder);
+      else pastDue.push(reminder);
+    }
+  }
+
+  // `open` arrives soonest-due-first and the buckets preserve it, so only
+  // `coming` needs its own order: it is read as a schedule of arrivals, not of
+  // deadlines, so it sorts on the date it will land.
+  coming.sort((a, b) => (a.activeFrom ?? 0) - (b.activeFrom ?? 0));
+
+  const owed = pastDue.length + belated.length + today.length;
+  return {
+    pastDue,
+    belated,
+    today,
+    available,
+    coming,
+    done,
+    snoozed,
+    owed,
+    actionable: owed + available.length,
+  };
+}
+
+/**
+ * The *coming* bucket grouped by the day each row lands, ascending — one group
+ * per distinct activation date, so the expander reads as a schedule rather than
+ * a wall.
+ *
+ * Grouping and not labelling: a group carries its `activeFrom` and the client
+ * formats it (`formatDueIn`), because the distance is a moving number and a
+ * written-in "next month" would be wrong by tomorrow.
+ *
+ * Rows with no activation date cannot be in this bucket, so they cannot reach
+ * here; the fallback exists only to keep the function total.
+ */
+export function groupComingByActivation<R extends ReminderTiming>(
+  coming: readonly R[],
+): { activeFrom: number; reminders: R[] }[] {
+  const groups = new Map<number, R[]>();
+  for (const reminder of coming) {
+    const at = reminder.activeFrom ?? 0;
+    const group = groups.get(at);
+    if (group === undefined) groups.set(at, [reminder]);
+    else group.push(reminder);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([activeFrom, reminders]) => ({ activeFrom, reminders }));
 }
 
 /** The person or pet a `🎁 gift` reminder is about. Core's `GiftReminderTarget` satisfies it. */

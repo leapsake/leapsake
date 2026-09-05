@@ -16,13 +16,17 @@ export type { GiftGivenState } from "./gifts.js";
 export { splitBearerHolidays } from "./holidays.js";
 export type { BearerHolidayFacts } from "./holidays.js";
 export {
+  bucketReminders,
+  groupComingByActivation,
   partitionReminders,
   reminderActionsOf,
   reminderCtaOf,
 } from "./reminders.js";
 export type {
   GiftReminderSubject,
+  ReminderBucket,
   ReminderCta,
   ReminderRowAction,
   ReminderStanding,
+  ReminderTiming,
 } from "./reminders.js";

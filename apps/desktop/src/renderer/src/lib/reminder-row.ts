@@ -122,11 +122,18 @@ export function rowAffordanceFor(
  * A **completed** nudge keeps it. Its action list is CTA-only, so without this a
  * user who marked a nudge done would have no way to clear it from the completed
  * disclosure; and a finished row is an ordinary row again.
+ *
+ * An **unmaterialized** row never shows it. A *coming* row is a preview of
+ * something the engine has not minted yet, so there is nothing to tombstone —
+ * and offering to remove it would promise a permanence the engine's own walk
+ * would undo on the next reconcile.
  */
 export function showsRemove(
   actions: readonly ReminderRowAction[],
   done: boolean,
+  materialized = true,
 ): boolean {
+  if (!materialized) return false;
   const isNudge = actions.some(
     (a) => a.kind === "cta" && a.cta.kind === "onboarding",
   );

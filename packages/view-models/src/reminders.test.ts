@@ -1,6 +1,9 @@
 import { ONBOARDING_REMINDERS, snoozePolicyOf } from "@leapsake/reminders";
+import { dueDateMs, todayCivil } from "@leapsake/schema";
 import { describe, expect, it } from "vitest";
 import {
+  bucketReminders,
+  groupComingByActivation,
   partitionReminders,
   reminderActionsOf,
   reminderCtaOf,
@@ -264,5 +267,197 @@ describe("reminderActionsOf", () => {
         NOW,
       ).map((a) => a.kind),
     ).toEqual(["cta"]);
+  });
+});
+
+// A fixed local noon, so "today" is the same civil day whatever the machine's
+// timezone; every date below is derived from it through the same stored-due-date
+// round-trip the engine uses, so the buckets are timezone-immune.
+const NOW = Date.parse("2026-06-01T12:00:00");
+const dayOut = (n: number) => dueDateMs(todayCivil(NOW)) + day(n);
+
+/** A dated row as `listInWindow` hands it over: due `dueIn` days out, counting
+ *  down to an occasion `occurrenceIn` days out, on display from `activeIn`. */
+const timed = (
+  id: string,
+  dates: {
+    dueIn: number;
+    occurrenceIn?: number;
+    activeIn?: number;
+    completedAt?: number | null;
+  },
+) => ({
+  ...reminder(id, {
+    dueDate: dayOut(dates.dueIn),
+    completedAt: dates.completedAt ?? null,
+  }),
+  activeFrom: dayOut(dates.activeIn ?? dates.dueIn),
+  occurrenceDate:
+    dates.occurrenceIn === undefined ? null : dayOut(dates.occurrenceIn),
+});
+
+describe("bucketReminders", () => {
+  it("splits the open list by due date", () => {
+    const result = bucketReminders(
+      [
+        // Due in 8 days, on display since 22 days ago: a gift project.
+        timed("gift", { dueIn: 8, occurrenceIn: 20, activeIn: -22 }),
+        timed("today", { dueIn: 0, occurrenceIn: 0 }),
+        // Its post date blew, but the birthday is still four days off.
+        timed("past-due", { dueIn: -3, occurrenceIn: 4, activeIn: -17 }),
+        // The birthday itself has gone.
+        timed("belated", { dueIn: -1, occurrenceIn: -1 }),
+        // A wish for a birthday three weeks out — not on display yet.
+        timed("coming", { dueIn: 21, occurrenceIn: 21 }),
+      ],
+      NOW,
+    );
+
+    expect(result.pastDue.map((r) => r.id)).toEqual(["past-due"]);
+    expect(result.belated.map((r) => r.id)).toEqual(["belated"]);
+    expect(result.today.map((r) => r.id)).toEqual(["today"]);
+    expect(result.available.map((r) => r.id)).toEqual(["gift"]);
+    expect(result.coming.map((r) => r.id)).toEqual(["coming"]);
+  });
+
+  // The one distinction that cannot be made from `dueDate` alone, and the reason
+  // the occurrence has to travel with the row.
+  it("tells past due from belated only by the occurrence", () => {
+    const result = bucketReminders(
+      [
+        timed("still-salvageable", { dueIn: -2, occurrenceIn: 5 }),
+        timed("occasion-gone", { dueIn: -2, occurrenceIn: -1 }),
+      ],
+      NOW,
+    );
+
+    expect(result.pastDue.map((r) => r.id)).toEqual(["still-salvageable"]);
+    expect(result.belated.map((r) => r.id)).toEqual(["occasion-gone"]);
+  });
+
+  // "Call the dentist" a day late is not belated: nothing has passed, and it is
+  // exactly as doable as it was yesterday.
+  it("never calls a row with no occasion belated", () => {
+    const result = bucketReminders(
+      [timed("overdue-user-reminder", { dueIn: -9 })],
+      NOW,
+    );
+
+    expect(result.pastDue.map((r) => r.id)).toEqual(["overdue-user-reminder"]);
+    expect(result.belated).toEqual([]);
+  });
+
+  // Decision (owner, 2026-09-04): a nudge is owed, not merely available.
+  it("puts dateless rows in today", () => {
+    const result = bucketReminders([reminder("nudge", {})], NOW);
+
+    expect(result.today.map((r) => r.id)).toEqual(["nudge"]);
+    expect(result.owed).toBe(1);
+  });
+
+  // The whole point of the split: a month-long errand must not make the day
+  // unfinishable.
+  it("counts owed without available, and actionable with it", () => {
+    const result = bucketReminders(
+      [
+        timed("owed-now", { dueIn: 0, occurrenceIn: 0 }),
+        timed("owed-late", { dueIn: -1, occurrenceIn: 3 }),
+        timed("sitting-there", { dueIn: 9, occurrenceIn: 21, activeIn: -21 }),
+        timed("not-yet", { dueIn: 25, occurrenceIn: 25 }),
+      ],
+      NOW,
+    );
+
+    expect(result.owed).toBe(2);
+    expect(result.actionable).toBe(3);
+  });
+
+  it("passes completed and snoozed rows through untouched", () => {
+    const snoozedRow = {
+      ...reminder("snoozed", {
+        dueDate: dayOut(0),
+        snoozedUntil: NOW + day(2),
+      }),
+      activeFrom: dayOut(0),
+      occurrenceDate: dayOut(0),
+    };
+    const result = bucketReminders(
+      [
+        timed("done", { dueIn: 0, occurrenceIn: 0, completedAt: NOW }),
+        snoozedRow,
+      ],
+      NOW,
+    );
+
+    expect(result.done.map((r) => r.id)).toEqual(["done"]);
+    expect(result.snoozed.map((r) => r.id)).toEqual(["snoozed"]);
+    expect(result.owed).toBe(0);
+  });
+
+  it("orders each bucket soonest first, and coming by when it lands", () => {
+    const result = bucketReminders(
+      [
+        timed("later", { dueIn: 9, occurrenceIn: 21, activeIn: -21 }),
+        timed("sooner", { dueIn: 2, occurrenceIn: 14, activeIn: -12 }),
+        timed("lands-second", { dueIn: 28, occurrenceIn: 28 }),
+        timed("lands-first", { dueIn: 26, occurrenceIn: 26, activeIn: 12 }),
+      ],
+      NOW,
+    );
+
+    expect(result.available.map((r) => r.id)).toEqual(["sooner", "later"]);
+    expect(result.coming.map((r) => r.id)).toEqual([
+      "lands-first",
+      "lands-second",
+    ]);
+  });
+
+  // Whole civil days, not elapsed milliseconds: a row due today is due today all
+  // day, and becomes past due at local midnight rather than 24h after minting.
+  it("holds a row in today for the whole of its day", () => {
+    const almostMidnight = Date.parse("2026-06-01T23:59:00");
+    const result = bucketReminders(
+      [timed("today", { dueIn: 0, occurrenceIn: 0 })],
+      almostMidnight,
+    );
+
+    expect(result.today.map((r) => r.id)).toEqual(["today"]);
+    expect(result.pastDue).toEqual([]);
+  });
+
+  it("does not mutate its input", () => {
+    const rows = [
+      timed("b", { dueIn: 4, occurrenceIn: 4 }),
+      timed("a", { dueIn: 1, occurrenceIn: 1 }),
+    ];
+    bucketReminders(rows, NOW);
+    expect(rows.map((r) => r.id)).toEqual(["b", "a"]);
+  });
+});
+
+describe("groupComingByActivation", () => {
+  it("groups by the day each row lands, ascending", () => {
+    const { coming } = bucketReminders(
+      [
+        timed("later", { dueIn: 25, occurrenceIn: 25, activeIn: 20 }),
+        timed("sooner-a", { dueIn: 14, occurrenceIn: 14, activeIn: 6 }),
+        timed("sooner-b", { dueIn: 30, occurrenceIn: 30, activeIn: 6 }),
+      ],
+      NOW,
+    );
+
+    expect(
+      groupComingByActivation(coming).map((g) => [
+        g.activeFrom,
+        g.reminders.map((r) => r.id),
+      ]),
+    ).toEqual([
+      [dayOut(6), ["sooner-a", "sooner-b"]],
+      [dayOut(20), ["later"]],
+    ]);
+  });
+
+  it("has nothing to group when nothing is coming", () => {
+    expect(groupComingByActivation([])).toEqual([]);
   });
 });

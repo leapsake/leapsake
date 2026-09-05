@@ -213,6 +213,12 @@ describe("showsRemove", () => {
     expect(showsRemove(actionsFor("user-written"), false)).toBe(true);
   });
 
+  it("withholds Remove from a coming row, which is not a row yet", () => {
+    // Nothing to tombstone: the engine has not minted it, and the next
+    // reconcile would undo whatever this pretended to do.
+    expect(showsRemove(actionsFor("not-yet-minted"), false, false)).toBe(false);
+  });
+
   it("keeps Remove on gift and duplicates rows", () => {
     const gift = reminderActionsOf(
       reminder("gift"),

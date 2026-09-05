@@ -8,61 +8,98 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import {
-  type ReminderWithTags,
-  formatDueIn,
-  reminderLabel,
-} from "@leapsake/schema";
-import { partitionReminders } from "@leapsake/view-models";
+import type { ReminderInWindow } from "@leapsake/core";
+import { formatDueIn, reminderLabel } from "@leapsake/schema";
 import { Checkbox } from "../../components/Checkbox";
 import { EmptyState } from "../../components/EmptyState";
 import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
-import { stickyOrder } from "../../lib/sticky-order";
+import {
+  type ReminderHeaderItem,
+  type ReminderListPins,
+  type ReminderSection,
+  NO_PINS,
+  pinsFrom,
+  reminderListItems,
+} from "../../lib/reminder-sections";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { useHeaderScroll } from "../../lib/use-header-scroll";
 import { colors, styles } from "../../lib/styles";
 
 /**
+ * Every user-visible string on this screen, in one place so the later
+ * message-catalog sweep is mechanical (AGENTS.md → *User-visible text*).
+ */
+const TEXT: Record<ReminderSection, string> & {
+  noneOwed: string;
+  allClear: string;
+} = {
+  "past-due": "Past due",
+  belated: "Belated",
+  today: "Today",
+  available: "Available",
+  coming: "Coming",
+  done: "Completed",
+  /** Nothing owed, but something is still there to do if you want to. */
+  noneOwed: "Nothing owed today.",
+  /** Nothing owed and nothing available either. */
+  allClear: "Nothing to do. You’re all caught up.",
+};
+
+/**
  * The Reminders tab — the app's home/landing screen, so it lives at the `(tabs)`
- * group's `index` route. A standalone list of user-created reminders: open ones
- * lead; completed ones sink to the bottom with a struck-through label. Each row
- * toggles completion in place — in place *literally*: the row stays where the
- * user's finger found it, struck through, rather than sliding down to the
- * completed tail and pulling the next row up under the finger that just tapped it
- * (see {@link stickyOrder}). Every *other* action a reminder offers lives on its
- * detail screen, which the row text taps through to. Creating one is the **➕**
- * in this screen's own top-right corner, declared with its title in
- * `app/(tabs)/_layout.tsx`; it goes straight to the reminder form and asks
- * nothing on the way. That question — "person, reminder, or gift idea?" — was
- * what a create control shared with every other screen had to ask here, and this
- * screen had already answered it.
+ * group's `index` route. A list of reminders **split by when**: past due,
+ * belated and today lead (what is *owed*), then available, then coming and
+ * completed folded away behind their own headings. The reasoning for the split —
+ * and for why only the owed sections decide whether the day is finished — is on
+ * `bucketReminders`; the flat-list shape it renders as is in
+ * {@link reminderListItems}, and this screen owns only how it looks.
+ *
+ * Each row toggles completion in place — in place *literally*: the row stays
+ * where the user's finger found it, struck through, rather than sliding into the
+ * completed section and pulling the next row up under the finger that just
+ * tapped it (see `stickyOrder`, and {@link ReminderListPins} for why the
+ * *section* has to be held too, not just the order). Every other action a
+ * reminder offers lives on its detail screen, which the row text taps through
+ * to. Creating one is the **➕** in this screen's own top-right corner, declared
+ * with its title in `app/(tabs)/_layout.tsx`; it goes straight to the reminder
+ * form and asks nothing on the way. That question — "person, reminder, or gift
+ * idea?" — was what a create control shared with every other screen had to ask
+ * here, and this screen had already answered it.
  *
  * That split is why this screen reads nothing but the list. The gift targets and
  * the duplicates-nudge id it used to fetch existed only to decide which offers a
  * row rendered; the screen that renders them now fetches them instead.
  *
- * Snoozed reminders show nowhere. `partitionReminders` hands back a third bucket
- * and this screen deliberately ignores it: a surface for it would hand the user a
+ * It reads `listInWindow` rather than `list`: the sections turn on two dates
+ * only the engine can supply, and *coming* rows are not rows yet at all.
+ *
+ * Snoozed reminders show nowhere. The bucketing hands back a snoozed bucket and
+ * this screen deliberately ignores it: a surface for it would hand the user a
  * way to *complete* a snoozed row, which reopens the still-open question of
  * whether reopening should clear a running clock (`plans/v0-2.md`).
  */
 export default function RemindersScreen() {
   const core = useCore();
-  const load = useCallback(() => core.reminders.list(), [core]);
+  const load = useCallback(() => core.reminders.listInWindow(), [core]);
   const { data: reminders, error, reload } = useFocusedData(load);
   // Called before the early returns below, not beside the list it decorates:
   // it is a hook, and the loading and error branches leave without a list.
   const scrollProps = useHeaderScroll();
-  // The order the rows were in when one of them was last toggled, which the
+  // What the list looked like when one of its rows was last toggled, which the
   // reloaded list is held to so the tapped row doesn't move out from under the
   // finger. Cleared when the screen blurs: leaving is the user's own break in the
   // interaction, and the answer to "when does the list finally re-sort?".
-  const [pinned, setPinned] = useState<readonly string[]>([]);
+  const [pins, setPins] = useState<ReminderListPins>(NO_PINS);
+  // Coming and completed start folded: neither is what the user opened the app
+  // for, and both are unbounded in a way the owed sections are not.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<ReminderSection>>(
+    () => new Set<ReminderSection>(["coming", "done"]),
+  );
   useFocusEffect(
     useCallback(
       () => () => {
-        setPinned([]);
+        setPins(NO_PINS);
       },
       [],
     ),
@@ -83,31 +120,80 @@ export default function RemindersScreen() {
     );
   }
 
-  // Open first, then completed — one flat list for the FlatList, held to the
-  // pinned order while the user works down it.
-  const { open, done } = partitionReminders(reminders);
-  const ordered = stickyOrder([...open, ...done], pinned);
-  // Pinning the *displayed* order, not the natural one, is what makes a second
+  const items = reminderListItems(reminders, { pins, collapsed });
+  // Pinning what is *displayed*, not the natural order, is what makes a second
   // and third tick hold everything still too.
-  const pin = () => setPinned(ordered.map((r) => r.id));
+  const pin = () => setPins(pinsFrom(items));
+  const toggleSection = (section: ReminderSection) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (!next.delete(section)) next.add(section);
+      return next;
+    });
 
   return (
     <View style={styles.screen}>
       <FlatList
         {...scrollProps}
-        data={ordered}
-        keyExtractor={(r) => r.id}
+        data={items}
+        keyExtractor={(item) => item.id}
         ListEmptyComponent={
           <EmptyState
             message="No reminders yet."
             actions={[{ href: "/reminders/new", label: "+ Add a reminder" }]}
           />
         }
-        renderItem={({ item }) => (
-          <ReminderRow reminder={item} pin={pin} reload={reload} />
-        )}
+        renderItem={({ item }) => {
+          if (item.kind === "note")
+            return (
+              <Text style={styles.muted}>
+                {item.allClear ? TEXT.allClear : TEXT.noneOwed}
+              </Text>
+            );
+          if (item.kind === "header")
+            return (
+              <SectionHeader
+                item={item}
+                onToggle={() => toggleSection(item.section)}
+              />
+            );
+          return (
+            <ReminderRow reminder={item.reminder} pin={pin} reload={reload} />
+          );
+        }}
       />
     </View>
+  );
+}
+
+/**
+ * One section heading, with its row count. A collapsible one is the whole
+ * heading, not a chevron beside it — the same reason a reminder row is one big
+ * target rather than several small ones.
+ */
+function SectionHeader({
+  item,
+  onToggle,
+}: {
+  item: ReminderHeaderItem;
+  onToggle: () => void;
+}) {
+  const heading = (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{TEXT[item.section]}</Text>
+      <Text style={styles.muted}>{item.count}</Text>
+    </View>
+  );
+  if (!item.collapsible) return heading;
+  return (
+    <Pressable
+      accessible
+      accessibilityRole="button"
+      accessibilityState={{ expanded: !item.collapsed }}
+      onPress={onToggle}
+    >
+      {heading}
+    </Pressable>
   );
 }
 
@@ -129,7 +215,7 @@ function ReminderRow({
   pin,
   reload,
 }: {
-  reminder: ReminderWithTags;
+  reminder: ReminderInWindow;
   /** Freeze the list's current order before this row's write re-sorts it. */
   pin: () => void;
   reload: () => Promise<void>;

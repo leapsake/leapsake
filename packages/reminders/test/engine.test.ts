@@ -3,6 +3,7 @@ import {
   type RemindEligibleMilestone,
   type Reminder,
   type ReminderRuleInput,
+  MAX_ACTIVE_DAYS,
   civilFromDueMs,
   dueDateMs,
   mentionToken,
@@ -11,8 +12,11 @@ import {
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   type ReminderEngineDeps,
+  DISPLAY_WINDOW_DAYS,
   listNotifiableReminders,
+  listRemindersInWindow,
   listSystemReminderTargets,
+  materializeReminder,
   regenerateSystemReminders,
 } from "../src/index.js";
 
@@ -638,14 +642,155 @@ describe("listNotifiableReminders", () => {
     expect(notifiable.map((r) => r.source).sort()).toEqual(["system", "user"]);
   });
 
-  // The window is a parameter so the two callers can ask different questions of
-  // the same walk: one uniform horizon here, each action's own window there.
+  // The window is a parameter so every caller can ask its own question of the
+  // same walk: one uniform horizon here, each action's own window there.
   it("narrows to a shorter horizon when asked for one", async () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", FAR)]);
     h.labels.set("p1", "Alice");
 
-    expect(await listNotifiableReminders(h.deps, 30)).toEqual([]);
-    expect(await listNotifiableReminders(h.deps, 365)).toHaveLength(1);
+    expect(await listRemindersInWindow(h.deps, 30)).toEqual([]);
+    expect(await listRemindersInWindow(h.deps, 365)).toHaveLength(1);
+  });
+});
+
+describe("the window facts a row reports", () => {
+  // The two dates the screen cannot recover from a stored row: when it surfaces,
+  // and what it counts down to.
+  it("dates a dated row by its action's own window, not the walk's", async () => {
+    const h = makeHarness();
+    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.labels.set("p1", "Alice");
+    // A gift is due 12 days out and carries a 30-day run-up; a wish is day-of.
+    h.setSchedule("m1", [
+      { action: "gift", label: null, offsetDays: 12, enabled: true },
+      { action: "wish", label: null, offsetDays: 0, enabled: true },
+    ]);
+
+    const rows = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
+    const byTitle = new Map(rows.map((r) => [r.title, r]));
+    const gift = byTitle.get("🎁 Get @[Alice](person:p1) a gift");
+    const wish = byTitle.get("🎉 Wish @[Alice](person:p1) a happy birthday");
+
+    // The occurrence is the same for both; the due dates and activations differ.
+    expect(gift?.occurrenceDate).toBe(dueDateMs(daysOut(20)));
+    expect(wish?.occurrenceDate).toBe(dueDateMs(daysOut(20)));
+    expect(gift?.dueDate).toBe(dueDateMs(daysOut(8)));
+    expect(gift?.activeFrom).toBe(dueDateMs(daysOut(-22)));
+    expect(wish?.activeFrom).toBe(dueDateMs(daysOut(20)));
+  });
+
+  // The walk's window widens what is *returned*; it must never widen what a row
+  // claims about itself, or every previewed row would look already-active.
+  it("reports the same activation whatever window it was walked with", async () => {
+    const h = makeHarness();
+    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.labels.set("p1", "Alice");
+    h.setSchedule("m1", [
+      { action: "wish", label: null, offsetDays: 0, enabled: true },
+    ]);
+
+    const [near] = await listRemindersInWindow(h.deps, 30);
+    const [far] = await listRemindersInWindow(h.deps, 365);
+
+    expect(near?.activeFrom).toBe(dueDateMs(daysOut(20)));
+    expect(far?.activeFrom).toBe(near?.activeFrom);
+  });
+
+  it("marks a row that does not exist yet as unmaterialized", async () => {
+    const h = makeHarness();
+    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.labels.set("p1", "Alice");
+
+    const [preview] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
+    expect(preview?.materialized).toBe(false);
+
+    await regenerateSystemReminders(h.deps);
+    // Still nothing: a wish is day-of, so 20 days out it is not a row yet.
+    expect(h.activeSystem()).toEqual([]);
+
+    h.setToday(daysOut(20));
+    await regenerateSystemReminders(h.deps);
+    const [real] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
+    expect(real?.materialized).toBe(true);
+  });
+
+  it("gives a dateless nudge no window facts at all", async () => {
+    const h = makeHarness();
+    h.deps.duplicates = { pairKeys: async () => ["p1:p2"] };
+
+    const rows = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
+
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.activeFrom).toBeNull();
+      expect(row.occurrenceDate).toBeNull();
+    }
+  });
+});
+
+describe("DISPLAY_WINDOW_DAYS", () => {
+  // A shorter horizon than the widest action's run-up would drop rows the
+  // materialization walk has already minted out of the read that feeds the
+  // screen: a reminder that exists, is on display by its own rule, and is
+  // nowhere to be seen.
+  it("is wide enough to cover every action's own run-up", () => {
+    expect(DISPLAY_WINDOW_DAYS).toBeGreaterThanOrEqual(MAX_ACTIVE_DAYS);
+  });
+});
+
+describe("materializeReminder", () => {
+  /** A harness whose only reminder is a wish 20 days out — desired by the
+   *  display walk, not yet by the materialization one. */
+  function comingWish() {
+    const h = makeHarness();
+    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.labels.set("p1", "Alice");
+    h.setSchedule("m1", [
+      { action: "wish", label: null, offsetDays: 0, enabled: true },
+    ]);
+    return h;
+  }
+
+  it("mints the row a preview stands for", async () => {
+    const h = comingWish();
+    const [preview] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
+
+    expect(await materializeReminder(h.deps, preview!.id)).toBe(true);
+
+    const [row] = h.activeSystem();
+    expect(row?.id).toBe(preview!.id);
+    expect(row?.title).toBe(preview!.title);
+    expect(row?.dueDate).toBe(preview!.dueDate);
+  });
+
+  it("is idempotent — a second call writes nothing new", async () => {
+    const h = comingWish();
+    const [preview] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
+    await materializeReminder(h.deps, preview!.id);
+    const first = h.activeSystem()[0];
+
+    expect(await materializeReminder(h.deps, preview!.id)).toBe(true);
+
+    expect(h.activeSystem()).toHaveLength(1);
+    expect(h.activeSystem()[0]).toEqual(first);
+  });
+
+  // The resurrection guard again: a dismissed reminder must not come back by
+  // being ticked from the coming list.
+  it("refuses to resurrect a dismissed reminder", async () => {
+    const h = comingWish();
+    const [preview] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
+    await materializeReminder(h.deps, preview!.id);
+    await h.deps.reminders.softDelete(preview!.id);
+
+    expect(await materializeReminder(h.deps, preview!.id)).toBe(false);
+    expect(h.activeSystem()).toEqual([]);
+  });
+
+  it("answers false for an id the walk does not want", async () => {
+    const h = comingWish();
+    expect(await materializeReminder(h.deps, "not-a-desired-id")).toBe(false);
+    expect(h.activeSystem()).toEqual([]);
   });
 });

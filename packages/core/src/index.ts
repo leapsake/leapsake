@@ -101,9 +101,13 @@ import {
 } from "@leapsake/schema";
 import {
   type ReminderEngineDeps,
+  type ReminderWindowFacts,
+  DISPLAY_WINDOW_DAYS,
   duplicatesReminderId,
   listNotifiableReminders,
+  listRemindersInWindow,
   listSystemReminderTargets,
+  materializeReminder,
   regenerateSystemReminders,
 } from "@leapsake/reminders";
 // The onboarding-nudge id-convention, surfaced through core (the apps' single
@@ -111,6 +115,14 @@ import {
 // depending on `@leapsake/reminders` directly.
 export { ONBOARDING_REMINDERS, onboardingRouteOf } from "@leapsake/reminders";
 export type { OnboardingReminder, OnboardingRoute } from "@leapsake/reminders";
+
+/**
+ * A reminder as the **list** reads it: the joined row plus the two timing facts
+ * only the engine can supply (see `reminders.listInWindow`). Surfaced through
+ * core, like the onboarding route above, so a client can type its screen without
+ * depending on `@leapsake/reminders` directly.
+ */
+export type ReminderInWindow = ReminderWithTags & ReminderWindowFacts;
 import {
   type ImportDecision,
   type ImportPorts,
@@ -925,6 +937,39 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
   const listNotifiable = (): Promise<Reminder[]> =>
     listNotifiableReminders(systemReminderDeps());
 
+  /**
+   * What the reminder **list** shows — every reminder inside
+   * `DISPLAY_WINDOW_DAYS`, each carrying the two dates the stored row cannot
+   * say: when it goes on display, and what occasion it counts down to. The
+   * clients bucket on those (`bucketReminders` in `@leapsake/view-models`); past
+   * due and belated are not distinguishable without them, and *coming* rows are
+   * not rows yet at all.
+   *
+   * A third read rather than a wider `list()`, for the same reason
+   * `listNotifiable` is: three questions, three horizons. This one still joins
+   * tags and mentions, because it feeds a screen — but only for rows that
+   * exist. A preview gets empty arrays: its title already carries the mention
+   * token verbatim, so the name renders from the text, and the join only ever
+   * supplied *current* labels, which a row with no state has nothing to correct.
+   */
+  const listInWindow = async (): Promise<ReminderInWindow[]> => {
+    const rows = await listRemindersInWindow(
+      systemReminderDeps(),
+      DISPLAY_WINDOW_DAYS,
+    );
+    return Promise.all(
+      rows.map(async (r) =>
+        r.materialized
+          ? {
+              ...r,
+              tags: await tags.listForEntity("reminder", r.id),
+              mentions: await resolveMentions(r.id),
+            }
+          : { ...r, tags: [], mentions: [] },
+      ),
+    );
+  };
+
   const views = createViews({
     people: { list: () => people.list(), get: (id) => people.get(id) },
     pets: { list: () => pets.list(), get: (id) => pets.get(id) },
@@ -1334,6 +1379,8 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
        * separate read from `list` rather than a wider one.
        */
       listNotifiable,
+      /** What the reminder list shows, bucketed by the clients. See above. */
+      listInWindow,
       get: async (id: string): Promise<ReminderWithTags | undefined> => {
         const reminder = await reminders.get(id);
         if (!reminder) return undefined;
@@ -1413,13 +1460,34 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         const found = await Promise.all(ids.map((id) => reminders.get(id)));
         return found.filter((r): r is Reminder => r !== undefined);
       },
-      // Reversible completion toggle: stamps/clears `completedAt`; text (and so its
-      // tags/mentions) is untouched, so no re-derivation needed.
+      /**
+       * Reversible completion toggle: stamps/clears `completedAt`; text (and so
+       * its tags/mentions) is untouched, so no re-derivation needed.
+       *
+       * **A row that does not exist yet is minted first.** The list shows
+       * reminders ahead of their own display window (`listInWindow`'s *coming*
+       * rows), and everything can be done early — the window decides when the
+       * app prompts you, never what you are allowed to do — so ticking a preview
+       * has to create the thing being ticked. One write method either way; the
+       * client never has to know which kind of row it had.
+       *
+       * ⚠️ Completing one early **retires it for the year**: the next reconcile
+       * does not want that row yet and prunes it to a tombstone, which is never
+       * resurrected. That is the intended reading ("already bought it, stop
+       * asking") — see `materializeReminder` — but it is permanent.
+       */
       setCompleted: (
         id: string,
         completed: boolean,
       ): Promise<Reminder | undefined> =>
-        driver.transaction(() => reminders.setCompleted(id, completed)),
+        // Both halves in one transaction: a mint that lands without its
+        // completion would leave a row the user thinks they ticked, and the
+        // next reconcile would prune it away again.
+        driver.transaction(async () => {
+          if (completed && (await reminders.get(id)) === undefined)
+            await materializeReminder(systemReminderDeps(), id);
+          return reminders.setCompleted(id, completed);
+        }),
       // Put this off, ask me later: sets the snooze clock and spends one
       // repetition of the nag budget, atomically. One generic verb for both
       // cases — a user hiding their own reminder, and the product accepting

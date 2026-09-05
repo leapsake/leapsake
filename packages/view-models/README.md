@@ -32,6 +32,20 @@ takes `now` so the split stays deterministic and testable; the `Date.now()` defa
 convenience. Any future time-dependent derivation does the same — a function that reads the
 clock itself cannot be tested without faking a global.
 
+**Time-dependent derivations compare civil days, never elapsed milliseconds.**
+`bucketReminders` splits the open list into past due, belated, today, available and coming;
+every comparison in it goes through `daysUntil` over the two ends read as calendar dates, so
+the buckets flip at the *viewer's* local midnight rather than 24 hours after some instant —
+the same arithmetic the reminder engine's own window does, and the reason the two can never
+disagree about what "today" means.
+
+It is a strict refinement of `partitionReminders` rather than a replacement: it calls it
+first and passes its `done` and `snoozed` buckets straight through. The reasoning for the
+five buckets — and for the fact that only three of them decide whether the day is finished —
+is on the function itself. What it needs beyond `ReminderStanding` is two dates only the
+reminder engine can supply (`ReminderTiming`), because the stored row carries neither the
+occasion it counts down to nor the day it went on display.
+
 Dependencies: `@leapsake/schema` and `@leapsake/reminders` (for `onboardingRouteOf`, the
 well-known-id lookup behind an onboarding nudge's CTA). Never `core` or `data`.
 

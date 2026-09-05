@@ -13,12 +13,15 @@
  */
 export {
   BELATED_DAYS,
+  DISPLAY_WINDOW_DAYS,
   NOTIFICATION_WINDOW_DAYS,
   ONBOARDING_REMINDERS,
   SYSTEM_REMINDER_NAMESPACE,
   duplicatesReminderId,
   listNotifiableReminders,
+  listRemindersInWindow,
   listSystemReminderTargets,
+  materializeReminder,
   onboardingRouteOf,
   regenerateSystemReminders,
   snoozePolicyOf,
@@ -29,7 +32,9 @@ export type {
   OnboardingReminder,
   OnboardingRoute,
   ReminderEngineDeps,
+  ReminderWindowFacts,
   SnoozePolicy,
   SystemReminderStore,
   SystemReminderTarget,
+  WindowedReminder,
 } from "./engine.js";

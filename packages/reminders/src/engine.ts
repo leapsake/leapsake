@@ -220,6 +220,29 @@ interface DesiredReminder {
   title: string;
   dueDate: number | null;
   /**
+   * The day this row goes **on display** — `dueDate` less the action's own
+   * {@link ReminderActionDef.activeDays}. Null for the dateless families, which
+   * are on display the moment they exist.
+   *
+   * Carried rather than recomputed downstream because the action is not a column
+   * on `reminders`: this is the one point where the row and its action are both
+   * in hand. ⚠️ It is always the action's **own** window, never the
+   * {@link ActiveDaysOf} the walk was called with — that parameter decides
+   * whether a row is in the desired set at all, this says when it surfaces.
+   */
+  activeFrom: number | null;
+  /**
+   * The occasion this row counts down to, as a stored due-date epoch. Null when
+   * there is no occasion (the dateless families).
+   *
+   * It is what separates the two ways of missing something once the row leaves
+   * the engine: *past due* is a blown deadline with the occasion still ahead,
+   * *belated* is the occasion itself gone (see {@link isWithinWindow}). The row
+   * carries `dueDate` alone, and `dueDate + offsetDays` is not recoverable from
+   * it, so without this the screen cannot tell them apart.
+   */
+  occurrenceDate: number | null;
+  /**
    * Display-priority rank among **dateless** rows: 0 = highest (shown first),
    * realized as a small `createdAt` back-off at insert so the client's
    * `compareReminderDue` — which orders undated rows newest-`createdAt`-first —
@@ -714,23 +737,71 @@ export async function listSystemReminderTargets(
 export const NOTIFICATION_WINDOW_DAYS = 365;
 
 /**
- * Every reminder a device should consider **notifying** about within
- * `windowDays` — the read-only, longer-sighted sibling of
- * {@link regenerateSystemReminders}, and the input
- * `@leapsake/notifications`' `planNotifications` plans from.
+ * How far ahead the **reminder list** looks — the horizon behind Home's *coming*
+ * section, and the second window this engine keeps.
+ *
+ * Distinct from {@link NOTIFICATION_WINDOW_DAYS}, which asks a different
+ * question (what could come due before the schedule is next rebuilt) and answers
+ * it with a year. This one asks what is worth *previewing* to someone looking at
+ * the list right now, so a month: far enough to see the gift project forming,
+ * near enough that the expander is a short list rather than a second inbox.
+ *
+ * ⚠️ **It must stay at or above `MAX_ACTIVE_DAYS`** (`@leapsake/schema`). Every
+ * row the materialization walk mints is one whose own `activeDays` has opened,
+ * so a shorter horizon here would drop already-existing rows out of the read
+ * that feeds the screen — a reminder that exists, is on display by its own rule,
+ * and is nowhere to be seen. `test/engine.test.ts` asserts it rather than
+ * trusting this paragraph.
+ *
+ * Expected to widen, and possibly to grade (this week → this month → beyond).
+ * One constant, so widening it is editing a literal.
+ */
+export const DISPLAY_WINDOW_DAYS = 30;
+
+/**
+ * What the engine knows about a row's timing that the stored row cannot say.
+ *
+ * Both dates are **derived, never persisted**: `reminders` has no action column,
+ * so neither is recoverable from a row on its own, and storing them would make
+ * every `actionDefs` edit a data migration. They ride along on the read instead.
+ */
+export interface ReminderWindowFacts {
+  /**
+   * When this row goes on display — see {@link DesiredReminder.activeFrom}. Null
+   * means *already on display*: a dateless nudge, or a user reminder, which is a
+   * row from the moment it is written and has no run-up.
+   */
+  activeFrom: number | null;
+  /** The occasion it counts down to, or null when it has none (user rows, nudges). */
+  occurrenceDate: number | null;
+  /**
+   * Whether a row actually exists in the store. `false` marks a **preview** —
+   * synthesized below, beyond the materialization horizon — which has no state to
+   * edit, nothing to remove, and no tags or mentions to join.
+   */
+  materialized: boolean;
+}
+
+/** A reminder paired with what the engine knows about its timing. */
+export type WindowedReminder = Reminder & ReminderWindowFacts;
+
+/**
+ * Every reminder that falls within `windowDays`, whether or not it is a row yet
+ * — the read-only, longer-sighted sibling of {@link regenerateSystemReminders},
+ * and the one walk both the notification planner and the reminder list read
+ * from.
  *
  * The problem it solves: a `system` reminder is not a row until its own action
- * says it should be on display — day-of for a wish — so planning from stored
- * rows alone can only ever schedule a few days of notifications, and that
- * horizon advances only when the app is opened, which is exactly what a
- * notification exists to avoid needing.
- * This walks the same occurrence computation over a wider window and answers
- * with rows that *will* exist, without writing any of them.
+ * says it should be on display — day-of for a wish — so reading stored rows
+ * alone can only ever see a few days ahead, and that horizon advances only when
+ * the app is opened. This walks the same occurrence computation over a wider
+ * window and answers with rows that *will* exist, without writing any of them.
  *
  * **Nothing is persisted.** Widening the materialization window instead would
  * flood the reminder list with a year of future rows and sync them to every
  * device; how far the list looks ahead is a product decision that stays with
- * each action's own `activeDays`.
+ * each action's own `activeDays`, and what is merely *previewed* is
+ * {@link DISPLAY_WINDOW_DAYS}.
  *
  * Three states a desired id can be in, and why each is handled the way it is:
  *
@@ -744,40 +815,143 @@ export const NOTIFICATION_WINDOW_DAYS = 365;
  * - **Absent** — synthesize it. It is beyond the materialization horizon, so it
  *   has no state to preserve: un-completed, un-snoozed, alive. Its id is the
  *   same deterministic one the row will be minted under, so a notification
- *   scheduled now still deep-links correctly once the row exists — boot runs
- *   {@link regenerateSystemReminders} before any route resolves.
+ *   scheduled now still deep-links correctly once the row exists — and a
+ *   completion ticked against it materializes that very row (see
+ *   {@link materializeReminder}).
  *
  * `user` reminders need none of this: they are rows the moment they are
- * created, at any due date, so they are read straight from the store.
+ * created, at any due date, so they are read straight from the store and carry
+ * no window facts.
  *
  * Costs one point lookup per desired id, mirroring what {@link reconcile}
- * already pays — but over a wider window, so ~12× the ids. If that ever shows
- * up in a profile, the fix is a bulk id fetch, not a narrower window.
+ * already pays — but over a wider window, so up to ~12× the ids. If that ever
+ * shows up in a profile, the fix is a bulk id fetch, not a narrower window.
  */
-export async function listNotifiableReminders(
+export async function listRemindersInWindow(
   deps: ReminderEngineDeps,
-  windowDays: number = NOTIFICATION_WINDOW_DAYS,
-): Promise<Reminder[]> {
+  windowDays: number,
+): Promise<WindowedReminder[]> {
   // One uniform horizon for every action: the question here is not
-  // "what belongs on the list" but "what could come due before the
-  // schedule is next rebuilt", and that has no per-action answer.
+  // "what belongs on the list today" but "what falls inside this window",
+  // and that has no per-action answer. Each row still reports its own
+  // `activeFrom`, which is the per-action half.
   const desired = await computeDesired(deps, () => windowDays);
 
-  const rows: Reminder[] = [];
+  const rows: WindowedReminder[] = [];
   for (const want of desired.values()) {
     const existing = await deps.reminders.getIncludingDeleted(want.id);
     if (existing !== undefined) {
-      if (existing.deletedAt === null) rows.push(existing);
+      if (existing.deletedAt === null)
+        rows.push({ ...existing, ...factsOf(want, true) });
       continue;
     }
-    rows.push(synthesize(want));
+    rows.push({ ...synthesize(want), ...factsOf(want, false) });
   }
 
   const userRows = await deps.reminders.listWhere({
     where: "source = ?",
     params: ["user"],
   });
-  return [...rows, ...userRows];
+  return [
+    ...rows,
+    ...userRows.map((row) => ({
+      ...row,
+      activeFrom: null,
+      occurrenceDate: null,
+      materialized: true,
+    })),
+  ];
+}
+
+/**
+ * Every reminder a device should consider **notifying** about — a year of them,
+ * most not yet rows. The input `@leapsake/notifications`' `planNotifications`
+ * plans from, and the reason {@link listRemindersInWindow} takes a window at all:
+ * see {@link NOTIFICATION_WINDOW_DAYS} for why a year, and
+ * {@link DISPLAY_WINDOW_DAYS} for the shorter one the list reads.
+ */
+export function listNotifiableReminders(
+  deps: ReminderEngineDeps,
+): Promise<WindowedReminder[]> {
+  return listRemindersInWindow(deps, NOTIFICATION_WINDOW_DAYS);
+}
+
+/** The window facts a desired row reports, once its store state is known. */
+function factsOf(
+  want: DesiredReminder,
+  materialized: boolean,
+): ReminderWindowFacts {
+  return {
+    activeFrom: want.activeFrom,
+    occurrenceDate: want.occurrenceDate,
+    materialized,
+  };
+}
+
+/**
+ * Bring one desired-but-not-yet-materialized reminder into being, and answer
+ * whether a live row now exists under that id.
+ *
+ * This is what makes a *coming* row tickable. The list deliberately shows rows
+ * ahead of their own `activeDays` — the window governs when the app **prompts**
+ * you, never what you are allowed to do early — so a checkbox on a preview row
+ * has to be able to create the thing it is ticking.
+ *
+ * ⚠️ **What happens next is worth knowing.** The row it inserts is not in the
+ * *materialization* desired set yet, so the next {@link regenerateSystemReminders}
+ * prunes it — to a tombstone, which is never resurrected. Completing an errand
+ * early therefore retires it for the rest of the year rather than letting it
+ * come back when its window opens. That is the intended reading ("already bought
+ * it, stop asking") and it is asserted in the integration tests, but it is
+ * permanent, and any future "reopen" affordance has to reckon with it.
+ *
+ * Returns `false` only for an id the walk does not want (a stale link) or one
+ * the user has already dismissed — in both cases there is deliberately nothing
+ * to write.
+ */
+export async function materializeReminder(
+  deps: ReminderEngineDeps,
+  id: string,
+): Promise<boolean> {
+  const existing = await deps.reminders.getIncludingDeleted(id);
+  if (existing !== undefined) return existing.deletedAt === null;
+
+  const desired = await computeDesired(deps, () => DISPLAY_WINDOW_DAYS);
+  const want = desired.get(id);
+  if (want === undefined) return false;
+
+  await insertDesired(deps, want, Date.now());
+  return true;
+}
+
+/**
+ * Mint the row for a desired reminder. Shared by {@link reconcile} and
+ * {@link materializeReminder} so the two can never disagree about the shape of a
+ * freshly minted row — in particular the `createdAt` back-off that carries a
+ * dateless row's display rank.
+ */
+function insertDesired(
+  deps: ReminderEngineDeps,
+  want: DesiredReminder,
+  now: number,
+): Promise<unknown> {
+  return deps.reminders.insert({
+    id: want.id,
+    title: want.title,
+    body: null,
+    completedAt: null,
+    dueDate: want.dueDate,
+    // Minted un-snoozed; snoozing is a user act, never a reconcile one.
+    snoozedUntil: null,
+    snoozeCount: 0,
+    source: "system",
+    // Back off `createdAt` by the row's display rank so dateless rows sort
+    // in priority order on Home (newest-first tiebreak); dated milestone
+    // rows omit `order`, so this is a no-op for them.
+    createdAt: now - (want.order ?? 0),
+    updatedAt: now,
+    deletedAt: null,
+  });
 }
 
 /**
@@ -896,10 +1070,13 @@ async function computeDesired(
         // Due `offsetDays` before the occurrence (day-of when 0); stored as UTC
         // midnight of that civil day, so plain integer subtraction is exact. A
         // belated row's due date is simply in the past, which is honest.
+        const dueDate = dueDateMs(occ) - rule.offsetDays * DAY_MS;
         desired.set(id, {
           id,
           title,
-          dueDate: dueDateMs(occ) - rule.offsetDays * DAY_MS,
+          dueDate,
+          activeFrom: dueDate - ownActiveDays(rule.action) * DAY_MS,
+          occurrenceDate: dueDateMs(occ),
           // A relationship bearer names no single entity, so it carries no target
           // (and in practice never reaches here — its label resolves to null).
           target:
@@ -975,10 +1152,13 @@ async function computeDesired(
                   label: rule.label ?? null,
                 })
               : def.template({ subject, greeting: candidate.greeting });
+          const dueDate = dueDateMs(occ) - rule.offsetDays * DAY_MS;
           desired.set(id, {
             id,
             title: `${def.icon ?? ""} ${body}`.trim(),
-            dueDate: dueDateMs(occ) - rule.offsetDays * DAY_MS,
+            dueDate,
+            activeFrom: dueDate - ownActiveDays(rule.action) * DAY_MS,
+            occurrenceDate: dueDateMs(occ),
             target: {
               action: rule.action,
               bearerType: candidate.bearerType,
@@ -1022,7 +1202,15 @@ async function computeDesired(
         continue;
       // `index` is the step's display priority (0 = first); realized as a
       // `createdAt` back-off below so the nudges sort in array order on Home.
-      desired.set(id, { id, title: step.title, dueDate: null, order: index });
+      // Dateless, so already on display and counting down to nothing.
+      desired.set(id, {
+        id,
+        title: step.title,
+        dueDate: null,
+        activeFrom: null,
+        occurrenceDate: null,
+        order: index,
+      });
     }
   }
 
@@ -1039,6 +1227,8 @@ async function computeDesired(
         id,
         title: duplicatesTitle(pairKeys.length),
         dueDate: null,
+        activeFrom: null,
+        occurrenceDate: null,
         order: ONBOARDING_STEPS.length,
       });
     }
@@ -1059,23 +1249,7 @@ function reconcile(
     for (const [id, want] of desired) {
       const existing = await deps.reminders.getIncludingDeleted(id);
       if (existing === undefined) {
-        await deps.reminders.insert({
-          id,
-          title: want.title,
-          body: null,
-          completedAt: null,
-          dueDate: want.dueDate,
-          // Minted un-snoozed; snoozing is a user act, never a reconcile one.
-          snoozedUntil: null,
-          snoozeCount: 0,
-          source: "system",
-          // Back off `createdAt` by the row's display rank so dateless rows sort
-          // in priority order on Home (newest-first tiebreak); dated milestone
-          // rows omit `order`, so this is a no-op for them.
-          createdAt: now - (want.order ?? 0),
-          updatedAt: now,
-          deletedAt: null,
-        });
+        await insertDesired(deps, want, now);
         created++;
         continue;
       }

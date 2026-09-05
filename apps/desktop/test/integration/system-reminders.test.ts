@@ -522,3 +522,121 @@ describe("migration 34 sweeps the generated reminders", () => {
     expect(after.id).toBe(row.id);
   });
 });
+
+describe("core.reminders.listInWindow (what the list shows)", () => {
+  /** A person with a birthday `days` out, on the shipped default schedule
+   *  (a day-of wish) unless a schedule is supplied. */
+  async function birthdayIn(
+    days: number,
+    reminderSchedule?: ReminderRuleInput[],
+  ) {
+    const person = await core.people.create(
+      { firstName: "Cara", middleName: null, lastName: "Vale", gender: null },
+      [],
+    );
+    const occ = civilDaysFromToday(days);
+    await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: person.id,
+      month: occ.month,
+      day: occ.day,
+      ...(reminderSchedule === undefined ? {} : { reminderSchedule }),
+    });
+    return person;
+  }
+
+  /** The windowed rows this suite is about, minus the onboarding nudge family. */
+  async function windowed() {
+    return (await core.reminders.listInWindow()).filter(
+      (r) => onboardingRouteOf(r.id) === null,
+    );
+  }
+
+  it("previews a reminder that is not a row yet, and joins nothing to it", async () => {
+    const cara = await birthdayIn(20);
+
+    // Nothing materialized: a wish is day-of, so twenty days out there is no row.
+    expect(await systemReminders()).toHaveLength(0);
+
+    const [preview] = await windowed();
+    expect(preview.materialized).toBe(false);
+    expect(preview.title).toBe(
+      `🎉 Wish ${mentionToken("Cara Vale", "person", cara.id)} a happy birthday`,
+    );
+    // The name still renders: it is in the text, which is the source of truth.
+    // The join only ever supplied *current* labels, and a preview has no row to
+    // have stale ones on.
+    expect(preview.tags).toEqual([]);
+    expect(preview.mentions).toEqual([]);
+    // The two dates the stored row cannot say.
+    expect(preview.occurrenceDate).toBe(preview.dueDate);
+    expect(preview.activeFrom).toBe(preview.dueDate);
+  });
+
+  it("joins tags and mentions onto a row that does exist", async () => {
+    const cara = await birthdayIn(0);
+
+    const [row] = await windowed();
+
+    expect(row.materialized).toBe(true);
+    expect(row.mentions).toEqual([
+      { targetType: "person", targetId: cara.id, label: "Cara Vale" },
+    ]);
+  });
+
+  // The gift's 30-day run-up puts it on display three weeks before its own due
+  // date, and well before the birthday it counts down to.
+  it("dates a gift by its own run-up, not by the occasion", async () => {
+    await birthdayIn(20, [
+      { action: "gift", label: null, offsetDays: 12, enabled: true },
+    ]);
+
+    const [gift] = await windowed();
+
+    expect(daysUntil(todayCivil(), civilFromDueMs(gift.occurrenceDate!))).toBe(
+      20,
+    );
+    expect(daysUntil(todayCivil(), civilFromDueMs(gift.dueDate!))).toBe(8);
+    expect(daysUntil(todayCivil(), civilFromDueMs(gift.activeFrom!))).toBe(-22);
+  });
+
+  it("mints the row when a preview is ticked", async () => {
+    await birthdayIn(20);
+    const [preview] = await windowed();
+
+    await core.reminders.setCompleted(preview.id, true);
+
+    const [row] = await systemReminders();
+    expect(row.id).toBe(preview.id);
+    expect(row.completedAt).not.toBeNull();
+  });
+
+  // ⚠️ The documented consequence of ticking early: the next reconcile does not
+  // want the row yet, so it prunes it to a tombstone and the resurrection guard
+  // keeps it dead. "Already bought it, stop asking" — and it is permanent.
+  it("retires an early-ticked reminder for good", async () => {
+    await birthdayIn(20);
+    const [preview] = await windowed();
+    await core.reminders.setCompleted(preview.id, true);
+
+    await core.reminders.regenerateSystem();
+    expect(await systemReminders()).toHaveLength(0);
+
+    // Even once its own window opens, the tombstone stands.
+    const stillPreviewed = await windowed();
+    expect(stillPreviewed).toHaveLength(0);
+  });
+
+  it("returns user reminders too, with no window facts of their own", async () => {
+    await core.reminders.create({ title: "Call the dentist", body: null });
+
+    const [row] = (await core.reminders.listInWindow()).filter(
+      (r) => r.source === "user",
+    );
+
+    expect(row.materialized).toBe(true);
+    expect(row.activeFrom).toBeNull();
+    expect(row.occurrenceDate).toBeNull();
+  });
+});

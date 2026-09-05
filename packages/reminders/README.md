@@ -15,6 +15,9 @@ scoped. The composition root wires the repos.
 | How reconcile decides what to insert, refresh, or tombstone | `computeDesired` + `reconcile` in `src/engine.ts` |
 | When a reminder goes on display, and when it stops | `isWithinWindow` in `src/engine.ts` |
 | How long a given errand sits on the list | `activeDays` on `actionDefs`, in `@leapsake/schema` |
+| How far ahead the *list* looks, versus the *notification schedule* | `DISPLAY_WINDOW_DAYS` and `NOTIFICATION_WINDOW_DAYS` in `src/engine.ts` |
+| What a row can say about its own timing once it leaves the engine | `ReminderWindowFacts` in `src/engine.ts` |
+| Why a not-yet-active reminder can still be ticked | `materializeReminder` in `src/engine.ts` |
 | The onboarding nudge definitions and their copy | `ONBOARDING_STEPS` in `src/engine.ts` |
 | How snooze budgets are read | `snoozePolicyOf`, beside `ONBOARDING_STEPS` |
 | Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps` |
@@ -76,6 +79,49 @@ hence `recentOccurrence` in `@leapsake/schema`, walked alongside `nextOccurrence
 strictly *before* today, so the two are disjoint and no occurrence is ever considered twice. The
 holiday resolver takes the same short look back, so the two dated families agree about what
 "missed" means.
+
+### The two states are only useful if the screen can name them
+
+Everything above happens inside `isWithinWindow`, which computes both missed states and
+then throws the distinction away — it answers a boolean. The screen needs the distinction,
+and cannot recover it: `reminders` has no action column, so `dueDate + offsetDays` is not
+derivable from a row, and neither is the day the row went on display.
+
+So the walk reports them. `ReminderWindowFacts` carries **`activeFrom`** (when it surfaces)
+and **`occurrenceDate`** (what it counts down to) alongside every row `listRemindersInWindow`
+returns, and `bucketReminders` in `@leapsake/view-models` does the splitting. Both are
+**derived, never stored**: persisting them would make every edit to a number in `actionDefs`
+a data migration, which is exactly the property that made those numbers data in the first
+place.
+
+Two rules the derivation depends on, both easy to break by accident:
+
+- **`activeFrom` is always the action's own `activeDays`**, never the window the walk was
+  called with. The window parameter decides whether a row is in the set at all; substituting
+  it would make every previewed row claim to be already active.
+- **A row with no occurrence is never belated.** An overdue user reminder is still
+  salvageable — nothing has *passed* — so it reads as past due. Belated needs a known
+  occasion that has gone.
+
+### Three windows, and why none of them is the others
+
+| window | asks | answer |
+|---|---|---|
+| `activeDays` (per action) | what should be a **row** today | the errand's own run-up |
+| `DISPLAY_WINDOW_DAYS` | what is worth **previewing** to someone looking at the list | 30 days |
+| `NOTIFICATION_WINDOW_DAYS` | what could come due before the schedule is **rebuilt** | a year |
+
+One walk (`computeDesired`) serves all three, parameterised by `ActiveDaysOf` — a second
+implementation of the id derivation or the window filter would drift the day either changed.
+⚠️ `DISPLAY_WINDOW_DAYS` must stay at or above `MAX_ACTIVE_DAYS`, or a row the
+materialization walk already minted would fall out of the read that feeds the screen; the
+test asserts it.
+
+Previewing is not the same as forbidding. **Everything can be done early** — the window
+governs when the app *prompts* you, never what you are allowed to do — so a preview row is
+tickable, and `materializeReminder` mints the row being ticked. ⚠️ Doing so **retires the
+errand for the year**: the next reconcile does not want that row yet and prunes it to a
+tombstone, which is never resurrected. That is the intended reading, and it is permanent.
 
 ### Known limitation
 

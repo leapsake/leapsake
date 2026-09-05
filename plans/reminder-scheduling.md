@@ -9,9 +9,11 @@
 
 Every "Wish @A a happy birthday" reminder in the next four weeks was on Home, all month, for
 everyone, because one constant gave every rule the same 30-day run-up before its own due date.
-**That half is built** — per-action `activeDays`, a belated tail, and `LEAD_DAYS` deleted. The
-reasoning now lives in [`@leapsake/reminders`](../packages/reminders/README.md); what follows is
-what is still ahead of it.
+**That half is built**, and so is the screen that reads it — per-action `activeDays`, a belated
+tail, `LEAD_DAYS` deleted, and Home split into owed / available / coming on both clients. The
+reasoning now lives in [`@leapsake/reminders`](../packages/reminders/README.md) and
+[`@leapsake/view-models`](../packages/view-models/README.md); what follows is what is still ahead
+of it.
 
 There is a second cause underneath that first one, and windows alone do not reach it. The engine has to
 decide what to remind you about before you have decided anything, so it **guesses** — and a guess
@@ -38,10 +40,13 @@ kind-level rule interacts with the prompt — and it is parked in Increment 6, w
    buttons.
 4. **Copy and affordances are derived at render, never stored.** Adding a phone number rewords an
    existing reminder; it must never mint a new one or resurrect a completed one.
-5. **The screen is owed / available / coming**, and only *owed* gates "done for the day".
-   *Owed* has two missed states, and they are different: **past due** (deadline blown, the event
-   is still ahead, still salvageable) and **belated** (the event itself has passed). The engine
-   already distinguishes them (`isWithinWindow`); the screen does not yet.
+5. **The screen is owed / available / coming**, and only *owed* gates "done for the day"
+   *(built)*. *Owed* has two missed states, and they are different: **past due** (deadline blown,
+   the event is still ahead, still salvageable) and **belated** (the event itself has passed).
+   Both now reach the screen, on `ReminderWindowFacts`; the split is `bucketReminders`. ⚠️ Note
+   what landed differently from this doc's first sketch: **dateless rows are owed, not available**
+   *(owner, 2026-09-04)*, so a standing onboarding nudge keeps the day unfinishable while it
+   stands.
 6. **Rules resolve through a four-level cascade**, per action, most specific winning.
 7. **The engine never guesses. An unconfigured occasion gets a question, not errands**
    *(owner, 2026-09-04)*. The first thing a birthday puts on your list is "Alice's birthday is in
@@ -99,62 +104,10 @@ deterministic ids re-mint everything still wanted. Sweep the table, don't reason
 
 ---
 
-## Increment 2 — owed / available / coming
-
-The screen. Both clients.
-
-The split is by **due date**, with activity deciding only whether something is on the main screen
-at all:
-
-- **Past due** — deadline missed, occurrence still ahead. Still salvageable, so acting now has the
-  most value of anything on the screen; that is the argument for putting it first.
-- **Belated** — the occurrence has passed. Prominent, but below past due, because nothing can be
-  recovered here — only acknowledged. (Order is a design call at build time; this is the
-  reasoning, not a mandate.)
-- **Today** — `daysUntilDue === 0`.
-- **Available** — active and on display, but due later. A month-long gift lives here the whole
-  time. It is *visible*, it is *tickable*, and it does **not** count against being done today.
-- **Coming** — not yet active. Behind an expander, grouped by when it will land.
-
-⚠️ **Past due + Belated + Today is what "done for the day" measures.** This is the whole point of separating
-them: a gift project that sits on screen for a month must never make the day unfinishable. The
-user should be able to clear the top of the screen and feel finished while the gift sits below as
-an opportunity rather than an accusation.
-
-Expose the counts so the UI can say what kind of done was reached — *everything due today* (past
-due + belated + today clear) and *everything I could possibly do* (those plus Available clear). The
-owner wants both readings available; which one the UI celebrates is a design call at build time.
-
-- The split belongs in `packages/view-models/src/reminders.ts` beside `partitionReminders`, which
-  already owns exactly this kind of decision and documents *why* display-level is the only place
-  a temporary hide can live. Extend or replace it; do not put the logic in either client.
-- **Coming** needs rows that do not exist yet. Do not write a second walk — `listNotifiableReminders`
-  in the engine already synthesizes future rows over an arbitrary window, respects tombstones, and
-  returns the real row when there is one. Call it with a small window instead of 365. The engine's
-  own comment explains why a parallel implementation would silently drift.
-- It must return each row's **activation date** (`activeFrom`, epoch ms) alongside the row, since
-  the client buckets *coming* items by when they will land and cannot derive that from a bare
-  `Reminder` — the action is not a column. The engine can: it is
-  `dueDate − actionDefs[action].activeDays`, known at the point the desired row is built and thrown
-  away immediately afterwards. Carry it on `DesiredReminder` rather than recomputing it anywhere.
-- **Do not gate the checkbox on activity.** Everything can be done early; the active window exists
-  only to decide when the app *prompts* you. Ticking a not-yet-materialized row has to create the
-  real row at that moment.
-- Horizon: 30 days for now, but read it from one constant. The owner expects to expand it, and
-  possibly to grade it (this week → this month → beyond).
-
-Desktop already has the `<details>` idiom for Completed in `ReminderList.tsx`; mobile's Home
-(`apps/mobile/app/(tabs)/index.tsx`) is a single `FlatList` and needs section headers with
-tap-to-expand. Keep the mobile row a single large tap target — the file's doc-comment explains why
-the row is one link and not several small ones, and that reasoning still holds.
-
-**Done when** a user with a month of birthdays sees a short Today, can clear it, and can expand to
-find what is coming without any of it having nagged them.
-
 ## Increment 3 — the prompt
 
-**The biggest reduction on the list, and the one that changes what the list is.** Increments 1–2
-make the guessing quieter; this stops the guessing.
+**The biggest reduction on the list, and the one that changes what the list is.** The windows and
+the buckets made the guessing quieter; this stops the guessing.
 
 An occasion with no rules of its own mints exactly one reminder — a `plan` row — well ahead of
 everything else:
@@ -214,7 +167,7 @@ errand, so it should sit patiently in *Available* and only reach *Today* on its 
   happens already when no rules exist.
 - **An ignored prompt stays answerable.** The engine's second aliveness clause is the
   *occurrence*, not the due date, so the prompt survives its own deadline as **past due** right up
-  to the birthday. Increment 2 already forbids gating the checkbox on activity, so a late answer
+  to the birthday. The list already refuses to gate the checkbox on activity, so a late answer
   works — the chosen actions simply materialise with compressed windows, some of them immediately
   past due, which is honest.
 - ⚠️ **Ticking nothing must be distinguishable from never being asked**, or the prompt returns

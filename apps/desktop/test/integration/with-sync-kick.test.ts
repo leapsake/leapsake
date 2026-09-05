@@ -198,6 +198,7 @@ const SURFACE: Record<string, "read" | "write"> = {
   "reminders.get": "read",
   "reminders.giftTargets": "read",
   "reminders.list": "read",
+  "reminders.listInWindow": "read",
   "reminders.listNotifiable": "read",
   "reminders.mentioning": "read",
   "reminders.regenerateSystem": "write",

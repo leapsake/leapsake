@@ -1025,10 +1025,13 @@ async function giftCreateLoader({ request }: LoaderFunctionArgs) {
  * who they're about, so a gift reminder can offer the recipient's gifts (and,
  * once done, logging what was given). Derived from the engine's own walk, so the
  * CTA appears on exactly the reminders it minted.
+ *
+ * `listInWindow`, not `list`: the screen buckets by *when*, and past due, belated
+ * and coming are not derivable from stored rows alone (see `bucketReminders`).
  */
 async function remindersLoader() {
   const [reminders, giftTargets, duplicatesNudgeId] = await Promise.all([
-    window.api.reminders.list(),
+    window.api.reminders.listInWindow(),
     window.api.reminders.giftTargets(),
     // The duplicates nudge is content-addressed on the outstanding pair set, so
     // unlike the onboarding nudges its id can't be a static table — core
