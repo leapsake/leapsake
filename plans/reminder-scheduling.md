@@ -1,4 +1,4 @@
-# Reminders — active windows, buckets, the prompt, and the rule cascade
+# Reminders — the prompt, `verb:qualifier` identity, and the rule cascade
 
 > **Delete this doc when the work lands.** The durable *why* goes into
 > [`@leapsake/reminders`](../packages/reminders/README.md) beside the onboarding-nudge reasoning
@@ -152,9 +152,11 @@ same pair, so the split does not move it. Copy renders the real distance (`forma
 does this) — do not write "next month" into a template; the number moves.
 
 Deriving it is the whole point of extensibility. Ship a commissioned-gift action at `activeDays 60`
-and every prompt slides earlier by itself, with no second constant to remember. And ⚠️ **if eight
-weeks turns out to feel too early to be asked, the dial to turn is `get:gift`'s `activeDays`, not
-the prompt's** — that is the correct place for the pressure to land, and `actionDefs` already says
+and every prompt slides earlier by itself, with no second constant to *choose*. One to **check**,
+though: `DISPLAY_WINDOW_DAYS` must stay at or above `MAX_ACTIVE_DAYS`, so an action with a run-up
+wider than the list's horizon widens the horizon too. The test says so and fails loudly; it is a
+consequence to know about, not a decision to make. And ⚠️ **if eight weeks turns out to feel too
+early to be asked, the dial to turn is `get:gift`'s `activeDays`, not the prompt's** — that is the correct place for the pressure to land, and `actionDefs` already says
 those numbers expect to be corrected against real use.
 
 `plan` gets `offsetDays` derived as above and `activeDays = 14`; it is a decision rather than an
@@ -184,9 +186,8 @@ The answer persists (decision 9): with rules stored, no `plan` row is ever minte
 escapes from staleness:
 
 - **Manual** — the milestone's reminder settings screen, which is where the user goes to say "I'm
-  not really in touch with John any more". This already exists as the schedule editor
-  (`packages/core/src/index.ts`, the `resolveReminderSchedule` call around line 1254); it needs
-  the prompt's vocabulary, not a new screen.
+  not really in touch with John any more". This already exists as the schedule editor, behind
+  core's `milestones.reminderSchedule`; it needs the prompt's vocabulary, not a new screen.
 - **Automatic, and only on new information** — re-ask when the **offer set changes**: a contact
   method appears and makes `message:discord` offerable, or Leapsake ships a new verb. Record what
   was offered at answer time so that diff is computable. ⚠️ **Record it, but building the diff is
@@ -279,8 +280,9 @@ The reminder learns *how* to reach someone, without ever changing which reminder
 | a **preferred** one | names that one | that one, leading |
 
 The same derivation carries the **belated** wording — "Wish A a happy *belated* birthday" once the
-occurrence has passed. It is keyed on the row's own dates, so it needs no new input, and it is one
-more reason the copy must not be stored.
+occurrence has passed. It needs no new input: the row already carries `occurrenceDate`, put there
+for the screen's belated bucket, so the copy reads the same field the bucketing does and the two
+cannot disagree. One more reason the copy must not be stored.
 
 ⚠️ **The contact method must never touch identity.** If adding a phone number changed the id from
 `wish` to `message:sms`, the old row would be tombstoned (permanently — the resurrection guard),
@@ -293,12 +295,13 @@ fact about the bearer.
   edit rewrite reminder rows and bump `updated_at`; `reconcile` is deliberately a no-op in steady
   state and should stay one. Follow the pattern `ReminderWithTags` already uses, where tags and
   mentions are resolved on read.
-- **Notifications must not go stale** *(owner)*. Do the derivation in **one shared place** and
-  have `listNotifiableReminders` return rows already carrying the derived copy — the planner's
-  `planEach`/`planDigest` render from the row, so they then need no changes and cannot disagree
-  with the screen. Then widen the reconcile-and-replan trigger from milestone writes to include
-  **contact-method and rule writes**, so a setting change updates the scheduled notification in
-  the same operation.
+- **Notifications must not go stale** *(owner)*. Do the derivation in **one shared place**, which
+  is now literally one: the screen and the planner both read `listRemindersInWindow` (the planner
+  through the `listNotifiableReminders` wrapper), so copy attached there reaches both and they
+  cannot disagree. The planner's `planEach`/`planDigest` render from the row and need no changes.
+  Then widen the reconcile-and-replan trigger from milestone writes to include **contact-method
+  and rule writes**, so a setting change updates the scheduled notification in the same
+  operation.
 - **`wish` is suppressed whenever any specific day-of action is enabled** — and *only* by a
   day-of one. A `get:card` or `send:card` the user ticked in the prompt has its own due date days
   or weeks earlier; those are not acknowledgments and must **not** suppress the wish.
@@ -406,7 +409,7 @@ them?** — picks a rule set:
   priorities land. The one-method case is not special-cased; it is the same rule with one button.
 - **The cascade's editing UI.** Four levels × N actions × per-person is a large settings surface
   and the owner wants it designed against the stronger onboarding flow, which is later work.
-  Nothing above depends on it: increments 1–5 need no *cascade* settings screen. Increment 3 needs
+  Nothing above depends on it: increments 3–5 need no *cascade* settings screen. Increment 3 needs
   the prompt itself and the existing per-milestone schedule editor, and neither is this.
 - **The holiday prompt.** Increment 3's per-bearer shape is right for milestones and wrong for
   holidays, where one occasion spans everyone: Christmas wants a single prompt listing people, not
