@@ -318,6 +318,22 @@ question the opposite way twice: rows correct on disk, wrong in the list.
 ⚠️ **Close the app before writing to it.** `xcrun simctl terminate` first; the app re-reads
 on boot.
 
+### When the row is right on disk *and* right out of the engine
+
+There is a third answer to that question, and it cost most of a session before it was
+found: **Hermes miscompiled the code between them.** More than one `await` in a single
+branch of a ternary makes Hermes discard the branch's value and hand back a leftover
+register — a plain number — which then type-checks, buckets and renders until something
+reads a property off it. `core.reminders.listInWindow` joined its rows that way, so every
+*stored* reminder reached mobile Home as `0`, while desktop, Node and the whole vitest
+suite were fine. `scripts/hermes-await-in-ternary.test.mjs` now bans the shape and explains it.
+
+What actually found it, after a lot of reading of correct-looking source, was **printing
+the objects on the device**: `Object.keys(x)`, `Object.prototype.toString.call(x)` and
+`JSON.stringify(x)` rendered into the screen as `Text`. Rendering a probe rather than
+logging it needs no log plumbing and cannot be lost. Reach for it early — one screenshot
+said "this is the number zero", which no amount of reading the source was going to say.
+
 ### The deep links worth knowing
 
 Deep links skip the navigation entirely, which is what makes ad-hoc driving bearable. They

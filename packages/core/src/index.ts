@@ -108,6 +108,7 @@ import {
   type ReminderEngineDeps,
   type ReminderWindowFacts,
   type UndatedPartnership,
+  type WindowedReminder,
   DISPLAY_WINDOW_DAYS,
   duplicatesReminderId,
   getReminderInWindow,
@@ -1277,6 +1278,33 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     listNotifiableReminders(systemReminderDeps());
 
   /**
+   * A windowed row with its tags and mentions attached — the join both
+   * {@link listInWindow} and {@link getInWindow} end in, and the reason they
+   * share one.
+   *
+   * ⚠️ **The branches are statements on purpose; do not fold them back into a
+   * ternary.** Hermes miscompiles a conditional-expression branch holding more
+   * than one `await`: the branch's value is thrown away and a leftover register
+   * — a plain number, every time we have seen it — is returned in its place.
+   * Written as
+   * `row.materialized ? { ...row, tags: await …, mentions: await … } : …`, this
+   * handed mobile Home a `0` for every *stored* reminder, which
+   * `partitionReminders` then filed under completed (`undefined !== null` is
+   * true) and the row renderer crashed reading its title. Node and the desktop
+   * bundler compile the same source correctly, so **no `vitest` tier can
+   * observe it**; `scripts/hermes-await-in-ternary.test.mjs` keeps the
+   * shape from coming back instead.
+   */
+  const withTagsAndMentions = async (
+    row: WindowedReminder,
+  ): Promise<ReminderInWindow> => {
+    if (!row.materialized) return { ...row, tags: [], mentions: [] };
+    const rowTags = await tags.listForEntity("reminder", row.id);
+    const rowMentions = await resolveMentions(row.id);
+    return { ...row, tags: rowTags, mentions: rowMentions };
+  };
+
+  /**
    * What the reminder **list** shows — every reminder inside
    * `DISPLAY_WINDOW_DAYS`, each carrying the two dates the stored row cannot
    * say: when it goes on display, and what occasion it counts down to. The
@@ -1296,17 +1324,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       systemReminderDeps(),
       DISPLAY_WINDOW_DAYS,
     );
-    return Promise.all(
-      rows.map(async (r) =>
-        r.materialized
-          ? {
-              ...r,
-              tags: await tags.listForEntity("reminder", r.id),
-              mentions: await resolveMentions(r.id),
-            }
-          : { ...r, tags: [], mentions: [] },
-      ),
-    );
+    return Promise.all(rows.map(withTagsAndMentions));
   };
 
   /**
@@ -1330,22 +1348,14 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     if (row === undefined) {
       const stored = await reminders.get(id);
       if (stored === undefined) return undefined;
-      return {
+      return withTagsAndMentions({
         ...stored,
         activeFrom: null,
         occurrenceDate: null,
         materialized: true,
-        tags: await tags.listForEntity("reminder", id),
-        mentions: await resolveMentions(id),
-      };
+      });
     }
-    return row.materialized
-      ? {
-          ...row,
-          tags: await tags.listForEntity("reminder", row.id),
-          mentions: await resolveMentions(row.id),
-        }
-      : { ...row, tags: [], mentions: [] };
+    return withTagsAndMentions(row);
   };
 
   const views = createViews({
