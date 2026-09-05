@@ -76,8 +76,9 @@ export const API_CHANNELS = [
   "reminders.snooze",
   "reminders.softDelete",
   "reminders.regenerateSystem",
-  "reminders.giftTargets",
-  "reminders.planTargets",
+  // One read behind every affordance the rows carry — gifts, prompts, and the
+  // ways to reach a `wish`'s person. Three filters over one engine walk.
+  "reminders.targets",
   "reminders.mentioning",
 
   "self.get",

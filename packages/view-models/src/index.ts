@@ -23,6 +23,7 @@ export {
   reminderCtaOf,
 } from "./reminders.js";
 export type {
+  ContactReminderSubject,
   GiftReminderSubject,
   PlanReminderSubject,
   ReminderBucket,

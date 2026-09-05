@@ -10,17 +10,16 @@
 ⚠️ **Read this first, and move the marker when a slice lands.** Everything below is reasoning;
 this is the queue. Each entry names one unit of work and the section that specifies it.
 
-1. **Increment 5 slice C — the contact affordances and the collect CTA** ← **the next unit of
-   work.** The only product surface left in the increment, and mobile-weighted for a reason the
-   slice explains. Specified in *Increment 5* → *The slices* → **C**, which names where the row
-   learns who it is about, which component to reuse, and what desktop should and should not get.
-2. **Increment 6 — the cascade, and provenance.** Four levels, resolved per action.
-3. **Increment 7 — presets**, most of which the shipped prompt already absorbed. Read its warning
+1. **Increment 6 — the cascade, and provenance** ← **the next unit of work.** Four levels,
+   resolved per action. ⚠️ Increment 5 is **finished**, so this doc's remaining value is
+   increments 6 and 7 plus the model above; the *Parked* list under Increment 5 is the only part
+   of it still worth reading before starting something new.
+2. **Increment 7 — presets**, most of which the shipped prompt already absorbed. Read its warning
    before starting: it may be a second question on the prompt rather than a surface of its own.
 
 **Already landed; do not re-plan it.** Per-action windows, the `plan` prompt, the `verb:qualifier`
-identity split, and Increment 5 slices A (the derive-at-read seam) and B (no channel is offered
-anywhere). `git log` is the record of what
+identity split, and **all of Increment 5** — the derive-at-read seam, no channel offered anywhere,
+and the contact affordances with their collect prompt. `git log` is the record of what
 was done and the package READMEs hold the reasoning — `@leapsake/reminders` most of all.
 
 ## The problem
@@ -251,31 +250,28 @@ all.
   on the registry's length is now an explicit list: the count would have gone on passing while the
   set was wrong.
 
-- **C — the affordances and the collect CTA.** What used to be slice D, and now the only product
-  surface in the increment. Three things a fresh reader needs before starting it, none of them
-  guessable from the section above.
+- **C ✅ — the affordances and the collect CTA** *(shipped 2026-09-05)*. `reminderCtaOf` grew a
+  fifth kind, `contact`, offered only where a `wish`'s person has **no** way to be reached; where
+  they do, the client renders their methods instead, because "what can I do right now" is a list of
+  buttons rather than a decision. Core answers both halves from `reminders.targets`, and the postal
+  exclusion lives there so the clients cannot disagree about what "a way to reach them" means.
 
-  **How the row knows who it is about.** A reminder row carries no bearer column; the engine's
-  `listSystemReminderTargets` walk is what pairs an id with its action and its person, and it is
-  already how `giftTargets` and `planTargets` work in `@leapsake/core`. Add a third read beside
-  them on the same walk rather than inventing a route — ⚠️ but note the detail screen already
-  makes two such calls, and `getInWindow` a third, so **four full walks on one screen** is the
-  moment to collapse them into a single `systemTargets()` read. That cleanup is in scope here.
+  Three things landed worth knowing:
 
-  **The buttons come from `resolveActions`** in `@leapsake/contact-links`, over the person's
-  methods from `contactMethods.listForOwner`, minus the postal one. Mobile's `ContactsSection`
-  (with `offeredActions` / `targetUrl` in `apps/mobile/lib/contact-actions`) is the working
-  precedent — reuse it rather than writing a second one.
-
-  ⚠️ **This is mobile-weighted, and deliberately so.** Desktop's `ContactMethodsSection` in
-  `@leapsake/ui` states the reason in its own doc-comment: a row there is **not a tap target**,
-  because the contact-links actions are built for a handset with the apps installed and "open
-  WhatsApp" means something quite different on a laptop. Do not overturn that in passing. The
-  honest split is that **both** clients get the collect CTA and a link to the person, and the
-  tap-to-act buttons are mobile's. Desktop reaching parity is a separate decision about desktop,
-  not part of this slice.
-
-  The empty case — a person with no contact methods — gets the CTA described above the slices.
+  - **The walk collapse happened, and went further than planned.** `giftTargets` and `planTargets`
+    are **gone**, replaced by one `reminders.targets()` answering all three questions from a single
+    `listSystemReminderTargets` walk. Keeping them beside a third read would have been three ways
+    to run one walk; the detail screen is down from four walks to two.
+  - **Mobile got a shared hook, not a second implementation.** `useContactReach` in
+    `apps/mobile/lib/` now owns probing schemes, opening URLs, the clipboard fallback and the one
+    confirmation, because two surfaces perform contact actions and a second implementation would
+    have been a second answer to *does calling someone ask first* — where the wrong answer
+    interrupts a stranger. `VERB_ICON`, `actionLabel` and `buttonActions` moved to the pure
+    `contact-actions.ts` beside it.
+  - **The two clients differ, on purpose.** Mobile's CTA goes straight to the add-contact form;
+    desktop's goes to the person's page, having no route into an empty Contact section. Desktop
+    renders no buttons at all, per `ContactMethodsSection`'s standing decision that a contact row
+    on a laptop is not a tap target.
 
 - **`post`, when it is offered at all: one action, not one per platform** *(owner, 2026-09-05)*.
   A single "make a post for their birthday" rather than `post:instagram` beside `post:x` beside

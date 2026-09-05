@@ -121,7 +121,7 @@ describe("partitionReminders", () => {
   });
 });
 
-/** What a `🗓 plan` prompt is asking about, as core's `planTargets` hands it over. */
+/** What a `🗓 plan` prompt is asking about, as core's `reminders.targets` hands it over. */
 const planTarget = {
   milestoneId: "m1",
   milestoneKind: "birthday" as const,
@@ -337,6 +337,38 @@ describe("reminderActionsOf", () => {
 
     expect(kindsOf(0)).not.toContain("dismiss");
     expect(kindsOf(1)).toContain("dismiss");
+  });
+
+  // The collect prompt. A wish for someone with no phone, no email and no handle
+  // is a reminder the app cannot help you act on, so it offers to fix that —
+  // and only then.
+  it("offers to collect a contact method only when there is none", () => {
+    const unreachable = { personId: "p1", hasMethods: false };
+    const reachable = { personId: "p1", hasMethods: true };
+
+    expect(
+      reminderCtaOf(reminder("wish", {}), { contactTarget: unreachable }),
+    ).toEqual({ kind: "contact", personId: "p1" });
+    // Someone you can already reach is never asked for more: the client renders
+    // their methods as buttons, which is not a decision and so not a CTA.
+    expect(
+      reminderCtaOf(reminder("wish", {}), { contactTarget: reachable }),
+    ).toBeNull();
+  });
+
+  // ⚠️ *A nudge, never a wall.* The reminder has to stay finishable by someone
+  // who never adds a contact method — the whole difference between offering help
+  // and demanding setup.
+  it("never gates completion on collecting a contact method", () => {
+    const kinds = reminderActionsOf(
+      reminder("wish", { completedAt: null }),
+      { contactTarget: { personId: "p1", hasMethods: false } },
+      NOW,
+    ).map((a) => a.kind);
+
+    // A link, and nothing that stands between the user and Done — no snooze
+    // budget, no dismissal, nothing to answer first.
+    expect(kinds).toEqual(["cta"]);
   });
 
   it("stops offering to put off a reminder that is already done", () => {

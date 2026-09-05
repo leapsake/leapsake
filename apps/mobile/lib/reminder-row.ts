@@ -41,6 +41,10 @@ const OFFER_LABELS = {
   duplicates: "Review ›",
   seeGifts: "See their gifts ›",
   recordGiving: "Record what you gave ›",
+  // A person with no way to reach them. Worded as an offer of help rather than
+  // as a missing field — the reminder is completable without it, and the copy
+  // should not imply otherwise.
+  addContact: "Add a way to reach them ›",
   // No "›": the prompt is answered **on this screen**, not somewhere else. It is
   // the one CTA that navigates nowhere, which is why `RowOffer` needed a fourth
   // kind rather than a fourth path.
@@ -135,6 +139,16 @@ function ctaOffer(cta: ReminderCta): RowOffer {
           cta.action === "record-giving"
             ? OFFER_LABELS.recordGiving
             : OFFER_LABELS.seeGifts,
+      };
+    case "contact":
+      // Straight to the form that adds one, not to the person's page: the CTA is
+      // shown precisely because they have no methods, so their page would open
+      // on an empty Contact section and ask for one more tap to reach the same
+      // place.
+      return {
+        kind: "navigate",
+        path: `/people/${cta.personId}/contacts/new`,
+        label: OFFER_LABELS.addContact,
       };
   }
 }

@@ -88,7 +88,7 @@ describe("the plan prompt, end to end through core", () => {
   it("names it as a prompt through the CTA read, with its offer set", async () => {
     const { milestone } = await personWithBirthday(APPEARS_DAYS);
 
-    const [target] = await core.reminders.planTargets();
+    const [target] = (await core.reminders.targets()).plans;
     expect(target.milestoneId).toBe(milestone.id);
     expect(target.milestoneKind).toBe("birthday");
     expect(target.subject).toBe("Alice Ng");
@@ -118,7 +118,7 @@ describe("the plan prompt, end to end through core", () => {
     // A card is due a week before the birthday with a fortnight's run-up, so it
     // is on display the moment it is ticked.
     const { milestone } = await personWithBirthday(20);
-    const [target] = await core.reminders.planTargets();
+    const [target] = (await core.reminders.targets()).plans;
     expect(target).toBeDefined();
 
     // Answering writes the **whole** offer set, the unticked ones disabled.
@@ -131,7 +131,7 @@ describe("the plan prompt, end to end through core", () => {
 
     // The prompt retires, and the card takes its place at its own due date — a
     // week before the birthday, which is thirteen days out. The engine took over.
-    expect(await core.reminders.planTargets()).toEqual([]);
+    expect((await core.reminders.targets()).plans).toEqual([]);
     const rows = await systemReminders();
     expect(rows.map(reminderLabel)).toEqual(["💌 Send @Alice Ng a card"]);
     expect(daysUntil(todayCivil(), civilFromDueMs(rows[0].dueDate!))).toBe(13);
@@ -140,7 +140,7 @@ describe("the plan prompt, end to end through core", () => {
   // The one-tap answer: the same write, with only the wish left on.
   it("retires the prompt on `just the day`, leaving the wish alone", async () => {
     const { milestone } = await personWithBirthday(APPEARS_DAYS);
-    const [target] = await core.reminders.planTargets();
+    const [target] = (await core.reminders.targets()).plans;
 
     await core.milestones.update(milestone.id, {
       reminderSchedule: target.offers.map((offer) => ({
@@ -169,7 +169,7 @@ describe("the plan prompt, end to end through core", () => {
   // the question comes back every year.
   it("counts an answer of `nothing` as answered", async () => {
     const { milestone } = await personWithBirthday(APPEARS_DAYS);
-    const [target] = await core.reminders.planTargets();
+    const [target] = (await core.reminders.targets()).plans;
 
     await core.milestones.update(milestone.id, {
       reminderSchedule: target.offers.map((offer) => ({
@@ -179,7 +179,7 @@ describe("the plan prompt, end to end through core", () => {
     });
 
     expect(await systemReminders()).toHaveLength(0);
-    expect(await core.reminders.planTargets()).toEqual([]);
+    expect((await core.reminders.targets()).plans).toEqual([]);
   });
 
   // An ignored prompt is not silence. This is the guarantee that makes the

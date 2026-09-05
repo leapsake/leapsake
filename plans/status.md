@@ -32,10 +32,10 @@ lists them, and `pnpm release beta --only=ios --dry-run` reports them. ✅ *Open
 **Reminder scheduling** — [`reminder-scheduling.md`](./reminder-scheduling.md), off the v0.1
 critical path. ✅ Windows, the **prompt**, `verb:qualifier`, and the **derive-at-read seam** are in. ⚠️
 **Decision 3 half-reversed** *(owner, 2026-09-05)*: a channel is an affordance, not an errand,
-so Increment 5 shrank — no channel-aware copy, no `preferred`. Slice B is in too — no channel is
-offered anywhere now. Next: **slice C**, the contact affordances + collect CTA (mobile-weighted;
-desktop rows are deliberately not tap targets). Then the cascade. The doc's *Next up* block is
-the queue.
+so Increment 5 shrank — no channel-aware copy, no `preferred`. **Increment 5 is done** — no channel is offered
+anywhere, and a `wish` carries the ways to reach its person (mobile) or the offer to collect one
+(both). Next: **Increment 6**, the four-level cascade with provenance. The doc's *Next up* block
+is the queue.
 
 **Contact methods reach people** — built 2026-08-19. Left: the URL templates are convention,
 not verified — **confirm on real hardware with the apps installed** (no simulator can). ✅

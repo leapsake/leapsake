@@ -27,7 +27,7 @@ const reminder = (
   snoozeCount,
 });
 
-/** What a `🗓 plan` prompt is asking about, as core's `planTargets` hands it over. */
+/** What a `🗓 plan` prompt is asking about, as core's `reminders.targets` hands it over. */
 const planTarget = {
   milestoneId: "m1",
   milestoneKind: "birthday" as const,
@@ -214,6 +214,17 @@ describe("ctaLinkFor", () => {
         recipientId: "x1",
       }),
     ).toEqual({ path: "/pets/x1", label: "See their gifts →" });
+  });
+
+  // ⚠️ The person's own page, not a form: desktop adds contact methods from the
+  // Contact section there, and unlike mobile it has no route that opens straight
+  // into an empty one. The copy is an offer of help, not a missing field — the
+  // reminder is completable without it.
+  it("sends the collect prompt to the person's page", () => {
+    expect(ctaLinkFor({ kind: "contact", personId: "p1" })).toEqual({
+      path: "/people/p1",
+      label: "Add a way to reach them →",
+    });
   });
 });
 

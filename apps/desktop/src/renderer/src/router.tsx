@@ -1031,25 +1031,25 @@ async function giftCreateLoader({ request }: LoaderFunctionArgs) {
  * and coming are not derivable from stored rows alone (see `bucketReminders`).
  */
 async function remindersLoader() {
-  const [reminders, giftTargets, planTargets, duplicatesNudgeId] =
-    await Promise.all([
-      window.api.reminders.listInWindow(),
-      window.api.reminders.giftTargets(),
-      // What each `🗓 plan` prompt is asking about, and the actions it offers —
-      // carried on the row so the one-tap answer needs no second read.
-      window.api.reminders.planTargets(),
-      // The duplicates nudge is content-addressed on the outstanding pair set, so
-      // unlike the onboarding nudges its id can't be a static table — core
-      // recomputes it from the live pairs and the list matches on it.
-      window.api.duplicates.nudgeId(),
-    ]);
-  return { reminders, giftTargets, planTargets, duplicatesNudgeId };
+  const [reminders, targets, duplicatesNudgeId] = await Promise.all([
+    window.api.reminders.listInWindow(),
+    // One read for every affordance the rows carry: the gift loop, what each
+    // `🗓 plan` prompt is asking about (carried on the row so the one-tap answer
+    // needs no second read), and which `🎉 wish` is about someone with no way to
+    // reach them. Three filters over one engine walk.
+    window.api.reminders.targets(),
+    // The duplicates nudge is content-addressed on the outstanding pair set, so
+    // unlike the onboarding nudges its id can't be a static table — core
+    // recomputes it from the live pairs and the list matches on it.
+    window.api.duplicates.nudgeId(),
+  ]);
+  return { reminders, targets, duplicatesNudgeId };
 }
 
 /** The prompt's own screen: the offer set for the milestone being asked about. */
 async function milestonePlanLoader({ params }: LoaderFunctionArgs) {
   const milestoneId = params.milestoneId as string;
-  const target = (await window.api.reminders.planTargets()).find(
+  const target = (await window.api.reminders.targets()).plans.find(
     (t) => t.milestoneId === milestoneId,
   );
   // No prompt outstanding for this milestone: it has been answered, or the row

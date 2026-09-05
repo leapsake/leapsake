@@ -18,6 +18,7 @@ import {
 } from "@leapsake/schema";
 import { reminderActionsOf } from "@leapsake/view-models";
 import { Checkbox } from "../../../components/Checkbox";
+import { ContactReachButtons } from "../../../components/ContactReachButtons";
 import { ReminderPromptFields } from "../../../components/ReminderPromptFields";
 import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";
@@ -89,11 +90,12 @@ export default function ReminderDetailScreen() {
         // reading the plain row here would word this screen differently from
         // the list row that linked to it.
         core.reminders.getInWindow(id),
-        core.reminders.giftTargets(),
-        // A prompt is answered here rather than on a screen of its own, so this
-        // reads what it is asking about — the milestone, and the set of actions
-        // it offers with their pre-ticks.
-        core.reminders.planTargets(),
+        // One read for all three affordances this screen offers: the gift loop,
+        // the prompt's offer set (answered here rather than on a screen of its
+        // own), and the ways this reminder's person can be reached. They are
+        // three filters over one engine walk, and asking for them separately ran
+        // that walk three times to draw one row.
+        core.reminders.targets(),
         // The duplicates nudge is content-addressed on the outstanding pair set,
         // so unlike the onboarding nudges its id can't come from a static table —
         // core recomputes it from the live pairs and this matches on it.
@@ -118,7 +120,7 @@ export default function ReminderDetailScreen() {
     );
   }
 
-  const [reminder, giftTargets, planTargets, duplicatesNudgeId] = data;
+  const [reminder, targets, duplicatesNudgeId] = data;
 
   if (reminder === undefined) {
     return (
@@ -142,11 +144,23 @@ export default function ReminderDetailScreen() {
   // Everything this reminder offers, in offer order — the view-model is the only
   // authority on *what* is offered; this screen owns only how it looks. An
   // ordinary reminder (milestone / birthday / user) offers nothing.
-  const planTarget = planTargets.find((t) => t.reminderId === id);
+  const planTarget = targets.plans.find((t) => t.reminderId === id);
+  // Present only on a `wish` about a person. When they *have* methods this feeds
+  // the buttons below and no CTA is offered; when they have none the view-model
+  // turns it into the collect prompt. Either way the reminder stays completable
+  // without it — a nudge, never a wall.
+  const contactTarget = targets.contacts.find((t) => t.reminderId === id);
   const actions = reminderActionsOf(reminder, {
-    giftTarget: giftTargets.find((t) => t.reminderId === id),
+    giftTarget: targets.gifts.find((t) => t.reminderId === id),
     isDuplicatesNudge: id === duplicatesNudgeId,
     planTarget,
+    contactTarget:
+      contactTarget === undefined
+        ? undefined
+        : {
+            personId: contactTarget.personId,
+            hasMethods: contactTarget.methods.length > 0,
+          },
   });
   const removal = removalCopyFor(actions);
   const canEdit = isReminderEditable(reminder);
@@ -234,6 +248,19 @@ export default function ReminderDetailScreen() {
           />
         </View>
       </View>
+
+      {/* The ways to reach them, right under the acknowledgment they belong to —
+          the channel choice made now rather than scheduled weeks ago. Renders
+          nothing when there is nothing to offer; the collect prompt is a CTA in
+          the offers below, so an empty strip here would say the same absence
+          twice. Above Details deliberately: it is the thing to *do*, and Details
+          is something to read. */}
+      {contactTarget !== undefined && (
+        <ContactReachButtons
+          methods={contactTarget.methods}
+          subjectName={contactTarget.subject}
+        />
+      )}
 
       {/* Only when there is a title as well: an untitled reminder's body *is* the
           heading above, and repeating it under a "Details" label would show the

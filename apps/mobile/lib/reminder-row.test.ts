@@ -33,7 +33,7 @@ const giftContext = {
   giftTarget: { recipientType: "person" as const, recipientId: "p1" },
 };
 
-/** What a `🗓 plan` prompt is asking about, as core's `planTargets` hands it over. */
+/** What a `🗓 plan` prompt is asking about, as core's `reminders.targets` hands it over. */
 const planContext = {
   planTarget: {
     milestoneId: "m1",
@@ -172,6 +172,20 @@ describe("offerFor", () => {
       kind: "navigate",
       path: "/pets/x1",
       label: "See their gifts ›",
+    });
+  });
+
+  // ⚠️ Straight to the form, not to the person's page. The CTA is shown
+  // precisely because they have no methods, so their page would open on an empty
+  // Contact section and cost one more tap to reach the same place — a difference
+  // from desktop, which has no such route.
+  it("sends the collect prompt straight to the add-contact form", () => {
+    expect(
+      offerFor({ kind: "cta", cta: { kind: "contact", personId: "p1" } }),
+    ).toEqual({
+      kind: "navigate",
+      path: "/people/p1/contacts/new",
+      label: "Add a way to reach them ›",
     });
   });
 

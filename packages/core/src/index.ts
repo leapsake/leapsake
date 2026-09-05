@@ -98,6 +98,7 @@ import {
   resolveReminderSchedule,
   roleDefs,
   todayCivil,
+  verbOf,
 } from "@leapsake/schema";
 import {
   type ReminderEngineDeps,
@@ -283,6 +284,56 @@ export interface GiftReminderTarget {
   reminderId: string;
   recipientType: GiftPartyType;
   recipientId: string;
+}
+
+/**
+ * A `🎉 wish` reminder paired with the ways its person can actually be reached —
+ * the read behind both halves of the acknowledgment: the buttons when there are
+ * methods, and the *add a way to reach them* prompt when there are none.
+ *
+ * Derived from the same desired-set walk as the gift and prompt targets, so it
+ * lights up on exactly the rows the engine minted rather than on a stored column.
+ *
+ * ⚠️ **The methods travel with it, rather than being a second read per row.** A
+ * client rendering this has to know both *whether* there is a way in and *which*
+ * ones, and the two answers come from one query; splitting them would mean the
+ * screen deciding what to show before it knows what it has.
+ */
+export interface ContactReminderTarget {
+  reminderId: string;
+  /** Always a person: a pet owns no contact methods. */
+  personId: string;
+  /** Their display label, for copy that has to name them — the confirmation
+   *  before a call, which interrupts someone and should say who. */
+  subject: string;
+  /** Their reachable methods, postal excluded — see {@link reachableMethods}. */
+  methods: ContactMethod[];
+}
+
+/** Everything today's automated reminders are about, from one walk — see
+ *  `reminders.targets`. */
+export interface SystemReminderTargets {
+  gifts: GiftReminderTarget[];
+  plans: PlanReminderTarget[];
+  contacts: ContactReminderTarget[];
+}
+
+/**
+ * The contact methods worth offering *on a reminder*, which is not all of them:
+ * everything but the postal address.
+ *
+ * ⚠️ **A mailing address is not a way to say happy birthday on the day**
+ * *(owner, 2026-09-05)*. It is a real contact method and it belongs on the
+ * person's own screen; what it is not is something you can act on when the
+ * reminder fires. Posting something has its own reminder, `send:card`, on its
+ * own clock a week or more earlier — so an address offered here would be an
+ * affordance for an errand whose deadline has already gone.
+ *
+ * Filtered here rather than in each client so the two cannot disagree about what
+ * "a way to reach them" means, and so the reasoning has one home.
+ */
+function reachableMethods(methods: ContactMethod[]): ContactMethod[] {
+  return methods.filter((entry) => entry.kind !== "postal");
 }
 
 /**
@@ -841,7 +892,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
   // local civil date (a calendar event fires on the user's day). Two consumers:
   // `regenerateSystem` below reconciles the store to it (at boot/focus *and*
   // after every milestone write, so an added / edited / deleted birthday
-  // reconciles at once), and `reminders.giftTargets` reads the same walk without
+  // reconciles at once), and `reminders.targets` reads the same walk without
   // writing.
   const systemReminderDeps = (): ReminderEngineDeps => ({
     milestones: {
@@ -1603,56 +1654,92 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       // reconcile on their own (see `milestones`), so this needn't be called after
       // them. See {@link regenerateSystem}.
       regenerateSystem,
-      // Which of today's automated reminders are **gift** ones, and who each is
-      // about — the loop-closing read behind the gift CTA. The `🎁`
-      // action has always minted "Get @Alice a gift"; this is what lets a client
-      // turn that into a link to Alice's gifts and, once done, into a logged
-      // giving. Covers both dated families (a birthday's gift rule and a
-      // holiday observance's), since both mint the same action.
-      //
-      // ⚠️ `get:gift` exactly, not any `get`. Its sibling `get:card` is a shop
-      // trip on the same clock but it is not a *present*, so it has nothing to
-      // record against the recipient's gift history.
-      giftTargets: async (): Promise<GiftReminderTarget[]> => {
+      /**
+       * Everything today's automated reminders are *about*, in **one** walk.
+       *
+       * Three affordances read the same desired-set walk to answer three
+       * questions — which rows are gifts, which are prompts, which are wishes
+       * about a person — and they used to be three exported reads, which meant a
+       * screen wanting two of them ran the whole engine walk twice. The reminder
+       * detail screen wanted all three, and with `getInWindow` beside them that
+       * was four walks to draw one row.
+       *
+       * So it is one read answering all three. They were always one walk's worth
+       * of work: `listSystemReminderTargets` is the walk, and each of these is a
+       * filter over its output. Splitting them again would reintroduce both the
+       * cost and the drift risk — a second implementation of the id derivation or
+       * the window filter would silently drop every affordance the day either
+       * changed.
+       */
+      targets: async (): Promise<SystemReminderTargets> => {
         const targets = await listSystemReminderTargets(systemReminderDeps());
-        return targets
+
+        // ⚠️ `get:gift` exactly, not any `get`. Its sibling `get:card` is a shop
+        // trip on the same clock but it is not a *present*, so it has nothing to
+        // record against the recipient's gift history. Covers both dated
+        // families (a birthday's gift rule and a holiday observance's), since
+        // both mint the same action.
+        const gifts: GiftReminderTarget[] = targets
           .filter((t) => t.action === "get:gift")
           .map((t) => ({
             reminderId: t.id,
             recipientType: t.bearerType,
             recipientId: t.bearerId,
           }));
-      },
-      // Which of today's automated reminders are **prompts**, and what each is
-      // asking about — the read behind the prompt CTA. Same walk as
-      // `giftTargets`, for the same reason: a second implementation of the id
-      // derivation or the window filter would drift the day either changed and
-      // silently drop every affordance.
-      //
-      // The offers come from the kind defaults rather than from stored rows on
-      // purpose. A prompt exists precisely because the milestone has none, so
-      // `resolveReminderSchedule(kind, [])` is not a shortcut here — it is the
-      // same answer the resolver would give, reached without a second read.
-      planTargets: async (): Promise<PlanReminderTarget[]> => {
-        const targets = await listSystemReminderTargets(systemReminderDeps());
-        const prompts = targets.filter(
-          (t) => t.action === "plan" && t.milestone !== undefined,
-        );
+
+        // The offers come from the kind defaults rather than from stored rows on
+        // purpose. A prompt exists precisely because the milestone has none, so
+        // `resolveReminderSchedule(kind, [])` is not a shortcut here — it is the
+        // same answer the resolver would give, reached without a second read.
+        //
         // One label lookup per outstanding prompt. There are only ever a handful
         // — a prompt stands for eight weeks per occasion, once — so this stays
         // cheap even though the lookup may be an encrypted read.
-        return Promise.all(
-          prompts.map(async (t) => ({
+        const plans: PlanReminderTarget[] = await Promise.all(
+          targets
+            .filter((t) => t.action === "plan" && t.milestone !== undefined)
+            .map(async (t) => ({
+              reminderId: t.id,
+              milestoneId: t.milestone!.id,
+              milestoneKind: t.milestone!.kind,
+              bearerType: t.bearerType,
+              bearerId: t.bearerId,
+              subject: (await resolveLabel(t.bearerType, t.bearerId)) ?? "",
+              occurrenceDate: t.occurrenceDate ?? null,
+              offers: resolveReminderSchedule(t.milestone!.kind, []).rules,
+            })),
+        );
+
+        // The `wish` rows, with the ways their person can actually be reached —
+        // what turns "Wish @Alice a happy birthday" from a note into something
+        // you can act on without leaving the screen, and what asks for a way in
+        // when there is none.
+        //
+        // ⚠️ **`wish` only, and people only.** `wish` is the acknowledgment, and
+        // the one action whose whole content is *reach them somehow*; a gift or a
+        // card is an errand you run in a shop, and buttons to text someone would
+        // be noise on it. A pet cannot own a contact method at all
+        // (`contactOwnerTypeSchema` is person/household), so a pet's birthday
+        // gets neither buttons nor a request for a number the app could not
+        // store.
+        const wishes = targets.filter(
+          (t) => verbOf(t.action) === "wish" && t.bearerType === "person",
+        );
+        const contacts: ContactReminderTarget[] = await Promise.all(
+          wishes.map(async (t) => ({
             reminderId: t.id,
-            milestoneId: t.milestone!.id,
-            milestoneKind: t.milestone!.kind,
-            bearerType: t.bearerType,
-            bearerId: t.bearerId,
+            personId: t.bearerId,
             subject: (await resolveLabel(t.bearerType, t.bearerId)) ?? "",
-            occurrenceDate: t.occurrenceDate ?? null,
-            offers: resolveReminderSchedule(t.milestone!.kind, []).rules,
+            methods: reachableMethods(
+              await listContactMethods(contactMethods, {
+                type: "person",
+                id: t.bearerId,
+              }),
+            ),
           })),
         );
+
+        return { gifts, plans, contacts };
       },
     },
 

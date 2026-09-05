@@ -48,7 +48,7 @@ ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. Th
 
   Every assertion in it is about something either on screen or **not mounted at all**. A
   bottom-tab navigator keeps previously-focused screens mounted but hidden, so their text
-  stays in the accessibility tree — arrival is therefore asserted on *pushed* screens (a
+  stays in the accessibility tree — arrival is therefore asserted on _pushed_ screens (a
   pop unmounts them) and on the tab bar, never on "is Home's title still in the tree".
 
   Creates nothing, so it needs no per-run tag and can be re-run indefinitely. Not wired
@@ -129,7 +129,7 @@ One-time / per-session setup, Android:
    curl -Ls "https://get.maestro.mobile.dev" | bash
    ```
    Then restart your shell (or ensure `~/.maestro/bin` is on `PATH`).
-2. **A booted Android emulator**, with cores *and memory* — see
+2. **A booted Android emulator**, with cores _and memory_ — see
    [Budget the waits for the emulator](#budget-the-waits-for-the-emulator-not-for-the-simulator)
    for why the default AVD is not enough:
    ```
@@ -190,7 +190,7 @@ with `maestro --udid <sim>`, and propagates its exit code — the same shape as 
 ### The prepare no longer depends on a remembered dev server — keep it that way
 
 It used to. `ios-prepare.yaml` tapped the dev-launcher's **"Continue"**, which reopens the
-last dev server *by the absolute URL it was loaded from* — `http://192.168.1.16:8081`, the
+last dev server _by the absolute URL it was loaded from_ — `http://192.168.1.16:8081`, the
 Mac's LAN address at the time. Change networks, or just get a new DHCP lease, and that
 address answers nothing: the dev client shows the launcher, "Continue" is not on the screen
 at all, and prepare burns its whole budget before reporting "the app's home screen never
@@ -198,7 +198,7 @@ appeared". Nothing in that failure mentions the machine's IP, and re-running nev
 It cost a session on 2026-08-31, with `.16` and `.42` remembered and the host on `.9`.
 
 The deep link names `localhost`, which the simulator resolves to the host, so it is the
-same address on every machine and every network. (The deep link *was* rejected on iOS when
+same address on every machine and every network. (The deep link _was_ rejected on iOS when
 this tier was written — a SpringBoard confirm, and the launcher ignoring the `?url=` behind
 it, verified 2026-07-18. Re-verified 2026-08-31 on the same simulator: it now launches the
 app straight onto home, no confirm.) To do it by hand:
@@ -238,7 +238,7 @@ dev-client install, Metro, and the per-platform bundle-load prepare.
 `02` fills it with Ada Lovelace and Augustus De Morgan, `03` writes a milestone onto Ada.
 They share app state on purpose (the catalog takes 1→4 as one arc), so the runner stops a
 platform at the first red flow rather than reporting three failures that are really one.
-**A consequence worth knowing before you debug one:** a flow run *standalone* after a failed
+**A consequence worth knowing before you debug one:** a flow run _standalone_ after a failed
 run may not start, because the app is wherever the last failure left it — a modal still
 open, a form still half-filled. `01`'s relaunch is what clears that, so re-run the arc
 rather than the flow.
@@ -247,14 +247,14 @@ What is here covers the **`beta` rung** — Flows 1-5, on-screen assertions only
 out-of-band custody assertions and Flows 7b/7c belong to `rc`; see
 [`plans/v0-1_06_e2e-and-release-gate.md`](../../../plans/v0-1_06_e2e-and-release-gate.md)
 → §C's rung table. All five are written, and the `e2e` tier in `scripts/test-all.mjs` is
-`ready` — it went `ready` only once the *whole* beta bar was there, because a partial
+`ready` — it went `ready` only once the _whole_ beta bar was there, because a partial
 catalog that ran and went green would read as the gate being met.
 
 ### What the app's own state looks like from here
 
 - **Every run starts from a wiped app, and the harness is what guarantees it.** Before the
-  first flow, `mobile-harness.mjs` → `wipe` clears the app's data from *outside*: `adb
-  shell pm clear` on Android, and on iOS a delete of `Documents/SQLite` (stores, doors,
+  first flow, `mobile-harness.mjs` → `wipe` clears the app's data from _outside_: `adb
+shell pm clear` on Android, and on iOS a delete of `Documents/SQLite` (stores, doors,
   roster) plus `simctl keychain reset` (expo-secure-store's secrets). That is what makes a
   run's verdict independent of the run before it — the arc ends on Flow 4 with an account
   and keys, and a wedged app cannot be driven to its own reset screen at all.
@@ -263,17 +263,17 @@ catalog that ran and went green would read as the gate being met.
   `Library/Preferences` — the dev-menu preferences the runner just settled and the
   dev-launcher's own state. The wipe above touches neither.
 - **`subflows/factory-reset.yaml` stays, and is not redundant.** The harness wipe is the
-  *precondition*; the subflow is the *coverage* — the only thing in the suite that drives
+  _precondition_; the subflow is the _coverage_ — the only thing in the suite that drives
   the erase a user would perform, on a store whose contents are known. It also means the
   reset always takes its "Factory reset" branch rather than "Forget account", because the
   device now always arrives unauthenticated.
 - **A factory reset is not a first run, and its aftermath is racy.** The reminders engine
   reconciles asynchronously and the in-place provider rebuild does not wait for it: reset
   twice and Home comes back once empty and once already showing the `add-first-person`
-  nudge. The subflow relaunches and *waits* for the nudge, which is deterministic. Assert
+  nudge. The subflow relaunches and _waits_ for the nudge, which is deterministic. Assert
   nothing about the screen between the erase and the relaunch.
 - **Assert specific expected text, never emptiness or counts.** Home is time-dependent —
-  the reminders and holidays engines mint `system` rows by date — and it is *not* empty on
+  the reminders and holidays engines mint `system` rows by date — and it is _not_ empty on
   a first run: the `add-first-person` nudge is there, and it is the better assertion
   because it also proves the engine ran.
 
@@ -284,11 +284,11 @@ catalog that ran and went green would read as the gate being met.
   against a row that is plainly on screen while the same string passes on the detail page,
   where it is the screen title. Wrap anything selected out of a list: `.*Ada Lovelace.*`.
 - **A filter box makes its own text a decoy.** Type "Friend" into a picker's filter and the
-  *input* now matches `tapOn: "Friend"` as well as the option row does — Maestro takes the
+  _input_ now matches `tapOn: "Friend"` as well as the option row does — Maestro takes the
   input, iOS raises its Paste/Select callout, and the modal stays open. The failure then
   lands two steps later on a field that is behind the modal. Constrain the row with
   `below: {id: <the filter's id>}`.
-- **On Android the keyboard is a *second* decoy for the same word, and `below:` does not
+- **On Android the keyboard is a _second_ decoy for the same word, and `below:` does not
   escape it.** Gboard's suggestion strip offers the word you just typed, and the strip sits
   below the filter — so it satisfies the very constraint that separates the row from the
   box. Maestro picked the suggestion (`resource-id=com.google.android.inputmethod.latin:…`,
@@ -327,7 +327,7 @@ repo's own `Medium_Phone_API_36.0`, one commit, one emulator image, 2026-08-31:
 - **Memory, which was much harder to see.** At `-memory 4096` the guest sat at ~3.7GB of
   4GB with ~800MB in swap, and Flow 4's account conversion went **bimodal**: ~50s when it
   fit in RAM, **four to seven minutes when it did not**, red about half the time on a build
-  that was working. Argon2id is *memory-hard* by design — a 19MiB buffer touched at random —
+  that was working. Argon2id is _memory-hard_ by design — a 19MiB buffer touched at random —
   so it is the worst thing in the suite to page out. `adb shell cat /proc/vmstat` is what
   identifies it: `pswpout` had passed 1.4M pages (~5.6GB) on an emulator up for an hour. At
   `-memory 8192` the suite passed three runs running, conversion back at ~50-80s.
@@ -368,12 +368,12 @@ pnpm test:e2e --platform=android    # with the simulator shut down
 pnpm test:e2e --platform=ios        # with the emulator shut down
 ```
 
-### Screens that are pushed *over* the tab navigator
+### Screens that are pushed _over_ the tab navigator
 
 `app/data.tsx`, `app/settings.tsx` and `app/people/[id]/` are root-level routes: they are
 pushed over the tabs and have a Back control instead of a tab bar, so **`tapOn: {id:
 tab-home}` fails from any of them**. Hop back with `openLink: "leapsake://"` first. The
-fourth tab is also a *menu* (`app/(tabs)/menu.tsx`) rather than the account screen — its
+fourth tab is also a _menu_ (`app/(tabs)/menu.tsx`) rather than the account screen — its
 rows read "<glyph> <label>", so reaching the account screen is `tab-settings` then
 `.*Account.*`.
 
@@ -463,14 +463,14 @@ simulator (done on this machine's iPhone 16 Pro).
 - With two account forms on screen, every duplicated label ("Username", "Password") needs an
   explicit `index` — or, better, an id.
 
-### The Forget-account confirmation *is* drivable now
+### The Forget-account confirmation _is_ drivable now
 
 This section used to say the **last-device Forget-account confirmation** could not be driven —
 the keyboard covers "Delete all data", and dismissing it was thought not to help because the
 layout reflows as the keyboard goes and the tap lands on whatever moved under it. Retried while
-building the E2E arc *(2026-08-28)* and it works, with the same two things the Factory-reset
+building the E2E arc _(2026-08-28)_ and it works, with the same two things the Factory-reset
 confirmation needs: an `id` on the confirm field, and `dismiss-keyboard.yaml` anchored on a
-plain `Text` *above* the reflow — the section title, not the button.
+plain `Text` _above_ the reflow — the section title, not the button.
 `subflows/factory-reset.yaml` drives it, which is what makes the arc re-runnable: Flow 4
 leaves an account behind, and this is the only in-app way back.
 

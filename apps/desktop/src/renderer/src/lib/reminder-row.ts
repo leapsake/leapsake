@@ -65,6 +65,16 @@ export function ctaLinkFor(cta: ReminderCta): { path: string; label: string } {
             label: "See their gifts →",
           };
     }
+    // A wish for somebody with no way to reach them. Their page rather than a
+    // form: desktop adds contact methods from the person's own Contact section,
+    // and unlike mobile it has no route that opens straight into an empty one.
+    // Worded as an offer, not a missing field — the reminder is completable
+    // without it.
+    case "contact":
+      return {
+        path: `/people/${cta.personId}`,
+        label: "Add a way to reach them →",
+      };
   }
 }
 

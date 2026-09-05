@@ -1111,7 +1111,7 @@ export function listNotifiableReminders(
  * Filtering the whole walk for one id is deliberate. A second, narrower path to
  * a single desired row would be a second implementation of the id derivation and
  * the window filter, and the day either changed the two would disagree silently
- * — the same argument `giftTargets` and `planTargets` are built on, and the same
+ * — the same argument `reminders.targets` is built on, and the same
  * cost: those two screens already pay for this walk twice over.
  *
  * `undefined` for an id the walk does not want — a dismissed row, or a `system`

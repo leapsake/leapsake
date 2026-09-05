@@ -52,7 +52,11 @@ column and one segment of a hashed name, so this needed no schema change — and
 ⚠️ **A channel qualifier is not what that openness is for, and is not coming soon** *(owner,
 2026-09-05)*. `call` and `message:sms` were offered as errands of their own until then, and are
 not any more: how you reach someone is an **affordance on the acknowledgment** — a button on
-"wish them a happy birthday" — not a row you schedule weeks ahead. They keep their `actionDefs`
+"wish them a happy birthday", rendered from their contact methods when the reminder fires — not a
+row you schedule weeks ahead. The read behind those buttons is `reminders.targets` in
+`@leapsake/core`, which also answers the case where there are none: a wish for someone unreachable
+offers to collect a way in. ⚠️ *A nudge, never a wall* binds there — the reminder stays completable
+by someone who never adds one. They keep their `actionDefs`
 entries so a rule stored under one still renders its real copy, and they are excluded from
 `SCHEDULABLE_ACTIONS`, which is the list every picker reads. The distinction that matters here is
 that this is a decision about **what the UI offers**, not about what an action can express: the

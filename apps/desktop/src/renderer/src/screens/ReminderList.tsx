@@ -1,7 +1,9 @@
 import type {
+  ContactReminderTarget,
   GiftReminderTarget,
   PlanReminderTarget,
   ReminderInWindow,
+  SystemReminderTargets,
 } from "@leapsake/core";
 import { formatDueIn, isReminderEditable } from "@leapsake/schema";
 import { ReminderText } from "@leapsake/ui/web";
@@ -48,6 +50,7 @@ function ReminderRow({
   reminder,
   giftTarget,
   planTarget,
+  contactTarget,
   isDuplicatesNudge = false,
 }: {
   reminder: ReminderInWindow;
@@ -55,6 +58,16 @@ function ReminderRow({
   giftTarget?: GiftReminderTarget;
   /** Set when this is a `🗓 plan` prompt — what it asks about, and its offers. */
   planTarget?: PlanReminderTarget;
+  /**
+   * Set when this is a `🎉 wish` about a person. It becomes a CTA only where
+   * they have **no** way to be reached; where they do, this client shows nothing
+   * — ⚠️ deliberately, and not an omission. `@leapsake/ui`'s
+   * `ContactMethodsSection` already decided that a contact row here is not a tap
+   * target: the actions in `@leapsake/contact-links` are built for a handset with
+   * the apps installed, and "open WhatsApp" means something quite different on a
+   * laptop. Mobile renders the buttons; desktop offers the person's page.
+   */
+  contactTarget?: ContactReminderTarget;
   /** Set when this row is the duplicates nudge, whose CTA opens the review. */
   isDuplicatesNudge?: boolean;
 }) {
@@ -73,6 +86,13 @@ function ReminderRow({
     giftTarget,
     isDuplicatesNudge,
     planTarget,
+    contactTarget:
+      contactTarget === undefined
+        ? undefined
+        : {
+            personId: contactTarget.personId,
+            hasMethods: contactTarget.methods.length > 0,
+          },
   });
 
   return (
@@ -174,16 +194,17 @@ function ReminderRow({
  * sweep is mechanical.
  */
 export function ReminderList() {
-  const { reminders, giftTargets, planTargets, duplicatesNudgeId } =
-    useLoaderData() as {
-      reminders: ReminderInWindow[];
-      giftTargets: GiftReminderTarget[];
-      planTargets: PlanReminderTarget[];
-      /** The id of today's duplicates nudge, or null when there are no pairs. */
-      duplicatesNudgeId: string | null;
-    };
-  const giftTargetById = new Map(giftTargets.map((t) => [t.reminderId, t]));
-  const planTargetById = new Map(planTargets.map((t) => [t.reminderId, t]));
+  const { reminders, targets, duplicatesNudgeId } = useLoaderData() as {
+    reminders: ReminderInWindow[];
+    targets: SystemReminderTargets;
+    /** The id of today's duplicates nudge, or null when there are no pairs. */
+    duplicatesNudgeId: string | null;
+  };
+  const giftTargetById = new Map(targets.gifts.map((t) => [t.reminderId, t]));
+  const planTargetById = new Map(targets.plans.map((t) => [t.reminderId, t]));
+  const contactTargetById = new Map(
+    targets.contacts.map((t) => [t.reminderId, t]),
+  );
   const { pastDue, belated, today, available, coming, done, owed, actionable } =
     bucketReminders(reminders);
 
@@ -193,6 +214,7 @@ export function ReminderList() {
       reminder={reminder}
       giftTarget={giftTargetById.get(reminder.id)}
       planTarget={planTargetById.get(reminder.id)}
+      contactTarget={contactTargetById.get(reminder.id)}
       isDuplicatesNudge={withNudgeCta && reminder.id === duplicatesNudgeId}
     />
   );

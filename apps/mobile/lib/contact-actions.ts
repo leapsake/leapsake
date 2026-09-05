@@ -89,3 +89,69 @@ export function primaryAction(
 ): LinkAction | undefined {
   return offeredActions(actions, supportedSchemes)[0];
 }
+
+/**
+ * A glyph per verb. These are the row's buttons as well as the sheet's bullets:
+ * one glyph means one thing to do wherever it appears, so 📞 on a row and 📞 in
+ * the sheet both place a call.
+ */
+export const VERB_ICON: Record<LinkAction["verb"], string> = {
+  text: "💬",
+  call: "📞",
+  video: "🎥",
+  email: "✉️",
+  map: "🗺️",
+  chat: "💬",
+  open: "↗️",
+  copy: "📋",
+};
+
+/**
+ * What each verb is called. Platform actions get their proper noun folded in —
+ * "Message on WhatsApp", "Open in Instagram" — because the verb alone would not
+ * say which of a row's several links a sheet item is.
+ */
+export function actionLabel(action: LinkAction): string {
+  switch (action.verb) {
+    case "text":
+      return "Text";
+    case "call":
+      return "Call";
+    case "video":
+      return "FaceTime";
+    case "email":
+      return "Send email";
+    case "map":
+      return "Open in Maps";
+    case "copy":
+      return "Copy";
+    case "chat":
+      return action.name === undefined
+        ? "Send a message"
+        : `Message on ${action.name}`;
+    case "open":
+      return action.name === undefined ? "Open link" : `Open in ${action.name}`;
+  }
+}
+
+/**
+ * Which of a row's actions get a button of their own, in the resolver's order —
+ * so the leading button is the likeliest thing to do with that method.
+ *
+ * Two things are held back to the `⋯` sheet. Copy, because it is about the
+ * string rather than the person, and a row of ways to reach someone shouldn't
+ * spend a button on not reaching them. And any action whose glyph a button
+ * already carries: a number that is also on WhatsApp resolves to two 💬 actions,
+ * and two identical buttons side by side is a coin toss, not a choice. The first
+ * one wins because the resolver already ranked them.
+ */
+export function buttonActions(actions: readonly LinkAction[]): LinkAction[] {
+  const taken = new Set<string>();
+  return actions.filter((action) => {
+    if (action.verb === "copy") return false;
+    const glyph = VERB_ICON[action.verb];
+    if (taken.has(glyph)) return false;
+    taken.add(glyph);
+    return true;
+  });
+}

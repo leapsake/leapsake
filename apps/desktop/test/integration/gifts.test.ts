@@ -17,7 +17,7 @@ beforeEach(async () => {
   ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   // The bundled catalog: the reminder engine's holiday families need real rows,
-  // and `giftTargets` reads over what the engine mints.
+  // and `reminders.targets` reads over what the engine mints.
   await seedHolidayCatalog({ driver });
   core = createCore(driver);
 });
@@ -503,11 +503,11 @@ function civilDaysFromToday(days: number): CivilDate {
 
 /**
  * The reminder loop: the `🎁 gift` action has
- * always minted "Get @Alice a gift"; `giftTargets` is what tells a client which
+ * always minted "Get @Alice a gift"; `reminders.targets().gifts` is what tells a client which
  * reminders those are and who they're for, so it can link to the recipient's
  * gifts and — once done — to ticking off what was given.
  */
-describe("core.reminders.giftTargets", () => {
+describe("core.reminders.targets — the gift half", () => {
   /** A person with a birthday `days` out whose schedule turns the gift action on. */
   async function personWithGiftReminder(days: number, name: string) {
     const person = await core.people.create(
@@ -533,7 +533,7 @@ describe("core.reminders.giftTargets", () => {
   it("names the gift reminder and its recipient", async () => {
     const alice = await personWithGiftReminder(20, "Alice");
 
-    const targets = await core.reminders.giftTargets();
+    const targets = (await core.reminders.targets()).gifts;
     expect(targets).toHaveLength(1);
     expect(targets[0]).toMatchObject({
       recipientType: "person",
@@ -547,7 +547,7 @@ describe("core.reminders.giftTargets", () => {
 
   it("excludes the wish reminder minted alongside it", async () => {
     await personWithGiftReminder(20, "Alice");
-    const targets = await core.reminders.giftTargets();
+    const targets = (await core.reminders.targets()).gifts;
     const labels = await Promise.all(
       targets.map(async (t) =>
         reminderLabel((await core.reminders.get(t.reminderId))!),
@@ -558,10 +558,10 @@ describe("core.reminders.giftTargets", () => {
 
   it("keeps naming the reminder once it's completed, so the gift can be recorded", async () => {
     const alice = await personWithGiftReminder(20, "Alice");
-    const [target] = await core.reminders.giftTargets();
+    const [target] = (await core.reminders.targets()).gifts;
     await core.reminders.setCompleted(target.reminderId, true);
 
-    const after = await core.reminders.giftTargets();
+    const after = (await core.reminders.targets()).gifts;
     expect(after).toEqual([
       {
         reminderId: target.reminderId,
@@ -586,14 +586,14 @@ describe("core.reminders.giftTargets", () => {
       month: occ.month,
       day: occ.day,
     });
-    expect(await core.reminders.giftTargets()).toEqual([]);
+    expect((await core.reminders.targets()).gifts).toEqual([]);
   });
 
   it("hands the recipient to a capture that closes the loop", async () => {
     // What the completed-reminder CTA does: capture a gift for the named
     // recipient, already ticked, which then reads back on their page as given.
     const alice = await personWithGiftReminder(20, "Alice");
-    const [target] = await core.reminders.giftTargets();
+    const [target] = (await core.reminders.targets()).gifts;
 
     await core.gifts.capture({
       giftIdea: { title: "Scarf" },

@@ -241,6 +241,20 @@ export interface GiftReminderSubject {
   recipientId: string;
 }
 
+/**
+ * The person a `🎉 wish` reminder is about, and whether there is any way to
+ * reach them. Core's `ContactReminderTarget` satisfies it.
+ *
+ * A **person**, never a pet: `contactOwnerTypeSchema` is person/household, so a
+ * pet cannot own a contact method and asking the user to add one for Rex is
+ * asking for something the app has nowhere to put.
+ */
+export interface ContactReminderSubject {
+  personId: string;
+  /** Whether they have any method worth offering — postal excluded upstream. */
+  hasMethods: boolean;
+}
+
 /** What a `🗓 plan` prompt is asking about. Core's `PlanReminderTarget` satisfies it. */
 export interface PlanReminderSubject {
   milestoneId: string;
@@ -263,7 +277,8 @@ export type ReminderCta =
   | ({
       kind: "gift";
       action: "see-gifts" | "record-giving";
-    } & GiftReminderSubject);
+    } & GiftReminderSubject)
+  | { kind: "contact"; personId: string };
 
 /**
  * The call to action a reminder row offers, or `null` for the ordinary reminders
@@ -288,6 +303,18 @@ export type ReminderCta =
  *    reminder itself opens. *Open:* the recipient's own page, whose Gifts section
  *    lists what's already suggested for them (and what they've been given, so you
  *    don't repeat yourself). *Done:* logging what you actually gave.
+ * 5. a **`🎉 wish`** for someone there is **no way to reach** — the collect
+ *    prompt. "Wish Alice a happy birthday" with no phone, no email and no handle
+ *    is a reminder the app cannot help you act on, so it offers to fix that.
+ *
+ * ⚠️ The fifth is the one with a rule about what it must *not* become. It is
+ * offered only where `hasMethods` is false, so a person you can already reach
+ * gets buttons instead and is never asked for more; and it is *a nudge, never a
+ * wall* — the reminder stays completable with no contact method at all, which is
+ * the whole difference between offering help and demanding setup. Where a person
+ * does have methods there is no CTA here at all: the affordances are the client's
+ * to render from the same read, because "what can I do right now" is a list of
+ * buttons rather than a single decision.
  *
  * Completion stays the plain Done action rather than growing a modal: nothing
  * else in reminders interrupts that path, and a link the user can take or ignore
@@ -302,6 +329,9 @@ export function reminderCtaOf(
     isDuplicatesNudge?: boolean;
     /** Set when this is a `🗓 plan` prompt — what it is asking about. */
     planTarget?: PlanReminderSubject;
+    /** Set when this is a `🎉 wish` about a person — who, and whether they are
+     *  reachable. Absent for a pet, which can own no contact method. */
+    contactTarget?: ContactReminderSubject;
   } = {},
 ): ReminderCta | null {
   const onboardingRoute = onboardingRouteOf(reminder.id);
@@ -318,6 +348,10 @@ export function reminderCtaOf(
       recipientId: context.giftTarget.recipientId,
     };
   }
+  // Last, and only for the unreachable case: a person you *can* reach needs no
+  // call to action, because the client is rendering their methods as buttons.
+  if (context.contactTarget !== undefined && !context.contactTarget.hasMethods)
+    return { kind: "contact", personId: context.contactTarget.personId };
   return null;
 }
 
@@ -398,6 +432,8 @@ export function reminderActionsOf(
     isDuplicatesNudge?: boolean;
     /** Set when this is a `🗓 plan` prompt — what it is asking about. */
     planTarget?: PlanReminderSubject;
+    /** Set when this is a `🎉 wish` about a person — see {@link reminderCtaOf}. */
+    contactTarget?: ContactReminderSubject;
   } = {},
   now: number = Date.now(),
 ): ReminderRowAction[] {

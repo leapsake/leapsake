@@ -62,12 +62,12 @@ by a flag left off the command line.
 
 **From `beta` up, the release does not stop at the upload.** `alpha` hands the `.ipa` to
 App Store Connect and ends there, which is all an internal build needs. `beta` and `rc` go
-on to wait out processing, attach *What to Test*, add the build to the external tester
+on to wait out processing, attach _What to Test_, add the build to the external tester
 group, and submit it for Beta App Review — so a build reaches strangers with no App Store
 Connect session anywhere in the path. Two things follow that nothing else in the repo
 implies:
 
-- **The API key must be App Manager.** A *Developer* key uploads builds perfectly well and
+- **The API key must be App Manager.** A _Developer_ key uploads builds perfectly well and
   cannot do any of the four steps above. The preflight is otherwise entirely offline and
   makes one deliberate exception — a live read of the app record — to catch that before the
   archive rather than after the upload. A role change means a **new key**, because the
@@ -91,12 +91,12 @@ Three things about this app specifically, all of which cost an evening to learn 
   the next dev-client run.
 - **The suite's iOS tier needs a dev client that has been launched at least once against
   the running Metro**, because the harness reconnects through the dev-launcher's remembered
-  server. If it times out at 180s having found no *Continue* button, that list is empty (or
+  server. If it times out at 180s having found no _Continue_ button, that list is empty (or
   its stored URL is a LAN address that has since changed) — relaunch the dev client rather
   than debugging the flow. `pnpm test:native --provision` (which is what a release runs)
   repairs this itself by relaunching once and retrying; without the flag it is yours to fix.
 - **Export compliance is declared in `app.json`**, not answered per upload. Without
-  `ITSAppUsesNonExemptEncryption` a build lands at *Missing Compliance* and cannot be
+  `ITSAppUsesNonExemptEncryption` a build lands at _Missing Compliance_ and cannot be
   distributed to anyone, internal testers included.
 
 ## Why the driver test needs a device
@@ -165,12 +165,12 @@ Four components cover every case, and each one's doc-comment states which list s
 for and why the other three are wrong for it — read those rather than a table here, since
 they sit next to the code that has to honour them:
 
-| Component | The list it is for |
-|---|---|
-| [`SelectField`](./components/SelectField.tsx) | a short, finite enum — the native wheel/dropdown |
-| [`SuggestField`](./components/SuggestField.tsx) | free text with a handful of usual answers |
-| [`Typeahead`](./components/Typeahead.tsx) | a long list picked *inline*, where the field can afford the width |
-| [`PickerField`](./components/PickerField.tsx) | a long **closed** list picked in a sheet, when it cannot |
+| Component                                       | The list it is for                                                |
+| ----------------------------------------------- | ----------------------------------------------------------------- |
+| [`SelectField`](./components/SelectField.tsx)   | a short, finite enum — the native wheel/dropdown                  |
+| [`SuggestField`](./components/SuggestField.tsx) | free text with a handful of usual answers                         |
+| [`Typeahead`](./components/Typeahead.tsx)       | a long list picked _inline_, where the field can afford the width |
+| [`PickerField`](./components/PickerField.tsx)   | a long **closed** list picked in a sheet, when it cannot          |
 
 [`SegmentedControl`](./components/SegmentedControl.tsx) is the fifth, and not a picker: it
 is for a genuinely small, glanceable, mutually-exclusive choice (`EntityTypeToggle`).
@@ -226,7 +226,7 @@ xcrun devicectl device process launch --device <udid> \
   provisioning profile) but also **skips starting Metro** — have a dev server up, or the Debug
   build installs and then has no bundle to load.
 - **There is no `simctl io … screenshot` equivalent for a physical device.** `devicectl device
-  copy` can pull the app container; otherwise a human has to read the screen. On the simulator,
+copy` can pull the app container; otherwise a human has to read the screen. On the simulator,
   screenshots plus querying the app's sqlite directly
   (`$(xcrun simctl get_app_container booted com.leapsake.app data)/Documents/SQLite/…`) make a
   much faster loop — reproduce there first if you can.
