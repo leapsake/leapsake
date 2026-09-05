@@ -224,6 +224,117 @@ xcrun simctl openurl <udid> "leapsake://expo-development-client/?url=http%3A%2F%
 
 This bites hardest when deliberately breaking a case to confirm it goes RED: without the
 reload the sabotage appears to pass, and a genuinely vacuous suite would read as verified.
+[Driving the app by hand](#driving-the-app-by-hand--for-looking-not-for-asserting) has the
+rest of that family: how to ask Metro what it is actually serving, and why an edit made
+while the red box is up never lands at all.
+
+## Driving the app by hand — for looking, not for asserting
+
+Everything above runs a **fixed flow** and reports a verdict. This section is the other
+job: getting the app in front of you and poking it, to see a change working or to chase
+something that only happens on device. Nothing here belongs in a committed flow — it is
+the exploratory path, written down because rediscovering it costs an hour.
+
+### Getting today's code onto the device without a rebuild
+
+The shared packages export **TypeScript source** (`"exports": {".": "./src/index.ts"}`),
+so Metro transpiles them directly and there is no build step to run. If you have not
+touched a native module, the dev-client build already installed on the device is still
+valid and **only the JS needs to change** — start Metro, launch, reconnect:
+
+```sh
+pnpm --filter @leapsake/mobile dev          # Metro, against the installed build
+xcrun simctl launch <udid> com.leapsake.app
+# cold launch lands on the expo-dev-launcher, not the app:
+xcrun simctl openurl <udid> "leapsake://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+```
+
+⚠️ **A running app does not necessarily hold the code Metro is serving**, and the two
+failure modes look identical from the outside: an old bundle, and a correct one you have
+not reloaded. Ask Metro what it has rather than guessing —
+
+```sh
+curl -s "http://localhost:8081/node_modules/expo-router/entry.bundle?platform=ios&dev=true" \
+  | grep -c "some string only your edit has"
+```
+
+— and if the string is there but the behaviour is not, the **app** is stale, not Metro.
+`/index.bundle` is not the entry point (it answers with an `UnableToResolveError` JSON
+blob); `node_modules/expo-router/entry.bundle` is.
+
+⚠️ **Fast Refresh does not apply an edit while the red-box error overlay is up.** The
+module stays as it was, so a fix looks like it did nothing and a probe looks like it never
+ran — the single most misleading state in this loop. Terminate, launch, reconnect.
+
+### Reading the screen
+
+`maestro hierarchy` dumps the accessibility tree as JSON. ⚠️ **React Native's text is under
+`accessibilityText`, not `text`** — walking for `text` finds the status bar and little
+else, which reads as an empty screen:
+
+```sh
+maestro hierarchy | python3 -c "
+import json,sys
+def w(n):
+    a = n.get('attributes', {})
+    t = a.get('accessibilityText') or a.get('text') or ''
+    if t.strip(): print(repr(t[:90]), a.get('bounds'))
+    for c in n.get('children', []): w(c)
+w(json.load(sys.stdin))"
+```
+
+Take the picture too — `xcrun simctl io <udid> screenshot out.png` — and **look at it**.
+The tree tells you what is there; only the screenshot tells you it is on top of a red box.
+
+### Two ways a `tapOn` lies to you
+
+- ⚠️ **Maestro matches text as a regex, in full.** `tapOn: "Pick yourself."` fails on
+  *"🙋 Which of these is you? Pick yourself."* twice over: it is a substring (so it must be
+  `.*Pick yourself\..*`) and `.` and `?` are metacharacters. This is the same family as the
+  trailing-space trap above, and it is why the id selectors in `subflows/` are worth their
+  verbosity.
+- ⚠️ **A point tap goes stale the moment anything writes.** `tapOn: {point: "55%,21%"}` is
+  the escape hatch when nothing else addresses an element — but Home **re-sorts on every
+  write**, so a second tap at the same coordinate lands on whatever moved there. Ticking a
+  row by accident and then reading the consequences as a bug is a real afternoon. Re-dump
+  the hierarchy between taps, or use a selector.
+
+### Reading the store, to tell a render bug from a data bug
+
+While the app is **accountless the store is plaintext**, so `sqlite3` answers directly what
+the screen only implies:
+
+```sh
+C=$(xcrun simctl get_app_container <udid> com.leapsake.app data)
+sqlite3 "$C/Documents/SQLite/stores/local/leapsake.db" \
+  "SELECT substr(id,1,8), quote(title), source, quote(completed_at) FROM reminders WHERE deleted_at IS NULL;"
+```
+
+(With an account it is at `stores/<accountId>/leapsake.db` and encrypted — see
+[`@leapsake/key-custody`](../../../packages/key-custody/README.md).) This is the fastest way
+to settle "is the row wrong, or is the rendering of it wrong?", and it has answered that
+question the opposite way twice: rows correct on disk, wrong in the list.
+
+⚠️ **Close the app before writing to it.** `xcrun simctl terminate` first; the app re-reads
+on boot.
+
+### The deep links worth knowing
+
+Deep links skip the navigation entirely, which is what makes ad-hoc driving bearable. They
+are ordinary expo-router paths under the `leapsake://` scheme, so anything in `app/` is
+reachable; these are the ones that come up:
+
+| Link | Lands on |
+|---|---|
+| `leapsake://` | Home, inside the tab navigator |
+| `leapsake://add` | the combined create form, on its Person half |
+| `leapsake://people?pick=self` | the People list in pick-yourself mode |
+| `leapsake://relationships/<id>/milestones/new?kind=wedding` | the milestone form, opened on a kind |
+| `leapsake://dev-selftest` | the driver-contract self-test (`__DEV__` only) |
+
+When something behaves oddly, run `maestro test maestro/driver-selftest.yaml` early: it
+asserts **PASS** from the driver contract in a few seconds, which rules out the whole layer
+under the bug for free.
 
 ## `e2e/` — the crucial-flow catalog
 
