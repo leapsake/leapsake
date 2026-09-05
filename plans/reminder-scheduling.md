@@ -132,10 +132,19 @@ The reminder learns *how* to reach someone, without ever changing which reminder
 | several | "Wish A a happy birthday" | every method they have |
 | a **preferred** one | names that one | that one, leading |
 
+⚠️ **The fourth row asks for a concept that does not exist**, and this doc contradicted itself
+about it: nothing named `preferred` appears in `@leapsake/schema`, `@leapsake/data` or any
+migration, while *Not in scope* below defers contact-method priorities outright and the
+walkthrough this section used to close on required one. It is **slice E**, out of the increment
+unless the owner asks for it. Rows one to three derive from what is stored today.
+
 The same derivation carries the **belated** wording — "Wish A a happy *belated* birthday" once the
-occurrence has passed. It needs no new input: the row already carries `occurrenceDate`, put there
-for the screen's belated bucket, so the copy reads the same field the bucketing does and the two
-cannot disagree. One more reason the copy must not be stored.
+occurrence has passed. It reads the same `occurrenceDate` the belated bucket does, so the copy and
+the bucketing cannot disagree. ⚠️ But it is **not** free of new input, as this doc once claimed.
+`greeting` is opaque and carries its own article and sentiment — "a happy birthday", "a Merry
+Christmas", "**Eid Mubarak**" — and no splice turns the third into a belated form. It takes a
+second, optional phrase beside the greeting, absent by default, so an occasion with no belated
+form keeps the plain one rather than being handed a mangled sentence.
 
 ⚠️ **The contact method must never touch identity.** If adding a phone number changed the id from
 `wish` to `message:sms`, the old row would be tombstoned (permanently — the resurrection guard),
@@ -146,35 +155,83 @@ fact about the bearer.
 
 - **Derive at read, do not store.** Storing the channel in the title makes every contact-method
   edit rewrite reminder rows and bump `updated_at`; `reconcile` is deliberately a no-op in steady
-  state and should stay one. Follow the pattern `ReminderWithTags` already uses, where tags and
-  mentions are resolved on read.
+  state and should stay one. What travels instead is the **copy source** — the action, the
+  mention-wrapped subject, the greeting and its belated variant — carried on the desired row,
+  where the row and its action are both in hand for the only time. One `renderTitle` reads it,
+  and reconcile calls that same function for the plain title it stores.
 - **Notifications must not go stale** *(owner)*. Do the derivation in **one shared place**, which
   is now literally one: the screen and the planner both read `listRemindersInWindow` (the planner
   through the `listNotifiableReminders` wrapper), so copy attached there reaches both and they
   cannot disagree. The planner's `planEach`/`planDigest` render from the row and need no changes.
-  Then widen the reconcile-and-replan trigger from milestone writes to include **contact-method
-  and rule writes**, so a setting change updates the scheduled notification in the same
-  operation.
+  ⚠️ **The trigger-widening this bullet used to ask for is already done** — mobile wraps every
+  mutating `CoreApi` call in a second `withSyncKick` that replans, and `@leapsake/notifications`'
+  reconcile diffs on `title`/`body` rather than on presence, so a contact-method edit already
+  cancels and re-schedules the stale notification. Desktop schedules none. This is a regression
+  test, not a change.
+- ⚠️ **The reminder *detail* screen bypasses the seam.** It reads `core.reminders.get(id)` — the
+  stored row, plain title — so the row and its own detail page would disagree about the copy, on
+  the very screen the collect prompt lives on. It needs a `getInWindow(id)` that filters the same
+  walk, falling back to the stored row for a system reminder whose window has closed.
 - **`wish` is suppressed whenever any specific day-of action is enabled** — and *only* by a
   day-of one. A `get:card` or `send:card` the user ticked in the prompt has its own due date days
-  or weeks earlier; those are not acknowledgments and must **not** suppress the wish.
-  Read the rule as "a specific way of saying happy birthday on the day", not "any other enabled
-  action". Suppression is derived, never written as `wish: enabled=false`. It means "some acknowledgment, unspecified", so it is definitionally
-  redundant once a specific one exists. Deriving the suppression cannot drift; a written disable
-  can, and its failure mode is leaving the user with **zero** birthday reminders after they turn
-  their chosen channels back off.
+  or weeks earlier; those are not acknowledgments and must **not** suppress the wish. Read the
+  rule as "a specific way of saying happy birthday on the day", not "any other enabled action".
+  It means "some acknowledgment, unspecified", so it is definitionally redundant once a specific
+  one exists.
+
+  ⚠️ **Suppress it in the read, never by dropping it from the desired set** — and this reverses
+  what this doc used to argue. It claimed a *derived* suppression cannot drift while a written
+  `enabled: false` can, whose failure mode is leaving the user with zero birthday reminders once
+  they turn their chosen channels back off. Deriving it into the **desired set** reaches that same
+  failure by the other road: `reconcile` retires a row it no longer wants by soft delete, and the
+  resurrection guard is absolute, so ticking `call` would tombstone the wish and *unticking* it
+  could not bring the row back for the rest of that year. Suppressed in the shared read, the row
+  is still minted, nothing is tombstoned, and un-ticking restores it at once. The cost is one
+  stored row per person-occasion that no surface shows — cheap beside a silently lost birthday.
 - The **collect** prompt is a CTA, and `reminderCtaOf` in `packages/view-models/src/reminders.ts`
   is the existing seam — add a `contact` kind beside `onboarding`/`duplicates`/`gift` and let each
-  client map it to its own route, as they already do. It lives on the reminder **detail** screen,
-  not the list row.
+  client map it to its own route, as they already do. ⚠️ Offered only for a **person** bearer with
+  no methods: a pet owns no contact methods (`contactOwnerTypeSchema` is person/household), and
+  the self branch has its own copy and wants none. It lives on the reminder **detail** screen on
+  mobile; desktop has no reminder detail screen, so there it lands on the list row through
+  `reminder-row.ts`'s `ctaLinkFor` — an asymmetry the snooze and dismiss affordances already have.
 - ⚠️ *A nudge, never a wall* — the reminders README's own rule. Completing the birthday must never
   require adding a contact method first.
 - **Preferred** is a property of the contact method, not of a reminder rule. Keeping it there is
   what stops "preferred" having to be restated at every cascade level.
 
+### The slices
+
+Each is shippable on its own, and the order is the order the seam gets built then used.
+
+- **A — the overlay seam, proved on belated wording.** No contact methods yet. The copy source
+  travels on the desired row, one `renderTitle` serves both reconcile and the read, and
+  `listRemindersInWindow` re-renders a passed occurrence with the belated greeting. Adds the
+  belated phrase to `kindDefs`, and `getInWindow` to the engine, to core, and to the mobile detail
+  screen. ⚠️ **Milestones only**: a holiday's greeting is a stored column seeded from the catalog,
+  so a belated one there is a migration, and "a belated Merry Christmas" is not worth one yet —
+  holidays keep the plain greeting. *Done when* a birthday that passed yesterday reads belated on
+  the list, on the detail screen and in a notification, and reconcile still reports no `updated`.
+- **B — reach-aware `wish` copy.** An optional `reach?(bearerType, bearerId)` port on
+  `ReminderEngineDeps`, in the shape `isSelf`/`holidays`/`duplicates` already established,
+  memoized per bearer and consulted only for `wish` rows. It answers a **fact** — the leading
+  verb, and a platform name where there is one — never copy, so `@leapsake/reminders` gains no
+  dependency; the sentence variants sit beside `actionDefs.wish`, structurally typed so
+  `@leapsake/schema` still does not import the platform registry. The reach itself is one pure
+  function in `@leapsake/contact-links` beside `resolveActions`, the only place platform names
+  live, and `@leapsake/core` picks that package up to wire the port. *Done when* adding a number
+  rewords the same row — same id, completion intact.
+- **C — the suppression**, read-side, per the warning above.
+- **D — affordances and the collect CTA**, per the `reminderCtaOf` bullet above. Buttons come from
+  `resolveActions`, which both clients already render.
+- **E — preferred**, only if the owner wants it in this increment. ⚠️ Model it as **one nullable
+  pointer on the person**, not a `preferred` flag on each of the four method tables: a flag is
+  four columns, a cross-table write on every change, and an LWW merge that can leave two preferred
+  methods or none. A pointer merges to exactly one value and makes the invariant structural.
+
 **Done when** the owner's walkthrough passes end to end: a bare person shows the generic wish and
-the collect prompt; adding a number rewords the *same* row; marking a Discord handle preferred
-rewords it again and repoints the buttons; and a completed reminder stays completed throughout.
+the collect prompt; adding a number rewords the *same* row; and a completed reminder stays
+completed throughout. (The preferred step of that walkthrough belongs to slice E.)
 
 ## Increment 6 — the cascade, and provenance
 
@@ -260,6 +317,8 @@ them?** — picks a rule set:
 - **Contact-method priorities and per-occasion preferred methods.** Until they exist, several
   methods means show them all — the no-guess option, and the one that needs no unwinding when
   priorities land. The one-method case is not special-cased; it is the same rule with one button.
+  ⚠️ A single **preferred** method is the nearest half of this, and it is the one thing Increment
+  5's copy table asks for that nothing stores; it is that increment's slice E, and it is optional.
 - **The cascade's editing UI.** Four levels × N actions × per-person is a large settings surface
   and the owner wants it designed against the stronger onboarding flow, which is later work.
   Nothing above depends on it: increments 5–6 need no *cascade* settings screen, and the shipped
