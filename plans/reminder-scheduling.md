@@ -11,49 +11,53 @@
 this is the queue. Each entry names one unit of work and the section that specifies it.
 
 1. **Increment 6 — the cascade, and provenance** ← **the next unit of work.** Four levels,
-   resolved per action. ⚠️ Increment 5 is **finished**, so this doc's remaining value is
-   increments 6 and 7 plus the model above; the *Parked* list under Increment 5 is the only part
-   of it still worth reading before starting something new.
+   resolved per action. ⚠️ Increments 1–5 are **finished and their sections are gone** — their
+   reasoning moved next to the code, which is the rule this repo runs on. What is left in this
+   file is those two increments, the model they must honour, and *Not in scope*.
 2. **Increment 7 — presets**, most of which the shipped prompt already absorbed. Read its warning
    before starting: it may be a second question on the prompt rather than a surface of its own.
 
 **Already landed; do not re-plan it.** Per-action windows, the `plan` prompt, the `verb:qualifier`
-identity split, and **all of Increment 5** — the derive-at-read seam, no channel offered anywhere,
-and the contact affordances with their collect prompt. `git log` is the record of what
+identity split, and all of Increment 5 — the derive-at-read seam, no channel offered anywhere, and
+the contact affordances with their collect prompt. `git log` is the record of what
 was done and the package READMEs hold the reasoning — `@leapsake/reminders` most of all.
 
-## The problem
+## Why this exists
 
 Every "Wish @A a happy birthday" reminder in the next four weeks was on Home, all month, for
-everyone, because one constant gave every rule the same 30-day run-up before its own due date.
-**That half is built**, and so is the screen that reads it — per-action `activeDays`, a belated
-tail, `LEAD_DAYS` deleted, and Home split into owed / available / coming on both clients. The
-reasoning now lives in [`@leapsake/reminders`](../packages/reminders/README.md) and
-[`@leapsake/view-models`](../packages/view-models/README.md); what follows is what is still ahead
-of it.
+everyone. Three causes sat under that, and **all three are now built**: one constant gave every
+rule the same run-up (per-action `activeDays`), the engine had to guess what to remind you about
+before you had decided anything (the `plan` prompt), and a flat action string could not tell two
+errands of a kind apart (`verb:qualifier` identity). Increment 5 closed the last of it — the
+acknowledgment now carries the ways to act on it.
 
-There was a second cause underneath that first one, which windows alone do not reach: the engine has
-to decide what to remind you about before you have decided anything, so it **guesses**. **That half
-is now built too** — an unconfigured occasion mints one `plan` prompt instead of errands, on both
-clients, answerable in one tap. The reasoning lives in
-[`@leapsake/reminders`](../packages/reminders/README.md) → *The prompt*.
-
-Under both sat a third thing, invisible until you tried to schedule two errands of a kind: the
-action string is a reminder's **identity**, and a flat one could not say "get" separately from
-"what", so two `get` rules collapsed into one reminder. **That is now built too** — actions are
-`verb:qualifier`, the closed half validated and the qualifier half open. The reasoning lives in
-[`@leapsake/reminders`](../packages/reminders/README.md) → *Identity*.
+The reasoning for all of that has left this file, as it is supposed to: it lives in
+[`@leapsake/reminders`](../packages/reminders/README.md) — *Identity*, *Windows*, *Derived copy*,
+*The prompt* — and in [`@leapsake/view-models`](../packages/view-models/README.md), with `git log`
+carrying the rest. **What is left here is the cascade and presets**, plus the model they have to
+honour.
 
 ## The model
 
-Nine decisions, settled in design *(owner, 2026-09-02, 2026-09-04 and 2026-09-05)*. Everything
-below implements them; none of them is open. Exactly one sub-question is deliberately deferred —
-how a kind-level rule interacts with the prompt — and it is parked in Increment 6, where it lands.
-Decisions 1, 2, 5 and 7 are **built**; what landed differently from the sketch is noted on each.
+Nine decisions, settled in design *(owner, 2026-09-02, 2026-09-04 and 2026-09-05)*. They are the
+contract the remaining work has to honour, not a task list — **eight of the nine are built**, and
+what landed differently from the sketch is noted on each.
+
+The exceptions, and the whole of what is open here:
+
+- **Decision 6, the cascade, is not built at all.** It is Increment 6, and it is the next unit of
+  work.
+- **Decision 9 is half-built**: an answer persists, but nothing compares a stored offer set against
+  today's, so nothing re-asks. See *Not in scope*.
+- **One sub-question is deliberately deferred** — whether a kind-level rule seeds the prompt or
+  suppresses it — and it is parked in Increment 6, where it lands.
+- **One small decision is open and unowned**: whether `first-date` should now prompt. See decision
+  7's last bullet.
 
 ⚠️ **Decision 3 was half-reversed on 2026-09-05** — a channel is an affordance, not an errand —
-which is the largest change any of these has taken and which shrank Increment 5 around it. Read it
-before reading that increment. Decision 8's offer set moved with it.
+which is the largest change any of these has taken — it deleted half of what Increment 5 was
+going to be. Decision 8's offer set moved with it. Read both before touching anything that offers
+a user a list of actions.
 
 1. **Two numbers per rule** *(built)*. `offsetDays` — when it is **due**, measured back from the
    occurrence. `activeDays` — how many days **before that** it goes on display. A
@@ -83,7 +87,9 @@ before reading that increment. Decision 8's offer set moved with it.
    the data can express, so getting specific later costs a registry line rather than a rebuild.
    Concretely: `call` and `message:sms` come out of `SCHEDULABLE_ACTIONS` and out of every kind's
    `defaultReminderSchedule`, and keep their `actionDefs` entries so a row already stored under
-   one still renders properly. See *Increment 5*, which owns the change.
+   one still renders properly. Built: the reasoning is on `SCHEDULABLE_ACTIONS` /
+   `UNOFFERED_ACTIONS` in `@leapsake/schema` and in
+   [`@leapsake/reminders`](../packages/reminders/README.md) → *Identity*.
 4. **Copy and affordances are derived at render, never stored.** Adding a phone number rewords an
    existing reminder; it must never mint a new one or resurrect a completed one.
 5. **The screen is owed / available / coming**, and only *owed* gates "done for the day"
@@ -108,13 +114,13 @@ before reading that increment. Decision 8's offer set moved with it.
      tombstones the row and the id is keyed on the occurrence year; undoing that needs a runtime
      hard delete, which no repo has and which a peer's tombstone would re-pull. Not built
      *(owner, 2026-09-04)* — the prompt returns next year.
-   - **Only birthdays, weddings and anniversaries prompt.** `first-date` and `met` offer one
-     action each, and a question with one answer is not a question. One `kindDefs` line each when
-     that changes. ⚠️ **Slice B makes half of this stale**: `first-date` comes out of it with two
-     actions (`send:card` and `wish`) and so becomes prompt-*eligible*, while `met` stays at one.
-     Eligible is not automatic — adding the prompt is a separate decision — but this bullet's
-     reasoning will no longer be true of `first-date`, and it should be corrected rather than
-     re-derived.
+   - **Only birthdays, weddings and anniversaries prompt**, because a question with one answer is
+     not a question and the rest offer one action each. ⚠️ **`first-date` no longer does**: the
+     channel removal left it with two (`send:card` and `wish`), so it is now prompt-*eligible*
+     while `met`, `graduation` and `job-start` stay at one. Eligible is not automatic — adding the
+     prompt is one `kindDefs` line and **an open decision nobody has taken**, listed here rather
+     than in *Not in scope* because it is a two-minute change someone should either make or
+     consciously decline.
 
 8. **The shipped birthday default stays `wish`, alone** —
    `kindDefs.birthday.defaultReminderSchedule`, with `get:gift`/`get:card`/`send:card` at
@@ -155,161 +161,6 @@ changes, rewrite the rows — and it is not optional, since `reminderRuleSchema`
 and a stale value fails the read outright.
 
 ---
-
-## Increment 5 — one acknowledgment, and the ways to reach them
-
-The reminder learns *how* you could reach someone — and offers it, rather than saying it.
-
-⚠️ **This increment shrank on 2026-09-05**, when decision 3 half-reversed. It was written to make
-`wish` adapt its *words* to the channel — "Text A happy birthday" where a number was the only
-contact method — and to let the user schedule `call` and `message:sms` as errands of their own.
-Both are now out. The copy stays **generic**, always; the channels become **buttons on it**; and
-nothing channel-specific is offered anywhere in the UI until there is a reason to get specific
-again. What is left is a smaller and better-shaped piece of work than what was planned.
-
-`wish` is **the acknowledgment, unspecified** — never an umbrella over channels, and no longer a
-fallback for the case where nothing more specific was chosen, because nothing more specific can be
-chosen:
-
-| the person has | copy | affordances |
-|---|---|---|
-| no contact methods | "Wish A a happy birthday" | *Add a way to reach A* |
-| one, or several | "Wish A a happy birthday" | every method they have, bar the postal one |
-
-Two rows where there were four. The copy column no longer varies at all, which is the whole of the
-reversal: the words say *what to do*, and the buttons say *how*.
-
-⚠️ **A mailing address is not a way to say happy birthday on the day** *(owner, 2026-09-05)*, so it
-is left off the affordances even though it is a contact method. It belongs to `send:card`, which
-has its own row and its own clock, a week or more earlier.
-
-⚠️ **The contact method must never touch identity.** This still binds, and binds more cheaply now:
-if adding a phone number changed the id from `wish` to `message:sms`, the old row would be
-tombstoned (permanently — the resurrection guard), and a birthday the user had already ticked would
-come back **unticked** under a new id. Under the reversal there is no path that could: the copy is
-constant and the buttons are rendered, so nothing about a contact method reaches a stored row at
-all.
-
-- ⚠️ *A nudge, never a wall* — the reminders README's own rule. Completing the birthday must never
-  require adding a contact method first.
-- The **collect** prompt is a CTA, and `reminderCtaOf` in `packages/view-models/src/reminders.ts`
-  is the existing seam — add a `contact` kind beside `onboarding`/`duplicates`/`gift` and let each
-  client map it to its own route, as they already do. Offered only for a **person** bearer with no
-  methods: a pet owns no contact methods (`contactOwnerTypeSchema` is person/household), and the
-  self branch has its own copy and wants none. It lives on the reminder **detail** screen on
-  mobile; desktop has no reminder detail screen, so there it lands on the list row through
-  `reminder-row.ts`'s `ctaLinkFor` — an asymmetry the snooze and dismiss affordances already have.
-
-### The slices
-
-- **A ✅ — the derive-at-read seam** *(shipped 2026-09-05)*. The copy source travels on the desired
-  row; one `renderTitle` writes the sentence, called by `computeDesired` for the plain form it
-  stores and by `listRemindersInWindow` for what is shown. Proved on the **belated** wording, and
-  it needed a second phrase (`belatedGreeting` in `kindDefs`) rather than a splice, since "a happy
-  birthday" takes *belated* in the middle, "congratulations" at the front, and "Eid Mubarak"
-  nowhere at all. Also `getReminderInWindow`, because a detail screen reading the stored row would
-  word itself differently from the row that linked to it. The durable reasoning is now in
-  [`@leapsake/reminders`](../packages/reminders/README.md) → *Derived copy*.
-
-  ⚠️ **Its second customer went away the day after it landed**, and the doc-comments still promise
-  one: the seam was built expecting the channel-aware copy below, which the reversal deleted. It
-  keeps its own justification — a stored belated wording would cost an update, and a sync, for
-  every dated reminder the morning after its occasion, when `reconcile` is deliberately a no-op in
-  steady state — but it now has exactly one customer, and the forward references should be read as
-  history rather than as plans.
-
-- **B ✅ — narrow what the UI offers** *(shipped 2026-09-05)*. `call` and `message:sms` are out of
-  `SCHEDULABLE_ACTIONS` and out of every default schedule; their `actionDefs` entries stay, so a
-  rule stored under one still renders its real copy rather than `actionDefOf`'s generic. The
-  per-kind mapping landed exactly as specified — `wedding` → `[get:gift, wish]`, `anniversary` →
-  `[send:card, wish]`, `met` → `[wish]`, `first-date` → `[send:card, wish]`, `graduation` →
-  `[get:gift, wish]`, `job-start` → `[wish]`, and on `birthday` the two simply folded into the
-  `wish` already there. No migration: `reminderRuleInputSchema` validates an action by shape and
-  never against the offered list, which was checked rather than assumed. The durable reasoning is
-  on `SCHEDULABLE_ACTIONS` / `UNOFFERED_ACTIONS` in `@leapsake/schema` and in
-  [`@leapsake/reminders`](../packages/reminders/README.md) → *Identity*.
-
-  ⚠️ **Two sites this spec did not list, both found by grep rather than by reading it.** Worth
-  knowing that the six kinds were not the whole of it:
-
-  - **`observanceDefaultReminderSchedule` in `holiday.ts`** carried a `call` too — holidays are
-    borne by observances, not kinds, so "every kind's defaults" missed it. A plain removal there,
-    with no replacement needed: `wish` was already on the list.
-  - **Both schedule editors seeded their *Add* button with a literal `call` row.** That had to
-    change whatever replaced it, and a fixed seed of *any* action turned out to be a latent bug:
-    pressing Add twice appended the same action twice, which `reminderScheduleInputSchema` then
-    rejected as a duplicate — the collapse whole-set validation exists to catch, reachable from a
-    button. It is now `nextSchedulableRule` in `@leapsake/schema`, the first offered action the
-    schedule does not already hold, falling back to `other`. It lives there rather than in either
-    editor for the same reason `SCHEDULABLE_ACTIONS` does: there are two of them, and a seed
-    chosen locally drifts.
-
-  The two predicted consequences both landed. `first-date` now offers two actions and so is
-  **prompt-eligible** — still a separate decision, and decision 7's bullet carries the warning.
-  And the schema test that asserted "everything but `plan` is schedulable" as an arithmetic check
-  on the registry's length is now an explicit list: the count would have gone on passing while the
-  set was wrong.
-
-- **C ✅ — the affordances and the collect CTA** *(shipped 2026-09-05)*. `reminderCtaOf` grew a
-  fifth kind, `contact`, offered only where a `wish`'s person has **no** way to be reached; where
-  they do, the client renders their methods instead, because "what can I do right now" is a list of
-  buttons rather than a decision. Core answers both halves from `reminders.targets`, and the postal
-  exclusion lives there so the clients cannot disagree about what "a way to reach them" means.
-
-  Three things landed worth knowing:
-
-  - **The walk collapse happened, and went further than planned.** `giftTargets` and `planTargets`
-    are **gone**, replaced by one `reminders.targets()` answering all three questions from a single
-    `listSystemReminderTargets` walk. Keeping them beside a third read would have been three ways
-    to run one walk; the detail screen is down from four walks to two.
-  - **Mobile got a shared hook, not a second implementation.** `useContactReach` in
-    `apps/mobile/lib/` now owns probing schemes, opening URLs, the clipboard fallback and the one
-    confirmation, because two surfaces perform contact actions and a second implementation would
-    have been a second answer to *does calling someone ask first* — where the wrong answer
-    interrupts a stranger. `VERB_ICON`, `actionLabel` and `buttonActions` moved to the pure
-    `contact-actions.ts` beside it.
-  - **The two clients differ, on purpose.** Mobile's CTA goes straight to the add-contact form;
-    desktop's goes to the person's page, having no route into an empty Contact section. Desktop
-    renders no buttons at all, per `ContactMethodsSection`'s standing decision that a contact row
-    on a laptop is not a tap target.
-
-- **`post`, when it is offered at all: one action, not one per platform** *(owner, 2026-09-05)*.
-  A single "make a post for their birthday" rather than `post:instagram` beside `post:x` beside
-  `post:facebook`. Surfacing which platforms the user actually posts on is **out of scope** — the
-  same shape as the affordances above, and a natural later move. Today `post` is a declared verb
-  with no `actionDefs` entry and no kind offering it, so this decision costs nothing until someone
-  wants the row; then it is one registry entry (bare `post`, day-of, "Post about {subject}'s
-  {occasion}") and one line in a kind's defaults. ⚠️ **Not built, and deliberately not bundled
-  here** — the increment is about the acknowledgment that already exists.
-
-### Parked, with the reasoning kept
-
-Three things this section used to own, none of them dead, none of them next.
-
-- **The channel-aware copy** — "Text A happy birthday" where a number is the only contact method.
-  It needed a `reach` port on the engine, sentence variants beside `actionDefs.wish`, and a
-  `@leapsake/contact-links` dependency in `@leapsake/core` to name the platforms. All of it goes
-  away under the reversal: the copy no longer varies, so the engine needs to know nothing about
-  contact methods.
-- **The `wish` suppression** — "suppressed whenever any specific day-of action is enabled". With
-  `call` and `message:sms` unschedulable, **nothing channel-specific can suppress it**, and the one
-  day-of action still standing is `visit`, on `moved`. Whether visiting someone should silence the
-  wish is a real question and a rare one; it is not worth building the rule for a single arguable
-  case. ⚠️ **Keep the warning that came with it**, because it is the expensive half and it will be
-  true again the day channels return: suppress in the **read**, never by dropping the row from the
-  desired set. `reconcile` retires an unwanted row by soft delete and never resurrects a tombstone,
-  so a desired-set suppression would kill the wish for the rest of the year the moment a specific
-  action was ticked, and unticking it could not bring the row back.
-- **Preferred contact methods** — dropped outright *(owner, 2026-09-05)*, not deferred into this
-  increment. Nothing stores the concept, and with the copy no longer naming a channel there is
-  nothing for it to feed. It may return with channel-specific actions; if it does, model it as
-  **one nullable pointer on the person**, not a flag on each of the four method tables, which is
-  four columns, a cross-table write on every change, and an LWW merge that can leave two preferred
-  methods or none.
-
-**Done when** a bare person's birthday shows the generic wish and the collect prompt; a person with
-a number, an email and a Discord handle shows the same words and three buttons; no picker anywhere
-offers a channel; and a completed reminder stays completed throughout.
 
 ## Increment 6 — the cascade, and provenance
 
@@ -352,12 +203,30 @@ shipped default       `wish`
   "can users invent kinds?", which is out of scope), and a separate settings store (splits one
   concept across two shapes and makes the resolver read both).
 
+### Where this lands in the code
+
+Verified against the tree as it stands, so nobody has to re-derive it:
+
+| The thing | Where it is now |
+|---|---|
+| The resolver this increment replaces | `resolveReminderSchedule` in `packages/schema/src/milestone.ts` — all-or-nothing, and it returns a `source` (`stored` \| `kind-default`) that the prompt depends on |
+| Its `bearerId: z.uuid()`, and the bearer-type enum to widen | `packages/schema/src/reminder-rule.ts` — `reminderRuleBearerTypeSchema` is `["milestone", "observance"]` and its own comment says adding one is Zod-only |
+| Who calls the resolver | eight call sites in four files: `@leapsake/core` ×3 (the engine port, the schedule-editor read, the prompt's offer set) and three milestone form components across the two clients — so a signature change is not a local edit |
+| Where the engine reads a schedule | the `resolveSchedule` port on `ReminderEngineDeps` in `@leapsake/reminders`; its doc-comment already says disabled entries are returned and ignored |
+| Where a prompt's answer is written | `milestones.create` / `milestones.update` in `@leapsake/core`, both through `reminderRulesRepo.replaceForBearer` — the one write path, and the reason the whole-set duplicate check lives on it |
+| The holiday twin, which must not drift | `resolveObservanceReminderSchedule` in `packages/schema/src/holiday.ts` — same "missing rows ⇒ defaults" contract, and it will want the same cascade treatment or an explicit decision that it does not |
+
+⚠️ **The last row is the one most likely to be missed.** Observances resolve through a parallel
+function with its own defaults; a cascade built only for milestones leaves two schedule resolvers
+with different rules, which is exactly the drift `SCHEDULABLE_ACTIONS` and `renderTitle` were each
+centralised to avoid.
+
 **Provenance is product surface, not a debug aid.** The owner wants the winning level visible on
 the reminder screen, the person+milestone screen, the person+holiday screen, the milestone screen,
 the holiday screen, and probably Settings. So the resolver returns **what every level said**, not
 just the winner, letting one shared component render both halves everywhere:
 
-> Message A happy birthday — *inherited from A's defaults* · Override for this birthday
+> Wish A a happy birthday — *inherited from A's defaults* · Override for this birthday
 
 Build this into the return shape from the start. Retrofitting provenance means threading it
 through everything afterwards, and with four levels "why am I getting this reminder?" is a
@@ -376,10 +245,10 @@ not necessarily as its own screen.
 Nobody should configure a chain by typing offsets. One human question — **am I going to see
 them?** — picks a rule set:
 
-- **Mailing it:** `get` long out, `send` medium out, `wish` day-of.
-- **Seeing them:** `get` medium out, `visit` day-of, `wish` day-of.
+- **Mailing it:** `get:gift` long out, `send:card` medium out, `wish` day-of.
+- **Seeing them:** `get:gift` medium out, `visit` day-of, `wish` day-of.
 
-- ⚠️ **Do not model rule dependencies.** "`get` is due 3–7 days before `send`'s due date" is real
+- ⚠️ **Do not model rule dependencies.** "`get:gift` is due 3–7 days before `send:card`'s due date" is real
   when you *choose* the numbers and must not survive into the data — literal dependencies need
   ordering, cycle detection, and an answer for what happens when the depended-on rule is disabled,
   all to express something set once. Do the arithmetic in the preset and store plain offsets.
@@ -396,8 +265,10 @@ them?** — picks a rule set:
   them all — the no-guess option, and the one that needs no unwinding when priorities land. The
   one-method case is not special-cased; it is the same rule with one button. ⚠️ Under decision 3
   this stopped being a deferral and became a **non-requirement**: the copy names no channel, so
-  there is nothing for a priority to feed. See *Increment 5* → *Parked* for the shape to use if it
-  ever returns.
+  there is nothing for a priority to feed. ⚠️ If it ever returns, model it as **one nullable
+  pointer on the person**, not a flag on each of the four method tables: a flag is four columns, a
+  cross-table write on every change, and an LWW merge that can leave two preferred methods or
+  none.
 - **The cascade's editing UI.** Four levels × N actions × per-person is a large settings surface
   and the owner wants it designed against the stronger onboarding flow, which is later work.
   Nothing above depends on it: increments 5–6 need no *cascade* settings screen, and the shipped
@@ -419,9 +290,33 @@ them?** — picks a rule set:
   this picker has nothing to be the answer to until that reverses. The identity half stays built
   and the qualifier stays open by design, so when it does, this is a UI that reads
   `@leapsake/contact-links`' registry and writes an ordinary rule; nothing about the mechanism has
-  to change. ⚠️ **Increment 5 is not it.** That
-  increment derives a `wish` row's *affordances* from the contact methods a person has — buttons
-  to act now — which is a different thing from letting the user schedule a reminder to post on
-  Instagram, and deliberately so: a contact method must never reach identity.
+  to change. ⚠️ **The shipped contact affordances are not it.** A `wish` row's buttons are derived
+  from the contact methods a person has — things to do *now* — which is a different thing from
+  letting the user schedule a reminder to post on Instagram, and deliberately so: a contact method
+  must never reach identity.
+- **Channel-aware reminder copy** — "Text A happy birthday" where a number is the only way to
+  reach someone. It would need a `reach` port on the engine, sentence variants beside
+  `actionDefs.wish`, and a `@leapsake/contact-links` dependency in `@leapsake/core` to name the
+  platforms. Dropped by decision 3: the copy no longer varies, so the engine needs to know nothing
+  about contact methods, and the ways to reach someone are buttons rendered from
+  `reminders.targets`.
+- **Suppressing `wish` when a specific day-of action is enabled.** "Wish them" means *some
+  acknowledgment, unspecified*, so it is redundant once a specific one exists — but with the
+  channel actions unschedulable, the only day-of action left that could trigger it is `visit`, and
+  whether visiting someone should silence the wish is one arguable case rather than a rule worth
+  building.
+
+  ⚠️ **Keep this warning with it**, because it is the expensive half and it becomes true again the
+  day channel-specific actions return: suppress in the **read**, never by dropping the row from the
+  desired set. `reconcile` retires an unwanted row by soft delete and never resurrects a tombstone,
+  so a desired-set suppression would kill the wish for the rest of the year the moment a specific
+  action was ticked — and unticking it could not bring the row back. That is the same "zero
+  birthday reminders" failure a written `enabled: false` would cause, reached by the other road.
+- **A single `post` action, if posting is ever offered** *(owner, 2026-09-05)*. One "make a post
+  for their birthday", **not** `post:instagram` beside `post:x`; surfacing which platforms the user
+  actually posts on is a later move of the same shape as the contact affordances. `post` is a
+  declared verb with no `actionDefs` entry and no kind offering it, so this costs nothing until
+  someone wants the row — then one registry entry (bare `post`, day-of, "Post about {subject}'s
+  {occasion}") and one line in a kind's defaults.
 - **Per-action grace periods**, **snooze for user reminders** (the open question flagged in
   `partitionReminders`' doc-comment), and **user-defined milestone kinds**.
