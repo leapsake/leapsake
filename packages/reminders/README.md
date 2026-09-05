@@ -525,11 +525,48 @@ who it is with would be asking a question whose answer is already the row.
 contact-collection CTA — so it is not weighed against the compounding rule above, which is about
 rows that ask for screen space of their own.
 
+⚠️ **And it is the one offer shown *beside* a row's main action rather than instead of it** *(owner,
+2026-09-05)*. A row offers the highest-ranked call to action that applies, and this one sits below
+both the question and the gift — so it used to surface only where nothing outranked it: the day-of
+wish, a few days a year. Answer the prompt with only "get a gift" and it never appeared at all.
+Doubling up is safe here precisely because it completes a *record* rather than doing the errand, so
+it never competes with the row's own point. Two CTAs on one row is also why `reminderActionKey`
+exists: `kind` alone stopped being unique, and duplicate React keys reconcile wrongly rather than
+loudly.
+
 The two clients send the user to different places, deliberately and for a documented reason: desktop
 has a rebind screen that re-points the milestone onto the relationship, and this client does not,
 so it goes to the relationship form instead. Recording the spouse is the part that matters — a
 milestone left on the person keeps working, now that a relationship bearer works too. Rebinding is
 tidying.
+
+### The question's wording, and the possessive that was a factual error
+
+"How do you want to **mark** X?" became "What do you want to **do for** X?" *(owner, 2026-09-05)*.
+"Mark" was picked to stay neutral across every action the question offers, and that neutrality is
+what made it vague: it never said what was being asked, so the row had to be opened to find out.
+
+⚠️ **The bigger fix was the possessive.** The template is written in the third person about a second
+party — "@Alice's first date" — and for a shared occasion that is not vague, it is **wrong**. A first
+date is not Alice's; it is *yours, with Alice*, and the possessive states that she had one with
+somebody else. Three shapes, all in `planQuestion` in `@leapsake/schema`:
+
+| | Reads |
+|---|---|
+| The subject is you | "your own wedding anniversary" |
+| The occasion is shared | "your first date **with @Alice**" |
+| Anyone else's | "@Bob's birthday" |
+
+Shared is decided two ways, and both are needed: a **gated** kind's bearer being someone else (the
+gate has already established the partnership is the user's), or any milestone borne by a
+**relationship the user is in** — an `anniversary` on your own marriage is not "Alice's anniversary",
+whatever its kind.
+
+⚠️ **`planQuestion` is centralised because the question was written twice and had begun to differ.**
+The engine renders the row's title; `MilestonePlanPrompt` renders its own heading. Both now go
+through the one function, so a wording change cannot leave the screen that answers a prompt saying
+something else about the same occasion — the drift `renderTitle` and `SCHEDULABLE_ACTIONS` were each
+centralised to prevent.
 
 ### It has to be escapable
 

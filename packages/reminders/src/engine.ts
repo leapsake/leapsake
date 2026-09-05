@@ -15,6 +15,7 @@ import {
   dueDateMs,
   kindDefs,
   mentionToken,
+  planQuestion,
   nextOccurrence,
   promptOffsetDays,
   recentOccurrence,
@@ -445,18 +446,61 @@ function derivedTitle(want: DesiredReminder): string | null {
 }
 
 /**
- * The copy that replaces a milestone action's template when the bearer is
- * **you** — "Wish @You a happy birthday" is the third person about the second.
+ * The copy that replaces a milestone action's template when the row is about the
+ * user — because the templates are written in the third person about a second
+ * party, and neither half of that is right once the occasion is your own.
  *
  * A copy-layer branch, never a filter: your own birthday is still reminded. It
  * takes the belated form as well, because a row lingers for `BELATED_DAYS` after
  * the day and "It's your birthday!" is simply false by then.
+ *
+ * Three cases, and the middle one is the subtle one:
+ *
+ * - **The subject is you** — your birthday, or a wedding you recorded on
+ *   yourself before its other party existed. "your own {occasion}".
+ * - **The occasion is *shared*** — a first date or a wedding anniversary
+ *   belonging to a partnership you are in, but stored on your partner or on the
+ *   relationship. The template's possessive is actively wrong here: it is not
+ *   *Alice's* first date, it is **yours with Alice**, and saying otherwise reads
+ *   as though she had one with somebody else. Only the gated kinds
+ *   (`prompt.onlyOwnPartnership`) can be shared, which is what makes this
+ *   decidable from the kind alone — the gate has already established that the
+ *   partnership is the user's.
+ * - **Neither** — the ordinary third-party copy stands, and this answers null.
  */
-function selfOverrideOf(
+function copyOverrideOf(
+  /** The occasion is the user's own (their person, or a relationship of theirs). */
   isSelf: boolean,
+  /** ...and the subject the copy names is the user themself, not their partner. */
+  subjectIsSelf: boolean,
+  subject: string,
   action: ReminderAction,
   kind: MilestoneKind,
 ): { plain: string; belated: string } | null {
+  if (verbOf(action) === "plan") {
+    const occasion = kindDefs[kind].prompt?.occasion ?? kindDefs[kind].label;
+    // Shared when the occasion is the user's but the name in the copy is not
+    // theirs — which is true two ways. A **gated** kind has already had the
+    // partnership established (that is what the gate does), so its bearer being
+    // someone else means it is shared with them. And any milestone borne by a
+    // **relationship the user is in** is shared by construction, whatever its
+    // kind: an `anniversary` on your own marriage is not "Alice's anniversary".
+    const shared =
+      !subjectIsSelf &&
+      (kindDefs[kind].prompt?.onlyOwnPartnership === true || isSelf);
+    // Neither shape differs from the template? Then there is nothing to
+    // override, and `actionDefs.plan` renders it — through the same helper.
+    if (!subjectIsSelf && !shared) return null;
+    const title = `${actionDefOf(action).icon ?? ""} ${planQuestion({
+      subject,
+      occasion,
+      subjectIsSelf,
+      shared,
+    })}`.trim();
+    // The question does not change once the occasion has gone: answering it
+    // still writes the rules that apply next year.
+    return { plain: title, belated: title };
+  }
   if (!isSelf) return null;
   // Read from the registry rather than branched on here: which kinds have a
   // self-directed wish, and how each is worded, is a per-kind fact with no rule
@@ -464,15 +508,6 @@ function selfOverrideOf(
   // `kind === "birthday"`, which left every other self-borne occasion telling
   // you to wish *yourself* a happy anniversary.
   if (verbOf(action) === "wish") return kindDefs[kind].selfWish ?? null;
-  if (verbOf(action) === "plan") {
-    const title =
-      `${actionDefOf(action).icon ?? ""} How do you want to mark your own ${
-        kindDefs[kind].prompt?.occasion ?? kindDefs[kind].label
-      }?`.trim();
-    // The question does not change once the occasion has gone: answering it
-    // still writes the rules that apply next year.
-    return { plain: title, belated: title };
-  }
   return null;
 }
 
@@ -1512,7 +1547,17 @@ async function computeDesired(
             kindDefs[m.kind].prompt?.occasion ??
             kindDefs[m.kind].label.toLowerCase(),
           label: rule.label ?? null,
-          override: selfOverrideOf(bearerIsSelf, rule.action, m.kind),
+          override: copyOverrideOf(
+            bearerIsSelf,
+            // The subject is *you* only when the bearer is you personally. A
+            // relationship of yours is equally "your own", but the name it
+            // resolves to is your partner's — so it takes the shared wording,
+            // which is the better read anyway.
+            bearerIsSelf && m.bearerType === "person",
+            subject,
+            rule.action,
+            m.kind,
+          ),
         };
         // Due `offsetDays` before the occurrence (day-of when 0); stored as UTC
         // midnight of that civil day, so plain integer subtraction is exact. A

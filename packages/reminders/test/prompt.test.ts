@@ -156,7 +156,7 @@ describe("the plan prompt", () => {
 
     const [prompt] = h.prompts();
     expect(prompt.title).toBe(
-      `🗓 How do you want to mark ${mentionToken("Alice", "person", "p1")}'s birthday?`,
+      `🗓 What do you want to do for ${mentionToken("Alice", "person", "p1")}'s birthday?`,
     );
     // Due six weeks out — the last day on which ticking "get a gift" still
     // leaves the gift its full 30-day run-up.
@@ -265,7 +265,7 @@ describe("the plan prompt", () => {
     await regenerateSystemReminders(h.deps);
 
     expect(h.prompts()[0].title).toBe(
-      "🗓 How do you want to mark your own birthday?",
+      "🗓 What do you want to do for your own birthday?",
     );
     expect(h.prompts()[0].title).not.toContain("@[");
   });

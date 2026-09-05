@@ -10,6 +10,7 @@ import {
   promptOffsetDays,
   todayCivil,
 } from "@leapsake/schema";
+import { reminderActionKey, reminderActionsOf } from "@leapsake/view-models";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
@@ -94,9 +95,10 @@ describe("a milestone borne by a relationship", () => {
     });
 
     // The regression: before the label port could name a relationship this was
-    // an empty list, silently.
+    // an empty list, silently. And the wording is the *shared* one — the
+    // relationship resolves to the other end's name, so the question names her.
     expect(await titles()).toContain(
-      "🗓 How do you want to mark your own wedding anniversary?",
+      "🗓 What do you want to do for your wedding anniversary with Alice?",
     );
   });
 
@@ -128,7 +130,7 @@ describe("a milestone borne by a relationship", () => {
     });
 
     expect(await titles()).toContain(
-      "🗓 How do you want to mark Bob & Carol's anniversary?",
+      "🗓 What do you want to do for Bob & Carol's anniversary?",
     );
   });
 });
@@ -368,7 +370,7 @@ describe("a wedding with nobody on the other side of it", () => {
     // And it still reminds, which is the half that must never depend on the
     // record being complete.
     expect(await titles()).toContain(
-      "🗓 How do you want to mark your own wedding anniversary?",
+      "🗓 What do you want to do for your own wedding anniversary?",
     );
   });
 
@@ -447,5 +449,52 @@ describe("your own anniversary, on the day, with no spouse attached", () => {
     const offer = linkPartners.find((l) => l.milestoneId === milestone.id);
     expect(offer).toBeDefined();
     expect(offer?.isSelf).toBe(true);
+  });
+});
+
+describe("the spouse offer, shown beside the row's own action", () => {
+  // ⚠️ The gap this closes. The offer used to be the row's *main* CTA or
+  // nothing, so it appeared only where nothing outranked it — the day-of wish,
+  // a few days a year. Answer the prompt with only "get a gift" and it never
+  // appeared at all.
+  it("rides alongside the prompt that outranks it", async () => {
+    const me = await core.people.create({ firstName: "Robin" }, []);
+    await core.self.set(me.id);
+    const occ = civilDaysFromToday(
+      promptOffsetDays("wedding") + actionDefs.plan.activeDays - 3,
+    );
+    await core.milestones.create({
+      kind: "wedding",
+      bearerType: "person",
+      bearerId: me.id,
+      year: 2015,
+      month: occ.month,
+      day: occ.day,
+    });
+
+    const rows = await core.reminders.list();
+    const prompt = rows.find((r) => r.title?.startsWith("🗓"));
+    expect(prompt).toBeDefined();
+    const t = await core.reminders.targets();
+    const actions = reminderActionsOf(
+      {
+        id: prompt!.id,
+        completedAt: prompt!.completedAt,
+        snoozeCount: prompt!.snoozeCount,
+        dueDate: prompt!.dueDate,
+      },
+      {
+        planTarget: t.plans.find((p) => p.reminderId === prompt!.id),
+        linkPartnerTarget: t.linkPartners.find(
+          (l) => l.reminderId === prompt!.id,
+        ),
+      },
+    );
+
+    const ctas = actions.flatMap((a) => (a.kind === "cta" ? [a.cta.kind] : []));
+    // Its own question first, the record-completing offer beside it.
+    expect(ctas).toEqual(["plan", "link-partner"]);
+    // And the keys stay distinct, which is what two CTAs on one row needs.
+    expect(new Set(actions.map(reminderActionKey)).size).toBe(actions.length);
   });
 });

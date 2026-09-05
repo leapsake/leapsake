@@ -81,7 +81,7 @@ describe("the plan prompt, end to end through core", () => {
     const rows = await systemReminders();
     expect(rows).toHaveLength(1);
     expect(reminderLabel(rows[0])).toBe(
-      "🗓 How do you want to mark @Alice Ng's birthday?",
+      "🗓 What do you want to do for @Alice Ng's birthday?",
     );
   });
 
@@ -189,6 +189,8 @@ describe("the plan prompt, end to end through core", () => {
 
     const labels = (await systemReminders()).map(reminderLabel);
     expect(labels).toContain("🎉 Wish @Alice Ng a happy birthday");
-    expect(labels).toContain("🗓 How do you want to mark @Alice Ng's birthday?");
+    expect(labels).toContain(
+      "🗓 What do you want to do for @Alice Ng's birthday?",
+    );
   });
 });

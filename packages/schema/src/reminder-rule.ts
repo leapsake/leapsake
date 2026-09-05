@@ -178,6 +178,52 @@ export interface ReminderCopyContext {
   occasion: string;
 }
 
+/**
+ * Who the prompt's question is about, which decides how it is phrased.
+ *
+ * Three shapes, because the third-person possessive the templates are written in
+ * is wrong for two of them — and one of those is wrong in a way that misstates a
+ * fact about the user's life rather than merely reading oddly.
+ */
+export interface PlanQuestionContext {
+  /** The bearer's label, mention-wrapped where applicable. */
+  subject: string;
+  /** The occasion as a bare noun — "birthday", "wedding anniversary". */
+  occasion: string;
+  /** The subject named *is* the user: their own birthday, or a wedding of
+   *  theirs recorded before its other party existed. */
+  subjectIsSelf: boolean;
+  /** The occasion is the user's but the subject is the person they share it
+   *  with — a first date, or anything borne by a relationship of theirs. */
+  shared: boolean;
+}
+
+/**
+ * The prompt's question, in the one place both the reminder row and the screen
+ * that answers it can read it.
+ *
+ * ⚠️ **Centralised because it was written twice and had started to differ.** The
+ * engine renders the row's title and `MilestonePlanPrompt` renders its own
+ * heading, and a wording change to one silently left the other saying something
+ * else about the same occasion — the drift `renderTitle` and `SCHEDULABLE_ACTIONS`
+ * were each centralised to prevent.
+ *
+ * ⚠️ **The shared form is a correctness fix, not a nicety.** "@Alice's first
+ * date" says Alice had one, with somebody. It is *yours, with Alice*, and the
+ * possessive states the opposite of the fact the app is holding.
+ */
+export function planQuestion({
+  subject,
+  occasion,
+  subjectIsSelf,
+  shared,
+}: PlanQuestionContext): string {
+  if (subjectIsSelf) return `What do you want to do for your own ${occasion}?`;
+  if (shared)
+    return `What do you want to do for your ${occasion} with ${subject}?`;
+  return `What do you want to do for ${subject}'s ${occasion}?`;
+}
+
 /** Static metadata for a reminder action: how it displays, how long it takes,
  *  and its default copy. */
 export interface ReminderActionDef {
@@ -341,8 +387,20 @@ export const actionDefs = {
     // {@link ReminderCopyContext}. No distance in the copy: the row's countdown
     // is rendered from its due date (`formatDueIn`), and a written-in "in two
     // months" would be wrong by tomorrow.
+    // "What do you want to do for" rather than "How do you want to mark"
+    // *(owner, 2026-09-05)*. "Mark" was chosen to be neutral across every action
+    // the question offers, and neutrality is what made it vague — it never says
+    // what is being asked, and a reader has to open the row to find out.
+    //
+    // ⚠️ This is the **third-party** form, and it is not the only one. An
+    // occasion that is the user's own reads "your own {occasion}", and one they
+    // *share* reads "your {occasion} with {subject}" — a first date is not
+    // Alice's, it is yours with Alice, and the possessive here says otherwise.
+    // Both live in `copyOverrideOf` in `@leapsake/reminders`, beside the
+    // self-directed wish, because they need to know who the bearer is and a
+    // template only sees the words.
     template: ({ subject, occasion }) =>
-      `How do you want to mark ${subject}'s ${occasion}?`,
+      planQuestion({ subject, occasion, subjectIsSelf: false, shared: false }),
   },
   other: {
     label: OTHER_LABEL,

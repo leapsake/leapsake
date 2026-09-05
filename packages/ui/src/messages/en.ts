@@ -250,7 +250,7 @@ export const en: Messages = {
   },
 
   reminderPrompt: {
-    legend: "How do you want to mark it?",
+    legend: "What do you want to do?",
     // The answer most people give most of the time, offered as a button so it
     // costs one tap rather than a form. The trade this prompt makes depends on
     // it: a question is only worth asking if answering it is cheaper than

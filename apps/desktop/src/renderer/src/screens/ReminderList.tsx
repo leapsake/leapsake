@@ -12,6 +12,7 @@ import { ReminderText } from "@leapsake/ui/web";
 import {
   bucketReminders,
   groupComingByActivation,
+  reminderActionKey,
   reminderActionsOf,
 } from "@leapsake/view-models";
 import { Fragment } from "react";
@@ -143,7 +144,9 @@ function ReminderRow({
         const affordance = rowAffordanceFor(action, reminder.id);
         // Each kind is offered at most once per row, so it keys them.
         return (
-          <Fragment key={action.kind}>
+          // A row can carry two CTAs (its own, plus an offer to complete the
+          // record), so the key has to reach past `kind` to stay unique.
+          <Fragment key={reminderActionKey(action)}>
             {affordance.kind === "answer-plan" ? (
               // ⚠️ One tap, on the row, with no screen in between. The prompt
               // trades several passive rows for one that asks a question, and

@@ -427,6 +427,19 @@ export type ReminderRowAction =
   | { kind: "dismiss" };
 
 /**
+ * A stable key for one offered action, for clients rendering the list.
+ *
+ * `kind` alone is not unique: a row can carry **two** CTAs — its own, and the
+ * offer to complete a missing record beside it — and two React children keyed
+ * `"cta"` is a duplicate key, which reconciles wrongly rather than loudly. Lives
+ * here rather than in each client for the usual reason: there are two of them,
+ * and a key chosen locally is a key that drifts.
+ */
+export function reminderActionKey(action: ReminderRowAction): string {
+  return action.kind === "cta" ? `cta:${action.cta.kind}` : action.kind;
+}
+
+/**
  * Everything a reminder row offers, in the order it should be offered: **do it**
  * ({@link reminderCtaOf}'s call to action), **just the day** (a prompt's one-tap
  * answer), **not now** (snooze), **don't ask again** (dismiss) — which is also
@@ -508,6 +521,27 @@ export function reminderActionsOf(
         ...offer,
         enabled: offer.action === "wish",
       })),
+    });
+
+  // ⚠️ A **second** call to action, shown beside the first rather than queued
+  // behind it *(owner, 2026-09-05)*. A row offers one main CTA — the highest
+  // that applies — and "who is this wedding with?" sits below both the question
+  // and the gift, so it used to appear only on a row where nothing outranked it:
+  // the day-of wish, for a few days a year. A user who answered the prompt with
+  // only "get a gift" would never see it at all.
+  //
+  // It is the one offer that completes a *record* rather than doing the errand,
+  // which is what makes it safe to double up: it never competes with the row's
+  // own point, and a row that already shows it as the main CTA does not repeat
+  // it.
+  if (
+    context.linkPartnerTarget !== undefined &&
+    cta !== null &&
+    cta.kind !== "link-partner"
+  )
+    actions.push({
+      kind: "cta",
+      cta: { kind: "link-partner", ...context.linkPartnerTarget },
     });
 
   const policy = snoozePolicyOf(

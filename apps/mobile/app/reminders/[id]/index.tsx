@@ -16,7 +16,7 @@ import {
   kindDefs,
   reminderLabel,
 } from "@leapsake/schema";
-import { reminderActionsOf } from "@leapsake/view-models";
+import { reminderActionKey, reminderActionsOf } from "@leapsake/view-models";
 import { Checkbox } from "../../../components/Checkbox";
 import { ContactReachButtons } from "../../../components/ContactReachButtons";
 import { ReminderPromptFields } from "../../../components/ReminderPromptFields";
@@ -357,7 +357,7 @@ export default function ReminderDetailScreen() {
             const offer = offerFor(action);
             return (
               <Pressable
-                key={action.kind}
+                key={reminderActionKey(action)}
                 accessibilityRole="button"
                 onPress={() => {
                   if (offer.kind === "navigate") router.push(offer.path);

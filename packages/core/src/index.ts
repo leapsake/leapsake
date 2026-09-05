@@ -93,6 +93,7 @@ import {
   isPublished,
   isReminderEditable,
   isRomanticRole,
+  kindDefs,
   parseHashtags,
   parseMentions,
   relationshipPairLabel,
@@ -407,6 +408,14 @@ export interface PlanReminderTarget {
   /** That bearer's display label, so the screen can name who it is asking about. */
   subject: string;
   /**
+   * Which of `planQuestion`'s three shapes the question takes — see it in
+   * `@leapsake/schema`. Carried rather than re-derived so the screen that
+   * answers a prompt and the row that sent the user there can never word the
+   * same question differently, which they had begun to.
+   */
+  subjectIsSelf: boolean;
+  shared: boolean;
+  /**
    * The occasion itself, as a stored due-date epoch.
    *
    * ⚠️ Not the same as the reminder's `dueDate`, and the difference is the whole
@@ -622,6 +631,27 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
    * silently suppressed every relationship-borne reminder (see the
    * `resolveLabel` port).
    */
+  /**
+   * Is this milestone **about you**? The self-person, or a relationship they are
+   * one end of. Named rather than inline because two readers need the same
+   * answer: the engine's copy layer, which flips a wish and a prompt to their
+   * self-directed wording, and `reminders.targets`, which tells the screen that
+   * answers a prompt how the question was phrased.
+   */
+  async function milestoneIsSelf(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<boolean> {
+    const selfId = (await self.getSelf())?.personId;
+    if (selfId === undefined) return false;
+    if (bearerType === "person") return bearerId === selfId;
+    if (bearerType === "relationship")
+      return endpointsOf(await relationships.get(bearerId)).some(
+        (e) => e.type === "person" && e.id === selfId,
+      );
+    return false; // a pet is never you
+  }
+
   /**
    * Any milestone bearer, named — the person, the pet, or the relationship. The
    * engine's `resolveLabel` port and the `reminders.targets` reads both go
@@ -1030,6 +1060,25 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     return found;
   }
 
+  /**
+   * Which of `planQuestion`'s three shapes a prompt takes — see it in
+   * `@leapsake/schema` for why the possessive matters.
+   */
+  async function planPhrasing(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+    kind: MilestoneKind,
+  ): Promise<{ subjectIsSelf: boolean; shared: boolean }> {
+    const isSelf = await milestoneIsSelf(bearerType, bearerId);
+    const subjectIsSelf = isSelf && bearerType === "person";
+    return {
+      subjectIsSelf,
+      shared:
+        !subjectIsSelf &&
+        (kindDefs[kind].prompt?.onlyOwnPartnership === true || isSelf),
+    };
+  }
+
   /** The same candidates as canonical `"lower:higher"` pair keys — the identity
    *  the Home nudge is content-addressed on (names never leave this layer). */
   async function duplicatePairKeys(): Promise<string[]> {
@@ -1108,16 +1157,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     // anniversary's prompt, to their self-directed copy. A relationship you are
     // one end of counts — that is what makes "your own wedding anniversary" ask
     // about itself rather than about the pair.
-    isSelf: async (bearerType, bearerId) => {
-      const selfId = (await self.getSelf())?.personId;
-      if (selfId === undefined) return false;
-      if (bearerType === "person") return bearerId === selfId;
-      if (bearerType === "relationship")
-        return endpointsOf(await relationships.get(bearerId)).some(
-          (e) => e.type === "person" && e.id === selfId,
-        );
-      return false; // a pet is never you
-    },
+    isSelf: milestoneIsSelf,
     // Is this milestone about a romantic partnership *the user is in*? Gates the
     // `first-date` prompt, and nothing else (`kindDefs`, `prompt`).
     //
@@ -1965,6 +2005,14 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
               bearerId: t.bearerId,
               subject:
                 (await milestoneBearerLabel(t.bearerType, t.bearerId)) ?? "",
+              // The same two facts the engine's copy layer branches on, so the
+              // screen that answers a prompt and the row that sent the user
+              // there can never word the question differently.
+              ...(await planPhrasing(
+                t.bearerType,
+                t.bearerId,
+                t.milestone!.kind,
+              )),
               occurrenceDate: t.occurrenceDate ?? null,
               offers: resolveReminderSchedule(t.milestone!.kind, []).rules,
             })),

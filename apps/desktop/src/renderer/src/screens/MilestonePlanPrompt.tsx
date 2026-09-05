@@ -6,6 +6,7 @@ import {
   formatDueIn,
   isoFromDueMs,
   kindDefs,
+  planQuestion,
 } from "@leapsake/schema";
 import { ReminderPromptFields } from "@leapsake/ui/web";
 
@@ -32,16 +33,19 @@ export function MilestonePlanPrompt() {
 
   return (
     <main>
-      <h1>
-        How do you want to mark {target.subject}&rsquo;s {occasion}?
-      </h1>
+      {/* The same helper the reminder row's own title goes through, so the
+          question cannot be worded one way on Home and another here — and so
+          "your first date with Alice" does not become "Alice's first date",
+          which says something else entirely. */}
+      <h1>{planQuestion({ ...target, occasion })}</h1>
       {/* ⚠️ The row this came from shows the distance to the prompt&rsquo;s own
           deadline — the same convention every reminder row uses, and six weeks
           earlier than the occasion. So the occasion&rsquo;s real date is said
           here, where there is room, rather than left to be inferred. */}
       {target.occurrenceDate !== null && (
         <p>
-          Their {occasion} is on {isoFromDueMs(target.occurrenceDate)} (
+          {target.subjectIsSelf || target.shared ? "Your" : "Their"} {occasion}{" "}
+          is on {isoFromDueMs(target.occurrenceDate)} (
           {formatDueIn(target.occurrenceDate)}).
         </p>
       )}
