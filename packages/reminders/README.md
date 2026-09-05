@@ -26,6 +26,7 @@ scoped. The composition root wires the repos.
 | Why an unconfigured occasion gets a question instead of errands | the `plan` synthesis in `computeDesired`, and *The prompt* below |
 | When that question is asked | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers |
 | Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps` |
+| Why a schedule has two levels and not four | `resolveReminderSchedule` in `@leapsake/schema`, and *Schedules* below |
 
 ## Identity — what makes two reminders different reminders
 
@@ -61,6 +62,17 @@ entries so a rule stored under one still renders its real copy, and they are exc
 `SCHEDULABLE_ACTIONS`, which is the list every picker reads. The distinction that matters here is
 that this is a decision about **what the UI offers**, not about what an action can express: the
 identity split below is untouched, and getting specific again is an edit to one filter.
+
+Two things fall out of that which look like deferrals and are not. **Contact-method priorities**
+have nothing left to feed — the copy names no channel, so there is no preferred method for it to
+pick. ⚠️ If they ever return, model them as **one nullable pointer on the person**: a flag on each
+of the four method tables is four columns, a cross-table write on every change, and an LWW merge
+that can leave two preferred methods or none. And **a picker for platform-qualified actions** —
+scheduling `post:instagram` rather than the shipped set — is not merely unbuilt but not wanted,
+since the UI offers generic actions and renders channels as buttons instead. ⚠️ The shipped contact
+affordances are *not* that picker: a `wish` row's buttons come from the methods a person **has**,
+things to do now, which is a different thing from scheduling an errand — and deliberately so, since
+a contact method must never reach identity.
 
 Two rules that fall out of it, both easy to break:
 
@@ -329,6 +341,66 @@ Same writes, different presentation. **Do not ship per-observance prompts in the
   to recognise a death anniversary is exactly the wrong object, and its single quiet `remember` is
   already right. The same reasoning excludes any kind offering one action: a question with one
   answer is not a question. Adding a kind is one `kindDefs` line.
+
+## Schedules — where a rule comes from
+
+A schedule is set on the **occasion** — one milestone, or one (person, holiday) observance — or it
+is the **shipped default** for that kind (`kindDefs[kind].defaultReminderSchedule`,
+`observanceDefaultReminderSchedule`). Two levels. `resolveReminderSchedule` and
+`resolveObservanceReminderSchedule` therefore resolve all-or-nothing: stored rows win wholesale,
+because there is exactly one level a user can write.
+
+### There are no per-person and no per-kind defaults *(owner, 2026-09-05)*
+
+An earlier design had four levels — this occasion, this person, all birthdays, the shipped default —
+resolved per action, with the winning level shown on the row. It was cut before any of it was built.
+The reasoning is recorded because it is an easy idea to have again.
+
+A per-person default has to hold across **everything that person has**: their birthday and Arbor Day
+alike. Those are not the same occasion and do not carry the same weight, so "for Alice: a gift, a
+card and a call" is a rule that pretends they do. The variation that matters is between *occasions*,
+which is what the occasion level already expresses — and where someone genuinely does want the same
+treatment everywhere, saying so per occasion is a handful of taps rather than a system. A per-*kind*
+default ("all birthdays") loses the same argument one size up: the people in a life vary more than
+one setting can absorb.
+
+⚠️ **What that spares the code is the point**, because a second writable level is not one more
+lookup:
+
+- Resolution would have to become **per action**. All-or-nothing is correct only while one level
+  exists; with two, setting a person default would silently wipe an occasion's schedule.
+- Every writer would have to emit a **complete** set. An action a set omits would fall *through* to
+  the level above and switch itself back **on** — so the schedule editor's Remove button, which
+  means *off* today, would quietly come to mean *inherit*.
+- Existing partial rule sets would need a migration to keep the meaning they were saved with.
+- A "kind" level is the one bearer that is not a row, so `bearerId` would have to stop being a
+  `z.uuid()` and start accepting a keyword.
+
+None of that exists and none of it is coming. `reminderRuleBearerTypeSchema` stays
+`milestone | observance` — its "adding one is a Zod-only change" note is about a new kind of
+*occasion*, not a new level — and every bearer stays a real row with a real id.
+
+### ⚠️ Do not model rule dependencies
+
+"Get the gift 3–7 days before the card goes in the post" is a real thought while you are *choosing*
+offsets, and it must not survive into the data. Literal dependencies need ordering, cycle detection,
+and an answer for what happens when the depended-on rule is disabled — all to express something set
+once. Do the arithmetic wherever the numbers are chosen and store plain offsets. "Where in the world
+is it going" is an input to that arithmetic, never a runtime lookup.
+
+### ⚠️ A redundant action is suppressed in the read, never in the desired set
+
+`wish` means *some acknowledgment, unspecified*, so a specific day-of action arguably makes it
+redundant. If that is ever built, suppress it **where the row is rendered**. Dropping it from the
+desired set instead reaches the worst failure this package has: `reconcile` retires an unwanted row
+by soft delete and never resurrects a tombstone, and a system reminder's id is keyed on the
+occurrence **year** — so ticking a specific action would kill the wish for the rest of the year, and
+unticking it could not bring the row back. A written `enabled: false` rule gets there by the other
+road.
+
+Nothing triggers this today: the channel actions are unschedulable, so the only day-of action that
+could is `visit`, and whether visiting someone silences the wish is one arguable case rather than a
+rule worth building. The warning is here for the day channel-specific actions return.
 
 ## The onboarding nudges — the product design behind them
 

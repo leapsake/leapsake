@@ -12,11 +12,15 @@ import { z } from "zod";
  * the person). `other` is the escape hatch, and leans on the per-rule free-text
  * `label` exactly like the `other` milestone kind leans on its `note`.
  *
- * `post` is declared with no registry entry of its own. A bare "post" is not an
- * errand — the errand is `post:instagram` — and the picker that would choose a
- * platform does not exist yet. Declaring the verb now costs one line and is what
- * lets a `post:instagram` synced from a later version parse instead of failing
- * the row.
+ * `post` is declared with no registry entry of its own, and if posting is ever
+ * offered it is a **bare `post`** — one "make a post for their birthday", not
+ * `post:instagram` beside `post:x` *(owner, 2026-09-05)*. Surfacing which
+ * platforms someone actually posts on is a later move of the same shape as the
+ * contact affordances on a `wish`, not a row you schedule weeks ahead. That
+ * costs one registry entry and one line in a kind's defaults whenever someone
+ * wants it. Declaring the verb now costs one line and is separately what lets a
+ * `post:instagram` synced from a later version parse instead of failing the
+ * row.
  */
 export const reminderVerbSchema = z.enum([
   "get",
@@ -125,11 +129,6 @@ export function parseAction(action: ReminderAction): ParsedReminderAction {
 /** The verb half of an action — the half anything branching should read. */
 export function verbOf(action: ReminderAction): ReminderVerb {
   return parseAction(action).verb;
-}
-
-/** The qualifier half of an action, or null for a bare verb. */
-export function qualifierOf(action: ReminderAction): string | null {
-  return parseAction(action).qualifier;
 }
 
 /** Join a verb and an optional qualifier back into an action string. */

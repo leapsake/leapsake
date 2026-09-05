@@ -119,7 +119,6 @@ export {
   isReminderAction,
   parseAction,
   verbOf,
-  qualifierOf,
   formatAction,
   actionDefs,
   actionDefOf,

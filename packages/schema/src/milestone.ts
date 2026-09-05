@@ -327,8 +327,13 @@ export function kindsForBearerType(
 }
 
 /**
- * Where a resolved schedule came from — the winning level of what will become a
- * four-level cascade, and today a choice of two.
+ * Where a resolved schedule came from. **Two levels, and that is the finished
+ * design** — an earlier one had four (this occasion, this person, all birthdays,
+ * the shipped default), resolved per action; it was cut before it was built
+ * *(owner, 2026-09-05)*. The reasoning is in
+ * [`@leapsake/reminders`](../../reminders/README.md) → *Schedules*, and it is
+ * worth reading before adding a third: a second writable level is not one more
+ * lookup, it makes all-or-nothing resolution wrong.
  *
  * Returned rather than thrown away because "this occasion has no rules of its
  * own" is not a diagnostic, it is a **product condition**: it is exactly what
