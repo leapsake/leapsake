@@ -247,6 +247,7 @@ export type {
   RelationshipNeighbor,
 } from "./relationship.js";
 export {
+  isMilestoneKind,
   milestoneBearerTypeSchema,
   milestoneKindSchema,
   milestoneSchema,

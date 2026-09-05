@@ -75,6 +75,14 @@ export function ctaLinkFor(cta: ReminderCta): { path: string; label: string } {
         path: `/people/${cta.personId}`,
         label: "Add a way to reach them →",
       };
+    // The milestone form for this relationship, already on the kind the question
+    // asked about. Unlike `contact` above there is no ambiguity about where to
+    // send someone: the answer is one date on one form.
+    case "partnership":
+      return {
+        path: `/relationships/${cta.relationshipId}/milestones/new?kind=${cta.milestoneKind}`,
+        label: "Add the date →",
+      };
   }
 }
 

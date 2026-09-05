@@ -85,6 +85,7 @@ import type {
   UpdateGiftRecipientInput,
 } from "@leapsake/schema";
 import {
+  baseRole,
   entityLabel,
   genderedVariant,
   impliedGender,
@@ -105,6 +106,7 @@ import {
 import {
   type ReminderEngineDeps,
   type ReminderWindowFacts,
+  type UndatedPartnership,
   DISPLAY_WINDOW_DAYS,
   duplicatesReminderId,
   getReminderInWindow,
@@ -112,6 +114,7 @@ import {
   listRemindersInWindow,
   listSystemReminderTargets,
   materializeReminder,
+  partnershipNudgeId,
   regenerateSystemReminders,
 } from "@leapsake/reminders";
 // The onboarding-nudge id-convention, surfaced through core (the apps' single
@@ -318,6 +321,24 @@ export interface SystemReminderTargets {
   gifts: GiftReminderTarget[];
   plans: PlanReminderTarget[];
   contacts: ContactReminderTarget[];
+  partnerships: PartnershipReminderTarget[];
+}
+
+/**
+ * One partnership question on today's list, and what answering it means.
+ *
+ * Built from core's own read rather than from the engine's target walk — the
+ * same shape the duplicates nudge uses (`duplicates.nudgeId`), and for the same
+ * reason: the row has no person or pet bearer to hang a target off, so the id is
+ * recomputed here from the data that minted it.
+ */
+export interface PartnershipReminderTarget {
+  reminderId: string;
+  relationshipId: string;
+  /** Which date is missing — and so which kind the form should open on. */
+  milestoneKind: "wedding" | "first-date";
+  /** The partner, for a client that would rather route via their page. */
+  partnerId: string;
 }
 
 /**
@@ -940,6 +961,54 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       .then((pairs) => duplicates.findCandidates(pairs));
   }
 
+  /**
+   * The user's own romantic partnerships that have no date on them yet.
+   *
+   * Which date is missing follows from the role, and only one is ever asked for:
+   * a marriage wants its **wedding** anniversary, an unmarried partnership its
+   * **first date**. Asking the wrong one is worse than not asking, since
+   * "when is your wedding anniversary?" of someone unmarried invents a marriage.
+   *
+   * ⚠️ **A date recorded on *either* bearer counts as known.** A wedding lives on
+   * the relationship once its other party exists and on the person before that
+   * (`MilestoneRebind` is the flow between the two), so checking only one of them
+   * would re-ask for a date the user has already given — the single worst thing a
+   * collection nudge can do.
+   */
+  async function undatedOwnPartnerships(): Promise<UndatedPartnership[]> {
+    const selfId = (await self.getSelf())?.personId;
+    if (selfId === undefined) return []; // nobody has said who they are
+    const found: UndatedPartnership[] = [];
+    for (const rel of await relationships.listForEntity("person", selfId)) {
+      const roles = [rel.aRole, rel.bRole];
+      if (!roles.some(isRomanticRole)) continue;
+      const other = endpointsOf(rel).find(
+        (e) => !(e.type === "person" && e.id === selfId),
+      );
+      // A pet cannot hold a romantic role, but the guard keeps the narrowing
+      // honest rather than relying on that staying true.
+      if (other === undefined || other.type !== "person") continue;
+      const kind = roles.some((r) => baseRole(r) === "spouse")
+        ? "wedding"
+        : "first-date";
+      const dated = [
+        ...(await milestones.listForBearer("relationship", rel.id)),
+        ...(await milestones.listForBearer("person", other.id)),
+      ].some((m) => m.kind === kind);
+      if (dated) continue;
+      const partnerLabel = await resolveLabel(other.type, other.id);
+      if (partnerLabel === undefined) continue; // partner gone
+      found.push({
+        relationshipId: rel.id,
+        kind,
+        partnerLabel,
+        partnerType: "person",
+        partnerId: other.id,
+      });
+    }
+    return found;
+  }
+
   /** The same candidates as canonical `"lower:higher"` pair keys — the identity
    *  the Home nudge is content-addressed on (names never leave this layer). */
   async function duplicatePairKeys(): Promise<string[]> {
@@ -1114,6 +1183,10 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     // same reason `holidays` is: an omitted port prunes (and tombstones) the
     // nudge the last reconcile minted.
     duplicates: { pairKeys: () => duplicatePairKeys() },
+    // The fifth family: the user's own partnerships with no date recorded. See
+    // the port's doc-comment for why this one collects rather than reminds, and
+    // why it is deliberately narrow.
+    partnerships: { undated: undatedOwnPartnerships },
   });
 
   const regenerateSystem = (): Promise<{
@@ -1451,20 +1524,36 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     relationships: {
       get: (id: string): Promise<Relationship | undefined> =>
         relationships.get(id),
-      create: (input: CreateRelationshipInput): Promise<Relationship> =>
-        driver.transaction(() => relationships.create(input)),
-      update: (
+      // Each write reconciles afterwards, because a relationship is now an input
+      // to the reminder engine: recording a spouse is what raises "when is your
+      // anniversary?", editing the role is what changes which date it asks for
+      // (a partnership that becomes a marriage), and deleting the edge is what
+      // retires the question. Without this the row would appear only at the next
+      // boot or focus, which reads as the app not having noticed.
+      create: async (input: CreateRelationshipInput): Promise<Relationship> => {
+        const created = await driver.transaction(() =>
+          relationships.create(input),
+        );
+        await regenerateSystem();
+        return created;
+      },
+      update: async (
         id: string,
         input: UpdateRelationshipInput,
-      ): Promise<Relationship | undefined> =>
-        driver.transaction(() => relationships.update(id, input)),
+      ): Promise<Relationship | undefined> => {
+        const updated = await driver.transaction(() =>
+          relationships.update(id, input),
+        );
+        await regenerateSystem();
+        return updated;
+      },
       // Removing the edge removes anyone who was only on the other end of it.
       // For two published people this unlinks two records that both carry on
       // existing; when one end is unpublished, that edge was the entire reason
       // they were in the database, so the row goes with it rather than becoming
       // unreachable. The UI says which of the two is about to happen.
-      softDelete: (id: string): Promise<void> =>
-        driver.transaction(async () => {
+      softDelete: async (id: string): Promise<void> => {
+        await driver.transaction(async () => {
           const rel = await relationships.get(id);
           await relationships.softDelete(id);
           if (rel === undefined) return;
@@ -1477,7 +1566,9 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
             await softDeleteEntity(end.type, end.id);
             await removeEntityFacts(end.type, end.id);
           }
-        }),
+        });
+        await regenerateSystem();
+      },
       // Orient each stored row to the subject and resolve the *other* end's
       // label + role, so the caller never sees the raw a/b endpoints.
       listForEntity: (
@@ -1486,13 +1577,38 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       ): Promise<RelationshipNeighbor[]> => orientedNeighbors(type, id),
       // Write a relationship from a subject's perspective, implying the subject's
       // own role from the chosen other role. See {@link createFromSubject}.
-      createFromSubject,
+      //
+      // These three reconcile afterwards for the same reason `create`/`update`
+      // above do — and they are the ones that matter in practice, since this is
+      // the path a relationship is actually added by, from a person's own page.
+      // Wrapped here rather than inside each helper because the milestone
+      // "with whom?" flow calls them mid-write and reconciles once, after its
+      // own commit.
+      createFromSubject: async (
+        ...args: Parameters<typeof createFromSubject>
+      ): Promise<Relationship> => {
+        const created = await createFromSubject(...args);
+        await regenerateSystem();
+        return created;
+      },
       // The same, for an other end that doesn't exist yet: creates them
       // unpublished alongside the edge. See {@link createWithNewOther}.
-      createWithNewOther,
+      createWithNewOther: async (
+        ...args: Parameters<typeof createWithNewOther>
+      ): Promise<{ other: Person | Pet; relationship: Relationship }> => {
+        const created = await createWithNewOther(...args);
+        await regenerateSystem();
+        return created;
+      },
       // Edit a subject-scoped relationship, re-deriving the subject's own role.
       // See {@link editFromSubject}.
-      editFromSubject,
+      editFromSubject: async (
+        ...args: Parameters<typeof editFromSubject>
+      ): Promise<Relationship | undefined> => {
+        const updated = await editFromSubject(...args);
+        await regenerateSystem();
+        return updated;
+      },
     },
 
     milestones: {
@@ -1856,7 +1972,20 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           })),
         );
 
-        return { gifts, plans, contacts };
+        // The partnership questions, paired with the rows they minted. Read from
+        // core's own data rather than filtered out of `targets`: these rows have
+        // no person/pet bearer, so they carry no engine target — see
+        // {@link PartnershipReminderTarget}.
+        const partnerships: PartnershipReminderTarget[] = (
+          await undatedOwnPartnerships()
+        ).map((p) => ({
+          reminderId: partnershipNudgeId(p.relationshipId, p.kind),
+          relationshipId: p.relationshipId,
+          milestoneKind: p.kind,
+          partnerId: p.partnerId,
+        }));
+
+        return { gifts, plans, contacts, partnerships };
       },
     },
 

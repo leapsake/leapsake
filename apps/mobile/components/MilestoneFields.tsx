@@ -61,8 +61,12 @@ const MONTH_OPTIONS: { value: string; label: string }[] = [
 
 export function emptyMilestoneDraft(
   bearerType: MilestoneBearerType,
+  /** The kind to open on, where the caller knows which one is wanted — see
+   *  `MilestoneForm`'s `initialKind`. */
+  requestedKind?: MilestoneKind,
 ): MilestoneDraft {
-  const kind = kindsForBearerType(bearerType)[0]?.kind ?? "birthday";
+  const kind =
+    requestedKind ?? kindsForBearerType(bearerType)[0]?.kind ?? "birthday";
   return {
     kind,
     month: "",

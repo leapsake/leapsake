@@ -270,6 +270,23 @@ export interface PlanReminderSubject {
  * Each client maps this to its own router path and its own copy, since the two
  * routers spell the same screen differently and the label is user-visible text.
  */
+/**
+ * A partnership question's subject: which relationship is missing a date, and
+ * which date it is missing.
+ *
+ * `milestoneKind` travels rather than being re-derived from the role, so the
+ * client opens the milestone form already on the right kind. Asking "when is
+ * your anniversary?" and then landing on a blank kind picker is the same failure
+ * a `plan` prompt avoids by carrying its offer set: the question is only worth
+ * asking if answering it is cheap.
+ */
+export interface PartnershipReminderSubject {
+  relationshipId: string;
+  milestoneKind: "wedding" | "first-date";
+  /** The partner, for a client that would rather route via their page. */
+  partnerId: string;
+}
+
 export type ReminderCta =
   | { kind: "onboarding"; route: OnboardingRoute }
   | { kind: "duplicates" }
@@ -278,7 +295,8 @@ export type ReminderCta =
       kind: "gift";
       action: "see-gifts" | "record-giving";
     } & GiftReminderSubject)
-  | { kind: "contact"; personId: string };
+  | { kind: "contact"; personId: string }
+  | ({ kind: "partnership" } & PartnershipReminderSubject);
 
 /**
  * The call to action a reminder row offers, or `null` for the ordinary reminders
@@ -332,6 +350,9 @@ export function reminderCtaOf(
     /** Set when this is a `🎉 wish` about a person — who, and whether they are
      *  reachable. Absent for a pet, which can own no contact method. */
     contactTarget?: ContactReminderSubject;
+    /** Set when this row is a partnership question — see
+     *  {@link PartnershipReminderSubject}. */
+    partnershipTarget?: PartnershipReminderSubject;
   } = {},
 ): ReminderCta | null {
   const onboardingRoute = onboardingRouteOf(reminder.id);
@@ -348,6 +369,8 @@ export function reminderCtaOf(
       recipientId: context.giftTarget.recipientId,
     };
   }
+  if (context.partnershipTarget !== undefined)
+    return { kind: "partnership", ...context.partnershipTarget };
   // Last, and only for the unreachable case: a person you *can* reach needs no
   // call to action, because the client is rendering their methods as buttons.
   if (context.contactTarget !== undefined && !context.contactTarget.hasMethods)
@@ -434,6 +457,8 @@ export function reminderActionsOf(
     planTarget?: PlanReminderSubject;
     /** Set when this is a `🎉 wish` about a person — see {@link reminderCtaOf}. */
     contactTarget?: ContactReminderSubject;
+    /** Set when this row is a partnership question — see {@link reminderCtaOf}. */
+    partnershipTarget?: PartnershipReminderSubject;
   } = {},
   now: number = Date.now(),
 ): ReminderRowAction[] {
@@ -453,7 +478,11 @@ export function reminderActionsOf(
     });
 
   const policy = snoozePolicyOf(
-    { ...reminder, isPlanPrompt: cta?.kind === "plan" },
+    {
+      ...reminder,
+      isPlanPrompt: cta?.kind === "plan",
+      isPartnershipNudge: cta?.kind === "partnership",
+    },
     now,
   );
   if (policy !== null) actions.push({ kind: "snooze", until: policy.until });
@@ -462,7 +491,9 @@ export function reminderActionsOf(
   // an ordinary reminder, whose own Remove already is one — a row the client
   // renders as a prompt needs it under an honest label.
   if (
-    (cta?.kind === "onboarding" || cta?.kind === "plan") &&
+    (cta?.kind === "onboarding" ||
+      cta?.kind === "plan" ||
+      cta?.kind === "partnership") &&
     reminder.snoozeCount >= 1
   )
     actions.push({ kind: "dismiss" });

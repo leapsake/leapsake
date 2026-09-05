@@ -24,6 +24,7 @@ export {
   listSystemReminderTargets,
   materializeReminder,
   onboardingRouteOf,
+  partnershipNudgeId,
   regenerateSystemReminders,
   snoozePolicyOf,
 } from "./engine.js";
@@ -37,5 +38,6 @@ export type {
   SnoozePolicy,
   SystemReminderStore,
   SystemReminderTarget,
+  UndatedPartnership,
   WindowedReminder,
 } from "./engine.js";

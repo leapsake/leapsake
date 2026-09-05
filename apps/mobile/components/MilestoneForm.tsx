@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import {
   type Milestone,
   type MilestoneBearerType,
+  type MilestoneKind,
   resolveReminderSchedule,
 } from "@leapsake/schema";
 import { HeaderSave } from "./HeaderSave";
@@ -38,18 +39,25 @@ export function MilestoneForm({
   title,
   bearerType,
   milestone,
+  initialKind,
   onSubmit,
 }: {
   /** The native header title, set here so it's declared in one place. */
   title?: string;
   bearerType: MilestoneBearerType;
   milestone?: Milestone;
+  /**
+   * The kind to open on when creating. A partnership question sends the user
+   * here to answer *that* date, and a blank kind picker would hand the question
+   * straight back. Ignored when editing.
+   */
+  initialKind?: MilestoneKind;
   onSubmit: (value: MilestoneFormValue) => Promise<void>;
 }) {
   const core = useCore();
   const [draft, setDraft] = useState(() =>
     milestone === undefined
-      ? emptyMilestoneDraft(bearerType)
+      ? emptyMilestoneDraft(bearerType, initialKind)
       : // Its kind's defaults until the stored rules land below — the right
         // answer if they never do.
         milestoneDraftFrom(

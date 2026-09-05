@@ -47,6 +47,18 @@ export const milestoneKindSchema = z.enum([
 export type MilestoneKind = z.infer<typeof milestoneKindSchema>;
 
 /**
+ * Whether an unknown value is a {@link MilestoneKind}.
+ *
+ * Exists because a kind now arrives from a **URL** — the partnership question's
+ * CTA opens the milestone form on the kind it asked about (`?kind=wedding`), and
+ * a query string is user-editable input, not a trusted value to cast. Both
+ * clients read it, so the guard is here rather than written twice.
+ */
+export function isMilestoneKind(value: unknown): value is MilestoneKind {
+  return milestoneKindSchema.safeParse(value).success;
+}
+
+/**
  * One entry in a kind's **default** staggered-reminder schedule: an action to
  * take `offsetDays` days before the milestone's occurrence (0 = day-of), and
  * whether it starts on. An action a kind never wants (a "send a text" on a

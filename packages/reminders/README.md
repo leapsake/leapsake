@@ -26,6 +26,7 @@ scoped. The composition root wires the repos.
 | Why an unconfigured occasion gets a question instead of errands | the `plan` synthesis in `computeDesired`, and *The prompt* below |
 | When that question is asked | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers |
 | Why `first-date` asks only about your own partner | `prompt.onlyOwnPartnership` in `kindDefs`, and *Who gets asked* below |
+| Why a reminder asks for a date instead of giving one | the `partnerships` port in `ReminderEngineDeps`, and *Collecting what is missing* below |
 | Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps` |
 | Why a schedule has two levels and not four | `resolveReminderSchedule` in `@leapsake/schema`, and *Schedules* below |
 
@@ -451,6 +452,62 @@ road.
 Nothing triggers this today: the channel actions are unschedulable, so the only day-of action that
 could is `visit`, and whether visiting someone silences the wish is one arguable case rather than a
 rule worth building. The warning is here for the day channel-specific actions return.
+
+## Collecting what is missing
+
+Most of this package reminds you of things it knows. One family does the opposite: it asks for
+something it does not. You recorded a spouse; the app does not know your anniversary, and waiting
+will not teach it one. So it asks — once, in the place you already look, worded by what it does
+know.
+
+The general principle, which is the same one *a nudge, never a wall* serves from the other side:
+**incomplete data is a normal state, not a blocked one.** A reminder about someone you cannot reach
+still fires, and offers to collect a way. An anniversary of your own with nobody attached still
+fires. Nothing waits for a complete record, and every row is a place to complete one.
+
+### ⚠️ The rule that stops this eating the home screen
+
+Collection nudges **compound**. Each is cheap alone; six of them turn Home into a form, which is the
+failure the whole prompt design exists to avoid. So:
+
+> A collection nudge earns its place only where the missing datum blocks something the user has
+> **already said they want**.
+
+Recording a spouse is that declaration — you entered the relationship, so the date is a gap in
+something you asked for. "This person has no birthday" is not, and would be forty rows. Weigh any
+new one against that sentence before adding it.
+
+### Asking the wrong question is worse than asking none
+
+The question is worded from the relationship's own role: a `spouse` is missing a **wedding
+anniversary**, a `partner` is missing a **first date** (`isRomanticRole` and `baseRole` in
+`@leapsake/schema`, so `husband`/`wife` reach it too). Asking an unmarried couple when their wedding
+anniversary is has the app inventing a marriage — a worse failure than silence, and the reason the
+kind travels on the row rather than being guessed at the far end.
+
+The tense follows from the same fact: an anniversary *comes round* ("when **is**"), a first date
+happened once ("when **was**").
+
+### Two things that would make it re-ask, and do not
+
+- ⚠️ **A date recorded on *either* bearer counts as known.** A wedding lives on the person until its
+  other party exists and on the relationship afterwards — `MilestoneRebind` is the flow between them
+  — so checking one bearer would re-ask for a date already given. That is the worst thing a
+  collection nudge can do, and the check reads both.
+- **The id carries the kind, not just the relationship.** Dismissing "when was your first date?" is
+  a dismissal of *that question*; a couple who later marry are still asked their anniversary.
+
+### It has to be escapable
+
+A dateless row is *owed*, and owed rows gate "done for the day" — so a question that could not be
+put off would keep the day unfinishable for as long as the user declined to answer it. It takes the
+onboarding nudges' floor: two *not now*s, then it retires itself. ⚠️ Retirement is a tombstone and
+the id carries no year, so — exactly as for the onboarding nudges — a dismissal is **permanent**.
+
+Its answer is one tap from the row: the CTA opens the milestone form already on the kind the
+question asked about (`?kind=`, guarded by `isMilestoneKind` since it arrives from a URL). A
+question that lands the user on a blank kind picker has handed the question back to the person who
+was just asked it.
 
 ## The onboarding nudges — the product design behind them
 

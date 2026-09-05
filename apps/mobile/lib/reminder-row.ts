@@ -45,6 +45,9 @@ const OFFER_LABELS = {
   // as a missing field — the reminder is completable without it, and the copy
   // should not imply otherwise.
   addContact: "Add a way to reach them ›",
+  // The partnership question. Worded as the answer, not the question again: the
+  // row already asked, and the button is what answers it.
+  addDate: "Add the date ›",
   // No "›": the prompt is answered **on this screen**, not somewhere else. It is
   // the one CTA that navigates nowhere, which is why `RowOffer` needed a fourth
   // kind rather than a fourth path.
@@ -149,6 +152,15 @@ function ctaOffer(cta: ReminderCta): RowOffer {
         kind: "navigate",
         path: `/people/${cta.personId}/contacts/new`,
         label: OFFER_LABELS.addContact,
+      };
+    // Straight into the milestone form for this relationship, already on the
+    // kind the question asked about — a blank kind picker would hand the
+    // question back to the person who was just asked it.
+    case "partnership":
+      return {
+        kind: "navigate",
+        path: `/relationships/${cta.relationshipId}/milestones/new?kind=${cta.milestoneKind}`,
+        label: OFFER_LABELS.addDate,
       };
   }
 }

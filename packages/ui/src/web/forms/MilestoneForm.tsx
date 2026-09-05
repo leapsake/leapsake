@@ -48,6 +48,7 @@ const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 export function MilestoneForm({
   bearerType,
   milestone,
+  initialKind: requestedKind,
   initialSchedule,
   candidates = [],
   neighbors = [],
@@ -56,6 +57,13 @@ export function MilestoneForm({
 }: {
   bearerType: MilestoneBearerType;
   milestone?: Milestone;
+  /**
+   * The kind to open on when creating, where the caller knows which one is
+   * wanted — a partnership question ("when is your wedding anniversary?") sends
+   * the user here to answer *that*, and a blank kind picker would hand the
+   * question back. Ignored when editing, where the milestone's own kind wins.
+   */
+  initialKind?: MilestoneKind;
   /**
    * The milestone's resolved reminder schedule (stored rules, else kind
    * defaults), loaded when editing. Absent on create — the schedule is derived
@@ -70,7 +78,8 @@ export function MilestoneForm({
   const m = useMessages();
   const kinds = useMemo(() => kindsForBearerType(bearerType), [bearerType]);
 
-  const initialKind = milestone?.kind ?? kinds[0]?.kind ?? "birthday";
+  const initialKind =
+    milestone?.kind ?? requestedKind ?? kinds[0]?.kind ?? "birthday";
   const [kind, setKind] = useState<MilestoneKind>(initialKind);
   const [month, setMonth] = useState(milestone?.month?.toString() ?? "");
   const [day, setDay] = useState(milestone?.day?.toString() ?? "");

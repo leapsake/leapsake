@@ -154,6 +154,10 @@ export default function ReminderDetailScreen() {
     giftTarget: targets.gifts.find((t) => t.reminderId === id),
     isDuplicatesNudge: id === duplicatesNudgeId,
     planTarget,
+    // "When is your anniversary?" — the question the app asks when it knows you
+    // have a partner and not the date. Its CTA opens the milestone form already
+    // on the right kind.
+    partnershipTarget: targets.partnerships.find((t) => t.reminderId === id),
     contactTarget:
       contactTarget === undefined
         ? undefined

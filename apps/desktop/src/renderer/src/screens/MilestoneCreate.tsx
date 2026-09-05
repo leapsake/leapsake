@@ -1,14 +1,16 @@
 import type {
   MilestoneBearerType,
+  MilestoneKind,
   RelationshipNeighbor,
 } from "@leapsake/schema";
+import { isMilestoneKind } from "@leapsake/schema";
 import {
   Breadcrumbs,
   MilestoneForm,
   type RelationshipCandidate,
 } from "@leapsake/ui/web";
 import { entityBasePath } from "@leapsake/ui/headless";
-import { useLoaderData } from "react-router-dom";
+import { useLoaderData, useSearchParams } from "react-router-dom";
 import { homeCrumb } from "../lib/crumbs";
 import { useSubmitting } from "../lib/useSubmitting";
 
@@ -28,6 +30,14 @@ export function MilestoneCreate() {
     neighbors?: RelationshipNeighbor[];
   };
   const bearerPath = `${entityBasePath(bearer.type)}/${bearer.id}`;
+  // `?kind=` opens the form on a chosen kind. Set by the partnership question's
+  // CTA ("when is your wedding anniversary?"), which would otherwise hand the
+  // question back as a blank picker. Validated rather than cast: it arrives from
+  // a URL the user can edit.
+  const requested = useSearchParams()[0].get("kind");
+  const initialKind: MilestoneKind | undefined = isMilestoneKind(requested)
+    ? requested
+    : undefined;
 
   return (
     <main>
@@ -40,6 +50,7 @@ export function MilestoneCreate() {
       />
       <MilestoneForm
         bearerType={bearer.type}
+        initialKind={initialKind}
         candidates={candidates}
         neighbors={neighbors}
         cancelTo={bearerPath}

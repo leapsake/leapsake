@@ -144,6 +144,30 @@ export interface ReminderEngineDeps {
    */
   isSelf?(bearerType: MilestoneBearerType, bearerId: string): Promise<boolean>;
   /**
+   * The user's own romantic partnerships that have **no date recorded yet** — the
+   * fifth desired-row family, and the only one whose purpose is to *collect*
+   * rather than to remind.
+   *
+   * You told the app you have a spouse; it does not know your anniversary, and it
+   * will never learn one by waiting. So it asks, once, in the place you already
+   * look. The question retires itself the moment the date exists, by the ordinary
+   * prune — no separate "answered" state.
+   *
+   * ⚠️ **Scoped to the user's own partnerships, and that scoping is load-bearing.**
+   * The same idea applied to everything the app does not know ("this person has no
+   * birthday") is forty rows and a home screen that has become a form. A
+   * collection nudge earns its place only where the missing datum blocks something
+   * the user has *already said they want*, and recording a spouse is exactly that
+   * declaration. See the README, *Collecting what is missing*.
+   *
+   * **Optional**, like the other non-milestone families: omit it and no
+   * partnership rows join the set (and the ones a previous reconcile minted are
+   * pruned, which is the same contract `holidays` and `duplicates` carry).
+   */
+  partnerships?: {
+    undated(): Promise<UndatedPartnership[]>;
+  };
+  /**
    * Whether a milestone is about a **romantic partnership the user is in** —
    * their own relationship, whether it is stored on the relationship itself or
    * on the partner as a person.
@@ -244,6 +268,28 @@ export interface ReminderEngineDeps {
 export type HolidayBearerType = "person" | "pet";
 
 /** One person's observance of one holiday, with the dates it falls on. */
+/**
+ * One romantic partnership of the user's with no date on it yet, and therefore
+ * one question worth asking.
+ *
+ * `kind` is both *which date is missing* and *how the question is worded*, and it
+ * comes from the relationship's own role: a `spouse` is missing a **wedding**
+ * anniversary, a `partner` is missing a **first date**. Asking the wrong one of
+ * those is worse than not asking — "when is your wedding anniversary?" of someone
+ * who is not married reads as the app having invented a marriage.
+ */
+export interface UndatedPartnership {
+  /** The relationship row's id — half of the nudge's identity. */
+  relationshipId: string;
+  /** The missing date's milestone kind: the other half, and the wording. */
+  kind: "wedding" | "first-date";
+  /** The partner's display label, for the question to name them. */
+  partnerLabel: string;
+  /** The partner, so the question can mention (and link to) them. */
+  partnerType: HolidayBearerType;
+  partnerId: string;
+}
+
 export interface HolidayOccurrenceCandidate {
   /** The observance row's id — the reminder's bearer, and part of its identity. */
   observanceId: string;
@@ -706,6 +752,56 @@ export function duplicatesReminderId(pairKeys: readonly string[]): string {
 
 /** The Home copy for `n` unresolved candidate pairs. Kept free of `#`/`@` tokens
  *  so the core insert-wrapper materializes no tags or mentions for it. */
+/**
+ * The identity of a "we don't know this date" question — the **fifth** disjoint
+ * name-space under {@link SYSTEM_REMINDER_NAMESPACE}, alongside `milestone:`,
+ * `onboarding:`, `observance:` and `duplicates:`.
+ *
+ * Keyed on the relationship **and the kind**, not the relationship alone. Those
+ * are two different questions with two different answers, and a couple who marry
+ * should be asked their wedding anniversary even if they once said "don't ask
+ * again" to the first-date question — a dismissal is of a question, not of a
+ * person.
+ *
+ * ⚠️ Dateless, so unlike a milestone id this carries **no year**: a dismissal is
+ * permanent, exactly as it is for the onboarding nudges, because retirement is a
+ * tombstone and reconcile never resurrects one.
+ */
+export function partnershipNudgeId(
+  relationshipId: string,
+  kind: UndatedPartnership["kind"],
+): string {
+  return deterministicUuid(
+    SYSTEM_REMINDER_NAMESPACE,
+    `partnership:${relationshipId}:${kind}`,
+  );
+}
+
+/**
+ * The question itself, worded by which date is missing — and in the right tense,
+ * which is the whole reason these are two strings rather than one template. A
+ * wedding anniversary is a date that *comes round* ("when **is**"); a first date
+ * happened once, in the past ("when **was**").
+ */
+function partnershipNudgeTitle(p: UndatedPartnership): string {
+  const who = mentionToken(p.partnerLabel, p.partnerType, p.partnerId);
+  return p.kind === "wedding"
+    ? `\u{1F48D} When is your wedding anniversary with ${who}?`
+    : `\u{1F49E} When was your first date with ${who}?`;
+}
+
+/**
+ * How long a partnership question waits after a *not now*, and how many times it
+ * comes back before retiring for good.
+ *
+ * The onboarding nudges' floor, and for their reason: putting something off twice
+ * is a soft no, and a third asking is nagging. Deliberately **not** the onboarding
+ * dials themselves — those are a first-run budget and this is not first-run work,
+ * so they are free to move apart.
+ */
+const PARTNERSHIP_SNOOZE_DAYS = 3;
+const PARTNERSHIP_SNOOZE_REPETITIONS = 2;
+
 function duplicatesTitle(n: number): string {
   return n === 1
     ? "🔗 Two people might be the same — review"
@@ -825,6 +921,13 @@ export function snoozePolicyOf(
     dueDate?: number | null;
     /** Whether this row is a `plan` prompt — the caller knows, the id cannot say. */
     isPlanPrompt?: boolean;
+    /**
+     * Whether this row is a partnership question. Told rather than derived, for
+     * the same reason as `isPlanPrompt` and unlike the onboarding steps: those
+     * have a fixed key set whose ids can be precomputed, while this one's id is a
+     * hash of a relationship the engine cannot enumerate from an id alone.
+     */
+    isPartnershipNudge?: boolean;
   },
   now: number,
 ): SnoozePolicy | null {
@@ -832,6 +935,14 @@ export function snoozePolicyOf(
   if (step !== undefined) {
     if (hasSpentItsSnoozes(step, reminder.snoozeCount)) return null;
     return { until: now + step.snoozeDurationDays * DAY_MS };
+  }
+  if (reminder.isPartnershipNudge === true) {
+    // A dateless row is *owed*, so an un-snoozeable one would keep the day
+    // unfinishable for as long as the user declined to answer it — a wall, and
+    // the thing this family must never become. Two *not now*s, then it retires
+    // itself through the desired set above.
+    if (reminder.snoozeCount >= PARTNERSHIP_SNOOZE_REPETITIONS) return null;
+    return { until: now + PARTNERSHIP_SNOOZE_DAYS * DAY_MS };
   }
   if (reminder.isPlanPrompt !== true) return null;
   if (reminder.snoozeCount >= PLAN_PROMPT_SNOOZE_REPETITIONS) return null;
@@ -1580,6 +1691,31 @@ async function computeDesired(
         activeFrom: null,
         occurrenceDate: null,
         order: ONBOARDING_STEPS.length,
+      });
+    }
+  }
+
+  // The user's own partnerships with no date on them — the fifth family, and the
+  // only one that asks *for* something rather than reminding of it. Ranked last:
+  // it is the least urgent row on the screen by construction, since nothing is
+  // coming up. Retires by the ordinary prune the moment the date exists, and by
+  // the same spent-snoozes path the onboarding nudges use when it does not.
+  if (deps.partnerships !== undefined) {
+    for (const [index, p] of (await deps.partnerships.undated()).entries()) {
+      const id = partnershipNudgeId(p.relationshipId, p.kind);
+      const existing = await deps.reminders.getIncludingDeleted(id);
+      if (
+        existing !== undefined &&
+        existing.snoozeCount >= PARTNERSHIP_SNOOZE_REPETITIONS
+      )
+        continue;
+      desired.set(id, {
+        id,
+        title: partnershipNudgeTitle(p),
+        dueDate: null,
+        activeFrom: null,
+        occurrenceDate: null,
+        order: ONBOARDING_STEPS.length + 1 + index,
       });
     }
   }
