@@ -54,7 +54,7 @@ export function MilestoneForm({
         // answer if they never do.
         milestoneDraftFrom(
           milestone,
-          resolveReminderSchedule(milestone.kind, []),
+          resolveReminderSchedule(milestone.kind, []).rules,
         ),
   );
   const [submitting, setSubmitting] = useState(false);

@@ -5,14 +5,17 @@ import {
   type MilestoneBearerType,
   type RemindEligibleMilestone,
   type Reminder,
+  type MilestoneKind,
   type ReminderAction,
   type ReminderRuleInput,
+  type ResolvedReminderSchedule,
   actionDefs,
   daysUntil,
   dueDateMs,
   kindDefs,
   mentionToken,
   nextOccurrence,
+  promptOffsetDays,
   recentOccurrence,
   reminderRuleLabel,
 } from "@leapsake/schema";
@@ -100,10 +103,15 @@ export interface ReminderEngineDeps {
    * reminder per **enabled** entry; disabled entries are ignored (but still
    * returned so the caller need not filter). Injected so the engine stays free of
    * `@leapsake/data` — the composition root reads the rules repo + resolver.
+   *
+   * It answers with its **source** as well as its rules, and that half is not a
+   * diagnostic: `kind-default` means "this occasion has no rules of its own",
+   * which is precisely the condition {@link computeDesired} mints a `plan`
+   * prompt on.
    */
   resolveSchedule(
     milestone: RemindEligibleMilestone,
-  ): Promise<ReminderRuleInput[]>;
+  ): Promise<ResolvedReminderSchedule>;
   /**
    * Resolve a milestone bearer to its display label, or `null` when the bearer is
    * gone (a dangling milestone) — a null label skips the reminder.
@@ -207,6 +215,8 @@ export interface HolidayOccurrenceCandidate {
   observanceId: string;
   /** The occasion phrase for reminder copy, e.g. "a Merry Christmas". */
   greeting: string;
+  /** The occasion as a bare noun, e.g. "Christmas" — see `ReminderCopyContext`. */
+  occasion: string;
   bearerType: HolidayBearerType;
   bearerId: string;
   /** The occurrence dates to consider, ascending. */
@@ -273,6 +283,16 @@ export interface SystemReminderTarget {
   /** Always a person or pet: a relationship-borne milestone carries no target. */
   bearerType: HolidayBearerType;
   bearerId: string;
+  /**
+   * The milestone this row was minted from, for the rows that came from one —
+   * absent on holiday-observance rows, which are borne by an observance.
+   *
+   * Present because a `plan` prompt is answered by writing rules against the
+   * milestone, and the reminder row itself cannot say which milestone that is:
+   * its bearer is the *person*, and a person can hold several occasions. The id
+   * encodes it but is a one-way hash, so it has to travel.
+   */
+  milestone?: { id: string; kind: MilestoneKind };
 }
 
 /** The identity string a milestone occurrence + rule is content-addressed under,
@@ -565,6 +585,26 @@ export function onboardingRouteOf(id: string): OnboardingRoute | null {
   return ONBOARDING_REMINDERS.find((r) => r.id === id)?.route ?? null;
 }
 
+/**
+ * How long a `plan` prompt is put off for, and how many times.
+ *
+ * The prompt is the first row outside onboarding to offer *not now*, and it
+ * needs one for a reason the other reminders do not have: it is a **question**,
+ * and an unanswered question stays alive to the occurrence — so an ignored one
+ * would sit in *past due*, and therefore in `owed`, for the whole six weeks
+ * between its due date and the birthday. That is a wall, and the README's rule
+ * is *a nudge, never a wall*.
+ *
+ * Two repetitions is the same floor the onboarding steps take, for the same
+ * reason recorded there: at one, the gentle-looking option is the permanent one,
+ * and *don't ask again* — withheld on a first encounter so a permanent choice is
+ * never a trap — would never be offered at all.
+ *
+ * Data, not architecture. Changing either is editing a literal.
+ */
+const PLAN_PROMPT_SNOOZE_DAYS = 7;
+const PLAN_PROMPT_SNOOZE_REPETITIONS = 2;
+
 /** The outcome of snoozing a reminder right now. */
 export interface SnoozePolicy {
   /** When the snooze would run to — epoch ms, UTC. */
@@ -576,12 +616,21 @@ export interface SnoozePolicy {
  * evaluation answering both, so the offer and its date can never disagree.
  *
  * `null` means *don't offer snooze*, for either of two reasons the caller does not
- * need to tell apart: the reminder is not an onboarding nudge (a user, milestone,
- * holiday or duplicates row — putting an ordinary reminder off is its own
- * unbuilt affordance), or the step has spent its repetitions and is about to
- * retire. Otherwise the answer carries the target date, so the offered action can
- * hand it straight to the one write method and the copy can say *"ask me in 3
- * days"* with no second derivation.
+ * need to tell apart: the reminder is neither an onboarding nudge nor a `plan`
+ * prompt (a user, milestone, holiday or duplicates row — putting an ordinary
+ * reminder off is its own unbuilt affordance), or it has spent its repetitions
+ * and is about to retire. Otherwise the answer carries the target date, so the
+ * offered action can hand it straight to the one write method and the copy can
+ * say *"ask me in 3 days"* with no second derivation.
+ *
+ * ⚠️ **A prompt's snooze is clamped to its own due date, while that is still
+ * ahead.** The due date is a real deadline, not a preference: it is the last day
+ * on which ticking "get a gift" still leaves the gift its full run-up, so a
+ * plain seven-day *not now* offered a week before it would silently forfeit the
+ * long-lead options. Past the deadline there is nothing left to protect and the
+ * only thing that matters is keeping the question answerable to the occurrence,
+ * so it snoozes the full period. A first *not now* from *available* therefore
+ * lands exactly on the due date, which is also the honest thing for it to mean.
  *
  * Pure, and `now` is a parameter rather than a clock read: the policy is applied
  * at the moment the user asks, never inside a reconcile, which runs on a schedule
@@ -592,13 +641,31 @@ export interface SnoozePolicy {
  * {@link onboardingRouteOf}.
  */
 export function snoozePolicyOf(
-  reminder: { id: string; snoozeCount: number },
+  reminder: {
+    id: string;
+    snoozeCount: number;
+    /** The prompt's own deadline, for the clamp above. */
+    dueDate?: number | null;
+    /** Whether this row is a `plan` prompt — the caller knows, the id cannot say. */
+    isPlanPrompt?: boolean;
+  },
   now: number,
 ): SnoozePolicy | null {
   const step = onboardingStepOf(reminder.id);
-  if (step === undefined) return null;
-  if (hasSpentItsSnoozes(step, reminder.snoozeCount)) return null;
-  return { until: now + step.snoozeDurationDays * DAY_MS };
+  if (step !== undefined) {
+    if (hasSpentItsSnoozes(step, reminder.snoozeCount)) return null;
+    return { until: now + step.snoozeDurationDays * DAY_MS };
+  }
+  if (reminder.isPlanPrompt !== true) return null;
+  if (reminder.snoozeCount >= PLAN_PROMPT_SNOOZE_REPETITIONS) return null;
+  const until = now + PLAN_PROMPT_SNOOZE_DAYS * DAY_MS;
+  const due = reminder.dueDate;
+  return {
+    until:
+      due !== null && due !== undefined && due > now
+        ? Math.min(until, due)
+        : until,
+  };
 }
 
 /**
@@ -1003,7 +1070,31 @@ async function computeDesired(
     // is read before the label so the (potentially encrypted) label lookup is
     // skipped entirely when nothing is in window. Same ordering as the holiday
     // walk below, for the same reason.
-    const schedule = await deps.resolveSchedule(m);
+    const resolved = await deps.resolveSchedule(m);
+    // **The engine never guesses.** An occasion with no rules of its own gets a
+    // question rather than errands: one `plan` row, well ahead of everything the
+    // question offers, asking how the user wants to mark it. Answering writes
+    // ordinary rules, which flips the source to `stored`, which is what stops it
+    // being asked again.
+    //
+    // Synthesized as an ordinary rule rather than as a branch of its own, so it
+    // inherits the window filter, the id derivation, the copy layer, the insert
+    // /refresh/prune and the tombstone guard below with no second code path.
+    // Whether a kind asks at all is `kindDefs[kind].prompt`; when it is due is
+    // derived from what it offers (`promptOffsetDays`), never chosen.
+    const prompt = kindDefs[m.kind].prompt;
+    const schedule: ReminderRuleInput[] =
+      resolved.source === "kind-default" && prompt !== undefined
+        ? [
+            {
+              action: "plan",
+              label: null,
+              offsetDays: promptOffsetDays(m.kind),
+              enabled: true,
+            },
+            ...resolved.rules,
+          ]
+        : resolved.rules;
     let subject: string | undefined;
     let bearerIsSelf = false;
 
@@ -1051,6 +1142,13 @@ async function computeDesired(
           // Your own birthday — addressed *to* you, so no "@You" mention token and
           // a celebratory icon in place of "Wish @You a happy birthday".
           title = "🎂 It's your birthday!";
+        } else if (bearerIsSelf && rule.action === "plan") {
+          // Same branch, same reason: "How do you want to mark @You's birthday?"
+          // is the third person about the second. Keyed on a fact about the
+          // bearer, never on identity — the row is still `...:plan`.
+          title = `${def.icon ?? ""} How do you want to mark your own ${
+            kindDefs[m.kind].prompt?.occasion ?? kindDefs[m.kind].label
+          }?`.trim();
         } else {
           // The action's copy carries the (mention-wrapped) subject — "Wish @Alice a
           // happy birthday", "Get @Alice a gift". `other` has no template; it is the
@@ -1064,6 +1162,13 @@ async function computeDesired(
               : def.template({
                   subject,
                   greeting: kindDefs[m.kind].greeting,
+                  // Only `plan` reads this today. Falling back to the kind's own
+                  // label keeps the context total for the kinds that never
+                  // prompt, rather than making the field optional — see the
+                  // warning on `ReminderCopyContext`.
+                  occasion:
+                    kindDefs[m.kind].prompt?.occasion ??
+                    kindDefs[m.kind].label.toLowerCase(),
                 });
           title = `${def.icon ?? ""} ${body}`.trim();
         }
@@ -1086,6 +1191,7 @@ async function computeDesired(
                   action: rule.action,
                   bearerType: m.bearerType,
                   bearerId: m.bearerId,
+                  milestone: { id: m.id, kind: m.kind },
                 },
         });
       }
@@ -1151,7 +1257,11 @@ async function computeDesired(
                   action: rule.action,
                   label: rule.label ?? null,
                 })
-              : def.template({ subject, greeting: candidate.greeting });
+              : def.template({
+                  subject,
+                  greeting: candidate.greeting,
+                  occasion: candidate.occasion,
+                });
           const dueDate = dueDateMs(occ) - rule.offsetDays * DAY_MS;
           desired.set(id, {
             id,

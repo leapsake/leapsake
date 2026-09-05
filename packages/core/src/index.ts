@@ -285,6 +285,29 @@ export interface GiftReminderTarget {
 }
 
 /**
+ * A `🗓 plan` prompt and everything needed to answer it — the read behind the
+ * prompt CTA, and the exact analogue of {@link GiftReminderTarget}: the same
+ * `listSystemReminderTargets` walk, so the affordance lights up on precisely the
+ * rows the engine minted rather than on a stored column.
+ *
+ * It carries the **offer set** as well as the milestone. Answering writes the
+ * *full* set — the unticked actions as `enabled: false` rows, which is what
+ * makes "I was asked and chose nothing" distinguishable from "I was never
+ * asked" — so a client that had only the milestone would need a second read
+ * before it could write anything, including for the one-tap answer.
+ */
+export interface PlanReminderTarget {
+  reminderId: string;
+  milestoneId: string;
+  kind: MilestoneKind;
+  /** The person or pet the occasion belongs to, for the prompt's own heading. */
+  bearerType: GiftPartyType;
+  bearerId: string;
+  /** Every action offered, `enabled` carrying which arrive pre-ticked. */
+  offers: ReminderRuleInput[];
+}
+
+/**
  * One row of the Gifts overview (the `/gifts` screen, keyed by idea): an idea
  * with its tags and everyone it is for, given or not.
  */
@@ -811,6 +834,8 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     // when untouched — its kind's defaults (schema's `resolveReminderSchedule`,
     // the same resolve the editor loads). The engine mints one reminder per
     // enabled entry.
+    // Answers with its source as well as its rules: "no rules of its own" is
+    // what mints the prompt, not a diagnostic.
     resolveSchedule: async (m) =>
       resolveReminderSchedule(
         m.kind,
@@ -1296,7 +1321,9 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           "milestone",
           milestoneId,
         );
-        return resolveReminderSchedule(kind, stored);
+        // The editor renders rules; which level supplied them is the engine's
+        // business, so this keeps its narrower shape.
+        return resolveReminderSchedule(kind, stored).rules;
       },
       // A milestone's write and its reminder schedule commit in one transaction,
       // so the two never diverge. `reminderSchedule` (when the form sends it)
@@ -1533,6 +1560,33 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
             recipientType: t.bearerType,
             recipientId: t.bearerId,
           }));
+      },
+      // Which of today's automated reminders are **prompts**, and what each is
+      // asking about — the read behind the prompt CTA. Same walk as
+      // `giftTargets`, for the same reason: a second implementation of the id
+      // derivation or the window filter would drift the day either changed and
+      // silently drop every affordance.
+      //
+      // The offers come from the kind defaults rather than from stored rows on
+      // purpose. A prompt exists precisely because the milestone has none, so
+      // `resolveReminderSchedule(kind, [])` is not a shortcut here — it is the
+      // same answer the resolver would give, reached without a second read.
+      planTargets: async (): Promise<PlanReminderTarget[]> => {
+        const targets = await listSystemReminderTargets(systemReminderDeps());
+        return targets.flatMap((t) =>
+          t.action !== "plan" || t.milestone === undefined
+            ? []
+            : [
+                {
+                  reminderId: t.id,
+                  milestoneId: t.milestone.id,
+                  kind: t.milestone.kind,
+                  bearerType: t.bearerType,
+                  bearerId: t.bearerId,
+                  offers: resolveReminderSchedule(t.milestone.kind, []).rules,
+                },
+              ],
+        );
       },
     },
 

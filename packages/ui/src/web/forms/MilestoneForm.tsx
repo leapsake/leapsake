@@ -83,13 +83,14 @@ export function MilestoneForm({
   // touches it, switching kind re-seeds it from the new kind's defaults; once
   // they edit a rule it's theirs and a kind change leaves it alone.
   const [schedule, setSchedule] = useState<ReminderRuleInput[]>(
-    initialSchedule ?? resolveReminderSchedule(initialKind, []),
+    initialSchedule ?? resolveReminderSchedule(initialKind, []).rules,
   );
   const [scheduleCustomized, setScheduleCustomized] = useState(false);
 
   const onKindChange = (next: MilestoneKind) => {
     setKind(next);
-    if (!scheduleCustomized) setSchedule(resolveReminderSchedule(next, []));
+    if (!scheduleCustomized)
+      setSchedule(resolveReminderSchedule(next, []).rules);
   };
   const onScheduleChange = (next: ReminderRuleInput[]) => {
     setSchedule(next);

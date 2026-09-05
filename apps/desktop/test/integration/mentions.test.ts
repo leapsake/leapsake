@@ -237,13 +237,18 @@ describe("core.reminders.mentioning (the entity-page backlink)", () => {
   it("includes a person's own system birthday reminder", async () => {
     const alice = await makeAlice();
     const soon = civilDaysFromToday(0);
-    // A recurring birthday (month+day) within the reminder window.
+    // A recurring birthday (month+day) within the reminder window, configured to
+    // just its day-of wish: an unconfigured one also carries a `plan` prompt,
+    // which mentions the same person and would make this a count of two.
     await core.milestones.create({
       kind: "birthday",
       bearerType: "person",
       bearerId: alice.id,
       month: soon.month,
       day: soon.day,
+      reminderSchedule: [
+        { action: "wish", label: null, offsetDays: 0, enabled: true },
+      ],
     });
     await core.reminders.regenerateSystem();
 

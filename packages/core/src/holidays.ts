@@ -220,6 +220,9 @@ export async function holidayReminderCandidates(deps: {
     candidates.push({
       observanceId: observance.id,
       greeting: holiday.greeting,
+      // The bare noun beside the greeting — "Christmas" next to "a Merry
+      // Christmas". Only copy that *names* the occasion reads it.
+      occasion: holiday.name,
       bearerType: observance.bearerType,
       bearerId: observance.bearerId,
       occurrences: [...occurrences],

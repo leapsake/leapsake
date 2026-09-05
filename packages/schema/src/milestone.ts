@@ -3,6 +3,7 @@ import {
   type ReminderAction,
   type ReminderRule,
   type ReminderRuleInput,
+  actionDefs,
   reminderRuleInputSchema,
 } from "./reminder-rule.js";
 
@@ -97,6 +98,23 @@ export interface MilestoneKindDef {
    * {@link ReminderCopyContext}).
    */
   greeting: string;
+  /**
+   * Whether an *unconfigured* occasion of this kind asks the user how they want
+   * to mark it, and — when it does — the bare noun that question names it by
+   * ("How do you want to mark @Alice's **birthday**?").
+   *
+   * Presence **is** the switch: a kind with no `prompt` never mints one. That is
+   * the whole declaration, because everything else the prompt needs is already
+   * here — {@link MilestoneKindDef.defaultReminderSchedule} is both the set of
+   * actions it offers and, via `enabledByDefault`, which of them arrive
+   * pre-ticked. One list, asked at a different moment.
+   *
+   * ⚠️ **`death` must not have one.** A checkbox list of ways to recognise a
+   * death anniversary is exactly the wrong object; its single quiet `remember`
+   * is already right. The same reasoning excludes any kind whose schedule offers
+   * only one action — a question with one answer is not a question.
+   */
+  prompt?: { occasion: string };
 }
 
 /**
@@ -111,6 +129,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person", "pet"],
     recursAnnually: true,
     greeting: "a happy birthday",
+    prompt: { occasion: "birthday" },
     // "Wish them a happy birthday" day-of is the one reminder on by default
     // anywhere; the staggered gift/card/call/text are offered but start off, for
     // the user to opt into.
@@ -154,6 +173,9 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
     greeting: "a happy anniversary",
+    // Named "wedding anniversary", not "wedding": the milestone records the day
+    // they married, but the occasion the prompt is asking about is its return.
+    prompt: { occasion: "wedding anniversary" },
     defaultReminderSchedule: [
       { action: "gift", offsetDays: 7, enabledByDefault: false },
       { action: "call", offsetDays: 0, enabledByDefault: false },
@@ -172,6 +194,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person", "relationship"],
     recursAnnually: true,
     greeting: "a happy anniversary",
+    prompt: { occasion: "anniversary" },
     // A card and a call, both offered and both off — the source card says a date
     // matters to this person, not what the user wants done about it.
     defaultReminderSchedule: [
@@ -258,6 +281,23 @@ export function kindsForBearerType(
 }
 
 /**
+ * Where a resolved schedule came from — the winning level of what will become a
+ * four-level cascade, and today a choice of two.
+ *
+ * Returned rather than thrown away because "this occasion has no rules of its
+ * own" is not a diagnostic, it is a **product condition**: it is exactly what
+ * mints the prompt (`plan`). Answering the prompt writes rows, which flips this
+ * to `stored`, which is what stops it being asked again.
+ */
+export type ReminderScheduleSource = "stored" | "kind-default";
+
+/** A milestone's effective schedule, and which level supplied it. */
+export interface ResolvedReminderSchedule {
+  rules: ReminderRuleInput[];
+  source: ReminderScheduleSource;
+}
+
+/**
  * The effective staggered-reminder schedule to show/edit for a milestone:
  * `storedRules` when the milestone has been customised (at least one rule row),
  * otherwise the `kind`'s {@link MilestoneKindDef.defaultReminderSchedule}
@@ -265,14 +305,26 @@ export function kindsForBearerType(
  * untouched milestone free of stored rows (and free of sync churn) while the
  * editor always has a populated schedule to render. Ordered furthest-out first
  * (a month → a week → day-of), stable within an equal lead.
+ *
+ * It answers **with its source** rather than just the rules — see
+ * {@link ReminderScheduleSource}. Callers that only render the schedule take
+ * `.rules` and ignore the rest.
+ *
+ * A stored `plan` row is dropped rather than trusted. Nothing writes one (the
+ * input schema rejects it), so this only ever fires on a corrupt or hand-edited
+ * row — but the failure it prevents is a milestone that has been configured
+ * still being asked how to configure it, which reads as the app forgetting.
  */
 export function resolveReminderSchedule(
   kind: MilestoneKind,
   storedRules: ReminderRule[],
-): ReminderRuleInput[] {
-  const source: ReminderRuleInput[] =
-    storedRules.length > 0
-      ? storedRules.map((r) => ({
+): ResolvedReminderSchedule {
+  const stored = storedRules.filter((r) => r.action !== "plan");
+  const source: ReminderScheduleSource =
+    stored.length > 0 ? "stored" : "kind-default";
+  const rules: ReminderRuleInput[] =
+    source === "stored"
+      ? stored.map((r) => ({
           action: r.action,
           label: r.label,
           offsetDays: r.offsetDays,
@@ -284,7 +336,38 @@ export function resolveReminderSchedule(
           offsetDays: d.offsetDays,
           enabled: d.enabledByDefault,
         }));
-  return [...source].sort((a, b) => b.offsetDays - a.offsetDays);
+  return {
+    rules: [...rules].sort((a, b) => b.offsetDays - a.offsetDays),
+    source,
+  };
+}
+
+/**
+ * How many days before the occurrence a kind's prompt comes **due** — the
+ * furthest reach of anything the prompt offers, so that ticking any of them
+ * still leaves that errand its full run-up rather than handing it back already
+ * past due.
+ *
+ * ```
+ * promptOffsetDays = max(offsetDays + activeDays) over the offered set
+ * ```
+ *
+ * With today's numbers a birthday's widest offer is `gift` at `12 + 30`, so the
+ * prompt is due **42 days out** and, at `actionDefs.plan.activeDays`, appears
+ * 56.
+ *
+ * Deriving it rather than choosing it is the whole point: ship a
+ * commissioned-gift action at `activeDays 60` and every prompt slides earlier by
+ * itself, with no second constant to keep in step. Zero for a kind that offers
+ * nothing — total by construction, though such a kind never prompts.
+ */
+export function promptOffsetDays(kind: MilestoneKind): number {
+  return Math.max(
+    0,
+    ...kindDefs[kind].defaultReminderSchedule.map(
+      (d) => d.offsetDays + actionDefs[d.action].activeDays,
+    ),
+  );
 }
 
 /**

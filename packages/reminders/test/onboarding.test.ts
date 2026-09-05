@@ -54,7 +54,7 @@ function makeHarness() {
 
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => [] },
-    resolveSchedule: async () => [],
+    resolveSchedule: async () => ({ rules: [], source: "stored" as const }),
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),
       insert: async (row) => {
@@ -642,8 +642,9 @@ describe("onboarding + milestone families coexist", () => {
     h.deps.resolveLabel = async () => "Alice";
 
     const result = await regenerateSystemReminders(h.deps);
-    // Two onboarding nudges + one birthday reminder, none pruning the others.
-    expect(result).toEqual({ created: 3, updated: 0, removed: 0 });
-    expect(h.activeSystem()).toHaveLength(3);
+    // Two onboarding nudges + the birthday's two rows — its day-of wish and, as
+    // an unconfigured occasion, its `plan` prompt — none pruning the others.
+    expect(result).toEqual({ created: 4, updated: 0, removed: 0 });
+    expect(h.activeSystem()).toHaveLength(4);
   });
 });

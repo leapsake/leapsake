@@ -8,6 +8,11 @@ import { z } from "zod";
  * order is the UI listing order. `other` is the escape hatch and leans on the
  * per-rule free-text `label`, exactly like the `other` milestone kind leans on
  * its `note`.
+ *
+ * One member is **not** a thing the user schedules: `plan` is the engine's
+ * question — *"how do you want to mark this?"* — asked of an occasion nobody has
+ * configured. It is synthesized per reconcile and never stored as a rule, so the
+ * set a schedule may draw from is {@link SCHEDULABLE_ACTIONS}, not this enum.
  */
 export const reminderActionSchema = z.enum([
   "wish",
@@ -17,6 +22,7 @@ export const reminderActionSchema = z.enum([
   "text",
   "visit",
   "remember",
+  "plan",
   "other",
 ]);
 
@@ -39,6 +45,18 @@ export interface ReminderCopyContext {
    * kind (`kindDefs`) or the holiday catalog entry, so one template serves both.
    */
   greeting: string;
+  /**
+   * The occasion as a bare noun — "birthday", "wedding anniversary",
+   * "Christmas" — for copy that *names* the occasion instead of wishing it.
+   *
+   * Deliberately separate from {@link ReminderCopyContext.greeting} rather than
+   * derived from it: a greeting carries an article and a sentiment ("**a happy**
+   * birthday") that read as nonsense in a question ("How do you want to mark
+   * Alice's a happy birthday?"). Two fields, because the two jobs genuinely
+   * differ; and required, not optional, for the reason this whole interface is
+   * an object — a missing one here renders plausible copy that typechecks.
+   */
+  occasion: string;
 }
 
 /** Static metadata for a reminder action: how it displays, how long it takes,
@@ -144,6 +162,28 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
     activeDays: 0,
     template: ({ subject }) => `Remember ${subject}`,
   },
+  plan: {
+    label: "Decide how to mark it",
+    icon: "🗓",
+    // A fortnight to answer a question, which is a different kind of number from
+    // the rest of this registry: every other `activeDays` is how long an
+    // *errand* wants, this is how long a *decision* should sit before it is
+    // owed. It is deliberately shorter than the run-up of the longest thing the
+    // question offers, because the question's own due date is derived from that
+    // run-up (`promptOffsetDays`) — the prompt has to come and go before the
+    // errands it unlocks would have needed starting.
+    //
+    // ⚠️ If eight weeks turns out to feel too early to be asked, the dial to
+    // turn is `gift`'s `activeDays`, not this one: that is where the pressure
+    // actually comes from, and it is where the arithmetic reads it.
+    activeDays: 14,
+    // Names the occasion rather than wishing it — see `occasion` on
+    // {@link ReminderCopyContext}. No distance in the copy: the row's countdown
+    // is rendered from its due date (`formatDueIn`), and a written-in "in two
+    // months" would be wrong by tomorrow.
+    template: ({ subject, occasion }) =>
+      `How do you want to mark ${subject}'s ${occasion}?`,
+  },
   other: {
     label: "Other",
     icon: "🔔",
@@ -154,6 +194,24 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
     template: () => actionDefs.other.label,
   },
 };
+
+/**
+ * The actions a **schedule** may contain — every action except `plan`.
+ *
+ * `plan` is the engine's own question about an unconfigured occasion, not an
+ * errand the user picks: it is synthesized per reconcile from
+ * `promptOffsetDays`, and a stored `plan` rule would both mint a prompt for an
+ * occasion that has by definition already been answered and offer "decide how to
+ * mark it" as one of the things you might decide to do.
+ *
+ * So this, and not `reminderActionSchema.options`, is what a picker lists and
+ * what {@link reminderRuleInputSchema} accepts. Both schedule editors read it
+ * directly, which is why it lives here rather than being filtered at each of
+ * them.
+ */
+export const SCHEDULABLE_ACTIONS = reminderActionSchema.options.filter(
+  (action) => action !== "plan",
+) as [ReminderAction, ...ReminderAction[]];
 
 /**
  * The widest {@link ReminderActionDef.activeDays} any action declares.
@@ -228,10 +286,23 @@ export type ReminderRule = z.infer<typeof reminderRuleSchema>;
  * whether it's on, and (for `other`) its free-text label. The repo mints the
  * id + timestamps and the bearer is supplied by the caller. `other` requires a
  * non-empty label (mirrors the `other` milestone kind requiring a note).
+ *
+ * ⚠️ Note the asymmetry between the check and the type. The runtime check
+ * rejects `plan`; the inferred `action` type stays the full
+ * {@link ReminderAction} union, because {@link SCHEDULABLE_ACTIONS} is typed as
+ * an array *of* that union. That is deliberate, and it is what lets the engine
+ * hand its synthesized prompt rule — a `plan`, which is not user input and is
+ * never parsed — through the same shape the resolver returns, instead of
+ * splitting one schedule into two types everything downstream would have to
+ * discriminate.
  */
 export const reminderRuleInputSchema = z
   .object({
-    action: reminderActionSchema,
+    // The schedulable set, not the full enum: a `plan` rule is never stored (see
+    // {@link SCHEDULABLE_ACTIONS}). The stored-row schema above stays on the
+    // full enum deliberately — narrowing it there would make a peer's row fail
+    // to parse, which is a sync failure rather than a validation one.
+    action: z.enum(SCHEDULABLE_ACTIONS),
     label: z.string().nullable().optional(),
     offsetDays: z.number().int().min(0),
     enabled: z.boolean(),

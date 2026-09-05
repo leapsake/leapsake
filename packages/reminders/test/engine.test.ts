@@ -53,10 +53,16 @@ function makeHarness() {
 
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => milestones },
-    // A custom set is itself the resolved schedule; an un-set milestone rides its
-    // kind defaults (what the real `resolveReminderSchedule` returns over no rows).
-    resolveSchedule: async (m) =>
-      schedules.get(m.id) ?? resolveReminderSchedule(m.kind, []),
+    // A custom set is itself the resolved schedule, and reads as `stored` — it
+    // stands in for rule rows, so it must suppress the prompt exactly as real
+    // rows do. An un-set milestone rides its kind defaults (what the real
+    // `resolveReminderSchedule` returns over no rows), prompt and all.
+    resolveSchedule: async (m) => {
+      const custom = schedules.get(m.id);
+      return custom === undefined
+        ? resolveReminderSchedule(m.kind, [])
+        : { rules: custom, source: "stored" as const };
+    },
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),
       insert: async (row) => {
@@ -156,10 +162,17 @@ describe("regenerateSystemReminders", () => {
   it("creates a dated birthday reminder on the day itself", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
 
+    // Two rows, and this is what an *unconfigured* birthday looks like: the
+    // day-of wish its kind defaults enable, and the `plan` prompt that stands
+    // because it has no rules of its own. The prompt came due six weeks ago and
+    // is long past due by now; it is still answerable right up to the day, which
+    // is the whole reason its window closes on the occurrence.
     const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
+    expect(result).toEqual({ created: 2, updated: 0, removed: 0 });
 
-    const [reminder] = h.activeSystem();
+    const reminder = h
+      .activeSystem()
+      .find((r) => r.title?.startsWith("🎉") === true)!;
     expect(reminder.source).toBe("system");
     // A birthday's default schedule enables just the day-of "wish" action, whose
     // action-phrased copy wraps the subject in an inline mention token.
@@ -176,6 +189,10 @@ describe("regenerateSystemReminders", () => {
     // month used to sit on Home all month. `wish` is `activeDays: 0`, so it
     // arrives on the morning it is owed and not a day sooner — not tomorrow's,
     // and certainly not a fortnight's.
+    // Configured to just the wish, so this is about `wish`'s window and not
+    // about the prompt an unconfigured birthday would also carry.
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
+    h.setSchedule("m2", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.setMilestones([
       birthday("m1", "p1", daysOut(1)),
       birthday("m2", "p1", daysOut(14)),
@@ -186,6 +203,7 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("renders your own birthday's wish self-directed, with no @You mention", async () => {
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.setSelf("p1"); // Alice is you
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
 
@@ -202,6 +220,7 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("leaves a non-self birthday's wish unchanged when a self-person is set", async () => {
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.setSelf("p2"); // someone else is you
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
 
@@ -213,6 +232,7 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("is idempotent: a second run adds no duplicate and keeps the id stable", async () => {
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     await regenerateSystemReminders(h.deps);
     const firstId = h.activeSystem()[0].id;
@@ -242,6 +262,7 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("removes a reminder when its milestone is gone", async () => {
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     await regenerateSystemReminders(h.deps);
     expect(h.activeSystem()).toHaveLength(1);
@@ -253,6 +274,7 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("removes a reminder once its occurrence falls out of the window", async () => {
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     await regenerateSystemReminders(h.deps);
     expect(h.activeSystem()).toHaveLength(1);
@@ -264,6 +286,7 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("never resurrects a dismissed (tombstoned) reminder", async () => {
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     await regenerateSystemReminders(h.deps);
     const id = h.activeSystem()[0].id;
@@ -297,6 +320,7 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("re-titles a live reminder when its subject is renamed, keeping the id", async () => {
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     await regenerateSystemReminders(h.deps);
     const id = h.activeSystem()[0].id;
@@ -398,6 +422,7 @@ describe("regenerateSystemReminders", () => {
     // Yesterday's birthday. The old engine dropped a reminder the morning after
     // its day, so you never learned you had missed it; now it lingers, with a
     // due date honestly in the past.
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.setMilestones([birthday("m1", "p1", daysOut(-1))]);
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
@@ -563,6 +588,7 @@ describe("listNotifiableReminders", () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", FAR)]);
     h.labels.set("p1", "Alice");
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
 
     await regenerateSystemReminders(h.deps);
     expect(h.activeSystem()).toEqual([]); // beyond the row horizon
@@ -591,6 +617,7 @@ describe("listNotifiableReminders", () => {
     const today = daysOut(0);
     h.setMilestones([birthday("m1", "p1", today)]);
     h.labels.set("p1", "Alice");
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     await regenerateSystemReminders(h.deps);
 
     const [row] = h.activeSystem();
@@ -609,6 +636,7 @@ describe("listNotifiableReminders", () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     h.labels.set("p1", "Alice");
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     await regenerateSystemReminders(h.deps);
 
     const [row] = h.activeSystem();
@@ -623,6 +651,7 @@ describe("listNotifiableReminders", () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", FAR)]);
     h.labels.set("p1", "Alice");
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.rows.set("u1", {
       id: "u1",
       title: "Book flights",
@@ -648,6 +677,7 @@ describe("listNotifiableReminders", () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", FAR)]);
     h.labels.set("p1", "Alice");
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
 
     expect(await listRemindersInWindow(h.deps, 30)).toEqual([]);
     expect(await listRemindersInWindow(h.deps, 365)).toHaveLength(1);
@@ -701,6 +731,7 @@ describe("the window facts a row reports", () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
     h.labels.set("p1", "Alice");
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
 
     const [preview] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
     expect(preview?.materialized).toBe(false);

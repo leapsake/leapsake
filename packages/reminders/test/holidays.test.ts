@@ -100,6 +100,7 @@ function candidate(
   return {
     observanceId: "obs-christmas-alice",
     greeting: "a Merry Christmas",
+    occasion: "Christmas",
     bearerType: "person",
     bearerId: ALICE,
     occurrences: [{ year: 2026, month: 12, day: 25 }],

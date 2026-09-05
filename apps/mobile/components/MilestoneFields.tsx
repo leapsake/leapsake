@@ -69,7 +69,7 @@ export function emptyMilestoneDraft(
     day: "",
     year: "",
     note: "",
-    reminderSchedule: resolveReminderSchedule(kind, []),
+    reminderSchedule: resolveReminderSchedule(kind, []).rules,
     scheduleCustomized: false,
   };
 }
@@ -222,7 +222,7 @@ export function MilestoneFields({
             kind,
             reminderSchedule: draft.scheduleCustomized
               ? draft.reminderSchedule
-              : resolveReminderSchedule(kind, []),
+              : resolveReminderSchedule(kind, []).rules,
           })
         }
       />

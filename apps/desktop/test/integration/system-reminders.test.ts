@@ -44,6 +44,19 @@ function civilDaysFromToday(days: number): CivilDate {
   };
 }
 
+/**
+ * A birthday configured to just its day-of wish.
+ *
+ * An *unconfigured* birthday carries two rows, not one: the wish its kind
+ * defaults enable, and the `plan` prompt that stands because it has no rules of
+ * its own. The tests below are about the wish's own lifecycle — minting,
+ * re-dating, pruning, tombstoning — so they say so, rather than depending on
+ * what the birthday defaults happen to be. The prompt has its own coverage.
+ */
+const WISH_ONLY: ReminderRuleInput[] = [
+  { action: "wish", label: null, offsetDays: 0, enabled: true },
+];
+
 /** The `system` **milestone** reminders currently live, via the normal core read
  *  — excluding the onboarding nudge family (also `source: "system"`), which these
  *  birthday-engine tests aren't about. See onboarding-reminders.test.ts. */
@@ -73,7 +86,14 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
 
     // core.milestones.create reconciles the birthday reminders in the same call,
     // so the reminder is live immediately — no explicit regenerateSystem needed.
-    const [reminder] = await systemReminders();
+    //
+    // Two rows, because nobody has configured this birthday: the day-of wish its
+    // kind defaults enable, and the `plan` prompt asking how to mark it. The
+    // prompt came due six weeks ago and is long past due, but stays answerable
+    // right up to the day.
+    const rows = await systemReminders();
+    expect(rows).toHaveLength(2);
+    const reminder = rows.find((r) => r.title?.startsWith("🎉") === true)!;
     // The subject is wrapped in an inline mention token carrying the person id, so
     // the name links to her page; the plain-text label strips back to her name.
     expect(reminder.title).toBe(
@@ -171,6 +191,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
       bearerId: p.id,
       month: soon.month,
       day: soon.day,
+      reminderSchedule: WISH_ONLY,
     });
 
     await core.reminders.regenerateSystem();
@@ -195,6 +216,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
       bearerId: p.id,
       month: soon.month,
       day: soon.day,
+      reminderSchedule: WISH_ONLY,
     });
     expect(await systemReminders()).toHaveLength(1);
 
@@ -215,6 +237,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
       bearerId: p.id,
       month: soon.month,
       day: soon.day,
+      reminderSchedule: WISH_ONLY,
     });
     await core.reminders.regenerateSystem();
     const id = (await systemReminders())[0].id;
@@ -242,6 +265,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
       bearerId: p.id,
       month: yesterday.month,
       day: yesterday.day,
+      reminderSchedule: WISH_ONLY,
     });
 
     const [belated] = await systemReminders();
@@ -260,6 +284,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
       ).id,
       month: longGone.month,
       day: longGone.day,
+      reminderSchedule: WISH_ONLY,
     });
     // Still just Gil's — Hal's birthday is past the belated tail.
     expect(await systemReminders()).toHaveLength(1);
@@ -297,6 +322,11 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
           deletedAt: null,
         };
         await createMilestonesRepo(d.driver).insert(milestone);
+        // Configured, so this is one row about identity rather than two about
+        // what an unconfigured birthday offers.
+        await deviceCore.milestones.update(milestoneId, {
+          reminderSchedule: WISH_ONLY,
+        });
         await deviceCore.reminders.regenerateSystem();
         const rows = (await deviceCore.reminders.list()).filter(
           (r) => r.source === "system" && onboardingRouteOf(r.id) === null,
@@ -319,12 +349,14 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
 // assert the reminder state without any explicit regenerateSystem().
 describe("milestone writes reconcile birthday reminders at once", () => {
   /** Create a person with a birthday `days` out; return the person + milestone.
-   *  `reminderSchedule` overrides the kind defaults — a test that needs the
-   *  birthday to *move* while staying on the list needs an action with some
-   *  run-up, since the default day-of wish has none. */
+   *  Configured to just the day-of wish unless a schedule is supplied, so these
+   *  reconcile-on-write tests see one row rather than also the `plan` prompt an
+   *  unconfigured birthday carries. A test that needs the birthday to *move*
+   *  while staying on the list passes an action with some run-up, since the
+   *  day-of wish has none. */
   async function personWithBirthday(
     days: number,
-    reminderSchedule?: ReminderRuleInput[],
+    reminderSchedule: ReminderRuleInput[] = WISH_ONLY,
   ) {
     const person = await core.people.create(
       { firstName: "Faye", middleName: null, lastName: "Ng", gender: null },
@@ -337,7 +369,7 @@ describe("milestone writes reconcile birthday reminders at once", () => {
       bearerId: person.id,
       month: occ.month,
       day: occ.day,
-      ...(reminderSchedule === undefined ? {} : { reminderSchedule }),
+      reminderSchedule,
     });
     return { person, milestone };
   }
@@ -454,6 +486,7 @@ describe("milestone writes reconcile birthday reminders at once", () => {
       bearerId: loser.id,
       month: occ.month,
       day: occ.day,
+      reminderSchedule: WISH_ONLY,
     });
     const [before] = await core.reminders.mentioning("person", loser.id);
     expect(before).toBeDefined();
@@ -501,6 +534,7 @@ describe("migration 34 sweeps the generated reminders", () => {
       bearerId: p.id,
       month: today.month,
       day: today.day,
+      reminderSchedule: WISH_ONLY,
     });
     const [row] = await systemReminders();
 
@@ -524,11 +558,12 @@ describe("migration 34 sweeps the generated reminders", () => {
 });
 
 describe("core.reminders.listInWindow (what the list shows)", () => {
-  /** A person with a birthday `days` out, on the shipped default schedule
-   *  (a day-of wish) unless a schedule is supplied. */
+  /** A person with a birthday `days` out, configured to just the day-of wish
+   *  unless a schedule is supplied — these are about what the *window* shows,
+   *  not about the `plan` prompt an unconfigured birthday also carries. */
   async function birthdayIn(
     days: number,
-    reminderSchedule?: ReminderRuleInput[],
+    reminderSchedule: ReminderRuleInput[] = WISH_ONLY,
   ) {
     const person = await core.people.create(
       { firstName: "Cara", middleName: null, lastName: "Vale", gender: null },
@@ -541,7 +576,7 @@ describe("core.reminders.listInWindow (what the list shows)", () => {
       bearerId: person.id,
       month: occ.month,
       day: occ.day,
-      ...(reminderSchedule === undefined ? {} : { reminderSchedule }),
+      reminderSchedule,
     });
     return person;
   }

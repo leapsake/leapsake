@@ -337,12 +337,17 @@ describe("onboarding reminders (end to end through core)", () => {
       [],
     );
     const soon = civilDaysFromToday(0);
+    // Configured to just the wish: this is about the families coexisting, not
+    // about the `plan` prompt an unconfigured birthday would also carry.
     await core.milestones.create({
       kind: "birthday",
       bearerType: "person",
       bearerId: alice.id,
       month: soon.month,
       day: soon.day,
+      reminderSchedule: [
+        { action: "wish", label: null, offsetDays: 0, enabled: true },
+      ],
     });
 
     const rows = await systemReminders();
