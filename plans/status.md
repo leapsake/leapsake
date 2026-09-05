@@ -31,9 +31,10 @@ lists them, and `pnpm release beta --only=ios --dry-run` reports them. ✅ *Open
 
 **Reminder scheduling** — [`reminder-scheduling.md`](./reminder-scheduling.md), off the v0.1
 critical path. ✅ Per-action windows, the **prompt**, and the `verb:qualifier` identity split
-are in — the last of those closing the collapse bug (two rules sharing an action becoming one
-reminder) and adding `get:card` beside `get:gift`. Left: `wish` adapting to contact methods,
-then the four-level cascade.
+are in, and now the **derive-at-read seam** (Increment 5 slice A): one `renderTitle`, called by
+reconcile for what it stores and by the shared walk for what is shown — proved on the belated
+wording. Left: the reach-aware `wish` copy through that same seam, the collect CTA, then the
+four-level cascade.
 
 **Contact methods reach people** — built 2026-08-19. Left: the URL templates are convention,
 not verified — **confirm on real hardware with the apps installed** (no simulator can). ✅
