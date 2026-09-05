@@ -12,7 +12,7 @@
  * constructs the real ports over its repos and calls the engine.
  */
 export {
-  LEAD_DAYS,
+  BELATED_DAYS,
   NOTIFICATION_WINDOW_DAYS,
   ONBOARDING_REMINDERS,
   SYSTEM_REMINDER_NAMESPACE,

@@ -115,7 +115,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     // anywhere; the staggered gift/card/call/text are offered but start off, for
     // the user to opt into.
     defaultReminderSchedule: [
-      { action: "gift", offsetDays: 30, enabledByDefault: false },
+      // Due a dozen days out, not thirty: a gift is chosen over weeks (which is
+      // what `actionDefs.gift.activeDays` says) but it only has to be *in hand*
+      // with enough slack to wrap and hand over. The old 30 conflated the two.
+      { action: "gift", offsetDays: 12, enabledByDefault: false },
       { action: "card", offsetDays: 7, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: true },
       { action: "call", offsetDays: 0, enabledByDefault: false },

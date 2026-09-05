@@ -116,6 +116,7 @@ export type {
 export {
   reminderActionSchema,
   actionDefs,
+  MAX_ACTIVE_DAYS,
   reminderRuleBearerTypeSchema,
   reminderRuleSchema,
   reminderRuleInputSchema,
@@ -313,6 +314,7 @@ export {
   formatDueIn,
   compareReminderDue,
   nextOccurrence,
+  recentOccurrence,
 } from "./reminder-schedule.js";
 export type { CivilDate, OccurrenceParts } from "./reminder-schedule.js";
 export { contactCountryOptions, countryFlag } from "./countries.js";

@@ -7,9 +7,9 @@
  *
  * The ~30-day horizon the plan describes is **not enforced here**. It falls out
  * of reading reminder rows as-is: a `system` reminder simply doesn't exist in
- * the store until its due date is within `@leapsake/reminders`' `LEAD_DAYS` of
- * today, so the candidate set this planner sees is already bounded for the
- * common case. A far-future `user` reminder just adds one more candidate, in
+ * the store until its own action says it belongs on display (`activeDays` in
+ * `@leapsake/reminders`), so the candidate set this planner sees is already
+ * bounded for the common case. A far-future `user` reminder just adds one more candidate, in
  * either mode; the budget in {@link planNotifications} is the backstop.
  */
 import { civilFromDueMs, reminderLabel } from "@leapsake/schema";
@@ -102,9 +102,8 @@ export interface PlanOptions {
  * ({@link NOTIFICATION_BUDGET} by default). `each` is the mode that binds in
  * practice — one entry per reminder reaches the cap in a busy month. `digest`
  * is capped too, even though at most one entry per day makes it hard to reach:
- * the ~30-day horizon that bounds it only bounds `system` reminders, which
- * don't exist in the store until they're within `@leapsake/reminders`'
- * `LEAD_DAYS` of due. A far-future `user` reminder is a live row today, so
+ * the horizon that bounds it only bounds `system` reminders, which don't exist
+ * in the store until their action's `activeDays` puts them on display. A far-future `user` reminder is a live row today, so
  * enough of them on distinct days would overshoot iOS's ceiling with no code
  * path noticing — the cap here is what makes that impossible rather than
  * merely unlikely.
@@ -161,9 +160,10 @@ export function planNotifications(
   return tripwire === null ? scheduled : [...scheduled, tripwire];
 }
 
-/** How far before coverage lapses the {@link tripwireFor} notice fires —
- *  `@leapsake/reminders`' `LEAD_DAYS`, the app's own idea of enough warning to
- *  act on something, rather than a number invented here. */
+/** How far before coverage lapses the {@link tripwireFor} notice fires. A month
+ *  is enough warning to reopen the app before the schedule runs dry, and this
+ *  is a coverage question rather than a per-reminder one — it deliberately does
+ *  not track any reminder's own window. */
 const TRIPWIRE_LEAD_DAYS = 30;
 
 const TRIPWIRE_ID = "tripwire";

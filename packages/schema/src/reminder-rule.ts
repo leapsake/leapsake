@@ -41,12 +41,32 @@ export interface ReminderCopyContext {
   greeting: string;
 }
 
-/** Static metadata for a reminder action: how it displays and its default copy. */
+/** Static metadata for a reminder action: how it displays, how long it takes,
+ *  and its default copy. */
 export interface ReminderActionDef {
   /** Display label, e.g. "Get a gift". */
   label: string;
   /** Optional emoji shown beside the label. */
   icon?: string;
+  /**
+   * How many days **before its due date** a reminder for this action goes on
+   * display. Not when it comes due — how long the errand then sits on the list.
+   *
+   * It lives on the **action**, not on a kind's `defaultReminderSchedule`,
+   * because it describes the *work*: a gift is a project whatever the occasion
+   * — buy it, wrap it, post it — while a phone call takes minutes and cannot be
+   * done early. `offsetDays`, which says when the thing is **due**, stays
+   * per-kind, because that genuinely does vary by occasion.
+   *
+   * `0` means "appears on its due date, not before". A `wish` is offset 0,
+   * active 0, so it shows up on the day. Required rather than optional so a new
+   * action cannot silently inherit a window nobody chose for it.
+   *
+   * **Provisional numbers, not architecture** — data, like the onboarding snooze
+   * dials in `@leapsake/reminders`, and expected to be corrected once real use
+   * disagrees.
+   */
+  activeDays: number;
   /**
    * The reminder copy this action produces, e.g.
    * `` ({subject}) => `Get ${subject} a gift` ``. Most actions ignore the
@@ -67,6 +87,10 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
   wish: {
     label: "Wish them",
     icon: "🎉",
+    // Day-of, and only day-of. "Happy birthday" said a week early is not a
+    // reminder you can act on, so it appears on the morning it is owed — the
+    // single change that empties a month of standing birthday rows off Home.
+    activeDays: 0,
     // The one action whose copy turns on the occasion. With a birthday's
     // greeting this renders exactly the string the birthday-only engine used to
     // hard-code, which is what keeps existing reminders from drifting on
@@ -76,40 +100,74 @@ export const actionDefs: Record<ReminderAction, ReminderActionDef> = {
   gift: {
     label: "Get a gift",
     icon: "🎁",
+    // The longest window of any action: choosing a gift is the one errand here
+    // that genuinely wants weeks, and it is the reason `activeDays` had to exist
+    // at all.
+    activeDays: 30,
     template: ({ subject }) => `Get ${subject} a gift`,
   },
   card: {
     label: "Send a card",
     icon: "💌",
+    // *Send*, per the label — buying it is `gift`'s cousin and gets its own
+    // action when the verb/qualifier split lands. A fortnight is enough runway
+    // to write and post one.
+    activeDays: 14,
     template: ({ subject }) => `Send ${subject} a card`,
   },
   call: {
     label: "Give a call",
     icon: "📞",
+    // Minutes, and cannot be done early — day-of like `wish`.
+    activeDays: 0,
     template: ({ subject }) => `Call ${subject}`,
   },
   text: {
     label: "Send a text",
     icon: "💬",
+    activeDays: 0,
     template: ({ subject }) => `Text ${subject}`,
   },
   visit: {
     label: "Visit",
     icon: "🏡",
+    // Due day-of, but worth a week's warning: seeing someone needs arranging,
+    // even though the visit itself happens on the day.
+    activeDays: 7,
     template: ({ subject }) => `Visit ${subject}`,
   },
   remember: {
     label: "Remember them",
     icon: "🕯️",
+    // A death anniversary asks for nothing in advance. It arrives on the day and
+    // says so quietly.
+    activeDays: 0,
     template: ({ subject }) => `Remember ${subject}`,
   },
   other: {
     label: "Other",
     icon: "🔔",
+    // The user picked the lead time themselves, via the rule's own `offsetDays`;
+    // a window on top of it would be second-guessing them.
+    activeDays: 0,
     // No fixed copy — the rule's free-text `label` is the reminder text.
     template: () => actionDefs.other.label,
   },
 };
+
+/**
+ * The widest {@link ReminderActionDef.activeDays} any action declares.
+ *
+ * For callers that must narrow a set of *candidate occurrences* before they know
+ * which actions will apply to them — `@leapsake/core`'s holiday candidate walk
+ * pairs this with the widest `offsetDays` actually in use. Taking the two maxima
+ * independently is deliberately generous: the sum only has to **bound** the real
+ * (offset + active) reach of any single rule, never match it, and an
+ * under-estimate would silently drop occurrences instead of failing.
+ */
+export const MAX_ACTIVE_DAYS: number = Math.max(
+  ...Object.values(actionDefs).map((def) => def.activeDays),
+);
 
 /**
  * The bearer types a reminder rule can hang off, via the same polymorphic

@@ -119,6 +119,23 @@ function isLeapYear(year: number): boolean {
 }
 
 /**
+ * A `(month, day)` placed in `year`, with **Feb-29 falling back to Feb-28** in a
+ * non-leap year — the pragmatic convention (mark it on the 28th rather than skip
+ * three years in four).
+ *
+ * Shared by {@link nextOccurrence} and {@link recentOccurrence} so the two can
+ * never disagree about which day a leap-day milestone lands on. They must agree:
+ * a reminder minted against the forward-looking date has to still be recognised
+ * by the backward-looking one the morning after, or it would be tombstoned and
+ * re-minted under a new identity.
+ */
+function placeInYear(month: number, day: number, year: number): CivilDate {
+  return month === 2 && day === 29 && !isLeapYear(year)
+    ? { year, month: 2, day: 28 }
+    : { year, month, day };
+}
+
+/**
  * A milestone's partial date, as {@link nextOccurrence} reads it: the same
  * individually-nullable parts a `Milestone` carries. A concrete calendar day
  * needs **both** a month and a day; the year is used only to place a *one-time*
@@ -160,20 +177,60 @@ export function nextOccurrence(
   const { month, day } = parts;
   if (month === null || day === null) return null; // no concrete calendar day
 
-  // Feb-29 → Feb-28 in a non-leap year, so the occurrence lands on a real day.
-  const clampToYear = (year: number): CivilDate =>
-    month === 2 && day === 29 && !isLeapYear(year)
-      ? { year, month: 2, day: 28 }
-      : { year, month, day };
-
   if (kindDefs[kind].recursAnnually) {
-    const thisYear = clampToYear(today.year);
+    const thisYear = placeInYear(month, day, today.year);
     if (daysUntil(today, thisYear) >= 0) return thisYear;
-    return clampToYear(today.year + 1);
+    return placeInYear(month, day, today.year + 1);
   }
 
   // One-time: needs a concrete year to place, and only counts if not yet past.
   if (parts.year === null) return null;
-  const occ = clampToYear(parts.year);
+  const occ = placeInYear(month, day, parts.year);
   return daysUntil(today, occ) >= 0 ? occ : null;
+}
+
+/**
+ * The most recent day a milestone happened, **strictly before** `today` and no
+ * more than `withinDays` ago — or `null` when there is no such day.
+ *
+ * The mirror of {@link nextOccurrence}, and the reason it has to exist: a
+ * recurring occurrence flips to *next year's* date the morning after it passes,
+ * so nothing looking forward can ever report "yesterday". Without this, a
+ * birthday you missed simply vanishes overnight and you never learn you missed
+ * it. The reminder engine walks both, giving a missed reminder a short belated
+ * tail (`BELATED_DAYS` there) before it retires.
+ *
+ * **Strictly before** is what keeps the two functions disjoint: on the day
+ * itself {@link nextOccurrence} already answers, so this returns `null` and no
+ * occurrence is ever considered twice.
+ *
+ * The year boundary is the case that matters. A Dec-31 birthday read on Jan-1
+ * must answer with **last** year's date, because a system reminder's identity is
+ * keyed on the occurrence year — answering with this year's would mint a second,
+ * unrelated reminder instead of keeping the one the user already has.
+ */
+export function recentOccurrence(
+  kind: MilestoneKind,
+  parts: OccurrenceParts,
+  today: CivilDate,
+  withinDays: number,
+): CivilDate | null {
+  const { month, day } = parts;
+  if (month === null || day === null) return null; // no concrete calendar day
+
+  let occ: CivilDate;
+  if (kindDefs[kind].recursAnnually) {
+    const thisYear = placeInYear(month, day, today.year);
+    // Still ahead of us (or today) ⇒ the one that has *been* is last year's.
+    occ =
+      daysUntil(today, thisYear) >= 0
+        ? placeInYear(month, day, today.year - 1)
+        : thisYear;
+  } else {
+    if (parts.year === null) return null; // nothing to place
+    occ = placeInYear(month, day, parts.year);
+  }
+
+  const days = daysUntil(today, occ);
+  return days < 0 && days >= -withinDays ? occ : null;
 }

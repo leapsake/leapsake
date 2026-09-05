@@ -236,7 +236,7 @@ describe("core.reminders.mentioning (the entity-page backlink)", () => {
 
   it("includes a person's own system birthday reminder", async () => {
     const alice = await makeAlice();
-    const soon = civilDaysFromToday(10);
+    const soon = civilDaysFromToday(0);
     // A recurring birthday (month+day) within the reminder window.
     await core.milestones.create({
       kind: "birthday",

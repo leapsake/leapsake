@@ -95,7 +95,9 @@ describe("reminderRuleLabel", () => {
 describe("resolveReminderSchedule", () => {
   it("falls back to the kind defaults when there are no stored rules", () => {
     const resolved = resolveReminderSchedule("birthday", []);
-    // Furthest-out first: gift a month out, card a week out, then the day-of group.
+    // Furthest-out first: gift a dozen days out, card a week out, then the
+    // day-of group. `offsetDays` is when a thing is *due*; how long it then
+    // sits on the list is the action's own `activeDays`.
     expect(resolved.map((r) => r.action)).toEqual([
       "gift",
       "card",
@@ -103,7 +105,7 @@ describe("resolveReminderSchedule", () => {
       "call",
       "text",
     ]);
-    expect(resolved.map((r) => r.offsetDays)).toEqual([30, 7, 0, 0, 0]);
+    expect(resolved.map((r) => r.offsetDays)).toEqual([12, 7, 0, 0, 0]);
     // "Wish them a happy birthday" is the only rule on by default; the staggered
     // gift/card/call/text are offered but start off.
     const enabled = resolved.filter((r) => r.enabled).map((r) => r.action);

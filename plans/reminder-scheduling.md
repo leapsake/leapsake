@@ -7,16 +7,13 @@
 
 ## The problem
 
-Every "Wish @A a happy birthday" reminder in the next four weeks is on Home, all month, for
-everyone. One constant causes it: `LEAD_DAYS = 30` in `packages/reminders/src/engine.ts`, which
-gives **every** rule the same 30-day run-up before its own due date. That was right when the
-engine only made birthday reminders; per-action `offsetDays` made it wrong and nobody removed it.
+Every "Wish @A a happy birthday" reminder in the next four weeks was on Home, all month, for
+everyone, because one constant gave every rule the same 30-day run-up before its own due date.
+**That half is built** — per-action `activeDays`, a belated tail, and `LEAD_DAYS` deleted. The
+reasoning now lives in [`@leapsake/reminders`](../packages/reminders/README.md); what follows is
+what is still ahead of it.
 
-The fix is not just a smaller number. A phone call takes minutes and cannot be done early; buying,
-wrapping and posting a gift takes weeks and must be started early. **How long something sits on
-your list is a property of the action**, and the engine has no word for it.
-
-There is a second cause underneath the first, and windows alone do not reach it. The engine has to
+There is a second cause underneath that first one, and windows alone do not reach it. The engine has to
 decide what to remind you about before you have decided anything, so it **guesses** — and a guess
 that is right for some people is noise for the rest. You do not know in October which of forty
 people you will post a card to in November; the engine certainly does not. Every speculative row it
@@ -29,8 +26,8 @@ Nine decisions, settled in design *(owner, 2026-09-02 and 2026-09-04)*. Everythi
 implements them; none of them is open. Exactly one sub-question is deliberately deferred — how a
 kind-level rule interacts with the prompt — and it is parked in Increment 6, where it lands.
 
-1. **Two numbers per rule.** `offsetDays` — when it is **due**, measured back from the occurrence
-   (already exists). `activeDays` — how many days **before that** it goes on display (new). A
+1. **Two numbers per rule** *(built)*. `offsetDays` — when it is **due**, measured back from the
+   occurrence. `activeDays` — how many days **before that** it goes on display. A
    `wish` is `offset 0, active 0`: it appears on the day. A `get:gift` is `offset 12, active 30`:
    it appears six weeks before the birthday and is due twelve days before it.
 2. **Identity is `verb:qualifier`, and it never moves.** The reminder id is
@@ -43,7 +40,8 @@ kind-level rule interacts with the prompt — and it is parked in Increment 6, w
    existing reminder; it must never mint a new one or resurrect a completed one.
 5. **The screen is owed / available / coming**, and only *owed* gates "done for the day".
    *Owed* has two missed states, and they are different: **past due** (deadline blown, the event
-   is still ahead, still salvageable) and **belated** (the event itself has passed).
+   is still ahead, still salvageable) and **belated** (the event itself has passed). The engine
+   already distinguishes them (`isWithinWindow`); the screen does not yet.
 6. **Rules resolve through a four-level cascade**, per action, most specific winning.
 7. **The engine never guesses. An unconfigured occasion gets a question, not errands**
    *(owner, 2026-09-04)*. The first thing a birthday puts on your list is "Alice's birthday is in
@@ -82,79 +80,6 @@ This matters more than it looks: system reminder ids are keyed on the occurrence
 would otherwise stay dead for the rest of the year. Sweep the table, don't reason about it.
 
 ---
-
-## Increment 1 — the two numbers, and belated
-
-**This alone fixes the complaint that started the workstream.** No UI work. The list gets shorter
-and correct; everything after this is about making it *good*.
-
-- Add `activeDays` to `ReminderActionDef` in `packages/schema/src/reminder-rule.ts`, beside
-  `label`/`icon`/`template`. It belongs on the **action**, not on the kind's default schedule,
-  because it describes how long the errand takes — a gift is a project whatever the occasion.
-  `offsetDays` stays per-kind in `defaultReminderSchedule`, because *when it is due* genuinely
-  varies by occasion.
-- Rewrite `isWithinWindow` in `packages/reminders/src/engine.ts`. It currently takes a single
-  `windowDays` for every rule; it now takes the action's `activeDays` and a grace period:
-
-  ```
-  daysUntilDue = daysUntilOccurrence - offsetDays
-  alive  =  daysUntilDue <= activeDays  &&  daysUntilOccurrence >= -BELATED_DAYS
-  ```
-
-  Those two clauses also separate the two ways a reminder can be missed, at no extra cost — see
-  the table below. Nothing needs to store which state a row is in; both are read off the same
-  arithmetic the aliveness test already does.
-
-  Note the second clause is the **occurrence**, not the due date. That is deliberate: an unbought
-  gift due twelve days before a birthday should stay on your list right up to the birthday, not
-  vanish when its own deadline slips. Day-of actions get the same clause and it gives them their
-  belated window for free.
-- `BELATED_DAYS = 2` as a module constant. Today the guard is `daysUntilOccurrence >= 0`, so a
-  missed birthday **disappears the next morning** — you never learn you missed it. One dial for
-  now; per-action belated windows are a plausible later refinement and explicitly not this
-  increment.
-- **Two missed states, and they are not the same thing** *(owner, 2026-09-02)*:
-
-  | state | test | means | example |
-  |---|---|---|---|
-  | **past due** | `daysUntilDue < 0`, occurrence still ahead | deadline blown, **still salvageable** | the card missed its post date, but the birthday is Tuesday — pay for express |
-  | **belated** | `daysUntilOccurrence < 0` | the event has passed; only acknowledgment is left | you missed the birthday yesterday |
-
-  It falls out per action with no configuration. `wish` is `offset 0`, so its due date *is* the
-  occurrence — it can never be past due and goes straight to belated. `send:card` at `offset 7`
-  is past due for up to a week first. **`BELATED_DAYS` bounds only the belated tail**; past due
-  needs no dial because the occurrence bounds it.
-- Delete `LEAD_DAYS`. Two call sites follow it: `regenerateSystemReminders` and
-  `listSystemReminderTargets` pass it as the window, and `packages/core/src/holidays.ts` derives
-  `const horizon = LEAD_DAYS + maxOffset` for candidate generation. That horizon becomes
-  `maxActiveDays + maxOffset` — same reasoning, and it must stay an over-estimate.
-- `NOTIFICATION_WINDOW_DAYS = 365` is **untouched**. It answers a different question and the
-  engine's doc-comment says why. Do not conflate them.
-
-Starting defaults, from the owner's own estimates — expect to correct them against real use, the
-way the onboarding snooze dials already say they expect to be corrected:
-
-| action | `offsetDays` | `activeDays` |
-|---|---|---|
-| `get:card`, `get:gift` | 12 | 30 |
-| `send:card`, `send:gift` | 7 | 14 |
-| `visit` | 0 | 7 |
-| `wish`, `call:*`, `message:*`, `post:*` | 0 | 0 |
-| `remember` | 0 | 0 |
-
-These are windows for actions the user has **enabled**. They say how long an errand sits on the
-list once chosen; they do not say anything about what is chosen. **Enabled by default for a
-birthday: `wish` alone** — unchanged from what ships today, and see decisions 7–8 for why the card
-is not among them.
-
-⚠️ Names in the table are the post-split `verb:qualifier` ones from Increment 4, written that way
-because they read better. Until that increment lands, `get:gift` is today's `gift` ("Get a gift",
-`offsetDays: 30`) and `send:card` is today's `card` ("Send a card", `offsetDays: 7`); note that
-this increment **changes both those offsets**, to 12.
-
-**Done when** a birthday a fortnight out puts nothing new on Home, a birthday today puts its wish
-row there, yesterday's birthday still shows as belated, a card whose post date slipped still shows
-as past due, and a birthday six weeks out surfaces a `get:card` **the user has enabled**.
 
 ## Increment 2 — owed / available / coming
 
@@ -248,7 +173,7 @@ plan.offsetDays = max(offsetDays + activeDays) over the offered set
 plan.activeDays = PLAN_LEAD_DAYS
 ```
 
-With Increment 1's table the maximum is `get:card`/`get:gift` at `12 + 30 = 42`, so the prompt is
+With the shipped numbers the maximum is `get:card`/`get:gift` at `12 + 30 = 42`, so the prompt is
 **due 42 days out** and, at `PLAN_LEAD_DAYS = 14`, **appears 56 days out**. Copy renders the real
 distance (`formatDueIn` already does this) — do not write "next month" into a template; the number
 moves.
@@ -256,7 +181,7 @@ moves.
 Deriving it is the whole point of extensibility. Ship a commissioned-gift action at `activeDays 60`
 and every prompt slides earlier by itself, with no second constant to remember. And ⚠️ **if eight
 weeks turns out to feel too early to be asked, the dial to turn is `get:gift`'s `activeDays`, not
-the prompt's** — that is the correct place for the pressure to land, and Increment 1 already says
+the prompt's** — that is the correct place for the pressure to land, and `actionDefs` already says
 those numbers expect to be corrected against real use.
 
 `plan` gets `offsetDays` derived as above and `activeDays = 14`; it is a decision rather than an
@@ -267,7 +192,7 @@ errand, so it should sit patiently in *Available* and only reach *Today* on its 
 - **Unanswered is not silence.** An ignored prompt leaves the milestone riding its kind defaults,
   which is `wish` day-of (decision 8). You never lose the birthday. This needs no code: it is what
   happens already when no rules exist.
-- **An ignored prompt stays answerable.** Increment 1's second aliveness clause is the
+- **An ignored prompt stays answerable.** The engine's second aliveness clause is the
   *occurrence*, not the due date, so the prompt survives its own deadline as **past due** right up
   to the birthday. Increment 2 already forbids gating the checkbox on activity, so a late answer
   works — the chosen actions simply materialise with compressed windows, some of them immediately

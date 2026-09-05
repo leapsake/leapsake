@@ -330,6 +330,39 @@ describe("upcomingOccurrences", () => {
     ).toEqual(["2026-12-20"]);
   });
 
+  it("excludes an occurrence just gone, unless asked to look back", () => {
+    const r = graph([
+      { slug: "solstice", recurrence: { type: "fixed", month: 12, day: 18 } },
+    ]);
+    // Default: the past is out of scope, exactly as before the parameter existed.
+    expect(r.upcomingOccurrences("solstice", today, 30)).toEqual([]);
+    // With a lookback, a missed occasion is still offered — the reminder engine
+    // needs it to keep a missed errand on the list for a day or two.
+    expect(
+      r.upcomingOccurrences("solstice", today, 30, 2).map(isoFromCivil),
+    ).toEqual(["2026-12-18"]);
+    // Still bounded: three days back is one too many.
+    expect(r.upcomingOccurrences("solstice", today, 30, 1)).toEqual([]);
+  });
+
+  it("looks back across the year boundary", () => {
+    // The trap: on New Year's Day, a Christmas three days gone lives in the
+    // *previous* year, so a walk starting at `today.year` loses it entirely.
+    const r = graph([
+      { slug: "christmas", recurrence: { type: "fixed", month: 12, day: 25 } },
+    ]);
+    expect(
+      r
+        .upcomingOccurrences(
+          "christmas",
+          { year: 2027, month: 1, day: 1 },
+          30,
+          7,
+        )
+        .map(isoFromCivil),
+    ).toEqual(["2026-12-25"]);
+  });
+
   it("returns multiple occurrences soonest-first", () => {
     // Two regression guards in one. An inverted sort is invisible while only a
     // single occurrence lands in the window — callers taking `[0]` as "the next

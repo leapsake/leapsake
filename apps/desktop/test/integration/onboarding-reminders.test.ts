@@ -336,7 +336,7 @@ describe("onboarding reminders (end to end through core)", () => {
       { firstName: "Alice", middleName: null, lastName: "Ng", gender: null },
       [],
     );
-    const soon = civilDaysFromToday(10);
+    const soon = civilDaysFromToday(0);
     await core.milestones.create({
       kind: "birthday",
       bearerType: "person",

@@ -8,6 +8,7 @@ import {
   formatDueIn,
   isoFromDueMs,
   nextOccurrence,
+  recentOccurrence,
   todayCivil,
 } from "./reminder-schedule.js";
 
@@ -179,6 +180,72 @@ describe("nextOccurrence", () => {
     expect(nextOccurrence("birthday", parts(null, 7, null), today)).toBeNull();
     expect(
       nextOccurrence("birthday", parts(null, null, null), today),
+    ).toBeNull();
+  });
+});
+
+describe("recentOccurrence", () => {
+  const today = at(2026, 7, 12);
+
+  it("recurring: answers with the day just gone", () => {
+    expect(recentOccurrence("birthday", parts(null, 7, 10), today, 2)).toEqual(
+      at(2026, 7, 10),
+    );
+  });
+
+  it("recurring: null once the occurrence is further back than the window", () => {
+    expect(
+      recentOccurrence("birthday", parts(null, 7, 9), today, 2),
+    ).toBeNull();
+  });
+
+  it("recurring: today itself is not 'recent' — nextOccurrence owns it", () => {
+    // Strictly before, so the forward and backward walks are disjoint and no
+    // occurrence is ever considered twice in one reconcile.
+    expect(
+      recentOccurrence("birthday", parts(null, 7, 12), today, 2),
+    ).toBeNull();
+  });
+
+  it("recurring: reaches back across the year boundary", () => {
+    // The case that matters: a system reminder's id is keyed on the occurrence
+    // year, so a New Year's Eve birthday read on New Year's Day has to answer
+    // with **last** year's date or it would name a different reminder.
+    expect(
+      recentOccurrence("birthday", parts(null, 12, 31), at(2027, 1, 1), 2),
+    ).toEqual(at(2026, 12, 31));
+  });
+
+  it("recurring: clamps Feb-29 the same way nextOccurrence does", () => {
+    // The two must agree, or a leap-day reminder would be tombstoned and
+    // re-minted under a new id the morning after it passed.
+    expect(
+      recentOccurrence("birthday", parts(1992, 2, 29), at(2027, 3, 1), 2),
+    ).toEqual(at(2027, 2, 28));
+  });
+
+  it("one-time: answers with the event date while it is still recent", () => {
+    expect(
+      recentOccurrence("graduation", parts(2026, 7, 11), today, 2),
+    ).toEqual(at(2026, 7, 11));
+    expect(
+      recentOccurrence("graduation", parts(2020, 5, 1), today, 2),
+    ).toBeNull();
+    // A future one-time event has not happened, so nothing is behind us.
+    expect(
+      recentOccurrence("graduation", parts(2026, 12, 1), today, 2),
+    ).toBeNull();
+  });
+
+  it("one-time: null without a concrete year to place it", () => {
+    expect(
+      recentOccurrence("graduation", parts(null, 5, 1), today, 2),
+    ).toBeNull();
+  });
+
+  it("returns null when there is no concrete day", () => {
+    expect(
+      recentOccurrence("birthday", parts(1992, null, null), today, 2),
     ).toBeNull();
   });
 });

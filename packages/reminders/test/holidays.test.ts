@@ -58,11 +58,13 @@ function makeHarness() {
       // Observances ship with **every** action off (holidays land all at once,
       // so a default-on wish would flood late November), which would make every
       // test below assert an empty store. So the harness stands in for a user
-      // who has switched the day-of wish on; the real defaults are asserted
-      // directly in "ships with every action off by default".
+      // who has switched something on. `gift` rather than `wish` because its
+      // 30-day `activeDays` keeps an occurrence a few weeks out in view — a
+      // day-of `wish` is only ever alive on the day itself, which would make
+      // every date in this file have to be Christmas.
       resolveSchedule: async (c) =>
         schedules.get(c.observanceId) ?? [
-          { action: "wish", label: null, offsetDays: 0, enabled: true },
+          { action: "gift", label: null, offsetDays: 0, enabled: true },
         ],
       resolveLabel: async (_type, id) => labels.get(id) ?? null,
     },
@@ -116,12 +118,39 @@ describe("holiday reminders", () => {
   it("generates the occasion's own copy, not birthday copy", async () => {
     // The whole reason `template` takes a greeting: before this, `wish` was
     // hard-coded to "a happy birthday" and would have said so at Christmas.
+    // Reconciled on the day, since a wish is a day-of action.
     h.setCandidates([candidate()]);
-    await regenerateSystemReminders(h.deps);
+    h.setSchedule("obs-christmas-alice", [
+      { action: "wish", label: null, offsetDays: 0, enabled: true },
+    ]);
+    await regenerateSystemReminders({
+      ...h.deps,
+      today: { year: 2026, month: 12, day: 25 },
+    });
 
     expect(h.titles()).toEqual([
       "🎉 Wish @[Alice Chen](person:11111111-1111-4111-8111-111111111111) a Merry Christmas",
     ]);
+  });
+
+  it("keeps a missed observance as belated for a couple of days", async () => {
+    // The belated tail is not a milestone privilege: a Christmas card you never
+    // sent should linger exactly as a missed birthday does, or the two families
+    // would disagree about what "missed" means.
+    h.setCandidates([candidate()]);
+    h.setSchedule("obs-christmas-alice", [
+      { action: "wish", label: null, offsetDays: 0, enabled: true },
+    ]);
+    const boxingDay = { year: 2026, month: 12, day: 26 };
+    await regenerateSystemReminders({ ...h.deps, today: boxingDay });
+    expect(h.activeSystem()).toHaveLength(1);
+
+    // ...and retires once the tail runs out.
+    await regenerateSystemReminders({
+      ...h.deps,
+      today: { year: 2026, month: 12, day: 29 },
+    });
+    expect(h.activeSystem()).toEqual([]);
   });
 
   it("keys its id on the occurrence date, not the year", async () => {
@@ -143,7 +172,7 @@ describe("holiday reminders", () => {
     expect(ids).toContain(
       deterministicUuid(
         SYSTEM_REMINDER_NAMESPACE,
-        "observance:obs-christmas-alice:2026-12-25:wish",
+        "observance:obs-christmas-alice:2026-12-25:gift",
       ),
     );
   });
@@ -156,7 +185,7 @@ describe("holiday reminders", () => {
     expect(row.id).not.toBe(
       deterministicUuid(
         SYSTEM_REMINDER_NAMESPACE,
-        "milestone:obs-christmas-alice:2026:wish",
+        "milestone:obs-christmas-alice:2026:gift",
       ),
     );
   });

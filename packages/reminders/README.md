@@ -1,8 +1,8 @@
 # `@leapsake/reminders`
 
 The engine that mints, refreshes, and retires **`system` reminders** — rows the app owns rather
-than the user. Three families feed one reconcile: milestone reminders (birthdays and the like),
-holiday-observance reminders, and the dateless **onboarding nudges**.
+than the user. Four families feed one reconcile: milestone reminders (birthdays and the like),
+holiday-observance reminders, the dateless **onboarding nudges**, and the duplicate-pairs nudge.
 
 It has no `@leapsake/core` or `@leapsake/data` dependency. Everything it needs arrives through
 small injected ports (`ReminderEngineDeps`), so it stays independently testable and narrowly
@@ -12,10 +12,76 @@ scoped. The composition root wires the repos.
 
 | You want | Read |
 |---|---|
-| How reconcile decides what to insert, refresh, or tombstone | `computeAndReconcile` in `src/engine.ts` |
+| How reconcile decides what to insert, refresh, or tombstone | `computeDesired` + `reconcile` in `src/engine.ts` |
+| When a reminder goes on display, and when it stops | `isWithinWindow` in `src/engine.ts` |
+| How long a given errand sits on the list | `activeDays` on `actionDefs`, in `@leapsake/schema` |
 | The onboarding nudge definitions and their copy | `ONBOARDING_STEPS` in `src/engine.ts` |
 | How snooze budgets are read | `snoozePolicyOf`, beside `ONBOARDING_STEPS` |
 | Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps` |
+
+## Windows — the product design behind them
+
+The mechanics are on `isWithinWindow`. This is the reasoning behind the two numbers it reads.
+
+### How long something sits on your list is a property of the action
+
+The engine shipped with one constant, `LEAD_DAYS = 30`: every rule got the same month-long run-up
+before its own due date. That was right while the engine only made birthday reminders. Once rules
+carried a per-action `offsetDays` it was wrong, and the symptom was the obvious one — **every
+birthday in the next four weeks sat on Home, all month, for everyone**.
+
+A smaller constant would not have fixed it, because the actions are not alike. A phone call takes
+minutes and cannot be done early; buying, wrapping and posting a gift takes weeks and must be
+started early. So the run-up moved onto the action itself, as `activeDays` in the schema's
+`actionDefs`, beside the label and the copy template. `offsetDays` — when a thing comes **due** —
+stayed per-kind, because that genuinely does vary by occasion: a card for a wedding is not on the
+same clock as a card for a birthday.
+
+Two numbers, and each lives where its variation is. A `wish` is `offset 0, active 0` and arrives on
+the morning it is owed. A `gift` is `active 30` whatever the occasion, because a gift is a project.
+
+**The numbers themselves are data, not architecture** — the same posture as the snooze dials below,
+and for the same reason. They are one owner's estimates and expect to be corrected against real
+use; changing one is editing a literal in `actionDefs`, never touching logic. If the eight-week
+prompt in a later increment feels too early, the dial to turn is `gift`'s `activeDays`, because
+that is where the pressure actually comes from.
+
+### Two ways to miss something, and they are not the same
+
+The old window closed at `daysUntilOccurrence >= 0`, so a missed birthday **disappeared the next
+morning**: the app noticed and said nothing. A list that cannot tell you when you dropped something
+is a list you stop trusting.
+
+The new window closes on the **occurrence** rather than on the rule's own due date, plus a short
+grace tail (`BELATED_DAYS`). That single change names both failure modes, with nothing stored and
+nothing extra computed — both fall out of the arithmetic the aliveness test already does:
+
+| state | test | means |
+|---|---|---|
+| **past due** | `daysUntilDue < 0`, occurrence still ahead | the deadline blew but it is **still salvageable** — the card missed its post date, but the birthday is Tuesday, so pay for express |
+| **belated** | `daysUntilOccurrence < 0` | the occasion has passed; only acknowledgment is left |
+
+It falls out per action with no configuration. A day-of action's due date *is* the occurrence, so it
+can never be past due and goes straight to belated; a `card` at `offset 7` is past due for up to a
+week first. `BELATED_DAYS` bounds **only** the belated tail — past due needs no dial of its own,
+because the occurrence bounds it.
+
+Holding the window open to the occurrence is also what keeps a long errand honest: an unbought gift
+due twelve days before a birthday stays on your list right up to the birthday, rather than vanishing
+on the day its own deadline slipped.
+
+Reaching the belated state needed one thing the date math could not do. A recurring occurrence rolls
+to *next year* the morning after it passes, so nothing looking forward can ever report "yesterday" —
+hence `recentOccurrence` in `@leapsake/schema`, walked alongside `nextOccurrence`. It answers
+strictly *before* today, so the two are disjoint and no occurrence is ever considered twice. The
+holiday resolver takes the same short look back, so the two dated families agree about what
+"missed" means.
+
+### Known limitation
+
+`BELATED_DAYS` is one dial for every action. A missed phone call is arguably stale sooner than a
+missed gift, and per-action belated windows are a plausible refinement — deliberately not built
+before there is evidence about which actions want what.
 
 ## The onboarding nudges — the product design behind them
 

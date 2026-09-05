@@ -1023,6 +1023,32 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 34,
+    async up(driver) {
+      // **Sweep every generated reminder, tombstones included.** Reminder
+      // windows just became a property of the action rather than one 30-day
+      // constant, and `wish` — the only thing on by default — went from a
+      // month-long run-up to day-of. Every already-materialized wish row is
+      // therefore no longer wanted, and the engine's prune retires an unwanted
+      // row by **soft-deleting** it.
+      //
+      // That is the problem. `reconcile` never resurrects a tombstone, and a
+      // system reminder's id is keyed on the occurrence **year**, so a row
+      // pruned today would stay dead until the birthday came round again — the
+      // upgrade would silently cost the user this year's birthday, on the very
+      // morning it mattered. A soft delete cannot be undone from inside the
+      // engine, so it has to be undone from underneath it.
+      //
+      // Hard delete rather than a resurrection rule: the ids are deterministic,
+      // so everything still wanted is re-minted unchanged on the next
+      // reconcile, and nothing about identity changes. The cost is that a
+      // genuine "dismiss this" on a system reminder is forgotten once —
+      // acceptable pre-release (owner, 2026-09-04), and cheaper than teaching
+      // the engine to tell a stale tombstone from a deliberate one.
+      await driver.exec(`DELETE FROM reminders WHERE source = 'system'`);
+    },
+  },
 ];
 
 /**

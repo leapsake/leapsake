@@ -13,6 +13,7 @@ import {
   kindDefs,
   mentionToken,
   nextOccurrence,
+  recentOccurrence,
   reminderRuleLabel,
 } from "@leapsake/schema";
 
@@ -21,16 +22,25 @@ import {
 const DAY_MS = 86_400_000;
 
 /**
- * The base look-ahead: a `system` reminder surfaces once its **own due date** is
- * within this many days of today (the due date being the milestone's occurrence
- * shifted back by the rule's `offsetDays`), and is dropped again once the
- * milestone's day has passed. So a day-of rule (offset 0) appears ~a month out
- * — unchanged from the birthday-only engine — while a `gift @ 30 days before`
- * rule appears ~a month before *that*, i.e. ~two months before the birthday,
- * giving every reminder the same run-up before it comes due. See
- * {@link isWithinWindow}.
+ * How long a **missed** reminder lingers after its occasion has gone by.
+ *
+ * The engine used to drop a reminder the moment its day passed, which meant a
+ * birthday you missed disappeared overnight — the app noticed and said nothing.
+ * That is the one outcome worth avoiding: a list you cannot trust to tell you
+ * when you dropped something is a list you stop reading. Two days is enough to
+ * catch a missed day over a weekend without letting the past accumulate.
+ *
+ * **It bounds only the belated tail** — the state where the occasion itself has
+ * passed and only acknowledgment is left. The other way to miss something,
+ * *past due* (a card's post date blew, but the birthday is still Tuesday), needs
+ * no dial of its own: the occurrence bounds it. See {@link isWithinWindow},
+ * which computes both from the same two clauses.
+ *
+ * One dial for now. Per-action belated windows — a missed call is stale sooner
+ * than a missed gift — are a plausible later refinement, deliberately not built
+ * before there is evidence about which actions want what.
  */
-export const LEAD_DAYS = 30;
+export const BELATED_DAYS = 2;
 
 /**
  * The fixed namespace all automated-reminder ids are derived under (see
@@ -569,39 +579,82 @@ export function snoozePolicyOf(
 }
 
 /**
- * Whether a rule's reminder falls inside `windowDays`: its due date (the
- * occurrence shifted back by `offsetDays`) is at most `windowDays` away, and
- * the occurrence itself hasn't passed. `days` is `daysUntil(today,
- * occurrence)`, so the due date is `days - offsetDays` away — bounded above by
- * `windowDays` and held open until the occurrence day (`days >= 0`) so a
- * not-yet-actioned reminder keeps nagging up to the event rather than
- * vanishing on its due date.
+ * Whether a rule's reminder is **alive** today — the single test the whole
+ * engine reads, and the only place the two ways of missing something are
+ * distinguished.
  *
- * The window is a parameter, not {@link LEAD_DAYS}, because two callers want
+ * `daysUntilOccurrence` is `daysUntil(today, occurrence)`, so the rule's own due
+ * date is `daysUntilOccurrence - offsetDays` away. Two clauses:
+ *
+ * ```
+ * daysUntilDue = daysUntilOccurrence - offsetDays
+ * alive  =  daysUntilDue <= activeDays  &&  daysUntilOccurrence >= -BELATED_DAYS
+ * ```
+ *
+ * The first opens the window: a reminder goes on display `activeDays` before it
+ * comes due, and that number is a property of the **action** (a gift is a
+ * project; a phone call is not), which is why it is passed in rather than being
+ * one constant for everything. It used to be one constant for everything, and
+ * that is precisely why every birthday in the next month sat on Home all month.
+ *
+ * The second closes it, and note that it tests the **occurrence**, not the due
+ * date. That is deliberate: an unbought gift due twelve days before a birthday
+ * should stay on your list right up to the birthday, not vanish when its own
+ * deadline slips.
+ *
+ * Between them the two clauses name both missed states, with nothing stored and
+ * nothing extra computed:
+ *
+ * - **past due** — `daysUntilDue < 0` while the occurrence is still ahead. The
+ *   deadline blew but it is still salvageable (pay for express postage). Needs
+ *   no dial, because the occurrence bounds it.
+ * - **belated** — `daysUntilOccurrence < 0`. The occasion has passed and only
+ *   acknowledgment is left; {@link BELATED_DAYS} bounds how long that lingers.
+ *
+ * A day-of action (offset 0) can never be past due — its due date *is* the
+ * occurrence — so it goes straight from due to belated. It falls out per action
+ * with no configuration.
+ *
+ * `activeDays` is a parameter rather than a lookup because two callers want
  * different answers from the same walk: materialization asks "what should be a
- * *row* today" ({@link LEAD_DAYS} — how far ahead the reminder list looks), and
- * notification planning asks "what will come due before the schedule needs
- * refreshing" ({@link NOTIFICATION_WINDOW_DAYS}). Conflating them would either
- * flood the list or starve the schedule.
+ * *row* today" (each action's own window), while notification planning asks
+ * "what will come due before the schedule needs refreshing" and substitutes one
+ * uniform {@link NOTIFICATION_WINDOW_DAYS} for every action. Conflating them
+ * would either flood the list or starve the schedule.
  */
 function isWithinWindow(
   daysUntilOccurrence: number,
   offsetDays: number,
-  windowDays: number,
+  activeDays: number,
 ): boolean {
   return (
-    daysUntilOccurrence >= 0 && daysUntilOccurrence - offsetDays <= windowDays
+    daysUntilOccurrence - offsetDays <= activeDays &&
+    daysUntilOccurrence >= -BELATED_DAYS
   );
 }
+
+/**
+ * How long a reminder for a given action stays on display, in days before its
+ * due date — the window {@link isWithinWindow} opens.
+ *
+ * A function rather than a number so one walk serves both callers: materialization
+ * answers with the action's own {@link actionDefs} entry, notification planning
+ * with one uniform horizon for every action.
+ */
+type ActiveDaysOf = (action: ReminderAction) => number;
+
+/** The materialization window: every action's own declared run-up. */
+const ownActiveDays: ActiveDaysOf = (action) => actionDefs[action].activeDays;
 
 /**
  * Compute the set of `system` reminders that *should* exist for `today` and
  * reconcile the store to it, **idempotently** and **tombstone-respectingly**:
  *
- * - For each milestone with an upcoming occurrence, resolve its staggered
- *   schedule (stored rules, else kind defaults) and, for every **enabled** rule
- *   whose due date is inside the {@link LEAD_DAYS} window, derive a deterministic
- *   id (keyed on the rule's action) and desired row.
+ * - For each milestone with a nearby occurrence — the one coming, and the one
+ *   just gone — resolve its staggered schedule (stored rules, else kind
+ *   defaults) and, for every **enabled** rule that {@link isWithinWindow} says
+ *   is alive today, derive a deterministic id (keyed on the rule's action) and
+ *   desired row.
  * - Insert each desired row **when absent** — `getIncludingDeleted` means a
  *   user-dismissed reminder (a tombstone under that id) is left dead, never
  *   resurrected.
@@ -621,7 +674,7 @@ function isWithinWindow(
 export async function regenerateSystemReminders(
   deps: ReminderEngineDeps,
 ): Promise<{ created: number; updated: number; removed: number }> {
-  return reconcile(deps, await computeDesired(deps, LEAD_DAYS));
+  return reconcile(deps, await computeDesired(deps, ownActiveDays));
 }
 
 /**
@@ -638,7 +691,7 @@ export async function regenerateSystemReminders(
 export async function listSystemReminderTargets(
   deps: ReminderEngineDeps,
 ): Promise<SystemReminderTarget[]> {
-  const desired = await computeDesired(deps, LEAD_DAYS);
+  const desired = await computeDesired(deps, ownActiveDays);
   return [...desired.values()].flatMap((row) =>
     row.target === undefined ? [] : [{ id: row.id, ...row.target }],
   );
@@ -655,8 +708,8 @@ export async function listSystemReminderTargets(
  * be re-planned long before it could fire. Shortening it would leave a user who
  * hasn't opened the app in a while with nothing scheduled at all.
  *
- * Distinct from {@link LEAD_DAYS}, which governs what becomes a *row* — see
- * {@link isWithinWindow} for why the two must not be conflated.
+ * Distinct from the per-action `activeDays` that governs what becomes a *row* —
+ * see {@link isWithinWindow} for why the two must not be conflated.
  */
 export const NOTIFICATION_WINDOW_DAYS = 365;
 
@@ -666,17 +719,18 @@ export const NOTIFICATION_WINDOW_DAYS = 365;
  * {@link regenerateSystemReminders}, and the input
  * `@leapsake/notifications`' `planNotifications` plans from.
  *
- * The problem it solves: a `system` reminder is not a row until its due date is
- * within {@link LEAD_DAYS}, so planning from stored rows alone can only ever
- * schedule ~30 days of notifications — and that horizon advances only when the
- * app is opened, which is exactly what a notification exists to avoid needing.
+ * The problem it solves: a `system` reminder is not a row until its own action
+ * says it should be on display — day-of for a wish — so planning from stored
+ * rows alone can only ever schedule a few days of notifications, and that
+ * horizon advances only when the app is opened, which is exactly what a
+ * notification exists to avoid needing.
  * This walks the same occurrence computation over a wider window and answers
  * with rows that *will* exist, without writing any of them.
  *
  * **Nothing is persisted.** Widening the materialization window instead would
  * flood the reminder list with a year of future rows and sync them to every
- * device; the list's horizon is a product decision that stays at
- * {@link LEAD_DAYS}.
+ * device; how far the list looks ahead is a product decision that stays with
+ * each action's own `activeDays`.
  *
  * Three states a desired id can be in, and why each is handled the way it is:
  *
@@ -704,7 +758,10 @@ export async function listNotifiableReminders(
   deps: ReminderEngineDeps,
   windowDays: number = NOTIFICATION_WINDOW_DAYS,
 ): Promise<Reminder[]> {
-  const desired = await computeDesired(deps, windowDays);
+  // One uniform horizon for every action: the question here is not
+  // "what belongs on the list" but "what could come due before the
+  // schedule is next rebuilt", and that has no per-action answer.
+  const desired = await computeDesired(deps, () => windowDays);
 
   const rows: Reminder[] = [];
   for (const want of desired.values()) {
@@ -748,91 +805,113 @@ function synthesize(want: DesiredReminder): Reminder {
 
 async function computeDesired(
   deps: ReminderEngineDeps,
-  windowDays: number,
+  activeDaysOf: ActiveDaysOf,
 ): Promise<Map<string, DesiredReminder>> {
   const milestones = await deps.milestones.listRemindEligible();
 
   // The desired set, keyed by (deterministic) id so duplicate identities collapse.
   const desired = new Map<string, DesiredReminder>();
   for (const m of milestones) {
-    const occ = nextOccurrence(m.kind, m, deps.today);
-    if (occ === null) continue;
-    const days = daysUntil(deps.today, occ);
-    if (days < 0) continue; // occurrence already passed — nothing to schedule
+    // **Two occurrences, not one.** A recurring occurrence flips to next year's
+    // date the morning after it passes, so a forward-only walk can never report
+    // "yesterday" — a missed birthday would simply vanish overnight. Looking
+    // back as well is what gives {@link isWithinWindow}'s belated clause
+    // something to be true about. `recentOccurrence` answers strictly *before*
+    // today, so the two can never name the same day and no occurrence is
+    // considered twice.
+    const occurrences = [
+      recentOccurrence(m.kind, m, deps.today, BELATED_DAYS),
+      nextOccurrence(m.kind, m, deps.today),
+    ].filter((occ) => occ !== null);
+    if (occurrences.length === 0) continue;
 
-    // The rules that actually want a reminder for this occurrence today: enabled,
-    // and inside their own due-date window. Resolve the schedule up front and skip
-    // the (potentially encrypted) label lookup entirely when nothing applies.
-    const rules = (await deps.resolveSchedule(m)).filter(
-      (r) => r.enabled && isWithinWindow(days, r.offsetDays, windowDays),
-    );
-    if (rules.length === 0) continue;
+    // Resolved once per milestone rather than per occurrence, and the schedule
+    // is read before the label so the (potentially encrypted) label lookup is
+    // skipped entirely when nothing is in window. Same ordering as the holiday
+    // walk below, for the same reason.
+    const schedule = await deps.resolveSchedule(m);
+    let subject: string | undefined;
+    let bearerIsSelf = false;
 
-    const label = await deps.resolveLabel(m.bearerType, m.bearerId);
-    if (label === null) continue; // bearer gone — nothing to name the reminder
-    // Wrap the subject in an inline mention token so the name links to the
-    // person/pet page (the reminder text is the single source of truth for the
-    // mention; core re-derives the backlink from it). A relationship bearer has
-    // no single entity to point at, so it stays plain text — though in practice a
-    // relationship never reaches here (its label resolves to null above).
-    const subject =
-      m.bearerType === "relationship"
-        ? label
-        : mentionToken(label, m.bearerType, m.bearerId);
-
-    // Is this milestone's bearer *you*? A single copy-layer branch (below) flips
-    // the birthday wish to self-directed rather than filtering your own birthday
-    // out — you are not excluded. Resolved once per
-    // milestone: only a person can be self, and only when the port is supplied.
-    const bearerIsSelf =
-      m.bearerType === "person" && deps.isSelf !== undefined
-        ? await deps.isSelf(m.bearerType, m.bearerId)
-        : false;
-
-    for (const rule of rules) {
-      const id = deterministicUuid(
-        SYSTEM_REMINDER_NAMESPACE,
-        occurrenceName(m.id, occ.year, rule.action),
+    for (const occ of occurrences) {
+      const days = daysUntil(deps.today, occ);
+      // The rules that actually want a reminder for this occurrence today:
+      // enabled, and alive on their own action's window.
+      const rules = schedule.filter(
+        (r) =>
+          r.enabled &&
+          isWithinWindow(days, r.offsetDays, activeDaysOf(r.action)),
       );
-      const def = actionDefs[rule.action];
-      let title: string;
-      if (bearerIsSelf && rule.action === "wish" && m.kind === "birthday") {
-        // Your own birthday — addressed *to* you, so no "@You" mention token and
-        // a celebratory icon in place of "Wish @You a happy birthday".
-        title = "🎂 It's your birthday!";
-      } else {
-        // The action's copy carries the (mention-wrapped) subject — "Wish @Alice a
-        // happy birthday", "Get @Alice a gift". `other` has no template; it is the
-        // user's own free text, so it names no subject (nothing to interpolate).
-        const body =
-          rule.action === "other"
-            ? reminderRuleLabel({
-                action: rule.action,
-                label: rule.label ?? null,
-              })
-            : def.template({
-                subject,
-                greeting: kindDefs[m.kind].greeting,
-              });
-        title = `${def.icon ?? ""} ${body}`.trim();
-      }
-      // Due `offsetDays` before the occurrence (day-of when 0); stored as UTC
-      // midnight of that civil day, so plain integer subtraction is exact.
-      desired.set(id, {
-        id,
-        title,
-        dueDate: dueDateMs(occ) - rule.offsetDays * DAY_MS,
-        // A relationship bearer names no single entity, so it carries no target
-        // (and in practice never reaches here — its label resolves to null).
-        target:
+      if (rules.length === 0) continue;
+
+      if (subject === undefined) {
+        const label = await deps.resolveLabel(m.bearerType, m.bearerId);
+        if (label === null) break; // bearer gone — nothing to name the reminder
+        // Wrap the subject in an inline mention token so the name links to the
+        // person/pet page (the reminder text is the single source of truth for the
+        // mention; core re-derives the backlink from it). A relationship bearer has
+        // no single entity to point at, so it stays plain text — though in practice a
+        // relationship never reaches here (its label resolves to null above).
+        subject =
           m.bearerType === "relationship"
-            ? undefined
-            : {
-                action: rule.action,
-                bearerType: m.bearerType,
-                bearerId: m.bearerId,
-              },
-      });
+            ? label
+            : mentionToken(label, m.bearerType, m.bearerId);
+        // Is this milestone's bearer *you*? A single copy-layer branch (below)
+        // flips the birthday wish to self-directed rather than filtering your own
+        // birthday out — you are not excluded. Only a person can be self, and
+        // only when the port is supplied.
+        bearerIsSelf =
+          m.bearerType === "person" && deps.isSelf !== undefined
+            ? await deps.isSelf(m.bearerType, m.bearerId)
+            : false;
+      }
+
+      for (const rule of rules) {
+        const id = deterministicUuid(
+          SYSTEM_REMINDER_NAMESPACE,
+          occurrenceName(m.id, occ.year, rule.action),
+        );
+        const def = actionDefs[rule.action];
+        let title: string;
+        if (bearerIsSelf && rule.action === "wish" && m.kind === "birthday") {
+          // Your own birthday — addressed *to* you, so no "@You" mention token and
+          // a celebratory icon in place of "Wish @You a happy birthday".
+          title = "🎂 It's your birthday!";
+        } else {
+          // The action's copy carries the (mention-wrapped) subject — "Wish @Alice a
+          // happy birthday", "Get @Alice a gift". `other` has no template; it is the
+          // user's own free text, so it names no subject (nothing to interpolate).
+          const body =
+            rule.action === "other"
+              ? reminderRuleLabel({
+                  action: rule.action,
+                  label: rule.label ?? null,
+                })
+              : def.template({
+                  subject,
+                  greeting: kindDefs[m.kind].greeting,
+                });
+          title = `${def.icon ?? ""} ${body}`.trim();
+        }
+        // Due `offsetDays` before the occurrence (day-of when 0); stored as UTC
+        // midnight of that civil day, so plain integer subtraction is exact. A
+        // belated row's due date is simply in the past, which is honest.
+        desired.set(id, {
+          id,
+          title,
+          dueDate: dueDateMs(occ) - rule.offsetDays * DAY_MS,
+          // A relationship bearer names no single entity, so it carries no target
+          // (and in practice never reaches here — its label resolves to null).
+          target:
+            m.bearerType === "relationship"
+              ? undefined
+              : {
+                  action: rule.action,
+                  bearerType: m.bearerType,
+                  bearerId: m.bearerId,
+                },
+        });
+      }
     }
   }
 
@@ -852,11 +931,15 @@ async function computeDesired(
     for (const candidate of await deps.holidays.listCandidates()) {
       let label: string | undefined;
       for (const occ of candidate.occurrences) {
+        // No `days < 0` guard: {@link isWithinWindow} is the sole aliveness
+        // test, and it holds a passed occurrence open for its belated tail. The
+        // candidate list is already bounded either side by the caller.
         const days = daysUntil(deps.today, occ);
-        if (days < 0) continue; // already passed
 
         const rules = (await deps.holidays.resolveSchedule(candidate)).filter(
-          (r) => r.enabled && isWithinWindow(days, r.offsetDays, windowDays),
+          (r) =>
+            r.enabled &&
+            isWithinWindow(days, r.offsetDays, activeDaysOf(r.action)),
         );
         if (rules.length === 0) continue;
 

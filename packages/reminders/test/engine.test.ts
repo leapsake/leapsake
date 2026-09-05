@@ -3,6 +3,7 @@ import {
   type RemindEligibleMilestone,
   type Reminder,
   type ReminderRuleInput,
+  civilFromDueMs,
   dueDateMs,
   mentionToken,
   resolveReminderSchedule,
@@ -18,9 +19,11 @@ import {
 /** A fixed local "today" for deterministic occurrence math. */
 const TODAY: CivilDate = { year: 2026, month: 6, day: 1 };
 
-/** The civil date `days` after {@link TODAY}, within the same month for simplicity. */
+/** The civil date `days` from {@link TODAY} — **negative reaches into the past**,
+ *  which the belated cases need. Built on the stored-due-date round-trip rather
+ *  than by adding to `day`, so month and year boundaries roll properly. */
 function daysOut(days: number): CivilDate {
-  return { year: TODAY.year, month: TODAY.month, day: TODAY.day + days };
+  return civilFromDueMs(dueDateMs(TODAY) + days * 86_400_000);
 }
 
 /**
@@ -30,6 +33,10 @@ function daysOut(days: number): CivilDate {
  */
 function makeHarness() {
   const rows = new Map<string, Reminder>();
+  // Mutable so a test can advance the clock past an occurrence — the only way to
+  // exercise the belated tail without also editing the milestone, which would
+  // read as a date drift and re-date the row.
+  let today: CivilDate = TODAY;
   let milestones: RemindEligibleMilestone[] = [];
   const labels = new Map<string, string>();
   // The person id that is "you", if any — drives the `isSelf` port so the
@@ -72,7 +79,9 @@ function makeHarness() {
     },
     resolveLabel: async (_type, id) => labels.get(id) ?? null,
     isSelf: async (type, id) => type === "person" && id === selfPersonId,
-    today: TODAY,
+    get today() {
+      return today;
+    },
     transaction: (body) => body(),
   };
 
@@ -85,6 +94,9 @@ function makeHarness() {
     },
     setSelf: (personId: string | null) => {
       selfPersonId = personId;
+    },
+    setToday: (next: CivilDate) => {
+      today = next;
     },
     setSchedule: (milestoneId: string, rules: ReminderRuleInput[]) => {
       schedules.set(milestoneId, rules);
@@ -137,8 +149,8 @@ describe("regenerateSystemReminders", () => {
     h.labels.set("p1", "Alice");
   });
 
-  it("creates a dated birthday reminder for an upcoming occurrence", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+  it("creates a dated birthday reminder on the day itself", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
 
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
@@ -152,12 +164,26 @@ describe("regenerateSystemReminders", () => {
     );
     expect(reminder.body).toBeNull();
     expect(reminder.completedAt).toBeNull();
-    expect(reminder.dueDate).toBe(dueDateMs(daysOut(10)));
+    expect(reminder.dueDate).toBe(dueDateMs(daysOut(0)));
+  });
+
+  it("says nothing about a birthday that is merely coming", async () => {
+    // The complaint this whole rework started on: every birthday in the next
+    // month used to sit on Home all month. `wish` is `activeDays: 0`, so it
+    // arrives on the morning it is owed and not a day sooner — not tomorrow's,
+    // and certainly not a fortnight's.
+    h.setMilestones([
+      birthday("m1", "p1", daysOut(1)),
+      birthday("m2", "p1", daysOut(14)),
+    ]);
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
+    expect(h.activeSystem()).toHaveLength(0);
   });
 
   it("renders your own birthday's wish self-directed, with no @You mention", async () => {
     h.setSelf("p1"); // Alice is you
-    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
 
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
@@ -168,12 +194,12 @@ describe("regenerateSystemReminders", () => {
     expect(reminder.title).toBe("🎂 It's your birthday!");
     expect(reminder.title).not.toContain("@[");
     // Still a real, dated reminder — you are not excluded, just re-worded.
-    expect(reminder.dueDate).toBe(dueDateMs(daysOut(10)));
+    expect(reminder.dueDate).toBe(dueDateMs(daysOut(0)));
   });
 
   it("leaves a non-self birthday's wish unchanged when a self-person is set", async () => {
     h.setSelf("p2"); // someone else is you
-    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
 
     await regenerateSystemReminders(h.deps);
     const [reminder] = h.activeSystem();
@@ -183,7 +209,7 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("is idempotent: a second run adds no duplicate and keeps the id stable", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     await regenerateSystemReminders(h.deps);
     const firstId = h.activeSystem()[0].id;
 
@@ -193,15 +219,26 @@ describe("regenerateSystemReminders", () => {
     expect(h.activeSystem()[0].id).toBe(firstId);
   });
 
-  it("does not generate outside the lead window", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(40))]);
+  it("does not generate outside the action's own window", async () => {
+    // A gift is a project — 30 days of run-up, due 12 days out, so it lands 42
+    // days ahead. One day earlier than that is one day too early.
+    h.setMilestones([birthday("m1", "p1", daysOut(43))]);
+    h.setSchedule("m1", [{ action: "gift", offsetDays: 12, enabled: true }]);
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.activeSystem()).toHaveLength(0);
+
+    // ...and 42 days out it appears, still a fortnight from being due.
+    h.setMilestones([birthday("m1", "p1", daysOut(42))]);
+    expect(await regenerateSystemReminders(h.deps)).toEqual({
+      created: 1,
+      updated: 0,
+      removed: 0,
+    });
   });
 
   it("removes a reminder when its milestone is gone", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     await regenerateSystemReminders(h.deps);
     expect(h.activeSystem()).toHaveLength(1);
 
@@ -212,7 +249,7 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("removes a reminder once its occurrence falls out of the window", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     await regenerateSystemReminders(h.deps);
     expect(h.activeSystem()).toHaveLength(1);
 
@@ -223,7 +260,7 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("never resurrects a dismissed (tombstoned) reminder", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     await regenerateSystemReminders(h.deps);
     const id = h.activeSystem()[0].id;
 
@@ -236,24 +273,27 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("re-dates a live reminder when its milestone's date drifts (same year, same id)", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(5))]);
+    // `visit` — day-of, but a week of run-up — so both dates are in window and
+    // the drift is visible. A day-of `wish` has no window to drift within.
+    h.setSchedule("m1", [{ action: "visit", offsetDays: 0, enabled: true }]);
+    h.setMilestones([birthday("m1", "p1", daysOut(3))]);
     await regenerateSystemReminders(h.deps);
     const before = h.activeSystem()[0];
-    expect(before.dueDate).toBe(dueDateMs(daysOut(5)));
+    expect(before.dueDate).toBe(dueDateMs(daysOut(3)));
 
     // Move the birthday later in the same window: the deterministic id is keyed on
     // the occurrence *year*, so it's unchanged — the row must be updated in place.
-    h.setMilestones([birthday("m1", "p1", daysOut(12))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(6))]);
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 1, removed: 0 });
 
     const after = h.activeSystem()[0];
     expect(after.id).toBe(before.id);
-    expect(after.dueDate).toBe(dueDateMs(daysOut(12)));
+    expect(after.dueDate).toBe(dueDateMs(daysOut(6)));
   });
 
   it("re-titles a live reminder when its subject is renamed, keeping the id", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     await regenerateSystemReminders(h.deps);
     const id = h.activeSystem()[0].id;
 
@@ -269,31 +309,32 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("preserves a manual completion when re-dating a live reminder", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(5))]);
+    h.setSchedule("m1", [{ action: "visit", offsetDays: 0, enabled: true }]);
+    h.setMilestones([birthday("m1", "p1", daysOut(3))]);
     await regenerateSystemReminders(h.deps);
     const id = h.activeSystem()[0].id;
     // User marked the birthday reminder done, then the date is edited.
     h.rows.set(id, { ...h.rows.get(id)!, completedAt: 123 });
 
-    h.setMilestones([birthday("m1", "p1", daysOut(12))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(6))]);
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 1, removed: 0 });
 
     const after = h.activeSystem()[0];
-    expect(after.dueDate).toBe(dueDateMs(daysOut(12)));
+    expect(after.dueDate).toBe(dueDateMs(daysOut(6)));
     expect(after.completedAt).toBe(123); // completion survives the re-date
   });
 
   it("ignores a kind whose default schedule is all-off (death)", async () => {
     // A death's only default rule ("remember") ships disabled, so an untouched
     // death milestone mints nothing — the quiet, opt-in posture.
-    h.setMilestones([death("d1", "p1", daysOut(10))]);
+    h.setMilestones([death("d1", "p1", daysOut(0))]);
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
   });
 
   it("mints a reminder for a non-birthday kind once its rule is enabled", async () => {
-    h.setMilestones([death("d1", "p1", daysOut(10))]);
+    h.setMilestones([death("d1", "p1", daysOut(0))]);
     h.setSchedule("d1", [{ action: "remember", offsetDays: 0, enabled: true }]);
 
     const result = await regenerateSystemReminders(h.deps);
@@ -306,8 +347,8 @@ describe("regenerateSystemReminders", () => {
   it("mints one reminder per enabled rule, each due at its own offset", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
     h.setSchedule("m1", [
-      { action: "gift", offsetDays: 30, enabled: true },
-      { action: "wish", offsetDays: 0, enabled: true },
+      { action: "gift", offsetDays: 12, enabled: true },
+      { action: "card", offsetDays: 7, enabled: true },
       { action: "text", offsetDays: 0, enabled: false }, // stays off
     ]);
 
@@ -318,24 +359,27 @@ describe("regenerateSystemReminders", () => {
     const gift = byTitle.get(
       `🎁 Get ${mentionToken("Alice", "person", "p1")} a gift`,
     );
-    const wish = byTitle.get(
-      `🎉 Wish ${mentionToken("Alice", "person", "p1")} a happy birthday`,
+    const card = byTitle.get(
+      `💌 Send ${mentionToken("Alice", "person", "p1")} a card`,
     );
     expect(gift).toBeDefined();
-    expect(wish).toBeDefined();
-    // The gift is due 30 days before the birthday; the wish is due day-of.
-    expect(gift?.dueDate).toBe(dueDateMs(daysOut(20)) - 30 * 86_400_000);
-    expect(wish?.dueDate).toBe(dueDateMs(daysOut(20)));
-    // Distinct occurrences → distinct ids (keyed on the action).
-    expect(gift?.id).not.toBe(wish?.id);
+    expect(card).toBeDefined();
+    // Each is due its own lead time before the birthday.
+    expect(gift?.dueDate).toBe(dueDateMs(daysOut(20)) - 12 * 86_400_000);
+    expect(card?.dueDate).toBe(dueDateMs(daysOut(20)) - 7 * 86_400_000);
+    // Distinct actions → distinct ids.
+    expect(gift?.id).not.toBe(card?.id);
   });
 
-  it("surfaces a far-out rule before a nearer one (offset extends the window)", async () => {
-    // 45 days out: the day-of wish is still beyond the 30-day window, but the
-    // gift (due 30 days before) is already inside its own window.
-    h.setMilestones([birthday("m1", "p1", daysOut(45))]);
+  it("surfaces a long errand well before a short one", async () => {
+    // 40 days out. The gift has 30 days of run-up before a due date 12 days
+    // ahead of the birthday, so it is already on display; the card's fortnight
+    // and the wish's day-of are both still in the future. This is the whole
+    // point of `activeDays`: three actions on one birthday, three arrival dates.
+    h.setMilestones([birthday("m1", "p1", daysOut(40))]);
     h.setSchedule("m1", [
-      { action: "gift", offsetDays: 30, enabled: true },
+      { action: "gift", offsetDays: 12, enabled: true },
+      { action: "card", offsetDays: 7, enabled: true },
       { action: "wish", offsetDays: 0, enabled: true },
     ]);
 
@@ -346,8 +390,58 @@ describe("regenerateSystemReminders", () => {
     );
   });
 
+  it("keeps a missed reminder as belated for a couple of days", async () => {
+    // Yesterday's birthday. The old engine dropped a reminder the morning after
+    // its day, so you never learned you had missed it; now it lingers, with a
+    // due date honestly in the past.
+    h.setMilestones([birthday("m1", "p1", daysOut(-1))]);
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
+    expect(h.activeSystem()[0].dueDate).toBe(dueDateMs(daysOut(-1)));
+  });
+
+  it("retires a belated reminder once its tail runs out", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(-3))]);
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
+    expect(h.activeSystem()).toHaveLength(0);
+  });
+
+  it("carries a reminder's identity and completion across its own occurrence", async () => {
+    // The id is keyed on the occurrence *year*, and `recentOccurrence` answers
+    // with the year the reminder was minted under — so the row the user already
+    // ticked is the same row that goes belated, not a fresh one.
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
+    await regenerateSystemReminders(h.deps);
+    const [before] = h.activeSystem();
+    h.rows.set(before.id, { ...before, completedAt: 123 });
+
+    // The next morning. Nothing about the milestone changed — only the day.
+    h.setToday(daysOut(1));
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
+
+    const [after] = h.activeSystem();
+    expect(after.id).toBe(before.id);
+    expect(after.completedAt).toBe(123);
+  });
+
+  it("holds a past-due errand open until the occasion itself", async () => {
+    // The card's post date blew four days ago, but the birthday is on Thursday
+    // — still salvageable, so it stays. The aliveness test closes on the
+    // occurrence, deliberately, not on the rule's own deadline.
+    h.setMilestones([birthday("m1", "p1", daysOut(3))]);
+    h.setSchedule("m1", [{ action: "card", offsetDays: 7, enabled: true }]);
+
+    const result = await regenerateSystemReminders(h.deps);
+    expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
+    const [row] = h.activeSystem();
+    expect(row.dueDate).toBe(dueDateMs(daysOut(3)) - 7 * 86_400_000);
+    expect(row.dueDate).toBeLessThan(dueDateMs(TODAY)); // past due, still alive
+  });
+
   it("uses the free-text label for an 'other' rule (no subject mention)", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     h.setSchedule("m1", [
       { action: "other", label: "Bring flowers", offsetDays: 0, enabled: true },
     ]);
@@ -357,7 +451,7 @@ describe("regenerateSystemReminders", () => {
   });
 
   it("skips a milestone whose bearer no longer resolves to a label", async () => {
-    h.setMilestones([birthday("m1", "ghost", daysOut(10))]); // no label for "ghost"
+    h.setMilestones([birthday("m1", "ghost", daysOut(0))]); // no label for "ghost"
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.activeSystem()).toHaveLength(0);
@@ -378,10 +472,10 @@ describe("listSystemReminderTargets", () => {
   });
 
   it("names exactly the reminders a reconcile writes", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     h.setSchedule("m1", [
       { action: "wish", offsetDays: 0, enabled: true },
-      { action: "gift", offsetDays: 30, enabled: true },
+      { action: "gift", offsetDays: 12, enabled: true },
     ]);
     await regenerateSystemReminders(h.deps);
 
@@ -406,7 +500,7 @@ describe("listSystemReminderTargets", () => {
     // The whole point of the completed-state CTA ("record what you gave"): a
     // manual completion doesn't change the desired set, so the target survives.
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
-    h.setSchedule("m1", [{ action: "gift", offsetDays: 30, enabled: true }]);
+    h.setSchedule("m1", [{ action: "gift", offsetDays: 12, enabled: true }]);
     await regenerateSystemReminders(h.deps);
     const [row] = h.activeSystem();
     h.rows.set(row.id, { ...row, completedAt: Date.now() });
@@ -415,9 +509,12 @@ describe("listSystemReminderTargets", () => {
     expect(targets.map((t) => t.id)).toEqual([row.id]);
   });
 
-  it("omits a disabled action and a milestone outside its window", async () => {
+  it("omits a disabled action and one outside its window", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
-    h.setSchedule("m1", [{ action: "gift", offsetDays: 0, enabled: false }]);
+    h.setSchedule("m1", [
+      { action: "gift", offsetDays: 12, enabled: false }, // would be in window
+      { action: "wish", offsetDays: 0, enabled: true }, // enabled, not yet due
+    ]);
     expect(await listSystemReminderTargets(h.deps)).toEqual([]);
   });
 
@@ -441,7 +538,7 @@ describe("listSystemReminderTargets", () => {
 
   it("writes nothing — it is a read", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
-    h.setSchedule("m1", [{ action: "gift", offsetDays: 30, enabled: true }]);
+    h.setSchedule("m1", [{ action: "gift", offsetDays: 12, enabled: true }]);
     await listSystemReminderTargets(h.deps);
     expect(h.activeSystem()).toEqual([]);
   });
@@ -449,13 +546,13 @@ describe("listSystemReminderTargets", () => {
 
 /**
  * The notification planner's input. Its whole reason to exist is that a
- * `system` reminder is not a row until it is within `LEAD_DAYS`, so planning
- * from stored rows alone can only ever schedule ~30 days of notifications —
- * and that horizon advances only when the app is opened, which is precisely
- * what a notification exists to spare the user.
+ * `system` reminder is not a row until its own action puts it on display — the
+ * day itself, for a wish — so planning from stored rows alone could barely
+ * schedule anything, and that horizon advances only when the app is opened,
+ * which is precisely what a notification exists to spare the user.
  */
 describe("listNotifiableReminders", () => {
-  /** ~183 days out: far past `LEAD_DAYS`, comfortably inside the year. */
+  /** ~183 days out: far past any action's window, comfortably inside the year. */
   const FAR: CivilDate = { year: 2026, month: 12, day: 1 };
 
   it("sees milestones that regenerate would not yet materialize", async () => {
@@ -487,8 +584,8 @@ describe("listNotifiableReminders", () => {
   // dealt with, so a materialized row wins over the computed one.
   it("returns the real row, with its state, when one exists", async () => {
     const h = makeHarness();
-    const soon = daysOut(10);
-    h.setMilestones([birthday("m1", "p1", soon)]);
+    const today = daysOut(0);
+    h.setMilestones([birthday("m1", "p1", today)]);
     h.labels.set("p1", "Alice");
     await regenerateSystemReminders(h.deps);
 
@@ -506,7 +603,7 @@ describe("listNotifiableReminders", () => {
   // occurrence passes, so this is the common case, not an edge one.
   it("skips a dismissed (tombstoned) reminder", async () => {
     const h = makeHarness();
-    h.setMilestones([birthday("m1", "p1", daysOut(10))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     h.labels.set("p1", "Alice");
     await regenerateSystemReminders(h.deps);
 
@@ -542,8 +639,8 @@ describe("listNotifiableReminders", () => {
   });
 
   // The window is a parameter so the two callers can ask different questions of
-  // the same walk; at `LEAD_DAYS` it must agree with what regenerate stored.
-  it("narrows to the row horizon when asked for one", async () => {
+  // the same walk: one uniform horizon here, each action's own window there.
+  it("narrows to a shorter horizon when asked for one", async () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", FAR)]);
     h.labels.set("p1", "Alice");

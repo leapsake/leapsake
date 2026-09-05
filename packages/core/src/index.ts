@@ -916,8 +916,8 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
    * The notification planner's input — a year of reminders, most of which are
    * not rows yet (see the engine's `listNotifiableReminders`). Deliberately
    * *not* folded into `reminders.list()`: that feeds the reminder **list**,
-   * which shows the {@link LEAD_DAYS} horizon on purpose. Two questions, two
-   * readers.
+   * which shows only what each action's own `activeDays` says is worth showing
+   * today. Two questions, two readers.
    *
    * Returns bare rows, no tags/mentions join — a notification renders plain
    * text, so the joins `reminders.list()` does for the UI would be waste.

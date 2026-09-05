@@ -24,8 +24,9 @@ describe("holiday reminders", () => {
 
   beforeEach(async () => {
     // The engine reads the real clock, and a holiday only produces a reminder
-    // inside its lead window — so these tests pin "today" rather than depending
-    // on the calendar the suite happens to run on. Only `Date` is faked; faking
+    // once its action's own window opens — a day-of wish, on the day — so these
+    // tests pin "today" rather than depending on the calendar the suite happens
+    // to run on. Only `Date` is faked; faking
     // timers too would stall the driver's promises.
     vi.useFakeTimers({ toFake: ["Date"] });
     ({ driver, cleanup } = makeEncryptedTestDriver());
@@ -78,7 +79,7 @@ describe("holiday reminders", () => {
   }
 
   it("generates a reminder carrying the holiday's own greeting", async () => {
-    today(2026, 12, 1);
+    today(2026, 12, 25); // a `wish` is day-of, so Christmas Day itself
     const { core, alice } = await aliceObserving(CHRISTMAS);
     await core.reminders.regenerateSystem();
 
@@ -130,7 +131,7 @@ describe("holiday reminders", () => {
     // The behaviour §2.6 insists on: hiding has to reach the reminder engine,
     // not just browse surfaces, or "I hid Mother's Day" still produces "Wish
     // @Alice a Happy Mother's Day".
-    today(2027, 4, 20); // Mother's Day 2027 is 9 May — 19 days out.
+    today(2027, 5, 9); // Mother's Day 2027, the day itself
     const { core } = await aliceObserving(MOTHERS_DAY);
     await core.reminders.regenerateSystem();
     const before = await systemTitles(core);
@@ -151,7 +152,9 @@ describe("holiday reminders", () => {
   });
 
   it("honours a per-observance reminder rule", async () => {
-    today(2026, 12, 1);
+    // A card is due a week out and carries a fortnight of run-up, so ten days
+    // before Christmas it is on display and the day-of wish is not.
+    today(2026, 12, 15);
     const { core, alice } = await aliceObserving(CHRISTMAS);
     const observanceId = observanceIdFor(CHRISTMAS, "person", alice.id);
 
@@ -168,7 +171,7 @@ describe("holiday reminders", () => {
   });
 
   it("prunes a holiday reminder once the observance is withdrawn", async () => {
-    today(2026, 12, 1);
+    today(2026, 12, 25);
     const { core, alice } = await aliceObserving(CHRISTMAS);
     await core.reminders.regenerateSystem();
     expect(
@@ -215,7 +218,7 @@ describe("holiday reminders", () => {
   });
 
   it("is idempotent — a second reconcile changes nothing", async () => {
-    today(2026, 12, 1);
+    today(2026, 12, 25);
     const { core } = await aliceObserving(CHRISTMAS);
     await core.reminders.regenerateSystem();
     const second = await core.reminders.regenerateSystem();
@@ -356,7 +359,7 @@ describe("observance reminder schedule", () => {
   it("generates the reminder as soon as the schedule is saved", async () => {
     // The write reconciles rather than waiting for the next boot — otherwise
     // turning a reminder on would appear to do nothing until a restart.
-    vi.setSystemTime(new Date(2026, 11, 1, 12));
+    vi.setSystemTime(new Date(2026, 11, 25, 12)); // a wish is day-of
     const core = createCore(driver);
     const person = await alice(core);
 
@@ -391,7 +394,9 @@ describe("observance reminder schedule", () => {
   it("keeps two observers of one holiday on independent schedules", async () => {
     // The reason the rule bears on the observance rather than the holiday: one
     // person can want a gift reminder while another wants only a day-of call.
-    vi.setSystemTime(new Date(2026, 11, 1, 12));
+    // Christmas Day, so the day-of call is on display alongside the long-lead
+    // gift, which has been on display for weeks.
+    vi.setSystemTime(new Date(2026, 11, 25, 12));
     const core = createCore(driver);
     const person = await alice(core);
     const grandma = await core.people.create(

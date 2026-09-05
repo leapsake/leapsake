@@ -632,8 +632,9 @@ describe("with multi-device held back", () => {
 describe("onboarding + milestone families coexist", () => {
   it("keeps a birthday reminder and the onboarding nudges in one reconcile", async () => {
     const h = makeHarness();
-    // Add a birthday ~10 days out alongside the fresh-store onboarding nudges.
-    const occ: CivilDate = { year: TODAY.year, month: TODAY.month, day: 11 };
+    // Add a birthday falling today alongside the fresh-store onboarding nudges
+    // — the day a default schedule's day-of wish is actually on display.
+    const occ: CivilDate = TODAY;
     h.deps.milestones.listRemindEligible = async () => [
       birthday("m1", "p1", occ),
     ];

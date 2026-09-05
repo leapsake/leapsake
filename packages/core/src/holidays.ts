@@ -16,13 +16,14 @@ import type {
 } from "@leapsake/data";
 import {
   type HolidayOccurrenceCandidate,
-  LEAD_DAYS,
+  BELATED_DAYS,
 } from "@leapsake/reminders";
 import {
   type CivilDate,
   type HolidayOrigin,
   type ObservanceBearerType,
   type ReminderRuleInput,
+  MAX_ACTIVE_DAYS,
   fullName,
   observanceDefaultReminderSchedule,
   resolveObservanceReminderSchedule,
@@ -158,8 +159,16 @@ export interface HolidaysApiDeps {
  *
  * The horizon is derived from the widest lead time actually in use rather than
  * fixed, so a user who sets a 90-day gift reminder still gets it: the engine
- * surfaces a rule once its own due date (occurrence − offset) is within
- * `LEAD_DAYS`, so an occurrence matters up to `LEAD_DAYS + maxOffset` away.
+ * surfaces a rule once its own due date (occurrence − offset) is inside that
+ * action's `activeDays`, so an occurrence matters up to
+ * `MAX_ACTIVE_DAYS + maxOffset` away. Taking the two maxima independently is
+ * deliberately generous — this only has to **bound** the reach of any one rule,
+ * and an under-estimate would silently drop occurrences rather than fail.
+ *
+ * The window reaches `BELATED_DAYS` into the past as well, because a missed
+ * errand lingers briefly rather than vanishing overnight (`isWithinWindow` in
+ * `@leapsake/reminders`). Candidates the engine will reject are cheap; an
+ * occurrence never offered to it is invisible.
  */
 export async function holidayReminderCandidates(deps: {
   holidays: HolidaysRepo;
@@ -191,7 +200,7 @@ export async function holidayReminderCandidates(deps: {
     ...observanceDefaultReminderSchedule.map((r) => r.offsetDays),
     ...rules.map((r) => r.offsetDays),
   );
-  const horizon = LEAD_DAYS + maxOffset;
+  const horizon = MAX_ACTIVE_DAYS + maxOffset;
 
   const candidates: HolidayOccurrenceCandidate[] = [];
   for (const observance of observances) {
@@ -204,6 +213,7 @@ export async function holidayReminderCandidates(deps: {
       holiday.slug,
       deps.today,
       horizon,
+      BELATED_DAYS,
     );
     if (occurrences.length === 0) continue;
 

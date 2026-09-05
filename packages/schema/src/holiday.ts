@@ -232,7 +232,7 @@ export type HiddenHoliday = z.infer<typeof hiddenHolidaySchema>;
  * tombstones.
  */
 export const observanceDefaultReminderSchedule: DefaultReminderRule[] = [
-  { action: "gift", offsetDays: 30, enabledByDefault: false },
+  { action: "gift", offsetDays: 12, enabledByDefault: false },
   { action: "card", offsetDays: 7, enabledByDefault: false },
   { action: "wish", offsetDays: 0, enabledByDefault: false },
   { action: "call", offsetDays: 0, enabledByDefault: false },

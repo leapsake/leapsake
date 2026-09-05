@@ -28,8 +28,8 @@ whole desired set from scratch every call, keyed on `now`.
 
 `planNotifications` applies no horizon filter of its own — how far ahead to look is a property of
 what the composition root hands it. Historically that made the horizon ~30 days by accident: a
-`system` reminder isn't a row until its due date is within `@leapsake/reminders`' `LEAD_DAYS`, so
-planning from stored rows could only reach that far. That was a bug, not a design: notifications
+`system` reminder isn't a row until its own action's `activeDays` puts it on display, so planning
+from stored rows could only reach that far. That was a bug, not a design: notifications
 are only ever scheduled while the app is running, so a device left unopened worked through 30 days
 of plan and then went quiet — failing exactly the user a reminder app exists for. Callers now pass
 a year's worth via `listNotifiableReminders`, which computes the reminders that *will* exist

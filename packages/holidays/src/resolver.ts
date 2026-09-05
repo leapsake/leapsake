@@ -56,11 +56,18 @@ export interface HolidayResolver {
   /**
    * Occurrences from `today` (inclusive) through `horizonDays` later, ascending.
    * Spans the year boundary, so a December call still sees January.
+   *
+   * `lookbackDays` extends the near end into the **past**, so a caller can see
+   * an occurrence that has just gone by. The reminder engine needs it: a missed
+   * Christmas card should linger for a day or two like any other missed errand,
+   * and a walk that starts at today can never offer one. It defaults to 0, which
+   * is exactly today's behaviour, so no existing caller changes.
    */
   upcomingOccurrences(
     slug: string,
     today: CivilDate,
     horizonDays: number,
+    lookbackDays?: number,
   ): readonly CivilDate[];
 }
 
@@ -123,23 +130,25 @@ export function createHolidayResolver(
   return {
     occurrencesFor: (slug, year) => resolve(slug, year, 0),
 
-    upcomingOccurrences(slug, today, horizonDays) {
-      // Search every year the horizon actually touches, not a fixed two. A
+    upcomingOccurrences(slug, today, horizonDays, lookbackDays = 0) {
+      // Search every year the window actually touches, not a fixed two. A
       // hardcoded range silently truncates the moment the horizon exceeds a
       // year — the caller gets a short list that looks perfectly plausible.
-      // Starting at `today.year` is enough at the near end: an `offset` rule
-      // already widens its own search a year either side, so a date pulled back
-      // from January is found when its own year is resolved.
+      // The near end has to be walked back explicitly once `lookbackDays` is in
+      // play: on Jan-1, a Christmas three days gone lives in the *previous*
+      // year, so starting at `today.year` would quietly lose it.
+      const lookback = Math.max(lookbackDays, 0);
+      const firstYear = shiftDays(today, -lookback).year;
       const lastYear = shiftDays(today, Math.max(horizonDays, 0)).year;
       const candidates: CivilDate[] = [];
-      for (let year = today.year; year <= lastYear; year++) {
+      for (let year = firstYear; year <= lastYear; year++) {
         candidates.push(...resolve(slug, year, 0));
       }
       const seen = new Set<string>();
       const out: CivilDate[] = [];
       for (const date of candidates) {
         const days = daysUntil(today, date);
-        if (days < 0 || days > horizonDays) continue;
+        if (days < -lookback || days > horizonDays) continue;
         const iso = isoFromCivil(date);
         if (seen.has(iso)) continue; // the two years can overlap at the seam
         seen.add(iso);

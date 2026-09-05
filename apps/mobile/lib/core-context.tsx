@@ -543,9 +543,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         const [policy, reminders, pending] = await Promise.all([
           coreApi.notificationSettings.get(id),
           // `listNotifiable`, not `list`: the reminder *list* deliberately
-          // shows only the `LEAD_DAYS` horizon, while the schedule has to
-          // reach a year out — nothing else advances it until the app is
-          // opened again.
+          // shows only what each action's own window puts on display, while
+          // the schedule has to reach a year out — nothing else advances it
+          // until the app is opened again.
           coreApi.reminders.listNotifiable(),
           scheduler.listPending(),
         ]);
