@@ -106,6 +106,27 @@ export interface MilestoneKindDef {
    */
   greeting: string;
   /**
+   * The same phrase for an occasion that has already **passed** — "Wish @Alice
+   * **a happy belated birthday**" — read by the copy layer once a row reaches
+   * the belated state (`@leapsake/reminders`, `ReminderWindowFacts`).
+   *
+   * A second phrase rather than a rule applied to {@link MilestoneKindDef.greeting},
+   * because there is no such rule. A greeting is opaque: it carries its own
+   * article and its own sentiment, and while "a happy birthday" takes a
+   * "belated" in the middle, "congratulations" takes one at the front and "Eid
+   * Mubarak" — a holiday greeting, but the shape is the point — takes one
+   * nowhere at all. Splicing a word into an arbitrary phrase produces plausible
+   * nonsense, which is exactly the failure this interface's sibling fields exist
+   * to prevent.
+   *
+   * **Optional, and absent means unchanged.** An occasion with no natural
+   * belated form keeps its plain greeting, which reads as slightly odd rather
+   * than as mangled — the right way round. `death` has none deliberately: its
+   * `remember` never reads a greeting, and a "belated remembrance" is not a
+   * thing to wish anyone.
+   */
+  belatedGreeting?: string;
+  /**
    * Whether an *unconfigured* occasion of this kind asks the user how they want
    * to mark it, and — when it does — the bare noun that question names it by
    * ("How do you want to mark @Alice's **birthday**?").
@@ -136,6 +157,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person", "pet"],
     recursAnnually: true,
     greeting: "a happy birthday",
+    belatedGreeting: "a happy belated birthday",
     prompt: { occasion: "birthday" },
     // "Wish them a happy birthday" day-of is the one reminder on by default
     // anywhere; the staggered gift, card and message actions are offered but
@@ -176,6 +198,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
     greeting: "a happy anniversary",
+    belatedGreeting: "a happy belated anniversary",
     defaultReminderSchedule: [
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
       { action: "call", offsetDays: 0, enabledByDefault: false },
@@ -187,6 +210,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
     greeting: "a happy anniversary",
+    belatedGreeting: "a happy belated anniversary",
     // Named "wedding anniversary", not "wedding": the milestone records the day
     // they married, but the occasion the prompt is asking about is its return.
     prompt: { occasion: "wedding anniversary" },
@@ -208,6 +232,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person", "relationship"],
     recursAnnually: true,
     greeting: "a happy anniversary",
+    belatedGreeting: "a happy belated anniversary",
     prompt: { occasion: "anniversary" },
     // A card and a call, both offered and both off — the source card says a date
     // matters to this person, not what the user wants done about it.
@@ -222,6 +247,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
     greeting: "a happy anniversary",
+    belatedGreeting: "a happy belated anniversary",
     defaultReminderSchedule: [
       { action: "call", offsetDays: 0, enabledByDefault: false },
     ],
@@ -232,6 +258,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person"],
     recursAnnually: false,
     greeting: "congratulations",
+    belatedGreeting: "belated congratulations",
     defaultReminderSchedule: [
       { action: "get:gift", offsetDays: 14, enabledByDefault: false },
       { action: "call", offsetDays: 0, enabledByDefault: false },
@@ -243,6 +270,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person"],
     recursAnnually: false,
     greeting: "congratulations",
+    belatedGreeting: "belated congratulations",
     defaultReminderSchedule: [
       { action: "call", offsetDays: 0, enabledByDefault: false },
     ],
@@ -253,6 +281,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person", "pet"],
     recursAnnually: false,
     greeting: "a happy housewarming",
+    belatedGreeting: "a happy belated housewarming",
     // A housewarming is a gift occasion — offered, off (nothing but a birthday
     // wish is on by default). TODO (v2): a move wants its own fields (the new
     // address, and the relationship between the two homes) rather than only a

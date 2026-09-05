@@ -68,6 +68,7 @@ export const API_CHANNELS = [
   // no local notifications yet, and this read exists to feed that planner.
   "reminders.listNotifiable",
   "reminders.listInWindow",
+  "reminders.getInWindow",
   "reminders.get",
   "reminders.create",
   "reminders.update",

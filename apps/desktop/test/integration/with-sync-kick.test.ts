@@ -196,6 +196,7 @@ const SURFACE: Record<string, "read" | "write"> = {
   "relationships.update": "write",
   "reminders.create": "write",
   "reminders.get": "read",
+  "reminders.getInWindow": "read",
   "reminders.giftTargets": "read",
   "reminders.planTargets": "read",
   "reminders.list": "read",

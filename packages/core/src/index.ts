@@ -104,6 +104,7 @@ import {
   type ReminderWindowFacts,
   DISPLAY_WINDOW_DAYS,
   duplicatesReminderId,
+  getReminderInWindow,
   listNotifiableReminders,
   listRemindersInWindow,
   listSystemReminderTargets,
@@ -1011,6 +1012,45 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     );
   };
 
+  /**
+   * One reminder as `listInWindow` sees it — what a **detail** screen reads.
+   *
+   * The stored row is not the same thing: part of what a reminder says is
+   * derived on the engine's walk and never persisted (the belated wording
+   * today), so a detail screen reading `get` would word the row differently
+   * from the list that linked to it. It also carries the two dates the row
+   * cannot say, which is what lets the screen name *which* way it was missed.
+   *
+   * Falls back to the stored row for an id the walk does not want — a `system`
+   * reminder whose window has closed since the link was made. Outside the
+   * window there is no derivation to apply, so the plain row is the whole truth
+   * about it, and showing it beats showing nothing.
+   */
+  const getInWindow = async (
+    id: string,
+  ): Promise<ReminderInWindow | undefined> => {
+    const row = await getReminderInWindow(systemReminderDeps(), id);
+    if (row === undefined) {
+      const stored = await reminders.get(id);
+      if (stored === undefined) return undefined;
+      return {
+        ...stored,
+        activeFrom: null,
+        occurrenceDate: null,
+        materialized: true,
+        tags: await tags.listForEntity("reminder", id),
+        mentions: await resolveMentions(id),
+      };
+    }
+    return row.materialized
+      ? {
+          ...row,
+          tags: await tags.listForEntity("reminder", row.id),
+          mentions: await resolveMentions(row.id),
+        }
+      : { ...row, tags: [], mentions: [] };
+  };
+
   const views = createViews({
     people: { list: () => people.list(), get: (id) => people.get(id) },
     pets: { list: () => pets.list(), get: (id) => pets.get(id) },
@@ -1424,6 +1464,8 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
       listNotifiable,
       /** What the reminder list shows, bucketed by the clients. See above. */
       listInWindow,
+      /** One row of that same list — what a detail screen reads. See above. */
+      getInWindow,
       get: async (id: string): Promise<ReminderWithTags | undefined> => {
         const reminder = await reminders.get(id);
         if (!reminder) return undefined;

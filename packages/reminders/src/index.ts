@@ -18,6 +18,7 @@ export {
   ONBOARDING_REMINDERS,
   SYSTEM_REMINDER_NAMESPACE,
   duplicatesReminderId,
+  getReminderInWindow,
   listNotifiableReminders,
   listRemindersInWindow,
   listSystemReminderTargets,

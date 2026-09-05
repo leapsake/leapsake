@@ -18,6 +18,8 @@ scoped. The composition root wires the repos.
 | How long a given errand sits on the list | `activeDays` on `actionDefs`, in `@leapsake/schema` |
 | How far ahead the *list* looks, versus the *notification schedule* | `DISPLAY_WINDOW_DAYS` and `NOTIFICATION_WINDOW_DAYS` in `src/engine.ts` |
 | What a row can say about its own timing once it leaves the engine | `ReminderWindowFacts` in `src/engine.ts` |
+| Why a row can display copy it does not store | `renderTitle` / `derivedTitle` in `src/engine.ts`, and *Derived copy* below |
+| What a detail screen should read instead of the stored row | `getReminderInWindow` in `src/engine.ts` |
 | Why a not-yet-active reminder can still be ticked | `materializeReminder` in `src/engine.ts` |
 | The onboarding nudge definitions and their copy | `ONBOARDING_STEPS` in `src/engine.ts` |
 | How snooze budgets are read | `snoozePolicyOf`, beside `ONBOARDING_STEPS` |
@@ -157,6 +159,42 @@ Two rules the derivation depends on, both easy to break by accident:
 - **A row with no occurrence is never belated.** An overdue user reminder is still
   salvageable — nothing has *passed* — so it reads as past due. Belated needs a known
   occasion that has gone.
+
+### Derived copy — what a row shows is not always what it stores
+
+A reminder's title is stored, and it has to be: `reminders` is one flat table a client can read
+without the engine. But some of what a title should *say* is not knowable when the row is minted.
+Whether the occasion has since **passed** is the first case, and it is the pattern for the rest.
+
+So the row stores the **plain** wording and the belated wording is put on at the read.
+`ReminderCopySource` travels on the desired row — the action, the mention-wrapped subject, the
+greeting and its belated variant — and one `renderTitle` writes the sentence from it, called twice:
+by `computeDesired` for what is stored, and by `listRemindersInWindow` for what is shown. Two
+callers, one function, so the two forms cannot drift into two different sentences.
+
+Deriving it is not a nicety. `reconcile` refreshes a row whose title has drifted, so a stored
+belated wording would cost an update — and a sync — for **every** dated reminder the morning after
+its occasion. `reconcile` is deliberately a no-op in steady state, and a title that expires
+overnight would end that. The same argument is what keeps the *next* thing off the stored row: how
+the user can actually reach someone changes with every contact-method edit, and none of those edits
+should touch a reminder.
+
+Three rules the derivation depends on, all easy to break by accident:
+
+- **It goes on the shared walk, not on a screen.** `listRemindersInWindow` is what both the
+  reminder list and the notification planner read (the planner through `listNotifiableReminders`),
+  so copy attached there reaches both and they cannot disagree. Copy attached in a client would
+  leave the notification saying something else.
+- **A detail screen must read `getReminderInWindow`, never the stored row.** Reading past the seam
+  words the screen differently from the row that linked to it — on the screen where the reminder is
+  actually acted on. It answers `undefined` for a row outside the window, where the plain title is
+  the whole truth and the caller should fall back to it.
+- **A greeting with no belated form keeps the plain one.** `belatedGreeting` is a second phrase in
+  `kindDefs`, not a rule applied to the first, because there is no such rule: "a happy birthday"
+  takes *belated* in the middle, "congratulations" at the front, and "Eid Mubarak" nowhere at all.
+  Absent means unchanged, which reads as slightly odd rather than as mangled — the right way round.
+  Holidays carry none today: a holiday's greeting is a stored column seeded from the catalog, so a
+  second phrase there is a migration.
 
 ### Three windows, and why none of them is the others
 

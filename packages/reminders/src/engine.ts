@@ -271,6 +271,128 @@ interface DesiredReminder {
    * `gift` one opens the recipient's gifts).
    */
   target?: Omit<SystemReminderTarget, "id">;
+  /**
+   * Everything needed to write this row's title **again**, at read time — see
+   * {@link ReminderCopySource}. Present on the two dated families; the dateless
+   * ones carry a fixed string and never re-render.
+   */
+  copy?: ReminderCopySource;
+  /**
+   * Whether this row's occasion has already passed — the belated state
+   * ({@link isWithinWindow}), decided here because this is where the occurrence
+   * and today are both in hand, and read by {@link displayTitle}.
+   */
+  belated?: boolean;
+}
+
+/**
+ * Everything a dated row's title is written from, carried on the desired row so
+ * that the **read** can write it again.
+ *
+ * The title is stored, and it has to be: `reminders` is one flat table a client
+ * can read without the engine. But some of what the title should *say* is not
+ * knowable when the row is minted — whether the occasion has since passed, and
+ * (from the next slice) how the user can actually reach the person. Deriving
+ * those into the stored string would make every contact-method edit rewrite
+ * reminder rows and bump `updated_at`, when `reconcile` is deliberately a no-op
+ * in steady state.
+ *
+ * So the row stores the **plain** title and this travels beside it, unpersisted,
+ * for {@link listRemindersInWindow} to re-render from. One
+ * {@link renderTitle} serves both, which is what stops the stored form and the
+ * displayed form drifting into two different sentences.
+ */
+interface ReminderCopySource {
+  action: ReminderAction;
+  /** The bearer's label, mention-wrapped except for a relationship bearer. */
+  subject: string;
+  greeting: string;
+  /**
+   * The greeting for an occasion that has already passed, or `null` where the
+   * occasion has no belated form — see `belatedGreeting` in `@leapsake/schema`
+   * for why this is a second phrase rather than a rule applied to the first.
+   */
+  belatedGreeting: string | null;
+  occasion: string;
+  /** An `other` rule's free text, which is the whole of its copy. */
+  label: string | null;
+  /**
+   * Copy that replaces the action's template outright, in both its forms — the
+   * self-directed branches, and only those. Keyed on a fact about the bearer,
+   * never on the row's identity: the row is still `...:wish`.
+   */
+  override: { plain: string; belated: string } | null;
+}
+
+/**
+ * The one place a dated reminder's title is written — by {@link computeDesired}
+ * for the stored form (`belated: false`, always, since the store must not carry
+ * a string that expires) and by the read for what is displayed.
+ */
+function renderTitle(copy: ReminderCopySource, belated: boolean): string {
+  if (copy.override !== null)
+    return belated ? copy.override.belated : copy.override.plain;
+  const def = actionDefOf(copy.action);
+  const body =
+    verbOf(copy.action) === "other"
+      ? // No template: an `other` is the user's own free text, so it names no
+        // subject and has nothing to interpolate.
+        reminderRuleLabel({ action: copy.action, label: copy.label })
+      : def.template({
+          subject: copy.subject,
+          greeting:
+            belated && copy.belatedGreeting !== null
+              ? copy.belatedGreeting
+              : copy.greeting,
+          occasion: copy.occasion,
+        });
+  return `${def.icon ?? ""} ${body}`.trim();
+}
+
+/**
+ * The title the **read** puts on a row in place of the stored one, or `null`
+ * when the stored title already says everything — which is the common case, and
+ * why this answers null rather than re-rendering every row.
+ *
+ * Today the one derived case is a passed occasion, worded belated. The store
+ * keeps the plain form so that no reconcile has to rewrite a row the morning
+ * after a birthday.
+ */
+function derivedTitle(want: DesiredReminder): string | null {
+  return want.copy !== undefined && want.belated === true
+    ? renderTitle(want.copy, true)
+    : null;
+}
+
+/**
+ * The copy that replaces a milestone action's template when the bearer is
+ * **you** — "Wish @You a happy birthday" is the third person about the second.
+ *
+ * A copy-layer branch, never a filter: your own birthday is still reminded. It
+ * takes the belated form as well, because a row lingers for `BELATED_DAYS` after
+ * the day and "It's your birthday!" is simply false by then.
+ */
+function selfOverrideOf(
+  isSelf: boolean,
+  action: ReminderAction,
+  kind: MilestoneKind,
+): { plain: string; belated: string } | null {
+  if (!isSelf) return null;
+  if (verbOf(action) === "wish" && kind === "birthday")
+    return {
+      plain: "🎂 It's your birthday!",
+      belated: "🎂 It was your birthday!",
+    };
+  if (verbOf(action) === "plan") {
+    const title =
+      `${actionDefOf(action).icon ?? ""} How do you want to mark your own ${
+        kindDefs[kind].prompt?.occasion ?? kindDefs[kind].label
+      }?`.trim();
+    // The question does not change once the occasion has gone: answering it
+    // still writes the rules that apply next year.
+    return { plain: title, belated: title };
+  }
+  return null;
 }
 
 /**
@@ -923,13 +1045,29 @@ export async function listRemindersInWindow(
 
   const rows: WindowedReminder[] = [];
   for (const want of desired.values()) {
+    // What the row **says**, where that is not what it stores — see
+    // {@link derivedTitle}. It overrides the stored string deliberately (the
+    // store holds the plain form on purpose, and a `system` title is not
+    // user-editable on either client, so there is nothing of the user's to
+    // overwrite), but only where there is something derived to say: null leaves
+    // the row exactly as it was read, which is every row until an occasion
+    // passes.
+    const derived = derivedTitle(want);
     const existing = await deps.reminders.getIncludingDeleted(want.id);
     if (existing !== undefined) {
       if (existing.deletedAt === null)
-        rows.push({ ...existing, ...factsOf(want, true) });
+        rows.push({
+          ...existing,
+          title: derived ?? existing.title,
+          ...factsOf(want, true),
+        });
       continue;
     }
-    rows.push({ ...synthesize(want), ...factsOf(want, false) });
+    rows.push({
+      ...synthesize(want),
+      title: derived ?? want.title,
+      ...factsOf(want, false),
+    });
   }
 
   const userRows = await deps.reminders.listWhere({
@@ -958,6 +1096,37 @@ export function listNotifiableReminders(
   deps: ReminderEngineDeps,
 ): Promise<WindowedReminder[]> {
   return listRemindersInWindow(deps, NOTIFICATION_WINDOW_DAYS);
+}
+
+/**
+ * One reminder as the list sees it — the row a **detail** screen should read.
+ *
+ * Reading the stored row instead is the obvious thing and the wrong one: some of
+ * what a reminder says is derived at this walk and not persisted (today the
+ * belated wording, next the channel), so a detail screen reading past this seam
+ * would disagree with the row that linked to it — on the very screen the reminder
+ * is acted on. It also has no `activeFrom`/`occurrenceDate`, so it cannot say
+ * which of the two ways of being missed it is in.
+ *
+ * Filtering the whole walk for one id is deliberate. A second, narrower path to
+ * a single desired row would be a second implementation of the id derivation and
+ * the window filter, and the day either changed the two would disagree silently
+ * — the same argument `giftTargets` and `planTargets` are built on, and the same
+ * cost: those two screens already pay for this walk twice over.
+ *
+ * `undefined` for an id the walk does not want — a dismissed row, or a `system`
+ * one whose window has closed since the link was made. A caller with a screen to
+ * fill should fall back to the stored row rather than showing nothing: outside
+ * the window there is no derivation to apply, so the plain title is the whole
+ * truth about it.
+ */
+export async function getReminderInWindow(
+  deps: ReminderEngineDeps,
+  id: string,
+  windowDays: number = DISPLAY_WINDOW_DAYS,
+): Promise<WindowedReminder | undefined> {
+  const rows = await listRemindersInWindow(deps, windowDays);
+  return rows.find((row) => row.id === id);
 }
 
 /** The window facts a desired row reports, once its store state is known. */
@@ -1153,53 +1322,39 @@ async function computeDesired(
           SYSTEM_REMINDER_NAMESPACE,
           occurrenceName(m.id, occ.year, actionKeyOf(rule)),
         );
-        const def = actionDefOf(rule.action);
-        let title: string;
-        if (
-          bearerIsSelf &&
-          verbOf(rule.action) === "wish" &&
-          m.kind === "birthday"
-        ) {
-          // Your own birthday — addressed *to* you, so no "@You" mention token and
-          // a celebratory icon in place of "Wish @You a happy birthday".
-          title = "🎂 It's your birthday!";
-        } else if (bearerIsSelf && verbOf(rule.action) === "plan") {
-          // Same branch, same reason: "How do you want to mark @You's birthday?"
-          // is the third person about the second. Keyed on a fact about the
-          // bearer, never on identity — the row is still `...:plan`.
-          title = `${def.icon ?? ""} How do you want to mark your own ${
-            kindDefs[m.kind].prompt?.occasion ?? kindDefs[m.kind].label
-          }?`.trim();
-        } else {
-          // The action's copy carries the (mention-wrapped) subject — "Wish @Alice a
-          // happy birthday", "Get @Alice a gift". `other` has no template; it is the
-          // user's own free text, so it names no subject (nothing to interpolate).
-          const body =
-            verbOf(rule.action) === "other"
-              ? reminderRuleLabel({
-                  action: rule.action,
-                  label: rule.label ?? null,
-                })
-              : def.template({
-                  subject,
-                  greeting: kindDefs[m.kind].greeting,
-                  // Only `plan` reads this today. Falling back to the kind's own
-                  // label keeps the context total for the kinds that never
-                  // prompt, rather than making the field optional — see the
-                  // warning on `ReminderCopyContext`.
-                  occasion:
-                    kindDefs[m.kind].prompt?.occasion ??
-                    kindDefs[m.kind].label.toLowerCase(),
-                });
-          title = `${def.icon ?? ""} ${body}`.trim();
-        }
+        // The action's copy carries the (mention-wrapped) subject — "Wish @Alice
+        // a happy birthday", "Get @Alice a gift" — unless the bearer is you, in
+        // which case {@link selfOverrideOf} replaces it. Assembled rather than
+        // rendered on the spot because the read renders it a second time: see
+        // {@link ReminderCopySource}.
+        const copy: ReminderCopySource = {
+          action: rule.action,
+          subject,
+          greeting: kindDefs[m.kind].greeting,
+          // Absent on the kinds with no natural belated form, which then keep
+          // the plain greeting rather than being handed a spliced one.
+          belatedGreeting: kindDefs[m.kind].belatedGreeting ?? null,
+          // Only `plan` reads this today. Falling back to the kind's own label
+          // keeps the context total for the kinds that never prompt, rather
+          // than making the field optional — see the warning on
+          // `ReminderCopyContext`.
+          occasion:
+            kindDefs[m.kind].prompt?.occasion ??
+            kindDefs[m.kind].label.toLowerCase(),
+          label: rule.label ?? null,
+          override: selfOverrideOf(bearerIsSelf, rule.action, m.kind),
+        };
         // Due `offsetDays` before the occurrence (day-of when 0); stored as UTC
         // midnight of that civil day, so plain integer subtraction is exact. A
         // belated row's due date is simply in the past, which is honest.
         const dueDate = dueDateMs(occ) - rule.offsetDays * DAY_MS;
         desired.set(id, {
           id,
-          title,
+          // The **plain** form, always: what is stored must not be a sentence
+          // that expires overnight. The belated wording is put on at the read.
+          title: renderTitle(copy, false),
+          copy,
+          belated: days < 0,
           dueDate,
           activeFrom: dueDate - ownActiveDays(rule.action) * DAY_MS,
           occurrenceDate: dueDateMs(occ),
@@ -1275,22 +1430,30 @@ async function computeDesired(
               actionKeyOf(rule),
             ),
           );
-          const def = actionDefOf(rule.action);
-          const body =
-            verbOf(rule.action) === "other"
-              ? reminderRuleLabel({
-                  action: rule.action,
-                  label: rule.label ?? null,
-                })
-              : def.template({
-                  subject,
-                  greeting: candidate.greeting,
-                  occasion: candidate.occasion,
-                });
+          const copy: ReminderCopySource = {
+            action: rule.action,
+            subject,
+            greeting: candidate.greeting,
+            // ⚠️ Holidays carry no belated greeting, so a passed one keeps its
+            // plain wording. A holiday's greeting is a **stored column** seeded
+            // from the catalog, not a registry constant, so a second phrase
+            // there is a migration — and "a belated Merry Christmas" is not yet
+            // worth one. The plumbing is ready for it the day it is: this is the
+            // only line that changes.
+            belatedGreeting: null,
+            occasion: candidate.occasion,
+            label: rule.label ?? null,
+            // An observance is borne by a (person, holiday) pair, so there is no
+            // self-directed case to override: your own Christmas is not an
+            // occasion this engine reminds you about.
+            override: null,
+          };
           const dueDate = dueDateMs(occ) - rule.offsetDays * DAY_MS;
           desired.set(id, {
             id,
-            title: `${def.icon ?? ""} ${body}`.trim(),
+            title: renderTitle(copy, false),
+            copy,
+            belated: days < 0,
             dueDate,
             activeFrom: dueDate - ownActiveDays(rule.action) * DAY_MS,
             occurrenceDate: dueDateMs(occ),

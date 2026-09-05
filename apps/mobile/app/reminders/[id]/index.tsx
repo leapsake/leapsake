@@ -84,7 +84,11 @@ export default function ReminderDetailScreen() {
   const load = useCallback(
     () =>
       Promise.all([
-        core.reminders.get(id),
+        // `getInWindow`, not `get`: part of what a reminder says is derived on
+        // the engine's walk rather than stored — the belated wording — so
+        // reading the plain row here would word this screen differently from
+        // the list row that linked to it.
+        core.reminders.getInWindow(id),
         core.reminders.giftTargets(),
         // A prompt is answered here rather than on a screen of its own, so this
         // reads what it is asking about — the milestone, and the set of actions
