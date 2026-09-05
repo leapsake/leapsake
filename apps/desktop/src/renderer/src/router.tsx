@@ -64,6 +64,7 @@ import { RelationshipView } from "./screens/RelationshipView";
 import { ReminderCreate } from "./screens/ReminderCreate";
 import { ReminderDelete } from "./screens/ReminderDelete";
 import { ReminderEdit } from "./screens/ReminderEdit";
+import { MilestonePlanPrompt } from "./screens/MilestonePlanPrompt";
 import { ReminderList } from "./screens/ReminderList";
 import { Settings } from "./screens/Settings";
 import { TagDelete } from "./screens/TagDelete";
@@ -1030,15 +1031,48 @@ async function giftCreateLoader({ request }: LoaderFunctionArgs) {
  * and coming are not derivable from stored rows alone (see `bucketReminders`).
  */
 async function remindersLoader() {
-  const [reminders, giftTargets, duplicatesNudgeId] = await Promise.all([
-    window.api.reminders.listInWindow(),
-    window.api.reminders.giftTargets(),
-    // The duplicates nudge is content-addressed on the outstanding pair set, so
-    // unlike the onboarding nudges its id can't be a static table — core
-    // recomputes it from the live pairs and the list matches on it.
-    window.api.duplicates.nudgeId(),
-  ]);
-  return { reminders, giftTargets, duplicatesNudgeId };
+  const [reminders, giftTargets, planTargets, duplicatesNudgeId] =
+    await Promise.all([
+      window.api.reminders.listInWindow(),
+      window.api.reminders.giftTargets(),
+      // What each `🗓 plan` prompt is asking about, and the actions it offers —
+      // carried on the row so the one-tap answer needs no second read.
+      window.api.reminders.planTargets(),
+      // The duplicates nudge is content-addressed on the outstanding pair set, so
+      // unlike the onboarding nudges its id can't be a static table — core
+      // recomputes it from the live pairs and the list matches on it.
+      window.api.duplicates.nudgeId(),
+    ]);
+  return { reminders, giftTargets, planTargets, duplicatesNudgeId };
+}
+
+/** The prompt's own screen: the offer set for the milestone being asked about. */
+async function milestonePlanLoader({ params }: LoaderFunctionArgs) {
+  const milestoneId = params.milestoneId as string;
+  const target = (await window.api.reminders.planTargets()).find(
+    (t) => t.milestoneId === milestoneId,
+  );
+  // No prompt outstanding for this milestone: it has been answered, or the row
+  // is not in window. Either way there is nothing to ask.
+  if (target === undefined)
+    throw new Response("No prompt for this milestone", { status: 404 });
+  return { target };
+}
+
+/**
+ * Answer the prompt — from the screen's Save, and from the list row's one-tap
+ * *Just the day*, which posts the same field to the same place.
+ *
+ * `milestones.update` replaces the whole rule set and reconciles in the same
+ * call, so the prompt retires and whatever was ticked appears at its own due
+ * date together.
+ */
+async function milestonePlanAction({ request, params }: ActionFunctionArgs) {
+  const formData = await request.formData();
+  await window.api.milestones.update(params.milestoneId as string, {
+    reminderSchedule: readReminderSchedule(formData) ?? [],
+  });
+  return redirect("/reminders");
 }
 
 /** Save edits to a gift idea; a blank title is a no-op back to the list. The
@@ -1170,6 +1204,14 @@ const routes: RouteObject[] = [
         // Action-only: the list-row "Not now" fetcher posts here.
         path: "reminders/:id/snooze",
         action: reminderSnoozeAction,
+      },
+      {
+        // The prompt's answer — a screen for the full offer set, and the action
+        // the row's one-tap "Just the day" fetcher posts to.
+        path: "milestones/:milestoneId/plan",
+        loader: milestonePlanLoader,
+        element: <MilestonePlanPrompt />,
+        action: milestonePlanAction,
       },
       {
         // Gifts — the whole graph keyed by idea. Creating is its

@@ -76,6 +76,7 @@ export const API_CHANNELS = [
   "reminders.softDelete",
   "reminders.regenerateSystem",
   "reminders.giftTargets",
+  "reminders.planTargets",
   "reminders.mentioning",
 
   "self.get",

@@ -37,6 +37,7 @@ export {
   RelationshipFields,
   type RelationshipCandidate,
 } from "./fields/RelationshipFields.js";
+export { ReminderPromptFields } from "./fields/ReminderPromptFields.js";
 export { ReminderScheduleFields } from "./fields/ReminderScheduleFields.js";
 export { WithWhomFields } from "./fields/WithWhomFields.js";
 export { ContactMethodForm } from "./forms/ContactMethodForm.js";

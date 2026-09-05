@@ -5,6 +5,8 @@ import {
 } from "@leapsake/reminders";
 import {
   type GiftPartyType,
+  type MilestoneKind,
+  type ReminderRuleInput,
   civilFromDueMs,
   compareReminderDue,
   daysUntil,
@@ -239,6 +241,16 @@ export interface GiftReminderSubject {
   recipientId: string;
 }
 
+/** What a `🗓 plan` prompt is asking about. Core's `PlanReminderTarget` satisfies it. */
+export interface PlanReminderSubject {
+  milestoneId: string;
+  /** Named for what it is, not `kind`: {@link ReminderCta} already discriminates
+   *  on that, and a spread would silently overwrite it. */
+  milestoneKind: MilestoneKind;
+  /** Every action offered, `enabled` carrying which arrive pre-ticked. */
+  offers: ReminderRuleInput[];
+}
+
 /**
  * Where a reminder row's call to action leads — the *decision*, not the route.
  * Each client maps this to its own router path and its own copy, since the two
@@ -247,6 +259,7 @@ export interface GiftReminderSubject {
 export type ReminderCta =
   | { kind: "onboarding"; route: OnboardingRoute }
   | { kind: "duplicates" }
+  | ({ kind: "plan" } & PlanReminderSubject)
   | ({
       kind: "gift";
       action: "see-gifts" | "record-giving";
@@ -256,14 +269,22 @@ export type ReminderCta =
  * The call to action a reminder row offers, or `null` for the ordinary reminders
  * (user-written, birthday, milestone, holiday) that just sit there and get done.
  *
- * Three kinds, in precedence order — no reminder is ever eligible for two, so the
+ * Four kinds, in precedence order — no reminder is ever eligible for two, so the
  * order only fixes the shape of the check:
  *
  * 1. an **onboarding** nudge, identified by its well-known id
  *    ({@link onboardingRouteOf}) and deep-linking to the step it asks for;
  * 2. the **duplicates** nudge, whose id is content-addressed on the outstanding
  *    pair set and so is passed in by the caller rather than looked up;
- * 3. a **`🎁 gift`** reminder, whose target flips on completion — the loop the
+ * 3. a **`🗓 plan`** prompt, which is a *question* rather than an errand: its
+ *    call to action is answering it, and it carries the offer set so a client
+ *    can write the answer without a second read. ⚠️ It is the one CTA whose
+ *    point is that the row is **cheap to answer** — the increment trades several
+ *    passive rows for one that asks you something, and that only pays off if the
+ *    common answer costs less than ignoring the old rows did. A client that
+ *    renders it as nothing but a link to a settings screen has lost the trade;
+ *    {@link ReminderRowAction} carries the one-tap answer for that reason.
+ * 4. a **`🎁 gift`** reminder, whose target flips on completion — the loop the
  *    reminder itself opens. *Open:* the recipient's own page, whose Gifts section
  *    lists what's already suggested for them (and what they've been given, so you
  *    don't repeat yourself). *Done:* logging what you actually gave.
@@ -279,12 +300,16 @@ export function reminderCtaOf(
     giftTarget?: GiftReminderSubject;
     /** Set when this row is today's duplicates nudge. */
     isDuplicatesNudge?: boolean;
+    /** Set when this is a `🗓 plan` prompt — what it is asking about. */
+    planTarget?: PlanReminderSubject;
   } = {},
 ): ReminderCta | null {
   const onboardingRoute = onboardingRouteOf(reminder.id);
   if (onboardingRoute !== null)
     return { kind: "onboarding", route: onboardingRoute };
   if (context.isDuplicatesNudge === true) return { kind: "duplicates" };
+  if (context.planTarget !== undefined)
+    return { kind: "plan", ...context.planTarget };
   if (context.giftTarget !== undefined) {
     return {
       kind: "gift",
@@ -309,14 +334,24 @@ export function reminderCtaOf(
  */
 export type ReminderRowAction =
   | { kind: "cta"; cta: ReminderCta }
+  | { kind: "answer-plan"; milestoneId: string; schedule: ReminderRuleInput[] }
   | { kind: "snooze"; until: number }
   | { kind: "dismiss" };
 
 /**
  * Everything a reminder row offers, in the order it should be offered: **do it**
- * ({@link reminderCtaOf}'s call to action), **not now** (snooze), **don't ask
- * again** (dismiss) — which is also order of escalating finality. An ordinary
- * reminder offers none of them and gets an empty list.
+ * ({@link reminderCtaOf}'s call to action), **just the day** (a prompt's one-tap
+ * answer), **not now** (snooze), **don't ask again** (dismiss) — which is also
+ * order of escalating finality. An ordinary reminder offers none of them and
+ * gets an empty list.
+ *
+ * **Just the day** is a `🗓 plan` prompt's shortcut, and the reason it is an
+ * offered action rather than something a row hand-rolls. It is the answer most
+ * people will give most of the time — *nothing special, just remind me on the
+ * day* — and the whole trade this prompt makes depends on that answer being
+ * cheaper than ignoring a row was. It writes the **full** offer set with only
+ * `wish` enabled, never just the tick, so it counts as answered for the same
+ * reason the form does (see {@link reminderCtaOf}).
  *
  * **Snooze** comes from `snoozePolicyOf`, which answers "can this still be put
  * off" and "until when" in one evaluation, so the offer and its date can never
@@ -349,12 +384,20 @@ export type ReminderRowAction =
  * is caller convenience. This package does not read the clock.
  */
 export function reminderActionsOf(
-  reminder: { id: string; completedAt: number | null; snoozeCount: number },
+  reminder: {
+    id: string;
+    completedAt: number | null;
+    snoozeCount: number;
+    /** A prompt's own deadline — `snoozePolicyOf` clamps "not now" to it. */
+    dueDate?: number | null;
+  },
   context: {
     /** Set when this is a `🎁 gift` reminder — who it's about. */
     giftTarget?: GiftReminderSubject;
     /** Set when this row is today's duplicates nudge. */
     isDuplicatesNudge?: boolean;
+    /** Set when this is a `🗓 plan` prompt — what it is asking about. */
+    planTarget?: PlanReminderSubject;
   } = {},
   now: number = Date.now(),
 ): ReminderRowAction[] {
@@ -363,9 +406,29 @@ export function reminderActionsOf(
     cta === null ? [] : [{ kind: "cta", cta }];
   if (reminder.completedAt !== null) return actions;
 
-  const policy = snoozePolicyOf(reminder, now);
+  if (cta?.kind === "plan")
+    actions.push({
+      kind: "answer-plan",
+      milestoneId: cta.milestoneId,
+      schedule: cta.offers.map((offer) => ({
+        ...offer,
+        enabled: offer.action === "wish",
+      })),
+    });
+
+  const policy = snoozePolicyOf(
+    { ...reminder, isPlanPrompt: cta?.kind === "plan" },
+    now,
+  );
   if (policy !== null) actions.push({ kind: "snooze", until: policy.until });
-  if (cta?.kind === "onboarding" && reminder.snoozeCount >= 1)
+  // A prompt earns `dismiss` on the same terms a nudge does. It is the only
+  // permanent out from a question the user does not want to answer, and — unlike
+  // an ordinary reminder, whose own Remove already is one — a row the client
+  // renders as a prompt needs it under an honest label.
+  if (
+    (cta?.kind === "onboarding" || cta?.kind === "plan") &&
+    reminder.snoozeCount >= 1
+  )
     actions.push({ kind: "dismiss" });
   return actions;
 }

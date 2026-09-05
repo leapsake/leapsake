@@ -2,15 +2,17 @@ import { Pressable, Switch, Text, TextInput, View } from "react-native";
 import {
   type ReminderAction,
   type ReminderRuleInput,
+  SCHEDULABLE_ACTIONS,
   actionDefs,
-  reminderActionSchema,
 } from "@leapsake/schema";
 import { SelectField } from "./SelectField";
 import { styles } from "../lib/styles";
 
-/** The action options in registry order, with their icon + label, for the picker. */
+/** The action options in registry order, with their icon + label, for the picker.
+ *  `plan` is not among them: it is the engine's own question, never a rule a
+ *  user schedules. */
 const ACTION_OPTIONS: { value: ReminderAction; label: string }[] =
-  reminderActionSchema.options.map((a) => ({
+  SCHEDULABLE_ACTIONS.map((a) => ({
     value: a,
     label: `${actionDefs[a].icon ? `${actionDefs[a].icon} ` : ""}${actionDefs[a].label}`,
   }));

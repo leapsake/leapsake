@@ -121,6 +121,17 @@ describe("partitionReminders", () => {
   });
 });
 
+/** What a `🗓 plan` prompt is asking about, as core's `planTargets` hands it over. */
+const planTarget = {
+  milestoneId: "m1",
+  milestoneKind: "birthday" as const,
+  offers: [
+    { action: "gift" as const, label: null, offsetDays: 12, enabled: false },
+    { action: "wish" as const, label: null, offsetDays: 0, enabled: true },
+    { action: "call" as const, label: null, offsetDays: 0, enabled: false },
+  ],
+};
+
 describe("reminderCtaOf", () => {
   const onboarding = ONBOARDING_REMINDERS[0];
 
@@ -174,6 +185,23 @@ describe("reminderCtaOf", () => {
         giftTarget: { recipientType: "person", recipientId: "p1" },
       }),
     ).toEqual({ kind: "onboarding", route: onboarding.route });
+  });
+});
+
+describe("reminderCtaOf, for a prompt", () => {
+  it("carries the milestone and its offer set", () => {
+    expect(reminderCtaOf(reminder("prompt", {}), { planTarget })).toEqual({
+      kind: "plan",
+      ...planTarget,
+    });
+  });
+
+  // The CTA discriminates on `kind`, and the milestone has a kind of its own.
+  // Spreading one into the other is exactly how that goes wrong silently.
+  it("keeps the milestone's kind clear of the CTA's own", () => {
+    const cta = reminderCtaOf(reminder("prompt", {}), { planTarget });
+    expect(cta?.kind).toBe("plan");
+    expect(cta).toMatchObject({ milestoneKind: "birthday" });
   });
 });
 
@@ -257,6 +285,53 @@ describe("reminderActionsOf", () => {
         cta: { kind: "gift", action: "record-giving", ...giftTarget },
       },
     ]);
+  });
+
+  // ⚠️ The trade this prompt makes only pays off if the common answer is cheaper
+  // than ignoring a row was, so "just the day" is offered beside the CTA rather
+  // than living behind it.
+  it("offers a prompt its CTA, the one-tap answer, and a snooze", () => {
+    expect(
+      reminderActionsOf(reminder("prompt", {}), { planTarget }, NOW).map(
+        (a) => a.kind,
+      ),
+    ).toEqual(["cta", "answer-plan", "snooze"]);
+  });
+
+  // It writes the **full** offer set with only `wish` on — not just the tick.
+  // Rows existing is the "answered" marker, so a partial write would leave the
+  // occasion looking unasked and the question would return next year.
+  it("answers `just the day` with the whole offer set, wish alone enabled", () => {
+    const answer = reminderActionsOf(
+      reminder("prompt", {}),
+      { planTarget },
+      NOW,
+    ).find((a) => a.kind === "answer-plan");
+
+    expect(answer).toEqual({
+      kind: "answer-plan",
+      milestoneId: "m1",
+      schedule: [
+        { action: "gift", label: null, offsetDays: 12, enabled: false },
+        { action: "wish", label: null, offsetDays: 0, enabled: true },
+        { action: "call", label: null, offsetDays: 0, enabled: false },
+      ],
+    });
+  });
+
+  // A question the user does not want to answer needs a permanent out, on the
+  // same terms a nudge gets one: withheld on the first encounter so it is never
+  // a trap, offered from the second.
+  it("withholds `don't ask again` from a prompt until it has been put off once", () => {
+    const kindsOf = (snoozeCount: number) =>
+      reminderActionsOf(
+        reminder("prompt", { snoozeCount }),
+        { planTarget },
+        NOW,
+      ).map((a) => a.kind);
+
+    expect(kindsOf(0)).not.toContain("dismiss");
+    expect(kindsOf(1)).toContain("dismiss");
   });
 
   it("stops offering to put off a reminder that is already done", () => {

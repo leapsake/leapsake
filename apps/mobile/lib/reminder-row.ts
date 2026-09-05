@@ -1,4 +1,5 @@
 import type { OnboardingRoute } from "@leapsake/core";
+import type { ReminderRuleInput } from "@leapsake/schema";
 import type { ReminderCta, ReminderRowAction } from "@leapsake/view-models";
 
 /** Each onboarding nudge's abstract {@link OnboardingRoute} as this client's own
@@ -40,6 +41,11 @@ const OFFER_LABELS = {
   duplicates: "Review ›",
   seeGifts: "See their gifts ›",
   recordGiving: "Record what you gave ›",
+  // No "›": the prompt is answered **on this screen**, not somewhere else. It is
+  // the one CTA that navigates nowhere, which is why `RowOffer` needed a fourth
+  // kind rather than a fourth path.
+  answerPrompt: "Choose below",
+  justTheDay: "Just the day",
   snooze: "Not now",
   dismiss: "Don’t ask again",
 } as const;
@@ -54,6 +60,13 @@ const OFFER_LABELS = {
  */
 export type RowOffer =
   | { kind: "navigate"; path: string; label: string }
+  | { kind: "answer-prompt"; label: string }
+  | {
+      kind: "answer-plan";
+      milestoneId: string;
+      schedule: ReminderRuleInput[];
+      label: string;
+    }
   | { kind: "snooze"; until: number; label: string }
   | { kind: "dismiss"; label: string };
 
@@ -107,6 +120,13 @@ function ctaOffer(cta: ReminderCta): RowOffer {
         path: "/duplicates",
         label: OFFER_LABELS.duplicates,
       };
+    case "plan":
+      // ⚠️ The prompt is a **question**, and mobile answers it in place. Its
+      // Home row stays a checkbox and a link — that rule is what keeps a list row
+      // from destroying anything — so the offer set is rendered on the detail
+      // screen this offer already belongs to, and the CTA points at it rather
+      // than off to a settings screen.
+      return { kind: "answer-prompt", label: OFFER_LABELS.answerPrompt };
     case "gift":
       return {
         kind: "navigate",
@@ -131,6 +151,13 @@ export function offerFor(action: ReminderRowAction): RowOffer {
   switch (action.kind) {
     case "cta":
       return ctaOffer(action.cta);
+    case "answer-plan":
+      return {
+        kind: "answer-plan",
+        milestoneId: action.milestoneId,
+        schedule: action.schedule,
+        label: OFFER_LABELS.justTheDay,
+      };
     case "snooze":
       return {
         kind: "snooze",
@@ -142,11 +169,21 @@ export function offerFor(action: ReminderRowAction): RowOffer {
   }
 }
 
-/** Whether these offers belong to an onboarding nudge — the seam both the
- *  `Delete` rule and the confirmation copy branch on. The CTA kind answers it, so
- *  neither has to pull the reminder engine into the app bundle. */
+/** Whether these offers belong to a row whose permanent out is *don't ask again*
+ *  — an onboarding nudge or a `🗓 plan` prompt. The seam both the `Delete` rule
+ *  and the confirmation copy branch on; the CTA kind answers it, so neither has
+ *  to pull the reminder engine into the app bundle.
+ *
+ *  A prompt joins the nudges here because it is the same shape of thing: a
+ *  question Leapsake asked unbidden, whose removal has always been a permanent
+ *  tombstone, and which therefore needs that said out loud rather than hidden
+ *  behind "Delete reminder?". */
 function isNudge(actions: readonly ReminderRowAction[]): boolean {
-  return actions.some((a) => a.kind === "cta" && a.cta.kind === "onboarding");
+  return actions.some(
+    (a) =>
+      a.kind === "cta" &&
+      (a.cta.kind === "onboarding" || a.cta.kind === "plan"),
+  );
 }
 
 /**

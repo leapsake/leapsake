@@ -1,13 +1,14 @@
 import {
   type ReminderAction,
   type ReminderRuleInput,
+  SCHEDULABLE_ACTIONS,
   actionDefs,
-  reminderActionSchema,
 } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
 
-/** The action options in registry order, for the per-row picker. */
-const ACTIONS = reminderActionSchema.options;
+/** The action options in registry order, for the per-row picker. `plan` is not
+ *  among them: it is the engine's own question, never a rule a user schedules. */
+const ACTIONS = SCHEDULABLE_ACTIONS;
 
 /**
  * The staggered-reminder editor: a list of rules, each an action (get a gift,

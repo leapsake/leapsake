@@ -244,6 +244,13 @@ export interface Messages {
     reachableOn: string;
   };
 
+  reminderPrompt: {
+    legend: string;
+    justTheDay: string;
+    save: string;
+    editFull: string;
+  };
+
   reminderSchedule: {
     legend: string;
     on: string;

@@ -249,6 +249,17 @@ export const en: Messages = {
     reachableOn: "Also reachable on",
   },
 
+  reminderPrompt: {
+    legend: "How do you want to mark it?",
+    // The answer most people give most of the time, offered as a button so it
+    // costs one tap rather than a form. The trade this prompt makes depends on
+    // it: a question is only worth asking if answering it is cheaper than
+    // ignoring the rows it replaced.
+    justTheDay: "Just the day",
+    save: "Save",
+    editFull: "Set exact timings",
+  },
+
   reminderSchedule: {
     legend: "Reminders",
     on: "On",

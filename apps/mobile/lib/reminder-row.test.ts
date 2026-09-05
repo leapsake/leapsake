@@ -33,6 +33,18 @@ const giftContext = {
   giftTarget: { recipientType: "person" as const, recipientId: "p1" },
 };
 
+/** What a `🗓 plan` prompt is asking about, as core's `planTargets` hands it over. */
+const planContext = {
+  planTarget: {
+    milestoneId: "m1",
+    milestoneKind: "birthday" as const,
+    offers: [
+      { action: "gift" as const, label: null, offsetDays: 12, enabled: false },
+      { action: "wish" as const, label: null, offsetDays: 0, enabled: true },
+    ],
+  },
+};
+
 describe("offerFor", () => {
   it("renders a nudge's three offers in order — do it, not now, don't ask again", () => {
     // Every step accepts at least two "not now"s, so at a count of 1 this one
@@ -158,6 +170,26 @@ describe("offerFor", () => {
     });
   });
 
+  // ⚠️ The prompt's CTA navigates **nowhere**. Mobile's Home row is a checkbox
+  // and a link, so the offer set is rendered on the detail screen this offer
+  // already belongs to, rather than on a screen further in.
+  it("answers a prompt in place, with the one-tap answer beside it", () => {
+    expect(offersFor(actionsFor("prompt", 0, null, planContext))).toEqual([
+      { kind: "answer-prompt", label: "Choose below" },
+      {
+        kind: "answer-plan",
+        milestoneId: "m1",
+        // The **whole** offer set, wish alone enabled — not just the tick.
+        schedule: [
+          { action: "gift", label: null, offsetDays: 12, enabled: false },
+          { action: "wish", label: null, offsetDays: 0, enabled: true },
+        ],
+        label: "Just the day",
+      },
+      { kind: "snooze", until: expect.any(Number), label: "Not now" },
+    ]);
+  });
+
   it("offers nothing at all on an ordinary reminder", () => {
     expect(offersFor(actionsFor("user-written"))).toEqual([]);
   });
@@ -224,6 +256,15 @@ describe("removalCopyFor", () => {
     const copy = removalCopyFor(actionsFor(idFor("connect-sync"), 1, NOW));
 
     expect(copy.title).toBe("Stop asking about this?");
+  });
+
+  // A prompt is the same shape of thing as a nudge: a question Leapsake asked
+  // unbidden, whose removal has always been a permanent tombstone.
+  it("says the honest thing on a prompt too", () => {
+    const copy = removalCopyFor(actionsFor("prompt", 1, null, planContext));
+
+    expect(copy.title).toBe("Stop asking about this?");
+    expect(copy.confirm).toBe("Don’t ask again");
   });
 
   it("asks about deletion on a user's own reminder", () => {

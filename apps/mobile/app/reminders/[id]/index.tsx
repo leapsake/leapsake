@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
+  type ReminderRuleInput,
   formatDueIn,
   isReminderEditable,
   isoFromDueMs,
@@ -16,6 +17,7 @@ import {
 } from "@leapsake/schema";
 import { reminderActionsOf } from "@leapsake/view-models";
 import { Checkbox } from "../../../components/Checkbox";
+import { ReminderPromptFields } from "../../../components/ReminderPromptFields";
 import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
@@ -31,6 +33,7 @@ import { colors, styles } from "../../../lib/styles";
 const FAILURE_TITLES = {
   complete: "Couldn’t update",
   snooze: "Couldn’t put this off",
+  answerPrompt: "Couldn’t save your choice",
   remove: "Couldn’t delete",
 } as const;
 
@@ -73,11 +76,19 @@ export default function ReminderDetailScreen() {
   const core = useCore();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  // The prompt's unsaved ticks. Null until the user touches one, so the offered
+  // set (with its pre-ticks) stays the source until there is an actual edit —
+  // and a reload that re-reads the offers cannot clobber a tick already made.
+  const [draft, setDraft] = useState<ReminderRuleInput[] | null>(null);
   const load = useCallback(
     () =>
       Promise.all([
         core.reminders.get(id),
         core.reminders.giftTargets(),
+        // A prompt is answered here rather than on a screen of its own, so this
+        // reads what it is asking about — the milestone, and the set of actions
+        // it offers with their pre-ticks.
+        core.reminders.planTargets(),
         // The duplicates nudge is content-addressed on the outstanding pair set,
         // so unlike the onboarding nudges its id can't come from a static table —
         // core recomputes it from the live pairs and this matches on it.
@@ -102,7 +113,7 @@ export default function ReminderDetailScreen() {
     );
   }
 
-  const [reminder, giftTargets, duplicatesNudgeId] = data;
+  const [reminder, giftTargets, planTargets, duplicatesNudgeId] = data;
 
   if (reminder === undefined) {
     return (
@@ -126,9 +137,11 @@ export default function ReminderDetailScreen() {
   // Everything this reminder offers, in offer order — the view-model is the only
   // authority on *what* is offered; this screen owns only how it looks. An
   // ordinary reminder (milestone / birthday / user) offers nothing.
+  const planTarget = planTargets.find((t) => t.reminderId === id);
   const actions = reminderActionsOf(reminder, {
     giftTarget: giftTargets.find((t) => t.reminderId === id),
     isDuplicatesNudge: id === duplicatesNudgeId,
+    planTarget,
   });
   const removal = removalCopyFor(actions);
   const canEdit = isReminderEditable(reminder);
@@ -150,6 +163,24 @@ export default function ReminderDetailScreen() {
     core.reminders.snooze(id, until).then(
       () => router.back(),
       (e: unknown) => Alert.alert(FAILURE_TITLES.snooze, String(e)),
+    );
+  }
+
+  /**
+   * Answer the prompt: write the milestone's whole rule set and let the engine
+   * take it from there.
+   *
+   * The **whole** set, disabled rows included, never just the ticks — rows
+   * existing is what makes "asked, and chose nothing" distinguishable from
+   * "never asked", and a partial write would have the question return next year.
+   * `milestones.update` replaces the set and reconciles in the same call, so the
+   * prompt retires and the chosen errands appear together; we leave with it,
+   * because the row this screen is about is now gone.
+   */
+  function answer(milestoneId: string, schedule: ReminderRuleInput[]) {
+    core.milestones.update(milestoneId, { reminderSchedule: schedule }).then(
+      () => router.back(),
+      (e: unknown) => Alert.alert(FAILURE_TITLES.answerPrompt, String(e)),
     );
   }
 
@@ -240,6 +271,28 @@ export default function ReminderDetailScreen() {
           )}
         </View>
       )}
+      {/* ⚠️ The prompt is answered **here**, not on a screen further in. The
+          Home row stays a checkbox and a link — that rule is what keeps a list
+          row from destroying anything — so this screen carries the cost of
+          making the answer cheap. "Just the day" is among the offers below; it
+          is the answer most people give, so it costs one tap and no scrolling
+          past the list. */}
+      {planTarget !== undefined && (
+        <View style={styles.field}>
+          <ReminderPromptFields
+            value={draft ?? planTarget.offers}
+            onChange={setDraft}
+          />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              answer(planTarget.milestoneId, draft ?? planTarget.offers)
+            }
+          >
+            <Text style={styles.link}>Save</Text>
+          </Pressable>
+        </View>
+      )}
       {actions.length > 0 && (
         // Whatever the reminder offers, on its own line and in offer order —
         // which is also order of escalating finality. They sit below the standing
@@ -254,8 +307,10 @@ export default function ReminderDetailScreen() {
                 accessibilityRole="button"
                 onPress={() => {
                   if (offer.kind === "navigate") router.push(offer.path);
+                  else if (offer.kind === "answer-plan")
+                    answer(offer.milestoneId, offer.schedule);
                   else if (offer.kind === "snooze") snooze(offer.until);
-                  else confirmDelete();
+                  else if (offer.kind === "dismiss") confirmDelete();
                 }}
               >
                 <Text style={styles.link}>{offer.label}</Text>

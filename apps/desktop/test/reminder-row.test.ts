@@ -27,6 +27,16 @@ const reminder = (
   snoozeCount,
 });
 
+/** What a `🗓 plan` prompt is asking about, as core's `planTargets` hands it over. */
+const planTarget = {
+  milestoneId: "m1",
+  milestoneKind: "birthday" as const,
+  offers: [
+    { action: "gift" as const, label: null, offsetDays: 12, enabled: false },
+    { action: "wish" as const, label: null, offsetDays: 0, enabled: true },
+  ],
+};
+
 /** What a row offers, run through this client's mapping — the pairing under test. */
 const affordancesFor = (actions: ReminderRowAction[], id: string) =>
   actions.map((a) => rowAffordanceFor(a, id));
@@ -113,6 +123,35 @@ describe("rowAffordanceFor", () => {
         kind: "link",
         to: "/gifts/new?recipient=person%3Ap1",
         label: "Record what you gave →",
+      },
+    ]);
+  });
+
+  // ⚠️ The one-tap answer is a **post on the row**, not a link. The prompt
+  // trades several passive rows for one that asks a question, and that only
+  // pays off if the common answer costs less than ignoring the old rows did.
+  it("puts a prompt's one-tap answer on the row, beside the link to the rest", () => {
+    const actions = reminderActionsOf(reminder("prompt"), { planTarget }, NOW);
+
+    expect(affordancesFor(actions, "prompt")).toEqual([
+      { kind: "link", to: "/milestones/m1/plan", label: "Choose →" },
+      {
+        kind: "answer-plan",
+        to: "/milestones/m1/plan",
+        // The **whole** offer set, wish alone enabled — not just the tick. Rows
+        // existing is what makes "asked, and chose nothing" distinguishable
+        // from "never asked".
+        schedule: [
+          { action: "gift", label: null, offsetDays: 12, enabled: false },
+          { action: "wish", label: null, offsetDays: 0, enabled: true },
+        ],
+        label: "Just the day",
+      },
+      {
+        kind: "snooze",
+        to: "/reminders/prompt/snooze",
+        until: expect.any(Number),
+        label: "Not now",
       },
     ]);
   });
@@ -217,6 +256,18 @@ describe("showsRemove", () => {
     // Nothing to tombstone: the engine has not minted it, and the next
     // reconcile would undo whatever this pretended to do.
     expect(showsRemove(actionsFor("not-yet-minted"), false, false)).toBe(false);
+  });
+
+  // A prompt's permanent out is "don't ask again"; showing Remove beside it
+  // would be two buttons for one tombstone, under a label that hides what it
+  // does.
+  it("withholds Remove from a prompt, which offers its own dismiss", () => {
+    expect(
+      showsRemove(
+        reminderActionsOf(reminder("prompt", 1), { planTarget }, NOW),
+        false,
+      ),
+    ).toBe(false);
   });
 
   it("keeps Remove on gift and duplicates rows", () => {

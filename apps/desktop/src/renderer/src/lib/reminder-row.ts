@@ -1,4 +1,5 @@
 import type { OnboardingRoute } from "@leapsake/core";
+import type { ReminderRuleInput } from "@leapsake/schema";
 import type { ReminderCta, ReminderRowAction } from "@leapsake/view-models";
 
 /** Each onboarding nudge's abstract {@link OnboardingRoute} as this client's own
@@ -26,6 +27,11 @@ const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
  * catalog. Cheap to spend once these screens move into `@leapsake/ui`.
  */
 const ACTION_LABELS = {
+  // The prompt's one-tap answer, and the reason it is a button on the row rather
+  // than a control on a form. It is the answer most people give most of the time
+  // — *nothing special, just remind me on the day* — and the whole trade the
+  // prompt makes rests on that answer being cheaper than ignoring a row was.
+  answerPlan: "Just the day",
   snooze: "Not now",
   dismiss: "Don’t ask again",
 } as const;
@@ -42,6 +48,11 @@ export function ctaLinkFor(cta: ReminderCta): { path: string; label: string } {
       return ONBOARDING_CTA[cta.route];
     case "duplicates":
       return { path: "/duplicates", label: "Review duplicates →" };
+    // The full offer set, on a screen with room for it. The *common* answer
+    // never comes here — it is the one-tap `answer-plan` affordance on the row —
+    // so this is for the user who wants a card as well.
+    case "plan":
+      return { path: `/milestones/${cta.milestoneId}/plan`, label: "Choose →" };
     case "gift": {
       const party = `${cta.recipientType}:${cta.recipientId}`;
       return cta.action === "record-giving"
@@ -65,7 +76,13 @@ export function ctaLinkFor(cta: ReminderCta): { path: string; label: string } {
  */
 export type RowAffordance =
   | { kind: "link"; to: string; label: string }
-  | { kind: "snooze"; to: string; until: number; label: string };
+  | { kind: "snooze"; to: string; until: number; label: string }
+  | {
+      kind: "answer-plan";
+      to: string;
+      schedule: ReminderRuleInput[];
+      label: string;
+    };
 
 /**
  * What one {@link ReminderRowAction} looks like on desktop — the path, the copy
@@ -91,6 +108,18 @@ export function rowAffordanceFor(
       const { path, label } = ctaLinkFor(action.cta);
       return { kind: "link", to: path, label };
     }
+    // A post like `snooze`, for the same reason: the row has to leave the list
+    // once it is answered, and a fetcher submission revalidates the loader in
+    // place. It carries the **whole** offer set the view-model built, never just
+    // the tick — rows existing is what makes "asked, and chose nothing"
+    // distinguishable from "never asked".
+    case "answer-plan":
+      return {
+        kind: "answer-plan",
+        to: `/milestones/${action.milestoneId}/plan`,
+        schedule: action.schedule,
+        label: ACTION_LABELS.answerPlan,
+      };
     case "snooze":
       return {
         kind: "snooze",
@@ -134,8 +163,14 @@ export function showsRemove(
   materialized = true,
 ): boolean {
   if (!materialized) return false;
+  // A `🗓 plan` prompt counts as a nudge here for the same reason an onboarding
+  // step does: its permanent out is "don't ask again", and showing `Remove`
+  // beside it would be two buttons for one tombstone under a label that hides
+  // what it does.
   const isNudge = actions.some(
-    (a) => a.kind === "cta" && a.cta.kind === "onboarding",
+    (a) =>
+      a.kind === "cta" &&
+      (a.cta.kind === "onboarding" || a.cta.kind === "plan"),
   );
   return done || !isNudge;
 }

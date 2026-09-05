@@ -299,7 +299,9 @@ export interface GiftReminderTarget {
 export interface PlanReminderTarget {
   reminderId: string;
   milestoneId: string;
-  kind: MilestoneKind;
+  /** Named for what it is: a reminder CTA discriminates on `kind`, so the
+   *  view-model this feeds keeps the two apart. */
+  milestoneKind: MilestoneKind;
   /** The person or pet the occasion belongs to, for the prompt's own heading. */
   bearerType: GiftPartyType;
   bearerId: string;
@@ -1580,7 +1582,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
                 {
                   reminderId: t.id,
                   milestoneId: t.milestone.id,
-                  kind: t.milestone.kind,
+                  milestoneKind: t.milestone.kind,
                   bearerType: t.bearerType,
                   bearerId: t.bearerId,
                   offers: resolveReminderSchedule(t.milestone.kind, []).rules,

@@ -1,4 +1,8 @@
-import type { GiftReminderTarget, ReminderInWindow } from "@leapsake/core";
+import type {
+  GiftReminderTarget,
+  PlanReminderTarget,
+  ReminderInWindow,
+} from "@leapsake/core";
 import { formatDueIn, isReminderEditable } from "@leapsake/schema";
 import { ReminderText } from "@leapsake/ui/web";
 import {
@@ -43,18 +47,22 @@ const TEXT = {
 function ReminderRow({
   reminder,
   giftTarget,
+  planTarget,
   isDuplicatesNudge = false,
 }: {
   reminder: ReminderInWindow;
   /** Set when this is a `🎁 gift` reminder — see {@link giftCtaFor}. */
   giftTarget?: GiftReminderTarget;
+  /** Set when this is a `🗓 plan` prompt — what it asks about, and its offers. */
+  planTarget?: PlanReminderTarget;
   /** Set when this row is the duplicates nudge, whose CTA opens the review. */
   isDuplicatesNudge?: boolean;
 }) {
-  // Two fetchers, not one: completing and putting off are separate submissions
-  // and shouldn't share a pending state.
+  // Three fetchers, not one: completing, putting off and answering a prompt are
+  // separate submissions and shouldn't share a pending state.
   const completeFetcher = useFetcher();
   const snoozeFetcher = useFetcher();
+  const answerFetcher = useFetcher();
   const done = reminder.completedAt !== null;
   const strike = done ? { textDecoration: "line-through" as const } : undefined;
   const heading = reminder.title ?? reminder.body ?? "";
@@ -64,6 +72,7 @@ function ReminderRow({
   const actions = reminderActionsOf(reminder, {
     giftTarget,
     isDuplicatesNudge,
+    planTarget,
   });
 
   return (
@@ -103,7 +112,25 @@ function ReminderRow({
         // Each kind is offered at most once per row, so it keys them.
         return (
           <Fragment key={action.kind}>
-            {affordance.kind === "snooze" ? (
+            {affordance.kind === "answer-plan" ? (
+              // ⚠️ One tap, on the row, with no screen in between. The prompt
+              // trades several passive rows for one that asks a question, and
+              // that only pays off if the common answer costs less than ignoring
+              // the old rows did — so it is a button here, not a control behind
+              // the "Choose →" link.
+              <answerFetcher.Form
+                method="post"
+                action={affordance.to}
+                style={{ display: "inline" }}
+              >
+                <input
+                  type="hidden"
+                  name="reminderSchedule"
+                  value={JSON.stringify(affordance.schedule)}
+                />
+                <button type="submit">{affordance.label}</button>
+              </answerFetcher.Form>
+            ) : affordance.kind === "snooze" ? (
               // A post, not a link: the row has to leave the list once it's put
               // off, and a fetcher submission revalidates this screen's loader
               // in place. The date is the one the offered action carried.
@@ -147,13 +174,16 @@ function ReminderRow({
  * sweep is mechanical.
  */
 export function ReminderList() {
-  const { reminders, giftTargets, duplicatesNudgeId } = useLoaderData() as {
-    reminders: ReminderInWindow[];
-    giftTargets: GiftReminderTarget[];
-    /** The id of today's duplicates nudge, or null when there are no pairs. */
-    duplicatesNudgeId: string | null;
-  };
+  const { reminders, giftTargets, planTargets, duplicatesNudgeId } =
+    useLoaderData() as {
+      reminders: ReminderInWindow[];
+      giftTargets: GiftReminderTarget[];
+      planTargets: PlanReminderTarget[];
+      /** The id of today's duplicates nudge, or null when there are no pairs. */
+      duplicatesNudgeId: string | null;
+    };
   const giftTargetById = new Map(giftTargets.map((t) => [t.reminderId, t]));
+  const planTargetById = new Map(planTargets.map((t) => [t.reminderId, t]));
   const { pastDue, belated, today, available, coming, done, owed, actionable } =
     bucketReminders(reminders);
 
@@ -162,6 +192,7 @@ export function ReminderList() {
       key={reminder.id}
       reminder={reminder}
       giftTarget={giftTargetById.get(reminder.id)}
+      planTarget={planTargetById.get(reminder.id)}
       isDuplicatesNudge={withNudgeCta && reminder.id === duplicatesNudgeId}
     />
   );
