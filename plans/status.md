@@ -32,9 +32,9 @@ lists them, and `pnpm release beta --only=ios --dry-run` reports them. ✅ *Open
 **Reminder scheduling** — [`reminder-scheduling.md`](./reminder-scheduling.md), off the v0.1
 critical path. ✅ Windows, the **prompt**, `verb:qualifier`, and the **derive-at-read seam** are in. ⚠️
 **Decision 3 half-reversed** *(owner, 2026-09-05)*: a channel is an affordance, not an errand,
-so Increment 5 shrank — no channel-aware copy, no `preferred`. Left: `call`/`message:sms` out
-of the pickers and kind defaults (⚠️ replace with `wish`, don't delete), the contact
-affordances + collect CTA, then the cascade.
+so Increment 5 shrank — no channel-aware copy, no `preferred`. Next: **slice B** — `call`/`message:sms` out
+of the pickers and kind defaults (⚠️ replace with `wish`, don't delete). Then the contact
+affordances + collect CTA, then the cascade. The doc's *Next up* block is the queue.
 
 **Contact methods reach people** — built 2026-08-19. Left: the URL templates are convention,
 not verified — **confirm on real hardware with the apps installed** (no simulator can). ✅

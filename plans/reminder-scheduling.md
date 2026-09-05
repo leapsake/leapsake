@@ -5,6 +5,27 @@
 > that already lives there, and into the doc-comments on the code each increment touches. This
 > file exists only for what is not built yet.
 
+## Next up
+
+⚠️ **Read this first, and move the marker when a slice lands.** Everything below is reasoning;
+this is the queue. Each entry names one unit of work and the section that specifies it.
+
+1. **Increment 5 slice B — narrow what the UI offers** ← **the next unit of work.** Take `call`
+   and `message:sms` out of `SCHEDULABLE_ACTIONS` and out of every kind's
+   `defaultReminderSchedule`, replacing them with `wish` on the six kinds where `call` was the
+   only acknowledgment. Their `actionDefs` entries stay. No migration, and the prompt's offer set
+   follows for free. Specified in *Increment 5* → *The slices* → **B**, which carries the exact
+   per-kind mapping and the two consequences to expect.
+2. **Increment 5 slice C — the contact affordances and the collect CTA.** The only product surface
+   left in the increment, and mobile-weighted for a reason the slice explains.
+3. **Increment 6 — the cascade, and provenance.** Four levels, resolved per action.
+4. **Increment 7 — presets**, most of which the shipped prompt already absorbed. Read its warning
+   before starting: it may be a second question on the prompt rather than a surface of its own.
+
+**Already landed; do not re-plan it.** Per-action windows, the `plan` prompt, the `verb:qualifier`
+identity split, and Increment 5 slice A (the derive-at-read seam). `git log` is the record of what
+was done and the package READMEs hold the reasoning — `@leapsake/reminders` most of all.
+
 ## The problem
 
 Every "Wish @A a happy birthday" reminder in the next four weeks was on Home, all month, for
@@ -93,7 +114,11 @@ before reading that increment. Decision 8's offer set moved with it.
      *(owner, 2026-09-04)* — the prompt returns next year.
    - **Only birthdays, weddings and anniversaries prompt.** `first-date` and `met` offer one
      action each, and a question with one answer is not a question. One `kindDefs` line each when
-     that changes.
+     that changes. ⚠️ **Slice B makes half of this stale**: `first-date` comes out of it with two
+     actions (`send:card` and `wish`) and so becomes prompt-*eligible*, while `met` stays at one.
+     Eligible is not automatic — adding the prompt is a separate decision — but this bullet's
+     reasoning will no longer be true of `first-date`, and it should be corrected rather than
+     re-derived.
 
 8. **The shipped birthday default stays `wish`, alone** —
    `kindDefs.birthday.defaultReminderSchedule`, with `get:gift`/`get:card`/`send:card` at
@@ -214,8 +239,8 @@ all.
   which this doc's own rule says is not a question.
 
   The fix is the reversal's own logic rather than a special case: on those kinds `call` was
-  standing in for *acknowledge them somehow*, and the generic form of that is `wish`. So **replace
-  it, don't delete it** — `wedding` → `[get:gift, wish]`, `anniversary` → `[send:card, wish]`,
+  standing in for *acknowledge them somehow*, and the generic form of that is `wish`. **Settled:
+  defer to `wish`** *(owner, 2026-09-05)* — so **replace it, don't delete it** — `wedding` → `[get:gift, wish]`, `anniversary` → `[send:card, wish]`,
   `met` → `[wish]`, `first-date` → `[send:card, wish]`, `graduation` → `[get:gift, wish]`,
   `job-start` → `[wish]`. Every greeting already reads correctly under `wish` ("Wish @Alice
   congratulations", "Wish @Alice a happy anniversary"), because the greeting is what varies by kind
@@ -239,9 +264,30 @@ all.
   which is the right outcome: the user chose them, and the reversal is about what we *offer*.
 
 - **C — the affordances and the collect CTA.** What used to be slice D, and now the only product
-  surface in the increment. Buttons come from `resolveActions` in `@leapsake/contact-links`, which
-  both clients already render on the person screen, minus the postal one; the empty case gets the
-  CTA above.
+  surface in the increment. Three things a fresh reader needs before starting it, none of them
+  guessable from the section above.
+
+  **How the row knows who it is about.** A reminder row carries no bearer column; the engine's
+  `listSystemReminderTargets` walk is what pairs an id with its action and its person, and it is
+  already how `giftTargets` and `planTargets` work in `@leapsake/core`. Add a third read beside
+  them on the same walk rather than inventing a route — ⚠️ but note the detail screen already
+  makes two such calls, and `getInWindow` a third, so **four full walks on one screen** is the
+  moment to collapse them into a single `systemTargets()` read. That cleanup is in scope here.
+
+  **The buttons come from `resolveActions`** in `@leapsake/contact-links`, over the person's
+  methods from `contactMethods.listForOwner`, minus the postal one. Mobile's `ContactsSection`
+  (with `offeredActions` / `targetUrl` in `apps/mobile/lib/contact-actions`) is the working
+  precedent — reuse it rather than writing a second one.
+
+  ⚠️ **This is mobile-weighted, and deliberately so.** Desktop's `ContactMethodsSection` in
+  `@leapsake/ui` states the reason in its own doc-comment: a row there is **not a tap target**,
+  because the contact-links actions are built for a handset with the apps installed and "open
+  WhatsApp" means something quite different on a laptop. Do not overturn that in passing. The
+  honest split is that **both** clients get the collect CTA and a link to the person, and the
+  tap-to-act buttons are mobile's. Desktop reaching parity is a separate decision about desktop,
+  not part of this slice.
+
+  The empty case — a person with no contact methods — gets the CTA described above the slices.
 
 - **`post`, when it is offered at all: one action, not one per platform** *(owner, 2026-09-05)*.
   A single "make a post for their birthday" rather than `post:instagram` beside `post:x` beside
