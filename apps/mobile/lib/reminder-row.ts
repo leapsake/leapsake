@@ -51,6 +51,10 @@ const OFFER_LABELS = {
   // An unbound wedding. Worded as the offer, not as a reproach for an incomplete
   // record — the reminder works perfectly well without it.
   linkPartner: "Add who it's with ›",
+  // Your own wedding, with the other half of it not in the app yet. Named
+  // rather than generic: at that moment the app knows exactly what it is short
+  // of, and asking for it plainly is shorter than describing it.
+  linkSpouse: "Who is your spouse? ›",
   // No "›": the prompt is answered **on this screen**, not somewhere else. It is
   // the one CTA that navigates nowhere, which is why `RowOffer` needed a fourth
   // kind rather than a fourth path.
@@ -176,7 +180,7 @@ function ctaOffer(cta: ReminderCta): RowOffer {
       return {
         kind: "navigate",
         path: `/people/${cta.personId}/relationships/new`,
-        label: OFFER_LABELS.linkPartner,
+        label: cta.isSelf ? OFFER_LABELS.linkSpouse : OFFER_LABELS.linkPartner,
       };
   }
 }

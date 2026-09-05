@@ -341,6 +341,8 @@ export interface LinkPartnerReminderTarget {
   reminderId: string;
   milestoneId: string;
   personId: string;
+  /** Whether it is the user's own wedding — a wording difference only. */
+  isSelf: boolean;
 }
 
 /**
@@ -1137,6 +1139,13 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         );
       }
       if (bearerType !== "person") return false;
+      // Borne by **you**, with the other party not yet in the app at all — a
+      // wedding recorded before its spouse exists, which the create form's
+      // "unknown" escape exists to allow. Your own occasion is yours whether or
+      // not the app knows who else was there, and refusing to ask about it
+      // because the record is incomplete is exactly the gate this package does
+      // not put in front of people.
+      if (bearerId === selfId) return true;
       // Borne by the partner: is there a stored romantic edge between them and
       // you? Read from the milestone's bearer rather than from the self-person,
       // since one person has few relationships and "you" may have many.
@@ -2007,6 +2016,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         // Weddings stored on a person with their other party unknown. No query:
         // a wedding whose bearer is a person *is* unbound, since its preferred
         // bearer is the relationship and "unknown" is the only way it gets here.
+        const selfPersonId = (await self.getSelf())?.personId;
         const linkPartners: LinkPartnerReminderTarget[] = targets.flatMap((t) =>
           t.milestone?.kind === "wedding" && t.bearerType === "person"
             ? [
@@ -2014,6 +2024,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
                   reminderId: t.id,
                   milestoneId: t.milestone.id,
                   personId: t.bearerId,
+                  isSelf: t.bearerId === selfPersonId,
                 },
               ]
             : [],

@@ -168,9 +168,11 @@ export interface ReminderEngineDeps {
     undated(): Promise<UndatedPartnership[]>;
   };
   /**
-   * Whether a milestone is about a **romantic partnership the user is in** —
-   * their own relationship, whether it is stored on the relationship itself or
-   * on the partner as a person.
+   * Whether a milestone is about a **romantic partnership the user is in**, in
+   * any of the three shapes one can be stored as: on the relationship, on the
+   * partner as a person, or on **the user alone** — a wedding recorded before
+   * its spouse exists at all, which the create form's "unknown" escape allows.
+   * Your own occasion is yours whether or not the app knows who else was there.
    *
    * It gates one thing: the prompt of a kind declaring
    * `prompt.onlyOwnPartnership` (`first-date`, and only it). Separate from

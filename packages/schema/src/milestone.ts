@@ -246,19 +246,17 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
       plain: "\u{1F49E} It's your anniversary!",
       belated: "\u{1F49E} It was your anniversary",
     },
-    // It prompts, and — alone among the kinds that do — only for a relationship
-    // **the user is in** *(owner, 2026-09-05)*.
+    // It prompts, and — like `wedding`, and unlike every other kind that does —
+    // only for a relationship **the user is in** *(owner, 2026-09-05)*.
     //
-    // That it prompts at all is the same argument `wedding` makes: both its
-    // actions ship off, so without the question a first date you record
-    // generates nothing at all, which makes recording one pointless.
+    // That it prompts at all: both its actions ship off, so without the question
+    // a first date you record generates nothing at all, which makes recording
+    // one pointless.
     //
-    // That it prompts *narrowly* is where it parts from `wedding`, and the line
-    // is not "is this mine" — it is whether a third party normally marks the
-    // occasion. Someone else's wedding anniversary is a thing people
-    // acknowledge; someone else's first date is not, and a question about one
-    // reads as the app having misunderstood what it is for. `wedding` therefore
-    // keeps asking about everyone's.
+    // That it prompts *narrowly*: the prompt is the app volunteering a set of
+    // errands about an occasion nobody asked it about, which earns its place
+    // only where the user has already shown the occasion matters to them. See
+    // `@leapsake/reminders` → *Who gets asked*.
     prompt: { occasion: "first date", onlyOwnPartnership: true },
     defaultReminderSchedule: [
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
@@ -277,7 +275,17 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     },
     // Named "wedding anniversary", not "wedding": the milestone records the day
     // they married, but the occasion the prompt is asking about is its return.
-    prompt: { occasion: "wedding anniversary" },
+    //
+    // ⚠️ **Gated to your own marriage** *(owner, 2026-09-05)*, which reverses the
+    // reading this file carried until then. The argument that other people's
+    // wedding anniversaries are an occasion third parties mark is true of
+    // *wishing* one, and not of the app **volunteering** a set of errands about
+    // one. Nothing here ships enabled, so what the gate actually governs is
+    // whether the app asks the question at all — and it should ask only where
+    // the user has already shown the occasion matters to them. Someone else's
+    // anniversary is still fully remindable; it just has to be asked for, on the
+    // milestone's own schedule editor.
+    prompt: { occasion: "wedding anniversary", onlyOwnPartnership: true },
     defaultReminderSchedule: [
       { action: "get:gift", offsetDays: 7, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: false },

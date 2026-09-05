@@ -132,14 +132,16 @@ describe("a milestone borne by a relationship", () => {
   // The regression. Before the label port learned to name a relationship this
   // produced zero rows, and the failure was silent on both sides: nothing threw,
   // and nothing appeared.
+  // An `anniversary` rather than a `wedding`, so this stays about the *label*:
+  // a wedding's question is gated to the user's own, and r2 is somebody else's.
   it("generates its reminders, rather than being skipped as a dangling bearer", async () => {
     h.setMilestones([
       milestone(
         "m1",
-        "wedding",
+        "anniversary",
         "relationship",
         "r2",
-        daysOut(appears("wedding")),
+        daysOut(appears("anniversary")),
       ),
     ]);
 
@@ -147,13 +149,15 @@ describe("a milestone borne by a relationship", () => {
 
     expect(result.created).toBeGreaterThan(0);
     expect(h.titles()).toContain(
-      "🗓 How do you want to mark Bob & Carol's wedding anniversary?",
+      "🗓 How do you want to mark Bob & Carol's anniversary?",
     );
   });
 
   // A relationship is not a person, but it can still be *yours* — and that is
   // the whole reason `isSelf` stopped being asked only about people.
   it("takes the self-directed copy when the self-person is one end of it", async () => {
+    // r1 is a marriage of the user's, so its question is not gated away.
+    h.setOwnPartnership(async (_type, id) => id === "r1");
     h.setMilestones([
       milestone(
         "m1",
@@ -246,19 +250,42 @@ describe("a prompt gated on the occasion being the user's own", () => {
     });
   });
 
-  // The gate is per-kind, and only `first-date` declares it. A wedding
-  // anniversary is an occasion other people do mark, so it keeps asking about
-  // everyone's — including when the port says the partnership is not yours.
+  // The gate is per-kind. `first-date` and `wedding` declare it; the generic
+  // `anniversary` does not, so it still asks about everyone's — including when
+  // the port says the occasion is not the user's own.
   it("leaves an ungated kind asking about everyone", async () => {
     h.setOwnPartnership(async () => false);
     h.setMilestones([
-      milestone("m1", "wedding", "person", "p1", daysOut(appears("wedding"))),
+      milestone(
+        "m1",
+        "anniversary",
+        "person",
+        "p1",
+        daysOut(appears("anniversary")),
+      ),
     ]);
 
     await regenerateSystemReminders(h.deps);
 
     expect(h.titles()).toContain(
-      `🗓 How do you want to mark ${mentionToken("Alice", "person", "p1")}'s wedding anniversary?`,
+      `🗓 How do you want to mark ${mentionToken("Alice", "person", "p1")}'s anniversary?`,
     );
+  });
+
+  // ⚠️ And the reverse, which is what changed on 2026-09-05: somebody else's
+  // wedding anniversary no longer volunteers a question. It stays fully
+  // remindable from the milestone's own schedule editor; the app just does not
+  // raise it unasked.
+  it("no longer asks about somebody else's wedding anniversary", async () => {
+    h.setOwnPartnership(async () => false);
+    h.setMilestones([
+      milestone("m1", "wedding", "person", "p1", daysOut(appears("wedding"))),
+    ]);
+
+    expect(await regenerateSystemReminders(h.deps)).toEqual({
+      created: 0,
+      updated: 0,
+      removed: 0,
+    });
   });
 });

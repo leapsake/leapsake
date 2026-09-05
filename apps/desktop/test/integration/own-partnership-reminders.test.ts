@@ -100,6 +100,8 @@ describe("a milestone borne by a relationship", () => {
     );
   });
 
+  // An `anniversary`, not a `wedding`: this is about the *label*, and a wedding's
+  // question is gated to the user's own, so Bob and Carol's would raise nothing.
   it("names both ends when the relationship is somebody else's", async () => {
     await twoPeople();
     const bob = await core.people.create({ firstName: "Bob" }, []);
@@ -112,17 +114,21 @@ describe("a milestone borne by a relationship", () => {
       bId: carol.id,
       bRole: "spouse",
     });
+    // Inside that kind's own prompt window, derived rather than written down.
+    const occ = civilDaysFromToday(
+      promptOffsetDays("anniversary") + actionDefs.plan.activeDays - 5,
+    );
     await core.milestones.create({
-      kind: "wedding",
+      kind: "anniversary",
       bearerType: "relationship",
       bearerId: rel.id,
       year: 2015,
-      month: civilDaysFromToday(45).month,
-      day: civilDaysFromToday(45).day,
+      month: occ.month,
+      day: occ.day,
     });
 
     expect(await titles()).toContain(
-      "🗓 How do you want to mark Bob & Carol's wedding anniversary?",
+      "🗓 How do you want to mark Bob & Carol's anniversary?",
     );
   });
 });
@@ -341,7 +347,7 @@ describe("a wedding with nobody on the other side of it", () => {
   // The user's own case: an anniversary recorded before the spouse is in the app
   // at all. It reminds — that was never in question — and now it also offers to
   // collect the half it is missing.
-  it("offers to say who it is with", async () => {
+  it("offers to say who it is with, naming it as your spouse when it is yours", async () => {
     const { me } = await twoPeople();
     const milestone = await core.milestones.create({
       kind: "wedding",
@@ -357,6 +363,8 @@ describe("a wedding with nobody on the other side of it", () => {
     expect(linkPartners).not.toHaveLength(0);
     expect(linkPartners[0].milestoneId).toBe(milestone.id);
     expect(linkPartners[0].personId).toBe(me.id);
+    // Wording only, but it is the case the affordance was asked for.
+    expect(linkPartners[0].isSelf).toBe(true);
     // And it still reminds, which is the half that must never depend on the
     // record being complete.
     expect(await titles()).toContain(
@@ -409,5 +417,35 @@ describe("a wedding with nobody on the other side of it", () => {
     });
 
     expect((await core.reminders.targets()).linkPartners).toHaveLength(0);
+  });
+});
+
+// The moment the request was actually about: the day-of row for your own
+// anniversary, when the app still does not know who it is with. No prompt is
+// outstanding by then — it was answered weeks earlier — so the collect offer is
+// the row's CTA rather than queued behind one.
+describe("your own anniversary, on the day, with no spouse attached", () => {
+  it("asks who your spouse is, on the row that says it is today", async () => {
+    const me = await core.people.create({ firstName: "Robin" }, []);
+    await core.self.set(me.id);
+    const today = civilDaysFromToday(0);
+    const milestone = await core.milestones.create({
+      kind: "wedding",
+      bearerType: "person",
+      bearerId: me.id,
+      year: 2015,
+      month: today.month,
+      day: today.day,
+      reminderSchedule: [
+        { action: "wish", label: null, offsetDays: 0, enabled: true },
+      ],
+    });
+
+    expect(await titles()).toContain("💍 It's your wedding anniversary!");
+
+    const { linkPartners } = await core.reminders.targets();
+    const offer = linkPartners.find((l) => l.milestoneId === milestone.id);
+    expect(offer).toBeDefined();
+    expect(offer?.isSelf).toBe(true);
   });
 });

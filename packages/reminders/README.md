@@ -25,7 +25,7 @@ scoped. The composition root wires the repos.
 | How snooze budgets are read | `snoozePolicyOf`, beside `ONBOARDING_STEPS` |
 | Why an unconfigured occasion gets a question instead of errands | the `plan` synthesis in `computeDesired`, and *The prompt* below |
 | When that question is asked | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers |
-| Why `first-date` asks only about your own partner | `prompt.onlyOwnPartnership` in `kindDefs`, and *Who gets asked* below |
+| Why `first-date` and `wedding` ask only about your own | `prompt.onlyOwnPartnership` in `kindDefs`, and *Who gets asked* below |
 | Why a reminder asks for a date instead of giving one | the `partnerships` port in `ReminderEngineDeps`, and *Collecting what is missing* below |
 | Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps` |
 | Why a schedule has two levels and not four | `resolveReminderSchedule` in `@leapsake/schema`, and *Schedules* below |
@@ -323,17 +323,30 @@ the full period.
 
 ### Who gets asked, where that is narrower than which kinds ask
 
-`first-date` asks only about a **romantic partnership the user is in** *(owner, 2026-09-05)*, and it
-is the only kind that narrows its audience. Two decisions are stacked there, and they are worth
-keeping apart.
+`first-date` and `wedding` ask only about a **romantic partnership the user is in** *(owner,
+2026-09-05)*; every other prompting kind asks about everyone's. Two decisions are stacked there, and
+they are worth keeping apart.
 
-That it asks at all is the argument `wedding` already made: both its actions ship off, so without a
-question a first date you record generates *nothing*, which makes recording one pointless.
+That they ask at all is a volume argument in reverse: both kinds ship every action **off**, so
+without a question a wedding or a first date you record generates *nothing at all*, which makes
+recording one pointless.
 
-That it asks **narrowly** is where it parts from `wedding`, and the line is not "is this mine". It
-is whether a third party normally marks the occasion. Someone else's wedding anniversary is a thing
-people acknowledge, so `wedding` keeps asking about everyone's; someone else's first date is not,
-and a question about one reads as the app having misunderstood what it is for.
+That they ask **narrowly** turns on what the app is doing when it asks. Wishing someone else a happy
+anniversary is a perfectly normal thing to want — but the prompt is not the wish, it is the app
+**volunteering a set of errands** about an occasion nobody asked it about. That earns its place only
+where the user has already shown the occasion matters to them, and their own marriage is that
+showing. Someone else's stays fully remindable; it just has to be asked for, on the milestone's own
+schedule editor, rather than raised unprompted.
+
+⚠️ **This reverses an earlier reading from the same day**, which had `wedding` asking about
+everyone's on the grounds that third parties do mark the occasion. That is true of the *wish* and
+not of the volunteered errands, and the two were being conflated.
+
+**"The user's own" has three storage shapes, and all three count**: borne by the relationship, borne
+by the partner, or borne by **the user alone** — a wedding recorded before its spouse exists at all,
+which the create form's "unknown" escape allows. Your own occasion is yours whether or not the app
+knows who else was there, and refusing to ask because the record is incomplete is exactly the gate
+this package does not put in front of people.
 
 ⚠️ **The gate fails closed**, and that is the deliberate half. `isOwnPartnership` is an optional
 port, and with no port wired the gated prompt is minted for nobody — because the failure it exists

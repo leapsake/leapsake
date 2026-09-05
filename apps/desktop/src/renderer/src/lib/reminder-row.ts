@@ -90,7 +90,10 @@ export function ctaLinkFor(cta: ReminderCta): { path: string; label: string } {
     case "link-partner":
       return {
         path: `/people/${cta.personId}/milestones/${cta.milestoneId}/rebind`,
-        label: "Add who it's with →",
+        // Named on your own, generic on someone else's: at that moment the app
+        // knows exactly what it is short of, and asking plainly is shorter than
+        // describing it.
+        label: cta.isSelf ? "Who is your spouse? →" : "Add who it's with →",
       };
   }
 }

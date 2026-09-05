@@ -300,6 +300,13 @@ export interface PartnershipReminderSubject {
 export interface LinkPartnerReminderSubject {
   milestoneId: string;
   personId: string;
+  /**
+   * Whether the wedding is the **user's own**, which is only a wording
+   * difference — "who is your spouse?" rather than "add who it's with". Worth
+   * carrying because it is the case the whole affordance was asked for: an
+   * anniversary entered before the other person is in the app at all.
+   */
+  isSelf: boolean;
 }
 
 export type ReminderCta =
