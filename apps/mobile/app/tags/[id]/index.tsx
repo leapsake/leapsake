@@ -12,6 +12,7 @@ import type { GiftIdea, Person, Pet, Reminder, Tag } from "@leapsake/schema";
 import { fullName, reminderLabel, tagLabel } from "@leapsake/schema";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
+import { withTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 
 // Tag detail, ported from desktop's TagView: everything carrying a given tag,
@@ -105,7 +106,7 @@ export default function TagDetailScreen() {
           {people.map((person) => (
             <Link
               key={person.id}
-              href={`/people/${person.id}`}
+              href={withTitle(`/people/${person.id}`, fullName(person))}
               style={styles.row}
             >
               <Text style={[styles.rowText, { color: colors.accent }]}>
@@ -120,7 +121,11 @@ export default function TagDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Pets</Text>
           {pets.map((pet) => (
-            <Link key={pet.id} href={`/pets/${pet.id}`} style={styles.row}>
+            <Link
+              key={pet.id}
+              href={withTitle(`/pets/${pet.id}`, pet.name)}
+              style={styles.row}
+            >
               <Text style={[styles.rowText, { color: colors.accent }]}>
                 {pet.name}
               </Text>

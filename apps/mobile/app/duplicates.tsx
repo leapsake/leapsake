@@ -11,6 +11,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { DuplicateCandidate } from "@leapsake/core";
 import { fullName } from "@leapsake/schema";
 import { useCore } from "../lib/core-context";
+import { withTitle } from "../lib/record-title";
 import { useFocusedData } from "../lib/useFocusedData";
 import { colors, styles } from "../lib/styles";
 
@@ -101,7 +102,9 @@ export default function DuplicatesScreen() {
           {focus !== null && (
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.replace(`/people/${focus.id}`)}
+              onPress={() =>
+                router.replace(withTitle(`/people/${focus.id}`, focus.name))
+              }
             >
               <Text style={[styles.link, { color: colors.accent }]}>
                 Continue
@@ -163,7 +166,9 @@ export default function DuplicatesScreen() {
           {focus !== null && (
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.replace(`/people/${focus.id}`)}
+              onPress={() =>
+                router.replace(withTitle(`/people/${focus.id}`, focus.name))
+              }
             >
               <Text style={[styles.link, { color: colors.accent }]}>
                 Not now

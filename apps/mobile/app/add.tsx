@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Text } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { type EntityType, parseTagNames } from "@leapsake/schema";
+import { type EntityType, entityLabel, parseTagNames } from "@leapsake/schema";
 import { EntityFormSections } from "../components/EntityFormSections";
 import { EntityTypeToggle } from "../components/EntityTypeToggle";
 import { useHeaderSave } from "../components/HeaderSave";
@@ -14,6 +14,7 @@ import {
   entityFormValid,
 } from "../lib/entity-form";
 import { applyEntityForm } from "../lib/entity-form-apply";
+import { withTitle } from "../lib/record-title";
 import { styles } from "../lib/styles";
 
 /**
@@ -80,19 +81,20 @@ function AddEntityForm({
     if (!canSave || saving) return;
     setSaving(true);
     try {
-      const id = isPerson
-        ? (
-            await core.people.create(
-              personDraftToInput(value.person),
-              parseTagNames(value.person.tags),
-            )
-          ).id
-        : (
-            await core.pets.create(
-              petDraftToInput(value.pet),
-              parseTagNames(value.pet.tags),
-            )
-          ).id;
+      // The whole record, not just its id: the page this screen is about to
+      // replace itself with is titled with the name that was just typed, and
+      // `entityLabel` is what that page will call it (`lib/record-title.ts`).
+      const created = isPerson
+        ? await core.people.create(
+            personDraftToInput(value.person),
+            parseTagNames(value.person.tags),
+          )
+        : await core.pets.create(
+            petDraftToInput(value.pet),
+            parseTagNames(value.pet.tags),
+          );
+      const id = created.id;
+      const name = entityLabel(type, created);
 
       // Everything staged, against the entity that now exists — every row a
       // create, since nothing was there before.
@@ -113,10 +115,12 @@ function AddEntityForm({
         // review screen's "Not now" then replaces itself with the detail page.
         const matches = await core.duplicates.findFor(id).catch(() => []);
         router.replace(
-          matches.length > 0 ? `/duplicates?for=${id}` : `/people/${id}`,
+          matches.length > 0
+            ? `/duplicates?for=${id}`
+            : withTitle(`/people/${id}`, name),
         );
       } else {
-        router.replace(`/pets/${id}`);
+        router.replace(withTitle(`/pets/${id}`, name));
       }
     } catch (e) {
       Alert.alert("Couldn't save", String(e));

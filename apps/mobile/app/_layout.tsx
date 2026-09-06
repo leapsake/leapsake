@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppHeader } from "../components/AppHeader";
 import { CoreProvider } from "../lib/core-context";
+import { titleFromLink } from "../lib/record-title";
 import { colors } from "../lib/styles";
 
 // Root layout: build the core once (CoreProvider gates rendering on it being
@@ -37,16 +38,23 @@ export default function RootLayout() {
       <CoreProvider>
         <Stack
           screenOptions={{
-            header: ({ options, back, navigation }) => (
+            header: ({ options, route, back, navigation }) => (
               <AppHeader
-                // Never `route.name`. A screen whose `<Stack.Screen>` isn't
-                // mounted yet — every screen that loads before it can name
-                // itself — would otherwise wear its own *route path* as a title,
-                // and "reminders/[id]/index" is not something a user should ever
-                // be shown. An empty title draws no title element at all (see
-                // AppHeader), so the bar is simply bare for that beat and the
-                // real title arrives with the content it describes.
-                title={options.title ?? ""}
+                // A screen names itself from its own data, so it has no title
+                // until that data arrives — and this is what it wears in the
+                // meantime. **Never `route.name`**, which is what it used to be:
+                // that put "reminders/[id]/index" in the one place on screen
+                // whose job is to answer "where am I?".
+                //
+                // What it wears instead is the name the screen that linked here
+                // sent (`lib/record-title.ts`), which for a record opened from a
+                // list, a chip or a mention is already the right one — so the
+                // load is a titled screen rather than a bare bar that fills in.
+                // Reading it here rather than in each screen is what makes it
+                // free: a screen still loading has declared no options at all.
+                // With no name sent, an empty title draws no title element (see
+                // AppHeader) and the bar is simply bare for that beat.
+                title={options.title ?? titleFromLink(route.params)}
                 left={options.headerLeft?.({
                   canGoBack: back !== undefined,
                   tintColor: colors.accent,

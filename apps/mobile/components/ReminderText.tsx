@@ -5,7 +5,9 @@ import {
   type Tag,
   normalizeTagName,
   splitAnnotatedText,
+  tagLabel,
 } from "@leapsake/schema";
+import { withTitle } from "../lib/record-title";
 import { styles } from "../lib/styles";
 
 /**
@@ -47,7 +49,11 @@ export function ReminderText({
   linkAnnotations?: boolean;
 }) {
   const router = useRouter();
-  const tagIdByName = new Map(tags.map((tag) => [tag.normalized, tag.id]));
+  // Keyed to the whole tag rather than just its id: a link out to a tag page
+  // carries the label that page will show, and only the resolved tag knows how
+  // it is actually spelled — the `#Birthday` a user typed here may be stored as
+  // `#birthday`, and sending the typed one would title the page wrong for a beat.
+  const tagByName = new Map(tags.map((tag) => [tag.normalized, tag]));
   const labelByTarget = new Map(
     mentions.map((m) => [`${m.targetType}:${m.targetId}`, m.label]),
   );
@@ -79,8 +85,14 @@ export function ReminderText({
     <Text style={style}>
       {splitAnnotatedText(text).map((segment, i) => {
         if (segment.kind === "hashtag") {
-          const id = tagIdByName.get(normalizeTagName(segment.tagName));
-          return run(i, segment.text, id === undefined ? null : `/tags/${id}`);
+          const tag = tagByName.get(normalizeTagName(segment.tagName));
+          return run(
+            i,
+            segment.text,
+            tag === undefined
+              ? null
+              : withTitle(`/tags/${tag.id}`, tagLabel(tag.name)),
+          );
         }
         if (segment.kind === "mention") {
           const label = labelByTarget.get(
@@ -88,12 +100,17 @@ export function ReminderText({
           );
           if (typeof label !== "string")
             return run(i, `@${segment.displayName}`, null);
+          // The sigil is this sentence's punctuation, not part of the name, so
+          // the page is titled with the bare label the mention resolved to.
           return run(
             i,
             `@${label}`,
-            segment.targetType === "person"
-              ? `/people/${segment.targetId}`
-              : `/pets/${segment.targetId}`,
+            withTitle(
+              segment.targetType === "person"
+                ? `/people/${segment.targetId}`
+                : `/pets/${segment.targetId}`,
+              label,
+            ),
           );
         }
         return run(i, segment.text, null);

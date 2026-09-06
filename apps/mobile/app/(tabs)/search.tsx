@@ -1,4 +1,5 @@
 import type { SearchHit } from "@leapsake/schema";
+import { tagLabel } from "@leapsake/schema";
 import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -14,6 +15,7 @@ import { BrowseTiles } from "../../components/BrowseTiles";
 import { SearchInput } from "../../components/SearchInput";
 import { highlightBirthday, highlightMatch } from "../../lib/highlightMatch";
 import { useCore } from "../../lib/core-context";
+import { withTitle } from "../../lib/record-title";
 import {
   type SearchFacet,
   facetParam,
@@ -36,11 +38,18 @@ const DEBOUNCE_MS = 200;
  * choice the tag page makes for its gift-idea rows).
  */
 function pathFor(hit: SearchHit): string {
-  if (hit.entityType === "tag") return `/tags/${hit.entityId}`;
-  if (hit.entityType === "holiday") return `/holidays/${hit.entityId}`;
+  // A hit already carries the name its page will show, so every route that can
+  // wear one is handed it (`lib/record-title.ts`) — the tag's with the "#" the
+  // tag page puts on it, which a hit's bare title deliberately leaves off. The
+  // gift form titles itself "Gift idea" whatever it holds, so it takes none.
+  if (hit.entityType === "tag")
+    return withTitle(`/tags/${hit.entityId}`, tagLabel(hit.title));
+  if (hit.entityType === "holiday")
+    return withTitle(`/holidays/${hit.entityId}`, hit.title);
   if (hit.entityType === "gift_idea") return `/gifts/${hit.entityId}/edit`;
-  if (hit.entityType === "pet") return `/pets/${hit.entityId}`;
-  return `/people/${hit.entityId}`;
+  if (hit.entityType === "pet")
+    return withTitle(`/pets/${hit.entityId}`, hit.title);
+  return withTitle(`/people/${hit.entityId}`, hit.title);
 }
 
 /**

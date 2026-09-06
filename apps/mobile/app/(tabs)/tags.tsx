@@ -4,6 +4,7 @@ import { Link } from "expo-router";
 import type { TagListItem } from "@leapsake/core";
 import { tagLabel } from "@leapsake/schema";
 import { useCore } from "../../lib/core-context";
+import { withTitle } from "../../lib/record-title";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
 
@@ -59,7 +60,7 @@ export default function TagsScreen() {
               affected.
             */
             <Link
-              href={`/tags/${tag.id}`}
+              href={withTitle(`/tags/${tag.id}`, tagLabel(tag.name))}
               style={styles.row}
               accessible
               accessibilityLabel={`${tagLabel(tag.name)}, ${

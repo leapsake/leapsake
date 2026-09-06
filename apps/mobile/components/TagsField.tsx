@@ -3,6 +3,7 @@ import { Text } from "react-native";
 import { useRouter } from "expo-router";
 import type { Tag } from "@leapsake/schema";
 import { tagLabel } from "@leapsake/schema";
+import { withTitle } from "../lib/record-title";
 import { colors, styles } from "../lib/styles";
 
 /**
@@ -35,7 +36,9 @@ export function TagsField({ tags }: { tags: readonly Tag[] }) {
               <Text
                 style={{ color: colors.accent }}
                 accessibilityRole="link"
-                onPress={() => router.push(`/tags/${tag.id}`)}
+                onPress={() =>
+                  router.push(withTitle(`/tags/${tag.id}`, tagLabel(tag.name)))
+                }
               >
                 {tagLabel(tag.name)}
               </Text>

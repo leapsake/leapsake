@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, Text, View } from "react-native";
 import { Link } from "expo-router";
 import type { HolidayListItem } from "@leapsake/core";
 import { useCore } from "../../lib/core-context";
+import { withTitle } from "../../lib/record-title";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
 import { formatOccurrence } from "@leapsake/schema";
@@ -48,7 +49,7 @@ export default function HolidaysScreen() {
             /* A view nested in `Link`'s text is dropped from the accessibility
                tree on iOS — see the note in `app/(tabs)/tags.tsx`. */
             <Link
-              href={`/holidays/${holiday.id}`}
+              href={withTitle(`/holidays/${holiday.id}`, holiday.name)}
               style={styles.row}
               accessible
               accessibilityLabel={`${holiday.name}${
