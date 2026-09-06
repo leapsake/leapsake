@@ -13,6 +13,7 @@ import type {
   ParsedSocial,
 } from "./parsed-contact.js";
 import { PLATFORMS, bareHandle, findPlatform } from "@leapsake/contact-links";
+import { appleLabelText, dateKindFor } from "./apple-labels.js";
 
 /**
  * A hand-rolled vCard reader — parse-only, no dependency. vCard is a simple
@@ -50,6 +51,12 @@ const HANDLED = new Set([
   "IMPP",
   "X-SOCIALPROFILE",
   "URL",
+  // Apple's own spelling of a labelled date, and the grouped label that names it
+  // (and names a custom `ADR`/`TEL`/`EMAIL` too). `X-ABLabel` is metadata about
+  // another property rather than data of its own — like a `TYPE=` parameter — so
+  // it is consumed, never surfaced as dropped.
+  "X-ABDATE",
+  "X-ABLABEL",
 ]);
 
 /**
@@ -124,6 +131,7 @@ const STRUCTURAL = new Set([
 /** A parsed physical property line: `[group.]NAME;PARAM=v;PARAM=v:VALUE`. */
 interface Property {
   name: string; // upper-cased, group prefix stripped
+  group: string | null; // lower-cased `item1.` prefix, or null when ungrouped
   params: Map<string, string[]>; // KEY (upper) -> values; bare types under "TYPE"
   value: string; // raw, still escaped
 }
@@ -209,8 +217,14 @@ function parseProperty(line: string): Property | null {
 
   const segments = splitUnquoted(header, ";");
   let rawName = segments[0] ?? "";
-  const dot = rawName.indexOf("."); // strip an optional group prefix
-  if (dot !== -1) rawName = rawName.slice(dot + 1);
+  // A group prefix is stripped from the name but kept: it is what ties Apple's
+  // `item2.X-ABDATE` to the `item2.X-ABLabel` that says what the date is.
+  const dot = rawName.indexOf(".");
+  let group: string | null = null;
+  if (dot !== -1) {
+    group = rawName.slice(0, dot).toLowerCase();
+    rawName = rawName.slice(dot + 1);
+  }
   const name = rawName.toUpperCase();
 
   const params = new Map<string, string[]>();
@@ -225,7 +239,7 @@ function parseProperty(line: string): Property | null {
       pushParam(params, key, values);
     }
   }
-  return { name, params, value };
+  return { name, group, params, value };
 }
 
 function pushParam(
@@ -340,6 +354,21 @@ function buildContact(props: Property[]): ParsedContact {
   let fn: string | null = null;
   let gender: Gender | null = null;
   let birthday: ParsedBirthday | null = null;
+  // A birthday spelled as a labelled date rather than as `BDAY`. Held apart and
+  // resolved after the loop so the dedicated property wins wherever it appears in
+  // the card, exactly as the device importer lets iOS's dedicated birthday field
+  // beat a birthday-labelled entry in its `dates` list.
+  let labelledBirthday: ParsedBirthday | null = null;
+
+  // Apple hangs a date's label off a sibling property in the same group, so the
+  // labels are collected before the pass that needs them — the two lines can
+  // arrive in either order.
+  const groupLabels = new Map<string, string>();
+  for (const p of props) {
+    if (p.name === "X-ABLABEL" && p.group !== null) {
+      groupLabels.set(p.group, appleLabelText(unescapeValue(p.value)));
+    }
+  }
 
   for (const p of props) {
     switch (p.name) {
@@ -399,7 +428,7 @@ function buildContact(props: Property[]): ParsedContact {
         break;
       }
       case "BDAY": {
-        const parsed = parsePartialDate(unescapeValue(p.value).trim());
+        const parsed = parseDateValue(p);
         if (parsed) birthday = parsed;
         else dropField(dropped, "BDAY", p.value);
         break;
@@ -409,7 +438,7 @@ function buildContact(props: Property[]): ParsedContact {
       // not say which anniversary this is, and inventing one would be the same
       // guess `RELATED` refuses to make about an unmapped role.
       case "ANNIVERSARY": {
-        const parsed = parsePartialDate(unescapeValue(p.value).trim());
+        const parsed = parseDateValue(p);
         if (parsed) {
           dates.push({
             kind: "anniversary",
@@ -417,6 +446,36 @@ function buildContact(props: Property[]): ParsedContact {
             date: parsed,
           });
         } else dropField(dropped, "ANNIVERSARY", p.value);
+        break;
+      }
+      // How Apple actually writes a dated occasion: `item2.X-ABDATE` carries the
+      // value and `item2.X-ABLabel` carries the label, which is the only thing
+      // saying what the date *is*. Contacts exports an anniversary this way and
+      // never as RFC 6350's `ANNIVERSARY`, so a card straight out of the iPhone
+      // used to lose every date it had.
+      //
+      // Same three outcomes as the device importer, routed through the same
+      // {@link dateKindFor} map: a birthday-labelled entry fills the birthday only
+      // if `BDAY` didn't, a label with a kind becomes that milestone, and anything
+      // else is dropped *by name* — "Date (Graduation)" — rather than guessed into
+      // `other`.
+      case "X-ABDATE": {
+        const parsed = parseDateValue(p);
+        const text = p.group === null ? "" : (groupLabels.get(p.group) ?? "");
+        if (parsed === null || text === "") {
+          dropField(dropped, "X-ABDATE", p.value);
+          break;
+        }
+        if (text.toLowerCase() === "birthday") {
+          labelledBirthday ??= parsed;
+          break;
+        }
+        const kind = dateKindFor(text);
+        if (kind === null) {
+          dropField(dropped, `Date (${text})`, p.value);
+          break;
+        }
+        dates.push({ kind, label: text, date: parsed });
         break;
       }
       case "GENDER":
@@ -446,7 +505,7 @@ function buildContact(props: Property[]): ParsedContact {
     phones,
     postals,
     socials,
-    birthday,
+    birthday: birthday ?? labelledBirthday,
     dates,
     related,
     dropped,
@@ -525,6 +584,31 @@ function mapAddress(
     postalCode: nullIfEmpty(postalCode),
     country,
   };
+}
+
+/**
+ * Parse a date-valued property (`BDAY`, `ANNIVERSARY`, `X-ABDATE`) into a partial
+ * civil date, honouring Apple's way of saying "no year".
+ *
+ * vCard has a spelling for a year-less date (`--MM-DD`) but the Contacts app does
+ * not use it: it writes a placeholder year into the value and names that year in
+ * an `X-APPLE-OMIT-YEAR` parameter — `BDAY;X-APPLE-OMIT-YEAR=1604:1604-07-06`.
+ * Read the parameter back out and the year is a year again only when it is one
+ * somebody meant. Without this, every birthday saved without a year imports as a
+ * person born in 1604: silently wrong, which is worse than the device importer's
+ * failure mode of merely losing the year.
+ *
+ * A parameter naming a *different* year than the value carries is not Apple's
+ * placeholder convention, so the year stays.
+ */
+function parseDateValue(p: Property): ParsedPartialDate | null {
+  const parsed = parsePartialDate(unescapeValue(p.value).trim());
+  if (parsed === null || parsed.year === null) return parsed;
+  const omitted = p.params.get("X-APPLE-OMIT-YEAR")?.[0];
+  if (omitted === undefined) return parsed;
+  return Number.parseInt(omitted, 10) === parsed.year
+    ? { ...parsed, year: null }
+    : parsed;
 }
 
 /**

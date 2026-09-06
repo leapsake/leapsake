@@ -1,13 +1,14 @@
-import type {
-  DroppedField,
-  ParsedContact,
-  ParsedDate,
-  ParsedEmail,
-  ParsedPartialDate,
-  ParsedPhone,
-  ParsedPostal,
+import {
+  appleLabelText,
+  dateKindFor,
+  type DroppedField,
+  type ParsedContact,
+  type ParsedDate,
+  type ParsedEmail,
+  type ParsedPartialDate,
+  type ParsedPhone,
+  type ParsedPostal,
 } from "@leapsake/contact-import";
-import type { MilestoneKind } from "@leapsake/schema";
 import type { ContactDate, ContactDetails } from "expo-contacts";
 
 /**
@@ -66,35 +67,6 @@ function isoCountry(value: string | null | undefined): string | null {
 }
 
 /**
- * Apple's `CNLabel*` constants are not display text: they are wrapped tokens —
- * `CNLabelWork` is literally `"_$!<Work>!$_"`, `CNLabelPhoneNumberHomeFax` is
- * `"_$!<HomeFAX>!$_"`. The Contacts framework unwraps them via
- * `CNLabeledValue.localizedString(forLabel:)`; `expo-contacts` does that in its
- * legacy API but *not* in the newer `Contact` one we read from, so the constants
- * arrive here raw and would otherwise be shown to the user as-is.
- *
- * Unwrapping is safe rather than brittle because the wrapper is a fixed, decades-
- * old sentinel (it predates `CNLabeledValue`, coming from AddressBook.framework)
- * whose whole purpose is to be recognisable: it can't collide with a user's own
- * label, since the Contacts UI has no way to type one. Anything not wrapped is
- * free text (a custom label, or Android's already-localised value) and passes
- * through untouched — we never title-case someone's "Beach House".
- */
-const CN_LABEL_CONSTANT = /^_\$!<(.+)>!\$_$/;
-
-/**
- * Tokens whose unwrapped form isn't presentable on its own, keyed by the token
- * lower-cased. Everything else inside the wrapper is a single word ("Home",
- * "Mobile", "Pager", "School") that only needs its casing settled.
- */
-const LABEL_TOKENS: Record<string, string> = {
-  homefax: "Home fax",
-  workfax: "Work fax",
-  otherfax: "Other fax",
-  homepage: "Home page",
-};
-
-/**
  * A couple of constants Apple ships *unwrapped* (`CNLabelPhoneNumberiPhone` is
  * just `"iPhone"`). Only the ones we deliberately rewrite are listed: "iPhone"
  * becomes "Mobile" so a contact imported from the device and the same contact
@@ -107,39 +79,18 @@ const PLAIN_LABELS: Record<string, string> = { iphone: "Mobile" };
 const DEFAULT_LABEL = "Other";
 
 /**
- * Turn a device label into display text: unwrap an Apple label constant, or pass
- * free text through. Falls back to {@link DEFAULT_LABEL} when there is nothing —
- * contact-method labels are `min(1)` in the parsed schema.
+ * Turn a device label into display text: unwrap an Apple label constant (shared
+ * with the vCard importer, which meets the very same constants in an exported
+ * card), or pass free text through. Falls back to {@link DEFAULT_LABEL} when
+ * there is nothing — contact-method labels are `min(1)` in the parsed schema.
  */
 function label(value: string | null | undefined): string {
   const trimmed = clean(value);
   if (trimmed === null) return DEFAULT_LABEL;
-
-  const wrapped = CN_LABEL_CONSTANT.exec(trimmed)?.[1];
-  if (wrapped === undefined)
-    return PLAIN_LABELS[trimmed.toLowerCase()] ?? trimmed;
-
-  const token = wrapped.trim();
-  if (token === "") return DEFAULT_LABEL;
-  return (
-    LABEL_TOKENS[token.toLowerCase()] ??
-    token.charAt(0).toUpperCase() + token.slice(1).toLowerCase()
-  );
+  const text = appleLabelText(trimmed);
+  if (text === "") return DEFAULT_LABEL;
+  return PLAIN_LABELS[text.toLowerCase()] ?? text;
 }
-
-/**
- * Date labels Leapsake has a milestone kind for, keyed by the label lower-cased.
- * Deliberately tiny: a label with no kind here is surfaced in `dropped[]` rather
- * than guessed into `other`, so a card's "Graduation" or "Beach house closing"
- * stays visible in the review without every stray date minting a milestone.
- *
- * `birthday` is absent on purpose — a birthday-labelled date never becomes a
- * {@link ParsedDate}; it fills `ParsedContact.birthday`. See
- * {@link deviceContactToParsed}.
- */
-const DATE_KINDS: Record<string, MilestoneKind> = {
-  anniversary: "anniversary",
-};
 
 /**
  * One component of a device date, or `null` when it is missing or is not a value
@@ -263,7 +214,8 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
 
   // The platform's "other dates" list. Everything here is labelled, and the label
   // is the only thing saying what the date *is* — so it is routed through
-  // {@link DATE_KINDS} rather than assumed. Three outcomes, in order:
+  // {@link dateKindFor} rather than assumed — the same map the vCard importer
+  // routes an `X-ABDATE` through. Three outcomes, in order:
   //
   //  1. "birthday" — the Android birthday (that platform has no dedicated field).
   //     It fills the birthday only if the dedicated field was empty, so on iOS a
@@ -282,8 +234,8 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
       birthdayFromDates ??= date;
       continue;
     }
-    const kind = DATE_KINDS[token];
-    if (kind === undefined) {
+    const kind = dateKindFor(token);
+    if (kind === null) {
       dropped.push({
         property: `Date (${text})`,
         value: partialDateText(date),

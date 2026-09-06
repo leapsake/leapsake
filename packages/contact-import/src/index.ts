@@ -12,6 +12,7 @@
  * constructs the real ports over its repos and drives the ingest; the renderer
  * imports the pure parser/detector directly to read a dropped `File`.
  */
+export { appleLabelText, dateKindFor } from "./apple-labels.js";
 export { detectContactFormat, parseVCards } from "./vcard.js";
 export type { DetectedFormat } from "./vcard.js";
 export { ingestContacts } from "./ingest.js";

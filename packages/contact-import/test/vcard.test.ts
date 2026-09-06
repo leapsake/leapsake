@@ -142,6 +142,24 @@ describe("parseVCards — birthday", () => {
     const [c] = parseVCards(card("FN:Jane Doe", "BDAY:1992-03-09T00:00:00Z"));
     expect(c.birthday).toEqual({ year: 1992, month: 3, day: 9 });
   });
+
+  it("reads Apple's placeholder year as no year at all", () => {
+    // What Contacts writes for a birthday saved without one: the year is 1604 in
+    // the value, and the parameter says so. Believing it would file the person as
+    // born in 1604.
+    const [c] = parseVCards(
+      card("FN:Jane Doe", "BDAY;X-APPLE-OMIT-YEAR=1604:1604-03-09"),
+    );
+    expect(c.birthday).toEqual({ year: null, month: 3, day: 9 });
+  });
+
+  it("keeps a year the omit parameter does not name", () => {
+    // Not Apple's convention, so the value is a year somebody meant.
+    const [c] = parseVCards(
+      card("FN:Jane Doe", "BDAY;X-APPLE-OMIT-YEAR=1604:1992-03-09"),
+    );
+    expect(c.birthday).toEqual({ year: 1992, month: 3, day: 9 });
+  });
 });
 
 describe("parseVCards — anniversary", () => {
@@ -170,6 +188,98 @@ describe("parseVCards — anniversary", () => {
       property: "ANNIVERSARY",
       value: "sometime",
     });
+  });
+});
+
+describe("parseVCards — Apple's labelled dates", () => {
+  it("reads an anniversary written as a grouped X-ABDATE", () => {
+    // Exactly how the Contacts app exports one, year and all.
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item2.X-ABDATE;type=pref:2015-06-20",
+        "item2.X-ABLabel:_$!<Anniversary>!$_",
+      ),
+    );
+    expect(c.dates).toEqual([
+      {
+        kind: "anniversary",
+        label: "Anniversary",
+        date: { year: 2015, month: 6, day: 20 },
+      },
+    ]);
+    // The label is metadata about the date, not a field of its own.
+    expect(c.dropped).toEqual([]);
+  });
+
+  it("reads a year-less X-ABDATE, the shape iOS actually exports", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item2.X-ABDATE;X-APPLE-OMIT-YEAR=1604;type=pref:1604-07-17",
+        "item2.X-ABLabel:_$!<Anniversary>!$_",
+      ),
+    );
+    expect(c.dates[0].date).toEqual({ year: null, month: 7, day: 17 });
+  });
+
+  it("pairs a date with its label whichever order the two arrive in", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.X-ABLabel:_$!<Anniversary>!$_",
+        "item1.X-ABDATE:2015-06-20",
+      ),
+    );
+    expect(c.dates).toHaveLength(1);
+  });
+
+  it("names a labelled date it has no kind for in dropped", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item3.X-ABDATE:2019-05-30",
+        "item3.X-ABLabel:Graduation",
+      ),
+    );
+    expect(c.dates).toEqual([]);
+    expect(c.dropped).toContainEqual({
+      property: "Date (Graduation)",
+      value: "2019-05-30",
+    });
+  });
+
+  it("drops an X-ABDATE that no label says anything about", () => {
+    const [c] = parseVCards(card("FN:Jane Doe", "X-ABDATE:2019-05-30"));
+    expect(c.dates).toEqual([]);
+    expect(c.dropped).toContainEqual({
+      property: "X-ABDATE",
+      value: "2019-05-30",
+    });
+  });
+
+  it("lets a birthday-labelled date fill the birthday, but never beat BDAY", () => {
+    const onlyLabelled = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.X-ABDATE:1992-03-09",
+        "item1.X-ABLabel:Birthday",
+      ),
+    )[0];
+    expect(onlyLabelled.birthday).toEqual({ year: 1992, month: 3, day: 9 });
+    // It fills the birthday rather than becoming a second dated milestone.
+    expect(onlyLabelled.dates).toEqual([]);
+
+    // The dedicated property wins even when it comes second in the card.
+    const both = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.X-ABDATE:1970-01-01",
+        "item1.X-ABLabel:Birthday",
+        "BDAY:1992-03-09",
+      ),
+    )[0];
+    expect(both.birthday).toEqual({ year: 1992, month: 3, day: 9 });
   });
 });
 
