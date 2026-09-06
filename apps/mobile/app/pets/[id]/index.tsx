@@ -19,6 +19,7 @@ import { RelationshipsSection } from "../../../components/RelationshipsSection";
 import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
+import { petTitle } from "../../../lib/record-title";
 import { styles } from "../../../lib/styles";
 
 // Pet detail, ported from desktop's PetView (name, gender, tags, timestamps,
@@ -93,8 +94,9 @@ export default function PetDetailScreen() {
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       {/* An Edit beside each part of the record rather than one in the header —
-          see the person screen, which this mirrors. */}
-      <Stack.Screen options={{ title: pet.name }} />
+          see the person screen, which this mirrors, including why the title is
+          `petTitle` rather than the field it reads. */}
+      <Stack.Screen options={{ title: petTitle(pet) }} />
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>

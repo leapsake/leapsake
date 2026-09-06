@@ -21,6 +21,7 @@ import { RelationshipsSection } from "../../../components/RelationshipsSection";
 import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
+import { personTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 
 // Person detail, ported from desktop's PersonView (core fields, gender, tags,
@@ -103,8 +104,10 @@ export default function PersonDetailScreen() {
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       {/* No Edit in the header: each part of the record carries its own, beside
-          the part it changes. */}
-      <Stack.Screen options={{ title: fullName(person) }} />
+          the part it changes. `personTitle` and not `fullName` directly: every
+          link to this page sends the same call's answer ahead of the read, so the
+          header is already right when this mounts (`lib/record-title.ts`). */}
+      <Stack.Screen options={{ title: personTitle(person) }} />
 
       {/* Both halves of an unresolved pair carry this, so the way back to the
           review is on whichever person the user opens. It stays until the pair

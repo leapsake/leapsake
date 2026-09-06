@@ -1,66 +1,216 @@
+import type { EntityRow } from "@leapsake/core";
+import type { Person, Pet, SearchHit, Tag } from "@leapsake/schema";
+import { entityLabel } from "@leapsake/schema";
 import { describe, expect, it } from "vitest";
-import { headerTitle, titleFromLink, withTitle } from "./record-title";
+import {
+  entityHref,
+  entityRowHref,
+  headerTitle,
+  holidayHref,
+  holidayTitle,
+  mentionHref,
+  personHref,
+  personTitle,
+  petHref,
+  petTitle,
+  searchHitHref,
+  tagHref,
+  tagTitle,
+  titleFromLink,
+} from "./record-title";
 
 /**
  * How expo-router turns a path into `route.params` — `new URL(href, "file:")`,
  * whose `searchParams` decode on the way in (see `parseQueryParams` in
- * `expo-router/build/fork/getStateFromPath-forks.js`). The two ends of
- * `record-title` are only correct *together*, and only against this: it is what
- * says {@link withTitle}'s encoding is needed and {@link titleFromLink}'s lack of
- * decoding is right. Reimplemented rather than imported so the assumption is
- * stated where it is tested, and so a change to it fails here.
+ * `expo-router/build/fork/getStateFromPath-forks.js`). Reimplemented rather than
+ * imported so the assumption is stated where it is tested, and so a change to it
+ * fails here: it is what says the encoding on the way out is needed and the lack
+ * of one on the way back is right.
  */
 function paramsFromHref(href: string): Record<string, string> {
   const { searchParams } = new URL(href, "file:");
   return Object.fromEntries(searchParams.entries());
 }
 
-/** A title sent, then read back the way the navigator will read it. */
-const roundTrip = (path: string, title: string) =>
-  titleFromLink(paramsFromHref(withTitle(path, title)));
+/** The title a link carries, read back exactly as the navigator will read it. */
+const titleIn = (href: string) => titleFromLink(paramsFromHref(href));
 
-describe("withTitle / titleFromLink", () => {
-  it("carries an ordinary name to the screen it opens", () => {
-    expect(roundTrip("/people/p1", "Ada Lovelace")).toBe("Ada Lovelace");
+/** The path with the title stripped off — where the link actually goes. */
+const pathIn = (href: string) => href.split("?")[0];
+
+const person = (over: Partial<Person> = {}): Person =>
+  ({
+    id: "p1",
+    firstName: "Ada",
+    middleName: null,
+    lastName: "Lovelace",
+    ...over,
+  }) as Person;
+
+const pet = (over: Partial<Pet> = {}): Pet =>
+  ({ id: "a1", name: "Rex", ...over }) as Pet;
+
+const tag = (over: Partial<Tag> = {}): Tag =>
+  ({ id: "t1", name: "birthdays", normalized: "birthdays", ...over }) as Tag;
+
+const holiday = { id: "h1", name: "Lunar New Year" };
+
+/** A row of the People & Pets catalog, labelled the way core labels one. */
+const row = (type: "person" | "pet", entity: Person | Pet): EntityRow => ({
+  type,
+  id: entity.id,
+  label: entityLabel(type, entity),
+});
+
+const hit = (over: Partial<SearchHit>): SearchHit =>
+  ({ entityId: "x1", title: "", reasons: [], ...over }) as SearchHit;
+
+/** A route as react-navigation hands one to a header renderer. */
+const route = (name: string, params?: object) => ({ name, params });
+
+/**
+ * The invariant the whole module exists for: a link's title is the title its
+ * destination will show. Both come from one function per kind, so what these pin
+ * is the wiring — that each builder reaches for the right one, and that nothing
+ * decorates the string on the way past.
+ */
+describe("a link carries the title its destination will show", () => {
+  it("for a person", () => {
+    expect(titleIn(personHref(person()))).toBe(personTitle(person()));
+    expect(pathIn(personHref(person()))).toBe("/people/p1");
   });
 
-  it("keeps the record's id readable beside it", () => {
-    expect(paramsFromHref(withTitle("/people/p1", "Ada"))).toEqual({
-      title: "Ada",
+  it("for a pet", () => {
+    expect(titleIn(petHref(pet()))).toBe(petTitle(pet()));
+    expect(pathIn(petHref(pet()))).toBe("/pets/a1");
+  });
+
+  it("for a tag, sigil and all", () => {
+    expect(titleIn(tagHref(tag()))).toBe(tagTitle(tag()));
+    expect(titleIn(tagHref(tag()))).toBe("#birthdays");
+    expect(pathIn(tagHref(tag()))).toBe("/tags/t1");
+  });
+
+  it("for a holiday", () => {
+    expect(titleIn(holidayHref(holiday))).toBe(holidayTitle(holiday));
+    expect(pathIn(holidayHref(holiday))).toBe("/holidays/h1");
+  });
+
+  it("for either kind of entity, from the add form", () => {
+    expect(titleIn(entityHref("person", person()))).toBe(personTitle(person()));
+    expect(titleIn(entityHref("pet", pet()))).toBe(petTitle(pet()));
+    expect(pathIn(entityHref("pet", pet()))).toBe("/pets/a1");
+  });
+});
+
+/**
+ * The three links built from a name someone else resolved rather than from the
+ * record. These are the only places a string reaches a link without passing
+ * through a title function, so they are the only places the two ends can drift —
+ * which makes them the assertions with something to say.
+ */
+describe("a link built from an already-resolved name", () => {
+  it("agrees with the page title, for a catalog row", () => {
+    expect(titleIn(entityRowHref(row("person", person())))).toBe(
+      personTitle(person()),
+    );
+    expect(titleIn(entityRowHref(row("pet", pet())))).toBe(petTitle(pet()));
+    expect(pathIn(entityRowHref(row("pet", pet())))).toBe("/pets/a1");
+  });
+
+  it("agrees with the page title, for a search hit", () => {
+    expect(
+      titleIn(
+        searchHitHref(hit({ entityType: "person", title: "Ada Lovelace" })),
+      ),
+    ).toBe(personTitle(person()));
+    expect(
+      titleIn(searchHitHref(hit({ entityType: "pet", title: "Rex" }))),
+    ).toBe(petTitle(pet()));
+    expect(
+      titleIn(
+        searchHitHref(hit({ entityType: "holiday", title: "Lunar New Year" })),
+      ),
+    ).toBe(holidayTitle(holiday));
+  });
+
+  it("adds the sigil a tag hit leaves off", () => {
+    // The search service indexes a tag under its stored name; the tag page shows
+    // it with the "#". Handing the hit's title straight over would flicker.
+    const tagHit = hit({
+      entityType: "tag",
+      entityId: "t1",
+      title: "birthdays",
     });
-    expect(withTitle("/people/p1", "Ada")).toBe("/people/p1?title=Ada");
+    expect(titleIn(searchHitHref(tagHit))).toBe(tagTitle(tag()));
+    expect(pathIn(searchHitHref(tagHit))).toBe("/tags/t1");
   });
 
-  it("survives the punctuation a URL would otherwise eat", () => {
+  it("sends no name to a gift idea, which titles itself", () => {
+    expect(
+      searchHitHref(
+        hit({ entityType: "gift_idea", entityId: "g1", title: "A BB gun" }),
+      ),
+    ).toBe("/gifts/g1/edit");
+  });
+
+  it("agrees with the page title, for an @mention", () => {
+    // A mention's label is the target's current `entityLabel`, and it is carried
+    // bare: the "@" belongs to the sentence it was written in, not to the page.
+    expect(
+      titleIn(
+        mentionHref({
+          targetType: "person",
+          targetId: "p1",
+          label: entityLabel("person", person()),
+        }),
+      ),
+    ).toBe(personTitle(person()));
+    expect(
+      titleIn(
+        mentionHref({
+          targetType: "pet",
+          targetId: "a1",
+          label: entityLabel("pet", pet()),
+        }),
+      ),
+    ).toBe(petTitle(pet()));
+  });
+});
+
+describe("the name survives the trip", () => {
+  it("carries punctuation a URL would otherwise eat", () => {
     // Each of these ends the query, or a value in it, if it goes in raw.
     for (const name of [
       "Ben & Jerry",
-      "#birthdays",
       "Who? Knows",
       "Anne-Marie O’Neill",
       "50% Off",
       "C++ Study Group",
       "Ann/Bob",
     ]) {
-      expect(roundTrip("/tags/t1", name)).toBe(name);
+      expect(titleIn(petHref({ id: "a1", name }))).toBe(name);
     }
+    expect(titleIn(tagHref(tag({ name: "back-to-school" })))).toBe(
+      "#back-to-school",
+    );
   });
 
   it("does not double-decode a name that looks encoded", () => {
     // The one case a decode on the reading end would quietly corrupt.
-    expect(roundTrip("/people/p1", "A%20B")).toBe("A%20B");
-  });
-
-  it("appends to a path that already carries a parameter", () => {
-    expect(roundTrip("/people/p1?pick=self", "Ada")).toBe("Ada");
-    expect(withTitle("/people/p1?pick=self", "Ada")).toBe(
-      "/people/p1?pick=self&title=Ada",
-    );
+    expect(titleIn(petHref({ id: "a1", name: "A%20B" }))).toBe("A%20B");
   });
 
   it("sends nothing for a record with no name yet", () => {
-    expect(withTitle("/people/p1", "")).toBe("/people/p1");
-    expect(roundTrip("/people/p1", "")).toBe("");
+    // A person can be saved before they are named; the page falls back to a bare
+    // header rather than to an empty parameter saying so.
+    const unnamed = person({
+      firstName: null,
+      middleName: null,
+      lastName: null,
+    });
+    expect(personHref(unnamed)).toBe("/people/p1");
+    expect(titleIn(personHref(unnamed))).toBe("");
   });
 
   it("reads a blank title from a link that sent none", () => {
@@ -73,9 +223,6 @@ describe("withTitle / titleFromLink", () => {
 });
 
 describe("headerTitle", () => {
-  /** A route as react-navigation hands one to a header renderer. */
-  const route = (name: string, params?: object) => ({ name, params });
-
   it("shows the title the screen declared", () => {
     expect(headerTitle({ title: "Holidays" }, route("holidays"))).toBe(
       "Holidays",
@@ -106,8 +253,11 @@ describe("headerTitle", () => {
 
   it("falls back to the name the link sent", () => {
     expect(
-      headerTitle({}, route("people/[id]/index", { id: "p1", title: "Ada" })),
-    ).toBe("Ada");
+      headerTitle(
+        {},
+        route("people/[id]/index", paramsFromHref(personHref(person()))),
+      ),
+    ).toBe("Ada Lovelace");
   });
 
   it("prefers the screen's own title once it has one", () => {

@@ -10,7 +10,7 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { type Person, fullName } from "@leapsake/schema";
 import { useCore } from "../../../lib/core-context";
-import { withTitle } from "../../../lib/record-title";
+import { personHref } from "../../../lib/record-title";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
 
@@ -47,10 +47,7 @@ export default function PersonMergeScreen() {
           style: "destructive",
           onPress: () => {
             core.people.merge(survivor.id, duplicate.id).then(
-              () =>
-                router.replace(
-                  withTitle(`/people/${survivor.id}`, fullName(survivor)),
-                ),
+              () => router.replace(personHref(survivor)),
               (e: unknown) => Alert.alert("Couldn't merge", String(e)),
             );
           },

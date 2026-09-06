@@ -9,10 +9,10 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { GiftIdea, Person, Pet, Reminder, Tag } from "@leapsake/schema";
-import { fullName, reminderLabel, tagLabel } from "@leapsake/schema";
+import { fullName, reminderLabel } from "@leapsake/schema";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
-import { withTitle } from "../../../lib/record-title";
+import { personHref, petHref, tagTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 
 // Tag detail, ported from desktop's TagView: everything carrying a given tag,
@@ -71,7 +71,9 @@ export default function TagDetailScreen() {
     );
   }
 
-  const label = tagLabel(tag.name);
+  // The one name this screen has for the tag: its title, its delete prompt, and
+  // the string every link here sends ahead of the read (`lib/record-title.ts`).
+  const label = tagTitle(tag);
   const empty =
     people.length === 0 &&
     pets.length === 0 &&
@@ -104,11 +106,7 @@ export default function TagDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>People</Text>
           {people.map((person) => (
-            <Link
-              key={person.id}
-              href={withTitle(`/people/${person.id}`, fullName(person))}
-              style={styles.row}
-            >
+            <Link key={person.id} href={personHref(person)} style={styles.row}>
               <Text style={[styles.rowText, { color: colors.accent }]}>
                 {fullName(person)}
               </Text>
@@ -121,11 +119,7 @@ export default function TagDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Pets</Text>
           {pets.map((pet) => (
-            <Link
-              key={pet.id}
-              href={withTitle(`/pets/${pet.id}`, pet.name)}
-              style={styles.row}
-            >
+            <Link key={pet.id} href={petHref(pet)} style={styles.row}>
               <Text style={[styles.rowText, { color: colors.accent }]}>
                 {pet.name}
               </Text>

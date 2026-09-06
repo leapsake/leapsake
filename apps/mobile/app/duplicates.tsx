@@ -11,7 +11,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { DuplicateCandidate } from "@leapsake/core";
 import { fullName } from "@leapsake/schema";
 import { useCore } from "../lib/core-context";
-import { withTitle } from "../lib/record-title";
+import { personHref } from "../lib/record-title";
 import { useFocusedData } from "../lib/useFocusedData";
 import { colors, styles } from "../lib/styles";
 
@@ -62,7 +62,10 @@ export default function DuplicatesScreen() {
         focus: null,
       };
     }
-    return { candidates, focus: { id: person.id, name: fullName(person) } };
+    // The person, not a name lifted off them: the two ways out of this screen
+    // link to their page, and a link carries the name that page will show
+    // (`lib/record-title.ts`). The prose below names them from the same record.
+    return { candidates, focus: person };
   }, [core, scoped, focusId]);
 
   const { data, error, reload } = useFocusedData(load);
@@ -102,9 +105,7 @@ export default function DuplicatesScreen() {
           {focus !== null && (
             <Pressable
               accessibilityRole="button"
-              onPress={() =>
-                router.replace(withTitle(`/people/${focus.id}`, focus.name))
-              }
+              onPress={() => router.replace(personHref(focus))}
             >
               <Text style={[styles.link, { color: colors.accent }]}>
                 Continue
@@ -116,7 +117,7 @@ export default function DuplicatesScreen() {
         <ScrollView contentContainerStyle={styles.screen}>
           <Text style={styles.muted}>
             {focus !== null
-              ? `${focus.name} looks like ${
+              ? `${fullName(focus)} looks like ${
                   candidates.length === 1
                     ? "someone already in your list"
                     : "people already in your list"
@@ -166,9 +167,7 @@ export default function DuplicatesScreen() {
           {focus !== null && (
             <Pressable
               accessibilityRole="button"
-              onPress={() =>
-                router.replace(withTitle(`/people/${focus.id}`, focus.name))
-              }
+              onPress={() => router.replace(personHref(focus))}
             >
               <Text style={[styles.link, { color: colors.accent }]}>
                 Not now

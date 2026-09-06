@@ -5,9 +5,8 @@ import {
   type Tag,
   normalizeTagName,
   splitAnnotatedText,
-  tagLabel,
 } from "@leapsake/schema";
-import { withTitle } from "../lib/record-title";
+import { mentionHref, tagHref } from "../lib/record-title";
 import { styles } from "../lib/styles";
 
 /**
@@ -49,13 +48,13 @@ export function ReminderText({
   linkAnnotations?: boolean;
 }) {
   const router = useRouter();
-  // Keyed to the whole tag rather than just its id: a link out to a tag page
-  // carries the label that page will show, and only the resolved tag knows how
-  // it is actually spelled — the `#Birthday` a user typed here may be stored as
-  // `#birthday`, and sending the typed one would title the page wrong for a beat.
+  // Both maps hold the resolved record rather than a field of it, because a link
+  // out of this sentence carries the name its destination will show and only the
+  // resolved record knows that name: the `#Birthday` a user typed here may be
+  // stored as `#birthday`, and a mention's label follows the target's renames.
   const tagByName = new Map(tags.map((tag) => [tag.normalized, tag]));
-  const labelByTarget = new Map(
-    mentions.map((m) => [`${m.targetType}:${m.targetId}`, m.label]),
+  const mentionByTarget = new Map(
+    mentions.map((m) => [`${m.targetType}:${m.targetId}`, m]),
   );
 
   /** One run of the sentence. `href` is where it points, or `null` for ordinary
@@ -86,32 +85,18 @@ export function ReminderText({
       {splitAnnotatedText(text).map((segment, i) => {
         if (segment.kind === "hashtag") {
           const tag = tagByName.get(normalizeTagName(segment.tagName));
-          return run(
-            i,
-            segment.text,
-            tag === undefined
-              ? null
-              : withTitle(`/tags/${tag.id}`, tagLabel(tag.name)),
-          );
+          return run(i, segment.text, tag === undefined ? null : tagHref(tag));
         }
         if (segment.kind === "mention") {
-          const label = labelByTarget.get(
+          const mention = mentionByTarget.get(
             `${segment.targetType}:${segment.targetId}`,
           );
-          if (typeof label !== "string")
+          if (mention === undefined || typeof mention.label !== "string")
             return run(i, `@${segment.displayName}`, null);
-          // The sigil is this sentence's punctuation, not part of the name, so
-          // the page is titled with the bare label the mention resolved to.
-          return run(
-            i,
-            `@${label}`,
-            withTitle(
-              segment.targetType === "person"
-                ? `/people/${segment.targetId}`
-                : `/pets/${segment.targetId}`,
-              label,
-            ),
-          );
+          // The sigil is this sentence's punctuation rather than part of the
+          // name, so the link carries the bare label and the page is titled with
+          // it — `@Alice Ng` here, "Alice Ng" over there.
+          return run(i, `@${mention.label}`, mentionHref(mention));
         }
         return run(i, segment.text, null);
       })}

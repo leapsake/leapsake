@@ -12,6 +12,7 @@ import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
 import { Typeahead } from "../../../components/Typeahead";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
+import { holidayTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 import { formatOccurrence } from "@leapsake/schema";
 
@@ -123,7 +124,9 @@ export default function HolidayDetailScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <Stack.Screen options={{ title: holiday.name }} />
+      {/* `holidayTitle`, which is also what every link to this page sends ahead
+          of the read — see `lib/record-title.ts`. */}
+      <Stack.Screen options={{ title: holidayTitle(holiday) }} />
 
       {holiday.hidden && (
         <Text style={styles.muted}>

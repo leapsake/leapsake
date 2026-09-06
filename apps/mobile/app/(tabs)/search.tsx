@@ -1,5 +1,4 @@
 import type { SearchHit } from "@leapsake/schema";
-import { tagLabel } from "@leapsake/schema";
 import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -15,7 +14,7 @@ import { BrowseTiles } from "../../components/BrowseTiles";
 import { SearchInput } from "../../components/SearchInput";
 import { highlightBirthday, highlightMatch } from "../../lib/highlightMatch";
 import { useCore } from "../../lib/core-context";
-import { withTitle } from "../../lib/record-title";
+import { searchHitHref } from "../../lib/record-title";
 import {
   type SearchFacet,
   facetParam,
@@ -31,26 +30,6 @@ import { colors, radius, styles } from "../../lib/styles";
  */
 const MIN_QUERY_LENGTH = 2;
 const DEBOUNCE_MS = 200;
-
-/**
- * The route a result opens, branching on its type. A gift idea has no read-only
- * view on either client, so its actionable page is the edit screen (the same
- * choice the tag page makes for its gift-idea rows).
- */
-function pathFor(hit: SearchHit): string {
-  // A hit already carries the name its page will show, so every route that can
-  // wear one is handed it (`lib/record-title.ts`) — the tag's with the "#" the
-  // tag page puts on it, which a hit's bare title deliberately leaves off. The
-  // gift form titles itself "Gift idea" whatever it holds, so it takes none.
-  if (hit.entityType === "tag")
-    return withTitle(`/tags/${hit.entityId}`, tagLabel(hit.title));
-  if (hit.entityType === "holiday")
-    return withTitle(`/holidays/${hit.entityId}`, hit.title);
-  if (hit.entityType === "gift_idea") return `/gifts/${hit.entityId}/edit`;
-  if (hit.entityType === "pet")
-    return withTitle(`/pets/${hit.entityId}`, hit.title);
-  return withTitle(`/people/${hit.entityId}`, hit.title);
-}
 
 /**
  * Global search, ported from the desktop's chrome SearchBar to its own tab. A
@@ -275,7 +254,7 @@ export default function SearchScreen() {
             <Pressable
               accessibilityRole="button"
               style={styles.row}
-              onPress={() => router.push(pathFor(hit))}
+              onPress={() => router.push(searchHitHref(hit))}
             >
               <ResultRow hit={hit} term={term} />
             </Pressable>

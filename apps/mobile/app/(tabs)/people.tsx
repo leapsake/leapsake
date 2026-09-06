@@ -11,7 +11,7 @@ import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import type { CoreApi, EntityRow } from "@leapsake/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useCore } from "../../lib/core-context";
-import { withTitle } from "../../lib/record-title";
+import { entityRowHref } from "../../lib/record-title";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { useHeaderScroll } from "../../lib/use-header-scroll";
 import { colors, styles } from "../../lib/styles";
@@ -160,19 +160,14 @@ function EntityListRow({
     // Outside pick mode the whole row stays one tap target, as it always has.
     if (!picking) {
       return (
-        <Link
-          href={withTitle(`/people/${entity.id}`, entity.label)}
-          style={styles.row}
-        >
+        <Link href={entityRowHref(entity)} style={styles.row}>
           {label}
         </Link>
       );
     }
     return (
       <View style={[styles.row, styles.rowMeta, { marginTop: 0 }]}>
-        <Link href={withTitle(`/people/${entity.id}`, entity.label)}>
-          {label}
-        </Link>
+        <Link href={entityRowHref(entity)}>{label}</Link>
         {/* Only a Person can be you, and there's no point offering it on the
             row that already is. */}
         {!isSelf && (
@@ -196,10 +191,7 @@ function EntityListRow({
     );
   }
   return (
-    <Link
-      href={withTitle(`/pets/${entity.id}`, entity.label)}
-      style={styles.row}
-    >
+    <Link href={entityRowHref(entity)} style={styles.row}>
       <Text style={[styles.rowText, { color: colors.accent }]}>
         {entity.label} <Text style={styles.muted}>(pet)</Text>
       </Text>
