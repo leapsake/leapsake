@@ -27,7 +27,8 @@ appId: com.leapsake.app
 #
 # iOS draws no dots in a `newPassword` field under automation, so do not judge these by
 # looking: the evidence they landed is the submit below getting past validation, which
-# refuses a password under 12 characters or a mismatched confirmation.
+# refuses a password under 12 characters or a mismatched confirmation. That evidence is now
+# an assertion of its own rather than an inference — see "the form was accepted" below.
 - tapOn:
     id: "account-username"
 - inputText: "ada"
@@ -47,20 +48,60 @@ appId: com.leapsake.app
 - tapOn:
     id: "account-submit"
 
+# --- the form was accepted ----------------------------------------------------------------
+# **Fifteen seconds of insurance against eight minutes of the wrong question.** Every way
+# `onSubmit` refuses the form — an empty username, a short password, a mismatch — leaves the
+# button reading "Protect my data" with an error beside it, and the app doing nothing at all.
+# Without this the flow would then spend its whole conversion budget waiting for a reveal
+# that was never coming, and report the *reveal* as the failure. That is not hypothetical:
+# on 2026-09-05, with the host cores saturated, `inputText` dropped characters into the two
+# password fields, the form said "The passwords don't match", and the red that came three
+# minutes later named the wrong thing entirely.
+#
+# Waited for rather than asserted because the tap returns as soon as the view hierarchy
+# changes, which on a loaded machine is *before* React has committed the button's re-render.
+# A bare `assertNotVisible` here reads the pre-tap label and fails on a healthy app.
+- extendedWaitUntil:
+    notVisible: "Protect my data"
+    timeout: 15000
+
 # --- the one-time reveal ----------------------------------------------------------------
 # Waited for rather than asserted: the button reads "Encrypting your data…" while the store
-# is converted, and how long that takes is a property of the data, not of the harness.
+# is converted, and how long that takes is a property of the machine, not of the harness.
 #
-# **Three minutes, because the Android emulator needs them.** This was 60s and green on the
-# iOS simulator across four runs; the first Android run failed here with the button still
-# reading "Encrypting your data…", and the reveal was on screen shortly after Maestro gave
-# up. Argon2id is deliberately slow and an emulator is the slowest place we run it, so the
-# budget is set for the slowest device this suite touches rather than the fastest. Costing
-# an extra two minutes when the app is genuinely broken is the cheaper mistake: the other
-# way round, the gate goes red on a build that works.
+# **Eight minutes, and the reason is that this step's cost is not reliably its own.** On the
+# emulator this harness provisions (`EMULATOR_SIZE` — 6 cores, 8GB) the conversion measures
+# 48-85s across a dozen green Android runs, and 52s on the iOS simulator on every run ever
+# recorded; a 19MiB memory-hard Argon2id pass on unJITted Hermes is simply what it costs.
+# But the same commit, on the same emulator, has also run past three minutes with the app in
+# perfect health — the beta release gate on 2026-09-05, whose screenshot showed the button
+# still reading "Encrypting your data…", `logcat` from the app's own pid holding nothing but
+# routine GC, and `top -H` showing `mqt_v_js` pegged at 100% with `pgmajfault` flat beside
+# it. That same commit converted in 48.3s and 48.8s minutes later, and in 108.8s with all
+# twelve host cores deliberately saturated by `yes`.
+#
+# **The number is 480000 because a 294.5s conversion has been watched all the way to the
+# reveal.** That is the one measurement that settles it: same commit, same emulator, idle
+# host, an hour into the emulator's uptime — six times the median, finishing correctly, and
+# a red under any budget this flow has ever carried. It is the degraded mode the memory
+# section of `../README.md` first measured at "four to seven minutes", and it is reachable
+# with the emulator sized exactly as this harness sizes it. What the budget has to cover,
+# then, is not the conversion but the machine the conversion is sharing — and this tier is
+# the last one of a suite that has just spent fifteen minutes compiling, type-checking and
+# driving two devices.
+#
+# So the budget is set past the worst degradation ever measured rather than a little above
+# the median, and the guard above is what keeps that from being expensive: the failures that
+# come from the app rather than from the machine now cost fifteen seconds, not this.
+#
+# ⚠️ **Do not turn this into a `repeat` of shorter waits** to get a tighter grip on the
+# ceiling. It reads well and does not work: inside a `repeat`, Maestro honours
+# `extendedWaitUntil`'s timeout on the *first* iteration only — measured 2026-09-05, a
+# 60s × 8 loop that spent 59s on its first tick and 0.3s on each of the next seven, so the
+# flow went red at 75s believing it had waited eight minutes.
 - extendedWaitUntil:
     visible: "Save your recovery phrase"
-    timeout: 180000
+    timeout: 480000
 
 # It has taken the screen over rather than appearing beneath the form — which is the
 # assertable half of the catalog's "the app chrome is not reachable while it is up". The

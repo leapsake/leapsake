@@ -472,6 +472,72 @@ or raise both in Android Studio → Device Manager → Edit. A suite tuned to pa
 emulator is one that can no longer tell slow from broken, which is why the knob to reach for
 is the device.
 
+### When the device is already right, budget for the machine and guard the cheap failures
+
+The section above fixes the device. It does not make Flow 4's conversion _predictable_, and
+on 2026-09-05 the beta release gate went red on a properly provisioned emulator — 6 cores,
+8GB, `hardware-qemu.ini` confirming both — with nothing wrong at all. The evidence that the
+app was healthy, collected in the order worth repeating:
+
+- the failure screenshot showed the button still reading "Encrypting your data…", no error
+  beside the form and no crash;
+- `logcat` filtered to the app's own pid held nothing between the tap and the timeout but
+  routine GC — no exception, no `ReactNativeJS` line;
+- `adb shell top -H -p <pid>` showed **`mqt_v_js` pegged at 100%** with `/proc/vmstat`'s
+  `pgmajfault` flat beside it: compute, not paging, so the memory story above did not apply;
+- the same commit then converted in **48.3s** and **48.8s** on the same emulator minutes
+  later, and in **108.8s** with all twelve host cores deliberately saturated by `yes`;
+- and then, an hour into that emulator's uptime with the host idle, in **294.5s — watched
+  all the way to the reveal**, correct, on the same commit again.
+
+That last one settles it. Six times the median, finishing properly, and red under any budget
+this flow has ever carried: it is the degraded mode the memory section above first measured
+as "four to seven minutes", reached with the emulator sized exactly as `--provision` sizes
+it. Nothing about the build changes between a 48s conversion and a 294s one, so what the
+budget has to cover is not the conversion but the machine it is sharing — and this tier is
+the **last** one of a suite that has just spent fifteen minutes compiling, type-checking and
+driving two devices. Flow 4's wait is therefore `480000`, set past the worst degradation ever
+measured rather than a little above the median.
+
+A budget that generous is only affordable if the _cheap_ failures stop paying it, which is
+the other half of the change. Every way the form can be refused leaves the submit button
+reading "Protect my data" and the app doing nothing, so the flow now asks that question
+first and separately:
+
+```yaml
+- tapOn:
+    id: "account-submit"
+- extendedWaitUntil:      # the form was accepted at all
+    notVisible: "Protect my data"
+    timeout: 15000
+- extendedWaitUntil:      # ...and only then, the conversion
+    visible: "Save your recovery phrase"
+    timeout: 480000
+```
+
+The same saturation run showed why: `inputText` dropped characters into the two password
+fields, the form said "The passwords don't match", and the old single wait spent its entire
+budget on a reveal that was never coming and then blamed the reveal. Fifteen seconds now buys
+a red that names the form.
+
+Two shapes were tried on the way here and are worth not re-deriving:
+
+⚠️ **Do not loop `while: visible: "Encrypting your data…"`.** It is the obvious phrasing for
+"wait while the app says it is working" and it is racy. `tapOn` returns as soon as the view
+hierarchy changes, which on a loaded machine is *before* React has committed the re-render,
+so Maestro reads the button still saying "Protect my data", skips the loop and falls straight
+through — measured doing exactly that with the host cores saturated, which is the one
+condition such a loop would exist for.
+
+⚠️ **`repeat` does not give you repeated waits.** Inside a `repeat`, Maestro honours
+`extendedWaitUntil`'s timeout on the **first iteration only**: a `60000 × 8` loop measured
+59s on its first tick and ~0.3s on each of the next seven, so the flow went red at 75s
+believing it had waited eight minutes. Nothing warns you — the console prints eight
+iterations either way. If a wait needs a ceiling, write the ceiling as the timeout.
+
+(And the flat trap underneath both: `extendedWaitUntil` is an _assertion_, not a sleep. Unmet
+at its timeout it fails the command and ends the flow, unless you mark it `optional: true`.)
+
 ### Do not leave both devices booted at once
 
 The two platforms run in sequence; their **hardware** did not, until 2026-08-31. An Android
