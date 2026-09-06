@@ -146,7 +146,10 @@ export default function TabsLayout() {
         // (below), so it is the only one the mark belongs to.
         header: ({ options, route }) => (
           <AppHeader
-            title={options.title ?? route.name}
+            // Empty rather than `route.name`, for the reason the root stack
+            // gives: a route path is never a title. Every screen in this
+            // navigator is named right here, so the fallback is only a floor.
+            title={options.title ?? ""}
             showLogo={route.name === "index"}
             right={options.headerRight?.({
               canGoBack: false,

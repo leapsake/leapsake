@@ -105,9 +105,14 @@ export default function ReminderDetailScreen() {
   );
   const { data, error, reload } = useFocusedData(load);
 
+  // Every branch below mounts the header, including the ones that have nothing
+  // to show yet: options are read from whichever `<Stack.Screen>` is mounted, so
+  // a branch that omits it leaves the screen unnamed for as long as it is up.
+  // They are mutually exclusive returns, so only ever one is mounted at a time.
   if (error !== null) {
     return (
       <View style={styles.screen}>
+        <Stack.Screen options={HEADER} />
         <Text style={styles.danger}>{error}</Text>
       </View>
     );
@@ -115,6 +120,7 @@ export default function ReminderDetailScreen() {
   if (data === null) {
     return (
       <View style={styles.screen}>
+        <Stack.Screen options={HEADER} />
         <ActivityIndicator />
       </View>
     );

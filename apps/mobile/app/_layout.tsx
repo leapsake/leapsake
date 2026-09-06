@@ -37,9 +37,16 @@ export default function RootLayout() {
       <CoreProvider>
         <Stack
           screenOptions={{
-            header: ({ options, route, back, navigation }) => (
+            header: ({ options, back, navigation }) => (
               <AppHeader
-                title={options.title ?? route.name}
+                // Never `route.name`. A screen whose `<Stack.Screen>` isn't
+                // mounted yet — every screen that loads before it can name
+                // itself — would otherwise wear its own *route path* as a title,
+                // and "reminders/[id]/index" is not something a user should ever
+                // be shown. An empty title draws no title element at all (see
+                // AppHeader), so the bar is simply bare for that beat and the
+                // real title arrives with the content it describes.
+                title={options.title ?? ""}
                 left={options.headerLeft?.({
                   canGoBack: back !== undefined,
                   tintColor: colors.accent,
