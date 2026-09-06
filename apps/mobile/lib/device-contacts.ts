@@ -142,21 +142,47 @@ const DATE_KINDS: Record<string, MilestoneKind> = {
 };
 
 /**
+ * One component of a device date, or `null` when it is missing or is not a value
+ * a civil date could hold.
+ *
+ * The range check is not idle defensiveness. iOS reads the labelled `dates` list
+ * off `NSDateComponents`, whose components are *not* optional: an unset one holds
+ * the sentinel `NSDateComponentUndefined` (`NSIntegerMax`), and `expo-contacts`
+ * copies it into the record verbatim instead of reading it as absent. So an
+ * anniversary saved with the year left off — the `X-APPLE-OMIT-YEAR` date the
+ * Contacts app writes — reaches us as year `9223372036854775807`, and passing that
+ * through failed the *entire contact* at the write, since `milestoneSchema`'s
+ * `z.number().int()` caps at `Number.MAX_SAFE_INTEGER`. The dedicated birthday
+ * field escapes it (its mapper reads Swift's `DateComponents`, whose parts really
+ * are optional) and so does Android (its record's parts are nullable), which is
+ * why only a year-less *anniversary* ever brought a card down.
+ */
+function datePart(value: number | undefined, max: number): number | null {
+  return value !== undefined &&
+    Number.isSafeInteger(value) &&
+    value >= 1 &&
+    value <= max
+    ? value
+    : null;
+}
+
+/**
  * An `expo-contacts` {@link ContactDate} as Leapsake's partial civil date, or
  * `null` when it carries no usable month. `month` is already 1-indexed (1-12) on
  * both platforms, so it maps straight across; `year` is optional (a date without
- * one recurs annually) and `day` is defensive — the platform types promise it,
- * a malformed record need not.
+ * one recurs annually), and every part is read through {@link datePart} so a
+ * sentinel or malformed component is treated as absent rather than stored.
  */
 function partialDateFrom(
   value: ContactDate | null | undefined,
 ): ParsedPartialDate | null {
   if (value == null) return null;
-  if (!(value.month >= 1 && value.month <= 12)) return null;
+  const month = datePart(value.month, 12);
+  if (month === null) return null;
   return {
-    year: value.year ?? null,
-    month: value.month,
-    day: value.day ?? null,
+    year: datePart(value.year, 9999),
+    month,
+    day: datePart(value.day, 31),
   };
 }
 

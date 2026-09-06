@@ -110,6 +110,42 @@ describe("deviceContactToParsed", () => {
     expect(parsed.birthday).toBeNull();
   });
 
+  it("reads iOS's year-less date sentinel as no year, not as a year", () => {
+    // What an anniversary saved with the year left off actually arrives as: iOS
+    // fills the unset component with `NSDateComponentUndefined` (`NSIntegerMax`),
+    // and passing that on used to fail the whole contact at the write. Written as
+    // `2 ** 63` because that is the double the bridge hands us — the exact
+    // `9223372036854775807` is not representable as a JS number.
+    const undefinedComponent = 2 ** 63;
+    const parsed = deviceContactToParsed(
+      device({
+        dates: [
+          {
+            id: "1",
+            label: "_$!<Anniversary>!$_",
+            date: { year: undefinedComponent, month: 11, day: 14 },
+          },
+        ],
+      }),
+    );
+    expect(parsed.dates).toEqual([
+      {
+        kind: "anniversary",
+        label: "Anniversary",
+        date: { year: null, month: 11, day: 14 },
+      },
+    ]);
+  });
+
+  it("ignores a date component no civil date could hold", () => {
+    const parsed = deviceContactToParsed(
+      device({
+        birthday: { year: 0, month: 3, day: 99 },
+      }),
+    );
+    expect(parsed.birthday).toEqual({ year: null, month: 3, day: null });
+  });
+
   it("takes a birthday from the dates list only when there is no dedicated one", () => {
     // Android: no dedicated birthday field at all, so `dates` is the only source.
     const android = deviceContactToParsed(
