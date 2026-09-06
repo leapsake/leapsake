@@ -3,6 +3,7 @@ import { Tabs } from "expo-router";
 import { AppHeader } from "../../components/AppHeader";
 import { NewLink } from "../../components/NewLink";
 import { SearchHereLink } from "../../components/SearchHereLink";
+import { headerTitle } from "../../lib/record-title";
 import { colors, styles } from "../../lib/styles";
 
 /**
@@ -146,10 +147,11 @@ export default function TabsLayout() {
         // (below), so it is the only one the mark belongs to.
         header: ({ options, route }) => (
           <AppHeader
-            // Empty rather than `route.name`, for the reason the root stack
-            // gives: a route path is never a title. Every screen in this
-            // navigator is named right here, so the fallback is only a floor.
-            title={options.title ?? ""}
+            // The same rule the root stack follows, from the same place: a
+            // route never names a screen (`lib/record-title.ts`). Every screen in
+            // this navigator is named right here, so the fallback under it is
+            // only a floor.
+            title={headerTitle(options, route)}
             showLogo={route.name === "index"}
             right={options.headerRight?.({
               canGoBack: false,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { titleFromLink, withTitle } from "./record-title";
+import { headerTitle, titleFromLink, withTitle } from "./record-title";
 
 /**
  * How expo-router turns a path into `route.params` — `new URL(href, "file:")`,
@@ -69,5 +69,59 @@ describe("withTitle / titleFromLink", () => {
     expect(titleFromLink({ id: "p1" })).toBe("");
     // Repeated in the path, so react-navigation hands over an array.
     expect(titleFromLink({ title: ["Ada", "Grace"] })).toBe("");
+  });
+});
+
+describe("headerTitle", () => {
+  /** A route as react-navigation hands one to a header renderer. */
+  const route = (name: string, params?: object) => ({ name, params });
+
+  it("shows the title the screen declared", () => {
+    expect(headerTitle({ title: "Holidays" }, route("holidays"))).toBe(
+      "Holidays",
+    );
+  });
+
+  it("keeps a screen's deliberate empty title", () => {
+    // The reminder detail sets `""`: its own first words are its heading, and a
+    // title bar repeating them would say the same sentence twice.
+    expect(
+      headerTitle({ title: "" }, route("reminders/[id]/index", { id: "r1" })),
+    ).toBe("");
+  });
+
+  it("never names a screen after its route", () => {
+    // The regression this whole module exists for. Every one of these is a real
+    // route in the app, with a screen that has not declared its title yet.
+    for (const name of [
+      "reminders/[id]/index",
+      "people/[id]/index",
+      "pets/[id]/index",
+      "tags/[id]/index",
+      "holidays/[id]/index",
+    ]) {
+      expect(headerTitle({}, route(name, { id: "x1" }))).toBe("");
+    }
+  });
+
+  it("falls back to the name the link sent", () => {
+    expect(
+      headerTitle({}, route("people/[id]/index", { id: "p1", title: "Ada" })),
+    ).toBe("Ada");
+  });
+
+  it("prefers the screen's own title once it has one", () => {
+    // The instant the record's read lands, its answer replaces the link's — which
+    // is what keeps a stale sent name from outliving the load that used it.
+    expect(
+      headerTitle(
+        { title: "Ada Lovelace" },
+        route("people/[id]/index", { id: "p1", title: "Ada Lovelce" }),
+      ),
+    ).toBe("Ada Lovelace");
+  });
+
+  it("copes with a route carrying no parameters at all", () => {
+    expect(headerTitle({}, route("data"))).toBe("");
   });
 });

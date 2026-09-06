@@ -54,6 +54,29 @@ export function titleFromLink(params: object | undefined): string {
   return typeof sent === "string" ? sent : "";
 }
 
+/**
+ * What a header shows for a screen: the title the screen declared, or — while it
+ * has declared none — the name the link that opened it sent.
+ *
+ * Both navigators route through here (`app/_layout.tsx`,
+ * `app/(tabs)/_layout.tsx`) so there is one answer to "what goes in the header",
+ * and so that answer is testable: a layout is unreachable from a unit test, and
+ * the rule this encodes is worth a test.
+ *
+ * The rule is that **a route never names a screen**. React Navigation offers
+ * `route.name` for the gap this fills, and taking it put "reminders/[id]/index"
+ * in the one place on screen whose job is to answer "where am I?" — so the gap is
+ * filled by the linking screen's answer, or by nothing at all. A declared title
+ * always wins, including a deliberate empty one (the reminder detail sets `""`,
+ * whose own first words are its heading).
+ */
+export function headerTitle(
+  options: { title?: string },
+  route: { params?: object },
+): string {
+  return options.title ?? titleFromLink(route.params);
+}
+
 /*
  * A note on the encoding, because the two halves above look mismatched: what
  * {@link withTitle} percent-encodes, {@link titleFromLink} does not decode.

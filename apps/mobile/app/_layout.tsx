@@ -3,7 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppHeader } from "../components/AppHeader";
 import { CoreProvider } from "../lib/core-context";
-import { titleFromLink } from "../lib/record-title";
+import { headerTitle } from "../lib/record-title";
 import { colors } from "../lib/styles";
 
 // Root layout: build the core once (CoreProvider gates rendering on it being
@@ -47,14 +47,15 @@ export default function RootLayout() {
                 // whose job is to answer "where am I?".
                 //
                 // What it wears instead is the name the screen that linked here
-                // sent (`lib/record-title.ts`), which for a record opened from a
-                // list, a chip or a mention is already the right one — so the
-                // load is a titled screen rather than a bare bar that fills in.
-                // Reading it here rather than in each screen is what makes it
-                // free: a screen still loading has declared no options at all.
-                // With no name sent, an empty title draws no title element (see
-                // AppHeader) and the bar is simply bare for that beat.
-                title={options.title ?? titleFromLink(route.params)}
+                // sent (`lib/record-title.ts`, which owns the rule and is tested
+                // on it), which for a record opened from a list, a chip or a
+                // mention is already the right one — so the load is a titled
+                // screen rather than a bare bar that fills in. Reading it here
+                // rather than in each screen is what makes it free: a screen
+                // still loading has declared no options at all. With no name
+                // sent, an empty title draws no title element (see AppHeader) and
+                // the bar is simply bare for that beat.
+                title={headerTitle(options, route)}
                 left={options.headerLeft?.({
                   canGoBack: back !== undefined,
                   tintColor: colors.accent,
