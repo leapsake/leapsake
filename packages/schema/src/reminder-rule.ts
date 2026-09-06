@@ -232,6 +232,24 @@ export interface ReminderActionDef {
   /** Optional emoji shown beside the label. */
   icon?: string;
   /**
+   * The action this one **delivers** — set on `send:card` (which delivers
+   * `get:card`) and `send:gift`, and on nothing else.
+   *
+   * It exists because posting a card is not a peer of buying one: it is what you
+   * do with the card afterwards, and offering the two as sibling toggles let a
+   * user schedule a posting for a card they never bought. Naming the relation
+   * here rather than in a component is what keeps both clients' prompts drawing
+   * the same tree — the drift {@link SCHEDULABLE_ACTIONS} and `planQuestion`
+   * were each centralised to prevent.
+   *
+   * ⚠️ It changes **presentation only**. A delivery is still an ordinary rule
+   * with its own action, offset and id, still listed flat by the full schedule
+   * editor, and still free to be enabled without its parent by anything that
+   * writes rules directly. Only {@link promptGroupsOf} and the prompt built on
+   * it treat the pair as one question.
+   */
+  deliveryOf?: ReminderAction;
+  /**
    * How many days **before its due date** a reminder for this action goes on
    * display. Not when it comes due — how long the errand then sits on the list.
    *
@@ -324,11 +342,23 @@ export const actionDefs = {
   "send:card": {
     label: "Send a card",
     icon: "💌",
+    deliveryOf: "get:card",
     // *Send*, per the label. A fortnight is enough runway to write and post one
     // — and deliberately shorter than `get:card`'s month, because this is the
     // errand that has a postal deadline rather than the one that has a shop.
     activeDays: 14,
     template: ({ subject }) => `Send ${subject} a card`,
+  },
+  "send:gift": {
+    label: "Send a gift",
+    icon: "📦",
+    deliveryOf: "get:gift",
+    // Ten days, between `send:card`'s fortnight and nothing: a parcel wants more
+    // handling than an envelope (wrapping, a box, a queue at the counter) but
+    // less runway than choosing the gift did, and that choosing is already
+    // `get:gift`'s thirty. Provisional, like every number in this registry.
+    activeDays: 10,
+    template: ({ subject }) => `Post ${subject}'s gift`,
   },
   // ⚠️ The two channel actions below are **registered but not offered** — see
   // `UNOFFERED_ACTIONS` beside `SCHEDULABLE_ACTIONS` for why (a channel is an
@@ -716,4 +746,177 @@ export function reminderRuleLabel(rule: {
 }): string {
   if (verbOf(rule.action) === "other") return rule.label ?? OTHER_LABEL;
   return actionDefOf(rule.action).label;
+}
+
+/**
+ * A lead time in words — "12 days before", "on the day".
+ *
+ * Always days, never weeks: the number is the rule's own `offsetDays`, it is
+ * what the prompt is about to let the user *edit*, and "1 week before" sitting
+ * beside "12 days before" in one list makes two rows look like they are measured
+ * in different things.
+ */
+export function leadTimeLabel(offsetDays: number): string {
+  if (offsetDays <= 0) return "on the day";
+  return offsetDays === 1 ? "1 day before" : `${offsetDays} days before`;
+}
+
+/** One row of the prompt, carrying its index so a controlled editor can write
+ *  the rule back in place. */
+export interface PromptItem {
+  /** Where this rule sits in the array the prompt was handed. */
+  index: number;
+  rule: ReminderRuleInput;
+}
+
+/**
+ * The prompt's delivery question — *in person, or by mail?* — as one choice for
+ * the whole occasion rather than one per item.
+ *
+ * **Coupled deliberately** *(owner, 2026-09-06)*: asking "and how about this
+ * one?" separately under the gift and under the card is two questions where
+ * nobody has two answers. The rules underneath stay independent — the full
+ * schedule editor can still post the gift and hand over the card — it is only
+ * the prompt that declines to ask.
+ */
+export interface PromptDelivery {
+  /** Whether the user has chosen *by mail*. */
+  mailed: boolean;
+  /**
+   * Whether to show the question at all: only once something it could deliver is
+   * turned on. Also true whenever a delivery rule is already enabled, so the
+   * group can never hide a rule that is on.
+   */
+  visible: boolean;
+  /**
+   * The lead time to describe under the choice, when every delivery it governs
+   * agrees on one — null when they differ, so the caption says nothing rather
+   * than picking a number arbitrarily.
+   */
+  offsetDays: number | null;
+}
+
+/** The prompt's rules as it draws them: the things you might do, and the one
+ *  delivery question hanging under them. */
+export interface PromptGroups {
+  items: PromptItem[];
+  /** Null when the offer set holds no delivery rules at all — nothing to ask. */
+  delivery: PromptDelivery | null;
+}
+
+/**
+ * The item a delivery rule belongs to, or null if this rule stands on its own —
+ * including a delivery whose item **isn't in this set at all**.
+ *
+ * That last case is what stops the grouping ever losing a row. A schedule is
+ * free to hold a `send:card` with no `get:card` beside it (the full editor can
+ * write one, and a peer on an older build may sync one), and a delivery with
+ * nothing to hang from would otherwise be filtered into a group that only shows
+ * itself when its absent parent is on — i.e. never. Orphaned, it is simply an
+ * item again, which is what it was before `deliveryOf` existed.
+ */
+function deliveryParentOf(
+  rule: ReminderRuleInput,
+  present: ReadonlySet<ReminderAction>,
+): ReminderAction | null {
+  const parent = actionDefOf(rule.action).deliveryOf;
+  return parent !== undefined && present.has(parent) ? parent : null;
+}
+
+/**
+ * Split an offer set into the prompt's two groups.
+ *
+ * Pure and index-carrying, because the prompt writes back the **whole** set
+ * positionally: rows existing is what makes "asked, and chose nothing"
+ * distinguishable from "never asked", so nothing here may drop a rule.
+ */
+export function promptGroupsOf(
+  rules: readonly ReminderRuleInput[],
+): PromptGroups {
+  const present = new Set(rules.map((r) => r.action));
+  const items: PromptItem[] = [];
+  const deliveries: PromptItem[] = [];
+  rules.forEach((rule, index) => {
+    (deliveryParentOf(rule, present) === null ? items : deliveries).push({
+      index,
+      rule,
+    });
+  });
+  if (deliveries.length === 0) return { items, delivery: null };
+
+  const on = new Set(
+    items.filter((i) => i.rule.enabled).map((i) => i.rule.action),
+  );
+  // The deliveries this choice actually governs right now — the ones whose item
+  // is on. The caption's lead time is read from these rather than from all of
+  // them, so turning the gift off stops the card's number being described as if
+  // it covered both.
+  const live = deliveries.filter((d) =>
+    on.has(deliveryParentOf(d.rule, present) as ReminderAction),
+  );
+  const mailed = deliveries.some((d) => d.rule.enabled);
+  const offsets = new Set(live.map((d) => d.rule.offsetDays));
+
+  return {
+    items,
+    delivery: {
+      mailed,
+      visible: live.length > 0 || mailed,
+      offsetDays: offsets.size === 1 ? [...offsets][0]! : null,
+    },
+  };
+}
+
+/**
+ * Re-derive every delivery rule from the delivery choice and its item's state:
+ * on exactly when the user picked *by mail* **and** the thing being delivered is
+ * itself on.
+ *
+ * This is what stops the prompt writing a posting for a card nobody is getting.
+ * It runs on every edit rather than only on the delivery toggle, because turning
+ * an item **off** has to take its delivery with it — and the row must still be
+ * written, disabled, never dropped.
+ */
+function reconcileDelivery(
+  rules: readonly ReminderRuleInput[],
+  mailed: boolean,
+): ReminderRuleInput[] {
+  const present = new Set(rules.map((r) => r.action));
+  const on = new Set(
+    rules
+      .filter((r) => r.enabled && deliveryParentOf(r, present) === null)
+      .map((r) => r.action),
+  );
+  return rules.map((rule) => {
+    const parent = deliveryParentOf(rule, present);
+    if (parent === null) return rule;
+    return { ...rule, enabled: mailed && on.has(parent) };
+  });
+}
+
+/**
+ * Turn one of the prompt's items on or off, carrying its delivery with it.
+ *
+ * `index` addresses the array the prompt was handed — a {@link PromptItem}'s
+ * own. Handing it a delivery rule's index is a caller error: the delivery is set
+ * through {@link setPromptDelivery}, which is the only thing that owns that bit.
+ */
+export function setPromptItem(
+  rules: readonly ReminderRuleInput[],
+  index: number,
+  enabled: boolean,
+): ReminderRuleInput[] {
+  const mailed = promptGroupsOf(rules).delivery?.mailed ?? false;
+  return reconcileDelivery(
+    rules.map((rule, i) => (i === index ? { ...rule, enabled } : rule)),
+    mailed,
+  );
+}
+
+/** Answer the delivery question for the whole occasion. */
+export function setPromptDelivery(
+  rules: readonly ReminderRuleInput[],
+  mailed: boolean,
+): ReminderRuleInput[] {
+  return reconcileDelivery(rules, mailed);
 }

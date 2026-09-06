@@ -1,20 +1,46 @@
-import { Pressable, Switch, Text, View } from "react-native";
-import { type ReminderRuleInput, actionDefOf } from "@leapsake/schema";
-import { styles } from "../lib/styles";
+import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import {
+  type ReminderRuleInput,
+  actionDefOf,
+  leadTimeLabel,
+  promptGroupsOf,
+  setPromptDelivery,
+  setPromptItem,
+} from "@leapsake/schema";
+import { SegmentedControl } from "./SegmentedControl";
+import { colors, styles } from "../lib/styles";
+
+/** The delivery question's two answers. `mail` is the one that schedules
+ *  anything; `hand` is the absence of a posting errand, said out loud rather
+ *  than left to be inferred from an unticked box. */
+const DELIVERY = [
+  { value: "hand", label: "In person" },
+  { value: "mail", label: "By mail" },
+] as const;
 
 /**
  * The prompt's answer form (mobile twin of the web `ReminderPromptFields`): one
- * toggle per offered action, and nothing else.
+ * toggle per thing you might do, each wearing its lead time, and — under them,
+ * only once something it could deliver is on — a single *in person or by mail?*
+ * for the whole occasion.
  *
  * Deliberately not {@link ReminderScheduleFields}, though they write the same
- * rows — that editor is for someone tuning a schedule, this is asked of someone
- * who has not decided anything yet, and its whole value is that answering it is
- * nearly free. Labels are `actionDefOf(...).label` verbatim, the same offers the
- * schedule editor lists.
+ * rows. That editor is for someone tuning a schedule and lists every rule flat,
+ * posting included; this is asked of someone who has not decided anything yet,
+ * and its whole value is that answering it is nearly free. Which is also why the
+ * delivery is **one** question rather than one under the gift and another under
+ * the card: nobody has two answers to it. The rules underneath stay independent
+ * and the flat editor can still split them.
+ *
+ * The lead time is read from the rule's own `offsetDays` and rendered as its own
+ * line rather than spliced into the label, because that line is where an
+ * *editable* lead time will go.
  *
  * Controlled, and hands back the **whole** set with `enabled` flipped rather
  * than just the ticks: rows existing is what makes "asked, and chose nothing"
- * distinguishable from "never asked".
+ * distinguishable from "never asked". Every edit goes through
+ * {@link setPromptItem} / {@link setPromptDelivery}, so the rule that a posting
+ * cannot outlive the thing it posts lives in the model, once, for both clients.
  */
 export function ReminderPromptFields({
   value,
@@ -23,36 +49,77 @@ export function ReminderPromptFields({
   value: readonly ReminderRuleInput[];
   onChange: (next: ReminderRuleInput[]) => void;
 }) {
-  const toggle = (index: number, enabled: boolean) =>
-    onChange(
-      value.map((rule, i) => (i === index ? { ...rule, enabled } : rule)),
-    );
+  const { items, delivery } = promptGroupsOf(value);
 
   return (
     <View>
-      {value.map((rule, i) => {
+      {items.map(({ index, rule }) => {
         const def = actionDefOf(rule.action);
         return (
-          // Positional, like the schedule editor: no stable id until saved.
           <Pressable
-            key={i}
+            key={index}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: rule.enabled }}
             accessibilityLabel={def.label}
-            onPress={() => toggle(i, !rule.enabled)}
+            accessibilityHint={leadTimeLabel(rule.offsetDays)}
+            onPress={() => onChange(setPromptItem(value, index, !rule.enabled))}
             style={[styles.row, styles.rowWithLead]}
           >
             <Switch
               value={rule.enabled}
-              onValueChange={(next) => toggle(i, next)}
+              onValueChange={(next) =>
+                onChange(setPromptItem(value, index, next))
+              }
             />
-            <Text style={[styles.rowBody, styles.rowText]}>
-              {def.icon ? `${def.icon} ` : ""}
-              {def.label}
-            </Text>
+            <View style={styles.rowBody}>
+              <Text style={styles.rowText}>
+                {def.icon ? `${def.icon} ` : ""}
+                {def.label}
+              </Text>
+              {/* The lead time, muted and underneath: it is what the toggle
+                  actually buys — a reminder at a time — and the screen said
+                  nothing about it until now. */}
+              <Text style={local.lead}>{leadTimeLabel(rule.offsetDays)}</Text>
+            </View>
           </Pressable>
         );
       })}
+
+      {delivery?.visible === true && (
+        <View style={local.delivery}>
+          <Text style={styles.fieldLabel}>Giving it</Text>
+          <SegmentedControl
+            options={DELIVERY}
+            value={delivery.mailed ? "mail" : "hand"}
+            onChange={(next) =>
+              onChange(setPromptDelivery(value, next === "mail"))
+            }
+            testID="prompt-delivery"
+          />
+          {/* Only when posting, and only when the deliveries it governs agree on
+              a date — a caption that had to name two would be describing a
+              distinction the single control does not offer. */}
+          {delivery.mailed && delivery.offsetDays !== null && (
+            <Text style={local.lead}>
+              We’ll remind you to post it {leadTimeLabel(delivery.offsetDays)}.
+            </Text>
+          )}
+        </View>
+      )}
     </View>
   );
 }
+
+const local = StyleSheet.create({
+  lead: {
+    fontSize: 13,
+    color: colors.muted,
+  },
+  // Indented under the toggles it belongs to, and given room above: it is a
+  // follow-up question, not a fifth thing to do.
+  delivery: {
+    marginTop: 12,
+    marginLeft: 8,
+    gap: 6,
+  },
+});

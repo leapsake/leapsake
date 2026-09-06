@@ -215,7 +215,13 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
       // due when the card has to be *in hand*; `send:card`'s shorter
       // `activeDays` is what makes it the later of the two on the list.
       { action: "get:card", offsetDays: 12, enabledByDefault: false },
+      // The two deliveries, at one offset on purpose: the prompt asks *in person
+      // or by mail?* once for the whole occasion, and a caption that had to say
+      // "7 days before, or 9 for the gift" would be describing a distinction
+      // nobody made. `activeDays` still differs between them, so the parcel
+      // surfaces on the list earlier than the envelope.
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
+      { action: "send:gift", offsetDays: 7, enabledByDefault: false },
       // Nothing channel-specific beside it: `call` and `message:sms` used to sit
       // here and were folded into this one row on 2026-09-05 (see
       // `SCHEDULABLE_ACTIONS`). A channel is a button on the acknowledgment, not
@@ -259,6 +265,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     // `@leapsake/reminders` → *Who gets asked*.
     prompt: { occasion: "first date", onlyOwnPartnership: true },
     defaultReminderSchedule: [
+      // `get:card` sits above the posting rather than the posting standing alone
+      // — see `ReminderActionDef.deliveryOf`. Offered and off, like everything
+      // here, so this widens what the prompt *asks* and mints nothing.
+      { action: "get:card", offsetDays: 12, enabledByDefault: false },
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
@@ -288,6 +298,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     prompt: { occasion: "wedding anniversary", onlyOwnPartnership: true },
     defaultReminderSchedule: [
       { action: "get:gift", offsetDays: 7, enabledByDefault: false },
+      { action: "send:gift", offsetDays: 3, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
   },
@@ -312,7 +323,11 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     prompt: { occasion: "anniversary" },
     // A card and an acknowledgment, both offered and both off — the source card
     // says a date matters to this person, not what the user wants done about it.
+    // The card is the pair (buy it, then post it or hand it over), because
+    // `send:card` alone is a posting with nothing to post — see
+    // `ReminderActionDef.deliveryOf`.
     defaultReminderSchedule: [
+      { action: "get:card", offsetDays: 12, enabledByDefault: false },
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],

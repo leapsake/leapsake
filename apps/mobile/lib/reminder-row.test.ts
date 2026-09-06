@@ -4,7 +4,12 @@ import {
   reminderActionsOf,
 } from "@leapsake/view-models";
 import { describe, expect, it } from "vitest";
-import { offerFor, removalCopyFor, showsDelete } from "./reminder-row";
+import {
+  isAnsweredInline,
+  offerFor,
+  removalCopyFor,
+  showsDelete,
+} from "./reminder-row";
 
 const NOW = 1_800_000_000_000;
 
@@ -26,8 +31,11 @@ const actionsFor = (
   context = {},
 ) => reminderActionsOf(reminder(id, snoozeCount, completedAt), context, NOW);
 
-/** What a row offers, run through this client's mapping — the pairing under test. */
-const offersFor = (actions: ReminderRowAction[]) => actions.map(offerFor);
+/** What a row offers, run through this client's mapping — the pairing under test.
+ *  Pinned to `NOW`, because a snooze's label now counts the days to the date it
+ *  carries and a wall-clock reading would make the copy drift under the test. */
+const offersFor = (actions: ReminderRowAction[]) =>
+  actions.map((action) => offerFor(action, NOW));
 
 const giftContext = {
   giftTarget: { recipientType: "person" as const, recipientId: "p1" },
@@ -62,7 +70,14 @@ describe("offerFor", () => {
         path: "/people?pick=self",
         label: "Get started ›",
       },
-      { kind: "snooze", until: expect.any(Number), label: "Not now" },
+      // The put-off says how long it lasts. "Not now" alone never distinguished
+      // an afternoon from forever — the same ambiguity the sibling below was
+      // introduced to fix at the other end.
+      {
+        kind: "snooze",
+        until: expect.any(Number),
+        label: "Not now — ask in 3 days",
+      },
       { kind: "dismiss", label: "Don’t ask again" },
     ]);
   });
@@ -205,12 +220,43 @@ describe("offerFor", () => {
         ],
         label: "Just the day",
       },
-      { kind: "snooze", until: expect.any(Number), label: "Not now" },
+      {
+        kind: "snooze",
+        until: expect.any(Number),
+        label: "Not now — ask in 7 days",
+      },
     ]);
   });
 
   it("offers nothing at all on an ordinary reminder", () => {
     expect(offersFor(actionsFor("user-written"))).toEqual([]);
+  });
+});
+
+describe("isAnsweredInline", () => {
+  // Both are answers the detail screen's own form already carries: "Choose
+  // below" is desktop's navigation to a screen mobile does not have, and "Just
+  // the day" writes exactly what Save writes with the offers untouched. Drawn as
+  // buttons they were two more blue words for one outcome, one of them inert.
+  it("claims the prompt's CTA and its one-tap answer, and nothing else", () => {
+    const actions = actionsFor("prompt", 1, null, planContext);
+
+    expect(actions.filter(isAnsweredInline).map((a) => a.kind)).toEqual([
+      "cta",
+      "answer-plan",
+    ]);
+    // What survives is the pair of escapes — which is the whole of what the
+    // screen still needs to draw beside Save.
+    expect(
+      actions.filter((a) => !isAnsweredInline(a)).map((a) => a.kind),
+    ).toEqual(["snooze", "dismiss"]);
+  });
+
+  it("leaves an ordinary nudge's offers alone", () => {
+    // A nudge's CTA goes somewhere real; only a `plan` prompt is answered here.
+    const actions = actionsFor(idFor("pick-self"), 1);
+
+    expect(actions.some(isAnsweredInline)).toBe(false);
   });
 });
 

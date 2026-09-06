@@ -52,6 +52,10 @@ describe("core.milestones — reminder schedule", () => {
       "get:gift",
       "get:card",
       "send:card",
+      // The gift's delivery, added 2026-09-06 beside the card's: the prompt asks
+      // *in person or by mail?* once for the occasion, and a gift with no way to
+      // answer it was the odd one out. Offered and off, like its sibling.
+      "send:gift",
       "wish",
     ]);
     // Only the birthday wish is on by default.

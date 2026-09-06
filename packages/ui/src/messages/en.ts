@@ -258,6 +258,18 @@ export const en: Messages = {
     justTheDay: "Just the day",
     save: "Save",
     editFull: "Set exact timings",
+    caption: "We’ll remind you in time for each one.",
+    // ⚠️ **One question for the occasion, not one per item** *(owner,
+    // 2026-09-06)*. Asking under the gift and again under the card is two
+    // questions where nobody has two answers. The rules stay independent —
+    // `ReminderScheduleFields` can still post one and hand over the other — it is
+    // only the prompt that declines to ask.
+    deliveryLegend: "Giving it",
+    // Named rather than left as an unticked "post it": the choice not to post is
+    // a real answer, and a checkbox says it only by omission.
+    deliveryHand: "In person",
+    deliveryMail: "By mail",
+    deliveryNote: (leadTime) => `We’ll remind you to post it ${leadTime}.`,
   },
 
   reminderSchedule: {

@@ -127,6 +127,10 @@ export {
   KNOWN_ACTIONS,
   SCHEDULABLE_ACTIONS,
   nextSchedulableRule,
+  leadTimeLabel,
+  promptGroupsOf,
+  setPromptItem,
+  setPromptDelivery,
   MAX_ACTIVE_DAYS,
   reminderRuleBearerTypeSchema,
   reminderRuleSchema,
@@ -145,6 +149,9 @@ export type {
   ReminderRuleBearerType,
   ReminderRule,
   ReminderRuleInput,
+  PromptItem,
+  PromptDelivery,
+  PromptGroups,
 } from "./reminder-rule.js";
 export {
   MENTION_NAMESPACE,

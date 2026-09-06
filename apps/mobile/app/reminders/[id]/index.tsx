@@ -24,6 +24,7 @@ import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import {
+  isAnsweredInline,
   offerFor,
   removalCopyFor,
   showsDelete,
@@ -151,6 +152,10 @@ export default function ReminderDetailScreen() {
   // authority on *what* is offered; this screen owns only how it looks. An
   // ordinary reminder (milestone / birthday / user) offers nothing.
   const planTarget = targets.plans.find((t) => t.reminderId === id);
+  // A `🗓 plan` prompt, which this screen draws as a **question** rather than as
+  // a reminder: its answer form is inline, so the reminder chrome that assumes
+  // an errand is withheld — see each use below for what and why.
+  const isPrompt = planTarget !== undefined;
   // Present only on a `wish` about a person. When they *have* methods this feeds
   // the buttons below and no CTA is offered; when they have none the view-model
   // turns it into the collect prompt. Either way the reminder stays completable
@@ -175,6 +180,13 @@ export default function ReminderDetailScreen() {
             hasMethods: contactTarget.methods.length > 0,
           },
   });
+  // What actually draws as a button. On a prompt that is the escapes and any
+  // second CTA — never “Choose below” (which would point at the form already on
+  // screen) or “Just the day” (which writes exactly what Save writes with the
+  // offers untouched). `removalCopyFor` and `showsDelete` still read the **full**
+  // set: whether this is a nudge is a fact about the reminder, not about which
+  // of its offers this screen happens to draw.
+  const offered = actions.filter((a) => !isPrompt || !isAnsweredInline(a));
   const removal = removalCopyFor(actions);
   const canEdit = isReminderEditable(reminder);
   const canDelete = showsDelete(actions, done);
@@ -242,16 +254,23 @@ export default function ReminderDetailScreen() {
 
       {/* The heading, with completion beside it — the checkbox is the only thing
           that says whether this is done now that the Status field is gone, so the
-          heading strikes through as well, exactly as the list's rows do. */}
+          heading strikes through as well, exactly as the list's rows do.
+
+          ⚠️ **A prompt gets no checkbox.** There is no errand here to finish;
+          answering the question *is* what retires it, and Save below does that.
+          A tick offered beside a question invites a fifth answer to a form that
+          already has four, and means something the write cannot honour. */}
       <View style={styles.rowWithLead}>
-        <Checkbox
-          accessibilityLabel={
-            done ? `Reopen “${label}”` : `Mark “${label}” done`
-          }
-          checked={done}
-          onPress={toggle}
-          style={styles.rowLeadCheckbox}
-        />
+        {!isPrompt && (
+          <Checkbox
+            accessibilityLabel={
+              done ? `Reopen “${label}”` : `Mark “${label}” done`
+            }
+            checked={done}
+            onPress={toggle}
+            style={styles.rowLeadCheckbox}
+          />
+        )}
         <View style={styles.rowBody}>
           <ReminderText
             text={heading}
@@ -259,6 +278,19 @@ export default function ReminderDetailScreen() {
             mentions={reminder.mentions}
             style={[styles.reminderHeading, strike]}
           />
+          {/* ⚠️ The occasion's **own** date, said right under the question and
+              nowhere else on a prompt. The "Due" this screen shows every other
+              reminder is the prompt's deadline — six weeks before the occasion —
+              so on a birthday that is tomorrow it reads "41 days ago", which is
+              true of the question and false of the birthday. One line, under the
+              thing it is about, instead of two fields disagreeing. */}
+          {isPrompt && planTarget.occurrenceDate != null && (
+            <Text style={styles.promptOccasion}>
+              {kindDefs[planTarget.milestoneKind].label} ·{" "}
+              {formatDueIn(planTarget.occurrenceDate)} (
+              {isoFromDueMs(planTarget.occurrenceDate)})
+            </Text>
+          )}
         </View>
       </View>
 
@@ -289,7 +321,7 @@ export default function ReminderDetailScreen() {
           />
         </View>
       )}
-      {reminder.dueDate !== null && (
+      {!isPrompt && reminder.dueDate !== null && (
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Due</Text>
           <Text style={styles.fieldValue}>
@@ -319,47 +351,44 @@ export default function ReminderDetailScreen() {
       {/* ⚠️ The prompt is answered **here**, not on a screen further in. The
           Home row stays a checkbox and a link — that rule is what keeps a list
           row from destroying anything — so this screen carries the cost of
-          making the answer cheap. "Just the day" is among the offers below; it
-          is the answer most people give, so it costs one tap and no scrolling
-          past the list. */}
-      {/* ⚠️ The "Due" above is the prompt's own deadline, six weeks before the
-          occasion — the same convention every reminder row uses. So the
-          occasion's real date is said here rather than left to be inferred from
-          a countdown that is about something else. */}
-      {planTarget?.occurrenceDate != null && (
-        <View style={styles.field}>
-          <Text style={styles.fieldLabel}>
-            {kindDefs[planTarget.milestoneKind].label}
-          </Text>
-          <Text style={styles.fieldValue}>
-            {isoFromDueMs(planTarget.occurrenceDate)} (
-            {formatDueIn(planTarget.occurrenceDate)})
-          </Text>
-        </View>
-      )}
+          making the answer cheap. The answer most people give still costs one
+          tap: the offers arrive with the wish already ticked, so Save untouched
+          *is* "just the day". It used to be a second button saying so, beside a
+          third that pointed at this very form. */}
       {planTarget !== undefined && (
-        <View style={styles.field}>
+        <View style={styles.promptForm}>
+          {/* What a tick actually buys, said once above the set rather than
+              implied by four switches. Without it the toggles read as today's
+              to-do list, when what they schedule is a reminder weeks out — the
+              lead time on each row is the other half of the same sentence. */}
+          <Text style={styles.promptCaption}>
+            We’ll remind you in time for each one.
+          </Text>
           <ReminderPromptFields
             value={draft ?? planTarget.offers}
             onChange={setDraft}
           />
+          {/* The one commit, and it looks like one. It used to be a blue word in
+              a row of four blue words, one of which wrote the same rules under a
+              different name and one of which did nothing at all. */}
           <Pressable
             accessibilityRole="button"
+            style={styles.button}
             onPress={() =>
               answer(planTarget.milestoneId, draft ?? planTarget.offers)
             }
           >
-            <Text style={styles.link}>Save</Text>
+            <Text style={styles.buttonText}>Save</Text>
           </Pressable>
         </View>
       )}
-      {actions.length > 0 && (
+      {offered.length > 0 && (
         // Whatever the reminder offers, on its own line and in offer order —
         // which is also order of escalating finality. They sit below the standing
         // actions because they are peers of one choice and belong side by side.
         // Each kind is offered at most once, so it keys.
         <View style={styles.rowOffers}>
-          {actions.map((action) => {
+          {offered.map((action) => {
             const offer = offerFor(action);
             return (
               <Pressable
@@ -371,6 +400,10 @@ export default function ReminderDetailScreen() {
                     answer(offer.milestoneId, offer.schedule);
                   else if (offer.kind === "snooze") snooze(offer.until);
                   else if (offer.kind === "dismiss") confirmDelete();
+                  // `answer-prompt` reaches no branch and needs none: it is the
+                  // CTA that points at this screen's own form, and `offered` has
+                  // already dropped it. It stays in the view-model for desktop,
+                  // where the form really is a screen away.
                 }}
               >
                 <Text style={styles.link}>{offer.label}</Text>

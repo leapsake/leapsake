@@ -30,9 +30,10 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
  * right, not because they were inherited. Which onboarding routes get a named
  * label and which share the generic one is {@link ONBOARDING_LABEL}'s business.
  *
- * The offered `snooze` carries the date it runs to, so “Not now (ask me in 3
- * days)” is available for free; it isn't spent here, because saying a date in
- * words means hand-rolling a plural rule in a screen with no message catalog.
+ * The offered `snooze` carries the date it runs to, and {@link snoozeLabel}
+ * spends it: “Not now” alone never said whether the row was going away for an
+ * afternoon or for good, which is the same ambiguity “Don't ask again” was
+ * introduced to fix at the other end. One hand-rolled plural is the whole cost.
  */
 const OFFER_LABELS = {
   onboarding: "Get started ›",
@@ -58,11 +59,28 @@ const OFFER_LABELS = {
   // No "›": the prompt is answered **on this screen**, not somewhere else. It is
   // the one CTA that navigates nowhere, which is why `RowOffer` needed a fourth
   // kind rather than a fourth path.
+  //
+  // ⚠️ **Nothing draws it.** The detail screen carries the form inline, so this
+  // would point a button at something already on it — see {@link isAnsweredInline},
+  // which is what drops it. The mapping stays complete because the action is the
+  // view-model's, shared with desktop, where the form really is a screen away.
   answerPrompt: "Choose below",
+  // Likewise undrawn on this client, and for a sharper reason: with the offers
+  // seeded from the kind's defaults (wish alone ticked), this writes exactly
+  // what Save writes untouched. Two buttons, one outcome.
   justTheDay: "Just the day",
-  snooze: "Not now",
   dismiss: "Don’t ask again",
 } as const;
+
+/** How long a put-off lasts, in the button that does it. Rounded to whole days
+ *  from the date the policy already chose — never recomputed, so the words and
+ *  the stored clock cannot disagree. */
+function snoozeLabel(until: number, now: number): string {
+  const days = Math.max(1, Math.round((until - now) / 86_400_000));
+  return days === 1
+    ? "Not now — ask tomorrow"
+    : `Not now — ask in ${days} days`;
+}
 
 /**
  * One offered action as this client renders it — the copy, plus how it is taken.
@@ -193,7 +211,10 @@ function ctaOffer(cta: ReminderCta): RowOffer {
  * policy chose and the offered action carried; recomputing it here would be a
  * second evaluation that disagrees with the first whenever a dial changes.
  */
-export function offerFor(action: ReminderRowAction): RowOffer {
+export function offerFor(
+  action: ReminderRowAction,
+  now: number = Date.now(),
+): RowOffer {
   switch (action.kind) {
     case "cta":
       return ctaOffer(action.cta);
@@ -208,11 +229,32 @@ export function offerFor(action: ReminderRowAction): RowOffer {
       return {
         kind: "snooze",
         until: action.until,
-        label: OFFER_LABELS.snooze,
+        label: snoozeLabel(action.until, now),
       };
     case "dismiss":
       return { kind: "dismiss", label: OFFER_LABELS.dismiss };
   }
+}
+
+/**
+ * Whether this offer is one the detail screen's **inline prompt form** already
+ * carries, and so must not also draw as a button.
+ *
+ * Both are answers to the question the form is asking. “Choose below” is the
+ * navigation desktop needs and mobile does not — it would point at a form
+ * already on screen — and “Just the day” writes exactly what Save writes with
+ * the offer set untouched, since a prompt is only ever seeded from its kind's
+ * defaults (`resolveReminderSchedule(kind, [])`) and those arrive with the wish
+ * alone ticked. Two buttons for one outcome, one of which led nowhere.
+ *
+ * The actions stay in the view-model, which serves both clients: desktop's
+ * prompt *is* a screen further in, and its CTA still has somewhere to go.
+ */
+export function isAnsweredInline(action: ReminderRowAction): boolean {
+  return (
+    action.kind === "answer-plan" ||
+    (action.kind === "cta" && action.cta.kind === "plan")
+  );
 }
 
 /** Whether these offers belong to a row whose permanent out is *don't ask again*

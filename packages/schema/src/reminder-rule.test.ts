@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type ReminderRule,
+  type ReminderRuleInput,
   actionDefOf,
   actionDefs,
   actionKeyOf,
@@ -17,6 +18,10 @@ import {
   SCHEDULABLE_ACTIONS,
   nextSchedulableRule,
   promptOffsetDays,
+  leadTimeLabel,
+  promptGroupsOf,
+  setPromptItem,
+  setPromptDelivery,
 } from "./index.js";
 
 /** Assemble a stored rule row from the parts a test cares about. */
@@ -60,6 +65,7 @@ describe("reminderActionSchema / actionDefs", () => {
       "get:gift",
       "get:card",
       "send:card",
+      "send:gift",
       "visit",
       "remember",
       "other",
@@ -167,8 +173,16 @@ describe("promptOffsetDays", () => {
     expect(promptOffsetDays("birthday")).toBe(
       12 + actionDefOf("get:gift").activeDays,
     );
+    // ⚠️ **`get:card`, not `send:card`** — and so 42 days, not 21. Anniversary
+    // offered a posting with nothing to post until the delivery pairing landed
+    // (2026-09-06); giving it the shop trip it was missing also gives it that
+    // trip's 30-day run-up, which is the widest thing it now offers. The question
+    // has to come and go before the errand it unlocks would have started, so a
+    // wider offer *means* an earlier prompt. That is the arithmetic working, not
+    // a regression — but it is a visible one: the anniversary and first-date
+    // prompts now arrive six weeks out rather than three.
     expect(promptOffsetDays("anniversary")).toBe(
-      7 + actionDefOf("send:card").activeDays,
+      12 + actionDefOf("get:card").activeDays,
     );
   });
 
@@ -276,9 +290,14 @@ describe("resolveReminderSchedule", () => {
       "get:gift",
       "get:card",
       "send:card",
+      "send:gift",
       "wish",
     ]);
-    expect(rules.map((r) => r.offsetDays)).toEqual([12, 12, 7, 0]);
+    // The two deliveries share an offset deliberately: the prompt asks *in
+    // person or by mail?* once for the whole occasion, so a caption that had to
+    // say "7 days, or 9 for the gift" would describe a distinction the control
+    // does not offer.
+    expect(rules.map((r) => r.offsetDays)).toEqual([12, 12, 7, 7, 0]);
     // ⚠️ No `call`, no `message:sms`. They sat in this list until 2026-09-05 and
     // folded into the one `wish` row: a channel is a button on the
     // acknowledgment, not a second errand to tick.
@@ -405,5 +424,120 @@ describe("actionKeyOf", () => {
     expect(actionKeyOf({ action: "other", label: " Bake A Cake " })).toBe(
       actionKeyOf({ action: "other", label: "bake a cake" }),
     );
+  });
+});
+
+describe("leadTimeLabel", () => {
+  it("says days, never weeks", () => {
+    // One unit across the whole list: "1 week before" beside "12 days before"
+    // makes two rows look like they are measured in different things — and the
+    // number is what the prompt is about to let the user edit.
+    expect(leadTimeLabel(0)).toBe("on the day");
+    expect(leadTimeLabel(1)).toBe("1 day before");
+    expect(leadTimeLabel(7)).toBe("7 days before");
+    expect(leadTimeLabel(12)).toBe("12 days before");
+  });
+});
+
+describe("promptGroupsOf / setPromptItem / setPromptDelivery", () => {
+  /** A birthday's offer set as the prompt is handed it: kind defaults, wish on. */
+  const offers = () => resolveReminderSchedule("birthday", []).rules;
+  const enabledIn = (rules: readonly ReminderRuleInput[]) =>
+    rules.filter((r) => r.enabled).map((r) => r.action);
+
+  it("lifts the deliveries out of the items", () => {
+    const { items, delivery } = promptGroupsOf(offers());
+
+    // Posting is not a peer of buying: offered side by side, the prompt let you
+    // schedule a posting for a card you were never getting.
+    expect(items.map((i) => i.rule.action)).toEqual([
+      "get:gift",
+      "get:card",
+      "wish",
+    ]);
+    // Nothing it could deliver is on, so it has nothing to ask about yet.
+    expect(delivery).toEqual({
+      mailed: false,
+      visible: false,
+      offsetDays: null,
+    });
+  });
+
+  it("asks the delivery question only once something needs delivering", () => {
+    const card = offers().findIndex((r) => r.action === "get:card");
+
+    expect(
+      promptGroupsOf(setPromptItem(offers(), card, true)).delivery,
+    ).toEqual({ mailed: false, visible: true, offsetDays: 7 });
+  });
+
+  it("is one answer for the occasion, not one per item", () => {
+    const rules = offers();
+    const card = rules.findIndex((r) => r.action === "get:card");
+    const gift = rules.findIndex((r) => r.action === "get:gift");
+
+    let next = setPromptItem(rules, card, true);
+    next = setPromptItem(next, gift, true);
+    next = setPromptDelivery(next, true);
+
+    // ⚠️ Both postings, from the one choice. Asking under the gift and again
+    // under the card is two questions where nobody has two answers.
+    expect(enabledIn(next).sort()).toEqual([
+      "get:card",
+      "get:gift",
+      "send:card",
+      "send:gift",
+      "wish",
+    ]);
+  });
+
+  it("never posts a thing that is no longer being got", () => {
+    const rules = offers();
+    const card = rules.findIndex((r) => r.action === "get:card");
+
+    const mailing = setPromptDelivery(setPromptItem(rules, card, true), true);
+    expect(enabledIn(mailing)).toContain("send:card");
+
+    // Turning the item off has to take its delivery with it — otherwise the
+    // write schedules a posting for a card nobody is buying.
+    const off = setPromptItem(mailing, card, false);
+    expect(enabledIn(off)).toEqual(["wish"]);
+  });
+
+  it("writes the whole set, disabled rows included", () => {
+    const rules = offers();
+    const gift = rules.findIndex((r) => r.action === "get:gift");
+
+    // Rows existing is what makes "asked, and chose nothing" distinguishable
+    // from "never asked", so no edit may drop one — a partial write would have
+    // the question return next year.
+    for (const next of [
+      setPromptItem(rules, gift, true),
+      setPromptDelivery(rules, true),
+      setPromptItem(setPromptDelivery(rules, true), gift, false),
+    ]) {
+      expect(next.map((r) => r.action)).toEqual(rules.map((r) => r.action));
+    }
+  });
+
+  it("keeps an orphaned delivery visible as an item of its own", () => {
+    // A schedule may hold a `send:card` with no `get:card` beside it — the full
+    // editor writes flat, and a peer on an older build synced sets like this.
+    // Grouped under an absent parent it would only ever show when that parent
+    // was on, i.e. never; orphaned, it is simply an item again.
+    const orphan: ReminderRuleInput[] = [
+      { action: "send:card", label: null, offsetDays: 7, enabled: true },
+      { action: "wish", label: null, offsetDays: 0, enabled: true },
+    ];
+    const { items, delivery } = promptGroupsOf(orphan);
+
+    expect(items.map((i) => i.rule.action)).toEqual(["send:card", "wish"]);
+    expect(delivery).toBeNull();
+  });
+
+  it("reports no delivery question when the set holds none", () => {
+    expect(
+      promptGroupsOf(resolveReminderSchedule("moved", []).rules).delivery,
+    ).toBeNull();
   });
 });

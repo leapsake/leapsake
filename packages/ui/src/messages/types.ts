@@ -249,6 +249,14 @@ export interface Messages {
     justTheDay: string;
     save: string;
     editFull: string;
+    /** What ticking anything actually buys — a reminder at a time, not a to-do. */
+    caption: string;
+    /** The one delivery question for the whole occasion. */
+    deliveryLegend: string;
+    deliveryHand: string;
+    deliveryMail: string;
+    /** What the posting choice schedules, given a lead time in words. */
+    deliveryNote: (leadTime: string) => string;
   };
 
   reminderSchedule: {

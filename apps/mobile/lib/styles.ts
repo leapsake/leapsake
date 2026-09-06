@@ -185,6 +185,27 @@ export const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
   },
+  // A prompt's occasion, directly under the question it is about: "Birthday ·
+  // tomorrow (2026-09-07)". Muted and one line, deliberately — it is context for
+  // the question, not a field of the reminder, and the definition-list treatment
+  // it used to get put it below the answer form it belongs above.
+  promptOccasion: {
+    fontSize: 15,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  // The one line explaining what ticking anything does. Sits above the toggles
+  // rather than under the heading, because it is about the form and not about
+  // the occasion.
+  promptCaption: {
+    fontSize: 15,
+    color: colors.muted,
+  },
+  // The prompt's answer form: caption, toggles, Save. Roomier than a `field`,
+  // because it is the screen's whole point rather than one entry in a list.
+  promptForm: {
+    gap: 12,
+  },
   // Detail "definition list": a label above its value.
   field: {
     gap: 2,
