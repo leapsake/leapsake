@@ -1,7 +1,8 @@
 # Leapsake — The Crucial-Flow Catalog (the E2E keystone)
 
-> **Draft for owner sign-off** (first drafted 2026-07-18; **rewritten 2026-07-28** against the
-> *encryption follows custody* model). The single, *tool-agnostic* list of user journeys that
+> **Signed off** *(owner, 2026-08-28 — the rung grading; the catalog itself has been the
+> reference since Flows 1-5 were written against it)*. First drafted 2026-07-18; **rewritten
+> 2026-07-28** against the *encryption follows custody* model. The single, *tool-agnostic* list of user journeys that
 > **every platform's E2E harness implements against the built app**. It is the analog, one tier
 > up, of the driver-contract keystone — authored once in plain language so Maestro (mobile),
 > Playwright/Electron (desktop), and any future harness encode the *same* journeys and can't
@@ -348,38 +349,77 @@ would start costing someone something they cannot retype — which is why the *s
 out-of-band halves and both doors of 7 wait for `rc` (they prove data comes *back*, which only
 matters once someone is relying on it). Beta may be buggy; stable v0.1 may not lose data.
 
-"gate" = must be green before v0.1 on that platform ([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*: iOS + Android + macOS).
-Windows/Linux run the identical list once a host exists (deferred, blocked-not-waived).
+"gate" = must be green before **that platform's own first release**, at the rung the *Gates at*
+column names ([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) →
+*The release-gate policy*). ⚠️ **The platform column is not the release schedule, and reading it
+as one is the mistake this note exists to prevent.** v0.1 is **iOS alone** — macOS left on
+2026-08-26, Android on 2026-09-06, both for reasons unrelated to testing
+([`../v0-1.md`](../v0-1.md) → *The account sequence*). Every "gate" above is still owed; it is
+owed *when that platform ships*, not before v0.1. Windows/Linux run the identical list once a
+host exists (deferred, blocked-not-waived).
 
-## Open decisions for owner sign-off
+**Android is the case worth stating explicitly, because it is counterintuitive**: its flows are
+written and green today even though it does not ship in v0.1. Maestro flows are byte-identical
+across the two mobile platforms, so they cost nothing to keep and they catch regressions in the
+platform that *does* ship. Nothing is being removed from the suite.
 
-1. **Catalog membership.** Confirm the seven core flows; decide which (if any) **extended** flows
-   are promoted into the v0.1 gate (leaning: promote desktop **contact-import drop**, and
-   **factory reset** now that it shares the reopen-in-place path with Flow 4).
-2. **Selector convention.** Approve the minimal stable-anchor set + the shared `testID` /
-   `data-testid` token scheme (above), or mandate pure visible-text assertions.
-3. **The out-of-band custody assertions.** Approve the bounded file/key-store checks in the table
-   above, or rule that E2E asserts only on screen — in which case say explicitly which lower tier
-   owns "the store is actually ciphertext", because today no tier proves it against the built app.
-4. **Flow-5 inclusion.** Confirm the reminder/mention/tag round-trip — the newest, most UI-heavy
-   untested surface. Trim if reminders are not yet launch-critical.
+## Open decisions — four settled, two left, and neither of the two is v0.1's
+
+Most of this list was answered by building the flows rather than by a sign-off, which is the
+usual and better way for a question like this to close.
+
+1. ✅ **Catalog membership** — the seven core flows are confirmed; the rung table in
+   [`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → §C names each
+   one and when it is owed. **Factory reset** is covered incidentally rather than promoted:
+   `maestro/subflows/factory-reset.yaml` drives the erase a user performs, as part of the arc.
+   The **contact-import drop** leaning was a *desktop* recommendation and left v0.1 with desktop.
+   > ⚠️ **Worth revisiting on mobile when the extended list is next opened.** Import is the one
+   > path that writes many records at once from data the app did not author, and three real
+   > data-fidelity bugs landed in it on 2026-09-06 — found by importing 490 real contacts, not by
+   > a test. The unit coverage in `packages/contact-import/test/` is good and was not what missed
+   > them; what is untested is the screen. Not promoted here, because promoting it is a scope
+   > decision and this file is not where scope is set.
+2. ✅ **Selector convention** — settled by what shipped: the minimal `testID` anchor set, added
+   as flows needed them. `PickerField`'s options grew ids when Gboard's suggestion strip proved
+   `below:` was not a reliable separator
+   ([`../../apps/mobile/maestro/README.md`](../../apps/mobile/maestro/README.md)).
+3. ✅ **The out-of-band custody assertions** — approved, and scheduled: §C's rung table requires
+   **every** one of them at `rc`. They remain the part of this catalog with no code yet, and
+   they need a mobile inspection surface that does not exist.
+4. ✅ **Flow-5 inclusion** — confirmed and built. It is in the `beta` bar and green on both
+   mobile platforms.
 5. **Two-instance harness shape.** How Flows 6/7a run two instances locally: two emulators/sims,
-   or one device + a headless second core. The one real infrastructure question the sync flows
-   raise; settle before implementing them (Flows 1–5, 7b, 7c are single-instance and land first).
+   or one device + a headless second core. **Not v0.1's question** — both flows ship with sync
+   (open decision 2 in [`../v0-1.md`](../v0-1.md)), so settle it when sync is turned on.
 6. **Relay for E2E.** Which relay the sync flows point at (an ephemeral local `@leapsake/server`
-   boot per run is the vendor-neutral default; confirm).
+   boot per run is the vendor-neutral default; confirm). Travels with 5.
 
-## Recommended implementation order
+## Implementation order — what happened, and what is left
 
-Single-instance flows first (they need no relay and no second device), on the cheapest host:
+⚠️ **This section used to recommend macOS/Playwright first, and it is worth seeing why that was
+wrong rather than just deleting it.** The argument was "cheapest host, fully local, the password
+door is already built" — all true, and all beside the point once desktop left v0.1 on 2026-08-26.
+The order that actually holds is *the platform that ships first goes first*, and the owner's
+release order is **iOS, then Android and macOS, then everything else** *(2026-09-06)*.
 
-1. **Flows 1–5 + 7b, 7c on macOS (Playwright/Electron)** — fully local and unblocked; the
-   password door is built. Proves the catalog and the harness before any two-instance work. Take
-   **1 → 4** as a single arc: Flow 4 needs Flows 1–3's data, and together they are the whole
-   custody story.
-2. **The same flows on Android, then iOS** — reusing the Maestro harness that already runs the
-   driver self-test.
-3. **Flows 6 + 7a (two-instance sync/recovery)** last on each platform — they carry the relay +
-   second-device infrastructure, so land them once the single-instance catalog is green.
+What happened instead, and it inverted every step:
 
-Closing Flows 1–7 on macOS + Android + iOS **is** the v0.1 E2E gate.
+1. ✅ **Flows 1–5 on the iOS simulator (Maestro)** *(2026-08-28)*, taking **1 → 4** as a single
+   arc, because Flow 4 needs Flows 1–3's data and together they are the whole custody story.
+   That much the old order got right.
+2. ✅ **The same flows on Android** *(2026-08-28)*, byte-identical, reusing the Maestro harness
+   that already ran the driver self-test. The cost was not the YAML — it was the environment:
+   three harness bugs on the provisioning path and one real selector fix. See
+   [`../../apps/mobile/maestro/README.md`](../../apps/mobile/maestro/README.md).
+3. ⏳ **Flows 7b, 7c — the `rc` bar, and the only catalog work v0.1 still owes.** Start with
+   **7c**: `dev-clear-dbkey` and the `RecoveryGate` both exist, and it needs three `testID`s and
+   a flow. 7b carries the phrase-capture cost (see the ⚠️ above the matrix), so it is the one to
+   price deliberately.
+4. **Flows 6 + 7a (two-instance sync/recovery)** last, and **not in v0.1 at all** — open
+   decision 2. They carry the relay + second-device infrastructure.
+5. **macOS (Playwright/Electron)** when desktop ships — [`../desktop-packaging.md`](../desktop-packaging.md)
+   → A, which the harness needs a packaged `.app` from.
+
+**So the remaining v0.1 E2E gate is Flows 7b and 7c on iOS**, plus the out-of-band custody
+assertions, plus turning `rc`'s catalog requirement into a `requires:` check rather than a
+`manual:` sentence.
