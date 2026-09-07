@@ -22,7 +22,7 @@ Connect API key. Store identity and build numbers are settled and encoded.
 
 **The decision** *(owner, 2026-09-06)*: v0.1 ships iOS only from the personal account, Leapsake
 incorporates, the iOS record transfers to the company, and **Android starts under the company
-account** — its first upload ever. See [`v0-1.md`](./v0-1.md) → *The account sequence*.
+account** — its first upload ever. See [`shipping.md`](./shipping.md) → *Part 2*.
 
 This is not a delay of the Play work so much as a deletion of most of it:
 

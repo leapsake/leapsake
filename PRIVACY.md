@@ -7,7 +7,7 @@
 
      The publisher is named as an individual because that is what the Apple account is, and
      it must keep matching the App Store seller name. Incorporating changes it — see
-     plans/v0-1.md → Open decisions 4. -->
+     plans/shipping.md → Part 2. -->
 
 # Privacy Policy
 

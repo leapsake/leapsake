@@ -198,7 +198,7 @@ account"* refusal `joinAccount` does, so it needs the same copy-first treatment 
 a second full flow; the merge UI hides its recovery affordance rather than offering a button
 that can only throw. The gap is a user who has the account's **phrase** but not its password —
 today they must recover on the other device first. *(Deferred, owner 2026-08-08; see
-[`plans/v0-1.md`](../../plans/v0-1.md) → Open decisions.)*
+[`plans/shipping.md`](../../plans/shipping.md) → *Open, and waiting on the owner*.)*
 
 ## Locked, Sign out, Forget account *(decided 2026-07-27)*
 
@@ -270,7 +270,7 @@ safely — the worst case is over-warning.
 
 > **"Offer an export first" has had nothing behind it.** Desktop's hard-confirm can only suggest
 > copying the `stores` folder; mobile cannot say even that. The exporter became a **v0.1 GA
-> blocker** on 2026-09-06 (`plans/ios-ga.md` → 1) precisely because this promise, plus
+> blocker** on 2026-09-06 (`plans/shipping.md` → Part 1, step 1) precisely because this promise, plus
 > single-device custody, leaves a user's only copy inside the app container. Wire the real offer
 > here when it lands.
 

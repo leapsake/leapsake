@@ -328,7 +328,7 @@ tier stays small). Listed so the owner can pull any into the gate:
 
 **"Gates at"** is the release rung by which a flow must be green, per
 [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*'s rung table
-*(settled 2026-08-28 — [`../v0-1.md`](../v0-1.md) → open decision 1)*. It grades
+*(settled 2026-08-28 — [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*)*. It grades
 *when*, never *whether*: every core flow still gates v0.1, and `rc` is inside v0.1. Flows 6/7a are
 the exception and leave v0.1 entirely, per open decision 2.
 
@@ -354,7 +354,7 @@ column names ([`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) →
 *The E2E release gate*). ⚠️ **The platform column is not the release schedule, and reading it
 as one is the mistake this note exists to prevent.** v0.1 is **iOS alone** — macOS left on
 2026-08-26, Android on 2026-09-06, both for reasons unrelated to testing
-([`../v0-1.md`](../v0-1.md) → *The account sequence*). Every "gate" above is still owed; it is
+([`../shipping.md`](../shipping.md) → *Part 2*). Every "gate" above is still owed; it is
 owed *when that platform ships*, not before v0.1. Windows/Linux run the identical list once a
 host exists (deferred, blocked-not-waived).
 
@@ -390,7 +390,7 @@ usual and better way for a question like this to close.
    mobile platforms.
 5. **Two-instance harness shape.** How Flows 6/7a run two instances locally: two emulators/sims,
    or one device + a headless second core. **Not v0.1's question** — both flows ship with sync
-   (open decision 2 in [`../v0-1.md`](../v0-1.md)), so settle it when sync is turned on.
+   (see item 4 above), so settle it when sync is turned on.
 6. **Relay for E2E.** Which relay the sync flows point at (an ephemeral local `@leapsake/server`
    boot per run is the vendor-neutral default; confirm). Travels with 5.
 
@@ -415,8 +415,16 @@ What happened instead, and it inverted every step:
    **7c**: `dev-clear-dbkey` and the `RecoveryGate` both exist, and it needs three `testID`s and
    a flow. 7b carries the phrase-capture cost (see the ⚠️ above the matrix), so it is the one to
    price deliberately.
-4. **Flows 6 + 7a (two-instance sync/recovery)** last, and **not in v0.1 at all** — open
-   decision 2. They carry the relay + second-device infrastructure.
+4. **Flows 6 + 7a (two-instance sync/recovery)** last, and **not in v0.1 at all**. They carry
+   the relay + second-device infrastructure, and the reasoning is settled rather than pending:
+   **Flow 6 answers itself** — *enable sync and pair a second device* exercises relay sync, and
+   v0.1 ships with `multiDevice` **off**, so a v0.1 user cannot reach that flow at all. Gating a
+   release on a path the build does not expose, provable only by flipping a flag production does
+   not set, would be theatre; Flow 6 belongs to the release that turns sync **on**, and until
+   then the on-state's coverage is [`@leapsake/flags`](../../packages/flags/README.md)'s
+   obligation rather than this gate's. **Flow 7a** (cross-device recovery) is the different case:
+   it *is* reachable in v0.1 and merely expensive to automate, and what it proves overlaps the
+   open merge-by-phrase decision — so decide 7a with that, not with 6.
 5. **macOS (Playwright/Electron)** when desktop ships — [`../desktop-packaging.md`](../desktop-packaging.md)
    → A, which the harness needs a packaged `.app` from.
 
@@ -424,6 +432,6 @@ What happened instead, and it inverted every step:
 assertions, plus turning `rc`'s catalog requirement into a `requires:` check rather than a
 `manual:` sentence.
 
-> These four are steps 2–4 of [`../ios-ga.md`](../ios-ga.md), which is the ordered list of
+> These four are steps 2–4 of [`../shipping.md`](../shipping.md) → Part 1, the ordered list of
 > everything blocking GA and carries the live decision on whether **7b** can be deferred behind
 > 7c. The flow ids here are the stable ones and do not change with that doc's renaming.

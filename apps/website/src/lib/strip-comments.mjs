@@ -6,7 +6,7 @@
  * verified, and a `plans/` cross-reference. That is working material for whoever
  * edits the policy, and it must not reach the published page. Verified rather than
  * assumed: without this plugin the built page carries the whole block, the
- * `plans/v0-1.md` link included.
+ * `plans/shipping.md` link included.
  *
  * Stripping is the mechanism; `test/privacy.test.ts` is the guarantee. It asserts
  * the built page contains no comment at all, so this failing silently — or being

@@ -168,7 +168,7 @@ const ascKey = [
  * for us, and this is the one piece of release copy whose entire audience is someone who
  * has never seen the code. It also has to say a specific thing at this rung — that the
  * build is not a sole copy of anything — which is the mitigation
- * `plans/v0-1.md` → *Open decisions* 1 accepts in exchange for deferring the recovery-door
+ * `CONTRIBUTING.md` → *The E2E release gate* accepts in exchange for deferring the recovery-door
  * flows to `rc`.
  *
  * Plain text rather than Markdown because TestFlight renders none: what is in the file is

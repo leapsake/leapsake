@@ -48,7 +48,7 @@ describe("the published privacy policy", () => {
 
   it("does not leak the internal notes in PRIVACY.md's header comment", () => {
     // The source file opens with an HTML comment recording how each claim was
-    // verified and pointing at `plans/v0-1.md`. Astro renders raw HTML in markdown
+    // verified and pointing at `plans/shipping.md`. Astro renders raw HTML in markdown
     // straight through, so this is a real leak that has been observed, not a
     // hypothetical one — the comment shipped before the plugin existed.
     expect(html).not.toContain("<!--");

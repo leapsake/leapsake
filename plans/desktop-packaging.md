@@ -23,6 +23,17 @@ on its own, not inside a signing change.
 **Prerequisite:** [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases* for the
 version and the versioning scheme; the desktop bundle ID (`com.leapsake.desktop`) is set here.
 
+**Two settled choices this whole doc rests on** *(owner, 2026-07-21)*, recorded here because
+they are what A/B/C are shaped around:
+
+- **Direct download, notarized — not the Mac App Store.** No review latency on a desktop
+  release, auto-update stays ours (C), and the MAS sandbox's costs are avoided. It is the reason
+  B is `codesign`/`notarytool` rather than an App Store submission.
+- **`com.leapsake.desktop` is a separate identity from mobile's `com.leapsake.app`**, and stays
+  one. Sharing an identity would only pay off as Apple's Universal Purchase, which requires the
+  Mac App Store — contradicting the choice above — and would cost `electron-updater`. Permanent
+  after first publish, like mobile's.
+
 ⚠️ **Sequencing: B waits for the company, and that is deliberate** *(owner, 2026-09-06)*. The
 Developer ID cert could be issued today — Apple enrollment cleared 2026-08-19 — but it would be
 the **personal** one, and [`@leapsake/key-custody`](../packages/key-custody/README.md) →
@@ -30,7 +41,7 @@ the **personal** one, and [`@leapsake/key-custody`](../packages/key-custody/READ
 has an ACL bound to the app's code signature, so re-signing under the company's Developer ID
 later makes every existing enclave key unreadable and drops every authenticated user at the
 recovery gate. Doing that to iOS once, at the transfer, is a priced and accepted cost
-([`v0-1.md`](./v0-1.md) → *The account sequence*). Doing it to desktop as well, when desktop has
+([`shipping.md`](./shipping.md) → *Part 2*). Doing it to desktop as well, when desktop has
 not shipped and therefore has no users to strand, would be paying it for nothing.
 
 **So: A can be built whenever. B signs under the company identity, after the transfer.** That is
@@ -78,9 +89,9 @@ the signed artifact; `safeStorage` round-trips under the real signature.
 user permanently.**
 
 - `electron-updater` against GitHub Releases as the feed.
-- **Simpler once the repo is public** ([`ios-ga.md`](./ios-ga.md) → 5) — no token
-  distribution. Either sequence C after the repo goes public, or accept a token in the interim. This is open
-  decision 3 in [`v0-1.md`](./v0-1.md).
+- **Simpler once the repo is public** ([`shipping.md`](./shipping.md) → Part 1, step 5) — no
+  token distribution. **The open call is this doc's**, having left the v0.1 order with the rest of
+  desktop: sequence C after the repo goes public, or accept a token in the interim.
 
 **Acceptance:** an installed older build detects, downloads, and applies a newer release.
 

@@ -2,18 +2,18 @@
 
 > **What is in flight, and what is next. Nothing else.** No history, no decisions, no
 > measurements — and never over 30 lines. What already landed is `git log`; the v0.1 order is
-> [`v0-1.md`](./v0-1.md); everything deferred is [`v0-2.md`](./v0-2.md); decisions awaiting the
-> owner are [`v0-1.md`](./v0-1.md) → *Open decisions*.
+> [`shipping.md`](./shipping.md); everything deferred is [`v0-2.md`](./v0-2.md); decisions
+> awaiting the owner are [`shipping.md`](./shipping.md) → *Open, and waiting on the owner*.
 
 ## In flight
 
 **v0.1 is iOS alone** *(owner, 2026-09-06)*, and the release path to it is built: three betas
 have shipped, the App Store Connect record is complete, and a real external tester is using the
 app. Android and macOS follow **after** the company exists and the iOS record transfers to it —
-[`v0-1.md`](./v0-1.md) → *The account sequence*, which is also the reason nothing may be
+[`shipping.md`](./shipping.md) → *Part 2*, which is also the reason nothing may be
 uploaded to Play from the personal account.
 
-**Next, in order — and [`ios-ga.md`](./ios-ga.md) is now the whole list, in order, with
+**Next, in order — and [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with
 acceptance for each step.** ① **Export** — newly GA-blocking (2026-09-06): single-device v0.1
 has no other copy of a user's data, and it must **not** use iCloud (that would permanently
 disqualify the Apple app transfer). ② **The `rc` bar** — Flows 7c then 7b, the out-of-band

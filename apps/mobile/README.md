@@ -47,6 +47,14 @@ Start the relay with `pnpm --filter @leapsake/server dev` — see
 
 ## Cutting a release
 
+> **The bundle ID is `com.leapsake.app`, and it is permanent.** It is chosen when the App Store
+> Connect record is created and cannot be edited afterwards, so it outlives every other choice
+> here. It is deliberately **form-factor-neutral** — no `.ios`, no `.phone` — so a future iPad or
+> watchOS target joins the *same* Apple record rather than starting a new one, and so it survives
+> a React Native → native rewrite. The desktop app is a **separate** identity
+> (`com.leapsake.desktop`); see [`plans/desktop-packaging.md`](../../plans/desktop-packaging.md)
+> for why sharing one would have cost more than it bought.
+
 ```sh
 pnpm release alpha --dry-run   # what is this rung waiting on?
 pnpm release alpha             # bump, tag, archive, export, upload

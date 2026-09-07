@@ -15,8 +15,8 @@ This is the rule the whole repo is organized around. Learn it before looking for
 |---|---|---|
 | **What was done, and why that way** | `git log`, plus the doc-comments in the code it touched | here — finished work leaves `plans/` |
 | **What is being worked on right now** | [`status.md`](./status.md) — in flight + next, never over 30 lines | anywhere else |
-| **What to pick up next, and in what order** | [`v0-1.md`](./v0-1.md) — the one sequence | `status.md`, which shows only the head of it |
-| **Which platform ships when, and why that order** | [`v0-1.md`](./v0-1.md) → *The account sequence* — iOS, then the org move, then Android and macOS | here; it is a decision, not a map |
+| **What to pick up next, and in what order** | [`shipping.md`](./shipping.md) — the one sequence | `status.md`, which shows only the head of it |
+| **Which platform ships when, and why that order** | [`shipping.md`](./shipping.md) → *Part 2* — iOS, then the org move, then Android and macOS | here; it is a decision, not a map |
 | **What is deferred** | [`v0-2.md`](./v0-2.md) — everything that does not gate v0.1 | the v0.1 docs, which stay short by excluding it |
 | **The stable "why" — posture, the user model, invariants** | next to the code it constrains: the package `README.md`s, with [`../AGENTS.md`](../AGENTS.md) holding only what is repo-wide *and* counterintuitive | `plans/`, which holds only *work* |
 | **How the code works today** | the code, its tests, and the `README.md` beside it | here — design docs describe intent, not the build |
@@ -25,20 +25,20 @@ This is the rule the whole repo is organized around. Learn it before looking for
 
 ## The v0.1 docs are disposable, and that is the point
 
-**The numbering is retired** *(2026-09-06)*. It existed to order ten docs against each other;
-nine have landed and the tenth is [`ios-ga.md`](./ios-ga.md), where a bare `07` told a reader
-less than its subject did. Allocation ids in `git log` stay meaningful — they were never reused —
-but nothing new gets one. **A gating doc is named for what it delivers.**
+**The numbering is retired** *(2026-09-06)*, and the last two v0.1 docs became one
+([`shipping.md`](./shipping.md), 2026-09-07). Allocation ids in `git log` stay meaningful — they
+were never reused — but nothing new gets one. **A gating doc is named for what it delivers**, and
+`plans/` gets *smaller* over time: consolidate before you add.
 
 Each such doc holds one unit of gating work and is **deleted the day that work lands**.
 Nothing accumulates. When you finish one:
 
 1. Move anything durable **next to the code it constrains** — a doc-comment, the package
    `README.md`, or an `ARCHITECTURE.md`. Not into another `plans/` file.
-2. Delete the doc, and its row in [`v0-1.md`](./v0-1.md).
+2. Delete the section, or the doc, and any pointer to it.
 3. Let `git log` carry the history.
 
-When the last one goes, so does [`v0-1.md`](./v0-1.md), and [`v0-2.md`](./v0-2.md) is promoted.
+When [`shipping.md`](./shipping.md) is empty it goes too, and [`v0-2.md`](./v0-2.md) is promoted.
 
 **Recent examples of step 1**, if you want the shape: the onboarding nudge reasoning now lives in
 [`@leapsake/reminders`](../packages/reminders/README.md), why the signing identity owns the
@@ -50,19 +50,22 @@ and 10 be deleted whole.
 **A doc that is *deferred* rather than *done* gets renamed, not deleted.** It keeps its detail
 and loses its number, because the sequencing inside it is still the value:
 [`android-pipeline.md`](./android-pipeline.md) (was 04) and
-[`desktop-packaging.md`](./desktop-packaging.md) (was 05). [`ios-ga.md`](./ios-ga.md) (was 07)
-was renamed for the third reason — it is the last one standing, and it absorbed the whole
-pre-GA list rather than holding a slice of it.
+[`desktop-packaging.md`](./desktop-packaging.md) (was 05). The third pattern is
+**consolidation**: `v0-1.md` and `ios-ga.md` (was 07) merged into
+[`shipping.md`](./shipping.md), keeping only what is still ahead and pushing the settled *why*
+next to the code — the bundle-ID reasoning to the app READMEs, the release-gate ratchet to
+[`../CONTRIBUTING.md`](../CONTRIBUTING.md), the Flows 6/7a call to
+[`testing/crucial-flows.md`](./testing/crucial-flows.md).
 
 ## Where to look
 
 | You want to… | Go to |
 |---|---|
 | **Know what's in flight** | [`status.md`](./status.md) |
-| **Know what to build next** | [`ios-ga.md`](./ios-ga.md) — every GA blocker, in order, with acceptance for each. [`v0-1.md`](./v0-1.md) is the decisions behind that order |
+| **Know what to build next** | [`shipping.md`](./shipping.md) — Part 1 is every GA blocker in order with acceptance for each; Part 2 is the org move that follows |
 | **Find something we deliberately deferred** | [`v0-2.md`](./v0-2.md) |
 | **Cut a release, or add a platform to the pipeline** | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases* for the rules, `pnpm release --help` for the current rung/platform matrix, and `scripts/release/` for the policy itself |
-| **Ship the iOS app** | [`ios-ga.md`](./ios-ga.md) — the mandatory list. ⚠️ The exporter (step 1) **must not use iCloud**: an iCloud entitlement in any shipped version permanently disqualifies the app transfer to the company account |
+| **Ship the iOS app** | [`shipping.md`](./shipping.md) → Part 1. ⚠️ The exporter (step 1) **must not use iCloud**: an iCloud entitlement in any shipped version permanently disqualifies the app transfer to the company account |
 | **Ship the desktop app** | [`desktop-packaging.md`](./desktop-packaging.md) — packaging, notarization and auto-update, deferred past v0.1. ⚠️ Sign it under the *company* identity, not the personal one |
 | **Ship the Android app** | [`android-pipeline.md`](./android-pipeline.md) — the Play target, deferred past v0.1 until the company account exists. ⚠️ Nothing may be uploaded to Play before then |
 | **Build the web / PWA client for real** | [`web-client.md`](./web-client.md) — what the spike proved and what an `apps/web` inherits — then [`v0-2.md`](./v0-2.md) → *Post-launch* item 1. The rule it produced is [`encryption/model.md`](./encryption/model.md) §10.1: **web requires a sync account** |
