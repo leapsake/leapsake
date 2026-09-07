@@ -1,0 +1,65 @@
+BEGIN:VCARD
+VERSION:4.0
+N:01-control-full-extended;V4;;;
+FN:V4 01-control-full-extended
+ORG:LEAPSAKE-DATE-TEST
+BDAY:1985-04-12
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+N:02-control-full-basic;V4;;;
+FN:V4 02-control-full-basic
+ORG:LEAPSAKE-DATE-TEST
+BDAY:19850412
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+N:03-noyear-basic;V4;;;
+FN:V4 03-noyear-basic
+ORG:LEAPSAKE-DATE-TEST
+BDAY:--0412
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+N:04-noyear-extended;V4;;;
+FN:V4 04-noyear-extended
+ORG:LEAPSAKE-DATE-TEST
+BDAY:--04-12
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+N:05-noyear-apple;V4;;;
+FN:V4 05-noyear-apple
+ORG:LEAPSAKE-DATE-TEST
+BDAY;X-APPLE-OMIT-YEAR=1604:1604-04-12
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+N:06-abdate-noyear-basic;V4;;;
+FN:V4 06-abdate-noyear-basic
+ORG:LEAPSAKE-DATE-TEST
+item1.X-ABDATE:--0412
+item1.X-ABLABEL:_$!<Anniversary>!$_
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+N:07-abdate-noyear-apple;V4;;;
+FN:V4 07-abdate-noyear-apple
+ORG:LEAPSAKE-DATE-TEST
+item1.X-ABDATE;X-APPLE-OMIT-YEAR=1604:1604-04-12
+item1.X-ABLABEL:_$!<Anniversary>!$_
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+N:08-anniversary-noyear-basic;V4;;;
+FN:V4 08-anniversary-noyear-basic
+ORG:LEAPSAKE-DATE-TEST
+ANNIVERSARY:--0412
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+N:09-anniversary-full;V4;;;
+FN:V4 09-anniversary-full
+ORG:LEAPSAKE-DATE-TEST
+ANNIVERSARY:1985-04-12
+END:VCARD

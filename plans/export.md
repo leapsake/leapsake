@@ -87,8 +87,8 @@ falls back when reading. Get this wrong and every address round-trips shifted by
 | Leapsake | vCard | Reads it today |
 |---|---|---|
 | `birthday` | `BDAY:1985-04-12`, or `BDAY:--0412` with no year — see *Writing dates* | ✅ `parseDateValue` |
-| `anniversary` | `ANNIVERSARY:<date>` | ✅ |
-| the other eight kinds | `itemN.X-ABDATE:<date>` + `itemN.X-ABLABEL:<Kind>` | ⚠️ needs `DATE_KINDS` entries |
+| `anniversary` **and** the other eight kinds | `itemN.X-ABDATE:<date>` + `itemN.X-ABLABEL:<Kind>` | ⚠️ needs `DATE_KINDS` entries |
+| ~~`ANNIVERSARY:<date>`~~ | **never written** — iOS ignores the property entirely (below) | ✅ still *read*, for other people's files |
 | `milestones.note` | `itemN.X-LEAPSAKE-MILESTONE-NOTE:<note>` | ❌ new |
 | `milestones.id` | `itemN.X-LEAPSAKE-MILESTONE-ID:<uuid>` | ❌ new |
 
@@ -118,17 +118,46 @@ arrives from `expo-contacts` as `NSDateComponentUndefined` and used to fail the 
 So: **`--0412`**, and not `--04-12` — RFC 6350's ABNF is `"--" month [day]` with no separator, so
 the basic form is the one a strict parser accepts and a lenient one accepts anyway. **Full dates
 stay extended (`1985-04-12`)**: Apple emits that form itself, so the ecosystem has proven it, and
-it is the readable form for a human who opens the backup in a text editor. Same rule for
-`X-ABDATE`, even though it is Apple's own property — one rule everywhere beats local consistency
-with a convention we rejected.
+it is the readable form for a human who opens the backup in a text editor. Same spelling for
+`X-ABDATE`, even though it is Apple's own property.
 
 > **Make it a test that the writer never emits a placeholder year.** That is exactly what a
 > well-meaning "improve Apple compatibility" change reintroduces later.
->
-> ⏳ **Unverified:** whether Contacts.app imports `--0412` correctly. Almost certainly yes (it is
-> the vCard 3 spelling too), but check it empirically during increment 1 — write a card, AirDrop
-> it to a Mac, open it. If Contacts drops year-less birthdays we can revisit; shipping 1604
-> birthdays into people's address books is the mistake that does not come back.
+
+##### ✅ Verified on a real iPhone *(owner, 2026-09-07)*
+
+16 probe cards, both vCard versions, imported into iOS Contacts. Fixtures kept at
+[`../packages/vcard/test/fixtures/`](../packages/vcard/test/fixtures/) — re-run them against a
+device before trusting any of this again.
+
+| Probe | iOS Contacts result |
+|---|---|
+| `BDAY:1985-04-12` / `BDAY:19850412` | full date ✅ — both full-date spellings work |
+| **`BDAY:--0412`** | **April 12, no year ✅** |
+| `BDAY:--04-12` | April 12, no year ✅ — iOS is lenient about the separator |
+| `BDAY;X-APPLE-OMIT-YEAR=1604:…` | April 12, no year ✅ |
+| `X-ABDATE:--0412` + `X-ABLABEL` | date, no year ✅ |
+| **`ANNIVERSARY:--0412`** and **`ANNIVERSARY:1985-04-12`** | **nothing — the field never appears ❌** |
+
+**The tradeoff was hypothetical: `--0412` simply works.** No user-facing format choice is needed,
+and the `dateStyle` parameter is now a hedge rather than a requirement. **vCard version made no
+difference** to any date, so 4.0 is a free choice.
+
+**But `ANNIVERSARY` is dead on arrival**, and that is a plan change, not a detail. Both probes
+failed — including one carrying a perfectly ordinary full date — so this is not a date-format
+problem: **iOS does not read the property at all.** Writing an anniversary the standards-correct
+way silently loses it on the one platform v0.1 ships to. So **every dated milestone including
+`anniversary` goes out as `X-ABDATE` + `X-ABLABEL`**, and `ANNIVERSARY` is read-only vocabulary —
+we accept it from other people's files and never emit it.
+
+Note the shape of that: the two axes point opposite ways, and only evidence separates them. For
+**how to spell a date**, the standard wins outright. For **which property carries an anniversary**,
+Apple's extension wins outright. There is no "prefer the standard" rule that survives both.
+
+> **The residual risk moves rather than disappearing.** A non-Apple consumer that reads
+> `ANNIVERSARY` but not `X-ABDATE` now loses anniversaries. Writing both would double them up on
+> anything that reads both, so it is one or the other. `X-ABDATE` is right while v0.1 is iOS-only;
+> re-open this when a second platform ships, and test rather than reason about it.
 
 ### Relationships
 
@@ -246,5 +275,11 @@ the catalog** — [`testing/crucial-flows.md`](./testing/crucial-flows.md)'s tab
 
 ## Open
 
-1. **Year-less dates: `--MM-DD` or Apple's placeholder?** See *Writing dates* above.
-   **Leaning `--MM-DD`.** Decide before increment 1 writes a birthday.
+Nothing. Every question this doc opened has been answered — the last one, year-less dates, by
+[measurement on a real iPhone](#-verified-on-a-real-iphone-owner-2026-09-07) rather than by
+argument. What remains is building the increments.
+
+> Two things to **re-test rather than re-reason** when the ground moves: `X-ABDATE` versus
+> `ANNIVERSARY` when a non-Apple client ships (*Writing dates*), and whether Contacts still reads
+> `--0412` after any iOS release that touches contact import. The fixtures for both are in
+> [`../packages/vcard/test/fixtures/`](../packages/vcard/test/fixtures/).
