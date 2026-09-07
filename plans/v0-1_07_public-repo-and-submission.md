@@ -39,6 +39,13 @@ The final two steps, in this order. Going public first makes auto-update simpler
 [06](./v0-1_06_e2e-and-release-gate.md)** — Apple enrollment cleared 2026-08-19, the App Store
 Connect record exists, and `pnpm release` already carries a build to *In Beta Review* unattended.
 
+- **First, two App Store Connect fields nothing in the repo can check.** `ascSetup` reads the
+  beta group, Test Information and Beta App Review Information, so those are proven by every
+  beta that shipped — but it does **not** read `privacyPolicyUrl` or the App Privacy answers,
+  because neither is needed to distribute a beta. Both are needed here. Paste
+  <https://leapsake.com/privacy/> into the app record, and **Publish** the App Privacy
+  questionnaire (answer: no collection) rather than leaving it in draft.
+  See [`10`](./v0-1_10_external-testflight.md), items 5 and 6.
 - TestFlight → App Store review. The `final` rung is the same path one step further on.
 - ⚠️ **Android is not here any more** *(owner, 2026-09-06)*. It ships after v0.1, from the
   company account, and never from this one — [`android-pipeline.md`](./android-pipeline.md), and

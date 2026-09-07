@@ -40,59 +40,56 @@ one app fix, all of them recorded where they bite —
 [`apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md) and
 `scripts/lib/mobile-harness.mjs`.
 
-## What is left, and none of it is code
+## ✅ The App Store Connect record is complete too *(2026-09-06)*
 
-Everything below is an App Store Connect action by a person. The list is **measured, not
-guessed**: `pnpm release beta --only=ios --dry-run` reads the app record and reports exactly
-these, and it will keep reporting them until they are done.
+Everything this doc listed as a person's job is done, and most of it is proven by the fact that
+`0.1.0-beta.1` through `.3` shipped at all: `ascSetup` is a hard `requires:` on the `beta` rung
+(`scripts/release/targets/ios.mjs`), the preflight runs before the tag is cut
+(`scripts/release/index.mjs`), and it reads the live record rather than trusting a claim. **A
+beta tag existing is therefore evidence, not a promise.**
 
 1. ✅ **The API key's role is fine.** It reads `/v1/betaGroups`, which a *Developer*-role key
-   cannot — so no new `.p8` is needed. *(Checked 2026-08-28.)*
-2. ✅ **The external group exists**: `Beta`, external, email invites rather than a public link.
-   Put `ASC_BETA_GROUP=Beta` in `.env`. **It has no testers in it** — adding them is item 7.
-3. ⏳ **Test Information** — beta description and feedback email. Currently empty.
-4. ⏳ **Beta App Review Information** — contact name, phone and email; review notes; and
-   `demoAccountRequired = false`. **All three are currently unset, and the third is the one
-   that gets a build rejected**: a reviewer who assumes there is a sign-in fails the build for
-   a login that does not exist. Say plainly that Leapsake needs no account and works fully
-   local.
-5. ⏳ **A privacy policy URL that resolves.** The app record's `privacyPolicyUrl` is `null`.
-   ✅ The policy itself is **written** — [`../PRIVACY.md`](../PRIVACY.md), publisher and contact
-   filled in *(owner, 2026-08-28)*. What is left is a **URL**, which is hosting, and it is the
-   only item here whose latency is not purely yours.
+   cannot — so no new `.p8` was needed. *(Checked 2026-08-28.)*
+2. ✅ **The external group exists**: `Beta`, external, email invites rather than a public link,
+   named by `ASC_BETA_GROUP` in `.env`.
+3. ✅ **Test Information** — beta description and feedback email, filled in and verified by the
+   preflight on every beta since.
+4. ✅ **Beta App Review Information** — contact name, phone and email, review notes, and
+   `demoAccountRequired = false`, which is the one whose default is a rejection.
+5. ✅ **The policy is hosted and the URL resolves** — <https://leapsake.com/privacy/>, served by
+   [`apps/website`](../apps/website/README.md) from [`../PRIVACY.md`](../PRIVACY.md) itself.
 
-   **Two ways, and the choice is a sequencing one.** Making the repo public
-   ([`07`](./v0-1_07_public-repo-and-submission.md)) gives that file a resolving URL for free —
-   but the owner is **not ready to go public yet** *(2026-08-28)*, and 07 sits *after* this doc
-   in the chain for reasons of its own. So either host the page somewhere first, or accept that
-   this item waits on 07 and that the two swap order. **Do not let this default silently into
-   "wait for 07"** — that is how the one long-latency item on the list becomes the thing that
-   held the beta.
-6. ⏳ **The App Privacy questionnaire — two minutes, not the work this doc predicted**
-   *(corrected 2026-08-31)*. It sits under **App Privacy**, the same page as item 5's URL, and
-   the whole of it is the first question: *do you or your third-party partners collect data
-   from this app?* The answer is **no**.
+   **The dilemma this doc recorded is gone, and worth a sentence because the resolution was not
+   the one predicted.** The choice looked like *host it somewhere, or let the item wait on
+   [`07`](./v0-1_07_public-repo-and-submission.md) going public* — with a warning not to let it
+   silently default to the second. It defaulted to neither: the site was built *(2026-08-29)*,
+   which gave the policy a URL a month before the repo goes public and left `07` free to happen
+   on its own schedule. The "only item whose latency is not purely yours" turned out to be an
+   afternoon.
+6. ⏳ **The App Privacy questionnaire** — two minutes, and the whole of it is answering **no** to
+   *do you or your third-party partners collect data from this app?* Apple defines *collect* as
+   transmitting off the device, and nothing here does; there is no SDK, no analytics, no crash
+   reporter. ⚠️ The answers sit in a **draft until Published**, which is a quiet way to be
+   incomplete while believing otherwise.
+7. ✅ **Testers in the group** — an external tester who is not the author has the build and is
+   using it *(2026-09-06)*.
 
-   The earlier note here said "the contacts import makes this real work". That was wrong, and
-   the reason is worth keeping: Apple defines *collect* as **transmitting data off the
-   device**, and data that stays on the device is explicitly not collection. Importing
-   contacts copies them into the local database and uploads nothing, so it declares nothing.
-   The same answer covers third parties, there being no SDK, no analytics and no crash
-   reporter — the claim [`../PRIVACY.md`](../PRIVACY.md) already makes against the shipped
-   build, in Apple's vocabulary rather than ours.
+⚠️ **5 and 6 are the two items nothing in the repo can check, and they are the two that gate
+GA rather than beta.** `ascSetup` reads the group, Test Information and Beta App Review
+Information; it does **not** read `privacyPolicyUrl` or the App Privacy answers, because
+neither is required to distribute an external *beta*. So a green `pnpm release beta --dry-run`
+says nothing about either. **Confirm both by hand in App Store Connect before
+[`07`](./v0-1_07_public-repo-and-submission.md) → B**, where they stop being optional: paste the
+URL above into the app record, and Publish the questionnaire.
 
-   Two things that are still real: the answers sit in a **draft until Published**, which is a
-   quiet way to be incomplete while believing otherwise; and this is an attestation, so it is
-   only true while the build sends nothing — the same invariant `PRIVACY.md`'s header already
-   binds to. Whether it gates *external* testing was never resolved and no longer matters at
-   two minutes' cost. Answering "no" also yields Apple's strongest privacy label, which for
-   this product is a listing asset rather than a compliance chore.
-7. ⏳ **Add testers to the group.**
+Item 6 is also an **attestation with an expiry condition**, not a task that stays done. It is
+true only while the build transmits nothing — the invariant [`../PRIVACY.md`](../PRIVACY.md)'s
+header already binds — and the answers are per-version.
 
-3 and 4 *could* be pushed from the repo via `betaAppLocalizations` / `betaAppReviewDetails`,
-which would make the app record reproducible. Not worth building: someone has to write the
-copy either way, and it is set once. The preflight already refuses to release without them,
-which is the part that mattered.
+3 and 4 *could* have been pushed from the repo via `betaAppLocalizations` /
+`betaAppReviewDetails`. Still not worth building: someone has to write the copy either way, it
+is set once, and the preflight already refuses to release without it — which is the half that
+mattered and the half that caught these.
 
 ## The wait that stays
 
@@ -104,8 +101,14 @@ That review is per **version**, not per build, and `app.config.ts` strips the su
 go out in minutes. The existing alphas do **not** buy credit here — internal builds skip beta
 review entirely, so the first external build of `0.1.0` still waits.
 
-**Acceptance:** from a clean checkout, `pnpm release beta` cuts the tag, ships the ready
-targets, and leaves the build *In Beta Review* with its notes and group already attached —
-no App Store Connect session anywhere in the path. A day later a tester who is not the owner
-installs it from TestFlight. **Everything up to the first half of that sentence is built and
-unblocked; the second half waits on the seven items above.**
+**Acceptance:** ✅ **met** *(2026-09-06)*. From a clean checkout, `pnpm release beta` cuts the
+tag, ships the ready targets, and leaves the build *In Beta Review* with its notes and group
+already attached — no App Store Connect session anywhere in the path. A day later a tester who
+is not the owner installs it from TestFlight. All of that has now happened: three betas, and a
+tester who is not the author using the app.
+
+**So this doc's work is done, and by its own header it should be deleted** — the ASC client and
+`publish()` document themselves in `scripts/release/`, and the Apple-side facts belong in
+[`apps/mobile/README.md`](../apps/mobile/README.md). The two hand-checks in item 5/6's warning
+are the only things that must outlive it; they belong to
+[`07`](./v0-1_07_public-repo-and-submission.md) → B, which is where they bite.
