@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@leapsake/bytes": "workspace:*",
-    "@leapsake/contact-import": "workspace:*",
     "@leapsake/contact-links": "workspace:*",
     "@leapsake/core": "workspace:*",
     "@leapsake/crypto": "workspace:*",
@@ -24,6 +23,7 @@
     "@leapsake/store-layout": "workspace:*",
     "@leapsake/sync": "workspace:*",
     "@leapsake/ui": "workspace:*",
+    "@leapsake/vcard": "workspace:*",
     "@leapsake/view-models": "workspace:*",
     "better-sqlite3-multiple-ciphers": "^12.11.1",
     "react": "19.2.7",

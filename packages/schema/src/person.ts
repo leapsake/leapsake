@@ -10,7 +10,7 @@ import { standingColumnSchema, standingSchema } from "./standing.js";
  * old `firstName` + `lastName` requirement both wanted exactly this: an
  * unpublished person known only as somebody's spouse, and contact import, whose
  * parser deliberately yields incomplete names for mononyms and organisation-only
- * cards rather than fabricating a surname (`@leapsake/contact-import` →
+ * cards rather than fabricating a surname (`@leapsake/vcard` →
  * `ParsedName`).
  *
  * `null` is the one way to spell "absent". `min(1)` is what keeps `""` from

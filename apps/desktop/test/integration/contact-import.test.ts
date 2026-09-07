@@ -1,4 +1,4 @@
-import type { ParsedContact } from "@leapsake/contact-import";
+import type { ParsedContact } from "@leapsake/vcard";
 import {
   type CoreApi,
   type SqliteDriver,

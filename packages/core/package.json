@@ -10,14 +10,14 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@leapsake/contact-import": "workspace:*",
     "@leapsake/crypto": "workspace:*",
     "@leapsake/data": "workspace:*",
     "@leapsake/holidays": "workspace:*",
     "@leapsake/key-custody": "workspace:*",
     "@leapsake/reminders": "workspace:*",
     "@leapsake/schema": "workspace:*",
-    "@leapsake/sync": "workspace:*"
+    "@leapsake/sync": "workspace:*",
+    "@leapsake/vcard": "workspace:*"
   },
   "devDependencies": {
     "@leapsake/bytes": "workspace:*"

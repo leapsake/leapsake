@@ -139,7 +139,7 @@ import {
   type ParsedContact,
   ingestContacts,
   nameInputFrom,
-} from "@leapsake/contact-import";
+} from "@leapsake/vcard";
 import { getSyncStatus } from "@leapsake/key-custody";
 import type { KeySession } from "@leapsake/key-custody";
 import {
@@ -172,7 +172,7 @@ export type {
   ImportError,
   ImportResult,
   ParsedContact,
-} from "@leapsake/contact-import";
+} from "@leapsake/vcard";
 
 // The local-notification policy row shape (`plans/v0-1_08_local-notifications.md`,
 // migration 29), re-exported so the settings UI can type what `notificationSettings`
@@ -2441,7 +2441,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     },
 
     // Contact import (e.g. a dropped vCard). The pure parse + format detection run
-    // client-side (`@leapsake/contact-import`); this is the write half — take the
+    // client-side (`@leapsake/vcard`); this is the write half — take the
     // reviewed `ParsedContact`s and commit them through the same repos manual
     // creation uses. `preview` is the read half: flag likely-existing people so
     // the review can offer skip/merge before anything is written.

@@ -47,7 +47,7 @@ not `WHERE deleted_at IS NULL` spread across a dozen queries.
 
 `RelationshipRole`, `MilestoneKind`, labels and platform ids are as
 [`@leapsake/schema`](../packages/schema/README.md) spells them. **Read the "Reads it today" column
-as the work estimate**: ✅ round-trips through `packages/contact-import/src/vcard.ts` unchanged.
+as the work estimate**: ✅ round-trips through `packages/vcard/src/vcard.ts` unchanged.
 
 ### Person card
 
@@ -86,7 +86,7 @@ falls back when reading. Get this wrong and every address round-trips shifted by
 
 | Leapsake | vCard | Reads it today |
 |---|---|---|
-| `birthday` | `BDAY:YYYY-MM-DD`, or `--MM-DD` with no year | ✅ `parseDateValue` |
+| `birthday` | `BDAY:1985-04-12`, or `BDAY:--0412` with no year — see *Writing dates* | ✅ `parseDateValue` |
 | `anniversary` | `ANNIVERSARY:<date>` | ✅ |
 | the other eight kinds | `itemN.X-ABDATE:<date>` + `itemN.X-ABLABEL:<Kind>` | ⚠️ needs `DATE_KINDS` entries |
 | `milestones.note` | `itemN.X-LEAPSAKE-MILESTONE-NOTE:<note>` | ❌ new |
@@ -96,6 +96,39 @@ falls back when reading. Get this wrong and every address round-trips shifted by
 `death`, `first-date`, `met`, `graduation`, `job-start`, `moved` and `other` have no way back in.
 **Adding them pays twice**: that map is shared with the device importer, so the iOS Contacts path
 gains the same kinds in the same change.
+
+#### Writing dates
+
+`parsePartialDate` reads basic `19920309`, extended `1992-03-09`, year-less `--0309` / `--03-09`,
+and year-only `1992`; `parseDateValue` separately unwinds Apple's `X-APPLE-OMIT-YEAR`. **Both
+candidate spellings round-trip through us**, so our own fidelity does not decide this. What decides
+it is what a *third party* does with the file, and the two failure modes are not symmetric:
+
+| We write | A consumer that understands it | A consumer that does not |
+|---|---|---|
+| `BDAY:--0412` | April 12, no year | birthday **missing** |
+| `BDAY;X-APPLE-OMIT-YEAR=1604:1604-04-12` | April 12, no year | **person born in 1604** |
+
+One loses data visibly; the other invents data silently and syncs it onward attached to a real
+person. **This codebase has already made that judgment** — `parseDateValue`'s own comment calls the
+1604 outcome "silently wrong, which is worse than … merely losing the year" — and has been bitten
+from the other end too: `device-contacts.ts`'s `datePart` exists because a year-less anniversary
+arrives from `expo-contacts` as `NSDateComponentUndefined` and used to fail the whole contact.
+
+So: **`--0412`**, and not `--04-12` — RFC 6350's ABNF is `"--" month [day]` with no separator, so
+the basic form is the one a strict parser accepts and a lenient one accepts anyway. **Full dates
+stay extended (`1985-04-12`)**: Apple emits that form itself, so the ecosystem has proven it, and
+it is the readable form for a human who opens the backup in a text editor. Same rule for
+`X-ABDATE`, even though it is Apple's own property — one rule everywhere beats local consistency
+with a convention we rejected.
+
+> **Make it a test that the writer never emits a placeholder year.** That is exactly what a
+> well-meaning "improve Apple compatibility" change reintroduces later.
+>
+> ⏳ **Unverified:** whether Contacts.app imports `--0412` correctly. Almost certainly yes (it is
+> the vCard 3 spelling too), but check it empirically during increment 1 — write a card, AirDrop
+> it to a Mac, open it. If Contacts drops year-less birthdays we can revisit; shipping 1604
+> birthdays into people's address books is the mistake that does not come back.
 
 ### Relationships
 
@@ -120,8 +153,8 @@ so there is nothing else to carry. `KIND` is in `STRUCTURAL` today, so reading i
 ## What is not person-shaped
 
 These belong to no single card, and appending them as fabricated `KIND:x-leapsake-*` records would
-make Apple import your reminders as contacts. They go in a **companion file**
-(`leapsake-data-<date>.json`), which duplicates nothing in the `.vcf`:
+make Apple import your reminders as contacts. They go in a **companion file** (`data.json`), which
+duplicates nothing in the `.vcf`:
 
 - `reminders` (+ `mentions`, its taggings) and `reminder_rules`
 - `gift_ideas` + `gift_recipients`
@@ -140,20 +173,47 @@ Give the file a `version` and a Zod schema from the first commit — it is what 
 > and is deliberately **not** v0.1: it is a second full format implementation, and `source`,
 > `reminder_rules` and mentions would need `X-` properties inside it anyway.
 
+## One file: the archive
+
+**The export is a single `leapsake-export-<date>.zip`** *(owner, 2026-09-07)*, holding:
+
+```
+contacts.vcf   the person graph
+data.json      everything not person-shaped
+README.txt     what these are, what wrote them, how to get them back
+```
+
+One artifact means one share action and one thing for a user to keep track of two years from now,
+which is the situation the file exists for. `expo-sharing` shares one file at a time anyway, so
+the alternative was two buttons.
+
+**Use `fflate`, not `jszip`** — ~8KB, pure JS, no native module, and it runs on the Hermes floor
+([`../packages/README.md`](../packages/README.md)). Deflate rather than store: vCard text is
+extremely compressible, and a large address book is the case that matters. `zipSync` is fine at
+these sizes; the whole archive is built in memory and handed to `File.write()` as a `Uint8Array`.
+
+**`README.txt` is not filler.** It is the only part of the archive that explains itself to someone
+opening it long after the fact — name the two files, say the `.vcf` imports into any contacts app,
+say the `.json` needs Leapsake, and stamp the app version that wrote it.
+
+> **Accepted cost:** a `.zip` cannot be handed straight to Contacts.app — the user unzips first.
+> That is the price of one artifact, and `README.txt` is what keeps it from being confusing.
+
 ## Increments
 
 Each is shippable alone. **1, 2 and 4 are what GA blocks on**; 3 is what makes the file a backup
 rather than a contacts dump, and is cheap once 1 exists.
 
-1. **The writer, and a file that leaves the device.** `vcard.ts` gains a serializer — fold at 75
-   octets, escape, param quoting — beside the parser it inverts, and `expo-sharing` +
-   `expo-file-system` carry the result to the share sheet. Write to the **cache** directory, not
-   documents (Caches is excluded from device backup, so a plaintext dump never rides along in one),
-   and delete on dismiss. Person cards with names, contact methods, birthday, `UID`, `CATEGORIES`.
-   *Done when:* a user with no account taps Export on `app/data.tsx` and gets a `.vcf` they can save.
+1. **The writer, and a file that leaves the device.** `@leapsake/vcard` gains a serializer — fold
+   at 75 octets, escape, param quoting — beside the parser it inverts; `fflate` builds the archive
+   and `expo-sharing` + `expo-file-system` carry it to the share sheet. Write to the **cache**
+   directory, not documents (Caches is excluded from device backup, so a plaintext dump never rides
+   along in one), and delete on dismiss. Person cards with names, contact methods, birthday, `UID`,
+   `CATEGORIES`; `README.txt` alongside, `data.json` still empty at this point.
+   *Done when:* a user with no account taps Export on `app/data.tsx` and gets a `.zip` they can save.
 2. **The rest of the person graph.** Pets, unpublished people via `RELATED`, all ten milestone
    kinds, relationships, custom labels, the `X-LEAPSAKE-*` fields above.
-3. **The companion file** — everything in *What is not person-shaped*, versioned and schema'd.
+3. **`data.json`** — everything in *What is not person-shaped*, versioned and schema'd.
 4. **Wire the offer that already exists in the copy.** An **Export first** button inside *both*
    destructive confirmations in `app/data.tsx` — `ForgetAccountSection` **and**
    `FactoryResetSection`. The accountless wipe is by definition destroying the only copy, so it
@@ -175,7 +235,7 @@ calls from `people.create`.
 ## Testing
 
 The serializer is pure, so the load-bearing test is **`parseVCards(write(x)) ≡ x`** — which is the
-argument for keeping the writer in the same package as the reader. Cover the cases vCard is famous
+argument that settled the package name. Cover the cases vCard is famous
 for: a `;` or `,` in a name, non-ASCII, a fold landing mid-UTF-8-sequence, an empty structured
 component, a 300-character note.
 
@@ -186,12 +246,5 @@ the catalog** — [`testing/crucial-flows.md`](./testing/crucial-flows.md)'s tab
 
 ## Open
 
-1. **Year-less dates: `--MM-DD` or Apple's placeholder?** RFC 6350 spells it `--MM-DD`; Apple
-   Contacts writes a placeholder year plus `X-APPLE-OMIT-YEAR` and may not read the standard form.
-   The parser handles both. **Leaning `--MM-DD`** — it is the standard, and the interop cost falls
-   on one app rather than on the format. Decide before increment 1 writes a birthday.
-2. **Does the package get renamed?** `@leapsake/contact-import` will hold an exporter. `vcard` or
-   `contacts-interop`. Pre-v0.1, a rename is cheaper than a lying name.
-3. **One artifact or two?** Increments 1 and 3 produce two files, and `expo-sharing` shares one at
-   a time. Two buttons, or a `.zip` (pure-JS, no native module). Two buttons is simpler and keeps
-   the `.vcf` directly usable by another app; revisit if it reads as clutter.
+1. **Year-less dates: `--MM-DD` or Apple's placeholder?** See *Writing dates* above.
+   **Leaning `--MM-DD`.** Decide before increment 1 writes a birthday.

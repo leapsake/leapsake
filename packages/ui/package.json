@@ -13,10 +13,10 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@leapsake/contact-import": "workspace:*",
     "@leapsake/contact-links": "workspace:*",
     "@leapsake/highlight": "workspace:*",
     "@leapsake/schema": "workspace:*",
+    "@leapsake/vcard": "workspace:*",
     "@leapsake/view-models": "workspace:*"
   },
   "devDependencies": {

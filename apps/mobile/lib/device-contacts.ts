@@ -8,11 +8,11 @@ import {
   type ParsedPartialDate,
   type ParsedPhone,
   type ParsedPostal,
-} from "@leapsake/contact-import";
+} from "@leapsake/vcard";
 import type { ContactDate, ContactDetails } from "expo-contacts";
 
 /**
- * The mobile counterpart to the desktop vCard parser (`@leapsake/contact-import`'s
+ * The mobile counterpart to the desktop vCard parser (`@leapsake/vcard`'s
  * `parseVCards`): a *format-specific* mapper turning an `expo-contacts` device
  * record into the same Leapsake-shaped {@link ParsedContact} the format-agnostic
  * ingest engine consumes. Keeping it pure — a plain data-in/data-out function

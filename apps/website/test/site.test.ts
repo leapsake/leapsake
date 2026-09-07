@@ -106,7 +106,7 @@ describe("the docs model", () => {
 
   it("publishes a file at its slug, wherever in the tree it lives", async () => {
     await write(
-      "packages/contact-import/anywhere-at-all.md",
+      "packages/vcard/anywhere-at-all.md",
       doc('slug: contacts/importing\ntitle: Importing contacts\nsince: "0.4"'),
     );
 

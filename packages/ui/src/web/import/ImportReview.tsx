@@ -1,4 +1,4 @@
-import type { ParsedBirthday, ParsedContact } from "@leapsake/contact-import";
+import type { ParsedBirthday, ParsedContact } from "@leapsake/vcard";
 import { useEffect, useMemo, useState } from "react";
 import { useMessages } from "../../messages/index.js";
 import type { Messages } from "../../messages/index.js";

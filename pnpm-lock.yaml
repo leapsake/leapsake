@@ -38,9 +38,6 @@ importers:
       '@leapsake/bytes':
         specifier: workspace:*
         version: link:../../packages/bytes
-      '@leapsake/contact-import':
-        specifier: workspace:*
-        version: link:../../packages/contact-import
       '@leapsake/contact-links':
         specifier: workspace:*
         version: link:../../packages/contact-links
@@ -71,6 +68,9 @@ importers:
       '@leapsake/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@leapsake/vcard':
+        specifier: workspace:*
+        version: link:../../packages/vcard
       '@leapsake/view-models':
         specifier: workspace:*
         version: link:../../packages/view-models
@@ -114,9 +114,6 @@ importers:
       '@leapsake/bytes':
         specifier: workspace:*
         version: link:../../packages/bytes
-      '@leapsake/contact-import':
-        specifier: workspace:*
-        version: link:../../packages/contact-import
       '@leapsake/contact-links':
         specifier: workspace:*
         version: link:../../packages/contact-links
@@ -147,6 +144,9 @@ importers:
       '@leapsake/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@leapsake/vcard':
+        specifier: workspace:*
+        version: link:../../packages/vcard
       '@leapsake/view-models':
         specifier: workspace:*
         version: link:../../packages/view-models
@@ -274,18 +274,6 @@ importers:
         specifier: ^2.0.0
         version: 2.2.0
 
-  packages/contact-import:
-    dependencies:
-      '@leapsake/contact-links':
-        specifier: workspace:*
-        version: link:../contact-links
-      '@leapsake/schema':
-        specifier: workspace:*
-        version: link:../schema
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-
   packages/contact-links:
     dependencies:
       '@leapsake/schema':
@@ -294,9 +282,6 @@ importers:
 
   packages/core:
     dependencies:
-      '@leapsake/contact-import':
-        specifier: workspace:*
-        version: link:../contact-import
       '@leapsake/crypto':
         specifier: workspace:*
         version: link:../crypto
@@ -318,6 +303,9 @@ importers:
       '@leapsake/sync':
         specifier: workspace:*
         version: link:../sync
+      '@leapsake/vcard':
+        specifier: workspace:*
+        version: link:../vcard
     devDependencies:
       '@leapsake/bytes':
         specifier: workspace:*
@@ -428,9 +416,6 @@ importers:
 
   packages/ui:
     dependencies:
-      '@leapsake/contact-import':
-        specifier: workspace:*
-        version: link:../contact-import
       '@leapsake/contact-links':
         specifier: workspace:*
         version: link:../contact-links
@@ -440,6 +425,9 @@ importers:
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema
+      '@leapsake/vcard':
+        specifier: workspace:*
+        version: link:../vcard
       '@leapsake/view-models':
         specifier: workspace:*
         version: link:../view-models
@@ -456,6 +444,18 @@ importers:
       jsdom:
         specifier: ^29.1.1
         version: 29.1.1(@noble/hashes@2.2.0)
+
+  packages/vcard:
+    dependencies:
+      '@leapsake/contact-links':
+        specifier: workspace:*
+        version: link:../contact-links
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/view-models:
     dependencies:
@@ -8249,9 +8249,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

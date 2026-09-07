@@ -17,7 +17,7 @@ import {
   ContactsSortOrder,
   requestPermissionsAsync,
 } from "expo-contacts";
-import type { ParsedContact } from "@leapsake/contact-import";
+import type { ParsedContact } from "@leapsake/vcard";
 import { kindDefs } from "@leapsake/schema";
 import type { DuplicateMatch, ImportResult } from "@leapsake/core";
 import { Checkbox, CheckboxBox } from "../components/Checkbox";

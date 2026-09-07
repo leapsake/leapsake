@@ -376,7 +376,7 @@ usual and better way for a question like this to close.
    > ⚠️ **Worth revisiting on mobile when the extended list is next opened.** Import is the one
    > path that writes many records at once from data the app did not author, and three real
    > data-fidelity bugs landed in it on 2026-09-06 — found by importing 490 real contacts, not by
-   > a test. The unit coverage in `packages/contact-import/test/` is good and was not what missed
+   > a test. The unit coverage in `packages/vcard/test/` is good and was not what missed
    > them; what is untested is the screen. Not promoted here, because promoting it is a scope
    > decision and this file is not where scope is set.
 2. ✅ **Selector convention** — settled by what shipped: the minimal `testID` anchor set, added

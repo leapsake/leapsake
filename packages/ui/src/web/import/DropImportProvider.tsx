@@ -2,7 +2,7 @@ import {
   type ParsedContact,
   detectContactFormat,
   parseVCards,
-} from "@leapsake/contact-import";
+} from "@leapsake/vcard";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useMessages } from "../../messages/index.js";
 import styles from "./ImportOverlay.module.css";
@@ -16,7 +16,7 @@ import {
 /**
  * A window-wide drag-and-drop target, so a contact file can be dropped **on any
  * screen, at any time**. The file is read and parsed here — HTML5 drop hands over
- * a real `File`, and `@leapsake/contact-import` is pure — so nothing leaves the
+ * a real `File`, and `@leapsake/vcard` is pure — so nothing leaves the
  * client until the user confirms the review. A dropped file that isn't a
  * recognised contact card gets a friendly notice rather than a silent no-op (the
  * “recognise it / ask if unsure” requirement); the discriminated parse result is

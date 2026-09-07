@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ParsedContact } from "@leapsake/contact-import";
+import type { ParsedContact } from "@leapsake/vcard";
 import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {

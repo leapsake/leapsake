@@ -66,10 +66,7 @@ import {
   updateReminderInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
-import {
-  importDecisionsSchema,
-  parsedContactsSchema,
-} from "@leapsake/contact-import";
+import { importDecisionsSchema, parsedContactsSchema } from "@leapsake/vcard";
 import { BrowserWindow, app, ipcMain } from "electron";
 import { API_CHANNELS } from "../shared/api-channels.js";
 import {

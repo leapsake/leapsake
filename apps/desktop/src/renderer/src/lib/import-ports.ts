@@ -3,7 +3,7 @@ import type {
   ImportOutcome,
   ImportPreviewEntry,
 } from "@leapsake/ui/web";
-import type { ParsedContact } from "@leapsake/contact-import";
+import type { ParsedContact } from "@leapsake/vcard";
 
 /** Likely-duplicate flags for what was just dropped. */
 export const previewImport = (

@@ -1,10 +1,16 @@
 /**
- * `@leapsake/contact-import` — turning a dropped contact file into Leapsake
- * people, kept as its own narrowly-scoped, independently-testable unit outside
- * `@leapsake/core`. It owns two format-specific concerns — **detecting** what a
- * file is and **parsing** it into a Leapsake-shaped {@link ParsedContact} — and
- * one format-agnostic concern — **ingesting** those contacts through injected
- * ports.
+ * `@leapsake/vcard` — the vCard format, both directions, kept as its own
+ * narrowly-scoped, independently-testable unit outside `@leapsake/core`. It owns
+ * two format-specific concerns — **detecting** what a file is and **parsing** it
+ * into a Leapsake-shaped {@link ParsedContact} — and one format-agnostic concern
+ * — **ingesting** those contacts through injected ports.
+ *
+ * **Named for the format rather than the direction** (it was
+ * `@leapsake/contact-import`) because the exporter belongs here too: writing a
+ * card is the same grammar inverted — fold against `unfold`, escape against
+ * `unescapeValue`, the same label and platform maps read backwards — and the one
+ * test that matters most, `parseVCards(write(x)) ≡ x`, only exists if both halves
+ * live together. See `plans/export.md`.
  *
  * It depends only on `@leapsake/schema` (the `Gender` enum and, later, nothing
  * else) and a small set of injected ports ({@link ImportPorts}) — never on

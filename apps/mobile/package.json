@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@leapsake/bytes": "workspace:*",
-    "@leapsake/contact-import": "workspace:*",
     "@leapsake/contact-links": "workspace:*",
     "@leapsake/core": "workspace:*",
     "@leapsake/crypto": "workspace:*",
@@ -23,6 +22,7 @@
     "@leapsake/schema": "workspace:*",
     "@leapsake/store-layout": "workspace:*",
     "@leapsake/ui": "workspace:*",
+    "@leapsake/vcard": "workspace:*",
     "@leapsake/view-models": "workspace:*",
     "@react-native-picker/picker": "2.11.4",
     "expo": "^56.0.11",
