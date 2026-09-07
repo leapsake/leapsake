@@ -36,8 +36,16 @@ Nothing accumulates. When you finish one:
 When the last one goes, so does [`v0-1.md`](./v0-1.md), and [`v0-2.md`](./v0-2.md) is promoted.
 
 **Recent examples of step 1**, if you want the shape: the onboarding nudge reasoning now lives in
-[`@leapsake/reminders`](../packages/reminders/README.md), and why the signing identity owns the
-enclave key lives in [`@leapsake/key-custody`](../packages/key-custody/README.md).
+[`@leapsake/reminders`](../packages/reminders/README.md), why the signing identity owns the
+enclave key lives in [`@leapsake/key-custody`](../packages/key-custody/README.md), and the E2E
+release-gate policy — the rule, the rung table, the ratchet — is
+[`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *The E2E release gate*, which is what let docs 06
+and 10 be deleted whole.
+
+**A doc that is *deferred* rather than *done* gets renamed, not deleted.** It keeps its detail
+and loses its number, because the sequencing inside it is still the value:
+[`android-pipeline.md`](./android-pipeline.md) (was 04) and
+[`desktop-packaging.md`](./desktop-packaging.md) (was 05).
 
 ## Where to look
 
