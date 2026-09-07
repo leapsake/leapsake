@@ -48,8 +48,9 @@ disqualify the record forever and strand it on the personal account (Part 2). An
 backup is the obvious design and the one design that cannot be built. **Share sheet, or a file
 the user chooses.** Revisit only after the transfer completes, if ever.
 
-**Acceptance:** a user can export people and contact methods to a file they keep, from both
-clients, without an account. Forget-account offers it.
+**Acceptance:** a user can export people and contact methods to a file they keep, without an
+account, and Forget-account offers it. **Mobile is what blocks GA** — desktop already documents a
+manual `userData` copy and does not ship in v0.1, so desktop parity follows rather than gates.
 
 ## 2 — Catalog Flow 7c, the password door
 

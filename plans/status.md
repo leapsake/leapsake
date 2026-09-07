@@ -21,11 +21,8 @@ custody assertions, and `rc`'s catalog requirement as a `requires:` check in `io
 ③ **Public repo** — full-history secret scan first. ④ **Submit**, then **GA**, then
 incorporate and transfer.
 
-**Off the critical path, and where the last two weeks went:** the reminders rework (prompt,
-per-action windows, Home's three buckets — schedules settled at two levels, 2026-09-05) and
-contact-import fidelity against real Apple cards (`X-ABDATE`, omitted years, `X-ABADR`). Both
-are at a natural stopping point; what is left of either is in [`v0-2.md`](./v0-2.md).
-
-**Contact methods reach people** — built 2026-08-19. Left: the URL templates are convention,
-not verified — **confirm on real hardware with the apps installed** (no simulator can). ✅
-Unblocked: TestFlight builds are on a real iPhone. `expo-contacts` socialProfiles stay unmapped.
+**Off the critical path — none of this gates GA, and none of it is next.** The reminders rework
+and contact-import fidelity against real Apple cards both sit at a natural stopping point; what
+is left of either is in [`v0-2.md`](./v0-2.md). Contact methods reach people, but their URL
+templates are convention, not verified — **confirm on real hardware with the apps installed** (no
+simulator can), while testing a build rather than instead of Part 1.
