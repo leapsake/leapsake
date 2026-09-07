@@ -42,14 +42,12 @@ The final two steps, in this order. Going public first makes auto-update simpler
 *In Beta Review* unattended.
 
 - **First, two App Store Connect fields nothing in the repo can check.** `ascSetup` reads the
-  beta group, Test Information and Beta App Review Information, so those are proven by every
-  beta that shipped — but it does **not** read `privacyPolicyUrl` or the App Privacy answers,
-  because neither is needed to distribute a beta. Both are needed here. Paste
+  beta group, Test Information and Beta App Review Information — so those are proven by every
+  beta that shipped — and stops there, because nothing else is required to distribute a *beta*.
+  It does **not** read `privacyPolicyUrl` or the App Privacy answers, so a green
+  `pnpm release beta --dry-run` says nothing about either, and both are required here. Paste
   <https://leapsake.com/privacy/> into the app record, and **Publish** the App Privacy
-  questionnaire (answer: no collection) rather than leaving it in draft. **Neither is checked
-  by any preflight** — `ascSetup` reads the beta group, Test Information and Beta App Review
-  Information, and stops there, because neither of these is required to distribute a *beta*.
-  So a green `pnpm release beta --dry-run` says nothing about them.
+  questionnaire (answer: no collection) rather than leaving it in draft.
 - TestFlight → App Store review. The `final` rung is the same path one step further on.
 - ⚠️ **Android is not here any more** *(owner, 2026-09-06)*. It ships after v0.1, from the
   company account, and never from this one — [`android-pipeline.md`](./android-pipeline.md), and
