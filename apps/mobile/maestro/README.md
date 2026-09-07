@@ -372,7 +372,7 @@ rather than the flow.
 
 What is here covers the **`beta` rung** — Flows 1-5, on-screen assertions only. The
 out-of-band custody assertions and Flows 7b/7c belong to `rc`; see
-[`plans/v0-1_06_e2e-and-release-gate.md`](../../../plans/v0-1_06_e2e-and-release-gate.md)
+[`CONTRIBUTING.md`](../../../CONTRIBUTING.md) → *The E2E release gate*
 → §C's rung table. All five are written, and the `e2e` tier in `scripts/test-all.mjs` is
 `ready` — it went `ready` only once the _whole_ beta bar was there, because a partial
 catalog that ran and went green would read as the gate being met.
@@ -635,7 +635,7 @@ platform limitation on secure input. It isn't: it is a selector problem.
 The account form carries ids for exactly this reason (`app/settings.tsx`):
 `account-username`, `account-password`, `account-confirm-password`, `account-submit`. Target
 those and the form fills first try. **Add ids to any other form you need to drive** — that is
-the anchor set `plans/v0-1_06_e2e-and-release-gate.md` plans, grown one flow at a time.
+the anchor set the crucial-flow catalog calls for, grown one flow at a time.
 
 ### iOS does not draw the dots in a `newPassword` field under automation
 

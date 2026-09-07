@@ -150,7 +150,7 @@ const TIERS = [
     script: "test:e2e",
     status: "ready",
     device: true,
-    // Flows 1-5 — the whole `beta` bar (plans/v0-1_06_e2e-and-release-gate.md → §C's
+    // Flows 1-5 — the whole `beta` bar (CONTRIBUTING.md → *The E2E release gate*, its
     // rung table). `rc` additionally owes 7b/7c and the out-of-band custody assertions;
     // 6/7a ship with sync. Green on the iOS simulator and re-runnable; the Android leg
     // is written but has not been run, so the first `--strict` release will be the first

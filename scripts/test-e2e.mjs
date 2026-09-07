@@ -15,7 +15,7 @@
 // first red flow rather than reporting three failures that are really one.
 //
 // **The bar this meets is the `beta` rung, not the whole catalog** — Flows 1–5, on-screen
-// assertions only (`plans/v0-1_06_e2e-and-release-gate.md` → §C's rung table). 7b/7c and
+// assertions only (`CONTRIBUTING.md` → *The E2E release gate*, the rung table). 7b/7c and
 // the out-of-band custody assertions are `rc`'s, and Flows 6/7a ship with sync.
 import { join } from "node:path";
 

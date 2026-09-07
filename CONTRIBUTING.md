@@ -75,12 +75,82 @@ run carries over.
 | **Component** | `packages/ui`'s presentational components under `@testing-library/react` |
 | **Driver contract** | one shared spec pinning every `SqliteDriver` impl to identical observable behavior |
 | **Mobile native** | `pnpm test:native` drives the in-app self-test on a booted emulator/simulator via Maestro and asserts PASS from the CLI |
-| **E2E** *(blocked)* | the crucial-flow catalog per platform — [`plans/testing/crucial-flows.md`](plans/testing/crucial-flows.md) |
+| **E2E** | the crucial-flow catalog per platform, driven through the real UI — [`plans/testing/crucial-flows.md`](plans/testing/crucial-flows.md), and *The E2E release gate* below |
 
 Component tests need two things Vitest does not give them by default, since the suite runs
 without globals: a `// @vitest-environment jsdom` docblock, and an explicit
 `afterEach(cleanup)`. Assert what a user perceives — roles, text, the `name` a field submits
 under — not internals.
+
+### The E2E release gate
+
+The driver contract proves the *driver*; the integration layer proves the *shared logic*.
+Neither proves **a real user on a real device can complete the crucial journeys**. That is the
+E2E tier, and it carries a rule the lower tiers do not:
+
+> **Before the first release of Leapsake on a given platform, the crucial-flow catalog must run
+> *automated and green* on the closest approximation of that platform.**
+
+A **simulator/emulator/VM is itself the accepted approximation** — the gate does not require
+real hardware or a device cloud. "Closest approximation" means the closest *automatable*
+runtime: the production app binary on that OS image, virtualized. This is what keeps a
+real-device farm from ever becoming a hard dependency.
+
+| Platform | Closest approximation | Reachable from an Apple-silicon Mac? |
+|---|---|---|
+| iOS | iOS Simulator (Xcode) | ✅ local |
+| Android | Android emulator | ✅ local |
+| macOS desktop | the macOS app on macOS | ✅ local |
+| Windows desktop | the Windows app on Windows | ❌ needs a Windows host (VM / NUC / self-hosted runner) |
+| Linux desktop | the Linux app on Linux + xvfb | ❌ needs a Linux container/VM |
+
+Windows and Linux are **deliberately deferred — blocked on a host, not waived**, per principle
+6's carve-out. Shipping a subset of platforms is an explicit, supported outcome.
+
+**The rule's unit is *platform × rung*, not platform.** The full catalog is required before
+Leapsake is a product anyone can buy into; what the grading changes is that the earliest rung a
+stranger installs does not have to carry the whole of it on day one.
+
+| Rung | Who installs it | What its worst failure costs them | What must be green |
+|---|---|---|---|
+| `alpha` | internal TestFlight — named App Store Connect users, ≤100 | nothing; they are us | the suite **without** `--strict` — see `isStrict` in [`scripts/release/index.mjs`](scripts/release/index.mjs) |
+| `beta` | external TestFlight — the first strangers | an evening of typing, and only if they ignored the notes | catalog Flows **1–5**, **on-screen assertions only**. The `e2e` tier is `ready` and **passes** under `--strict` |
+| `rc` | external TestFlight, ship-ready | records they have started to rely on | the above **plus** Flows **7b, 7c** and **every out-of-band custody assertion** |
+| `final` | the store — the public | the thing the product exists to hold | `rc`'s bar, unchanged |
+
+**What the rungs ratchet on is data loss, not defect count** *(owner, 2026-08-28)*. Alpha and
+beta are allowed to be buggy — the aim is high, but a bug at those rungs costs a tester an
+annoyance and costs us a report, which is the entire point of putting a build in front of
+people. What may not survive into a **stable release** is anything that can lose someone's data,
+and at **v1.0** it is unacceptable outright. So the table is a one-way ratchet, steepest exactly
+where the catalog is about *getting data back*: 7b, 7c and the custody assertions land at `rc`,
+the last rung before anyone keeps real records here.
+
+That axis is what makes the trade legible rather than merely convenient: **the question at each
+rung is not "how good is this build" but "what does its worst failure cost the person holding
+it".** A beta tester who loses a toy dataset typed twenty minutes ago has lost twenty minutes —
+and that sentence is only true while the tester has been *told* it is a beta and not a vault.
+Which is why [`release-notes/what-to-test.txt`](release-notes/what-to-test.txt) saying so is a
+**preflight requirement rather than a nicety**, and why `rc` is where it stops being enough.
+
+⚠️ **The grading changes what the gate contains, never whether it runs.** `--strict` stays
+strict at every rung above `alpha`, and a `blocked` tier stays a failure. A subset that is
+merely *skipped* would defeat the whole thing. Every flow also stays non-vacuous by sabotage,
+the standard [`apps/mobile/maestro/README.md`](apps/mobile/maestro/README.md) holds its flows
+to.
+
+> **A platform's gate travels with that platform's release, and does not lapse when the
+> platform leaves a release.** Android's flows are green and stay in the suite even though
+> Android does not ship in v0.1 — Maestro flows are byte-identical across the two mobile
+> platforms, so keeping them costs nothing and they catch regressions on the platform that does
+> ship.
+
+**Vendor-neutrality is two layers, kept apart.** The **authoring layer** — the flow catalog and
+its harness specs (Maestro flows, Playwright/Electron specs) — is open-source, portable, drives
+the app through OS/UI, and is what we own and keep. The **execution layer** — *where* a harness
+runs: local, self-hosted VM/NUC, or (if ever) a farm — is a swappable backend. The rule that
+keeps them apart: **never bake a farm's proprietary API into a spec.** A spec that runs locally
+must run on a self-hosted host with only config changes.
 
 ## Versioning and releases
 

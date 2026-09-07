@@ -13,10 +13,12 @@ app. Android and macOS follow **after** the company exists and the iOS record tr
 [`v0-1.md`](./v0-1.md) → *The account sequence*, which is also the reason nothing may be
 uploaded to Play from the personal account.
 
-**Next, in order.** ① **The `rc` bar** — [`06`](./v0-1_06_e2e-and-release-gate.md) → §D: Flows
-7b/7c and the out-of-band custody assertions, plus turning `rc`'s catalog requirement into a
-`requires:` check. 7c is the cheap one. ② **[`07`](./v0-1_07_public-repo-and-submission.md)** —
-the full-history secret scan, then public, then submit. ③ **GA**, then incorporate and transfer.
+**Next, in order.** ① **The `rc` bar** — Flows 7b/7c and the out-of-band custody assertions
+([`testing/crucial-flows.md`](./testing/crucial-flows.md); the rungs are
+[`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *The E2E release gate*); 7c is the cheap one. Plus
+`rc`'s catalog requirement as a `requires:` check, not a `manual:` line in `ios.mjs`.
+② **[`07`](./v0-1_07_public-repo-and-submission.md)** — full-history secret scan, then public,
+then submit. ③ **GA**, then incorporate and transfer.
 
 **Off the critical path, and where the last two weeks went:** the reminders rework (prompt,
 per-action windows, Home's three buckets — schedules settled at two levels, 2026-09-05) and

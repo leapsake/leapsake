@@ -64,10 +64,10 @@ mistake here that reaches users.
 
 - Developer ID Application cert **from the company account**; hardened runtime; entitlements.
 - Notarization + stapling in the build pipeline.
-- **Re-run [06](./v0-1_06_e2e-and-release-gate.md)'s E2E against the signed build.** This is
-  where a Team-ID/keychain surprise surfaces, and you want it surfacing here rather than in a
-  user's hands — see [`@leapsake/key-custody`](../packages/key-custody/README.md) for why signing
-  identity and key custody are coupled.
+- **Re-run D's E2E against the signed build.** This is where a Team-ID/keychain surprise
+  surfaces, and you want it surfacing here rather than in a user's hands — see
+  [`@leapsake/key-custody`](../packages/key-custody/README.md) for why signing identity and key
+  custody are coupled.
 
 **Acceptance:** downloaded DMG opens on a clean Mac with no Gatekeeper warning; E2E green against
 the signed artifact; `safeStorage` round-trips under the real signature.
@@ -83,3 +83,43 @@ user permanently.**
   decision 3 in [`v0-1.md`](./v0-1.md).
 
 **Acceptance:** an installed older build detects, downloads, and applies a newer release.
+
+## D — The desktop E2E harness
+
+*Moved here from `v0-1_06_e2e-and-release-gate.md` § A when that doc was dissolved
+(2026-09-06). It was written as v0.1 work, left v0.1 with desktop on 2026-08-26, and is
+**gated on A** — the harness needs a packaged `.app` to launch. The gate policy it satisfies is
+permanent and lives in [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *The E2E release gate*.*
+
+**Value:** macOS earns its row in the gate's platform table the way iOS and Android already
+have — automated proof a real user can complete the crucial journeys on the built app.
+
+- Commit to **Playwright** (`_electron.launch()`), per the vendor-neutrality rule in
+  [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *The E2E release gate*.
+- Implement catalog Flows **1–5, 7b, 7c**
+  ([`testing/crucial-flows.md`](./testing/crucial-flows.md)) — the single-instance set. Flows
+  1–4 are one arc (Flow 4 converts the store Flows 1–3 filled).
+- Add the minimal `data-testid` anchor set **as flows need them**, not upfront.
+- Per-flow profile isolation via `--user-data-dir`. **Simulate keystore loss for 7b/7c by
+  deleting `keystore.json`** from the test profile — no `dev-clear-dbkey` route is needed on
+  desktop, and therefore no test-only surface in production main. *(This is the one place
+  desktop is cheaper than mobile, and it is worth not giving away.)*
+- Add the macOS leg to the `e2e` tier in `scripts/test-all.mjs`. ⚠️ The tier itself is already
+  `ready` and green on iOS + Android — this extends it rather than unblocking it, which is a
+  smaller and different job than this section originally described.
+
+**Hazards to design around**, both learned the expensive way on other tiers:
+
+- **ABI flip** — `test:node` needs the Node ABI, `test:e2e` the Electron ABI. Tier ordering in
+  the orchestrator must be deliberate and the rebuild idempotent; interrupting
+  `ensure-sqlite-abi.mjs` deletes the binary outright.
+- **Time-dependent Home** — the reminders and holidays engines mint `system` reminders by date.
+  Assert on specific expected text, never on emptiness or counts.
+- **Starting state is the harness's job, not a flow's.** The mobile arc ends on Flow 4 holding
+  an account and keys, so it wipes the app from outside before every run; desktop's
+  `--user-data-dir` isolation gives it this for free, but only if every flow gets a fresh one.
+  See [`../apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md) → *What the app's
+  own state looks like from here* for what it costs when this is not designed in.
+
+**Acceptance:** `pnpm test:all` shows `e2e` PASS on macOS as well as iOS and Android; a
+deliberately-broken build goes red.

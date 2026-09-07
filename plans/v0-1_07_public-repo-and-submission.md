@@ -1,8 +1,8 @@
 # v0.1 · 07 — Public repo + store submission
 
-> **Delete this doc when the work lands.** This is the last one: when it goes, so does
-> [`v0-1.md`](./v0-1.md), and `plans/` holds only [`v0-2.md`](./v0-2.md), the design docs, and
-> the testing strategy.
+> **Delete this doc when the work lands.** It is now the **only** numbered doc left — 04, 05,
+> 06 and 10 have all gone — so when it goes, so does [`v0-1.md`](./v0-1.md), and `plans/` holds
+> only [`v0-2.md`](./v0-2.md), the two deferred-platform docs, and the design docs.
 
 The final two steps, in this order. Going public first makes auto-update simpler
 ([desktop-packaging.md](./desktop-packaging.md) → C) and is the cheaper mistake to make early.
@@ -35,17 +35,21 @@ The final two steps, in this order. Going public first makes auto-update simpler
 
 ## B — iOS submission
 
-**Value:** a shipped iOS app. **Nothing blocks it but this doc's section A and the `rc` bar in
-[06](./v0-1_06_e2e-and-release-gate.md)** — Apple enrollment cleared 2026-08-19, the App Store
-Connect record exists, and `pnpm release` already carries a build to *In Beta Review* unattended.
+**Value:** a shipped iOS app. **Nothing blocks it but this doc's section A and the `rc` bar**
+([`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *The E2E release gate*; the flows are
+[`testing/crucial-flows.md`](./testing/crucial-flows.md) 7b and 7c) — Apple enrollment cleared
+2026-08-19, the App Store Connect record exists, and `pnpm release` already carries a build to
+*In Beta Review* unattended.
 
 - **First, two App Store Connect fields nothing in the repo can check.** `ascSetup` reads the
   beta group, Test Information and Beta App Review Information, so those are proven by every
   beta that shipped — but it does **not** read `privacyPolicyUrl` or the App Privacy answers,
   because neither is needed to distribute a beta. Both are needed here. Paste
   <https://leapsake.com/privacy/> into the app record, and **Publish** the App Privacy
-  questionnaire (answer: no collection) rather than leaving it in draft.
-  See [`10`](./v0-1_10_external-testflight.md), items 5 and 6.
+  questionnaire (answer: no collection) rather than leaving it in draft. **Neither is checked
+  by any preflight** — `ascSetup` reads the beta group, Test Information and Beta App Review
+  Information, and stops there, because neither of these is required to distribute a *beta*.
+  So a green `pnpm release beta --dry-run` says nothing about them.
 - TestFlight → App Store review. The `final` rung is the same path one step further on.
 - ⚠️ **Android is not here any more** *(owner, 2026-09-06)*. It ships after v0.1, from the
   company account, and never from this one — [`android-pipeline.md`](./android-pipeline.md), and

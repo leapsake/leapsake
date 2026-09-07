@@ -14,7 +14,7 @@
 #    anchor would therefore be asserting something untrue of the build. Asserting the
 #    nudge's own text instead is both correct and stronger: it proves the reminders engine
 #    ran and reconciled, which an empty list would not. It is also what
-#    `plans/v0-1_06_e2e-and-release-gate.md` → §A's *time-dependent Home* hazard asks for —
+#    the *time-dependent Home* hazard (CONTRIBUTING.md → *The E2E release gate*) asks for —
 #    assert specific expected text, never emptiness or counts.
 #
 #    Note which nudges are *absent* and why, because it is what makes this stable rather
@@ -31,7 +31,7 @@
 # entries, and no `.recovery` sidecar exist. None of that is reachable from Maestro, which
 # reads the accessibility tree and nothing else — it needs an inspection surface the app
 # does not have. That is `rc`'s work, not `beta`'s
-# (`plans/v0-1_06_e2e-and-release-gate.md` → §C's rung table). Until it lands, "mints
+# (CONTRIBUTING.md → *The E2E release gate*, its rung table). Until it lands, "mints
 # nothing" is asserted only as far as the screen shows it.
 appId: com.leapsake.app
 ---

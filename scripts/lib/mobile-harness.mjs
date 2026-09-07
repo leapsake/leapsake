@@ -11,7 +11,7 @@
 //
 // This file owns *environment prep* — the flaky, imperative part of driving a dev client —
 // and the *platform plumbing*. The Maestro YAML owns the *assertion*, the portable half.
-// It was extracted from `test-native.mjs` when the E2E tier arrived (plans/v0-1_06 → D);
+// It was extracted from `test-native.mjs` when the E2E tier arrived;
 // everything here was proven by that tier first, and the comments are its findings.
 //
 // The file is:

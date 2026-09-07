@@ -7,9 +7,9 @@
 > up, of the driver-contract keystone — authored once in plain language so Maestro (mobile),
 > Playwright/Electron (desktop), and any future harness encode the *same* journeys and can't
 > drift. Keeping it separate from any one tool is the core anti-lock-in move
-> ([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*).
+> ([`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*).
 >
-> Read [`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*
+> Read [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*
 > for the gate policy this implements. This file is design, not a status board — when a harness
 > lands a flow, record that in [`status.md`](../status.md), keep this stable.
 
@@ -21,7 +21,7 @@ its real boundary (principle #4) — never the app's internals, never a mocked e
 ~37 desktop integration suites prove the shared repo/service logic, so E2E only needs to prove
 the journeys those tiers *can't* — the ones that only exist once real UI, real OS key storage,
 and (for sync) two real devices are wired together. A simulator/emulator/VM is the accepted
-approximation ([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*).
+approximation ([`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*).
 
 **This catalog is authored against the app as actually built.** Two consequences a harness
 author will otherwise get wrong:
@@ -97,7 +97,7 @@ person's name, the milestone note).
 
 Seven flows (Flow 7 has three variants). Each must run **automated and green** on **iOS +
 Android + macOS** before v0.1
-([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*). Windows/Linux implement the *same* list later, no changes. Columns:
+([`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*). Windows/Linux implement the *same* list later, no changes. Columns:
 **Devices** (single vs. the two-instance sync pair), and **Uniquely exercises** (why E2E — the
 surface no lower tier reaches).
 
@@ -217,7 +217,7 @@ surface no lower tier reaches).
   engines to one in-process relay; this drives two *real app instances* through the real UI and
   key store).
 - **Preconditions:** a reachable relay (local/self-hosted — the execution layer is swappable,
-  [`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → *The release-gate policy*); Device A holds data (run Flows 2–3 first) and is still **Unauthenticated**.
+  [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*); Device A holds data (run Flows 2–3 first) and is still **Unauthenticated**.
 - **Steps:** **Device A** → Settings → **Set up or log in to sync** → register a username +
   password (≥12 chars); **capture the phrase** shown once. **Device B** (fresh install) →
   Settings → same entry → log in with that username + password.
@@ -279,7 +279,7 @@ reveal-in-Settings to fall back on.
   that makes an org-move Team-ID change cost one password entry instead of a phrase hunt
   ([`../../packages/key-custody/README.md`](../../packages/key-custody/README.md)), and it is the most delicate code in the app: it runs
   before the database opens, so a bug is not a failed query but an app that cannot start.
-- **Note:** this variant covers the automated half of [`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md)
+- **Note:** this variant covers the automated half of [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
   Increment 3, whose manual half additionally documents restore-from-file-backup per door.
 
 ---
@@ -327,7 +327,7 @@ tier stays small). Listed so the owner can pull any into the gate:
 | 7c At-rest, password door | **rc** | gate | gate | gate | later | 1 | same reset, password answer; prove both doors independent |
 
 **"Gates at"** is the release rung by which a flow must be green, per
-[`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → §C's rung table
+[`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*'s rung table
 *(settled 2026-08-28 — [`../v0-1.md`](../v0-1.md) → open decision 1)*. It grades
 *when*, never *whether*: every core flow still gates v0.1, and `rc` is inside v0.1. Flows 6/7a are
 the exception and leave v0.1 entirely, per open decision 2.
@@ -350,8 +350,8 @@ out-of-band halves and both doors of 7 wait for `rc` (they prove data comes *bac
 matters once someone is relying on it). Beta may be buggy; stable v0.1 may not lose data.
 
 "gate" = must be green before **that platform's own first release**, at the rung the *Gates at*
-column names ([`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) →
-*The release-gate policy*). ⚠️ **The platform column is not the release schedule, and reading it
+column names ([`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) →
+*The E2E release gate*). ⚠️ **The platform column is not the release schedule, and reading it
 as one is the mistake this note exists to prevent.** v0.1 is **iOS alone** — macOS left on
 2026-08-26, Android on 2026-09-06, both for reasons unrelated to testing
 ([`../v0-1.md`](../v0-1.md) → *The account sequence*). Every "gate" above is still owed; it is
@@ -369,8 +369,8 @@ Most of this list was answered by building the flows rather than by a sign-off, 
 usual and better way for a question like this to close.
 
 1. ✅ **Catalog membership** — the seven core flows are confirmed; the rung table in
-   [`../v0-1_06_e2e-and-release-gate.md`](../v0-1_06_e2e-and-release-gate.md) → §C names each
-   one and when it is owed. **Factory reset** is covered incidentally rather than promoted:
+   [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate* names each rung
+   and what it is owed. **Factory reset** is covered incidentally rather than promoted:
    `maestro/subflows/factory-reset.yaml` drives the erase a user performs, as part of the arc.
    The **contact-import drop** leaning was a *desktop* recommendation and left v0.1 with desktop.
    > ⚠️ **Worth revisiting on mobile when the extended list is next opened.** Import is the one

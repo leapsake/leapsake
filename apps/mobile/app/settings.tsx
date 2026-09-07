@@ -439,7 +439,7 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
         password fields are `secureTextEntry` with identical (empty) accessibility
         text, so a driver has nothing to tell them apart by and taps on the confirm
         field silently landed elsewhere — the wall slices 8 and 9 both hit. An
-        explicit id is the anchor set `plans/v0-1_06_e2e-and-release-gate.md` plans to add "as flows
+        explicit id is the anchor set the crucial-flow catalog grows "as flows
         need them"; this flow needs them.
       */}
       <View style={styles.field}>
