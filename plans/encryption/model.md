@@ -412,10 +412,14 @@ and indexes preserved; the output genuinely ciphertext on disk):
    would only have to delete. Layer 3 has **no domain consumer**; if one exists when you get
    here, something was built out of order: check `../status.md`.
 
-> **The existing `<db>.plaintext.bak` must not survive this path.** Desktop's legacy
-> pre-Stage-2 upgrade (`plaintext-migration.ts`) deliberately keeps that backup as a safety
-> net for a one-time migration. On the account-creation path it is a plaintext copy of
-> exactly what the user just asked to encrypt, so it is a footgun, not a net.
+> **No `<db>.plaintext.bak` may survive this path — and none is written any more.** Desktop's
+> legacy pre-Stage-2 upgrade kept that backup as a safety net for a one-time migration; under
+> *encryption follows custody* that upgrade has no reason to exist, and the code that wrote it
+> is **deleted** (`apps/desktop/src/main/db/open.ts` now refuses a plaintext file at an
+> authenticated boot rather than re-keying it in place, and
+> `apps/desktop/test/integration/create-account.test.ts` asserts the file's absence). The rule
+> stands as an invariant on any future conversion: on the account-creation path such a backup
+> is a plaintext copy of exactly what the user just asked to encrypt — a footgun, not a net.
 
 **Verified on device (2026-07-27, iOS simulator):** expo-sqlite's SQLCipher build (a)
 creates *and reopens across connections* a plaintext database when no key is supplied, and
