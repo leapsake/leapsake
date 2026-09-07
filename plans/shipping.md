@@ -40,7 +40,8 @@ this a blocker rather than a nicety:
 
 **Shape:** user-initiated, client-side (the client already holds plaintext), vCard/JSContact,
 people + contact methods first. Doubles as groundwork for a future CardDAV surface. Wire the real
-Forget-account offer when it lands.
+Forget-account offer when it lands. **The property mapping and the increments are
+[`export.md`](./export.md)**; what follows is the gate, not the design.
 
 ⚠️ **It must not use iCloud.** Not a preference — a **permanent, one-way** constraint: **no
 version** of the app may **ever** ship an iCloud entitlement, or Apple's transfer criteria
