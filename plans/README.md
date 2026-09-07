@@ -25,7 +25,12 @@ This is the rule the whole repo is organized around. Learn it before looking for
 
 ## The v0.1 docs are disposable, and that is the point
 
-Each numbered doc holds one unit of gating work and is **deleted the day that work lands**.
+**The numbering is retired** *(2026-09-06)*. It existed to order ten docs against each other;
+nine have landed and the tenth is [`ios-ga.md`](./ios-ga.md), where a bare `07` told a reader
+less than its subject did. Allocation ids in `git log` stay meaningful — they were never reused —
+but nothing new gets one. **A gating doc is named for what it delivers.**
+
+Each such doc holds one unit of gating work and is **deleted the day that work lands**.
 Nothing accumulates. When you finish one:
 
 1. Move anything durable **next to the code it constrains** — a doc-comment, the package
@@ -45,16 +50,19 @@ and 10 be deleted whole.
 **A doc that is *deferred* rather than *done* gets renamed, not deleted.** It keeps its detail
 and loses its number, because the sequencing inside it is still the value:
 [`android-pipeline.md`](./android-pipeline.md) (was 04) and
-[`desktop-packaging.md`](./desktop-packaging.md) (was 05).
+[`desktop-packaging.md`](./desktop-packaging.md) (was 05). [`ios-ga.md`](./ios-ga.md) (was 07)
+was renamed for the third reason — it is the last one standing, and it absorbed the whole
+pre-GA list rather than holding a slice of it.
 
 ## Where to look
 
 | You want to… | Go to |
 |---|---|
 | **Know what's in flight** | [`status.md`](./status.md) |
-| **Know what to build next** | [`v0-1.md`](./v0-1.md) → the numbered doc it points at |
+| **Know what to build next** | [`ios-ga.md`](./ios-ga.md) — every GA blocker, in order, with acceptance for each. [`v0-1.md`](./v0-1.md) is the decisions behind that order |
 | **Find something we deliberately deferred** | [`v0-2.md`](./v0-2.md) |
 | **Cut a release, or add a platform to the pipeline** | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases* for the rules, `pnpm release --help` for the current rung/platform matrix, and `scripts/release/` for the policy itself |
+| **Ship the iOS app** | [`ios-ga.md`](./ios-ga.md) — the mandatory list. ⚠️ The exporter (step 1) **must not use iCloud**: an iCloud entitlement in any shipped version permanently disqualifies the app transfer to the company account |
 | **Ship the desktop app** | [`desktop-packaging.md`](./desktop-packaging.md) — packaging, notarization and auto-update, deferred past v0.1. ⚠️ Sign it under the *company* identity, not the personal one |
 | **Ship the Android app** | [`android-pipeline.md`](./android-pipeline.md) — the Play target, deferred past v0.1 until the company account exists. ⚠️ Nothing may be uploaded to Play before then |
 | **Build the web / PWA client for real** | [`web-client.md`](./web-client.md) — what the spike proved and what an `apps/web` inherits — then [`v0-2.md`](./v0-2.md) → *Post-launch* item 1. The rule it produced is [`encryption/model.md`](./encryption/model.md) §10.1: **web requires a sync account** |

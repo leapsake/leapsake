@@ -268,6 +268,12 @@ safely — the worst case is over-warning.
 | **No** (default, and today always) | the last copy is destroyed | word it as **"Delete all data on this device"**, hard-confirm, and offer an export first |
 | **Yes** (a relay that opts in) | ordinary — sign back in and re-pull | the normal Forget confirmation |
 
+> **"Offer an export first" has had nothing behind it.** Desktop's hard-confirm can only suggest
+> copying the `stores` folder; mobile cannot say even that. The exporter became a **v0.1 GA
+> blocker** on 2026-09-06 (`plans/ios-ga.md` → 1) precisely because this promise, plus
+> single-device custody, leaves a user's only copy inside the app container. Wire the real offer
+> here when it lands.
+
 Build this as a *check*, not a hardcoded string: when server-side backup ships, alarming copy
 must stop appearing on its own rather than being hunted down. The capability should also be
 **visible** — "This server does not keep a backup of your data" is honest for self-hosters and

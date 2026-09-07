@@ -78,8 +78,8 @@ the signed artifact; `safeStorage` round-trips under the real signature.
 user permanently.**
 
 - `electron-updater` against GitHub Releases as the feed.
-- **Simpler once the repo is public** ([07](./v0-1_07_public-repo-and-submission.md)) — no token
-  distribution. Either sequence C after 07, or accept a token in the interim. This is open
+- **Simpler once the repo is public** ([`ios-ga.md`](./ios-ga.md) → 5) — no token
+  distribution. Either sequence C after the repo goes public, or accept a token in the interim. This is open
   decision 3 in [`v0-1.md`](./v0-1.md).
 
 **Acceptance:** an installed older build detects, downloads, and applies a newer release.

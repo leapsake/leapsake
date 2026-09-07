@@ -423,3 +423,7 @@ What happened instead, and it inverted every step:
 **So the remaining v0.1 E2E gate is Flows 7b and 7c on iOS**, plus the out-of-band custody
 assertions, plus turning `rc`'s catalog requirement into a `requires:` check rather than a
 `manual:` sentence.
+
+> These four are steps 2–4 of [`../ios-ga.md`](../ios-ga.md), which is the ordered list of
+> everything blocking GA and carries the live decision on whether **7b** can be deferred behind
+> 7c. The flow ids here are the stable ones and do not change with that doc's renaming.
