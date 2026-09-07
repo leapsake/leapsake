@@ -51,12 +51,14 @@ const HANDLED = new Set([
   "IMPP",
   "X-SOCIALPROFILE",
   "URL",
-  // Apple's own spelling of a labelled date, and the grouped label that names it
-  // (and names a custom `ADR`/`TEL`/`EMAIL` too). `X-ABLabel` is metadata about
-  // another property rather than data of its own — like a `TYPE=` parameter — so
-  // it is consumed, never surfaced as dropped.
+  // Apple's own spelling of a labelled date, the grouped label that names it (and
+  // names a custom `ADR`/`TEL`/`EMAIL` too), and the grouped ISO country code for
+  // an address. The latter two are metadata *about* another property rather than
+  // data of their own — like a `TYPE=` parameter — so they are consumed by the
+  // property they describe, never surfaced as dropped.
   "X-ABDATE",
   "X-ABLABEL",
+  "X-ABADR",
 ]);
 
 /**
@@ -360,13 +362,17 @@ function buildContact(props: Property[]): ParsedContact {
   // beat a birthday-labelled entry in its `dates` list.
   let labelledBirthday: ParsedBirthday | null = null;
 
-  // Apple hangs a date's label off a sibling property in the same group, so the
-  // labels are collected before the pass that needs them — the two lines can
-  // arrive in either order.
+  // Apple hangs what a date means, and what country an address is in, off sibling
+  // properties in the same group. Both are collected before the pass that needs
+  // them, since the lines may arrive in either order.
   const groupLabels = new Map<string, string>();
+  const groupCountries = new Map<string, string>();
   for (const p of props) {
-    if (p.name === "X-ABLABEL" && p.group !== null) {
+    if (p.group === null) continue;
+    if (p.name === "X-ABLABEL") {
       groupLabels.set(p.group, appleLabelText(unescapeValue(p.value)));
+    } else if (p.name === "X-ABADR") {
+      groupCountries.set(p.group, unescapeValue(p.value).trim());
     }
   }
 
@@ -403,6 +409,7 @@ function buildContact(props: Property[]): ParsedContact {
         const postal = mapAddress(
           splitStructured(p.value),
           typesOf(p),
+          p.group === null ? null : (groupCountries.get(p.group) ?? null),
           dropped,
         );
         if (postal) postals.push(postal);
@@ -552,6 +559,7 @@ function deriveName(nParts: string[] | null, fn: string | null): ParsedName {
 function mapAddress(
   parts: string[],
   types: string[],
+  isoHint: string | null,
   dropped: DroppedField[],
 ): ParsedPostal | null {
   // Structured ADR: PO Box; Extended; Street; Locality; Region; Postal; Country.
@@ -568,12 +576,12 @@ function mapAddress(
   if (line1 === "") return null;
   const line2 = street ? nullIfEmpty(extended || poBox) : null;
 
-  // The schema's country is ISO-3166 alpha-2. Real cards put a free-text name
-  // ("USA") here, which would be rejected — surface it as dropped instead.
-  let country: string | null = null;
-  const iso = countryRaw.toUpperCase();
-  if (/^[A-Z]{2}$/.test(iso)) country = iso;
-  else if (countryRaw !== "") dropField(dropped, "ADR country", countryRaw);
+  const country = countryCode(countryRaw, isoHint);
+  // A free-text name we could not turn into a code is reported rather than lost;
+  // once the code is known the name adds nothing, so it is not.
+  if (country === null && countryRaw !== "") {
+    dropField(dropped, "ADR country", countryRaw);
+  }
 
   return {
     label: postalLabel(types),
@@ -584,6 +592,33 @@ function mapAddress(
     postalCode: nullIfEmpty(postalCode),
     country,
   };
+}
+
+/**
+ * An address's country as the ISO 3166-1 alpha-2 code the schema stores, or
+ * `null` when the card gives nothing that can be turned into one.
+ *
+ * `ADR`'s own country component is a free-text *name*, and which name depends on
+ * who exported the card and in what locale ("United States", "USA", "États-Unis")
+ * — so it is kept only when it already is a code. Apple, however, writes the code
+ * itself into an `X-ABADR` alongside the address (`item1.ADR` ⇄ `item1.X-ABADR`),
+ * which is read as the fallback: be liberal in what we accept. Mapping a name to
+ * a code ourselves is the one thing not done here — that needs a locale-aware
+ * country table, and guessing wrong files somebody's address in the wrong country.
+ *
+ * The device importer has no equivalent: `expo-contacts`' newer `Contact` API
+ * carries only the free-text name, so an address read off the phone keeps landing
+ * without a country. Accepting less there is not a reason to accept less here.
+ */
+function countryCode(
+  countryRaw: string,
+  isoHint: string | null,
+): string | null {
+  for (const candidate of [countryRaw, isoHint ?? ""]) {
+    const iso = candidate.trim().toUpperCase();
+    if (/^[A-Z]{2}$/.test(iso)) return iso;
+  }
+  return null;
 }
 
 /**

@@ -120,6 +120,60 @@ describe("parseVCards — contact methods", () => {
       value: "United States",
     });
   });
+
+  it("takes the country from Apple's grouped X-ABADR when ADR only names it", () => {
+    // How Contacts exports every address: the name in `ADR`, the code beside it.
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.ADR;type=HOME;type=pref:;;723 Orchard Road;Avalon;PA;15202;United States",
+        "item1.X-ABADR:us",
+      ),
+    );
+    expect(c.postals[0].country).toBe("US");
+    // The name told us nothing the code didn't, so it is not reported as lost —
+    // and the code itself is metadata about the address, not a field of its own.
+    expect(c.dropped).toEqual([]);
+  });
+
+  it("pairs each address with the code from its own group", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.ADR:;;1 Main St;Town;;;United States",
+        "item1.X-ABADR:us",
+        "item2.ADR:;;2 High St;Ville;;;France",
+        "item2.X-ABADR:fr",
+      ),
+    );
+    expect(c.postals.map((postal) => postal.country)).toEqual(["US", "FR"]);
+  });
+
+  it("keeps an ADR's own code over a grouped one, and still drops neither", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.ADR:;;1 Main St;Town;;;GB",
+        "item1.X-ABADR:us",
+      ),
+    );
+    expect(c.postals[0].country).toBe("GB");
+  });
+
+  it("reports the name when neither spelling yields a code", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.ADR:;;1 Main St;Town;;;United States",
+        "item1.X-ABADR:usa",
+      ),
+    );
+    expect(c.postals[0].country).toBeNull();
+    expect(c.dropped).toContainEqual({
+      property: "ADR country",
+      value: "United States",
+    });
+  });
 });
 
 describe("parseVCards — birthday", () => {
