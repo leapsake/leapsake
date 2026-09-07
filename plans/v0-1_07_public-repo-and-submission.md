@@ -33,17 +33,26 @@ The final two steps, in this order. Going public first makes auto-update simpler
 
 **Acceptance:** repo public with a clean history scan; Actions green on a PR.
 
-## B — Mobile submission
+## B — iOS submission
 
-**Value:** shipped mobile apps. **Blocked on [04](./v0-1_04_mobile-pipeline.md)'s 14-day window
-only** — Apple enrollment cleared 2026-08-19, and the App Store Connect record already exists.
+**Value:** a shipped iOS app. **Nothing blocks it but this doc's section A and the `rc` bar in
+[06](./v0-1_06_e2e-and-release-gate.md)** — Apple enrollment cleared 2026-08-19, the App Store
+Connect record exists, and `pnpm release` already carries a build to *In Beta Review* unattended.
 
-- iOS: TestFlight → App Store review.
-- Android: apply for production access once the closed-test criteria are met; promote.
+- TestFlight → App Store review. The `final` rung is the same path one step further on.
+- ⚠️ **Android is not here any more** *(owner, 2026-09-06)*. It ships after v0.1, from the
+  company account, and never from this one — [`android-pipeline.md`](./android-pipeline.md), and
+  [`v0-1.md`](./v0-1.md) → *The account sequence* for why that ordering is the cheap one.
 
-**Acceptance:** both apps installable by the public.
+**Acceptance:** the iOS app installable by the public.
 
 ## Then
 
-v0.1 is shipped. Delete this doc, delete [`v0-1.md`](./v0-1.md), and
-[`v0-2.md`](./v0-2.md) becomes the plan.
+v0.1 is shipped. Delete this doc, delete [`v0-1.md`](./v0-1.md), and [`v0-2.md`](./v0-2.md)
+becomes the plan — alongside [`android-pipeline.md`](./android-pipeline.md) and
+[`desktop-packaging.md`](./desktop-packaging.md), which outlive it.
+
+**And immediately: incorporate and transfer.** GA is precisely what makes the App Store Connect
+record transferable, and the blast radius of the re-key scales with how many users hold accounts
+when it happens ([`v0-1.md`](./v0-1.md) → *The account sequence*, step 2 onward). The paperwork
+should already be running by the time this doc is deleted, not starting then.

@@ -7,27 +7,21 @@
 
 ## In flight
 
-**04 (Android release target)** — [`v0-1_04_mobile-pipeline.md`](./v0-1_04_mobile-pipeline.md).
-✅ The iOS half is **done**: `pnpm release alpha` ships to TestFlight with no Xcode session, and
-`0.1.0-alpha.3` went out that way. Left: fill in the `android` target — AAB, Play App Signing
-upload key, service-account upload, rungs mapped to tracks.
+**v0.1 is iOS alone** *(owner, 2026-09-06)*, and the release path to it is built: three betas
+have shipped, the App Store Connect record is complete, and a real external tester is using the
+app. Android and macOS follow **after** the company exists and the iOS record transfers to it —
+[`v0-1.md`](./v0-1.md) → *The account sequence*, which is also the reason nothing may be
+uploaded to Play from the personal account.
 
-⚠️ **Play is the whole critical path, and its shape is an open question.** The 12-tester wall
-binds *personal* accounts; the owner is leaning toward forming a legal entity before stable
-v0.1, which replaces it with a D-U-N-S wait. Until that is settled, **build the Android target
-but do not upload** — the first upload claims the package name for whichever account made it.
-[`v0-1.md`](./v0-1.md) → *Open decisions* 4.
+**Next, in order.** ① **The `rc` bar** — [`06`](./v0-1_06_e2e-and-release-gate.md) → §D: Flows
+7b/7c and the out-of-band custody assertions, plus turning `rc`'s catalog requirement into a
+`requires:` check. 7c is the cheap one. ② **[`07`](./v0-1_07_public-repo-and-submission.md)** —
+the full-history secret scan, then public, then submit. ③ **GA**, then incorporate and transfer.
 
-**10 (external TestFlight)** — [`v0-1_10_external-testflight.md`](./v0-1_10_external-testflight.md).
-`pnpm release beta`, unattended. **Independent of 04** — iOS only. ✅ **The code is done**
-*(2026-08-28)*: an App Store Connect client and a `publish()` that carries a build from
-uploaded to *In Beta Review* with its notes and group attached, and the `e2e` gate is green on
-**iOS and Android** — the Android leg has now actually been run. Left: **the App Store Connect
-record**, which is all a person's — a privacy policy URL that resolves (needs hosting; the only
-item with latency no one controls), Test Information, Beta App Review notes, testers. Doc 10
-lists them, and `pnpm release beta --only=ios --dry-run` reports them. ✅ *Open decisions* 1 is
-**settled** *(owner, 2026-08-28)*: the gate is graded by rung, and it ratchets on **data loss**
-— beta may be buggy, stable v0.1 may not lose data, v1.0 not at all.
+**Off the critical path, and where the last two weeks went:** the reminders rework (prompt,
+per-action windows, Home's three buckets — schedules settled at two levels, 2026-09-05) and
+contact-import fidelity against real Apple cards (`X-ABDATE`, omitted years, `X-ABADR`). Both
+are at a natural stopping point; what is left of either is in [`v0-2.md`](./v0-2.md).
 
 **Contact methods reach people** — built 2026-08-19. Left: the URL templates are convention,
 not verified — **confirm on real hardware with the apps installed** (no simulator can). ✅

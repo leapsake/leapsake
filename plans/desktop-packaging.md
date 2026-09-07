@@ -20,10 +20,22 @@ Three stages of one job: turn `out/` into something a stranger can install and t
 itself later. Split into A/B/C because **A is the classic Electron failure** and deserves to fail
 on its own, not inside a signing change.
 
-**Prerequisite:** [04](./v0-1_04_mobile-pipeline.md) → *Store identity* for the version and the
-versioning scheme; the desktop bundle ID (`com.leapsake.desktop`) is set here.
-**B is unblocked** — Apple enrollment cleared 2026-08-19 (see [`v0-1.md`](./v0-1.md)), so the
-Developer ID cert can be issued the moment A lands.
+**Prerequisite:** [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases* for the
+version and the versioning scheme; the desktop bundle ID (`com.leapsake.desktop`) is set here.
+
+⚠️ **Sequencing: B waits for the company, and that is deliberate** *(owner, 2026-09-06)*. The
+Developer ID cert could be issued today — Apple enrollment cleared 2026-08-19 — but it would be
+the **personal** one, and [`@leapsake/key-custody`](../packages/key-custody/README.md) →
+*The signing identity owns the enclave key* says what that costs: `safeStorage`'s keychain item
+has an ACL bound to the app's code signature, so re-signing under the company's Developer ID
+later makes every existing enclave key unreadable and drops every authenticated user at the
+recovery gate. Doing that to iOS once, at the transfer, is a priced and accepted cost
+([`v0-1.md`](./v0-1.md) → *The account sequence*). Doing it to desktop as well, when desktop has
+not shipped and therefore has no users to strand, would be paying it for nothing.
+
+**So: A can be built whenever. B signs under the company identity, after the transfer.** That is
+also the owner's stated release order — iOS, then Android and macOS, then everything else — so
+nothing is being delayed to obey this; it is why the order is right.
 
 ## A — Packaging (unsigned)
 
@@ -32,7 +44,8 @@ Developer ID cert can be issued the moment A lands.
 - Add electron-builder (or Forge) producing a macOS `.app` + DMG/zip from `out/`.
 - Wire `better-sqlite3-multiple-ciphers` native-module packaging for the Electron ABI. **This is
   where `scripts/ensure-sqlite-abi.mjs` and asar unpacking must agree.**
-- Bundle ID `com.leapsake.desktop`; app icon; category; version from 03.
+- Bundle ID `com.leapsake.desktop`; app icon; category; version from the release scripts
+  ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases*).
 
 > An N-API fork release would delete this whole constraint — see
 > [`v0-2.md`](./v0-2.md) → *The N-API exit*. Watch-item, blocked upstream; do not wait for it.
@@ -45,10 +58,11 @@ stage rather than a step inside signing.
 
 ## B — Signing + notarization
 
-**Value:** an artifact a stranger can actually install. **No longer blocked** — the Apple account
-exists as of 2026-08-19; this waits only on A.
+**Value:** an artifact a stranger can actually install. Waits on A, and on the company Developer
+ID — see the sequencing warning above; signing this under the personal identity first is the one
+mistake here that reaches users.
 
-- Developer ID Application cert; hardened runtime; entitlements.
+- Developer ID Application cert **from the company account**; hardened runtime; entitlements.
 - Notarization + stapling in the build pipeline.
 - **Re-run [06](./v0-1_06_e2e-and-release-gate.md)'s E2E against the signed build.** This is
   where a Team-ID/keychain surprise surfaces, and you want it surfacing here rather than in a
