@@ -6,15 +6,18 @@
 
 **Value:** the first automated proof a real user can complete the crucial journeys.
 
-✅ **Section B landed 2026-08-26**, in a different shape than planned — see below. What is left
-of this doc is the harness and the policy question.
+✅ **Sections B, C and D have all landed.** The gate is built and runs on every release; the
+grading policy is settled *(owner, 2026-08-28)*; the `beta` bar is written and green on both
+mobile platforms. **What is left of this doc is one thing: the `rc` bar** — Flows 7b/7c, the
+out-of-band custody assertions, and turning `rc`'s catalog requirement into a check rather than
+a sentence. See §D.
 
-⚠️ **This is now a mobile increment.** Desktop is deferred past v0.1
+⚠️ **This is a mobile increment, and v0.1 is now iOS alone.** Desktop deferred past v0.1
 *(owner, 2026-08-26)*, so section A — a Playwright/Electron harness against a packaged `.app` —
-leaves v0.1 with it and waits on [`desktop-packaging.md`](./desktop-packaging.md) → A. The
-v0.1 gate is **Maestro on iOS and Android**, and open decision 1 in [`v0-1.md`](./v0-1.md)
-is correspondingly smaller than when it was written. **Settle it before starting**, not by
-build order.
+left with it and waits on [`desktop-packaging.md`](./desktop-packaging.md) → A. Android followed
+*(owner, 2026-09-06)*, for account reasons rather than engineering ones
+([`v0-1.md`](./v0-1.md) → *The account sequence*). **Its flows stay in the suite regardless** —
+see §C.
 
 ## A — The desktop harness *(no longer v0.1)*
 
@@ -74,10 +77,20 @@ holds — a real-device farm never becomes a hard dependency.
 | Windows desktop | the Windows app on Windows | ❌ needs a Windows host (VM / NUC / self-hosted runner) |
 | Linux desktop | the Linux app on Linux + xvfb | ❌ needs a Linux container/VM |
 
-**The v0.1 gate is iOS + Android.** *(It read "iOS + Android + macOS" until desktop left v0.1
-on 2026-08-26.)* Windows and Linux are *deliberately deferred* — blocked on a host, not waived;
-shipping a subset is an explicit, supported outcome. **How much of the catalog is required at
-which rung** is the amendment below, and remains **open decision 1** until it is signed off.
+**The v0.1 gate is iOS.** *(It read "iOS + Android + macOS" until desktop left v0.1 on
+2026-08-26, and "iOS + Android" until Android did on 2026-09-06.)* Windows and Linux are
+*deliberately deferred* — blocked on a host, not waived; shipping a subset is an explicit,
+supported outcome.
+
+⚠️ **Android's flows stay in the suite, and `--strict` keeps running them.** The rule above says
+a platform must be green before *its own* first release, so Android's obligation travels with
+the Android release rather than lapsing — but the flows are already written, already green, and
+Maestro flows are byte-identical across the two platforms, so keeping them costs nothing and
+catches a regression on the platform that ships. **Nothing here removes a test.** What changes
+is only which platform's greenness is load-bearing for *this* release.
+
+**How much of the catalog is required at which rung** is the amendment below, ✅ **settled**
+*(owner, 2026-08-28)*.
 
 ✅ **Amended 2026-08-27, settled 2026-08-28** *(owner — [`v0-1.md`](./v0-1.md) → *Open
 decisions* 1)*. **The rule's unit is *platform × rung*, not platform.** The catalog is
@@ -153,13 +166,22 @@ Five flows, on-screen only. Most of the authoring is composition, not net-new YA
   [`../apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md) and
   `scripts/lib/mobile-harness.mjs`.
 - **Both mobile platforms, one authoring pass.** `--strict` runs the whole suite regardless of
-  which target ships ([`10`](./v0-1_10_external-testflight.md)), so an iOS-only beta still needs
-  Android green — but the cost is not doubled: Maestro flows are byte-identical across the two
-  ([`../apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md)).
+  which target ships ([`10`](./v0-1_10_external-testflight.md)), so an iOS-only release still
+  needs Android green — but the cost is not doubled: Maestro flows are byte-identical across the
+  two ([`../apps/mobile/maestro/README.md`](../apps/mobile/maestro/README.md)). **This is why
+  Android leaving v0.1 changed nothing here**: the flows were already written, and writing the
+  `rc` ones for both platforms is still one pass.
 - **Reuse what `maestro/subflows/` already holds** — `add-person`, `add-pet`, `stage-birthday`,
   `save-record`, `dismiss-keyboard`. Flows 2 and 3 are largely arrangement of these.
-- **Flow 4 needs no new app surface.** Maestro's `copyTextFrom` captures the one-time phrase;
-  nothing has to be revealed twice to make it testable.
+- ⚠️ **Flow 4 needs no new app surface *at `beta`*, and this line used to overclaim.** It said
+  Maestro's `copyTextFrom` captures the one-time phrase. It does not: Flow 4 **as built does not
+  capture the phrase at all** — it asserts the grid has a 24th word and no 25th, which is the
+  whole of what the `beta` bar asks — and the reveal renders the words as 24 separately-numbered
+  `Text` nodes, so capturing them means 24 stitched `copyTextFrom` calls or a new surface
+  exposing the phrase as one string. **Price that into 7b at `rc`, not into Flow 4**
+  *(corrected 2026-08-28 against the built flows; see [`v0-1.md`](./v0-1.md) → Open decisions 1
+  and [`testing/crucial-flows.md`](./testing/crucial-flows.md) → the matrix)*. 7c escapes it
+  entirely — the password door is answered with the password Flow 4 already typed.
 - **Three anchors, not five.** `home-empty`, `home-ready`, `recovery-phrase`. `recovery-gate`
   waits for 7b/7c at `rc`; `sync-status` waits for sync entirely.
 - **Encode the escalation as a check, not as prose.** `scripts/release/targets/ios.mjs` carries
@@ -168,58 +190,47 @@ Five flows, on-screen only. Most of the authoring is composition, not net-new YA
   refuses to build with the beta subset still standing in for the whole. A rule a program can
   check does not belong in a sentence ([`README.md`](./README.md) → *the five kinds of knowledge*).
 
-## Known defects this gate found, carried into beta *(2026-08-31)*
+## The two defects this gate found — both fixed *(2026-08-31)*
 
-Both surfaced on the first real `pnpm release beta`, and both are recorded rather than
-fixed because the bar this increment is measured against grades on **data loss**
-([`v0-1.md`](./v0-1.md) → *Open decisions* 1), and neither loses data — the second erases
-data the user asked to erase. **Both must go before `rc`.** Waiving them was a decision
-*(owner, 2026-08-31)*, not an oversight, and this section is the price of that: a green
-gate that does not say what it is not covering is worth less than a red one.
+Both surfaced on the first real `pnpm release beta`, were recorded here as waived under the
+data-loss bar *(owner, 2026-08-31 00:31)*, and were **both fixed the same evening** (20:16, the
+same commit that made the suite start from a wiped app). The waiver never had to be spent. They
+are kept here rather than deleted because the second one was a real product bug that a user
+could reach, and because the first is a standing property of any E2E arc that ends with state.
 
-### 1. The arc is not re-runnable, so a green run depends on its starting state
+### 1. The arc was not re-runnable, so a green run depended on its starting state — **fixed**
 
-[`subflows/factory-reset.yaml`](../apps/mobile/maestro/subflows/factory-reset.yaml) was
-written for exactly this — "one act, two names" — because the reset is **Factory reset**
-while Unauthenticated and **Forget account** once Flow 4 has made an account. It handles
-both *names*. It does not survive the second path's *behaviour* (defect 2 below).
+The arc ends on Flow 4 with an account and keys, so the next run began there and took the
+Forget-account branch of the reset instead of the Factory-reset one, failing in Flow 1. That is
+the whole of the iOS/Android flip-flop on 2026-08-30: the two devices were in different starting
+states, not behaving differently, and reading it as a platform difference costs an hour.
 
-So a first run against a clean install takes the Factory-reset path and passes; the next
-run arrives with Flow 4's account still there, takes the Forget-account path, and fails in
-Flow 1. That is the whole of the iOS/Android flip-flop on 2026-08-30 — the two devices were
-in different starting states, not behaving differently, and reading it as a platform
-difference costs an hour.
+**The fix is that the harness now wipes the app before every run**, from outside the app —
+`pm clear` on Android; on iOS a delete of `Documents/SQLite` plus `simctl keychain reset`,
+assembled by hand because `simctl uninstall`/`clearState` would take `Library/Preferences` with
+them. `scripts/lib/mobile-harness.mjs` carries both and the reasoning. Verified by three
+consecutive green Android runs and two on iOS, each starting from whatever the previous run
+left behind. `subflows/factory-reset.yaml` stays as coverage of the erase a *user* performs,
+which is a different thing from the harness's teardown.
 
-**The consequence for the gate, which is the part that matters:** a green catalog run means
-what it appears to mean **only from a clean install**. A re-run proves strictly less than
-the first run did, and nothing in the runner says so. Until this is fixed, treat a green
-re-run as unproven and clear app data first.
+**The durable lesson, which outlives the fix:** a green catalog run means what it appears to
+mean only from a known starting state, and an arc that ends by creating an account does not
+have one unless something makes it. That property belongs to the harness, not to a flow.
 
-### 2. Forget account can leave the app on a blank screen
+### 2. Forget account could leave the app on a blank screen — **fixed**
 
-Android dev client, measured 2026-08-31 00:20. After Forget account completed and the app
-relaunched, Home never rendered — a spinner for 34s, until Maestro timed out waiting for
-`tab-search`. Underneath it, two best-effort reconciles failed:
+Android dev client, measured 2026-08-31 00:20: after Forget account completed and the app
+relaunched, Home never rendered — a spinner for 34s until Maestro timed out. Underneath it, two
+best-effort reconciles failed with `Access to closed resource`.
 
-```
-notification reconcile failed:      Call to function 'NativeDatabase.prepareAsync'
-regenerate system reminders failed:   → Caused by: Access to closed resource
-```
+Those were the symptom. The cause was that **both reconciles in `CoreProvider` outlive the core
+they were handed**, so the reset closed the driver underneath them; they reached the screen only
+because dev builds overlay `console.error` in LogBox. **This was not test-only** — Forget account
+is a real control in `app/data.tsx`, so a user could land here.
 
-Those are the **symptom, not the cause**. Both are caught and logged by design
-([`../apps/mobile/lib/core-context.tsx`](../apps/mobile/lib/core-context.tsx) — the two
-`console.error`s, whose comments say a failure must never break the app), and they reach
-the screen at all only because dev builds overlay `console.error` in LogBox. What they
-evidence is that the **provider rebuild after the reset did not complete**, leaving async
-work holding a database handle the reset had already closed.
-
-**This is not test-only.** Forget account is a real control in `app/data.tsx`, so a user
-who taps it can land here. What is *unmeasured*: whether it reproduces on a production
-build rather than a dev client, whether iOS has it, and whether it eventually recovers
-past the 34s the harness waited.
-
-Artifacts at time of writing: `~/.maestro/tests/2026-08-31_001911/`, whose
-`01-first-run/screenshots/step-023-assertCondition-tab-search.png` is the blank screen.
+Fixed by `isLiveCore` in [`../apps/mobile/lib/core-context.tsx`](../apps/mobile/lib/core-context.tsx):
+each reconcile checks the core it was handed is still the current one before continuing, and a
+teardown mid-flight is treated as "not a failure" rather than logged as one.
 
 ## Deferred out of this increment
 
