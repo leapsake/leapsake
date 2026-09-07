@@ -136,7 +136,7 @@ device before trusting any of this again.
 | **`BDAY:--0412`** | **April 12, no year ✅** |
 | `BDAY:--04-12` | April 12, no year ✅ — iOS is lenient about the separator |
 | `BDAY;X-APPLE-OMIT-YEAR=1604:…` | April 12, no year ✅ |
-| `X-ABDATE:--0412` + `X-ABLABEL` | date, no year ✅ |
+| `X-ABDATE:--0412` + `X-ABLABEL` | **an *Anniversary* field**, no year ✅ — the label survives |
 | **`ANNIVERSARY:--0412`** and **`ANNIVERSARY:1985-04-12`** | **nothing — the field never appears ❌** |
 
 **The tradeoff was hypothetical: `--0412` simply works.** No user-facing format choice is needed,
@@ -149,6 +149,12 @@ problem: **iOS does not read the property at all.** Writing an anniversary the s
 way silently loses it on the one platform v0.1 ships to. So **every dated milestone including
 `anniversary` goes out as `X-ABDATE` + `X-ABLABEL`**, and `ANNIVERSARY` is read-only vocabulary —
 we accept it from other people's files and never emit it.
+
+**What licenses that** is the other half of the `X-ABDATE` probe: iOS filed those cards under an
+*Anniversary* field, not a birthday, so **`X-ABLABEL` survives import and still names the date**.
+That is the mechanism the other eight kinds ride on — `wedding`, `graduation`, `moved` and the
+rest are the same pair with a different label — so the plan to carry all ten this way rests on a
+measured fact rather than an assumption.
 
 Note the shape of that: the two axes point opposite ways, and only evidence separates them. For
 **how to spell a date**, the standard wins outright. For **which property carries an anniversary**,
