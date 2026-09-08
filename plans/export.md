@@ -246,8 +246,9 @@ rather than a contacts dump, and is cheap now that 1 exists.
    destructive confirmations in `app/data.tsx` — `ForgetAccountSection` **and**
    `FactoryResetSection`. The accountless wipe is by definition destroying the only copy, so it
    needs the offer at least as much; `key-custody/README.md` currently promises it only for the
-   first. Then delete that README's "has had nothing behind it" note, and desktop's
-   "Leapsake cannot export it yet" in `Settings.tsx`.
+   first. Then delete that README's note (rewritten in increment 1, and it says to delete it here).
+   **Leave desktop's "Leapsake cannot export it yet" in `Settings.tsx` alone** — desktop still has
+   no Export surface, so the sentence stays true until increment 6.
 5. **The import-side reciprocals** (not GA-blocking, but they decide whether the file is readable
    back): `CATEGORIES` → tags, the new `DATE_KINDS` entries, `KIND:x-pet`, `UID` out of
    `STRUCTURAL` so the deferred `RELATED` `urn:uuid:` second pass can land — the TODO on
@@ -260,9 +261,10 @@ rather than a contacts dump, and is cheap now that 1 exists.
    delete it when this lands.
 6. **After GA:** restore, desktop parity, CardDAV.
 
-`CATEGORIES` import (in 5) is contained: `ParsedContact` gains `tags`, the parser reads the
-property, `ImportPorts` gains `addTags`, and core wires it to the `tags.setEntityTags` it already
-calls from `people.create`.
+`CATEGORIES` import (in 5) is contained, and is now smaller than this said: `ParsedContact`
+**already carries `tags`** (increment 1 added it, along with `uid`, so the writer had somewhere to
+read them from). What is left is the parser filling it, `ImportPorts` gaining `addTags`, and core
+wiring that to the `tags.setEntityTags` it already calls from `people.create`.
 
 ## Testing
 
