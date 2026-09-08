@@ -5,6 +5,7 @@ import { type ImportPorts, ingestContacts } from "../src/index.js";
 /** A minimal valid contact; override any field per test. */
 function contact(over: Partial<ParsedContact> = {}): ParsedContact {
   return {
+    uid: null,
     name: { firstName: "Jane", middleName: null, lastName: "Doe" },
     displayName: "Jane Doe",
     gender: null,
@@ -15,6 +16,7 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
     birthday: null,
     related: [],
     dates: [],
+    tags: [],
     dropped: [],
     ...over,
   };

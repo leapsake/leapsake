@@ -1,13 +1,21 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Link, Stack } from "expo-router";
+import Constants from "expo-constants";
+import { File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import type { SyncStatus } from "@leapsake/core";
-import { useSync } from "../lib/core-context";
+import { useCore, useSync } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
 
 /**
  * **Data** — where data comes in and where it goes out. A root-stack screen
  * reached from the Settings tab.
+ *
+ * Export leads, and is the section this screen most needs: v0.1 is
+ * single-device, so until the user has a file of their own the two destructive
+ * actions at the bottom of this same screen are the only copy meeting its end.
+ * Putting the way out directly above them is the point.
  *
  * Import from Contacts lives here because it lost its only other entry point:
  * it used to be the third button on the "+ Add" chooser that app/add.tsx
@@ -31,7 +39,9 @@ export default function DataScreen() {
     <>
       <Stack.Screen options={{ title: "Data" }} />
       <ScrollView contentContainerStyle={styles.screen}>
-        <Text style={styles.title}>Import</Text>
+        <ExportSection />
+
+        <Text style={[styles.title, { marginTop: 24 }]}>Import</Text>
         <Link href="/import" style={styles.row}>
           <Text style={[styles.rowText, { color: colors.accent }]}>
             📇 Import from contacts
@@ -334,6 +344,126 @@ function FactoryResetSection() {
             </Text>
           )}
         </View>
+      )}
+    </View>
+  );
+}
+
+/** The app version stamped into the archive, from the one source `app.config.ts`
+ *  derives Expo's own from — never a second copy. */
+const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
+
+/**
+ * **Export** — the whole store as one `.zip` the user keeps, handed to the system
+ * share sheet.
+ *
+ * The reason this exists at all is that v0.1 is single-device by construction:
+ * the app container is the only place a user's data lives, so until there is a
+ * file they can save, "delete and reinstall" is data loss. That is also why it
+ * needs no account — the accountless store is precisely the one with no other
+ * copy (`plans/shipping.md` → Part 1, step 1).
+ *
+ * ⚠️ **It must not use iCloud, ever** — an iCloud entitlement in any shipped
+ * build permanently disqualifies the Apple app-record transfer. `expo-sharing`
+ * adds none: its config plugin is for the *inbound* share extension (and would
+ * add an App Group entitlement), is opt-in, and is deliberately **not** in
+ * `app.json`. The user picking iCloud Drive out of the share sheet is their own
+ * act through `UIDocumentPickerViewController` and needs nothing from us.
+ */
+function ExportSection() {
+  const core = useCore();
+  const [working, setWorking] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function exportData() {
+    setError(null);
+    setResult(null);
+    setWorking(true);
+    // Built in memory, written once, shared, and deleted — the file exists only
+    // for as long as the share sheet needs a URL to point at.
+    let file: File | null = null;
+    try {
+      const { bytes, filename, counts } = await core.export.archive({
+        appVersion: APP_VERSION,
+      });
+
+      // **Caches, not documents**, and that is load-bearing rather than tidiness:
+      // `Library/Caches` is excluded from device backup, so a plaintext dump of
+      // the user's whole address book can never ride along inside an iCloud
+      // device backup. Writing it to the documents directory is the one way this
+      // feature could violate the no-iCloud constraint by accident.
+      file = new File(Paths.cache, filename);
+      if (file.exists) file.delete(); // a second export the same day
+      file.write(bytes);
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: "application/zip",
+          UTI: "public.zip-archive",
+          dialogTitle: "Save your Leapsake export",
+        });
+      } else {
+        setError("Sharing isn't available on this device.");
+        return;
+      }
+
+      setResult(
+        `Exported ${counts.people} ${counts.people === 1 ? "person" : "people"}` +
+          `, ${counts.contactMethods} contact ${
+            counts.contactMethods === 1 ? "method" : "methods"
+          } (${Math.max(1, Math.round(counts.bytes / 1024))} KB).`,
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Couldn't export your data.",
+      );
+    } finally {
+      // On dismiss, whether the share succeeded, failed or the user backed out:
+      // the archive is plaintext, so it does not sit in the container waiting to
+      // be found. Deleting this promptly is safe rather than a race —
+      // `shareAsync` resolves from `UIActivityViewController`'s completion
+      // handler, which fires after the chosen activity has finished with the
+      // file, so Files and AirDrop have their copy by the time we get here.
+      try {
+        if (file?.exists) file.delete();
+      } catch {
+        // A file we cannot delete is not a reason to fail an export that worked;
+        // Caches is reclaimed by the system anyway.
+      }
+      setWorking(false);
+    }
+  }
+
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={styles.title}>Export</Text>
+      <Text style={styles.muted}>
+        Save everything on this device as a file you keep — your people, their
+        contact details and their birthdays. Leapsake doesn't upload it
+        anywhere.
+      </Text>
+      <Pressable
+        testID="export-start"
+        style={[styles.button, working && { opacity: 0.5 }]}
+        disabled={working}
+        onPress={() => void exportData()}
+      >
+        <Text style={styles.buttonText}>
+          {working ? "Preparing…" : "Export my data…"}
+        </Text>
+      </Pressable>
+      {result !== null && (
+        // Reports what actually left the device — and what the E2E flow selects
+        // on, rather than asserting against the share sheet itself.
+        <Text testID="export-result" style={styles.muted}>
+          {result}
+        </Text>
+      )}
+      {error !== null && (
+        <Text style={styles.danger} accessibilityRole="alert">
+          {error}
+        </Text>
       )}
     </View>
   );

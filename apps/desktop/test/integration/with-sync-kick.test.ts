@@ -138,6 +138,9 @@ const SURFACE: Record<string, "read" | "write"> = {
   "duplicates.findFor": "read",
   "duplicates.nudgeId": "read",
   "duplicates.reject": "write",
+  // An export is a snapshot: it reads every person and writes nothing, so it
+  // must not kick a sync.
+  "export.archive": "read",
   "gifts.capture": "write",
   "gifts.ideas.create": "write",
   "gifts.ideas.get": "read",

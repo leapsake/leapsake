@@ -12,6 +12,7 @@
   "dependencies": {
     "@leapsake/crypto": "workspace:*",
     "@leapsake/data": "workspace:*",
+    "@leapsake/export": "workspace:*",
     "@leapsake/holidays": "workspace:*",
     "@leapsake/key-custody": "workspace:*",
     "@leapsake/reminders": "workspace:*",

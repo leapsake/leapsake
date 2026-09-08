@@ -36,18 +36,24 @@ words, and there is no undelete UI for a person or a pet anywhere in the tree. T
 the **one artifact that leaves the device**, so shipping rows the user told the app to forget is a
 privacy surprise in the one place we cannot take it back. And it does not even round-trip: vCard
 cannot say "deleted", so every third-party import would resurrect them as live contacts.
-**Keep it cheap to revisit** — one `includeDeleted` parameter on the read port, defaulted `false`,
-not `WHERE deleted_at IS NULL` spread across a dozen queries.
 
-> **The exclusion has to be transitive.** Dropping a deleted person while keeping a relationship,
-> mention, tagging, observance or gift recipient that points at them yields a dangling reference.
-> One "live rows only" read layer, not a predicate per query.
+> ✅ **Free, and already transitive** *(built, increment 1)*. This asked for an `includeDeleted`
+> parameter on the read port; it turned out to be unnecessary. `@leapsake/data` bakes
+> `deleted_at IS NULL` into `createEntityRepo`'s `listWhere`/`get` and into `tags.listForEntity`'s
+> join, so **every read an exporter can make is already live-rows-only** and no query exists that
+> could produce the dangling reference. Adding the parameter would be the thing that lets a future
+> caller opt *into* the surprise. See [`../packages/export/README.md`](../packages/export/README.md).
 
 ## The property mapping
 
 `RelationshipRole`, `MilestoneKind`, labels and platform ids are as
 [`@leapsake/schema`](../packages/schema/README.md) spells them. **Read the "Reads it today" column
 as the work estimate**: ✅ round-trips through `packages/vcard/src/vcard.ts` unchanged.
+
+> ⚠️ **The column is about the *parser*, and increment 1 only moved the writer.** Everything on
+> the person card and the contact-method table below is now *written*
+> (`packages/vcard/src/write.ts`); the ❌s are what still cannot be read back, which is increment
+> 5 and unchanged. Milestones and relationships are not written yet — those are increment 2.
 
 ### Person card
 
@@ -210,44 +216,31 @@ Give the file a `version` and a Zod schema from the first commit — it is what 
 
 ## One file: the archive
 
-**The export is a single `leapsake-export-<date>.zip`** *(owner, 2026-09-07)*, holding:
-
-```
-contacts.vcf   the person graph
-data.json      everything not person-shaped
-README.txt     what these are, what wrote them, how to get them back
-```
-
-One artifact means one share action and one thing for a user to keep track of two years from now,
-which is the situation the file exists for. `expo-sharing` shares one file at a time anyway, so
-the alternative was two buttons.
-
-**Use `fflate`, not `jszip`** — ~8KB, pure JS, no native module, and it runs on the Hermes floor
-([`../packages/README.md`](../packages/README.md)). Deflate rather than store: vCard text is
-extremely compressible, and a large address book is the case that matters. `zipSync` is fine at
-these sizes; the whole archive is built in memory and handed to `File.write()` as a `Uint8Array`.
-
-**`README.txt` is not filler.** It is the only part of the archive that explains itself to someone
-opening it long after the fact — name the two files, say the `.vcf` imports into any contacts app,
-say the `.json` needs Leapsake, and stamp the app version that wrote it.
-
-> **Accepted cost:** a `.zip` cannot be handed straight to Contacts.app — the user unzips first.
-> That is the price of one artifact, and `README.txt` is what keeps it from being confusing.
+✅ **Built** *(increment 1)* — a single `leapsake-export-<date>.zip` holding `contacts.vcf`,
+`data.json` and `README.txt`. Why one artifact rather than two, why `fflate`, why `README.txt` is
+not filler, and why the archive is written to Caches rather than documents now live next to the
+code: [`../packages/export/README.md`](../packages/export/README.md).
 
 ## Increments
 
-Each is shippable alone. **1, 2 and 4 are what GA blocks on**; 3 is what makes the file a backup
-rather than a contacts dump, and is cheap once 1 exists.
+Each is shippable alone. **2 and 4 are what GA blocks on**; 3 is what makes the file a backup
+rather than a contacts dump, and is cheap now that 1 exists.
 
-1. **The writer, and a file that leaves the device.** `@leapsake/vcard` gains a serializer — fold
-   at 75 octets, escape, param quoting — beside the parser it inverts; `fflate` builds the archive
-   and `expo-sharing` + `expo-file-system` carry it to the share sheet. Write to the **cache**
-   directory, not documents (Caches is excluded from device backup, so a plaintext dump never rides
-   along in one), and delete on dismiss. Person cards with names, contact methods, birthday, `UID`,
-   `CATEGORIES`; `README.txt` alongside, `data.json` still empty at this point.
-   *Done when:* a user with no account taps Export on `app/data.tsx` and gets a `.zip` they can save.
+> ✅ **1 is built** *(2026-09-07)* — `@leapsake/vcard`'s serializer, the new
+> [`@leapsake/export`](../packages/export/README.md) package behind `core.export.archive()`, and
+> an Export section on `app/data.tsx`. Three calls widened it slightly, all recorded next to the
+> code: the archive builder got **its own package** rather than living in `vcard` or the client;
+> the writer-only `X-LEAPSAKE-EXT`/`-COUNTRY`/`-USERID` params **ship now**, since they are pure
+> writer params with no parser work and their absence would have made the first shipped "backup"
+> quietly lossy; and a **custom label is written as a `TYPE` param value**, which round-trips
+> through `labelFrom`'s title-case fallback, with increment 2 upgrading it to the Apple form.
+> It also turned up a real parser bug — `deriveName` duplicated a lone `FN` token into both name
+> slots for a surname-only card — and two desktop guards that force a new `CoreApi` method to
+> declare an IPC channel and a read/write classification.
+
 2. **The rest of the person graph.** Pets, unpublished people via `RELATED`, all ten milestone
-   kinds, relationships, custom labels, the `X-LEAPSAKE-*` fields above.
+   kinds, relationships, Apple `itemN.X-ABLABEL` custom labels, and the person-level
+   `X-LEAPSAKE-SELF` / `X-LEAPSAKE-CREATED`.
 3. **`data.json`** — everything in *What is not person-shaped*, versioned and schema'd.
 4. **Wire the offer that already exists in the copy.** An **Export first** button inside *both*
    destructive confirmations in `app/data.tsx` — `ForgetAccountSection` **and**
@@ -256,11 +249,15 @@ rather than a contacts dump, and is cheap once 1 exists.
    first. Then delete that README's "has had nothing behind it" note, and desktop's
    "Leapsake cannot export it yet" in `Settings.tsx`.
 5. **The import-side reciprocals** (not GA-blocking, but they decide whether the file is readable
-   back): `CATEGORIES` → tags, the new `DATE_KINDS` entries, `KIND:x-pet`, and `UID` out of
+   back): `CATEGORIES` → tags, the new `DATE_KINDS` entries, `KIND:x-pet`, `UID` out of
    `STRUCTURAL` so the deferred `RELATED` `urn:uuid:` second pass can land — the TODO on
-   `relatedFrom`. **Until this lands, re-importing our own file duplicates everyone and demotes
-   every real relationship to an unpublished stub.** Survivable on mobile only because the mobile
-   import path reads device Contacts and cannot open a `.vcf` at all; desktop's drag-drop *can*.
+   `relatedFrom` — and the three `X-LEAPSAKE-*` parameters increment 1 already writes
+   (`EXT`, `COUNTRY`, `USERID`), which the parser does not read yet. **Until this lands,
+   re-importing our own file duplicates everyone, demotes every real relationship to an
+   unpublished stub, and loses those fields.** Survivable on mobile only because the mobile import
+   path reads device Contacts and cannot open a `.vcf` at all; desktop's drag-drop *can*.
+   `packages/vcard/test/write.test.ts`'s `asParsedToday` helper is where the gap is written down —
+   delete it when this lands.
 6. **After GA:** restore, desktop parity, CardDAV.
 
 `CATEGORIES` import (in 5) is contained: `ParsedContact` gains `tags`, the parser reads the
@@ -269,15 +266,17 @@ calls from `people.create`.
 
 ## Testing
 
-The serializer is pure, so the load-bearing test is **`parseVCards(write(x)) ≡ x`** — which is the
-argument that settled the package name. Cover the cases vCard is famous
-for: a `;` or `,` in a name, non-ASCII, a fold landing mid-UTF-8-sequence, an empty structured
-component, a 300-character note.
+✅ **The pure tiers are built** *(increment 1)*: `parseVCards(writeVCards(x)) ≡ x` plus the cases
+vCard is famous for (`packages/vcard/test/write.test.ts`), the archive against fake ports
+(`packages/export/test/archive.test.ts`), and `core.export.archive` over real repos
+(`apps/desktop/test/integration/export-archive.test.ts` — the half that would otherwise fail
+silently, since an export missing everybody's phone numbers is still a valid archive).
 
-On device, keep it cheap: Maestro asserts the share sheet opened and a `testID` reporting record
-and byte counts. If a real assertion is wanted, add a dev route in the style of
-`app/dev-clear-dbkey.tsx` that writes to a known path for an out-of-band check. **No new rung in
-the catalog** — [`testing/crucial-flows.md`](./testing/crucial-flows.md)'s table is settled policy.
+**Still owed: the device tier.** Maestro asserts the share sheet opened and that
+`testID="export-result"` reports non-zero record and byte counts. **No new rung in the catalog** —
+[`testing/crucial-flows.md`](./testing/crucial-flows.md)'s table is settled policy. And once, by
+hand: AirDrop a real export off the device, unzip it, and import `contacts.vcf` into macOS
+Contacts — the round trip the *Writing dates* probes were measured against.
 
 ## Open
 

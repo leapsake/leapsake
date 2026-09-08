@@ -117,6 +117,15 @@ export interface ParsedSocial {
   platform: string;
   handle: string;
   url: string | null;
+  /**
+   * The platform's own opaque account id, where the platform keys DMs on one it
+   * does not publish beside the handle (X, Discord). `null` from the parser
+   * today — no source card carries it in a form we recognise — but the writer
+   * emits it as `X-SOCIALPROFILE;X-LEAPSAKE-USERID=`, because it is stored,
+   * unrecoverable from the handle, and would otherwise be missing from the one
+   * file the user is told is their backup.
+   */
+  platformUserId: string | null;
 }
 
 /**
@@ -171,6 +180,18 @@ export interface DroppedField {
 
 /** One parsed contact — everything one source card contributed, Leapsake-shaped. */
 export interface ParsedContact {
+  /**
+   * The entity's stable id — a vCard `UID`, which for a card **we** wrote is the
+   * Leapsake `people.id` it came from.
+   *
+   * `null` for every card the parser produces today: `UID` is in `STRUCTURAL`
+   * and ignored on the way in (`plans/export.md` increment 5 is what changes
+   * that, and is also what lets a `RELATED;VALUE=uri` resolve to a real person
+   * instead of an unpublished stub). The field exists now because the *writer*
+   * needs somewhere to read it from, and a second contact type carried alongside
+   * this one would be the thing that lets the two halves drift.
+   */
+  uid: string | null;
   name: ParsedName;
   /** The source display name (vCard `FN`), kept for the review UI even when the
    *  structured name was derived from it. `null` when the card carried none. */
@@ -184,6 +205,12 @@ export interface ParsedContact {
   /** Dated occasions other than the birthday (anniversaries today). */
   dates: ParsedDate[];
   related: ParsedRelated[];
+  /**
+   * The entity's tags — a vCard `CATEGORIES` list. `[]` from the parser today
+   * for the same reason {@link ParsedContact.uid} is `null`: reading the
+   * property back into taggings is increment 5.
+   */
+  tags: string[];
   dropped: DroppedField[];
 }
 
@@ -200,6 +227,7 @@ export interface ParsedContact {
  * rather than throwing at the boundary and failing the whole import.
  */
 export const parsedContactSchema = z.object({
+  uid: z.string().nullable(),
   name: z.object({
     firstName: z.string(),
     middleName: z.string().nullable(),
@@ -236,6 +264,7 @@ export const parsedContactSchema = z.object({
       platform: z.string().min(1),
       handle: z.string(),
       url: z.string().min(1).nullable(),
+      platformUserId: z.string().min(1).nullable(),
     }),
   ),
   birthday: z
@@ -269,6 +298,7 @@ export const parsedContactSchema = z.object({
       roleNote: z.string().min(1).nullable(),
     }),
   ),
+  tags: z.array(z.string().min(1)),
   dropped: z.array(z.object({ property: z.string(), value: z.string() })),
 });
 

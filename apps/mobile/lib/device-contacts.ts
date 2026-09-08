@@ -253,6 +253,10 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
     dropped.push({ property: "Note", value: note.slice(0, NOTE_CAP) });
 
   return {
+    // The device API exposes no stable cross-device id we could carry as a
+    // `UID` — `Contact.id` is local to this address book — and no tag concept
+    // at all. Both stay at the parser's absent value.
+    uid: null,
     name: { firstName, middleName: clean(contact.middleName), lastName },
     displayName,
     gender: null, // expo-contacts carries no gender
@@ -270,6 +274,7 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
     // `RELATED;TYPE=`. Reading them would mean guessing at the role, so they are
     // left alone until there is a reason to.
     related: [],
+    tags: [],
     dropped,
   };
 }

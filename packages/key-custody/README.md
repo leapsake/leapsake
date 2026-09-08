@@ -268,11 +268,12 @@ safely — the worst case is over-warning.
 | **No** (default, and today always) | the last copy is destroyed | word it as **"Delete all data on this device"**, hard-confirm, and offer an export first |
 | **Yes** (a relay that opts in) | ordinary — sign back in and re-pull | the normal Forget confirmation |
 
-> **"Offer an export first" has had nothing behind it.** Desktop's hard-confirm can only suggest
-> copying the `stores` folder; mobile cannot say even that. The exporter became a **v0.1 GA
-> blocker** on 2026-09-06 (`plans/shipping.md` → Part 1, step 1) precisely because this promise, plus
-> single-device custody, leaves a user's only copy inside the app container. Wire the real offer
-> here when it lands.
+> **"Offer an export first" now has something behind it — but not yet here.** The exporter
+> shipped on 2026-09-07 ([`@leapsake/export`](../export/README.md), reached as
+> `core.export.archive()`), and mobile's Data screen has an Export section. What is still missing
+> is the offer *inside* these two confirmations, which is `plans/export.md` increment 4 — and it
+> belongs in **both**, not only Forget account: the accountless wipe is by definition destroying
+> the only copy, so it needs the offer at least as much. Delete this note when that lands.
 
 Build this as a *check*, not a hardcoded string: when server-side backup ships, alarming copy
 must stop appearing on its own rather than being hunted down. The capability should also be

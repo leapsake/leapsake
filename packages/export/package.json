@@ -1,0 +1,18 @@
+{
+  "name": "@leapsake/export",
+  "version": "0.1.0-beta.4",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@leapsake/schema": "workspace:*",
+    "@leapsake/vcard": "workspace:*",
+    "fflate": "^0.8.2",
+    "zod": "^4.4.3"
+  }
+}

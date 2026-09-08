@@ -505,6 +505,13 @@ function buildContact(props: Property[]): ParsedContact {
   }
 
   return {
+    // `UID` and `CATEGORIES` are both still ignored on the way in — the first is
+    // in `STRUCTURAL`, the second falls to `dropped` — so every parsed card
+    // reports the absent value. The *writer* fills both, which is why they are
+    // on `ParsedContact` at all; reading them back is `plans/export.md`
+    // increment 5, and until it lands re-importing our own file duplicates
+    // everyone rather than recognising them.
+    uid: null,
     name: deriveName(nParts, fn),
     displayName: fn,
     gender,
@@ -515,6 +522,7 @@ function buildContact(props: Property[]): ParsedContact {
     birthday: birthday ?? labelledBirthday,
     dates,
     related,
+    tags: [],
     dropped,
   };
 }
@@ -547,7 +555,13 @@ function deriveName(nParts: string[] | null, fn: string | null): ParsedName {
     };
   }
   if (tokens.length === 1) {
-    return { firstName: tokens[0], middleName: null, lastName: family };
+    // A single token that *is* the family name says the card is a surname-only
+    // person ("Smith", filed under `N:Smith;;;;`) — not a mononym who also has a
+    // surname. Putting it in both slots would duplicate it, which is what the
+    // export round-trip caught: we write exactly this card for a person whose
+    // only stored name part is a last name.
+    const first = tokens[0] === family ? "" : tokens[0];
+    return { firstName: first, middleName: null, lastName: family };
   }
   return {
     firstName: "",
@@ -797,6 +811,10 @@ function socialFrom(p: Property): ParsedSocial | null {
     platform,
     handle: bareHandle(rest.replace(/^\/\//, "")),
     url: isWebUrl ? value : null,
+    // No source card spells a platform's opaque account id in a form worth
+    // guessing at, so it arrives absent and is filled only by hand. The writer
+    // still emits ours — see {@link ParsedSocial.platformUserId}.
+    platformUserId: null,
   };
 }
 

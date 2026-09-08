@@ -14,10 +14,14 @@ app. Android and macOS follow **after** the company exists and the iOS record tr
 uploaded to Play from the personal account.
 
 **Next, in order — and [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with
-acceptance for each step.** ① **Export** — newly GA-blocking (2026-09-06): single-device v0.1
-has no other copy of a user's data, and it must **not** use iCloud (that would permanently
-disqualify the Apple app transfer). ② **The `rc` bar** — Flows 7c then 7b, the out-of-band
-custody assertions, and `rc`'s catalog requirement as a `requires:` check in `ios.mjs`.
+acceptance for each step.** ① **Export** — GA-blocking (2026-09-06): single-device v0.1 has no
+other copy of a user's data, and it must **not** use iCloud (that would permanently disqualify
+the Apple app transfer). *Increment 1 landed 2026-09-07* — a user can tap Export on the Data
+screen and save a `.zip`; what still gates GA is
+[`export.md`](./export.md) increments **2** (the rest of the person graph) and **4** (the offer
+inside both destructive confirmations), plus the on-device Maestro assertion.
+② **The `rc` bar** — Flows 7c then 7b, the out-of-band custody assertions, and `rc`'s catalog
+requirement as a `requires:` check in `ios.mjs`.
 ③ **Public repo** — full-history secret scan first. ④ **Submit**, then **GA**, then
 incorporate and transfer.
 

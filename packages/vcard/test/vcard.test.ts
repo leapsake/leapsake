@@ -351,6 +351,7 @@ describe("parseVCards — social profiles", () => {
         platform: "instagram",
         handle: "janedoe",
         url: "https://www.instagram.com/janedoe",
+        platformUserId: null,
       },
     ]);
   });

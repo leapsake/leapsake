@@ -21,6 +21,8 @@
 export { appleLabelText, dateKindFor } from "./apple-labels.js";
 export { detectContactFormat, parseVCards } from "./vcard.js";
 export type { DetectedFormat } from "./vcard.js";
+export { formatPartialDate, formatTimestamp, writeVCards } from "./write.js";
+export type { ExportContact, WriteOptions } from "./write.js";
 export { ingestContacts } from "./ingest.js";
 export type {
   ImportDecision,

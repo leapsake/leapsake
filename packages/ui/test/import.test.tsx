@@ -14,6 +14,7 @@ afterEach(cleanup);
 
 const contact = (over: Partial<ParsedContact> = {}): ParsedContact =>
   ({
+    uid: null,
     name: { firstName: "Ada", middleName: null, lastName: "Lovelace" },
     displayName: "Ada Lovelace",
     emails: [],
@@ -21,6 +22,7 @@ const contact = (over: Partial<ParsedContact> = {}): ParsedContact =>
     postals: [],
     birthday: null,
     dates: [],
+    tags: [],
     dropped: [],
     ...over,
   }) as ParsedContact;

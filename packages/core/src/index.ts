@@ -140,6 +140,11 @@ import {
   ingestContacts,
   nameInputFrom,
 } from "@leapsake/vcard";
+import {
+  type ExportArchive,
+  type ExportPorts,
+  buildArchive,
+} from "@leapsake/export";
 import { getSyncStatus } from "@leapsake/key-custody";
 import type { KeySession } from "@leapsake/key-custody";
 import {
@@ -173,6 +178,10 @@ export type {
   ImportResult,
   ParsedContact,
 } from "@leapsake/vcard";
+
+// What an export run produced, re-exported so a client can type the bytes it
+// writes and the counts it shows without depending on `@leapsake/export`.
+export type { ExportArchive } from "@leapsake/export";
 
 // The local-notification policy row shape (`plans/v0-1_08_local-notifications.md`,
 // migration 29), re-exported so the settings UI can type what `notificationSettings`
@@ -2437,6 +2446,50 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         // The rejected pair leaves the candidate set, so the Home nudge's
         // content-addressed id changes (or the nudge goes away entirely).
         await regenerateSystem();
+      },
+    },
+
+    /**
+     * **Export** — the whole store as one archive the user keeps. The mirror of
+     * `import` below, and the answer to the fact that v0.1 is single-device, so
+     * the app container is the only place a user's data exists.
+     *
+     * Read-only, so unlike `import.commit` there is no `driver.transaction`
+     * around it: an export is a snapshot, and a store being written mid-export
+     * yields a slightly newer or older card, never a broken file.
+     *
+     * **Every read here already excludes soft-deleted rows**, structurally
+     * rather than by a predicate spelled at each call site — `createEntityRepo`
+     * bakes `deleted_at IS NULL` into `listWhere`/`get`, and `listForEntity`
+     * filters both the tagging and the tag. That is what makes the exclusion
+     * transitive for free: there is no read available here that could produce a
+     * relationship or tagging pointing at a row the file leaves out. It matters
+     * because this is the one artifact that leaves the device.
+     *
+     * `people.list()` likewise answers only *published* people (`PUBLISHED_SQL`),
+     * which is exactly increment 1's scope.
+     *
+     * The fan-out is `1 + 3N` queries for N people, which is fine at v0.1 sizes.
+     * If it ever bites, the fix is bulk reads behind `ExportPorts` — not caching
+     * in whichever client called.
+     */
+    export: {
+      archive: (opts: { appVersion: string }): Promise<ExportArchive> => {
+        const ports: ExportPorts = {
+          listPeople: () => people.list(),
+          contactMethodsFor: (personId) =>
+            listContactMethods(contactMethods, {
+              type: "person",
+              id: personId,
+            }),
+          milestonesFor: (personId) =>
+            milestones.listForBearer("person", personId),
+          tagsFor: (personId) => tags.listForEntity("person", personId),
+        };
+        return buildArchive(ports, {
+          appVersion: opts.appVersion,
+          now: new Date(),
+        });
       },
     },
 
