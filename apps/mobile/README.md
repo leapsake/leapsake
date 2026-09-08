@@ -187,6 +187,42 @@ Prefer a native element over novel custom UI for any of these.
 
 ## Debugging a native module
 
+### Adding one: regenerate, don't pod-install into a stale project
+
+**Symptom** *(cost 25 minutes, 2026-09-07, adding `expo-sharing` + `expo-file-system`)*: the build
+fails to link with dozens of missing **React Native** symbols —
+`facebook::react::DebugStringConvertible`, `Sealable`, `ShadowNode::getDebugName`,
+`_OBJC_CLASS_$_RCTPackagerConnection` — plus `cannot link directly with 'SwiftUICore'`.
+
+**It is not the module you just added.** Those symbols have nothing to do with it, and reading
+the new pod's Swift for SwiftUI imports is a dead end. The cause is `pod install` running into an
+`ios/` project generated against an older pod state; with RN's prebuilt artifacts, the result is
+an inconsistent debug link.
+
+`ios/` is **gitignored** and CNG-managed — every native fact lives in `app.json` — so throwing it
+away costs nothing but build time, and is the first thing to try:
+
+```sh
+rm -rf ~/Library/Developer/Xcode/DerivedData/Leapsake-*
+CI=1 pnpm --filter @leapsake/mobile exec expo prebuild --clean --platform ios
+CI=1 pnpm --filter @leapsake/mobile exec expo run:ios --device <simulator-udid>
+```
+
+Two things to expect from that last command in a non-interactive shell. It fails at the *end*
+with `osascript … System Events` — that is Expo trying to focus the Simulator window, **after** a
+successful build; install and launch by hand instead:
+
+```sh
+APP=~/Library/Developer/Xcode/DerivedData/Leapsake-*/Build/Products/Debug-iphonesimulator/Leapsake.app
+xcrun simctl install booted "$APP" && xcrun simctl launch booted com.leapsake.app
+```
+
+And when checking that a module linked, note that **a pod may link statically** (`libFoo.a`) and
+so be absent from `Leapsake.app/Frameworks` — in a debug build its symbols are in
+`Leapsake.app/Leapsake.debug.dylib`, not the thin `Leapsake` binary. `nm -gU` the dylib.
+
+### Two traps once it is linked
+
 Two traps that cost a day chasing an `expo-contacts` bug (birthdays never reaching the contact
 import). Neither is contacts-specific — both apply to **any** Expo native module.
 
