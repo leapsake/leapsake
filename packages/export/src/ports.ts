@@ -1,13 +1,37 @@
-import type {
-  ContactMethod,
-  EntityType,
-  Milestone,
-  MilestoneBearerType,
-  Person,
-  Pet,
-  RelationshipNeighbor,
-  Tag,
+import {
+  type ContactMethod,
+  type EntityType,
+  type GiftIdea,
+  type GiftRecipient,
+  type HiddenHoliday,
+  type Holiday,
+  type Mentioning,
+  type Milestone,
+  type MilestoneBearerType,
+  type NotADuplicate,
+  type NotificationSettings,
+  type Observance,
+  type Person,
+  type Pet,
+  type RelationshipNeighbor,
+  type Reminder,
+  type ReminderRule,
+  type Tag,
+  type TagBearerType,
+  dismissalSchema,
 } from "@leapsake/schema";
+import type { z } from "zod";
+
+/**
+ * A rejected derived relationship, in its stored shape.
+ *
+ * Derived from the schema rather than imported as a type because
+ * `@leapsake/data` deliberately owns the *behavioural* `Dismissal` (see
+ * `dismissalSchema`'s own doc), and this package must not depend on the data
+ * layer — that independence is what lets the builder unit-test with no sqlite
+ * driver. The two shapes are the same row; the schema is the definition.
+ */
+export type Dismissal = z.infer<typeof dismissalSchema>;
 
 /**
  * The **read** surface the exporter drives — the mirror of `@leapsake/vcard`'s
@@ -27,14 +51,15 @@ import type {
  * say "deleted", so every third-party import would resurrect them as live
  * contacts.
  *
- * ⚠️ **Any port added here must keep that true by construction, and three tables
- * `data.json` wants cannot.** `mentions`, `not_a_duplicate` and
- * `relationship_dismissals` are `SyncableRepo`s with no filtered list-all;
- * `listChangedSince(since)` is the only method that enumerates one, and it is
- * `WHERE updated_at > ?` with no `deleted_at` clause — on purpose, since sync
- * must carry tombstones. `listChangedSince(0)` reads like "give me everything"
- * and is the way this invariant gets broken. Add a filtered read to those repos
- * rather than reaching for it.
+ * ⚠️ **Any port added here must keep that true by construction**, and the three
+ * tables `data.json` wants that no `createEntityRepo` covers — `mentions`,
+ * `not_a_duplicate` and `relationship_dismissals` — are the case that nearly
+ * broke it. Their only enumerating method used to be `listChangedSince(since)`,
+ * which is `WHERE updated_at > ?` with no `deleted_at` clause on purpose, since
+ * sync must carry tombstones; `listChangedSince(0)` reads like "give me
+ * everything" and would have put deleted rows in this file. `listActive()` on
+ * `defineSyncable` is the filtered read they got instead, so **every** synced
+ * table now has one and a new port has something correct to reach for.
  *
  * `listPeople` and `listPets` likewise return only *published* entities, because
  * `people.list()`/`pets.list()` are the user's own catalog (`PUBLISHED_SQL`).
@@ -59,7 +84,13 @@ export interface ExportPorts {
     bearerType: MilestoneBearerType,
     bearerId: string,
   ): Promise<Milestone[]>;
-  tagsFor(type: EntityType, id: string): Promise<Tag[]>;
+  /**
+   * A tag bearer's tags. `TagBearerType`, not `EntityType`: a reminder and a
+   * gift idea bear tags too, and theirs have no `CATEGORIES` line to ride —
+   * they travel in `data.json` instead, by name, so this one port serves both
+   * files.
+   */
+  tagsFor(type: TagBearerType, id: string): Promise<Tag[]>;
   /**
    * An entity's relationships, oriented so the *other* end is resolved.
    *
@@ -76,4 +107,44 @@ export interface ExportPorts {
   neighborsFor(type: EntityType, id: string): Promise<RelationshipNeighbor[]>;
   /** The `self_person` row's person id — the card that gets `X-LEAPSAKE-SELF`. */
   selfPersonId(): Promise<string | null>;
+  /** Everything that is not person-shaped — the `data.json` half. */
+  data: ExportDataPorts;
+}
+
+/**
+ * The reads behind `data.json` — the tables that belong to no single card, and
+ * which would make Apple import your reminders as contacts if the exporter
+ * tried to invent a `KIND:x-leapsake-*` record for them.
+ *
+ * One method per table, all of them whole-table reads, because unlike the
+ * person graph there is no walk here: the file is a snapshot of ten tables.
+ * Seven answer with `EntityRepo.list()`; the three without one answer with
+ * `SyncableRepo.listActive()`. Both are `deleted_at IS NULL` by construction —
+ * see the warning above, which is about exactly these.
+ */
+export interface ExportDataPorts {
+  listReminders(): Promise<Reminder[]>;
+  /** The people and pets a reminder's text refers to. */
+  listMentions(): Promise<Mentioning[]>;
+  listReminderRules(): Promise<ReminderRule[]>;
+  listGiftIdeas(): Promise<GiftIdea[]>;
+  listGiftRecipients(): Promise<GiftRecipient[]>;
+  /**
+   * The **whole** holiday table, catalog rows included — but only
+   * `origin: "user"` rows are written to the file. The catalog is read-only and
+   * the app reseeds it, so exporting it would bloat the archive with data that
+   * regenerates itself; the catalog rows are read anyway because they are what
+   * resolves an observance's `holidayId` back to its stable slug.
+   */
+  listHolidays(): Promise<Holiday[]>;
+  listObservances(): Promise<Observance[]>;
+  listHiddenHolidays(): Promise<HiddenHoliday[]>;
+  /** The user's "these two are not the same person" judgments. */
+  listNotADuplicate(): Promise<NotADuplicate[]>;
+  listRelationshipDismissals(): Promise<Dismissal[]>;
+  /**
+   * Every device's notification row. Only the *preferences* are written — see
+   * `exportNotificationSettingsSchema`.
+   */
+  listNotificationSettings(): Promise<NotificationSettings[]>;
 }

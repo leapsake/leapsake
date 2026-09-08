@@ -2,12 +2,22 @@ import { describe, expect, it } from "vitest";
 import type {
   ContactMethod,
   EntityType,
+  GiftIdea,
+  GiftRecipient,
+  HiddenHoliday,
+  Holiday,
+  Mentioning,
   Milestone,
   MilestoneKind,
+  NotADuplicate,
+  NotificationSettings,
+  Observance,
   Person,
   Pet,
   RelationshipNeighbor,
   RelationshipRole,
+  Reminder,
+  ReminderRule,
   Tag,
 } from "@leapsake/schema";
 import { parseVCards } from "@leapsake/vcard";
@@ -18,6 +28,9 @@ import {
   VCF_NAME,
   buildArchive,
   exportDataSchema,
+  type Dismissal,
+  type ExportData,
+  type ExportDataPorts,
   type ExportPorts,
 } from "../src/index.js";
 
@@ -50,6 +63,40 @@ interface Per {
  * the reads, because an edge is visited from both of its ends and the builder is
  * supposed to ask only once.
  */
+/**
+ * The `data.json` half of the fake, keyed by table rather than by the port that
+ * reads it. Every table defaults to empty, so a test says only what it is about.
+ */
+interface DataBag {
+  reminders?: Reminder[];
+  mentions?: Mentioning[];
+  reminderRules?: ReminderRule[];
+  giftIdeas?: GiftIdea[];
+  giftRecipients?: GiftRecipient[];
+  holidays?: Holiday[];
+  observances?: Observance[];
+  hiddenHolidays?: HiddenHoliday[];
+  notADuplicate?: NotADuplicate[];
+  relationshipDismissals?: Dismissal[];
+  notificationSettings?: NotificationSettings[];
+}
+
+function dataPorts(bag: DataBag): ExportDataPorts {
+  return {
+    listReminders: async () => bag.reminders ?? [],
+    listMentions: async () => bag.mentions ?? [],
+    listReminderRules: async () => bag.reminderRules ?? [],
+    listGiftIdeas: async () => bag.giftIdeas ?? [],
+    listGiftRecipients: async () => bag.giftRecipients ?? [],
+    listHolidays: async () => bag.holidays ?? [],
+    listObservances: async () => bag.observances ?? [],
+    listHiddenHolidays: async () => bag.hiddenHolidays ?? [],
+    listNotADuplicate: async () => bag.notADuplicate ?? [],
+    listRelationshipDismissals: async () => bag.relationshipDismissals ?? [],
+    listNotificationSettings: async () => bag.notificationSettings ?? [],
+  };
+}
+
 function ports(
   people: Person[],
   per: Record<string, Per> = {},
@@ -57,6 +104,7 @@ function ports(
     pets?: Pet[];
     relationshipMilestones?: Record<string, Milestone[]>;
     selfId?: string;
+    data?: DataBag;
   } = {},
 ): ExportPorts & { relReads: Map<string, number> } {
   const publishedOnly = <
@@ -83,6 +131,7 @@ function ports(
     tagsFor: async (_type, id) => per[id]?.tags ?? [],
     neighborsFor: async (_type, id) => per[id]?.neighbors ?? [],
     selfPersonId: async () => extra.selfId ?? null,
+    data: dataPorts(extra.data ?? {}),
   };
 }
 
@@ -156,6 +205,41 @@ function milestone(
   };
 }
 
+const TS = 1_700_000_000_000;
+/** The substrate every synced row carries — spelled once. */
+const stamps = { createdAt: TS, updatedAt: TS, deletedAt: null } as const;
+
+function reminder(over: Partial<Reminder> = {}): Reminder {
+  return {
+    id: uuid(),
+    title: "Call Mum",
+    body: null,
+    completedAt: null,
+    dueDate: null,
+    snoozedUntil: null,
+    snoozeCount: 0,
+    source: "user",
+    ...stamps,
+    ...over,
+  };
+}
+
+function holiday(over: Partial<Holiday> = {}): Holiday {
+  return {
+    id: uuid(),
+    slug: "christmas",
+    name: "Christmas",
+    greeting: "a Merry Christmas",
+    recurrence: '{"kind":"fixed","month":12,"day":25}',
+    durationDays: null,
+    familyId: null,
+    impliedByLocale: true,
+    origin: "catalog",
+    ...stamps,
+    ...over,
+  };
+}
+
 function unzip(bytes: Uint8Array): Record<string, string> {
   const entries = unzipSync(bytes);
   return Object.fromEntries(
@@ -218,7 +302,24 @@ describe("buildArchive", () => {
   it("writes a versioned data.json that validates against its schema", async () => {
     const { bytes } = await buildArchive(ports([]), OPTS);
     const parsed: unknown = JSON.parse(unzip(bytes)[DATA_NAME]);
-    expect(exportDataSchema.parse(parsed)).toEqual({ version: 1 });
+    // Every key present even on an empty store: the file is an inventory, so a
+    // reader never has to tell "no reminders" from "this app did not write
+    // reminders". The *schema* keeps them optional, which is what lets a file
+    // from an older app parse against this one.
+    expect(exportDataSchema.parse(parsed)).toEqual({
+      version: 1,
+      reminders: [],
+      mentions: [],
+      reminderRules: [],
+      giftIdeas: [],
+      giftRecipients: [],
+      holidays: [],
+      observances: [],
+      hiddenHolidays: [],
+      notADuplicate: [],
+      relationshipDismissals: [],
+      notificationSettings: [],
+    });
   });
 
   it("writes a README naming both files and the version that wrote it", async () => {
@@ -244,6 +345,7 @@ describe("buildArchive", () => {
     expect(counts.people).toBe(2);
     expect(counts.pets).toBe(0);
     expect(counts.contactMethods).toBe(2);
+    expect(counts.otherRecords).toBe(0);
     expect(counts.bytes).toBeGreaterThan(0);
   });
 
@@ -282,6 +384,7 @@ describe("buildArchive", () => {
       people: 0,
       pets: 0,
       contactMethods: 0,
+      otherRecords: 0,
       bytes: bytes.length,
     });
     expect(unzip(bytes)[VCF_NAME]).toBe("");
@@ -605,3 +708,269 @@ function tag(name: string): Tag {
     deletedAt: null,
   };
 }
+
+/**
+ * `data.json` — the half of the archive that is not person-shaped.
+ *
+ * These tables belong to no single card, and writing them as fabricated
+ * `KIND:x-leapsake-*` records would make Apple Contacts import somebody's
+ * reminders as human beings. What the file must get right is that they arrive
+ * whole, that the three denormalizations are applied, and that nothing which
+ * regenerates itself or belongs to one phone rides along.
+ */
+describe("buildArchive — data.json", () => {
+  const read = (bytes: Uint8Array): ExportData =>
+    exportDataSchema.parse(JSON.parse(unzip(bytes)[DATA_NAME]));
+
+  it("carries each table under its own key", async () => {
+    const alice = uuid();
+    const bob = uuid();
+    const xmas = holiday();
+    const call = reminder({ title: "Call Mum" });
+    const socks = {
+      id: uuid(),
+      title: "Socks",
+      url: null,
+      notes: null,
+      ...stamps,
+    };
+
+    const { bytes, counts } = await buildArchive(
+      ports(
+        [],
+        {},
+        {
+          data: {
+            reminders: [call],
+            mentions: [
+              {
+                id: uuid(),
+                bearerType: "reminder",
+                bearerId: call.id,
+                targetType: "person",
+                targetId: alice,
+                ...stamps,
+              },
+            ],
+            reminderRules: [
+              {
+                id: uuid(),
+                bearerType: "milestone",
+                bearerId: uuid(),
+                action: "get:gift",
+                label: null,
+                offsetDays: 21,
+                enabled: true,
+                ...stamps,
+              },
+            ],
+            giftIdeas: [socks],
+            giftRecipients: [
+              {
+                id: uuid(),
+                giftIdeaId: socks.id,
+                recipientType: "person",
+                recipientId: alice,
+                givenAt: null,
+                ...stamps,
+              },
+            ],
+            holidays: [xmas],
+            observances: [
+              {
+                id: uuid(),
+                holidayId: xmas.id,
+                bearerType: "person",
+                bearerId: alice,
+                observes: true,
+                ...stamps,
+              },
+            ],
+            hiddenHolidays: [{ id: uuid(), holidayId: xmas.id, ...stamps }],
+            notADuplicate: [
+              { id: uuid(), lowerId: alice, higherId: bob, ...stamps },
+            ],
+            relationshipDismissals: [
+              {
+                id: uuid(),
+                subjectType: "person",
+                subjectId: alice,
+                otherType: "person",
+                otherId: bob,
+                role: "cousin",
+                ...stamps,
+              },
+            ],
+            notificationSettings: [
+              {
+                id: "device-1",
+                label: "iPhone",
+                platform: "ios",
+                mode: "digest",
+                deliveryMinute: 540,
+                permissionState: "granted",
+                ...stamps,
+              },
+            ],
+          },
+        },
+      ),
+      OPTS,
+    );
+
+    const data = read(bytes);
+    expect(data.reminders?.[0]?.title).toBe("Call Mum");
+    expect(data.mentions?.[0]?.targetId).toBe(alice);
+    expect(data.reminderRules?.[0]?.action).toBe("get:gift");
+    expect(data.giftIdeas?.[0]?.title).toBe("Socks");
+    expect(data.giftRecipients?.[0]?.giftIdeaId).toBe(socks.id);
+    expect(data.observances?.[0]?.observes).toBe(true);
+    expect(data.hiddenHolidays?.[0]?.holidayId).toBe(xmas.id);
+    expect(data.notADuplicate?.[0]?.higherId).toBe(bob);
+    expect(data.relationshipDismissals?.[0]?.role).toBe("cousin");
+    expect(data.notificationSettings?.[0]?.mode).toBe("digest");
+
+    // Ten rows above, and the catalog holiday that is deliberately not written.
+    expect(counts.otherRecords).toBe(10);
+  });
+
+  /**
+   * The catalog is read-only and the app reseeds it, so exporting it would
+   * bloat every archive with data that regenerates itself. A holiday the *user*
+   * authored has no other copy anywhere, so it goes out whole.
+   */
+  it("writes a user-authored holiday whole, and no catalog row", async () => {
+    const mine = holiday({
+      slug: "gotcha-day",
+      name: "Gotcha Day",
+      origin: "user",
+    });
+    const { bytes } = await buildArchive(
+      ports([], {}, { data: { holidays: [holiday(), mine] } }),
+      OPTS,
+    );
+    const data = read(bytes);
+    expect(data.holidays).toHaveLength(1);
+    expect(data.holidays?.[0]?.slug).toBe("gotcha-day");
+    expect(data.holidays?.[0]?.recurrence).toBe(mine.recurrence);
+  });
+
+  /**
+   * An observance's `holidayId` is derived from the slug, so the two agree — but
+   * only the slug is legible, and it is the key the catalog is stable under.
+   */
+  it("resolves a holiday choice to its slug, and says so when the holiday is gone", async () => {
+    const xmas = holiday();
+    const orphanId = uuid();
+    const { bytes } = await buildArchive(
+      ports(
+        [],
+        {},
+        {
+          data: {
+            holidays: [xmas],
+            observances: [
+              {
+                id: uuid(),
+                holidayId: xmas.id,
+                bearerType: "person",
+                bearerId: uuid(),
+                observes: false,
+                ...stamps,
+              },
+            ],
+            hiddenHolidays: [{ id: uuid(), holidayId: orphanId, ...stamps }],
+          },
+        },
+      ),
+      OPTS,
+    );
+    const data = read(bytes);
+    expect(data.observances?.[0]?.holidaySlug).toBe("christmas");
+    // The row still travels, saying honestly that its holiday no longer reads —
+    // dropping it would lose the user's answer without telling anyone.
+    expect(data.hiddenHolidays?.[0]?.holidaySlug).toBeNull();
+    expect(data.hiddenHolidays?.[0]?.holidayId).toBe(orphanId);
+  });
+
+  /**
+   * A person's tags ride the `.vcf` as `CATEGORIES`. A reminder's and a gift
+   * idea's have no card to ride, so without this they would vanish from the
+   * backup silently.
+   */
+  it("carries a reminder's and a gift idea's tags, by name", async () => {
+    const call = reminder();
+    const socks = {
+      id: uuid(),
+      title: "Socks",
+      url: null,
+      notes: null,
+      ...stamps,
+    };
+    const { bytes } = await buildArchive(
+      ports(
+        [],
+        {
+          [call.id]: { tags: [tag("Urgent")] },
+          [socks.id]: { tags: [tag("Birthday"), tag("Dad")] },
+        },
+        { data: { reminders: [call], giftIdeas: [socks] } },
+      ),
+      OPTS,
+    );
+    const data = read(bytes);
+    expect(data.reminders?.[0]?.tags).toEqual(["Urgent"]);
+    expect(data.giftIdeas?.[0]?.tags).toEqual(["Birthday", "Dad"]);
+  });
+
+  /**
+   * Preferences travel; facts about one phone do not. Restoring "notifications
+   * allowed" onto a new device would be a lie the app then acts on.
+   */
+  it("carries notification preferences without the device's own facts", async () => {
+    const { bytes } = await buildArchive(
+      ports(
+        [],
+        {},
+        {
+          data: {
+            notificationSettings: [
+              {
+                id: "device-1",
+                label: "Josh's iPhone",
+                platform: "ios",
+                mode: "each",
+                deliveryMinute: 480,
+                permissionState: "granted",
+                ...stamps,
+              },
+            ],
+          },
+        },
+      ),
+      OPTS,
+    );
+    const row = read(bytes).notificationSettings?.[0];
+    expect(row).toMatchObject({
+      id: "device-1",
+      label: "Josh's iPhone",
+      mode: "each",
+      deliveryMinute: 480,
+    });
+    expect(row).not.toHaveProperty("platform");
+    expect(row).not.toHaveProperty("permissionState");
+  });
+
+  it("stays reproducible byte-for-byte with a full data.json", async () => {
+    const data: { reminders: Reminder[]; holidays: Holiday[] } = {
+      reminders: [reminder(), reminder({ title: "Book the vet" })],
+      holidays: [holiday({ origin: "user" })],
+    };
+    // The same rows both times: `person()` and the row builders mint a fresh id
+    // per call, so building the store twice would differ for that reason alone.
+    const jane = person();
+    const a = await buildArchive(ports([jane], {}, { data }), OPTS);
+    const b = await buildArchive(ports([jane], {}, { data }), OPTS);
+    expect(a.bytes).toEqual(b.bytes);
+  });
+});

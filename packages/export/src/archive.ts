@@ -1,8 +1,8 @@
 import type { EntityType, Milestone } from "@leapsake/schema";
 import { type ExportContact, writeVCards } from "@leapsake/vcard";
 import { zipSync } from "fflate";
-import { z } from "zod";
 import { toExportContact, toPetContact } from "./contact.js";
+import { buildExportData } from "./data.js";
 import type { ExportPorts } from "./ports.js";
 
 /**
@@ -24,29 +24,6 @@ export const VCF_NAME = "contacts.vcf";
 export const DATA_NAME = "data.json";
 export const README_NAME = "README.txt";
 
-/**
- * The version stamped into {@link DATA_NAME}, and the thing a future restore path
- * reads first.
- *
- * It is here from the first commit even though the file is nearly empty
- * (`plans/export.md` increment 3 fills it), because increment 1 already ships
- * the file onto users' disks: adding fields to an identified file later is
- * ordinary, while retrofitting a version onto one already in the wild is not.
- */
-export const DATA_VERSION = 1;
-
-/**
- * What {@link DATA_NAME} holds. Everything not person-shaped — reminders, gift
- * ideas, observances, `not_a_duplicate` judgments, notification settings — joins
- * this schema in increment 3, each as its own optional key, so a file written by
- * an older app still parses.
- */
-export const exportDataSchema = z.object({
-  version: z.literal(DATA_VERSION),
-});
-
-export type ExportData = z.infer<typeof exportDataSchema>;
-
 /** What one export run produced. */
 export interface ExportArchive {
   /** The `.zip`, ready for `File.write()`. */
@@ -57,6 +34,17 @@ export interface ExportArchive {
     people: number;
     pets: number;
     contactMethods: number;
+    /**
+     * Every row in {@link DATA_NAME} — reminders, gift ideas, holiday choices,
+     * duplicate judgments, notification preferences — as one number.
+     *
+     * One rather than ten because it has a reader: the line the app shows after
+     * a share. Without it, the half of the archive that is not contacts is
+     * invisible from outside the zip, and neither the user nor the on-device
+     * harness can tell a backup that carries their reminders from one that
+     * silently does not.
+     */
+    otherRecords: number;
     bytes: number;
   };
 }
@@ -73,7 +61,7 @@ export interface BuildOptions {
 
 /**
  * Gather the whole published graph, serialize it, and zip the result with a
- * README and the (versioned, still nearly empty) companion data file.
+ * README and the versioned companion data file.
  *
  * **A graph walk, not a list.** Increment 1 could visit each person alone;
  * carrying relationships cannot, because an edge is a fact about two entities
@@ -171,7 +159,7 @@ export async function buildArchive(
   const vcf = writeVCards(contacts, {
     prodId: `-//Leapsake//Leapsake ${opts.appVersion}//EN`,
   });
-  const data: ExportData = { version: DATA_VERSION };
+  const { data, rows: otherRecords } = await buildExportData(ports);
 
   const encoder = new TextEncoder();
   const bytes = zipSync(
@@ -195,6 +183,7 @@ export async function buildArchive(
       people: people.length,
       pets: pets.length,
       contactMethods,
+      otherRecords,
       bytes: bytes.length,
     },
   };
@@ -235,8 +224,11 @@ ${VCF_NAME}
   an ordinary contact. Leapsake reads it back as a pet.
 
 ${DATA_NAME}
-  The rest of your Leapsake data, in a format only Leapsake reads.
-  Keep it beside the .vcf; on its own it is not much use.
+  Everything that is not a contact: your reminders and how they
+  repeat, your gift ideas and who they are for, which holidays you
+  observe or hid, which people you have told Leapsake are not
+  duplicates of each other, and your notification preferences.
+  In a format only Leapsake reads -- keep it beside the .vcf.
 
 ${README_NAME}
   This file.

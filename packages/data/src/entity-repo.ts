@@ -29,7 +29,12 @@ export interface EntityRepo<T extends SyncRow> extends SyncableRepo<T> {
   get(id: string): Promise<T | undefined>;
   /** Like {@link get} but returns soft-deleted rows too (a merge must see them). */
   getIncludingDeleted(id: string): Promise<T | undefined>;
-  /** Every active row, optionally ordered by the configured `orderBy`. */
+  /**
+   * Every active row, optionally ordered by the configured `orderBy` — and
+   * narrowed by `listOnly` where the repo declared one, which is what makes
+   * `people.list()` the user's catalog rather than every person row. The
+   * unnarrowed read is {@link SyncableRepo.listActive}.
+   */
   list(): Promise<T[]>;
   /**
    * Active rows matching a caller-supplied `WHERE` fragment (raw snake_case SQL,

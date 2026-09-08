@@ -182,6 +182,12 @@ export type {
 // What an export run produced, re-exported so a client can type the bytes it
 // writes and the counts it shows without depending on `@leapsake/export`.
 export type { ExportArchive } from "@leapsake/export";
+// The shape of the archive's `data.json`, for a client (or a test) that reads
+// one back. Re-exported here for the same reason `ExportArchive` is: core is the
+// composition root every client wires against, and nothing else should have to
+// take a direct dependency on `@leapsake/export` to understand its output.
+export { exportDataSchema } from "@leapsake/export";
+export type { ExportData } from "@leapsake/export";
 
 // The local-notification policy row shape (`plans/v0-1_08_local-notifications.md`,
 // migration 29), re-exported so the settings UI can type what `notificationSettings`
@@ -2459,12 +2465,19 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
      * yields a slightly newer or older card, never a broken file.
      *
      * **Every read here already excludes soft-deleted rows**, structurally
-     * rather than by a predicate spelled at each call site — `createEntityRepo`
-     * bakes `deleted_at IS NULL` into `listWhere`/`get`, and `listForEntity`
-     * filters both the tagging and the tag. That is what makes the exclusion
-     * transitive for free: there is no read available here that could produce a
-     * relationship or tagging pointing at a row the file leaves out. It matters
-     * because this is the one artifact that leaves the device.
+     * rather than by a predicate spelled at each call site. Three mechanisms,
+     * no per-call-site predicate: `createEntityRepo` bakes `deleted_at IS NULL`
+     * into `listWhere`/`get` (so every `list()` below is filtered),
+     * `listForEntity` filters both the tagging and the tag, and `listActive()`
+     * covers the three `data.json` tables that have no entity repo — `mentions`,
+     * `not_a_duplicate` and `relationship_dismissals`. **Those three are the
+     * ones to be careful with**: their other whole-table read,
+     * `listChangedSince(0)`, deliberately carries tombstones because sync must
+     * propagate them, and reaching for it here would put rows the user deleted
+     * into the one artifact that leaves the device. Filtering everywhere is also
+     * what makes the exclusion transitive for free: no read available here can
+     * produce a relationship, tagging or observance pointing at a row the file
+     * leaves out.
      *
      * `people.list()` and `pets.list()` likewise answer only *published*
      * entities (`PUBLISHED_SQL`). An unpublished person reaches the file only as
@@ -2481,8 +2494,10 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
      * filtering and the walk never runs per entity.
      *
      * The fan-out is roughly `3 + 4(N + P) + E` queries for N people, P pets and
-     * E relationships, which is fine at v0.1 sizes. If it ever bites, the fix is
-     * bulk reads behind `ExportPorts` — not caching in whichever client called.
+     * E relationships, plus 11 whole-table reads for `data.json` and one more
+     * per reminder and gift idea for its tags. Fine at v0.1 sizes. If it ever
+     * bites, the fix is bulk reads behind `ExportPorts` — not caching in
+     * whichever client called.
      */
     export: {
       archive: (opts: { appVersion: string }): Promise<ExportArchive> => {
@@ -2499,6 +2514,22 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           tagsFor: (type, id) => tags.listForEntity(type, id),
           neighborsFor: (type, id) => orientedNeighbors(type, id),
           selfPersonId: async () => (await self.getSelf())?.personId ?? null,
+          data: {
+            listReminders: () => reminders.list(),
+            listReminderRules: () => reminderRules.list(),
+            listGiftIdeas: () => giftIdeas.list(),
+            listGiftRecipients: () => giftRecipients.list(),
+            listHolidays: () => holidays.list(),
+            listObservances: () => observances.list(),
+            listHiddenHolidays: () => hiddenHolidays.list(),
+            listNotificationSettings: () => notificationSettings.list(),
+            // The three with no entity repo, and so no `list()`. `listActive()`
+            // is their filtered read — see the port's doc, and never
+            // `listChangedSince(0)`, which carries tombstones on purpose.
+            listMentions: () => mentions.listActive(),
+            listNotADuplicate: () => notADuplicate.listActive(),
+            listRelationshipDismissals: () => dismissals.listActive(),
+          },
         };
         return buildArchive(ports, {
           appVersion: opts.appVersion,

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ContactMethodsRepo,
+  type MentionsRepo,
   type PetsRepo,
   type SqliteDriver,
   createContactMethodsRepo,
+  createMentionsRepo,
   createPetsRepo,
   runMigrations,
 } from "@leapsake/data";
@@ -13,12 +15,14 @@ let driver: SqliteDriver;
 let cleanup: () => void;
 let pets: PetsRepo;
 let contacts: ContactMethodsRepo;
+let mentions: MentionsRepo;
 
 beforeEach(async () => {
   ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   pets = createPetsRepo(driver);
   contacts = createContactMethodsRepo(driver);
+  mentions = createMentionsRepo(driver);
 });
 
 afterEach(() => {
@@ -98,5 +102,66 @@ describe("createEntityRepo shared CRUD", () => {
     expect(await contacts.emails.listForOwner("person", ownerId)).toHaveLength(
       0,
     );
+  });
+});
+
+/**
+ * `listActive()` — the whole-table read for anything that is not the sync
+ * collector.
+ *
+ * It exists because the alternative is a trap: `listChangedSince(0)` reads like
+ * "give me every row" and hands back tombstones as well, deliberately, since
+ * sync has to propagate deletes. The export reaches for one of these, and only
+ * one of them is safe (`packages/export/src/ports.ts`).
+ */
+describe("defineSyncable listActive", () => {
+  it("answers live rows where listChangedSince(0) also answers tombstones", async () => {
+    const live = await pets.create({ name: "Rex" });
+    const gone = await pets.create({ name: "Bella" });
+    await pets.softDelete(gone.id);
+
+    expect((await pets.listActive()).map((p) => p.id)).toEqual([live.id]);
+    // The contrast this method exists for — same table, same moment.
+    expect((await pets.listChangedSince(0)).map((p) => p.id).sort()).toEqual(
+      [live.id, gone.id].sort(),
+    );
+  });
+
+  it("is the unnarrowed read: list() still hides an unpublished row", async () => {
+    const now = Date.now();
+    const shadow = await pets.insert({
+      id: crypto.randomUUID(),
+      name: "Shadow",
+      gender: null,
+      standing: "unpublished",
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    });
+
+    // `list()` applies the repo's `listOnly` (PUBLISHED_SQL) on top of the
+    // not-deleted rule; `listActive()` applies only the not-deleted rule.
+    expect(await pets.list()).toEqual([]);
+    expect((await pets.listActive()).map((p) => p.id)).toEqual([shadow.id]);
+  });
+
+  it("reaches a table with no entity repo at all", async () => {
+    const reminderId = crypto.randomUUID();
+    const alice = crypto.randomUUID();
+    const bob = crypto.randomUUID();
+
+    await mentions.setEntityMentions("reminder", reminderId, [
+      { targetType: "person", targetId: alice },
+      { targetType: "person", targetId: bob },
+    ]);
+    // Bob is edited out of the text: the row is tombstoned, not erased.
+    await mentions.setEntityMentions("reminder", reminderId, [
+      { targetType: "person", targetId: alice },
+    ]);
+
+    expect((await mentions.listActive()).map((m) => m.targetId)).toEqual([
+      alice,
+    ]);
+    expect(await mentions.listChangedSince(0)).toHaveLength(2);
   });
 });

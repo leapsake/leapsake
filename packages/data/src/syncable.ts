@@ -25,6 +25,25 @@ export interface SyncableRepo<T extends SyncRow> {
    */
   listChangedSince(since: number): Promise<T[]>;
   /**
+   * Every **live** row, oldest first — {@link listChangedSince}'s counterpart,
+   * and the one a reader that must not see tombstones asks for.
+   *
+   * The two are easy to confuse and the mistake is silent, so: `listChangedSince`
+   * carries deletes *on purpose* (sync has to propagate them), which makes
+   * `listChangedSince(0)` read like "give me every row" while actually handing
+   * back rows the user deleted. Anything that is not the sync collector wants
+   * this method instead. The export — the one artifact that leaves the device —
+   * is what it exists for (`packages/export/README.md`).
+   *
+   * Lives here rather than on the three repos that first needed it so the filter
+   * is structural for every synced table, present and future, and shares the
+   * codec sync already maps columns with. {@link EntityRepo.list} is the
+   * *narrowed* catalog read for the repos that have one (it honours `orderBy`
+   * and `listOnly`, so `people.list()` leaves out unpublished people); this is
+   * the unnarrowed one.
+   */
+  listActive(): Promise<T[]>;
+  /**
    * Validate and shape a JSON payload pulled from a peer into a row of this
    * repo's type. Throws on an invalid payload (a corrupt or hostile relay).
    */
@@ -308,6 +327,16 @@ export function defineSyncable<T extends SyncRow>(opts: {
       const rows = await driver.all<Record<string, unknown>>(
         `SELECT * FROM ${table} WHERE updated_at > ? ORDER BY updated_at`,
         [since],
+      );
+      return Promise.all(rows.map((row) => codec.fromRow(row)));
+    },
+
+    async listActive() {
+      // `created_at` is part of the substrate every synced table carries (see
+      // the recipe above), so this ordering is universal — and it is what makes
+      // an export of an unchanged store reproducible byte-for-byte.
+      const rows = await driver.all<Record<string, unknown>>(
+        `SELECT * FROM ${table} WHERE deleted_at IS NULL ORDER BY created_at`,
       );
       return Promise.all(rows.map((row) => codec.fromRow(row)));
     },

@@ -1,9 +1,13 @@
 import {
   type CoreApi,
+  type ExportData,
   type SqliteDriver,
   createCore,
+  exportDataSchema,
   runMigrations,
+  seedHolidayCatalog,
 } from "@leapsake/core";
+import { createHolidaysRepo, holidayIdFor } from "@leapsake/data";
 import { parseVCards } from "@leapsake/vcard";
 import { unzipSync } from "fflate";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -41,6 +45,13 @@ const VERSION = "0.1.0-test";
 async function exportedVcf(): Promise<string> {
   const { bytes } = await core.export.archive({ appVersion: VERSION });
   return new TextDecoder().decode(unzipSync(bytes)["contacts.vcf"]);
+}
+
+/** `data.json`, validated against the schema a restore path would read it with. */
+async function exportedData(): Promise<ExportData> {
+  const { bytes } = await core.export.archive({ appVersion: VERSION });
+  const json = new TextDecoder().decode(unzipSync(bytes)["data.json"]);
+  return exportDataSchema.parse(JSON.parse(json));
 }
 
 describe("core.export.archive", () => {
@@ -338,6 +349,160 @@ describe("core.export.archive", () => {
       "contacts.vcf",
       "data.json",
     ]);
+  });
+});
+
+/**
+ * `data.json` over the real repos — the half of the archive the `.vcf` cannot
+ * hold, and the tier that catches a port reading the wrong table. The unit tests
+ * prove the *format* against a fake that agrees with them by construction; only
+ * here does "the reminders port actually reads `reminders`" get tested, and an
+ * export missing everybody's reminders is still a perfectly valid archive.
+ */
+describe("core.export.archive — data.json", () => {
+  it("carries the tables that belong to no card", async () => {
+    const alice = await core.people.create({ firstName: "Alice" }, []);
+    const bob = await core.people.create({ firstName: "Bob" }, []);
+
+    await core.reminders.create({
+      title: "Call @[Alice](person:" + alice.id + ") #urgent",
+    });
+    await core.gifts.ideas.create(
+      {
+        title: "Wool socks",
+        recipients: [{ party: { type: "person", id: alice.id } }],
+      },
+      ["Birthday"],
+    );
+    await core.duplicates.reject(alice.id, bob.id);
+    await core.kinship.dismiss("person", alice.id, "person", bob.id, "cousin");
+    await core.notificationSettings.setPolicy("device-1", {
+      mode: "digest",
+      deliveryMinute: 480,
+      label: "Josh's laptop",
+      platform: "darwin",
+    });
+
+    const data = await exportedData();
+
+    expect(data.reminders?.[0]?.title).toContain("Call");
+    // The text is the source of truth for both, so each landed in its own table
+    // on the way in — and each has to come back out of it.
+    expect(data.reminders?.[0]?.tags).toEqual(["urgent"]);
+    expect(data.mentions?.[0]).toMatchObject({
+      bearerType: "reminder",
+      targetType: "person",
+      targetId: alice.id,
+    });
+    expect(data.giftIdeas?.[0]).toMatchObject({
+      title: "Wool socks",
+      tags: ["Birthday"],
+    });
+    expect(data.giftRecipients?.[0]?.recipientId).toBe(alice.id);
+    expect(data.notADuplicate?.[0]).toMatchObject({
+      lowerId: alice.id < bob.id ? alice.id : bob.id,
+      higherId: alice.id < bob.id ? bob.id : alice.id,
+    });
+    expect(data.relationshipDismissals?.[0]).toMatchObject({
+      subjectId: alice.id,
+      otherId: bob.id,
+      role: "cousin",
+    });
+    expect(data.notificationSettings?.[0]).toMatchObject({
+      id: "device-1",
+      mode: "digest",
+      deliveryMinute: 480,
+      label: "Josh's laptop",
+    });
+    // A fact about one machine, not a preference: restoring it onto another
+    // device would be a lie the app then acts on.
+    expect(data.notificationSettings?.[0]).not.toHaveProperty("platform");
+  });
+
+  it("carries holiday choices by slug, and no catalog row", async () => {
+    await seedHolidayCatalog({ driver });
+    const alice = await core.people.create({ firstName: "Alice" }, []);
+    const christmas = holidayIdFor("christmas");
+
+    await core.holidays.setObservers(christmas, [
+      { bearerType: "person", bearerId: alice.id, observes: true },
+    ]);
+    await core.holidays.setHidden(holidayIdFor("us-halloween"), true);
+    await core.holidays.setObservanceSchedule(christmas, "person", alice.id, [
+      { action: "get:gift", offsetDays: 21, enabled: true },
+    ]);
+
+    const data = await exportedData();
+
+    // The catalog is read-only and the app reseeds it, so shipping it would
+    // bloat every archive with data that regenerates itself. Nothing authors a
+    // user holiday yet; the unit tier covers the other half of this filter.
+    expect(await createHolidaysRepo(driver).list()).not.toHaveLength(0);
+    expect(data.holidays).toEqual([]);
+
+    expect(data.observances?.[0]).toMatchObject({
+      holidayId: christmas,
+      bearerId: alice.id,
+      observes: true,
+      holidaySlug: "christmas",
+    });
+    expect(data.hiddenHolidays?.[0]?.holidaySlug).toBe("us-halloween");
+    expect(data.reminderRules?.[0]).toMatchObject({
+      bearerType: "observance",
+      action: "get:gift",
+      offsetDays: 21,
+    });
+  });
+
+  /**
+   * The failure this increment was built around. `mentions`, `not_a_duplicate`
+   * and `relationship_dismissals` have no entity repo, so their obvious
+   * whole-table read is `listChangedSince(0)` — which carries tombstones on
+   * purpose, because sync must propagate them. Reach for it here and rows the
+   * user deleted end up in the one artifact that leaves the device, where there
+   * is no taking them back.
+   */
+  it("carries no soft-deleted row from the three tables with no entity repo", async () => {
+    const alice = await core.people.create({ firstName: "Alice" }, []);
+    const bob = await core.people.create({ firstName: "Bob" }, []);
+    const carol = await core.people.create({ firstName: "Carol" }, []);
+    const dave = await core.people.create({ firstName: "Dave" }, []);
+
+    // A mention, then edited out of the text: its row is tombstoned, not erased.
+    const reminder = await core.reminders.create({
+      title: `Call @[Alice](person:${alice.id})`,
+    });
+    expect(await exportedData()).toHaveProperty(
+      "mentions.0.targetId",
+      alice.id,
+    );
+    await core.reminders.update(reminder.id, { title: "Call somebody" });
+
+    // A dismissal, then restored.
+    await core.kinship.dismiss("person", alice.id, "person", bob.id, null);
+    const dismissal = (await exportedData()).relationshipDismissals?.[0];
+    if (dismissal === undefined) throw new Error("expected a dismissal");
+    await core.kinship.undismiss(dismissal.id);
+
+    // A "not a duplicate" judgment, then made redundant by a merge — which
+    // re-points it onto the survivor, sees a self-pair, and tombstones it.
+    await core.duplicates.reject(carol.id, dave.id);
+    expect((await exportedData()).notADuplicate).toHaveLength(1);
+    await core.people.merge(carol.id, dave.id);
+
+    const data = await exportedData();
+    expect(data.mentions).toEqual([]);
+    expect(data.relationshipDismissals).toEqual([]);
+    expect(data.notADuplicate).toEqual([]);
+  });
+
+  it("counts every data.json row for the line the app shows", async () => {
+    await core.reminders.create({ title: "One" });
+    await core.reminders.create({ title: "Two" });
+    await core.gifts.ideas.create({ title: "Socks" });
+
+    const { counts } = await core.export.archive({ appVersion: VERSION });
+    expect(counts.otherRecords).toBe(3);
   });
 });
 

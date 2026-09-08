@@ -58,15 +58,18 @@ The third is the interesting one, and today it needs no code here: `@leapsake/da
 revisit; it turned out to be unnecessary, and adding one would be the thing that lets a future
 caller opt *into* the surprise.
 
-⚠️ **That is a property of `createEntityRepo`, not of the data layer.** It holds because every
-port here happens to read through one. It is **not** a guarantee this package inherits, and
-`data.json` (increment 3) is where it breaks: `mentions`, `not_a_duplicate` and
-`relationship_dismissals` are `SyncableRepo`s with no filtered list-all, and their one
-enumerating method — `listChangedSince(since)` — is `WHERE updated_at > ?` with **no `deleted_at`
-clause at all**, deliberately, because sync has to propagate tombstones. `listChangedSince(0)`
-is the obvious way to dump a table and it is the bug: it would put deleted rows in the one
-artifact that leaves the device. Give those three a real read method instead, filtered like every
-other one, and the sentence above goes back to being true of the whole surface.
+⚠️ **That was a property of `createEntityRepo`, not of the data layer** — and `data.json` is where
+it nearly broke. `mentions`, `not_a_duplicate` and `relationship_dismissals` have no entity repo,
+and their one enumerating method was `listChangedSince(since)`: `WHERE updated_at > ?` with **no
+`deleted_at` clause at all**, deliberately, because sync has to propagate tombstones.
+`listChangedSince(0)` is the obvious way to dump a table and it is the bug — it would put deleted
+rows in the one artifact that leaves the device.
+
+They got a filtered read of their own instead: **`listActive()` on `defineSyncable`**, so it is
+now true of *every* synced table rather than only the ones with an entity repo, and a new port has
+something correct to reach for. Its doc-comment sits beside `listChangedSince`'s, which is where
+somebody about to make this mistake is already reading. `apps/desktop/test/integration/entity-repo.test.ts`
+asserts the two answer differently on the same table at the same moment.
 
 `listPeople` and `listPets` likewise answer only **published** entities (`PUBLISHED_SQL`).
 Somebody who exists only as a fact about another person belongs on that person's card as a
@@ -77,7 +80,7 @@ Somebody who exists only as a fact about another person belongs on that person's
 ```
 leapsake-export-2026-09-07.zip
 ├── contacts.vcf   the person graph — people, pets, dates, relationships
-├── data.json      everything not person-shaped (versioned; still nearly empty)
+├── data.json      everything not person-shaped (versioned)
 └── README.txt     what these are, what wrote them, how to get them back
 ```
 
@@ -91,9 +94,11 @@ user unzips first, and `README.txt` is what keeps that from being confusing.
 opening it long after the fact, and the only thing a future restore path can read if `data.json`
 turns out to be unreadable.
 
-`data.json` carries a `version` and a Zod schema **from the first commit**, while it holds nothing
-else. Increment 1 already ships the file onto users' disks: adding fields to an identified file
-later is ordinary, retrofitting a version onto one already in the wild is not.
+`data.json` carried a `version` and a Zod schema **from the first commit**, while it still held
+nothing else. Increment 1 already shipped the file onto users' disks: adding fields to an
+identified file later is ordinary, retrofitting a version onto one already in the wild is not.
+Filling it did not bump the version — every table is its own optional key, so a file written by an
+older app still parses, and the version is left for a change of *shape*.
 
 `fflate` rather than `jszip`: ~8KB, pure JS, no native module, and it runs on the Hermes floor.
 Deflate rather than store, because vCard is extremely compressible text and a large address book
@@ -127,10 +132,43 @@ not return them, core wires `orientedNeighbors` (explicit by construction) rathe
 service, and the builder filters again. Belt and braces on purpose: the failure is silent and
 permanent.
 
-## What it does not carry yet
+## `data.json` — what the `.vcf` cannot hold
 
-`data.json`'s real contents are increment 3 — reminders, gift ideas, the user's holiday choices,
-`not_a_duplicate` judgments, notification preferences.
+A vCard is a person. Reminders, gift ideas, holiday choices, duplicate judgments and notification
+preferences belong to no single card, and appending them as fabricated `KIND:x-leapsake-*` records
+would make Apple Contacts import somebody's reminders as human beings. So they go in a companion
+file inside the same archive, which **duplicates nothing** in the `.vcf`.
+
+It is the rows as `@leapsake/schema` spells them, with four deliberate departures. Each is a place
+where writing the row verbatim would have been wrong:
+
+**Tags travel by name.** A person's tags ride the `.vcf` as `CATEGORIES`; a reminder's and a gift
+idea's have no card to ride, so without this a tag the user put on a reminder would vanish from
+their backup silently. Names rather than ids for the same reason `CATEGORIES` uses them: they are
+what a human reads, and a restore re-creates them through the same
+`tags.setEntityTags(type, id, names)` every tag is already written with — so the file never has to
+carry the `tags` and `taggings` tables and their ids at all.
+
+**The holiday catalog does not travel.** It is read-only and the app reseeds it, so shipping it
+would bloat every archive with data that regenerates itself. A holiday the *user* authored has no
+other copy anywhere, so that goes out whole.
+
+**A holiday choice travels by slug.** An observance's `holidayId` is
+`deterministicUuid(HOLIDAY_NAMESPACE, slug)`, so the two agree by construction — but only the slug
+is legible, and it is the key `ux_holidays_slug_active` makes stable. Null where the holiday row
+itself is gone: honest, rather than dropping the observance and losing the user's answer with it.
+
+**A device's own facts do not travel.** Notification *preferences* do — mode, delivery time, the
+label the user typed. `permissionState` and `platform` do not: they are what one phone's OS last
+answered, and restoring "notifications allowed" onto a new device would be a lie the app then acts
+on.
+
+`counts.otherRecords` is the total, and it exists because it has a reader: the line the app shows
+after a share. Without it the half of the archive that is not contacts is invisible from outside
+the zip, and neither the user nor the on-device harness can tell a backup that carries their
+reminders from one that silently does not.
+
+## What it does not carry yet
 
 One consequence worth knowing while increment 5 is outstanding: **the parser cannot yet read back
 most of what this writes** — `UID`, `CATEGORIES`, `KIND`, `REV`, and every `X-LEAPSAKE-*` — so

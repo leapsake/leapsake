@@ -23,14 +23,26 @@
  * `core.export.archive()`; each client only writes the bytes somewhere and hands
  * them to whatever "share a file" means on its platform.
  *
- * The format — what goes in the `.vcf`, what goes in `data.json`, and why the
- * two are not the same fact written twice — is `plans/export.md`. **Today this
- * builds increment 1**: published people, their contact methods and their
- * birthday. Pets, unpublished people, the other milestone kinds and the
- * relationship graph are increment 2; `data.json`'s contents are increment 3.
+ * The archive holds the whole store: `contacts.vcf` is the person graph —
+ * people, pets, their contact methods, every milestone kind and the
+ * relationships between them — and `data.json` is everything that belongs to no
+ * single card. Neither writes a fact the other does. What is left is the
+ * *import* side (`plans/export.md`), which decides whether the file reads back
+ * in: today it does not, so do not point a user at their own export yet.
  */
-export { buildArchive, exportDataSchema } from "./archive.js";
-export { DATA_NAME, DATA_VERSION, README_NAME, VCF_NAME } from "./archive.js";
-export type { BuildOptions, ExportArchive, ExportData } from "./archive.js";
+export { buildArchive } from "./archive.js";
+export { DATA_NAME, README_NAME, VCF_NAME } from "./archive.js";
+export type { BuildOptions, ExportArchive } from "./archive.js";
 export { toExportContact } from "./contact.js";
-export type { ExportPorts } from "./ports.js";
+export {
+  DATA_VERSION,
+  buildExportData,
+  exportDataSchema,
+  exportGiftIdeaSchema,
+  exportHiddenHolidaySchema,
+  exportNotificationSettingsSchema,
+  exportObservanceSchema,
+  exportReminderSchema,
+} from "./data.js";
+export type { ExportData } from "./data.js";
+export type { Dismissal, ExportDataPorts, ExportPorts } from "./ports.js";

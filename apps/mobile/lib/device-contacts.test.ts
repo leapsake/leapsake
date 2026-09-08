@@ -104,6 +104,11 @@ describe("deviceContactToParsed", () => {
         kind: "anniversary",
         label: "Anniversary",
         date: { year: 2015, month: 6, day: 20 },
+        // A device contact carries no Leapsake ids — those are the writer's
+        // side of `X-LEAPSAKE-MILESTONE-*`, absent on anything iOS hands us.
+        id: null,
+        note: null,
+        relationshipId: null,
       },
     ]);
     // An anniversary is not a birthday, and must not be mistaken for one.
@@ -133,6 +138,9 @@ describe("deviceContactToParsed", () => {
         kind: "anniversary",
         label: "Anniversary",
         date: { year: null, month: 11, day: 14 },
+        id: null,
+        note: null,
+        relationshipId: null,
       },
     ]);
   });

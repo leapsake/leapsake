@@ -41,7 +41,7 @@ function DevExport() {
         if (out.exists) out.delete();
         out.write(bytes);
         setLine(
-          `OK ${filename} people=${counts.people} pets=${counts.pets} methods=${counts.contactMethods} bytes=${counts.bytes}`,
+          `OK ${filename} people=${counts.people} pets=${counts.pets} methods=${counts.contactMethods} other=${counts.otherRecords} bytes=${counts.bytes}`,
         );
       } catch (cause) {
         setLine(`FAIL ${cause instanceof Error ? cause.message : cause}`);

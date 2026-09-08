@@ -216,22 +216,10 @@ so there is nothing else to carry. `KIND` is in `STRUCTURAL` today, so reading i
 
 ## What is not person-shaped
 
-These belong to no single card, and appending them as fabricated `KIND:x-leapsake-*` records would
-make Apple import your reminders as contacts. They go in a **companion file** (`data.json`), which
-duplicates nothing in the `.vcf`:
-
-- `reminders` (+ `mentions`, its taggings) and `reminder_rules`
-- `gift_ideas` + `gift_recipients`
-- `observances` and `hidden_holidays` — the user's *choices*
-- `not_a_duplicate` — a judgment the user made that is expensive to re-make and invisible once gone
-- `relationship_dismissals`
-- `notification_settings` — preferences only; `permission_state` and `platform` are device facts
-
-**Holidays reference the catalog by `slug`, and only `origin: "user"` rows are written whole.**
-Catalog rows are read-only and reseeded by the app, so exporting all of them would bloat the file
-with data that regenerates itself. `ux_holidays_slug_active` makes the slug the stable key.
-
-Give the file a `version` and a Zod schema from the first commit — it is what a restore path reads.
+✅ **Built** *(increment 3)* — the ten tables that belong to no single card go in `data.json`,
+which duplicates nothing in the `.vcf`. Which tables, and the four places a row is *not* written
+verbatim (tags by name, no catalog holidays, holiday choices by slug, no device facts), now live
+next to the code: [`../packages/export/README.md`](../packages/export/README.md).
 
 > iCalendar is the tempting standard here (reminders are `VTODO`s, holidays recurring `VEVENT`s)
 > and is deliberately **not** v0.1: it is a second full format implementation, and `source`,
@@ -246,14 +234,13 @@ code: [`../packages/export/README.md`](../packages/export/README.md).
 
 ## Increments
 
-Each is shippable alone, but **do 3 before 4**, and that ordering is load-bearing rather than
-tidiness. 4 puts an *Export first* button inside the two confirmations that destroy the only copy
-of somebody's data — so it is the app making a formal promise at the one irreversible moment.
-`data.json` is `{"version": 1}` until 3 lands, so shipping 4 first hands the user a file with
-every reminder, gift idea, holiday choice, `not_a_duplicate` judgment and notification setting
-missing, at exactly the moment they cannot check and cannot undo. **An incomplete backup offered
-there is worse than no offer**, because they act on it. 4 is still the one GA blocks on; 3 is what
-makes it honest, and is cheap now that 1 and 2 exist.
+**4 is next, and is the one GA blocks on.** It was gated on 3 rather than on tidiness: it puts an
+*Export first* button inside the two confirmations that destroy the only copy of somebody's data,
+so it is the app making a formal promise at the one irreversible moment. While `data.json` was
+`{"version": 1}` that promise would have handed the user a file with every reminder, gift idea,
+holiday choice, `not_a_duplicate` judgment and notification setting missing, at exactly the moment
+they could not check and could not undo — and **an incomplete backup offered there is worse than
+no offer**, because they act on it. 3 has landed, so the offer is now honest.
 
 > ✅ **1 and 2 are built** *(2026-09-07)* — the whole person graph. `@leapsake/vcard`'s
 > serializer, the [`@leapsake/export`](../packages/export/README.md) package behind
@@ -278,35 +265,20 @@ makes it honest, and is cheap now that 1 and 2 exist.
 > read/write classification. Increment 2 tripped neither — it changed the ports behind
 > `export.archive`, not the method.
 
-3. **`data.json`** — everything in *What is not person-shaped*, versioned and schema'd. Seven of
-   the ten tables need no new data-layer work: `reminders`, `reminder_rules`, `gift_ideas`,
-   `gift_recipients`, `observances`, `hidden_holidays` and `notification_settings` all extend
-   `EntityRepo`, whose `list()` already filters `deleted_at IS NULL`.
+> ✅ **3 is built** *(2026-09-08)* — `data.json` holds the ten tables, and the format's *why* is
+> in the package README. What belongs here is the three calls that widened what this doc scoped.
+> The trap this increment was written around was real but **the fix generalised**: rather than
+> three bespoke reads, `listActive()` went on `defineSyncable`, so every synced table now has a
+> filtered whole-table read and `listChangedSince(0)` has a correct alternative to lose to. Tags
+> on **gift ideas** turned out to be an eleventh table this doc's list missed — a `#tag` on a gift
+> idea had nowhere to go, exactly like one on a reminder — so both travel, by name. And
+> `counts.otherRecords` grew rather than staying at four numbers, because without it the half of
+> the archive that is not contacts is invisible from outside the zip: the mobile result line, the
+> `dev-export` harness and the Maestro assertion all read it.
 
-   ⚠️ **The other three are a trap, not a chore.** `mentions`, `not_a_duplicate` and
-   `relationship_dismissals` are `SyncableRepo`s with **no filtered list-all** —
-   `not_a_duplicate` offers `listPairs()` (a `Set<PairKey>`, not rows) and `dismissals` only
-   `listForEntity(type, id)`. The one method that enumerates any of them is
-   `listChangedSince(since)`, whose SQL is `SELECT * FROM <table> WHERE updated_at > ?` with **no
-   `deleted_at` clause** — deliberately, because sync has to propagate tombstones.
-   `listChangedSince(0)` reads exactly like "give me every row" and is the bug: it would put
-   soft-deleted rows into the one artifact that leaves the device, which is the surprise *The
-   shape, decided* → 4 exists to prevent.
-
-   So: **give those three a filtered read method of their own** and wire it through
-   `ExportPorts` like the rest. Note that `packages/export/README.md` and `ports.ts` both say a
-   tombstone cannot reach the file — true of increments 1 and 2, whose every read goes through
-   `createEntityRepo`, and both now carry the caveat. Do not take the unqualified version of that
-   sentence from an older copy of either.
-
-   Two smaller calls this increment has to make: whether a new key bumps `DATA_VERSION` (it should
-   not — `exportDataSchema` takes each table as its **own optional key**, so a file written by an
-   older app still parses, and the version is for shape changes) and whether `counts` grows
-   (the mobile Export copy currently promises "your people and pets, their contact details, their
-   dates and how they're related", and 3 makes that sentence understate the file).
-4. **Wire the offer that already exists in the copy.** ⚠️ **Not before 3** — see the note above
-   this list: until `data.json` has contents, this offers a backup that silently drops the user's
-   reminders, gifts and holiday choices at the one moment they cannot undo. An **Export first**
+4. **Wire the offer that already exists in the copy.** Unblocked now that 3 has landed — the
+   archive holds everything, so offering it at the irreversible moment no longer promises more
+   than the file delivers. An **Export first**
    button inside *both* destructive confirmations in `app/data.tsx` — `ForgetAccountSection`
    **and** `FactoryResetSection`. The accountless wipe is by definition destroying the only copy, so it
    needs the offer at least as much; `key-custody/README.md` currently promises it only for the
@@ -345,6 +317,13 @@ for (`packages/vcard/test/write.test.ts`), the archive against fake ports
 (`packages/export/test/archive.test.ts`), and `core.export.archive` over real repos
 (`apps/desktop/test/integration/export-archive.test.ts` — the half that would otherwise fail
 silently, since an export missing everybody's phone numbers is still a valid archive).
+
+`data.json` is covered at both tiers the same way, and the integration one carries the assertion
+worth keeping: **a soft-deleted row from each of the three tables with no entity repo is absent
+from the file.** That is the test that would have caught `listChangedSince(0)`, which is the
+mistake this half of the format was designed around. `entity-repo.test.ts` pins the difference
+directly — `listActive()` and `listChangedSince(0)` answering differently on one table at one
+moment.
 
 The round trip cannot be literal while increment 5 is outstanding, and `asParsedToday` is the
 **ledger of every gap**: what vanishes silently (`UID`, `KIND`, `REV`, the `DEFERRED` set), what

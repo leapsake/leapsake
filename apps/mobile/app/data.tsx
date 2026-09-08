@@ -413,6 +413,12 @@ function ExportSection() {
           `, ${counts.pets} ${counts.pets === 1 ? "pet" : "pets"}` +
           `, ${counts.contactMethods} contact ${
             counts.contactMethods === 1 ? "method" : "methods"
+          }` +
+          // The rest of the archive — reminders, gift ideas, holiday choices,
+          // notification settings. Without this the half of the file that is
+          // not contacts is invisible from outside the zip.
+          `, ${counts.otherRecords} other ${
+            counts.otherRecords === 1 ? "record" : "records"
           } (${Math.max(1, Math.round(counts.bytes / 1024))} KB).`,
       );
     } catch (cause) {
@@ -441,8 +447,9 @@ function ExportSection() {
       <Text style={styles.title}>Export</Text>
       <Text style={styles.muted}>
         Save everything on this device as a file you keep — your people and
-        pets, their contact details, their dates and how they're related.
-        Leapsake doesn't upload it anywhere.
+        pets, their contact details, their dates and how they're related, plus
+        your reminders, gift ideas and holiday choices. Leapsake doesn't upload
+        it anywhere.
       </Text>
       <Pressable
         testID="export-start"
