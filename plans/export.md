@@ -357,10 +357,37 @@ REV:2026-09-07T03:20:29Z
 inside a `RELATED` well past 75 octets. `people=2 pets=0 methods=0`.
 
 ⚠️ **What that store could not exercise**, and which therefore rests on the Node tiers alone: a
-pet card, an unpublished person as a text `RELATED`, any milestone but a birthday, a custom
-`X-ABLABEL`, and `X-LEAPSAKE-SELF`. The Hermes-specific risk is covered — the graph walk and the
-writer run there — but a store with a pet and an unpublished person is worth building by hand
-before GA.
+pet card, an unpublished person as a text `RELATED`, a custom `X-ABLABEL`, and
+`X-LEAPSAKE-SELF`. The Hermes-specific risk is covered — the graph walk and the writer run there —
+but a store with a pet and an unpublished person is worth building by hand before GA.
+
+✅ **Re-run for increment 3** *(2026-09-08, iPhone 16 Pro / iOS 26.5)* — this time the store was
+built by **running the e2e arc first** (`pnpm test:e2e --platform=ios`, flows 1/2/3/5), which is a
+better harness than seeding by hand: the rows come from the real screens. `data.json` went from 20
+bytes to 4,149, and `dev-export-status` read `other=11`:
+
+```
+reminders = 3        one user reminder with tags ["birthday"], two system onboarding nudges
+mentions = 1         → Ada Lovelace's person id, read through listActive()
+reminderRules = 5    the milestone schedule flow 3 wrote
+giftIdeas = 1        tags [], and its recipient link carrying givenAt from the ✓ tap
+giftRecipients = 1
+```
+
+That covers the two mechanisms worth proving on Hermes: **`listActive()`** (the `mentions` row —
+the method this increment added, on a table with no entity repo) and **tags resolved to names**
+(`#birthday` in a reminder's body arriving as `tags: ["birthday"]`). The zip still unzips as three
+members, and `README.txt` carries the widened `data.json` paragraph.
+
+⚠️ **Zero on device, and therefore resting on the Node tiers alone:** holiday choices (so the
+`holidaySlug` denormalization), `not_a_duplicate`, `relationship_dismissals` and
+`notification_settings`. Each uses a mechanism one of the five above already proved — three read
+through `list()`, two through `listActive()` — so the Hermes-specific risk is covered even where
+the table is not. The integration tier asserts all of them against the real seeded catalog.
+
+> Flow 4 (create an account) went RED on this run, at `assertVisible not "Protect my data"` after
+> `account-submit`. **Unrelated to export** — it is the encryption-conversion flow, and 1/2/3/5
+> all passed — but it is the state of `pnpm test:e2e` on `main` and wants its own look.
 
 **Still owed: the device tier.** Maestro asserts the share sheet opened and that
 `testID="export-result"` reports non-zero record and byte counts — the tap and the share itself
