@@ -1,8 +1,11 @@
+import { type RelationshipRole, roleDefs } from "@leapsake/schema";
 import type {
   ParsedContact,
+  ParsedDate,
   ParsedPartialDate,
   ParsedPhone,
   ParsedPostal,
+  ParsedRelated,
   ParsedSocial,
 } from "./parsed-contact.js";
 
@@ -13,15 +16,24 @@ import type {
  * package for that reason: `foldLine` against `unfold`, `escapeValue` against
  * `unescapeValue`, `joinStructured` against `splitStructured`, `writeParam`
  * against `splitUnquoted` + `unquote`, `formatPartialDate` against
- * `parsePartialDate`, {@link TYPE_FOR_LABEL} against `labelFrom`. The test that
- * matters is `parseVCards(writeVCards(x)) ≡ x`, and it only exists because both
- * halves are here.
+ * `parsePartialDate`, the `*_TYPE_FOR_LABEL` tables against `labelFrom`,
+ * {@link RELATED_TYPE_FOR_ROLE} against `RELATED_ROLES`. The test that matters
+ * is `parseVCards(writeVCards(x)) ≡ x`, and it only exists because both halves
+ * are here.
  *
- * **Scope is `plans/export.md` increment 1**: the published person and their
- * contact methods. Pets, unpublished people as `RELATED`, the nine non-birthday
- * milestone kinds, relationships, `X-LEAPSAKE-SELF` and `X-LEAPSAKE-CREATED`
- * are increment 2 and deliberately absent — a card this writes is a real card,
- * just not yet the whole graph.
+ * **This writes the whole person graph** (`plans/export.md` increments 1 and 2):
+ * people and pets, their contact methods, all ten milestone kinds, and the
+ * relationships between them.
+ *
+ * The facts vCard has no vocabulary for ride **parameters on the property they
+ * qualify** rather than becoming properties of their own: `X-LEAPSAKE-ROLE` and
+ * `-REL-ID` on a `RELATED`, `X-LEAPSAKE-MILESTONE-*` on an `X-ABDATE`,
+ * `X-LEAPSAKE-EXT`/`-COUNTRY` on a `TEL`. That is not only tidiness — an unknown
+ * *parameter* is invisible to any parser, while an unknown *property* lands in
+ * our own reader's `dropped` list, which would fill a user's re-import review
+ * with noise about their own file. `X-LEAPSAKE-SELF` and `X-LEAPSAKE-CREATED`
+ * are the two facts with nothing to ride; the parser's `DEFERRED` set is what
+ * keeps them quiet until increment 5 reads them.
  */
 
 /**
@@ -70,6 +82,12 @@ export function writeVCards(
 function writeCard(contact: ExportContact, opts: WriteOptions): string {
   const lines: Line[] = [];
   const push = (line: Line): void => void lines.push(line);
+  // Groups are allocated by a counter rather than derived from the lines already
+  // pushed, because a caller now takes a group *before* pushing either of the two
+  // lines that will share it (an `X-ABDATE` and its `X-ABLABEL`). Deriving it
+  // would hand the second caller the same `itemN` and silently merge two facts.
+  let groups = 0;
+  const nextGroup = (): string => `item${++groups}`;
 
   push({ name: "BEGIN", value: "VCARD" });
   push({ name: "VERSION", value: VERSION });
@@ -77,6 +95,14 @@ function writeCard(contact: ExportContact, opts: WriteOptions): string {
   if (contact.uid !== null) {
     push({ name: "UID", value: `urn:uuid:${contact.uid}` });
   }
+  // RFC 6350 §6.1.4, which explicitly allows an x-name. Apple Contacts will
+  // import a pet card as an ordinary person called "Rex" — accepted in
+  // `plans/export.md`: nothing is lost, and our own importer gets it right once
+  // increment 5 takes `KIND` out of the parser's `STRUCTURAL` set.
+  push({
+    name: "KIND",
+    value: contact.kind === "pet" ? "x-pet" : "individual",
+  });
 
   // `FN` is the one property RFC 6350 makes mandatory, so it is composed from
   // the parts when the contact carries no display name of its own rather than
@@ -110,29 +136,76 @@ function writeCard(contact: ExportContact, opts: WriteOptions): string {
     });
   }
 
+  /** The `itemN.X-ABLABEL` naming a custom-labelled property, when there is one. */
+  const pushLabel = (group: string | null, label: LabelSpelling): void => {
+    if (group !== null && label.ablabel !== null) {
+      push({ group, name: "X-ABLABEL", value: label.ablabel });
+    }
+  };
+
   for (const email of contact.emails) {
-    push({
-      name: "EMAIL",
-      params: labelParams(email.label, EMAIL_TYPE_FOR_LABEL),
-      value: email.address,
-    });
+    const label = labelSpelling(email.label, EMAIL_TYPE_FOR_LABEL);
+    const group = label.ablabel === null ? null : nextGroup();
+    push({ group, name: "EMAIL", params: label.params, value: email.address });
+    pushLabel(group, label);
   }
-  for (const phone of contact.phones) push(telLine(phone));
+  for (const phone of contact.phones) {
+    const label = labelSpelling(phone.label, PHONE_TYPE_FOR_LABEL);
+    const group = label.ablabel === null ? null : nextGroup();
+    push(telLine(phone, label, group));
+    pushLabel(group, label);
+  }
   for (const postal of contact.postals) {
-    // An address's ISO country rides in a sibling `X-ABADR`, so the pair needs a
-    // group to tie them together — Apple's convention, and what `countryCode`
-    // reads as its hint.
-    const group = postal.country === null ? null : nextGroup(lines);
-    push(adrLine(postal, group));
+    // One group carries all three of an address's lines: the `ADR`, the
+    // `X-ABLABEL` naming it when the label is the user's own, and the `X-ABADR`
+    // holding its ISO country (Apple's convention, and what `countryCode` reads
+    // as its hint). Allocating two would separate an address from its own
+    // country, which is the bug this shape exists to prevent.
+    const label = labelSpelling(postal.label, POSTAL_TYPE_FOR_LABEL);
+    const group =
+      label.ablabel === null && postal.country === null ? null : nextGroup();
+    push(adrLine(postal, label, group));
+    pushLabel(group, label);
     if (group !== null && postal.country !== null) {
       push({ group, name: "X-ABADR", value: postal.country });
     }
   }
-  for (const social of contact.socials) push(socialLine(social));
+  for (const social of contact.socials) {
+    const label = labelSpelling(social.label, SOCIAL_TYPE_FOR_LABEL);
+    const group = label.ablabel === null ? null : nextGroup();
+    push(socialLine(social, label, group));
+    pushLabel(group, label);
+  }
 
   if (contact.birthday !== null) {
     const value = formatPartialDate(contact.birthday);
     if (value !== null) push({ name: "BDAY", value });
+  }
+  // Every other dated milestone, birthday included where one somehow arrives
+  // here rather than in `birthday`. `ANNIVERSARY` is never written — measured
+  // dead on iOS (`plans/export.md` → *Writing dates*), which is why even an
+  // anniversary goes out this way.
+  for (const date of contact.dates) {
+    const value = formatPartialDate(date.date);
+    if (value === null) continue;
+    const group = nextGroup();
+    push({ group, name: "X-ABDATE", params: milestoneParams(date), value });
+    push({ group, name: "X-ABLABEL", value: date.label });
+  }
+
+  for (const relation of contact.related) push(relatedLine(relation));
+
+  // Record metadata last, where Apple puts `REV` — facts about the row rather
+  // than about the person.
+  if (contact.isSelf) push({ name: "X-LEAPSAKE-SELF", value: "TRUE" });
+  if (contact.createdAt !== null) {
+    push({
+      name: "X-LEAPSAKE-CREATED",
+      value: formatTimestamp(contact.createdAt),
+    });
+  }
+  if (contact.updatedAt !== null) {
+    push({ name: "REV", value: formatTimestamp(contact.updatedAt) });
   }
 
   push({ name: "END", value: "VCARD" });
@@ -172,13 +245,7 @@ const GENDER_LETTER: Record<string, string> = {
 /**
  * Our label vocabulary → the standard `TYPE` that reads back as it, inverting
  * the `known` tables `labelFrom` consults. A label absent from the relevant
- * table is written *as itself* — an x-name `TYPE` in all but spelling, which
- * `plans/export.md` blesses as one of the four extension points — and returns
- * through `labelFrom`'s title-case fallback: `TYPE=Mum's place` → "Mum's place".
- *
- * Increment 2 upgrades that fallback to Apple's `itemN.X-ABLABEL` form, which is
- * what iOS Contacts itself reads. This spelling loses nothing on the way back
- * *through us*; it is only iOS that will not show it as a custom label.
+ * table is not a `TYPE` at all — see {@link labelSpelling}.
  */
 const EMAIL_TYPE_FOR_LABEL: Record<string, string> = {
   Home: "HOME",
@@ -203,24 +270,52 @@ const SOCIAL_TYPE_FOR_LABEL: Record<string, string> = {
   Work: "WORK",
 };
 
+/** How one contact method's label is spelled on the wire. */
+interface LabelSpelling {
+  /** The `TYPE` param carrying it, when the standard vocabulary has one. */
+  params: Param[] | undefined;
+  /** The label to write as a sibling `itemN.X-ABLABEL`, when it does not. */
+  ablabel: string | null;
+}
+
 /**
- * The `TYPE` param for a label, or none at all.
+ * How to spell a label — three outcomes, and only the third is new.
  *
  * "Other" is written as *nothing*: `labelFrom` returns it when a property has no
  * usable type, so an absent `TYPE` already round-trips to "Other" — and `OTHER`
  * is in the parser's own `TYPE_NOISE`, so writing it would be a line that says
  * nothing and reads back the same.
+ *
+ * A label in the table becomes that standard `TYPE`.
+ *
+ * **Anything else is the user's own words, and goes out as Apple's
+ * `itemN.<PROP>` + `itemN.X-ABLABEL` pair.** Increment 1 wrote it as the `TYPE`
+ * value instead (`TYPE=Mum's place`), which round-trips through `labelFrom`'s
+ * title-case fallback but is not what iOS Contacts reads — so the one platform
+ * v0.1 ships to showed a custom-labelled phone as untyped. The `X-ABLABEL` form
+ * is what Contacts writes itself, our parser's group pre-pass already reads it
+ * through `appleLabelText`, and it round-trips **exactly** rather than
+ * title-cased. Increment 1's test asserting the old spelling is meant to change
+ * here.
  */
-function labelParams(
+function labelSpelling(
   label: string,
   known: Record<string, string>,
-): Param[] | undefined {
-  if (label === "Other") return undefined;
-  return [{ key: "TYPE", value: known[label] ?? label }];
+): LabelSpelling {
+  if (label === "Other") return { params: undefined, ablabel: null };
+  const type = known[label];
+  if (type !== undefined) {
+    return { params: [{ key: "TYPE", value: type }], ablabel: null };
+  }
+  return { params: undefined, ablabel: label };
 }
 
-function telLine(phone: ParsedPhone): Line {
-  const params = labelParams(phone.label, PHONE_TYPE_FOR_LABEL) ?? [];
+function telLine(
+  phone: ParsedPhone,
+  label: LabelSpelling,
+  group: string | null,
+): Line {
+  const params = [...(label.params ?? [])];
   // `smsCapable: false` *is* a fax line — the parser derives the flag as
   // `!types.includes("FAX")`, so this is that expression inverted, not a second
   // opinion about what the flag means.
@@ -236,7 +331,7 @@ function telLine(phone: ParsedPhone): Line {
   if (phone.country !== null) {
     params.push({ key: "X-LEAPSAKE-COUNTRY", value: phone.country });
   }
-  return { name: "TEL", params, value: phone.number };
+  return { group, name: "TEL", params, value: phone.number };
 }
 
 /**
@@ -252,11 +347,15 @@ function telLine(phone: ParsedPhone): Line {
  * would have to invent, and the ISO code we actually hold goes in the sibling
  * `X-ABADR` the caller writes, which is the only spelling `countryCode` accepts.
  */
-function adrLine(postal: ParsedPostal, group: string | null): Line {
+function adrLine(
+  postal: ParsedPostal,
+  label: LabelSpelling,
+  group: string | null,
+): Line {
   return {
     group,
     name: "ADR",
-    params: labelParams(postal.label, POSTAL_TYPE_FOR_LABEL),
+    params: label.params,
     value: joinStructured([
       "",
       postal.line2 ?? "",
@@ -276,18 +375,140 @@ function adrLine(postal: ParsedPostal, group: string | null): Line {
  * one (that is what makes an unrecognised platform openable at all) and the bare
  * handle otherwise.
  */
-function socialLine(social: ParsedSocial): Line {
+function socialLine(
+  social: ParsedSocial,
+  label: LabelSpelling,
+  group: string | null,
+): Line {
   const params: Param[] = [
     { key: "X-SERVICE-TYPE", value: social.platform },
-    ...(labelParams(social.label, SOCIAL_TYPE_FOR_LABEL) ?? []),
+    ...(label.params ?? []),
   ];
   if (social.platformUserId !== null) {
     params.push({ key: "X-LEAPSAKE-USERID", value: social.platformUserId });
   }
   return {
+    group,
     name: "X-SOCIALPROFILE",
     params,
     value: social.url ?? social.handle,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Milestones
+// ---------------------------------------------------------------------------
+
+/**
+ * The four facts an `X-ABDATE` has nowhere to put, as parameters riding the date
+ * they belong to.
+ *
+ * `X-LEAPSAKE-MILESTONE-KIND` is the load-bearing one. Apple's convention leaves
+ * the sibling `X-ABLABEL` as the only thing saying what a date *is*, and the
+ * parser's `dateKindFor` reads it — but a milestone of kind `other` wants its
+ * *note* as its label ("Beach house closing"), which no map could ever resolve
+ * back to a kind. Carrying the kind outright means the label stays the thing a
+ * human reads in Contacts while the kind stays exact for us.
+ *
+ * `-REL` marks a milestone the *relationship* bears rather than either partner —
+ * a wedding belongs to the marriage. Such a milestone is written on **both**
+ * partners' cards with the same `-ID`, which is the same shape `RELATED` uses:
+ * one fact, two cards, an id that identifies the halves.
+ */
+function milestoneParams(date: ParsedDate): Param[] {
+  const params: Param[] = [
+    { key: "X-LEAPSAKE-MILESTONE-KIND", value: date.kind },
+  ];
+  if (date.id !== null) {
+    params.push({ key: "X-LEAPSAKE-MILESTONE-ID", value: date.id });
+  }
+  if (date.relationshipId !== null) {
+    params.push({
+      key: "X-LEAPSAKE-MILESTONE-REL",
+      value: date.relationshipId,
+    });
+  }
+  // Skipped when the note already *is* the label, which is what it means on an
+  // `other`-kind milestone — writing it twice would say nothing new and would
+  // make the two spellings able to disagree.
+  if (date.note !== null && date.note !== date.label) {
+    params.push({ key: "X-LEAPSAKE-MILESTONE-NOTE", value: date.note });
+  }
+  return params;
+}
+
+// ---------------------------------------------------------------------------
+// Relationships
+// ---------------------------------------------------------------------------
+
+/**
+ * A Leapsake role → the `RELATED;TYPE=` token that reads back as it, inverting
+ * the parser's `RELATED_ROLES`. Keyed by the role's **base**, since that is what
+ * a gendered variant reduces to.
+ *
+ * `coworker` writes RFC 6350's own `co-worker`; the parser accepts both that and
+ * `colleague`.
+ */
+const RELATED_TYPE_FOR_ROLE: Record<string, string> = {
+  spouse: "spouse",
+  child: "child",
+  parent: "parent",
+  sibling: "sibling",
+  friend: "friend",
+  neighbor: "neighbor",
+  coworker: "co-worker",
+};
+
+/**
+ * The `TYPE` token for a role, or `null` when there is nothing to say.
+ *
+ * Leapsake has 41 roles and RFC 6350 has seven words we can map, so the standard
+ * token names the role's **base** — `mother` goes out as `TYPE=parent` — and the
+ * exact role rides alongside in `X-LEAPSAKE-ROLE`. Writing `TYPE=mother` instead
+ * would tell a standards consumer nothing (it reads as an unknown type) *and*
+ * lose the kinship on the way back through us, since `RELATED_ROLES` has no
+ * entry for it. A base with no RFC word at all (`cousin`, `classmate`,
+ * `grandparent`, `pibling`, `owner`…) is written as itself, an x-name `TYPE` in
+ * all but spelling.
+ *
+ * Role `other` is the exception: its `TYPE` is the user's own note, **bare**.
+ * `relatedFrom` turns an unmapped type into exactly that note, so `TYPE=muse`
+ * round-trips to "muse" while the `x-muse` an x-name convention would suggest
+ * round-trips to the literal string "x-muse".
+ */
+function relatedType(relation: ParsedRelated): string | null {
+  if (relation.role === "other") return relation.roleNote;
+  const base: RelationshipRole = roleDefs[relation.role].base;
+  return RELATED_TYPE_FOR_ROLE[base] ?? base;
+}
+
+/**
+ * One edge as `RELATED`.
+ *
+ * Two forms, decided by whether the other end has a card of its own. An
+ * unpublished person exists only as a fact about this one, so they are *named*
+ * (`VALUE=text`); a published person has their own card, so they are *pointed
+ * at* (`VALUE=uri:urn:uuid:…`). The edge is written on both cards either way —
+ * that is what vCard means by `RELATED`, and `X-LEAPSAKE-REL-ID` is what lets an
+ * importer recognise the two halves as one relationship rather than two.
+ *
+ * `VALUE` is spelled out on both, although `uri` is the property's default: the
+ * parser tells them apart by looking for a scheme, so the parameter buys nothing
+ * mechanically — it buys a reader (and a strict consumer) being told outright.
+ */
+function relatedLine(relation: ParsedRelated): Line {
+  const reference = relation.otherUid !== null;
+  const params: Param[] = [{ key: "VALUE", value: reference ? "uri" : "text" }];
+  const type = relatedType(relation);
+  if (type !== null) params.push({ key: "TYPE", value: type });
+  params.push({ key: "X-LEAPSAKE-ROLE", value: relation.role });
+  if (relation.relationshipId !== null) {
+    params.push({ key: "X-LEAPSAKE-REL-ID", value: relation.relationshipId });
+  }
+  return {
+    name: "RELATED",
+    params,
+    value: reference ? `urn:uuid:${relation.otherUid}` : relation.name,
   };
 }
 
@@ -367,14 +588,6 @@ interface Line {
   structured?: boolean;
 }
 
-/** `itemN.` for the next group on this card, 1-based like Apple's own output. */
-function nextGroup(lines: readonly Line[]): string {
-  const used = new Set(
-    lines.map((l) => l.group).filter((g): g is string => g != null),
-  );
-  return `item${used.size + 1}`;
-}
-
 function renderLine(line: Line): string {
   const params = (line.params ?? [])
     .map((p) => `;${p.key}=${writeParam(p.value)}`)
@@ -417,9 +630,17 @@ function joinStructured(parts: readonly string[]): string {
  * characters, and nothing else, force quoting. A `"` inside a param value has no
  * escape in vCard at all; it is dropped rather than written, since emitting it
  * would end the quoted run early and silently corrupt every param after it.
+ *
+ * **Newlines are folded to a space** for the same reason, one step worse: RFC
+ * 6350's param grammar is `QSAFE-CHAR`, which excludes control characters
+ * outright, and a raw newline here would end the *line*, turning the rest of the
+ * property into a continuation of nothing. This is not hypothetical any more —
+ * a milestone's note is multi-line free text and rides
+ * `X-LEAPSAKE-MILESTONE-NOTE`. The note stops being byte-exact; the alternative
+ * is a corrupt card or dropping the note entirely.
  */
 function writeParam(value: string): string {
-  const clean = value.replace(/"/g, "");
+  const clean = value.replace(/"/g, "").replace(/[\r\n]+/g, " ");
   return /[;:,]/.test(clean) ? `"${clean}"` : clean;
 }
 

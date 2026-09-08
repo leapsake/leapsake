@@ -46,5 +46,6 @@ export type {
   ParsedPartialDate,
   ParsedPhone,
   ParsedPostal,
+  ParsedRelated,
   ParsedSocial,
 } from "./parsed-contact.js";

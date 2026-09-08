@@ -59,15 +59,15 @@ already live-rows-only**. There is no query available that could produce the dan
 revisit; it turned out to be unnecessary, and adding one would be the thing that lets a future
 caller opt *into* the surprise.
 
-`listPeople` likewise answers only **published** people (`people.list()` carries `PUBLISHED_SQL`).
+`listPeople` and `listPets` likewise answer only **published** entities (`PUBLISHED_SQL`).
 Somebody who exists only as a fact about another person belongs on that person's card as a
-`RELATED`, which is increment 2 — not on a card of their own.
+`RELATED`, not on a card of their own — see *The graph walk* below.
 
 ## The archive
 
 ```
 leapsake-export-2026-09-07.zip
-├── contacts.vcf   the person graph
+├── contacts.vcf   the person graph — people, pets, dates, relationships
 ├── data.json      everything not person-shaped (versioned; still nearly empty)
 └── README.txt     what these are, what wrote them, how to get them back
 ```
@@ -91,14 +91,41 @@ Deflate rather than store, because vCard is extremely compressible text and a la
 is the case that matters. The zip's embedded timestamp comes from the injected instant, so two
 exports of an unchanged store are the same file byte-for-byte.
 
+## The graph walk
+
+Increment 1 could visit each person alone. Carrying relationships cannot: an **edge is a fact
+about two entities** and lands on both their cards, so `buildArchive` is a graph walk rather than
+a list. Three things follow, and each is the reason for a shape that would otherwise look odd.
+
+**An unpublished person is reached only through somebody else's `neighborsFor`.** They never get a
+card — that is what their standing means, so the file says exactly what the store does: a name on
+the card of the one person they are a fact about. `listPeople` cannot see them, which is not a
+limitation to route around but the invariant itself.
+
+**A milestone borne by a *relationship* is written on both partners' cards, with one id.** A
+wedding belongs to the marriage, not to either partner. Writing it once, on whichever card sorted
+first, would show a third-party importer the anniversary on one of the two people and make which
+one look arbitrary. Writing it twice needs the shared `X-LEAPSAKE-MILESTONE-ID`, or an importer
+could not tell one anniversary written twice from two anniversaries — the same problem
+`X-LEAPSAKE-REL-ID` solves for the edge itself, solved the same way. The read is memoised by
+relationship id, so an edge visited from both ends costs one query.
+
+**Derived edges are excluded twice over.** The kinship engine computes some neighbors live — your
+parent's sibling is your pibling — and those have no stored row. Exporting one would write an
+inference into the file as if the user had recorded it, and a re-import would then *store* it, at
+which point it stops being live and starts being stale. `ExportPorts` says the implementation must
+not return them, core wires `orientedNeighbors` (explicit by construction) rather than the kinship
+service, and the builder filters again. Belt and braces on purpose: the failure is silent and
+permanent.
+
 ## What it does not carry yet
 
-Increment 1 is published people, their contact methods and their birthday. Pets, unpublished
-people, the other nine milestone kinds and the relationship graph are increment 2; `data.json`'s
-real contents are increment 3.
+`data.json`'s real contents are increment 3 — reminders, gift ideas, the user's holiday choices,
+`not_a_duplicate` judgments, notification preferences.
 
 One consequence worth knowing while increment 5 is outstanding: **the parser cannot yet read back
-the `UID`, `CATEGORIES` and `X-LEAPSAKE-*` this writes**, so re-importing our own file duplicates
-everyone and loses those fields. Survivable only because mobile's import path reads device
-Contacts and cannot open a `.vcf` at all — desktop's drag-drop *can*, so do not point a desktop
-user at their own export until that lands.
+most of what this writes** — `UID`, `CATEGORIES`, `KIND`, `REV`, and every `X-LEAPSAKE-*` — so
+re-importing our own file duplicates everyone, demotes every published relationship to a dropped
+field, and loses those fields. Survivable only because mobile's import path reads device Contacts
+and cannot open a `.vcf` at all; desktop's drag-drop *can*, so do not point a desktop user at
+their own export until that lands.

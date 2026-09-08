@@ -1,4 +1,4 @@
-import type { ParsedContact } from "@leapsake/vcard";
+import type { ParsedContact, ParsedRelated } from "@leapsake/vcard";
 import {
   type CoreApi,
   type SqliteDriver,
@@ -32,6 +32,10 @@ afterEach(() => {
 function contact(over: Partial<ParsedContact> = {}): ParsedContact {
   return {
     uid: null,
+    kind: "individual",
+    isSelf: false,
+    createdAt: null,
+    updatedAt: null,
     name: { firstName: "Jane", middleName: null, lastName: "Doe" },
     displayName: "Jane Doe",
     gender: null,
@@ -44,6 +48,18 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
     dates: [],
     tags: [],
     dropped: [],
+    ...over,
+  };
+}
+
+/** One `RELATED` a card names, with the fields only our own writer fills. */
+function related(over: Partial<ParsedRelated> = {}): ParsedRelated {
+  return {
+    name: "Jen Davis",
+    role: "spouse",
+    roleNote: null,
+    otherUid: null,
+    relationshipId: null,
     ...over,
   };
 }
@@ -195,7 +211,7 @@ describe("core.import.commit — named relations", () => {
         action: "create",
         contact: contact({
           name: { firstName: "Sam", middleName: null, lastName: "Carter" },
-          related: [{ name: "Jen Davis", role: "spouse", roleNote: null }],
+          related: [related({ name: "Jen Davis", role: "spouse" })],
         }),
       },
     ]);
@@ -222,7 +238,7 @@ describe("core.import.commit — named relations", () => {
       {
         action: "create",
         contact: contact({
-          related: [{ name: "Ada", role: "other", roleNote: "muse" }],
+          related: [related({ name: "Ada", role: "other", roleNote: "muse" })],
         }),
       },
     ]);
@@ -238,8 +254,8 @@ describe("core.import.commit — named relations", () => {
         action: "create",
         contact: contact({
           related: [
-            { name: "Jen Davis", role: "spouse", roleNote: null },
-            { name: "Ben", role: "child", roleNote: null },
+            related({ name: "Jen Davis", role: "spouse" }),
+            related({ name: "Ben", role: "child" }),
           ],
         }),
       },

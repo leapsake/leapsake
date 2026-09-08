@@ -242,7 +242,16 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
       });
       continue;
     }
-    dates.push({ kind, label: text, date });
+    dates.push({
+      kind,
+      label: text,
+      date,
+      // The device API has no place for a milestone's note or its id — a
+      // contact's date entry is a label and a value, nothing else.
+      note: null,
+      id: null,
+      relationshipId: null,
+    });
   }
 
   const company = clean(contact.company);
@@ -255,8 +264,13 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
   return {
     // The device API exposes no stable cross-device id we could carry as a
     // `UID` — `Contact.id` is local to this address book — and no tag concept
-    // at all. Both stay at the parser's absent value.
+    // at all. Both stay at the parser's absent value, as do the four facts only
+    // a Leapsake-written card carries.
     uid: null,
+    kind: "individual",
+    isSelf: false,
+    createdAt: null,
+    updatedAt: null,
     name: { firstName, middleName: clean(contact.middleName), lastName },
     displayName,
     gender: null, // expo-contacts carries no gender

@@ -71,6 +71,24 @@ export interface ParsedRelated {
   role: RelationshipRole;
   /** The card's own `TYPE`, kept as the qualifier when `role` is `other`. */
   roleNote: string | null;
+  /**
+   * The `UID` of the other end's own card, when the edge points at one rather
+   * than merely naming somebody — a published↔published relationship, written as
+   * `RELATED;VALUE=uri:urn:uuid:…`.
+   *
+   * `null` from the parser today (a URI-valued `RELATED` falls to `dropped`; see
+   * the TODO on `relatedFrom`), and `null` for every unpublished relation, whose
+   * whole point is that they have no card.
+   */
+  otherUid: string | null;
+  /**
+   * The Leapsake `relationships.id` this edge is, as `X-LEAPSAKE-REL-ID`.
+   *
+   * The edge appears on **both** cards — that is what vCard means by `RELATED` —
+   * so this is what lets an importer recognise the two halves as one relationship
+   * rather than two. `null` from the parser today, and for any foreign card.
+   */
+  relationshipId: string | null;
 }
 
 /** One parsed email — the address as written plus a display label. */
@@ -166,6 +184,29 @@ export interface ParsedDate {
   /** The source's own label, for the review UI and for an `other` kind's note. */
   label: string;
   date: ParsedPartialDate;
+  /**
+   * The milestone's free text. Distinct from {@link ParsedDate.label}: for kind
+   * `other` the note *is* the label (that is what `note` means on that kind), and
+   * for every other kind it is an annotation the label does not carry.
+   *
+   * `null` from the parser today — no source card has a place for it — and
+   * written as a parameter on the `X-ABDATE` line rather than a property of its
+   * own, so it rides the date it annotates.
+   */
+  note: string | null;
+  /** The Leapsake `milestones.id`, for a card we wrote. `null` otherwise. */
+  id: string | null;
+  /**
+   * The `relationships.id` this milestone is stored on, when its bearer is a
+   * relationship rather than a person or a pet — a wedding belongs to the edge,
+   * not to either partner.
+   *
+   * Such a milestone is written on **both** partners' cards, carrying the same
+   * {@link ParsedDate.id}: one fact, two cards, an id that identifies the halves,
+   * exactly as {@link ParsedRelated.relationshipId} does for the edge itself.
+   * `null` for a milestone the entity bears itself.
+   */
+  relationshipId: string | null;
 }
 
 /**
@@ -192,6 +233,24 @@ export interface ParsedContact {
    * this one would be the thing that lets the two halves drift.
    */
   uid: string | null;
+  /**
+   * What kind of thing the card is about — a vCard `KIND` (RFC 6350 §6.1.4,
+   * which allows x-names, so a pet is `KIND:x-pet`).
+   *
+   * `"individual"` for every card the parser produces today: `KIND` is in
+   * `STRUCTURAL` and ignored on the way in, so a pet card of our own re-imports
+   * as an ordinary person. Reading it is `plans/export.md` increment 5.
+   */
+  kind: "individual" | "pet";
+  /**
+   * Whether this card is the user themselves — the `self_person` row, written as
+   * `X-LEAPSAKE-SELF:TRUE`. `false` from the parser today.
+   */
+  isSelf: boolean;
+  /** `X-LEAPSAKE-CREATED` — epoch ms. `null` from the parser today. */
+  createdAt: number | null;
+  /** `REV` — epoch ms. `null` from the parser: `REV` is in `STRUCTURAL`. */
+  updatedAt: number | null;
   name: ParsedName;
   /** The source display name (vCard `FN`), kept for the review UI even when the
    *  structured name was derived from it. `null` when the card carried none. */
@@ -228,6 +287,14 @@ export interface ParsedContact {
  */
 export const parsedContactSchema = z.object({
   uid: z.string().nullable(),
+  // The writer-only fields carry defaults rather than being required, so a
+  // payload built before they existed still validates. They cost nothing on the
+  // way in — the parser fills every one of them with the default anyway — and
+  // the alternative is a boundary that rejects a renderer one build behind.
+  kind: z.enum(["individual", "pet"]).default("individual"),
+  isSelf: z.boolean().default(false),
+  createdAt: z.number().int().nullable().default(null),
+  updatedAt: z.number().int().nullable().default(null),
   name: z.object({
     firstName: z.string(),
     middleName: z.string().nullable(),
@@ -286,6 +353,9 @@ export const parsedContactSchema = z.object({
         month: z.number().int().nullable(),
         day: z.number().int().nullable(),
       }),
+      note: z.string().min(1).nullable().default(null),
+      id: z.string().nullable().default(null),
+      relationshipId: z.string().nullable().default(null),
     }),
   ),
   // A role that isn't one Leapsake knows is a payload we refuse rather than
@@ -296,6 +366,8 @@ export const parsedContactSchema = z.object({
       name: z.string().min(1),
       role: relationshipRoleSchema,
       roleNote: z.string().min(1).nullable(),
+      otherUid: z.string().nullable().default(null),
+      relationshipId: z.string().nullable().default(null),
     }),
   ),
   tags: z.array(z.string().min(1)),

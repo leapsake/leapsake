@@ -66,19 +66,47 @@ to take. `apple-labels.ts` is that one file: the `_$!<Work>!$_` constant unwrapp
 (Graduation)" — rather than guessed into `other`, so a stray date never mints a milestone. Adding
 entries **pays twice**, since the iOS Contacts path gains the same kinds in the same change.
 
-## The write side is not finished
+**A grouped `X-ABLABEL` names a contact method as readily as it names a date**, and until
+`plans/export.md` increment 2 it was read for dates and nothing else. Apple puts standard labels
+in `TYPE` and a user's own words *only* in `item1.X-ABLABEL`, so every custom label on a card
+straight out of an iPhone — "Beach house", "Mum's place" — arrived as "Other", the label the user
+is least likely to have meant. `labelFrom` now takes the group label and lets it win outright,
+which is also what Contacts itself displays; that fix is what lets the writer emit the same form.
 
-`writeVCards` builds `plans/export.md` increment 1: the published person, their contact methods
-and their birthday. Pets (`KIND:x-pet`), unpublished people as `RELATED`, the other nine milestone
-kinds, relationships and Apple `itemN.X-ABLABEL` custom labels are increment 2.
+## Writing the graph: three rules worth knowing
 
-**The reader lags the writer, and that asymmetry is temporary but real.** `UID` and `CATEGORIES`
-are written but sit in `STRUCTURAL`/`dropped` on the way in, and the `X-LEAPSAKE-*` parameters
-(`EXT`, `COUNTRY`, `USERID`) are written but not read — so **re-importing our own file duplicates
-everyone, demotes every real relationship to an unpublished stub, and loses those fields.** That
-is increment 5. Until it lands the gap is survivable only because the mobile import path reads
-device Contacts and cannot open a `.vcf` at all; desktop's drag-drop *can*.
+**Facts vCard has no vocabulary for ride *parameters*, not properties.** `X-LEAPSAKE-ROLE` and
+`-REL-ID` on a `RELATED`, `-MILESTONE-ID`/`-KIND`/`-NOTE`/`-REL` on an `X-ABDATE`,
+`-EXT`/`-COUNTRY` on a `TEL`. Partly so a fact cannot be separated from what it qualifies — but
+mostly because an unknown *parameter* is invisible to any parser, while an unknown *property*
+lands in this reader's own `dropped` list. Spelled as properties, a user re-importing their own
+file would be shown a list of their own fields that "could not be imported".
+`X-LEAPSAKE-SELF` and `X-LEAPSAKE-CREATED` are the only two facts with nothing to ride, and the
+parser's `DEFERRED` set is what keeps them quiet until increment 5 reads them.
 
-`write.test.ts`'s `asParsedToday` helper is where the gap is written down. When increment 5 lands,
-delete it and compare directly — the test failing at that point is the signal it is no longer
-needed.
+**A role is written as its base, with the exact role beside it.** Leapsake has 41 relationship
+roles and RFC 6350 gives seven words, so `mother` goes out as `TYPE=parent` — what a standards
+consumer can act on — plus `X-LEAPSAKE-ROLE=mother`. `TYPE=mother` would tell a third party
+nothing *and* lose the kinship through our own `RELATED_ROLES`, which has no entry for it. The one
+exception is role `other`, whose `TYPE` is the user's note **bare**: `relatedFrom` turns an
+unmapped type into exactly the word it read, so `muse` round-trips and `x-muse` would not.
+
+**A relationship's milestone is written on both partners' cards, with one id.** A wedding is borne
+by the marriage rather than by either partner. `X-LEAPSAKE-MILESTONE-REL` says which edge, and the
+shared `-ID` is what tells an importer this is one fact written twice rather than two facts.
+
+## The reader lags the writer
+
+`writeVCards` now builds the whole person graph (`plans/export.md` increments 1 and 2): people and
+pets, contact methods, all ten milestone kinds, and the relationships between them.
+
+**The asymmetry is temporary but real.** `UID`, `CATEGORIES`, `KIND` and `REV` are written but sit
+in `STRUCTURAL`/`dropped` on the way in, and none of the `X-LEAPSAKE-*` are read — so
+**re-importing our own file duplicates everyone, drops every published relationship, and loses
+nine of the ten milestone kinds.** That is increment 5. Until it lands the gap is survivable only
+because the mobile import path reads device Contacts and cannot open a `.vcf` at all; desktop's
+drag-drop *can*.
+
+`write.test.ts`'s `asParsedToday` helper is where the whole gap is written down — including how a
+role *degrades* on the way back. When increment 5 lands, delete it and compare directly: the test
+failing at that point is the signal it is no longer needed.

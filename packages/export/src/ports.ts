@@ -1,4 +1,13 @@
-import type { ContactMethod, Milestone, Person, Tag } from "@leapsake/schema";
+import type {
+  ContactMethod,
+  EntityType,
+  Milestone,
+  MilestoneBearerType,
+  Person,
+  Pet,
+  RelationshipNeighbor,
+  Tag,
+} from "@leapsake/schema";
 
 /**
  * The **read** surface the exporter drives — the mirror of `@leapsake/vcard`'s
@@ -18,15 +27,44 @@ import type { ContactMethod, Milestone, Person, Tag } from "@leapsake/schema";
  * would not round-trip — vCard cannot say "deleted", so every third-party import
  * would resurrect them as live contacts.
  *
- * `listPeople` likewise returns only *published* people, because `people.list()`
- * is the user's own catalog (`PUBLISHED_SQL`). Someone who exists only as a fact
- * about another person belongs on that person's card as a `RELATED`, which is
- * `plans/export.md` increment 2.
+ * `listPeople` and `listPets` likewise return only *published* entities, because
+ * `people.list()`/`pets.list()` are the user's own catalog (`PUBLISHED_SQL`).
+ * Someone who exists only as a fact about another person gets **no card of their
+ * own**: they are a `RELATED` on the card of the one person they hang off, which
+ * is exactly what the store says about them. `neighborsFor` is how the exporter
+ * reaches them, and it is the only way an unpublished row enters the file.
  */
 export interface ExportPorts {
   /** Every published, undeleted person — the cards the file is made of. */
   listPeople(): Promise<Person[]>;
+  /** Every published, undeleted pet. Each gets a `KIND:x-pet` card. */
+  listPets(): Promise<Pet[]>;
+  /** Pets have none — a contact method's owner is a person or a household. */
   contactMethodsFor(personId: string): Promise<ContactMethod[]>;
-  milestonesFor(personId: string): Promise<Milestone[]>;
-  tagsFor(personId: string): Promise<Tag[]>;
+  /**
+   * A bearer's milestones. The bearer is a person, a pet, **or a relationship** —
+   * a wedding is stored on the marriage rather than on either partner, and an
+   * exporter that only asked for `person` would leave every one of them out.
+   */
+  milestonesFor(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<Milestone[]>;
+  tagsFor(type: EntityType, id: string): Promise<Tag[]>;
+  /**
+   * An entity's relationships, oriented so the *other* end is resolved.
+   *
+   * **Explicit edges only.** The kinship engine also computes "derived" ones —
+   * your parent's sibling is your pibling — and those have no stored row and no
+   * id. Exporting them would write inferences into the file as if the user had
+   * recorded them, and a re-import would then store what was computed, so the
+   * inference stops being live. The implementation must not return them.
+   *
+   * An edge whose other end is soft-deleted does not come back either, for the
+   * same structural reason the rest of this interface has no `includeDeleted`:
+   * the resolver skips an endpoint that no longer reads.
+   */
+  neighborsFor(type: EntityType, id: string): Promise<RelationshipNeighbor[]>;
+  /** The `self_person` row's person id — the card that gets `X-LEAPSAKE-SELF`. */
+  selfPersonId(): Promise<string | null>;
 }

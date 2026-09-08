@@ -164,13 +164,12 @@ describe("core.export.archive", () => {
   });
 
   /**
-   * An unpublished person exists only as a fact about somebody else, so they
-   * belong on *that* person's card as a `RELATED` — which is `plans/export.md`
-   * increment 2. Until it lands they are absent rather than given a card of
-   * their own, and this is what says so out loud: when increment 2 arrives, this
-   * test is the one that has to change.
+   * An unpublished person exists only as a fact about somebody else, so they are
+   * *named* on that person's card and never given one of their own. Both halves
+   * matter: dropping them would lose a real fact, and carding them would invent
+   * an entity the app does not have.
    */
-  it("gives an unpublished person no card of their own (increment 2 changes this)", async () => {
+  it("names an unpublished person on their host's card, with no card of their own", async () => {
     const jane = await core.people.create(
       { firstName: "Jane", lastName: "Doe" },
       [],
@@ -189,8 +188,142 @@ describe("core.export.archive", () => {
 
     const vcf = await exportedVcf();
     expect(parseVCards(vcf)).toHaveLength(1);
-    expect(vcf).not.toContain("Unpublished");
-    expect(vcf).not.toContain(other.id);
+    expect(unfold(vcf)).toContain(
+      "RELATED;VALUE=text;TYPE=spouse;X-LEAPSAKE-ROLE=spouse",
+    );
+    expect(vcf).toContain("Unpublished Spouse");
+    // Named, not carded.
+    expect(vcf).not.toContain(`UID:urn:uuid:${other.id}`);
+    expect(vcf).not.toContain("FN:Unpublished");
+  });
+
+  it("points two published people at each other by uid, over one edge id", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      [],
+    );
+    const ben = await core.people.create(
+      { firstName: "Ben", lastName: "Doe" },
+      [],
+    );
+    const rel = await core.relationships.create({
+      aType: "person",
+      aId: jane.id,
+      aRole: "parent",
+      bType: "person",
+      bId: ben.id,
+      bRole: "child",
+    });
+
+    const vcf = unfold(await exportedVcf());
+
+    expect(vcf).toContain(`urn:uuid:${ben.id}`);
+    expect(vcf).toContain(`urn:uuid:${jane.id}`);
+    expect(
+      vcf.match(new RegExp(`X-LEAPSAKE-REL-ID=${rel.id}`, "g")),
+    ).toHaveLength(2);
+  });
+
+  it("gives a pet a card of its own, with its owner and its birthday", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      [],
+    );
+    const rex = await core.pets.create({ name: "Rex", gender: "male" }, [
+      "Pets",
+    ]);
+    await core.relationships.create({
+      aType: "person",
+      aId: jane.id,
+      aRole: "owner",
+      bType: "pet",
+      bId: rex.id,
+      bRole: "pet",
+    });
+    await core.milestones.create({
+      kind: "birthday",
+      bearerType: "pet",
+      bearerId: rex.id,
+      year: 2019,
+      month: 5,
+      day: 2,
+    });
+
+    const { bytes, counts } = await core.export.archive({
+      appVersion: VERSION,
+    });
+    const vcf = unfold(
+      new TextDecoder().decode(unzipSync(bytes)["contacts.vcf"]),
+    );
+
+    expect(counts.pets).toBe(1);
+    expect(vcf).toContain("KIND:x-pet");
+    expect(vcf).toContain(`UID:urn:uuid:${rex.id}`);
+    expect(vcf).toContain("FN:Rex");
+    expect(vcf).toContain("BDAY:2019-05-02");
+    expect(vcf).toContain("CATEGORIES:Pets");
+    // The owner edge, from the pet's side.
+    expect(vcf).toContain(`X-LEAPSAKE-ROLE=owner`);
+  });
+
+  /**
+   * A wedding is borne by the *relationship*, not by either partner, so the
+   * increment-1 port (`milestonesFor("person", id)`) could not have seen it at
+   * all. It lands on both cards carrying one id.
+   */
+  it("carries a relationship-borne milestone onto both partners' cards", async () => {
+    const sam = await core.people.create({ firstName: "Sam" }, []);
+    const jen = await core.people.create({ firstName: "Jen" }, []);
+    const rel = await core.relationships.create({
+      aType: "person",
+      aId: sam.id,
+      aRole: "spouse",
+      bType: "person",
+      bId: jen.id,
+      bRole: "spouse",
+    });
+    const wedding = await core.milestones.create({
+      kind: "wedding",
+      bearerType: "relationship",
+      bearerId: rel.id,
+      year: 2011,
+      month: 6,
+      day: 18,
+    });
+
+    const vcf = unfold(await exportedVcf());
+
+    expect(vcf.match(/X-ABLABEL:Wedding/g)).toHaveLength(2);
+    expect(
+      vcf.match(new RegExp(`X-LEAPSAKE-MILESTONE-ID=${wedding.id}`, "g")),
+    ).toHaveLength(2);
+    expect(vcf).toContain(`X-LEAPSAKE-MILESTONE-REL=${rel.id}`);
+  });
+
+  it("marks the self person", async () => {
+    const jane = await core.people.create({ firstName: "Jane" }, []);
+    await core.people.create({ firstName: "Bob" }, []);
+    await core.self.set(jane.id);
+
+    const vcf = await exportedVcf();
+    expect(vcf.match(/X-LEAPSAKE-SELF:TRUE/g)).toHaveLength(1);
+  });
+
+  /**
+   * An unpublished entity is meant to be reachable only through the one edge it
+   * hangs off, so it should have no milestones of its own to lose. If a flow ever
+   * makes that possible, this fails and the export has a real gap to answer for.
+   */
+  it("gives an unpublished person nowhere to keep milestones of their own", async () => {
+    const jane = await core.people.create({ firstName: "Jane" }, []);
+    const { other } = await core.relationships.createWithNewOther({
+      subjectType: "person",
+      subjectId: jane.id,
+      otherType: "person",
+      otherName: "Unpublished Spouse",
+      otherRole: "spouse",
+    });
+    expect(await core.milestones.listForBearer("person", other.id)).toEqual([]);
   });
 
   it("produces a readable archive for an empty store", async () => {
@@ -198,6 +331,7 @@ describe("core.export.archive", () => {
       appVersion: VERSION,
     });
     expect(counts.people).toBe(0);
+    expect(counts.pets).toBe(0);
     expect(filename).toMatch(/^leapsake-export-\d{4}-\d{2}-\d{2}\.zip$/);
     expect(Object.keys(unzipSync(bytes)).sort()).toEqual([
       "README.txt",
@@ -206,3 +340,8 @@ describe("core.export.archive", () => {
     ]);
   });
 });
+
+/** Folded lines rejoined, so a golden assertion can span more than 75 octets. */
+function unfold(vcf: string): string {
+  return vcf.replace(/\r\n /g, "");
+}

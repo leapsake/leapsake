@@ -1,16 +1,40 @@
+import { type RelationshipRole, roleDefs } from "@leapsake/schema";
 import { describe, expect, it } from "vitest";
-import type { ExportContact } from "../src/index.js";
-import { formatPartialDate, parseVCards, writeVCards } from "../src/index.js";
+import type {
+  DroppedField,
+  ExportContact,
+  ParsedDate,
+  ParsedRelated,
+} from "../src/index.js";
+import {
+  dateKindFor,
+  formatPartialDate,
+  parseVCards,
+  writeVCards,
+} from "../src/index.js";
 
 const PROD_ID = "-//Leapsake//Leapsake 0.1.0//EN";
 
 const write = (contacts: ExportContact[]): string =>
   writeVCards(contacts, { prodId: PROD_ID });
 
+/**
+ * The same text with the folds taken out, for asserting on a line longer than
+ * 75 octets. A `RELATED` carrying two uuids is well past that, and a golden
+ * assertion that happened to straddle a fold would fail for a reason that has
+ * nothing to do with what it is testing. Folding has tests of its own.
+ */
+const unfolded = (contacts: ExportContact[]): string =>
+  write(contacts).replace(/\r\n /g, "");
+
 /** A minimal round-trippable contact; override any field per test. */
 function contact(over: Partial<ExportContact> = {}): ExportContact {
   return {
     uid: null,
+    kind: "individual",
+    isSelf: false,
+    createdAt: null,
+    updatedAt: null,
     name: { firstName: "Jane", middleName: null, lastName: "Doe" },
     displayName: "Jane Doe",
     gender: null,
@@ -28,28 +52,118 @@ function contact(over: Partial<ExportContact> = {}): ExportContact {
 }
 
 /**
- * The contact as the parser can currently report it back.
+ * The contact as the parser can currently report it back — **the ledger of
+ * everything the writer says that the reader cannot yet hear.**
  *
- * `UID` and `CATEGORIES` are written but not yet *read* — the first is in the
- * parser's `STRUCTURAL` set, the second falls to `dropped` — so a literal
- * `parseVCards(write(x)) ≡ x` cannot hold for them until `plans/export.md`
- * increment 5 lands. Everything else is compared as-is, and the two deferred
- * fields have golden-text tests of their own below, so nothing here is merely
- * assumed to work.
+ * A literal `parseVCards(write(x)) ≡ x` cannot hold while `plans/export.md`
+ * increment 5 is outstanding, and the gaps are not one kind of thing:
  *
- * **When increment 5 lands, delete this helper** and compare `x` directly — the
- * test failing at that point is the signal that it is no longer needed.
+ * - `UID`, `KIND` and `REV` are in the parser's `STRUCTURAL` set and
+ *   `X-LEAPSAKE-SELF`/`-CREATED` in its `DEFERRED` set, so they vanish silently.
+ * - `CATEGORIES` and a `RELATED` pointing at another card fall to `dropped`.
+ * - A milestone kind with no `DATE_KINDS` entry is dropped **by name**, so nine
+ *   of the ten kinds we write come back as `Date (Wedding)` and friends.
+ * - A relationship role **degrades**: `mother` is written as the standard
+ *   `TYPE=parent` (with the exact role in a parameter the parser ignores), so it
+ *   reads back as `parent`; a role with no RFC word at all reads back as `other`
+ *   carrying the word.
+ *
+ * Each of those has a golden-text test of its own below, so nothing here is
+ * merely assumed. **When increment 5 lands, delete this helper** and compare `x`
+ * directly — the test failing at that point is the signal it is no longer needed.
  */
 function asParsedToday(c: ExportContact): ExportContact {
+  const dropped: DroppedField[] = [...c.dropped];
+  // In card order, which is the order the parser walks and therefore the order
+  // `toEqual` compares: CATEGORIES, then the dates, then the relationships.
+  if (c.tags.length > 0) {
+    dropped.push({ property: "CATEGORIES", value: c.tags.join(",") });
+  }
+
+  const dates: ParsedDate[] = [];
+  for (const d of c.dates) {
+    const value = formatPartialDate(d.date);
+    if (value === null) continue; // never written at all
+    const kind = dateKindFor(d.label);
+    if (kind === null) {
+      dropped.push({ property: `Date (${d.label})`, value });
+      continue;
+    }
+    dates.push({
+      kind,
+      label: d.label,
+      date: d.date,
+      note: null,
+      id: null,
+      relationshipId: null,
+    });
+  }
+
+  const relations: ParsedRelated[] = [];
+  for (const r of c.related) {
+    if (r.otherUid !== null) {
+      dropped.push({ property: "RELATED", value: `urn:uuid:${r.otherUid}` });
+      continue;
+    }
+    relations.push({
+      name: r.name,
+      ...degradedRole(r),
+      otherUid: null,
+      relationshipId: null,
+    });
+  }
+
   return {
     ...c,
     uid: null,
+    kind: "individual",
+    isSelf: false,
+    createdAt: null,
+    updatedAt: null,
     tags: [],
-    dropped:
-      c.tags.length === 0
-        ? c.dropped
-        : [...c.dropped, { property: "CATEGORIES", value: c.tags.join(",") }],
+    dates,
+    related: relations,
+    dropped,
   };
+}
+
+/**
+ * What a role becomes after the writer's `TYPE` goes through `relatedFrom`.
+ *
+ * Deliberately re-derived here from the *parser's* rules rather than imported
+ * from the writer: a helper that shared the writer's table would agree with it
+ * by construction and prove nothing.
+ */
+const RFC_WORDS: Record<string, RelationshipRole> = {
+  spouse: "spouse",
+  child: "child",
+  parent: "parent",
+  sibling: "sibling",
+  friend: "friend",
+  neighbor: "neighbor",
+  "co-worker": "coworker",
+};
+
+/** `relatedFrom` lower-cases every TYPE and treats OTHER as noise, so a note that
+ *  is either of those comes back as the bare word "related". */
+function asNote(type: string | null): string {
+  const lower = (type ?? "").toLowerCase();
+  return lower === "" || lower === "other" ? "related" : lower;
+}
+
+function degradedRole(r: ParsedRelated): {
+  role: RelationshipRole;
+  roleNote: string | null;
+} {
+  if (r.role === "other") {
+    return { role: "other", roleNote: asNote(r.roleNote) };
+  }
+  const base = roleDefs[r.role].base;
+  const token = base === "coworker" ? "co-worker" : base;
+  const known = RFC_WORDS[token];
+  return known !== undefined
+    ? { role: known, roleNote: null }
+    : { role: "other", roleNote: asNote(token) };
 }
 
 /** The assertion the package is named for: writing then reading is the identity. */
@@ -253,20 +367,44 @@ describe("writeVCards — contact methods", () => {
     ]);
   });
 
-  it("writes an unmapped label as its own TYPE, and reads it back", () => {
-    const text = write([
-      contact({ phones: [phone({ label: "Mum's place" })] }),
-    ]);
-    expect(text).toContain("TEL;TYPE=Mum's place:");
-    expectRoundTrip([contact({ phones: [phone({ label: "Mum's place" })] })]);
+  /**
+   * Increment 1 wrote a custom label as the `TYPE` value (`TYPE=Mum's place`).
+   * That round-trips through us, but iOS Contacts does not read it, so the one
+   * platform v0.1 ships to showed the number as untyped. Apple's own form is the
+   * grouped `X-ABLABEL`, which our parser already reads and which round-trips
+   * **exactly** rather than title-cased.
+   */
+  it("writes a custom label as Apple's grouped X-ABLABEL", () => {
+    const c = contact({ phones: [phone({ label: "Mum's place" })] });
+    const text = write([c]);
+    expect(text).toContain("item1.TEL:+1 555 100\r\n");
+    expect(text).toContain("item1.X-ABLABEL:Mum's place\r\n");
+    expect(text).not.toContain("TYPE=Mum's place");
+    expectRoundTrip([c]);
   });
 
-  it("quotes a label only when a separator forces it", () => {
+  it("keeps a comma in a custom label without quoting a value", () => {
+    const c = contact({ phones: [phone({ label: "Beach, house" })] });
+    const text = write([c]);
+    // A property *value* escapes its commas; only a param would need quoting,
+    // and the label is no longer a param.
+    expect(text).toContain("item1.X-ABLABEL:Beach\\, house\r\n");
+    expectRoundTrip([c]);
+  });
+
+  it("mixes standard and custom labels without colliding groups", () => {
     const text = write([
-      contact({ phones: [phone({ label: "Beach, house" })] }),
+      contact({
+        phones: [
+          phone({ label: "Mobile" }),
+          phone({ label: "Mum's place", number: "+1 555 200" }),
+          phone({ label: "Dad's place", number: "+1 555 300" }),
+        ],
+      }),
     ]);
-    expect(text).toContain('TEL;TYPE="Beach, house":');
-    expectRoundTrip([contact({ phones: [phone({ label: "Beach, house" })] })]);
+    expect(text).toContain("TEL;TYPE=CELL:+1 555 100\r\n");
+    expect(text).toContain("item1.X-ABLABEL:Mum's place\r\n");
+    expect(text).toContain("item2.X-ABLABEL:Dad's place\r\n");
   });
 
   it("writes no TYPE for the Other label, which reads back as Other", () => {
@@ -346,6 +484,24 @@ describe("writeVCards — contact methods", () => {
     expect(text).toContain("item2.X-ABADR:GB");
   });
 
+  /**
+   * An address can need a group for two independent reasons at once. Allocating
+   * one apiece would separate the address from its own country — the `X-ABADR`
+   * would name a group holding nothing but a label — and `countryCode` would
+   * find no hint. One group, three lines.
+   */
+  it("puts a custom-labelled address, its label and its country in one group", () => {
+    const c = contact({
+      postals: [postal({ label: "Beach house", country: "US" })],
+    });
+    const text = write([c]);
+    expect(text).toContain("item1.ADR:;Apt 4;1 Main St;Springfield;IL;62704;");
+    expect(text).toContain("item1.X-ABLABEL:Beach house\r\n");
+    expect(text).toContain("item1.X-ABADR:US\r\n");
+    expect(text).not.toContain("item2.");
+    expectRoundTrip([c]);
+  });
+
   it("round-trips a social profile, with its platform and user id", () => {
     const text = write([
       contact({ socials: [social({ platformUserId: "1234567" })] }),
@@ -358,6 +514,232 @@ describe("writeVCards — contact methods", () => {
       handle: "janedoe",
       url: "https://www.instagram.com/janedoe",
     });
+  });
+});
+
+describe("writeVCards — milestones", () => {
+  it("writes a dated milestone as Apple's X-ABDATE + X-ABLABEL pair", () => {
+    const text = write([contact({ dates: [date({ label: "Wedding" })] })]);
+    expect(text).toContain("item1.X-ABDATE");
+    expect(text).toContain(":2011-06-18\r\n");
+    expect(text).toContain("item1.X-ABLABEL:Wedding\r\n");
+  });
+
+  /**
+   * The measured reason the whole table hangs off `X-ABDATE`. Both `ANNIVERSARY`
+   * probes — including one carrying an ordinary full date — produced *no field
+   * at all* in iOS Contacts, so writing an anniversary the standards-correct way
+   * loses it silently on the one platform v0.1 ships to.
+   * `plans/export.md` → *Writing dates*.
+   */
+  it("never writes ANNIVERSARY, which iOS ignores entirely", () => {
+    const text = write([
+      contact({ dates: [date({ kind: "anniversary", label: "Anniversary" })] }),
+    ]);
+    expect(text).not.toContain("ANNIVERSARY");
+    expect(text).toContain("X-ABDATE");
+  });
+
+  it("carries the kind, id and note as params on the date they belong to", () => {
+    const text = unfolded([
+      contact({
+        dates: [
+          date({
+            kind: "graduation",
+            label: "Graduation",
+            id: "9f2c4b3e-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+            note: "summa cum laude",
+          }),
+        ],
+      }),
+    ]);
+    expect(text).toContain("X-LEAPSAKE-MILESTONE-KIND=graduation");
+    expect(text).toContain(
+      "X-LEAPSAKE-MILESTONE-ID=9f2c4b3e-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+    );
+    expect(text).toContain("X-LEAPSAKE-MILESTONE-NOTE=summa cum laude");
+  });
+
+  /**
+   * A wedding is stored on the marriage, not on either partner, so it is written
+   * on both cards with **one** id. Without the shared id an importer would have
+   * no way to tell one anniversary written twice from two anniversaries.
+   */
+  it("marks a relationship-borne date with its relationship, on both cards", () => {
+    const shared = date({
+      label: "Wedding",
+      id: "aaaaaaaa-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+      relationshipId: "bbbbbbbb-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+    });
+    const text = unfolded([
+      contact({ displayName: "Sam Roe", dates: [shared] }),
+      contact({ displayName: "Jen Roe", dates: [shared] }),
+    ]);
+    expect(
+      text.match(
+        /X-LEAPSAKE-MILESTONE-REL=bbbbbbbb-1c4b-4f2a-9d3e-6a7b8c9d0e1f/g,
+      ),
+    ).toHaveLength(2);
+    expect(
+      text.match(
+        /X-LEAPSAKE-MILESTONE-ID=aaaaaaaa-1c4b-4f2a-9d3e-6a7b8c9d0e1f/g,
+      ),
+    ).toHaveLength(2);
+  });
+
+  /**
+   * A note is multi-line free text and a vCard parameter is `QSAFE-CHAR`, which
+   * excludes control characters — a raw newline would end the line and turn the
+   * rest of the property into a continuation of nothing.
+   */
+  it("folds a newline in a note to a space rather than breaking the line", () => {
+    const text = unfolded([
+      contact({ dates: [date({ note: "first line\nsecond line" })] }),
+    ]);
+    expect(text).toContain("X-LEAPSAKE-MILESTONE-NOTE=first line second line");
+    for (const line of text.split("\r\n")) {
+      expect(line).not.toContain("\n");
+    }
+  });
+
+  it("skips a milestone with no date at all", () => {
+    const text = write([
+      contact({
+        dates: [date({ date: { year: null, month: null, day: null } })],
+      }),
+    ]);
+    expect(text).not.toContain("X-ABDATE");
+  });
+
+  it("round-trips the one kind the parser has a label for", () => {
+    expectRoundTrip([
+      contact({ dates: [date({ kind: "anniversary", label: "Anniversary" })] }),
+    ]);
+  });
+});
+
+describe("writeVCards — relationships", () => {
+  it("names an unpublished person, and points at a published one", () => {
+    const text = unfolded([
+      contact({
+        related: [
+          related({ name: "Jen Davis", role: "spouse" }),
+          related({
+            name: "Ben Doe",
+            role: "child",
+            otherUid: "cccccccc-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+          }),
+        ],
+      }),
+    ]);
+    expect(text).toContain("RELATED;VALUE=text;TYPE=spouse;");
+    expect(text).toContain(":Jen Davis\r\n");
+    expect(text).toContain("RELATED;VALUE=uri;TYPE=child;");
+    expect(text).toContain(
+      ":urn:uuid:cccccccc-1c4b-4f2a-9d3e-6a7b8c9d0e1f\r\n",
+    );
+  });
+
+  it("carries the edge's id, so both halves name one relationship", () => {
+    const text = unfolded([
+      contact({
+        related: [
+          related({ relationshipId: "dddddddd-1c4b-4f2a-9d3e-6a7b8c9d0e1f" }),
+        ],
+      }),
+    ]);
+    expect(text).toContain(
+      "X-LEAPSAKE-REL-ID=dddddddd-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+    );
+  });
+
+  /**
+   * Leapsake has 41 roles and RFC 6350 gives us seven words. A gendered variant
+   * goes out as its base — which is what a standards consumer can actually use —
+   * with the exact role beside it in a parameter for increment 5 to read back.
+   * Writing `TYPE=mother` instead would tell a third party nothing *and* lose the
+   * kinship through our own parser.
+   */
+  it("writes a gendered role as its standard base, keeping the exact role", () => {
+    const text = write([contact({ related: [related({ role: "mother" })] })]);
+    expect(text).toContain("TYPE=parent");
+    expect(text).toContain("X-LEAPSAKE-ROLE=mother");
+    expect(text).not.toContain("TYPE=mother");
+  });
+
+  it("writes coworker as RFC 6350's own co-worker", () => {
+    const text = write([contact({ related: [related({ role: "coworker" })] })]);
+    expect(text).toContain("TYPE=co-worker");
+  });
+
+  it("writes a role with no RFC word as itself", () => {
+    const text = write([contact({ related: [related({ role: "cousin" })] })]);
+    expect(text).toContain("TYPE=cousin");
+    expect(text).toContain("X-LEAPSAKE-ROLE=cousin");
+  });
+
+  /**
+   * Bare, not `x-<note>`: `relatedFrom` turns an unmapped type into exactly the
+   * word it read, so `TYPE=muse` round-trips to "muse" while `x-muse` would
+   * round-trip to the literal string "x-muse".
+   */
+  it("writes an other-role's note as the bare TYPE, which round-trips exactly", () => {
+    const c = contact({
+      related: [related({ role: "other", roleNote: "muse" })],
+    });
+    expect(write([c])).toContain("TYPE=muse");
+    expectRoundTrip([c]);
+  });
+
+  it("round-trips the roles RFC 6350 has a word for", () => {
+    expectRoundTrip([
+      contact({
+        related: [
+          related({ role: "spouse" }),
+          related({ name: "Ben", role: "child" }),
+          related({ name: "Ann", role: "friend" }),
+          related({ name: "Sue", role: "coworker" }),
+        ],
+      }),
+    ]);
+  });
+
+  it("records what a degraded role does on the way back", () => {
+    expectRoundTrip([
+      contact({
+        related: [
+          related({ role: "mother" }),
+          related({ name: "Ann", role: "cousin" }),
+        ],
+      }),
+    ]);
+  });
+});
+
+describe("writeVCards — pets", () => {
+  it("writes a pet card as KIND:x-pet, with its owner as a RELATED", () => {
+    const text = unfolded([
+      contact({
+        kind: "pet",
+        name: { firstName: "Rex", middleName: null, lastName: "" },
+        displayName: "Rex",
+        related: [
+          related({
+            name: "Jane Doe",
+            role: "owner",
+            otherUid: "eeeeeeee-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+          }),
+        ],
+      }),
+    ]);
+    expect(text).toContain("KIND:x-pet\r\n");
+    expect(text).toContain("FN:Rex\r\n");
+    expect(text).toContain("N:;Rex;;;\r\n");
+    expect(text).toContain("TYPE=owner");
+  });
+
+  it("writes KIND:individual for a person", () => {
+    expect(write([contact()])).toContain("KIND:individual\r\n");
   });
 });
 
@@ -389,6 +771,66 @@ describe("writeVCards — the fields the parser cannot read back yet", () => {
   it("escapes a comma inside a tag so the list keeps its shape", () => {
     const text = write([contact({ tags: ["Smith, family"] })]);
     expect(text).toContain("CATEGORIES:Smith\\, family\r\n");
+  });
+
+  /**
+   * `X-LEAPSAKE-SELF` and `X-LEAPSAKE-CREATED` are the only two facts increment
+   * 2 writes that have no property to ride as a parameter, so they are
+   * properties of their own — which means the parser has to be told to ignore
+   * them, or a user re-importing their own file would see them listed as fields
+   * that could not be imported. That is what the `DEFERRED` set is for, and this
+   * is the test that it works.
+   */
+  it("writes self and created-at as properties the parser ignores in silence", () => {
+    const text = write([
+      contact({ isSelf: true, createdAt: Date.UTC(2024, 2, 9, 1, 35, 0) }),
+    ]);
+    expect(text).toContain("X-LEAPSAKE-SELF:TRUE\r\n");
+    expect(text).toContain("X-LEAPSAKE-CREATED:2024-03-09T01:35:00Z\r\n");
+    const back = parseVCards(text)[0];
+    expect(back.isSelf).toBe(false);
+    expect(back.createdAt).toBeNull();
+    expect(back.dropped).toEqual([]);
+  });
+
+  it("writes REV, which is structural and vanishes on the way back", () => {
+    const text = write([
+      contact({ updatedAt: Date.UTC(2026, 8, 7, 12, 0, 0) }),
+    ]);
+    expect(text).toContain("REV:2026-09-07T12:00:00Z\r\n");
+    expect(parseVCards(text)[0].updatedAt).toBeNull();
+  });
+
+  it("writes a pet's KIND, which is structural and reads back as a person", () => {
+    const text = write([contact({ kind: "pet" })]);
+    expect(text).toContain("KIND:x-pet\r\n");
+    // Apple Contacts imports such a card as an ordinary person, and so do we
+    // until increment 5 takes `KIND` out of `STRUCTURAL`. Accepted: nothing is
+    // lost, and it is recorded here rather than discovered later.
+    expect(parseVCards(text)[0].kind).toBe("individual");
+  });
+
+  it("writes the nine kinds with no DATE_KINDS entry, which drop by name", () => {
+    const text = write([
+      contact({ dates: [date({ kind: "wedding", label: "Wedding" })] }),
+    ]);
+    expect(text).toContain("item1.X-ABLABEL:Wedding\r\n");
+    expect(parseVCards(text)[0].dropped).toContainEqual({
+      property: "Date (Wedding)",
+      value: "2011-06-18",
+    });
+  });
+
+  it("writes a published RELATED as a urn, which drops as a reference", () => {
+    const uid = "cccccccc-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+    const text = unfolded([contact({ related: [related({ otherUid: uid })] })]);
+    expect(text).toContain(`:urn:uuid:${uid}\r\n`);
+    const back = parseVCards(text)[0];
+    expect(back.related).toEqual([]);
+    expect(back.dropped).toContainEqual({
+      property: "RELATED",
+      value: `urn:uuid:${uid}`,
+    });
   });
 });
 
@@ -425,6 +867,29 @@ function social(over: Partial<ExportContact["socials"][number]> = {}) {
     handle: "janedoe",
     url: "https://www.instagram.com/janedoe",
     platformUserId: null,
+    ...over,
+  };
+}
+
+function date(over: Partial<ParsedDate> = {}): ParsedDate {
+  return {
+    kind: "wedding",
+    label: "Wedding",
+    date: { year: 2011, month: 6, day: 18 },
+    note: null,
+    id: null,
+    relationshipId: null,
+    ...over,
+  };
+}
+
+function related(over: Partial<ParsedRelated> = {}): ParsedRelated {
+  return {
+    name: "Jen Davis",
+    role: "spouse",
+    roleNote: null,
+    otherUid: null,
+    relationshipId: null,
     ...over,
   };
 }

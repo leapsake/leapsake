@@ -50,10 +50,9 @@ cannot say "deleted", so every third-party import would resurrect them as live c
 [`@leapsake/schema`](../packages/schema/README.md) spells them. **Read the "Reads it today" column
 as the work estimate**: ✅ round-trips through `packages/vcard/src/vcard.ts` unchanged.
 
-> ⚠️ **The column is about the *parser*, and increment 1 only moved the writer.** Everything on
-> the person card and the contact-method table below is now *written*
-> (`packages/vcard/src/write.ts`); the ❌s are what still cannot be read back, which is increment
-> 5 and unchanged. Milestones and relationships are not written yet — those are increment 2.
+> ⚠️ **The column is about the *parser*. Everything below is now written**
+> (`packages/vcard/src/write.ts`); the ❌s are what still cannot be read back, which is
+> increment 5 and unchanged.
 
 ### Person card
 
@@ -82,7 +81,7 @@ as the work estimate**: ✅ round-trips through `packages/vcard/src/vcard.ts` un
 | `postal_addresses.country` (ISO) | `itemN.X-ABADR:<cc>` beside the `ADR` | ✅ `countryCode`'s hint |
 | `social_profiles` | `X-SOCIALPROFILE;X-SERVICE-TYPE=<platform>:<url or handle>` | ✅ `socialFrom` |
 | `social_profiles.platformUserId` | `X-SOCIALPROFILE;X-LEAPSAKE-USERID=<id>` | ❌ new |
-| any `label_note` (custom label) | `itemN.<PROP>` + `itemN.X-ABLABEL:<note>` | ✅ `appleLabelText` |
+| any custom label | `itemN.<PROP>` + `itemN.X-ABLABEL:<label>` | ✅ `appleLabelText` |
 
 **ADR component order is PO Box; Extended; Street; Locality; Region; Postal; Country** — `line1`
 is the *street* slot and `line2` the *extended* slot, which is the inverse of how `mapAddress`
@@ -95,8 +94,22 @@ falls back when reading. Get this wrong and every address round-trips shifted by
 | `birthday` | `BDAY:1985-04-12`, or `BDAY:--0412` with no year — see *Writing dates* | ✅ `parseDateValue` |
 | `anniversary` **and** the other eight kinds | `itemN.X-ABDATE:<date>` + `itemN.X-ABLABEL:<Kind>` | ⚠️ needs `DATE_KINDS` entries |
 | ~~`ANNIVERSARY:<date>`~~ | **never written** — iOS ignores the property entirely (below) | ✅ still *read*, for other people's files |
-| `milestones.note` | `itemN.X-LEAPSAKE-MILESTONE-NOTE:<note>` | ❌ new |
-| `milestones.id` | `itemN.X-LEAPSAKE-MILESTONE-ID:<uuid>` | ❌ new |
+| `milestones.note` | `X-ABDATE;X-LEAPSAKE-MILESTONE-NOTE=<note>` | ❌ new (param, so it rides the date) |
+| `milestones.id` | `X-ABDATE;X-LEAPSAKE-MILESTONE-ID=<uuid>` | ❌ new |
+| `milestones.kind` | `X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=<kind>` | ❌ new |
+| a milestone borne by a **relationship** | the same pair on **both** partners' cards, one `-ID`, plus `X-LEAPSAKE-MILESTONE-REL=<relationshipId>` | ❌ new |
+
+**The `X-LEAPSAKE-*` here are parameters, not properties, and that is load-bearing.** An unknown
+*parameter* is invisible to any parser; an unknown *property* lands in our own reader's `dropped`
+list, so the property spelling would fill a user's re-import review with noise about their own
+file. `X-LEAPSAKE-SELF` and `X-LEAPSAKE-CREATED` are the only two facts with no property to ride,
+and the parser's `DEFERRED` set is what keeps them quiet.
+
+**A relationship-borne milestone is written twice on purpose.** A wedding belongs to the marriage,
+not to either partner, so it goes on both cards carrying one `-ID` — the same shape `RELATED` uses,
+and the reason an importer can tell one anniversary written twice from two anniversaries. A third
+party that knows neither parameter still shows each partner their anniversary, which is the outcome
+a user wants.
 
 `DATE_KINDS` in `apple-labels.ts` maps exactly one label today (`anniversary`), so `wedding`,
 `death`, `first-date`, `met`, `graduation`, `job-start`, `moved` and `other` have no way back in.
@@ -177,7 +190,17 @@ Apple's extension wins outright. There is no "prefer the standard" rule that sur
 |---|---|---|
 | published ↔ **unpublished** | `RELATED;VALUE=text;TYPE=<role>:<name>` | ✅ `relatedFrom` → an unpublished stub |
 | published ↔ **published** | `RELATED;VALUE=uri;TYPE=<role>;X-LEAPSAKE-REL-ID=<id>:urn:uuid:<other>` | ❌ falls to `dropped` — increment 5 |
-| `roleNote` on an `other` role | `TYPE=x-<note>` | ✅ unmapped `TYPE` becomes the note |
+| `roleNote` on an `other` role | `TYPE=<note>`, **bare** | ✅ unmapped `TYPE` becomes the note |
+| the exact role, all 41 of them | `RELATED;X-LEAPSAKE-ROLE=<role>` | ❌ new (param) |
+
+**`TYPE` carries the role's `base`, and `X-LEAPSAKE-ROLE` the role itself.** Leapsake has 41 roles
+and RFC 6350 gives us seven words, so `mother` goes out as `TYPE=parent` — what a standards
+consumer can actually use — with `X-LEAPSAKE-ROLE=mother` beside it. Writing `TYPE=mother` instead
+would tell a third party nothing *and* lose the kinship through our own parser, which has no entry
+for it. A base with no RFC word (`cousin`, `classmate`, `pibling`, `owner`…) is written as itself.
+
+**Bare, not `x-<note>`:** `relatedFrom` turns an unmapped `TYPE` into exactly the word it read, so
+`TYPE=muse` round-trips to "muse" while `x-muse` round-trips to the literal string "x-muse".
 
 An edge appears on **both** cards, which is what vCard means by `RELATED` and is not a duplicated
 fact — `X-LEAPSAKE-REL-ID` is what lets an importer recognise the two halves as one edge.
@@ -223,24 +246,32 @@ code: [`../packages/export/README.md`](../packages/export/README.md).
 
 ## Increments
 
-Each is shippable alone. **2 and 4 are what GA blocks on**; 3 is what makes the file a backup
-rather than a contacts dump, and is cheap now that 1 exists.
+Each is shippable alone. **4 is what GA blocks on**; 3 is what makes the file a backup rather
+than a contacts dump, and is cheap now that 1 and 2 exist.
 
-> ✅ **1 is built** *(2026-09-07)* — `@leapsake/vcard`'s serializer, the new
-> [`@leapsake/export`](../packages/export/README.md) package behind `core.export.archive()`, and
-> an Export section on `app/data.tsx`. Three calls widened it slightly, all recorded next to the
-> code: the archive builder got **its own package** rather than living in `vcard` or the client;
-> the writer-only `X-LEAPSAKE-EXT`/`-COUNTRY`/`-USERID` params **ship now**, since they are pure
-> writer params with no parser work and their absence would have made the first shipped "backup"
-> quietly lossy; and a **custom label is written as a `TYPE` param value**, which round-trips
-> through `labelFrom`'s title-case fallback, with increment 2 upgrading it to the Apple form.
-> It also turned up a real parser bug — `deriveName` duplicated a lone `FN` token into both name
-> slots for a surname-only card — and two desktop guards that force a new `CoreApi` method to
-> declare an IPC channel and a read/write classification.
+> ✅ **1 and 2 are built** *(2026-09-07)* — the whole person graph. `@leapsake/vcard`'s
+> serializer, the [`@leapsake/export`](../packages/export/README.md) package behind
+> `core.export.archive()`, and an Export section on `app/data.tsx`. The durable *why* lives next
+> to the code; what belongs here is the four calls that widened what this doc scoped, each
+> recorded in its table above: writer-only `X-LEAPSAKE-*` **parameters** ship rather than waiting
+> for a reader, since their absence makes a "backup" quietly lossy; a **relationship-borne
+> milestone** is a case this doc never had a row for, and goes on both partners' cards; the exact
+> **role** rides `X-LEAPSAKE-ROLE` beside a standard `TYPE`; and the milestone id/note became
+> parameters rather than the properties the table first spelled.
+>
+> Two real bugs fell out of building them, both in the *importer*, both hit on every real Apple
+> export rather than only on our own files:
+>
+> - `deriveName` duplicated a lone `FN` token into both name slots for a surname-only card.
+> - **`X-ABLABEL` was read for dates and for nothing else**, so every custom contact-method label
+>   on a card straight out of an iPhone — "Beach house", "Mum's place" — imported as "Other". The
+>   grouped label now reaches `labelFrom`, which is also what lets the export write labels the way
+>   Contacts does.
+>
+> Also learned: two desktop guards force a new `CoreApi` method to declare an IPC channel and a
+> read/write classification. Increment 2 tripped neither — it changed the ports behind
+> `export.archive`, not the method.
 
-2. **The rest of the person graph.** Pets, unpublished people via `RELATED`, all ten milestone
-   kinds, relationships, Apple `itemN.X-ABLABEL` custom labels, and the person-level
-   `X-LEAPSAKE-SELF` / `X-LEAPSAKE-CREATED`.
 3. **`data.json`** — everything in *What is not person-shaped*, versioned and schema'd.
 4. **Wire the offer that already exists in the copy.** An **Export first** button inside *both*
    destructive confirmations in `app/data.tsx` — `ForgetAccountSection` **and**
@@ -250,10 +281,16 @@ rather than a contacts dump, and is cheap now that 1 exists.
    **Leave desktop's "Leapsake cannot export it yet" in `Settings.tsx` alone** — desktop still has
    no Export surface, so the sentence stays true until increment 6.
 5. **The import-side reciprocals** (not GA-blocking, but they decide whether the file is readable
-   back): `CATEGORIES` → tags, the new `DATE_KINDS` entries, `KIND:x-pet`, `UID` out of
+   back): `CATEGORIES` → tags, the nine new `DATE_KINDS` entries, `KIND:x-pet`, `REV`, `UID` out of
    `STRUCTURAL` so the deferred `RELATED` `urn:uuid:` second pass can land — the TODO on
-   `relatedFrom` — and the three `X-LEAPSAKE-*` parameters increment 1 already writes
-   (`EXT`, `COUNTRY`, `USERID`), which the parser does not read yet. **Until this lands,
+   `relatedFrom` — the parser's `DEFERRED` set (`X-LEAPSAKE-SELF`, `-CREATED`), and every
+   `X-LEAPSAKE-*` **parameter** increments 1 and 2 write: `EXT`, `COUNTRY`, `USERID`, `ROLE`,
+   `REL-ID`, and `MILESTONE-ID`/`-KIND`/`-NOTE`/`-REL`. `DEFERRED` emptying out is the signal this
+   has landed.
+
+   Adding the `DATE_KINDS` entries **pays twice and costs twice**: the map is shared with the
+   device importer, so an iOS contact labelled "Graduation" starts minting milestones in the same
+   change. That is a user-visible behaviour change and wants its own tests. **Until this lands,
    re-importing our own file duplicates everyone, demotes every real relationship to an
    unpublished stub, and loses those fields.** Survivable on mobile only because the mobile import
    path reads device Contacts and cannot open a `.vcf` at all; desktop's drag-drop *can*.
@@ -264,15 +301,23 @@ rather than a contacts dump, and is cheap now that 1 exists.
 `CATEGORIES` import (in 5) is contained, and is now smaller than this said: `ParsedContact`
 **already carries `tags`** (increment 1 added it, along with `uid`, so the writer had somewhere to
 read them from). What is left is the parser filling it, `ImportPorts` gaining `addTags`, and core
-wiring that to the `tags.setEntityTags` it already calls from `people.create`.
+wiring that to the `tags.setEntityTags` it already calls from `people.create`. Increment 2 added
+`kind`, `isSelf`, `createdAt`/`updatedAt`, and the id/note fields on `ParsedDate`/`ParsedRelated`
+the same way — every one of them is a field the *reader* still fills with its absent value.
 
 ## Testing
 
-✅ **The pure tiers are built** *(increment 1)*: `parseVCards(writeVCards(x)) ≡ x` plus the cases
-vCard is famous for (`packages/vcard/test/write.test.ts`), the archive against fake ports
+✅ **The pure tiers are built**: `parseVCards(writeVCards(x)) ≡ x` plus the cases vCard is famous
+for (`packages/vcard/test/write.test.ts`), the archive against fake ports
 (`packages/export/test/archive.test.ts`), and `core.export.archive` over real repos
 (`apps/desktop/test/integration/export-archive.test.ts` — the half that would otherwise fail
 silently, since an export missing everybody's phone numbers is still a valid archive).
+
+The round trip cannot be literal while increment 5 is outstanding, and `asParsedToday` is the
+**ledger of every gap**: what vanishes silently (`UID`, `KIND`, `REV`, the `DEFERRED` set), what
+falls to `dropped` (`CATEGORIES`, a `urn:uuid:` `RELATED`, nine of the ten milestone kinds), and
+how a role **degrades** (`mother` → `parent`; `cousin` → `other` + note). Each has a golden-text
+test beside it, so nothing in the ledger is merely asserted.
 
 ✅ **Verified once on the simulator** *(2026-09-07)* — iPhone 16 Pro, iOS 26: the archive builds
 **on Hermes** (which is what the Node tiers cannot speak to — `fflate` had never run there), lands
@@ -280,7 +325,11 @@ in `Library/Caches`, and opens with the system `unzip` as three members with val
 inside. `app/dev-export.tsx` is the harness: `__DEV__`-gated, deep-link only
 (`leapsake://dev-export`), it runs the export **on mount** and writes to a fixed path, because the
 real button opens a share sheet no shell-driven harness can dismiss — there is no tap command for
-the simulator. Increment 2 should re-run it and diff the `.vcf`.
+the simulator.
+
+⚠️ **Owed for increment 2: re-run that harness and diff the `.vcf`.** The Node tiers cannot reach
+Hermes, and increment 2 changed what every card contains. Increment 1's run is not evidence for
+it.
 
 **Still owed: the device tier.** Maestro asserts the share sheet opened and that
 `testID="export-result"` reports non-zero record and byte counts — the tap and the share itself

@@ -1,7 +1,8 @@
-import { writeVCards } from "@leapsake/vcard";
+import type { EntityType, Milestone } from "@leapsake/schema";
+import { type ExportContact, writeVCards } from "@leapsake/vcard";
 import { zipSync } from "fflate";
 import { z } from "zod";
-import { toExportContact } from "./contact.js";
+import { toExportContact, toPetContact } from "./contact.js";
 import type { ExportPorts } from "./ports.js";
 
 /**
@@ -52,7 +53,12 @@ export interface ExportArchive {
   bytes: Uint8Array;
   filename: string;
   /** For the "exported N people (M KB)" the caller shows, and for the E2E assertion. */
-  counts: { people: number; contactMethods: number; bytes: number };
+  counts: {
+    people: number;
+    pets: number;
+    contactMethods: number;
+    bytes: number;
+  };
 }
 
 export interface BuildOptions {
@@ -66,8 +72,19 @@ export interface BuildOptions {
 }
 
 /**
- * Gather every published person, serialize them, and zip the result with a
+ * Gather the whole published graph, serialize it, and zip the result with a
  * README and the (versioned, still nearly empty) companion data file.
+ *
+ * **A graph walk, not a list.** Increment 1 could visit each person alone;
+ * carrying relationships cannot, because an edge is a fact about two entities
+ * and lands on both their cards. Two things follow:
+ *
+ * - Unpublished people and pets are reached only through somebody else's
+ *   `neighborsFor`. They never get a card, which is what their standing means:
+ *   they exist as a fact about the one entity they hang off.
+ * - A milestone borne by a *relationship* is read once per relationship and
+ *   written on both partners' cards, carrying the same id. {@link relMilestones}
+ *   memoises the read, so an edge visited from both ends costs one query.
  *
  * Deflate rather than store: vCard is extremely compressible text, and a large
  * address book is the case that matters. `zipSync` is fine at these sizes — the
@@ -78,18 +95,77 @@ export async function buildArchive(
   ports: ExportPorts,
   opts: BuildOptions,
 ): Promise<ExportArchive> {
-  const people = await ports.listPeople();
+  const [people, pets, selfId] = await Promise.all([
+    ports.listPeople(),
+    ports.listPets(),
+    ports.selfPersonId(),
+  ]);
+
+  // One read per relationship, however many of its ends are exported.
+  const seenRels = new Map<string, Promise<Milestone[]>>();
+  const relMilestones = async (
+    type: EntityType,
+    id: string,
+  ): Promise<{
+    neighbors: Awaited<ReturnType<ExportPorts["neighborsFor"]>>;
+    milestones: Milestone[];
+  }> => {
+    const all = await ports.neighborsFor(type, id);
+    // Derived edges are computed live and have no stored row — the port's own
+    // contract excludes them, and filtering here as well means a fake or a
+    // future implementation that forgets cannot leak an inference into the file.
+    const neighbors = all.filter((n) => n.origin === "explicit");
+    const milestones = await Promise.all(
+      neighbors.map((n) => {
+        const cached = seenRels.get(n.relationshipId);
+        if (cached !== undefined) return cached;
+        const read = ports.milestonesFor("relationship", n.relationshipId);
+        seenRels.set(n.relationshipId, read);
+        return read;
+      }),
+    );
+    return { neighbors, milestones: milestones.flat() };
+  };
 
   let contactMethods = 0;
-  const contacts = [];
+  const contacts: ExportContact[] = [];
+
   for (const person of people) {
-    const [methods, milestones, tags] = await Promise.all([
+    const [methods, milestones, tags, graph] = await Promise.all([
       ports.contactMethodsFor(person.id),
-      ports.milestonesFor(person.id),
-      ports.tagsFor(person.id),
+      ports.milestonesFor("person", person.id),
+      ports.tagsFor("person", person.id),
+      relMilestones("person", person.id),
     ]);
     contactMethods += methods.length;
-    contacts.push(toExportContact({ person, methods, milestones, tags }));
+    contacts.push(
+      toExportContact({
+        person,
+        methods,
+        milestones,
+        relationshipMilestones: graph.milestones,
+        neighbors: graph.neighbors,
+        tags,
+        isSelf: person.id === selfId,
+      }),
+    );
+  }
+
+  for (const pet of pets) {
+    const [milestones, tags, graph] = await Promise.all([
+      ports.milestonesFor("pet", pet.id),
+      ports.tagsFor("pet", pet.id),
+      relMilestones("pet", pet.id),
+    ]);
+    contacts.push(
+      toPetContact({
+        pet,
+        milestones,
+        relationshipMilestones: graph.milestones,
+        neighbors: graph.neighbors,
+        tags,
+      }),
+    );
   }
 
   const vcf = writeVCards(contacts, {
@@ -102,7 +178,9 @@ export async function buildArchive(
     {
       [VCF_NAME]: encoder.encode(vcf),
       [DATA_NAME]: encoder.encode(`${JSON.stringify(data, null, 2)}\n`),
-      [README_NAME]: encoder.encode(readmeText(opts, people.length)),
+      [README_NAME]: encoder.encode(
+        readmeText(opts, people.length, pets.length),
+      ),
     },
     // The injected instant, not the clock: with it the archive is reproducible
     // byte-for-byte, so two exports of an unchanged store are the same file
@@ -113,7 +191,12 @@ export async function buildArchive(
   return {
     bytes,
     filename: `leapsake-export-${isoDay(opts.now)}.zip`,
-    counts: { people: people.length, contactMethods, bytes: bytes.length },
+    counts: {
+      people: people.length,
+      pets: pets.length,
+      contactMethods,
+      bytes: bytes.length,
+    },
   };
 }
 
@@ -129,17 +212,27 @@ function isoDay(now: Date): string {
  * Leapsake, and stamps the version that wrote it, so a future restore path has
  * something to read even if the `.json` turns out to be unreadable.
  */
-function readmeText(opts: BuildOptions, people: number): string {
+function readmeText(opts: BuildOptions, people: number, pets: number): string {
+  const held =
+    pets === 0
+      ? `${people} ${people === 1 ? "person" : "people"}`
+      : `${people} ${people === 1 ? "person" : "people"} and ` +
+        `${pets} ${pets === 1 ? "pet" : "pets"}`;
+
   return `Leapsake export
 ===============
 
 Written by Leapsake ${opts.appVersion} on ${isoDay(opts.now)}.
-Contains ${people} ${people === 1 ? "person" : "people"}.
+Contains ${held}.
 
 ${VCF_NAME}
-  Your people, as vCard. Any contacts app will import this file --
+  Your people and pets, their contact details, their dates and how
+  they are related, as vCard. Any contacts app will import this file --
   Apple Contacts, Google Contacts, Outlook. Unzip first: a .zip cannot
   be opened by a contacts app directly.
+
+  Contacts apps have no idea what a pet is, so a pet imports there as
+  an ordinary contact. Leapsake reads it back as a pet.
 
 ${DATA_NAME}
   The rest of your Leapsake data, in a format only Leapsake reads.

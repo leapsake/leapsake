@@ -224,6 +224,9 @@ describe("parseVCards — anniversary", () => {
         kind: "anniversary",
         label: "Anniversary",
         date: { year: 2015, month: 6, day: 20 },
+        note: null,
+        id: null,
+        relationshipId: null,
       },
     ]);
     // Not a wedding: the property names the occasion, not the couple.
@@ -245,6 +248,53 @@ describe("parseVCards — anniversary", () => {
   });
 });
 
+describe("parseVCards — Apple's custom labels", () => {
+  /**
+   * A card straight out of an iPhone puts a standard label in `TYPE` and the
+   * user's own words in a grouped `X-ABLABEL` — and only there. Until the group
+   * label reached `labelFrom`, every custom label on a real Apple export arrived
+   * as "Other", which is the label the user is *least* likely to have meant.
+   */
+  it("reads a custom contact-method label out of the grouped X-ABLABEL", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.TEL:+1 555 100",
+        "item1.X-ABLABEL:Mum's place",
+        "item2.ADR:;;1 Beach Rd;Springfield;IL;62704;",
+        "item2.X-ABLABEL:Beach house",
+        "item3.EMAIL:jane@school.example",
+        "item3.X-ABLABEL:School",
+      ),
+    );
+    expect(c.phones[0].label).toBe("Mum's place");
+    expect(c.postals[0].label).toBe("Beach house");
+    expect(c.emails[0].label).toBe("School");
+  });
+
+  it("unwraps an Apple label constant rather than showing the sentinel", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.TEL:+1 555 100",
+        "item1.X-ABLABEL:_$!<Home>!$_",
+      ),
+    );
+    expect(c.phones[0].label).toBe("Home");
+  });
+
+  it("lets the grouped label win over a TYPE, as Contacts itself does", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.TEL;TYPE=HOME:+1 555 100",
+        "item1.X-ABLABEL:Mum's place",
+      ),
+    );
+    expect(c.phones[0].label).toBe("Mum's place");
+  });
+});
+
 describe("parseVCards — Apple's labelled dates", () => {
   it("reads an anniversary written as a grouped X-ABDATE", () => {
     // Exactly how the Contacts app exports one, year and all.
@@ -260,6 +310,9 @@ describe("parseVCards — Apple's labelled dates", () => {
         kind: "anniversary",
         label: "Anniversary",
         date: { year: 2015, month: 6, day: 20 },
+        note: null,
+        id: null,
+        relationshipId: null,
       },
     ]);
     // The label is metadata about the date, not a field of its own.
@@ -516,8 +569,20 @@ describe("parseVCards — RELATED", () => {
       ),
     );
     expect(c.related).toEqual([
-      { name: "Jen Davis", role: "spouse", roleNote: null },
-      { name: "Ben", role: "child", roleNote: null },
+      {
+        name: "Jen Davis",
+        role: "spouse",
+        roleNote: null,
+        otherUid: null,
+        relationshipId: null,
+      },
+      {
+        name: "Ben",
+        role: "child",
+        roleNote: null,
+        otherUid: null,
+        relationshipId: null,
+      },
     ]);
   });
 
@@ -540,14 +605,26 @@ describe("parseVCards — RELATED", () => {
       card("FN:Sam Carter", "RELATED;TYPE=muse;VALUE=text:Ada"),
     );
     expect(c.related).toEqual([
-      { name: "Ada", role: "other", roleNote: "muse" },
+      {
+        name: "Ada",
+        role: "other",
+        roleNote: "muse",
+        otherUid: null,
+        relationshipId: null,
+      },
     ]);
   });
 
   it("falls back to a bare `related` note when the card gives no TYPE", () => {
     const [c] = parseVCards(card("FN:Sam Carter", "RELATED;VALUE=text:Ada"));
     expect(c.related).toEqual([
-      { name: "Ada", role: "other", roleNote: "related" },
+      {
+        name: "Ada",
+        role: "other",
+        roleNote: "related",
+        otherUid: null,
+        relationshipId: null,
+      },
     ]);
   });
 

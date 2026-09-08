@@ -107,13 +107,25 @@ function relatedFrom(p: Property): ParsedRelated | null {
   const types = typesOf(p).map((t) => t.toLowerCase());
   const known = types.find((t) => t in RELATED_ROLES);
   if (known !== undefined) {
-    return { name: value, role: RELATED_ROLES[known], roleNote: null };
+    return {
+      name: value,
+      role: RELATED_ROLES[known],
+      roleNote: null,
+      otherUid: null,
+      relationshipId: null,
+    };
   }
   // An unmapped TYPE becomes the note on an `other` role, so "TYPE=muse" reads
   // as "muse" on the row rather than vanishing. A RELATED with no TYPE at all
   // says only that they are related, which is what the note then says.
   const note = types.find((t) => !TYPE_NOISE.has(t.toUpperCase())) ?? "related";
-  return { name: value, role: "other", roleNote: note };
+  return {
+    name: value,
+    role: "other",
+    roleNote: note,
+    otherUid: null,
+    relationshipId: null,
+  };
 }
 
 /** Structural / metadata properties that are neither mapped nor user-visible
@@ -129,6 +141,23 @@ const STRUCTURAL = new Set([
   "KIND",
   "PROFILE",
 ]);
+
+/**
+ * Properties **our own writer emits that our own parser cannot read yet** —
+ * ignored silently rather than surfaced as dropped.
+ *
+ * Deliberately not folded into {@link STRUCTURAL}, which is for metadata that is
+ * not user data at all. These *are* user data: they say who the user is and when
+ * they first recorded somebody. Keeping the two sets apart is what makes the
+ * gap visible, and this set is meant to **empty out** when `plans/export.md`
+ * increment 5 lands and the parser learns to read them.
+ *
+ * Everything else increment 2 writes rides an existing property as a parameter
+ * (`X-LEAPSAKE-ROLE` and `-REL-ID` on `RELATED`, `-MILESTONE-*` on `X-ABDATE`),
+ * and parameters are invisible to this switch — which is exactly why they are
+ * parameters. These two have no property to ride.
+ */
+const DEFERRED = new Set(["X-LEAPSAKE-SELF", "X-LEAPSAKE-CREATED"]);
 
 /** A parsed physical property line: `[group.]NAME;PARAM=v;PARAM=v:VALUE`. */
 interface Property {
@@ -377,6 +406,11 @@ function buildContact(props: Property[]): ParsedContact {
   }
 
   for (const p of props) {
+    // The user's own word for this property, when Apple's grouped `X-ABLABEL`
+    // gives one. It names a contact method as readily as it names a date, and
+    // for a custom label it is the *only* thing that does.
+    const groupLabel = p.group === null ? "" : (groupLabels.get(p.group) ?? "");
+
     switch (p.name) {
       case "N":
         nParts = splitStructured(p.value);
@@ -387,7 +421,7 @@ function buildContact(props: Property[]): ParsedContact {
       case "EMAIL": {
         const address = unescapeValue(p.value).trim();
         if (address !== "") {
-          emails.push({ label: emailLabel(typesOf(p)), address });
+          emails.push({ label: emailLabel(typesOf(p), groupLabel), address });
         }
         break;
       }
@@ -396,7 +430,7 @@ function buildContact(props: Property[]): ParsedContact {
         if (number !== "") {
           const types = typesOf(p);
           phones.push({
-            label: phoneLabel(types),
+            label: phoneLabel(types, groupLabel),
             number,
             extension: null,
             country: null, // vCard TEL carries no reliable ISO country
@@ -411,13 +445,14 @@ function buildContact(props: Property[]): ParsedContact {
           typesOf(p),
           p.group === null ? null : (groupCountries.get(p.group) ?? null),
           dropped,
+          groupLabel,
         );
         if (postal) postals.push(postal);
         break;
       }
       case "IMPP":
       case "X-SOCIALPROFILE": {
-        const social = socialFrom(p);
+        const social = socialFrom(p, groupLabel);
         // A value naming no service at all stays visible in the review UI's
         // "not imported" list rather than becoming a row pointing nowhere.
         if (social) socials.push(social);
@@ -429,7 +464,7 @@ function buildContact(props: Property[]): ParsedContact {
         // homepage or a company site is not one, and guessing would turn every
         // card's website into a fake Instagram row. Anything unrecognised keeps
         // its old behaviour and is surfaced as dropped.
-        const social = socialFrom(p);
+        const social = socialFrom(p, groupLabel);
         if (social && findPlatform(social.platform)) socials.push(social);
         else dropField(dropped, "URL", p.value);
         break;
@@ -451,6 +486,9 @@ function buildContact(props: Property[]): ParsedContact {
             kind: "anniversary",
             label: "Anniversary",
             date: parsed,
+            note: null,
+            id: null,
+            relationshipId: null,
           });
         } else dropField(dropped, "ANNIVERSARY", p.value);
         break;
@@ -482,7 +520,14 @@ function buildContact(props: Property[]): ParsedContact {
           dropField(dropped, `Date (${text})`, p.value);
           break;
         }
-        dates.push({ kind, label: text, date: parsed });
+        dates.push({
+          kind,
+          label: text,
+          date: parsed,
+          note: null,
+          id: null,
+          relationshipId: null,
+        });
         break;
       }
       case "GENDER":
@@ -498,7 +543,11 @@ function buildContact(props: Property[]): ParsedContact {
         break;
       }
       default:
-        if (!STRUCTURAL.has(p.name) && !HANDLED.has(p.name)) {
+        if (
+          !STRUCTURAL.has(p.name) &&
+          !HANDLED.has(p.name) &&
+          !DEFERRED.has(p.name)
+        ) {
           dropField(dropped, p.name, p.value);
         }
     }
@@ -512,6 +561,14 @@ function buildContact(props: Property[]): ParsedContact {
     // increment 5, and until it lands re-importing our own file duplicates
     // everyone rather than recognising them.
     uid: null,
+    // The same story for the four below: written by us, ignored on the way in.
+    // `KIND` and `REV` are in `STRUCTURAL`, `X-LEAPSAKE-SELF` and `-CREATED` in
+    // `DEFERRED` — so a pet card of ours re-imports as an ordinary person, which
+    // `plans/export.md` accepts until increment 5.
+    kind: "individual",
+    isSelf: false,
+    createdAt: null,
+    updatedAt: null,
     name: deriveName(nParts, fn),
     displayName: fn,
     gender,
@@ -575,6 +632,7 @@ function mapAddress(
   types: string[],
   isoHint: string | null,
   dropped: DroppedField[],
+  groupLabel = "",
 ): ParsedPostal | null {
   // Structured ADR: PO Box; Extended; Street; Locality; Region; Postal; Country.
   const poBox = component(parts, 0);
@@ -598,7 +656,7 @@ function mapAddress(
   }
 
   return {
-    label: postalLabel(types),
+    label: postalLabel(types, groupLabel),
     line1,
     line2,
     locality: nullIfEmpty(locality),
@@ -720,24 +778,28 @@ function typesOf(p: Property): string[] {
 /** Parameter noise that is never a user-facing label. */
 const TYPE_NOISE = new Set(["INTERNET", "PREF", "VOICE", "OTHER"]);
 
-function emailLabel(types: string[]): string {
-  return labelFrom(types, { HOME: "Home", WORK: "Work" });
+function emailLabel(types: string[], groupLabel = ""): string {
+  return labelFrom(types, { HOME: "Home", WORK: "Work" }, groupLabel);
 }
 
-function phoneLabel(types: string[]): string {
-  return labelFrom(types, {
-    CELL: "Mobile",
-    MOBILE: "Mobile",
-    IPHONE: "Mobile",
-    HOME: "Home",
-    WORK: "Work",
-    FAX: "Fax",
-    MAIN: "Main",
-  });
+function phoneLabel(types: string[], groupLabel = ""): string {
+  return labelFrom(
+    types,
+    {
+      CELL: "Mobile",
+      MOBILE: "Mobile",
+      IPHONE: "Mobile",
+      HOME: "Home",
+      WORK: "Work",
+      FAX: "Fax",
+      MAIN: "Main",
+    },
+    groupLabel,
+  );
 }
 
-function postalLabel(types: string[]): string {
-  return labelFrom(types, { HOME: "Home", WORK: "Work" });
+function postalLabel(types: string[], groupLabel = ""): string {
+  return labelFrom(types, { HOME: "Home", WORK: "Work" }, groupLabel);
 }
 
 /**
@@ -783,7 +845,7 @@ function platformIdFor(raw: string): string {
  * A URL is kept in `url` as well as reduced to a handle, since that is what makes
  * an unrecognised platform openable at all.
  */
-function socialFrom(p: Property): ParsedSocial | null {
+function socialFrom(p: Property, groupLabel = ""): ParsedSocial | null {
   const value = unescapeValue(p.value).trim();
   if (value === "") return null;
 
@@ -807,7 +869,11 @@ function socialFrom(p: Property): ParsedSocial | null {
     scheme !== undefined && !isWebUrl ? value.slice(scheme.length + 1) : value;
 
   return {
-    label: labelFrom(typesOf(p), { HOME: "Personal", WORK: "Work" }),
+    label: labelFrom(
+      typesOf(p),
+      { HOME: "Personal", WORK: "Work" },
+      groupLabel,
+    ),
     platform,
     handle: bareHandle(rest.replace(/^\/\//, "")),
     url: isWebUrl ? value : null,
@@ -829,11 +895,26 @@ function hostWord(url: string): string {
 }
 
 /**
- * Turn a property's `TYPE`s into a display label: the first recognised type wins;
- * otherwise the first non-noise type, title-cased; otherwise "Other". Guarantees
- * a non-empty label (contact-method labels are `min(1)`).
+ * Turn a property's `TYPE`s into a display label: the sibling `X-ABLABEL` wins
+ * outright; then the first recognised type; then the first non-noise type,
+ * title-cased; otherwise "Other". Guarantees a non-empty label (contact-method
+ * labels are `min(1)`).
+ *
+ * **`groupLabel` is what iOS Contacts itself shows.** Apple puts a standard
+ * label in `TYPE` and a user's own words in a grouped `X-ABLABEL`
+ * (`item1.TEL` + `item1.X-ABLABEL:Beach house`), so a card straight out of an
+ * iPhone carries every custom label that way and only that way — and until this
+ * argument existed, every one of them arrived here as "Other". It is already
+ * unwrapped through `appleLabelText` by the caller, so an Apple constant
+ * (`_$!<Home>!$_`) reads as "Home" rather than beating the `TYPE` with a
+ * sentinel.
  */
-function labelFrom(types: string[], known: Record<string, string>): string {
+function labelFrom(
+  types: string[],
+  known: Record<string, string>,
+  groupLabel = "",
+): string {
+  if (groupLabel !== "") return groupLabel;
   for (const t of types) {
     if (known[t]) return known[t];
   }

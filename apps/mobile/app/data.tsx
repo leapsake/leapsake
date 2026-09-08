@@ -410,6 +410,7 @@ function ExportSection() {
 
       setResult(
         `Exported ${counts.people} ${counts.people === 1 ? "person" : "people"}` +
+          `, ${counts.pets} ${counts.pets === 1 ? "pet" : "pets"}` +
           `, ${counts.contactMethods} contact ${
             counts.contactMethods === 1 ? "method" : "methods"
           } (${Math.max(1, Math.round(counts.bytes / 1024))} KB).`,
@@ -439,9 +440,9 @@ function ExportSection() {
     <View style={{ gap: 8 }}>
       <Text style={styles.title}>Export</Text>
       <Text style={styles.muted}>
-        Save everything on this device as a file you keep — your people, their
-        contact details and their birthdays. Leapsake doesn't upload it
-        anywhere.
+        Save everything on this device as a file you keep — your people and
+        pets, their contact details, their dates and how they're related.
+        Leapsake doesn't upload it anywhere.
       </Text>
       <Pressable
         testID="export-start"

@@ -6,6 +6,10 @@ import { type ImportPorts, ingestContacts } from "../src/index.js";
 function contact(over: Partial<ParsedContact> = {}): ParsedContact {
   return {
     uid: null,
+    kind: "individual",
+    isSelf: false,
+    createdAt: null,
+    updatedAt: null,
     name: { firstName: "Jane", middleName: null, lastName: "Doe" },
     displayName: "Jane Doe",
     gender: null,
@@ -105,6 +109,9 @@ describe("ingestContacts", () => {
               kind: "anniversary",
               label: "Anniversary",
               date: { year: 2015, month: 6, day: 20 },
+              note: null,
+              id: null,
+              relationshipId: null,
             },
           ],
         }),
@@ -156,8 +163,20 @@ describe("ingestContacts", () => {
         action: "create",
         contact: contact({
           related: [
-            { name: "Jen Davis", role: "spouse", roleNote: null },
-            { name: "Ben", role: "child", roleNote: null },
+            {
+              name: "Jen Davis",
+              role: "spouse",
+              roleNote: null,
+              otherUid: null,
+              relationshipId: null,
+            },
+            {
+              name: "Ben",
+              role: "child",
+              roleNote: null,
+              otherUid: null,
+              relationshipId: null,
+            },
           ],
         }),
       },

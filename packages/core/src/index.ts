@@ -2466,25 +2466,39 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
      * relationship or tagging pointing at a row the file leaves out. It matters
      * because this is the one artifact that leaves the device.
      *
-     * `people.list()` likewise answers only *published* people (`PUBLISHED_SQL`),
-     * which is exactly increment 1's scope.
+     * `people.list()` and `pets.list()` likewise answer only *published*
+     * entities (`PUBLISHED_SQL`). An unpublished person reaches the file only as
+     * a `RELATED` on the card of the one person they hang off, which is what
+     * their standing means — and `orientedNeighbors` is the only door they come
+     * through.
      *
-     * The fan-out is `1 + 3N` queries for N people, which is fine at v0.1 sizes.
-     * If it ever bites, the fix is bulk reads behind `ExportPorts` — not caching
-     * in whichever client called.
+     * `neighborsFor` is wired to `orientedNeighbors`, **not** to
+     * `kinship.neighborsFor`. The two return the same shape, but the kinship
+     * service also computes the inference engine's derived edges, which the
+     * export must never write (they have no stored row, and persisting an
+     * inference would stop it being live). `orientedNeighbors` reads the stored
+     * rows and stamps `origin: "explicit"` by construction, so nothing needs
+     * filtering and the walk never runs per entity.
+     *
+     * The fan-out is roughly `3 + 4(N + P) + E` queries for N people, P pets and
+     * E relationships, which is fine at v0.1 sizes. If it ever bites, the fix is
+     * bulk reads behind `ExportPorts` — not caching in whichever client called.
      */
     export: {
       archive: (opts: { appVersion: string }): Promise<ExportArchive> => {
         const ports: ExportPorts = {
           listPeople: () => people.list(),
+          listPets: () => pets.list(),
           contactMethodsFor: (personId) =>
             listContactMethods(contactMethods, {
               type: "person",
               id: personId,
             }),
-          milestonesFor: (personId) =>
-            milestones.listForBearer("person", personId),
-          tagsFor: (personId) => tags.listForEntity("person", personId),
+          milestonesFor: (bearerType, bearerId) =>
+            milestones.listForBearer(bearerType, bearerId),
+          tagsFor: (type, id) => tags.listForEntity(type, id),
+          neighborsFor: (type, id) => orientedNeighbors(type, id),
+          selfPersonId: async () => (await self.getSelf())?.personId ?? null,
         };
         return buildArchive(ports, {
           appVersion: opts.appVersion,
