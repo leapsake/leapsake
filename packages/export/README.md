@@ -51,13 +51,22 @@ than a recycle bin. Three reasons they stay out:
 3. Dropping a deleted person while keeping something that points at them yields a dangling
    reference — so the exclusion has to be **transitive**.
 
-The third is the interesting one, and it needs no code here: `@leapsake/data` bakes
+The third is the interesting one, and today it needs no code here: `@leapsake/data` bakes
 `deleted_at IS NULL` into `createEntityRepo`'s `listWhere` and `get`, and into
-`tags.listForEntity`'s join, so **every read an implementation of `ExportPorts` can make is
-already live-rows-only**. There is no query available that could produce the dangling reference.
+`tags.listForEntity`'s join, so **every read the current ports make is already live-rows-only**.
 `plans/export.md` originally asked for an `includeDeleted` parameter to make this cheap to
 revisit; it turned out to be unnecessary, and adding one would be the thing that lets a future
 caller opt *into* the surprise.
+
+⚠️ **That is a property of `createEntityRepo`, not of the data layer.** It holds because every
+port here happens to read through one. It is **not** a guarantee this package inherits, and
+`data.json` (increment 3) is where it breaks: `mentions`, `not_a_duplicate` and
+`relationship_dismissals` are `SyncableRepo`s with no filtered list-all, and their one
+enumerating method — `listChangedSince(since)` — is `WHERE updated_at > ?` with **no `deleted_at`
+clause at all**, deliberately, because sync has to propagate tombstones. `listChangedSince(0)`
+is the obvious way to dump a table and it is the bug: it would put deleted rows in the one
+artifact that leaves the device. Give those three a real read method instead, filtered like every
+other one, and the sentence above goes back to being true of the whole surface.
 
 `listPeople` and `listPets` likewise answer only **published** entities (`PUBLISHED_SQL`).
 Somebody who exists only as a fact about another person belongs on that person's card as a

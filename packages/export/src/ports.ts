@@ -17,15 +17,24 @@ import type {
  * (`@leapsake/core`) wires these over its repos.
  *
  * **Nothing here takes an "include deleted" flag, and that is deliberate.** Every
- * read in `@leapsake/data` filters `deleted_at IS NULL` structurally — it is
- * baked into `createEntityRepo`'s `listWhere` and `get`, and into
- * `tags.listForEntity`'s join — so an implementation of these ports cannot
- * accidentally surface a tombstone, and the exclusion is transitive without
- * anybody remembering to make it so. That matters here more than anywhere: the
- * export is the one artifact that leaves the device, so shipping rows the user
- * told the app to forget is a privacy surprise we could not take back. It also
- * would not round-trip — vCard cannot say "deleted", so every third-party import
- * would resurrect them as live contacts.
+ * read below goes through `createEntityRepo`, which filters `deleted_at IS NULL`
+ * structurally in `listWhere` and `get` (as `tags.listForEntity`'s join does),
+ * so no implementation of *these* ports can surface a tombstone and the
+ * exclusion is transitive without anybody remembering to make it so. That
+ * matters here more than anywhere: the export is the one artifact that leaves
+ * the device, so shipping rows the user told the app to forget is a privacy
+ * surprise we could not take back. It also would not round-trip — vCard cannot
+ * say "deleted", so every third-party import would resurrect them as live
+ * contacts.
+ *
+ * ⚠️ **Any port added here must keep that true by construction, and three tables
+ * `data.json` wants cannot.** `mentions`, `not_a_duplicate` and
+ * `relationship_dismissals` are `SyncableRepo`s with no filtered list-all;
+ * `listChangedSince(since)` is the only method that enumerates one, and it is
+ * `WHERE updated_at > ?` with no `deleted_at` clause — on purpose, since sync
+ * must carry tombstones. `listChangedSince(0)` reads like "give me everything"
+ * and is the way this invariant gets broken. Add a filtered read to those repos
+ * rather than reaching for it.
  *
  * `listPeople` and `listPets` likewise return only *published* entities, because
  * `people.list()`/`pets.list()` are the user's own catalog (`PUBLISHED_SQL`).

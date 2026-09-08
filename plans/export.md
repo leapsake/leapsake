@@ -246,8 +246,14 @@ code: [`../packages/export/README.md`](../packages/export/README.md).
 
 ## Increments
 
-Each is shippable alone. **4 is what GA blocks on**; 3 is what makes the file a backup rather
-than a contacts dump, and is cheap now that 1 and 2 exist.
+Each is shippable alone, but **do 3 before 4**, and that ordering is load-bearing rather than
+tidiness. 4 puts an *Export first* button inside the two confirmations that destroy the only copy
+of somebody's data — so it is the app making a formal promise at the one irreversible moment.
+`data.json` is `{"version": 1}` until 3 lands, so shipping 4 first hands the user a file with
+every reminder, gift idea, holiday choice, `not_a_duplicate` judgment and notification setting
+missing, at exactly the moment they cannot check and cannot undo. **An incomplete backup offered
+there is worse than no offer**, because they act on it. 4 is still the one GA blocks on; 3 is what
+makes it honest, and is cheap now that 1 and 2 exist.
 
 > ✅ **1 and 2 are built** *(2026-09-07)* — the whole person graph. `@leapsake/vcard`'s
 > serializer, the [`@leapsake/export`](../packages/export/README.md) package behind
@@ -272,10 +278,37 @@ than a contacts dump, and is cheap now that 1 and 2 exist.
 > read/write classification. Increment 2 tripped neither — it changed the ports behind
 > `export.archive`, not the method.
 
-3. **`data.json`** — everything in *What is not person-shaped*, versioned and schema'd.
-4. **Wire the offer that already exists in the copy.** An **Export first** button inside *both*
-   destructive confirmations in `app/data.tsx` — `ForgetAccountSection` **and**
-   `FactoryResetSection`. The accountless wipe is by definition destroying the only copy, so it
+3. **`data.json`** — everything in *What is not person-shaped*, versioned and schema'd. Seven of
+   the ten tables need no new data-layer work: `reminders`, `reminder_rules`, `gift_ideas`,
+   `gift_recipients`, `observances`, `hidden_holidays` and `notification_settings` all extend
+   `EntityRepo`, whose `list()` already filters `deleted_at IS NULL`.
+
+   ⚠️ **The other three are a trap, not a chore.** `mentions`, `not_a_duplicate` and
+   `relationship_dismissals` are `SyncableRepo`s with **no filtered list-all** —
+   `not_a_duplicate` offers `listPairs()` (a `Set<PairKey>`, not rows) and `dismissals` only
+   `listForEntity(type, id)`. The one method that enumerates any of them is
+   `listChangedSince(since)`, whose SQL is `SELECT * FROM <table> WHERE updated_at > ?` with **no
+   `deleted_at` clause** — deliberately, because sync has to propagate tombstones.
+   `listChangedSince(0)` reads exactly like "give me every row" and is the bug: it would put
+   soft-deleted rows into the one artifact that leaves the device, which is the surprise *The
+   shape, decided* → 4 exists to prevent.
+
+   So: **give those three a filtered read method of their own** and wire it through
+   `ExportPorts` like the rest. Note that `packages/export/README.md` and `ports.ts` both say a
+   tombstone cannot reach the file — true of increments 1 and 2, whose every read goes through
+   `createEntityRepo`, and both now carry the caveat. Do not take the unqualified version of that
+   sentence from an older copy of either.
+
+   Two smaller calls this increment has to make: whether a new key bumps `DATA_VERSION` (it should
+   not — `exportDataSchema` takes each table as its **own optional key**, so a file written by an
+   older app still parses, and the version is for shape changes) and whether `counts` grows
+   (the mobile Export copy currently promises "your people and pets, their contact details, their
+   dates and how they're related", and 3 makes that sentence understate the file).
+4. **Wire the offer that already exists in the copy.** ⚠️ **Not before 3** — see the note above
+   this list: until `data.json` has contents, this offers a backup that silently drops the user's
+   reminders, gifts and holiday choices at the one moment they cannot undo. An **Export first**
+   button inside *both* destructive confirmations in `app/data.tsx` — `ForgetAccountSection`
+   **and** `FactoryResetSection`. The accountless wipe is by definition destroying the only copy, so it
    needs the offer at least as much; `key-custody/README.md` currently promises it only for the
    first. Then delete that README's note (rewritten in increment 1, and it says to delete it here).
    **Leave desktop's "Leapsake cannot export it yet" in `Settings.tsx` alone** — desktop still has
