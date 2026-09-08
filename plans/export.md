@@ -274,8 +274,17 @@ vCard is famous for (`packages/vcard/test/write.test.ts`), the archive against f
 (`apps/desktop/test/integration/export-archive.test.ts` — the half that would otherwise fail
 silently, since an export missing everybody's phone numbers is still a valid archive).
 
+✅ **Verified once on the simulator** *(2026-09-07)* — iPhone 16 Pro, iOS 26: the archive builds
+**on Hermes** (which is what the Node tiers cannot speak to — `fflate` had never run there), lands
+in `Library/Caches`, and opens with the system `unzip` as three members with valid vCard 4.0
+inside. `app/dev-export.tsx` is the harness: `__DEV__`-gated, deep-link only
+(`leapsake://dev-export`), it runs the export **on mount** and writes to a fixed path, because the
+real button opens a share sheet no shell-driven harness can dismiss — there is no tap command for
+the simulator. Increment 2 should re-run it and diff the `.vcf`.
+
 **Still owed: the device tier.** Maestro asserts the share sheet opened and that
-`testID="export-result"` reports non-zero record and byte counts. **No new rung in the catalog** —
+`testID="export-result"` reports non-zero record and byte counts — the tap and the share itself
+are the part still unproven. **No new rung in the catalog** —
 [`testing/crucial-flows.md`](./testing/crucial-flows.md)'s table is settled policy. And once, by
 hand: AirDrop a real export off the device, unzip it, and import `contacts.vcf` into macOS
 Contacts — the round trip the *Writing dates* probes were measured against.
