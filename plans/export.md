@@ -327,9 +327,28 @@ inside. `app/dev-export.tsx` is the harness: `__DEV__`-gated, deep-link only
 real button opens a share sheet no shell-driven harness can dismiss — there is no tap command for
 the simulator.
 
-⚠️ **Owed for increment 2: re-run that harness and diff the `.vcf`.** The Node tiers cannot reach
-Hermes, and increment 2 changed what every card contains. Increment 1's run is not evidence for
-it.
+✅ **Re-run for increment 2** *(2026-09-07, same simulator)* — the store held two people and a
+`friend` edge between them, which is exactly the case increment 1 could not write. The diff
+against increment 1's `.vcf` is the whole increment where that store touches it:
+
+```
+UID:urn:uuid:1cb7bbba-…
+KIND:individual
+FN:Augustus De Morgan
+RELATED;VALUE=uri;TYPE=friend;X-LEAPSAKE-ROLE=friend;X-LEAPSAKE-REL-ID=5886
+ f2e7-…:urn:uuid:6c987a68-…
+X-LEAPSAKE-CREATED:2026-09-07T03:20:29Z
+REV:2026-09-07T03:20:29Z
+```
+
+— the same `REL-ID` on both cards pointing at each other's `UID`, and the fold landing correctly
+inside a `RELATED` well past 75 octets. `people=2 pets=0 methods=0`.
+
+⚠️ **What that store could not exercise**, and which therefore rests on the Node tiers alone: a
+pet card, an unpublished person as a text `RELATED`, any milestone but a birthday, a custom
+`X-ABLABEL`, and `X-LEAPSAKE-SELF`. The Hermes-specific risk is covered — the graph walk and the
+writer run there — but a store with a pet and an unpublished person is worth building by hand
+before GA.
 
 **Still owed: the device tier.** Maestro asserts the share sheet opened and that
 `testID="export-result"` reports non-zero record and byte counts — the tap and the share itself
