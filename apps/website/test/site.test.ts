@@ -64,6 +64,48 @@ describe("the published privacy policy", () => {
   });
 });
 
+describe("the follow page", () => {
+  /**
+   * The two things about this page that fail *silently* if they regress.
+   *
+   * Its copy is ordinary marketing text and needs no guard. But `rel="me"` is what
+   * Mastodon reads to verify the account, and a follow button pasted in from a
+   * platform's "embed" tab is a third-party script on a site that tells visitors it
+   * has no trackers. Both break with no error and nothing on screen to notice.
+   */
+  let html: string;
+
+  beforeAll(async () => {
+    await execFileAsync("pnpm", ["exec", "astro", "build"], { cwd: WEBSITE });
+    html = await readFile(join(WEBSITE, "dist/follow/index.html"), "utf8");
+  }, 120_000);
+
+  it("carries every account as an https link marked rel=me", () => {
+    const links = [...html.matchAll(/<a\b[^>]*href="(https?:[^"]+)"[^>]*>/g)];
+    expect(links.length).toBeGreaterThanOrEqual(7);
+
+    for (const [tag, href] of links) {
+      // `rel="me"` is what earns the verified mark on the Mastodon profile whose
+      // website field points here; without it the link still works and the
+      // verification quietly never happens.
+      expect(tag, `${href} is missing rel="me"`).toContain('rel="me"');
+      // An http:// profile link on a page about a product that does not phone home
+      // would be a poor look, and every one of these platforms serves https.
+      expect(href.startsWith("https://"), `${href} is not https`).toBe(true);
+    }
+  });
+
+  it("ships no JavaScript, so no follow widget can have crept in", () => {
+    expect(html).not.toContain("<script");
+  });
+
+  it("is reachable from the home page", async () => {
+    // A page nothing links to is a page nobody finds.
+    const home = await readFile(join(WEBSITE, "dist/index.html"), "utf8");
+    expect(home).toContain('href="/follow"');
+  });
+});
+
 /**
  * The docs model, exercised against real files.
  *

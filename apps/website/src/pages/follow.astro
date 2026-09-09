@@ -1,0 +1,92 @@
+---
+import Base from "../layouts/Base.astro";
+
+/**
+ * Where Leapsake posts, and the one page that says so.
+ *
+ * A short, stable URL exists so that a profile bio, a release note, or a reply can
+ * link to *one* place instead of listing seven — and so the list changes here, in a
+ * commit, rather than in seven bios nobody remembers to edit.
+ *
+ * **Plain links, deliberately.** No follow buttons, no embedded timelines, no
+ * platform SDKs. Every one of those is a third-party script that would watch the
+ * visitor, on a site whose home page says the product has "no analytics, no trackers,
+ * and no server". The site's own no-JavaScript rule is what keeps that honest, and
+ * `test/site.test.ts` fails if a script tag appears.
+ *
+ * **`rel="me"`** is load-bearing rather than decorative: Mastodon verifies a profile's
+ * website by fetching it and looking for a link back to that profile carrying
+ * `rel="me"`. So pointing the Mastodon account's website field at this URL is what
+ * earns the verified mark — which is worth having on an account impersonation would
+ * otherwise be cheap against. The other platforms ignore the attribute; it costs
+ * nothing and states the same true thing about each link.
+ *
+ * The list has no styling of its own on purpose. `Base.astro` is "the page shell, and
+ * the only stylesheet", and the app's real visual pass is still ahead — a second
+ * stylesheet added here would be one more thing that pass has to find and undo.
+ */
+
+/**
+ * The accounts, in the order a reader is most likely to want them: conversation
+ * first, then video, then the source.
+ *
+ * `handle` is what a reader would type to search for the account, so it is written
+ * the way that platform writes it — Bluesky's is a domain, Mastodon's carries its
+ * server, and the rest are bare.
+ */
+const accounts = [
+  {
+    name: "Bluesky",
+    handle: "@leapsake.bsky.social",
+    href: "https://bsky.app/profile/leapsake.bsky.social",
+  },
+  {
+    name: "Mastodon",
+    handle: "@leapsake@mastodon.social",
+    href: "https://mastodon.social/@leapsake",
+  },
+  { name: "X", handle: "@leapsake", href: "https://x.com/leapsake" },
+  {
+    name: "Instagram",
+    handle: "@leapsake",
+    href: "https://www.instagram.com/leapsake/",
+  },
+  {
+    name: "YouTube",
+    handle: "@leapsake",
+    href: "https://www.youtube.com/@leapsake",
+  },
+  { name: "TikTok", handle: "@leapsake", href: "https://www.tiktok.com/@leapsake" },
+  { name: "GitHub", handle: "leapsake", href: "https://github.com/leapsake" },
+];
+---
+
+<Base
+  title="Follow Leapsake"
+  description="Where Leapsake posts: Bluesky, Mastodon, X, Instagram, YouTube, TikTok and GitHub."
+>
+  <h1>Follow Leapsake</h1>
+  <p>
+    Release notes, work in progress, and the occasional note about why something
+    works the way it does. Same handle everywhere.
+  </p>
+  <ul>
+    {
+      accounts.map(({ name, handle, href }) => (
+        <li>
+          <a href={href} rel="me">
+            {name}
+          </a>{" "}
+          — <em>{handle}</em>
+        </li>
+      ))
+    }
+  </ul>
+  <p>
+    Prefer email? <a href="mailto:hello@leapsake.com">hello@leapsake.com</a> reaches
+    us directly.
+  </p>
+  <footer>
+    <a href="/">Home</a> · <a href="/privacy">Privacy policy</a>
+  </footer>
+</Base>
