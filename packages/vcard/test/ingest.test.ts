@@ -37,7 +37,20 @@ function makePorts(failOn?: string) {
   const emails: { personId: string; address: string }[] = [];
   const birthdays: { personId: string }[] = [];
   const dates: { personId: string; kind: string }[] = [];
-  const relateds: { personId: string; name: string; role: string }[] = [];
+  const relateds: {
+    ownerType: string;
+    personId: string;
+    name: string;
+    role: string;
+  }[] = [];
+  const links: {
+    ownerType: string;
+    ownerId: string;
+    otherType: string;
+    otherId: string;
+    role: string;
+    name: string;
+  }[] = [];
   const tagged: { type: string; id: string; names: string[] }[] = [];
   const selfs: string[] = [];
   let n = 0;
@@ -70,8 +83,23 @@ function makePorts(failOn?: string) {
     addDate: async (personId, date) => {
       dates.push({ personId, kind: date.kind });
     },
-    addRelated: async (personId, relation) => {
-      relateds.push({ personId, name: relation.name, role: relation.role });
+    addRelated: async (ownerType, ownerId, relation) => {
+      relateds.push({
+        ownerType,
+        personId: ownerId,
+        name: relation.name,
+        role: relation.role,
+      });
+    },
+    linkExisting: async (ownerType, ownerId, otherType, otherId, relation) => {
+      links.push({
+        ownerType,
+        ownerId,
+        otherType,
+        otherId,
+        role: relation.role,
+        name: relation.name,
+      });
     },
     setSelf: async (personId) => {
       selfs.push(personId);
@@ -91,6 +119,7 @@ function makePorts(failOn?: string) {
     relateds,
     tagged,
     selfs,
+    links,
   };
 }
 
@@ -207,8 +236,18 @@ describe("ingestContacts", () => {
       },
     ]);
     expect(relateds).toEqual([
-      { personId: "person-1", name: "Jen Davis", role: "spouse" },
-      { personId: "person-1", name: "Ben", role: "child" },
+      {
+        ownerType: "person",
+        personId: "person-1",
+        name: "Jen Davis",
+        role: "spouse",
+      },
+      {
+        ownerType: "person",
+        personId: "person-1",
+        name: "Ben",
+        role: "child",
+      },
     ]);
   });
 
@@ -364,5 +403,191 @@ describe("ingestContacts — pets, tags and the self claim", () => {
       },
     ]);
     expect(selfs).toEqual([]);
+  });
+});
+
+/** A card referencing another by `UID`, as our own exporter writes a published
+ *  relationship: same edge id on both halves, inverse roles. */
+function refRelated(
+  over: Partial<ParsedContact["related"][number]> = {},
+): ParsedContact["related"][number] {
+  return {
+    name: "Ben Doe",
+    role: "child",
+    roleNote: null,
+    otherUid: "ben",
+    relationshipId: "edge-1",
+    ...over,
+  };
+}
+
+describe("ingestContacts — edges between two cards", () => {
+  /**
+   * The assertion 5b exists for. `RELATED` is written on **both** partners'
+   * cards, so a naive importer makes two relationships out of one fact; the
+   * shared `X-LEAPSAKE-REL-ID` is what says they are halves of the same thing.
+   */
+  it("writes one relationship for an edge that appears on both cards", async () => {
+    const { ports, links, relateds } = makePorts();
+    await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({ uid: "jane", related: [refRelated()] }),
+      },
+      {
+        action: "create",
+        contact: contact({
+          uid: "ben",
+          name: { firstName: "Ben", middleName: null, lastName: "Doe" },
+          related: [
+            refRelated({ name: "Jane Doe", role: "mother", otherUid: "jane" }),
+          ],
+        }),
+      },
+    ]);
+
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({
+      ownerType: "person",
+      ownerId: "person-1",
+      otherType: "person",
+      otherId: "person-2",
+      role: "child",
+    });
+    // And no stub was invented for somebody who has a card of their own.
+    expect(relateds).toEqual([]);
+  });
+
+  it("resolves an edge that points forwards, at a card not yet created", async () => {
+    // Jane's card is built first and names Ben, who does not exist yet. Holding
+    // the edge until every card is built is what makes card order irrelevant.
+    const { ports, links } = makePorts();
+    await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({ uid: "jane", related: [refRelated()] }),
+      },
+      { action: "create", contact: contact({ uid: "ben" }) },
+    ]);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({
+      ownerId: "person-1",
+      otherId: "person-2",
+    });
+  });
+
+  it("keeps two genuinely different edges between the same pair", async () => {
+    const { ports, links } = makePorts();
+    await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          uid: "jane",
+          related: [
+            refRelated({ role: "child", relationshipId: "edge-1" }),
+            refRelated({ role: "coworker", relationshipId: "edge-2" }),
+          ],
+        }),
+      },
+      { action: "create", contact: contact({ uid: "ben" }) },
+    ]);
+    expect(links.map((l) => l.role)).toEqual(["child", "coworker"]);
+  });
+
+  /**
+   * The other end was in the file but the user skipped it. The *fact* is still
+   * true — this person has a child called Ben Doe — so it lands the way a merely
+   * named relation does, with the name the parser recovered from the other card.
+   * Dropping it would lose a relationship the file plainly states.
+   */
+  it("falls back to a stub when the other card was not imported", async () => {
+    const { ports, links, relateds } = makePorts();
+    await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({ uid: "jane", related: [refRelated()] }),
+      },
+      { action: "skip", contact: contact({ uid: "ben" }) },
+    ]);
+    expect(links).toEqual([]);
+    expect(relateds).toEqual([
+      {
+        ownerType: "person",
+        personId: "person-1",
+        name: "Ben Doe",
+        role: "child",
+      },
+    ]);
+  });
+
+  it("does not point an edge at a card whose own write rolled back", async () => {
+    // `byUid` is only written after a contact's transaction commits, so a failed
+    // card is not something an edge can be attached to.
+    const { ports, links, relateds } = makePorts("Ben");
+    const result = await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({ uid: "jane", related: [refRelated()] }),
+      },
+      {
+        action: "create",
+        contact: contact({
+          uid: "ben",
+          name: { firstName: "Ben", middleName: null, lastName: "Doe" },
+        }),
+      },
+    ]);
+    expect(result.created).toBe(1);
+    expect(links).toEqual([]);
+    expect(relateds).toHaveLength(1);
+  });
+
+  it("carries a pet's own type onto the edge, both ways", async () => {
+    const { ports, links, relateds } = makePorts();
+    await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          uid: "rex",
+          kind: "pet",
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+          related: [
+            refRelated({ name: "Jane Doe", role: "owner", otherUid: "jane" }),
+            {
+              name: "Sam Vet",
+              role: "other",
+              roleNote: "vet",
+              otherUid: null,
+              relationshipId: null,
+            },
+          ],
+        }),
+      },
+      { action: "create", contact: contact({ uid: "jane" }) },
+    ]);
+
+    // The bug this guards: `addRelated` used to hardcode `"person"`, so a pet
+    // with a named relation failed the whole contact on `holderAllows`.
+    expect(relateds[0]).toMatchObject({ ownerType: "pet", name: "Sam Vet" });
+    expect(links[0]).toMatchObject({ ownerType: "pet", otherType: "person" });
+  });
+
+  it("records an edge failure against the card that carried it", async () => {
+    const { ports } = makePorts();
+    ports.linkExisting = async () => {
+      throw new Error("edge boom");
+    };
+    const result = await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({ uid: "jane", related: [refRelated()] }),
+      },
+      { action: "create", contact: contact({ uid: "ben" }) },
+    ]);
+    // Both people landed; only the relationship between them did not.
+    expect(result.created).toBe(2);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].index).toBe(0);
+    expect(result.errors[0].message).toBe("edge boom");
   });
 });

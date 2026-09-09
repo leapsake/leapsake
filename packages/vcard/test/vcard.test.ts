@@ -759,10 +759,10 @@ describe("parseVCards — RELATED", () => {
     ]);
   });
 
-  // A URI points at another card, which would have to be resolved against that
-  // card's own import — see the TODO in the reader. Until then it stays visible
-  // as something that was not imported, rather than silently going nowhere.
-  it("drops a reference to another card rather than naming it", () => {
+  // A URI points at another card, so it can only be read when that card is in
+  // the same file. This one is not, so the edge names nobody reachable and stays
+  // visible as something that was not imported.
+  it("drops a reference to a card the file does not contain", () => {
     const [c] = parseVCards(
       card(
         "FN:Sam Carter",
@@ -774,6 +774,60 @@ describe("parseVCards — RELATED", () => {
       property: "RELATED",
       value: "urn:uuid:03a0e51f-d1aa-4385-8a53-e29025acd8af",
     });
+  });
+
+  it("resolves a reference to a card that is here, taking its name", () => {
+    const uid = "03a0e51f-d1aa-4385-8a53-e29025acd8af";
+    const [sam, ada] = parseVCards(
+      [
+        card("FN:Sam Carter", `RELATED;TYPE=friend:urn:uuid:${uid}`),
+        card(`UID:urn:uuid:${uid}`, "FN:Ada Lovelace"),
+      ].join("\r\n"),
+    );
+    // The name is not on the `RELATED` line at all — it comes from Ada's card.
+    expect(sam.related).toEqual([
+      {
+        name: "Ada Lovelace",
+        role: "friend",
+        roleNote: null,
+        otherUid: uid,
+        relationshipId: null,
+      },
+    ]);
+    expect(sam.dropped).toEqual([]);
+    expect(ada.uid).toBe(uid);
+  });
+
+  it("reads the exact role from X-LEAPSAKE-ROLE over the standard TYPE", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Sam Carter",
+        "RELATED;TYPE=parent;X-LEAPSAKE-ROLE=mother;VALUE=text:Ada",
+      ),
+    );
+    expect(c.related[0]).toMatchObject({ role: "mother", roleNote: null });
+  });
+
+  it("ignores an X-LEAPSAKE-ROLE naming a role Leapsake does not have", () => {
+    // A newer build's vocabulary, or a hand-edited card. Falling back to `TYPE`
+    // is better than refusing the row or coercing it to something invalid.
+    const [c] = parseVCards(
+      card(
+        "FN:Sam Carter",
+        "RELATED;TYPE=parent;X-LEAPSAKE-ROLE=grand-vizier;VALUE=text:Ada",
+      ),
+    );
+    expect(c.related[0]).toMatchObject({ role: "parent" });
+  });
+
+  it("reads the edge id so an importer can pair the two halves", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Sam Carter",
+        "RELATED;X-LEAPSAKE-ROLE=spouse;X-LEAPSAKE-REL-ID=edge-1;VALUE=text:Ada",
+      ),
+    );
+    expect(c.related[0].relationshipId).toBe("edge-1");
   });
 
   it("drops a mailto: reference too", () => {

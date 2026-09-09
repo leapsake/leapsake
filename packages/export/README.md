@@ -176,10 +176,12 @@ The reader is catching up with this writer in numbered increments
 parameters — so a pet comes back a pet, tags come back, and the review reports a card we already
 hold instead of quietly making a second copy of everyone.
 
-**The graph and the milestones do not.** `X-LEAPSAKE-ROLE`/`-REL-ID`, a `RELATED` naming another
-card by `urn:uuid:`, and every `X-LEAPSAKE-MILESTONE-*` are still unread, so re-importing our own
-file demotes each published relationship to an unpublished stub and loses nine of the ten
-milestone kinds. Increments 5b–5d.
+**The relationship graph does too**, as of 5b: the exact role comes home rather than degrading to
+its RFC 6350 base, and a `RELATED` naming another card by `urn:uuid:` becomes one real edge between
+two published entities — one, not two, even though the writer puts it on both cards.
+
+**The milestones do not.** Every `X-LEAPSAKE-MILESTONE-*` is still unread, so re-importing our own
+file loses nine of the ten milestone kinds. Increments 5c–5d.
 
 And note what the ids are **for**: matching, not identity. An imported card always gets a fresh
 row id, and `X-LEAPSAKE-CREATED` is parsed but not applied — writing the file's own ids and

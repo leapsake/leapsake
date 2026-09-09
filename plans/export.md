@@ -2,7 +2,7 @@
 
 > **Only the unbuilt half.** The exporter shipped in four increments over 2026-09-07/08 and a user
 > can save their whole store as a `.zip`; **GA does not block on any code here.** What remains is
-> the rest of the *import* side (5a landed 2026-09-08; 5b–5d have not), desktop, and three
+> the rest of the *import* side (5a and 5b landed 2026-09-08; 5c–5d have not), desktop, and three
 > verifications. The format, the decisions behind it and the evidence for them live next to the
 > code that has to obey them — see below.
 > **Delete this file when 5 and 6 land.**
@@ -52,19 +52,31 @@ the review surfaces that and offers the self claim **opted out**, so somebody el
 never take over the `self_person` pointer. The parser's `DEFERRED` set is gone, as its own doc
 comment promised. `git log` has the rest.
 
+### 5b — the relationship graph ✅ *(shipped 2026-09-08)*
+
+`X-LEAPSAKE-ROLE` and `-REL-ID`, and a `RELATED` naming another card by `urn:uuid:` — the TODO on
+`relatedFrom`, now gone. `parseVCards` indexes every card's UID before building any of them, so a
+reference resolves whichever order the two cards arrive in, taking its name from the referenced
+card's `FN`. `ingestContacts` is now two-phase: entities first, each still in its own transaction,
+then the cross-card edges, written **once each** — `-REL-ID` is the dedupe key, which is what it
+was always for. An edge whose other card the user skipped degrades to an unpublished stub rather
+than vanishing, since the fact is true either way. Reading `-ROLE` ended the `mother`→`parent` /
+`cousin`→`other` degradation.
+
+> ⚠️ **It also fixed a regression 5a introduced.** Routing pets through `addRelated`, which
+> hardcoded `aType: "person"`, made `holderAllows` refuse the row and fail the **whole pet card** —
+> and our own exporter writes exactly that card for a pet with an unpublished owner. The port now
+> carries the owner's entity type.
+
 ### What is still unread
 
-- **5b — the graph.** `X-LEAPSAKE-ROLE` and `-REL-ID`, and a `RELATED` naming another card by
-  `urn:uuid:` — the TODO on `relatedFrom`. Two facts make it work and both now exist:
-  `parseVCards` sees every card at once, and a referenced card's `FN` **is** the name the writer
-  would have written (`displayName` is `fullName`/`pet.name`; `otherLabel` is `entityLabel` — the
-  same function), so a published edge's name is recoverable exactly and a reference to a card
-  *absent* from the file honestly stays in `dropped`. `ingestContacts` becomes two-pass over a
-  UID→new-id map; `-REL-ID` is what stops one edge becoming two relationships. Reading `-ROLE`
-  also ends the `mother`→`parent` / `cousin`→`other` degradation, since the domain takes all 41
-  roles verbatim — with the rule that `roleNote` is legal **only** on role `other`.
 - **5c — milestones.** `X-LEAPSAKE-MILESTONE-KIND`/`-ID`/`-NOTE`/`-REL`. See the `DATE_KINDS`
-  warning below first. `-REL` needs 5b's edge to exist.
+  warning below first.
+  ⚠️ **`-REL` names the *file's* `relationships.id`, not the one the import created.** 5b writes
+  each edge with a fresh id and does not keep the correspondence — `linkExisting` returns nothing.
+  So 5c's first move is making that port return its new id, so phase 2 can build the
+  file-id→new-id map a relationship-borne milestone has to be looked up through. Using the raw
+  `-REL` value as a `bearerId` would point every such milestone at a row that does not exist.
 - **5d — `DATE_KINDS`**, which is only ever about *other people's* cards. Last on purpose; the
   warning below is why.
 
@@ -105,9 +117,9 @@ contact labelled "Graduation" starts minting milestones **in the same change**. 
 user-visible behaviour change on a path nobody asked to change, and it wants its own tests.
 
 **The signal to watch is `write.test.ts`'s `asParsedToday` helper**, which is the **ledger of every
-remaining gap** — what falls to `dropped`, and how a role degrades (`mother` → `parent`;
-`cousin` → `other` + note) — each with a golden-text test beside it, so nothing in the gap is
-merely asserted. It shrinks as each increment lands; 5a already took the identity fields out of it.
+remaining gap**, each with a golden-text test beside it, so nothing in the gap is merely asserted.
+It shrinks as each increment lands: 5a took the identity fields out of it, and 5b took the whole
+`related` branch and the `degradedRole` helper with it. What is left is the dates.
 
 ⚠️ **It will not shrink to nothing, and this file used to claim it would.** `writeParam` strips
 `"` and folds newlines to a space, because vCard's parameter grammar has an escape for neither — so

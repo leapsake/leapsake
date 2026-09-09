@@ -457,3 +457,142 @@ describe("core.import.commit — named relations", () => {
     expect(await core.people.list()).toEqual([]);
   });
 });
+
+/**
+ * The graph half of `plans/export.md` → 5, increment 5b: a `RELATED` that points
+ * at another card rather than naming somebody. Every one of these used to reach
+ * the store as a pair of unpublished stubs, or not at all.
+ */
+describe("core.import.commit — edges between two cards", () => {
+  const JANE = "aaaaaaaa-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+  const BEN = "bbbbbbbb-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+  const EDGE = "dddddddd-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+
+  /** The two halves our own exporter writes for one published relationship. */
+  const pair = () => [
+    {
+      action: "create" as const,
+      contact: contact({
+        uid: JANE,
+        related: [
+          related({
+            name: "Ben Doe",
+            role: "son",
+            otherUid: BEN,
+            relationshipId: EDGE,
+          }),
+        ],
+      }),
+    },
+    {
+      action: "create" as const,
+      contact: contact({
+        uid: BEN,
+        name: { firstName: "Ben", middleName: null, lastName: "Doe" },
+        displayName: "Ben Doe",
+        related: [
+          related({
+            name: "Jane Doe",
+            role: "mother",
+            otherUid: JANE,
+            relationshipId: EDGE,
+          }),
+        ],
+      }),
+    },
+  ];
+
+  it("joins the two published people, with no stub and no duplicate edge", async () => {
+    const result = await core.import.commit(pair());
+    expect(result).toMatchObject({ created: 2, errors: [] });
+
+    // Two people, both in the catalog — not one person and one stub.
+    const listed = await core.people.list();
+    expect(listed.map((p) => p.firstName).sort()).toEqual(["Ben", "Jane"]);
+
+    // One edge, seen from both ends — the shared `X-LEAPSAKE-REL-ID` is what
+    // stops the reciprocal half becoming a second relationship.
+    const jane = listed.find((p) => p.firstName === "Jane")!;
+    const ben = listed.find((p) => p.firstName === "Ben")!;
+    const fromJane = await core.relationships.listForEntity("person", jane.id);
+    const fromBen = await core.relationships.listForEntity("person", ben.id);
+    expect(fromJane).toHaveLength(1);
+    expect(fromBen).toHaveLength(1);
+    expect(fromJane[0].relationshipId).toBe(fromBen[0].relationshipId);
+  });
+
+  it("keeps the exact role, rather than the standard one it was written as", async () => {
+    // `son` and `mother` go out as `TYPE=child`/`TYPE=parent`, which is all a
+    // standards consumer can act on. Reading `X-LEAPSAKE-ROLE` is what brings
+    // the gendered role home.
+    await core.import.commit(pair());
+
+    const listed = await core.people.list();
+    const jane = listed.find((p) => p.firstName === "Jane")!;
+    const [edge] = await core.relationships.listForEntity("person", jane.id);
+    expect(edge).toMatchObject({
+      otherLabel: "Ben Doe",
+      otherStanding: "published",
+      otherRole: "son",
+    });
+  });
+
+  it("falls back to a stub when the user skipped the other card", async () => {
+    const [janeDecision, benDecision] = pair();
+    await core.import.commit([
+      janeDecision,
+      { ...benDecision, action: "skip" },
+    ]);
+
+    const listed = await core.people.list();
+    expect(listed.map((p) => p.firstName)).toEqual(["Jane"]);
+
+    // The fact survives, with the name recovered from the card that was skipped.
+    const [edge] = await core.relationships.listForEntity(
+      "person",
+      listed[0].id,
+    );
+    expect(edge).toMatchObject({
+      otherLabel: "Ben Doe",
+      otherStanding: "unpublished",
+      otherRole: "son",
+    });
+  });
+
+  /**
+   * The regression that arrived with 5a and is fixed here: pets reach
+   * `addRelated` too, and it hardcoded `aType: "person"` — so `holderAllows`
+   * refused the row and the **whole pet card** failed to import.
+   */
+  it("writes a pet's own relations against the pet, not against a person", async () => {
+    const REX = "cccccccc-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+    const result = await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          uid: REX,
+          kind: "pet",
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+          displayName: "Rex",
+          related: [
+            related({ name: "Jane Doe", role: "owner", otherUid: JANE }),
+            related({ name: "Sam Vet", role: "other", roleNote: "vet" }),
+          ],
+        }),
+      },
+      { action: "create", contact: contact({ uid: JANE }) },
+    ]);
+    expect(result).toMatchObject({ created: 2, errors: [] });
+
+    const [rex] = await core.pets.list();
+    const edges = await core.relationships.listForEntity("pet", rex.id);
+    expect(edges).toHaveLength(2);
+    expect(edges.map((e) => e.otherRole).sort()).toEqual(["other", "owner"]);
+    // The owner is the real published person, not a second stub of her.
+    const owner = edges.find((e) => e.otherRole === "owner")!;
+    expect(owner).toMatchObject({
+      otherLabel: "Jane Doe",
+      otherStanding: "published",
+    });
+  });
+});

@@ -60,9 +60,15 @@ export function nameInputFrom(name: ParsedName): {
  * Somebody the card names as related to its contact — a vCard `RELATED` giving a
  * plain name ("Jen Davis") rather than pointing at another card.
  *
- * These become **unpublished** people on import: a name attached to the contact,
- * absent from People & Pets until they turn out to be more than that. Which is
- * exactly what the source says — the card records a spouse's name, not a spouse.
+ * A *named* relation becomes an **unpublished** person on import: a name attached
+ * to the contact, absent from People & Pets until they turn out to be more than
+ * that. Which is exactly what the source says — the card records a spouse's
+ * name, not a spouse.
+ *
+ * A relation that instead **points at another card** ({@link ParsedRelated.otherUid})
+ * becomes a real edge between two published entities, provided that card was
+ * imported too; if it was skipped, it degrades to the named form above, since
+ * the fact is true either way.
  */
 export interface ParsedRelated {
   /** The name as the card writes it; split into parts at write time. */
@@ -76,17 +82,21 @@ export interface ParsedRelated {
    * than merely naming somebody — a published↔published relationship, written as
    * `RELATED;VALUE=uri:urn:uuid:…`.
    *
-   * `null` from the parser today (a URI-valued `RELATED` falls to `dropped`; see
-   * the TODO on `relatedFrom`), and `null` for every unpublished relation, whose
-   * whole point is that they have no card.
+   * `null` for every unpublished relation, whose whole point is that they have
+   * no card, and for a reference whose card is **not in the file** — that one
+   * cannot be resolved to anybody and stays in `dropped` instead.
+   *
+   * When it is set, {@link ParsedRelated.name} was recovered from that card's
+   * own `FN`, because a reference carries no name of its own.
    */
   otherUid: string | null;
   /**
    * The Leapsake `relationships.id` this edge is, as `X-LEAPSAKE-REL-ID`.
    *
    * The edge appears on **both** cards — that is what vCard means by `RELATED` —
-   * so this is what lets an importer recognise the two halves as one relationship
-   * rather than two. `null` from the parser today, and for any foreign card.
+   * so this is what lets an importer recognise the two halves as one
+   * relationship rather than two, which is exactly how `ingestContacts` uses it.
+   * `null` for any foreign card.
    */
   relationshipId: string | null;
 }

@@ -2696,17 +2696,42 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           // one edge — the same thing `relationships.createWithNewOther` makes,
           // spelled over the raw repos because the engine is already inside a
           // transaction and the driver's BEGIN/COMMIT doesn't nest.
-          addRelated: async (personId, relation) => {
+          addRelated: async (ownerType, ownerId, relation) => {
             const other = await people.create({
               ...splitName(relation.name),
               standing: "unpublished",
             });
             await relationships.create({
-              aType: "person",
-              aId: personId,
+              // The owner's own type, not a hardcoded `"person"` — a pet's card
+              // carries relations too, and `holderAllows` refuses a mismatch
+              // outright rather than writing a wrong row quietly.
+              aType: ownerType,
+              aId: ownerId,
               aRole: inverseRole(relation.role),
               bType: "person",
               bId: other.id,
+              bRole: relation.role,
+              bRoleNote: relation.roleNote,
+            });
+          },
+          // Both ends already exist, so unlike `addRelated` there is nobody to
+          // create — just the edge. Spelled over the raw repo rather than through
+          // `createFromSubject`, which opens a transaction of its own and would
+          // also run the promotion rule; both ends came from cards of their own
+          // and are already published.
+          linkExisting: async (
+            ownerType,
+            ownerId,
+            otherType,
+            otherId,
+            relation,
+          ) => {
+            await relationships.create({
+              aType: ownerType,
+              aId: ownerId,
+              aRole: inverseRole(relation.role),
+              bType: otherType,
+              bId: otherId,
               bRole: relation.role,
               bRoleNote: relation.roleNote,
             });

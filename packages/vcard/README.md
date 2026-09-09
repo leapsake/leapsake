@@ -101,6 +101,11 @@ unmapped type into exactly the word it read, so `muse` round-trips and `x-muse` 
 by the marriage rather than by either partner. `X-LEAPSAKE-MILESTONE-REL` says which edge, and the
 shared `-ID` is what tells an importer this is one fact written twice rather than two facts.
 
+The edge itself works the same way, and `ingestContacts` leans on it: a `RELATED` appears on both
+partners' cards, so the shared `X-LEAPSAKE-REL-ID` is what stops one relationship being imported as
+two. That is why the engine resolves references in a second phase — the first cannot know whether
+the other end exists yet, and writing from each card would double every edge.
+
 ## The reader still lags the writer, by less
 
 `writeVCards` builds the whole person graph: people and pets, contact methods, all ten milestone
@@ -112,11 +117,16 @@ a pet re-imports as a pet, tags come back, and a card whose `UID` names somebody
 reported as **already stored** rather than silently becoming a second copy of them. The parser's
 `DEFERRED` set existed to hold the last two quiet until this landed, and is gone.
 
-**What is still not read** is the *graph* and the *milestones*: `X-LEAPSAKE-ROLE`/`-REL-ID`, a
-`RELATED` pointing at another card by `urn:uuid:`, and every `X-LEAPSAKE-MILESTONE-*`. So
-re-importing our own file still drops each published relationship to an unpublished stub and loses
-nine of the ten milestone kinds. The spec is
-[`plans/export.md`](../../plans/export.md) → *5 — The import-side reciprocals*, increments 5b–5d.
+**The relationship graph survives too**, as of 5b. `X-LEAPSAKE-ROLE` brings the exact role home,
+so `mother` no longer comes back as `parent` nor `cousin` as `other`; a `RELATED` pointing at
+another card by `urn:uuid:` resolves against that card, taking its name from the `FN` a reference
+cannot carry. **Resolution is a whole-file property**, which is why `parseVCards` indexes every
+card's UID before building any of them — the edge and the card it names arrive in either order.
+A reference to a card that is *not* in the file still lands in `dropped`, honestly.
+
+**What is still not read** is the *milestones*: every `X-LEAPSAKE-MILESTONE-*`. So re-importing
+our own file still loses nine of the ten milestone kinds. The spec is
+[`plans/export.md`](../../plans/export.md) → *5 — The import-side reciprocals*, increments 5c–5d.
 
 **Two things the ids are not.** They are matching keys, not row ids: an imported card always gets
 a fresh id, and `X-LEAPSAKE-CREATED` is parsed but not applied, because writing the file's ids and

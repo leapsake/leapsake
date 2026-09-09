@@ -1,4 +1,3 @@
-import { type RelationshipRole, roleDefs } from "@leapsake/schema";
 import { describe, expect, it } from "vitest";
 import type {
   DroppedField,
@@ -58,20 +57,15 @@ function contact(over: Partial<ExportContact> = {}): ExportContact {
  * A literal `parseVCards(write(x)) ≡ x` cannot hold while `plans/export.md`
  * → 5 is outstanding, and the gaps are not one kind of thing:
  *
- * - A `RELATED` pointing at another card falls to `dropped`, because resolving
- *   it needs a UID→card pass over the whole batch (increment 5b).
  * - A milestone kind with no `DATE_KINDS` entry is dropped **by name**, so nine
  *   of the ten kinds we write come back as `Date (Wedding)` and friends
  *   (increments 5c and 5d).
- * - A relationship role **degrades**: `mother` is written as the standard
- *   `TYPE=parent` (with the exact role in a parameter the parser ignores), so it
- *   reads back as `parent`; a role with no RFC word at all reads back as `other`
- *   carrying the word (increment 5b).
  *
- * **The card's own identity is no longer in this list.** `UID`, `KIND`, `REV`,
- * `CATEGORIES`, `X-LEAPSAKE-SELF` and `-CREATED` all survive the round trip as
- * of increment 5a, which is why this helper no longer touches them — it shrinks
- * as each increment lands, and each field it stops mentioning is one the
+ * **Two things have left this list.** The card's own identity — `UID`, `KIND`,
+ * `REV`, `CATEGORIES`, `X-LEAPSAKE-SELF`/`-CREATED` — survives as of increment
+ * 5a; the whole relationship graph survives as of 5b, which is why neither a
+ * `RELATED` reference nor a degraded role is spelled here any more. It shrinks
+ * as each increment lands, and each thing it stops mentioning is one the
  * `describe` blocks below now assert directly.
  *
  * ⚠️ **It will not shrink to nothing.** `writeParam` strips `"` and folds
@@ -102,60 +96,7 @@ function asParsedToday(c: ExportContact): ExportContact {
     });
   }
 
-  const relations: ParsedRelated[] = [];
-  for (const r of c.related) {
-    if (r.otherUid !== null) {
-      dropped.push({ property: "RELATED", value: `urn:uuid:${r.otherUid}` });
-      continue;
-    }
-    relations.push({
-      name: r.name,
-      ...degradedRole(r),
-      otherUid: null,
-      relationshipId: null,
-    });
-  }
-
-  return { ...c, dates, related: relations, dropped };
-}
-
-/**
- * What a role becomes after the writer's `TYPE` goes through `relatedFrom`.
- *
- * Deliberately re-derived here from the *parser's* rules rather than imported
- * from the writer: a helper that shared the writer's table would agree with it
- * by construction and prove nothing.
- */
-const RFC_WORDS: Record<string, RelationshipRole> = {
-  spouse: "spouse",
-  child: "child",
-  parent: "parent",
-  sibling: "sibling",
-  friend: "friend",
-  neighbor: "neighbor",
-  "co-worker": "coworker",
-};
-
-/** `relatedFrom` lower-cases every TYPE and treats OTHER as noise, so a note that
- *  is either of those comes back as the bare word "related". */
-function asNote(type: string | null): string {
-  const lower = (type ?? "").toLowerCase();
-  return lower === "" || lower === "other" ? "related" : lower;
-}
-
-function degradedRole(r: ParsedRelated): {
-  role: RelationshipRole;
-  roleNote: string | null;
-} {
-  if (r.role === "other") {
-    return { role: "other", roleNote: asNote(r.roleNote) };
-  }
-  const base = roleDefs[r.role].base;
-  const token = base === "coworker" ? "co-worker" : base;
-  const known = RFC_WORDS[token];
-  return known !== undefined
-    ? { role: known, roleNote: null }
-    : { role: "other", roleNote: asNote(token) };
+  return { ...c, dates, dropped };
 }
 
 /** The assertion the package is named for: writing then reading is the identity. */
@@ -649,7 +590,7 @@ describe("writeVCards — relationships", () => {
   /**
    * Leapsake has 41 roles and RFC 6350 gives us seven words. A gendered variant
    * goes out as its base — which is what a standards consumer can actually use —
-   * with the exact role beside it in a parameter for increment 5b to read back.
+   * with the exact role beside it in a parameter our own reader prefers.
    * Writing `TYPE=mother` instead would tell a third party nothing *and* lose the
    * kinship through our own parser.
    */
@@ -697,14 +638,37 @@ describe("writeVCards — relationships", () => {
     ]);
   });
 
-  it("records what a degraded role does on the way back", () => {
+  /**
+   * The degradation this used to record. `mother` goes out as `TYPE=parent` for
+   * a standards consumer and comes back `mother` for us, because the exact role
+   * rides beside it; `cousin`, which RFC 6350 has no word for at all, survives
+   * the same way rather than collapsing to `other` + a note.
+   */
+  it("round-trips a role RFC 6350 cannot spell", () => {
     expectRoundTrip([
       contact({
         related: [
           related({ role: "mother" }),
           related({ name: "Ann", role: "cousin" }),
+          related({ name: "Ada", role: "grandmother" }),
+          related({ name: "Ben", role: "pibling" }),
         ],
       }),
+    ]);
+  });
+
+  it("keeps an other-role note's own casing", () => {
+    // The note is the user's word, and it rides in `TYPE`, which `typesOf`
+    // upper-cases for label matching — so reading it back through that would
+    // hand "Muse" back as "muse".
+    expectRoundTrip([
+      contact({ related: [related({ role: "other", roleNote: "Muse" })] }),
+    ]);
+  });
+
+  it("keeps an other-role with no note at all", () => {
+    expectRoundTrip([
+      contact({ related: [related({ role: "other", roleNote: null })] }),
     ]);
   });
 });
@@ -835,7 +799,70 @@ describe("writeVCards — the card's identity, both directions", () => {
     });
   });
 
-  it("writes a published RELATED as a urn, which drops as a reference", () => {
+  /**
+   * **The assertion 5b exists for.** Two cards pointing at each other by `UID`,
+   * written and read as one file — which is what an export of a whole store
+   * always is. Both edges come back as references with their exact roles and the
+   * shared edge id intact, and each recovers the *other card's* `FN` as the name
+   * a reference does not itself carry.
+   */
+  it("resolves a reference against the card it names, in either order", () => {
+    const jane = "aaaaaaaa-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+    const ben = "bbbbbbbb-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+    const edge = "dddddddd-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+    const cards = [
+      contact({
+        uid: jane,
+        related: [
+          related({
+            name: "Ben Doe",
+            role: "son",
+            otherUid: ben,
+            relationshipId: edge,
+          }),
+        ],
+      }),
+      contact({
+        uid: ben,
+        displayName: "Ben Doe",
+        name: { firstName: "Ben", middleName: null, lastName: "Doe" },
+        // The reciprocal half: same edge id, the inverse role, and it points
+        // *backwards* at a card the parser has not built yet when it reads this
+        // one — which is the ordering the UID pre-pass exists to make irrelevant.
+        related: [
+          related({
+            name: "Jane Doe",
+            role: "mother",
+            otherUid: jane,
+            relationshipId: edge,
+          }),
+        ],
+      }),
+    ];
+    expectRoundTrip(cards);
+
+    // Spelled out, because `expectRoundTrip` passing is only as meaningful as
+    // the fixture: the name really did come from the other card.
+    const [backJane, backBen] = parseVCards(write(cards));
+    expect(backJane.related[0]).toMatchObject({
+      name: "Ben Doe",
+      role: "son",
+      otherUid: ben,
+      relationshipId: edge,
+    });
+    expect(backBen.related[0]).toMatchObject({
+      name: "Jane Doe",
+      otherUid: jane,
+    });
+  });
+
+  /**
+   * A reference names a card, so it can only be read when that card is *here*.
+   * One exported alone — a single contact lifted out of a file, or a partial
+   * export — leaves the edge pointing at nothing, and it stays in `dropped`,
+   * which is where the review already shows it as not imported.
+   */
+  it("drops a reference to a card this file does not contain", () => {
     const uid = "cccccccc-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
     const text = unfolded([contact({ related: [related({ otherUid: uid })] })]);
     expect(text).toContain(`:urn:uuid:${uid}\r\n`);

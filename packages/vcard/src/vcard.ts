@@ -1,4 +1,4 @@
-import type { Gender, RelationshipRole } from "@leapsake/schema";
+import { type Gender, type RelationshipRole, roleDefs } from "@leapsake/schema";
 import type {
   DroppedField,
   ParsedBirthday,
@@ -92,50 +92,102 @@ const RELATED_ROLES: Record<string, RelationshipRole> = {
  * Whether a `RELATED` value points at another card rather than naming somebody.
  *
  * RFC 6350 lets the value be a URI (`urn:uuid:…`, `mailto:…`) or, with
- * `VALUE=text`, a plain name. Only names can be imported: a URI refers to a card
- * whose own import we would have to resolve against, which needs `UID`
- * bookkeeping and a second pass — see the TODO on {@link relatedFrom}.
+ * `VALUE=text`, a plain name. A `urn:uuid:` naming a card **in this same file**
+ * resolves against it; every other URI (a `mailto:`, or a uuid whose card is not
+ * here) names somebody this file cannot describe, and stays in `dropped`.
  */
 function isReference(value: string): boolean {
   return /^[a-z][a-z0-9+.-]*:/i.test(value.trim());
 }
 
 /**
- * Map one `RELATED` to a named relation, or `null` when it names nobody.
+ * Map one `RELATED` to a relation, or `null` when it names nobody we can reach.
  *
- * TODO: resolve intra-file references. A `RELATED` holding `urn:uuid:…` points at
- * another card in the same file, and both are usually being imported together —
- * so the pair could become a real relationship between two *published* people
- * instead of each card growing an unpublished stub. Doing it needs `UID` out of
- * `STRUCTURAL` (it is ignored today), a UID→id map built as the batch is written,
- * and a second ingest pass once every card exists. Until then a reference stays
- * in `dropped`, where the review UI already shows it as not imported.
+ * Two forms, and the difference is whether the other end has a card of its own.
+ * An unpublished person is *named* (`VALUE=text`), because a name attached to
+ * this contact is all the store holds of them. A published one is *pointed at*
+ * (`VALUE=uri:urn:uuid:…`) — and since a pointer carries no name, theirs is read
+ * from the card it points at, which `parseVCards` indexed before building any
+ * contact. That index is why this takes `namesByUid`: the edge and the card it
+ * references may arrive in either order, and usually do.
+ *
+ * The **ingest** side still has work the parser cannot do for it: this says
+ * "these two cards are related", and the engine is what turns one such fact,
+ * written on both cards, into a single relationship — see `ingest.ts`.
  */
-function relatedFrom(p: Property): ParsedRelated | null {
+function relatedFrom(
+  p: Property,
+  namesByUid: Map<string, string>,
+): ParsedRelated | null {
   const value = unescapeValue(p.value).trim();
-  if (value === "" || isReference(value)) return null;
+  if (value === "") return null;
+
+  // Whose card this points at, and what to call them. A reference carries no
+  // name of its own, so the name has to come from the card it names — and a
+  // reference to a card **not in this file** is one we cannot import at all, so
+  // it stays in `dropped`, exactly where it was before any of this was read.
+  let otherUid: string | null = null;
+  let name = value;
+  if (isReference(value)) {
+    const uuid = /^urn:uuid:/i.test(value) ? parseUid(value) : null;
+    const resolved = uuid === null ? undefined : namesByUid.get(uuid);
+    if (uuid === null || resolved === undefined) return null;
+    otherUid = uuid;
+    name = resolved;
+  }
+
+  const relationshipId = paramValue(p, "X-LEAPSAKE-REL-ID");
+  const exact = paramValue(p, "X-LEAPSAKE-ROLE");
+
+  // Our own card carries the **exact** role beside the standard one, because
+  // Leapsake has 41 roles and RFC 6350 gives seven words. Preferring it is what
+  // stops `mother` coming back as `parent` and `cousin` as `other` — the
+  // degradation that was unavoidable while only `TYPE` was read.
+  if (exact !== null && exact in roleDefs) {
+    const role = exact as RelationshipRole;
+    return {
+      name,
+      // A note qualifies an `other` role and nothing else, which is the rule
+      // `createRelationshipInputSchema` enforces on the way in too. For that
+      // role the writer puts the note in `TYPE` **bare**, so it is read from the
+      // raw parameter rather than `typesOf`, whose upper-casing would otherwise
+      // return "Muse" as "muse".
+      roleNote: role === "other" ? rawNote(p) : null,
+      role,
+      otherUid,
+      relationshipId,
+    };
+  }
+
   const types = typesOf(p).map((t) => t.toLowerCase());
   const known = types.find((t) => t in RELATED_ROLES);
   if (known !== undefined) {
     return {
-      name: value,
+      name,
       role: RELATED_ROLES[known],
       roleNote: null,
-      otherUid: null,
-      relationshipId: null,
+      otherUid,
+      relationshipId,
     };
   }
   // An unmapped TYPE becomes the note on an `other` role, so "TYPE=muse" reads
   // as "muse" on the row rather than vanishing. A RELATED with no TYPE at all
   // says only that they are related, which is what the note then says.
   const note = types.find((t) => !TYPE_NOISE.has(t.toUpperCase())) ?? "related";
-  return {
-    name: value,
-    role: "other",
-    roleNote: note,
-    otherUid: null,
-    relationshipId: null,
-  };
+  return { name, role: "other", roleNote: note, otherUid, relationshipId };
+}
+
+/**
+ * The first `TYPE` that is not parameter noise, **as the card spelled it** —
+ * the note on an `other` role, which is a user's own word ("Muse", "Beach
+ * house") and so must keep its casing. `null` when the card gave none, which is
+ * what the writer emits for an `other` role whose note is itself absent.
+ */
+function rawNote(p: Property): string | null {
+  const raw = (p.params.get("TYPE") ?? []).find(
+    (t) => !TYPE_NOISE.has(t.trim().toUpperCase()),
+  );
+  return raw === undefined ? null : nullIfEmpty(raw.trim());
 }
 
 /** Structural / metadata properties that are neither mapped nor user-visible
@@ -178,7 +230,7 @@ export function detectContactFormat(input: {
 /** Parse every `BEGIN:VCARD`…`END:VCARD` block in `text` into a ParsedContact. */
 export function parseVCards(text: string): ParsedContact[] {
   const lines = unfold(stripBom(text));
-  const contacts: ParsedContact[] = [];
+  const cards: Property[][] = [];
   let current: Property[] | null = null;
   for (const line of lines) {
     const upper = line.toUpperCase();
@@ -187,7 +239,7 @@ export function parseVCards(text: string): ParsedContact[] {
       continue;
     }
     if (upper.startsWith("END:VCARD")) {
-      if (current) contacts.push(buildContact(current));
+      if (current) cards.push(current);
       current = null;
       continue;
     }
@@ -195,7 +247,37 @@ export function parseVCards(text: string): ParsedContact[] {
     const prop = parseProperty(line);
     if (prop) current.push(prop);
   }
-  return contacts;
+
+  // Two passes, because a `RELATED` may point at another card in the same file
+  // by `UID` instead of naming anybody — and the name it does not carry is that
+  // card's own `FN`. Indexing every card's UID→`FN` first is what lets the build
+  // below resolve one without the property order, or the card order, mattering.
+  const namesByUid = new Map<string, string>();
+  for (const props of cards) {
+    const uid = uidOf(props);
+    const fn = displayNameOf(props);
+    if (uid !== null && fn !== null) namesByUid.set(uid, fn);
+  }
+  return cards.map((props) => buildContact(props, namesByUid));
+}
+
+/** A card's `UID` with the `urn:uuid:` prefix off, for the index above. Kept
+ *  beside {@link displayNameOf} so the pre-pass reads the two the same way the
+ *  main pass does. */
+function uidOf(props: Property[]): string | null {
+  const p = props.find((prop) => prop.name === "UID");
+  return p === undefined ? null : parseUid(p.value);
+}
+
+function displayNameOf(props: Property[]): string | null {
+  const p = props.find((prop) => prop.name === "FN");
+  return p === undefined ? null : nullIfEmpty(unescapeValue(p.value).trim());
+}
+
+/** `UID:urn:uuid:<id>` → `<id>`; any other spelling kept as it came. */
+function parseUid(raw: string): string | null {
+  const value = unescapeValue(raw).trim();
+  return nullIfEmpty(value.replace(/^urn:uuid:/i, "").trim());
 }
 
 // ---------------------------------------------------------------------------
@@ -371,7 +453,10 @@ function nullIfEmpty(s: string): string | null {
 // Field mapping
 // ---------------------------------------------------------------------------
 
-function buildContact(props: Property[]): ParsedContact {
+function buildContact(
+  props: Property[],
+  namesByUid: Map<string, string>,
+): ParsedContact {
   const emails: ParsedEmail[] = [];
   const phones: ParsedPhone[] = [];
   const postals: ParsedPostal[] = [];
@@ -427,11 +512,9 @@ function buildContact(props: Property[]): ParsedContact {
       // in any other form is still this card's id to whoever wrote it, and is
       // kept verbatim rather than refused. What it is *used* for is matching,
       // never as the id of the row we create: see `plans/export.md` → 6.
-      case "UID": {
-        const value = unescapeValue(p.value).trim();
-        uid = nullIfEmpty(value.replace(/^urn:uuid:/i, "").trim());
+      case "UID":
+        uid = parseUid(p.value);
         break;
-      }
       // RFC 6350 §6.1.4, which allows an x-name — so a pet is `KIND:x-pet`.
       // Anything else (`individual`, `org`, `group`, or a kind we have never
       // heard of) is read as an individual: Leapsake has two shapes, and a card
@@ -579,7 +662,7 @@ function buildContact(props: Property[]): ParsedContact {
         gender = parseGender(p.value);
         break;
       case "RELATED": {
-        const relation = relatedFrom(p);
+        const relation = relatedFrom(p, namesByUid);
         // A reference to another card is not a name we can import, so it stays
         // visible in the review UI's "not imported" list rather than silently
         // going nowhere.
