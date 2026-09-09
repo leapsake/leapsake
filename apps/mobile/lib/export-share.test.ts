@@ -152,7 +152,7 @@ describe("summarizeExport", () => {
   });
 
   // `otherRecords` is the only evidence outside the zip that the half of the
-  // archive which is not contacts travelled at all — increment 3's whole point.
+  // archive which is not contacts travelled at all — `data.json`'s whole point.
   it("reports the non-contact half of the archive", () => {
     expect(summarizeExport(counts({ otherRecords: 47 }))).toContain(
       "47 other records",

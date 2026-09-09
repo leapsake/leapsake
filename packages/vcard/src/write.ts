@@ -21,9 +21,8 @@ import type {
  * is `parseVCards(writeVCards(x)) ≡ x`, and it only exists because both halves
  * are here.
  *
- * **This writes the whole person graph** (`plans/export.md` increments 1 and 2):
- * people and pets, their contact methods, all ten milestone kinds, and the
- * relationships between them.
+ * **This writes the whole person graph**: people and pets, their contact
+ * methods, all ten milestone kinds, and the relationships between them.
  *
  * The facts vCard has no vocabulary for ride **parameters on the property they
  * qualify** rather than becoming properties of their own: `X-LEAPSAKE-ROLE` and
@@ -38,10 +37,10 @@ import type {
 
 /**
  * vCard 4.0. The version is a **free choice**, not a compromise: the device
- * probes recorded in `plans/export.md` imported both 3.0 and 4.0 into iOS
- * Contacts with identical results for every date spelling tried, so nothing is
- * bought by writing the older one. 4.0 is where `GENDER`, `RELATED` and
- * `KIND` (increment 2) come from, so it is the version the vocabulary matches.
+ * probes recorded in [`../README.md`](../README.md) imported both 3.0 and 4.0
+ * into iOS Contacts with identical results for every date spelling tried, so
+ * nothing is bought by writing the older one. 4.0 is where `GENDER`, `RELATED`
+ * and `KIND` come from, so it is the version the vocabulary matches.
  */
 const VERSION = "4.0";
 
@@ -96,9 +95,9 @@ function writeCard(contact: ExportContact, opts: WriteOptions): string {
     push({ name: "UID", value: `urn:uuid:${contact.uid}` });
   }
   // RFC 6350 §6.1.4, which explicitly allows an x-name. Apple Contacts will
-  // import a pet card as an ordinary person called "Rex" — accepted in
-  // `plans/export.md`: nothing is lost, and our own importer gets it right once
-  // increment 5 takes `KIND` out of the parser's `STRUCTURAL` set.
+  // import a pet card as an ordinary person called "Rex" — an accepted loss:
+  // nothing is lost, and our own importer gets it right once `plans/export.md`
+  // → 5 takes `KIND` out of the parser's `STRUCTURAL` set.
   push({
     name: "KIND",
     value: contact.kind === "pet" ? "x-pet" : "individual",
@@ -183,8 +182,8 @@ function writeCard(contact: ExportContact, opts: WriteOptions): string {
   }
   // Every other dated milestone, birthday included where one somehow arrives
   // here rather than in `birthday`. `ANNIVERSARY` is never written — measured
-  // dead on iOS (`plans/export.md` → *Writing dates*), which is why even an
-  // anniversary goes out this way.
+  // dead on iOS (`../README.md` → *Two rules that point in opposite
+  // directions*), which is why even an anniversary goes out this way.
   for (const date of contact.dates) {
     const value = formatPartialDate(date.date);
     if (value === null) continue;
@@ -520,7 +519,8 @@ function relatedLine(relation: ParsedRelated): Line {
  * A partial civil date as a vCard date value, or `null` when there is no date.
  *
  * Three spellings, each settled by measurement rather than by the standard alone
- * (`plans/export.md` → *Writing dates*, verified on a real iPhone):
+ * ([`../README.md`](../README.md) → *Two rules that point in opposite
+ * directions*, verified on a real iPhone):
  *
  * - full date → **extended** `1985-04-12`, the form Apple emits itself and the
  *   one a human reading the backup can parse;

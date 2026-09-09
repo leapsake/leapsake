@@ -152,7 +152,7 @@ const STRUCTURAL = new Set([
  * gap visible, and this set is meant to **empty out** when `plans/export.md`
  * increment 5 lands and the parser learns to read them.
  *
- * Everything else increment 2 writes rides an existing property as a parameter
+ * Everything else the writer emits rides an existing property as a parameter
  * (`X-LEAPSAKE-ROLE` and `-REL-ID` on `RELATED`, `-MILESTONE-*` on `X-ABDATE`),
  * and parameters are invisible to this switch — which is exactly why they are
  * parameters. These two have no property to ride.

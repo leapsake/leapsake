@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 
 /**
  * Regenerate `dates-v3.vcf` / `dates-v4.vcf` — the probe files behind
- * `plans/export.md` → *Writing dates*, which answer "what does iOS Contacts
+ * `../../README.md` → *Two rules that point in opposite directions*, which
+ * answer "what does iOS Contacts
  * actually do with a year-less date?" by measurement rather than by reading a
  * spec. `dates.test.ts` asserts what *our* parser makes of them; the part no
  * test can cover is what Apple makes of them, which is why they are checked in
@@ -14,7 +15,7 @@ import { fileURLToPath } from "node:url";
  * and read each card's date field. Every card is tagged
  * `ORG:LEAPSAKE-DATE-TEST`, so one search finds all 16 for deletion afterwards.
  * The card names carry the expected answer. Results as of 2026-09-07 are in
- * `plans/export.md`; the two that decided the format were `03-noyear-basic`
+ * that README; the two that decided the format were `03-noyear-basic`
  * (works — so the standard spelling is safe) and `08`/`09-anniversary-*`
  * (ignored entirely — so `ANNIVERSARY` must never be written).
  *

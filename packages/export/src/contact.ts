@@ -215,7 +215,7 @@ function toDates(
  * published person or pet does, so the edge points at their `UID`; an
  * unpublished one does not — they exist only as a fact about this entity — so
  * the edge *names* them, which is exactly what the store holds. Their gender is
- * not carried, an accepted loss recorded in `plans/export.md`:
+ * not carried, an accepted loss:
  * `RelationshipNeighbor` does not resolve it, so nothing here is tempted to.
  *
  * `roleNote` rides only an `other` role, which is the same rule

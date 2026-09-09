@@ -36,12 +36,13 @@ this a blocker rather than a nicety:
   is exactly when a tester is most likely to delete and reinstall.
 - **A promise is already in the code.** `encryption/model.md` §7.3.1 has Forget-account offering
   an export first — a promise [`@leapsake/key-custody`](../packages/key-custody/README.md)
-  recorded as unbacked until `export.md` increment 4 backed it on 2026-09-08.
+  carried as unbacked until the offer shipped on 2026-09-08.
 
 **Shape:** user-initiated, client-side (the client already holds plaintext), vCard/JSContact,
-people + contact methods first. Doubles as groundwork for a future CardDAV surface. **The
-property mapping and the increments are
-[`export.md`](./export.md)**; what follows is the gate, not the design.
+people + contact methods first. Doubles as groundwork for a future CardDAV surface. **What the
+format is and why lives in [`@leapsake/vcard`](../packages/vcard/README.md) and
+[`@leapsake/export`](../packages/export/README.md); what is still unbuilt is
+[`export.md`](./export.md)**. What follows is the gate, not the design.
 
 ⚠️ **It must not use iCloud.** Not a preference — a **permanent, one-way** constraint: **no
 version** of the app may **ever** ship an iCloud entitlement, or Apple's transfer criteria
@@ -53,10 +54,11 @@ the user chooses.** Revisit only after the transfer completes, if ever.
 account, and Forget-account offers it. **Mobile is what blocks GA** — desktop already documents a
 manual `userData` copy and does not ship in v0.1, so desktop parity follows rather than gates.
 
-✅ **Acceptance is met** *(2026-09-08)* — increments 1–4. The archive is the whole store, not just
-people and contact methods, and both destructive confirmations offer it. **Delete this section**
-once the tap-and-share device assertion and the AirDrop round trip in
-[`export.md`](./export.md) → *Testing* are done; nothing else here is outstanding.
+✅ **Acceptance is met** *(2026-09-08)*. The archive is the whole store, not just people and
+contact methods, and both destructive confirmations offer it. **Delete this section** once the
+three verifications in [`export.md`](./export.md) → *Still owed: the device tier* are done;
+nothing else here is outstanding. Reading an export back in and desktop parity are in that file
+too, and neither gates GA.
 
 ## 2 — Catalog Flow 7c, the password door
 

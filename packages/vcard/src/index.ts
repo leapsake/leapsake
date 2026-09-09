@@ -10,7 +10,7 @@
  * card is the same grammar inverted — fold against `unfold`, escape against
  * `unescapeValue`, the same label and platform maps read backwards — and the one
  * test that matters most, `parseVCards(write(x)) ≡ x`, only exists if both halves
- * live together. See `plans/export.md`.
+ * live together. See [`../README.md`](../README.md).
  *
  * It depends only on `@leapsake/schema` (the `Gender` enum and, later, nothing
  * else) and a small set of injected ports ({@link ImportPorts}) — never on

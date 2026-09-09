@@ -51,8 +51,13 @@ date, so iOS does not read the property at all. Every dated milestone goes out a
 *Anniversary* field with the label intact. `ANNIVERSARY` stays read-only vocabulary: accepted from
 other people's files, never emitted.
 
-There is no "prefer the standard" rule that survives both. Re-open the second when a non-Apple
-client ships, and **test rather than reason about it**.
+There is no "prefer the standard" rule that survives both.
+
+**Both are measurements, so both expire.** Re-run `test/fixtures/` against a device — never
+re-argue the reasoning — when either ground moves: **any iOS release that touches contact import** (does
+Contacts still read `--0412`?), and **the day a non-Apple client ships** (a consumer that reads
+`ANNIVERSARY` but not `X-ABDATE` loses anniversaries today, and writing both would double them up
+on anything that reads both, so it stays one or the other).
 
 ## Apple's labels live in one file on purpose
 
@@ -66,9 +71,9 @@ to take. `apple-labels.ts` is that one file: the `_$!<Work>!$_` constant unwrapp
 (Graduation)" — rather than guessed into `other`, so a stray date never mints a milestone. Adding
 entries **pays twice**, since the iOS Contacts path gains the same kinds in the same change.
 
-**A grouped `X-ABLABEL` names a contact method as readily as it names a date**, and until
-`plans/export.md` increment 2 it was read for dates and nothing else. Apple puts standard labels
-in `TYPE` and a user's own words *only* in `item1.X-ABLABEL`, so every custom label on a card
+**A grouped `X-ABLABEL` names a contact method as readily as it names a date**, and it was once
+read for dates and nothing else. Apple puts standard labels in `TYPE` and a user's own words
+*only* in `item1.X-ABLABEL`, so every custom label on a card
 straight out of an iPhone — "Beach house", "Mum's place" — arrived as "Other", the label the user
 is least likely to have meant. `labelFrom` now takes the group label and lets it win outright,
 which is also what Contacts itself displays; that fix is what lets the writer emit the same form.
@@ -82,7 +87,7 @@ mostly because an unknown *parameter* is invisible to any parser, while an unkno
 lands in this reader's own `dropped` list. Spelled as properties, a user re-importing their own
 file would be shown a list of their own fields that "could not be imported".
 `X-LEAPSAKE-SELF` and `X-LEAPSAKE-CREATED` are the only two facts with nothing to ride, and the
-parser's `DEFERRED` set is what keeps them quiet until increment 5 reads them.
+parser's `DEFERRED` set is what keeps them quiet until the reader catches up (below).
 
 **A role is written as its base, with the exact role beside it.** Leapsake has 41 relationship
 roles and RFC 6350 gives seven words, so `mother` goes out as `TYPE=parent` — what a standards
@@ -97,16 +102,17 @@ shared `-ID` is what tells an importer this is one fact written twice rather tha
 
 ## The reader lags the writer
 
-`writeVCards` now builds the whole person graph (`plans/export.md` increments 1 and 2): people and
-pets, contact methods, all ten milestone kinds, and the relationships between them.
+`writeVCards` builds the whole person graph: people and pets, contact methods, all ten milestone
+kinds, and the relationships between them.
 
 **The asymmetry is temporary but real.** `UID`, `CATEGORIES`, `KIND` and `REV` are written but sit
 in `STRUCTURAL`/`dropped` on the way in, and none of the `X-LEAPSAKE-*` are read — so
 **re-importing our own file duplicates everyone, drops every published relationship, and loses
-nine of the ten milestone kinds.** That is increment 5. Until it lands the gap is survivable only
-because the mobile import path reads device Contacts and cannot open a `.vcf` at all; desktop's
-drag-drop *can*.
+nine of the ten milestone kinds.** Closing it is the one piece of this package still unbuilt, and
+the spec is [`plans/export.md`](../../plans/export.md) → *5 — The import-side reciprocals*. Until
+it lands the gap is survivable only because the mobile import path reads device Contacts and
+cannot open a `.vcf` at all; desktop's drag-drop *can*.
 
 `write.test.ts`'s `asParsedToday` helper is where the whole gap is written down — including how a
-role *degrades* on the way back. When increment 5 lands, delete it and compare directly: the test
+role *degrades* on the way back. When it lands, delete that helper and compare directly: the test
 failing at that point is the signal it is no longer needed.

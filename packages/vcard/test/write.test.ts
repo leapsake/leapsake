@@ -56,7 +56,7 @@ function contact(over: Partial<ExportContact> = {}): ExportContact {
  * everything the writer says that the reader cannot yet hear.**
  *
  * A literal `parseVCards(write(x)) ≡ x` cannot hold while `plans/export.md`
- * increment 5 is outstanding, and the gaps are not one kind of thing:
+ * → 5 is outstanding, and the gaps are not one kind of thing:
  *
  * - `UID`, `KIND` and `REV` are in the parser's `STRUCTURAL` set and
  *   `X-LEAPSAKE-SELF`/`-CREATED` in its `DEFERRED` set, so they vanish silently.
@@ -327,7 +327,7 @@ describe("writeVCards — dates", () => {
   });
 
   /**
-   * The guard `plans/export.md` asks for by name. Apple's "no year" convention
+   * The guard `../README.md` asks for by name. Apple's "no year" convention
    * writes a placeholder year into the value (`1604`) and names it in a
    * parameter — which any consumer that does not know the parameter reads as a
    * person born in 1604: data invented silently, attached to a real person, and
@@ -530,7 +530,7 @@ describe("writeVCards — milestones", () => {
    * probes — including one carrying an ordinary full date — produced *no field
    * at all* in iOS Contacts, so writing an anniversary the standards-correct way
    * loses it silently on the one platform v0.1 ships to.
-   * `plans/export.md` → *Writing dates*.
+   * `../README.md` → *Two rules that point in opposite directions*.
    */
   it("never writes ANNIVERSARY, which iOS ignores entirely", () => {
     const text = write([
@@ -745,7 +745,7 @@ describe("writeVCards — pets", () => {
 
 describe("writeVCards — the fields the parser cannot read back yet", () => {
   /**
-   * `UID` and `CATEGORIES` are increment 1 output and increment 5 input. Golden
+   * `UID` and `CATEGORIES` are writer output and, still, unread input. Golden
    * text is the only assertion available until then, and the second half of each
    * test records what re-importing our own file does today — which is the
    * concrete reason not to point a desktop user at their own export yet.

@@ -10,8 +10,8 @@ import type { ExportArchive } from "@leapsake/core";
  * of these steps is the part that can be wrong, and this is the only tier that
  * can test it. Nothing in `app/` is reachable from vitest.
  *
- * There are three call sites now — the Export section, and the offer inside each
- * destructive confirmation (`plans/export.md` increment 4) — and two of the steps
+ * There are three call sites — the Export section, and the offer inside each
+ * destructive confirmation — and two of the steps
  * below are load-bearing rather than incidental, so they must not be forked:
  * writing to **Caches** rather than documents, and deleting the file on **every**
  * path out.

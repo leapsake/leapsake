@@ -39,7 +39,7 @@ import type { ExportPorts } from "./ports.js";
  * first.
  *
  * It shipped from the first commit, while the file still held nothing else,
- * because increment 1 already put it on users' disks: adding fields to an
+ * because the first release already put it on users' disks: adding fields to an
  * identified file later is ordinary, retrofitting a version onto one already in
  * the wild is not. Filling the file did **not** bump it — every table below is
  * its own optional key, so a file written by an older app still parses, and the

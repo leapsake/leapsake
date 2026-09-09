@@ -66,7 +66,7 @@ next to the code — the bundle-ID reasoning to the app READMEs, the release-gat
 | **Find something we deliberately deferred** | [`v0-2.md`](./v0-2.md) |
 | **Cut a release, or add a platform to the pipeline** | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases* for the rules, `pnpm release --help` for the current rung/platform matrix, and `scripts/release/` for the policy itself |
 | **Ship the iOS app** | [`shipping.md`](./shipping.md) → Part 1. ⚠️ The exporter (step 1) **must not use iCloud**: an iCloud entitlement in any shipped version permanently disqualifies the app transfer to the company account |
-| **Build the exporter** | [`export.md`](./export.md) — the vCard property mapping and the increments behind `shipping.md` Part 1, step 1 |
+| **Read an export back in, or bring export to desktop** | [`export.md`](./export.md) — the two unbuilt halves. The exporter itself shipped; what it writes and why is [`@leapsake/vcard`](../packages/vcard/README.md) and [`@leapsake/export`](../packages/export/README.md) |
 | **Ship the desktop app** | [`desktop-packaging.md`](./desktop-packaging.md) — packaging, notarization and auto-update, deferred past v0.1. ⚠️ Sign it under the *company* identity, not the personal one |
 | **Ship the Android app** | [`android-pipeline.md`](./android-pipeline.md) — the Play target, deferred past v0.1 until the company account exists. ⚠️ Nothing may be uploaded to Play before then |
 | **Build the web / PWA client for real** | [`web-client.md`](./web-client.md) — what the spike proved and what an `apps/web` inherits — then [`v0-2.md`](./v0-2.md) → *Post-launch* item 1. The rule it produced is [`encryption/model.md`](./encryption/model.md) §10.1: **web requires a sync account** |

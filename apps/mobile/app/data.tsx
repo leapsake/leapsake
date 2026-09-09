@@ -480,8 +480,8 @@ function ExportSection() {
 
 /**
  * **The same export, offered inside a confirmation that is about to destroy the
- * only copy** (`plans/export.md` increment 4; `key-custody/README.md` has
- * promised this since before there was an exporter).
+ * only copy** — the promise `key-custody/README.md` carried since before there
+ * was an exporter.
  *
  * Above the type-to-confirm field, never below it: the order of the section is
  * the warning, the way out, the ceremony, then the destruction — and keeping the

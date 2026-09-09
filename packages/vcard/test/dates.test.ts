@@ -9,7 +9,8 @@ import type { ParsedContact, ParsedPartialDate } from "../src/index.js";
  * Every spelling of a date a contact file can carry, read back.
  *
  * These fixtures are **also importable into a real Contacts app**, and that is
- * the point of them: `plans/export.md` → *Writing dates* decides how the
+ * the point of them: `../README.md` → *Two rules that point in opposite
+ * directions* decides how the
  * exporter writes dates, and it decided on measurement — the same 16 cards
  * imported into iOS Contacts on 2026-09-07 — rather than on what the RFC says.
  * This file guards the half a test can reach (what *we* read); `fixtures/
