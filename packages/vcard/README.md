@@ -124,16 +124,25 @@ cannot carry. **Resolution is a whole-file property**, which is why `parseVCards
 card's UID before building any of them — the edge and the card it names arrive in either order.
 A reference to a card that is *not* in the file still lands in `dropped`, honestly.
 
-**What is still not read** is the *milestones*: every `X-LEAPSAKE-MILESTONE-*`. So re-importing
-our own file still loses nine of the ten milestone kinds. The spec is
-[`plans/export.md`](../../plans/export.md) → *5 — The import-side reciprocals*, increments 5c–5d.
+**And the milestones survive, as of 5c.** `X-LEAPSAKE-MILESTONE-KIND` is what carries all ten
+kinds through a format with vocabulary for one — so **our own file needs no label guessing at
+all**, which is precisely what leaves `DATE_KINDS` about other people's cards alone. `-NOTE`
+carries the free text a label cannot; `-REL` and the shared `-ID` put a wedding back on the
+marriage, **once**, though the writer wrote it on both partners' cards. `ingestContacts` defers
+those to its second phase for the same reason it defers edges: the marriage does not exist while
+either card is being built.
+
+**What is still guessed** is a *foreign* card's date label — increment 5d, and the only thing
+`DATE_KINDS` was ever for. The spec is [`plans/export.md`](../../plans/export.md) → *5 — The
+import-side reciprocals*.
 
 **Two things the ids are not.** They are matching keys, not row ids: an imported card always gets
 a fresh id, and `X-LEAPSAKE-CREATED` is parsed but not applied, because writing the file's ids and
 timestamps back verbatim is a *restore* — increment 6, and a different promise.
 
-`write.test.ts`'s `asParsedToday` helper is where the remaining gap is written down — including
-how a role *degrades* on the way back — and it shrinks as each increment lands. It will not shrink
-to nothing: `writeParam` strips `"` and folds newlines to a space, because vCard's parameter
-grammar has an escape for neither, so a multi-line milestone note is knowingly not byte-exact.
-That one normalisation is what should be left in the helper at the end.
+`write.test.ts`'s `asParsedToday` helper was where the remaining gap was written down, and it
+shrank as each increment landed. **It has now reached the end state it was always going to**, and
+should not be emptied further: `writeParam` strips `"` and folds newlines to a space, because
+vCard's parameter grammar has an escape for neither, so a multi-line milestone note is knowingly
+not byte-exact. That one normalisation, plus a milestone carrying no date at all, is all that is
+left in it.

@@ -644,6 +644,167 @@ describe("parseVCards — the X-LEAPSAKE parameters", () => {
   });
 });
 
+/**
+ * The milestone parameters, which are what let our own file carry all ten kinds
+ * through a format that has vocabulary for one. Every test here is about a card
+ * **we** wrote; the block above ("Apple's labelled dates") is the foreign-card
+ * rule, and the two must not be made to agree — that is the whole design.
+ */
+describe("parseVCards — the milestone parameters", () => {
+  it("takes the kind from the parameter, not from the label", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=wedding:2011-06-18",
+        "item1.X-ABLABEL:Wedding",
+      ),
+    );
+    expect(c.dates).toEqual([
+      {
+        kind: "wedding",
+        label: "Wedding",
+        date: { year: 2011, month: 6, day: 18 },
+        note: null,
+        id: null,
+        relationshipId: null,
+      },
+    ]);
+    expect(c.dropped).toEqual([]);
+  });
+
+  it("reads a milestone's note, its id and the relationship bearing it", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        [
+          "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=wedding",
+          "X-LEAPSAKE-MILESTONE-ID=aaaaaaaa-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+          "X-LEAPSAKE-MILESTONE-REL=bbbbbbbb-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+          "X-LEAPSAKE-MILESTONE-NOTE=at the lighthouse:2011-06-18",
+        ].join(";"),
+        "item1.X-ABLABEL:Wedding",
+      ),
+    );
+    expect(c.dates[0]).toMatchObject({
+      kind: "wedding",
+      note: "at the lighthouse",
+      id: "aaaaaaaa-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+      relationshipId: "bbbbbbbb-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+    });
+  });
+
+  /**
+   * ⚠️ The ordering the whole case hangs on. A store holding two birthday-kind
+   * milestones writes the first as `BDAY` and the second as a
+   * "Birthday"-labelled `X-ABDATE`; if the label rule ran first the second would
+   * be swallowed by `labelledBirthday` and lost without a trace.
+   */
+  it("keeps a birthday-kind date apart from BDAY when the parameter says so", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "BDAY:1992-03-09",
+        "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=birthday:1992-03-10",
+        "item1.X-ABLABEL:Birthday",
+      ),
+    );
+    expect(c.birthday).toEqual({ year: 1992, month: 3, day: 9 });
+    expect(c.dates).toHaveLength(1);
+    expect(c.dates[0]).toMatchObject({
+      kind: "birthday",
+      date: { year: 1992, month: 3, day: 10 },
+    });
+  });
+
+  /**
+   * The same card without the parameter — an iPhone export that spells the
+   * birthday twice. It must still collapse to one, which is the rule
+   * `apple-labels.ts` states and the reason `DATE_KINDS` has no `birthday` key.
+   */
+  it("still collapses a foreign card's duplicate birthday to one", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "BDAY:1992-03-09",
+        "item1.X-ABDATE:1992-03-09",
+        "item1.X-ABLABEL:Birthday",
+      ),
+    );
+    expect(c.birthday).toEqual({ year: 1992, month: 3, day: 9 });
+    expect(c.dates).toEqual([]);
+  });
+
+  it("recovers an other-kind note from the label, but not the bare word Other", () => {
+    const [noted] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=other:2024-09-01",
+        "item1.X-ABLABEL:Beach house closing",
+      ),
+    );
+    expect(noted.dates[0]).toMatchObject({
+      kind: "other",
+      label: "Beach house closing",
+      note: "Beach house closing",
+    });
+
+    // How a note-less `other` is written. Reading "Other" back as free text
+    // would invent a note the user never typed.
+    const [bare] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=other:2024-09-01",
+        "item1.X-ABLABEL:Other",
+      ),
+    );
+    expect(bare.dates[0]).toMatchObject({ label: "Other", note: null });
+  });
+
+  it("names a date from its kind when the card carries no label", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=graduation:2019-05-30",
+      ),
+    );
+    expect(c.dates[0]).toMatchObject({
+      kind: "graduation",
+      label: "Graduation",
+    });
+    expect(c.dropped).toEqual([]);
+  });
+
+  /**
+   * A kind from a *newer* Leapsake. Falling back to the label rather than
+   * failing is what lets the date still land where the map happens to know the
+   * word — and be dropped by name where it does not, exactly as any other
+   * unrecognised card is.
+   */
+  it("falls back to the label when the kind is one we have never heard of", () => {
+    const [known] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=housewarming:2015-06-20",
+        "item1.X-ABLABEL:Anniversary",
+      ),
+    );
+    expect(known.dates[0]).toMatchObject({ kind: "anniversary" });
+
+    const [unknown] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=housewarming:2015-06-20",
+        "item1.X-ABLABEL:Housewarming",
+      ),
+    );
+    expect(unknown.dates).toEqual([]);
+    expect(unknown.dropped).toContainEqual({
+      property: "Date (Housewarming)",
+      value: "2015-06-20",
+    });
+  });
+});
+
 describe("parseVCards — format handling", () => {
   it("parses multiple cards in one file", () => {
     const text = `${card("FN:Jane Doe")}\r\n${card("FN:John Roe")}`;

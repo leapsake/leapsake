@@ -5,12 +5,16 @@ import type {
   ParsedDate,
   ParsedRelated,
 } from "../src/index.js";
+import { kindDefs, milestoneKindSchema } from "@leapsake/schema";
 import {
   dateKindFor,
   formatPartialDate,
   parseVCards,
   writeVCards,
 } from "../src/index.js";
+
+/** Every kind Leapsake has, so a round-trip test cannot miss a new one. */
+const milestoneKinds = milestoneKindSchema.options;
 
 const PROD_ID = "-//Leapsake//Leapsake 0.1.0//EN";
 
@@ -51,52 +55,39 @@ function contact(over: Partial<ExportContact> = {}): ExportContact {
 }
 
 /**
- * The contact as the parser can currently report it back — **the ledger of
- * everything the writer says that the reader cannot yet hear.**
+ * The contact as the parser reports it back — **what is left of the ledger of
+ * everything the writer says that the reader cannot hear.**
  *
- * A literal `parseVCards(write(x)) ≡ x` cannot hold while `plans/export.md`
- * → 5 is outstanding, and the gaps are not one kind of thing:
+ * ⚠️ **This is the end state, not a gap.** It once held the whole of
+ * `plans/export.md` → 5 and shrank as each increment landed: the card's own
+ * identity left in 5a, the relationship graph in 5b, and every
+ * `X-LEAPSAKE-MILESTONE-*` fact in 5c. What remains is the one thing that can
+ * never leave, so **do not try to delete it**:
  *
- * - A milestone kind with no `DATE_KINDS` entry is dropped **by name**, so nine
- *   of the ten kinds we write come back as `Date (Wedding)` and friends
- *   (increments 5c and 5d).
+ * - `writeParam` strips `"` and folds newlines to a space, because vCard's
+ *   parameter grammar has an escape for neither — so a multi-line milestone note
+ *   riding `X-LEAPSAKE-MILESTONE-NOTE` is *knowingly* not byte-exact.
+ * - A milestone with no date at all is not written, since an `X-ABDATE` with an
+ *   empty value is a line saying nothing.
  *
- * **Two things have left this list.** The card's own identity — `UID`, `KIND`,
- * `REV`, `CATEGORIES`, `X-LEAPSAKE-SELF`/`-CREATED` — survives as of increment
- * 5a; the whole relationship graph survives as of 5b, which is why neither a
- * `RELATED` reference nor a degraded role is spelled here any more. It shrinks
- * as each increment lands, and each thing it stops mentioning is one the
- * `describe` blocks below now assert directly.
- *
- * ⚠️ **It will not shrink to nothing.** `writeParam` strips `"` and folds
- * newlines to a space, because vCard's parameter grammar has an escape for
- * neither — so a multi-line milestone note riding `X-LEAPSAKE-MILESTONE-NOTE`
- * is knowingly not byte-exact. Whatever is left here when 5d is done is
- * that one normalisation, and it should say so rather than being deleted.
+ * Note what is **not** here any more: nothing about `DATE_KINDS`. Our own cards
+ * carry `X-LEAPSAKE-MILESTONE-KIND`, so the round trip needs no label guessing —
+ * which is exactly why 5d is about *other people's* cards alone, and why
+ * widening that map cannot be validated from this file.
  */
 function asParsedToday(c: ExportContact): ExportContact {
-  const dropped: DroppedField[] = [...c.dropped];
-
   const dates: ParsedDate[] = [];
   for (const d of c.dates) {
-    const value = formatPartialDate(d.date);
-    if (value === null) continue; // never written at all
-    const kind = dateKindFor(d.label);
-    if (kind === null) {
-      dropped.push({ property: `Date (${d.label})`, value });
-      continue;
-    }
-    dates.push({
-      kind,
-      label: d.label,
-      date: d.date,
-      note: null,
-      id: null,
-      relationshipId: null,
-    });
+    if (formatPartialDate(d.date) === null) continue; // never written at all
+    dates.push({ ...d, note: normalisedNote(d.note) });
   }
 
-  return { ...c, dates, dropped };
+  return { ...c, dates };
+}
+
+/** A note as the parameter grammar can carry it: no `"`, no line breaks. */
+function normalisedNote(note: string | null): string | null {
+  return note === null ? null : note.replace(/"/g, "").replace(/[\r\n]+/g, " ");
 }
 
 /** The assertion the package is named for: writing then reading is the identity. */
@@ -545,10 +536,88 @@ describe("writeVCards — milestones", () => {
     expect(text).not.toContain("X-ABDATE");
   });
 
-  it("round-trips the one kind the parser has a label for", () => {
+  /**
+   * **All ten kinds, as of 5c.** The label is whatever a human would read in
+   * Contacts; the kind rides beside it, so none of them depends on `DATE_KINDS`
+   * having heard of that label. Before the parameter was read, nine of these ten
+   * came back as dropped fields.
+   */
+  it("round-trips every milestone kind, label map or not", () => {
+    expectRoundTrip(
+      milestoneKinds.map((kind) =>
+        contact({ dates: [date({ kind, label: kindDefs[kind].label })] }),
+      ),
+    );
+  });
+
+  it("round-trips a note, an id and the relationship that bears the date", () => {
     expectRoundTrip([
-      contact({ dates: [date({ kind: "anniversary", label: "Anniversary" })] }),
+      contact({
+        dates: [
+          date({
+            kind: "wedding",
+            label: "Wedding",
+            id: "aaaaaaaa-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+            relationshipId: "bbbbbbbb-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+            note: "at the lighthouse",
+          }),
+        ],
+      }),
     ]);
+  });
+
+  /**
+   * Kind `other` wears the user's own note as its label, which is why the writer
+   * omits `-NOTE` when the two are equal — and why the parser has to put it back
+   * from the label rather than reporting a note the card does not spell twice.
+   */
+  it("recovers an other-kind note from the label the writer left it as", () => {
+    const text = unfolded([
+      contact({
+        dates: [
+          date({
+            kind: "other",
+            label: "Beach house closing",
+            note: "Beach house closing",
+          }),
+        ],
+      }),
+    ]);
+    expect(text).not.toContain("X-LEAPSAKE-MILESTONE-NOTE");
+    expect(parseVCards(text)[0].dates[0]).toMatchObject({
+      kind: "other",
+      label: "Beach house closing",
+      note: "Beach house closing",
+    });
+  });
+
+  /**
+   * A store holding two birthday-kind milestones exports the first as `BDAY` and
+   * the second as a "Birthday"-labelled `X-ABDATE`. The parameter is what stops
+   * the second being swallowed by the label rule that exists for foreign cards —
+   * see the `X-ABDATE` case in `vcard.ts`.
+   */
+  it("keeps a second birthday-kind milestone apart from the card's BDAY", () => {
+    expectRoundTrip([
+      contact({
+        birthday: { year: 1992, month: 3, day: 9 },
+        dates: [
+          date({
+            kind: "birthday",
+            label: "Birthday",
+            date: { year: 1992, month: 3, day: 10 },
+          }),
+        ],
+      }),
+    ]);
+  });
+
+  /** The one gap that outlives every increment: see {@link asParsedToday}. */
+  it("does not round-trip a note's newlines, knowingly", () => {
+    const text = write([
+      contact({ dates: [date({ note: "first line\nsecond line" })] }),
+    ]);
+    expect(parseVCards(text)[0].dates[0].note).toBe("first line second line");
   });
 });
 
@@ -788,15 +857,31 @@ describe("writeVCards — the card's identity, both directions", () => {
     expect(parseVCards(text)[0].kind).toBe("pet");
   });
 
-  it("writes the nine kinds with no DATE_KINDS entry, which drop by name", () => {
+  /**
+   * **The inversion 5c is.** `Wedding` has no `DATE_KINDS` entry and never will
+   * — the map is for *other people's* cards — so until the kind was carried
+   * outright this very card came back as a dropped `Date (Wedding)`. The label
+   * is still what a human reads in Contacts; the parameter is what makes it
+   * exact for us.
+   */
+  it("recovers a kind the label map has no entry for, from the parameter", () => {
     const text = write([
       contact({ dates: [date({ kind: "wedding", label: "Wedding" })] }),
     ]);
     expect(text).toContain("item1.X-ABLABEL:Wedding\r\n");
-    expect(parseVCards(text)[0].dropped).toContainEqual({
-      property: "Date (Wedding)",
-      value: "2011-06-18",
-    });
+    expect(dateKindFor("Wedding")).toBeNull();
+    const back = parseVCards(text)[0];
+    expect(back.dropped).toEqual([]);
+    expect(back.dates).toEqual([
+      {
+        kind: "wedding",
+        label: "Wedding",
+        date: { year: 2011, month: 6, day: 18 },
+        note: null,
+        id: null,
+        relationshipId: null,
+      },
+    ]);
   });
 
   /**

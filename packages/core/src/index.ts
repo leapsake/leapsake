@@ -2667,29 +2667,39 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
               platformUserId: social.platformUserId,
             });
           },
-          addBirthday: async (personId, birthday) => {
+          // The bearer's type comes from the engine rather than being assumed —
+          // a pet's card carries a birthday too. Hardcoding `"person"` here did
+          // not fail loudly the way `addRelated`'s did: a pet birthday committed
+          // against `bearer_type = 'person'` and then went missing from the pet,
+          // because `listForBearer("pet", …)` could never find it.
+          addBirthday: async (bearerType, bearerId, birthday) => {
             await milestones.create({
               kind: "birthday",
-              bearerType: "person",
-              bearerId: personId,
+              bearerType,
+              bearerId,
               year: birthday.year,
               month: birthday.month,
               day: birthday.day,
             });
           },
-          // The parser already resolved the source label to a kind, so this only
-          // writes it. The source's own wording is kept as the `note` for an
-          // `other`-kind date — that kind has no label of its own and leans on
-          // `note` for one — and dropped for a kind that names itself.
-          addDate: async (personId, date) => {
+          // The kind and the bearer are both settled before this runs — the
+          // parser read the kind off the card (or resolved it from the label for
+          // a foreign one), and the engine chose the bearer and checked that the
+          // kind may be held by it. This only writes the row.
+          addDate: async (bearerType, bearerId, date) => {
             await milestones.create({
               kind: date.kind,
-              bearerType: "person",
-              bearerId: personId,
+              bearerType,
+              bearerId,
               year: date.date.year,
               month: date.date.month,
               day: date.date.day,
-              note: date.kind === "other" ? date.label : null,
+              // The card's own `-NOTE` wins; the label is the fallback, because
+              // the writer deliberately omits the parameter when the note *is*
+              // the label — which is what it means on an `other`-kind milestone.
+              // The parser already applies that fallback, so this is what keeps
+              // a hand-built IPC payload honest.
+              note: date.note ?? (date.kind === "other" ? date.label : null),
             });
           },
           // Somebody the card merely named becomes an unpublished person with
@@ -2726,7 +2736,10 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
             otherId,
             relation,
           ) => {
-            await relationships.create({
+            // The new row's id goes back to the engine: a milestone this edge
+            // bears names the id the edge had *in the file*, and the map between
+            // the two is built out of these.
+            const row = await relationships.create({
               aType: ownerType,
               aId: ownerId,
               aRole: inverseRole(relation.role),
@@ -2735,6 +2748,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
               bRole: relation.role,
               bRoleNote: relation.roleNote,
             });
+            return { id: row.id };
           },
           // The raw repo, not `core.self.set` — that one runs its own
           // `regenerateSystem`, which the batch already does once at the end,

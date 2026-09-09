@@ -1,4 +1,11 @@
-import { type Gender, type RelationshipRole, roleDefs } from "@leapsake/schema";
+import {
+  type Gender,
+  type MilestoneKind,
+  type RelationshipRole,
+  isMilestoneKind,
+  kindDefs,
+  roleDefs,
+} from "@leapsake/schema";
 import type {
   DroppedField,
   ParsedBirthday,
@@ -623,20 +630,64 @@ function buildContact(
       }
       // How Apple actually writes a dated occasion: `item2.X-ABDATE` carries the
       // value and `item2.X-ABLabel` carries the label, which is the only thing
-      // saying what the date *is*. Contacts exports an anniversary this way and
-      // never as RFC 6350's `ANNIVERSARY`, so a card straight out of the iPhone
-      // used to lose every date it had.
+      // saying what the date *is* — unless the card is **ours**, in which case
+      // `X-LEAPSAKE-MILESTONE-KIND` says it outright. Contacts exports an
+      // anniversary this way and never as RFC 6350's `ANNIVERSARY`, so a card
+      // straight out of the iPhone used to lose every date it had.
       //
-      // Same three outcomes as the device importer, routed through the same
-      // {@link dateKindFor} map: a birthday-labelled entry fills the birthday only
-      // if `BDAY` didn't, a label with a kind becomes that milestone, and anything
-      // else is dropped *by name* — "Date (Graduation)" — rather than guessed into
-      // `other`.
+      // Two paths, and which one runs is decided by that parameter:
+      //
+      //  - **Our own card** — the kind is read, and every one of the ten survives
+      //    along with its note, its id and the relationship that bears it.
+      //  - **Anybody else's** — the same three outcomes as the device importer,
+      //    routed through the same {@link dateKindFor} map: a birthday-labelled
+      //    entry fills the birthday only if `BDAY` didn't, a label with a kind
+      //    becomes that milestone, and anything else is dropped *by name* —
+      //    "Date (Graduation)" — rather than guessed into `other`.
       case "X-ABDATE": {
         const parsed = parseDateValue(p);
-        const text = p.group === null ? "" : (groupLabels.get(p.group) ?? "");
+        const exact = milestoneKindParam(p);
+        // The label is what a human reads in Contacts, and normally the only
+        // thing naming the date. A card that carries the kind outright but no
+        // `X-ABLABEL` is still fully described, so the kind's own label stands
+        // in rather than the whole date being dropped — `ParsedDate.label` is
+        // `min(1)` at the boundary and must never be empty.
+        const group = p.group === null ? "" : (groupLabels.get(p.group) ?? "");
+        const text =
+          group !== "" || exact === null ? group : kindDefs[exact].label;
         if (parsed === null || text === "") {
           dropField(dropped, "X-ABDATE", p.value);
+          break;
+        }
+        // ⚠️ The parameter wins **here**, ahead of the birthday short-circuit
+        // below. A store holding two birthday-kind milestones exports the first
+        // as `BDAY` and the second as a "Birthday"-labelled `X-ABDATE`; without
+        // this ordering the second is swallowed by `labelledBirthday` and lost.
+        // The branch after it is the foreign-card rule and must stay as it was:
+        // an iPhone card that spells its birthday twice still collapses to one.
+        if (exact !== null) {
+          dates.push({
+            kind: exact,
+            label: text,
+            date: parsed,
+            // The writer omits `-NOTE` when the note already *is* the label,
+            // which is what it means on an `other`-kind milestone — so that kind
+            // recovers its note from the label alone, and no other kind invents
+            // one it never had.
+            //
+            // Except when the label is the kind's own generic word, which is
+            // what a **note-less** `other` is written as: reading "Other" back as
+            // a note would invent free text the user never typed. The cost is
+            // that somebody whose note is literally "Other" loses it — a note
+            // that displays identically either way (`milestoneLabel`).
+            note: noteFor(p, exact, text),
+            // Both are the **file's** ids, and neither is written back as a row
+            // id: `-ID` is what says "one fact on two cards" to `ingestContacts`,
+            // and `-REL` names an edge that only exists once the import has
+            // created it. Restoring ids verbatim is `plans/export.md` → 6.
+            id: paramValue(p, "X-LEAPSAKE-MILESTONE-ID"),
+            relationshipId: paramValue(p, "X-LEAPSAKE-MILESTONE-REL"),
+          });
           break;
         }
         if (text.toLowerCase() === "birthday") {
@@ -930,6 +981,41 @@ function typesOf(p: Property): string[] {
 function paramValue(p: Property, key: string): string | null {
   const value = p.params.get(key)?.[0];
   return value === undefined ? null : nullIfEmpty(value.trim());
+}
+
+/**
+ * A milestone's free text: the parameter that carries it, or — for the one kind
+ * whose note *is* its label — the label the writer left it as.
+ */
+function noteFor(
+  p: Property,
+  kind: MilestoneKind,
+  label: string,
+): string | null {
+  const note = paramValue(p, "X-LEAPSAKE-MILESTONE-NOTE");
+  if (note !== null) return note;
+  if (kind !== "other" || label === kindDefs.other.label) return null;
+  return label;
+}
+
+/**
+ * The milestone kind a date carries **outright**, or `null` for a card that
+ * carries none — which is every card but ours.
+ *
+ * This is the reason `DATE_KINDS` can stay tiny. Apple's convention leaves the
+ * sibling `X-ABLABEL` as the only thing saying what a date *is*, and a label is
+ * a guess: kind `other` wears the user's own note ("Beach house closing") as its
+ * label, which no map could ever resolve back. Carrying the kind in a parameter
+ * means the label stays the thing a human reads in Contacts while the kind stays
+ * exact for us — so our own file needs no label guessing at all.
+ *
+ * An unrecognised value falls back to the label lookup rather than failing: a
+ * kind we have never heard of is a card from a *newer* Leapsake, and the label
+ * beside it is still worth reading.
+ */
+function milestoneKindParam(p: Property): MilestoneKind | null {
+  const raw = paramValue(p, "X-LEAPSAKE-MILESTONE-KIND");
+  return raw !== null && isMilestoneKind(raw) ? raw : null;
 }
 
 /** Parameter noise that is never a user-facing label. */

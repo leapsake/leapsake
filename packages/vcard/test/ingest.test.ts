@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ParsedContact } from "../src/index.js";
-import { type ImportPorts, ingestContacts } from "../src/index.js";
+import type { ImportDecision, ImportPorts } from "../src/index.js";
+import { ingestContacts } from "../src/index.js";
 
 /** A minimal valid contact; override any field per test. */
 function contact(over: Partial<ParsedContact> = {}): ParsedContact {
@@ -35,8 +36,13 @@ function makePorts(failOn?: string) {
   const people: { id: string; first: string }[] = [];
   const pets: { id: string; name: string }[] = [];
   const emails: { personId: string; address: string }[] = [];
-  const birthdays: { personId: string }[] = [];
-  const dates: { personId: string; kind: string }[] = [];
+  const birthdays: { bearerType: string; personId: string }[] = [];
+  const dates: {
+    bearerType: string;
+    bearerId: string;
+    kind: string;
+    note: string | null;
+  }[] = [];
   const relateds: {
     ownerType: string;
     personId: string;
@@ -44,6 +50,7 @@ function makePorts(failOn?: string) {
     role: string;
   }[] = [];
   const links: {
+    id: string;
     ownerType: string;
     ownerId: string;
     otherType: string;
@@ -77,11 +84,11 @@ function makePorts(failOn?: string) {
     addPhone: async () => {},
     addPostal: async () => {},
     addSocial: async () => {},
-    addBirthday: async (personId) => {
-      birthdays.push({ personId });
+    addBirthday: async (bearerType, bearerId) => {
+      birthdays.push({ bearerType, personId: bearerId });
     },
-    addDate: async (personId, date) => {
-      dates.push({ personId, kind: date.kind });
+    addDate: async (bearerType, bearerId, date) => {
+      dates.push({ bearerType, bearerId, kind: date.kind, note: date.note });
     },
     addRelated: async (ownerType, ownerId, relation) => {
       relateds.push({
@@ -92,7 +99,9 @@ function makePorts(failOn?: string) {
       });
     },
     linkExisting: async (ownerType, ownerId, otherType, otherId, relation) => {
+      const id = `rel-${++n}`;
       links.push({
+        id,
         ownerType,
         ownerId,
         otherType,
@@ -100,6 +109,7 @@ function makePorts(failOn?: string) {
         role: relation.role,
         name: relation.name,
       });
+      return { id };
     },
     setSelf: async (personId) => {
       selfs.push(personId);
@@ -148,7 +158,7 @@ describe("ingestContacts", () => {
     ]);
     expect(result.created).toBe(1);
     expect(emails).toEqual([{ personId: "person-1", address: "jane@x.com" }]);
-    expect(birthdays).toEqual([{ personId: "person-1" }]);
+    expect(birthdays).toEqual([{ bearerType: "person", personId: "person-1" }]);
   });
 
   it("writes a card's other dates alongside its birthday", async () => {
@@ -172,8 +182,15 @@ describe("ingestContacts", () => {
       },
     ]);
     expect(result.created).toBe(1);
-    expect(birthdays).toEqual([{ personId: "person-1" }]);
-    expect(dates).toEqual([{ personId: "person-1", kind: "anniversary" }]);
+    expect(birthdays).toEqual([{ bearerType: "person", personId: "person-1" }]);
+    expect(dates).toEqual([
+      {
+        bearerType: "person",
+        bearerId: "person-1",
+        kind: "anniversary",
+        note: null,
+      },
+    ]);
   });
 
   // A mononym or an organisation-only card ("Acme Corp", "Cher") is what the
@@ -331,7 +348,7 @@ describe("ingestContacts — pets, tags and the self claim", () => {
         }),
       },
     ]);
-    expect(birthdays).toEqual([{ personId: "pet-1" }]);
+    expect(birthdays).toEqual([{ bearerType: "pet", personId: "pet-1" }]);
     expect(relateds).toHaveLength(1);
   });
 
@@ -589,5 +606,240 @@ describe("ingestContacts — edges between two cards", () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].index).toBe(0);
     expect(result.errors[0].message).toBe("edge boom");
+  });
+});
+
+/**
+ * A milestone the *relationship* bears — the same "one fact, two cards" shape as
+ * the edge itself, one level down. A wedding belongs to the marriage rather than
+ * to either partner, so it is written on both cards with one
+ * `X-LEAPSAKE-MILESTONE-ID`, and it cannot be written until the edge it hangs
+ * off exists.
+ */
+describe("ingestContacts — milestones a relationship bears", () => {
+  /** A wedding borne by `edge-1`, as both partners' cards carry it. */
+  function wedding(
+    over: Partial<ParsedContact["dates"][number]> = {},
+  ): ParsedContact["dates"][number] {
+    return {
+      kind: "wedding",
+      label: "Wedding",
+      date: { year: 2011, month: 6, day: 18 },
+      note: null,
+      id: "milestone-1",
+      relationshipId: "edge-1",
+      ...over,
+    };
+  }
+
+  /** Two cards that point at each other and both carry the same wedding. */
+  function couple(): ImportDecision[] {
+    return [
+      {
+        action: "create",
+        contact: contact({
+          uid: "jane",
+          related: [refRelated({ role: "spouse" })],
+          dates: [wedding()],
+        }),
+      },
+      {
+        action: "create",
+        contact: contact({
+          uid: "ben",
+          name: { firstName: "Ben", middleName: null, lastName: "Doe" },
+          related: [
+            refRelated({ name: "Jane Doe", role: "spouse", otherUid: "jane" }),
+          ],
+          dates: [wedding()],
+        }),
+      },
+    ];
+  }
+
+  it("writes one wedding for a couple, on the edge the import created", async () => {
+    const { ports, dates, links } = makePorts();
+    const result = await ingestContacts(ports, couple());
+    expect(result.errors).toEqual([]);
+    // Not two. The shared `-ID` is what says this is one fact written twice.
+    expect(dates).toEqual([
+      {
+        bearerType: "relationship",
+        // The id the import minted, never `edge-1` — that one names a row in
+        // the *file*, and nothing in this store has it.
+        bearerId: links[0].id,
+        kind: "wedding",
+        note: null,
+      },
+    ]);
+  });
+
+  it("waits for the edge, whichever card carried the milestone first", async () => {
+    // Jane's card is built before Ben exists, so the wedding cannot be written
+    // inside her transaction — the marriage does not exist yet.
+    const { ports, dates } = makePorts();
+    const order: string[] = [];
+    const inner = ports.addDate;
+    ports.addDate = async (bearerType, bearerId, date) => {
+      order.push(`date:${bearerType}`);
+      await inner(bearerType, bearerId, date);
+    };
+    const innerLink = ports.linkExisting;
+    ports.linkExisting = async (a, b, c, d, e) => {
+      order.push("edge");
+      return innerLink(a, b, c, d, e);
+    };
+    await ingestContacts(ports, couple());
+    expect(order).toEqual(["edge", "date:relationship"]);
+    expect(dates).toHaveLength(1);
+  });
+
+  /**
+   * The user unticked one half of the couple. 5b keeps the relationship by
+   * inventing an unpublished stub — but a wedding bound to *that* edge would say
+   * the marriage survived the skip, when what survived is only the spouse's
+   * name. So the date lands on the person who did import, where the user can
+   * rebind it if the other half ever arrives.
+   */
+  it("puts the milestone on the person when the other card was skipped", async () => {
+    const { ports, dates, links, relateds } = makePorts();
+    const [jane, ben] = couple();
+    await ingestContacts(ports, [jane, { ...ben, action: "skip" }]);
+    expect(links).toEqual([]);
+    expect(relateds).toHaveLength(1); // the stub spouse
+    expect(dates).toEqual([
+      {
+        bearerType: "person",
+        bearerId: "person-1",
+        kind: "wedding",
+        note: null,
+      },
+    ]);
+  });
+
+  /**
+   * `kindAllowsBearer` permits only `first-date`, `wedding`, `anniversary`,
+   * `met` and `other` on a relationship. A `-REL` on anything else is a
+   * malformed card, and writing it anyway is a row `milestoneSchema` refuses —
+   * so the entity takes it back rather than the contact failing.
+   */
+  it("keeps a -REL on a kind no relationship may hold with the person", async () => {
+    const { ports, dates } = makePorts();
+    const result = await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          dates: [wedding({ kind: "graduation", label: "Graduation" })],
+        }),
+      },
+    ]);
+    expect(result.errors).toEqual([]);
+    expect(dates).toEqual([
+      {
+        bearerType: "person",
+        bearerId: "person-1",
+        kind: "graduation",
+        note: null,
+      },
+    ]);
+  });
+
+  /**
+   * 🐞 The bug this increment closes. `addDate`/`addBirthday` were keyed by a
+   * bare id and core assumed `"person"`, so a pet's birthday committed against a
+   * `bearer_id` no person has — and unlike the `addRelated` bug, it did not
+   * throw: `listForBearer("pet", …)` simply never found it again.
+   */
+  it("writes a pet's dates under the pet, not under a person", async () => {
+    const { ports, birthdays, dates } = makePorts();
+    await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          kind: "pet",
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+          birthday: { year: 2019, month: 4, day: 2 },
+          dates: [
+            wedding({
+              kind: "moved",
+              label: "Moved",
+              id: null,
+              relationshipId: null,
+            }),
+          ],
+        }),
+      },
+    ]);
+    expect(birthdays).toEqual([{ bearerType: "pet", personId: "pet-1" }]);
+    expect(dates).toEqual([
+      { bearerType: "pet", bearerId: "pet-1", kind: "moved", note: null },
+    ]);
+  });
+
+  /**
+   * The other half of that fix: once the type travels, a kind the bearer may not
+   * hold would *throw* and roll back the whole card — the failure shape 5b hit.
+   * One milestone is skipped and reported instead, so the pet keeps its name.
+   */
+  /**
+   * A card that rolls back **after** setting work aside. Both the edge and the
+   * milestone are held locally until the transaction commits, for the same
+   * reason `byUid` is: an entity id from an aborted transaction names no row, so
+   * phase 2 must never be handed one.
+   */
+  it("leaves phase 2 nothing behind when the carrying card rolls back", async () => {
+    const { ports, dates, links, relateds } = makePorts();
+    // `setSelf` runs last, after the edge and the milestone have been set aside.
+    ports.setSelf = async () => {
+      throw new Error("self boom");
+    };
+    // Only Jane holds anything back, so anything phase 2 writes came from her.
+    const result = await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          uid: "jane",
+          isSelf: true,
+          related: [refRelated({ role: "spouse" })],
+          dates: [wedding()],
+        }),
+      },
+      { action: "create", contact: contact({ uid: "ben" }) },
+    ]);
+    expect(result.created).toBe(1);
+    expect(result.errors.map((e) => e.message)).toEqual(["self boom"]);
+    // Ben landed; nothing at all was written for the edge or the wedding, both
+    // of which named a Jane who does not exist.
+    expect(links).toEqual([]);
+    expect(relateds).toEqual([]);
+    expect(dates).toEqual([]);
+  });
+
+  it("skips a kind the bearer cannot hold, and still imports the card", async () => {
+    const { ports, pets, dates } = makePorts();
+    const result = await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          kind: "pet",
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+          dates: [
+            wedding({
+              kind: "anniversary",
+              label: "Anniversary",
+              id: null,
+              relationshipId: null,
+            }),
+          ],
+        }),
+      },
+    ]);
+    expect(result.created).toBe(1);
+    expect(pets).toHaveLength(1);
+    expect(dates).toEqual([]);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toBe(
+      "Skipped a milestone a pet cannot hold: anniversary",
+    );
   });
 });

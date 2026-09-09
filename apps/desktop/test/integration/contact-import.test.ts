@@ -596,3 +596,153 @@ describe("core.import.commit — edges between two cards", () => {
     });
   });
 });
+
+/**
+ * The milestone half of the same story, over the real repos — the assertions the
+ * pure tier's fake ports cannot make, because what went wrong before was *which
+ * row the database ended up holding* rather than which port was called.
+ */
+describe("core.import.commit — milestones", () => {
+  const JANE = "aaaaaaaa-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+  const BEN = "bbbbbbbb-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+  const EDGE = "dddddddd-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+  const WEDDING = "eeeeeeee-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+
+  /** A wedding borne by `EDGE`, exactly as both partners' cards carry it. */
+  const wedding = () => ({
+    kind: "wedding" as const,
+    label: "Wedding",
+    date: { year: 2011, month: 6, day: 18 },
+    note: "at the lighthouse",
+    id: WEDDING,
+    relationshipId: EDGE,
+  });
+
+  const spouses = () => [
+    {
+      action: "create" as const,
+      contact: contact({
+        uid: JANE,
+        related: [
+          related({ name: "Ben Doe", otherUid: BEN, relationshipId: EDGE }),
+        ],
+        dates: [wedding()],
+      }),
+    },
+    {
+      action: "create" as const,
+      contact: contact({
+        uid: BEN,
+        name: { firstName: "Ben", middleName: null, lastName: "Doe" },
+        displayName: "Ben Doe",
+        related: [
+          related({ name: "Jane Doe", otherUid: JANE, relationshipId: EDGE }),
+        ],
+        dates: [wedding()],
+      }),
+    },
+  ];
+
+  it("lands one wedding, borne by the marriage rather than by either partner", async () => {
+    const result = await core.import.commit(spouses());
+    expect(result).toMatchObject({ created: 2, errors: [] });
+
+    const listed = await core.people.list();
+    const jane = listed.find((p) => p.firstName === "Jane")!;
+    const [edge] = await core.relationships.listForEntity("person", jane.id);
+
+    // On the edge, once — not once per card, and not on either person.
+    const onEdge = await core.milestones.listForBearer(
+      "relationship",
+      edge.relationshipId,
+    );
+    expect(onEdge).toHaveLength(1);
+    expect(onEdge[0]).toMatchObject({
+      kind: "wedding",
+      year: 2011,
+      month: 6,
+      day: 18,
+      note: "at the lighthouse",
+    });
+    // The file's own milestone id is a matching key, not a row id — writing it
+    // back verbatim is a restore (`plans/export.md` → 6).
+    expect(onEdge[0].id).not.toBe(WEDDING);
+
+    const ben = listed.find((p) => p.firstName === "Ben")!;
+    expect(await core.milestones.listForBearer("person", jane.id)).toEqual([]);
+    expect(await core.milestones.listForBearer("person", ben.id)).toEqual([]);
+  });
+
+  it("keeps the wedding on the person when the other card was skipped", async () => {
+    const [jane, ben] = spouses();
+    const result = await core.import.commit([
+      jane,
+      { ...ben, action: "skip" as const },
+    ]);
+    expect(result).toMatchObject({ created: 1, errors: [] });
+
+    const [person] = await core.people.list();
+    const own = await core.milestones.listForBearer("person", person.id);
+    expect(own).toHaveLength(1);
+    expect(own[0]).toMatchObject({
+      kind: "wedding",
+      note: "at the lighthouse",
+    });
+  });
+
+  /**
+   * 🐞 The bug increment 5c closes, and the read that proves it. Core hardcoded
+   * `bearerType: "person"`, so a pet's birthday committed against a `bearer_id`
+   * no person has — and it did **not** throw, because
+   * `kindAllowsBearer("birthday", "person")` is true. The row was simply never
+   * findable again. Our own exporter writes exactly this card.
+   */
+  it("files a pet's birthday under the pet, where it can be found again", async () => {
+    await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          kind: "pet",
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+          displayName: "Rex",
+          birthday: { year: 2019, month: 4, day: 2 },
+        }),
+      },
+    ]);
+
+    const [rex] = await core.pets.list();
+    const onPet = await core.milestones.listForBearer("pet", rex.id);
+    expect(onPet).toHaveLength(1);
+    expect(onPet[0]).toMatchObject({ kind: "birthday", year: 2019 });
+    // The shape of the old bug: the row used to be here instead, aimed at an id
+    // no person has.
+    expect(await core.milestones.listForBearer("person", rex.id)).toEqual([]);
+  });
+
+  it("carries an other-kind milestone's note, which is its whole label", async () => {
+    await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          dates: [
+            {
+              kind: "other",
+              label: "Beach house closing",
+              date: { year: 2024, month: 9, day: 1 },
+              note: "Beach house closing",
+              id: null,
+              relationshipId: null,
+            },
+          ],
+        }),
+      },
+    ]);
+
+    const [person] = await core.people.list();
+    const own = await core.milestones.listForBearer("person", person.id);
+    expect(own[0]).toMatchObject({
+      kind: "other",
+      note: "Beach house closing",
+    });
+  });
+});

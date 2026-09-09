@@ -1,4 +1,11 @@
-import { type EntityType, type Gender, hasAnyName } from "@leapsake/schema";
+import {
+  type EntityType,
+  type Gender,
+  type MilestoneBearerType,
+  type MilestoneKind,
+  hasAnyName,
+  kindAllowsBearer,
+} from "@leapsake/schema";
 import type {
   ParsedBirthday,
   ParsedContact,
@@ -62,10 +69,39 @@ export interface ImportPorts {
   addPhone(personId: string, phone: ParsedPhone): Promise<void>;
   addPostal(personId: string, postal: ParsedPostal): Promise<void>;
   addSocial(personId: string, social: ParsedSocial): Promise<void>;
-  addBirthday(personId: string, birthday: ParsedBirthday): Promise<void>;
-  /** Record a dated occasion other than the birthday (an anniversary), as a
-   *  milestone of the kind the parser resolved from the source's own label. */
-  addDate(personId: string, date: ParsedDate): Promise<void>;
+  /**
+   * Record the card's birthday as a `birthday`-kind milestone.
+   *
+   * Takes the bearer's **type** for the same reason {@link ImportPorts.addRelated}
+   * does: a pet's card carries a birthday, and a milestone row names the type of
+   * whatever bears it. Unlike a relationship, passing `"person"` for a pet here
+   * does **not** fail loudly — `kindAllowsBearer("birthday", "person")` is true,
+   * so the row commits against a `bearer_id` no person has and
+   * `listForBearer("pet", …)` never finds it again. Hence the type travels.
+   */
+  addBirthday(
+    bearerType: EntityType,
+    bearerId: string,
+    birthday: ParsedBirthday,
+  ): Promise<void>;
+  /**
+   * Record a dated occasion other than the birthday, as a milestone of the kind
+   * the card carried outright (`X-LEAPSAKE-MILESTONE-KIND`) or, for a foreign
+   * card, the one the parser resolved from its label.
+   *
+   * The bearer is a full {@link MilestoneBearerType} rather than an
+   * {@link EntityType}, because a wedding belongs to the **marriage** rather than
+   * to either partner — one port serves both the entity-borne milestones written
+   * inside a contact's own transaction and the relationship-borne ones the engine
+   * defers until every edge exists.
+   *
+   * The engine has already checked {@link kindAllowsBearer}, so this never has to.
+   */
+  addDate(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+    date: ParsedDate,
+  ): Promise<void>;
   /**
    * Record somebody the card merely *named* as related, as an unpublished person
    * hanging off this entity.
@@ -88,6 +124,12 @@ export interface ImportPorts {
    * The engine calls this exactly once per edge, having already resolved both
    * ends and discarded the duplicate half; the implementor writes one
    * relationship row and nothing else.
+   *
+   * **Returns the new row's id**, which the file cannot supply: a milestone borne
+   * by this edge names it as the `relationships.id` it had *in the file*, and the
+   * import mints a fresh one. Phase 2 builds the map between the two out of these
+   * return values, and a milestone that cannot be looked up through it would
+   * otherwise point at a row that does not exist.
    */
   linkExisting(
     ownerType: EntityType,
@@ -95,7 +137,7 @@ export interface ImportPorts {
     otherType: EntityType,
     otherId: string,
     related: ParsedRelated,
-  ): Promise<void>;
+  ): Promise<{ id: string }>;
   /**
    * Point the `self_person` singleton at this person — the user saying "this
    * card is me".
@@ -157,6 +199,16 @@ export interface ImportResult {
  * what says "one fact written twice" rather than "two facts". A foreign card
  * with a `urn:uuid:` reference and no such id falls back to the pair of uids,
  * which is the most that can be known without one.
+ *
+ * **A relationship-borne milestone is the same shape one level down**, and rides
+ * the same two phases. A wedding belongs to the marriage rather than to either
+ * partner, so it is written on **both** cards with one
+ * `X-LEAPSAKE-MILESTONE-ID`; without dedupe on it, importing a couple gives them
+ * two weddings. It also cannot be written while its card is being built — the
+ * edge does not exist yet — so phase 2 writes the edges first, keeps the map from
+ * each file `relationships.id` to the row it actually created, and only then
+ * writes the milestones that hang off them. A milestone the entity bears itself
+ * is nobody else's business and stays in phase 1.
  */
 export async function ingestContacts(
   ports: ImportPorts,
@@ -174,6 +226,14 @@ export async function ingestContacts(
     ownerType: EntityType;
     ownerId: string;
     relation: ParsedRelated;
+  }[] = [];
+  /** Milestones a *relationship* bears, held until that edge has been written. */
+  const pendingDates: {
+    index: number;
+    contact: ParsedContact;
+    ownerType: EntityType;
+    ownerId: string;
+    date: ParsedDate;
   }[] = [];
 
   for (let index = 0; index < decisions.length; index++) {
@@ -197,6 +257,14 @@ export async function ingestContacts(
       continue;
     }
 
+    // What this card leaves for later, held locally until it has committed —
+    // for exactly the reason `byUid` is: a card that rolls back must leave phase
+    // 2 nothing to point at, and an entity id from an aborted transaction names
+    // no row at all. Milestones its own bearer may not hold ride along, so the
+    // error is reported only if there is a card to report it against.
+    const refused: MilestoneKind[] = [];
+    const heldEdges: ParsedRelated[] = [];
+    const heldDates: ParsedDate[] = [];
     try {
       const landed = await ports.transaction(async () => {
         // A pet and a person diverge here and nowhere else. `petSchema` is only
@@ -222,10 +290,37 @@ export async function ingestContacts(
             await ports.addSocial(id, social);
           }
         }
-        if (contact.birthday) await ports.addBirthday(id, contact.birthday);
-        for (const date of contact.dates) await ports.addDate(id, date);
-
         const ownerType: EntityType = pet ? "pet" : "person";
+        if (contact.birthday) {
+          await ports.addBirthday(ownerType, id, contact.birthday);
+        }
+        for (const date of contact.dates) {
+          // A milestone the *relationship* bears waits for phase 2, because the
+          // edge it names does not exist yet. Only those wait: everything else
+          // is this card's own business and belongs in this transaction.
+          //
+          // A `-REL` on a kind no relationship may hold is a malformed card, so
+          // the entity takes it back rather than the row being refused.
+          if (
+            date.relationshipId !== null &&
+            kindAllowsBearer(date.kind, "relationship")
+          ) {
+            heldDates.push(date);
+            continue;
+          }
+          // ⚠️ The bearer decides which kinds are even possible — a pet has no
+          // anniversary, and `milestoneSchema` refuses the row outright. Refusing
+          // it *here* costs one milestone; letting it throw would roll back the
+          // whole card, taking the pet's name, tags and relations with it. The
+          // error is pushed after the transaction commits, below, so a card that
+          // rolls back for some other reason leaves no phantom behind.
+          if (!kindAllowsBearer(date.kind, ownerType)) {
+            refused.push(date.kind);
+            continue;
+          }
+          await ports.addDate(ownerType, id, date);
+        }
+
         for (const relation of contact.related) {
           // A *named* relation is entirely this card's business — the person it
           // names has no card, so nothing else in the batch can contribute to
@@ -233,7 +328,7 @@ export async function ingestContacts(
           if (relation.otherUid === null) {
             await ports.addRelated(ownerType, id, relation);
           } else {
-            pending.push({ index, contact, ownerType, ownerId: id, relation });
+            heldEdges.push(relation);
           }
         }
         // Last, and inside the same transaction, so a card that fails halfway
@@ -247,6 +342,21 @@ export async function ingestContacts(
       // back must not be something phase 2 can point an edge at.
       if (contact.uid !== null) byUid.set(contact.uid, landed);
       created++;
+      const owner = {
+        index,
+        contact,
+        ownerType: landed.type,
+        ownerId: landed.id,
+      };
+      for (const relation of heldEdges) pending.push({ ...owner, relation });
+      for (const date of heldDates) pendingDates.push({ ...owner, date });
+      for (const kind of refused) {
+        errors.push({
+          index,
+          contact,
+          message: `Skipped a milestone a ${landed.type} cannot hold: ${kind}`,
+        });
+      }
     } catch (err) {
       errors.push({
         index,
@@ -256,10 +366,17 @@ export async function ingestContacts(
     }
   }
 
-  // Phase 2 — the edges that needed the whole batch to exist first. Each in its
+  // Phase 2a — the edges that needed the whole batch to exist first. Each in its
   // own transaction, for the same reason a contact gets one: an edge that
   // cannot be written must cost only itself.
   const written = new Set<string>();
+  /**
+   * The file's `relationships.id` → the id of the row this import actually
+   * created for it. A relationship-borne milestone names the former and has to
+   * be written against the latter; using the file's value raw would point every
+   * such milestone at a row that does not exist.
+   */
+  const relIdByFileId = new Map<string, string>();
   for (const edge of pending) {
     const key = edgeKey(edge.contact.uid, edge.relation);
     if (written.has(key)) continue;
@@ -274,15 +391,24 @@ export async function ingestContacts(
           // so it lands the way a merely-named relation does, using the name the
           // parser recovered from the other card. Dropping it instead would lose
           // a relationship the file plainly states.
+          //
+          // Deliberately **not** recorded in `relIdByFileId`: a milestone whose
+          // edge degraded this way lands on the entity instead (see below). The
+          // edge here is a stub between a real person and an invented one, and
+          // binding a wedding to it would say the marriage survived the skip
+          // when what survived is only the spouse's name.
           await ports.addRelated(edge.ownerType, edge.ownerId, edge.relation);
         } else {
-          await ports.linkExisting(
+          const row = await ports.linkExisting(
             edge.ownerType,
             edge.ownerId,
             other.type,
             other.id,
             edge.relation,
           );
+          if (edge.relation.relationshipId !== null) {
+            relIdByFileId.set(edge.relation.relationshipId, row.id);
+          }
         }
       });
     } catch (err) {
@@ -292,6 +418,46 @@ export async function ingestContacts(
       errors.push({
         index: edge.index,
         contact: edge.contact,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  // Phase 2b — the milestones those edges bear, once every edge exists. Same
+  // one-transaction-each rule, and the same attribution: the card that carried
+  // the milestone is already counted in `created`, so a failure here reads as
+  // "imported, but this one date did not".
+  const writtenDates = new Set<string>();
+  for (const entry of pendingDates) {
+    const key = milestoneKey(entry.date);
+    if (writtenDates.has(key)) continue;
+    writtenDates.add(key);
+
+    const relId =
+      entry.date.relationshipId === null
+        ? undefined
+        : relIdByFileId.get(entry.date.relationshipId);
+    try {
+      await ports.transaction(async () => {
+        if (relId !== undefined) {
+          await ports.addDate("relationship", relId, entry.date);
+          return;
+        }
+        // No edge to hang it on: the other card was skipped, so the relationship
+        // degraded to a stub, or the file names an edge it does not contain. The
+        // date is still a fact about this person, so it lands on **them** rather
+        // than being dropped — a wedding on Jane instead of on the marriage,
+        // which the user can rebind if the other half ever arrives.
+        //
+        // The dedupe above means it lands once, on whichever card was built
+        // first, rather than on both partners: it is still one fact.
+        if (!kindAllowsBearer(entry.date.kind, entry.ownerType)) return;
+        await ports.addDate(entry.ownerType, entry.ownerId, entry.date);
+      });
+    } catch (err) {
+      errors.push({
+        index: entry.index,
+        contact: entry.contact,
         message: err instanceof Error ? err.message : String(err),
       });
     }
@@ -319,4 +485,21 @@ function edgeKey(ownerUid: string | null, relation: ParsedRelated): string {
   if (relation.relationshipId !== null) return `rel:${relation.relationshipId}`;
   const pair = [ownerUid ?? "", relation.otherUid ?? ""].sort();
   return `pair:${pair[0]}|${pair[1]}`;
+}
+
+/**
+ * What makes two `X-ABDATE` lines the *same* milestone — {@link edgeKey} one
+ * level down, and for the same reason. A wedding is borne by the marriage, so it
+ * is written on both partners' cards; `X-LEAPSAKE-MILESTONE-ID` is what says the
+ * two lines are one fact rather than two weddings.
+ *
+ * Without an id there is no second identifier to fall back on the way an edge
+ * has the pair of uids — a milestone names only the edge it hangs off. The edge,
+ * its kind and its date are the most that can be known, and two distinct
+ * milestones agreeing on all three are indistinguishable anyway.
+ */
+function milestoneKey(date: ParsedDate): string {
+  if (date.id !== null) return `mst:${date.id}`;
+  const { year, month, day } = date.date;
+  return `rel:${date.relationshipId}|${date.kind}|${year}-${month}-${day}`;
 }
