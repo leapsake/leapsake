@@ -80,6 +80,12 @@ appId: com.leapsake.app
           visible:
             id: "factory-reset-confirm"
           timeout: 20000
+      # The export offer belongs to this moment, not only to the top of the
+      # screen (`plans/export.md` increment 4). Asserted, never tapped: a share
+      # sheet opened inside the teardown would need dismissing, and a teardown
+      # that stalls leaves the next flow asserting against the previous arc's
+      # store — the same silent class as the two traps above.
+      - assertVisible: "Export my data first…"
 - runFlow:
     when:
       visible: "Forget account…"
@@ -92,6 +98,12 @@ appId: com.leapsake.app
           visible:
             id: "forget-account-confirm"
           timeout: 20000
+      # The export offer belongs to this moment, not only to the top of the
+      # screen (`plans/export.md` increment 4). Asserted, never tapped: a share
+      # sheet opened inside the teardown would need dismissing, and a teardown
+      # that stalls leaves the next flow asserting against the previous arc's
+      # store — the same silent class as the two traps above.
+      - assertVisible: "Export my data first…"
 
 # Fill and fire whichever is now open. `eraseText` first, because a field still holding the
 # word from a dead run would otherwise become ERASEERASE, which arms nothing — and the flow

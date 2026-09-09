@@ -6,6 +6,7 @@ import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import type { SyncStatus } from "@leapsake/core";
 import { useCore, useSync } from "../lib/core-context";
+import { exportAndShare } from "../lib/export-share";
 import { colors, styles } from "../lib/styles";
 
 /**
@@ -16,6 +17,11 @@ import { colors, styles } from "../lib/styles";
  * single-device, so until the user has a file of their own the two destructive
  * actions at the bottom of this same screen are the only copy meeting its end.
  * Putting the way out directly above them is the point.
+ *
+ * It is also *inside* both of them ({@link ExportFirstOffer}), because above is
+ * not enough at the moment that matters: a user who has already opened a
+ * confirmation should not have to back out of it to find the export, and that
+ * confirmation is the last instant at which an export is still possible.
  *
  * Import from Contacts lives here because it lost its only other entry point:
  * it used to be the third button on the "+ Add" chooser that app/add.tsx
@@ -172,6 +178,7 @@ function ForgetAccountSection() {
                 ? "This account is only on this device, so there is no other copy."
                 : `${info.relayUrl} does not keep a backup of your data, so if this is your only device there is no other copy.`}
             </Text>
+            <ExportFirstOffer disabled={working} />
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>
                 Type {FORGET_ACCOUNT_PHRASE} to confirm
@@ -199,6 +206,11 @@ function ForgetAccountSection() {
             can sign back in to get it again.
           </Text>
         )}
+        {/* Offered in **both** branches, not only when this is the last copy: a
+            user is entitled to their own file whether or not somebody else is
+            holding one, and `durableBackup` is a claim by a relay rather than
+            something this device can verify. Only the wording above branches. */}
+        {!lastCopy && <ExportFirstOffer disabled={working} />}
         <Pressable
           style={[
             styles.button,
@@ -299,6 +311,9 @@ function FactoryResetSection() {
             This permanently erases all data on this device. There is no account
             holding a copy, so this data cannot be recovered afterward.
           </Text>
+          {/* The accountless wipe is by definition destroying the only copy, so
+              it needs the offer at least as much as Forget account does. */}
+          <ExportFirstOffer disabled={working} />
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>
               Type {FACTORY_RESET_PHRASE} to confirm
@@ -354,14 +369,11 @@ function FactoryResetSection() {
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
 
 /**
- * **Export** — the whole store as one `.zip` the user keeps, handed to the system
- * share sheet.
- *
- * The reason this exists at all is that v0.1 is single-device by construction:
- * the app container is the only place a user's data lives, so until there is a
- * file they can save, "delete and reinstall" is data loss. That is also why it
- * needs no account — the accountless store is precisely the one with no other
- * copy (`plans/shipping.md` → Part 1, step 1).
+ * **One export, wired to this platform** — build the archive, write it to Caches,
+ * hand it to the share sheet, delete it, and hold the button state while that
+ * happens. The *sequence* lives in `lib/export-share.ts`, which is the tier that
+ * can test it; this is only the expo wiring, and it exists once because there are
+ * three buttons behind it ({@link ExportSection} and two {@link ExportFirstOffer}s).
  *
  * ⚠️ **It must not use iCloud, ever** — an iCloud entitlement in any shipped
  * build permanently disqualifies the Apple app-record transfer. `expo-sharing`
@@ -370,77 +382,66 @@ const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
  * `app.json`. The user picking iCloud Drive out of the share sheet is their own
  * act through `UIDocumentPickerViewController` and needs nothing from us.
  */
-function ExportSection() {
+function useExportShare() {
   const core = useCore();
   const [working, setWorking] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function exportData() {
+  async function run() {
     setError(null);
     setResult(null);
     setWorking(true);
-    // Built in memory, written once, shared, and deleted — the file exists only
-    // for as long as the share sheet needs a URL to point at.
-    let file: File | null = null;
     try {
-      const { bytes, filename, counts } = await core.export.archive({
-        appVersion: APP_VERSION,
-      });
-
-      // **Caches, not documents**, and that is load-bearing rather than tidiness:
-      // `Library/Caches` is excluded from device backup, so a plaintext dump of
-      // the user's whole address book can never ride along inside an iCloud
-      // device backup. Writing it to the documents directory is the one way this
-      // feature could violate the no-iCloud constraint by accident.
-      file = new File(Paths.cache, filename);
-      if (file.exists) file.delete(); // a second export the same day
-      file.write(bytes);
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(file.uri, {
-          mimeType: "application/zip",
-          UTI: "public.zip-archive",
-          dialogTitle: "Save your Leapsake export",
-        });
-      } else {
-        setError("Sharing isn't available on this device.");
-        return;
-      }
-
       setResult(
-        `Exported ${counts.people} ${counts.people === 1 ? "person" : "people"}` +
-          `, ${counts.pets} ${counts.pets === 1 ? "pet" : "pets"}` +
-          `, ${counts.contactMethods} contact ${
-            counts.contactMethods === 1 ? "method" : "methods"
-          }` +
-          // The rest of the archive — reminders, gift ideas, holiday choices,
-          // notification settings. Without this the half of the file that is
-          // not contacts is invisible from outside the zip.
-          `, ${counts.otherRecords} other ${
-            counts.otherRecords === 1 ? "record" : "records"
-          } (${Math.max(1, Math.round(counts.bytes / 1024))} KB).`,
+        await exportAndShare({
+          archive: () => core.export.archive({ appVersion: APP_VERSION }),
+          // **Caches, not documents** — see `export-share.ts`, which is where the
+          // reason lives now that three callers depend on it.
+          write: (filename, bytes) => {
+            const file = new File(Paths.cache, filename);
+            if (file.exists) file.delete(); // a second export the same day
+            file.write(bytes);
+            return {
+              uri: file.uri,
+              remove: () => {
+                if (file.exists) file.delete();
+              },
+            };
+          },
+          canShare: () => Sharing.isAvailableAsync(),
+          share: (uri) =>
+            Sharing.shareAsync(uri, {
+              mimeType: "application/zip",
+              UTI: "public.zip-archive",
+              dialogTitle: "Save your Leapsake export",
+            }),
+        }),
       );
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Couldn't export your data.",
       );
     } finally {
-      // On dismiss, whether the share succeeded, failed or the user backed out:
-      // the archive is plaintext, so it does not sit in the container waiting to
-      // be found. Deleting this promptly is safe rather than a race —
-      // `shareAsync` resolves from `UIActivityViewController`'s completion
-      // handler, which fires after the chosen activity has finished with the
-      // file, so Files and AirDrop have their copy by the time we get here.
-      try {
-        if (file?.exists) file.delete();
-      } catch {
-        // A file we cannot delete is not a reason to fail an export that worked;
-        // Caches is reclaimed by the system anyway.
-      }
       setWorking(false);
     }
   }
+
+  return { working, result, error, run: () => void run() };
+}
+
+/**
+ * **Export** — the whole store as one `.zip` the user keeps, handed to the system
+ * share sheet.
+ *
+ * The reason this exists at all is that v0.1 is single-device by construction:
+ * the app container is the only place a user's data lives, so until there is a
+ * file they can save, "delete and reinstall" is data loss. That is also why it
+ * needs no account — the accountless store is precisely the one with no other
+ * copy (`plans/shipping.md` → Part 1, step 1).
+ */
+function ExportSection() {
+  const { working, result, error, run } = useExportShare();
 
   return (
     <View style={{ gap: 8 }}>
@@ -455,7 +456,7 @@ function ExportSection() {
         testID="export-start"
         style={[styles.button, working && { opacity: 0.5 }]}
         disabled={working}
-        onPress={() => void exportData()}
+        onPress={run}
       >
         <Text style={styles.buttonText}>
           {working ? "Preparing…" : "Export my data…"}
@@ -474,5 +475,55 @@ function ExportSection() {
         </Text>
       )}
     </View>
+  );
+}
+
+/**
+ * **The same export, offered inside a confirmation that is about to destroy the
+ * only copy** (`plans/export.md` increment 4; `key-custody/README.md` has
+ * promised this since before there was an exporter).
+ *
+ * Above the type-to-confirm field, never below it: the order of the section is
+ * the warning, the way out, the ceremony, then the destruction — and keeping the
+ * danger button's neighbours unchanged is also what keeps
+ * `maestro/subflows/factory-reset.yaml`'s keyboard handling honest.
+ *
+ * Styled as the ordinary accent button — the same affordance as the Export
+ * section above, because it is the same act. It is deliberately *not* dressed as
+ * a secondary/`colors.border` control like Cancel: white on `#ded3c2` is the
+ * weakest thing on the screen, and the one button here whose whole purpose is to
+ * be noticed cannot be the one nobody reads. Red destroys, blue exports, tan
+ * backs out. Its own testIDs, not the Export section's, because both can be
+ * showing a result at the same time.
+ *
+ * `disabled` is the destructive action already running — there is nothing left to
+ * export by then, and the screen is about to unmount.
+ */
+function ExportFirstOffer({ disabled = false }: { disabled?: boolean }) {
+  const { working, result, error, run } = useExportShare();
+
+  return (
+    <>
+      <Pressable
+        testID="export-first-start"
+        style={[styles.button, (working || disabled) && { opacity: 0.5 }]}
+        disabled={working || disabled}
+        onPress={run}
+      >
+        <Text style={styles.buttonText}>
+          {working ? "Preparing…" : "Export my data first…"}
+        </Text>
+      </Pressable>
+      {result !== null && (
+        <Text testID="export-first-result" style={styles.muted}>
+          {result}
+        </Text>
+      )}
+      {error !== null && (
+        <Text style={styles.danger} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
+    </>
   );
 }

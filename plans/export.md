@@ -234,13 +234,10 @@ code: [`../packages/export/README.md`](../packages/export/README.md).
 
 ## Increments
 
-**4 is next, and is the one GA blocks on.** It was gated on 3 rather than on tidiness: it puts an
-*Export first* button inside the two confirmations that destroy the only copy of somebody's data,
-so it is the app making a formal promise at the one irreversible moment. While `data.json` was
-`{"version": 1}` that promise would have handed the user a file with every reminder, gift idea,
-holiday choice, `not_a_duplicate` judgment and notification setting missing, at exactly the moment
-they could not check and could not undo — and **an incomplete backup offered there is worse than
-no offer**, because they act on it. 3 has landed, so the offer is now honest.
+**GA no longer blocks on code here.** 1–4 are built: the archive holds everything, and the app
+offers it at the irreversible moment. What is left of this doc is **5** (the import-side
+reciprocals, which decide whether the file is readable back) and **6** (after GA), neither of
+which gates the release — plus the half of the device tier still owed, under *Testing*.
 
 > ✅ **1 and 2 are built** *(2026-09-07)* — the whole person graph. `@leapsake/vcard`'s
 > serializer, the [`@leapsake/export`](../packages/export/README.md) package behind
@@ -276,15 +273,31 @@ no offer**, because they act on it. 3 has landed, so the offer is now honest.
 > the archive that is not contacts is invisible from outside the zip: the mobile result line, the
 > `dev-export` harness and the Maestro assertion all read it.
 
-4. **Wire the offer that already exists in the copy.** Unblocked now that 3 has landed — the
-   archive holds everything, so offering it at the irreversible moment no longer promises more than
-   the file delivers. An **Export first** button inside *both* destructive confirmations in
-   `app/data.tsx` — `ForgetAccountSection` **and** `FactoryResetSection`. The accountless wipe is by
-   definition destroying the only copy, so it needs the offer at least as much — which is what
-   `key-custody/README.md`'s note already says. Then delete that note (rewritten in increment 1,
-   and it says to delete it here).
-   **Leave desktop's "Leapsake cannot export it yet" in `Settings.tsx` alone** — desktop still has
-   no Export surface, so the sentence stays true until increment 6.
+> ✅ **4 is built** *(2026-09-08)* — **Export my data first…** sits inside both destructive
+> confirmations in `app/data.tsx`, above the type-to-confirm field, and `key-custody`'s
+> promise-is-unbacked note is gone. **5 and 6 keep their numbers** — `api-channels.ts`,
+> `key-custody/README.md` and `write.test.ts` all cite them. Three calls widened it:
+>
+> - **The offer is unconditional**, where `key-custody`'s table had put it in the last-copy row
+>   alone: it shows in the durable-backup branch of Forget account too, because `durableBackup` is
+>   a relay's *claim* rather than something this device can verify, and a user is entitled to their
+>   own file regardless. Only the **wording** branches on it, which is what that README now says
+>   instead of its old row.
+> - **The share sequence moved to `apps/mobile/lib/export-share.ts`** rather than being written a
+>   third time. Two of its steps are load-bearing rather than incidental — **Caches, not
+>   documents** (the one way this feature could break the no-iCloud rule by accident) and the
+>   `finally` that deletes the plaintext archive on every path out — and forking either across
+>   three call sites is how one of them quietly stops being true. It follows `lib/`'s house style,
+>   injected verbs over imported natives, which bought this logic **the first tests it has ever
+>   had** (`export-share.test.ts`, 11 of them): the file is deleted when the share throws, a
+>   device that cannot share reports a refusal rather than a success, and the summary line never
+>   says *0 KB*.
+> - **Above the confirm field, not beside the danger button.** The section now reads warning → the
+>   way out → the ceremony → the destruction, and nothing new lands in the strip nearest the
+>   keyboard's top edge — the geometry `subflows/factory-reset.yaml` records two silent failures
+>   against.
+>
+> Desktop's "Leapsake cannot export it yet" in `Settings.tsx` is untouched and still true.
 5. **The import-side reciprocals** (not GA-blocking, but they decide whether the file is readable
    back): `CATEGORIES` → tags, the nine new `DATE_KINDS` entries, `KIND:x-pet`, `REV`, `UID` out of
    `STRUCTURAL` so the deferred `RELATED` `urn:uuid:` second pass can land — the TODO on
@@ -388,13 +401,42 @@ the table is not. The integration tier asserts all of them against the real seed
 > Flow 4 (create an account) went RED on this run, at `assertVisible not "Protect my data"` after
 > `account-submit`. **Unrelated to export** — it is the encryption-conversion flow, and 1/2/3/5
 > all passed — but it is the state of `pnpm test:e2e` on `main` and wants its own look.
+> **Still red, at the identical assertion, on 2026-09-08** with increment 4 in the tree; 1/2/3/5
+> still green. It is also what keeps the Forget-account branch of the export offer unexercised.
 
-**Still owed: the device tier.** Maestro asserts the share sheet opened and that
-`testID="export-result"` reports non-zero record and byte counts — the tap and the share itself
-are the part still unproven. **No new rung in the catalog** —
-[`testing/crucial-flows.md`](./testing/crucial-flows.md)'s table is settled policy. And once, by
-hand: AirDrop a real export off the device, unzip it, and import `contacts.vcf` into macOS
-Contacts — the round trip the *Writing dates* probes were measured against.
+✅ **Verified for increment 4** *(2026-09-08, iPhone 16 Pro / iOS 26.5)* — the offer works from
+inside the confirmation, not just next to it. Tapped **Export my data first…** in the factory-reset
+confirmation on the store the e2e arc had filled: the share sheet came up carrying
+`leapsake-export-2026-09-08` · *ZIP Archive · 2 KB*, dismissing it left
+`Exported 2 people, 0 pets, 0 contact methods, 9 other records (2 KB).` under the button, and
+`Library/Caches` held **no archive afterwards** — the `finally` in `export-share.ts` ran. The
+ceremony was untouched by all of it: the confirm field still empty, *Erase everything* still
+unarmed. That is the whole increment, end to end, on Hermes.
+
+> By hand, not automated — a share sheet still needs a human-shaped dismissal, so the *automated*
+> tap remains owed below.
+
+✅ **Half the device tier landed with increment 4** — `subflows/factory-reset.yaml` now asserts
+**Export my data first…** is visible in each confirmation branch, right after the wait on that
+branch's confirm field. It rides the teardown every flow already runs, so the offer is checked on
+a real device on a store the real screens filled. **No new rung in the catalog** —
+[`testing/crucial-flows.md`](./testing/crucial-flows.md)'s table is settled policy, and it already
+records factory reset as covered incidentally rather than promoted.
+
+⚠️ **Only the accountless branch has actually run.** The subflow picks a branch by custody, and
+every green arc so far ends Unauthenticated, so the `forget-account-confirm` assertion is written
+but unexercised — the same gap Flow 4's red keeps open. The two branches are the same component
+with the same testID, so the risk is layout, not logic.
+
+**Still owed: the tap.** Maestro asserting the share sheet opened and that an `export-result`
+reports non-zero record and byte counts. It is deliberately *not* in the teardown subflow — a
+share sheet that fails to dismiss there stalls the arc and leaves the next flow asserting against
+the previous one's store, which is that file's oldest and worst failure mode. It wants a home
+where a stall fails loudly instead. **The dismissal is known to be drivable**, which is the part
+that looked hardest: `tapOn: {point: "50%,15%"}` above the sheet closed it and let `shareAsync`
+resolve, which is how the by-hand run above got its result line. And once, by hand: AirDrop a real
+export off the device, unzip it, and import `contacts.vcf` into macOS Contacts — the round trip
+the *Writing dates* probes were measured against.
 
 ## Open
 

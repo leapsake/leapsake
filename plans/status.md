@@ -16,10 +16,11 @@ uploaded to Play from the personal account.
 **Next, in order — and [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with
 acceptance for each step.** ① **Export** — GA-blocking (2026-09-06): single-device v0.1 has no
 other copy of a user's data, and it must **not** use iCloud (that would permanently disqualify
-the Apple app transfer). *Increments 1–3 landed 2026-09-07/08* — a user can tap Export on the Data
-screen and save a `.zip` holding their whole store, contacts and everything else. What still gates
-GA is [`export.md`](./export.md) increment **4** (the offer inside both destructive
-confirmations), plus the on-device Maestro assertion.
+the Apple app transfer). *Increments 1–4 landed 2026-09-07/08* — a user can tap Export on the Data
+screen and save a `.zip` holding their whole store, and both destructive confirmations offer it
+before they destroy it. **No code gates GA here now**; what is left in
+[`export.md`](./export.md) is the Maestro tap-and-share assertion and one AirDrop round trip by
+hand, with increments 5 and 6 past GA.
 ② **The `rc` bar** — Flows 7c then 7b, the out-of-band custody assertions, and `rc`'s catalog
 requirement as a `requires:` check in `ios.mjs`.
 ③ **Public repo** — full-history secret scan first. ④ **Submit**, then **GA**, then

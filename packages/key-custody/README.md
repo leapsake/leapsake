@@ -265,15 +265,16 @@ safely — the worst case is over-warning.
 
 | Durable server copy | What Forget account means here | How to say it |
 |---|---|---|
-| **No** (default, and today always) | the last copy is destroyed | word it as **"Delete all data on this device"**, hard-confirm, and offer an export first |
+| **No** (default, and today always) | the last copy is destroyed | word it as **"Delete all data on this device"**, and hard-confirm |
 | **Yes** (a relay that opts in) | ordinary — sign back in and re-pull | the normal Forget confirmation |
 
-> **"Offer an export first" now has something behind it — but not yet here.** The exporter
-> shipped on 2026-09-07 ([`@leapsake/export`](../export/README.md), reached as
-> `core.export.archive()`), and mobile's Data screen has an Export section. What is still missing
-> is the offer *inside* these two confirmations, which is `plans/export.md` increment 4 — and it
-> belongs in **both**, not only Forget account: the accountless wipe is by definition destroying
-> the only copy, so it needs the offer at least as much. Delete this note when that lands.
+**Offering an export first is unconditional, and deliberately not in that table.** It sits inside
+*both* destructive confirmations on mobile's Data screen — Forget account and the accountless
+factory reset, and in both branches of the first — because a user is entitled to their own file
+whether or not somebody else claims to be holding one, and `durableBackup` is a relay's claim
+rather than something this device can verify. Only the **wording** branches on it. The button is
+`ExportFirstOffer` in `apps/mobile/app/data.tsx`, over
+[`@leapsake/export`](../export/README.md) reached as `core.export.archive()`.
 
 Build this as a *check*, not a hardcoded string: when server-side backup ships, alarming copy
 must stop appearing on its own rather than being hunted down. The capability should also be

@@ -35,12 +35,12 @@ this a blocker rather than a nicety:
 - **The account sequence aims a user at deletion.** Clearing TestFlight for the transfer (Part 2)
   is exactly when a tester is most likely to delete and reinstall.
 - **A promise is already in the code.** `encryption/model.md` §7.3.1 has Forget-account offering
-  an export first, and [`@leapsake/key-custody`](../packages/key-custody/README.md) records that
-  the offer is currently unbacked.
+  an export first — a promise [`@leapsake/key-custody`](../packages/key-custody/README.md)
+  recorded as unbacked until `export.md` increment 4 backed it on 2026-09-08.
 
 **Shape:** user-initiated, client-side (the client already holds plaintext), vCard/JSContact,
-people + contact methods first. Doubles as groundwork for a future CardDAV surface. Wire the real
-Forget-account offer when it lands. **The property mapping and the increments are
+people + contact methods first. Doubles as groundwork for a future CardDAV surface. **The
+property mapping and the increments are
 [`export.md`](./export.md)**; what follows is the gate, not the design.
 
 ⚠️ **It must not use iCloud.** Not a preference — a **permanent, one-way** constraint: **no
@@ -52,6 +52,11 @@ the user chooses.** Revisit only after the transfer completes, if ever.
 **Acceptance:** a user can export people and contact methods to a file they keep, without an
 account, and Forget-account offers it. **Mobile is what blocks GA** — desktop already documents a
 manual `userData` copy and does not ship in v0.1, so desktop parity follows rather than gates.
+
+✅ **Acceptance is met** *(2026-09-08)* — increments 1–4. The archive is the whole store, not just
+people and contact methods, and both destructive confirmations offer it. **Delete this section**
+once the tap-and-share device assertion and the AirDrop round trip in
+[`export.md`](./export.md) → *Testing* are done; nothing else here is outstanding.
 
 ## 2 — Catalog Flow 7c, the password door
 
