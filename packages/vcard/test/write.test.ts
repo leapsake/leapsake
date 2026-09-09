@@ -858,18 +858,19 @@ describe("writeVCards — the card's identity, both directions", () => {
   });
 
   /**
-   * **The inversion 5c is.** `Wedding` has no `DATE_KINDS` entry and never will
-   * — the map is for *other people's* cards — so until the kind was carried
-   * outright this very card came back as a dropped `Date (Wedding)`. The label
-   * is still what a human reads in Contacts; the parameter is what makes it
-   * exact for us.
+   * **The inversion 5c is.** Until the kind was carried outright, this very card
+   * came back as a dropped `Date (Wedding)` — `DATE_KINDS` had no entry for the
+   * label, and `dateKindFor` was the only thing asked. The label is still what a
+   * human reads in Contacts; the parameter is what makes it exact for us.
+   *
+   * Deliberately asserts nothing about `DATE_KINDS`' *contents*: increment 5d
+   * widens that map, and this test is about the parameter, not about it.
    */
-  it("recovers a kind the label map has no entry for, from the parameter", () => {
+  it("recovers the kind from the parameter, whatever the label says", () => {
     const text = write([
       contact({ dates: [date({ kind: "wedding", label: "Wedding" })] }),
     ]);
     expect(text).toContain("item1.X-ABLABEL:Wedding\r\n");
-    expect(dateKindFor("Wedding")).toBeNull();
     const back = parseVCards(text)[0];
     expect(back.dropped).toEqual([]);
     expect(back.dates).toEqual([
@@ -882,6 +883,24 @@ describe("writeVCards — the card's identity, both directions", () => {
         relationshipId: null,
       },
     ]);
+  });
+
+  /**
+   * The sharper half of the same rule, and the one that cannot rot: a card whose
+   * label and parameter **disagree**. `Anniversary` is the one label
+   * `DATE_KINDS` has always resolved, so this stays a real conflict however far
+   * 5d widens that map — and the parameter has to win, or an `other`-kind
+   * milestone could never come home at all.
+   */
+  it("prefers the parameter over a label that maps to a different kind", () => {
+    const text = write([
+      contact({ dates: [date({ kind: "wedding", label: "Anniversary" })] }),
+    ]);
+    expect(dateKindFor("Anniversary")).toBe("anniversary");
+    expect(parseVCards(text)[0].dates[0]).toMatchObject({
+      kind: "wedding",
+      label: "Anniversary",
+    });
   });
 
   /**

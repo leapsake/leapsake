@@ -126,8 +126,9 @@ Four traps in that map, none of them guessable from the outside:
   `DATE_KINDS[label.trim().toLowerCase()]`, and the label the writer emits is
   `kindDefs[kind].label` from `@leapsake/schema`. So the keys are `"first date"` and
   **`"started a job"`** — not `first-date` or `job-start`.
-- **Seven entries, not nine**: `death`, `first-date`, `wedding`, `met`, `graduation`, `job-start`,
-  `moved`.
+- **Seven entries to *add*, eight in the map when you are done.** `anniversary` is already there
+  and stays: `death`, `first-date`, `wedding`, `met`, `graduation`, `job-start`, `moved`. (Nine is
+  the wrong count — that is the ten kinds less `birthday`, forgetting `other`.)
 - **`birthday` is excluded on purpose** and must stay excluded. `apple-labels.ts` says why in as
   many words: a birthday-labelled date fills the contact's birthday rather than minting a dated
   milestone, and only when the source's dedicated field had nothing — so a card that spells its
@@ -138,9 +139,38 @@ Four traps in that map, none of them guessable from the outside:
   ("a label with no kind here is surfaced as dropped rather than guessed into `other`"). **Do not
   reverse that rule as a side effect** of this increment.
 
-⚠️ **And it pays twice and costs twice.** That map is shared with the device importer, so an iOS
-contact labelled "Graduation" starts minting milestones **in the same change**. That is a
-user-visible behaviour change on a path nobody asked to change, and it wants its own tests.
+⚠️ **And it pays twice and costs twice.** That map is shared with the device importer
+(`apps/mobile/lib/device-contacts.ts` → `dateKindFor`), so an iOS contact labelled "Graduation"
+starts minting milestones **in the same change**. That is a user-visible behaviour change on a path
+nobody asked to change, and it wants its own tests.
+
+**Two tests are the ledger of that, and both are *meant* to go red.** They are the only two in the
+repo that assert a label has no kind, so the suite tells you the blast radius rather than you
+having to find it:
+
+| Test | Where |
+|---|---|
+| "names a labelled date it has no kind for in dropped" | `packages/vcard/test/vcard.test.ts:344` |
+| "names a date it has no kind for in dropped, rather than guessing" | `apps/mobile/lib/device-contacts.test.ts:191` |
+
+Both use **"Graduation"**. Rewriting them into "…and now mints a milestone" is the increment's own
+proof; a third file going red means something unintended moved. *(Verified 2026-09-08 by widening
+the map to all eight entries and running `packages/vcard` + `apps/mobile`: exactly these two fail,
+and nothing else in 306 tests does.)*
+
+**Where the new tests go.** The device half beside its neighbours in
+`device-contacts.test.ts` — "maps an anniversary from the dates list, unwrapping Apple's label"
+(:90) is the shape to copy. The vCard half beside the foreign-card cases in `vcard.test.ts` →
+*"Apple's labelled dates"*; the importable probe files are
+`packages/vcard/test/fixtures/dates-v{3,4}.vcf` with `build-dates.mjs` beside them, and
+`dates.test.ts` is what reads them. Note those fixtures exist to answer *"what does iOS do with
+this spelling?"* — re-running the device half needs a phone, and 5d does not depend on it.
+
+⚠️ **5c put a guard between this map and the row.** `ingestContacts` now checks
+`kindAllowsBearer(kind, bearerType)` before writing any date, so a kind the bearer cannot hold is
+skipped and reported rather than throwing. For 5d this is benign and needs nothing — all seven new
+kinds allow `person`, and a foreign card is never a pet (`KIND:x-pet` is our own extension) — but
+it is why an added kind cannot fail a whole contact, and it is worth not re-deriving.
 
 ⚠️ **`write.test.ts`'s `asParsedToday` is no longer the signal, and 5d must not try to use it.**
 That helper was the ledger of every remaining gap, and it shrank as each increment landed — 5a took
@@ -150,6 +180,12 @@ because vCard's parameter grammar has an escape for neither) and a milestone car
 all. Since our own cards carry their kind outright, **nothing 5d does can show up in a round-trip
 test** — widening that map has to be proved against foreign-card fixtures instead. Do not empty the
 helper further; its comment says so too.
+
+The one test there that *did* lean on this map no longer does: "recovers the kind from the
+parameter, whatever the label says" was rewritten on 2026-09-08 to assert nothing about
+`DATE_KINDS`' contents, and "prefers the parameter over a label that maps to a different kind" now
+pins the conflict permanently using `Anniversary` — the one entry that has always been in the map.
+So **`write.test.ts` should stay green through 5d**; if it does not, that is a signal, not a chore.
 
 ## 6 — After GA
 
