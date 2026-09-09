@@ -67,9 +67,18 @@ that lives in only one of the two importers is a bug waiting for whichever path 
 to take. `apple-labels.ts` is that one file: the `_$!<Work>!$_` constant unwrapping, and the
 `DATE_KINDS` map from a date's label to a milestone kind.
 
-`DATE_KINDS` is deliberately tiny. A label with no kind is surfaced as dropped — "Date
-(Graduation)" — rather than guessed into `other`, so a stray date never mints a milestone. Adding
-entries **pays twice**, since the iOS Contacts path gains the same kinds in the same change.
+`DATE_KINDS` is what a **foreign** label means: our own cards carry the kind outright in
+`X-LEAPSAKE-MILESTONE-KIND`, and that parameter wins ahead of any lookup. It covers eight of the
+ten kinds, derived from `kindDefs` so a reworded label cannot silently stop matching — keyed by the
+label, so `job-start` is reached by "started a job". A label with no kind is still surfaced as
+dropped — "Date (Beach house closing)" — rather than guessed into `other`, so a stray date never
+mints a milestone.
+
+The two exclusions are permanent and unrelated to each other: `birthday` fills the contact's
+birthday rather than minting a dated milestone, and `other`'s label *is* the user's note, which no
+map can resolve. `FROM_A_LABEL` is exhaustive over `MilestoneKind`, so an eleventh kind fails the
+build until somebody decides which side it falls on — and that decision **pays twice**, since the
+iOS Contacts path gains the same kinds in the same change.
 
 **A grouped `X-ABLABEL` names a contact method as readily as it names a date**, and it was once
 read for dates and nothing else. Apple puts standard labels in `TYPE` and a user's own words
@@ -132,9 +141,10 @@ marriage, **once**, though the writer wrote it on both partners' cards. `ingestC
 those to its second phase for the same reason it defers edges: the marriage does not exist while
 either card is being built.
 
-**What is still guessed** is a *foreign* card's date label — increment 5d, and the only thing
-`DATE_KINDS` was ever for. The spec is [`plans/export.md`](../../plans/export.md) → *5 — The
-import-side reciprocals*.
+**And a foreign card's date label is read, as of 5d.** Eight of the ten kinds are recoverable from
+the label alone, which is the only thing `DATE_KINDS` was ever for; `birthday` and `other` are not,
+for the two reasons above. What is still guessed is nothing — an unrecognised label is dropped by
+name rather than guessed at all.
 
 **Two things the ids are not.** They are matching keys, not row ids: an imported card always gets
 a fresh id, and `X-LEAPSAKE-CREATED` is parsed but not applied, because writing the file's ids and

@@ -188,7 +188,12 @@ describe("deviceContactToParsed", () => {
     expect(ios.dates).toEqual([]);
   });
 
-  it("names a date it has no kind for in dropped, rather than guessing", () => {
+  /**
+   * iOS's own date picker offers only Anniversary and Other, so every other kind
+   * arrives as a *custom* label the user typed — unwrapped free text, not one of
+   * Apple's `_$!<>!$_` constants. That is the shape this path actually sees.
+   */
+  it("mints a milestone from a custom date label", () => {
     const parsed = deviceContactToParsed(
       device({
         dates: [
@@ -200,9 +205,57 @@ describe("deviceContactToParsed", () => {
         ],
       }),
     );
+    expect(parsed.dates).toEqual([
+      {
+        kind: "graduation",
+        label: "Graduation",
+        date: { year: null, month: 5, day: 30 },
+        id: null,
+        note: null,
+        relationshipId: null,
+      },
+    ]);
+    expect(parsed.dropped).toEqual([]);
+  });
+
+  /** The label, not the slug — `job-start` answers to "Started a job". Shared
+   *  with the vCard importer through `apple-labels.ts`, tested on both sides
+   *  because the two paths reach it with differently-cased text. */
+  it("reads a multi-word label that is nothing like its slug", () => {
+    const parsed = deviceContactToParsed(
+      device({
+        dates: [
+          {
+            id: "1",
+            label: "Started a job",
+            date: { year: 2019, month: 5, day: 30 },
+          },
+        ],
+      }),
+    );
+    expect(parsed.dates).toMatchObject([
+      { kind: "job-start", label: "Started a job" },
+    ]);
+  });
+
+  it("names a date it has no kind for in dropped, rather than guessing", () => {
+    const parsed = deviceContactToParsed(
+      device({
+        dates: [
+          {
+            id: "1",
+            // An `other`-shaped label: the user's own note, which no map can
+            // ever resolve — so this stays dropped however wide `DATE_KINDS`
+            // grows.
+            label: "Beach house closing",
+            date: { month: 5, day: 30 } as never,
+          },
+        ],
+      }),
+    );
     expect(parsed.dates).toEqual([]);
     expect(parsed.dropped).toContainEqual({
-      property: "Date (Graduation)",
+      property: "Date (Beach house closing)",
       value: "05-30",
     });
   });

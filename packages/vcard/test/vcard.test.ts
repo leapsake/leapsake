@@ -341,7 +341,7 @@ describe("parseVCards — Apple's labelled dates", () => {
     expect(c.dates).toHaveLength(1);
   });
 
-  it("names a labelled date it has no kind for in dropped", () => {
+  it("mints a milestone from a label the map knows", () => {
     const [c] = parseVCards(
       card(
         "FN:Jane Doe",
@@ -349,9 +349,75 @@ describe("parseVCards — Apple's labelled dates", () => {
         "item3.X-ABLabel:Graduation",
       ),
     );
+    expect(c.dates).toEqual([
+      {
+        kind: "graduation",
+        label: "Graduation",
+        date: { year: 2019, month: 5, day: 30 },
+        // A stranger's card carries none of the `X-LEAPSAKE-MILESTONE-*`
+        // parameters, so everything the label cannot say stays empty.
+        note: null,
+        id: null,
+        relationshipId: null,
+      },
+    ]);
+    expect(c.dropped).toEqual([]);
+  });
+
+  /**
+   * The map is keyed by `kindDefs[kind].label` lower-cased, and for two kinds
+   * that is nothing like the slug: `first-date` answers to "first date" and
+   * `job-start` to "started a job". Deriving the keys is what keeps this true,
+   * and this is the test that says so.
+   */
+  it("reads the two labels that are not their own slug", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.X-ABDATE:2019-05-30",
+        "item1.X-ABLabel:Started a job",
+        "item2.X-ABDATE:2011-02-14",
+        "item2.X-ABLabel:First Date",
+      ),
+    );
+    expect(c.dates.map((d) => d.kind)).toEqual(["job-start", "first-date"]);
+    expect(c.dropped).toEqual([]);
+  });
+
+  /** The map runs label⇒kind and only that way: a card is written by humans and
+   *  by Contacts, neither of which has ever seen our slugs. */
+  it("does not read a kind slug as a label", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item1.X-ABDATE:2019-05-30",
+        "item1.X-ABLabel:job-start",
+      ),
+    );
     expect(c.dates).toEqual([]);
     expect(c.dropped).toContainEqual({
-      property: "Date (Graduation)",
+      property: "Date (job-start)",
+      value: "2019-05-30",
+    });
+  });
+
+  /**
+   * The rule 5d must not reverse: a label with no kind is surfaced as dropped
+   * rather than guessed into `other`. The example has to be an `other`-shaped
+   * label — the user's own note — because that is the one kind no map can ever
+   * hold, so this stays true however wide `DATE_KINDS` grows.
+   */
+  it("names a labelled date it has no kind for in dropped, rather than guessing", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "item3.X-ABDATE:2019-05-30",
+        "item3.X-ABLabel:Beach house closing",
+      ),
+    );
+    expect(c.dates).toEqual([]);
+    expect(c.dropped).toContainEqual({
+      property: "Date (Beach house closing)",
       value: "2019-05-30",
     });
   });

@@ -641,9 +641,10 @@ function buildContact(
       //    along with its note, its id and the relationship that bears it.
       //  - **Anybody else's** — the same three outcomes as the device importer,
       //    routed through the same {@link dateKindFor} map: a birthday-labelled
-      //    entry fills the birthday only if `BDAY` didn't, a label with a kind
-      //    becomes that milestone, and anything else is dropped *by name* —
-      //    "Date (Graduation)" — rather than guessed into `other`.
+      //    entry fills the birthday only if `BDAY` didn't, a label naming one of
+      //    the eight recoverable kinds becomes that milestone, and anything else
+      //    is dropped *by name* — "Date (Beach house closing)" — rather than
+      //    guessed into `other`.
       case "X-ABDATE": {
         const parsed = parseDateValue(p);
         const exact = milestoneKindParam(p);
@@ -1002,7 +1003,7 @@ function noteFor(
  * The milestone kind a date carries **outright**, or `null` for a card that
  * carries none — which is every card but ours.
  *
- * This is the reason `DATE_KINDS` can stay tiny. Apple's convention leaves the
+ * This is the reason `DATE_KINDS` never has to be exact. Apple's convention leaves the
  * sibling `X-ABLABEL` as the only thing saying what a date *is*, and a label is
  * a guess: kind `other` wears the user's own note ("Beach house closing") as its
  * label, which no map could ever resolve back. Carrying the kind in a parameter

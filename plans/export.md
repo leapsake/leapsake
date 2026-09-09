@@ -1,11 +1,11 @@
 # Export — what is left
 
 > **Only the unbuilt half.** The exporter shipped in four increments over 2026-09-07/08 and a user
-> can save their whole store as a `.zip`; **GA does not block on any code here.** What remains is
-> the last of the *import* side (5a, 5b and 5c landed 2026-09-08; only 5d has not), desktop, and
-> three verifications. The format, the decisions behind it and the evidence for them live next to
-> the code that has to obey them — see below.
-> **Delete this file when 5 and 6 land.**
+> can save their whole store as a `.zip`; **GA does not block on any code here.** Increment 5 — the
+> whole import side — landed 2026-09-08 (5a–5d). What remains is **6** and three verifications. The
+> format, the decisions behind it and the evidence for them live next to the code that has to obey
+> them — see below.
+> **Delete this file when 6 lands.**
 
 ## Where the built half is documented
 
@@ -25,13 +25,12 @@ headers. Look in these places instead, in roughly this order:
 [`shipping.md`](./shipping.md) holds it, permanently, and it binds increment 6 as much as it bound
 1–4.
 
-## 5 — The import-side reciprocals
+## 5 — The import-side reciprocals ✅ *(all four landed 2026-09-08)*
 
-**Not GA-blocking, but it decides whether the file is readable back.** `writeVCards` builds the
-whole person graph; the parser has caught up with all of it but one map. Survivable throughout only
-because the mobile import path reads device Contacts and cannot open a `.vcf` at all — **desktop's
-drag-drop can** (`apps/desktop/src/renderer/src/App.tsx`), so an unread field is a real trap for a
-desktop user pointed at their own backup.
+**It decided whether the file is readable back**, and it now is: `writeVCards` builds the whole
+person graph and the parser has caught up with every part of it. What made it worth finishing was
+desktop's drag-drop (`apps/desktop/src/renderer/src/App.tsx`), which *can* open a `.vcf` — so an
+unread field was a real trap for a desktop user pointed at their own backup.
 
 **The four files.** The reader is `packages/vcard/src/vcard.ts` (`STRUCTURAL`, `relatedFrom`,
 `buildContact`); the label maps are `src/apple-labels.ts`; the write side that already emits all
@@ -41,8 +40,8 @@ wires it at `packages/core/src/index.ts` → `import.preview` / `import.commit`.
 ⚠️ **The ids in the file are matching keys, not row ids.** An imported card always gets a fresh
 id, and `X-LEAPSAKE-CREATED` is parsed but never applied — no `create` input accepts a `createdAt`,
 so honouring it means the row-level `insert`, which *is* the restore door. Writing the file's own
-ids and timestamps back is increment 6, and must not arrive as a side effect of 5d. 5c holds the
-line for milestones too: `X-LEAPSAKE-MILESTONE-ID` is a dedupe key and `-REL` is looked up through
+ids and timestamps back is increment 6, and none of 5a–5d let it in by the back door. 5c holds the
+line for milestones: `X-LEAPSAKE-MILESTONE-ID` is a dedupe key and `-REL` is looked up through
 a map, so neither is ever written as a row id.
 
 ### 5a — card identity ✅ *(shipped 2026-09-08)*
@@ -114,78 +113,40 @@ couple gives them one wedding rather than two.
   back, so the round trip is exact. But "Other" is how a *note-less* `other` is written, and
   reading that back as free text would invent a note the user never typed.
 
-### 5d — `DATE_KINDS` is the part most likely to be built wrong
+### 5d — `DATE_KINDS`, a foreign card's date label ✅ *(shipped 2026-09-08)*
 
-`DATE_KINDS` is what a date's *label* means, and it matters only for cards we did not write: now
-that 5c reads `-MILESTONE-KIND`, our own file needs no label guessing at all. That makes this the
-smallest of the four increments and the least urgent — and the easiest to get wrong.
+The last of the four, and the one that mattered only for cards **we did not write**: since 5c reads
+`-MILESTONE-KIND`, our own file needs no label guessing at all. Eight of the ten kinds are now
+recoverable from a label alone. `birthday` and `other` are excluded permanently, for two unrelated
+reasons the map's own comment states — a birthday-labelled date fills the contact's birthday rather
+than minting a second one, and `other`'s label *is* the user's note, which no map could resolve.
 
-Four traps in that map, none of them guessable from the outside:
+**It paid twice, as predicted.** The map is shared with the device importer
+(`apps/mobile/lib/device-contacts.ts`), so an iOS contact labelled "Graduation" or "Started a job"
+started minting milestones in the same change — deliberately, since a rule living in only one of
+the two importers is the bug `apple-labels.ts` exists to prevent. Both halves have their own tests.
 
-- **It is keyed by the lower-cased human label, not the kind slug.** `dateKindFor` does
-  `DATE_KINDS[label.trim().toLowerCase()]`, and the label the writer emits is
-  `kindDefs[kind].label` from `@leapsake/schema`. So the keys are `"first date"` and
-  **`"started a job"`** — not `first-date` or `job-start`.
-- **Seven entries to *add*, eight in the map when you are done.** `anniversary` is already there
-  and stays: `death`, `first-date`, `wedding`, `met`, `graduation`, `job-start`, `moved`. (Nine is
-  the wrong count — that is the ten kinds less `birthday`, forgetting `other`.)
-- **`birthday` is excluded on purpose** and must stay excluded. `apple-labels.ts` says why in as
-  many words: a birthday-labelled date fills the contact's birthday rather than minting a dated
-  milestone, and only when the source's dedicated field had nothing — so a card that spells its
-  birthday twice can never mint a second one. Adding it re-breaks that.
-- **`other` can never be an entry.** Its label is the *user's note* ("Beach house closing"), so no
-  map resolves it. Recovering `other` is what the `-MILESTONE-KIND` parameter is for; for a
-  stranger's card it stays dropped, which is the deliberate rule stated above `DATE_KINDS`
-  ("a label with no kind here is surfaced as dropped rather than guessed into `other`"). **Do not
-  reverse that rule as a side effect** of this increment.
+**The two-test ledger held exactly.** Widening the map before touching any test failed precisely
+the two that assert a label has no kind, and nothing else in 306; the broader run afterwards was
+green across 2021 tests in `packages`, `apps/desktop` and `apps/server`.
 
-⚠️ **And it pays twice and costs twice.** That map is shared with the device importer
-(`apps/mobile/lib/device-contacts.ts` → `dateKindFor`), so an iOS contact labelled "Graduation"
-starts minting milestones **in the same change**. That is a user-visible behaviour change on a path
-nobody asked to change, and it wants its own tests.
+> ⚠️ **Two judgment calls that are not what this file originally described.**
+>
+> - **The map is derived from `kindDefs`, not transcribed.** The plan here specified eight
+>   hand-written string keys, and warned that they are the lower-cased *label* — `"started a job"`,
+>   not `job-start`. Deriving them from `kindDefs[kind].label` makes that structural instead of a
+>   comment, and closes a real hole: the writer emits that same label, so a reworded label would
+>   otherwise have silently stopped matching with no test to catch it. The exclusions live in
+>   `FROM_A_LABEL`, a `Record<MilestoneKind, boolean>` that is **exhaustive by type** — an eleventh
+>   milestone kind now fails the build until somebody decides whether a stranger's card may mint it,
+>   rather than widening the importer as a side effect of adding a kind to `@leapsake/schema`.
+> - **"Beach house closing" replaced "Graduation" as the dropped-label example**, in four doc
+>   comments and both READMEs. Graduation *became* a kind, so every comment using it to illustrate
+>   a dropped label became false in the same change. An `other`-shaped label is the only example
+>   that stays correct however wide the map grows, and the writer already used that exact phrase.
 
-**Two tests are the ledger of that, and both are *meant* to go red.** They are the only two in the
-repo that assert a label has no kind, so the suite tells you the blast radius rather than you
-having to find it:
-
-| Test | Where |
-|---|---|
-| "names a labelled date it has no kind for in dropped" | `packages/vcard/test/vcard.test.ts:344` |
-| "names a date it has no kind for in dropped, rather than guessing" | `apps/mobile/lib/device-contacts.test.ts:191` |
-
-Both use **"Graduation"**. Rewriting them into "…and now mints a milestone" is the increment's own
-proof; a third file going red means something unintended moved. *(Verified 2026-09-08 by widening
-the map to all eight entries and running `packages/vcard` + `apps/mobile`: exactly these two fail,
-and nothing else in 306 tests does.)*
-
-**Where the new tests go.** The device half beside its neighbours in
-`device-contacts.test.ts` — "maps an anniversary from the dates list, unwrapping Apple's label"
-(:90) is the shape to copy. The vCard half beside the foreign-card cases in `vcard.test.ts` →
-*"Apple's labelled dates"*; the importable probe files are
-`packages/vcard/test/fixtures/dates-v{3,4}.vcf` with `build-dates.mjs` beside them, and
-`dates.test.ts` is what reads them. Note those fixtures exist to answer *"what does iOS do with
-this spelling?"* — re-running the device half needs a phone, and 5d does not depend on it.
-
-⚠️ **5c put a guard between this map and the row.** `ingestContacts` now checks
-`kindAllowsBearer(kind, bearerType)` before writing any date, so a kind the bearer cannot hold is
-skipped and reported rather than throwing. For 5d this is benign and needs nothing — all seven new
-kinds allow `person`, and a foreign card is never a pet (`KIND:x-pet` is our own extension) — but
-it is why an added kind cannot fail a whole contact, and it is worth not re-deriving.
-
-⚠️ **`write.test.ts`'s `asParsedToday` is no longer the signal, and 5d must not try to use it.**
-That helper was the ledger of every remaining gap, and it shrank as each increment landed — 5a took
-the identity fields, 5b the whole `related` branch, 5c every mention of `DATE_KINDS`. **It has now
-reached its end state**: the `writeParam` normalisation (`"` stripped, newlines folded to a space,
-because vCard's parameter grammar has an escape for neither) and a milestone carrying no date at
-all. Since our own cards carry their kind outright, **nothing 5d does can show up in a round-trip
-test** — widening that map has to be proved against foreign-card fixtures instead. Do not empty the
-helper further; its comment says so too.
-
-The one test there that *did* lean on this map no longer does: "recovers the kind from the
-parameter, whatever the label says" was rewritten on 2026-09-08 to assert nothing about
-`DATE_KINDS`' contents, and "prefers the parameter over a label that maps to a different kind" now
-pins the conflict permanently using `Anniversary` — the one entry that has always been in the map.
-So **`write.test.ts` should stay green through 5d**; if it does not, that is a signal, not a chore.
+The rule the increment was warned not to reverse is intact: a label with no kind is still surfaced
+as dropped and *named*, never guessed into `other`.
 
 ## 6 — After GA
 
@@ -232,8 +193,8 @@ nobody asked for: 5c's degraded-edge milestone (a wedding landing on one partner
 was unticked) exists **only** because that is currently possible. The argument against is that the
 same screen is the one honest place to see what a file contains before it lands.
 
-It is a change to `ImportReview.tsx`, not to the parser, and it does not block 5d or 6.
+It is a change to `ImportReview.tsx`, not to the parser, and it does not block 6.
 
 Every *design* question is closed — the last of them, year-less dates, by measuring a real iPhone
-rather than by argument, and that evidence now lives with the fixtures. What is left is building
-5d, 6, and the three verifications above.
+rather than by argument, and that evidence now lives with the fixtures. What is left is building 6
+and the three verifications above.

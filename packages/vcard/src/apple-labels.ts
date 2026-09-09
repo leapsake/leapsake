@@ -1,4 +1,4 @@
-import type { MilestoneKind } from "@leapsake/schema";
+import { type MilestoneKind, kindDefs } from "@leapsake/schema";
 
 /**
  * The two things both importers have to know about Apple's way of labelling a
@@ -59,23 +59,59 @@ export function appleLabelText(raw: string): string {
 }
 
 /**
- * Date labels Leapsake has a milestone kind for, keyed by the label lower-cased.
- * Deliberately tiny: a label with no kind here is surfaced as dropped rather than
- * guessed into `other`, so a card's "Graduation" or "Beach house closing" stays
- * visible in the review without every stray date minting a milestone.
+ * Whether a kind can be recovered from a date's **label alone**, which is all a
+ * card we did not write ever carries. Our own cards say it outright in
+ * `X-LEAPSAKE-MILESTONE-KIND`, and that parameter wins ahead of everything here —
+ * so this table governs somebody else's iPhone, and nothing else.
  *
- * `birthday` is absent on purpose — a birthday-labelled date never becomes a
- * dated milestone; it fills the contact's birthday, and only when the source's
- * dedicated birthday field (iOS's `CNContactBirthdayKey`, a vCard's `BDAY`) had
- * nothing, so a card that spells its birthday twice can never mint a second one.
+ * Exhaustive by type on purpose. Adding an eleventh milestone kind breaks the
+ * build *here*, which is the point: whether a stranger's card may mint it is a
+ * decision, not a consequence of adding a kind to `@leapsake/schema`.
+ *
+ * The two `false`s are permanent, for two unrelated reasons:
+ *
+ *  - **`birthday`** — a birthday-labelled date never becomes a dated milestone.
+ *    It fills the contact's birthday, and only when the source's dedicated field
+ *    (iOS's `CNContactBirthdayKey`, a vCard's `BDAY`) had nothing, so a card that
+ *    spells its birthday twice can never mint a second one. Both importers check
+ *    that word inline, *above* the lookup below, which is what makes it work.
+ *  - **`other`** — its label *is* the user's note ("Beach house closing"), so no
+ *    map could resolve it. On a foreign card an unrecognised label stays dropped
+ *    and named, rather than being guessed into `other`: a stray date never mints
+ *    a milestone, and the review shows the user exactly what it did not import.
  */
-const DATE_KINDS: Record<string, MilestoneKind> = {
-  anniversary: "anniversary",
+const FROM_A_LABEL: Record<MilestoneKind, boolean> = {
+  birthday: false,
+  other: false,
+  anniversary: true,
+  death: true,
+  "first-date": true,
+  graduation: true,
+  "job-start": true,
+  met: true,
+  moved: true,
+  wedding: true,
 };
+
+/**
+ * Those kinds keyed by the label lower-cased — **the label, not the slug**, since
+ * the label is the only form that appears on a card. `first-date` is reached by
+ * "first date" and `job-start` by "started a job".
+ *
+ * Derived from {@link kindDefs} rather than transcribed, because the writer emits
+ * that same `kindDefs[kind].label` (`write.ts`, and `@leapsake/export`'s
+ * `contact.ts`). Spelling the keys by hand would let a reworded label silently
+ * stop matching, with nothing on either side to notice.
+ */
+const DATE_KINDS = new Map<string, MilestoneKind>(
+  (Object.keys(FROM_A_LABEL) as MilestoneKind[])
+    .filter((kind) => FROM_A_LABEL[kind])
+    .map((kind) => [kindDefs[kind].label.toLowerCase(), kind]),
+);
 
 /** The milestone kind a dated occasion's label names, or `null` for one Leapsake
  *  has no kind for. Case-insensitive; the label is the only thing on either side
  *  of the import that says what a date *is*. */
 export function dateKindFor(label: string): MilestoneKind | null {
-  return DATE_KINDS[label.trim().toLowerCase()] ?? null;
+  return DATE_KINDS.get(label.trim().toLowerCase()) ?? null;
 }

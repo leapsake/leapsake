@@ -181,10 +181,10 @@ its RFC 6350 base, and a `RELATED` naming another card by `urn:uuid:` becomes on
 two published entities — one, not two, even though the writer puts it on both cards.
 
 **And the milestones do, as of 5c.** `X-LEAPSAKE-MILESTONE-KIND` brings all ten kinds home rather
-than the one a label map can name, `-NOTE` its free text, and `-REL` puts a wedding back on the
+than the one a label map could name, `-NOTE` its free text, and `-REL` puts a wedding back on the
 marriage — once, though the writer put it on both partners' cards, which is what the shared `-ID`
-is for. What is still guessed is a *foreign* card's date label, which is increment 5d and the only
-thing `DATE_KINDS` was ever about.
+is for. A *foreign* card's date label is read too, as of 5d: eight of the ten kinds are recoverable
+from a label alone, which is the only thing `DATE_KINDS` was ever about.
 
 And note what the ids are **for**: matching, not identity. An imported card always gets a fresh
 row id, and `X-LEAPSAKE-CREATED` is parsed but not applied — writing the file's own ids and

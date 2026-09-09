@@ -220,9 +220,12 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
   //  1. "birthday" — the Android birthday (that platform has no dedicated field).
   //     It fills the birthday only if the dedicated field was empty, so on iOS a
   //     duplicate entry can never mint a second birthday milestone.
-  //  2. a label with a kind — an anniversary today.
+  //  2. a label naming one of the eight kinds recoverable from a label alone —
+  //     "Anniversary", "Graduation", "Started a job" — which becomes that
+  //     milestone. iOS offers only Anniversary and Other in its own picker, so
+  //     the rest arrive as free text the user typed.
   //  3. anything else — dropped, and *named*, so the review says "Not imported:
-  //     Date (Graduation)" rather than losing it in silence.
+  //     Date (Beach house closing)" rather than losing it in silence.
   const dates: ParsedDate[] = [];
   let birthdayFromDates: ParsedPartialDate | null = null;
   for (const entry of contact.dates ?? []) {
