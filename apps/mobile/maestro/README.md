@@ -643,11 +643,25 @@ A field with `textContentType="newPassword"` holds the value you typed but rende
 in a screenshot. Judge by a side effect instead — the password-strength hint below the field,
 or the submit button enabling — never by looking for dots. Its sibling trap:
 
-### Turn off AutoFill Passwords in the simulator
+### AutoFill Passwords: turn it off, but never depend on it being off
 
 With **Settings → AutoFill & Passwords** on, iOS's "Automatic Strong Password" cover view
 swallows keystrokes into `textContentType="newPassword"` fields entirely. Turn it off once per
-simulator (done on this machine's iPhone 16 Pro).
+simulator — but treat that as a convenience, not a precondition.
+
+**It comes back.** It was off on this machine's iPhone 16 Pro until the iOS 26.5 (23F77)
+runtime was installed on 2026-09-08, which reset it; Flow 4 went red that day on a form whose
+code had not changed since the flow was last green on 2026-08-28, and the red named the
+password length rather than the cover view. So `e2e/04-create-account.yaml` now types the
+password, taps away, and types it again into an erased field — iOS does not offer the card
+twice, the second attempt lands in full, and the flow no longer cares how the toggle is set.
+
+**Nothing in the harness can see the card**, which is why the fix is unconditional rather
+than guarded: it is drawn by a system process and absent from the hierarchy Maestro reads, so
+`runFlow: when: visible:` has nothing to key on. Neither chunked `inputText` nor
+`pasteText` avoids it, and neither does changing the field's `textContentType` or
+`autoComplete` — iOS offers the card for a signup-shaped form regardless (all measured
+2026-09-08).
 
 ### Selector and keyboard miscellany
 

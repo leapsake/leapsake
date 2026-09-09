@@ -32,8 +32,40 @@ appId: com.leapsake.app
 - tapOn:
     id: "account-username"
 - inputText: "ada"
+# --- the password, typed twice on purpose -------------------------------------------------
+# **iOS eats the first attempt, and nothing in the app can see it happen.** On the first
+# entry into a `newPassword` field, iOS raises its own "Use Strong Password?" AutoFill card
+# over the form. It is drawn by a system process, not by the app, so it is absent from the
+# hierarchy Maestro reads: `assertVisible`/`runFlow: when:` cannot see it, and there is no
+# selector to dismiss it by. What it does see is the keyboard, and the characters after the
+# first few land in the card instead of the field — leaving the password short, the form
+# refusing itself with "Password must be at least 12 characters", and this flow reporting a
+# red that has nothing to do with encryption.
+#
+# **It is the machine-local toggle coming back that puts it there.** `../README.md` says to
+# turn Settings -> AutoFill & Passwords off once per simulator, and that had been done here.
+# Installing the iOS 26.5 (23F77) runtime on 2026-09-08 put it back, and this flow — whose
+# form code had not changed since it was last green on 2026-08-28 — went red the same day.
+# A release gate cannot rest on a setting a runtime update can undo, so the flow now
+# survives either state and the toggle is a convenience rather than a precondition.
+#
+# **Tapping any other field dismisses the card, and iOS does not offer it twice**, so the
+# fix is to type the password, tap away, and type it again into an erased field. The second
+# attempt lands in full. Neither splitting `inputText` into chunks nor pasting from the
+# clipboard avoids the first one — both were measured, and both lose the same characters.
+#
+# The extra taps cost about a second and are inert wherever the card does not appear (older
+# iOS, Android), which is why this is written unconditionally rather than guarded: a
+# condition would have to key on something Maestro can see, and that is exactly what iOS
+# does not give it here.
 - tapOn:
     id: "account-password"
+- inputText: "correct-horse-battery-staple"
+- tapOn:
+    id: "account-username"
+- tapOn:
+    id: "account-password"
+- eraseText
 - inputText: "correct-horse-battery-staple"
 - tapOn:
     id: "account-confirm-password"
