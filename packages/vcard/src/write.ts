@@ -31,8 +31,9 @@ import type {
  * *parameter* is invisible to any parser, while an unknown *property* lands in
  * our own reader's `dropped` list, which would fill a user's re-import review
  * with noise about their own file. `X-LEAPSAKE-SELF` and `X-LEAPSAKE-CREATED`
- * are the two facts with nothing to ride; the parser's `DEFERRED` set is what
- * keeps them quiet until increment 5 reads them.
+ * are the two facts with nothing to ride, so they are properties — which is
+ * exactly why the parser had to be taught to read them before it could stop
+ * ignoring them by name.
  */
 
 /**

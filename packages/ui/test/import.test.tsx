@@ -117,6 +117,44 @@ describe("ImportReview", () => {
     ).toBeTruthy();
   });
 
+  it("states outright that a row is one we already hold", async () => {
+    // Its `UID` names a stored entity, so this is a certainty rather than the
+    // resemblance `matches` reports — and it is what stops a user re-importing
+    // their own export from quietly getting a second copy of everyone.
+    renderReview({
+      preview: [
+        {
+          index: 0,
+          matches: [],
+          alreadyStored: { type: "person", id: "p1", name: "Ada Lovelace" },
+        },
+      ],
+    });
+    await flush();
+
+    expect(
+      screen.getByText(/Already in Leapsake as Ada Lovelace/),
+    ).toBeTruthy();
+  });
+
+  it("does not also guess at a resemblance for a row it knows outright", async () => {
+    renderReview({
+      preview: [
+        {
+          index: 0,
+          matches: [{ tier: "high", name: "Ada L.", reasons: ["same name"] }],
+          alreadyStored: { type: "person", id: "p1", name: "Ada Lovelace" },
+        },
+      ],
+    });
+    await flush();
+
+    expect(
+      screen.getByText(/Already in Leapsake as Ada Lovelace/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Very likely already in Leapsake/)).toBeNull();
+  });
+
   it("says a row can't be imported without both names", async () => {
     renderReview({
       contacts: [
@@ -156,6 +194,59 @@ describe("ImportReview", () => {
     await act(async () => importButton().click());
 
     expect(screen.getByText("Ada Lovelace — bad email")).toBeTruthy();
+  });
+
+  it("offers no self checkbox for a card that does not claim to be you", async () => {
+    renderReview();
+    await flush();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  /**
+   * The safety property this whole design exists for: a card claiming to be the
+   * user arrives **unticked**, so dropping somebody else's export in can never
+   * take over the `self_person` pointer without an explicit act.
+   */
+  it("starts a self-claiming card opted out, and commits it that way", async () => {
+    const { onCommit } = renderReview({
+      contacts: [contact({ isSelf: true })],
+    });
+    await flush();
+
+    const box = screen.getByRole("checkbox") as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    await act(async () => importButton().click());
+
+    expect(onCommit.mock.calls[0]?.[0]?.[0]?.contact.isSelf).toBe(false);
+  });
+
+  it("commits the claim once the user ticks it", async () => {
+    const { onCommit } = renderReview({
+      contacts: [contact({ isSelf: true })],
+    });
+    await flush();
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    await act(async () => importButton().click());
+
+    expect(onCommit.mock.calls[0]?.[0]?.[0]?.contact.isSelf).toBe(true);
+  });
+
+  it("lets only one card be you", async () => {
+    // The self is a singleton, so agreeing to a second card withdraws the first
+    // rather than sending two claims to an importer where the last would win.
+    const { onCommit } = renderReview({
+      contacts: [contact({ isSelf: true }), contact({ isSelf: true })],
+    });
+    await flush();
+
+    const boxes = screen.getAllByRole("checkbox");
+    fireEvent.click(boxes[0]);
+    fireEvent.click(boxes[1]);
+    await act(async () => importButton().click());
+
+    const decisions = onCommit.mock.calls[0]?.[0];
+    expect(decisions?.map((d) => d.contact.isSelf)).toEqual([false, true]);
   });
 
   it("offers the self prompt only when the app says to", async () => {

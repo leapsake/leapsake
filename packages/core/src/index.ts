@@ -498,6 +498,25 @@ export type {
 } from "./views.js";
 
 /**
+ * The entity an incoming card **is**, when its `UID` names one already stored.
+ *
+ * Distinct from a `DuplicateMatch`, which says an incoming card *resembles*
+ * somebody. This one is an identity, established by id rather than scored: our
+ * own exporter writes each entity's `people.id`/`pets.id` as the card's `UID`,
+ * so a card carrying one we hold is that entity coming home. It covers pets,
+ * which the duplicate detector does not, and carries `type` for that reason.
+ *
+ * Import still creates a **new** entity for such a card — the review's job is to
+ * let the user skip it. Writing the file's ids back is a restore
+ * (`plans/export.md` → 6), not this.
+ */
+export interface AlreadyStored {
+  type: "person" | "pet";
+  id: string;
+  name: string;
+}
+
+/**
  * The client-agnostic application surface. Every operation is a composition over
  * the repositories in `@leapsake/data` — transactional writes, cascade deletes,
  * relationship orientation, label resolution, and the cross-repo read services.
@@ -611,6 +630,28 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
   ): Promise<string | undefined> {
     const entity = await resolveEntity(type, id);
     return entity ? entityLabel(type, entity) : undefined;
+  }
+
+  /**
+   * The entity an incoming card's `UID` names, or `null` when it names none —
+   * how `import.preview` tells "this is a new person" from "this is a person you
+   * already have". See {@link AlreadyStored}.
+   *
+   * The card's `kind` decides which table to ask, rather than both being tried:
+   * ids are UUIDs, so a collision across the two is not the risk — asking the
+   * wrong one is. A pet card whose id happens to name a person is a malformed
+   * file, and answering "already stored: Jane Doe" for it would be worse than
+   * answering nothing.
+   */
+  async function storedAs(
+    contact: ParsedContact,
+  ): Promise<AlreadyStored | null> {
+    if (contact.uid === null) return null;
+    const type = contact.kind === "pet" ? "pet" : "person";
+    const entity = await resolveEntity(type, contact.uid);
+    return entity === undefined
+      ? null
+      : { type, id: contact.uid, name: entityLabel(type, entity) };
   }
 
   // The row behind an endpoint, for the callers that want more of it than its
@@ -2557,6 +2598,28 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
             // the raw strings would fail `min(1)` on exactly the mononym and
             // organisation-only cards this import is meant to accept.
             people.create({ ...nameInputFrom(name), gender }),
+          // `petSchema` is a single `name`, so one slot of the card's name has
+          // to be it — the first, which is the mononym shape `toPetContact`
+          // writes on the way out. The surname fallback is for the one card our
+          // own writer never produces but a hand-made one might (`N:Rex;;;;`,
+          // which `deriveName` reads as a surname-only person): without it that
+          // pet is refused mid-batch by `petSchema`'s `min(1)`, which is a
+          // confusing way to lose a row. The engine has already refused a card
+          // with no name at all, so the final `?? ""` is unreachable.
+          createPet: (name, gender) => {
+            const parts = nameInputFrom(name);
+            return pets.create({
+              name: parts.firstName ?? parts.lastName ?? "",
+              gender,
+            });
+          },
+          // The same call `people.create`/`pets.create` make for a manually
+          // created entity — but over the raw repo, with no `driver.transaction`
+          // of its own, because the engine has already opened one and the
+          // driver's BEGIN/COMMIT does not nest.
+          addTags: async (entityType, entityId, names) => {
+            await tags.setEntityTags(entityType, entityId, names);
+          },
           addEmail: async (personId, email) => {
             await contactMethods.emails.create({
               ownerType: "person",
@@ -2597,6 +2660,11 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
               platform: social.platform,
               handle: social.handle,
               url: social.url,
+              // Only ever set for a card we wrote, which is the whole reason the
+              // writer emits it: the platform keys DMs on an id it does not
+              // publish beside the handle, so it is unrecoverable from the rest
+              // of the row and would otherwise be the one thing a backup lost.
+              platformUserId: social.platformUserId,
             });
           },
           addBirthday: async (personId, birthday) => {
@@ -2643,17 +2711,47 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
               bRoleNote: relation.roleNote,
             });
           },
+          // The raw repo, not `core.self.set` — that one runs its own
+          // `regenerateSystem`, which the batch already does once at the end,
+          // and it would fire inside the engine's transaction.
+          setSelf: async (personId) => {
+            await self.setSelf(personId);
+          },
           transaction: (body) => driver.transaction(body),
         };
         const result = await ingestContacts(ports, decisions);
         if (result.created > 0) await regenerateSystem();
         return result;
       },
-      // Read-only: for each parsed contact, the active people it looks like, so the
-      // review UI can flag likely duplicates. Never writes.
+      /**
+       * Read-only: for each parsed contact, what the review needs to warn about
+       * before anything is written — the active people it *resembles*, and
+       * whether it **is** somebody already stored. Never writes.
+       *
+       * The two are deliberately separate answers. `matches` is
+       * `matchContact`'s resemblance score over names and contact methods;
+       * `alreadyStored` is an id lookup, and an id is not a resemblance. Folding
+       * the second into the first would mean saying "very likely already in
+       * Leapsake" about a certainty, and would have nowhere to put a **pet** —
+       * `DuplicateMatch.personId` cannot honestly hold a pet's id, and the
+       * duplicate detector's pool is published people alone.
+       *
+       * This is what stops a user re-importing their own export from getting a
+       * second copy of everyone: our own cards carry the `people.id`/`pets.id`
+       * they came from as their `UID`, so the match is exact rather than
+       * guessed. A `get` excludes soft-deleted rows on purpose — somebody the
+       * user deleted and then re-imported should come back as new, not as a
+       * clash with a tombstone.
+       */
       preview: (
         contacts: ParsedContact[],
-      ): Promise<{ index: number; matches: DuplicateMatch[] }[]> =>
+      ): Promise<
+        {
+          index: number;
+          matches: DuplicateMatch[];
+          alreadyStored: AlreadyStored | null;
+        }[]
+      > =>
         Promise.all(
           contacts.map(async (contact, index) => ({
             index,
@@ -2666,6 +2764,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
                 handle: s.handle,
               })),
             }),
+            alreadyStored: await storedAs(contact),
           })),
         ),
     },

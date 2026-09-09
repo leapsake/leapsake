@@ -27,6 +27,7 @@ export { ReminderText } from "./primitives/ReminderText.js";
 export { DropImportProvider } from "./import/DropImportProvider.js";
 export {
   ImportReview,
+  type ImportAlreadyStored,
   type ImportDecision,
   type ImportDuplicateMatch,
   type ImportOutcome,

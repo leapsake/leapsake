@@ -16,10 +16,25 @@ export interface ImportDuplicateMatch {
   reasons: string[];
 }
 
+/**
+ * An entity the incoming card **is**, rather than one it resembles — its `UID`
+ * names something already stored. Structural for the same reason as
+ * {@link ImportDuplicateMatch}: core's `AlreadyStored` stays assignable without
+ * this package reaching for the data layer.
+ */
+export interface ImportAlreadyStored {
+  type: "person" | "pet";
+  id: string;
+  name: string;
+}
+
 /** One incoming contact's likely duplicates, by its position in the file. */
 export interface ImportPreviewEntry {
   index: number;
   matches: ImportDuplicateMatch[];
+  /** Set when this card's `UID` names an entity already stored — a certainty,
+   *  unlike `matches`, which are resemblances. `null` for a foreign card. */
+  alreadyStored?: ImportAlreadyStored | null;
 }
 
 /** What the user decided about one incoming contact. */
@@ -43,6 +58,17 @@ export interface ImportOutcome {
 interface Row {
   contact: ParsedContact;
   action: "create" | "skip";
+  /**
+   * Whether the user has agreed that this card is *them* — deliberately not the
+   * same thing as `contact.isSelf`, which is only what the **card claims**.
+   *
+   * Starting at `false` for every card, whatever it says, is what makes the
+   * claim safe to honour at all: opting in is an explicit act, so dropping
+   * somebody else's export in can never silently take over the `self_person`
+   * pointer. It also means this component needs no idea whether a self is
+   * already set — the answer is the same either way.
+   */
+  setSelf: boolean;
 }
 
 /**
@@ -78,10 +104,13 @@ export function ImportReview({
   const m = useMessages();
 
   const [rows, setRows] = useState<Row[]>(() =>
-    contacts.map((contact) => ({ contact, action: "create" })),
+    contacts.map((contact) => ({ contact, action: "create", setSelf: false })),
   );
   const [matchesByIndex, setMatchesByIndex] = useState<
     Map<number, ImportDuplicateMatch[]>
+  >(new Map());
+  const [storedByIndex, setStoredByIndex] = useState<
+    Map<number, ImportAlreadyStored>
   >(new Map());
   const [phase, setPhase] = useState<"review" | "committing" | "done">(
     "review",
@@ -94,6 +123,13 @@ export function ImportReview({
     void onPreview(contacts).then((preview) => {
       if (!live) return;
       setMatchesByIndex(new Map(preview.map((p) => [p.index, p.matches])));
+      setStoredByIndex(
+        new Map(
+          preview.flatMap((p) =>
+            p.alreadyStored ? [[p.index, p.alreadyStored] as const] : [],
+          ),
+        ),
+      );
     });
     return () => {
       live = false;
@@ -135,10 +171,23 @@ export function ImportReview({
     );
   }
 
+  /** The user answering the card's "this is you" claim. Only one card can be the
+   *  self, so agreeing to one withdraws it from every other. */
+  function toggleSelf(index: number) {
+    setRows((prev) =>
+      prev.map((row, i) => ({ ...row, setSelf: i === index && !row.setSelf })),
+    );
+  }
+
   async function confirm() {
     setPhase("committing");
     const committed = await onCommit(
-      rows.map((row) => ({ action: row.action, contact: row.contact })),
+      // The card's claim is replaced by the user's answer on the way out, so
+      // what the importer acts on is only ever what was agreed to here.
+      rows.map((row) => ({
+        action: row.action,
+        contact: { ...row.contact, isSelf: row.setSelf },
+      })),
     );
     setOutcome(committed);
     setPhase("done");
@@ -197,8 +246,10 @@ export function ImportReview({
               key={index}
               row={row}
               matches={matchesByIndex.get(index) ?? []}
+              alreadyStored={storedByIndex.get(index) ?? null}
               onName={(field, value) => setName(index, field, value)}
               onToggleSkip={() => toggleSkip(index)}
+              onToggleSelf={() => toggleSelf(index)}
               m={m}
             />
           ))}
@@ -223,21 +274,28 @@ export function ImportReview({
 function ContactRow({
   row,
   matches,
+  alreadyStored,
   onName,
   onToggleSkip,
+  onToggleSelf,
   m,
 }: {
   row: Row;
   matches: ImportDuplicateMatch[];
+  alreadyStored: ImportAlreadyStored | null;
   onName: (field: "firstName" | "lastName", value: string) => void;
   onToggleSkip: () => void;
+  onToggleSelf: () => void;
   m: Messages;
 }) {
   const { contact, action } = row;
   const skipped = action === "skip";
   const needsName =
     contact.name.firstName.trim() === "" || contact.name.lastName.trim() === "";
-  const topMatch = matches[0];
+  // Suppressed when the card is known to be one we already hold: "already in
+  // Leapsake" is the same news, said with certainty, and saying both would read
+  // as two separate problems with one row.
+  const topMatch = alreadyStored ? undefined : matches[0];
 
   return (
     <li className={styles.row} data-skipped={skipped}>
@@ -265,6 +323,28 @@ function ContactRow({
 
       {needsName && !skipped && (
         <p className={styles.needsName}>{m.import.needsName}</p>
+      )}
+
+      {alreadyStored && !skipped && (
+        <p className={styles.dupWarning}>
+          {m.import.alreadyStored(alreadyStored.name)}
+        </p>
+      )}
+
+      {/*
+        Shown only when the card claims it, so a foreign file never offers this
+        at all — and unticked whatever the card says, because agreeing is the
+        user's act rather than the file's.
+      */}
+      {contact.isSelf && !skipped && (
+        <label className={styles.selfClaim}>
+          <input
+            type="checkbox"
+            checked={row.setSelf}
+            onChange={onToggleSelf}
+          />
+          {m.import.selfClaim}
+        </label>
       )}
 
       {topMatch && !skipped && (

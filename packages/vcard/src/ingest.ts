@@ -31,6 +31,33 @@ export interface ImportPorts {
     name: ParsedName,
     gender: Gender | null,
   ): Promise<{ id: string }>;
+  /**
+   * Create the pet a `KIND:x-pet` card is about, and return its new id.
+   *
+   * A port of its own rather than a flag on {@link ImportPorts.createPerson},
+   * because the two write different tables — and because the *export* side has
+   * long had the matching split (`toPetContact` beside `toExportContact`), so a
+   * flag here would be the odd one out.
+   *
+   * A pet has only a name and a gender: `petSchema` carries nothing else, and a
+   * contact method's owner is a person or a household, so there is no fan-out
+   * for the engine to forget. The name is the mononym shape both sides already
+   * accept — the card's first-name slot, with the surname left empty.
+   */
+  createPet(name: ParsedName, gender: Gender | null): Promise<{ id: string }>;
+  /**
+   * Apply the card's `CATEGORIES` as the entity's tags.
+   *
+   * Takes the entity type because a pet is tagged exactly as a person is, and
+   * takes **names** rather than ids because that is all a card carries and all
+   * the underlying `setEntityTags` wants — it resolves or creates each tag
+   * itself.
+   */
+  addTags(
+    entityType: "person" | "pet",
+    entityId: string,
+    names: string[],
+  ): Promise<void>;
   addEmail(personId: string, email: ParsedEmail): Promise<void>;
   addPhone(personId: string, phone: ParsedPhone): Promise<void>;
   addPostal(personId: string, postal: ParsedPostal): Promise<void>;
@@ -42,6 +69,16 @@ export interface ImportPorts {
   /** Record somebody the card named as related, as an unpublished person hanging
    *  off this one. */
   addRelated(personId: string, related: ParsedRelated): Promise<void>;
+  /**
+   * Point the `self_person` singleton at this person — the user saying "this
+   * card is me".
+   *
+   * Driven by {@link ParsedContact.isSelf} on the contact that comes *back* from
+   * the review, which is the user's decision rather than the card's claim: the
+   * review starts every such card opted **out**, so importing somebody else's
+   * export can never silently reassign who "me" is. See `plans/export.md` → 5a.
+   */
+  setSelf(personId: string): Promise<void>;
   /** Run one contact's writes atomically (the real driver's `transaction`). */
   transaction<T>(body: () => Promise<T>): Promise<T>;
 }
@@ -81,6 +118,11 @@ export interface ImportResult {
  * makes the user fill it in first, so these arrive already valid. Per-contact
  * failures are collected into {@link ImportResult.errors}; the run never throws
  * for a single bad row.
+ *
+ * **Each contact is still resolved on its own**, which is what keeps the loop a
+ * loop. The facts that need the *batch* — a `RELATED` pointing at another card
+ * in the same file, and the two halves of one relationship-borne milestone —
+ * need a second pass over a UID→id map, and that is `plans/export.md` → 5b.
  */
 export async function ingestContacts(
   ports: ImportPorts,
@@ -113,16 +155,39 @@ export async function ingestContacts(
 
     try {
       await ports.transaction(async () => {
-        const { id } = await ports.createPerson(contact.name, contact.gender);
-        for (const email of contact.emails) await ports.addEmail(id, email);
-        for (const phone of contact.phones) await ports.addPhone(id, phone);
-        for (const postal of contact.postals) await ports.addPostal(id, postal);
-        for (const social of contact.socials) await ports.addSocial(id, social);
+        // A pet and a person diverge here and nowhere else. `petSchema` is only
+        // a name and a gender, and a pet has no contact methods by construction
+        // — but it bears milestones and relationships exactly as a person does,
+        // which is why only the contact-method fan-out is skipped rather than
+        // the whole tail.
+        const pet = contact.kind === "pet";
+        const { id } = pet
+          ? await ports.createPet(contact.name, contact.gender)
+          : await ports.createPerson(contact.name, contact.gender);
+
+        if (contact.tags.length > 0) {
+          await ports.addTags(pet ? "pet" : "person", id, contact.tags);
+        }
+        if (!pet) {
+          for (const email of contact.emails) await ports.addEmail(id, email);
+          for (const phone of contact.phones) await ports.addPhone(id, phone);
+          for (const postal of contact.postals) {
+            await ports.addPostal(id, postal);
+          }
+          for (const social of contact.socials) {
+            await ports.addSocial(id, social);
+          }
+        }
         if (contact.birthday) await ports.addBirthday(id, contact.birthday);
         for (const date of contact.dates) await ports.addDate(id, date);
         for (const relation of contact.related) {
           await ports.addRelated(id, relation);
         }
+        // Last, and inside the same transaction, so a card that fails halfway
+        // never leaves the self pointer aimed at a person who was rolled back.
+        // Two cards both claiming it is a decision the review makes, not one to
+        // arbitrate here: the singleton means the last one wins.
+        if (contact.isSelf && !pet) await ports.setSelf(id);
       });
       created++;
     } catch (err) {

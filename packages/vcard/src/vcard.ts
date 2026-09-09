@@ -59,6 +59,16 @@ const HANDLED = new Set([
   "X-ABDATE",
   "X-ABLABEL",
   "X-ABADR",
+  // The card's own identity, and the tags it carries. `UID`, `KIND` and `REV`
+  // sat in `STRUCTURAL` until they were read; they are listed here now because
+  // they map to real fields, and leaving them in a set named "neither mapped nor
+  // user-visible" is how the next reader concludes they are still ignored.
+  "UID",
+  "KIND",
+  "REV",
+  "CATEGORIES",
+  "X-LEAPSAKE-SELF",
+  "X-LEAPSAKE-CREATED",
 ]);
 
 /**
@@ -135,29 +145,9 @@ const STRUCTURAL = new Set([
   "END",
   "VERSION",
   "PRODID",
-  "REV",
-  "UID",
   "SOURCE",
-  "KIND",
   "PROFILE",
 ]);
-
-/**
- * Properties **our own writer emits that our own parser cannot read yet** —
- * ignored silently rather than surfaced as dropped.
- *
- * Deliberately not folded into {@link STRUCTURAL}, which is for metadata that is
- * not user data at all. These *are* user data: they say who the user is and when
- * they first recorded somebody. Keeping the two sets apart is what makes the
- * gap visible, and this set is meant to **empty out** when `plans/export.md`
- * increment 5 lands and the parser learns to read them.
- *
- * Everything else the writer emits rides an existing property as a parameter
- * (`X-LEAPSAKE-ROLE` and `-REL-ID` on `RELATED`, `-MILESTONE-*` on `X-ABDATE`),
- * and parameters are invisible to this switch — which is exactly why they are
- * parameters. These two have no property to ride.
- */
-const DEFERRED = new Set(["X-LEAPSAKE-SELF", "X-LEAPSAKE-CREATED"]);
 
 /** A parsed physical property line: `[group.]NAME;PARAM=v;PARAM=v:VALUE`. */
 interface Property {
@@ -341,15 +331,23 @@ function unescapeValue(s: string): string {
   return out;
 }
 
-/** Split a structured value (N, ADR) into components on **unescaped** `;`. */
-function splitStructured(value: string): string[] {
+/**
+ * Split a structured value into components on an **unescaped** delimiter — `;`
+ * for the structured properties (N, ADR), `,` for the list ones (CATEGORIES).
+ *
+ * The delimiter is a parameter rather than there being a second copy of this
+ * loop, because the thing that is easy to get wrong is the same in both cases:
+ * a delimiter *inside* a component is escaped, and a splitter that does not know
+ * that turns one tag holding a comma into two tags.
+ */
+function splitStructured(value: string, delimiter = ";"): string[] {
   const out: string[] = [];
   let buf = "";
   for (let i = 0; i < value.length; i++) {
     const c = value[i];
     if (c === "\\" && i + 1 < value.length) {
       buf += c + value[++i]; // keep the escape pair; unescape happens per-field
-    } else if (c === ";") {
+    } else if (c === delimiter) {
       out.push(buf);
       buf = "";
     } else {
@@ -381,9 +379,15 @@ function buildContact(props: Property[]): ParsedContact {
   const related: ParsedRelated[] = [];
   const dates: ParsedDate[] = [];
   const dropped: DroppedField[] = [];
+  let tags: string[] = [];
   let nParts: string[] | null = null;
   let fn: string | null = null;
   let gender: Gender | null = null;
+  let uid: string | null = null;
+  let kind: "individual" | "pet" = "individual";
+  let isSelf = false;
+  let createdAt: number | null = null;
+  let updatedAt: number | null = null;
   let birthday: ParsedBirthday | null = null;
   // A birthday spelled as a labelled date rather than as `BDAY`. Held apart and
   // resolved after the loop so the dedicated property wins wherever it appears in
@@ -418,6 +422,43 @@ function buildContact(props: Property[]): ParsedContact {
       case "FN":
         fn = nullIfEmpty(unescapeValue(p.value).trim());
         break;
+      // The entity's stable id. Our own writer spells it `urn:uuid:<people.id>`
+      // (RFC 6350 §6.7.6 prefers a URN), so the scheme comes off — but a `UID`
+      // in any other form is still this card's id to whoever wrote it, and is
+      // kept verbatim rather than refused. What it is *used* for is matching,
+      // never as the id of the row we create: see `plans/export.md` → 6.
+      case "UID": {
+        const value = unescapeValue(p.value).trim();
+        uid = nullIfEmpty(value.replace(/^urn:uuid:/i, "").trim());
+        break;
+      }
+      // RFC 6350 §6.1.4, which allows an x-name — so a pet is `KIND:x-pet`.
+      // Anything else (`individual`, `org`, `group`, or a kind we have never
+      // heard of) is read as an individual: Leapsake has two shapes, and a card
+      // that says `group` is far closer to a person than to a pet.
+      case "KIND":
+        kind =
+          unescapeValue(p.value).trim().toLowerCase() === "x-pet"
+            ? "pet"
+            : "individual";
+        break;
+      // A list value, not a structured one: each tag is escaped on its own and
+      // joined on a *raw* comma, which is what makes a tag containing a comma
+      // survive as one tag rather than becoming two.
+      case "CATEGORIES":
+        tags = splitStructured(p.value, ",")
+          .map((t) => unescapeValue(t).trim())
+          .filter((t) => t !== "");
+        break;
+      case "X-LEAPSAKE-SELF":
+        isSelf = unescapeValue(p.value).trim().toUpperCase() === "TRUE";
+        break;
+      case "X-LEAPSAKE-CREATED":
+        createdAt = parseTimestamp(unescapeValue(p.value));
+        break;
+      case "REV":
+        updatedAt = parseTimestamp(unescapeValue(p.value));
+        break;
       case "EMAIL": {
         const address = unescapeValue(p.value).trim();
         if (address !== "") {
@@ -432,8 +473,12 @@ function buildContact(props: Property[]): ParsedContact {
           phones.push({
             label: phoneLabel(types, groupLabel),
             number,
-            extension: null,
-            country: null, // vCard TEL carries no reliable ISO country
+            // Both ride as parameters on the `TEL` they qualify, because a
+            // standard `TEL` has nowhere to put either: RFC 6350 folds an
+            // extension into the number and carries no ISO country at all.
+            // Absent from a foreign card, which is what `null` then means.
+            extension: paramValue(p, "X-LEAPSAKE-EXT"),
+            country: paramValue(p, "X-LEAPSAKE-COUNTRY"),
             smsCapable: !types.includes("FAX"),
           });
         }
@@ -543,32 +588,28 @@ function buildContact(props: Property[]): ParsedContact {
         break;
       }
       default:
-        if (
-          !STRUCTURAL.has(p.name) &&
-          !HANDLED.has(p.name) &&
-          !DEFERRED.has(p.name)
-        ) {
+        if (!STRUCTURAL.has(p.name) && !HANDLED.has(p.name)) {
           dropField(dropped, p.name, p.value);
         }
     }
   }
 
   return {
-    // `UID` and `CATEGORIES` are both still ignored on the way in — the first is
-    // in `STRUCTURAL`, the second falls to `dropped` — so every parsed card
-    // reports the absent value. The *writer* fills both, which is why they are
-    // on `ParsedContact` at all; reading them back is `plans/export.md`
-    // increment 5, and until it lands re-importing our own file duplicates
-    // everyone rather than recognising them.
-    uid: null,
-    // The same story for the four below: written by us, ignored on the way in.
-    // `KIND` and `REV` are in `STRUCTURAL`, `X-LEAPSAKE-SELF` and `-CREATED` in
-    // `DEFERRED` — so a pet card of ours re-imports as an ordinary person, which
-    // `plans/export.md` accepts until increment 5.
-    kind: "individual",
-    isSelf: false,
-    createdAt: null,
-    updatedAt: null,
+    // The card's own identity, read rather than ignored since `plans/export.md`
+    // increment 5a. `uid` is what lets the review recognise a card as somebody
+    // already stored instead of importing a second copy of them, and it is the
+    // hinge the graph and milestone reciprocals hang off — a `RELATED` pointing
+    // at `urn:uuid:…` can only resolve because the card it points at reports
+    // one. **It is a matching key, never the id of the row an import creates**;
+    // writing the file's ids back verbatim is a restore, which is increment 6.
+    uid,
+    kind,
+    isSelf,
+    // Read for the round trip's sake and for increment 6, but **inert today**:
+    // no `create` input accepts a `createdAt`, so an imported entity is stamped
+    // with the moment it was imported. Honouring this is the restore door.
+    createdAt,
+    updatedAt,
     name: deriveName(nParts, fn),
     displayName: fn,
     gender,
@@ -579,7 +620,7 @@ function buildContact(props: Property[]): ParsedContact {
     birthday: birthday ?? labelledBirthday,
     dates,
     related,
-    tags: [],
+    tags,
     dropped,
   };
 }
@@ -752,6 +793,24 @@ function parsePartialDate(raw: string): ParsedPartialDate | null {
   return { year, month, day };
 }
 
+/**
+ * A vCard timestamp as epoch ms — the inverse of the writer's `formatTimestamp`,
+ * which emits `2026-09-07T01:35:00Z`.
+ *
+ * Deliberately delegated to `Date.parse` rather than hand-rolled, unlike
+ * {@link parsePartialDate} above: a *civil* date has no timezone and must not be
+ * shifted by one, which is why that one is parsed by hand — but `REV` and
+ * `X-LEAPSAKE-CREATED` are instants, where the offset is the point. Anything
+ * unparseable (or a card that writes `REV` in some other dialect) yields `null`
+ * rather than throwing, so one bad line never costs the whole card.
+ */
+function parseTimestamp(raw: string): number | null {
+  const text = raw.trim();
+  if (text === "") return null;
+  const ms = Date.parse(text);
+  return Number.isNaN(ms) ? null : ms;
+}
+
 function parseGender(raw: string): Gender | null {
   // GENDER is `sex[;identity]`; we read the single-letter sex component.
   const sex = raw.split(";")[0].trim().toUpperCase();
@@ -773,6 +832,21 @@ function toInt(s: string): number | null {
 /** All `TYPE=` values on a property, upper-cased (bare 2.1 types included). */
 function typesOf(p: Property): string[] {
   return (p.params.get("TYPE") ?? []).map((t) => t.toUpperCase());
+}
+
+/**
+ * A single-valued parameter's text, or `null` when the property does not carry
+ * it — how every `X-LEAPSAKE-*` fact is read back.
+ *
+ * The writer puts these facts in *parameters* rather than properties precisely
+ * because an unknown parameter is invisible to any parser, while an unknown
+ * property would land in this reader's own `dropped` list and fill a user's
+ * re-import review with noise about their own file. Reading one is therefore
+ * always a lookup here, never a `case` in the property switch.
+ */
+function paramValue(p: Property, key: string): string | null {
+  const value = p.params.get(key)?.[0];
+  return value === undefined ? null : nullIfEmpty(value.trim());
 }
 
 /** Parameter noise that is never a user-facing label. */
@@ -877,10 +951,11 @@ function socialFrom(p: Property, groupLabel = ""): ParsedSocial | null {
     platform,
     handle: bareHandle(rest.replace(/^\/\//, "")),
     url: isWebUrl ? value : null,
-    // No source card spells a platform's opaque account id in a form worth
-    // guessing at, so it arrives absent and is filled only by hand. The writer
-    // still emits ours — see {@link ParsedSocial.platformUserId}.
-    platformUserId: null,
+    // No *foreign* card spells a platform's opaque account id in a form worth
+    // guessing at, so it stays absent for one. Our own writer emits it as a
+    // parameter, because it is stored, unrecoverable from the handle, and would
+    // otherwise be missing from the one file the user is told is their backup.
+    platformUserId: paramValue(p, "X-LEAPSAKE-USERID"),
   };
 }
 

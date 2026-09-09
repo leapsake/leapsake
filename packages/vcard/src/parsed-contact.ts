@@ -137,11 +137,13 @@ export interface ParsedSocial {
   url: string | null;
   /**
    * The platform's own opaque account id, where the platform keys DMs on one it
-   * does not publish beside the handle (X, Discord). `null` from the parser
-   * today — no source card carries it in a form we recognise — but the writer
-   * emits it as `X-SOCIALPROFILE;X-LEAPSAKE-USERID=`, because it is stored,
-   * unrecoverable from the handle, and would otherwise be missing from the one
-   * file the user is told is their backup.
+   * does not publish beside the handle (X, Discord).
+   *
+   * `null` for a foreign card — no source spells it in a form worth guessing at
+   * — and read from `X-SOCIALPROFILE;X-LEAPSAKE-USERID=` on one of ours. It gets
+   * a parameter of its own precisely because it is stored, unrecoverable from
+   * the handle, and would otherwise be the one thing missing from the file the
+   * user is told is their backup.
    */
   platformUserId: string | null;
 }
@@ -223,33 +225,43 @@ export interface DroppedField {
 export interface ParsedContact {
   /**
    * The entity's stable id — a vCard `UID`, which for a card **we** wrote is the
-   * Leapsake `people.id` it came from.
+   * `people.id`/`pets.id` it came from. `null` for a card that carries none.
    *
-   * `null` for every card the parser produces today: `UID` is in `STRUCTURAL`
-   * and ignored on the way in (`plans/export.md` increment 5 is what changes
-   * that, and is also what lets a `RELATED;VALUE=uri` resolve to a real person
-   * instead of an unpublished stub). The field exists now because the *writer*
-   * needs somewhere to read it from, and a second contact type carried alongside
-   * this one would be the thing that lets the two halves drift.
+   * **A matching key, never the id of a row an import creates.** It is what lets
+   * the review say "you already have this person" instead of quietly making a
+   * second copy of them, and what lets a `RELATED;VALUE=uri` resolve to a real
+   * person rather than an unpublished stub. Writing these ids back verbatim
+   * would be a *restore*, which is `plans/export.md` → 6.
    */
   uid: string | null;
   /**
    * What kind of thing the card is about — a vCard `KIND` (RFC 6350 §6.1.4,
-   * which allows x-names, so a pet is `KIND:x-pet`).
-   *
-   * `"individual"` for every card the parser produces today: `KIND` is in
-   * `STRUCTURAL` and ignored on the way in, so a pet card of our own re-imports
-   * as an ordinary person. Reading it is `plans/export.md` increment 5.
+   * which allows x-names, so a pet is `KIND:x-pet`). Any other kind, ours or a
+   * stranger's, reads as `"individual"`: Leapsake has two shapes, and a card
+   * saying `group` is far closer to a person than to a pet.
    */
   kind: "individual" | "pet";
   /**
-   * Whether this card is the user themselves — the `self_person` row, written as
-   * `X-LEAPSAKE-SELF:TRUE`. `false` from the parser today.
+   * Whether this card **claims** to be the user themselves — the `self_person`
+   * pointer, written as `X-LEAPSAKE-SELF:TRUE`.
+   *
+   * A claim on the way in and a *decision* on the way back out: the import
+   * review starts every such card opted out and replaces this with the user's
+   * answer before the importer sees it, so somebody else's export can never
+   * silently take the pointer over.
    */
   isSelf: boolean;
-  /** `X-LEAPSAKE-CREATED` — epoch ms. `null` from the parser today. */
+  /**
+   * `X-LEAPSAKE-CREATED` — epoch ms, or `null` for a card without one.
+   *
+   * **Read but not applied**: no `create` input accepts a `createdAt`, so an
+   * imported entity is stamped with the moment it was imported. Honouring this
+   * needs the row-level `insert`, which is the restore door (`plans/export.md`
+   * → 6); it is parsed now so the round trip is honest and so 6 has it waiting.
+   */
   createdAt: number | null;
-  /** `REV` — epoch ms. `null` from the parser: `REV` is in `STRUCTURAL`. */
+  /** `REV` — epoch ms. Like {@link ParsedContact.createdAt}, read but not
+   *  applied: a fresh row gets a fresh `updated_at`. */
   updatedAt: number | null;
   name: ParsedName;
   /** The source display name (vCard `FN`), kept for the review UI even when the
@@ -265,9 +277,11 @@ export interface ParsedContact {
   dates: ParsedDate[];
   related: ParsedRelated[];
   /**
-   * The entity's tags — a vCard `CATEGORIES` list. `[]` from the parser today
-   * for the same reason {@link ParsedContact.uid} is `null`: reading the
-   * property back into taggings is increment 5.
+   * The entity's tags — a vCard `CATEGORIES` list.
+   *
+   * Note what the store will do with these: a tag name is `[\p{L}\p{N}]+` and
+   * nothing else, so a foreign card's "Close friends" lands as two tags. Our own
+   * names went through that same filter on the way in and so survive intact.
    */
   tags: string[];
   dropped: DroppedField[];

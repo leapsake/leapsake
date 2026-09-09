@@ -513,6 +513,137 @@ describe("parseVCards — gender & dropped", () => {
   });
 });
 
+/**
+ * The card's own identity, read from a *foreign* card rather than through the
+ * round trip. `write.test.ts` proves our own file survives the journey; these
+ * prove the reader is tolerant of what anybody else writes, which is the half a
+ * round-trip test can never reach.
+ */
+describe("parseVCards — card identity", () => {
+  it("strips the urn:uuid: prefix from a UID", () => {
+    const id = "9f1c4b3e-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+    expect(parseVCards(card("FN:Jane Doe", `UID:urn:uuid:${id}`))[0].uid).toBe(
+      id,
+    );
+  });
+
+  it("keeps a UID that is not a urn, rather than refusing it", () => {
+    // Google and Outlook both write a bare opaque string. It is still the id
+    // that card's author gave it, and dropping it would lose the only handle we
+    // have on "this is the same person as last time".
+    const [c] = parseVCards(card("FN:Jane Doe", "UID:abc123-not-a-urn"));
+    expect(c.uid).toBe("abc123-not-a-urn");
+  });
+
+  it("reads KIND:x-pet whatever its casing, and anything else as a person", () => {
+    expect(parseVCards(card("FN:Rex", "KIND:X-Pet"))[0].kind).toBe("pet");
+    expect(parseVCards(card("FN:A B", "KIND:individual"))[0].kind).toBe(
+      "individual",
+    );
+    // `group` and `org` are cards we have no shape for; both are far closer to
+    // a person than to a pet, so neither becomes one.
+    expect(parseVCards(card("FN:Acme", "KIND:org"))[0].kind).toBe("individual");
+  });
+
+  it("reads CATEGORIES as tags, keeping an escaped comma inside one", () => {
+    const [c] = parseVCards(
+      card("FN:Jane Doe", "CATEGORIES:Family,Smith\\, family,  Work  "),
+    );
+    expect(c.tags).toEqual(["Family", "Smith, family", "Work"]);
+  });
+
+  it("drops an empty entry in a CATEGORIES list rather than minting a blank tag", () => {
+    expect(
+      parseVCards(card("FN:Jane Doe", "CATEGORIES:Family,,Work"))[0].tags,
+    ).toEqual(["Family", "Work"]);
+  });
+
+  it("reads REV and X-LEAPSAKE-CREATED as instants", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "REV:2026-09-07T12:00:00Z",
+        "X-LEAPSAKE-CREATED:2024-03-09T01:35:00Z",
+      ),
+    );
+    expect(c.updatedAt).toBe(Date.UTC(2026, 8, 7, 12, 0, 0));
+    expect(c.createdAt).toBe(Date.UTC(2024, 2, 9, 1, 35, 0));
+  });
+
+  it("leaves an unparseable timestamp null instead of throwing", () => {
+    // vCard 2.1 wrote `REV` in dialects `Date.parse` cannot read. One bad line
+    // must never cost the whole card.
+    const [c] = parseVCards(card("FN:Jane Doe", "REV:not-a-date"));
+    expect(c.updatedAt).toBeNull();
+    expect(c.displayName).toBe("Jane Doe");
+  });
+
+  it("reads X-LEAPSAKE-SELF only when it says TRUE", () => {
+    expect(
+      parseVCards(card("FN:Jane Doe", "X-LEAPSAKE-SELF:true"))[0].isSelf,
+    ).toBe(true);
+    expect(
+      parseVCards(card("FN:Jane Doe", "X-LEAPSAKE-SELF:FALSE"))[0].isSelf,
+    ).toBe(false);
+    expect(parseVCards(card("FN:Jane Doe"))[0].isSelf).toBe(false);
+  });
+
+  /**
+   * `UID`, `KIND` and `REV` used to sit in the parser's `STRUCTURAL` set, which
+   * is what kept them out of `dropped` while they were unread. Now that they are
+   * read they need a `case` of their own, and forgetting one would not lose the
+   * value quietly — it would show a user their own `KIND` in the review's "not
+   * imported" list. That is the regression this pins.
+   */
+  it("surfaces none of the identity properties as dropped", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Rex",
+        "UID:urn:uuid:9f1c4b3e-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+        "KIND:x-pet",
+        "REV:2026-09-07T12:00:00Z",
+        "CATEGORIES:Family",
+        "X-LEAPSAKE-SELF:TRUE",
+        "X-LEAPSAKE-CREATED:2024-03-09T01:35:00Z",
+      ),
+    );
+    expect(c.dropped).toEqual([]);
+  });
+});
+
+describe("parseVCards — the X-LEAPSAKE parameters", () => {
+  it("reads a phone's extension and ISO country", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "TEL;TYPE=WORK;X-LEAPSAKE-EXT=4021;X-LEAPSAKE-COUNTRY=GB:+44 20 7946 0018",
+      ),
+    );
+    expect(c.phones[0].extension).toBe("4021");
+    expect(c.phones[0].country).toBe("GB");
+  });
+
+  it("leaves a foreign card's phone without either", () => {
+    // A standard `TEL` has nowhere to put an extension or a country, so absent
+    // is the honest answer rather than a guess parsed out of the number.
+    const [c] = parseVCards(
+      card("FN:Jane Doe", "TEL;TYPE=WORK:+44 20 7946 0018"),
+    );
+    expect(c.phones[0].extension).toBeNull();
+    expect(c.phones[0].country).toBeNull();
+  });
+
+  it("reads a social profile's opaque platform user id", () => {
+    const [c] = parseVCards(
+      card(
+        "FN:Jane Doe",
+        "X-SOCIALPROFILE;X-SERVICE-TYPE=x;X-LEAPSAKE-USERID=1442901:https://x.com/janedoe",
+      ),
+    );
+    expect(c.socials[0].platformUserId).toBe("1442901");
+  });
+});
+
 describe("parseVCards — format handling", () => {
   it("parses multiple cards in one file", () => {
     const text = `${card("FN:Jane Doe")}\r\n${card("FN:John Roe")}`;

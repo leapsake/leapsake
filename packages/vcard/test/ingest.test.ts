@@ -33,10 +33,13 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
  */
 function makePorts(failOn?: string) {
   const people: { id: string; first: string }[] = [];
+  const pets: { id: string; name: string }[] = [];
   const emails: { personId: string; address: string }[] = [];
   const birthdays: { personId: string }[] = [];
   const dates: { personId: string; kind: string }[] = [];
   const relateds: { personId: string; name: string; role: string }[] = [];
+  const tagged: { type: string; id: string; names: string[] }[] = [];
+  const selfs: string[] = [];
   let n = 0;
 
   const ports: ImportPorts = {
@@ -45,6 +48,15 @@ function makePorts(failOn?: string) {
       const id = `person-${++n}`;
       people.push({ id, first: name.firstName });
       return { id };
+    },
+    createPet: async (name) => {
+      if (name.firstName === failOn) throw new Error("boom");
+      const id = `pet-${++n}`;
+      pets.push({ id, name: name.firstName });
+      return { id };
+    },
+    addTags: async (entityType, entityId, names) => {
+      tagged.push({ type: entityType, id: entityId, names });
     },
     addEmail: async (personId, email) => {
       emails.push({ personId, address: email.address });
@@ -61,12 +73,25 @@ function makePorts(failOn?: string) {
     addRelated: async (personId, relation) => {
       relateds.push({ personId, name: relation.name, role: relation.role });
     },
+    setSelf: async (personId) => {
+      selfs.push(personId);
+    },
     // The fake runs the body directly; a thrown error propagates as a real
     // transaction would abort, so nothing partial is recorded for that contact.
     transaction: async (body) => body(),
   };
 
-  return { ports, people, emails, birthdays, dates, relateds };
+  return {
+    ports,
+    people,
+    pets,
+    emails,
+    birthdays,
+    dates,
+    relateds,
+    tagged,
+    selfs,
+  };
 }
 
 describe("ingestContacts", () => {
@@ -204,5 +229,140 @@ describe("ingestContacts", () => {
     expect(result.errors[0].index).toBe(1);
     expect(result.errors[0].message).toBe("boom");
     expect(people.map((p) => p.first)).toEqual(["Jane", "Jane"]);
+  });
+});
+
+describe("ingestContacts — pets, tags and the self claim", () => {
+  it("sends a pet card to createPet and never to createPerson", async () => {
+    const { ports, people, pets } = makePorts();
+    const result = await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          kind: "pet",
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+          displayName: "Rex",
+        }),
+      },
+    ]);
+    expect(result.created).toBe(1);
+    expect(pets).toEqual([{ id: "pet-1", name: "Rex" }]);
+    expect(people).toEqual([]);
+  });
+
+  /**
+   * A pet has no contact methods by construction — a contact method's owner is a
+   * person or a household — so a `KIND:x-pet` card carrying them is malformed.
+   * The fan-out is skipped rather than written against a pet id, which is the
+   * failure that would otherwise reach the database.
+   */
+  it("skips the contact-method fan-out for a pet", async () => {
+    const { ports, emails } = makePorts();
+    await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          kind: "pet",
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+          emails: [{ label: "Home", address: "rex@example.com" }],
+        }),
+      },
+    ]);
+    expect(emails).toEqual([]);
+  });
+
+  it("still gives a pet its milestones and relationships", async () => {
+    const { ports, birthdays, relateds } = makePorts();
+    await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          kind: "pet",
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+          birthday: { year: 2019, month: 4, day: 12 },
+          related: [
+            {
+              name: "Jane Doe",
+              role: "owner",
+              roleNote: null,
+              otherUid: null,
+              relationshipId: null,
+            },
+          ],
+        }),
+      },
+    ]);
+    expect(birthdays).toEqual([{ personId: "pet-1" }]);
+    expect(relateds).toHaveLength(1);
+  });
+
+  it("applies tags once, under the entity's own type", async () => {
+    const { ports, tagged } = makePorts();
+    await ingestContacts(ports, [
+      { action: "create", contact: contact({ tags: ["Family", "Work"] }) },
+      {
+        action: "create",
+        contact: contact({
+          kind: "pet",
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+          tags: ["Pets"],
+        }),
+      },
+    ]);
+    expect(tagged).toEqual([
+      { type: "person", id: "person-1", names: ["Family", "Work"] },
+      { type: "pet", id: "pet-2", names: ["Pets"] },
+    ]);
+  });
+
+  it("does not call addTags for a card with no tags", async () => {
+    const { ports, tagged } = makePorts();
+    await ingestContacts(ports, [{ action: "create", contact: contact() }]);
+    expect(tagged).toEqual([]);
+  });
+
+  /**
+   * `isSelf` arriving true is the *user's* decision, not the card's claim: the
+   * review starts every self-claiming card opted out and only sets this if the
+   * user ticks it. The engine's job is just to honour what comes back.
+   */
+  it("sets self only for a contact whose isSelf survived the review", async () => {
+    const { ports, selfs } = makePorts();
+    await ingestContacts(ports, [
+      { action: "create", contact: contact({ isSelf: true }) },
+      { action: "create", contact: contact({ isSelf: false }) },
+      // Skipped, so it is never created — and so can never become self.
+      { action: "skip", contact: contact({ isSelf: true }) },
+    ]);
+    expect(selfs).toEqual(["person-1"]);
+  });
+
+  it("never points self at a pet", async () => {
+    const { ports, selfs } = makePorts();
+    await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          kind: "pet",
+          isSelf: true,
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+        }),
+      },
+    ]);
+    expect(selfs).toEqual([]);
+  });
+
+  it("does not set self for a contact that failed to import", async () => {
+    const { ports, selfs } = makePorts("Bad");
+    await ingestContacts(ports, [
+      {
+        action: "create",
+        contact: contact({
+          isSelf: true,
+          name: { firstName: "Bad", middleName: null, lastName: "Row" },
+        }),
+      },
+    ]);
+    expect(selfs).toEqual([]);
   });
 });

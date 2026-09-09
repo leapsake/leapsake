@@ -58,27 +58,30 @@ function contact(over: Partial<ExportContact> = {}): ExportContact {
  * A literal `parseVCards(write(x)) ≡ x` cannot hold while `plans/export.md`
  * → 5 is outstanding, and the gaps are not one kind of thing:
  *
- * - `UID`, `KIND` and `REV` are in the parser's `STRUCTURAL` set and
- *   `X-LEAPSAKE-SELF`/`-CREATED` in its `DEFERRED` set, so they vanish silently.
- * - `CATEGORIES` and a `RELATED` pointing at another card fall to `dropped`.
+ * - A `RELATED` pointing at another card falls to `dropped`, because resolving
+ *   it needs a UID→card pass over the whole batch (increment 5b).
  * - A milestone kind with no `DATE_KINDS` entry is dropped **by name**, so nine
- *   of the ten kinds we write come back as `Date (Wedding)` and friends.
+ *   of the ten kinds we write come back as `Date (Wedding)` and friends
+ *   (increments 5c and 5d).
  * - A relationship role **degrades**: `mother` is written as the standard
  *   `TYPE=parent` (with the exact role in a parameter the parser ignores), so it
  *   reads back as `parent`; a role with no RFC word at all reads back as `other`
- *   carrying the word.
+ *   carrying the word (increment 5b).
  *
- * Each of those has a golden-text test of its own below, so nothing here is
- * merely assumed. **When increment 5 lands, delete this helper** and compare `x`
- * directly — the test failing at that point is the signal it is no longer needed.
+ * **The card's own identity is no longer in this list.** `UID`, `KIND`, `REV`,
+ * `CATEGORIES`, `X-LEAPSAKE-SELF` and `-CREATED` all survive the round trip as
+ * of increment 5a, which is why this helper no longer touches them — it shrinks
+ * as each increment lands, and each field it stops mentioning is one the
+ * `describe` blocks below now assert directly.
+ *
+ * ⚠️ **It will not shrink to nothing.** `writeParam` strips `"` and folds
+ * newlines to a space, because vCard's parameter grammar has an escape for
+ * neither — so a multi-line milestone note riding `X-LEAPSAKE-MILESTONE-NOTE`
+ * is knowingly not byte-exact. Whatever is left here when 5d is done is
+ * that one normalisation, and it should say so rather than being deleted.
  */
 function asParsedToday(c: ExportContact): ExportContact {
   const dropped: DroppedField[] = [...c.dropped];
-  // In card order, which is the order the parser walks and therefore the order
-  // `toEqual` compares: CATEGORIES, then the dates, then the relationships.
-  if (c.tags.length > 0) {
-    dropped.push({ property: "CATEGORIES", value: c.tags.join(",") });
-  }
 
   const dates: ParsedDate[] = [];
   for (const d of c.dates) {
@@ -113,18 +116,7 @@ function asParsedToday(c: ExportContact): ExportContact {
     });
   }
 
-  return {
-    ...c,
-    uid: null,
-    kind: "individual",
-    isSelf: false,
-    createdAt: null,
-    updatedAt: null,
-    tags: [],
-    dates,
-    related: relations,
-    dropped,
-  };
+  return { ...c, dates, related: relations, dropped };
 }
 
 /**
@@ -508,11 +500,12 @@ describe("writeVCards — contact methods", () => {
     ]);
     expect(text).toContain("X-SERVICE-TYPE=instagram");
     expect(text).toContain("X-LEAPSAKE-USERID=1234567");
-    // The user id is write-only until increment 5, so the round trip drops it.
     expect(parseVCards(text)[0].socials[0]).toMatchObject({
       platform: "instagram",
       handle: "janedoe",
       url: "https://www.instagram.com/janedoe",
+      // Unrecoverable from the handle, which is why it gets a parameter at all.
+      platformUserId: "1234567",
     });
   });
 });
@@ -656,7 +649,7 @@ describe("writeVCards — relationships", () => {
   /**
    * Leapsake has 41 roles and RFC 6350 gives us seven words. A gendered variant
    * goes out as its base — which is what a standards consumer can actually use —
-   * with the exact role beside it in a parameter for increment 5 to read back.
+   * with the exact role beside it in a parameter for increment 5b to read back.
    * Writing `TYPE=mother` instead would tell a third party nothing *and* lose the
    * kinship through our own parser.
    */
@@ -743,71 +736,92 @@ describe("writeVCards — pets", () => {
   });
 });
 
-describe("writeVCards — the fields the parser cannot read back yet", () => {
+describe("writeVCards — the card's identity, both directions", () => {
   /**
-   * `UID` and `CATEGORIES` are writer output and, still, unread input. Golden
-   * text is the only assertion available until then, and the second half of each
-   * test records what re-importing our own file does today — which is the
-   * concrete reason not to point a desktop user at their own export yet.
+   * These six were the ledger of what our own file lost on the way back in, and
+   * are now the proof it does not. Each asserts the golden text *and* the value
+   * the parser recovers, because the two halves fail differently: the first
+   * catches a change of spelling that would break a third-party consumer, the
+   * second a reader that quietly stopped reading.
    */
-  it("writes the person id as a UID urn, which parses back as absent", () => {
+  it("round-trips the entity id through the UID urn", () => {
     const id = "9f1c4b3e-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
     const text = write([contact({ uid: id })]);
     expect(text).toContain(`UID:urn:uuid:${id}`);
-    expect(parseVCards(text)[0].uid).toBeNull();
+    expect(parseVCards(text)[0].uid).toBe(id);
   });
 
-  it("writes tags as CATEGORIES, which parse back as a dropped field", () => {
+  it("round-trips tags through CATEGORIES", () => {
     const text = write([contact({ tags: ["Family", "Work"] })]);
     expect(text).toContain("CATEGORIES:Family,Work\r\n");
     const back = parseVCards(text)[0];
-    expect(back.tags).toEqual([]);
-    expect(back.dropped).toContainEqual({
-      property: "CATEGORIES",
-      value: "Family,Work",
-    });
+    expect(back.tags).toEqual(["Family", "Work"]);
+    expect(back.dropped).toEqual([]);
   });
 
   it("escapes a comma inside a tag so the list keeps its shape", () => {
     const text = write([contact({ tags: ["Smith, family"] })]);
     expect(text).toContain("CATEGORIES:Smith\\, family\r\n");
+    // The whole point of the escape: one tag, not two. A splitter that does not
+    // know a delimiter can be escaped is what this guards against, on the read
+    // side as much as the write side.
+    expect(parseVCards(text)[0].tags).toEqual(["Smith, family"]);
   });
 
   /**
-   * `X-LEAPSAKE-SELF` and `X-LEAPSAKE-CREATED` are the only two facts increment
-   * 2 writes that have no property to ride as a parameter, so they are
-   * properties of their own — which means the parser has to be told to ignore
-   * them, or a user re-importing their own file would see them listed as fields
-   * that could not be imported. That is what the `DEFERRED` set is for, and this
-   * is the test that it works.
+   * `X-LEAPSAKE-SELF` and `X-LEAPSAKE-CREATED` are the only two facts the writer
+   * emits with no property to ride as a parameter, so they are properties of
+   * their own — which is why they had to be ignored by name until the parser
+   * could read them, or a user re-importing their own file would have seen their
+   * own fields listed as "could not be imported". `dropped` staying empty is
+   * still the assertion that matters most here.
    */
-  it("writes self and created-at as properties the parser ignores in silence", () => {
+  it("round-trips self and created-at, and surfaces neither as dropped", () => {
     const text = write([
       contact({ isSelf: true, createdAt: Date.UTC(2024, 2, 9, 1, 35, 0) }),
     ]);
     expect(text).toContain("X-LEAPSAKE-SELF:TRUE\r\n");
     expect(text).toContain("X-LEAPSAKE-CREATED:2024-03-09T01:35:00Z\r\n");
     const back = parseVCards(text)[0];
-    expect(back.isSelf).toBe(false);
-    expect(back.createdAt).toBeNull();
+    expect(back.isSelf).toBe(true);
+    expect(back.createdAt).toBe(Date.UTC(2024, 2, 9, 1, 35, 0));
     expect(back.dropped).toEqual([]);
   });
 
-  it("writes REV, which is structural and vanishes on the way back", () => {
+  it("round-trips REV as the updated-at stamp", () => {
     const text = write([
       contact({ updatedAt: Date.UTC(2026, 8, 7, 12, 0, 0) }),
     ]);
     expect(text).toContain("REV:2026-09-07T12:00:00Z\r\n");
-    expect(parseVCards(text)[0].updatedAt).toBeNull();
+    expect(parseVCards(text)[0].updatedAt).toBe(Date.UTC(2026, 8, 7, 12, 0, 0));
   });
 
-  it("writes a pet's KIND, which is structural and reads back as a person", () => {
+  /**
+   * The six above each drive one field on an otherwise-default contact, which
+   * is what makes a failure legible — but the fixture spells every identity
+   * field as absent, so none of them would catch two facts interfering. This one
+   * carries all six at once, through `expectRoundTrip`, which compares the whole
+   * contact rather than a field.
+   */
+  it("round-trips every identity field at once", () => {
+    expectRoundTrip([
+      contact({
+        uid: "9f1c4b3e-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
+        kind: "pet",
+        isSelf: true,
+        createdAt: Date.UTC(2024, 2, 9, 1, 35, 0),
+        updatedAt: Date.UTC(2026, 8, 7, 12, 0, 0),
+        tags: ["Family", "Smith, family"],
+      }),
+    ]);
+  });
+
+  it("round-trips a pet's KIND", () => {
     const text = write([contact({ kind: "pet" })]);
     expect(text).toContain("KIND:x-pet\r\n");
-    // Apple Contacts imports such a card as an ordinary person, and so do we
-    // until increment 5 takes `KIND` out of `STRUCTURAL`. Accepted: nothing is
-    // lost, and it is recorded here rather than discovered later.
-    expect(parseVCards(text)[0].kind).toBe("individual");
+    // Apple Contacts still imports such a card as an ordinary person — an
+    // accepted loss, since nothing is lost by it. We no longer do.
+    expect(parseVCards(text)[0].kind).toBe("pet");
   });
 
   it("writes the nine kinds with no DATE_KINDS entry, which drop by name", () => {

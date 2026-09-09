@@ -168,11 +168,19 @@ after a share. Without it the half of the archive that is not contacts is invisi
 the zip, and neither the user nor the on-device harness can tell a backup that carries their
 reminders from one that silently does not.
 
-## What it does not carry yet
+## What cannot be read back yet
 
-One consequence worth knowing while increment 5 is outstanding: **the parser cannot yet read back
-most of what this writes** — `UID`, `CATEGORIES`, `KIND`, `REV`, and every `X-LEAPSAKE-*` — so
-re-importing our own file duplicates everyone, demotes every published relationship to a dropped
-field, and loses those fields. Survivable only because mobile's import path reads device Contacts
-and cannot open a `.vcf` at all; desktop's drag-drop *can*, so do not point a desktop user at
-their own export until that lands.
+The reader is catching up with this writer in numbered increments
+([`plans/export.md`](../../plans/export.md) → 5). **The card's identity now round-trips** — `UID`,
+`KIND`, `REV`, `CATEGORIES`, `X-LEAPSAKE-SELF`/`-CREATED` and the `-EXT`/`-COUNTRY`/`-USERID`
+parameters — so a pet comes back a pet, tags come back, and the review reports a card we already
+hold instead of quietly making a second copy of everyone.
+
+**The graph and the milestones do not.** `X-LEAPSAKE-ROLE`/`-REL-ID`, a `RELATED` naming another
+card by `urn:uuid:`, and every `X-LEAPSAKE-MILESTONE-*` are still unread, so re-importing our own
+file demotes each published relationship to an unpublished stub and loses nine of the ten
+milestone kinds. Increments 5b–5d.
+
+And note what the ids are **for**: matching, not identity. An imported card always gets a fresh
+row id, and `X-LEAPSAKE-CREATED` is parsed but not applied — writing the file's own ids and
+timestamps back is a *restore*, which is increment 6.

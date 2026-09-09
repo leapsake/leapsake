@@ -192,6 +192,11 @@ export interface Messages {
     skip: string;
     include: string;
     needsName: string;
+    /** That an incoming card **is** someone already here — its `UID` names them.
+     *  A certainty, unlike {@link duplicateWarning}'s resemblance. */
+    alreadyStored: (name: string) => string;
+    /** The card says it is the user themselves; ticking it makes it so. */
+    selfClaim: string;
     /** Why an incoming contact looks like someone already here. */
     duplicateWarning: (
       tier: string,

@@ -177,6 +177,9 @@ export const en: Messages = {
     skip: "Skip",
     include: "Include",
     needsName: "Needs a first and last name before it can be imported.",
+    alreadyStored: (name) =>
+      `Already in Leapsake as ${name}. Importing will add a second copy — skip to keep the one you have.`,
+    selfClaim: "This card says it’s you — set it as your own profile",
     duplicateWarning: (tier, name, reasons) => {
       const label =
         tier === "high"

@@ -199,6 +199,196 @@ describe("core.import.preview", () => {
     expect(rows[0].matches[0].reasons).toContain('Same name "Jane Doe"');
     expect(rows[1].matches).toHaveLength(0);
   });
+
+  /**
+   * The `UID` half — an identity rather than a resemblance, and the thing that
+   * stops a user re-importing their own export from getting a second copy of
+   * everyone. Our exporter writes each entity's own id as the card's `UID`, so
+   * these are exactly the cards `writeVCards` produces.
+   */
+  it("reports a card whose UID names a stored person as already stored", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      [],
+    );
+
+    const [row] = await core.import.preview([contact({ uid: jane.id })]);
+
+    expect(row.alreadyStored).toEqual({
+      type: "person",
+      id: jane.id,
+      name: "Jane Doe",
+    });
+  });
+
+  it("reports a pet card too, which the duplicate detector cannot", async () => {
+    const rex = await core.pets.create({ name: "Rex" }, []);
+
+    const [row] = await core.import.preview([
+      contact({
+        uid: rex.id,
+        kind: "pet",
+        name: { firstName: "Rex", middleName: null, lastName: "" },
+      }),
+    ]);
+
+    expect(row.alreadyStored).toEqual({ type: "pet", id: rex.id, name: "Rex" });
+  });
+
+  it("reports nothing for a foreign card, or one naming an id we do not hold", async () => {
+    const rows = await core.import.preview([
+      contact(),
+      contact({ uid: "9f1c4b3e-1c4b-4f2a-9d3e-6a7b8c9d0e1f" }),
+    ]);
+
+    expect(rows[0].alreadyStored).toBeNull();
+    expect(rows[1].alreadyStored).toBeNull();
+  });
+
+  it("reports nothing for someone the user deleted", async () => {
+    // Re-importing a backup after deleting somebody should bring them back as
+    // new, not clash with their tombstone — which is what `get` filtering
+    // soft-deleted rows buys, stated here so it is not "fixed" later.
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Doe" },
+      [],
+    );
+    await core.people.softDelete(jane.id);
+
+    const [row] = await core.import.preview([contact({ uid: jane.id })]);
+    expect(row.alreadyStored).toBeNull();
+  });
+});
+
+/**
+ * The card-identity half of `plans/export.md` → 5a: what a card of **our own**
+ * carries beyond a name, and what the importer does with it. Every one of these
+ * was silently discarded until the parser learned to read it.
+ */
+describe("core.import.commit — pets, tags and the self claim", () => {
+  it("lands a KIND:x-pet card as a pet, not a person", async () => {
+    await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          kind: "pet",
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+          displayName: "Rex",
+        }),
+      },
+    ]);
+
+    const pets = await core.pets.list();
+    expect(pets.map((p) => p.name)).toEqual(["Rex"]);
+    expect(await core.people.list()).toHaveLength(0);
+  });
+
+  it("names a pet from the surname slot when that is all the card filled", async () => {
+    // `N:Rex;;;;` with no given name — not what our writer produces, but what
+    // `deriveName` yields for a hand-made card, and `petSchema` would otherwise
+    // refuse it mid-batch for having an empty name.
+    const result = await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          kind: "pet",
+          name: { firstName: "", middleName: null, lastName: "Rex" },
+          displayName: "Rex",
+        }),
+      },
+    ]);
+
+    expect(result).toMatchObject({ created: 1, errors: [] });
+    expect((await core.pets.list()).map((p) => p.name)).toEqual(["Rex"]);
+  });
+
+  it("applies a card's CATEGORIES as tags, on a person and on a pet alike", async () => {
+    await core.import.commit([
+      { action: "create", contact: contact({ tags: ["Family", "Work"] }) },
+      {
+        action: "create",
+        contact: contact({
+          kind: "pet",
+          name: { firstName: "Rex", middleName: null, lastName: "" },
+          tags: ["Pets"],
+        }),
+      },
+    ]);
+
+    const [person] = await core.people.list();
+    const [pet] = await core.pets.list();
+    expect(
+      (await core.tags.listForPerson(person.id)).map((t) => t.name),
+    ).toEqual(["Family", "Work"]);
+    expect((await core.tags.listForPet(pet.id)).map((t) => t.name)).toEqual([
+      "Pets",
+    ]);
+  });
+
+  /**
+   * A known and deliberate limit, pinned so the writer's careful per-tag comma
+   * escaping is not later mistaken for a promise the store can keep.
+   *
+   * `parseTagNames` treats **every** non-alphanumeric character as a separator,
+   * which is the single chokepoint keeping spaces out of stored tag names. So a
+   * foreign card's `CATEGORIES:Close friends` becomes two tags. This costs our
+   * own round trip nothing — a stored name went through the same function and
+   * can never contain a space to begin with — but a foreign card is where it
+   * shows, and that is worth knowing rather than discovering.
+   */
+  it("splits a foreign card's multi-word category, as tag names always are", async () => {
+    await core.import.commit([
+      { action: "create", contact: contact({ tags: ["Close friends"] }) },
+    ]);
+
+    const [person] = await core.people.list();
+    expect(
+      (await core.tags.listForPerson(person.id)).map((t) => t.name),
+    ).toEqual(["Close", "friends"]);
+  });
+
+  it("keeps a social profile's opaque platform user id", async () => {
+    // Unrecoverable from the handle, which is why the writer emits it — and
+    // why the port dropping it would have made the backup lossy in a way no
+    // round-trip test in `@leapsake/vcard` could see.
+    await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          socials: [
+            {
+              label: "Personal",
+              platform: "x",
+              handle: "janedoe",
+              url: "https://x.com/janedoe",
+              platformUserId: "1442901",
+            },
+          ],
+        }),
+      },
+    ]);
+
+    const [person] = await core.people.list();
+    const methods = await core.contactMethods.listForOwner("person", person.id);
+    const social = methods.find((m) => m.kind === "social");
+    expect(social?.kind === "social" && social.method.platformUserId).toBe(
+      "1442901",
+    );
+  });
+
+  it("points the self pointer at a contact the user agreed is them", async () => {
+    await core.import.commit([
+      { action: "create", contact: contact({ isSelf: true }) },
+    ]);
+
+    const [person] = await core.people.list();
+    expect((await core.self.get())?.personId).toBe(person.id);
+  });
+
+  it("leaves the self pointer alone when no contact claims it", async () => {
+    await core.import.commit([{ action: "create", contact: contact() }]);
+    expect(await core.self.get()).toBeUndefined();
+  });
 });
 
 // A card that names a spouse is claiming a *name*, not a person — so that is

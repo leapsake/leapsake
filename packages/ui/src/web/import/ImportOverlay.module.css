@@ -95,6 +95,13 @@
   font-size: 0.85em;
 }
 
+.selfClaim {
+  align-items: center;
+  display: flex;
+  font-size: 0.9em;
+  gap: 0.4rem;
+}
+
 .actions {
   margin-top: 1rem;
   display: flex;
