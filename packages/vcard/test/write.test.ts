@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  DroppedField,
-  ExportContact,
-  ParsedDate,
-  ParsedRelated,
-} from "../src/index.js";
+import type { ExportContact, ParsedDate, ParsedRelated } from "../src/index.js";
 import { kindDefs, milestoneKindSchema } from "@leapsake/schema";
 import {
   dateKindFor,
