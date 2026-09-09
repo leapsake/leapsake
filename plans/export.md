@@ -31,28 +31,59 @@ headers. Look in these places instead, in roughly this order:
 
 **Until this lands, re-importing our own export duplicates everyone, demotes every real
 relationship to an unpublished stub, and loses those fields.** Survivable only because the mobile
-import path reads device Contacts and cannot open a `.vcf` at all — **desktop's drag-drop can**,
-so this is a real trap for a desktop user pointed at their own backup.
+import path reads device Contacts and cannot open a `.vcf` at all — **desktop's drag-drop can**
+(`apps/desktop/src/renderer/src/App.tsx`), so this is a real trap for a desktop user pointed at
+their own backup.
+
+**The four files.** The reader is `packages/vcard/src/vcard.ts` (`STRUCTURAL`, `DEFERRED`,
+`relatedFrom`, `parsedContactFrom`); the label maps are `src/apple-labels.ts`; the write side that
+already emits all this is `src/write.ts`; and `ImportPorts` — what core must implement — is
+`src/ingest.ts`. Core wires it at `packages/core/src/index.ts` → `import.preview` / `import.commit`.
 
 What has to be read:
 
 - `CATEGORIES` → tags. **Smaller than it looks**: `ParsedContact` already carries `tags` (and
   `uid`), because the writer needed somewhere to read them from. What is left is the parser
   filling it, `ImportPorts` gaining `addTags`, and core wiring that to the `tags.setEntityTags` it
-  already calls from `people.create`.
-- The nine missing `DATE_KINDS` entries — `wedding`, `death`, `first-date`, `met`, `graduation`,
-  `job-start`, `moved`, `other` and the rest.
+  already calls when creating a person or pet.
+- Every `X-LEAPSAKE-*` **parameter** the writer emits: `EXT`, `COUNTRY`, `USERID`, `ROLE`,
+  `REL-ID`, and `MILESTONE-ID`/`-KIND`/`-NOTE`/`-REL`.
+- **Seven** new `DATE_KINDS` entries — see the warning below before writing any.
 - `KIND:x-pet`, `REV`, and `UID` out of the parser's `STRUCTURAL` set — `UID` is what unblocks the
   deferred `urn:uuid:` second pass for `RELATED`, which is the TODO on `relatedFrom`.
 - The parser's `DEFERRED` set (`X-LEAPSAKE-SELF`, `-CREATED`).
-- Every `X-LEAPSAKE-*` **parameter** the writer emits: `EXT`, `COUNTRY`, `USERID`, `ROLE`,
-  `REL-ID`, and `MILESTONE-ID`/`-KIND`/`-NOTE`/`-REL`.
 
 Every one of those is a field the *reader* currently fills with its absent value, so the shape is
 already there to be filled in.
 
-⚠️ **`DATE_KINDS` pays twice and costs twice.** That map is shared with the device importer, so an
-iOS contact labelled "Graduation" starts minting milestones **in the same change**. That is a
+### `DATE_KINDS` is the part most likely to be built wrong
+
+**Do the `-MILESTONE-KIND` parameter first, and notice what it leaves.** `write.ts` already carries
+each date's kind outright, and its header calls that parameter the load-bearing one for exactly
+this reason. Read it and **our own file needs no label guessing at all** — `DATE_KINDS` then
+matters only for *other people's* cards, which is a much smaller and much less urgent job than the
+bullet list makes it look.
+
+Four traps in that map, none of them guessable from the outside:
+
+- **It is keyed by the lower-cased human label, not the kind slug.** `dateKindFor` does
+  `DATE_KINDS[label.trim().toLowerCase()]`, and the label the writer emits is
+  `kindDefs[kind].label` from `@leapsake/schema`. So the keys are `"first date"` and
+  **`"started a job"`** — not `first-date` or `job-start`.
+- **Seven entries, not nine**: `death`, `first-date`, `wedding`, `met`, `graduation`, `job-start`,
+  `moved`.
+- **`birthday` is excluded on purpose** and must stay excluded. `apple-labels.ts` says why in as
+  many words: a birthday-labelled date fills the contact's birthday rather than minting a dated
+  milestone, and only when the source's dedicated field had nothing — so a card that spells its
+  birthday twice can never mint a second one. Adding it re-breaks that.
+- **`other` can never be an entry.** Its label is the *user's note* ("Beach house closing"), so no
+  map resolves it. Recovering `other` is what the `-MILESTONE-KIND` parameter is for; for a
+  stranger's card it stays dropped, which is the deliberate rule stated above `DATE_KINDS`
+  ("a label with no kind here is surfaced as dropped rather than guessed into `other`"). **Do not
+  reverse that rule as a side effect** of this increment.
+
+⚠️ **And it pays twice and costs twice.** That map is shared with the device importer, so an iOS
+contact labelled "Graduation" starts minting milestones **in the same change**. That is a
 user-visible behaviour change on a path nobody asked to change, and it wants its own tests.
 
 **Two signals that this has landed**, both of which should be deleted rather than updated:
