@@ -1,7 +1,7 @@
 # App icons
 
-Two hand-edited vector sources live here. **Every PNG the apps ship is generated from them**
-by `pnpm icons`, and the generated files are committed.
+Two hand-edited vector sources live here. **Every icon the apps and the website ship is
+generated from them** by `pnpm icons`, and the generated files are committed.
 
 - `logo_color.svg` — the frog as it is seen: launcher and dock icons.
 - `logo_bw.svg` — the same drawing as line art only, for surfaces that get one colour. Today
@@ -21,6 +21,23 @@ Regenerating needs `brew install librsvg imagemagick`. Nothing else does.
 > pipeline that writes into it. The desktop app needs no such step — it reads its PNGs from
 > `apps/desktop/resources/` at launch.
 
+## The website's three
+
+`apps/website/public/` gets `favicon.svg`, `favicon.ico` and `apple-touch-icon.png`, linked
+from `src/layouts/Base.astro`. They are generated rather than copied because the source's
+viewBox is 72×72 with the frog off-centre inside it — served as-is the frog would sit low and
+left in the tab. The framing lives in the script, as it does for every other output.
+
+The two favicons are transparent and cropped tight: a browser hands a favicon a 16px box and
+draws it edge to edge, and a cream tile in a dark tab strip would read as a light square.
+`apple-touch-icon.png` is the opposite on both counts — iOS masks and pads it exactly like a
+home-screen app icon, so it is framed like `icon.png` and carries the cream background, which
+is what makes the site's tile and the app's tile look like one product.
+
+The `.ico` frames are reduced from a 256px render rather than rasterized at 16px each: below
+about 20px, rendering line art directly drops sub-pixel strokes to nothing, where a reduction
+keeps them as grey.
+
 ## Why macOS gets its own file
 
 `icon-macos.png` is the same frog as `icon.png` and is not a duplicate. iOS and Android are
@@ -36,10 +53,17 @@ packaging lands there is no app bundle to read an icon *from* — see
 ## Attribution
 
 The artwork is OpenMoji's, under CC BY-SA 4.0. That licence wants attribution wherever the
-work is distributed, so the credit exists **twice, on purpose**:
+work is distributed, so the credit exists **three times, on purpose** — once per thing that
+distributes it:
 
 - [`NOTICE`](../../NOTICE) — for the repository.
 - [`packages/ui/src/headless/acknowledgements.ts`](../../packages/ui/src/headless/acknowledgements.ts)
   — for the list both clients render under Settings → Acknowledgements.
+- A comment inside the generated `apps/website/public/favicon.svg` — for the website, which
+  serves the artwork to people who never install anything. It is written by
+  `scripts/icons.mjs`, not by hand.
 
-**Adding third-party work that ships means adding it to both.**
+**Adding third-party work that ships means adding it to all three.** The website's is the
+weakest of them: a comment in a file nobody opens is a reasonable manner of attribution for
+an icon, but the site has no Acknowledgements page of its own, and it should get one when it
+grows anything else third-party.

@@ -146,6 +146,20 @@ It is deliberately plain. The tokens call themselves "a seed, not a design syste
 and the app's real visual pass is still ahead; when that happens it happens once, for
 app and site together, and this file inherits it by re-reading the same tokens.
 
+## Icons
+
+`public/favicon.svg`, `public/favicon.ico` and `public/apple-touch-icon.png` are
+**generated and committed** by `pnpm icons` from the app icon's vector source, and
+linked from `src/layouts/Base.astro`. Do not hand-edit them — `pnpm test:icons`
+fails on it, and the reasoning behind the framing is in
+[`assets/icon/README.md`](../../assets/icon/README.md).
+
+Committed rather than generated at build time for the reason every other icon here
+is: regenerating needs librsvg and ImageMagick, and the Cloudflare Pages builder has
+neither. `test/site.test.ts` (run by `pnpm test:integration`) proves the three files
+reach `dist/` and that the layout links them, which is the half the hash check cannot
+see.
+
 ## Known gap: `.astro` files are not formatted
 
 `oxfmt` formats JavaScript, TypeScript and JSON, and has no `.astro` parser — so

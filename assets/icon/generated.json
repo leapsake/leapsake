@@ -25,7 +25,9 @@
     {
       "path": "apps/mobile/assets/icon.png",
       "source": "assets/icon/logo_color.svg",
+      "format": "png",
       "size": 1024,
+      "frames": null,
       "fraction": 0.72,
       "background": "#fbf7f0",
       "plate": null,
@@ -36,7 +38,9 @@
     {
       "path": "apps/mobile/assets/adaptive-icon.png",
       "source": "assets/icon/logo_color.svg",
+      "format": "png",
       "size": 1024,
+      "frames": null,
       "fraction": 0.49,
       "background": null,
       "plate": null,
@@ -47,7 +51,9 @@
     {
       "path": "apps/mobile/assets/notification-icon.png",
       "source": "assets/icon/logo_bw.svg",
+      "format": "png",
       "size": 96,
+      "frames": null,
       "fraction": 0.85,
       "background": null,
       "plate": null,
@@ -58,7 +64,9 @@
     {
       "path": "apps/mobile/assets/logo.png",
       "source": "assets/icon/logo_color.svg",
+      "format": "png",
       "size": 256,
+      "frames": null,
       "fraction": 0.96,
       "background": null,
       "plate": null,
@@ -69,7 +77,9 @@
     {
       "path": "apps/desktop/src/renderer/src/assets/logo.png",
       "source": "assets/icon/logo_color.svg",
+      "format": "png",
       "size": 256,
+      "frames": null,
       "fraction": 0.96,
       "background": null,
       "plate": null,
@@ -80,7 +90,9 @@
     {
       "path": "apps/desktop/resources/icon.png",
       "source": "assets/icon/logo_color.svg",
+      "format": "png",
       "size": 1024,
+      "frames": null,
       "fraction": 0.72,
       "background": "#fbf7f0",
       "plate": null,
@@ -91,7 +103,9 @@
     {
       "path": "apps/desktop/resources/icon-macos.png",
       "source": "assets/icon/logo_color.svg",
+      "format": "png",
       "size": 1024,
+      "frames": null,
       "fraction": 0.72,
       "background": "#fbf7f0",
       "plate": {
@@ -101,6 +115,45 @@
       "tint": null,
       "note": "app.dock.setIcon in the main process, and the master for icon.icns when desktop packaging lands (plans/v0-2.md)",
       "sha256": "872dfb5fc6a39ad4c427951d9200cdacd430d78c124ae1ec8772533fbfb05861"
+    },
+    {
+      "path": "apps/website/public/favicon.svg",
+      "source": "assets/icon/logo_color.svg",
+      "format": "svg",
+      "size": 256,
+      "frames": null,
+      "fraction": 0.96,
+      "background": null,
+      "plate": null,
+      "tint": null,
+      "note": "leapsake.com — <link rel=icon type=image/svg+xml> in apps/website/src/layouts/Base.astro",
+      "sha256": "e727493b22c9c88a2e1637a45ae16fac70fbe22b7170d1ca7e2b500204e23280"
+    },
+    {
+      "path": "apps/website/public/favicon.ico",
+      "source": "assets/icon/logo_color.svg",
+      "format": "ico",
+      "size": 256,
+      "frames": [48, 32, 16],
+      "fraction": 0.96,
+      "background": null,
+      "plate": null,
+      "tint": null,
+      "note": "leapsake.com — served at the origin root, which is where a browser looks when markup does not say",
+      "sha256": "4882a01d7e15b6b19a17ac50385013f85d4f9317e0324cfe4879eb223e64b42c"
+    },
+    {
+      "path": "apps/website/public/apple-touch-icon.png",
+      "source": "assets/icon/logo_color.svg",
+      "format": "png",
+      "size": 180,
+      "frames": null,
+      "fraction": 0.72,
+      "background": "#fbf7f0",
+      "plate": null,
+      "tint": null,
+      "note": "leapsake.com — <link rel=apple-touch-icon>, and what iOS reads for an Add to Home Screen",
+      "sha256": "ac5b67756902b45a461f6cab68f82b0a652b6676f5015a12aa6260be88e79b6e"
     }
   ]
 }

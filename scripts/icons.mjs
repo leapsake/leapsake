@@ -1,4 +1,4 @@
-// The app-icon generator — two vector sources, every raster an app store asks for.
+// The app-icon generator — two vector sources, every file an app store or a browser asks for.
 //
 // `assets/icon/` holds the only hand-edited icon files in the repo:
 //
@@ -6,10 +6,10 @@
 //   logo_bw.svg      the same frog as line art only, for surfaces that get one colour
 //
 // Everything else is derived from them and **committed**, because the things that consume
-// these PNGs (`expo prebuild`, EAS, electron-builder) run on machines that have no SVG
-// rasterizer and no business acquiring one. Generated-and-committed is the same bargain
-// `pnpm build` makes; the part that needs guarding is that the two halves stay in
-// agreement, which is what `--check` is for.
+// these files (`expo prebuild`, EAS, electron-builder, Cloudflare Pages) run on machines
+// that have no SVG rasterizer and no business acquiring one. Generated-and-committed is
+// the same bargain `pnpm build` makes; the part that needs guarding is that the two halves
+// stay in agreement, which is what `--check` is for.
 //
 // Usage:
 //   node scripts/icons.mjs           re-render every output and rewrite the manifest
@@ -84,10 +84,12 @@ const BACKGROUND = "#fbf7f0";
  *   24dp box and expects roughly 2dp of breathing room inside it, which is where this
  *   comes from. There is no mask to dodge here, so it is the loosest of the three.
  *
- * - **0.96 (`logo.png`)** — nothing masks or pads a mark drawn inside the app, so this is
- *   as tight as the artwork goes. Not 1.0 only because the measured box is the *rendered*
- *   ink including its antialiased edge, and filling the canvas exactly would put that soft
- *   edge on the boundary where a later resize can clip it.
+ * - **0.96 (`logo.png`, and the website's favicons)** — nothing masks or pads a mark drawn
+ *   inside the app, and nothing masks or pads a favicon either: a browser hands it a 16px
+ *   box and draws it edge to edge. So this is as tight as the artwork goes. Not 1.0 only
+ *   because the measured box is the *rendered* ink including its antialiased edge, and
+ *   filling the canvas exactly would put that soft edge on the boundary where a later
+ *   resize can clip it.
  */
 const FRACTIONS = {
   masked: 0.72,
@@ -123,6 +125,18 @@ const FRACTIONS = {
 const PLATE = { fraction: 824 / 1024, radius: 185.4 / 824 };
 
 /**
+ * The credit carried inside `favicon.svg`, which is the only output that can hold text.
+ *
+ * The artwork is OpenMoji's under CC BY-SA 4.0, and the website is a *third* place the
+ * work is distributed — `NOTICE` covers the repository and the in-app Acknowledgements
+ * screen covers the two clients, but neither travels with a file served from
+ * `leapsake.com`. A comment in the one output that survives being read as text is the
+ * cheap half of that; see `assets/icon/README.md` → Attribution for the rest.
+ */
+const CREDIT =
+  "<!-- Frog (U+1F438) from OpenMoji (https://openmoji.org), CC BY-SA 4.0 -->";
+
+/**
  * What gets written, and who reads it.
  *
  * `background: undefined` means a transparent canvas. That is not a style choice in either
@@ -130,6 +144,10 @@ const PLATE = { fraction: 824 / 1024, radius: 185.4 / 824 };
  * adaptive foreground and the notification icon **must** have one, the first so the
  * background layer shows through and the second because Android reads nothing else. The
  * same artwork therefore has to be rendered more than once.
+ *
+ * `format` defaults to `png`. The two exceptions belong to the website and are explained
+ * where they are declared; `size` still means the square the artwork is composed into, so
+ * for an `ico` it is the render the frames are reduced *from* rather than a frame size.
  */
 const OUTPUTS = [
   {
@@ -234,6 +252,77 @@ const OUTPUTS = [
     plate: PLATE,
     background: BACKGROUND,
     note: "app.dock.setIcon in the main process, and the master for icon.icns when desktop packaging lands (plans/v0-2.md)",
+  },
+  {
+    /**
+     * The website's scalable favicon, and the one a current browser actually uses.
+     *
+     * Vector rather than raster because a tab strip is the one place the same icon is
+     * asked for at 16, 20 and 24 physical pixels depending on the display, and an SVG is
+     * the only answer that is sharp at all three. It is written by this script rather
+     * than being `logo_color.svg` copied into `public/`, because the source's viewBox is
+     * 72×72 with the frog occupying an off-centre 48.5×49.2 of it — served as-is the frog
+     * would sit low and left in the tab. The wrapper is the framing, exactly as it is for
+     * every PNG here.
+     *
+     * Transparent, so the mark sits on the browser's own tab colour rather than putting a
+     * cream tile into a dark tab strip. 256 is only the wrapper's coordinate space; an
+     * SVG has no size of its own.
+     */
+    path: "apps/website/public/favicon.svg",
+    source: SOURCES.color,
+    format: "svg",
+    size: 256,
+    fraction: FRACTIONS.bare,
+    background: undefined,
+    note: "leapsake.com — <link rel=icon type=image/svg+xml> in apps/website/src/layouts/Base.astro",
+  },
+  {
+    /**
+     * The fallback favicon, and the only file here whose *filename* is load-bearing: a
+     * browser given no `<link rel=icon>` it understands requests `/favicon.ico` from the
+     * origin root, and so do the crawlers, feed readers and chat clients that unfurl a
+     * link. That request is answered whether or not any page markup survives.
+     *
+     * Three frames because those are the three sizes Windows and the older browsers pick
+     * between, and one `.ico` carrying all of them is what the format is *for*.
+     *
+     * They are reduced from a 256px render rather than rendered at 16, 32 and 48 apiece.
+     * That is deliberate and is the opposite of the rule everywhere else in this file:
+     * rasterizing line art directly at 16px drops strokes thinner than a pixel to nothing,
+     * where a Lanczos reduction from 256 turns them into grey and keeps the shape legible.
+     */
+    path: "apps/website/public/favicon.ico",
+    source: SOURCES.color,
+    format: "ico",
+    size: 256,
+    frames: [48, 32, 16],
+    fraction: FRACTIONS.bare,
+    background: undefined,
+    note: "leapsake.com — served at the origin root, which is where a browser looks when markup does not say",
+  },
+  {
+    /**
+     * The icon iOS uses when someone adds `leapsake.com` to their home screen — the same
+     * gesture that puts the app there, so this is the surface where the site and the app
+     * are most likely to be seen side by side.
+     *
+     * Which is why it is framed like `icon.png` rather than like the favicons: iOS masks
+     * it to the same rounded square and pads it the same way, so `FRACTIONS.masked` is
+     * what makes the two tiles look like one product. It carries the cream background for
+     * the same reason it must be opaque — iOS composites a transparent touch icon onto
+     * black.
+     *
+     * 180px is the largest size iOS asks for (60pt at 3×); it downscales for the rest,
+     * and a second file per density would be four more bytes-identical downscales to keep
+     * in agreement.
+     */
+    path: "apps/website/public/apple-touch-icon.png",
+    source: SOURCES.color,
+    size: 180,
+    fraction: FRACTIONS.masked,
+    background: BACKGROUND,
+    note: "leapsake.com — <link rel=apple-touch-icon>, and what iOS reads for an Add to Home Screen",
   },
 ];
 
@@ -379,6 +468,34 @@ function wrap({ inner, box, size, fraction, background, tint, plate }) {
 }
 
 /**
+ * A wrapped SVG, turned into the bytes its consumer reads.
+ *
+ * Everything is composed as vector and rasterized once at the end, so the three formats
+ * differ only in what happens after that:
+ *
+ * - **`svg`** — no rasterizing at all. The wrapper *is* the file.
+ * - **`png`** — one `rsvg-convert` at `size`, which is every app-icon output here.
+ * - **`ico`** — that same PNG handed to ImageMagick's `icon:auto-resize`, which writes one
+ *   container holding a reduction at each of `frames`. The frames are listed largest-first
+ *   because that is the order the format stores them in, so the file reads the way
+ *   `magick identify` prints it.
+ */
+function render(svg, { format = "png", size, frames }) {
+  if (format === "svg") return Buffer.from(`${CREDIT}\n${svg}\n`);
+  const png = execFileSync(
+    "rsvg-convert",
+    ["-w", String(size), "-h", String(size)],
+    { input: svg, maxBuffer: 64 * 1024 * 1024 },
+  );
+  if (format === "png") return png;
+  return execFileSync(
+    "magick",
+    ["png:-", "-define", `icon:auto-resize=${frames.join(",")}`, "ico:-"],
+    { input: png, maxBuffer: 64 * 1024 * 1024 },
+  );
+}
+
+/**
  * Guards the one property of these files that a store rejects an upload over.
  *
  * **An iOS app icon may not have an alpha channel** — App Store Connect refuses the
@@ -389,17 +506,20 @@ function wrap({ inner, box, size, fraction, background, tint, plate }) {
  * anything this script asked for. Asserting it here turns a future rasterizer change into
  * a failed `pnpm icons` instead of a failed release.
  */
-function assertAlpha(png, { path, background, plate }) {
+function assertAlpha(bytes, { path, background, plate, format = "png" }) {
   // A plated icon has a background *and* an alpha channel, and needs both: the fill is the
   // tile, the transparency is everything around it. It is the one output where the two are
   // not opposites, so it takes the `background`-implies-opaque rule out of play.
   const opaque = background !== undefined && plate === undefined;
   // `%[channels]` reads "srgba 4.0" / "srgb 3.0" — the colourspace token carries the
   // alpha, and the channel count trailing it is why this is parsed rather than suffixed.
+  // A multi-frame `.ico` prints one such reading per frame with nothing between them,
+  // which the split below survives: the frames of one file cannot differ here, because
+  // they are reductions of a single PNG.
   const channels = execFileSync(
     "magick",
-    ["identify", "-format", "%[channels]", "png:-"],
-    { input: png, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    ["identify", "-format", "%[channels]", `${format}:-`],
+    { input: bytes, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   const [colorspace] = channels.trim().split(/\s+/);
   const hasAlpha = colorspace.endsWith("a");
@@ -412,7 +532,8 @@ function assertAlpha(png, { path, background, plate }) {
   if (!opaque && !hasAlpha) {
     throw new Error(
       `${path} lost its alpha channel; an Android adaptive foreground needs one so it does ` +
-        "not paint over the layer it sits on, and a macOS plate needs one to have a shape.",
+        "not paint over the layer it sits on, a macOS plate needs one to have a shape, and a " +
+        "favicon needs one to sit on the browser's tab colour rather than on a cream square.",
     );
   }
 }
@@ -445,28 +566,33 @@ function generate() {
   const outputs = OUTPUTS.map((output) => {
     const { inner, contentBox } = sources[output.source];
     const svg = wrap({ inner, box: contentBox, ...output });
-    const png = execFileSync(
-      "rsvg-convert",
-      ["-w", String(output.size), "-h", String(output.size)],
-      { input: svg, maxBuffer: 64 * 1024 * 1024 },
-    );
-    assertAlpha(png, output);
+    const bytes = render(svg, output);
+    // An SVG has no channels to read; its transparency is the absence of a `<rect>`.
+    if (output.format !== "svg") assertAlpha(bytes, output);
     const absolute = join(ROOT, output.path);
     mkdirSync(dirname(absolute), { recursive: true });
-    writeFileSync(absolute, png);
+    writeFileSync(absolute, bytes);
+    const shape =
+      output.format === "svg"
+        ? "vector"
+        : output.frames
+          ? output.frames.map((frame) => `${frame}²`).join(" ")
+          : `${output.size}²`;
     console.log(
-      `  ${output.path}  ${output.size}²  ${output.background ?? "transparent"}  ${png.length.toLocaleString()} bytes`,
+      `  ${output.path}  ${shape}  ${output.background ?? "transparent"}  ${bytes.length.toLocaleString()} bytes`,
     );
     return {
       path: output.path,
       source: output.source,
+      format: output.format ?? "png",
       size: output.size,
+      frames: output.frames ?? null,
       fraction: output.fraction,
       background: output.background ?? null,
       plate: output.plate ?? null,
       tint: output.tint ?? null,
       note: output.note,
-      sha256: sha256(png),
+      sha256: sha256(bytes),
     };
   });
 

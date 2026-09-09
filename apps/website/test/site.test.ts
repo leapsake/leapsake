@@ -106,6 +106,39 @@ describe("the follow page", () => {
   });
 });
 
+describe("the site's icons", () => {
+  /**
+   * That the generated favicons are *served*, which is the half `pnpm test:icons` cannot
+   * see: it hashes the files in `public/` against `assets/icon/generated.json` and stops
+   * there. Everything after that is Astro's static-copy step and three paths typed by
+   * hand in the layout, and a favicon that 404s looks exactly like a favicon a browser
+   * has cached — so this fails in CI rather than being noticed months later, or not.
+   */
+  let html: string;
+
+  beforeAll(async () => {
+    await execFileAsync("pnpm", ["exec", "astro", "build"], { cwd: WEBSITE });
+    html = await readFile(join(WEBSITE, "dist/privacy/index.html"), "utf8");
+  }, 120_000);
+
+  it("copies every icon to the origin root", async () => {
+    for (const file of ["favicon.ico", "favicon.svg", "apple-touch-icon.png"]) {
+      const bytes = await readFile(join(WEBSITE, "dist", file));
+      expect(bytes.byteLength, `${file} is empty`).toBeGreaterThan(0);
+    }
+  });
+
+  it("links them from the shared layout, so every page carries them", () => {
+    // Asserted on the privacy page for the reason the header is: it is not the home
+    // page, so passing here proves the links are global rather than one page's.
+    expect(html).toContain('<link rel="icon" href="/favicon.ico"');
+    expect(html).toContain('<link rel="icon" href="/favicon.svg"');
+    expect(html).toContain(
+      '<link rel="apple-touch-icon" href="/apple-touch-icon.png"',
+    );
+  });
+});
+
 /**
  * The docs model, exercised against real files.
  *
