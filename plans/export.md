@@ -277,12 +277,12 @@ no offer**, because they act on it. 3 has landed, so the offer is now honest.
 > `dev-export` harness and the Maestro assertion all read it.
 
 4. **Wire the offer that already exists in the copy.** Unblocked now that 3 has landed — the
-   archive holds everything, so offering it at the irreversible moment no longer promises more
-   than the file delivers. An **Export first**
-   button inside *both* destructive confirmations in `app/data.tsx` — `ForgetAccountSection`
-   **and** `FactoryResetSection`. The accountless wipe is by definition destroying the only copy, so it
-   needs the offer at least as much; `key-custody/README.md` currently promises it only for the
-   first. Then delete that README's note (rewritten in increment 1, and it says to delete it here).
+   archive holds everything, so offering it at the irreversible moment no longer promises more than
+   the file delivers. An **Export first** button inside *both* destructive confirmations in
+   `app/data.tsx` — `ForgetAccountSection` **and** `FactoryResetSection`. The accountless wipe is by
+   definition destroying the only copy, so it needs the offer at least as much — which is what
+   `key-custody/README.md`'s note already says. Then delete that note (rewritten in increment 1,
+   and it says to delete it here).
    **Leave desktop's "Leapsake cannot export it yet" in `Settings.tsx` alone** — desktop still has
    no Export surface, so the sentence stays true until increment 6.
 5. **The import-side reciprocals** (not GA-blocking, but they decide whether the file is readable
