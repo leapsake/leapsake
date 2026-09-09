@@ -34,9 +34,10 @@ this a blocker rather than a nicety:
   no equivalent and no user-reachable filesystem.
 - **The account sequence aims a user at deletion.** Clearing TestFlight for the transfer (Part 2)
   is exactly when a tester is most likely to delete and reinstall.
-- **A promise is already in the code.** `encryption/model.md` §7.3.1 has Forget-account offering
-  an export first — a promise [`@leapsake/key-custody`](../packages/key-custody/README.md)
-  carried as unbacked until the offer shipped on 2026-09-08.
+- **A promise is already in the code.** Forget-account offers an export first —
+  [`@leapsake/key-custody`](../packages/key-custody/README.md) → *Forgetting the last device*
+  carried that promise as unbacked until the offer shipped on 2026-09-08. It is in the package
+  rather than in `encryption/model.md`, whose §7 handed custody to that code on 2026-08-14.
 
 **Shape:** user-initiated, client-side (the client already holds plaintext), vCard/JSContact,
 people + contact methods first. Doubles as groundwork for a future CardDAV surface. **What the
@@ -57,8 +58,9 @@ manual `userData` copy and does not ship in v0.1, so desktop parity follows rath
 ✅ **Acceptance is met** *(2026-09-08)*. The archive is the whole store, not just people and
 contact methods, and both destructive confirmations offer it. **Delete this section** once the
 three verifications in [`export.md`](./export.md) → *Still owed: the device tier* are done;
-nothing else here is outstanding. Reading an export back in and desktop parity are in that file
-too, and neither gates GA.
+nothing else here is outstanding. **Reading an export back in landed on 2026-09-08** (increments
+5a–5d), so what is left in that file is increment 6 — restore, desktop parity, CardDAV — and
+none of it gates GA.
 
 ## 2 — Catalog Flow 7c, the password door
 
@@ -242,9 +244,10 @@ across secondary sources, never stated by Google in those words.
    unless that device is the one they lost. **Leaning ship-without** (password-plus-a-second-
    device covers the realistic case, and the flow it would duplicate is the most delicate one we
    have), but it is a real hole in the *cannot strand anyone* promise. Context:
-   [`encryption/model.md`](./encryption/model.md) §7.2.2 and
    [`@leapsake/key-custody`](../packages/key-custody/README.md) → *Not built: merge by recovery
-   phrase*. **Flow 7a is decided with this, not separately.**
+   phrase*, which is where the two exits from local-only are specified now that
+   [`encryption/model.md`](./encryption/model.md) §7 delegates custody to that package.
+   **Flow 7a is decided with this, not separately.**
 
 # Not here
 
