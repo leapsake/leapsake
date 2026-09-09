@@ -70,29 +70,69 @@ than vanishing, since the fact is true either way. Reading `-ROLE` ended the `mo
 
 ### What is still unread
 
-- **5c — milestones.** `X-LEAPSAKE-MILESTONE-KIND`/`-ID`/`-NOTE`/`-REL`. See the `DATE_KINDS`
-  warning below first.
-  ⚠️ **`-REL` names the *file's* `relationships.id`, not the one the import created.** 5b writes
-  each edge with a fresh id and does not keep the correspondence — `linkExisting` returns nothing.
-  So 5c's first move is making that port return its new id, so phase 2 can build the
-  file-id→new-id map a relationship-borne milestone has to be looked up through. Using the raw
-  `-REL` value as a `bearerId` would point every such milestone at a row that does not exist.
+- **5c — milestones.** `X-LEAPSAKE-MILESTONE-KIND`/`-ID`/`-NOTE`/`-REL`. **Not only a parser job** —
+  the half below the parser is the larger one, and has its own section immediately below.
 - **5d — `DATE_KINDS`**, which is only ever about *other people's* cards. Last on purpose; the
-  warning below is why.
+  section after that is why.
 
-### `DATE_KINDS` is the part most likely to be built wrong
+### 5c — the half below the parser
 
-**Do the `-MILESTONE-KIND` parameter first, and notice what it leaves.** `write.ts` already carries
-each date's kind outright, and its header calls that parameter the load-bearing one for exactly
-this reason. Read it and **our own file needs no label guessing at all** — `DATE_KINDS` then
-matters only for *other people's* cards, which is a much smaller and much less urgent job than the
-bullet list makes it look.
+**Do `-MILESTONE-KIND` first, and notice what it leaves.** `write.ts` carries each date's kind
+outright, and its header calls that parameter the load-bearing one for exactly this reason. With it
+read, **our own file needs no label guessing at all** — which is what leaves `DATE_KINDS` (5d)
+about other people's cards alone.
 
-⚠️ **One trap in that order.** An `X-ABDATE` labelled "Birthday" is routed to `labelledBirthday`
+⚠️ **The one parser trap.** An `X-ABDATE` labelled "Birthday" is routed to `labelledBirthday`
 (`vcard.ts`, the `X-ABDATE` case) *before* any kind lookup happens. Once `-KIND` is read the
 parameter has to win there, or a store somehow holding two birthday-kind milestones silently loses
-the second one to the card's `BDAY`. Note also that `-NOTE` is deliberately **not** emitted when it
-equals the label, so an `other` kind recovers its note from the label rather than the parameter.
+the second one to the card's `BDAY`.
+
+The parser fills `ParsedDate` (`kind`, `note`, `id`, `relationshipId` are all already fields on
+it). Everything after that is `ingest.ts` and `core`, and none of it is in place:
+
+- **`ImportPorts.addDate(personId, date)` cannot say "a relationship bears this".** Both it and
+  `addBirthday` are keyed by a bare `personId`, and core hardcodes `bearerType: "person"` in each.
+  A milestone borne by an edge needs the bearer's *type* to travel with its id, exactly as
+  `addRelated` was fixed to do in 5b.
+- **Core's `addDate` ignores `note`, `id` and `relationshipId` outright**, and derives an
+  `other`-kind milestone's note from `date.label`. Once `-NOTE` is read the parameter supersedes
+  that, but the label remains the fallback — the writer deliberately omits `-NOTE` when it equals
+  the label, so an `other` kind still recovers its note from the label alone.
+
+⚠️ **One milestone, two cards — the same shape 5b just solved for edges.** A relationship-borne
+milestone is written on **both** partners' cards carrying the same `X-LEAPSAKE-MILESTONE-ID`, and
+that id is what says "one fact written twice". Without dedupe on it, importing a couple gives them
+two weddings. `ingestContacts` already has the machinery — `edgeKey` and the `written` set in phase
+2 — and this is the same pattern one level down.
+
+⚠️ **`-REL` names the *file's* `relationships.id`, not the one the import created.** 5b writes each
+edge with a fresh id and does not keep the correspondence: `linkExisting` returns nothing. So 5c's
+first move is making that port return its new id, so phase 2 can build the file-id→new-id map a
+relationship-borne milestone must be looked up through. Using the raw `-REL` value as a `bearerId`
+points every such milestone at a row that does not exist.
+
+⚠️ **That also moves milestones into phase 2.** A `-REL` milestone cannot be written while its
+card is being built — the edge does not exist yet. Only the relationship-borne ones need deferring;
+a milestone the entity bears itself stays in phase 1, inside that contact's own transaction.
+
+⚠️ **Not every kind may be borne by a relationship.** `kindAllowsBearer`
+(`packages/schema/src/milestone.ts`) permits only `first-date`, `wedding`, `anniversary`, `met` and
+`other`. A `-REL` on any other kind is a malformed card, and writing it anyway is a row the schema
+refuses — fall back to the person rather than failing the whole contact.
+
+> 🐞 **A live bug in the two ports 5c rewrites, worth fixing in the same change.** `addBirthday`
+> and `addDate` have been reached by *pets* since 5a, and both hardcode `bearerType: "person"` — so
+> a pet's birthday is written with `bearer_type: "person"` and the pet's `bearer_id`. Unlike the
+> `addRelated` bug 5b fixed, this one **does not throw**: `kindAllowsBearer("birthday", "person")`
+> is true, the row commits, and `listForBearer("pet", petId)` then returns nothing. The birthday is
+> silently orphaned, and our own exporter writes exactly that card for any pet with a birthday.
+> Verified 2026-09-08 by importing one and reading the raw table.
+
+### 5d — `DATE_KINDS` is the part most likely to be built wrong
+
+`DATE_KINDS` is what a date's *label* means, and it matters only for cards we did not write: once
+5c reads `-MILESTONE-KIND`, our own file needs no label guessing at all. That makes this the
+smallest of the four increments and the least urgent — and the easiest to get wrong.
 
 Four traps in that map, none of them guessable from the outside:
 
