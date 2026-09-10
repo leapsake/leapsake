@@ -28,11 +28,15 @@
 # ## The out-of-band half is not here
 #
 # The catalog also asks that the store be plaintext, the OS key store hold zero Leapsake
-# entries, and no `.recovery` sidecar exist. None of that is reachable from Maestro, which
-# reads the accessibility tree and nothing else — it needs an inspection surface the app
-# does not have. That is `rc`'s work, not `beta`'s
-# (CONTRIBUTING.md → *The E2E release gate*, its rung table). Until it lands, "mints
-# nothing" is asserted only as far as the screen shows it.
+# entries, and neither door exist. None of that is reachable from **Maestro**, which reads
+# the accessibility tree and nothing else — but it is reachable from the **harness**, which
+# already holds the container (`scripts/lib/mobile-harness.mjs` → `wipe` calls `xcrun simctl
+# get_app_container`). So this half belongs in Node beside the flow, not in an in-app
+# inspection screen: the catalog's rule is *never call into app code*, and an app reporting
+# "I am encrypted" is exactly the evidence a build that encrypted nothing would also give.
+# The one row with no answer is the **key store** — `simctl keychain` has no read verb.
+# That is `rc`'s work, not `beta`'s (CONTRIBUTING.md → *The E2E release gate*, its rung
+# table). Until it lands, "mints nothing" is asserted only as far as the screen shows it.
 appId: com.leapsake.app
 ---
 # The precondition. Everything below is a claim about a store with nothing in it, so the

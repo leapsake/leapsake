@@ -57,13 +57,41 @@ checks the UI would pass against an app that encrypted nothing. So the custody f
 | Store custody | first 16 bytes are SQLite's `SQLite format 3\0` magic, or are not | plaintext vs. encrypted — the same test the app's own `storeFileState` makes |
 | Key material | count/keys of the profile's OS key store (desktop `keystore.json`; mobile the secure store) | Unauthenticated holds **zero**; Authenticated holds the db-key, enclave secret, recovery key, device id |
 | Store location | the store's path within the profile | `stores/local/` when Unauthenticated, `stores/<accountId>/` when Authenticated |
-| Roster | `accounts.json` | zero accounts when Unauthenticated, exactly one after creation |
-| Sidecar | `<db>.recovery` **and** `<db>.password` presence | the two doors Flow 7 exercises exist |
+| Roster | desktop a plain JSON file under `userData`; **mobile the `roster` table in `leapsake-roster.db`** | zero accounts when Unauthenticated, exactly one after creation |
+| Doors | desktop the `<db>.recovery` **and** `<db>.password` files; **mobile the two `kind` rows (`password`, `recovery`) in `stores/<accountId>/doors.db`** | the two doors Flow 7 exercises exist |
+
+⚠️ **The last two rows are shaped differently on each client, and this table used to state only
+the desktop shape** *(corrected 2026-09-09)*. Both clients are right; they simply store the same
+facts differently, and a harness author who goes looking for mobile `.recovery` files finds
+nothing and concludes the door is missing.
 
 **Rules, so this stays an exception and not a habit.** These are *file existence and shape*
 checks only — never open the store, never decrypt, never call into app code. They are permitted
 only in the flows named above, and only **in addition to** an on-screen assertion, never instead
 of one. Every other flow asserts purely on visible text.
+
+### Where these run on mobile — the harness, not the app
+
+⚠️ **This used to say the assertions needed "a mobile inspection surface that does not exist", and
+that framing would send you the wrong way** *(corrected 2026-09-09, against the simulator)*. Four
+of the five rows need no new surface at all:
+
+- **The harness already has the container.** `scripts/lib/mobile-harness.mjs` → `wipe` calls
+  `xcrun simctl get_app_container <device> com.leapsake.app data`, and everything above except
+  the key store sits under `Documents/SQLite/` beneath it. Node can read it directly, which is
+  exactly what "against the test profile on disk" asks for. Verified 2026-09-09: an Authenticated
+  store's `leapsake.db` opens `f3b2 e369 …` (no SQLite magic → ciphertext) while its `doors.db`
+  is plaintext and holds `password` and `recovery` rows, and `leapsake-roster.db` holds one row.
+- **An in-app inspection screen would break the rule above.** "Never call into app code" is the
+  whole point: a dev screen reporting *"I am encrypted"* is the app testifying about itself, which
+  is the weaker evidence and the one an encrypting-nothing build would still pass. Read the files.
+- ⚠️ **The key store is the genuinely hard row, and it is the only one.** `xcrun simctl keychain`
+  offers `add-cert`, `add-root-cert` and `reset` — there is **no read verb**, which is why `wipe`
+  resets the whole keychain rather than inspecting it. Settling that one is the actual open
+  question; it is not a reason to build a surface for the other four.
+- **"Gone" must mean the file, not the directory.** After a conversion or a Forget, `stores/local/`
+  and the old `stores/<accountId>/` remain as **empty directories** while their `.db` files are
+  deleted. An assertion written as "the directory does not exist" goes red against a correct app.
 
 ## The selector problem (must resolve before the first harness)
 
@@ -140,7 +168,7 @@ surface no lower tier reaches).
   > **reachability**, not tab labels; the shell's own shape is
   > `apps/mobile/maestro/global-nav.yaml`'s job, not this flow's.
 - **Assert (out of band):** the store is **plaintext** and sits at `stores/local/`; the OS key
-  store holds **zero** Leapsake entries; the roster holds zero accounts; no `.recovery` sidecar.
+  store holds **zero** Leapsake entries; the roster holds zero accounts; neither door exists.
 - **Devices:** single.
 - **Uniquely exercises:** the Unauthenticated boot path, whose defining property is an *absence* — and an
   absence no lower tier can prove, because they all inject a fake key store. This is the flow
@@ -195,8 +223,8 @@ surface no lower tier reaches).
   account; the phrase is **not** offered anywhere again.
 - **Assert (out of band):** the store is now **ciphertext** at `stores/<accountId>/`; the
   Unauthenticated store at `stores/local/` is **gone**; the roster holds exactly one account; the OS key store
-  now holds the db-key, enclave secret, recovery key and device id; the `.recovery` sidecar
-  exists.
+  now holds the db-key, enclave secret, recovery key and device id; both doors exist (see the
+  custody table for each client's shape).
 - **Devices:** single.
 - **Uniquely exercises:** the plaintext→encrypted conversion of a *live* store with real rows,
   driven through the real UI, plus the OS key store's transition from empty to populated. Both
@@ -460,7 +488,8 @@ usual and better way for a question like this to close.
    ([`../../apps/mobile/maestro/README.md`](../../apps/mobile/maestro/README.md)).
 3. ✅ **The out-of-band custody assertions** — approved, and scheduled: §C's rung table requires
    **every** one of them at `rc`. They remain the part of this catalog with no code yet, and
-   they need a mobile inspection surface that does not exist.
+   four of the five are reachable from the harness today — see *Where these run on mobile*
+   — and only the key-store row still has no answer.
 4. ✅ **Flow-5 inclusion** — confirmed and built. It is in the `beta` bar and green on both
    mobile platforms.
 5. **Two-instance harness shape.** How Flows 6/7a run two instances locally: two emulators/sims,
@@ -510,7 +539,8 @@ What happened instead, and it inverted every step:
 **So the remaining v0.1 E2E gate is the out-of-band custody assertions**, plus turning `rc`'s
 catalog requirement into a `requires:` check rather than a `manual:` sentence. **Every flow the
 `rc` bar names is now green on iOS.** The custody assertions are the harder half of what is left:
-they need a mobile inspection surface that does not exist, and that surface is the work.
+four of the five rows are reachable from the harness today and only the key-store row is
+genuinely open — see *Where these run on mobile* above.
 
 > These two are step 3 of [`../shipping.md`](../shipping.md) → Part 1, the ordered list of
 > everything blocking GA. The flow ids here are the stable ones and do not change with that

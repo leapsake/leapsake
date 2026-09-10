@@ -12,13 +12,14 @@ have shipped and a real external tester is on the app. Android and macOS follow 
 company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) → *Part 2*),
 which is also why nothing may reach Play from the personal account.
 
-**Next, and it is one thing: the out-of-band custody assertions** — the last of the `rc` bar and
-the only part of the crucial-flow catalog with no code at all. **Every *flow* that bar names is
-now green on iOS**: both at-rest doors landed 2026-09-09 (7c the password, 7b the phrase), and
-between them they found four bugs in the pre-database boot path, the last being the gate showing
-the *wrong door's* error. What remains needs a **mobile inspection surface that does not exist**
-— store custody, key-store contents, the roster — and that surface is the work, not the
-assertions. With it, the catalog moves into `ios.mjs`'s `requires:` from a `manual:` sentence.
+**Next, and it is one thing: the out-of-band custody assertions** — the last of the `rc` bar, and
+the only part of the catalog with no code. **Every *flow* that bar names is now green on iOS**:
+both at-rest doors landed 2026-09-09 (7c password, 7b phrase), finding four bugs in the
+pre-database boot path between them. What is left is the five checks that read the **bytes**
+rather than the screen. **Four are reachable from the harness today** (`simctl
+get_app_container`, which `wipe` already calls); the open one is the **iOS key store**, which
+`simctl keychain` cannot read. Do not build an in-app inspection screen — the catalog's rule is
+*never call into app code*. Then the catalog moves into `ios.mjs`'s `requires:`.
 
 **Then, in order — [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with
 acceptance for each step.** ② **Public repo**, full-history secret scan first. ③ **The App Store
