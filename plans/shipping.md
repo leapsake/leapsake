@@ -97,29 +97,56 @@ stranded a real user:
 ## 3 — Catalog Flow 7b, the phrase door
 
 ✅ **Decided, 2026-09-09: 7b is not deferred — and it never carried the cost it would have been
-deferred for.** Building 7c settled the open question by disproving its premise. The old wording
-priced 7b at "24 stitched `copyTextFrom` calls or a new surface exposing the phrase as one
-string". Both would get the 24 words into a variable, and **neither gets them out of the flow**:
-`scripts/lib/mobile-harness.mjs` runs `maestro test <file>` once per flow, so `output.*` and
-`maestro.copiedText` die with each flow's process. The reveal's own **Copy** button does not
-bridge it either — Maestro's `pasteText` replays its own `copiedText`, never the device
-pasteboard.
+deferred for.** Building 7c disproved the premise. 7b was priced at "24 stitched `copyTextFrom`
+calls or a new surface exposing the phrase as one string"; the real barrier is that **a capture
+cannot leave the flow that made it**. `scripts/lib/mobile-harness.mjs` runs `maestro test <file>`
+once per flow, so `output.*` and `maestro.copiedText` die with each flow's process, and the
+reveal's own **Copy** button does not bridge it — Maestro's `pasteText` replays its own
+`copiedText`, never the device pasteboard.
 
-**So the constraint is shape, not effort:** 7b has to be **self-contained** — factory-reset, seed
-a person, create an account, capture the phrase from the reveal it just watched, then drive the
+**So the constraint is shape, not effort:** 7b must be **self-contained** — factory-reset, seed a
+person, create an account, capture the phrase from the reveal it just watched, then drive the
 door — because that is what puts the reveal and the door in one process. Its real cost is a
-second store conversion per suite run (the Argon2id step, ~50-85s typical), which is a schedule
-question rather than a design one.
+second store conversion per suite run (the Argon2id step, ~50-85s typical), a schedule question
+rather than a design one.
 
-7b also inherits the one clause 7c could not carry: **the right phrase still opens the store
-after a password unlock**. 7c proves the phrase door is still offered and that its sidecar is
-still read and rejects a wrong-but-well-formed phrase; only "the right words work" waits for this
-step. Both halves are written into
+It also inherits the one clause 7c could not carry: **the right phrase still opens the store
+after a password unlock.** 7c proves the phrase door is still offered and that its sidecar is
+still read; only "the right words work" waits for here. Both halves:
 [`testing/crucial-flows.md`](./testing/crucial-flows.md) → Flow 7.
 
+### The four things 7c could not settle for it
+
+1. ⚠️ **The capture is the novel part, and it is unvalidated.** Nothing has ever run
+   `copyTextFrom` against the reveal — 7c never needed the words, so the sentence above saying
+   both approaches "would get the 24 words into a variable" is reasoning, **not a measurement**.
+   Prove it before building around it. The grid renders 24 separate `Text` nodes reading
+   `1. abandon` (`RecoveryPhraseWords`, [`apps/mobile/app/settings.tsx`](../apps/mobile/app/settings.tsx)),
+   so the two candidates are: a `repeat` over an index accumulating into `output` — `evalScript`
+   already has precedent in `apps/mobile/maestro/staged-gifts.yaml` — stripping the `N. ` prefix
+   per word; or
+   building the catalog's proposed `recovery-phrase` anchor with the whole phrase as its label, so
+   one `copyTextFrom` does it. Prefer the first: it needs no new app surface, and exposing the
+   phrase as a single string is a thing to argue for deliberately, not to reach for as a
+   convenience.
+2. **It runs last in the arc**, after `07c` in `scripts/test-e2e.mjs`. Not a preference — its
+   opening factory reset destroys the store that `04` builds and `07c` inherits.
+3. **Account creation needs extracting first.** It is ~40 lines inlined in `04-create-account.yaml`,
+   most of them the iOS "Use Strong Password?" double-type workaround that a runtime update can
+   re-arm at any time. 7b needs the same dance, so pull it into `subflows/create-account.yaml` and
+   have `04` call it — one copy of that workaround, not two that can drift.
+4. **The wrong phrase must be *valid* BIP39.** `decodeRecoveryPhrase` checks the wordlist and
+   checksum *before* `openDbKeyFromRecovery` sees anything, so a garbage phrase tests the codec and
+   proves nothing about the sidecar. `07c-password-door.yaml` uses the all-zero-entropy vector
+   (23 × `abandon` + `art`) for exactly this and documents why.
+
+**Read [`apps/mobile/maestro/e2e/07c-password-door.yaml`](../apps/mobile/maestro/e2e/07c-password-door.yaml)
+first.** Its reset → relaunch → gate half is the template, and its header carries the budgets, the
+`repeat` trap and the gate's three anchors.
+
 **Acceptance:** 7b green on a real device — key-store reset, gate raised, the phrase captured in
-that same flow opens the store with data intact, and a wrong phrase rejected without spoiling the
-retry.
+that same flow opens the store with data intact; a **valid but wrong** phrase rejected by the
+sidecar's own error, with the right phrase still working afterwards.
 
 ## 4 — The rest of the `rc` bar
 
