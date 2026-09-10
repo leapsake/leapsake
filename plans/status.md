@@ -12,18 +12,18 @@ have shipped and a real external tester is on the app. Android and macOS follow 
 company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) → *Part 2*),
 which is also why nothing may reach Play from the personal account.
 
-**Next, and it is one thing: catalog Flow 7c, the password door.** Three `testID`s on
-`RecoveryGate` (`apps/mobile/lib/core-context.tsx`, which carries none) and one Maestro flow
-after `04` in the arc, where Flow 4 leaves exactly its preconditions — an Authenticated store
-with data and a password the arc already typed. ⚠️ **Settle 7b's deferral with it, not after
-it:** the catalog's 7c ends by asserting the *phrase* door still works, and that clause needs
-the 24-word capture 7c was supposed to escape.
+**Next, and it is one thing: catalog Flow 7b, the phrase door** — the last flow the `rc` bar
+needs. Building 7c (landed 2026-09-09) settled its shape and killed the reason it might have
+been deferred: **a capture cannot leave the flow that made it** — one `maestro test` process
+per flow, and `pasteText` replays Maestro's own buffer, not the pasteboard. So 7b creates its
+own account rather than inheriting `04`'s, and it inherits 7c's one unproven clause (that the
+*right* phrase opens the store). Its only real cost is a second store conversion per run.
 
 **Then, in order — [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with
-acceptance for each step.** ② The rest of the `rc` bar: 7b, the out-of-band custody
-assertions (**the long pole** — they need a mobile inspection surface that does not exist),
-and the catalog as a `requires:` check in `ios.mjs`. ③ **Public repo**, full-history secret
-scan first. ④ **The App Store Connect fields nothing in the repo can check** — privacy URL, a
+acceptance for each step.** ② The rest of the `rc` bar: the out-of-band custody assertions
+(**the long pole** — they need a mobile inspection surface that does not exist), and the
+catalog as a `requires:` check in `ios.mjs`. ③ **Public repo**, full-history secret scan
+first. ④ **The App Store Connect fields nothing in the repo can check** — privacy URL, a
 *published* App Privacy questionnaire, screenshots, age rating; `ascSetup` reads none of them.
 ⑤ **Submit**, then **GA**.
 

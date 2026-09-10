@@ -164,30 +164,12 @@ appId: com.leapsake.app
 # `assertNotVisible` above was not: `add-first-person` applies only while the store holds
 # no entities, and retirement is a permanent tombstone — so an erase that silently did
 # nothing leaves the previous arc's people in place, the step unmet, and this red.
-- stopApp
-- launchApp
-# **A cold dev-client launch does not always land on the app**, and the two platforms
-# differ on it — which is the one place this arc had to learn Android's shape. On iOS the
-# dev client reconnects to its remembered dev server on its own. On Android it shows the
-# **expo-dev-launcher** instead: a list of development servers with the app nowhere on
-# screen, so the wait below spent its full 60s and the flow died on `tab-search is not
-# visible` while the device was perfectly healthy. It is the same class of failure as the
-# dev-menu overlay — a screen in front of the app that does not look like one from the
-# log.
 #
-# Handled the way `../ios-prepare.yaml` handles the same family on iOS: a guarded tap that
-# simply does not fire when the control is absent, so **the file stays byte-identical
-# across platforms**. The entry is matched by URL rather than by "Leapsake", which names
-# both the launcher's own header and every row in its list. `localhost:8081` is there
-# because the harness loads the bundle over `adb reverse` from localhost; the animation
-# wait is what keeps the check from running before the launcher has drawn.
-- waitForAnimationToEnd:
-    timeout: 5000
-- runFlow:
-    when:
-      visible: ".*localhost:8081.*"
-    commands:
-      - tapOn: ".*localhost:8081.*"
+# The relaunch itself — including the guarded tap that gets Android past its
+# dev-launcher — is `relaunch.yaml`, which carries the whole explanation and which Flow 7c
+# relaunches through twice. It deliberately waits for nothing: what "up" means differs per
+# caller, and here it is the tab bar.
+- runFlow: relaunch.yaml
 # 120s, matching the harness's own `HOME_TIMEOUT_MS` for the same act: this is a **cold**
 # dev-client launch — a fresh process fetching the whole JS bundle from Metro and booting
 # it — which is the slowest thing in the suite and has nothing to do with how fast the app

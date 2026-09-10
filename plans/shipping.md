@@ -71,16 +71,55 @@ so this is three `testID`s and a Maestro flow.
 **Acceptance:** 7c green on a real device — keychain key cleared, gate raised, password opens the
 store with data intact.
 
+✅ **Acceptance is met** *(2026-09-09)*. `apps/mobile/maestro/e2e/07c-password-door.yaml`, three
+`testID`s on `RecoveryGate`, appended to the `test:e2e` arc after `04` whose end state it
+inherits. It costs three Argon2id passes — a wrong password derives exactly as long as a right
+one — measuring 25s each on the iPhone 16 Pro simulator, for 2m46s of the tier's wall-clock.
+
+**It found three real bugs in the unlock gate on its first green, which is the argument for the
+`rc` bar rather than a footnote to it.** None was visible on screen, and the third would have
+stranded a real user:
+
+1. **The gate never repainted while it derived.** The button kept reading "Unlock" for the whole
+   Argon2id pass, because resolving the awaiting bootstrap inline hands that work a microtask —
+   which runs before React commits. Fifty seconds of dead screen at the exact moment someone has
+   been locked out.
+2. **The phrase field was invisible to any driver.** A `multiline` `TextInput` is a `UITextView`
+   on iOS and the node XCUITest exposes carries no accessibility identifier at all. The id now
+   sits on a wrapping `View`.
+3. **The phrase door could not be submitted at all.** Its keyboard covers **Unlock**, its return
+   key inserts a newline rather than dismissing, and a plain `View` does not blur on an outside
+   tap — so there was no way to reach the button. The gate now scrolls, with
+   `keyboardShouldPersistTaps="handled"`.
+
+**Delete this section** once step 3 lands.
+
 ## 3 — Catalog Flow 7b, the phrase door
 
-The harder case, and it **carries a real cost**: Flow 4 as built does not capture the recovery
-phrase (it asserts the grid has a 24th word and no 25th), so 7b needs 24 stitched `copyTextFrom`
-calls or a new surface exposing the phrase as one string. 7c escapes this entirely, being
-answered with the password Flow 4 already types.
+✅ **Decided, 2026-09-09: 7b is not deferred — and it never carried the cost it would have been
+deferred for.** Building 7c settled the open question by disproving its premise. The old wording
+priced 7b at "24 stitched `copyTextFrom` calls or a new surface exposing the phrase as one
+string". Both would get the 24 words into a variable, and **neither gets them out of the flow**:
+`scripts/lib/mobile-harness.mjs` runs `maestro test <file>` once per flow, so `output.*` and
+`maestro.copiedText` die with each flow's process. The reveal's own **Copy** button does not
+bridge it either — Maestro's `pasteText` replays its own `copiedText`, never the device
+pasteboard.
 
-> ⏳ **Owner decision, open.** If only one door can be afforded at `rc`, **7c is the cheaper and
-> 7b covers the harder case**. Deferring 7b is a legitimate answer; deferring it *silently* is
-> not. Decide it and write the answer here.
+**So the constraint is shape, not effort:** 7b has to be **self-contained** — factory-reset, seed
+a person, create an account, capture the phrase from the reveal it just watched, then drive the
+door — because that is what puts the reveal and the door in one process. Its real cost is a
+second store conversion per suite run (the Argon2id step, ~50-85s typical), which is a schedule
+question rather than a design one.
+
+7b also inherits the one clause 7c could not carry: **the right phrase still opens the store
+after a password unlock**. 7c proves the phrase door is still offered and that its sidecar is
+still read and rejects a wrong-but-well-formed phrase; only "the right words work" waits for this
+step. Both halves are written into
+[`testing/crucial-flows.md`](./testing/crucial-flows.md) → Flow 7.
+
+**Acceptance:** 7b green on a real device — key-store reset, gate raised, the phrase captured in
+that same flow opens the store with data intact, and a wrong phrase rejected without spoiling the
+retry.
 
 ## 4 — The rest of the `rc` bar
 
@@ -236,8 +275,7 @@ across secondary sources, never stated by Google in those words.
 
 # Open, and waiting on the owner
 
-1. **Can 7b be deferred behind 7c?** — Part 1, step 3.
-2. **Does v0.1 ship without merge by recovery phrase?** `recoverAccount` refuses a device that
+1. **Does v0.1 ship without merge by recovery phrase?** `recoverAccount` refuses a device that
    already holds an account exactly as `joinAccount` does, so merging by phrase needs the same
    copy-first treatment and is a second full flow on both clients. The gap: a user who has the
    account's **phrase** but not its password must recover on their *other* device first — fine

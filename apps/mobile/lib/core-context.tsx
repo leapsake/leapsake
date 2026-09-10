@@ -11,6 +11,7 @@ import {
   AppState,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -1830,6 +1831,32 @@ function CustodyBanner({
  * should never be sent hunting for 24 words they may never have written down, so
  * the phrase sits behind a "forgot your password?" action. Only the doors this
  * store actually has are offered.
+ *
+ * **The three `testID`s are load-bearing for Flow 7c, not decoration**
+ * (`plans/testing/crucial-flows.md` → Flow 7). Each is here because the visible
+ * text cannot carry the assertion:
+ *
+ * - `recovery-gate` — this `View` has no text of its own, and it is what a flow
+ *   waits on after a relaunch to know which of the two boots it got.
+ * - `recovery-secret` — the password field is `secureTextEntry` and so has empty
+ *   accessibility text, the case `../maestro/README.md` → *A secure field needs a
+ *   `testID`* documents, where a tap by text or point reports COMPLETED and types
+ *   into nothing. Only one field is mounted at a time, so one id serves both
+ *   doors; a flow says which door it is on by the visible label beside it.
+ *
+ * **`recovery-secret` sits on a wrapping `View`, not on the `TextInput`, and it has
+ * to.** A `multiline` `TextInput` is a `UITextView` on iOS, and the node XCUITest
+ * surfaces for it carries **no accessibility identifier** — the driver sees a scroll
+ * view with two scroll bars and nothing else. Measured 2026-09-09: with the id on
+ * the inputs, Flow 7c found the password door's field and then could not find the
+ * phrase door's *at all*, while the screenshot showed it rendering perfectly. A
+ * plain `View` does carry its id (`recovery-gate` above is one), it wraps the field
+ * tightly, so a tap at its centre lands on the field and focuses it. Putting the id
+ * on both wrappers rather than only the phrase one keeps the two doors symmetric —
+ * a flow does the same thing on each.
+ * - `recovery-submit` — the button's label is "Unlock" and this screen's title is
+ *   "Unlock your data", which a selector would match too, and the label flips to
+ *   "Checking…" mid-submit.
  */
 function RecoveryGate({
   error,
@@ -1865,7 +1892,20 @@ function RecoveryGate({
   function submit() {
     if (secret.trim() === "") return;
     setSubmitting(true);
-    onSubmit({ door, secret });
+    // **Let "Checking…" reach the screen before the derivation seizes the JS
+    // thread.** `onSubmit` is the awaiting bootstrap's `resolve`, and what it
+    // wakes runs a 19MiB Argon2id pass straight down this thread for the better
+    // part of a minute. Resolving inline hands that work a *microtask*, which
+    // runs before React has committed — so the button stays reading "Unlock",
+    // and someone who has just been locked out of their data taps it and watches
+    // a dead screen for fifty seconds. Two frames is the "after the next paint"
+    // idiom: the first schedules past the commit, the second runs once it has
+    // been delivered. Measured 2026-09-09 — Flow 7c's `Checking…` guard went red
+    // on exactly this, while the account form next door has always painted
+    // "Encrypting your data…" because its `await` yields for free.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => onSubmit({ door, secret })),
+    );
   }
 
   function switchTo(next: "password" | "phrase") {
@@ -1875,72 +1915,100 @@ function RecoveryGate({
   }
 
   return (
-    <View style={styles.gate}>
+    <View testID="recovery-gate" style={styles.gate}>
       {/*
-        Names no cause, because this gate now has two (mirrors desktop's): the
-        user signed out deliberately (@leapsake/key-custody), or this device's secure
-        storage was reset and took the key with it. Asserting the second — as
-        this used to — reads as an alarming malfunction to someone who simply
-        signed out a moment ago.
+        **The scroller is what makes the phrase door usable at all**, and it is
+        not a harness accommodation. On the phrase door the field is `multiline`,
+        so its return key inserts a newline instead of dismissing; inside a plain
+        `View` a tap elsewhere does not blur either, and the software keyboard
+        covers **Unlock** on a phone-sized screen. Measured on an iPhone 16 Pro,
+        2026-09-09: field at y419-507, Unlock at y520-565, keyboard from ~538 —
+        so someone who has just been locked out, and who has correctly reached
+        for their 24 words, types them and then cannot press the button.
+        `keyboardShouldPersistTaps="handled"` restores the ordinary escape (a tap
+        on any non-touchable — the title, the body copy — puts the keyboard away)
+        and the scroll gives the button somewhere to go on a short screen.
+
+        `recovery-gate` stays on the `View` outside it rather than moving onto the
+        `ScrollView`: a scroll view is the one node kind this screen has already
+        been bitten by — see the `recovery-secret` note above — and the anchor is
+        not worth risking for one less element.
       */}
-      <Text style={styles.gateTitle}>Unlock your data</Text>
-      <Text style={styles.gateBody}>
-        Your data on this device is encrypted and locked — either because you
-        signed out, or because this device's secure storage was reset. It is
-        still here.{" "}
-        {door === "password"
-          ? "Enter your password to unlock it."
-          : "Enter your recovery phrase to unlock it."}
-      </Text>
-      {door === "password" ? (
-        <>
-          <Text style={styles.gateFieldLabel}>Password</Text>
-          <TextInput
-            value={secret}
-            onChangeText={setSecret}
-            editable={!submitting}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.gateInput}
-          />
-        </>
-      ) : (
-        <>
-          <Text style={styles.gateFieldLabel}>Recovery phrase</Text>
-          <TextInput
-            value={secret}
-            onChangeText={setSecret}
-            editable={!submitting}
-            multiline
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.gateInput}
-          />
-        </>
-      )}
-      {error !== undefined && <Text style={styles.error}>{error}</Text>}
-      <Pressable
-        style={[styles.gateButton, submitting && { opacity: 0.5 }]}
-        disabled={submitting}
-        onPress={submit}
+      <ScrollView
+        contentContainerStyle={styles.gateContent}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.gateButtonText}>
-          {submitting ? "Checking…" : "Unlock"}
+        {/*
+          Names no cause, because this gate now has two (mirrors desktop's): the
+          user signed out deliberately (@leapsake/key-custody), or this device's
+          secure storage was reset and took the key with it. Asserting the second
+          — as this used to — reads as an alarming malfunction to someone who
+          simply signed out a moment ago.
+        */}
+        <Text style={styles.gateTitle}>Unlock your data</Text>
+        <Text style={styles.gateBody}>
+          Your data on this device is encrypted and locked — either because you
+          signed out, or because this device's secure storage was reset. It is
+          still here.{" "}
+          {door === "password"
+            ? "Enter your password to unlock it."
+            : "Enter your recovery phrase to unlock it."}
         </Text>
-      </Pressable>
-      {door === "password" && doors.phrase && (
-        <Pressable onPress={() => switchTo("phrase")}>
-          <Text style={styles.gateLink}>
-            Forgot your password? Use your 24-word recovery phrase
+        {door === "password" ? (
+          <>
+            <Text style={styles.gateFieldLabel}>Password</Text>
+            <View testID="recovery-secret">
+              <TextInput
+                value={secret}
+                onChangeText={setSecret}
+                editable={!submitting}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.gateInput}
+              />
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.gateFieldLabel}>Recovery phrase</Text>
+            <View testID="recovery-secret">
+              <TextInput
+                value={secret}
+                onChangeText={setSecret}
+                editable={!submitting}
+                multiline
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.gateInput}
+              />
+            </View>
+          </>
+        )}
+        {error !== undefined && <Text style={styles.error}>{error}</Text>}
+        <Pressable
+          testID="recovery-submit"
+          style={[styles.gateButton, submitting && { opacity: 0.5 }]}
+          disabled={submitting}
+          onPress={submit}
+        >
+          <Text style={styles.gateButtonText}>
+            {submitting ? "Checking…" : "Unlock"}
           </Text>
         </Pressable>
-      )}
-      {door === "phrase" && doors.password && (
-        <Pressable onPress={() => switchTo("password")}>
-          <Text style={styles.gateLink}>Use your password instead</Text>
-        </Pressable>
-      )}
+        {door === "password" && doors.phrase && (
+          <Pressable onPress={() => switchTo("phrase")}>
+            <Text style={styles.gateLink}>
+              Forgot your password? Use your 24-word recovery phrase
+            </Text>
+          </Pressable>
+        )}
+        {door === "phrase" && doors.password && (
+          <Pressable onPress={() => switchTo("password")}>
+            <Text style={styles.gateLink}>Use your password instead</Text>
+          </Pressable>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -1958,6 +2026,11 @@ const styles = StyleSheet.create({
   },
   gate: {
     flex: 1,
+  },
+  /** `flexGrow` rather than `flex`, so the content still centres on a tall screen
+   *  and simply scrolls once the keyboard has taken half of a short one. */
+  gateContent: {
+    flexGrow: 1,
     justifyContent: "center",
     padding: 24,
     gap: 12,

@@ -41,8 +41,9 @@ author will otherwise get wrong:
 > "reveal my phrase" surface in Settings — an account holder who loses the phrase rotates to a
 > new one behind re-auth (a later increment), and no flow may assume the phrase can be re-read
 > after account creation. **Every flow that needs the phrase must capture it at the moment it
-> is shown** (Flow 4 or Flow 6) and carry it forward. This is the single most likely way to
-> write a flow that passes today and rots tomorrow.
+> is shown** (Flow 4 or Flow 6) — and, because a capture cannot leave the flow that made it
+> (see the ⚠️ under the matrix), **must itself be the flow that reaches that moment**. This is
+> the single most likely way to write a flow that passes today and rots tomorrow.
 
 ## Asserting on custody: the one deliberate exception to "assert on screen"
 
@@ -78,18 +79,30 @@ anchors for the ambiguous points only, following the existing `driver-selftest-s
 both clients** so one catalog line targets both. The proposed minimal set (add as flows are
 implemented, not upfront):
 
-| Anchor token | Marks | Used by |
-|---|---|---|
-| `home-empty` | Reminders/Home empty-state reached, boot done | Flow 1 |
-| `home-ready` | Home rendered with content | Flows 5, 6 |
-| `sync-status` | sync state text (its label = `off`/`syncing`/`synced`/`error`) | Flow 6 |
-| `recovery-phrase` | the one-time 24-word phrase display (label = the words) | Flows 4, 6, 7 |
-| `recovery-gate` | the at-rest boot gate is up | Flow 7 |
+| Anchor token | Marks | Used by | Built |
+|---|---|---|---|
+| `home-empty` | Reminders/Home empty-state reached, boot done | Flow 1 | — |
+| `home-ready` | Home rendered with content | Flows 5, 6 | — |
+| `sync-status` | sync state text (its label = `off`/`syncing`/`synced`/`error`) | Flow 6 | — |
+| `recovery-phrase` | the one-time 24-word phrase display (label = the words) | Flows 4, 6, 7 | — |
+| `recovery-gate` | the at-rest boot gate is up | Flow 7 | mobile, 7c |
+| `recovery-secret` | the box around the gate's secret field, whichever door is showing | Flow 7 | mobile, 7c |
+| `recovery-submit` | the gate's **Unlock** button | Flow 7 | mobile, 7c |
 
-The gate hosts two doors (password, phrase); one anchor covers it and the flows target each door
-by its visible label. Keep this list *small and shared*; everything else asserts on real
-on-screen labels ("People & Pets", "Factory reset", "Save your recovery phrase", "Unlock", the
-person's name, the milestone note).
+The gate hosts two doors (password, phrase); the flows pick a door by its visible label and the
+switch links, and the three anchors above cover only what the labels cannot: a container with no
+text of its own, a field that no selector can reach (`secureTextEntry` on one door has empty
+accessibility text; `multiline` on the other is a `UITextView` that carries no identifier at all,
+so the anchor goes on a wrapping element rather than the input), and a button whose label
+(`Unlock`) is a prefix of the screen's own title (`Unlock your data`) and flips to `Checking…`
+mid-submit. Keep this list *small and shared*; everything else asserts on real on-screen labels
+("People & Pets", "Factory reset", "Save your recovery phrase", "Unlock", the person's name, the
+milestone note).
+
+⚠️ **`recovery-phrase` is not the escape hatch it looks like.** Adding it — even with the whole
+phrase as its label, so one `copyTextFrom` captures it — does **not** let one flow hand the words
+to another. See the phrase-capture note under the matrix: the barrier is process isolation, not
+selector cost.
 
 ---
 
@@ -245,8 +258,10 @@ gate**. Every variant carries its **negative case** — a wrong secret must be r
 and must corrupt nothing. Leaving the negatives out is how a door that never actually checks
 anything ships green.
 
-**Every variant depends on a phrase captured during Flow 4 or Flow 6.** There is no
-reveal-in-Settings to fall back on.
+**Every variant that opens the phrase door depends on a phrase captured during Flow 4 or
+Flow 6.** There is no reveal-in-Settings to fall back on, and — the part that decides these
+flows' shape — **a capture cannot cross from one flow to another**; see the phrase-capture note
+under the matrix. So a flow that needs the words must be the flow that watched them appear.
 
 **7a — Cross-device recovery (forgot password).**
 - **Steps:** on a synced account (Flow 6), take the phrase captured there to a **fresh** Device
@@ -259,21 +274,37 @@ reveal-in-Settings to fall back on.
 **7b — At-rest local recovery, phrase door.**
 - **Steps:** on an Authenticated device with data, simulate an OS key-store reset (desktop: delete
   `keystore.json` from the profile; mobile: the `dev-clear-dbkey` route) and relaunch; the boot
-  gate appears (`recovery-gate`, "Restore access to your data"); enter the phrase → **Unlock**.
+  gate appears (`recovery-gate`, "Unlock your data"); choose **Forgot your password?**; enter the
+  phrase → **Unlock**.
 - **Assert:** the app opens to the existing data; a wrong phrase re-enables the form with an
   error and leaves the sidecar intact (a second attempt with the right phrase still works —
   assert that, or the "corrupts nothing" claim is untested).
+- **Also 7b's, moved from 7c** *(2026-09-09)*: **the right phrase still opens the store after a
+  password unlock has happened.** It sits here because it needs the words, and the words cannot
+  leave the flow that watched them appear — so it is 7b that has to create its own account.
 - **Devices:** single.
 - **Uniquely exercises:** the boot-time gate and the `.recovery` sidecar unwrap — the local-only
   backup story. No lower tier boots through this gate.
+- **Shape, decided with 7c:** 7b cannot inherit Flow 4's end state the way 7c does. It has to be
+  **self-contained** — factory-reset, seed a person, create an account, capture the phrase from
+  the reveal, then drive the door — all inside one flow file, because that is what puts the
+  reveal and the door in one `maestro test` process.
 
 **7c — At-rest local recovery, password door.**
 - **Steps:** the same key-store reset, answered with the **account password** instead of the
   phrase.
 - **Assert:** the app opens to the existing data; a wrong password re-enables the form with an
-  error and consumes nothing; afterwards the *phrase* door still works (the doors are
-  independent — prove it, since a shared-state bug here is invisible until someone needs the
-  second door).
+  error and consumes nothing; afterwards the *phrase* door is still **offered** and its sidecar
+  still **reads** — a well-formed but wrong phrase must be rejected by the sidecar's own MAC,
+  with the phrase door's own error, not by the codec and not by "that door is not available".
+  The doors are independent and a shared-state bug here is invisible until someone needs the
+  second door, so this is asserted right after the act that would cause it: a password unlock is
+  not read-only on the phrase sidecar — the boot path rewrites the recovery door on its way
+  through, and `convergeRecoveryKey` writes it again.
+- ⚠️ **What 7c does *not* assert, and where it went** *(2026-09-09)*: that the **right** phrase
+  opens the store. That needs the 24 words, which no flow but the one that watched the reveal can
+  have — so the clause moved to **7b**, whose shape is built around exactly that. This is a
+  scheduled split, not a silent one; [`../shipping.md`](../shipping.md) → Part 1 carries it.
 - **Devices:** single.
 - **Uniquely exercises:** the password sidecar in the pre-database boot path. This is the door
   that makes an org-move Team-ID change cost one password entry instead of a phrase hunt
@@ -323,8 +354,8 @@ tier stays small). Listed so the owner can pull any into the gate:
 | 5 Reminder @/# round-trip | **beta** | gate | gate | gate | later | 1 | drives the compose pickers |
 | 6 Enable sync + pair | with sync (v0.2) | gate | gate | gate | later | **2** | needs a relay + two instances; Flow 4's assertions apply to A |
 | 7a Cross-device recovery | with sync (v0.2) | gate | gate | gate | later | 2 | includes wrong-phrase negative |
-| 7b At-rest, phrase door | **rc** | gate | gate | gate | later | 1 | key-store reset: delete `keystore.json` / `dev-clear-dbkey`. **Carries the phrase-capture cost** |
-| 7c At-rest, password door | **rc** | gate | gate | gate | later | 1 | same reset, password answer; prove both doors independent |
+| 7b At-rest, phrase door | **rc** | gate | gate | gate | later | 1 | key-store reset: delete `keystore.json` / `dev-clear-dbkey`. **Must create its own account** — the words cannot cross a flow boundary |
+| 7c At-rest, password door | **rc** | gate | gate | gate | later | 1 | ✅ built (iOS, 2026-09-09); same reset, password answer; three Argon2id passes, so budget it like Flow 4 |
 
 **"Gates at"** is the release rung by which a flow must be green, per
 [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*'s rung table
@@ -332,16 +363,40 @@ tier stays small). Listed so the owner can pull any into the gate:
 *when*, never *whether*: every core flow still gates v0.1, and `rc` is inside v0.1. Flows 6/7a are
 the exception and leave v0.1 entirely, per open decision 2.
 
-⚠️ **The phrase capture is the one unbuilt prerequisite in this table** *(checked 2026-08-28)*.
-Every variant of Flow 7 "depends on a phrase captured during Flow 4 or Flow 6", and Flow 4 as
-built does **not** capture it — it asserts the grid has a 24th word and no 25th, which is all
-the `beta` bar asks. The reveal renders the words as 24 separately-numbered `Text` nodes, so
-capture means 24 `copyTextFrom` calls stitched together, or a new surface exposing the phrase
-as one string, which the no-new-app-surface rule would have to be argued past. **Price it into
-7b, not into Flow 4.** 7c escapes it entirely: the password door is answered with the password
-Flow 4 already typed, and both `dev-clear-dbkey` and the `RecoveryGate` are already built — it
-needs three `testID`s on the gate and a flow. **If only one door can be afforded at `rc`, 7c is
-the cheaper one and 7b is the one that covers the harder case.**
+⚠️ **The phrase capture is the one unbuilt prerequisite in this table, and it is not a cost —
+it is a constraint on shape** *(rewritten 2026-09-09, while building 7c; the 2026-08-28 wording
+priced it wrongly)*. Every variant of Flow 7 that opens the phrase door needs words that are
+shown exactly once, on Flow 4's reveal. **A flow cannot hand them to another flow:**
+
+- `scripts/lib/mobile-harness.mjs` runs **`maestro test <file>` once per flow**, so `output.*`
+  and `maestro.copiedText` die with each flow's process.
+- The old wording priced the capture at "24 stitched `copyTextFrom` calls, or a new surface
+  exposing the phrase as one string". Both are real ways to get the words *into a variable*, and
+  **neither gets them out of the flow** — which is why adding the `recovery-phrase` anchor does
+  not solve this either.
+- The reveal's own **Copy** button does not bridge it. Maestro's `pasteText` replays *its own*
+  `copiedText` via `inputText`; it never reads the device pasteboard (verified against
+  `maestro-orchestra.jar`, Maestro 2.8.0).
+
+**So the rule is: the flow that needs the words must be the flow that watched them appear.** 7b
+therefore creates its own account rather than inheriting Flow 4's; that is its whole extra cost,
+and it is a second store conversion, not a selector problem. **7c escapes it**: the password door
+is answered with the password Flow 4 already typed, so 7c inherits Flow 4's end state directly.
+
+✅ **7c is built** *(2026-09-09)* — `apps/mobile/maestro/e2e/07c-password-door.yaml`, three
+`testID`s on the gate, appended to the `test:e2e` arc after `04`. It carries every assertion its
+catalog entry asks for except the right-phrase clause, which moved to 7b above. Three Argon2id
+passes at ~25s each on the iOS simulator; 2m46s in total. The wrong *phrase* is rejected in
+0.12s, because that door unwraps raw key material and derives nothing.
+
+**It found three bugs on its first green**, all in the pre-database boot path this catalog calls
+"the most delicate code in the app", and none of them visible on screen: the gate never
+repainted while it derived (a microtask beat React's commit, so the button read "Unlock" for the
+whole pass); the phrase field carried no accessibility identifier for any driver to find (a
+`multiline` `TextInput` is a `UITextView` on iOS); and **the phrase door could not be submitted
+at all**, its keyboard covering **Unlock** with no way to dismiss it. `plans/shipping.md` →
+Part 1, step 2 has the detail. This is the strongest evidence to date for the rung table's claim
+that `rc`'s flows are the ones that prove data comes *back*.
 
 **The column reads as a ratchet on data loss.** A flow gates at the rung by which its failure
 would start costing someone something they cannot retype — which is why the *screen* halves of
@@ -411,10 +466,13 @@ What happened instead, and it inverted every step:
    that already ran the driver self-test. The cost was not the YAML — it was the environment:
    three harness bugs on the provisioning path and one real selector fix. See
    [`../../apps/mobile/maestro/README.md`](../../apps/mobile/maestro/README.md).
-3. ⏳ **Flows 7b, 7c — the `rc` bar, and the only catalog work v0.1 still owes.** Start with
-   **7c**: `dev-clear-dbkey` and the `RecoveryGate` both exist, and it needs three `testID`s and
-   a flow. 7b carries the phrase-capture cost (see the ⚠️ above the matrix), so it is the one to
-   price deliberately.
+3. ✅ **Flow 7c — the password door** *(2026-09-09)*. `dev-clear-dbkey` and the `RecoveryGate`
+   both already existed, so it cost three `testID`s and a flow, exactly as priced. It appends to
+   the `test:e2e` arc after `04`, inheriting its store, its data and its password.
+   ⏳ **Flow 7b is what the catalog still owes**, and building 7c is what settled its shape: not
+   a selector cost but a self-contained flow that creates its own account, because the words
+   cannot cross a flow boundary (the ⚠️ above the matrix). It also inherits 7c's right-phrase
+   clause.
 4. **Flows 6 + 7a (two-instance sync/recovery)** last, and **not in v0.1 at all**. They carry
    the relay + second-device infrastructure, and the reasoning is settled rather than pending:
    **Flow 6 answers itself** — *enable sync and pair a second device* exercises relay sync, and
@@ -428,10 +486,11 @@ What happened instead, and it inverted every step:
 5. **macOS (Playwright/Electron)** when desktop ships — [`../desktop-packaging.md`](../desktop-packaging.md)
    → A, which the harness needs a packaged `.app` from.
 
-**So the remaining v0.1 E2E gate is Flows 7b and 7c on iOS**, plus the out-of-band custody
-assertions, plus turning `rc`'s catalog requirement into a `requires:` check rather than a
-`manual:` sentence.
+**So the remaining v0.1 E2E gate is Flow 7b on iOS**, plus the out-of-band custody assertions,
+plus turning `rc`'s catalog requirement into a `requires:` check rather than a `manual:`
+sentence. **7c landed 2026-09-09** and took the live decision about 7b with it: 7b is not
+deferred, and never carried the cost it was deferred for.
 
-> These four are steps 2–4 of [`../shipping.md`](../shipping.md) → Part 1, the ordered list of
-> everything blocking GA and carries the live decision on whether **7b** can be deferred behind
-> 7c. The flow ids here are the stable ones and do not change with that doc's renaming.
+> These three are steps 3–4 of [`../shipping.md`](../shipping.md) → Part 1, the ordered list of
+> everything blocking GA. The flow ids here are the stable ones and do not change with that
+> doc's renaming.

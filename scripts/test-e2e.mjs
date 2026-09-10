@@ -14,9 +14,15 @@
 // by design (the catalog takes 1→4 as one arc), so the harness stops the platform at the
 // first red flow rather than reporting three failures that are really one.
 //
-// **The bar this meets is the `beta` rung, not the whole catalog** — Flows 1–5, on-screen
-// assertions only (`CONTRIBUTING.md` → *The E2E release gate*, the rung table). 7b/7c and
-// the out-of-band custody assertions are `rc`'s, and Flows 6/7a ship with sync.
+// **The bar this meets is the `beta` rung plus 7c** — Flows 1–5 on-screen (the rung
+// table's `beta` bar, `CONTRIBUTING.md` → *The E2E release gate*), and now the password
+// door, which is `rc`'s. What is still owed at `rc` is **7b** and the out-of-band custody
+// assertions; Flows 6/7a ship with sync.
+//
+// **7c costs three Argon2id passes and lives here anyway.** It roughly doubles the tier's
+// wall-clock, and the alternative — a second `test:e2e:rc` entry point — would have split
+// the arc across two runners for a flow that only makes sense as its continuation. It runs
+// last, so a red before it still fails fast.
 import { join } from "node:path";
 
 import { MAESTRO_DIR, runSuite } from "./lib/mobile-harness.mjs";
@@ -37,6 +43,11 @@ await runSuite({
   // reads better as the arc's destination than as its middle, and nothing else has to run
   // under encryption to prove what it proves. The arc stays re-runnable either way:
   // `subflows/factory-reset.yaml` drives the reset under both of its names.
+  //
+  // **07c is the one flow that must follow 04 rather than merely come after it.** It
+  // needs an Authenticated store with data in it and the password that sealed it, which is
+  // precisely what 04 leaves behind — so it reads 04's end state as its preconditions and
+  // types no username of its own.
   flows: [
     flow("01-first-run.yaml", "Flow 1 — first run reaches a usable state"),
     flow("02-person-and-relationship.yaml", "Flow 2 — person + relationship"),
@@ -46,5 +57,9 @@ await runSuite({
       "Flow 5 — reminder @mention + #tag round trip",
     ),
     flow("04-create-account.yaml", "Flow 4 — an account turns encryption on"),
+    flow(
+      "07c-password-door.yaml",
+      "Flow 7c — the password door reopens a locked store",
+    ),
   ],
 });
