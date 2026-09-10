@@ -84,7 +84,7 @@ implemented, not upfront):
 | `home-empty` | Reminders/Home empty-state reached, boot done | Flow 1 | — |
 | `home-ready` | Home rendered with content | Flows 5, 6 | — |
 | `sync-status` | sync state text (its label = `off`/`syncing`/`synced`/`error`) | Flow 6 | — |
-| `recovery-phrase` | the one-time 24-word phrase display (label = the words) | Flows 4, 6, 7 | — |
+| `recovery-phrase` | the one-time 24-word phrase display (label = the words) | Flows 4, 6, 7 | **not built — and not needed**, see below |
 | `recovery-gate` | the at-rest boot gate is up | Flow 7 | mobile, 7c |
 | `recovery-secret` | the box around the gate's secret field, whichever door is showing | Flow 7 | mobile, 7c |
 | `recovery-submit` | the gate's **Unlock** button | Flow 7 | mobile, 7c |
@@ -99,10 +99,13 @@ mid-submit. Keep this list *small and shared*; everything else asserts on real o
 ("People & Pets", "Factory reset", "Save your recovery phrase", "Unlock", the person's name, the
 milestone note).
 
-⚠️ **`recovery-phrase` is not the escape hatch it looks like.** Adding it — even with the whole
-phrase as its label, so one `copyTextFrom` captures it — does **not** let one flow hand the words
-to another. See the phrase-capture note under the matrix: the barrier is process isolation, not
-selector cost.
+⚠️ **`recovery-phrase` is not the escape hatch it looks like, and 7b shipped without it.**
+Adding it — even with the whole phrase as its label, so one `copyTextFrom` captures it — does
+**not** let one flow hand the words to another; the barrier is process isolation, not selector
+cost. What settled it is that the alternative turned out to be free: a `repeat` of `copyTextFrom`
+over the grid's own numbered `Text` nodes captured all 24 words in **4 seconds** on the first
+attempt (2026-09-09). So the phrase is still never exposed as a single string anywhere in the
+app, which is a property worth keeping rather than a cost avoided.
 
 ---
 
@@ -285,10 +288,15 @@ under the matrix. So a flow that needs the words must be the flow that watched t
 - **Devices:** single.
 - **Uniquely exercises:** the boot-time gate and the `.recovery` sidecar unwrap — the local-only
   backup story. No lower tier boots through this gate.
-- **Shape, decided with 7c:** 7b cannot inherit Flow 4's end state the way 7c does. It has to be
-  **self-contained** — factory-reset, seed a person, create an account, capture the phrase from
-  the reveal, then drive the door — all inside one flow file, because that is what puts the
-  reveal and the door in one `maestro test` process.
+- ✅ **Built** *(iOS, 2026-09-09)* — `apps/mobile/maestro/e2e/07b-phrase-door.yaml`, last in the
+  `test:e2e` arc, 4m45s. Self-contained exactly as required: factory-reset, seed
+  a person, create an account, capture the phrase from the reveal, then drive the door — all in
+  one flow file, because that is what puts the reveal and the door in one `maestro test` process.
+  It carries every assertion above, including the clause moved from 7c.
+- **The doors are asymmetric in cost, and the flow is budgeted for it.** 7b pays two Argon2id
+  passes (its own store conversion, 53s, and the one password unlock the moved clause needs,
+  26s); the phrase door itself answers **sub-second in both directions**, right or wrong, because
+  it unwraps raw key material and derives nothing.
 
 **7c — At-rest local recovery, password door.**
 - **Steps:** the same key-store reset, answered with the **account password** instead of the
@@ -350,11 +358,11 @@ tier stays small). Listed so the owner can pull any into the gate:
 | 1 First run (Unauthenticated, mints nothing) | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | fresh profile per run; asserts the key store is empty |
 | 2 Person + relationship | **beta** | gate | gate | gate | later | 1 | — |
 | 3 Milestone | **beta** | gate | gate | gate | later | 1 | relaunch to prove persistence |
-| 4 Create an account | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | must run on a store **with** data; the phrase capture 7b needs is **not yet built** — see below |
+| 4 Create an account | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | must run on a store **with** data; 7b makes its own account rather than reusing this one — see below |
 | 5 Reminder @/# round-trip | **beta** | gate | gate | gate | later | 1 | drives the compose pickers |
 | 6 Enable sync + pair | with sync (v0.2) | gate | gate | gate | later | **2** | needs a relay + two instances; Flow 4's assertions apply to A |
 | 7a Cross-device recovery | with sync (v0.2) | gate | gate | gate | later | 2 | includes wrong-phrase negative |
-| 7b At-rest, phrase door | **rc** | gate | gate | gate | later | 1 | key-store reset: delete `keystore.json` / `dev-clear-dbkey`. **Must create its own account** — the words cannot cross a flow boundary |
+| 7b At-rest, phrase door | **rc** | gate | gate | gate | later | 1 | ✅ built (iOS, 2026-09-09); same reset, phrase answer. **Creates its own account** — the words cannot cross a flow boundary |
 | 7c At-rest, password door | **rc** | gate | gate | gate | later | 1 | ✅ built (iOS, 2026-09-09); same reset, password answer; three Argon2id passes, so budget it like Flow 4 |
 
 **"Gates at"** is the release rung by which a flow must be green, per
@@ -363,9 +371,9 @@ tier stays small). Listed so the owner can pull any into the gate:
 *when*, never *whether*: every core flow still gates v0.1, and `rc` is inside v0.1. Flows 6/7a are
 the exception and leave v0.1 entirely, per open decision 2.
 
-⚠️ **The phrase capture is the one unbuilt prerequisite in this table, and it is not a cost —
-it is a constraint on shape** *(rewritten 2026-09-09, while building 7c; the 2026-08-28 wording
-priced it wrongly)*. Every variant of Flow 7 that opens the phrase door needs words that are
+✅ **The phrase capture is built, and it was never a cost — it is a constraint on shape**
+*(rewritten 2026-09-09 while building 7c, and confirmed the same day by building 7b; the
+2026-08-28 wording priced it wrongly)*. Every variant of Flow 7 that opens the phrase door needs words that are
 shown exactly once, on Flow 4's reveal. **A flow cannot hand them to another flow:**
 
 - `scripts/lib/mobile-harness.mjs` runs **`maestro test <file>` once per flow**, so `output.*`
@@ -383,20 +391,32 @@ therefore creates its own account rather than inheriting Flow 4's; that is its w
 and it is a second store conversion, not a selector problem. **7c escapes it**: the password door
 is answered with the password Flow 4 already typed, so 7c inherits Flow 4's end state directly.
 
-✅ **7c is built** *(2026-09-09)* — `apps/mobile/maestro/e2e/07c-password-door.yaml`, three
-`testID`s on the gate, appended to the `test:e2e` arc after `04`. It carries every assertion its
-catalog entry asks for except the right-phrase clause, which moved to 7b above. Three Argon2id
+**And the capture itself was cheap** *(measured 2026-09-09)*: a `repeat` of `copyTextFrom` over
+the reveal's numbered `Text` nodes, accumulating into `output` through `evalScript`, took **4
+seconds** for all 24 words with no scrolling and no new app surface. Two Maestro details are
+load-bearing if this is ever rewritten — `repeat` has no loop index, so the counter lives in
+`output`; and an `evalScript` must contain no `{` or `}`, or `${...}` interpolation truncates it
+at the first brace.
+
+✅ **Both at-rest doors are built** *(2026-09-09)* —
+`apps/mobile/maestro/e2e/07c-password-door.yaml` (three `testID`s on the gate, after `04`) and
+`07b-phrase-door.yaml` (self-contained, last in the arc). Between them they carry every assertion
+the two catalog entries ask for, including the right-phrase clause 7c had to hand over. Three Argon2id
 passes at ~25s each on the iOS simulator; 2m46s in total. The wrong *phrase* is rejected in
 0.12s, because that door unwraps raw key material and derives nothing.
 
-**It found three bugs on its first green**, all in the pre-database boot path this catalog calls
-"the most delicate code in the app", and none of them visible on screen: the gate never
-repainted while it derived (a microtask beat React's commit, so the button read "Unlock" for the
-whole pass); the phrase field carried no accessibility identifier for any driver to find (a
-`multiline` `TextInput` is a `UITextView` on iOS); and **the phrase door could not be submitted
-at all**, its keyboard covering **Unlock** with no way to dismiss it. `plans/shipping.md` →
-Part 1, step 2 has the detail. This is the strongest evidence to date for the rung table's claim
-that `rc`'s flows are the ones that prove data comes *back*.
+**They found four bugs between them**, all in the pre-database boot path this catalog calls
+"the most delicate code in the app", and none of them visible on a screen that looked fine.
+**7c's three, on its first green:** the gate never repainted while it derived (a microtask beat
+React's commit, so the button read "Unlock" for the whole pass); the phrase field carried no
+accessibility identifier for any driver to find (a `multiline` `TextInput` is a `UITextView` on
+iOS); and **the phrase door could not be submitted at all**, its keyboard covering **Unlock**
+with no way to dismiss it. **7b's one, and it is the one a user meets:** switching doors did not
+retract the previous door's error, so the **password** door displayed "That recovery phrase
+doesn't open this database." above an empty password field — naming the wrong door at the moment
+someone is working out which one they can still answer. Each flow's own header carries the
+detail. This is the strongest evidence to date for the rung table's claim that `rc`'s flows are
+the ones that prove data comes *back*.
 
 **The column reads as a ratchet on data loss.** A flow gates at the rung by which its failure
 would start costing someone something they cannot retype — which is why the *screen* halves of
@@ -466,13 +486,14 @@ What happened instead, and it inverted every step:
    that already ran the driver self-test. The cost was not the YAML — it was the environment:
    three harness bugs on the provisioning path and one real selector fix. See
    [`../../apps/mobile/maestro/README.md`](../../apps/mobile/maestro/README.md).
-3. ✅ **Flow 7c — the password door** *(2026-09-09)*. `dev-clear-dbkey` and the `RecoveryGate`
-   both already existed, so it cost three `testID`s and a flow, exactly as priced. It appends to
-   the `test:e2e` arc after `04`, inheriting its store, its data and its password.
-   ⏳ **Flow 7b is what the catalog still owes**, and building 7c is what settled its shape: not
-   a selector cost but a self-contained flow that creates its own account, because the words
-   cannot cross a flow boundary (the ⚠️ above the matrix). It also inherits 7c's right-phrase
-   clause.
+3. ✅ **Flows 7c and 7b — both at-rest doors** *(2026-09-09, the same day)*. `dev-clear-dbkey`
+   and the `RecoveryGate` both already existed, so 7c cost three `testID`s and a flow, exactly as
+   priced; it appends to the arc after `04`, inheriting its store, its data and its password.
+   Building it settled 7b's shape — not a selector cost but a self-contained flow that creates
+   its own account, because the words cannot cross a flow boundary (the ⚠️ above the matrix) —
+   and 7b then went green as specified, taking 7c's right-phrase clause with it. **Between them
+   they found four bugs in the gate**, all in the pre-database boot path and none visible from a
+   passing screen.
 4. **Flows 6 + 7a (two-instance sync/recovery)** last, and **not in v0.1 at all**. They carry
    the relay + second-device infrastructure, and the reasoning is settled rather than pending:
    **Flow 6 answers itself** — *enable sync and pair a second device* exercises relay sync, and
@@ -486,11 +507,11 @@ What happened instead, and it inverted every step:
 5. **macOS (Playwright/Electron)** when desktop ships — [`../desktop-packaging.md`](../desktop-packaging.md)
    → A, which the harness needs a packaged `.app` from.
 
-**So the remaining v0.1 E2E gate is Flow 7b on iOS**, plus the out-of-band custody assertions,
-plus turning `rc`'s catalog requirement into a `requires:` check rather than a `manual:`
-sentence. **7c landed 2026-09-09** and took the live decision about 7b with it: 7b is not
-deferred, and never carried the cost it was deferred for.
+**So the remaining v0.1 E2E gate is the out-of-band custody assertions**, plus turning `rc`'s
+catalog requirement into a `requires:` check rather than a `manual:` sentence. **Every flow the
+`rc` bar names is now green on iOS.** The custody assertions are the harder half of what is left:
+they need a mobile inspection surface that does not exist, and that surface is the work.
 
-> These three are steps 3–4 of [`../shipping.md`](../shipping.md) → Part 1, the ordered list of
+> These two are step 3 of [`../shipping.md`](../shipping.md) → Part 1, the ordered list of
 > everything blocking GA. The flow ids here are the stable ones and do not change with that
-> doc's renaming.
+> doc's renumbering.

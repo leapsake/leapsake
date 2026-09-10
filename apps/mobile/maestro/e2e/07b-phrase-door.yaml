@@ -1,0 +1,332 @@
+# Flow 7b — the phrase door: the way back in when the password is gone too.
+# plans/testing/crucial-flows.md → Flow 7, variant 7b. Runs at the `rc` rung.
+#
+# **What this proves that no lower tier can.** The `.recovery` sidecar unwrap is covered a
+# tier down, but only as a function call. Mobile's runs inside the unlock loop in
+# `../../lib/core-context.tsx`, **before the database opens** — so a bug there is not a
+# failed query, it is an app that will not start for someone who has already lost their
+# password. This is the last door; behind it there is nothing.
+#
+# ---
+#
+# ## Why this flow is self-contained, when every other flow in the arc inherits
+#
+# **The 24 words are shown once and cannot cross a flow boundary.** There is no
+# reveal-in-Settings to fall back on (`RecoveryKeyReveal` fires once, at creation), and
+# `scripts/lib/mobile-harness.mjs` runs `maestro test <file>` once per flow — so `output.*`
+# and `maestro.copiedText` die with each flow's process. The reveal's own **Copy** button
+# does not bridge it either: Maestro's `pasteText` replays *its own* `copiedText` through
+# `inputText` and never reads the device pasteboard (verified against
+# `~/.maestro/lib/maestro-orchestra.jar`, Maestro 2.8.0).
+#
+# So this flow resets the device, seeds it, creates its own account and watches its own
+# reveal — because that is what puts the reveal and the door in **one process**. It is not
+# a selector cost and no anchor fixes it; adding one that exposed the whole phrase as a
+# single label would still not get the words out of the flow that read them.
+#
+# **It therefore runs LAST in the arc** (`scripts/test-e2e.mjs`), after `07c`. Not a
+# preference: step 1 below destroys the store `04` builds and `07c` inherits.
+#
+# ## The capture, which is the one novel thing here
+#
+# The grid renders 24 separate `Text` nodes reading `N. word` (`RecoveryPhraseWords`,
+# `../../app/settings.tsx`). `repeat` has no loop index, so the counter lives in `output`
+# and is incremented inside the loop; `copyTextFrom` puts each node's text in
+# `maestro.copiedText`, which `evalScript` can read (`GraalJsEngine` binds it).
+#
+#   - **Maestro text selectors are full-match**, which is what makes the numbers safe:
+#     `1\. .*` matches `1. abandon` and never `11. abandon`.
+#   - **Keep every `evalScript` free of `{` and `}`.** Interpolation scans for the first
+#     `}` to close a `${...}`, so a brace inside the script truncates it and the failure is
+#     a syntax error in a script you did not write.
+#   - A `copyTextFrom` that finds nothing fails its step outright, naming the word it could
+#     not reach — which is the diagnostic we want. The `assertTrue` after the loop is the
+#     belt-and-braces on the prefix stripping, not on the lookup.
+#   - ⚠️ **Do not put an `extendedWaitUntil` inside the `repeat`.** Maestro honours its
+#     timeout on the first iteration only (measured 2026-09-05 on `04`). Nothing here needs
+#     one — the whole grid is on screen before the loop starts.
+#
+# ## The budget
+#
+# **Two Argon2id passes**, not 7c's three: the store conversion in Act 1, and the one
+# password unlock in Act 3. The phrase door costs nothing to answer — it unwraps raw key
+# material and derives nothing — so its waits are 60s where 7c's password waits are eight
+# minutes. Every heavy wait carries `04`'s 480000 verbatim, for `04`'s reason: what has to
+# be covered is not the derivation but the machine it is sharing.
+#
+# If this ever has to get cheaper, **Act 3 is what to drop.** Act 2 is the catalog's Flow
+# 7b; Act 3 is the clause inherited from 7c, and it costs the whole password pass.
+appId: com.leapsake.app
+---
+# =========================================================================================
+# Act 1 — build a store worth locking, and get the words out of its reveal
+# =========================================================================================
+
+# **This arrives on a device that has an account**, because `07c` runs before it, so the
+# reset takes `factory-reset.yaml`'s **Forget account** branch (DELETE) rather than its
+# Factory reset one. That branch had never actually run until this flow existed — every
+# green arc used to end Unauthenticated — so it is coverage this suite has been owed, not
+# merely a precondition. Run standalone against a fresh device the other branch fires and
+# the flow is unaffected; the subflow drives whichever is on offer.
+- runFlow: ../subflows/factory-reset.yaml
+
+# --- somebody for the conversion to be about ---------------------------------------------
+# Converting an empty store proves nothing — the catalog is explicit that the data is the
+# point — and it is also what the two unlocks below read back. One person is enough here:
+# `04` already proves a milestone and a relationship survive the conversion, and this flow
+# is about the door, not the converter.
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Ada"
+      LAST: "Lovelace"
+- runFlow: ../subflows/save-record.yaml
+- assertVisible: "Ada Lovelace"
+
+# --- its own account, for its own phrase ---------------------------------------------------
+# The same credentials `04` uses. They are not inherited — this store is a different store,
+# sealed a minute ago — but there is no reason for a second set of constants, and the
+# password below has to match this account, not `04`'s.
+- runFlow:
+    file: ../subflows/create-account.yaml
+    env:
+      USERNAME: "ada"
+      PASSWORD: "correct-horse-battery-staple"
+
+# --- the capture ---------------------------------------------------------------------------
+# See the header. This is the step the whole shape of the flow exists to make possible.
+- evalScript: ${output.n = 0}
+- evalScript: ${output.phrase = ""}
+- repeat:
+    times: 24
+    commands:
+      - evalScript: ${output.n = output.n + 1}
+      - copyTextFrom:
+          text: "${output.n}\\. .*"
+      - evalScript: '${output.phrase = output.phrase + " " + maestro.copiedText.replace(/^\d+\. /, "")}'
+- evalScript: ${output.phrase = output.phrase.trim()}
+# 24 words, and no leftover `N. ` prefix on any of them. A phrase that still carried its
+# numbering would be rejected by the codec further down with a wordlist error, and the red
+# would name the door rather than this loop.
+- assertTrue: '${output.phrase.split(" ").length == 24 && output.phrase.indexOf(".") < 0}'
+
+# Acknowledge and continue, exactly as `04` does — "Done" stays disabled until the switch is
+# on, which is what turns a missed tap into a failure rather than an unacknowledged phrase.
+- tapOn:
+    id: "recovery-acknowledged"
+- tapOn: "Done"
+- assertVisible: "Your account is set up."
+
+# =========================================================================================
+# Act 2 — the phrase door, negative first
+# =========================================================================================
+
+# --- simulate the OS key-store reset ------------------------------------------------------
+# `dev-clear-dbkey` deletes **only** `DATABASE_KEY` from expo-secure-store, leaving the
+# encrypted store, both door sidecars and the recovery key intact — which is the whole point
+# of the route, and why a reinstall cannot stand in for it (a reinstall wipes the store too,
+# so there is nothing to recover into). `__DEV__`-gated and deep-link only.
+- openLink: "leapsake://dev-clear-dbkey"
+- tapOn:
+    id: "dev-clear-dbkey-button"
+# Positive, never `assertNotVisible` on the button's own label: the button reads "Clear
+# db-key" until the tap takes effect, so the negative would pass just as happily against a
+# tap that did nothing — the trap `../subflows/factory-reset.yaml` records at length.
+- extendedWaitUntil:
+    visible: "Keychain cleared"
+    timeout: 20000
+
+- runFlow: ../subflows/relaunch.yaml
+# 120s, matching the harness's own `HOME_TIMEOUT_MS`: a **cold** dev-client launch fetching
+# the whole bundle from Metro, which has nothing to do with how fast the app is.
+- extendedWaitUntil:
+    visible:
+      id: "recovery-gate"
+    timeout: 120000
+
+# The password door leads — `RecoveryGate` prefers it whenever the store has one — so the
+# phrase door is reached the way a user reaches it, through the forgot-password link. That
+# link renders only from `doors.phrase`, a live read of the recovery sidecar, so tapping it
+# is also the assertion that the sidecar survived the key-store reset.
+- assertVisible: "Forgot your password\\? Use your 24-word recovery phrase"
+- tapOn: "Forgot your password\\? Use your 24-word recovery phrase"
+- assertVisible: ".*Enter your recovery phrase to unlock it.*"
+
+# --- the negative, first --------------------------------------------------------------------
+# First because it is the half that a door which checks nothing still passes.
+#
+# **The phrase below is valid BIP39 and deliberately not this store's**, and the validity is
+# load-bearing. `decodeRecoveryPhrase` checks the wordlist and the checksum *before*
+# `openDbKeyFromRecovery` is ever called, so a garbage phrase would be refused by the codec
+# with a different message entirely and would prove nothing about the sidecar. This one is
+# the standard all-zero-entropy vector (23 × `abandon` + `art`, verified against
+# `packages/crypto/src/recovery-phrase.ts`): it decodes cleanly to 32 zero bytes, reaches
+# the sidecar, and is rejected by its MAC.
+- tapOn:
+    id: "recovery-secret"
+- inputText: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art"
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Unlock your data"
+- tapOn:
+    id: "recovery-submit"
+# 60s, not eight minutes: no Argon2id on this path — the recovery key is raw key material,
+# not a derived one — so this rejection is fast (0.12s measured on 7c, 2026-09-09).
+- extendedWaitUntil:
+    visible: ".*That recovery phrase doesn't open this database.*"
+    timeout: 60000
+# The form came back rather than the app wedging on "Checking…" forever. This is the
+# regression the `useEffect` keyed on `onSubmit` rather than on `error` exists to prevent.
+- assertVisible:
+    id: "recovery-gate"
+- assertVisible: "Unlock"
+
+# --- and now the real one ---------------------------------------------------------------------
+# **The claim this whole flow exists for**, and it is the one 7c could not make: the words
+# this run watched appear, typed into the door, open the store.
+#
+# **The field has to be cleared, and `eraseText` cannot do it here — no count can.** This
+# cost two runs and the lesson generalises to every `multiline` field in the app:
+#
+#   - `eraseText` presses backspace, so it deletes **backwards from the caret**, not from the
+#     end of the value. `tapOn` puts the caret where it taps, and it taps an element's
+#     **centre** — which on a four-line phrase field is the middle of the text.
+#   - So the first run, with a bare `eraseText` (50 backspaces), and the second, with
+#     `eraseText: 250`, both left a tail behind: the erase ate the ~127 characters *before*
+#     the caret, `inputText` inserted the real phrase at that caret, and the field ended up
+#     holding `<24 real words> abandon abandon … art`. The door rejected it, correctly, and
+#     the red landed on `tab-search` several steps later — naming the unlock rather than the
+#     erase. The screenshot is the only thing that showed it.
+#
+# **So the field is cleared through the app's own state instead**, by leaving the door and
+# coming back: `RecoveryGate`'s `switchTo` does `setSecret("")` on every switch. That is
+# deterministic where a backspace count is not, it needs no new surface, and it is a
+# round-trip a real user takes — which makes it worth a step rather than a workaround. It
+# also proves both switch links work, in both directions.
+#
+# **The switch also had to stop carrying the last door's error with it, and this flow is
+# what found that.** `error` is a prop — the bootstrap's record of the last failed attempt —
+# so before 2026-09-09 leaving the phrase door left its error behind, and the *password*
+# door rendered "That recovery phrase doesn't open this database." above an empty password
+# field. Screenshotted, not inferred. It names the wrong door at the exact moment someone is
+# working out which one they can still answer, so `RecoveryGate` now suppresses an error the
+# user has switched away from. The `assertNotVisible` below is what keeps it fixed.
+- tapOn: "Use your password instead"
+- assertVisible: ".*Enter your password to unlock it.*"
+- assertNotVisible: ".*That recovery phrase doesn't open this database.*"
+- tapOn: "Forgot your password\\? Use your 24-word recovery phrase"
+- assertVisible: ".*Enter your recovery phrase to unlock it.*"
+- tapOn:
+    id: "recovery-secret"
+- inputText: "${output.phrase}"
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Unlock your data"
+- tapOn:
+    id: "recovery-submit"
+
+# The store opened: the gate is gone and the app booted the rest of the way to its shell.
+# 480000 anyway — the unwrap is instant, but the boot behind it opens a database and
+# reconciles the reminders engine on a machine that has been driving a device for half an
+# hour.
+- extendedWaitUntil:
+    visible:
+      id: "tab-search"
+    timeout: 480000
+
+# --- the data came back with it ----------------------------------------------------------------
+# The point of the door. Ada was written into a plaintext store, converted into an encrypted
+# one, and is now read out of a store whose key was reconstructed from 24 words.
+- tapOn:
+    id: "tab-search"
+- tapOn:
+    id: "browse-tile-people"
+- assertVisible: ".*Ada Lovelace.*"
+
+# =========================================================================================
+# Act 3 — the right phrase still works AFTER a password unlock
+# =========================================================================================
+#
+# **The clause moved here from 7c on 2026-09-09**, because it needs the words. 7c proves
+# the phrase door is still *offered* and its sidecar still *read* after a password unlock;
+# what it cannot prove, with no phrase to type, is that the door still *opens*.
+#
+# It is not a redundant repeat of Act 2. A password unlock is **not read-only on the phrase
+# sidecar**: the boot path rewrites the recovery door (`core-context.tsx`, `writeRecovery`
+# after the unlock) and `convergeRecoveryKey` writes it again. A rewrite that produced a
+# well-formed but wrong sidecar would pass every assertion 7c makes and fail only here — on
+# the day someone has forgotten their password, which is the only day this door is used.
+
+# --- a password unlock happens ------------------------------------------------------------
+- openLink: "leapsake://dev-clear-dbkey"
+- tapOn:
+    id: "dev-clear-dbkey-button"
+- extendedWaitUntil:
+    visible: "Keychain cleared"
+    timeout: 20000
+- runFlow: ../subflows/relaunch.yaml
+- extendedWaitUntil:
+    visible:
+      id: "recovery-gate"
+    timeout: 120000
+- assertVisible: ".*Enter your password to unlock it.*"
+- tapOn:
+    id: "recovery-secret"
+- inputText: "correct-horse-battery-staple"
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Unlock your data"
+- tapOn:
+    id: "recovery-submit"
+# Fifteen seconds of insurance against eight minutes of the wrong question — the same guard
+# `04` and `07c` carry. `submit()` returns early when the field is empty, leaving the button
+# reading "Unlock" and the app doing nothing at all, so a tap that typed into nothing would
+# otherwise spend the whole Argon2id budget below waiting for a screen that was never coming.
+- extendedWaitUntil:
+    visible: "Checking…"
+    timeout: 15000
+# The one Argon2id pass this act costs. `04`'s budget verbatim, for `04`'s reason.
+- extendedWaitUntil:
+    visible:
+      id: "tab-search"
+    timeout: 480000
+
+# --- and the phrase door still opens the store afterwards -----------------------------------
+- openLink: "leapsake://dev-clear-dbkey"
+- tapOn:
+    id: "dev-clear-dbkey-button"
+- extendedWaitUntil:
+    visible: "Keychain cleared"
+    timeout: 20000
+- runFlow: ../subflows/relaunch.yaml
+- extendedWaitUntil:
+    visible:
+      id: "recovery-gate"
+    timeout: 120000
+- tapOn: "Forgot your password\\? Use your 24-word recovery phrase"
+- assertVisible: ".*Enter your recovery phrase to unlock it.*"
+- tapOn:
+    id: "recovery-secret"
+- inputText: "${output.phrase}"
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Unlock your data"
+- tapOn:
+    id: "recovery-submit"
+- extendedWaitUntil:
+    visible:
+      id: "tab-search"
+    timeout: 480000
+
+# The same tail as Act 2, and for the same reason: an unlock that opened a store the app
+# could not read would still clear the gate. It also leaves the device unlocked rather than
+# parked at a gate, so a standalone re-run of anything in the arc starts from a usable app.
+- tapOn:
+    id: "tab-search"
+- tapOn:
+    id: "browse-tile-people"
+- assertVisible: ".*Ada Lovelace.*"

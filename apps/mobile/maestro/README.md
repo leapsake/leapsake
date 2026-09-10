@@ -370,12 +370,20 @@ run may not start, because the app is wherever the last failure left it — a mo
 open, a form still half-filled. `01`'s relaunch is what clears that, so re-run the arc
 rather than the flow.
 
-What is here covers the **`beta` rung** — Flows 1-5, on-screen assertions only. The
-out-of-band custody assertions and Flows 7b/7c belong to `rc`; see
+What is here covers the **`beta` rung** — Flows 1-5, on-screen assertions only — **plus both
+of `rc`'s at-rest doors**, `07c` (password) and `07b` (phrase), which landed 2026-09-09. The
+out-of-band custody assertions are the only part of `rc` still owed; see
 [`CONTRIBUTING.md`](../../../CONTRIBUTING.md) → *The E2E release gate*
-→ §C's rung table. All five are written, and the `e2e` tier in `scripts/test-all.mjs` is
-`ready` — it went `ready` only once the _whole_ beta bar was there, because a partial
-catalog that ran and went green would read as the gate being met.
+→ §C's rung table. The `e2e` tier in `scripts/test-all.mjs` is `ready` — it went `ready` only
+once the _whole_ beta bar was there, because a partial catalog that ran and went green would
+read as the gate being met.
+
+**Two of the seven do not fit the "ordered arc" description above, and the exceptions are the
+point.** `07c` must *follow* `04` — it needs the store, the data and the password `04` leaves
+behind. `07b` must run **last** and inherits nothing at all: the 24 words it needs cannot cross
+a flow boundary, so it resets the device and builds its own account, which destroys what `04`
+and `07c` were standing on. The whole iOS arc is **13 minutes**; the two door flows are 7 of
+them, and that is four Argon2id passes doing what they are designed to cost.
 
 ### What the app's own state looks like from here
 
@@ -724,10 +732,71 @@ recovery reveal's **Copy** button, say — is invisible to it (verified against
 `~/.maestro/lib/maestro-orchestra.jar`, Maestro 2.8.0).
 
 Together those two decide the shape of any flow that needs a secret the app shows **once**: it
-has to be the same flow that watched the secret appear. That is why Flow 7c can inherit `04`'s
-password (a constant this repo already knows) but Flow 7b has to create its own account rather
-than reuse the one `04` made — see [`../../../plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
+has to be the same flow that watched the secret appear. That is why Flow 7c inherits `04`'s
+password (a constant this repo already knows) while Flow 7b creates its own account rather than
+reusing the one `04` made — see [`../../../plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
 → the ⚠️ under the per-flow matrix.
+
+### Capturing a secret the app shows once: `repeat` + `copyTextFrom` + `output`
+
+This is how `e2e/07b-phrase-door.yaml` gets the 24 recovery words off the reveal, and it cost
+**4 seconds** for the whole grid on the first attempt — no scrolling, and no new app surface,
+which is why the catalog's proposed `recovery-phrase` anchor was never built and the phrase is
+still never exposed as a single string anywhere in the app.
+
+The grid renders 24 numbered `Text` nodes (`1. abandon`), so the loop walks them by number:
+
+```yaml
+- evalScript: ${output.n = 0}
+- evalScript: ${output.phrase = ""}
+- repeat:
+    times: 24
+    commands:
+      - evalScript: ${output.n = output.n + 1}
+      - copyTextFrom:
+          text: "${output.n}\\. .*"
+      - evalScript: '${output.phrase = output.phrase + " " + maestro.copiedText.replace(/^\d+\. /, "")}'
+- evalScript: ${output.phrase = output.phrase.trim()}
+```
+
+Four things make it work, and three of them are not obvious:
+
+- **`repeat` has no loop index.** The counter has to live in `output` and be incremented as the
+  first command inside the loop.
+- **Text selectors are full-match**, which is what makes numbering safe: `1\. .*` matches
+  `1. abandon` and never `11. abandon`. A substring matcher would have silently captured the
+  wrong word.
+- **An `evalScript` must contain no `{` or `}`.** Interpolation closes a `${...}` at the *first*
+  `}` it finds, so a brace inside the script truncates it and the error is a syntax error in
+  something you did not write. Avoid object literals and braced arrow bodies entirely.
+- **`maestro.copiedText` is readable from `evalScript`** (`GraalJsEngine` binds it), which is the
+  whole mechanism. It still does not survive the flow — see above.
+
+Follow the loop with `assertTrue` on the shape, not just on the lookup: a `copyTextFrom` that
+finds nothing fails its own step and names the word, but a prefix that failed to strip would sail
+through and be rejected much later by the codec, naming the door instead.
+
+```yaml
+- assertTrue: '${output.phrase.split(" ").length == 24 && output.phrase.indexOf(".") < 0}'
+```
+
+### `eraseText` cannot clear a `multiline` field, and no count fixes it
+
+`eraseText` presses backspace, so it deletes **backwards from the caret** — and `tapOn` puts the
+caret where it taps, which is the element's **centre**. On a single-line field that is the end of
+the value and the distinction never shows. On the gate's four-line phrase field it is the middle
+of the text.
+
+Flow 7b lost two runs to this. Its negative case types a 210-character wrong phrase; a bare
+`eraseText` (50 backspaces) and then `eraseText: 250` both left a tail, `inputText` inserted the
+real phrase at the caret, and the field ended up holding `<24 real words> abandon … art`. The
+door rejected that correctly, so **the red landed several steps later on the unlock** and named
+the door rather than the erase. Only a screenshot showed it.
+
+**Clear the field through the app's own state instead.** On the gate that means leaving the door
+and coming back — `switchTo` does `setSecret("")` — which is deterministic, needs no new surface,
+and is a round-trip a real user takes. Where no such affordance exists, relaunch. Reach for a
+backspace count only on a field you know is single-line and short.
 
 ### A wrong password costs exactly what a right one costs
 

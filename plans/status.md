@@ -12,20 +12,18 @@ have shipped and a real external tester is on the app. Android and macOS follow 
 company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) → *Part 2*),
 which is also why nothing may reach Play from the personal account.
 
-**Next, and it is one thing: catalog Flow 7b, the phrase door** — the last flow the `rc` bar
-needs. Building 7c (landed 2026-09-09) settled its shape and killed the reason it might have
-been deferred: **a capture cannot leave the flow that made it** — one `maestro test` process
-per flow, and `pasteText` replays Maestro's own buffer, not the pasteboard. So 7b creates its
-own account rather than inheriting `04`'s, and it inherits 7c's one unproven clause (that the
-*right* phrase opens the store). Its only real cost is a second store conversion per run.
+**Next, and it is one thing: the out-of-band custody assertions** — the last of the `rc` bar and
+the only part of the crucial-flow catalog with no code at all. **Every *flow* that bar names is
+now green on iOS**: both at-rest doors landed 2026-09-09 (7c the password, 7b the phrase), and
+between them they found four bugs in the pre-database boot path, the last being the gate showing
+the *wrong door's* error. What remains needs a **mobile inspection surface that does not exist**
+— store custody, key-store contents, the roster — and that surface is the work, not the
+assertions. With it, the catalog moves into `ios.mjs`'s `requires:` from a `manual:` sentence.
 
 **Then, in order — [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with
-acceptance for each step.** ② The rest of the `rc` bar: the out-of-band custody assertions
-(**the long pole** — they need a mobile inspection surface that does not exist), and the
-catalog as a `requires:` check in `ios.mjs`. ③ **Public repo**, full-history secret scan
-first. ④ **The App Store Connect fields nothing in the repo can check** — privacy URL, a
-*published* App Privacy questionnaire, screenshots, age rating; `ascSetup` reads none of them.
-⑤ **Submit**, then **GA**.
+acceptance for each step.** ② **Public repo**, full-history secret scan first. ③ **The App Store
+Connect fields nothing in the repo can check** — privacy URL, a *published* App Privacy
+questionnaire, screenshots, age rating; `ascSetup` reads none of them. ④ **Submit**, then **GA**.
 
 **In parallel, starting now, alongside the list above rather than after it:** incorporate and
 get a D-U-N-S number — up to 30 days, and the entity must exist before the transfer GA unlocks.

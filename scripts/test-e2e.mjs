@@ -14,15 +14,15 @@
 // by design (the catalog takes 1→4 as one arc), so the harness stops the platform at the
 // first red flow rather than reporting three failures that are really one.
 //
-// **The bar this meets is the `beta` rung plus 7c** — Flows 1–5 on-screen (the rung
-// table's `beta` bar, `CONTRIBUTING.md` → *The E2E release gate*), and now the password
-// door, which is `rc`'s. What is still owed at `rc` is **7b** and the out-of-band custody
-// assertions; Flows 6/7a ship with sync.
+// **The bar this meets is the `beta` rung plus both at-rest doors** — Flows 1–5 on-screen
+// (the rung table's `beta` bar, `CONTRIBUTING.md` → *The E2E release gate*), plus the
+// password door and the phrase door, which are `rc`'s. What is still owed at `rc` is the
+// out-of-band custody assertions; Flows 6/7a ship with sync.
 //
-// **7c costs three Argon2id passes and lives here anyway.** It roughly doubles the tier's
-// wall-clock, and the alternative — a second `test:e2e:rc` entry point — would have split
-// the arc across two runners for a flow that only makes sense as its continuation. It runs
-// last, so a red before it still fails fast.
+// **The two door flows cost five Argon2id passes between them and live here anyway.** They
+// roughly triple the tier's wall-clock, and the alternative — a second `test:e2e:rc` entry
+// point — would have split the arc across two runners for flows that only make sense as its
+// continuation. They run last, so a red before them still fails fast.
 import { join } from "node:path";
 
 import { MAESTRO_DIR, runSuite } from "./lib/mobile-harness.mjs";
@@ -48,6 +48,13 @@ await runSuite({
   // needs an Authenticated store with data in it and the password that sealed it, which is
   // precisely what 04 leaves behind — so it reads 04's end state as its preconditions and
   // types no username of its own.
+  //
+  // **07b is the mirror image, and must run LAST.** It inherits nothing and cannot: the 24
+  // words it needs are shown once, and a capture dies with the `maestro test` process that
+  // made it (`lib/mobile-harness.mjs` runs one per flow), so 07b resets the device and
+  // builds its own account. That opening reset destroys the store 04 built and 07c
+  // inherited, which is why nothing may follow it. It also means it is the only flow here
+  // that drives the reset under its *Forget account* name.
   flows: [
     flow("01-first-run.yaml", "Flow 1 — first run reaches a usable state"),
     flow("02-person-and-relationship.yaml", "Flow 2 — person + relationship"),
@@ -60,6 +67,10 @@ await runSuite({
     flow(
       "07c-password-door.yaml",
       "Flow 7c — the password door reopens a locked store",
+    ),
+    flow(
+      "07b-phrase-door.yaml",
+      "Flow 7b — the phrase door reopens a locked store",
     ),
   ],
 });

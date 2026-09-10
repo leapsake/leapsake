@@ -176,16 +176,16 @@ each increment. Three things are still owed, none of them blocking:
    the Node tiers alone. Worth building by hand before GA. The Hermes-specific risk is covered —
    the graph walk and the writer both run there — so this is about data shapes, not the runtime.
 
-⚠️ **The Forget-account branch of the visibility assertion has never run, and the arc cannot
-reach it.** The subflow picks a branch by custody, and the harness wipe
+✅ **The Forget-account branch of the visibility assertion now runs** *(2026-09-09)*. It used
+to be structurally unreachable: the subflow picks a branch by custody, and the harness wipe
 (`scripts/lib/mobile-harness.mjs` → `wipe`) makes the device arrive Unauthenticated before Flow 1
-drives the reset — so it is always "Factory reset", never "Forget account"
-(`apps/mobile/maestro/README.md` → *What the app's own state looks like from here*). This is
-structural, not a symptom of a red flow: Flow 4 was red on iOS on 2026-09-08 for an unrelated
-reason — iOS's strong-password AutoFill card — and is green again, and the branch is still
-unexercised. Reaching it wants a flow that resets *after* Flow 4 rather than before Flow 1. Both
-branches render the same component with the same testID, so the untested risk is layout, not
-logic.
+drives the reset — so it was always "Factory reset", never "Forget account"
+(`apps/mobile/maestro/README.md` → *What the app's own state looks like from here*). What it
+wanted was "a flow that resets *after* Flow 4 rather than before Flow 1", and **Flow 7b is that
+flow**: it runs last in the arc and opens with a reset, so it arrives Authenticated and takes the
+Forget branch. `Assert that "Export my data first…" is visible... COMPLETED` on its first run.
+The offer is asserted, never tapped — a share sheet opened inside a teardown would need
+dismissing, and a teardown that stalls leaves the next flow asserting against a stale store.
 
 ## Open
 

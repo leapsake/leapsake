@@ -89,7 +89,7 @@ the signed artifact; `safeStorage` round-trips under the real signature.
 user permanently.**
 
 - `electron-updater` against GitHub Releases as the feed.
-- **Simpler once the repo is public** ([`shipping.md`](./shipping.md) → Part 1, step 5) — no
+- **Simpler once the repo is public** ([`shipping.md`](./shipping.md) → Part 1, step 4) — no
   token distribution. **The open call is this doc's**, having left the v0.1 order with the rest of
   desktop: sequence C after the repo goes public, or accept a token in the interim.
 

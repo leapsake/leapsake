@@ -1874,6 +1874,14 @@ function RecoveryGate({
   const [chosen, setChosen] = useState(false);
   const [secret, setSecret] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Whether `error` belongs to a door the user has since left. `error` is a prop —
+  // the last attempt's failure, held by the bootstrap — so switching doors does not
+  // retract it, and without this the **password** door renders "That recovery phrase
+  // doesn't open this database." above an empty password field. Found by Flow 7b on
+  // 2026-09-09, and it is worse than untidy: it names the wrong door, so someone who
+  // has just been locked out reads it as the password door itself being broken and
+  // stops trying the one thing that would have worked.
+  const [staleError, setStaleError] = useState(false);
 
   useEffect(() => {
     if (!chosen) setDoor(doors.password ? "password" : "phrase");
@@ -1887,7 +1895,13 @@ function RecoveryGate({
   // the button stays on "Checking…" forever. Getting a password wrong twice is
   // exactly when someone is trying hardest to get in, and force-quitting the app
   // was the only way out.
-  useEffect(() => setSubmitting(false), [onSubmit]);
+  //
+  // It clears `staleError` for the same reason and by the same key: a new prompt is a
+  // new failure, and it belongs to whichever door is on screen now.
+  useEffect(() => {
+    setSubmitting(false);
+    setStaleError(false);
+  }, [onSubmit]);
 
   function submit() {
     if (secret.trim() === "") return;
@@ -1912,6 +1926,7 @@ function RecoveryGate({
     setChosen(true);
     setDoor(next);
     setSecret("");
+    setStaleError(true);
   }
 
   return (
@@ -1985,7 +2000,9 @@ function RecoveryGate({
             </View>
           </>
         )}
-        {error !== undefined && <Text style={styles.error}>{error}</Text>}
+        {error !== undefined && !staleError && (
+          <Text style={styles.error}>{error}</Text>
+        )}
         <Pressable
           testID="recovery-submit"
           style={[styles.gateButton, submitting && { opacity: 0.5 }]}

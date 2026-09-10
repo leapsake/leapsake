@@ -20,8 +20,9 @@ must start **now**, in parallel with Part 1 — not when Part 1 finishes.
 
 # Part 1 — Before iOS GA
 
-Steps 1–4 are code; 5–7 are process and store paperwork. **1 is the long pole and the only
-feature work.** If it is not on this list, it does not block GA.
+Steps 1–3 are code; 4–6 are process and store paperwork. **3 is now the long pole**, and its
+hard part is a mobile inspection surface that does not exist yet. If it is not on this list, it
+does not block GA.
 
 ## 1 — Export
 
@@ -62,93 +63,52 @@ nothing else here is outstanding. **Reading an export back in landed on 2026-09-
 5a–5d), so what is left in that file is increment 6 — restore, desktop parity, CardDAV — and
 none of it gates GA.
 
-## 2 — Catalog Flow 7c, the password door
+## 2 — Catalog Flow 7b, the phrase door
 
-The cheap half of the `rc` bar, and the one that matters most right now: it is the automated
-version of the transfer-day rehearsal in Part 2. `dev-clear-dbkey` and `RecoveryGate` both exist,
-so this is three `testID`s and a Maestro flow.
+✅ **Acceptance is met** *(2026-09-09)*. `apps/mobile/maestro/e2e/07b-phrase-door.yaml`, green on
+the iPhone 16 Pro simulator, appended **last** to the `test:e2e` arc. With 7c, both at-rest doors
+are now automated, and the `rc` bar's flow half is complete.
 
-**Acceptance:** 7c green on a real device — keychain key cleared, gate raised, password opens the
-store with data intact.
+**The shape was the question, and it answered it as predicted.** 7b resets the device, seeds a
+person, creates its own account and captures the phrase from the reveal it just watched — because
+a capture cannot leave the flow that made it, so the flow that needs the words must be the flow
+that saw them. It runs last because that opening reset destroys the store `04` builds and `07c`
+inherits.
 
-✅ **Acceptance is met** *(2026-09-09)*. `apps/mobile/maestro/e2e/07c-password-door.yaml`, three
-`testID`s on `RecoveryGate`, appended to the `test:e2e` arc after `04` whose end state it
-inherits. It costs three Argon2id passes — a wrong password derives exactly as long as a right
-one — measuring 25s each on the iPhone 16 Pro simulator, for 2m46s of the tier's wall-clock.
+**The capture cost 4 seconds and needed no new app surface** — which was the one part of this
+step nobody had ever measured, and the reason it was written down as unvalidated rather than
+assumed. A `repeat` of `copyTextFrom` over `1\. .*` … `24\. .*`, accumulating into `output` via
+`evalScript`, read all 24 words on the first attempt with no scrolling — so the `recovery-phrase`
+anchor was not built, and the phrase is still never exposed as a single string. Two Maestro
+details are worth keeping: `repeat` has no loop index (the counter lives in `output`), and an
+`evalScript` must contain no `{` or `}` or interpolation truncates it.
 
-**It found three real bugs in the unlock gate on its first green, which is the argument for the
-`rc` bar rather than a footnote to it.** None was visible on screen, and the third would have
-stranded a real user:
+**Measured, whole flow 4m45s:** the store conversion 53s and the one password unlock 26s (the two
+Argon2id passes); the phrase door itself is **sub-second in both directions** — a wrong phrase
+rejected and a right one accepted — because it unwraps raw key material and derives nothing.
 
-1. **The gate never repainted while it derived.** The button kept reading "Unlock" for the whole
-   Argon2id pass, because resolving the awaiting bootstrap inline hands that work a microtask —
-   which runs before React commits. Fifty seconds of dead screen at the exact moment someone has
-   been locked out.
-2. **The phrase field was invisible to any driver.** A `multiline` `TextInput` is a `UITextView`
-   on iOS and the node XCUITest exposes carries no accessibility identifier at all. The id now
-   sits on a wrapping `View`.
-3. **The phrase door could not be submitted at all.** Its keyboard covers **Unlock**, its return
-   key inserts a newline rather than dismissing, and a plain `View` does not blur on an outside
-   tap — so there was no way to reach the button. The gate now scrolls, with
-   `keyboardShouldPersistTaps="handled"`.
+**It found three things, and one of them was a real bug in front of a locked-out user:**
 
-**Delete this section** once step 3 lands.
+1. ⚠️ **The gate showed the *wrong door's* error.** `error` is a prop holding the last failed
+   attempt, and `switchTo` did not retract it — so leaving the phrase door left its error behind
+   and the **password** door rendered "That recovery phrase doesn't open this database." above an
+   empty password field. Screenshotted, not inferred. It names the wrong door at the exact moment
+   someone is working out which one they can still answer. `RecoveryGate` now suppresses an error
+   the user has switched away from, and 7b asserts the absence.
+2. **`eraseText` cannot clear a `multiline` field, and no count fixes it.** It backspaces from the
+   caret, and `tapOn` puts the caret at the element's *centre* — so a bare `eraseText` and then
+   `eraseText: 250` both left a tail, the door correctly rejected the result, and the red landed
+   several steps later on the unlock. The field is now cleared through the app's own state, by
+   leaving the door and coming back (`switchTo` does `setSecret("")`).
+3. **The Forget-account branch of `factory-reset.yaml` ran for the first time.** It was
+   structurally unreachable while every green arc ended Unauthenticated; 7b arrives with an
+   account, so it takes that branch — which closes the ⚠️ in [`export.md`](./export.md) →
+   *Still owed: the device tier* asking for "a flow that resets *after* Flow 4".
 
-## 3 — Catalog Flow 7b, the phrase door
+Both flows and their catalog entries: [`testing/crucial-flows.md`](./testing/crucial-flows.md) →
+Flow 7. **Delete this section** once step 3 lands.
 
-✅ **Decided, 2026-09-09: 7b is not deferred — and it never carried the cost it would have been
-deferred for.** Building 7c disproved the premise. 7b was priced at "24 stitched `copyTextFrom`
-calls or a new surface exposing the phrase as one string"; the real barrier is that **a capture
-cannot leave the flow that made it**. `scripts/lib/mobile-harness.mjs` runs `maestro test <file>`
-once per flow, so `output.*` and `maestro.copiedText` die with each flow's process, and the
-reveal's own **Copy** button does not bridge it — Maestro's `pasteText` replays its own
-`copiedText`, never the device pasteboard.
-
-**So the constraint is shape, not effort:** 7b must be **self-contained** — factory-reset, seed a
-person, create an account, capture the phrase from the reveal it just watched, then drive the
-door — because that is what puts the reveal and the door in one process. Its real cost is a
-second store conversion per suite run (the Argon2id step, ~50-85s typical), a schedule question
-rather than a design one.
-
-It also inherits the one clause 7c could not carry: **the right phrase still opens the store
-after a password unlock.** 7c proves the phrase door is still offered and that its sidecar is
-still read; only "the right words work" waits for here. Both halves:
-[`testing/crucial-flows.md`](./testing/crucial-flows.md) → Flow 7.
-
-### The four things 7c could not settle for it
-
-1. ⚠️ **The capture is the novel part, and it is unvalidated.** Nothing has ever run
-   `copyTextFrom` against the reveal — 7c never needed the words, so the sentence above saying
-   both approaches "would get the 24 words into a variable" is reasoning, **not a measurement**.
-   Prove it before building around it. The grid renders 24 separate `Text` nodes reading
-   `1. abandon` (`RecoveryPhraseWords`, [`apps/mobile/app/settings.tsx`](../apps/mobile/app/settings.tsx)),
-   so the two candidates are: a `repeat` over an index accumulating into `output` — `evalScript`
-   already has precedent in `apps/mobile/maestro/staged-gifts.yaml` — stripping the `N. ` prefix
-   per word; or
-   building the catalog's proposed `recovery-phrase` anchor with the whole phrase as its label, so
-   one `copyTextFrom` does it. Prefer the first: it needs no new app surface, and exposing the
-   phrase as a single string is a thing to argue for deliberately, not to reach for as a
-   convenience.
-2. **It runs last in the arc**, after `07c` in `scripts/test-e2e.mjs`. Not a preference — its
-   opening factory reset destroys the store that `04` builds and `07c` inherits.
-3. **Account creation needs extracting first.** It is ~40 lines inlined in `04-create-account.yaml`,
-   most of them the iOS "Use Strong Password?" double-type workaround that a runtime update can
-   re-arm at any time. 7b needs the same dance, so pull it into `subflows/create-account.yaml` and
-   have `04` call it — one copy of that workaround, not two that can drift.
-4. **The wrong phrase must be *valid* BIP39.** `decodeRecoveryPhrase` checks the wordlist and
-   checksum *before* `openDbKeyFromRecovery` sees anything, so a garbage phrase tests the codec and
-   proves nothing about the sidecar. `07c-password-door.yaml` uses the all-zero-entropy vector
-   (23 × `abandon` + `art`) for exactly this and documents why.
-
-**Read [`apps/mobile/maestro/e2e/07c-password-door.yaml`](../apps/mobile/maestro/e2e/07c-password-door.yaml)
-first.** Its reset → relaunch → gate half is the template, and its header carries the budgets, the
-`repeat` trap and the gate's three anchors.
-
-**Acceptance:** 7b green on a real device — key-store reset, gate raised, the phrase captured in
-that same flow opens the store with data intact; a **valid but wrong** phrase rejected by the
-sidecar's own error, with the right phrase still working afterwards.
-
-## 4 — The rest of the `rc` bar
+## 3 — The rest of the `rc` bar
 
 - **The out-of-band custody assertions** — the part of the catalog with no code yet. The rung
   table requires **all** of them at `rc`, and they need a **mobile inspection surface that does
@@ -160,7 +120,7 @@ sidecar's own error, with the right phrase still working afterwards.
 Both flows and the rung table: [`testing/crucial-flows.md`](./testing/crucial-flows.md); the rule
 they answer to is [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *The E2E release gate*.
 
-## 5 — Public repo
+## 4 — Public repo
 
 **Value:** transparency for a privacy product; free macOS Actions runners. Before GA because
 going public first makes desktop auto-update simpler
@@ -184,7 +144,7 @@ going public first makes desktop auto-update simpler
 
 **Acceptance:** repo public with a clean history scan; Actions green on a PR.
 
-## 6 — The App Store Connect fields nothing in the repo can check
+## 5 — The App Store Connect fields nothing in the repo can check
 
 `ascSetup` reads the beta group, Test Information and Beta App Review Information — proven by
 every beta that shipped — and stops there, because nothing more is required to distribute a
@@ -196,7 +156,7 @@ every beta that shipped — and stops there, because nothing more is required to
 - Screenshots, age rating, support URL — the `final` rung's own manual list.
 - ⚠️ The version string is **spent permanently** once submitted.
 
-## 7 — Submit
+## 6 — Submit
 
 TestFlight → App Store review; the `final` rung is the same path one step further on.
 
@@ -263,8 +223,8 @@ Three consequences, all actionable:
 - **The gate needs a sentence, timed to the transfer.** A password prompt with no explanation
   reads as a breach. Release notes at minimum; a line on the gate itself is better.
 - **Rehearse it before you rely on it.** `apps/mobile/app/dev-clear-dbkey.tsx` reproduces exactly
-  this scenario — keychain key gone, store and doors intact. Step 2 of Part 1 is its automated
-  form.
+  this scenario — keychain key gone, store and doors intact. Both doors of it are automated now
+  (Flows 7c and 7b), so the rehearsal is a suite run rather than a ceremony.
 - **macOS ships after the transfer** for the same reason. `safeStorage`'s keychain ACL is bound to
   the code signature, so shipping desktop under the personal Developer ID first would pay this
   cost a second time, on a second platform, for nothing.

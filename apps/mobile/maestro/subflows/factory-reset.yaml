@@ -98,9 +98,12 @@ appId: com.leapsake.app
           visible:
             id: "forget-account-confirm"
           timeout: 20000
-      # As in the factory-reset branch above: asserted, never tapped. This is
-      # the branch that has never actually run, because every green arc ends
-      # Unauthenticated — see `plans/export.md` → *Still owed: the device tier*.
+      # As in the factory-reset branch above: asserted, never tapped. This
+      # branch was unreachable for as long as every green arc ended
+      # Unauthenticated; **Flow 7b reaches it** — it runs last and opens with a
+      # reset, so it arrives with an account and takes this side. Green since
+      # 2026-09-09, which closed the ⚠️ in `plans/export.md` → *Still owed: the
+      # device tier*.
       - assertVisible: "Export my data first…"
 
 # Fill and fire whichever is now open. `eraseText` first, because a field still holding the
