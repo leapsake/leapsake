@@ -371,10 +371,46 @@ open, a form still half-filled. `01`'s relaunch is what clears that, so re-run t
 rather than the flow.
 
 What is here covers the **`beta` rung** — Flows 1-5, on-screen assertions only — **plus both
-of `rc`'s at-rest doors**, `07c` (password) and `07b` (phrase), which landed 2026-09-09. The
-out-of-band custody assertions are the only part of `rc` still owed; see
+of `rc`'s at-rest doors**, `07c` (password) and `07b` (phrase), and **`rc`'s out-of-band
+custody assertions** on Flows 1 and 4, all of which landed 2026-09-09. What `rc` still owes
+is the **key-store row** (deferred: `simctl keychain` has no read verb) and turning the
+catalog requirement in `scripts/release/targets/ios.mjs` into a `requires:` check; see
 [`CONTRIBUTING.md`](../../../CONTRIBUTING.md) → *The E2E release gate*
-→ §C's rung table. The `e2e` tier in `scripts/test-all.mjs` is `ready` — it went `ready` only
+→ §C's rung table.
+
+### The out-of-band half: what the bytes say, not the screen
+
+Every assertion in a `.yaml` here reads the accessibility tree, which means **a build that
+rendered "your data is encrypted" and encrypted nothing would pass all of them**. So Flows 1
+and 4 carry a second half that runs in Node the moment the flow goes green:
+[`scripts/lib/custody-assertions.mjs`](../../../scripts/lib/custody-assertions.mjs), wired in
+[`scripts/test-e2e.mjs`](../../../scripts/test-e2e.mjs). It reads the store's first sixteen
+bytes, the roster and the doors out of the simulator's own container — never through the app,
+which is the point (`plans/testing/crucial-flows.md` → *Asserting on custody*). You will see
+one line per flow:
+
+```
+  ✓ out-of-band custody: asserted on disk — key store: not asserted …
+  ⚠ out-of-band custody: not asserted on Android — no app data-container path
+```
+
+**How to confirm the checks still bite**, which is worth doing after touching either file —
+an assertion that never fires looks exactly like one that passes. The unit test
+(`pnpm exec vitest run scripts/lib`) is the durable answer; against a real container, point
+them at bytes they should reject:
+
+```sh
+C=$(xcrun simctl get_app_container <udid> com.leapsake.app data)/Documents/SQLite
+# After a wipe: must report "no account roster…"
+node -e 'import("./scripts/lib/custody-assertions.mjs").then(m=>console.log(m.custodyAuthenticated(process.argv[1])??"PASS"))' "$C"
+# After Flow 4: must report "an account store exists on a first run"
+node -e 'import("./scripts/lib/custody-assertions.mjs").then(m=>console.log(m.custodyUnauthenticated(process.argv[1])??"PASS"))' "$C"
+```
+
+The sharpest one: copy a real plaintext `stores/local/leapsake.db` over a scratch copy of
+`stores/<accountId>/leapsake.db` in a temp tree and run `custodyAuthenticated` against it. It
+prints `this build encrypted nothing` — the encrypting-nothing build, simulated with bytes
+the app itself wrote and no code change. The `e2e` tier in `scripts/test-all.mjs` is `ready` — it went `ready` only
 once the _whole_ beta bar was there, because a partial catalog that ran and went green would
 read as the gate being met.
 

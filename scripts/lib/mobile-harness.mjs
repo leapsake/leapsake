@@ -47,6 +47,8 @@ import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
+import { KEY_STORE_NOTE } from "./custody-assertions.mjs";
+
 export const APP_ID = "com.leapsake.app"; // app.json → android.package / ios.bundleIdentifier
 export const SCHEME = "leapsake"; // app.json → scheme
 const METRO_PORT = 8081;
@@ -793,6 +795,35 @@ function settleDevMenuIos(device) {
   }
 }
 
+/**
+ * The app's **data** container on a simulator — where its stores, doors and roster live.
+ *
+ * Two callers want the same directory for opposite reasons: `wipe` deletes what is under
+ * it, and `appDataRoot` reads it. Sharing one command is what keeps those two honest about
+ * each other — the directory a run erases is the directory its custody checks then read.
+ *
+ * ⚠️ The `data` argument is load-bearing. Without it `get_app_container` returns the
+ * *bundle*, which is the installed app, not its state.
+ */
+function iosContainer(device) {
+  const container = run("xcrun", [
+    "simctl",
+    "get_app_container",
+    device,
+    APP_ID,
+    "data",
+  ]);
+  if (container.status !== 0) {
+    return {
+      ok: false,
+      detail:
+        `could not locate ${APP_ID}'s data container on the simulator:\n  ` +
+        (container.stderr || "no output").trim(),
+    };
+  }
+  return { ok: true, path: container.stdout.trim() };
+}
+
 const iosDriver = {
   key: "ios",
   label: "iOS",
@@ -924,22 +955,9 @@ const iosDriver = {
    */
   wipe(ctx) {
     run("xcrun", ["simctl", "terminate", ctx.device, APP_ID]);
-    const container = run("xcrun", [
-      "simctl",
-      "get_app_container",
-      ctx.device,
-      APP_ID,
-      "data",
-    ]);
-    if (container.status !== 0) {
-      return {
-        ok: false,
-        detail:
-          `could not locate ${APP_ID}'s data container on the simulator:\n  ` +
-          (container.stderr || "no output").trim(),
-      };
-    }
-    rmSync(join(container.stdout.trim(), "Documents", "SQLite"), {
+    const container = iosContainer(ctx.device);
+    if (!container.ok) return container;
+    rmSync(join(container.path, "Documents", "SQLite"), {
       recursive: true,
       force: true,
     });
@@ -954,6 +972,22 @@ const iosDriver = {
       };
     }
     return { ok: true };
+  },
+
+  /**
+   * Where the app keeps every store, its doors and the account roster — what the
+   * out-of-band custody assertions read (`runCustody`, and `lib/custody-assertions.mjs`).
+   *
+   * **Android has no counterpart on purpose.** Its `wipe` is `pm clear`, which gives back
+   * no path at all, so there is nothing to read from there today; the absence of this
+   * method *is* how that platform declines the check, stated once, here, rather than
+   * re-tested at the call site.
+   */
+  appDataRoot(ctx) {
+    const container = iosContainer(ctx.device);
+    return container.ok
+      ? { ok: true, path: join(container.path, "Documents", "SQLite") }
+      : container;
   },
 
   stop: (ctx) => run("xcrun", ["simctl", "terminate", ctx.device, APP_ID]),
@@ -1004,6 +1038,43 @@ const iosDriver = {
 const DRIVERS = { android: androidDriver, ios: iosDriver };
 
 // --- run one platform ------------------------------------------------------------
+
+/**
+ * A flow's **out-of-band half**: read the app's own bytes and say whether they match what
+ * it just claimed on screen.
+ *
+ * Why any of this exists: every Maestro assertion reads the accessibility tree, so a build
+ * that rendered "your data is encrypted" and encrypted nothing would pass the entire suite
+ * green. A flow opts in by carrying a `custody` function
+ * (`scripts/test-e2e.mjs`); the checks themselves live in `lib/custody-assertions.mjs`,
+ * away from the plumbing and where they can be tested without a device.
+ *
+ * **A platform that cannot answer says so.** Without an `appDataRoot` this prints and
+ * returns green — never a silent skip (principle #6: not reachable here is a thing to
+ * report), and never a red, because Android's inability to hand over a container path is
+ * not a defect in the build under test.
+ *
+ * @returns `undefined` when the bytes agree, else the report to fail the platform with.
+ */
+function runCustody(driver, ctx, flow) {
+  if (!flow.custody) return undefined;
+  if (!driver.appDataRoot) {
+    console.log(
+      `  ⚠ out-of-band custody: not asserted on ${driver.label} — no app data-container path`,
+    );
+    return undefined;
+  }
+  const root = driver.appDataRoot(ctx);
+  if (!root.ok) return root.detail;
+
+  const failure = flow.custody(root.path);
+  if (failure) console.log("  ✖ out-of-band custody: FAILED");
+  else
+    console.log(
+      `  ✓ out-of-band custody: asserted on disk — ${KEY_STORE_NOTE}`,
+    );
+  return failure;
+}
 
 /**
  * Drive a single platform end to end, returning { key, label, status, detail }.
@@ -1133,6 +1204,10 @@ async function runPlatform(driver, provision, suite) {
       );
       if (runMaestroFlow(ctx.device, flow.file) !== 0) {
         return wrap(FAIL, `flow RED: ${flow.label} (${flow.file})`);
+      }
+      const custody = runCustody(driver, ctx, flow);
+      if (custody) {
+        return wrap(FAIL, `custody RED after ${flow.label}:\n${custody}`);
       }
     }
     return wrap(PASS);

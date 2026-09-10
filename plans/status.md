@@ -11,16 +11,16 @@
 **after** the company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) →
 *Part 2*) — which is also why nothing may reach Play from the personal account.
 
-**Next, and it is one thing: the out-of-band custody assertions** — the last of the `rc` bar, now
-that every *flow* it names is green on iOS. They are the five checks that read the **bytes**
-rather than the screen; four are reachable from the harness today, the open one is the **iOS key
-store**, and ⚠️ an in-app inspection screen is the wrong answer (*never call into app code*).
-Acceptance and the traps: [`shipping.md`](./shipping.md) → *Part 1* step 3.
+**The `rc` bar is code-complete.** The out-of-band custody assertions landed 2026-09-09: four of
+the five rows read the **bytes** rather than the screen, after Flows 1 and 4 on iOS. The fifth,
+the **iOS key store**, is a written-down deferral — `simctl keychain` has no read verb, and ⚠️ an
+in-app inspection screen is the wrong answer (*never call into app code*).
 
-**Then, in order — [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with acceptance
-for each step.** ② **Public repo**, full-history secret scan first. ③ **The App Store Connect
-fields nothing in the repo can check** — privacy URL, a *published* App Privacy questionnaire,
-screenshots, age rating; `ascSetup` reads none of them. ④ **Submit**, then **GA**.
+**Next, in order — [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with acceptance
+for each step.** ① All step 3 still owes: the catalog as a **`requires:` check** in `ios.mjs`
+rather than a `manual:` sentence. ② **Public repo**, full-history secret scan first. ③ **The App
+Store Connect fields nothing in the repo can check** — privacy URL, a *published* App Privacy
+questionnaire, screenshots, age rating; `ascSetup` reads none of them. ④ **Submit**, then **GA**.
 
 **In parallel, starting now:** incorporate and get a D-U-N-S number — up to 30 days, and the
 entity must exist before the transfer that GA unlocks.

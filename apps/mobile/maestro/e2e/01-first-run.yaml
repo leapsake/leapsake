@@ -25,18 +25,23 @@
 # 2. **The at-rest gate's title is "Unlock your data"**, not the catalog's "Restore access
 #    to your data" (`lib/core-context.tsx` → `RecoveryGate`). Asserting the real string.
 #
-# ## The out-of-band half is not here
+# ## The out-of-band half runs in the harness, not here
 #
 # The catalog also asks that the store be plaintext, the OS key store hold zero Leapsake
 # entries, and neither door exist. None of that is reachable from **Maestro**, which reads
 # the accessibility tree and nothing else — but it is reachable from the **harness**, which
-# already holds the container (`scripts/lib/mobile-harness.mjs` → `wipe` calls `xcrun simctl
-# get_app_container`). So this half belongs in Node beside the flow, not in an in-app
-# inspection screen: the catalog's rule is *never call into app code*, and an app reporting
-# "I am encrypted" is exactly the evidence a build that encrypted nothing would also give.
-# The one row with no answer is the **key store** — `simctl keychain` has no read verb.
-# That is `rc`'s work, not `beta`'s (CONTRIBUTING.md → *The E2E release gate*, its rung
-# table). Until it lands, "mints nothing" is asserted only as far as the screen shows it.
+# already holds the container (`scripts/lib/mobile-harness.mjs` → `iosContainer`). So this
+# half lives in Node beside the flow, not in an in-app inspection screen: the catalog's rule
+# is *never call into app code*, and an app reporting "I am encrypted" is exactly the
+# evidence a build that encrypted nothing would also give.
+#
+# It landed on 2026-09-09 as `custodyUnauthenticated` in
+# `scripts/lib/custody-assertions.mjs`, attached to this flow in `scripts/test-e2e.mjs`: it
+# asserts the store is plaintext under `stores/local/`, that no account store or door
+# exists, and that the roster names nobody. The one row with no answer is the **key store**
+# — `simctl keychain` has no read verb — so "mints nothing" is asserted for everything
+# except the keys themselves, and that deferral is recorded in
+# `plans/testing/crucial-flows.md` → *Where these run on mobile*.
 appId: com.leapsake.app
 ---
 # The precondition. Everything below is a claim about a store with nothing in it, so the

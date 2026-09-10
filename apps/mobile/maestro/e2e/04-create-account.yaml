@@ -13,9 +13,15 @@
 # different name, which that subflow handles — but there is no reason to make every other
 # flow run under encryption to find out.
 #
-# **The out-of-band half belongs to `rc`.** The catalog also asks that the store be
-# ciphertext under `stores/<accountId>/`, that the Unauthenticated store be gone, and that
-# the OS key store now hold four secrets. None of it is reachable from Maestro.
+# **The out-of-band half belongs to `rc`, and runs in the harness.** The catalog also asks
+# that the store be ciphertext under `stores/<accountId>/`, that the Unauthenticated store
+# be gone, and that the OS key store now hold four secrets. None of it is reachable from
+# Maestro — so it runs as `custodyAuthenticated` (`scripts/lib/custody-assertions.mjs`),
+# attached to this flow in `scripts/test-e2e.mjs` and checked the moment this flow goes
+# green. **That check is the one this whole flow exists to make honest:** everything below
+# is a screen reading "your account is set up", which a build that encrypted nothing would
+# also produce. The key-store row is deferred for want of a read verb
+# (`plans/testing/crucial-flows.md` → *Where these run on mobile*).
 appId: com.leapsake.app
 ---
 # The form, its submit and the wait for the reveal are `../subflows/create-account.yaml`.

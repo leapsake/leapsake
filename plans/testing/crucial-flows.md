@@ -72,26 +72,50 @@ of one. Every other flow asserts purely on visible text.
 
 ### Where these run on mobile — the harness, not the app
 
-⚠️ **This used to say the assertions needed "a mobile inspection surface that does not exist", and
-that framing would send you the wrong way** *(corrected 2026-09-09, against the simulator)*. Four
-of the five rows need no new surface at all:
+**Four of the five rows are built** *(iOS, 2026-09-09)*. They live in
+[`scripts/lib/custody-assertions.mjs`](../../scripts/lib/custody-assertions.mjs) as two pure
+functions over the app's SQLite directory — `custodyUnauthenticated` for Flow 1,
+`custodyAuthenticated` for Flow 4 — attached to those flows in
+[`scripts/test-e2e.mjs`](../../scripts/test-e2e.mjs) and run by the harness the moment a flow
+goes green on screen. A green run prints `✓ out-of-band custody: asserted on disk`.
 
-- **The harness already has the container.** `scripts/lib/mobile-harness.mjs` → `wipe` calls
-  `xcrun simctl get_app_container <device> com.leapsake.app data`, and everything above except
-  the key store sits under `Documents/SQLite/` beneath it. Node can read it directly, which is
-  exactly what "against the test profile on disk" asks for. Verified 2026-09-09: an Authenticated
-  store's `leapsake.db` opens `f3b2 e369 …` (no SQLite magic → ciphertext) while its `doors.db`
-  is plaintext and holds `password` and `recovery` rows, and `leapsake-roster.db` holds one row.
-- **An in-app inspection screen would break the rule above.** "Never call into app code" is the
-  whole point: a dev screen reporting *"I am encrypted"* is the app testifying about itself, which
-  is the weaker evidence and the one an encrypting-nothing build would still pass. Read the files.
-- ⚠️ **The key store is the genuinely hard row, and it is the only one.** `xcrun simctl keychain`
-  offers `add-cert`, `add-root-cert` and `reset` — there is **no read verb**, which is why `wipe`
-  resets the whole keychain rather than inspecting it. Settling that one is the actual open
-  question; it is not a reason to build a surface for the other four.
+- **The harness already had the container**, which is what made this cheap:
+  `scripts/lib/mobile-harness.mjs` → `iosContainer` calls `xcrun simctl get_app_container
+  <device> com.leapsake.app data`, and everything except the key store sits under
+  `Documents/SQLite/` beneath it. **`wipe` and `appDataRoot` share that one call on purpose** —
+  the directory a run erases is the directory its assertions then read.
+- **No in-app inspection screen, and that is permanent.** "Never call into app code" is the whole
+  point: a dev screen reporting *"I am encrypted"* is the app testifying about itself, which is
+  the weaker evidence and the one an encrypting-nothing build would still pass. Read the files.
+- ⚠️ **The key-store row is deferred, and it is a decision rather than an oversight**
+  *(2026-09-09)*. `xcrun simctl keychain` offers `add-cert`, `add-root-cert` and `reset` and has
+  **no read verb** — which is why `wipe` resets the whole keychain rather than inspecting it —
+  and the one surface that would answer it is the one refused above. What stands in for it:
+  Flow 1's on-screen absence of "Unlock your data", and Flow 4's **ciphertext store**, which a
+  build that minted no keys could not produce. Revisit if a read verb appears, or if the harness
+  gains a host-side keychain reader. The harness prints the deferral on every run
+  (`KEY_STORE_NOTE`) so it stays visible rather than merely absent.
+- **Android does not assert.** Its `wipe` is `adb shell pm clear`, which hands back no container
+  path, so `androidDriver` has no `appDataRoot` and the run prints `⚠ out-of-band custody: not
+  asserted on Android`. Reported, never silently skipped — and not a red, since a platform that
+  cannot answer is not a defect in the build. v0.1 is iOS alone
+  ([`../shipping.md`](../shipping.md) → *Part 2*).
 - **"Gone" must mean the file, not the directory.** After a conversion or a Forget, `stores/local/`
   and the old `stores/<accountId>/` remain as **empty directories** while their `.db` files are
   deleted. An assertion written as "the directory does not exist" goes red against a correct app.
+  There is a unit test whose whole job is to stop someone "fixing" this.
+- **Assert on rows, not on a doors file.** `doors.ts` and `roster-storage.ts` both run
+  `CREATE TABLE IF NOT EXISTS` on *every* open, read included, so an empty `door` or `roster`
+  table is a state a correct app reaches.
+
+**The negative cases are the deliverable.** An assertion that never fires looks exactly like one
+that passes, and none of these can go red on a working simulator — so
+`scripts/lib/custody-assertions.test.mjs` builds fixture trees per test (`mkdtemp`, torn down
+after) and proves each check catches its own failure: a plaintext account store (the
+encrypting-nothing build), a surviving `stores/local/leapsake.db`, a roster naming none or two
+accounts, a doors table missing `recovery`. It also asserts the checks **create nothing** — a
+bare `new DatabaseSync(path)` creates the file, so a check asking "does the roster exist?" could
+otherwise answer by planting one.
 
 ## The selector problem (must resolve before the first harness)
 
@@ -383,10 +407,10 @@ tier stays small). Listed so the owner can pull any into the gate:
 
 | Flow | Gates at | macOS | Android | iOS | Win/Linux | Devices | Harness notes |
 |---|---|---|---|---|---|---|---|
-| 1 First run (Unauthenticated, mints nothing) | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | fresh profile per run; asserts the key store is empty |
+| 1 First run (Unauthenticated, mints nothing) | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | fresh profile per run; out-of-band ✅ iOS 2026-09-09 (store custody, location, roster, doors — key store deferred) |
 | 2 Person + relationship | **beta** | gate | gate | gate | later | 1 | — |
 | 3 Milestone | **beta** | gate | gate | gate | later | 1 | relaunch to prove persistence |
-| 4 Create an account | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | must run on a store **with** data; 7b makes its own account rather than reusing this one — see below |
+| 4 Create an account | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | must run on a store **with** data; 7b makes its own account rather than reusing this one — see below; out-of-band ✅ iOS 2026-09-09 (same four rows) |
 | 5 Reminder @/# round-trip | **beta** | gate | gate | gate | later | 1 | drives the compose pickers |
 | 6 Enable sync + pair | with sync (v0.2) | gate | gate | gate | later | **2** | needs a relay + two instances; Flow 4's assertions apply to A |
 | 7a Cross-device recovery | with sync (v0.2) | gate | gate | gate | later | 2 | includes wrong-phrase negative |
@@ -486,10 +510,11 @@ usual and better way for a question like this to close.
    as flows needed them. `PickerField`'s options grew ids when Gboard's suggestion strip proved
    `below:` was not a reliable separator
    ([`../../apps/mobile/maestro/README.md`](../../apps/mobile/maestro/README.md)).
-3. ✅ **The out-of-band custody assertions** — approved, and scheduled: §C's rung table requires
-   **every** one of them at `rc`. They remain the part of this catalog with no code yet, and
-   four of the five are reachable from the harness today — see *Where these run on mobile*
-   — and only the key-store row still has no answer.
+3. ✅ **The out-of-band custody assertions** — approved, and **built on iOS for Flows 1 and 4**
+   *(2026-09-09)*: store custody, store location, roster and doors. The fifth row, the key
+   store, is a **decided deferral** rather than an open question — `simctl keychain` has no read
+   verb and the surface that would answer it is refused on principle. See *Where these run on
+   mobile*.
 4. ✅ **Flow-5 inclusion** — confirmed and built. It is in the `beta` bar and green on both
    mobile platforms.
 5. **Two-instance harness shape.** How Flows 6/7a run two instances locally: two emulators/sims,
@@ -536,12 +561,12 @@ What happened instead, and it inverted every step:
 5. **macOS (Playwright/Electron)** when desktop ships — [`../desktop-packaging.md`](../desktop-packaging.md)
    → A, which the harness needs a packaged `.app` from.
 
-**So the remaining v0.1 E2E gate is the out-of-band custody assertions**, plus turning `rc`'s
-catalog requirement into a `requires:` check rather than a `manual:` sentence. **Every flow the
-`rc` bar names is now green on iOS.** The custody assertions are the harder half of what is left:
-four of the five rows are reachable from the harness today and only the key-store row is
-genuinely open — see *Where these run on mobile* above.
+**So the remaining v0.1 E2E gate is one line of release plumbing**: turning `rc`'s catalog
+requirement into a `requires:` check rather than a `manual:` sentence in
+[`../../scripts/release/targets/ios.mjs`](../../scripts/release/targets/ios.mjs). **Every flow
+the `rc` bar names is green on iOS, and so are four of the five custody rows** — the fifth, the
+key store, is deferred with its reasons written down under *Where these run on mobile*.
 
-> These two are step 3 of [`../shipping.md`](../shipping.md) → Part 1, the ordered list of
+> That one is step 3 of [`../shipping.md`](../shipping.md) → Part 1, the ordered list of
 > everything blocking GA. The flow ids here are the stable ones and do not change with that
 > doc's renumbering.

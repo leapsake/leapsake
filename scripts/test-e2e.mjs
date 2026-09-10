@@ -14,10 +14,18 @@
 // by design (the catalog takes 1→4 as one arc), so the harness stops the platform at the
 // first red flow rather than reporting three failures that are really one.
 //
-// **The bar this meets is the `beta` rung plus both at-rest doors** — Flows 1–5 on-screen
-// (the rung table's `beta` bar, `CONTRIBUTING.md` → *The E2E release gate*), plus the
-// password door and the phrase door, which are `rc`'s. What is still owed at `rc` is the
-// out-of-band custody assertions; Flows 6/7a ship with sync.
+// **The bar this meets is the `beta` rung plus both at-rest doors and the reachable
+// custody assertions** — Flows 1–5 on-screen (the rung table's `beta` bar,
+// `CONTRIBUTING.md` → *The E2E release gate*), the password and phrase doors, and the
+// out-of-band half of Flows 1 and 4, all three of which are `rc`'s. What `rc` still owes is
+// the **key-store row**, deferred for want of a read verb
+// (`lib/custody-assertions.mjs` → `KEY_STORE_NOTE`), and turning the catalog requirement in
+// `scripts/release/targets/ios.mjs` into a `requires:` check. Flows 6/7a ship with sync.
+//
+// **The custody assertions are why a `flow()` may carry a third argument.** Every Maestro
+// assertion reads the screen, so a build that encrypted nothing would pass all of them;
+// those two functions read the bytes instead. They are iOS-only today — Android's `wipe` is
+// `pm clear`, which hands back no container path, so it prints that it did not assert.
 //
 // **The two door flows cost five Argon2id passes between them and live here anyway.** They
 // roughly triple the tier's wall-clock, and the alternative — a second `test:e2e:rc` entry
@@ -25,9 +33,25 @@
 // continuation. They run last, so a red before them still fails fast.
 import { join } from "node:path";
 
+import {
+  custodyAuthenticated,
+  custodyUnauthenticated,
+} from "./lib/custody-assertions.mjs";
 import { MAESTRO_DIR, runSuite } from "./lib/mobile-harness.mjs";
 
-const flow = (file, label) => ({ label, file: join(MAESTRO_DIR, "e2e", file) });
+/**
+ * A flow, and optionally **what its bytes must say** once it is green.
+ *
+ * `custody` is the catalog's out-of-band half (`plans/testing/crucial-flows.md` →
+ * *Asserting on custody*): a function the harness runs against the app's own SQLite
+ * directory after the flow passes on screen. It is deliberately attached here rather than
+ * inside the harness — this is the file that says what each flow claims.
+ */
+const flow = (file, label, custody) => ({
+  label,
+  file: join(MAESTRO_DIR, "e2e", file),
+  custody,
+});
 
 await runSuite({
   key: "test:e2e",
@@ -56,14 +80,22 @@ await runSuite({
   // inherited, which is why nothing may follow it. It also means it is the only flow here
   // that drives the reset under its *Forget account* name.
   flows: [
-    flow("01-first-run.yaml", "Flow 1 — first run reaches a usable state"),
+    flow(
+      "01-first-run.yaml",
+      "Flow 1 — first run reaches a usable state",
+      custodyUnauthenticated,
+    ),
     flow("02-person-and-relationship.yaml", "Flow 2 — person + relationship"),
     flow("03-milestone.yaml", "Flow 3 — milestone survives a relaunch"),
     flow(
       "05-reminder-mention-tag.yaml",
       "Flow 5 — reminder @mention + #tag round trip",
     ),
-    flow("04-create-account.yaml", "Flow 4 — an account turns encryption on"),
+    flow(
+      "04-create-account.yaml",
+      "Flow 4 — an account turns encryption on",
+      custodyAuthenticated,
+    ),
     flow(
       "07c-password-door.yaml",
       "Flow 7c — the password door reopens a locked store",

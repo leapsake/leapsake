@@ -20,9 +20,10 @@ must start **now**, in parallel with Part 1 — not when Part 1 finishes.
 
 # Part 1 — Before iOS GA
 
-Steps 1–3 are code; 4–6 are process and store paperwork. **3 is now the long pole**, and its
-hard part is one check — reading the iOS key store from a test — not the whole step. If it is not
-on this list, it does not block GA.
+Steps 1–3 are code; 4–6 are process and store paperwork. **The code is done bar one line of
+release plumbing** — step 3's custody assertions landed on 2026-09-09 — so **4 and 5 are now the
+long pole**, and 5 is the one nothing in the repo can check for you. If it is not on this list,
+it does not block GA.
 
 ## 1 — Export
 
@@ -110,37 +111,32 @@ Flow 7. **Delete this section** once step 3 lands.
 
 ## 3 — The rest of the `rc` bar
 
-**The out-of-band custody assertions** — the part of the catalog with no code yet, and the only
-thing between here and a complete `rc` bar. **What they buy:** every test we have reads the
-screen, so a build that displayed "your data is encrypted" and encrypted nothing would pass the
-whole suite green. These are the five checks that step outside the app and read the bytes —
-[`testing/crucial-flows.md`](./testing/crucial-flows.md) → *Asserting on custody*, which carries
-the table and the per-client shapes.
+✅ **The out-of-band custody assertions are built** *(iOS, 2026-09-09)*.
+`scripts/lib/custody-assertions.mjs` reads the app's own bytes out of the simulator container
+after Flows 1 and 4 go green: store custody (the 16-byte SQLite magic), store location, the
+roster, and both doors. **What they buy:** every other test reads the screen, so a build that
+displayed "your data is encrypted" and encrypted nothing would pass the whole suite green.
+Their negative cases — the ones that prove a check can go red at all — are unit-tested against
+fixture trees, since none of them can fail on a working simulator.
 
-⚠️ **This step used to be described as needing "a mobile inspection surface that does not
-exist". That was wrong, and it would cost whoever picks this up a week** *(corrected 2026-09-09
-against the simulator)*:
+✅ **The key-store row is a decided deferral, not an oversight.** `xcrun simctl keychain` has
+`add-cert`, `add-root-cert`, `reset` — and **no read verb** — and the surface that would answer
+it is refused on principle (*never call into app code*: an app reporting "I am encrypted" is the
+one piece of evidence an encrypting-nothing build would also produce). What stands in for it is
+Flow 4's ciphertext store, which a build that minted no keys could not produce. Written down in
+[`testing/crucial-flows.md`](./testing/crucial-flows.md) → *Where these run on mobile*, and
+printed on every run so it stays visible.
 
-- **Four of the five need no new surface.** `scripts/lib/mobile-harness.mjs` → `wipe` already
-  calls `xcrun simctl get_app_container`, and store custody, store location, the roster and both
-  doors all sit under `Documents/SQLite/` beneath it, readable from Node.
-- **Do not build an in-app inspection screen.** The catalog's own rule is *never call into app
-  code*, and an app reporting "I am encrypted" is the one piece of evidence an encrypting-nothing
-  build would also produce.
-- ⚠️ **The key-store row is the real open question, and it is the only one.** `xcrun simctl
-  keychain` has `add-cert`, `add-root-cert`, `reset` — and **no read verb**. Solve that row on its
-  own terms; it is not a reason to build a surface for the other four.
-- **"Gone" means the file, not the directory** — `stores/local/` survives a conversion as an empty
-  directory while its `.db` is deleted.
+**What is left is one line of release plumbing.** `scripts/release/targets/ios.mjs` carries "the
+crucial-flow catalog green on a real device" as a `manual:` sentence on the `rc` rung — decorative,
+enforcing nothing. It belongs in `requires:`, so the gate enforces it instead of reminding you.
+⚠️ Decide deliberately how: re-running `pnpm test:e2e` from the check costs the suite twice
+(`pnpm test:all --strict --provision` already runs later in the same pipeline), so a receipt the
+E2E run drops and the check verifies against `HEAD` may be the better shape.
 
-**Make the catalog requirement a real check.** `scripts/release/targets/ios.mjs` carries "the
-crucial-flow catalog green on a real device" as a `manual:` sentence on the `rc` rung. It belongs
-in `requires:`, so the gate enforces it instead of reminding you.
-
-**Acceptance:** Flows 1 and 4 assert their out-of-band halves on iOS from the harness (the rung
-table's `rc` column for both), the key-store row is either asserted or its impossibility is
-written down as a decided deferral rather than an oversight, and `ios.mjs` carries the catalog in
-`requires:` so `pnpm release rc` fails without it.
+**Acceptance:** ✅ Flows 1 and 4 assert their out-of-band halves on iOS from the harness (the rung
+table's `rc` column for both); ✅ the key-store row's impossibility is written down as a decided
+deferral; ☐ `ios.mjs` carries the catalog in `requires:` so `pnpm release rc` fails without it.
 
 The rung table: [`testing/crucial-flows.md`](./testing/crucial-flows.md); the rule they answer to
 is [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *The E2E release gate*.

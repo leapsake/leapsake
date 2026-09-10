@@ -115,7 +115,7 @@ stranger installs does not have to carry the whole of it on day one.
 |---|---|---|---|
 | `alpha` | internal TestFlight — named App Store Connect users, ≤100 | nothing; they are us | the suite **without** `--strict` — see `isStrict` in [`scripts/release/index.mjs`](scripts/release/index.mjs) |
 | `beta` | external TestFlight — the first strangers | an evening of typing, and only if they ignored the notes | catalog Flows **1–5**, **on-screen assertions only**. The `e2e` tier is `ready` and **passes** under `--strict` |
-| `rc` | external TestFlight, ship-ready | records they have started to rely on | the above **plus** Flows **7b, 7c** and **every out-of-band custody assertion** |
+| `rc` | external TestFlight, ship-ready | records they have started to rely on | the above **plus** Flows **7b, 7c** and **every *reachable* out-of-band custody assertion** — four of the catalog's five rows; the key store is a written-down deferral, not a gap ([`plans/testing/crucial-flows.md`](plans/testing/crucial-flows.md) → *Where these run on mobile*) |
 | `final` | the store — the public | the thing the product exists to hold | `rc`'s bar, unchanged |
 
 **What the rungs ratchet on is data loss, not defect count** *(owner, 2026-08-28)*. Alpha and

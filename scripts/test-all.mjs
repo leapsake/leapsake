@@ -152,8 +152,9 @@ const TIERS = [
     status: "ready",
     device: true,
     // Flows 1-5 — the whole `beta` bar (CONTRIBUTING.md → *The E2E release gate*, its
-    // rung table). `rc` additionally owes 7b/7c and the out-of-band custody assertions;
-    // 6/7a ship with sync. Green on the iOS simulator and re-runnable; the Android leg
+    // rung table) — plus `rc`'s 7b/7c and the out-of-band custody assertions on Flows 1
+    // and 4. What `rc` still owes is the key-store row, deferred (see
+    // `lib/custody-assertions.mjs`); 6/7a ship with sync. Green on the iOS simulator and re-runnable; the Android leg
     // is written but has not been run, so the first `--strict` release will be the first
     // time it is exercised (an un-booted emulator reports BLOCKED via exit 3, which
     // --strict correctly treats as a failure).
