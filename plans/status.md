@@ -7,26 +7,30 @@
 
 ## In flight
 
-**v0.1 is iOS alone** *(owner, 2026-09-06)*, and the release path to it is built: three betas
-have shipped, the App Store Connect record is complete, and a real external tester is using the
-app. Android and macOS follow **after** the company exists and the iOS record transfers to it —
-[`shipping.md`](./shipping.md) → *Part 2*, which is also the reason nothing may be
-uploaded to Play from the personal account.
+**v0.1 is iOS alone** *(owner, 2026-09-06)*, and the release path to it is built — three betas
+have shipped and a real external tester is on the app. Android and macOS follow **after** the
+company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) → *Part 2*),
+which is also why nothing may reach Play from the personal account.
 
-**Next, in order — and [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with
-acceptance for each step.** ① **Export** — GA-blocking (2026-09-06): single-device v0.1 has no
-other copy of a user's data, and it must **not** use iCloud (that would permanently disqualify
-the Apple app transfer). *Shipped 2026-09-07/08* — a user can tap Export on the Data screen and
-save a `.zip` holding their whole store, and both destructive confirmations offer it before they
-destroy it. **No code gates GA here now**; [`export.md`](./export.md) is down to three device
-verifications, plus reading an export back in and desktop parity, none of which gate.
-② **The `rc` bar** — Flows 7c then 7b, the out-of-band custody assertions, and `rc`'s catalog
-requirement as a `requires:` check in `ios.mjs`.
-③ **Public repo** — full-history secret scan first. ④ **Submit**, then **GA**, then
-incorporate and transfer.
+**Next, and it is one thing: catalog Flow 7c, the password door.** Three `testID`s on
+`RecoveryGate` (`apps/mobile/lib/core-context.tsx`, which carries none) and one Maestro flow
+after `04` in the arc, where Flow 4 leaves exactly its preconditions — an Authenticated store
+with data and a password the arc already typed. ⚠️ **Settle 7b's deferral with it, not after
+it:** the catalog's 7c ends by asserting the *phrase* door still works, and that clause needs
+the 24-word capture 7c was supposed to escape.
 
-**Off the critical path — none of this gates GA, and none of it is next.** The reminders rework
-and contact-import fidelity against real Apple cards both sit at a natural stopping point; what
-is left of either is in [`v0-2.md`](./v0-2.md). Contact methods reach people, but their URL
-templates are convention, not verified — **confirm on real hardware with the apps installed** (no
-simulator can), while testing a build rather than instead of Part 1.
+**Then, in order — [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with
+acceptance for each step.** ② The rest of the `rc` bar: 7b, the out-of-band custody
+assertions (**the long pole** — they need a mobile inspection surface that does not exist),
+and the catalog as a `requires:` check in `ios.mjs`. ③ **Public repo**, full-history secret
+scan first. ④ **The App Store Connect fields nothing in the repo can check** — privacy URL, a
+*published* App Privacy questionnaire, screenshots, age rating; `ascSetup` reads none of them.
+⑤ **Submit**, then **GA**.
+
+**In parallel, starting now, alongside the list above rather than after it:** incorporate and
+get a D-U-N-S number — up to 30 days, and the entity must exist before the transfer GA unlocks.
+
+**Not gating, and not next.** Export shipped 2026-09-07/08; what is left in
+[`export.md`](./export.md) is increment 6 and three device verifications. Reminders and
+contact-import fidelity rest at a natural stopping point ([`v0-2.md`](./v0-2.md)); contact
+methods' URL templates are convention — confirm on real hardware while testing a build.
