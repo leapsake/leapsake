@@ -89,6 +89,20 @@ const TIERS = [
     status: "ready",
   },
   {
+    // The fourth guard of the `versions`/`icons`/`docs` family, and the one with the
+    // longest memory: it reads every blob ever committed, because a secret deleted in the
+    // next commit is still in the history forever. `network: true` keeps it out of the
+    // inner loop — it wants the pinned gitleaks binary, and 4s is too slow for `pnpm test`
+    // — but `pnpm test:all` runs it, and `--strict` fails the release if it could not run
+    // at all. See scripts/secret-scan.mjs for the two modes; this is the cheap one.
+    key: "secrets",
+    layer: "static",
+    label: "secret scan (no credentials anywhere in git history)",
+    script: "test:secrets",
+    status: "ready",
+    network: true,
+  },
+  {
     key: "node",
     layer: "unit + integration",
     label: "unit + integration (vitest, real desktop engine)",
@@ -195,10 +209,13 @@ if (only) {
 
 let selected = TIERS;
 if (only) selected = selected.filter((t) => only.has(t.key));
-// --fast = the inner loop: ready tiers that don't need a device (skip the emulator /
-// simulator / native-host tiers). `--only` overrides (you can force a device tier by key).
+// --fast = the inner loop: ready tiers that need nothing beyond this Node process —
+// no device (emulator/simulator/native host) and no network (the secret scan fetches its
+// pinned scanner on first use). `--only` overrides, so either can be forced by key.
 else if (fast)
-  selected = selected.filter((t) => t.status === "ready" && !t.device);
+  selected = selected.filter(
+    (t) => t.status === "ready" && !t.device && !t.network,
+  );
 
 // Each tier runs its own `pnpm run <script>`. `pnpm` is resolved from PATH (shell:true on
 // Windows so `pnpm.cmd` is found); every dev running this already has pnpm on PATH. Extra

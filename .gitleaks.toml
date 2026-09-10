@@ -1,0 +1,27 @@
+# Config for the full-history secret scan (`pnpm test:secrets`).
+#
+# Two mechanisms, deliberately kept apart:
+#
+#   * this file — for a secret that is committed **on purpose and forever**, matched by
+#     path so it stays quiet no matter which commit it is found in;
+#   * `.gitleaksignore` — for **specific historical findings** that have been judged and
+#     accepted, matched by fingerprint (commit + file + rule + line), so a *different*
+#     secret appearing in the same file still fails the scan.
+#
+# Reach for the fingerprint file by default. A path allowlist here silences a file for
+# all time, which is right for exactly one kind of thing: a key whose whole purpose is
+# to be public.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Committed on purpose — see each path's note"
+paths = [
+  # A self-signed TLS cert + key for `localhost`, checked in so the relay's in-process
+  # TLS test needs no tooling at runtime (apps/server/test/fixtures/README.md). Verified
+  # 2026-09-09: subject == issuer, CN=localhost, O="Leapsake TEST ONLY - do not use",
+  # and the key matches that cert and nothing else. It protects nothing and is expected
+  # to be public — which is the point, and why a path allowlist rather than a fingerprint.
+  '''apps/server/test/fixtures/localhost-test-only\.key''',
+]

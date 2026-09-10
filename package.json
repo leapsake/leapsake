@@ -26,6 +26,7 @@
     "test:lint": "oxlint",
     "test:native": "node scripts/test-native.mjs",
     "test:node": "node scripts/ensure-sqlite-abi.mjs node && vitest run",
+    "test:secrets": "node scripts/secret-scan.mjs",
     "test:types": "pnpm -r typecheck",
     "test:unit": "node scripts/ensure-sqlite-abi.mjs node && vitest run packages",
     "test:versions": "node scripts/set-version.mjs --check",

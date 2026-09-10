@@ -156,10 +156,22 @@ going public first makes desktop auto-update simpler
 
 ⚠️ **Git history is public forever.** In this order:
 
-1. Confirm `apps/server/test/fixtures/localhost-test-only.key` is a throwaway self-signed
-   localhost cert. The name says so — **verify it**.
-2. Run a proper secret scan over **full history** (gitleaks/trufflehog). Filename-level scanning
-   is already clean; that is not the same thing.
+1. ✅ **Verified** *(2026-09-09)*: `apps/server/test/fixtures/localhost-test-only.key` is a
+   throwaway. Subject == issuer, `CN=localhost`, `O=Leapsake TEST ONLY - do not use`, and the key
+   matches that cert and nothing else. Allowlisted by path in `.gitleaks.toml`, not by hand.
+2. ✅ **Built and green** *(2026-09-09)*: `pnpm test:secrets` (`scripts/secret-scan.mjs`), a tier
+   in the trophy, over **every ref** — plus a `--all-objects` mode that reads **every blob in the
+   object database, reachable or not**, which is the one to run before the repo actually flips.
+   ⚠️ That distinction is not pedantry here: this history has been rewritten (`refs/original/`)
+   and pushed, and a host keeps unreachable objects addressable by SHA long after no branch
+   points at them. Both modes are clean. **Eleven findings were read against the blobs, not
+   waved through**: a dead Next.js build key in `apps/client-web/.next/` (an app that no longer
+   exists, its `.next/` committed by accident and removed three commits later), the crate name
+   `crypto_secretbox` in a retired spike's `Cargo.lock`, and the fixture above. Each is recorded
+   with its reasoning in `.gitleaksignore`, which publishes with the repo and is meant to be read.
+   The scanner is a **pinned, checksum-verified** official binary cached under `node_modules/`
+   ([`../scripts/lib/ensure-gitleaks.mjs`](../scripts/lib/ensure-gitleaks.mjs)) — nothing to
+   install, and no third-party postinstall added to the trust base of a repo about to go public.
 3. **Read the security findings as a stranger would.** They publish with the repo — the relay's
    threat register ([`apps/server/README.md`](../apps/server/README.md)), the Argon2id honesty
    note ([`packages/crypto/README.md`](../packages/crypto/README.md)), and the open items in
