@@ -130,9 +130,16 @@ printed on every run so it stays visible.
 **What is left is one line of release plumbing.** `scripts/release/targets/ios.mjs` carries "the
 crucial-flow catalog green on a real device" as a `manual:` sentence on the `rc` rung — decorative,
 enforcing nothing. It belongs in `requires:`, so the gate enforces it instead of reminding you.
-⚠️ Decide deliberately how: re-running `pnpm test:e2e` from the check costs the suite twice
-(`pnpm test:all --strict --provision` already runs later in the same pipeline), so a receipt the
-E2E run drops and the check verifies against `HEAD` may be the better shape.
+⚠️ **How it learns the catalog is green is the question, and the answer is probably "wait for
+step 4".** Three shapes, in preference order: **(a)** the check reads a **CI commit status** —
+the industry-standard split, where the machine that runs the tests is not the person shipping,
+and the one the *everything remote, independently verifiable* direction above is heading for
+anyway; **(b)** a **receipt** the E2E run drops, which the check verifies against `HEAD` **plus a
+clean worktree** — cheap, but it is this machine vouching for itself, so it defends against
+*forgetting*, never against *lying* or against "works on my machine"; **(c)** re-running
+`pnpm test:e2e` from the check, which costs the suite twice, since `pnpm test:all --strict
+--provision` already runs later in the same pipeline. Build (b) only if a gate is wanted before
+step 4 lands; otherwise (a) is less code and a stronger claim.
 
 **Acceptance:** ✅ Flows 1 and 4 assert their out-of-band halves on iOS from the harness (the rung
 table's `rc` column for both); ✅ the key-store row's impossibility is written down as a decided
@@ -160,8 +167,39 @@ going public first makes desktop auto-update simpler
    that **H1 in particular reads as a scoped, decided deferral rather than an unattended hole**.
    It is the one an outside reader finds first.
 4. After flipping: a GitHub Actions workflow for **PR checks only**, calling the same scripts.
-   The *release* gate stays local — hosted runners cannot provide a real unlocked keychain, and
-   mocking it would gut Flows 1, 4, 6 and 7.
+   The *release* gate stays local **for now, and for a smaller reason than this used to claim**.
+
+⚠️ **This step used to say "hosted runners cannot provide a real unlocked keychain, and mocking
+it would gut Flows 1, 4, 6 and 7". That conflates three different keychains, and only one of them
+is a real obstacle** *(corrected 2026-09-09, against the code)*:
+
+- **The simulator's keychain — what the mobile flows actually touch — is not a blocker.**
+  [`apps/mobile/keystore/secure-store-keystore.ts`](../apps/mobile/keystore/secure-store-keystore.ts)
+  uses `expo-secure-store` with `AFTER_FIRST_UNLOCK` and no `requireAuthentication`, so on a
+  simulator it is the *device's own* keychain inside its data container — which is why `wipe` can
+  reset it with `xcrun simctl keychain`. No host login session, no biometrics. Simulator builds
+  are unsigned, so the tier needs no signing identity either. **Flows 1, 4, 6 and 7 can run on a
+  hosted macOS runner.** What stands in the way is cost and horsepower, not capability: `expo
+  run:ios` is a full native build (cache the app rather than compiling per run), and ⚠️ Flow 4's
+  memory-hard Argon2id pass went **bimodal on a starved emulator** (see `EMULATOR_SIZE` in
+  [`../scripts/lib/mobile-harness.mjs`](../scripts/lib/mobile-harness.mjs)) — a weaker runner is a
+  flakiness risk worth *measuring* on a throwaway workflow before the gate depends on it.
+- **The host login keychain is the real one, and it is desktop's, not mobile's.**
+  [`apps/desktop/src/main/keystore/safe-storage-keystore.ts`](../apps/desktop/src/main/keystore/safe-storage-keystore.ts)
+  derives its key from a genuine macOS Keychain item, so the macOS E2E tier does want an unlocked
+  login keychain in a user session. Solvable (`security create-keychain` / `unlock-keychain` /
+  `set-key-partition-list` is the standard recipe) but **unverified here** — and on Linux that
+  file's own ⚠️ applies: `isEncryptionAvailable()` returns `true` over a `basic_text` fallback, so
+  a green test there proves less than it appears to.
+- **The signing keychain is a release concern and a solved one** — importing a `.p12` into a
+  temporary keychain is routine iOS CI. Not a reason to keep anything local.
+
+**Where this is heading** *(owner, 2026-09-09)*: **everything remote, and independently
+verifiable** — no gate trusting a file on one Mac. The order is this step, then iOS E2E on a
+hosted runner (proved on a throwaway workflow first), then releasing from CI with the App Store
+Connect API key, then provenance attestation over the artifact. That also settles step 3's open
+question: if CI can carry the catalog, the `requires:` check reads a commit status and no local
+receipt is ever built.
 
 **Acceptance:** repo public with a clean history scan; Actions green on a PR.
 
