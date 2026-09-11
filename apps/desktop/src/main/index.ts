@@ -554,7 +554,10 @@ const boundaryParsers: Partial<Record<ApiChannel, ArgParser>> = {
   // so the whole payload is untrusted and re-validated here against the parser's
   // own boundary schema before core touches the DB.
   "import.preview": (a) => [parsedContactsSchema.parse(a[0])],
+  // The schema has no `sourceId`, so zod strips one a renderer sends: desktop
+  // has no address book, and must not be able to write links for one.
   "import.commit": (a) => [importDecisionsSchema.parse(a[0])],
+  "deviceContacts.setSyncEnabled": (a) => [a[0] === true],
 };
 
 /**

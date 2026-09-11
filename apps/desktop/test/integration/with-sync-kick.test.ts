@@ -133,6 +133,11 @@ const SURFACE: Record<string, "read" | "write"> = {
   "contactMethods.socials.create": "write",
   "contactMethods.socials.softDelete": "write",
   "contactMethods.socials.update": "write",
+  // The switch is a device-local write with nothing to push, but it is a write,
+  // and the rule is by name — a wasted kick is cheaper than an exception to it.
+  "deviceContacts.getSyncEnabled": "read",
+  "deviceContacts.linkedIds": "read",
+  "deviceContacts.setSyncEnabled": "write",
   "duplicates.count": "read",
   "duplicates.findCandidates": "read",
   "duplicates.findFor": "read",

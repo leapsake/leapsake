@@ -180,6 +180,37 @@ describe("core.import.commit", () => {
   });
 });
 
+// Mobile's address-book sync, over the real table: what it relies on is that a
+// link is written with the person, and is still there after the person is gone.
+describe("core.import.commit — contacts read from the phone", () => {
+  it("keeps a contact's link after its person is deleted", async () => {
+    await core.import.commit([
+      { action: "create", contact: contact(), sourceId: "abc" },
+    ]);
+    const [person] = await core.people.list();
+    await core.people.softDelete(person.id);
+    expect(await core.deviceContacts.linkedIds()).toEqual(["abc"]);
+  });
+
+  it("rolls back a second import of the same contact", async () => {
+    await core.import.commit([
+      { action: "create", contact: contact(), sourceId: "abc" },
+    ]);
+    const again = await core.import.commit([
+      { action: "create", contact: contact(), sourceId: "abc" },
+    ]);
+    expect(again.created).toBe(0);
+    expect(again.errors).toHaveLength(1);
+    expect(await core.people.list()).toHaveLength(1);
+  });
+
+  it("starts switched off, and stays on once switched on", async () => {
+    expect(await core.deviceContacts.getSyncEnabled()).toBe(false);
+    await core.deviceContacts.setSyncEnabled(true);
+    expect(await createCore(driver).deviceContacts.getSyncEnabled()).toBe(true);
+  });
+});
+
 describe("core.import.preview", () => {
   it("flags a parsed contact that matches an existing person", async () => {
     await core.people.create({ firstName: "Jane", lastName: "Doe" }, []);

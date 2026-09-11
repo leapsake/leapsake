@@ -27,12 +27,16 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
  *   `social_profiles` in `migrations.ts`.
  */
 
-// The one table that is deliberately none of the above. It is not a domain entity: it
-// is the sync watermark, a key/value row per syncable table, local to this device and
-// never itself replicated — so it has no identity to mint, no history to stamp, and
-// nothing a tombstone could tell another device. Adding to this list means arguing the
-// same case; it is not a place to park a table that simply hasn't been fixed yet.
-const NOT_DOMAIN_TABLES = new Set(["sync_state"]);
+// The tables that are deliberately none of the above. Neither is a domain entity:
+// `sync_state` is the sync watermark, a key/value row per syncable table, local to this
+// device and never itself replicated — so it has no identity to mint, no history to
+// stamp, and nothing a tombstone could tell another device. `device_contact_links`
+// makes the same case: it is keyed by the phone address book's own record id, which
+// means nothing on any other device, and a row is never deleted, because its surviving
+// the person it made is what stops a deleted person being re-imported (migration 36).
+// Adding to this list means arguing the same case; it is not a place to park a table
+// that simply hasn't been fixed yet.
+const NOT_DOMAIN_TABLES = new Set(["sync_state", "device_contact_links"]);
 
 const isSnakeCase = (s: string) => /^[a-z][a-z0-9_]*$/.test(s);
 

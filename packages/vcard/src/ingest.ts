@@ -148,6 +148,20 @@ export interface ImportPorts {
    * export can never silently reassign who "me" is. See `plans/export.md` → 5a.
    */
   setSelf(personId: string): Promise<void>;
+  /**
+   * Remember that the address-book record `sourceId` has been brought in as
+   * `entity` — or, for `null`, seen and deliberately left out — so that keeping
+   * People in step with that address book never imports it a second time.
+   *
+   * Called only for a decision that carries a {@link ImportDecision.sourceId}.
+   * For an entity that landed it runs **inside** the contact's transaction, so a
+   * contact that rolls back is not remembered, and an implementor that refuses a
+   * second link for one id rolls the duplicate back instead of landing it.
+   */
+  linkSource(
+    sourceId: string,
+    entity: { type: EntityType; id: string } | null,
+  ): Promise<void>;
   /** Run one contact's writes atomically (the real driver's `transaction`). */
   transaction<T>(body: () => Promise<T>): Promise<T>;
 }
@@ -160,6 +174,14 @@ export interface ImportPorts {
 export interface ImportDecision {
   action: "create" | "skip";
   contact: ParsedContact;
+  /**
+   * The address-book record this contact was read from, when it came from one
+   * that can be read again (the phone's contacts, not a dropped file). Present,
+   * it is handed to {@link ImportPorts.linkSource}, and a contact with no name at
+   * all is remembered as seen and counted as skipped rather than refused — the
+   * next read of the address book would otherwise refuse it again, every time.
+   */
+  sourceId?: string;
 }
 
 /** One contact that could not be imported, kept so the summary can list it
@@ -237,7 +259,7 @@ export async function ingestContacts(
   }[] = [];
 
   for (let index = 0; index < decisions.length; index++) {
-    const { action, contact } = decisions[index];
+    const { action, contact, sourceId } = decisions[index];
     if (action === "skip") {
       skipped++;
       continue;
@@ -249,6 +271,21 @@ export async function ingestContacts(
     // allowed that, every such card was refused here; now only a card with no
     // name at all is (an `FN`-less vCard, which carries nothing to file it by).
     if (!hasAnyName(nameInputFrom(contact.name))) {
+      // From an address book, that is nearly always a business, and nobody is
+      // there to type a name in: remember it as seen and move on.
+      if (sourceId !== undefined) {
+        try {
+          await ports.linkSource(sourceId, null);
+          skipped++;
+        } catch (err) {
+          errors.push({
+            index,
+            contact,
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+        continue;
+      }
       errors.push({
         index,
         contact,
@@ -336,6 +373,11 @@ export async function ingestContacts(
         // Two cards both claiming it is a decision the review makes, not one to
         // arbitrate here: the singleton means the last one wins.
         if (contact.isSelf && !pet) await ports.setSelf(id);
+        // Same reasoning: a contact that rolls back must not be remembered as
+        // brought in, or the next read of its address book would skip it.
+        if (sourceId !== undefined) {
+          await ports.linkSource(sourceId, { type: ownerType, id });
+        }
         return { type: ownerType, id };
       });
       // Only after the transaction has committed: an entity whose write rolled

@@ -5,6 +5,7 @@ import {
   type SqliteDriver,
   type TagListItem,
   createContactMethodsRepo,
+  createDeviceContactLinksRepo,
   createDismissalsRepo,
   createDuplicateService,
   createHiddenHolidaysRepo,
@@ -24,6 +25,7 @@ import {
   createRemindersRepo,
   createSearchService,
   createSelfPersonRepo,
+  createSyncStateRepo,
   createTagsRepo,
   listContactMethods,
   listTimelineForEntity,
@@ -577,6 +579,10 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
   const reminderRules = createReminderRulesRepo(driver);
   const reminders = createRemindersRepo(driver);
   const self = createSelfPersonRepo(driver);
+  // Both device-local: which phone contacts this device has brought in, and
+  // whether it keeps doing so (`deviceContacts` below).
+  const deviceContactLinks = createDeviceContactLinksRepo(driver);
+  const deviceContactsState = createSyncStateRepo(driver);
   const notificationSettings = createNotificationSettingsRepo(driver);
   const giftIdeas = createGiftIdeasRepo(driver);
   const giftRecipients = createGiftRecipientsRepo(driver);
@@ -2777,6 +2783,11 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           setSelf: async (personId) => {
             await self.setSelf(personId);
           },
+          // Only a phone import carries a source; the engine calls this inside
+          // the contact's transaction, and the table's primary key refusing a
+          // second link is what rolls a racing duplicate back.
+          linkSource: (sourceId, entity) =>
+            deviceContactLinks.link(sourceId, entity),
           transaction: (body) => driver.transaction(body),
         };
         const result = await ingestContacts(ports, decisions);
@@ -2827,6 +2838,20 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
             alreadyStored: await storedAs(contact),
           })),
         ),
+    },
+
+    // Keeping People in step with the phone's address book (mobile). The import
+    // itself goes through `import.commit` with a `sourceId` on each decision;
+    // this is the bookkeeping around it, all of it device-local.
+    deviceContacts: {
+      /** Every address-book id this device has already seen — including those
+       *  whose person was since deleted, which is what keeps them deleted. */
+      linkedIds: (): Promise<string[]> => deviceContactLinks.listContactIds(),
+      /** Whether new phone contacts are brought in at boot and on foreground. */
+      getSyncEnabled: (): Promise<boolean> =>
+        deviceContactsState.getDeviceContactsSync(),
+      setSyncEnabled: (enabled: boolean): Promise<void> =>
+        deviceContactsState.setDeviceContactsSync(enabled),
     },
 
     // Read-and-compose view-model builders: portable fan-outs, label resolution,

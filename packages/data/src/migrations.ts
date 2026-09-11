@@ -1093,6 +1093,35 @@ export const migrations: Migration[] = [
       await driver.exec(`DELETE FROM reminders WHERE source = 'system'`);
     },
   },
+  {
+    version: 36,
+    async up(driver) {
+      // **Which phone contacts this device has already brought in**, so keeping
+      // People in step with the address book can tell a contact it has never seen
+      // from one it has. Without it the only way to tell is to compare names,
+      // which is the duplicate detector's fuzzy job, not an identity.
+      //
+      // Device-local, like `sync_state`, and for the same reason: `contact_id`
+      // is the address book's own record id, which means nothing in any other
+      // address book — so it never replicates and is not a SyncableRepo.
+      //
+      // **A row outlives the person it made, on purpose.** It is never
+      // tombstoned or cleared when that person is deleted or merged away; the
+      // row still being here is exactly what stops the next sync bringing them
+      // back. A NULL entity means "seen, and deliberately not imported" — a
+      // card with no name at all, which is almost always a business — so it is
+      // not refused again every time the app opens. A factory reset deletes the
+      // store and these rows with it, which is what makes a reset start over.
+      await driver.exec(`
+        CREATE TABLE device_contact_links (
+          contact_id  TEXT    PRIMARY KEY,
+          entity_type TEXT,
+          entity_id   TEXT,
+          linked_at   INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 /**

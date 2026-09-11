@@ -5,7 +5,7 @@ import {
   onboardingRouteOf,
   runMigrations,
 } from "@leapsake/core";
-import { createMilestonesRepo } from "@leapsake/data";
+import { createMilestonesRepo, migrations } from "@leapsake/data";
 import {
   type CivilDate,
   type Milestone,
@@ -32,6 +32,10 @@ beforeEach(async () => {
 afterEach(() => {
   cleanup();
 });
+
+/** The migrations up to and including `version`, for re-running one in isolation. */
+const upTo = (version: number) =>
+  migrations.filter((step) => step.version <= version);
 
 /** The civil date `days` after today, normalised across month/year boundaries. */
 function civilDaysFromToday(days: number): CivilDate {
@@ -544,9 +548,10 @@ describe("migration 34 sweeps the generated reminders", () => {
     await core.reminders.regenerateSystem();
     expect(await systemReminders()).toHaveLength(0);
 
-    // Rewind the schema version and re-run, so only migration 34 applies.
+    // Rewind the schema version and re-run, so only migration 34 applies —
+    // capped at 34, since a later migration that creates a table cannot run twice.
     await driver.exec("PRAGMA user_version = 33");
-    await runMigrations(driver);
+    await runMigrations(driver, upTo(34));
 
     await core.reminders.regenerateSystem();
     const [after] = await systemReminders();
@@ -603,7 +608,7 @@ describe("migration 35 renames the stored reminder actions", () => {
 
     // Rewind the schema version and re-run, so only migration 35 applies.
     await driver.exec("PRAGMA user_version = 34");
-    await runMigrations(driver);
+    await runMigrations(driver, upTo(35));
 
     const resolved = await core.milestones.reminderSchedule(
       milestone.id,

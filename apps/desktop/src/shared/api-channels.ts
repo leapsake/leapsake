@@ -133,6 +133,12 @@ export const API_CHANNELS = [
   "import.preview",
   "import.commit",
 
+  // Mobile's address-book sync. Desktop has no address book to read; these are
+  // listed because the exhaustiveness check below wants every CoreApi method.
+  "deviceContacts.linkedIds",
+  "deviceContacts.getSyncEnabled",
+  "deviceContacts.setSyncEnabled",
+
   // The channel, not the surface: desktop has no Export button yet (that is
   // `plans/export.md` increment 6, after mobile GA), but the exhaustiveness
   // assertion below is what keeps this list honest, so a core method reaches it

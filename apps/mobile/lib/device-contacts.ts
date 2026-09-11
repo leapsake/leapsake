@@ -18,12 +18,12 @@ import type { ContactDate, ContactDetails } from "expo-contacts";
  * ingest engine consumes. Keeping it pure — a plain data-in/data-out function
  * that never touches the native module — is what lets it run under node in a unit
  * test; the side-effectful read (permission + `Contact.getAllDetails`) lives in
- * the import screen.
+ * `device-contacts-sync.ts`.
  *
- * Like the vCard parser it never fabricates data: a company/mononym card with no
- * given/family name leaves the name empty (the review screen makes the user fill
- * it, and the ingest guard refuses an empty name), and fields Leapsake has no home
- * for (organisation, note) are surfaced in `dropped[]` rather than silently lost.
+ * Like the vCard parser it never fabricates data: a company card with no
+ * given/family name leaves the name empty (the ingest engine then leaves it out
+ * and remembers it as seen), and fields Leapsake has no home for (organisation,
+ * note) are carried in `dropped[]` rather than silently lost.
  */
 
 /**

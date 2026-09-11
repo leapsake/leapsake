@@ -76,6 +76,17 @@ export interface SyncStateRepo {
    */
   getMasterKeyRepairPending(): Promise<boolean>;
   setMasterKeyRepairPending(pending: boolean): Promise<void>;
+  /**
+   * Whether this device keeps its People in step with the phone's address book
+   * — switched on the first time the user imports from it, and read at every
+   * boot and foreground before the address book is touched.
+   *
+   * Opt-in rather than "whenever permission is granted" so that a factory reset
+   * (which drops this row with the store) does not quietly refill a store the
+   * user just emptied. Device-local because the address book it names is.
+   */
+  getDeviceContactsSync(): Promise<boolean>;
+  setDeviceContactsSync(enabled: boolean): Promise<void>;
 }
 
 const PUSH_HWM = "push_hwm";
@@ -84,6 +95,7 @@ const AUTO_SYNC_DISABLED = "auto_sync_disabled";
 const HOLIDAY_CATALOG_VERSION = "holiday_catalog_version";
 const RECOVERY_ESCROW_PENDING = "recovery_escrow_pending";
 const MASTER_KEY_REPAIR_PENDING = "master_key_repair_pending";
+const DEVICE_CONTACTS_SYNC = "device_contacts_sync";
 
 export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
   async function read(key: string): Promise<number> {
@@ -127,5 +139,10 @@ export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
       (await read(MASTER_KEY_REPAIR_PENDING)) === 1,
     setMasterKeyRepairPending: (pending) =>
       write(MASTER_KEY_REPAIR_PENDING, pending ? 1 : 0),
+    // Not inverted: absent/0 ⇒ off, which is what a device that has never
+    // imported from its contacts must read.
+    getDeviceContactsSync: async () => (await read(DEVICE_CONTACTS_SYNC)) === 1,
+    setDeviceContactsSync: (enabled) =>
+      write(DEVICE_CONTACTS_SYNC, enabled ? 1 : 0),
   };
 }

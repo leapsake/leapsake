@@ -77,6 +77,8 @@ import {
   planNotifications,
   reconcile as reconcileNotificationSchedule,
 } from "@leapsake/notifications";
+import { addContactsChangeListener } from "expo-contacts";
+import { syncDeviceContacts } from "./device-contacts-sync";
 import {
   createAccountRoster,
   UNAUTHENTICATED_STORE_SLOT,
@@ -561,6 +563,27 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    /**
+     * Bring in any phone contact this device has not seen, once the user has
+     * switched that on by importing (`lib/device-contacts-sync.ts`, which has
+     * the rules). Runs ahead of the two reconciles above at boot and on
+     * foreground, so a new contact's birthday reaches Home and the OS schedule
+     * in the same pass rather than the next one. Best-effort, like them.
+     */
+    const bringInNewContacts = async (coreApi: CoreApi) => {
+      if (!isLiveCore(coreApi)) return;
+      try {
+        const result = await syncDeviceContacts(coreApi);
+        if (!isLiveCore(coreApi)) return;
+        if (result !== null && result.created > 0) {
+          setDataVersion((v) => v + 1);
+        }
+      } catch (cause) {
+        if (!isLiveCore(coreApi)) return; // torn down mid-flight, not a failure
+        console.error("contacts sync failed:", cause);
+      }
+    };
+
     // Pull the peer's edits when the app returns to the foreground — the
     // event-driven companion to write-kicked pushes. (RN JS timers are suspended
     // in the background, so the interval is a foreground-only backstop anyway.)
@@ -572,10 +595,18 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         // Sequenced, not parallel `void`s: `reconcileNotifications` reads
         // `reminders.list()` fresh, so it must not race the regenerate write
         // below — see the boot-time pairing's comment for the bug this fixes.
-        void regenerateSystemReminders(core).then(() =>
-          reconcileNotifications(core),
-        );
+        void bringInNewContacts(core)
+          .then(() => regenerateSystemReminders(core))
+          .then(() => reconcileNotifications(core));
       }
+    });
+
+    // A contact added while the app is open — typed on another device and
+    // arriving over iCloud, say — should not wait for the next foreground. The
+    // new contact's own commit reconciles reminders, so this needs neither of
+    // the reconciles above.
+    const contactsSub = addContactsChangeListener(() => {
+      if (coreRef.current !== null) void bringInNewContacts(coreRef.current);
     });
 
     // Park the bootstrap on the unlock gate until the user submits a secret. The
@@ -895,9 +926,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // it must run after the regenerate write lands, not racing it — a boot
       // right after a milestone edit or a day rollover would otherwise plan
       // off the pre-regenerate `dueDate` and schedule a day off.
-      void regenerateSystemReminders(bootedCore).then(() =>
-        reconcileNotifications(bootedCore),
-      ); // birthdays atop Home, then the second reconcile, one layer out
+      void bringInNewContacts(bootedCore)
+        .then(() => regenerateSystemReminders(bootedCore))
+        .then(() => reconcileNotifications(bootedCore)); // new contacts, birthdays atop Home, then the second reconcile, one layer out
       void scheduler.current.autoTrigger(); // initial sync (skipped if auto off)
       /**
        * **Turn this device's Unauthenticated store into an account's encrypted one** — the
@@ -1620,6 +1651,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
     return () => {
       appStateSub.remove();
+      contactsSub.remove();
       scheduler.current?.stop();
     };
   }, [resetVersion]);

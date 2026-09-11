@@ -99,6 +99,10 @@ export {
 } from "./duplicate-service.js";
 export { type SyncStateRepo, createSyncStateRepo } from "./sync-state-repo.js";
 export {
+  type DeviceContactLinksRepo,
+  createDeviceContactLinksRepo,
+} from "./device-contact-links-repo.js";
+export {
   type RowCodec,
   type SyncableRepo,
   defineSyncable,

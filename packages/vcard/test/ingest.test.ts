@@ -60,6 +60,7 @@ function makePorts(failOn?: string) {
   }[] = [];
   const tagged: { type: string; id: string; names: string[] }[] = [];
   const selfs: string[] = [];
+  const sources: { sourceId: string; entityId: string | null }[] = [];
   let n = 0;
 
   const ports: ImportPorts = {
@@ -114,6 +115,13 @@ function makePorts(failOn?: string) {
     setSelf: async (personId) => {
       selfs.push(personId);
     },
+    // Refuses a second link for one id, as the real table's primary key does.
+    linkSource: async (sourceId, entity) => {
+      if (sources.some((s) => s.sourceId === sourceId)) {
+        throw new Error(`already linked: ${sourceId}`);
+      }
+      sources.push({ sourceId, entityId: entity?.id ?? null });
+    },
     // The fake runs the body directly; a thrown error propagates as a real
     // transaction would abort, so nothing partial is recorded for that contact.
     transaction: async (body) => body(),
@@ -130,6 +138,7 @@ function makePorts(failOn?: string) {
     tagged,
     selfs,
     links,
+    sources,
   };
 }
 
@@ -841,5 +850,66 @@ describe("ingestContacts — milestones a relationship bears", () => {
     expect(result.errors[0].message).toBe(
       "Skipped a milestone a pet cannot hold: anniversary",
     );
+  });
+});
+
+describe("ingestContacts — contacts read from an address book", () => {
+  const nameless = () =>
+    contact({
+      name: { firstName: "", middleName: null, lastName: "" },
+      displayName: "Joe's Pizza",
+    });
+
+  it("links each sourced contact to the entity it became", async () => {
+    const { ports, people, sources } = makePorts();
+    await ingestContacts(ports, [
+      { action: "create", contact: contact(), sourceId: "abc" },
+      {
+        action: "create",
+        contact: contact({
+          name: { firstName: "Sam", middleName: null, lastName: "Lee" },
+        }),
+      },
+    ]);
+    expect(sources).toEqual([{ sourceId: "abc", entityId: people[0].id }]);
+  });
+
+  it("remembers a nameless contact as seen, skipped rather than refused", async () => {
+    const { ports, people, sources } = makePorts();
+    const result = await ingestContacts(ports, [
+      { action: "create", contact: nameless(), sourceId: "biz" },
+    ]);
+    expect(people).toEqual([]);
+    expect(result).toMatchObject({ created: 0, skipped: 1, errors: [] });
+    expect(sources).toEqual([{ sourceId: "biz", entityId: null }]);
+  });
+
+  it("still refuses a nameless contact that has no source to remember it by", async () => {
+    const { ports, sources } = makePorts();
+    const result = await ingestContacts(ports, [
+      { action: "create", contact: nameless() },
+    ]);
+    expect(result.errors).toHaveLength(1);
+    expect(sources).toEqual([]);
+  });
+
+  it("does not remember a contact whose write failed", async () => {
+    const { ports, sources } = makePorts("Jane");
+    const result = await ingestContacts(ports, [
+      { action: "create", contact: contact(), sourceId: "abc" },
+    ]);
+    expect(result.errors).toHaveLength(1);
+    expect(sources).toEqual([]);
+  });
+
+  it("fails a contact that was already linked, rather than landing it twice", async () => {
+    const { ports, sources } = makePorts();
+    await ports.linkSource("abc", null);
+    const result = await ingestContacts(ports, [
+      { action: "create", contact: contact(), sourceId: "abc" },
+    ]);
+    expect(result.created).toBe(0);
+    expect(result.errors[0].message).toBe("already linked: abc");
+    expect(sources).toHaveLength(1);
   });
 });
