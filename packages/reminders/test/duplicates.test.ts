@@ -57,7 +57,7 @@ function makeHarness() {
     today: TODAY,
     transaction: (body) => body(),
     onboarding: {
-      hasAnyEntity: async () => true,
+      hasAnyEntityBesidesSelf: async () => true,
       isSyncConnected: async () => state.syncConnected,
       hasSelf: async () => true,
       hasAccount: async () => state.hasAccount,

@@ -21,9 +21,10 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
   // what fires the OS permission request (`lib/notification-permission.ts`) — so
   // the CTA is a soft ask by construction, and nothing here has to arrange one.
   "enable-notifications": "/notifications",
-  // Pick-yourself deep-links to the People list in its pick mode, where each
-  // Person row offers "This is me".
-  "pick-self": "/people?pick=self",
+  // The one screen that sets the self-person. It replaced the People list's
+  // pick mode, which could only ask "which of these is you?" and so could only be
+  // asked once somebody was in the app; this one also takes the answer as a form.
+  "about-you": "/about-you",
 };
 
 /**
@@ -133,7 +134,7 @@ const ONBOARDING_LABEL: Record<OnboardingRoute, string> = {
   "connect-sync": OFFER_LABELS.signIn,
   "create-account": OFFER_LABELS.createAccount,
   "enable-notifications": OFFER_LABELS.turnOn,
-  "pick-self": OFFER_LABELS.onboarding,
+  "about-you": OFFER_LABELS.onboarding,
 };
 
 /** A `🎁 gift` reminder's CTA path. The target flips once the reminder is done

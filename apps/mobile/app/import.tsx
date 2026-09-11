@@ -245,10 +245,14 @@ export default function ImportScreen() {
         {promptSelf && (
           <View style={{ gap: 8 }}>
             <Text style={styles.rowText}>Which of these is you?</Text>
+            {/* `replace`, not `dismissTo`: /about-you is another root-stack
+                screen, so it stands in for this one rather than dropping back to
+                the tabs. Its typeahead is the point at this exact moment — the
+                list behind it is hundreds of names long and you know your own. */}
             <Pressable
               accessibilityRole="button"
               style={styles.button}
-              onPress={() => router.dismissTo("/people?pick=self")}
+              onPress={() => router.replace("/about-you")}
             >
               <Text style={styles.buttonText}>Pick yourself</Text>
             </Pressable>

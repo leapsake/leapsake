@@ -644,7 +644,7 @@ describe("listSystemReminderTargets", () => {
     const deps: ReminderEngineDeps = {
       ...h.deps,
       onboarding: {
-        hasAnyEntity: async () => false,
+        hasAnyEntityBesidesSelf: async () => false,
         isSyncConnected: async () => false,
         hasSelf: async () => false,
         hasAccount: async () => false,

@@ -62,12 +62,12 @@ describe("offerFor", () => {
   it("renders a nudge's three offers in order — do it, not now, don't ask again", () => {
     // Every step accepts at least two "not now"s, so at a count of 1 this one
     // still offers snooze *and* has earned its dismiss — the full shape.
-    const actions = actionsFor(idFor("pick-self"), 1);
+    const actions = actionsFor(idFor("about-you"), 1);
 
     expect(offersFor(actions)).toEqual([
       {
         kind: "navigate",
-        path: "/people?pick=self",
+        path: "/about-you",
         label: "Get started ›",
       },
       // The put-off says how long it lasts. "Not now" alone never distinguished
@@ -257,7 +257,7 @@ describe("isAnsweredInline", () => {
 
   it("leaves an ordinary nudge's offers alone", () => {
     // A nudge's CTA goes somewhere real; only a `plan` prompt is answered here.
-    const actions = actionsFor(idFor("pick-self"), 1);
+    const actions = actionsFor(idFor("about-you"), 1);
 
     expect(actions.some(isAnsweredInline)).toBe(false);
   });

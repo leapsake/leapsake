@@ -202,8 +202,10 @@ export interface ReminderEngineDeps {
    * composition root reads these off its people/pets repos and sync-status.
    */
   onboarding?: {
-    /** Whether the store holds any person or pet yet. */
-    hasAnyEntity(): Promise<boolean>;
+    /** Whether the store holds a person or pet other than the self-person. See
+     *  {@link OnboardingSignals.hasEntitiesBesidesSelf} for why the self-person
+     *  is excluded rather than counted. */
+    hasAnyEntityBesidesSelf(): Promise<boolean>;
     /** Whether this device has connected to a sync relay. */
     isSyncConnected(): Promise<boolean>;
     /** Whether the self-person has been picked yet. */
@@ -586,15 +588,24 @@ function occurrenceName(
  * {@link onboardingRouteOf} and the client CTA tables.
  */
 export type OnboardingRoute =
+  | "about-you"
   | "connect-sync"
   | "create-account"
   | "enable-notifications"
-  | "import"
-  | "pick-self";
+  | "import";
 
 /** The raw first-run signals an onboarding step's condition is evaluated against. */
 interface OnboardingSignals {
-  hasEntities: boolean;
+  /**
+   * Whether the store holds a person or pet who **isn't the user**.
+   *
+   * "Besides self" rather than "any", because a store holding nothing but your
+   * own name is still an empty personal CRM — and because the alternative breaks
+   * the getting-started step outright: answering *tell us about yourself* creates
+   * an entity, which under a plain `hasEntities` would retire the invitation to
+   * import, permanently, for having answered a different question.
+   */
+  hasEntitiesBesidesSelf: boolean;
   syncConnected: boolean;
   hasSelf: boolean;
   /** Whether this store holds an account at all — relay-bound or local-only.
@@ -731,7 +742,7 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     key: "create-account",
     title: "🔐 Set up your login to protect the data on this device",
     route: "create-account",
-    applies: (s) => s.hasEntities && !s.hasAccount,
+    applies: (s) => s.hasEntitiesBesidesSelf && !s.hasAccount,
     // **The one step that gets more than the floor.** Wrongly nagging costs
     // annoyance a user can dismiss; wrongly silencing this one leaves their data
     // in the clear with no signal that it happened — so it is the step where the
@@ -767,7 +778,7 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     key: "import-contacts",
     title: "📇 Import your contacts to get started",
     route: "import",
-    applies: (s) => !s.hasEntities,
+    applies: (s) => !s.hasEntitiesBesidesSelf,
     // Skipping this costs little: an empty app is self-evidently empty, and the
     // nudge has nothing to add once the user starts adding people. "I don't want
     // my address book in here" is a considered position rather than a matter of
@@ -776,17 +787,29 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     snoozeRepetitions: 2,
   },
   {
-    // Pick yourself, once there's a list to pick from — the self-person is the
-    // ego anchor gifts (and, later, kinship) need. It
-    // sits below add-person because you can't pick yourself from an empty list.
-    key: "pick-self",
-    title: "🙋 Which of these is you? Pick yourself.",
-    route: "pick-self",
-    applies: (s) => s.hasEntities && !s.hasSelf,
+    /**
+     * The self-person: the ego anchor gifts (and, later, kinship) start from.
+     *
+     * **It no longer waits for a list to pick from** *(owner, 2026-09-10)*. It
+     * used to read `hasEntities && !hasSelf` — *"which of these is you?"* — which
+     * made it a question the app could only ask once the user had already done
+     * something else, and which landed three rows on Home at the same moment as a
+     * reward for adding one person. Asking *who are you* needs no list: the
+     * screen it opens offers the list when there is one and the form to write
+     * yourself in when there isn't, so the step stands from day one beside the
+     * import invitation and each can be answered without the other.
+     *
+     * That independence is the whole point, and it is what the condition now
+     * says: `!hasSelf`, and nothing else.
+     */
+    key: "about-you",
+    title: "🙋 Tell us about yourself",
+    route: "about-you",
+    applies: (s) => !s.hasSelf,
     // At the floor, like everything except the account invitation: nothing else
     // tells the user that gifts (and, later, kinship) are quietly less useful
     // until this is set, but nothing is lost silently either — an unset self is
-    // recoverable at any time from the People list. Nothing about it becomes more
+    // recoverable at any time from its own screen. Nothing about it becomes more
     // pressing with time, so it waits nearly as long as the sign-in row.
     snoozeDurationDays: 6,
     snoozeRepetitions: 2,
@@ -827,7 +850,7 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     key: "enable-notifications",
     title: "🔔 Turn on notifications so reminders reach you",
     route: "enable-notifications",
-    applies: (s) => s.hasEntities && !s.hasNotificationPolicy,
+    applies: (s) => s.hasEntitiesBesidesSelf && !s.hasNotificationPolicy,
     // At the floor. Silencing this wrongly costs the least of any step here:
     // every reminder it would have delivered is still on Home, and Settings
     // offers the switch for as long as the app exists. It comes back soonest all
@@ -1795,7 +1818,7 @@ async function computeDesired(
   // no onboarding rows join the set.
   if (deps.onboarding !== undefined) {
     const signals: OnboardingSignals = {
-      hasEntities: await deps.onboarding.hasAnyEntity(),
+      hasEntitiesBesidesSelf: await deps.onboarding.hasAnyEntityBesidesSelf(),
       syncConnected: await deps.onboarding.isSyncConnected(),
       hasSelf: await deps.onboarding.hasSelf(),
       hasAccount: await deps.onboarding.hasAccount(),

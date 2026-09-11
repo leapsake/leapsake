@@ -288,9 +288,10 @@ The tree tells you what is there; only the screenshot tells you it is on top of 
 
 ### Two ways a `tapOn` lies to you
 
-- ⚠️ **Maestro matches text as a regex, in full.** `tapOn: "Pick yourself."` fails on
-  *"🙋 Which of these is you? Pick yourself."* twice over: it is a substring (so it must be
-  `.*Pick yourself\..*`) and `.` and `?` are metacharacters. This is the same family as the
+- ⚠️ **Maestro matches text as a regex, in full.** `tapOn: "Pick yourself."` failed on the
+  nudge that used to read *"🙋 Which of these is you? Pick yourself."* twice over: it is a
+  substring (so it must be `.*Pick yourself\..*`) and `.` and `?` are metacharacters. That
+  nudge has since been reworded, but the trap has not moved. This is the same family as the
   trailing-space trap above, and it is why the id selectors in `subflows/` are worth their
   verbosity.
 - ⚠️ **A point tap goes stale the moment anything writes.** `tapOn: {point: "55%,21%"}` is
@@ -345,7 +346,7 @@ reachable; these are the ones that come up:
 |---|---|
 | `leapsake://` | Home, inside the tab navigator |
 | `leapsake://add` | the combined create form, on its Person half |
-| `leapsake://people?pick=self` | the People list in pick-yourself mode |
+| `leapsake://about-you` | the screen that sets the self-person |
 | `leapsake://relationships/<id>/milestones/new?kind=wedding` | the milestone form, opened on a kind |
 | `leapsake://dev-selftest` | the driver-contract self-test (`__DEV__` only) |
 

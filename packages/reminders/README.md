@@ -641,7 +641,7 @@ that turns encryption on. Three decisions in it are easy to get wrong on a re-re
   there is nothing yet to be locked out of; an account protects access, and a **backup** is what
   protects against losing the device (`plans/encryption/model.md` §7.2.1). Calling it a data-loss
   fix was the old plan's mistake for two drafts, and the copy still has to hold this line.
-- **It waits for data, not for days.** `applies: hasEntities && !hasAccount`. Gating on data is
+- **It waits for data, not for days.** `applies: hasEntitiesBesidesSelf && !hasAccount`. Gating on data is
   what puts the invitation in front of someone who imported 200 contacts on day one — the moment
   the account matters most, and exactly the moment an elapsed-time floor would mute it. "Day 2 or
   3" is the expected *effect* of the data gate, not a second condition. If a floor is ever wanted
@@ -663,6 +663,32 @@ The stronger guard — the create screen itself opening with *"do you already ha
 another device?"* — was weighed and deferred to v0.2 with the Settings decomposition. It catches
 every route in, including Settings visited directly, but it is not worth the launch clock now that
 the wrong turn is recoverable.
+
+### A step that waits on another step isn't standing on its own *(2026-09-10)*
+
+`pick-self` read `hasEntities && !hasSelf` and asked *"which of these is you?"* — a question that
+can only be asked of a list, and so a step that could only appear once the user had already done
+something else. Two things were wrong with that, and they compounded.
+
+It made the step **dependent**: nothing about knowing who you are requires anyone else to exist,
+yet the app could not ask until somebody did. And it made the first person a **punishment** —
+adding one retired the getting-started nudge and raised three in its place (account, pick-self,
+notifications), so the reward for a first action was a longer list than before. That is exactly
+the compounding *the rule that stops this eating the home screen* warns about, arriving through
+the onboarding family rather than the collection one.
+
+The fix was to change the question rather than the schedule. **"Tell us about yourself"** is
+answerable from an empty store, because its screen takes the answer as a form as well as a pick:
+a typeahead when there are people, the offer to import when there are none, and the create fields
+underneath either way. So the condition became `!hasSelf` and nothing else, and the step now
+stands from day one beside the import invitation — two rows, each answerable without the other.
+
+⚠️ **That is what forced `hasEntitiesBesidesSelf`.** Answering *who are you* creates a person, and
+under a plain `hasEntities` that would have retired the invitation to import — permanently, by
+tombstone — for having answered a different question. It is also the truer signal: a store holding
+nothing but your own name is an empty personal CRM, and the steps that wait for "data worth
+protecting" or "something to be notified about" mean data about *other people*. It replaced
+`hasEntities` outright; nothing else was left using it.
 
 ### Store what happened, never what to do next
 

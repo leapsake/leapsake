@@ -227,7 +227,7 @@ describe("remindersRepo — an untouched row never wins a merge", () => {
   /** A nudge exactly as the engine's `reconcile` inserts it. */
   const minted = (at: number, over: Partial<Reminder> = {}): Reminder => ({
     id: NUDGE_ID,
-    title: "🙋 Which of these is you? Pick yourself.",
+    title: "🙋 Tell us about yourself",
     body: null,
     completedAt: null,
     dueDate: null,

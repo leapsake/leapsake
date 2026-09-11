@@ -1269,8 +1269,18 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     // `relayUrl` is set only when it is also bound to a relay, and a local-only
     // account is the case that tells them apart.
     onboarding: {
-      hasAnyEntity: async () =>
-        (await people.list()).length > 0 || (await pets.list()).length > 0,
+      // **Besides the self-person**, which is what makes the getting-started and
+      // custody steps read an *empty* store rather than merely a small one. A
+      // store holding only your own name has nothing in it a personal CRM is
+      // for, and counting it would let "tell us about yourself" retire the
+      // invitation to import — permanently, by tombstone — for having answered a
+      // different question. A pet is never the self-person, so only people are
+      // filtered.
+      hasAnyEntityBesidesSelf: async () => {
+        if ((await pets.list()).length > 0) return true;
+        const selfId = (await self.getSelf())?.personId;
+        return (await people.list()).some((person) => person.id !== selfId);
+      },
       isSyncConnected: async () =>
         (await getSyncStatus({ driver })).relayUrl !== undefined,
       hasSelf: async () => (await self.getSelf()) !== undefined,

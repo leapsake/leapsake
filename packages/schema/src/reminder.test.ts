@@ -68,7 +68,7 @@ describe("reminderHasHistory", () => {
   /** A nudge exactly as `reconcile` mints it — the row that must lose a merge. */
   const minted = (over: Partial<Reminder> = {}): Reminder => ({
     ...base,
-    title: "🙋 Which of these is you? Pick yourself.",
+    title: "🙋 Tell us about yourself",
     body: null,
     source: "system",
     ...over,

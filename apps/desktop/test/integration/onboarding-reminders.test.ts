@@ -63,27 +63,29 @@ function civilDaysFromToday(days: number): CivilDate {
 }
 
 describe("onboarding reminders (end to end through core)", () => {
-  it("seeds both nudges on a fresh store", async () => {
+  it("seeds the day-one nudges on a fresh store", async () => {
     const result = await core.reminders.regenerateSystem();
-    expect(result).toEqual({ created: 2, updated: 0, removed: 0 });
+    expect(result).toEqual({ created: 3, updated: 0, removed: 0 });
 
     const rows = await systemReminders();
-    expect(rows).toHaveLength(2);
-    // Both are dateless and map through the exported CTA convention.
+    expect(rows).toHaveLength(3);
+    // All are dateless and map through the exported CTA convention.
     for (const r of rows) {
       expect(r.dueDate).toBeNull();
       expect(onboardingRouteOf(r.id)).not.toBeNull();
     }
-    // A fresh store has no entities, so the pick-self nudge (which needs a person
-    // to pick from) doesn't apply yet — only sync + import do.
+    // A fresh store holds nobody, so the account invitation (which waits for data
+    // worth protecting) and the notifications step (which waits for something to
+    // be notified about) stay away; the three answerable on day one do not.
     expect(new Set(rows.map((r) => r.id))).toEqual(
-      new Set([idFor("connect-sync"), idFor("import")]),
+      new Set([idFor("connect-sync"), idFor("import"), idFor("about-you")]),
     );
     // Home order (through the real driver + list ordering): sign-in leads so a
     // returning user gets back into their account before re-adding anyone.
     expect(rows.sort(compareReminderDue).map((r) => r.id)).toEqual([
       idFor("connect-sync"),
       idFor("import"),
+      idFor("about-you"),
     ]);
   });
 

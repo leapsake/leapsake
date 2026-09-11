@@ -50,7 +50,7 @@ describe("rowAffordanceFor", () => {
   it("renders a nudge's three offers in order, each to its own desktop path", () => {
     // Every step accepts at least two "not now"s, so at a count of 1 this one
     // still offers snooze *and* has earned its dismiss — the full shape.
-    const id = idFor("pick-self");
+    const id = idFor("about-you");
     const actions = reminderActionsOf(reminder(id, 1), {}, NOW);
 
     expect(affordancesFor(actions, id)).toEqual([
@@ -183,7 +183,7 @@ describe("ctaLinkFor", () => {
       // Sanity: the id and the route are the two halves of the same convention.
       expect(id).toBeTruthy();
     }
-    expect(ctaLinkFor({ kind: "onboarding", route: "pick-self" })).toEqual({
+    expect(ctaLinkFor({ kind: "onboarding", route: "about-you" })).toEqual({
       path: "/people?pick=self",
       label: "Pick yourself →",
     });

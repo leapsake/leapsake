@@ -1,14 +1,7 @@
 import { useCallback } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  Text,
-  View,
-} from "react-native";
-import { Link, useLocalSearchParams, useRouter } from "expo-router";
-import type { CoreApi, EntityRow } from "@leapsake/core";
+import { ActivityIndicator, FlatList, Text, View } from "react-native";
+import { Link } from "expo-router";
+import type { EntityRow } from "@leapsake/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useCore } from "../../lib/core-context";
 import { entityRowHref } from "../../lib/record-title";
@@ -40,16 +33,15 @@ import { colors, styles } from "../../lib/styles";
 // a fresh install with nobody in it; detection is a cheap in-memory pass, so the
 // header can just tell the truth. See the desktop EntityList mirror.
 //
-// `?pick=self` puts the screen in **pick-yourself** mode, which is where the
-// "🙋 Which of these is you?" onboarding nudge lands (lib/reminder-row.ts maps
-// it here): each Person row grows a "This is me" action that sets the
-// self-person. Pets can't be you, so they offer
-// nothing in that mode. The picked person keeps a "(You)" badge afterwards — the
-// readback that the pick landed, in either mode.
+// The self-person shows a "(You)" badge on their row, and that is all this
+// screen has to do with them now. It used to carry a `?pick=self` mode as well —
+// each Person row growing a "This is me" action — which was where the
+// self-person nudge landed and the only reason a row here was ever two tap
+// targets instead of one. That mode could only ask *which of these is you?*, so
+// it could only be asked once somebody was already in the app; `/about-you`
+// answers the question from either end and took both entrances with it.
 export default function PeoplePetsScreen() {
   const core = useCore();
-  const { pick } = useLocalSearchParams<{ pick?: string }>();
-  const picking = pick === "self";
 
   const load = useCallback(
     () =>
@@ -62,7 +54,7 @@ export default function PeoplePetsScreen() {
       ]),
     [core],
   );
-  const { data, error, reload } = useFocusedData(load);
+  const { data, error } = useFocusedData(load);
   const scrollProps = useHeaderScroll();
   const [entities, self, duplicateCount] = data ?? [null, undefined, 0];
 
@@ -78,11 +70,7 @@ export default function PeoplePetsScreen() {
           data={entities}
           keyExtractor={(entity) => `${entity.type}:${entity.id}`}
           ListHeaderComponent={
-            picking ? (
-              <Text style={[styles.row, styles.muted]}>
-                Which of these is you? Pick yourself from the list.
-              </Text>
-            ) : duplicateCount > 0 ? (
+            duplicateCount > 0 ? (
               <Link href="/duplicates" style={[styles.row, styles.link]}>
                 Review {duplicateCount} possible{" "}
                 {duplicateCount === 1 ? "duplicate" : "duplicates"}
@@ -107,8 +95,6 @@ export default function PeoplePetsScreen() {
             <EntityListRow
               entity={item}
               isSelf={item.type === "person" && item.id === self?.personId}
-              picking={picking}
-              onReload={reload}
             />
           )}
         />
@@ -117,77 +103,22 @@ export default function PeoplePetsScreen() {
   );
 }
 
-/**
- * Set the self-person, then leave pick mode so the list goes back to ordinary
- * navigation. `reload` refreshes in place (nothing navigates here, so no refocus
- * would fire on its own) and the badge appears on the picked row.
- */
-async function pickSelf(
-  core: CoreApi,
-  personId: string,
-  reload: () => Promise<void>,
-  leavePickMode: () => void,
-): Promise<void> {
-  try {
-    await core.self.set(personId);
-    await reload();
-    leavePickMode();
-  } catch (e) {
-    Alert.alert("Couldn't set", String(e));
-  }
-}
-
+/** One row: a person or a pet, each one link to its own page and nothing else.
+ *  The self-person wears a "(You)" badge — the readback that the pick landed. */
 function EntityListRow({
   entity,
   isSelf,
-  picking,
-  onReload,
 }: {
   entity: EntityRow;
   isSelf: boolean;
-  picking: boolean;
-  onReload: () => Promise<void>;
 }) {
-  const core = useCore();
-  const router = useRouter();
-
   if (entity.type === "person") {
-    const label = (
-      <Text style={[styles.rowText, { color: colors.accent }]}>
-        {entity.label} {isSelf && <Text style={styles.muted}>(You)</Text>}
-      </Text>
-    );
-    // Outside pick mode the whole row stays one tap target, as it always has.
-    if (!picking) {
-      return (
-        <Link href={entityRowHref(entity)} style={styles.row}>
-          {label}
-        </Link>
-      );
-    }
     return (
-      <View style={[styles.row, styles.rowMeta, { marginTop: 0 }]}>
-        <Link href={entityRowHref(entity)}>{label}</Link>
-        {/* Only a Person can be you, and there's no point offering it on the
-            row that already is. */}
-        {!isSelf && (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() =>
-              void pickSelf(core, entity.id, onReload, () =>
-                // `replace` and not `dismissTo` — unlike the calls that come
-                // *down* to this catalog from a pushed screen, this one is
-                // already here and only wants its `?pick=self` gone. Within the
-                // tab navigator a replace becomes a jump-to with fresh params,
-                // which is exactly that.
-                router.replace("/people"),
-              )
-            }
-          >
-            <Text style={styles.link}>This is me</Text>
-          </Pressable>
-        )}
-      </View>
+      <Link href={entityRowHref(entity)} style={styles.row}>
+        <Text style={[styles.rowText, { color: colors.accent }]}>
+          {entity.label} {isSelf && <Text style={styles.muted}>(You)</Text>}
+        </Text>
+      </Link>
     );
   }
   return (

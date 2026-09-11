@@ -33,7 +33,10 @@ const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
     // way `sync-devices` is gated, or give desktop notifications — and no user
     // between here and there.
     "enable-notifications": { path: "/settings", label: "Turn them on →" },
-    "pick-self": { path: "/people?pick=self", label: "Pick yourself →" },
+    // Desktop keeps its list-based pick mode; mobile replaced its own with a
+    // screen that also takes the answer as a form. Same step, same question,
+    // whichever surface each client already had — revisit when desktop ships.
+    "about-you": { path: "/people?pick=self", label: "Pick yourself →" },
   };
 
 /**
