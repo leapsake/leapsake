@@ -11,10 +11,10 @@
 **after** the company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) →
 *Part 2*) — which is also why nothing may reach Play from the personal account.
 
-**The `rc` bar was code-complete until 2026-09-10, when onboarding was reworked** — Home rows lost
-their completion checkbox; the nudges gained an import step, a notifications step, staggered
-put-offs and an `/about-you` screen. Static and unit tiers are green, but `factory-reset.yaml`
-moved with the copy: **Flows 1–5 and the `rc` rung must pass again.**
+**The `rc` bar is code-complete.** Onboarding was reworked on 2026-09-10 — Home rows lost their
+completion checkbox; the nudges gained an import step, a notifications step, staggered put-offs
+and an `/about-you` screen — and `factory-reset.yaml` moved with the copy. Every tier is green
+again, `test:e2e` on iOS included: all seven flows, both doors, custody assertions and all.
 
 **Next, in order — [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with acceptance
 for each step.** ① All step 3 still owes: the catalog as a **`requires:` check** in `ios.mjs`
