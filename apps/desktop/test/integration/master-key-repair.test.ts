@@ -382,7 +382,7 @@ describe("re-adopting the account master key", () => {
       });
       // Their data is right there — which is the whole argument for opening.
       const people = await createPeopleRepo(driver).list();
-      expect(people.map((p) => p.firstName)).toContain("Ada");
+      expect(people.map((p) => p.firstName)).toContain("Mary");
       await driver.close?.();
     });
 

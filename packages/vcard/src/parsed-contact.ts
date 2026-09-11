@@ -58,7 +58,7 @@ export function nameInputFrom(name: ParsedName): {
 
 /**
  * Somebody the card names as related to its contact — a vCard `RELATED` giving a
- * plain name ("Jen Davis") rather than pointing at another card.
+ * plain name ("Ruth Dakin") rather than pointing at another card.
  *
  * A *named* relation becomes an **unpublished** person on import: a name attached
  * to the contact, absent from People & Pets until they turn out to be more than

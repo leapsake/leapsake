@@ -17,24 +17,24 @@ appId: com.leapsake.app
 - runFlow:
     file: ../subflows/add-person.yaml
     env:
-      FIRST: "Ada"
-      LAST: "Lovelace"
+      FIRST: "Mary"
+      LAST: "Bailey"
 - runFlow: ../subflows/save-record.yaml
-- assertVisible: "Ada Lovelace"
+- assertVisible: "Mary Bailey"
 
 - runFlow:
     file: ../subflows/add-person.yaml
     env:
-      FIRST: "Augustus"
-      LAST: "De Morgan"
+      FIRST: "George"
+      LAST: "Bailey"
 - runFlow: ../subflows/save-record.yaml
-- assertVisible: "Augustus De Morgan"
+- assertVisible: "George Bailey"
 
 # --- both are in the catalog they belong to -----------------------------------------
 # **Back to the tab navigator first.** A saved person's page is a root-level route pushed
 # *over* the tabs (`app/people/[id]/`), the same shape `app/data.tsx` and
 # `app/settings.tsx` have, so there is no tab bar under it — `save-record.yaml` leaves us
-# on Augustus's page, where `tab-search` does not exist. The deep link pops back to the
+# on George's page, where `tab-search` does not exist. The deep link pops back to the
 # navigator; the journey from there is the real one a user takes.
 #
 # People & Pets is reached from Search's browse tiles, not from a tab (increment 09).
@@ -44,16 +44,16 @@ appId: com.leapsake.app
 - tapOn:
     id: "browse-tile-people"
 # **A list row's accessibility text carries a trailing space** — the hierarchy reads
-# "Ada Lovelace ", not "Ada Lovelace". Maestro matches text in *full*, so the bare name
+# "Mary Bailey ", not "Mary Bailey". Maestro matches text in *full*, so the bare name
 # never matches a row, and the failure is maximally confusing: the name is plainly on
 # screen in the failure screenshot. The detail-page assertions above get away with the
 # exact string because there it is the screen's own title, which has no such padding.
 # Anything selected out of a list is wrapped.
-- assertVisible: ".*Ada Lovelace.*"
-- assertVisible: ".*Augustus De Morgan.*"
+- assertVisible: ".*Mary Bailey.*"
+- assertVisible: ".*George Bailey.*"
 
-# --- the relationship, from Ada -----------------------------------------------------
-- tapOn: ".*Ada Lovelace.*"
+# --- the relationship, from Mary -----------------------------------------------------
+- tapOn: ".*Mary Bailey.*"
 - scrollUntilVisible:
     element:
       text: "Add relationship"
@@ -97,18 +97,18 @@ appId: com.leapsake.app
 # the edge was stored in.
 - tapOn:
     id: "relationship-other-name"
-- inputText: "Augustus"
-- tapOn: ".*Augustus De Morgan.*"
+- inputText: "George"
+- tapOn: ".*George Bailey.*"
 
 - tapOn: "Save"
 
 # --- and it renders on the person it was created from --------------------------------
-# Back on Ada's page: the other end by name, and the role beside it. Asserting the role
+# Back on Mary's page: the other end by name, and the role beside it. Asserting the role
 # too is the point of the flow — an edge that saved with no role would still show the
 # name.
 - scrollUntilVisible:
     element:
       text: "Relationships"
     direction: DOWN
-- assertVisible: ".*Augustus De Morgan.*"
+- assertVisible: ".*George Bailey.*"
 - assertVisible: ".*Friend.*"

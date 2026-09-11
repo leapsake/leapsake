@@ -33,8 +33,8 @@ function contact(over: Partial<ExportContact> = {}): ExportContact {
     isSelf: false,
     createdAt: null,
     updatedAt: null,
-    name: { firstName: "Jane", middleName: null, lastName: "Doe" },
-    displayName: "Jane Doe",
+    name: { firstName: "Jane", middleName: null, lastName: "Wainwright" },
+    displayName: "Jane Wainwright",
     gender: null,
     emails: [],
     phones: [],
@@ -92,7 +92,7 @@ function expectRoundTrip(contacts: ExportContact[]): void {
 
 describe("writeVCards — card structure", () => {
   it("writes one well-formed 4.0 card per contact", () => {
-    const text = write([contact(), contact({ displayName: "Bob Roberts" })]);
+    const text = write([contact(), contact({ displayName: "Harry Welch" })]);
     expect(text.match(/BEGIN:VCARD/g)).toHaveLength(2);
     expect(text.match(/END:VCARD/g)).toHaveLength(2);
     expect(text).toContain("VERSION:4.0");
@@ -107,26 +107,34 @@ describe("writeVCards — card structure", () => {
   it("writes N with all five components, so nothing shifts on the way back", () => {
     const text = write([
       contact({
-        name: { firstName: "Jane", middleName: "Marie", lastName: "Doe" },
+        name: {
+          firstName: "Jane",
+          middleName: "Marie",
+          lastName: "Wainwright",
+        },
       }),
     ]);
-    expect(text).toContain("N:Doe;Jane;Marie;;\r\n");
+    expect(text).toContain("N:Wainwright;Jane;Marie;;\r\n");
   });
 
   it("round-trips names, including the parts a card leaves empty", () => {
     expectRoundTrip([
       contact({
-        name: { firstName: "Jane", middleName: "Marie", lastName: "Doe" },
+        name: {
+          firstName: "Jane",
+          middleName: "Marie",
+          lastName: "Wainwright",
+        },
       }),
       contact({
-        name: { firstName: "Cher", middleName: null, lastName: "" },
-        displayName: "Cher",
+        name: { firstName: "Zuzu", middleName: null, lastName: "" },
+        displayName: "Zuzu",
       }),
       // Surname only — the case that caught `deriveName` duplicating a lone FN
       // token into both slots.
       contact({
-        name: { firstName: "", middleName: null, lastName: "Smith" },
-        displayName: "Smith",
+        name: { firstName: "", middleName: null, lastName: "Martini" },
+        displayName: "Martini",
       }),
     ]);
   });
@@ -134,11 +142,15 @@ describe("writeVCards — card structure", () => {
   it("composes FN from the parts when the contact has no display name", () => {
     const text = write([
       contact({
-        name: { firstName: "Jane", middleName: "Marie", lastName: "Doe" },
+        name: {
+          firstName: "Jane",
+          middleName: "Marie",
+          lastName: "Wainwright",
+        },
         displayName: null,
       }),
     ]);
-    expect(text).toContain("FN:Jane Marie Doe\r\n");
+    expect(text).toContain("FN:Jane Marie Wainwright\r\n");
   });
 
   it("round-trips every gender, and writes none for null", () => {
@@ -158,9 +170,9 @@ describe("writeVCards — escaping and folding", () => {
         name: {
           firstName: "Jane, the ; one",
           middleName: null,
-          lastName: "O'Doe; Jr",
+          lastName: "O'Wainwright; Jr",
         },
-        displayName: "Jane, the ; one O'Doe; Jr",
+        displayName: "Jane, the ; one O'Wainwright; Jr",
       }),
     ]);
   });
@@ -168,8 +180,8 @@ describe("writeVCards — escaping and folding", () => {
   it("round-trips a backslash without doubling it", () => {
     expectRoundTrip([
       contact({
-        name: { firstName: "A\\B", middleName: null, lastName: "Doe" },
-        displayName: "A\\B Doe",
+        name: { firstName: "A\\B", middleName: null, lastName: "Wainwright" },
+        displayName: "A\\B Wainwright",
       }),
     ]);
   });
@@ -200,16 +212,16 @@ describe("writeVCards — escaping and folding", () => {
     const emoji = "🎂".repeat(60);
     const text = write([
       contact({
-        name: { firstName: emoji, middleName: null, lastName: "Doe" },
-        displayName: `${emoji} Doe`,
+        name: { firstName: emoji, middleName: null, lastName: "Wainwright" },
+        displayName: `${emoji} Wainwright`,
       }),
     ]);
     // A replacement char anywhere means a sequence was cut.
     expect(text).not.toContain("�");
     expectRoundTrip([
       contact({
-        name: { firstName: emoji, middleName: null, lastName: "Doe" },
-        displayName: `${emoji} Doe`,
+        name: { firstName: emoji, middleName: null, lastName: "Wainwright" },
+        displayName: `${emoji} Wainwright`,
       }),
     ]);
   });
@@ -429,8 +441,8 @@ describe("writeVCards — contact methods", () => {
     expect(text).toContain("X-LEAPSAKE-USERID=1234567");
     expect(parseVCards(text)[0].socials[0]).toMatchObject({
       platform: "instagram",
-      handle: "janedoe",
-      url: "https://www.instagram.com/janedoe",
+      handle: "janewainwright",
+      url: "https://www.instagram.com/janewainwright",
       // Unrecoverable from the handle, which is why it gets a parameter at all.
       platformUserId: "1234567",
     });
@@ -492,8 +504,8 @@ describe("writeVCards — milestones", () => {
       relationshipId: "bbbbbbbb-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
     });
     const text = unfolded([
-      contact({ displayName: "Sam Roe", dates: [shared] }),
-      contact({ displayName: "Jen Roe", dates: [shared] }),
+      contact({ displayName: "Ernie Bailey", dates: [shared] }),
+      contact({ displayName: "Ruth Bailey", dates: [shared] }),
     ]);
     expect(
       text.match(
@@ -621,9 +633,9 @@ describe("writeVCards — relationships", () => {
     const text = unfolded([
       contact({
         related: [
-          related({ name: "Jen Davis", role: "spouse" }),
+          related({ name: "Ruth Dakin", role: "spouse" }),
           related({
-            name: "Ben Doe",
+            name: "Pete Wainwright",
             role: "child",
             otherUid: "cccccccc-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
           }),
@@ -631,7 +643,7 @@ describe("writeVCards — relationships", () => {
       }),
     ]);
     expect(text).toContain("RELATED;VALUE=text;TYPE=spouse;");
-    expect(text).toContain(":Jen Davis\r\n");
+    expect(text).toContain(":Ruth Dakin\r\n");
     expect(text).toContain("RELATED;VALUE=uri;TYPE=child;");
     expect(text).toContain(
       ":urn:uuid:cccccccc-1c4b-4f2a-9d3e-6a7b8c9d0e1f\r\n",
@@ -694,7 +706,7 @@ describe("writeVCards — relationships", () => {
       contact({
         related: [
           related({ role: "spouse" }),
-          related({ name: "Ben", role: "child" }),
+          related({ name: "Pete", role: "child" }),
           related({ name: "Ann", role: "friend" }),
           related({ name: "Sue", role: "coworker" }),
         ],
@@ -714,8 +726,8 @@ describe("writeVCards — relationships", () => {
         related: [
           related({ role: "mother" }),
           related({ name: "Ann", role: "cousin" }),
-          related({ name: "Ada", role: "grandmother" }),
-          related({ name: "Ben", role: "pibling" }),
+          related({ name: "Mary", role: "grandmother" }),
+          related({ name: "Pete", role: "pibling" }),
         ],
       }),
     ]);
@@ -742,11 +754,11 @@ describe("writeVCards — pets", () => {
     const text = unfolded([
       contact({
         kind: "pet",
-        name: { firstName: "Rex", middleName: null, lastName: "" },
-        displayName: "Rex",
+        name: { firstName: "Jimmy", middleName: null, lastName: "" },
+        displayName: "Jimmy",
         related: [
           related({
-            name: "Jane Doe",
+            name: "Jane Wainwright",
             role: "owner",
             otherUid: "eeeeeeee-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
           }),
@@ -754,8 +766,8 @@ describe("writeVCards — pets", () => {
       }),
     ]);
     expect(text).toContain("KIND:x-pet\r\n");
-    expect(text).toContain("FN:Rex\r\n");
-    expect(text).toContain("N:;Rex;;;\r\n");
+    expect(text).toContain("FN:Jimmy\r\n");
+    expect(text).toContain("N:;Jimmy;;;\r\n");
     expect(text).toContain("TYPE=owner");
   });
 
@@ -788,12 +800,12 @@ describe("writeVCards — the card's identity, both directions", () => {
   });
 
   it("escapes a comma inside a tag so the list keeps its shape", () => {
-    const text = write([contact({ tags: ["Smith, family"] })]);
-    expect(text).toContain("CATEGORIES:Smith\\, family\r\n");
+    const text = write([contact({ tags: ["Martini, family"] })]);
+    expect(text).toContain("CATEGORIES:Martini\\, family\r\n");
     // The whole point of the escape: one tag, not two. A splitter that does not
     // know a delimiter can be escaped is what this guards against, on the read
     // side as much as the write side.
-    expect(parseVCards(text)[0].tags).toEqual(["Smith, family"]);
+    expect(parseVCards(text)[0].tags).toEqual(["Martini, family"]);
   });
 
   /**
@@ -839,7 +851,7 @@ describe("writeVCards — the card's identity, both directions", () => {
         isSelf: true,
         createdAt: Date.UTC(2024, 2, 9, 1, 35, 0),
         updatedAt: Date.UTC(2026, 8, 7, 12, 0, 0),
-        tags: ["Family", "Smith, family"],
+        tags: ["Family", "Martini, family"],
       }),
     ]);
   });
@@ -907,30 +919,30 @@ describe("writeVCards — the card's identity, both directions", () => {
    */
   it("resolves a reference against the card it names, in either order", () => {
     const jane = "aaaaaaaa-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
-    const ben = "bbbbbbbb-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+    const pete = "bbbbbbbb-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
     const edge = "dddddddd-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
     const cards = [
       contact({
         uid: jane,
         related: [
           related({
-            name: "Ben Doe",
+            name: "Pete Wainwright",
             role: "son",
-            otherUid: ben,
+            otherUid: pete,
             relationshipId: edge,
           }),
         ],
       }),
       contact({
-        uid: ben,
-        displayName: "Ben Doe",
-        name: { firstName: "Ben", middleName: null, lastName: "Doe" },
+        uid: pete,
+        displayName: "Pete Wainwright",
+        name: { firstName: "Pete", middleName: null, lastName: "Wainwright" },
         // The reciprocal half: same edge id, the inverse role, and it points
         // *backwards* at a card the parser has not built yet when it reads this
         // one — which is the ordering the UID pre-pass exists to make irrelevant.
         related: [
           related({
-            name: "Jane Doe",
+            name: "Jane Wainwright",
             role: "mother",
             otherUid: jane,
             relationshipId: edge,
@@ -944,13 +956,13 @@ describe("writeVCards — the card's identity, both directions", () => {
     // the fixture: the name really did come from the other card.
     const [backJane, backBen] = parseVCards(write(cards));
     expect(backJane.related[0]).toMatchObject({
-      name: "Ben Doe",
+      name: "Pete Wainwright",
       role: "son",
-      otherUid: ben,
+      otherUid: pete,
       relationshipId: edge,
     });
     expect(backBen.related[0]).toMatchObject({
-      name: "Jane Doe",
+      name: "Jane Wainwright",
       otherUid: jane,
     });
   });
@@ -1004,8 +1016,8 @@ function social(over: Partial<ExportContact["socials"][number]> = {}) {
   return {
     label: "Other",
     platform: "instagram",
-    handle: "janedoe",
-    url: "https://www.instagram.com/janedoe",
+    handle: "janewainwright",
+    url: "https://www.instagram.com/janewainwright",
     platformUserId: null,
     ...over,
   };
@@ -1025,7 +1037,7 @@ function date(over: Partial<ParsedDate> = {}): ParsedDate {
 
 function related(over: Partial<ParsedRelated> = {}): ParsedRelated {
   return {
-    name: "Jen Davis",
+    name: "Ruth Dakin",
     role: "spouse",
     roleNote: null,
     otherUid: null,

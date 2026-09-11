@@ -46,7 +46,7 @@ export interface HolidayEntry {
   slug: string;
   name: string;
   /**
-   * The occasion phrase reminder copy interpolates: "Wish @Alice **a Merry
+   * The occasion phrase reminder copy interpolates: "Wish @Violet **a Merry
    * Christmas**". Carries its own article, because not every greeting takes one
    * ("Eid Mubarak"). This is what retires the birthday-specific copy baked into
    * `actionDefs.wish` (research §2.14).

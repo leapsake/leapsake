@@ -84,8 +84,8 @@ describe("factory reset → fresh install round-trip", () => {
     });
     await runMigrations(driver);
     await createPeopleRepo(driver).create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     expect((await createPeopleRepo(driver).list()).length).toBe(1);
     const firstKey = await keyStore.getSecret(DATABASE_KEY);

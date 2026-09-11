@@ -60,7 +60,7 @@ async function titles(): Promise<string[]> {
 /** Me, and someone else, with `me` recorded as the self-person. */
 async function twoPeople() {
   const me = await core.people.create({ firstName: "Robin" }, []);
-  const partner = await core.people.create({ firstName: "Alice" }, []);
+  const partner = await core.people.create({ firstName: "Violet" }, []);
   await core.self.set(me.id);
   return { me, partner };
 }
@@ -98,22 +98,22 @@ describe("a milestone borne by a relationship", () => {
     // an empty list, silently. And the wording is the *shared* one — the
     // relationship resolves to the other end's name, so the question names her.
     expect(await titles()).toContain(
-      "🗓 What do you want to do for your wedding anniversary with Alice?",
+      "🗓 What do you want to do for your wedding anniversary with Violet?",
     );
   });
 
   // An `anniversary`, not a `wedding`: this is about the *label*, and a wedding's
-  // question is gated to the user's own, so Bob and Carol's would raise nothing.
+  // question is gated to the user's own, so Harry and Tilly's would raise nothing.
   it("names both ends when the relationship is somebody else's", async () => {
     await twoPeople();
-    const bob = await core.people.create({ firstName: "Bob" }, []);
-    const carol = await core.people.create({ firstName: "Carol" }, []);
+    const harry = await core.people.create({ firstName: "Harry" }, []);
+    const tilly = await core.people.create({ firstName: "Tilly" }, []);
     const rel = await core.relationships.create({
       aType: "person",
-      aId: bob.id,
+      aId: harry.id,
       aRole: "spouse",
       bType: "person",
-      bId: carol.id,
+      bId: tilly.id,
       bRole: "spouse",
     });
     // Inside that kind's own prompt window, derived rather than written down.
@@ -130,7 +130,7 @@ describe("a milestone borne by a relationship", () => {
     });
 
     expect(await titles()).toContain(
-      "🗓 What do you want to do for Bob & Carol's anniversary?",
+      "🗓 What do you want to do for Harry & Tilly's anniversary?",
     );
   });
 });
@@ -181,8 +181,8 @@ describe("the first-date prompt, gated on the partnership being yours", () => {
 
   it("stays quiet about a first date between two other people", async () => {
     await twoPeople();
-    const bob = await core.people.create({ firstName: "Bob" }, []);
-    await recordFirstDate(bob.id);
+    const harry = await core.people.create({ firstName: "Harry" }, []);
+    await recordFirstDate(harry.id);
 
     expect((await titles()).some((t) => t.includes("first date"))).toBe(false);
   });
@@ -206,7 +206,7 @@ describe("the first-date prompt, gated on the partnership being yours", () => {
   });
 
   it("stays quiet when nobody has said who they are", async () => {
-    const partner = await core.people.create({ firstName: "Alice" }, []);
+    const partner = await core.people.create({ firstName: "Violet" }, []);
     await recordFirstDate(partner.id);
 
     expect((await titles()).some((t) => t.includes("first date"))).toBe(false);
@@ -234,14 +234,14 @@ describe("the partnership question, against real repositories", () => {
   it("asks for a wedding anniversary when the role is a marriage", async () => {
     const { partner } = await partnered("spouse");
     expect(await questions()).toEqual([
-      `💍 When is your wedding anniversary with @[Alice](person:${partner.id})?`,
+      `💍 When is your wedding anniversary with @[Violet](person:${partner.id})?`,
     ]);
   });
 
   it("asks for a first date when the role is an unmarried partnership", async () => {
     const { partner } = await partnered("partner");
     expect(await questions()).toEqual([
-      `💞 When was your first date with @[Alice](person:${partner.id})?`,
+      `💞 When was your first date with @[Violet](person:${partner.id})?`,
     ]);
   });
 
@@ -301,16 +301,16 @@ describe("the partnership question, against real repositories", () => {
 
   it("says nothing about relationships that are not romantic", async () => {
     await partnered("spouse");
-    const bob = await core.people.create({ firstName: "Bob" }, []);
-    const carol = await core.people.create({ firstName: "Carol" }, []);
+    const harry = await core.people.create({ firstName: "Harry" }, []);
+    const tilly = await core.people.create({ firstName: "Tilly" }, []);
     // Someone else's marriage, and a friendship of mine: neither is a question
     // for me to answer.
     await core.relationships.create({
       aType: "person",
-      aId: bob.id,
+      aId: harry.id,
       aRole: "spouse",
       bType: "person",
-      bId: carol.id,
+      bId: tilly.id,
       bRole: "spouse",
     });
     expect(await questions()).toHaveLength(1);
@@ -318,7 +318,7 @@ describe("the partnership question, against real repositories", () => {
 
   it("says nothing when nobody has said who they are", async () => {
     const a = await core.people.create({ firstName: "Robin" }, []);
-    const b = await core.people.create({ firstName: "Alice" }, []);
+    const b = await core.people.create({ firstName: "Violet" }, []);
     await core.relationships.create({
       aType: "person",
       aId: a.id,

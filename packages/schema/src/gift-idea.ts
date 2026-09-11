@@ -1,15 +1,15 @@
 import { z } from "zod";
 
 /**
- * A GiftIdea — "a thing in the world" (a Red Ryder BB Gun), reusable and
+ * A GiftIdea — "a thing in the world" (The Adventures of Tom Sawyer), reusable and
  * **person-agnostic**: it says nothing about who might want it. That's the
  * deliberate split at the heart of gifts: an idea is about the *thing* (it can
  * have a URL; a person can't), and a {@link GiftRecipient} pairs it with a person
  * or pet. An idea can be attached to zero-to-many parties.
  *
  * {@link title} is the only required field; {@link url} (where to buy / read
- * more) and {@link notes} are optional free text. Near-duplicates ("BB gun" vs
- * "Red Ryder BB Gun") are **tolerated, not auto-merged** — titles are prose, and
+ * more) and {@link notes} are optional free text. Near-duplicates ("Tom Sawyer" vs
+ * "The Adventures of Tom Sawyer") are **tolerated, not auto-merged** — titles are prose, and
  * the eventual answer is the existing reconciliation substrate, not silent
  * normalization here.
  *

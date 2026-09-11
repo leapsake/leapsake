@@ -53,8 +53,8 @@ interface Row {
 }
 
 const rows: Row[] = [
-  { id: "1", name: "Ada", role: "Mother" },
-  { id: "2", name: "Grace", role: "Sister" },
+  { id: "1", name: "Mary", role: "Mother" },
+  { id: "2", name: "Violet", role: "Sister" },
 ];
 
 const columns = [
@@ -77,8 +77,8 @@ describe("DataTable", () => {
 
     const bodyRows = screen.getAllByRole("row").slice(1); // drop the header row
     expect(bodyRows.map((r) => r.textContent)).toEqual([
-      "AdaMotherEdit",
-      "GraceSisterEdit",
+      "MaryMotherEdit",
+      "VioletSisterEdit",
     ]);
   });
 
@@ -98,7 +98,7 @@ describe("DetailList", () => {
     const { container } = render(
       <DetailList
         details={[
-          { term: "First name", value: "Ada" },
+          { term: "First name", value: "Mary" },
           { term: "Middle name", value: "—" },
         ]}
       />,
@@ -109,7 +109,7 @@ describe("DetailList", () => {
     ).toEqual(["First name", "Middle name"]);
     expect(
       [...container.querySelectorAll("dd")].map((n) => n.textContent),
-    ).toEqual(["Ada", "—"]);
+    ).toEqual(["Mary", "—"]);
   });
 
   it("accepts rendered values, not just strings", () => {

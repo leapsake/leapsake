@@ -15,7 +15,7 @@ import { styles } from "../lib/styles";
  * {@link Tag}s (keyed by normalized name); a mention's label comes from the
  * resolved {@link ResolvedMention}s (keyed by `type:id`) — the **current** label,
  * so a rename shows through, falling back to the token's snapshot name when the
- * target is gone. Both keep their sigil, so a mention reads as `@Alice Ng` here
+ * target is gone. Both keep their sigil, so a mention reads as `@Violet Bick` here
  * exactly as it did in the composer that wrote it. RN can't nest a <Link> inside
  * <Text>, so links are nested <Text> with `onPress` → `router.push`.
  *
@@ -95,7 +95,7 @@ export function ReminderText({
             return run(i, `@${segment.displayName}`, null);
           // The sigil is this sentence's punctuation rather than part of the
           // name, so the link carries the bare label and the page is titled with
-          // it — `@Alice Ng` here, "Alice Ng" over there.
+          // it — `@Violet Bick` here, "Violet Bick" over there.
           return run(i, `@${mention.label}`, mentionHref(mention));
         }
         return run(i, segment.text, null);

@@ -70,11 +70,11 @@ describe("planNotifications", () => {
     const reminders = [
       reminder({
         id: "r1",
-        title: "Wish Alice a happy birthday",
+        title: "Wish Violet a happy birthday",
         dueDate: due(day2),
       }),
-      reminder({ id: "r2", title: "Call Bob", dueDate: due(day1) }),
-      reminder({ id: "r3", title: "Gift Carol", dueDate: due(day1) }),
+      reminder({ id: "r2", title: "Call Harry", dueDate: due(day1) }),
+      reminder({ id: "r3", title: "Gift Tilly", dueDate: due(day1) }),
     ];
 
     const result = planNotifications(reminders, POLICY_DIGEST, NOW);

@@ -246,7 +246,7 @@ export interface GiftReminderSubject {
  * reach them. Core's `ContactReminderTarget` satisfies it.
  *
  * A **person**, never a pet: `contactOwnerTypeSchema` is person/household, so a
- * pet cannot own a contact method and asking the user to add one for Rex is
+ * pet cannot own a contact method and asking the user to add one for Jimmy is
  * asking for something the app has nowhere to put.
  */
 export interface ContactReminderSubject {
@@ -345,7 +345,7 @@ export type ReminderCta =
  *    lists what's already suggested for them (and what they've been given, so you
  *    don't repeat yourself). *Done:* logging what you actually gave.
  * 5. a **`🎉 wish`** for someone there is **no way to reach** — the collect
- *    prompt. "Wish Alice a happy birthday" with no phone, no email and no handle
+ *    prompt. "Wish Violet a happy birthday" with no phone, no email and no handle
  *    is a reminder the app cannot help you act on, so it offers to fix that.
  *
  * ⚠️ The fifth is the one with a rule about what it must *not* become. It is

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { type DuplicateInput, scoreDuplicate } from "./duplicate-score.js";
 
 const person = (over: Partial<DuplicateInput> = {}): DuplicateInput => ({
-  name: "Jane Doe",
-  foldedName: "jane doe",
+  name: "Jane Wainwright",
+  foldedName: "jane wainwright",
   emails: [],
   phones: [],
   handles: [],
@@ -12,13 +12,13 @@ const person = (over: Partial<DuplicateInput> = {}): DuplicateInput => ({
 
 describe("scoreDuplicate — social handles", () => {
   it("treats a shared handle on one platform as a shared contact", () => {
-    const handles = [{ platform: "instagram", handle: "janedoe" }];
+    const handles = [{ platform: "instagram", handle: "janewainwright" }];
     const { tier, reasons } = scoreDuplicate(
       person({ handles }),
       person({ handles }),
     );
     expect(tier).toBe("high");
-    expect(reasons).toContain("Shared instagram handle janedoe");
+    expect(reasons).toContain("Shared instagram handle janewainwright");
   });
 
   it("does not pair the same handle held on different platforms", () => {
@@ -30,22 +30,26 @@ describe("scoreDuplicate — social handles", () => {
       person({ handles: [{ platform: "tiktok", handle: "jane" }] }),
     );
     expect(tier).toBe("medium");
-    expect(reasons).toEqual(['Same name "Jane Doe"']);
+    expect(reasons).toEqual(['Same name "Jane Wainwright"']);
   });
 
   it("rates a shared handle alone as medium, with no name match", () => {
-    const handles = [{ platform: "x", handle: "janedoe" }];
+    const handles = [{ platform: "x", handle: "janewainwright" }];
     const { tier } = scoreDuplicate(
-      person({ name: "Jane Doe", foldedName: "jane doe", handles }),
-      person({ name: "J. Doe", foldedName: "j doe", handles }),
+      person({
+        name: "Jane Wainwright",
+        foldedName: "jane wainwright",
+        handles,
+      }),
+      person({ name: "J. Wainwright", foldedName: "j wainwright", handles }),
     );
     expect(tier).toBe("medium");
   });
 
   it("reports one reason for a handle listed twice", () => {
     const handles = [
-      { platform: "instagram", handle: "janedoe" },
-      { platform: "instagram", handle: "janedoe" },
+      { platform: "instagram", handle: "janewainwright" },
+      { platform: "instagram", handle: "janewainwright" },
     ];
     const { reasons } = scoreDuplicate(
       person({ handles }),
@@ -64,23 +68,23 @@ describe("scoreDuplicate", () => {
     const { tier, reasons } = scoreDuplicate(a, b);
     expect(tier).toBe("high");
     expect(reasons).toContain("Shared email jane@x.com");
-    expect(reasons).toContain('Same name "Jane Doe"');
+    expect(reasons).toContain('Same name "Jane Wainwright"');
   });
 
   it("rates an equal name with no shared contact as medium", () => {
     const { tier, reasons } = scoreDuplicate(person(), person());
     expect(tier).toBe("medium");
-    expect(reasons).toEqual(['Same name "Jane Doe"']);
+    expect(reasons).toEqual(['Same name "Jane Wainwright"']);
   });
 
   it("rates a shared contact with different names as medium", () => {
     const a = person({
-      name: "Bob Smith",
-      foldedName: "bob smith",
+      name: "Harry Martini",
+      foldedName: "harry smith",
       phones: ["+15551234567"],
     });
     const b = person({
-      name: "Robert Smith",
+      name: "Robert Martini",
       foldedName: "robert smith",
       phones: ["+15551234567"],
     });
@@ -91,13 +95,13 @@ describe("scoreDuplicate", () => {
 
   it("rates no shared signal as none", () => {
     const a = person({
-      name: "Bob Smith",
-      foldedName: "bob smith",
-      emails: ["bob@x.com"],
+      name: "Harry Martini",
+      foldedName: "harry smith",
+      emails: ["harry@x.com"],
     });
     const b = person({
-      name: "Jane Doe",
-      foldedName: "jane doe",
+      name: "Jane Wainwright",
+      foldedName: "jane wainwright",
       emails: ["jane@x.com"],
     });
     expect(scoreDuplicate(a, b).tier).toBe("none");

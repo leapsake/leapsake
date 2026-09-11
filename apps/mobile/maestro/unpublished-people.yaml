@@ -12,7 +12,7 @@
 #      puts that person on the subject's page.
 #   2. People & Pets does not list them.
 #   3. The relationship picker does not offer them — which is what keeps two
-#      coworkers' wives called "Jen" from being confused for one person.
+#      coworkers' wives called "Ruth" from being confused for one person.
 #   4. Search finds them, and resolves to the person whose page they are on.
 #
 # Verify non-vacuous by sabotage: drop `listOnly` from `people-repo.ts` and
@@ -41,8 +41,8 @@ appId: com.leapsake.app
 - runFlow:
     file: subflows/add-person.yaml
     env:
-      FIRST: "Sam${output.run}"
-      LAST: "Carter${output.run}"
+      FIRST: "Ernie${output.run}"
+      LAST: "Bishop${output.run}"
 - runFlow:
     file: subflows/save-record.yaml
 
@@ -95,13 +95,13 @@ appId: com.leapsake.app
 
 # ── 3. …but nowhere else ────────────────────────────────────────────────────
 - openLink: "leapsake://people"
-- assertVisible: ".*Sam${output.run} Carter${output.run}.*"
+- assertVisible: ".*Ernie${output.run} Bishop${output.run}.*"
 - assertNotVisible: "Jenqx${output.run}"
 
 # Not offered as the other end of a relationship either. Reuses the subject's
 # own add-relationship screen: typing her name there must turn up only the
 # offer to create *another* person by that name, never the one that exists.
-- tapOn: ".*Sam${output.run} Carter${output.run}.*"
+- tapOn: ".*Ernie${output.run} Bishop${output.run}.*"
 - scrollUntilVisible:
     element:
       text: "Add relationship"
@@ -125,5 +125,5 @@ appId: com.leapsake.app
 - tapOn:
     id: "search-field"
 - inputText: "Jenqx${output.run}"
-- assertVisible: ".*Sam${output.run} Carter${output.run}.*"
+- assertVisible: ".*Ernie${output.run} Bishop${output.run}.*"
 - assertVisible: ".*matched on.*Jenqx${output.run}.*"

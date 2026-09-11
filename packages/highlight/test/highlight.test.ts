@@ -32,26 +32,26 @@ describe("highlightSegments — text", () => {
   });
 
   it("marks a starts-with match", () => {
-    expect(highlightSegments("Smith", "smi", "text")).toEqual([
-      { text: "Smi", marked: true },
-      { text: "th", marked: false },
+    expect(highlightSegments("Martini", "mar", "text")).toEqual([
+      { text: "Mar", marked: true },
+      { text: "tini", marked: false },
     ]);
   });
 
   it("returns one unmarked segment when nothing matches", () => {
-    expect(highlightSegments("Bob", "xyz", "text")).toEqual([
-      { text: "Bob", marked: false },
+    expect(highlightSegments("Harry", "xyz", "text")).toEqual([
+      { text: "Harry", marked: false },
     ]);
   });
 
   it("returns the plain text for an empty term", () => {
-    expect(highlightSegments("Bob", "", "text")).toEqual([
-      { text: "Bob", marked: false },
+    expect(highlightSegments("Harry", "", "text")).toEqual([
+      { text: "Harry", marked: false },
     ]);
   });
 
   it("returns no segments for empty text", () => {
-    expect(highlightSegments("", "bob", "text")).toEqual([]);
+    expect(highlightSegments("", "harry", "text")).toEqual([]);
   });
 });
 

@@ -23,9 +23,9 @@ afterEach(() => {
 
 describe("giftIdeasRepo", () => {
   it("creates an idea with a uuid, timestamps, and null optionals", async () => {
-    const idea = await repo.create({ title: "Red Ryder BB Gun" });
+    const idea = await repo.create({ title: "The Adventures of Tom Sawyer" });
     expect(idea.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(idea.title).toBe("Red Ryder BB Gun");
+    expect(idea.title).toBe("The Adventures of Tom Sawyer");
     expect(idea.url).toBeNull();
     expect(idea.notes).toBeNull();
     expect(idea.createdAt).toBeGreaterThan(0);
@@ -35,12 +35,12 @@ describe("giftIdeasRepo", () => {
 
   it("persists url and notes when provided", async () => {
     const idea = await repo.create({
-      title: "BB Gun",
-      url: "https://example.com/bb-gun",
+      title: "Tom Sawyer",
+      url: "https://example.com/tom-sawyer",
       notes: "the 200-shot model",
     });
     const fetched = await repo.get(idea.id);
-    expect(fetched?.url).toBe("https://example.com/bb-gun");
+    expect(fetched?.url).toBe("https://example.com/tom-sawyer");
     expect(fetched?.notes).toBe("the 200-shot model");
   });
 

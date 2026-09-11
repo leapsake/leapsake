@@ -48,21 +48,21 @@ describe("duplicate detection readers", () => {
   });
 
   it("reports nothing for people who look nothing alike", async () => {
-    await addPerson("Jane", "Doe");
+    await addPerson("Jane", "Wainwright");
     await addPerson("Amir", "Haddad");
     expect(await core.duplicates.count()).toBe(0);
     expect(await core.duplicates.nudgeId()).toBeNull();
   });
 
   it("counts a pair once, not once per person", async () => {
-    await addPerson("Jane", "Doe");
-    await addPerson("Jane", "Doe");
+    await addPerson("Jane", "Wainwright");
+    await addPerson("Jane", "Wainwright");
     expect(await core.duplicates.count()).toBe(1);
   });
 
   it("scopes findFor to the pairs one person is half of", async () => {
-    const jane = await addPerson("Jane", "Doe");
-    const twin = await addPerson("Jane", "Doe");
+    const jane = await addPerson("Jane", "Wainwright");
+    const twin = await addPerson("Jane", "Wainwright");
     const other = await addPerson("Amir", "Haddad");
 
     const forJane = await core.duplicates.findFor(jane.id);
@@ -77,8 +77,8 @@ describe("duplicate detection readers", () => {
   });
 
   it("drops a pair from every reader once it is marked not-the-same", async () => {
-    const jane = await addPerson("Jane", "Doe");
-    const twin = await addPerson("Jane", "Doe");
+    const jane = await addPerson("Jane", "Wainwright");
+    const twin = await addPerson("Jane", "Wainwright");
     await core.duplicates.reject(jane.id, twin.id);
 
     expect(await core.duplicates.count()).toBe(0);
@@ -87,8 +87,8 @@ describe("duplicate detection readers", () => {
   });
 
   it("drops a pair from every reader once it is merged", async () => {
-    const jane = await addPerson("Jane", "Doe");
-    const twin = await addPerson("Jane", "Doe");
+    const jane = await addPerson("Jane", "Wainwright");
+    const twin = await addPerson("Jane", "Wainwright");
     await core.people.merge(jane.id, twin.id);
 
     expect(await core.duplicates.count()).toBe(0);
@@ -98,8 +98,8 @@ describe("duplicate detection readers", () => {
 
 describe("the duplicates Home nudge", () => {
   it("appears when a duplicate is created, under the id clients match on", async () => {
-    await addPerson("Jane", "Doe");
-    await addPerson("Jane", "Doe");
+    await addPerson("Jane", "Wainwright");
+    await addPerson("Jane", "Wainwright");
 
     // `people.create` reconciles, so the nudge is already there — no boot or
     // focus needed for the pair the user just made.
@@ -112,8 +112,8 @@ describe("the duplicates Home nudge", () => {
   });
 
   it("retires when the pair is merged", async () => {
-    const jane = await addPerson("Jane", "Doe");
-    const twin = await addPerson("Jane", "Doe");
+    const jane = await addPerson("Jane", "Wainwright");
+    const twin = await addPerson("Jane", "Wainwright");
     const nudgeId = await core.duplicates.nudgeId();
 
     await core.people.merge(jane.id, twin.id);
@@ -123,8 +123,8 @@ describe("the duplicates Home nudge", () => {
   });
 
   it("retires when the pair is marked not-the-same", async () => {
-    const jane = await addPerson("Jane", "Doe");
-    const twin = await addPerson("Jane", "Doe");
+    const jane = await addPerson("Jane", "Wainwright");
+    const twin = await addPerson("Jane", "Wainwright");
     const nudgeId = await core.duplicates.nudgeId();
 
     await core.duplicates.reject(jane.id, twin.id);
@@ -134,14 +134,14 @@ describe("the duplicates Home nudge", () => {
   });
 
   it("follows a rename that creates a duplicate, and one that dissolves it", async () => {
-    await addPerson("Jane", "Doe");
+    await addPerson("Jane", "Wainwright");
     const other = await addPerson("Amir", "Haddad");
     expect(await core.duplicates.nudgeId()).toBeNull();
 
     // A rename can create a pair — `people.update` reconciles for exactly this.
     await core.people.update(
       other.id,
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
     const nudgeId = await core.duplicates.nudgeId();

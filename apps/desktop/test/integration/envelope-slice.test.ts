@@ -41,7 +41,7 @@ describe("envelope slice", () => {
     const keystore = createInMemoryKeyStore();
     const deviceId = crypto.randomUUID();
     const entityId = crypto.randomUUID();
-    const payload = new TextEncoder().encode("Ada Lovelace, born 1815");
+    const payload = new TextEncoder().encode("Mary Bailey, born 1815");
 
     // --- Write side -------------------------------------------------------
     {
@@ -135,6 +135,6 @@ describe("envelope slice", () => {
     expect(mk).toEqual(await keystore.getSecret("expected:mk"));
     expect(ck).toEqual(await keystore.getSecret("expected:ck"));
     expect(decrypted).toEqual(payload);
-    expect(new TextDecoder().decode(decrypted)).toBe("Ada Lovelace, born 1815");
+    expect(new TextDecoder().decode(decrypted)).toBe("Mary Bailey, born 1815");
   });
 });

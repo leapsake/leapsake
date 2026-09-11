@@ -5,8 +5,8 @@ import { standingColumnSchema, standingSchema } from "./standing.js";
 /**
  * The three parts of a person's name, every one of them optional.
  *
- * A person needs *some* name — not a first one and a last one. "Jen" and "Jen
- * Davis" are both whole people, and the two features that pushed hardest on the
+ * A person needs *some* name — not a first one and a last one. "Ruth" and "Ruth
+ * Dakin" are both whole people, and the two features that pushed hardest on the
  * old `firstName` + `lastName` requirement both wanted exactly this: an
  * unpublished person known only as somebody's spouse, and contact import, whose
  * parser deliberately yields incomplete names for mononyms and organisation-only
@@ -50,7 +50,7 @@ export function hasAnyName(name: {
  *
  * For the places a name arrives as free text rather than as labelled fields —
  * recording a relationship to somebody not in the list, or a vCard carrying only
- * a display name. It stays deliberately dumb: "Jen" and "Jen Davis" are both
+ * a display name. It stays deliberately dumb: "Ruth" and "Ruth Dakin" are both
  * complete names now, so there is no missing part to be clever about, and a
  * name this rule reads wrongly ("Ursula K. Le Guin") is one edit away from right
  * on the person's own page. Guessing at particles and suffixes would be wrong

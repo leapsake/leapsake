@@ -729,7 +729,7 @@ describe("onboarding + milestone families coexist", () => {
       birthday("m1", "p1", occ),
     ];
     h.deps.resolveSchedule = async (m) => resolveReminderSchedule(m.kind, []);
-    h.deps.resolveLabel = async () => "Alice";
+    h.deps.resolveLabel = async () => "Violet";
 
     const result = await regenerateSystemReminders(h.deps);
     // Three onboarding nudges + the birthday's two rows — its day-of wish and,

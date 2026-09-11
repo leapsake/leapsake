@@ -54,19 +54,19 @@ describe("holiday reminders", () => {
    */
   async function aliceObserving(holidayId: string) {
     const core = createCore(driver);
-    const alice = await core.people.create(
-      { firstName: "Alice", lastName: "Chen" },
+    const violet = await core.people.create(
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
     await core.holidays.setObservers(holidayId, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
     await createReminderRulesRepo(driver).replaceForBearer(
       "observance",
-      observanceIdFor(holidayId, "person", alice.id),
+      observanceIdFor(holidayId, "person", violet.id),
       [{ action: "wish", offsetDays: 0, enabled: true }],
     );
-    return { core, alice };
+    return { core, violet };
   }
 
   /** Every active system reminder's title. */
@@ -80,13 +80,13 @@ describe("holiday reminders", () => {
 
   it("generates a reminder carrying the holiday's own greeting", async () => {
     today(2026, 12, 25); // a `wish` is day-of, so Christmas Day itself
-    const { core, alice } = await aliceObserving(CHRISTMAS);
+    const { core, violet } = await aliceObserving(CHRISTMAS);
     await core.reminders.regenerateSystem();
 
     const titles = await systemTitles(core);
     expect(titles.some((t) => t.includes("a Merry Christmas"))).toBe(true);
     // …and it mentions the person, so the reminder links back to them.
-    expect(titles.some((t) => t.includes(`person:${alice.id}`))).toBe(true);
+    expect(titles.some((t) => t.includes(`person:${violet.id}`))).toBe(true);
     // Never the birthday copy the `wish` action used to hard-code.
     expect(titles.some((t) => t.includes("happy birthday"))).toBe(false);
   });
@@ -97,12 +97,12 @@ describe("holiday reminders", () => {
     // would surface one reminder per person all at once.
     today(2026, 12, 1);
     const core = createCore(driver);
-    const alice = await core.people.create(
-      { firstName: "Alice", lastName: "Chen" },
+    const violet = await core.people.create(
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
     await core.holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
     await core.reminders.regenerateSystem();
 
@@ -113,12 +113,12 @@ describe("holiday reminders", () => {
 
   it("generates nothing for an explicit non-observer", async () => {
     const core = createCore(driver);
-    const bob = await core.people.create(
-      { firstName: "Bob", lastName: "Smith" },
+    const harry = await core.people.create(
+      { firstName: "Harry", lastName: "Martini" },
       [],
     );
     await core.holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: bob.id, observes: false },
+      { bearerType: "person", bearerId: harry.id, observes: false },
     ]);
     await core.reminders.regenerateSystem();
 
@@ -130,7 +130,7 @@ describe("holiday reminders", () => {
   it("suppresses reminders for a hidden holiday, and restores on unhide", async () => {
     // The behaviour §2.6 insists on: hiding has to reach the reminder engine,
     // not just browse surfaces, or "I hid Mother's Day" still produces "Wish
-    // @Alice a Happy Mother's Day".
+    // @Violet a Happy Mother's Day".
     today(2027, 5, 9); // Mother's Day 2027, the day itself
     const { core } = await aliceObserving(MOTHERS_DAY);
     await core.reminders.regenerateSystem();
@@ -155,8 +155,8 @@ describe("holiday reminders", () => {
     // A card is due a week out and carries a fortnight of run-up, so ten days
     // before Christmas it is on display and the day-of wish is not.
     today(2026, 12, 15);
-    const { core, alice } = await aliceObserving(CHRISTMAS);
-    const observanceId = observanceIdFor(CHRISTMAS, "person", alice.id);
+    const { core, violet } = await aliceObserving(CHRISTMAS);
+    const observanceId = observanceIdFor(CHRISTMAS, "person", violet.id);
 
     await createReminderRulesRepo(driver).replaceForBearer(
       "observance",
@@ -172,14 +172,14 @@ describe("holiday reminders", () => {
 
   it("prunes a holiday reminder once the observance is withdrawn", async () => {
     today(2026, 12, 25);
-    const { core, alice } = await aliceObserving(CHRISTMAS);
+    const { core, violet } = await aliceObserving(CHRISTMAS);
     await core.reminders.regenerateSystem();
     expect(
       (await systemTitles(core)).some((t) => t.includes("Christmas")),
     ).toBe(true);
 
     await core.holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: false },
+      { bearerType: "person", bearerId: violet.id, observes: false },
     ]);
     await core.reminders.regenerateSystem();
 
@@ -192,8 +192,8 @@ describe("holiday reminders", () => {
     // Rule-type skew, reaching the engine rather than just the browse screen:
     // the observance and holiday rows both survive, but no reminder is invented.
     const core = createCore(driver);
-    const alice = await core.people.create(
-      { firstName: "Alice", lastName: "Chen" },
+    const violet = await core.people.create(
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
     const futureId = holidayIdFor("from-the-future");
@@ -207,7 +207,7 @@ describe("holiday reminders", () => {
     await createObservancesRepo(driver).setObservance(
       futureId,
       "person",
-      alice.id,
+      violet.id,
       true,
     );
 
@@ -307,9 +307,9 @@ describe("observance reminder schedule", () => {
     vi.useRealTimers();
   });
 
-  async function alice(core: ReturnType<typeof createCore>) {
+  async function violet(core: ReturnType<typeof createCore>) {
     const person = await core.people.create(
-      { firstName: "Alice", lastName: "Chen" },
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
     await core.holidays.setObservers(CHRISTMAS, [
@@ -320,7 +320,7 @@ describe("observance reminder schedule", () => {
 
   it("reads the offered actions, all off, for an untouched observance", async () => {
     const core = createCore(driver);
-    const person = await alice(core);
+    const person = await violet(core);
 
     const schedule = await core.holidays.getObservanceSchedule(
       CHRISTMAS,
@@ -336,7 +336,7 @@ describe("observance reminder schedule", () => {
 
   it("persists an enabled rule and reads it back", async () => {
     const core = createCore(driver);
-    const person = await alice(core);
+    const person = await violet(core);
 
     await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
       { action: "get:gift", label: null, offsetDays: 21, enabled: true },
@@ -361,7 +361,7 @@ describe("observance reminder schedule", () => {
     // turning a reminder on would appear to do nothing until a restart.
     vi.setSystemTime(new Date(2026, 11, 25, 12)); // a wish is day-of
     const core = createCore(driver);
-    const person = await alice(core);
+    const person = await violet(core);
 
     await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
       { action: "wish", label: null, offsetDays: 0, enabled: true },
@@ -376,7 +376,7 @@ describe("observance reminder schedule", () => {
   it("prunes the reminder when the rule is switched off", async () => {
     vi.setSystemTime(new Date(2026, 11, 1, 12));
     const core = createCore(driver);
-    const person = await alice(core);
+    const person = await violet(core);
     await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
       { action: "wish", label: null, offsetDays: 0, enabled: true },
     ]);
@@ -398,7 +398,7 @@ describe("observance reminder schedule", () => {
     // gift, which has been on display for weeks.
     vi.setSystemTime(new Date(2026, 11, 25, 12));
     const core = createCore(driver);
-    const person = await alice(core);
+    const person = await violet(core);
     const grandma = await core.people.create(
       { firstName: "Rose", lastName: "Fitz" },
       [],
@@ -418,21 +418,21 @@ describe("observance reminder schedule", () => {
     const titles = (await core.reminders.list())
       .filter((r) => r.source === "system")
       .map((r) => r.title ?? "");
-    expect(titles.some((t) => t.includes("Get") && t.includes("Alice"))).toBe(
+    expect(titles.some((t) => t.includes("Get") && t.includes("Violet"))).toBe(
       true,
     );
     expect(titles.some((t) => t.includes("Call") && t.includes("Rose"))).toBe(
       true,
     );
-    // Alice gets no call, Rose gets no gift.
-    expect(titles.some((t) => t.includes("Call") && t.includes("Alice"))).toBe(
+    // Violet gets no call, Rose gets no gift.
+    expect(titles.some((t) => t.includes("Call") && t.includes("Violet"))).toBe(
       false,
     );
   });
 
   it("clearing the schedule falls back to the (all-off) defaults", async () => {
     const core = createCore(driver);
-    const person = await alice(core);
+    const person = await violet(core);
     await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
       { action: "wish", label: null, offsetDays: 0, enabled: true },
     ]);

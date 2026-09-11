@@ -73,7 +73,10 @@ function marry(aId: string, bId: string): Promise<Relationship> {
 
 describe("listTimelineForEntity", () => {
   it("returns an entity's own milestones tagged origin 'own'", async () => {
-    const jane = await people.create({ firstName: "Jane", lastName: "Doe" });
+    const jane = await people.create({
+      firstName: "Jane",
+      lastName: "Wainwright",
+    });
     const created = await milestones.create(milestone({ bearerId: jane.id }));
 
     const timeline = await listTimelineForEntity(
@@ -92,9 +95,15 @@ describe("listTimelineForEntity", () => {
   });
 
   it("resolves a relationship's milestones onto both partners' timelines", async () => {
-    const jane = await people.create({ firstName: "Jane", lastName: "Doe" });
-    const john = await people.create({ firstName: "John", lastName: "Doe" });
-    const rel = await marry(jane.id, john.id);
+    const jane = await people.create({
+      firstName: "Jane",
+      lastName: "Wainwright",
+    });
+    const sam = await people.create({
+      firstName: "Sam",
+      lastName: "Wainwright",
+    });
+    const rel = await marry(jane.id, sam.id);
     const wedding = await milestones.create(
       milestone({
         kind: "wedding",
@@ -107,8 +116,8 @@ describe("listTimelineForEntity", () => {
     );
 
     for (const [bearer, partnerLabel] of [
-      [jane.id, "John Doe"],
-      [john.id, "Jane Doe"],
+      [jane.id, "Sam Wainwright"],
+      [sam.id, "Jane Wainwright"],
     ] as const) {
       const timeline = await listTimelineForEntity(
         milestones,
@@ -126,9 +135,15 @@ describe("listTimelineForEntity", () => {
   });
 
   it("merges own and relationship milestones sorted by date, NULLs first", async () => {
-    const jane = await people.create({ firstName: "Jane", lastName: "Doe" });
-    const john = await people.create({ firstName: "John", lastName: "Doe" });
-    const rel = await marry(jane.id, john.id);
+    const jane = await people.create({
+      firstName: "Jane",
+      lastName: "Wainwright",
+    });
+    const sam = await people.create({
+      firstName: "Sam",
+      lastName: "Wainwright",
+    });
+    const rel = await marry(jane.id, sam.id);
 
     const birthday = await milestones.create(
       milestone({ bearerId: jane.id, year: 1990, month: 3, day: 9 }),
@@ -176,9 +191,15 @@ describe("listTimelineForEntity", () => {
   });
 
   it("ignores relationships that have no milestones", async () => {
-    const jane = await people.create({ firstName: "Jane", lastName: "Doe" });
-    const john = await people.create({ firstName: "John", lastName: "Doe" });
-    await marry(jane.id, john.id);
+    const jane = await people.create({
+      firstName: "Jane",
+      lastName: "Wainwright",
+    });
+    const sam = await people.create({
+      firstName: "Sam",
+      lastName: "Wainwright",
+    });
+    await marry(jane.id, sam.id);
 
     const timeline = await listTimelineForEntity(
       milestones,

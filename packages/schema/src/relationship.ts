@@ -562,7 +562,7 @@ export function holderTypesFor(role: RelationshipRole): readonly EntityType[] {
 
 /**
  * A Relationship — one directed edge stored as a single row holding *both*
- * endpoints and *both* roles, e.g. {a: Alice/parent, b: Bob/child}. One row per
+ * endpoints and *both* roles, e.g. {a: Violet/parent, b: Harry/child}. One row per
  * relationship keeps it a single fact to create, soft-delete, and (V3) sync,
  * unlike a mirrored two-row model. There is intentionally no unique constraint
  * on the pair: the same two entities may relate in more than one way.
@@ -662,7 +662,7 @@ export type UpdateRelationshipInput = z.infer<
  * `origin` distinguishes a stored ("explicit") edge from one computed live by
  * the inference engine ("derived"). Derived edges have no stored row, so
  * `relationshipId` is empty for them; `derivedVia` names the intermediate entity
- * the edge was inferred through (e.g. George-as-uncle "via John").
+ * the edge was inferred through (e.g. William-as-uncle "via Peter").
  */
 export interface RelationshipNeighbor {
   relationshipId: string;
@@ -717,10 +717,10 @@ export function isRomanticRole(role: RelationshipRole): boolean {
 }
 
 /**
- * What a relationship is called when it has to name itself — "Bob & Carol" —
+ * What a relationship is called when it has to name itself — "Harry & Tilly" —
  * for a reminder borne by the relationship rather than by either person.
  *
- * ⚠️ **Not for a relationship the user is in.** "You & Alice" is the wrong
+ * ⚠️ **Not for a relationship the user is in.** "You & Violet" is the wrong
  * subject for "Wish … a happy anniversary": you do not wish yourself one. A
  * relationship with the self-person at one end resolves to the *other* end
  * instead (`@leapsake/core`, the engine's `resolveLabel` port), and the

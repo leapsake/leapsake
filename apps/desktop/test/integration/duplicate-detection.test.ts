@@ -29,22 +29,22 @@ afterEach(() => {
 
 describe("createCore — duplicate detection", () => {
   it("proposes a same-name pair as medium with a reason", async () => {
-    await core.people.create({ firstName: "Jane", lastName: "Doe" }, []);
-    await core.people.create({ firstName: "Jane", lastName: "Doe" }, []);
+    await core.people.create({ firstName: "Jane", lastName: "Wainwright" }, []);
+    await core.people.create({ firstName: "Jane", lastName: "Wainwright" }, []);
 
     const candidates = await core.duplicates.findCandidates();
     expect(candidates).toHaveLength(1);
     expect(candidates[0].tier).toBe("medium");
-    expect(candidates[0].reasons).toContain('Same name "Jane Doe"');
+    expect(candidates[0].reasons).toContain('Same name "Jane Wainwright"');
   });
 
   it("rates a shared email + same name as high", async () => {
     const a = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
     const b = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
     for (const id of [a.id, b.id]) {
@@ -64,11 +64,11 @@ describe("createCore — duplicate detection", () => {
 
   it("rates a shared social handle on one platform as high", async () => {
     const a = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
     const b = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
     for (const [id, handle] of [
@@ -121,18 +121,18 @@ describe("createCore — duplicate detection", () => {
   });
 
   it("does not propose unrelated people", async () => {
-    await core.people.create({ firstName: "Jane", lastName: "Doe" }, []);
-    await core.people.create({ firstName: "Bob", lastName: "Roe" }, []);
+    await core.people.create({ firstName: "Jane", lastName: "Wainwright" }, []);
+    await core.people.create({ firstName: "Harry", lastName: "Bailey" }, []);
     expect(await core.duplicates.findCandidates()).toHaveLength(0);
   });
 
   it("suppresses a pair the user marked 'not a duplicate'", async () => {
     const a = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
     const b = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
     expect(await core.duplicates.findCandidates()).toHaveLength(1);
@@ -142,11 +142,11 @@ describe("createCore — duplicate detection", () => {
 
     // Order-independent: rejecting (b, a) is the same pair.
     const c = await core.people.create(
-      { firstName: "Carol", lastName: "Lee" },
+      { firstName: "Tilly", lastName: "Lee" },
       [],
     );
     const d = await core.people.create(
-      { firstName: "Carol", lastName: "Lee" },
+      { firstName: "Tilly", lastName: "Lee" },
       [],
     );
     await core.duplicates.reject(d.id, c.id);
@@ -156,21 +156,27 @@ describe("createCore — duplicate detection", () => {
 
 // Unpublished people are out of the pool. They exist only as facts about other
 // people and are offered by no picker, so the same name arriving twice means two
-// different people — one coworker's wife "Jen" and another's are not a pair to
+// different people — one coworker's wife "Ruth" and another's are not a pair to
 // review. With a single word now being a whole legal name, leaving them in would
 // have made every such name collide with every other.
 describe("createCore — duplicate detection and standing", () => {
   it("does not pair two unpublished people who share a name", async () => {
-    await core.people.create({ firstName: "Jen", standing: "unpublished" }, []);
-    await core.people.create({ firstName: "Jen", standing: "unpublished" }, []);
+    await core.people.create(
+      { firstName: "Ruth", standing: "unpublished" },
+      [],
+    );
+    await core.people.create(
+      { firstName: "Ruth", standing: "unpublished" },
+      [],
+    );
 
     expect(await core.duplicates.findCandidates()).toHaveLength(0);
   });
 
   it("does not pair an unpublished person with a published namesake", async () => {
-    await core.people.create({ firstName: "Jen", lastName: "Davis" }, []);
+    await core.people.create({ firstName: "Ruth", lastName: "Dakin" }, []);
     await core.people.create(
-      { firstName: "Jen", lastName: "Davis", standing: "unpublished" },
+      { firstName: "Ruth", lastName: "Dakin", standing: "unpublished" },
       [],
     );
 
@@ -181,9 +187,9 @@ describe("createCore — duplicate detection and standing", () => {
   // else, which is when the question "is she already in your list?" first has any
   // meaning. Publishing is what runs detection over her.
   it("pairs them once the unpublished one is published", async () => {
-    await core.people.create({ firstName: "Jen", lastName: "Davis" }, []);
+    await core.people.create({ firstName: "Ruth", lastName: "Dakin" }, []);
     const attached = await core.people.create(
-      { firstName: "Jen", lastName: "Davis", standing: "unpublished" },
+      { firstName: "Ruth", lastName: "Dakin", standing: "unpublished" },
       [],
     );
 
@@ -191,6 +197,6 @@ describe("createCore — duplicate detection and standing", () => {
 
     const candidates = await core.duplicates.findCandidates();
     expect(candidates).toHaveLength(1);
-    expect(candidates[0].reasons).toContain('Same name "Jen Davis"');
+    expect(candidates[0].reasons).toContain('Same name "Ruth Dakin"');
   });
 });

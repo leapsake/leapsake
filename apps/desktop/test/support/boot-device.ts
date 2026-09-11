@@ -110,15 +110,15 @@ export function makeBootDevice(label: string): BootDevice {
       });
       await runMigrations(driver);
       await createPeopleRepo(driver).create({
-        firstName: "Ada",
-        lastName: "Lovelace",
+        firstName: "Mary",
+        lastName: "Bailey",
       });
       const { accountId } = await createAccountOnThisDevice({
         keyStore,
         driver,
         roster: roster(),
         userDataPath: userData,
-        username: "ada",
+        username: "mary",
         password,
         closeStore: async () => {
           await driver.close?.();

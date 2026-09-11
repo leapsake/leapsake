@@ -181,7 +181,7 @@ describe("ReminderForm", () => {
     );
 
     expect(screen.getByLabelText("Due date")).toHaveProperty("name", "dueDate");
-    // Title and Details show a mention *draft* (`@Alice Ng`), so the stored text
+    // Title and Details show a mention *draft* (`@Violet Bick`), so the stored text
     // — tokens and all — is what their hidden inputs carry to the write path.
     expect(
       [...container.querySelectorAll("input[type=hidden]")].map((i) =>

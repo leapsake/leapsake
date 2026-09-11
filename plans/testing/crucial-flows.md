@@ -204,9 +204,9 @@ surface no lower tier reaches).
 
 - **Intent:** the core write path a human drives.
 - **Preconditions:** Flow 1 state (or any booted app).
-- **Steps:** add a person "Ada Lovelace"; add a second person "Augustus De Morgan"; from one
+- **Steps:** add a person "Mary Bailey"; add a second person "George Bailey"; from one
   person, add a relationship linking them (pick a role).
-- **Assert:** both appear in **People & Pets**; opening Ada shows the relationship to Augustus
+- **Assert:** both appear in **People & Pets**; opening Mary shows the relationship to George
   with the chosen role rendered.
 - **Devices:** single.
 - **Uniquely exercises:** the renderer form → IPC/core → repo → write → re-read → render loop
@@ -244,7 +244,7 @@ surface no lower tier reaches).
   capture — it cannot be re-read); tick **I've saved my recovery phrase** → **Done**.
 - **Assert (on screen):** the phrase renders as 24 words (`recovery-phrase`); while it is up the
   app chrome is **not** reachable, so it cannot be dismissed by an accidental navigation; after
-  **Done** the app **continues in place — no restart, no blank window** — and Ada plus her
+  **Done** the app **continues in place — no restart, no blank window** — and Mary plus her
   milestone from Flows 2–3 are still on screen and still readable; Settings now reports the
   account; the phrase is **not** offered anywhere again.
 - **Assert (out of band):** the store is now **ciphertext** at `stores/<accountId>/`; the
@@ -270,11 +270,11 @@ surface no lower tier reaches).
   and their two-way backlinks — which has **zero** automated coverage below E2E (the pure
   helpers are unit-tested in `packages/schema`, but `MentionTextField` / `ReminderForm` on both
   clients are not).
-- **Preconditions:** at least one person (Flow 2), e.g. Ada.
-- **Steps:** create a reminder; in the body, trigger the `@` picker and mention Ada, and type a
+- **Preconditions:** at least one person (Flow 2), e.g. Mary.
+- **Steps:** create a reminder; in the body, trigger the `@` picker and mention Mary, and type a
   `#birthday` tag; save.
-- **Assert:** (a) the reminder shows on Home (`home-ready`); (b) its `@Ada` renders as a link and
-  opening it lands on Ada's page; (c) Ada's page lists the reminder under its mentions/backlink
+- **Assert:** (a) the reminder shows on Home (`home-ready`); (b) its `@Mary` renders as a link and
+  opening it lands on Mary's page; (c) Mary's page lists the reminder under its mentions/backlink
   section; (d) the `#birthday` tag's page lists the reminder.
 - **Devices:** single.
 - **Uniquely exercises:** the mention/tag *compose* interaction (typeahead pickers, token

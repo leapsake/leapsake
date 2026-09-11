@@ -789,7 +789,7 @@ function deriveName(nParts: string[] | null, fn: string | null): ParsedName {
   }
   if (tokens.length === 1) {
     // A single token that *is* the family name says the card is a surname-only
-    // person ("Smith", filed under `N:Smith;;;;`) — not a mononym who also has a
+    // person ("Martini", filed under `N:Martini;;;;`) — not a mononym who also has a
     // surname. Putting it in both slots would duplicate it, which is what the
     // export round-trip caught: we write exactly this card for a person whose
     // only stored name part is a last name.

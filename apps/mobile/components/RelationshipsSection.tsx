@@ -31,7 +31,7 @@ function keyOf(neighbor: RelationshipNeighbor): string {
  * who and how, links to them, and carries **Edit** and **Remove**.
  *
  * **The explicit/derived difference is invisible until you act on a row**, which
- * is the right place for it: as a fact about the subject, "Jen is my sister" is
+ * is the right place for it: as a fact about the subject, "Ruth is my sister" is
  * one thing however the app came to know it. Then the two part company —
  *
  * - **Editing** a stored edge re-roles it (`editFromSubject`). Editing a derived

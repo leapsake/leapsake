@@ -70,15 +70,15 @@ async function deviceWithAccount(): Promise<{
   });
   await runMigrations(driver);
   await createPeopleRepo(driver).create({
-    firstName: "Ada",
-    lastName: "Lovelace",
+    firstName: "Mary",
+    lastName: "Bailey",
   });
   const { accountId } = await createAccountOnThisDevice({
     keyStore,
     driver,
     roster: rosterFor(userData),
     userDataPath: userData,
-    username: "ada",
+    username: "mary",
     password: PASSWORD,
     closeStore: async () => {
       await driver.close?.();
@@ -180,7 +180,7 @@ describe("forget account", () => {
     writeFileSync(join(otherDir, "leapsake.db"), "someone else's ciphertext");
     await rosterFor(userData).add({
       id: otherId,
-      username: "grace",
+      username: "henry",
       createdAt: new Date().toISOString(),
     });
 
@@ -188,7 +188,7 @@ describe("forget account", () => {
 
     expect(existsSync(join(otherDir, "leapsake.db"))).toBe(true);
     expect((await rosterFor(userData).list()).map((a) => a.username)).toEqual([
-      "grace",
+      "henry",
     ]);
   });
 

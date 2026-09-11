@@ -14,7 +14,7 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
  * when there are none.
  *
  * The reasoning it enforces is the 2026-09-05 decision that a **channel is an
- * affordance, not an errand**: there is no "call Alice" reminder to schedule any
+ * affordance, not an errand**: there is no "call Violet" reminder to schedule any
  * more, so the one `wish` row has to carry the ways to act on it.
  */
 
@@ -45,7 +45,7 @@ function civilDaysFromToday(days: number): CivilDate {
 /** Someone whose birthday is today, so the day-of wish is a live row. */
 async function personWithBirthdayToday(firstName: string) {
   const person = await core.people.create(
-    { firstName, middleName: null, lastName: "Ng", gender: null },
+    { firstName, middleName: null, lastName: "Bick", gender: null },
     [],
   );
   const occ = civilDaysFromToday(0);
@@ -64,16 +64,19 @@ async function personWithBirthdayToday(firstName: string) {
 
 describe("core.reminders.targets — the wish half", () => {
   it("carries the ways to reach the person the wish is about", async () => {
-    const alice = await personWithBirthdayToday("Alice");
+    const violet = await personWithBirthdayToday("Violet");
     await core.contactMethods.phones.create({
       ownerType: "person",
-      ownerId: alice.id,
+      ownerId: violet.id,
       label: "Mobile",
       number: "+15550101",
     });
 
     const [target] = (await core.reminders.targets()).contacts;
-    expect(target).toMatchObject({ personId: alice.id, subject: "Alice Ng" });
+    expect(target).toMatchObject({
+      personId: violet.id,
+      subject: "Violet Bick",
+    });
     expect(target.methods.map((m) => m.kind)).toEqual(["phone"]);
 
     // It is the wish row, not some other reminder of the same person's.
@@ -86,18 +89,18 @@ describe("core.reminders.targets — the wish half", () => {
   // clock, a week or more earlier, so an address offered here would be an
   // affordance for an errand whose deadline has already gone.
   it("leaves the postal address out", async () => {
-    const alice = await personWithBirthdayToday("Alice");
+    const violet = await personWithBirthdayToday("Violet");
     await core.contactMethods.postals.create({
       ownerType: "person",
-      ownerId: alice.id,
+      ownerId: violet.id,
       label: "Home",
       line1: "1 Example Street",
     });
     await core.contactMethods.emails.create({
       ownerType: "person",
-      ownerId: alice.id,
+      ownerId: violet.id,
       label: "Home",
-      address: "alice@example.com",
+      address: "violet@example.com",
     });
 
     const [target] = (await core.reminders.targets()).contacts;
@@ -107,23 +110,23 @@ describe("core.reminders.targets — the wish half", () => {
   // The collect case: an empty list is what the view-model turns into "add a way
   // to reach them", so the target has to be present and empty rather than absent.
   it("still names a person with no contact methods at all", async () => {
-    const alice = await personWithBirthdayToday("Alice");
+    const violet = await personWithBirthdayToday("Violet");
 
     const [target] = (await core.reminders.targets()).contacts;
-    expect(target).toMatchObject({ personId: alice.id });
+    expect(target).toMatchObject({ personId: violet.id });
     expect(target.methods).toEqual([]);
   });
 
   // ⚠️ `contactOwnerTypeSchema` is person/household: a pet cannot own a contact
-  // method, so asking the user to add one for Rex would be asking for something
+  // method, so asking the user to add one for Jimmy would be asking for something
   // the app has nowhere to put.
   it("says nothing about a pet's birthday", async () => {
-    const rex = await core.pets.create({ name: "Rex" }, []);
+    const jimmy = await core.pets.create({ name: "Jimmy" }, []);
     const occ = civilDaysFromToday(0);
     await core.milestones.create({
       kind: "birthday",
       bearerType: "pet",
-      bearerId: rex.id,
+      bearerId: jimmy.id,
       month: occ.month,
       day: occ.day,
       reminderSchedule: [
@@ -139,7 +142,7 @@ describe("core.reminders.targets — the wish half", () => {
   // someone would be noise on it.
   it("says nothing about an errand that is not an acknowledgment", async () => {
     const person = await core.people.create(
-      { firstName: "Alice", middleName: null, lastName: "Ng", gender: null },
+      { firstName: "Violet", middleName: null, lastName: "Bick", gender: null },
       [],
     );
     const occ = civilDaysFromToday(0);

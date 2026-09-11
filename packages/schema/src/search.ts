@@ -11,7 +11,7 @@ import type { EntityType } from "./relationship.js";
  * popular holiday has dozens of observers, and listing them all would bury every
  * other result for a query like "christmas" while duplicating what the holiday's
  * own screen already shows. A gift idea resolves to nothing behind it either —
- * it *is* the thing being searched for ("what was that BB gun link?"), and its
+ * it *is* the thing being searched for ("what was that Tom Sawyer link?"), and its
  * own screen already lists who it's suggested for and every giving of it.
  */
 export type SearchResultType = EntityType | "tag" | "holiday" | "gift_idea";

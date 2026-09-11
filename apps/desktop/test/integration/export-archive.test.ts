@@ -60,7 +60,7 @@ describe("core.export.archive", () => {
       {
         firstName: "Jane",
         middleName: "Marie",
-        lastName: "Doe",
+        lastName: "Wainwright",
         gender: "female",
       },
       ["Family", "Work"],
@@ -114,7 +114,7 @@ describe("core.export.archive", () => {
     expect(card.name).toEqual({
       firstName: "Jane",
       middleName: "Marie",
-      lastName: "Doe",
+      lastName: "Wainwright",
     });
     expect(card.gender).toBe("female");
     expect(card.emails).toEqual([
@@ -182,7 +182,7 @@ describe("core.export.archive", () => {
    */
   it("names an unpublished person on their host's card, with no card of their own", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
     // `createWithNewOther` is the only way an unpublished entity comes into
@@ -210,11 +210,11 @@ describe("core.export.archive", () => {
 
   it("points two published people at each other by uid, over one edge id", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
-    const ben = await core.people.create(
-      { firstName: "Ben", lastName: "Doe" },
+    const pete = await core.people.create(
+      { firstName: "Pete", lastName: "Wainwright" },
       [],
     );
     const rel = await core.relationships.create({
@@ -222,13 +222,13 @@ describe("core.export.archive", () => {
       aId: jane.id,
       aRole: "parent",
       bType: "person",
-      bId: ben.id,
+      bId: pete.id,
       bRole: "child",
     });
 
     const vcf = unfold(await exportedVcf());
 
-    expect(vcf).toContain(`urn:uuid:${ben.id}`);
+    expect(vcf).toContain(`urn:uuid:${pete.id}`);
     expect(vcf).toContain(`urn:uuid:${jane.id}`);
     expect(
       vcf.match(new RegExp(`X-LEAPSAKE-REL-ID=${rel.id}`, "g")),
@@ -237,10 +237,10 @@ describe("core.export.archive", () => {
 
   it("gives a pet a card of its own, with its owner and its birthday", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
-    const rex = await core.pets.create({ name: "Rex", gender: "male" }, [
+    const jimmy = await core.pets.create({ name: "Jimmy", gender: "male" }, [
       "Pets",
     ]);
     await core.relationships.create({
@@ -248,13 +248,13 @@ describe("core.export.archive", () => {
       aId: jane.id,
       aRole: "owner",
       bType: "pet",
-      bId: rex.id,
+      bId: jimmy.id,
       bRole: "pet",
     });
     await core.milestones.create({
       kind: "birthday",
       bearerType: "pet",
-      bearerId: rex.id,
+      bearerId: jimmy.id,
       year: 2019,
       month: 5,
       day: 2,
@@ -269,8 +269,8 @@ describe("core.export.archive", () => {
 
     expect(counts.pets).toBe(1);
     expect(vcf).toContain("KIND:x-pet");
-    expect(vcf).toContain(`UID:urn:uuid:${rex.id}`);
-    expect(vcf).toContain("FN:Rex");
+    expect(vcf).toContain(`UID:urn:uuid:${jimmy.id}`);
+    expect(vcf).toContain("FN:Jimmy");
     expect(vcf).toContain("BDAY:2019-05-02");
     expect(vcf).toContain("CATEGORIES:Pets");
     // The owner edge, from the pet's side.
@@ -283,14 +283,14 @@ describe("core.export.archive", () => {
    * all. It lands on both cards carrying one id.
    */
   it("carries a relationship-borne milestone onto both partners' cards", async () => {
-    const sam = await core.people.create({ firstName: "Sam" }, []);
-    const jen = await core.people.create({ firstName: "Jen" }, []);
+    const ernie = await core.people.create({ firstName: "Ernie" }, []);
+    const ruth = await core.people.create({ firstName: "Ruth" }, []);
     const rel = await core.relationships.create({
       aType: "person",
-      aId: sam.id,
+      aId: ernie.id,
       aRole: "spouse",
       bType: "person",
-      bId: jen.id,
+      bId: ruth.id,
       bRole: "spouse",
     });
     const wedding = await core.milestones.create({
@@ -313,7 +313,7 @@ describe("core.export.archive", () => {
 
   it("marks the self person", async () => {
     const jane = await core.people.create({ firstName: "Jane" }, []);
-    await core.people.create({ firstName: "Bob" }, []);
+    await core.people.create({ firstName: "Harry" }, []);
     await core.self.set(jane.id);
 
     const vcf = await exportedVcf();
@@ -361,25 +361,31 @@ describe("core.export.archive", () => {
  */
 describe("core.export.archive — data.json", () => {
   it("carries the tables that belong to no card", async () => {
-    const alice = await core.people.create({ firstName: "Alice" }, []);
-    const bob = await core.people.create({ firstName: "Bob" }, []);
+    const violet = await core.people.create({ firstName: "Violet" }, []);
+    const harry = await core.people.create({ firstName: "Harry" }, []);
 
     await core.reminders.create({
-      title: "Call @[Alice](person:" + alice.id + ") #urgent",
+      title: "Call @[Violet](person:" + violet.id + ") #urgent",
     });
     await core.gifts.ideas.create(
       {
         title: "Wool socks",
-        recipients: [{ party: { type: "person", id: alice.id } }],
+        recipients: [{ party: { type: "person", id: violet.id } }],
       },
       ["Birthday"],
     );
-    await core.duplicates.reject(alice.id, bob.id);
-    await core.kinship.dismiss("person", alice.id, "person", bob.id, "cousin");
+    await core.duplicates.reject(violet.id, harry.id);
+    await core.kinship.dismiss(
+      "person",
+      violet.id,
+      "person",
+      harry.id,
+      "cousin",
+    );
     await core.notificationSettings.setPolicy("device-1", {
       mode: "digest",
       deliveryMinute: 480,
-      label: "Josh's laptop",
+      label: "George's laptop",
       platform: "darwin",
     });
 
@@ -392,27 +398,27 @@ describe("core.export.archive — data.json", () => {
     expect(data.mentions?.[0]).toMatchObject({
       bearerType: "reminder",
       targetType: "person",
-      targetId: alice.id,
+      targetId: violet.id,
     });
     expect(data.giftIdeas?.[0]).toMatchObject({
       title: "Wool socks",
       tags: ["Birthday"],
     });
-    expect(data.giftRecipients?.[0]?.recipientId).toBe(alice.id);
+    expect(data.giftRecipients?.[0]?.recipientId).toBe(violet.id);
     expect(data.notADuplicate?.[0]).toMatchObject({
-      lowerId: alice.id < bob.id ? alice.id : bob.id,
-      higherId: alice.id < bob.id ? bob.id : alice.id,
+      lowerId: violet.id < harry.id ? violet.id : harry.id,
+      higherId: violet.id < harry.id ? harry.id : violet.id,
     });
     expect(data.relationshipDismissals?.[0]).toMatchObject({
-      subjectId: alice.id,
-      otherId: bob.id,
+      subjectId: violet.id,
+      otherId: harry.id,
       role: "cousin",
     });
     expect(data.notificationSettings?.[0]).toMatchObject({
       id: "device-1",
       mode: "digest",
       deliveryMinute: 480,
-      label: "Josh's laptop",
+      label: "George's laptop",
     });
     // A fact about one machine, not a preference: restoring it onto another
     // device would be a lie the app then acts on.
@@ -421,14 +427,14 @@ describe("core.export.archive — data.json", () => {
 
   it("carries holiday choices by slug, and no catalog row", async () => {
     await seedHolidayCatalog({ driver });
-    const alice = await core.people.create({ firstName: "Alice" }, []);
+    const violet = await core.people.create({ firstName: "Violet" }, []);
     const christmas = holidayIdFor("christmas");
 
     await core.holidays.setObservers(christmas, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
     await core.holidays.setHidden(holidayIdFor("us-halloween"), true);
-    await core.holidays.setObservanceSchedule(christmas, "person", alice.id, [
+    await core.holidays.setObservanceSchedule(christmas, "person", violet.id, [
       { action: "get:gift", offsetDays: 21, enabled: true },
     ]);
 
@@ -442,7 +448,7 @@ describe("core.export.archive — data.json", () => {
 
     expect(data.observances?.[0]).toMatchObject({
       holidayId: christmas,
-      bearerId: alice.id,
+      bearerId: violet.id,
       observes: true,
       holidaySlug: "christmas",
     });
@@ -463,32 +469,32 @@ describe("core.export.archive — data.json", () => {
    * is no taking them back.
    */
   it("carries no soft-deleted row from the three tables with no entity repo", async () => {
-    const alice = await core.people.create({ firstName: "Alice" }, []);
-    const bob = await core.people.create({ firstName: "Bob" }, []);
-    const carol = await core.people.create({ firstName: "Carol" }, []);
+    const violet = await core.people.create({ firstName: "Violet" }, []);
+    const harry = await core.people.create({ firstName: "Harry" }, []);
+    const tilly = await core.people.create({ firstName: "Tilly" }, []);
     const dave = await core.people.create({ firstName: "Dave" }, []);
 
     // A mention, then edited out of the text: its row is tombstoned, not erased.
     const reminder = await core.reminders.create({
-      title: `Call @[Alice](person:${alice.id})`,
+      title: `Call @[Violet](person:${violet.id})`,
     });
     expect(await exportedData()).toHaveProperty(
       "mentions.0.targetId",
-      alice.id,
+      violet.id,
     );
     await core.reminders.update(reminder.id, { title: "Call somebody" });
 
     // A dismissal, then restored.
-    await core.kinship.dismiss("person", alice.id, "person", bob.id, null);
+    await core.kinship.dismiss("person", violet.id, "person", harry.id, null);
     const dismissal = (await exportedData()).relationshipDismissals?.[0];
     if (dismissal === undefined) throw new Error("expected a dismissal");
     await core.kinship.undismiss(dismissal.id);
 
     // A "not a duplicate" judgment, then made redundant by a merge — which
     // re-points it onto the survivor, sees a self-pair, and tombstones it.
-    await core.duplicates.reject(carol.id, dave.id);
+    await core.duplicates.reject(tilly.id, dave.id);
     expect((await exportedData()).notADuplicate).toHaveLength(1);
-    await core.people.merge(carol.id, dave.id);
+    await core.people.merge(tilly.id, dave.id);
 
     const data = await exportedData();
     expect(data.mentions).toEqual([]);

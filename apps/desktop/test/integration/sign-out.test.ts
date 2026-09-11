@@ -67,7 +67,9 @@ describe("sign out", () => {
     // The gate was genuinely raised, and offered both doors with the password
     // primary — the point of clearing the key rather than closing the handle.
     expect(offered).toEqual({ password: true, phrase: true });
-    expect((await createPeopleRepo(reopened).list())[0]?.firstName).toBe("Ada");
+    expect((await createPeopleRepo(reopened).list())[0]?.firstName).toBe(
+      "Mary",
+    );
     await reopened.close?.();
   });
 
@@ -82,7 +84,9 @@ describe("sign out", () => {
     await lockThisDevice({ keyStore });
 
     const reopened = await bootWith({ door: "phrase", secret: phrase });
-    expect((await createPeopleRepo(reopened).list())[0]?.firstName).toBe("Ada");
+    expect((await createPeopleRepo(reopened).list())[0]?.firstName).toBe(
+      "Mary",
+    );
     await reopened.close?.();
   });
 

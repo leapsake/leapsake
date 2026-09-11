@@ -30,7 +30,7 @@ import { nodeSqliteDriver } from "../test/node-sqlite-driver.js";
  *
  * ```sh
  * pnpm --filter @leapsake/server exec tsx scripts/seed-account.ts \
- *   --relay http://localhost:4000 --username ada --password 'hunter2 hunter2'
+ *   --relay http://localhost:4000 --username mary --password 'hunter2 hunter2'
  * ```
  */
 
@@ -49,7 +49,7 @@ const username = arg("username");
 const password = arg("password");
 // Someone the tester is likely to also have locally, so the merge has an overlap
 // to review. `--duplicate ""` seeds nobody.
-const duplicate = arg("duplicate", "Jane Doe");
+const duplicate = arg("duplicate", "Jane Wainwright");
 
 const keyStore = createInMemoryKeyStore();
 const driver = nodeSqliteDriver(new DatabaseSync(":memory:"));
@@ -75,8 +75,8 @@ if (duplicate.trim() !== "") {
 }
 // A second person who is unique to this account, so a merge can be seen to bring
 // data *in* as well as to surface overlaps.
-await people.create({ firstName: "Bob", lastName: "Jones" });
-seeded.push("Bob Jones");
+await people.create({ firstName: "Harry", lastName: "Gower" });
+seeded.push("Harry Gower");
 
 await runAccountSync({ keyStore, driver, masterKey });
 

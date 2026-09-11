@@ -123,7 +123,7 @@ export const en: Messages = {
 
   giftCapture: {
     giftLabel: "Gift",
-    titlePlaceholder: "Red Ryder BB Gun",
+    titlePlaceholder: "The Adventures of Tom Sawyer",
     urlLabel: "Gift link",
     urlPlaceholder: "https://… (optional)",
     addRecipientLabel: "Add a person or pet to gift",
@@ -312,11 +312,11 @@ export const en: Messages = {
 
   giftIdeaForm: {
     title: "Title",
-    titlePlaceholder: "Red Ryder BB Gun",
+    titlePlaceholder: "The Adventures of Tom Sawyer",
     url: "Link",
     urlPlaceholder: "https://…",
     notes: "Notes",
-    notesPlaceholder: "the 200-shot model; she mentioned it in June",
+    notesPlaceholder: "inscribe it: no man is a failure who has friends",
     tags: "Tags",
     tagsPlaceholder: "#books #kitchen",
   },

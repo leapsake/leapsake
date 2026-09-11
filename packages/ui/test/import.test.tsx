@@ -15,8 +15,8 @@ afterEach(cleanup);
 const contact = (over: Partial<ParsedContact> = {}): ParsedContact =>
   ({
     uid: null,
-    name: { firstName: "Ada", middleName: null, lastName: "Lovelace" },
-    displayName: "Ada Lovelace",
+    name: { firstName: "Mary", middleName: null, lastName: "Bailey" },
+    displayName: "Mary Bailey",
     emails: [],
     phones: [],
     postals: [],
@@ -89,14 +89,14 @@ describe("ImportReview", () => {
     await flush();
 
     fireEvent.change(screen.getByLabelText("Last name"), {
-      target: { value: "Byron" },
+      target: { value: "Hatch" },
     });
     await act(async () => importButton().click());
 
     const decisions = onCommit.mock.calls[0]?.[0];
     expect(decisions).toHaveLength(1);
     expect(decisions?.[0]?.action).toBe("create");
-    expect(decisions?.[0]?.contact.name.lastName).toBe("Byron");
+    expect(decisions?.[0]?.contact.name.lastName).toBe("Hatch");
   });
 
   it("flags a row that looks like someone already here", async () => {
@@ -105,7 +105,7 @@ describe("ImportReview", () => {
         {
           index: 0,
           matches: [
-            { tier: "high", name: "Ada L.", reasons: ["same name", "email"] },
+            { tier: "high", name: "Mary L.", reasons: ["same name", "email"] },
           ],
         },
       ],
@@ -113,7 +113,7 @@ describe("ImportReview", () => {
     await flush();
 
     expect(
-      screen.getByText(/Very likely already in Leapsake: matches Ada L\./),
+      screen.getByText(/Very likely already in Leapsake: matches Mary L\./),
     ).toBeTruthy();
   });
 
@@ -126,15 +126,13 @@ describe("ImportReview", () => {
         {
           index: 0,
           matches: [],
-          alreadyStored: { type: "person", id: "p1", name: "Ada Lovelace" },
+          alreadyStored: { type: "person", id: "p1", name: "Mary Bailey" },
         },
       ],
     });
     await flush();
 
-    expect(
-      screen.getByText(/Already in Leapsake as Ada Lovelace/),
-    ).toBeTruthy();
+    expect(screen.getByText(/Already in Leapsake as Mary Bailey/)).toBeTruthy();
   });
 
   it("does not also guess at a resemblance for a row it knows outright", async () => {
@@ -142,16 +140,14 @@ describe("ImportReview", () => {
       preview: [
         {
           index: 0,
-          matches: [{ tier: "high", name: "Ada L.", reasons: ["same name"] }],
-          alreadyStored: { type: "person", id: "p1", name: "Ada Lovelace" },
+          matches: [{ tier: "high", name: "Mary L.", reasons: ["same name"] }],
+          alreadyStored: { type: "person", id: "p1", name: "Mary Bailey" },
         },
       ],
     });
     await flush();
 
-    expect(
-      screen.getByText(/Already in Leapsake as Ada Lovelace/),
-    ).toBeTruthy();
+    expect(screen.getByText(/Already in Leapsake as Mary Bailey/)).toBeTruthy();
     expect(screen.queryByText(/Very likely already in Leapsake/)).toBeNull();
   });
 
@@ -159,7 +155,7 @@ describe("ImportReview", () => {
     renderReview({
       contacts: [
         contact({
-          name: { firstName: "Cher", middleName: null, lastName: "" },
+          name: { firstName: "Zuzu", middleName: null, lastName: "" },
         }),
       ],
     });
@@ -193,7 +189,7 @@ describe("ImportReview", () => {
     await flush();
     await act(async () => importButton().click());
 
-    expect(screen.getByText("Ada Lovelace — bad email")).toBeTruthy();
+    expect(screen.getByText("Mary Bailey — bad email")).toBeTruthy();
   });
 
   it("offers no self checkbox for a card that does not claim to be you", async () => {

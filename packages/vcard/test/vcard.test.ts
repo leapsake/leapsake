@@ -8,7 +8,7 @@ function card(...lines: string[]): string {
 
 describe("detectContactFormat", () => {
   it("recognises a vCard by content signature", () => {
-    expect(detectContactFormat({ text: card("FN:Jane Doe") })).toEqual({
+    expect(detectContactFormat({ text: card("FN:Jane Wainwright") })).toEqual({
       format: "vcard",
     });
   });
@@ -37,21 +37,23 @@ describe("detectContactFormat", () => {
 
 describe("parseVCards — names", () => {
   it("maps a structured N into first/middle/last", () => {
-    const [c] = parseVCards(card("N:Doe;Jane;Marie;;", "FN:Jane Doe"));
+    const [c] = parseVCards(
+      card("N:Wainwright;Jane;Marie;;", "FN:Jane Wainwright"),
+    );
     expect(c.name).toEqual({
       firstName: "Jane",
       middleName: "Marie",
-      lastName: "Doe",
+      lastName: "Wainwright",
     });
-    expect(c.displayName).toBe("Jane Doe");
+    expect(c.displayName).toBe("Jane Wainwright");
   });
 
   it("falls back to splitting FN when N has no given name", () => {
-    const [c] = parseVCards(card("FN:Jane Q Doe"));
+    const [c] = parseVCards(card("FN:Jane Q Wainwright"));
     expect(c.name).toEqual({
       firstName: "Jane",
       middleName: null,
-      lastName: "Q Doe",
+      lastName: "Q Wainwright",
     });
   });
 
@@ -69,7 +71,7 @@ describe("parseVCards — contact methods", () => {
   it("maps EMAIL/TEL/ADR with TYPE labels", () => {
     const [c] = parseVCards(
       card(
-        "N:Doe;Jane;;;",
+        "N:Wainwright;Jane;;;",
         "EMAIL;TYPE=INTERNET,HOME:jane@home.example",
         "EMAIL;TYPE=WORK:jane@work.example",
         "TEL;TYPE=CELL:+1 555 100",
@@ -112,7 +114,7 @@ describe("parseVCards — contact methods", () => {
 
   it("drops a free-text ADR country rather than corrupting the ISO field", () => {
     const [c] = parseVCards(
-      card("FN:Jane Doe", "ADR:;;1 Main St;Town;;;United States"),
+      card("FN:Jane Wainwright", "ADR:;;1 Main St;Town;;;United States"),
     );
     expect(c.postals[0].country).toBeNull();
     expect(c.dropped).toContainEqual({
@@ -125,7 +127,7 @@ describe("parseVCards — contact methods", () => {
     // How Contacts exports every address: the name in `ADR`, the code beside it.
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.ADR;type=HOME;type=pref:;;723 Orchard Road;Avalon;PA;15202;United States",
         "item1.X-ABADR:us",
       ),
@@ -139,7 +141,7 @@ describe("parseVCards — contact methods", () => {
   it("pairs each address with the code from its own group", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.ADR:;;1 Main St;Town;;;United States",
         "item1.X-ABADR:us",
         "item2.ADR:;;2 High St;Ville;;;France",
@@ -152,7 +154,7 @@ describe("parseVCards — contact methods", () => {
   it("keeps an ADR's own code over a grouped one, and still drops neither", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.ADR:;;1 Main St;Town;;;GB",
         "item1.X-ABADR:us",
       ),
@@ -163,7 +165,7 @@ describe("parseVCards — contact methods", () => {
   it("reports the name when neither spelling yields a code", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.ADR:;;1 Main St;Town;;;United States",
         "item1.X-ABADR:usa",
       ),
@@ -178,22 +180,24 @@ describe("parseVCards — contact methods", () => {
 
 describe("parseVCards — birthday", () => {
   it("parses a full ISO BDAY", () => {
-    const [c] = parseVCards(card("FN:Jane Doe", "BDAY:1992-03-09"));
+    const [c] = parseVCards(card("FN:Jane Wainwright", "BDAY:1992-03-09"));
     expect(c.birthday).toEqual({ year: 1992, month: 3, day: 9 });
   });
 
   it("parses a v4 basic (no dashes) BDAY", () => {
-    const [c] = parseVCards(card("FN:Jane Doe", "BDAY:19920309"));
+    const [c] = parseVCards(card("FN:Jane Wainwright", "BDAY:19920309"));
     expect(c.birthday).toEqual({ year: 1992, month: 3, day: 9 });
   });
 
   it("parses a year-less --MM-DD partial", () => {
-    const [c] = parseVCards(card("FN:Jane Doe", "BDAY:--0309"));
+    const [c] = parseVCards(card("FN:Jane Wainwright", "BDAY:--0309"));
     expect(c.birthday).toEqual({ year: null, month: 3, day: 9 });
   });
 
   it("strips a time component", () => {
-    const [c] = parseVCards(card("FN:Jane Doe", "BDAY:1992-03-09T00:00:00Z"));
+    const [c] = parseVCards(
+      card("FN:Jane Wainwright", "BDAY:1992-03-09T00:00:00Z"),
+    );
     expect(c.birthday).toEqual({ year: 1992, month: 3, day: 9 });
   });
 
@@ -202,7 +206,7 @@ describe("parseVCards — birthday", () => {
     // the value, and the parameter says so. Believing it would file the person as
     // born in 1604.
     const [c] = parseVCards(
-      card("FN:Jane Doe", "BDAY;X-APPLE-OMIT-YEAR=1604:1604-03-09"),
+      card("FN:Jane Wainwright", "BDAY;X-APPLE-OMIT-YEAR=1604:1604-03-09"),
     );
     expect(c.birthday).toEqual({ year: null, month: 3, day: 9 });
   });
@@ -210,7 +214,7 @@ describe("parseVCards — birthday", () => {
   it("keeps a year the omit parameter does not name", () => {
     // Not Apple's convention, so the value is a year somebody meant.
     const [c] = parseVCards(
-      card("FN:Jane Doe", "BDAY;X-APPLE-OMIT-YEAR=1604:1992-03-09"),
+      card("FN:Jane Wainwright", "BDAY;X-APPLE-OMIT-YEAR=1604:1992-03-09"),
     );
     expect(c.birthday).toEqual({ year: 1992, month: 3, day: 9 });
   });
@@ -218,7 +222,9 @@ describe("parseVCards — birthday", () => {
 
 describe("parseVCards — anniversary", () => {
   it("parses an ANNIVERSARY onto the anniversary kind", () => {
-    const [c] = parseVCards(card("FN:Jane Doe", "ANNIVERSARY:2015-06-20"));
+    const [c] = parseVCards(
+      card("FN:Jane Wainwright", "ANNIVERSARY:2015-06-20"),
+    );
     expect(c.dates).toEqual([
       {
         kind: "anniversary",
@@ -234,12 +240,12 @@ describe("parseVCards — anniversary", () => {
   });
 
   it("accepts a year-less ANNIVERSARY", () => {
-    const [c] = parseVCards(card("FN:Jane Doe", "ANNIVERSARY:--0620"));
+    const [c] = parseVCards(card("FN:Jane Wainwright", "ANNIVERSARY:--0620"));
     expect(c.dates[0].date).toEqual({ year: null, month: 6, day: 20 });
   });
 
   it("surfaces an unparseable ANNIVERSARY as dropped", () => {
-    const [c] = parseVCards(card("FN:Jane Doe", "ANNIVERSARY:sometime"));
+    const [c] = parseVCards(card("FN:Jane Wainwright", "ANNIVERSARY:sometime"));
     expect(c.dates).toEqual([]);
     expect(c.dropped).toContainEqual({
       property: "ANNIVERSARY",
@@ -258,7 +264,7 @@ describe("parseVCards — Apple's custom labels", () => {
   it("reads a custom contact-method label out of the grouped X-ABLABEL", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.TEL:+1 555 100",
         "item1.X-ABLABEL:Mum's place",
         "item2.ADR:;;1 Beach Rd;Springfield;IL;62704;",
@@ -275,7 +281,7 @@ describe("parseVCards — Apple's custom labels", () => {
   it("unwraps an Apple label constant rather than showing the sentinel", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.TEL:+1 555 100",
         "item1.X-ABLABEL:_$!<Home>!$_",
       ),
@@ -286,7 +292,7 @@ describe("parseVCards — Apple's custom labels", () => {
   it("lets the grouped label win over a TYPE, as Contacts itself does", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.TEL;TYPE=HOME:+1 555 100",
         "item1.X-ABLABEL:Mum's place",
       ),
@@ -300,7 +306,7 @@ describe("parseVCards — Apple's labelled dates", () => {
     // Exactly how the Contacts app exports one, year and all.
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item2.X-ABDATE;type=pref:2015-06-20",
         "item2.X-ABLabel:_$!<Anniversary>!$_",
       ),
@@ -322,7 +328,7 @@ describe("parseVCards — Apple's labelled dates", () => {
   it("reads a year-less X-ABDATE, the shape iOS actually exports", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item2.X-ABDATE;X-APPLE-OMIT-YEAR=1604;type=pref:1604-07-17",
         "item2.X-ABLabel:_$!<Anniversary>!$_",
       ),
@@ -333,7 +339,7 @@ describe("parseVCards — Apple's labelled dates", () => {
   it("pairs a date with its label whichever order the two arrive in", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.X-ABLabel:_$!<Anniversary>!$_",
         "item1.X-ABDATE:2015-06-20",
       ),
@@ -344,7 +350,7 @@ describe("parseVCards — Apple's labelled dates", () => {
   it("mints a milestone from a label the map knows", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item3.X-ABDATE:2019-05-30",
         "item3.X-ABLabel:Graduation",
       ),
@@ -373,7 +379,7 @@ describe("parseVCards — Apple's labelled dates", () => {
   it("reads the two labels that are not their own slug", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.X-ABDATE:2019-05-30",
         "item1.X-ABLabel:Started a job",
         "item2.X-ABDATE:2011-02-14",
@@ -389,7 +395,7 @@ describe("parseVCards — Apple's labelled dates", () => {
   it("does not read a kind slug as a label", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.X-ABDATE:2019-05-30",
         "item1.X-ABLabel:job-start",
       ),
@@ -410,7 +416,7 @@ describe("parseVCards — Apple's labelled dates", () => {
   it("names a labelled date it has no kind for in dropped, rather than guessing", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item3.X-ABDATE:2019-05-30",
         "item3.X-ABLabel:Beach house closing",
       ),
@@ -423,7 +429,7 @@ describe("parseVCards — Apple's labelled dates", () => {
   });
 
   it("drops an X-ABDATE that no label says anything about", () => {
-    const [c] = parseVCards(card("FN:Jane Doe", "X-ABDATE:2019-05-30"));
+    const [c] = parseVCards(card("FN:Jane Wainwright", "X-ABDATE:2019-05-30"));
     expect(c.dates).toEqual([]);
     expect(c.dropped).toContainEqual({
       property: "X-ABDATE",
@@ -434,7 +440,7 @@ describe("parseVCards — Apple's labelled dates", () => {
   it("lets a birthday-labelled date fill the birthday, but never beat BDAY", () => {
     const onlyLabelled = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.X-ABDATE:1992-03-09",
         "item1.X-ABLabel:Birthday",
       ),
@@ -446,7 +452,7 @@ describe("parseVCards — Apple's labelled dates", () => {
     // The dedicated property wins even when it comes second in the card.
     const both = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.X-ABDATE:1970-01-01",
         "item1.X-ABLabel:Birthday",
         "BDAY:1992-03-09",
@@ -460,16 +466,16 @@ describe("parseVCards — social profiles", () => {
   it("reads an X-SOCIALPROFILE's service and handle", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
-        "X-SOCIALPROFILE;TYPE=instagram:https://www.instagram.com/janedoe",
+        "FN:Jane Wainwright",
+        "X-SOCIALPROFILE;TYPE=instagram:https://www.instagram.com/janewainwright",
       ),
     );
     expect(c.socials).toEqual([
       {
         label: "Instagram",
         platform: "instagram",
-        handle: "janedoe",
-        url: "https://www.instagram.com/janedoe",
+        handle: "janewainwright",
+        url: "https://www.instagram.com/janewainwright",
         platformUserId: null,
       },
     ]);
@@ -478,19 +484,19 @@ describe("parseVCards — social profiles", () => {
   it("resolves the service from X-SERVICE-TYPE, as Apple exports it", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
-        "X-SOCIALPROFILE;X-SERVICE-TYPE=Twitter:https://twitter.com/janedoe",
+        "FN:Jane Wainwright",
+        "X-SOCIALPROFILE;X-SERVICE-TYPE=Twitter:https://twitter.com/janewainwright",
       ),
     );
     // Twitter is an alias, so the row lands on the platform that still exists.
     expect(c.socials[0].platform).toBe("x");
-    expect(c.socials[0].handle).toBe("janedoe");
+    expect(c.socials[0].handle).toBe("janewainwright");
   });
 
   it("falls back to the host when nothing names the service", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "X-SOCIALPROFILE:https://bsky.app/profile/jane.example",
       ),
     );
@@ -499,10 +505,12 @@ describe("parseVCards — social profiles", () => {
   });
 
   it("takes an IMPP's service from its URI scheme", () => {
-    const [c] = parseVCards(card("FN:Jane Doe", "IMPP:telegram:janedoe"));
+    const [c] = parseVCards(
+      card("FN:Jane Wainwright", "IMPP:telegram:janewainwright"),
+    );
     expect(c.socials[0]).toMatchObject({
       platform: "telegram",
-      handle: "janedoe",
+      handle: "janewainwright",
       url: null,
     });
   });
@@ -510,7 +518,7 @@ describe("parseVCards — social profiles", () => {
   it("keeps a platform it has never heard of rather than dropping it", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "IMPP;X-SERVICE-TYPE=Matrix:matrix:@jane:example.org",
       ),
     );
@@ -523,29 +531,35 @@ describe("parseVCards — social profiles", () => {
 
   it("imports a URL only when its host names a platform", () => {
     const [social] = parseVCards(
-      card("FN:Jane Doe", "URL:https://www.linkedin.com/in/janedoe"),
+      card(
+        "FN:Jane Wainwright",
+        "URL:https://www.linkedin.com/in/janewainwright",
+      ),
     );
     expect(social.socials[0]).toMatchObject({
       platform: "linkedin",
-      handle: "janedoe",
+      handle: "janewainwright",
     });
 
     // A personal homepage is not a social profile, and guessing would turn
     // every card's website into a fake row.
     const [homepage] = parseVCards(
-      card("FN:Jane Doe", "URL:https://janedoe.example/blog"),
+      card("FN:Jane Wainwright", "URL:https://janewainwright.example/blog"),
     );
     expect(homepage.socials).toEqual([]);
     expect(homepage.dropped).toContainEqual({
       property: "URL",
-      value: "https://janedoe.example/blog",
+      value: "https://janewainwright.example/blog",
     });
   });
 
   it("surfaces a value naming no service at all as dropped", () => {
-    const [c] = parseVCards(card("FN:Jane Doe", "IMPP:janedoe"));
+    const [c] = parseVCards(card("FN:Jane Wainwright", "IMPP:janewainwright"));
     expect(c.socials).toEqual([]);
-    expect(c.dropped).toContainEqual({ property: "IMPP", value: "janedoe" });
+    expect(c.dropped).toContainEqual({
+      property: "IMPP",
+      value: "janewainwright",
+    });
   });
 });
 
@@ -559,7 +573,7 @@ describe("parseVCards — gender & dropped", () => {
 
   it("surfaces NOTE and ORG as dropped fields", () => {
     const [c] = parseVCards(
-      card("FN:Jane Doe", "ORG:Acme, Inc.", "NOTE:met at a wedding"),
+      card("FN:Jane Wainwright", "ORG:Acme, Inc.", "NOTE:met at a wedding"),
     );
     expect(c.dropped).toContainEqual({ property: "ORG", value: "Acme, Inc." });
     expect(c.dropped).toContainEqual({
@@ -570,7 +584,10 @@ describe("parseVCards — gender & dropped", () => {
 
   it("records a PHOTO's presence without its payload", () => {
     const [c] = parseVCards(
-      card("FN:Jane Doe", "PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRgABA"),
+      card(
+        "FN:Jane Wainwright",
+        "PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRgABA",
+      ),
     );
     expect(c.dropped).toContainEqual({
       property: "PHOTO",
@@ -588,21 +605,21 @@ describe("parseVCards — gender & dropped", () => {
 describe("parseVCards — card identity", () => {
   it("strips the urn:uuid: prefix from a UID", () => {
     const id = "9f1c4b3e-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
-    expect(parseVCards(card("FN:Jane Doe", `UID:urn:uuid:${id}`))[0].uid).toBe(
-      id,
-    );
+    expect(
+      parseVCards(card("FN:Jane Wainwright", `UID:urn:uuid:${id}`))[0].uid,
+    ).toBe(id);
   });
 
   it("keeps a UID that is not a urn, rather than refusing it", () => {
     // Google and Outlook both write a bare opaque string. It is still the id
     // that card's author gave it, and dropping it would lose the only handle we
     // have on "this is the same person as last time".
-    const [c] = parseVCards(card("FN:Jane Doe", "UID:abc123-not-a-urn"));
+    const [c] = parseVCards(card("FN:Jane Wainwright", "UID:abc123-not-a-urn"));
     expect(c.uid).toBe("abc123-not-a-urn");
   });
 
   it("reads KIND:x-pet whatever its casing, and anything else as a person", () => {
-    expect(parseVCards(card("FN:Rex", "KIND:X-Pet"))[0].kind).toBe("pet");
+    expect(parseVCards(card("FN:Jimmy", "KIND:X-Pet"))[0].kind).toBe("pet");
     expect(parseVCards(card("FN:A B", "KIND:individual"))[0].kind).toBe(
       "individual",
     );
@@ -613,21 +630,25 @@ describe("parseVCards — card identity", () => {
 
   it("reads CATEGORIES as tags, keeping an escaped comma inside one", () => {
     const [c] = parseVCards(
-      card("FN:Jane Doe", "CATEGORIES:Family,Smith\\, family,  Work  "),
+      card(
+        "FN:Jane Wainwright",
+        "CATEGORIES:Family,Martini\\, family,  Work  ",
+      ),
     );
-    expect(c.tags).toEqual(["Family", "Smith, family", "Work"]);
+    expect(c.tags).toEqual(["Family", "Martini, family", "Work"]);
   });
 
   it("drops an empty entry in a CATEGORIES list rather than minting a blank tag", () => {
     expect(
-      parseVCards(card("FN:Jane Doe", "CATEGORIES:Family,,Work"))[0].tags,
+      parseVCards(card("FN:Jane Wainwright", "CATEGORIES:Family,,Work"))[0]
+        .tags,
     ).toEqual(["Family", "Work"]);
   });
 
   it("reads REV and X-LEAPSAKE-CREATED as instants", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "REV:2026-09-07T12:00:00Z",
         "X-LEAPSAKE-CREATED:2024-03-09T01:35:00Z",
       ),
@@ -639,19 +660,20 @@ describe("parseVCards — card identity", () => {
   it("leaves an unparseable timestamp null instead of throwing", () => {
     // vCard 2.1 wrote `REV` in dialects `Date.parse` cannot read. One bad line
     // must never cost the whole card.
-    const [c] = parseVCards(card("FN:Jane Doe", "REV:not-a-date"));
+    const [c] = parseVCards(card("FN:Jane Wainwright", "REV:not-a-date"));
     expect(c.updatedAt).toBeNull();
-    expect(c.displayName).toBe("Jane Doe");
+    expect(c.displayName).toBe("Jane Wainwright");
   });
 
   it("reads X-LEAPSAKE-SELF only when it says TRUE", () => {
     expect(
-      parseVCards(card("FN:Jane Doe", "X-LEAPSAKE-SELF:true"))[0].isSelf,
+      parseVCards(card("FN:Jane Wainwright", "X-LEAPSAKE-SELF:true"))[0].isSelf,
     ).toBe(true);
     expect(
-      parseVCards(card("FN:Jane Doe", "X-LEAPSAKE-SELF:FALSE"))[0].isSelf,
+      parseVCards(card("FN:Jane Wainwright", "X-LEAPSAKE-SELF:FALSE"))[0]
+        .isSelf,
     ).toBe(false);
-    expect(parseVCards(card("FN:Jane Doe"))[0].isSelf).toBe(false);
+    expect(parseVCards(card("FN:Jane Wainwright"))[0].isSelf).toBe(false);
   });
 
   /**
@@ -664,7 +686,7 @@ describe("parseVCards — card identity", () => {
   it("surfaces none of the identity properties as dropped", () => {
     const [c] = parseVCards(
       card(
-        "FN:Rex",
+        "FN:Jimmy",
         "UID:urn:uuid:9f1c4b3e-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
         "KIND:x-pet",
         "REV:2026-09-07T12:00:00Z",
@@ -681,7 +703,7 @@ describe("parseVCards — the X-LEAPSAKE parameters", () => {
   it("reads a phone's extension and ISO country", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "TEL;TYPE=WORK;X-LEAPSAKE-EXT=4021;X-LEAPSAKE-COUNTRY=GB:+44 20 7946 0018",
       ),
     );
@@ -693,7 +715,7 @@ describe("parseVCards — the X-LEAPSAKE parameters", () => {
     // A standard `TEL` has nowhere to put an extension or a country, so absent
     // is the honest answer rather than a guess parsed out of the number.
     const [c] = parseVCards(
-      card("FN:Jane Doe", "TEL;TYPE=WORK:+44 20 7946 0018"),
+      card("FN:Jane Wainwright", "TEL;TYPE=WORK:+44 20 7946 0018"),
     );
     expect(c.phones[0].extension).toBeNull();
     expect(c.phones[0].country).toBeNull();
@@ -702,8 +724,8 @@ describe("parseVCards — the X-LEAPSAKE parameters", () => {
   it("reads a social profile's opaque platform user id", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
-        "X-SOCIALPROFILE;X-SERVICE-TYPE=x;X-LEAPSAKE-USERID=1442901:https://x.com/janedoe",
+        "FN:Jane Wainwright",
+        "X-SOCIALPROFILE;X-SERVICE-TYPE=x;X-LEAPSAKE-USERID=1442901:https://x.com/janewainwright",
       ),
     );
     expect(c.socials[0].platformUserId).toBe("1442901");
@@ -720,7 +742,7 @@ describe("parseVCards — the milestone parameters", () => {
   it("takes the kind from the parameter, not from the label", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=wedding:2011-06-18",
         "item1.X-ABLABEL:Wedding",
       ),
@@ -741,7 +763,7 @@ describe("parseVCards — the milestone parameters", () => {
   it("reads a milestone's note, its id and the relationship bearing it", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         [
           "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=wedding",
           "X-LEAPSAKE-MILESTONE-ID=aaaaaaaa-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
@@ -768,7 +790,7 @@ describe("parseVCards — the milestone parameters", () => {
   it("keeps a birthday-kind date apart from BDAY when the parameter says so", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "BDAY:1992-03-09",
         "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=birthday:1992-03-10",
         "item1.X-ABLABEL:Birthday",
@@ -790,7 +812,7 @@ describe("parseVCards — the milestone parameters", () => {
   it("still collapses a foreign card's duplicate birthday to one", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "BDAY:1992-03-09",
         "item1.X-ABDATE:1992-03-09",
         "item1.X-ABLABEL:Birthday",
@@ -803,7 +825,7 @@ describe("parseVCards — the milestone parameters", () => {
   it("recovers an other-kind note from the label, but not the bare word Other", () => {
     const [noted] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=other:2024-09-01",
         "item1.X-ABLABEL:Beach house closing",
       ),
@@ -818,7 +840,7 @@ describe("parseVCards — the milestone parameters", () => {
     // would invent a note the user never typed.
     const [bare] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=other:2024-09-01",
         "item1.X-ABLABEL:Other",
       ),
@@ -829,7 +851,7 @@ describe("parseVCards — the milestone parameters", () => {
   it("names a date from its kind when the card carries no label", () => {
     const [c] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=graduation:2019-05-30",
       ),
     );
@@ -849,7 +871,7 @@ describe("parseVCards — the milestone parameters", () => {
   it("falls back to the label when the kind is one we have never heard of", () => {
     const [known] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=housewarming:2015-06-20",
         "item1.X-ABLABEL:Anniversary",
       ),
@@ -858,7 +880,7 @@ describe("parseVCards — the milestone parameters", () => {
 
     const [unknown] = parseVCards(
       card(
-        "FN:Jane Doe",
+        "FN:Jane Wainwright",
         "item1.X-ABDATE;X-LEAPSAKE-MILESTONE-KIND=housewarming:2015-06-20",
         "item1.X-ABLABEL:Housewarming",
       ),
@@ -873,17 +895,17 @@ describe("parseVCards — the milestone parameters", () => {
 
 describe("parseVCards — format handling", () => {
   it("parses multiple cards in one file", () => {
-    const text = `${card("FN:Jane Doe")}\r\n${card("FN:John Roe")}`;
+    const text = `${card("FN:Jane Wainwright")}\r\n${card("FN:Sam Bailey")}`;
     const contacts = parseVCards(text);
     expect(contacts.map((c) => c.displayName)).toEqual([
-      "Jane Doe",
-      "John Roe",
+      "Jane Wainwright",
+      "Sam Bailey",
     ]);
   });
 
   it("un-folds continuation lines", () => {
     const [c] = parseVCards(
-      card("FN:Jane Doe", "NOTE:this note is very\r\n  long and folded"),
+      card("FN:Jane Wainwright", "NOTE:this note is very\r\n  long and folded"),
     );
     expect(c.dropped).toContainEqual({
       property: "NOTE",
@@ -892,7 +914,7 @@ describe("parseVCards — format handling", () => {
   });
 
   it("un-escapes escaped commas, semicolons and newlines in values", () => {
-    const [c] = parseVCards(card("FN:Jane Doe", "NOTE:a\\, b\\; c\\nd"));
+    const [c] = parseVCards(card("FN:Jane Wainwright", "NOTE:a\\, b\\; c\\nd"));
     expect(c.dropped).toContainEqual({
       property: "NOTE",
       value: "a, b; c\nd",
@@ -901,14 +923,17 @@ describe("parseVCards — format handling", () => {
 
   it("strips a group prefix from a property name", () => {
     const [c] = parseVCards(
-      card("FN:Jane Doe", "item1.EMAIL;TYPE=WORK:j@x.com"),
+      card("FN:Jane Wainwright", "item1.EMAIL;TYPE=WORK:j@x.com"),
     );
     expect(c.emails).toEqual([{ label: "Work", address: "j@x.com" }]);
   });
 
   it("handles a quoted parameter value containing a colon", () => {
     const [c] = parseVCards(
-      card("FN:Jane Doe", 'EMAIL;LABEL="a:b";TYPE=HOME:jane@home.example'),
+      card(
+        "FN:Jane Wainwright",
+        'EMAIL;LABEL="a:b";TYPE=HOME:jane@home.example',
+      ),
     );
     expect(c.emails).toEqual([{ label: "Home", address: "jane@home.example" }]);
   });
@@ -921,21 +946,21 @@ describe("parseVCards — RELATED", () => {
   it("maps a kinship TYPE to its role", () => {
     const [c] = parseVCards(
       card(
-        "FN:Sam Carter",
-        "RELATED;TYPE=spouse;VALUE=text:Jen Davis",
-        "RELATED;TYPE=child;VALUE=text:Ben",
+        "FN:Ernie Bishop",
+        "RELATED;TYPE=spouse;VALUE=text:Ruth Dakin",
+        "RELATED;TYPE=child;VALUE=text:Pete",
       ),
     );
     expect(c.related).toEqual([
       {
-        name: "Jen Davis",
+        name: "Ruth Dakin",
         role: "spouse",
         roleNote: null,
         otherUid: null,
         relationshipId: null,
       },
       {
-        name: "Ben",
+        name: "Pete",
         role: "child",
         roleNote: null,
         otherUid: null,
@@ -947,9 +972,9 @@ describe("parseVCards — RELATED", () => {
   it("maps both spellings of a colleague", () => {
     const [c] = parseVCards(
       card(
-        "FN:Sam Carter",
-        "RELATED;TYPE=co-worker;VALUE=text:Ada",
-        "RELATED;TYPE=colleague;VALUE=text:Grace",
+        "FN:Ernie Bishop",
+        "RELATED;TYPE=co-worker;VALUE=text:Mary",
+        "RELATED;TYPE=colleague;VALUE=text:Henry",
       ),
     );
     expect(c.related.map((r) => r.role)).toEqual(["coworker", "coworker"]);
@@ -960,11 +985,11 @@ describe("parseVCards — RELATED", () => {
   // row than in the bin.
   it("keeps an unmapped TYPE as the note on an `other` role", () => {
     const [c] = parseVCards(
-      card("FN:Sam Carter", "RELATED;TYPE=muse;VALUE=text:Ada"),
+      card("FN:Ernie Bishop", "RELATED;TYPE=muse;VALUE=text:Mary"),
     );
     expect(c.related).toEqual([
       {
-        name: "Ada",
+        name: "Mary",
         role: "other",
         roleNote: "muse",
         otherUid: null,
@@ -974,10 +999,10 @@ describe("parseVCards — RELATED", () => {
   });
 
   it("falls back to a bare `related` note when the card gives no TYPE", () => {
-    const [c] = parseVCards(card("FN:Sam Carter", "RELATED;VALUE=text:Ada"));
+    const [c] = parseVCards(card("FN:Ernie Bishop", "RELATED;VALUE=text:Mary"));
     expect(c.related).toEqual([
       {
-        name: "Ada",
+        name: "Mary",
         role: "other",
         roleNote: "related",
         otherUid: null,
@@ -992,7 +1017,7 @@ describe("parseVCards — RELATED", () => {
   it("drops a reference to a card the file does not contain", () => {
     const [c] = parseVCards(
       card(
-        "FN:Sam Carter",
+        "FN:Ernie Bishop",
         "RELATED;TYPE=friend:urn:uuid:03a0e51f-d1aa-4385-8a53-e29025acd8af",
       ),
     );
@@ -1005,31 +1030,31 @@ describe("parseVCards — RELATED", () => {
 
   it("resolves a reference to a card that is here, taking its name", () => {
     const uid = "03a0e51f-d1aa-4385-8a53-e29025acd8af";
-    const [sam, ada] = parseVCards(
+    const [ernie, mary] = parseVCards(
       [
-        card("FN:Sam Carter", `RELATED;TYPE=friend:urn:uuid:${uid}`),
-        card(`UID:urn:uuid:${uid}`, "FN:Ada Lovelace"),
+        card("FN:Ernie Bishop", `RELATED;TYPE=friend:urn:uuid:${uid}`),
+        card(`UID:urn:uuid:${uid}`, "FN:Mary Bailey"),
       ].join("\r\n"),
     );
-    // The name is not on the `RELATED` line at all — it comes from Ada's card.
-    expect(sam.related).toEqual([
+    // The name is not on the `RELATED` line at all — it comes from Mary's card.
+    expect(ernie.related).toEqual([
       {
-        name: "Ada Lovelace",
+        name: "Mary Bailey",
         role: "friend",
         roleNote: null,
         otherUid: uid,
         relationshipId: null,
       },
     ]);
-    expect(sam.dropped).toEqual([]);
-    expect(ada.uid).toBe(uid);
+    expect(ernie.dropped).toEqual([]);
+    expect(mary.uid).toBe(uid);
   });
 
   it("reads the exact role from X-LEAPSAKE-ROLE over the standard TYPE", () => {
     const [c] = parseVCards(
       card(
-        "FN:Sam Carter",
-        "RELATED;TYPE=parent;X-LEAPSAKE-ROLE=mother;VALUE=text:Ada",
+        "FN:Ernie Bishop",
+        "RELATED;TYPE=parent;X-LEAPSAKE-ROLE=mother;VALUE=text:Mary",
       ),
     );
     expect(c.related[0]).toMatchObject({ role: "mother", roleNote: null });
@@ -1040,8 +1065,8 @@ describe("parseVCards — RELATED", () => {
     // is better than refusing the row or coercing it to something invalid.
     const [c] = parseVCards(
       card(
-        "FN:Sam Carter",
-        "RELATED;TYPE=parent;X-LEAPSAKE-ROLE=grand-vizier;VALUE=text:Ada",
+        "FN:Ernie Bishop",
+        "RELATED;TYPE=parent;X-LEAPSAKE-ROLE=grand-vizier;VALUE=text:Mary",
       ),
     );
     expect(c.related[0]).toMatchObject({ role: "parent" });
@@ -1050,8 +1075,8 @@ describe("parseVCards — RELATED", () => {
   it("reads the edge id so an importer can pair the two halves", () => {
     const [c] = parseVCards(
       card(
-        "FN:Sam Carter",
-        "RELATED;X-LEAPSAKE-ROLE=spouse;X-LEAPSAKE-REL-ID=edge-1;VALUE=text:Ada",
+        "FN:Ernie Bishop",
+        "RELATED;X-LEAPSAKE-ROLE=spouse;X-LEAPSAKE-REL-ID=edge-1;VALUE=text:Mary",
       ),
     );
     expect(c.related[0].relationshipId).toBe("edge-1");
@@ -1059,7 +1084,7 @@ describe("parseVCards — RELATED", () => {
 
   it("drops a mailto: reference too", () => {
     const [c] = parseVCards(
-      card("FN:Sam Carter", "RELATED;TYPE=friend:mailto:ada@example.com"),
+      card("FN:Ernie Bishop", "RELATED;TYPE=friend:mailto:mary@example.com"),
     );
     expect(c.related).toEqual([]);
     expect(c.dropped.map((d) => d.property)).toContain("RELATED");
@@ -1067,7 +1092,7 @@ describe("parseVCards — RELATED", () => {
 
   it("no longer lists a handled RELATED as dropped", () => {
     const [c] = parseVCards(
-      card("FN:Sam Carter", "RELATED;TYPE=spouse;VALUE=text:Jen"),
+      card("FN:Ernie Bishop", "RELATED;TYPE=spouse;VALUE=text:Ruth"),
     );
     expect(c.dropped).toEqual([]);
   });

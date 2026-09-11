@@ -74,7 +74,7 @@ function makeHarness() {
 const spouse: UndatedPartnership = {
   relationshipId: "r1",
   kind: "wedding",
-  partnerLabel: "Alice",
+  partnerLabel: "Violet",
   partnerType: "person",
   partnerId: "p1",
 };
@@ -94,7 +94,7 @@ describe("the partnership question", () => {
     await regenerateSystemReminders(h.deps);
 
     expect(h.live()[0].title).toBe(
-      "💍 When is your wedding anniversary with @[Alice](person:p1)?",
+      "💍 When is your wedding anniversary with @[Violet](person:p1)?",
     );
   });
 
@@ -105,7 +105,7 @@ describe("the partnership question", () => {
     await regenerateSystemReminders(h.deps);
 
     expect(h.live()[0].title).toBe(
-      "💞 When was your first date with @[Alice](person:p1)?",
+      "💞 When was your first date with @[Violet](person:p1)?",
     );
   });
 

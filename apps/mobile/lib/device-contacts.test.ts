@@ -25,8 +25,8 @@ describe("deviceContactToParsed", () => {
       device({
         givenName: "Jane",
         middleName: "Q",
-        familyName: "Doe",
-        fullName: "Jane Q Doe",
+        familyName: "Wainwright",
+        fullName: "Jane Q Wainwright",
         emails: [{ id: "1", label: "work", address: "jane@example.com" }],
         phones: [{ id: "2", label: "mobile", number: "+15551234567" }],
       }),
@@ -35,9 +35,9 @@ describe("deviceContactToParsed", () => {
     expect(parsed.name).toEqual({
       firstName: "Jane",
       middleName: "Q",
-      lastName: "Doe",
+      lastName: "Wainwright",
     });
-    expect(parsed.displayName).toBe("Jane Q Doe");
+    expect(parsed.displayName).toBe("Jane Q Wainwright");
     expect(parsed.gender).toBeNull();
     expect(parsed.emails).toEqual([
       { label: "work", address: "jane@example.com" },

@@ -29,7 +29,7 @@
 
 /** The fields the scorer compares for one person; the caller folds/normalizes. */
 export interface DuplicateInput {
-  /** Display name (e.g. "Jane Doe"), used only to render reason text. */
+  /** Display name (e.g. "Jane Wainwright"), used only to render reason text. */
   name: string;
   /** Folded name — `fold(first + " " + last)`. The match key; empty never matches. */
   foldedName: string;

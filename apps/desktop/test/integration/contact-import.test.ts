@@ -36,8 +36,8 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
     isSelf: false,
     createdAt: null,
     updatedAt: null,
-    name: { firstName: "Jane", middleName: null, lastName: "Doe" },
-    displayName: "Jane Doe",
+    name: { firstName: "Jane", middleName: null, lastName: "Wainwright" },
+    displayName: "Jane Wainwright",
     gender: null,
     emails: [],
     phones: [],
@@ -55,7 +55,7 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
 /** One `RELATED` a card names, with the fields only our own writer fills. */
 function related(over: Partial<ParsedRelated> = {}): ParsedRelated {
   return {
-    name: "Jen Davis",
+    name: "Ruth Dakin",
     role: "spouse",
     roleNote: null,
     otherUid: null,
@@ -70,7 +70,7 @@ describe("core.import.commit", () => {
       {
         action: "create",
         contact: contact({
-          name: { firstName: "Jane", middleName: "M", lastName: "Doe" },
+          name: { firstName: "Jane", middleName: "M", lastName: "Wainwright" },
           gender: "female",
           emails: [{ label: "Home", address: "jane@home.example" }],
           phones: [
@@ -148,14 +148,14 @@ describe("core.import.commit", () => {
       {
         action: "create",
         contact: contact({
-          name: { firstName: "Cher", middleName: null, lastName: "" },
+          name: { firstName: "Zuzu", middleName: null, lastName: "" },
         }),
       },
     ]);
     expect(result).toMatchObject({ created: 1, errors: [] });
 
     const [person] = await core.people.list();
-    expect(person.firstName).toBe("Cher");
+    expect(person.firstName).toBe("Zuzu");
     expect(person.lastName).toBeNull();
   });
 
@@ -213,11 +213,11 @@ describe("core.import.commit — contacts read from the phone", () => {
 
 describe("core.import.preview", () => {
   it("flags a parsed contact that matches an existing person", async () => {
-    await core.people.create({ firstName: "Jane", lastName: "Doe" }, []);
+    await core.people.create({ firstName: "Jane", lastName: "Wainwright" }, []);
 
     const rows = await core.import.preview([
       contact({
-        name: { firstName: "Jane", middleName: null, lastName: "Doe" },
+        name: { firstName: "Jane", middleName: null, lastName: "Wainwright" },
       }),
       contact({
         name: { firstName: "Nobody", middleName: null, lastName: "New" },
@@ -226,8 +226,8 @@ describe("core.import.preview", () => {
 
     expect(rows[0].index).toBe(0);
     expect(rows[0].matches).toHaveLength(1);
-    expect(rows[0].matches[0].name).toBe("Jane Doe");
-    expect(rows[0].matches[0].reasons).toContain('Same name "Jane Doe"');
+    expect(rows[0].matches[0].name).toBe("Jane Wainwright");
+    expect(rows[0].matches[0].reasons).toContain('Same name "Jane Wainwright"');
     expect(rows[1].matches).toHaveLength(0);
   });
 
@@ -239,7 +239,7 @@ describe("core.import.preview", () => {
    */
   it("reports a card whose UID names a stored person as already stored", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
 
@@ -248,22 +248,26 @@ describe("core.import.preview", () => {
     expect(row.alreadyStored).toEqual({
       type: "person",
       id: jane.id,
-      name: "Jane Doe",
+      name: "Jane Wainwright",
     });
   });
 
   it("reports a pet card too, which the duplicate detector cannot", async () => {
-    const rex = await core.pets.create({ name: "Rex" }, []);
+    const jimmy = await core.pets.create({ name: "Jimmy" }, []);
 
     const [row] = await core.import.preview([
       contact({
-        uid: rex.id,
+        uid: jimmy.id,
         kind: "pet",
-        name: { firstName: "Rex", middleName: null, lastName: "" },
+        name: { firstName: "Jimmy", middleName: null, lastName: "" },
       }),
     ]);
 
-    expect(row.alreadyStored).toEqual({ type: "pet", id: rex.id, name: "Rex" });
+    expect(row.alreadyStored).toEqual({
+      type: "pet",
+      id: jimmy.id,
+      name: "Jimmy",
+    });
   });
 
   it("reports nothing for a foreign card, or one naming an id we do not hold", async () => {
@@ -281,7 +285,7 @@ describe("core.import.preview", () => {
     // new, not clash with their tombstone — which is what `get` filtering
     // soft-deleted rows buys, stated here so it is not "fixed" later.
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
     await core.people.softDelete(jane.id);
@@ -303,19 +307,19 @@ describe("core.import.commit — pets, tags and the self claim", () => {
         action: "create",
         contact: contact({
           kind: "pet",
-          name: { firstName: "Rex", middleName: null, lastName: "" },
-          displayName: "Rex",
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
+          displayName: "Jimmy",
         }),
       },
     ]);
 
     const pets = await core.pets.list();
-    expect(pets.map((p) => p.name)).toEqual(["Rex"]);
+    expect(pets.map((p) => p.name)).toEqual(["Jimmy"]);
     expect(await core.people.list()).toHaveLength(0);
   });
 
   it("names a pet from the surname slot when that is all the card filled", async () => {
-    // `N:Rex;;;;` with no given name — not what our writer produces, but what
+    // `N:Jimmy;;;;` with no given name — not what our writer produces, but what
     // `deriveName` yields for a hand-made card, and `petSchema` would otherwise
     // refuse it mid-batch for having an empty name.
     const result = await core.import.commit([
@@ -323,14 +327,14 @@ describe("core.import.commit — pets, tags and the self claim", () => {
         action: "create",
         contact: contact({
           kind: "pet",
-          name: { firstName: "", middleName: null, lastName: "Rex" },
-          displayName: "Rex",
+          name: { firstName: "", middleName: null, lastName: "Jimmy" },
+          displayName: "Jimmy",
         }),
       },
     ]);
 
     expect(result).toMatchObject({ created: 1, errors: [] });
-    expect((await core.pets.list()).map((p) => p.name)).toEqual(["Rex"]);
+    expect((await core.pets.list()).map((p) => p.name)).toEqual(["Jimmy"]);
   });
 
   it("applies a card's CATEGORIES as tags, on a person and on a pet alike", async () => {
@@ -340,7 +344,7 @@ describe("core.import.commit — pets, tags and the self claim", () => {
         action: "create",
         contact: contact({
           kind: "pet",
-          name: { firstName: "Rex", middleName: null, lastName: "" },
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
           tags: ["Pets"],
         }),
       },
@@ -390,8 +394,8 @@ describe("core.import.commit — pets, tags and the self claim", () => {
             {
               label: "Personal",
               platform: "x",
-              handle: "janedoe",
-              url: "https://x.com/janedoe",
+              handle: "janewainwright",
+              url: "https://x.com/janewainwright",
               platformUserId: "1442901",
             },
           ],
@@ -431,24 +435,24 @@ describe("core.import.commit — named relations", () => {
       {
         action: "create",
         contact: contact({
-          name: { firstName: "Sam", middleName: null, lastName: "Carter" },
-          related: [related({ name: "Jen Davis", role: "spouse" })],
+          name: { firstName: "Ernie", middleName: null, lastName: "Bishop" },
+          related: [related({ name: "Ruth Dakin", role: "spouse" })],
         }),
       },
     ]);
 
-    // Only Sam is in the catalog.
+    // Only Ernie is in the catalog.
     const listed = await core.people.list();
-    expect(listed.map((p) => p.firstName)).toEqual(["Sam"]);
+    expect(listed.map((p) => p.firstName)).toEqual(["Ernie"]);
 
-    // Jen is on his page, as the one edge that is her whole existence.
+    // Ruth is on his page, as the one edge that is her whole existence.
     const neighbors = await core.relationships.listForEntity(
       "person",
       listed[0].id,
     );
     expect(neighbors).toHaveLength(1);
     expect(neighbors[0]).toMatchObject({
-      otherLabel: "Jen Davis",
+      otherLabel: "Ruth Dakin",
       otherStanding: "unpublished",
       otherRole: "spouse",
     });
@@ -459,7 +463,7 @@ describe("core.import.commit — named relations", () => {
       {
         action: "create",
         contact: contact({
-          related: [related({ name: "Ada", role: "other", roleNote: "muse" })],
+          related: [related({ name: "Mary", role: "other", roleNote: "muse" })],
         }),
       },
     ]);
@@ -475,8 +479,8 @@ describe("core.import.commit — named relations", () => {
         action: "create",
         contact: contact({
           related: [
-            related({ name: "Jen Davis", role: "spouse" }),
-            related({ name: "Ben", role: "child" }),
+            related({ name: "Ruth Dakin", role: "spouse" }),
+            related({ name: "Pete", role: "child" }),
           ],
         }),
       },
@@ -507,7 +511,7 @@ describe("core.import.commit — edges between two cards", () => {
         uid: JANE,
         related: [
           related({
-            name: "Ben Doe",
+            name: "Pete Wainwright",
             role: "son",
             otherUid: BEN,
             relationshipId: EDGE,
@@ -519,11 +523,11 @@ describe("core.import.commit — edges between two cards", () => {
       action: "create" as const,
       contact: contact({
         uid: BEN,
-        name: { firstName: "Ben", middleName: null, lastName: "Doe" },
-        displayName: "Ben Doe",
+        name: { firstName: "Pete", middleName: null, lastName: "Wainwright" },
+        displayName: "Pete Wainwright",
         related: [
           related({
-            name: "Jane Doe",
+            name: "Jane Wainwright",
             role: "mother",
             otherUid: JANE,
             relationshipId: EDGE,
@@ -539,14 +543,14 @@ describe("core.import.commit — edges between two cards", () => {
 
     // Two people, both in the catalog — not one person and one stub.
     const listed = await core.people.list();
-    expect(listed.map((p) => p.firstName).sort()).toEqual(["Ben", "Jane"]);
+    expect(listed.map((p) => p.firstName).sort()).toEqual(["Jane", "Pete"]);
 
     // One edge, seen from both ends — the shared `X-LEAPSAKE-REL-ID` is what
     // stops the reciprocal half becoming a second relationship.
     const jane = listed.find((p) => p.firstName === "Jane")!;
-    const ben = listed.find((p) => p.firstName === "Ben")!;
+    const pete = listed.find((p) => p.firstName === "Pete")!;
     const fromJane = await core.relationships.listForEntity("person", jane.id);
-    const fromBen = await core.relationships.listForEntity("person", ben.id);
+    const fromBen = await core.relationships.listForEntity("person", pete.id);
     expect(fromJane).toHaveLength(1);
     expect(fromBen).toHaveLength(1);
     expect(fromJane[0].relationshipId).toBe(fromBen[0].relationshipId);
@@ -562,7 +566,7 @@ describe("core.import.commit — edges between two cards", () => {
     const jane = listed.find((p) => p.firstName === "Jane")!;
     const [edge] = await core.relationships.listForEntity("person", jane.id);
     expect(edge).toMatchObject({
-      otherLabel: "Ben Doe",
+      otherLabel: "Pete Wainwright",
       otherStanding: "published",
       otherRole: "son",
     });
@@ -584,7 +588,7 @@ describe("core.import.commit — edges between two cards", () => {
       listed[0].id,
     );
     expect(edge).toMatchObject({
-      otherLabel: "Ben Doe",
+      otherLabel: "Pete Wainwright",
       otherStanding: "unpublished",
       otherRole: "son",
     });
@@ -596,18 +600,18 @@ describe("core.import.commit — edges between two cards", () => {
    * refused the row and the **whole pet card** failed to import.
    */
   it("writes a pet's own relations against the pet, not against a person", async () => {
-    const REX = "cccccccc-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+    const JIMMY = "cccccccc-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
     const result = await core.import.commit([
       {
         action: "create",
         contact: contact({
-          uid: REX,
+          uid: JIMMY,
           kind: "pet",
-          name: { firstName: "Rex", middleName: null, lastName: "" },
-          displayName: "Rex",
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
+          displayName: "Jimmy",
           related: [
-            related({ name: "Jane Doe", role: "owner", otherUid: JANE }),
-            related({ name: "Sam Vet", role: "other", roleNote: "vet" }),
+            related({ name: "Jane Wainwright", role: "owner", otherUid: JANE }),
+            related({ name: "Ernie Vet", role: "other", roleNote: "vet" }),
           ],
         }),
       },
@@ -615,14 +619,14 @@ describe("core.import.commit — edges between two cards", () => {
     ]);
     expect(result).toMatchObject({ created: 2, errors: [] });
 
-    const [rex] = await core.pets.list();
-    const edges = await core.relationships.listForEntity("pet", rex.id);
+    const [jimmy] = await core.pets.list();
+    const edges = await core.relationships.listForEntity("pet", jimmy.id);
     expect(edges).toHaveLength(2);
     expect(edges.map((e) => e.otherRole).sort()).toEqual(["other", "owner"]);
     // The owner is the real published person, not a second stub of her.
     const owner = edges.find((e) => e.otherRole === "owner")!;
     expect(owner).toMatchObject({
-      otherLabel: "Jane Doe",
+      otherLabel: "Jane Wainwright",
       otherStanding: "published",
     });
   });
@@ -655,7 +659,11 @@ describe("core.import.commit — milestones", () => {
       contact: contact({
         uid: JANE,
         related: [
-          related({ name: "Ben Doe", otherUid: BEN, relationshipId: EDGE }),
+          related({
+            name: "Pete Wainwright",
+            otherUid: BEN,
+            relationshipId: EDGE,
+          }),
         ],
         dates: [wedding()],
       }),
@@ -664,10 +672,14 @@ describe("core.import.commit — milestones", () => {
       action: "create" as const,
       contact: contact({
         uid: BEN,
-        name: { firstName: "Ben", middleName: null, lastName: "Doe" },
-        displayName: "Ben Doe",
+        name: { firstName: "Pete", middleName: null, lastName: "Wainwright" },
+        displayName: "Pete Wainwright",
         related: [
-          related({ name: "Jane Doe", otherUid: JANE, relationshipId: EDGE }),
+          related({
+            name: "Jane Wainwright",
+            otherUid: JANE,
+            relationshipId: EDGE,
+          }),
         ],
         dates: [wedding()],
       }),
@@ -699,16 +711,16 @@ describe("core.import.commit — milestones", () => {
     // back verbatim is a restore (`plans/export.md` → 6).
     expect(onEdge[0].id).not.toBe(WEDDING);
 
-    const ben = listed.find((p) => p.firstName === "Ben")!;
+    const pete = listed.find((p) => p.firstName === "Pete")!;
     expect(await core.milestones.listForBearer("person", jane.id)).toEqual([]);
-    expect(await core.milestones.listForBearer("person", ben.id)).toEqual([]);
+    expect(await core.milestones.listForBearer("person", pete.id)).toEqual([]);
   });
 
   it("keeps the wedding on the person when the other card was skipped", async () => {
-    const [jane, ben] = spouses();
+    const [jane, pete] = spouses();
     const result = await core.import.commit([
       jane,
-      { ...ben, action: "skip" as const },
+      { ...pete, action: "skip" as const },
     ]);
     expect(result).toMatchObject({ created: 1, errors: [] });
 
@@ -734,20 +746,20 @@ describe("core.import.commit — milestones", () => {
         action: "create",
         contact: contact({
           kind: "pet",
-          name: { firstName: "Rex", middleName: null, lastName: "" },
-          displayName: "Rex",
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
+          displayName: "Jimmy",
           birthday: { year: 2019, month: 4, day: 2 },
         }),
       },
     ]);
 
-    const [rex] = await core.pets.list();
-    const onPet = await core.milestones.listForBearer("pet", rex.id);
+    const [jimmy] = await core.pets.list();
+    const onPet = await core.milestones.listForBearer("pet", jimmy.id);
     expect(onPet).toHaveLength(1);
     expect(onPet[0]).toMatchObject({ kind: "birthday", year: 2019 });
     // The shape of the old bug: the row used to be here instead, aimed at an id
     // no person has.
-    expect(await core.milestones.listForBearer("person", rex.id)).toEqual([]);
+    expect(await core.milestones.listForBearer("person", jimmy.id)).toEqual([]);
   });
 
   it("carries an other-kind milestone's note, which is its whole label", async () => {

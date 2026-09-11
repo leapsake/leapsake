@@ -44,21 +44,21 @@ async function makePet(name: string): Promise<string> {
 describe("core.gifts.ideas", () => {
   it("creates, lists, updates, and removes a gift idea", async () => {
     const idea = await core.gifts.ideas.create({
-      title: "Red Ryder BB Gun",
-      url: "https://example.com/bb-gun",
+      title: "The Adventures of Tom Sawyer",
+      url: "https://example.com/tom-sawyer",
     });
     expect(await core.gifts.ideas.get(idea.id)).toMatchObject({
-      title: "Red Ryder BB Gun",
-      url: "https://example.com/bb-gun",
+      title: "The Adventures of Tom Sawyer",
+      url: "https://example.com/tom-sawyer",
       notes: null,
     });
 
     const renamed = await core.gifts.ideas.update(idea.id, {
-      title: "BB Gun",
+      title: "Tom Sawyer",
       notes: "the 200-shot model",
     });
     expect(renamed).toMatchObject({
-      title: "BB Gun",
+      title: "Tom Sawyer",
       notes: "the 200-shot model",
     });
 
@@ -80,40 +80,40 @@ describe("core.gifts.ideas", () => {
   });
 
   it("attaches recipients in the same call that mints the idea", async () => {
-    const alice = await makePerson("Alice");
+    const violet = await makePerson("Violet");
     const rufus = await makePet("Rufus");
 
     const idea = await core.gifts.ideas.create({
       title: "Tennis balls",
       recipients: [
-        { party: { type: "person", id: alice } },
+        { party: { type: "person", id: violet } },
         { party: { type: "pet", id: rufus }, given: true },
       ],
     });
 
     const links = await core.gifts.recipients.listForIdea(idea.id);
     expect(links.map((l) => l.recipientLabel).sort()).toEqual([
-      "Alice X",
       "Rufus",
+      "Violet X",
     ]);
     expect(links.find((l) => l.recipientId === rufus)?.givenAt).not.toBeNull();
-    expect(links.find((l) => l.recipientId === alice)?.givenAt).toBeNull();
+    expect(links.find((l) => l.recipientId === violet)?.givenAt).toBeNull();
   });
 });
 
 describe("core.gifts.recipients", () => {
   it("joins a party's links with the idea's title and url", async () => {
-    const alice = await makePerson("Alice");
+    const violet = await makePerson("Violet");
     const idea = await core.gifts.ideas.create({
       title: "Kite",
       url: "https://kites.example",
     });
     await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: alice },
+      party: { type: "person", id: violet },
     });
 
-    const rows = await core.gifts.recipients.listForRecipient("person", alice);
+    const rows = await core.gifts.recipients.listForRecipient("person", violet);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       ideaTitle: "Kite",
@@ -123,28 +123,28 @@ describe("core.gifts.recipients", () => {
   });
 
   it("joins an idea's links with the recipient's current label", async () => {
-    const alice = await makePerson("Alice");
+    const violet = await makePerson("Violet");
     const idea = await core.gifts.ideas.create({ title: "Kite" });
     await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: alice },
+      party: { type: "person", id: violet },
     });
 
-    await core.people.update(alice, { firstName: "Alicia" }, []);
+    await core.people.update(violet, { firstName: "Vi" }, []);
 
     expect(
       (await core.gifts.recipients.listForIdea(idea.id)).map(
         (l) => l.recipientLabel,
       ),
-    ).toEqual(["Alicia X"]);
+    ).toEqual(["Vi X"]);
   });
 
   it("ticks and unticks the box", async () => {
-    const alice = await makePerson("Alice");
+    const violet = await makePerson("Violet");
     const idea = await core.gifts.ideas.create({ title: "Kite" });
     const link = await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: alice },
+      party: { type: "person", id: violet },
     });
 
     const ticked = await core.gifts.recipients.update(link.id, {
@@ -161,58 +161,58 @@ describe("core.gifts.recipients", () => {
   it("publishes an unpublished party when a gift is attached to them", async () => {
     // Being someone to give something to is a fact about them — the same rule
     // that promotes an unpublished person when they get a milestone.
-    const alice = await makePerson("Alice");
+    const violet = await makePerson("Violet");
     const idea = await core.gifts.ideas.create({ title: "Kite" });
     await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: alice },
+      party: { type: "person", id: violet },
     });
 
-    expect(await core.people.get(alice)).toBeDefined();
+    expect(await core.people.get(violet)).toBeDefined();
   });
 
   it("cascades: deleting the idea removes its links", async () => {
-    const alice = await makePerson("Alice");
+    const violet = await makePerson("Violet");
     const idea = await core.gifts.ideas.create({ title: "Kite" });
     await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: alice },
+      party: { type: "person", id: violet },
     });
 
     await core.gifts.ideas.softDelete(idea.id);
     expect(
-      await core.gifts.recipients.listForRecipient("person", alice),
+      await core.gifts.recipients.listForRecipient("person", violet),
     ).toEqual([]);
   });
 
   it("cascades: deleting the recipient removes their links", async () => {
-    const alice = await makePerson("Alice");
+    const violet = await makePerson("Violet");
     const idea = await core.gifts.ideas.create({ title: "Kite" });
     await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: alice },
+      party: { type: "person", id: violet },
     });
 
-    await core.people.softDelete(alice);
+    await core.people.softDelete(violet);
     expect(await core.gifts.recipients.listForIdea(idea.id)).toEqual([]);
   });
 
   it("repoints a loser's links onto the survivor on merge", async () => {
-    const alice = await makePerson("Alice");
-    const bob = await makePerson("Bob");
+    const violet = await makePerson("Violet");
+    const harry = await makePerson("Harry");
     const idea = await core.gifts.ideas.create({ title: "Kite" });
     await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: alice },
+      party: { type: "person", id: violet },
     });
 
-    await core.people.merge(bob, alice);
+    await core.people.merge(harry, violet);
 
     expect(
-      await core.gifts.recipients.listForRecipient("person", alice),
+      await core.gifts.recipients.listForRecipient("person", violet),
     ).toEqual([]);
     expect(
-      (await core.gifts.recipients.listForRecipient("person", bob)).map(
+      (await core.gifts.recipients.listForRecipient("person", harry)).map(
         (l) => l.ideaTitle,
       ),
     ).toEqual(["Kite"]);
@@ -221,22 +221,22 @@ describe("core.gifts.recipients", () => {
   it("collapses a merge's duplicate ideas, keeping the ✓", async () => {
     // Both were down for the same thing and one of them got it. The survivor
     // should hold one row, still ticked — not the same idea listed twice.
-    const alice = await makePerson("Alice");
-    const bob = await makePerson("Bob");
+    const violet = await makePerson("Violet");
+    const harry = await makePerson("Harry");
     const idea = await core.gifts.ideas.create({ title: "Kite" });
     await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: bob },
+      party: { type: "person", id: harry },
     });
     await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: alice },
+      party: { type: "person", id: violet },
       given: true,
     });
 
-    await core.people.merge(bob, alice);
+    await core.people.merge(harry, violet);
 
-    const rows = await core.gifts.recipients.listForRecipient("person", bob);
+    const rows = await core.gifts.recipients.listForRecipient("person", harry);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.givenAt).not.toBeNull();
   });
@@ -253,14 +253,14 @@ describe("core.gifts.capture (the consolidated create)", () => {
   });
 
   it("mints the idea once, however many recipients it has", async () => {
-    const alice = await makePerson("Alice");
-    const bob = await makePerson("Bob");
+    const violet = await makePerson("Violet");
+    const harry = await makePerson("Harry");
 
     const idea = await core.gifts.capture({
       giftIdea: { title: "Scarf", url: "https://scarves.example" },
       recipients: [
-        { party: { type: "person", id: alice } },
-        { party: { type: "person", id: bob }, given: true },
+        { party: { type: "person", id: violet } },
+        { party: { type: "person", id: harry }, given: true },
       ],
     });
 
@@ -269,17 +269,17 @@ describe("core.gifts.capture (the consolidated create)", () => {
 
     const links = await core.gifts.recipients.listForIdea(idea.id);
     expect(links).toHaveLength(2);
-    expect(links.find((l) => l.recipientId === bob)?.givenAt).not.toBeNull();
-    expect(links.find((l) => l.recipientId === alice)?.givenAt).toBeNull();
+    expect(links.find((l) => l.recipientId === harry)?.givenAt).not.toBeNull();
+    expect(links.find((l) => l.recipientId === violet)?.givenAt).toBeNull();
   });
 
   it("reuses an existing idea by id rather than minting a duplicate", async () => {
-    const alice = await makePerson("Alice");
+    const violet = await makePerson("Violet");
     const existing = await core.gifts.ideas.create({ title: "Socks" });
 
     const idea = await core.gifts.capture({
       giftIdea: { id: existing.id },
-      recipients: [{ party: { type: "person", id: alice } }],
+      recipients: [{ party: { type: "person", id: violet } }],
     });
 
     expect(idea.id).toBe(existing.id);
@@ -298,32 +298,32 @@ describe("core.gifts.capture (the consolidated create)", () => {
   it("does not double a party already on the idea", async () => {
     // Capture is an *add* surface — it can name an idea somebody is already
     // down for, and saying so again must not list them twice.
-    const alice = await makePerson("Alice");
+    const violet = await makePerson("Violet");
     const idea = await core.gifts.ideas.create({ title: "Socks" });
     await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: alice },
+      party: { type: "person", id: violet },
     });
 
     await core.gifts.capture({
       giftIdea: { id: idea.id },
-      recipients: [{ party: { type: "person", id: alice } }],
+      recipients: [{ party: { type: "person", id: violet } }],
     });
 
     expect(await core.gifts.recipients.listForIdea(idea.id)).toHaveLength(1);
   });
 
   it("ticks a party already on the idea when the capture says they got it", async () => {
-    const alice = await makePerson("Alice");
+    const violet = await makePerson("Violet");
     const idea = await core.gifts.ideas.create({ title: "Socks" });
     await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: alice },
+      party: { type: "person", id: violet },
     });
 
     await core.gifts.capture({
       giftIdea: { id: idea.id },
-      recipients: [{ party: { type: "person", id: alice }, given: true }],
+      recipients: [{ party: { type: "person", id: violet }, given: true }],
     });
 
     const [link] = await core.gifts.recipients.listForIdea(idea.id);
@@ -333,17 +333,17 @@ describe("core.gifts.capture (the consolidated create)", () => {
   it("never unticks an existing link — that is the checkbox's job", async () => {
     // Capture says "and I gave them this", never "and I did not": re-capturing
     // an idea from a share sheet must not undo a ✓ recorded on their page.
-    const alice = await makePerson("Alice");
+    const violet = await makePerson("Violet");
     const idea = await core.gifts.ideas.create({ title: "Socks" });
     await core.gifts.recipients.create({
       giftIdeaId: idea.id,
-      party: { type: "person", id: alice },
+      party: { type: "person", id: violet },
       given: true,
     });
 
     await core.gifts.capture({
       giftIdea: { id: idea.id },
-      recipients: [{ party: { type: "person", id: alice } }],
+      recipients: [{ party: { type: "person", id: violet } }],
     });
 
     const [link] = await core.gifts.recipients.listForIdea(idea.id);
@@ -370,28 +370,28 @@ describe("core.gifts.capture (the consolidated create)", () => {
 
 describe("core.gifts.overview (the Gifts screen, keyed by idea)", () => {
   it("returns each idea with everyone it is for", async () => {
-    const alice = await makePerson("Alice");
-    const bob = await makePerson("Bob");
+    const violet = await makePerson("Violet");
+    const harry = await makePerson("Harry");
 
     const idea = await core.gifts.capture({
       giftIdea: { title: "Kite" },
       recipients: [
-        { party: { type: "person", id: alice } },
-        { party: { type: "person", id: bob }, given: true },
+        { party: { type: "person", id: violet } },
+        { party: { type: "person", id: harry }, given: true },
       ],
     });
 
     const [row] = await core.gifts.overview();
     expect(row?.idea.id).toBe(idea.id);
     expect(row?.recipients.map((r) => r.recipientLabel).sort()).toEqual([
-      "Alice X",
-      "Bob X",
+      "Harry X",
+      "Violet X",
     ]);
     expect(
       row?.recipients
         .filter((r) => r.givenAt !== null)
         .map((r) => r.recipientLabel),
-    ).toEqual(["Bob X"]);
+    ).toEqual(["Harry X"]);
   });
 
   it("lists an idea nobody is down for (a bare idea)", async () => {
@@ -457,7 +457,7 @@ describe("core.gifts.ideas — tags", () => {
 
   it("shares one tag across an idea and a person", async () => {
     // The whole point of a shared tag: the same "#books" reaches both.
-    const person = await makePerson("Alice");
+    const person = await makePerson("Violet");
     await core.people.update(person, {}, ["books"]);
     const idea = await core.gifts.ideas.create({ title: "Dune" }, ["books"]);
     const [tag] = await core.tags.listForGiftIdea(idea.id);
@@ -503,7 +503,7 @@ function civilDaysFromToday(days: number): CivilDate {
 
 /**
  * The reminder loop: the `🎁 gift` action has
- * always minted "Get @Alice a gift"; `reminders.targets().gifts` is what tells a client which
+ * always minted "Get @Violet a gift"; `reminders.targets().gifts` is what tells a client which
  * reminders those are and who they're for, so it can link to the recipient's
  * gifts and — once done — to ticking off what was given.
  */
@@ -531,33 +531,33 @@ describe("core.reminders.targets — the gift half", () => {
   }
 
   it("names the gift reminder and its recipient", async () => {
-    const alice = await personWithGiftReminder(20, "Alice");
+    const violet = await personWithGiftReminder(20, "Violet");
 
     const targets = (await core.reminders.targets()).gifts;
     expect(targets).toHaveLength(1);
     expect(targets[0]).toMatchObject({
       recipientType: "person",
-      recipientId: alice,
+      recipientId: violet,
     });
 
     // The named reminder is the gift one — not the birthday wish beside it.
     const reminder = await core.reminders.get(targets[0].reminderId);
-    expect(reminderLabel(reminder!)).toBe("🎁 Get @Alice X a gift");
+    expect(reminderLabel(reminder!)).toBe("🎁 Get @Violet X a gift");
   });
 
   it("excludes the wish reminder minted alongside it", async () => {
-    await personWithGiftReminder(20, "Alice");
+    await personWithGiftReminder(20, "Violet");
     const targets = (await core.reminders.targets()).gifts;
     const labels = await Promise.all(
       targets.map(async (t) =>
         reminderLabel((await core.reminders.get(t.reminderId))!),
       ),
     );
-    expect(labels).toEqual(["🎁 Get @Alice X a gift"]);
+    expect(labels).toEqual(["🎁 Get @Violet X a gift"]);
   });
 
   it("keeps naming the reminder once it's completed, so the gift can be recorded", async () => {
-    const alice = await personWithGiftReminder(20, "Alice");
+    const violet = await personWithGiftReminder(20, "Violet");
     const [target] = (await core.reminders.targets()).gifts;
     await core.reminders.setCompleted(target.reminderId, true);
 
@@ -566,7 +566,7 @@ describe("core.reminders.targets — the gift half", () => {
       {
         reminderId: target.reminderId,
         recipientType: "person",
-        recipientId: alice,
+        recipientId: violet,
       },
     ]);
   });
@@ -592,7 +592,7 @@ describe("core.reminders.targets — the gift half", () => {
   it("hands the recipient to a capture that closes the loop", async () => {
     // What the completed-reminder CTA does: capture a gift for the named
     // recipient, already ticked, which then reads back on their page as given.
-    const alice = await personWithGiftReminder(20, "Alice");
+    const violet = await personWithGiftReminder(20, "Violet");
     const [target] = (await core.reminders.targets()).gifts;
 
     await core.gifts.capture({
@@ -605,7 +605,7 @@ describe("core.reminders.targets — the gift half", () => {
       ],
     });
 
-    const rows = await core.gifts.recipients.listForRecipient("person", alice);
+    const rows = await core.gifts.recipients.listForRecipient("person", violet);
     expect(rows.map((r) => r.ideaTitle)).toEqual(["Scarf"]);
     expect(rows[0]?.givenAt).not.toBeNull();
   });

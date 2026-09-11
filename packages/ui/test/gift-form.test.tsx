@@ -10,7 +10,7 @@ import {
   removeRecipient,
 } from "../src/headless/index.js";
 
-const alice: PartyOption = { type: "person", id: "a", label: "Alice" };
+const violet: PartyOption = { type: "person", id: "a", label: "Violet" };
 const rufus: PartyOption = { type: "pet", id: "r", label: "Rufus" };
 
 describe("giftIdeaOf", () => {
@@ -54,7 +54,7 @@ describe("giftIdeaOf", () => {
 
 describe("captureRecipientOf", () => {
   it("carries the party and the tick, dropping the label", () => {
-    expect(captureRecipientOf(alice, true)).toEqual({
+    expect(captureRecipientOf(violet, true)).toEqual({
       party: { type: "person", id: "a" },
       given: true,
     });
@@ -70,7 +70,7 @@ describe("captureRecipientOf", () => {
 
 describe("newRecipientEntry", () => {
   it("starts a freshly picked party as not-yet-given", () => {
-    expect(newRecipientEntry(alice)).toEqual({ option: alice, given: false });
+    expect(newRecipientEntry(violet)).toEqual({ option: violet, given: false });
   });
 });
 
@@ -84,12 +84,12 @@ describe("partyKey", () => {
 
 describe("patchRecipient / removeRecipient", () => {
   const entries: RecipientEntry[] = [
-    { option: alice, given: false },
+    { option: violet, given: false },
     { option: rufus, given: false },
   ];
 
   it("patches only the addressed recipient", () => {
-    const next = patchRecipient(entries, partyKey(alice), { given: true });
+    const next = patchRecipient(entries, partyKey(violet), { given: true });
     expect(next[0].given).toBe(true);
     expect(next[1].given).toBe(false);
   });
@@ -101,12 +101,12 @@ describe("patchRecipient / removeRecipient", () => {
   });
 
   it("does not mutate the caller's list", () => {
-    patchRecipient(entries, partyKey(alice), { given: true });
+    patchRecipient(entries, partyKey(violet), { given: true });
     expect(entries[0].given).toBe(false);
   });
 
   it("removes the addressed recipient and nobody else", () => {
-    const next = removeRecipient(entries, partyKey(alice));
+    const next = removeRecipient(entries, partyKey(violet));
     expect(next.map((e) => e.option.label)).toEqual(["Rufus"]);
   });
 

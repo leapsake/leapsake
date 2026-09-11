@@ -7,7 +7,7 @@ import type { EntityType } from "./relationship.js";
  *
  * Every part of a person's name is optional (see {@link Person}), so the parts
  * can no longer be interpolated into a template — a surname-only person would
- * render as `" Davis"` with a leading space, and sort and match on it. This is
+ * render as `" Dakin"` with a leading space, and sort and match on it. This is
  * the one place that knows how to put the pieces back together, and it is
  * exported because several callers assemble names from raw *rows* rather than
  * from a `Person` (the search index, the duplicate scorer).

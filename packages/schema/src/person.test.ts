@@ -7,9 +7,9 @@ import {
 
 const validPerson = {
   id: crypto.randomUUID(),
-  firstName: "Ada",
+  firstName: "Mary",
   middleName: null,
-  lastName: "Lovelace",
+  lastName: "Bailey",
   gender: null,
   standing: "published" as const,
   createdAt: Date.now(),
@@ -28,7 +28,7 @@ describe("personSchema", () => {
   });
 
   it("accepts a non-null middleName", () => {
-    const withMiddle = { ...validPerson, middleName: "Byron" };
+    const withMiddle = { ...validPerson, middleName: "Hatch" };
     expect(personSchema.parse(withMiddle)).toEqual(withMiddle);
   });
 
@@ -55,8 +55,8 @@ describe("personSchema", () => {
     ).toThrow();
   });
 
-  // A person needs *some* name, not a first one and a last one — "Jen" and
-  // "Jen Davis" are both whole people. The rule that replaced the old pair of
+  // A person needs *some* name, not a first one and a last one — "Ruth" and
+  // "Ruth Dakin" are both whole people. The rule that replaced the old pair of
   // requirements is "at least one part", and it lives on the row so that every
   // write path inherits it: create, update, import, and sync's decode.
   it("accepts a first name alone", () => {
@@ -73,7 +73,7 @@ describe("personSchema", () => {
     const middleOnly = {
       ...validPerson,
       firstName: null,
-      middleName: "Byron",
+      middleName: "Hatch",
       lastName: null,
     };
     expect(personSchema.parse(middleOnly)).toEqual(middleOnly);
@@ -125,29 +125,29 @@ describe("personSchema", () => {
 describe("createPersonInputSchema", () => {
   it("accepts both names", () => {
     expect(
-      createPersonInputSchema.parse({ firstName: "Ada", lastName: "Lovelace" }),
-    ).toEqual({ firstName: "Ada", lastName: "Lovelace" });
+      createPersonInputSchema.parse({ firstName: "Mary", lastName: "Bailey" }),
+    ).toEqual({ firstName: "Mary", lastName: "Bailey" });
   });
 
   it("accepts an optional middleName", () => {
     expect(
       createPersonInputSchema.parse({
-        firstName: "Ada",
-        middleName: "Byron",
-        lastName: "Lovelace",
+        firstName: "Mary",
+        middleName: "Hatch",
+        lastName: "Bailey",
       }),
-    ).toEqual({ firstName: "Ada", middleName: "Byron", lastName: "Lovelace" });
+    ).toEqual({ firstName: "Mary", middleName: "Hatch", lastName: "Bailey" });
   });
 
   it("accepts a first name alone", () => {
-    expect(createPersonInputSchema.parse({ firstName: "Cher" })).toEqual({
-      firstName: "Cher",
+    expect(createPersonInputSchema.parse({ firstName: "Zuzu" })).toEqual({
+      firstName: "Zuzu",
     });
   });
 
   it("accepts a last name alone", () => {
-    expect(createPersonInputSchema.parse({ lastName: "Davis" })).toEqual({
-      lastName: "Davis",
+    expect(createPersonInputSchema.parse({ lastName: "Dakin" })).toEqual({
+      lastName: "Dakin",
     });
   });
 
@@ -157,15 +157,15 @@ describe("createPersonInputSchema", () => {
 
   it("rejects an empty firstName", () => {
     expect(() =>
-      createPersonInputSchema.parse({ firstName: "", lastName: "Lovelace" }),
+      createPersonInputSchema.parse({ firstName: "", lastName: "Bailey" }),
     ).toThrow();
   });
 });
 
 describe("updatePersonInputSchema", () => {
   it("accepts a partial update", () => {
-    expect(updatePersonInputSchema.parse({ firstName: "Grace" })).toEqual({
-      firstName: "Grace",
+    expect(updatePersonInputSchema.parse({ firstName: "Henry" })).toEqual({
+      firstName: "Henry",
     });
   });
 
@@ -200,8 +200,8 @@ describe("updatePersonInputSchema", () => {
   // person who had their name corrected. Hence two schemas; this is the test that
   // notices if they're ever collapsed back into one.
   it("leaves standing alone unless the patch sets it", () => {
-    expect(updatePersonInputSchema.parse({ firstName: "Jen" })).toEqual({
-      firstName: "Jen",
+    expect(updatePersonInputSchema.parse({ firstName: "Ruth" })).toEqual({
+      firstName: "Ruth",
     });
     expect(updatePersonInputSchema.parse({ standing: "published" })).toEqual({
       standing: "published",

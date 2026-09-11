@@ -44,7 +44,7 @@ function makeHarness() {
   let milestones: RemindEligibleMilestone[] = [];
   let today = TODAY;
   let selfPersonId: string | null = null;
-  const labels = new Map<string, string>([["p1", "Alice"]]);
+  const labels = new Map<string, string>([["p1", "Violet"]]);
   const schedules = new Map<string, ReminderRuleInput[]>();
 
   const deps: ReminderEngineDeps = {
@@ -156,7 +156,7 @@ describe("the plan prompt", () => {
 
     const [prompt] = h.prompts();
     expect(prompt.title).toBe(
-      `🗓 What do you want to do for ${mentionToken("Alice", "person", "p1")}'s birthday?`,
+      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}'s birthday?`,
     );
     // Due six weeks out — the last day on which ticking "get a gift" still
     // leaves the gift its full 30-day run-up.
@@ -169,7 +169,7 @@ describe("the plan prompt", () => {
     // whose mention token carries digits of its own.
     expect(
       actionDefs.plan.template({
-        subject: "Alice",
+        subject: "Violet",
         greeting: "a happy birthday",
         occasion: "birthday",
       }),
@@ -228,7 +228,7 @@ describe("the plan prompt", () => {
 
     const titles = h.activeSystem().map((r) => r.title);
     expect(titles).toContain(
-      `🎉 Wish ${mentionToken("Alice", "person", "p1")} a happy birthday`,
+      `🎉 Wish ${mentionToken("Violet", "person", "p1")} a happy birthday`,
     );
     expect(h.prompts()).toHaveLength(1);
   });

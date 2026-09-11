@@ -51,7 +51,7 @@ import {
  */
 
 const LOCAL_PASSWORD = "the password this computer has now";
-const SYNCED_USERNAME = "Grace"; // mixed case: the account stores it normalized
+const SYNCED_USERNAME = "Henry"; // mixed case: the account stores it normalized
 const SYNCED_PASSWORD = "correct horse battery staple";
 
 const never = () => Promise.reject(new Error("unexpected unlock prompt"));
@@ -135,23 +135,23 @@ describe("merging into a synced account over a running relay", () => {
    * review rather than resolved behind their back.
    */
   it("re-homes the device, then surfaces the overlap as duplicates without fusing anything", async () => {
-    // The account already has a Jane and a Bob, pushed from its own device.
+    // The account already has a Jane and a Harry, pushed from its own device.
     const accountJane = await account.people.create({
       firstName: "Jane",
-      lastName: "Doe",
+      lastName: "Wainwright",
     });
-    const bob = await account.people.create({
-      firstName: "Bob",
-      lastName: "Jones",
+    const harry = await account.people.create({
+      firstName: "Harry",
+      lastName: "Gower",
     });
     await account.sync();
 
-    // This device has its own Ada (from `deviceWithAccount`) and its own Jane —
+    // This device has its own Mary (from `deviceWithAccount`) and its own Jane —
     // the same person, entered twice on two devices, with different ids.
     const live = await openLive();
     const localJane = await createPeopleRepo(live).create({
       firstName: "Jane",
-      lastName: "Doe",
+      lastName: "Wainwright",
     });
     expect(localJane.id).not.toBe(accountJane.id);
 
@@ -186,17 +186,17 @@ describe("merging into a synced account over a running relay", () => {
       core,
     });
 
-    // Exactly the Jane↔Jane pair. Ada and Bob are unique and are not offered.
+    // Exactly the Jane↔Jane pair. Mary and Harry are unique and are not offered.
     expect(duplicateCount).toBe(1);
 
     const people = await createPeopleRepo(merged).list();
     const ids = people.map((p) => p.id);
     // Nothing was fused and nothing was dropped: both Janes are still active,
-    // this device's Ada survived the re-home, and the account's Bob arrived.
+    // this device's Mary survived the re-home, and the account's Harry arrived.
     expect(ids).toContain(localJane.id);
     expect(ids).toContain(accountJane.id);
-    expect(ids).toContain(bob.id);
-    expect(people.some((p) => p.firstName === "Ada")).toBe(true);
+    expect(ids).toContain(harry.id);
+    expect(people.some((p) => p.firstName === "Mary")).toBe(true);
 
     const candidates = await core.duplicates.findCandidates();
     expect(
@@ -220,7 +220,7 @@ describe("merging into a synced account over a running relay", () => {
     await account.sync();
     const onOtherDevice = await account.people.list();
     expect(onOtherDevice.map((p) => p.id)).toContain(localJane.id);
-    expect(onOtherDevice.some((p) => p.firstName === "Ada")).toBe(true);
+    expect(onOtherDevice.some((p) => p.firstName === "Mary")).toBe(true);
   });
 
   /**
@@ -256,7 +256,7 @@ describe("merging into a synced account over a running relay", () => {
     });
     expect(
       (await createPeopleRepo(reopened).list()).map((p) => p.firstName),
-    ).toEqual(["Ada"]);
+    ).toEqual(["Mary"]);
     await reopened.close?.();
   });
 

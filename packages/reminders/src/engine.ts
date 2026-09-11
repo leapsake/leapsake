@@ -126,7 +126,7 @@ export interface ReminderEngineDeps {
    * linked to its relationship — the flow both clients invite — generated no
    * reminders at all, silently, including its prompt. The composition root now
    * names a relationship by its endpoints, and a relationship the **self-person**
-   * is one end of resolves to the *other* end, since "Wish You & Alice a happy
+   * is one end of resolves to the *other* end, since "Wish You & Violet a happy
    * anniversary" is not a thing anyone wants to be told.
    */
   resolveLabel(
@@ -475,7 +475,7 @@ function derivedTitle(want: DesiredReminder): string | null {
  * - **The occasion is *shared*** — a first date or a wedding anniversary
  *   belonging to a partnership you are in, but stored on your partner or on the
  *   relationship. The template's possessive is actively wrong here: it is not
- *   *Alice's* first date, it is **yours with Alice**, and saying otherwise reads
+ *   *Violet's* first date, it is **yours with Violet**, and saying otherwise reads
  *   as though she had one with somebody else. Only the gated kinds
  *   (`prompt.onlyOwnPartnership`) can be shared, which is what makes this
  *   decidable from the kind alone — the gate has already established that the
@@ -498,7 +498,7 @@ function copyOverrideOf(
     // partnership established (that is what the gate does), so its bearer being
     // someone else means it is shared with them. And any milestone borne by a
     // **relationship the user is in** is shared by construction, whatever its
-    // kind: an `anniversary` on your own marriage is not "Alice's anniversary".
+    // kind: an `anniversary` on your own marriage is not "Violet's anniversary".
     const shared =
       !subjectIsSelf &&
       (kindDefs[kind].prompt?.onlyOwnPartnership === true || isSelf);
@@ -1629,7 +1629,7 @@ async function computeDesired(
         // person/pet page (the reminder text is the single source of truth for the
         // mention; core re-derives the backlink from it). A relationship bearer
         // has no single entity to point at, so it stays **plain text** — its label
-        // is either both endpoints ("Bob & Carol", two entities, and a token names
+        // is either both endpoints ("Harry & Tilly", two entities, and a token names
         // one) or, for a relationship you are in, the other end, whose id this
         // loop does not have. Losing the backlink is the accepted cost of the row
         // existing at all; before 2026-09-05 a relationship never reached here,
@@ -1655,8 +1655,8 @@ async function computeDesired(
           SYSTEM_REMINDER_NAMESPACE,
           occurrenceName(m.id, occ.year, actionKeyOf(rule)),
         );
-        // The action's copy carries the (mention-wrapped) subject — "Wish @Alice
-        // a happy birthday", "Get @Alice a gift" — unless the bearer is you, in
+        // The action's copy carries the (mention-wrapped) subject — "Wish @Violet
+        // a happy birthday", "Get @Violet a gift" — unless the bearer is you, in
         // which case {@link selfOverrideOf} replaces it. Assembled rather than
         // rendered on the spot because the read renders it a second time: see
         // {@link ReminderCopySource}.

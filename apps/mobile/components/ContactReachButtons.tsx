@@ -8,9 +8,9 @@ import { styles } from "../lib/styles";
 /**
  * The ways to reach someone, on the reminder that asks you to.
  *
- * "Wish @Alice a happy birthday" says *what*; this says *how*, and is the whole
- * of what the channel-specific reminders used to be. Scheduling "call Alice" and
- * "text Alice" as separate errands asked, weeks ahead, a question only the
+ * "Wish @Violet a happy birthday" says *what*; this says *how*, and is the whole
+ * of what the channel-specific reminders used to be. Scheduling "call Violet" and
+ * "text Violet" as separate errands asked, weeks ahead, a question only the
  * moment can answer — so the acknowledgment is one row, and the choice of
  * channel is these buttons, made when the reminder actually fires.
  *

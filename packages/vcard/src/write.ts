@@ -96,7 +96,7 @@ function writeCard(contact: ExportContact, opts: WriteOptions): string {
     push({ name: "UID", value: `urn:uuid:${contact.uid}` });
   }
   // RFC 6350 §6.1.4, which explicitly allows an x-name. Apple Contacts will
-  // import a pet card as an ordinary person called "Rex" — an accepted loss:
+  // import a pet card as an ordinary person called "Jimmy" — an accepted loss:
   // nothing is lost, and our own importer gets it right once `plans/export.md`
   // → 5 takes `KIND` out of the parser's `STRUCTURAL` set.
   push({

@@ -11,8 +11,8 @@ function contact(over: Partial<ParsedContact> = {}): ParsedContact {
     isSelf: false,
     createdAt: null,
     updatedAt: null,
-    name: { firstName: "Jane", middleName: null, lastName: "Doe" },
-    displayName: "Jane Doe",
+    name: { firstName: "Jane", middleName: null, lastName: "Wainwright" },
+    displayName: "Jane Wainwright",
     gender: null,
     emails: [],
     phones: [],
@@ -202,7 +202,7 @@ describe("ingestContacts", () => {
     ]);
   });
 
-  // A mononym or an organisation-only card ("Acme Corp", "Cher") is what the
+  // A mononym or an organisation-only card ("Acme Corp", "Zuzu") is what the
   // parser produces when it refuses to invent a surname. These used to be
   // turned away here — the only thing stopping them was the Person schema
   // demanding both names — and now they import as they came.
@@ -244,14 +244,14 @@ describe("ingestContacts", () => {
         contact: contact({
           related: [
             {
-              name: "Jen Davis",
+              name: "Ruth Dakin",
               role: "spouse",
               roleNote: null,
               otherUid: null,
               relationshipId: null,
             },
             {
-              name: "Ben",
+              name: "Pete",
               role: "child",
               roleNote: null,
               otherUid: null,
@@ -265,13 +265,13 @@ describe("ingestContacts", () => {
       {
         ownerType: "person",
         personId: "person-1",
-        name: "Jen Davis",
+        name: "Ruth Dakin",
         role: "spouse",
       },
       {
         ownerType: "person",
         personId: "person-1",
-        name: "Ben",
+        name: "Pete",
         role: "child",
       },
     ]);
@@ -305,13 +305,13 @@ describe("ingestContacts — pets, tags and the self claim", () => {
         action: "create",
         contact: contact({
           kind: "pet",
-          name: { firstName: "Rex", middleName: null, lastName: "" },
-          displayName: "Rex",
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
+          displayName: "Jimmy",
         }),
       },
     ]);
     expect(result.created).toBe(1);
-    expect(pets).toEqual([{ id: "pet-1", name: "Rex" }]);
+    expect(pets).toEqual([{ id: "pet-1", name: "Jimmy" }]);
     expect(people).toEqual([]);
   });
 
@@ -328,8 +328,8 @@ describe("ingestContacts — pets, tags and the self claim", () => {
         action: "create",
         contact: contact({
           kind: "pet",
-          name: { firstName: "Rex", middleName: null, lastName: "" },
-          emails: [{ label: "Home", address: "rex@example.com" }],
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
+          emails: [{ label: "Home", address: "jimmy@example.com" }],
         }),
       },
     ]);
@@ -343,11 +343,11 @@ describe("ingestContacts — pets, tags and the self claim", () => {
         action: "create",
         contact: contact({
           kind: "pet",
-          name: { firstName: "Rex", middleName: null, lastName: "" },
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
           birthday: { year: 2019, month: 4, day: 12 },
           related: [
             {
-              name: "Jane Doe",
+              name: "Jane Wainwright",
               role: "owner",
               roleNote: null,
               otherUid: null,
@@ -369,7 +369,7 @@ describe("ingestContacts — pets, tags and the self claim", () => {
         action: "create",
         contact: contact({
           kind: "pet",
-          name: { firstName: "Rex", middleName: null, lastName: "" },
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
           tags: ["Pets"],
         }),
       },
@@ -410,7 +410,7 @@ describe("ingestContacts — pets, tags and the self claim", () => {
         contact: contact({
           kind: "pet",
           isSelf: true,
-          name: { firstName: "Rex", middleName: null, lastName: "" },
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
         }),
       },
     ]);
@@ -438,10 +438,10 @@ function refRelated(
   over: Partial<ParsedContact["related"][number]> = {},
 ): ParsedContact["related"][number] {
   return {
-    name: "Ben Doe",
+    name: "Pete Wainwright",
     role: "child",
     roleNote: null,
-    otherUid: "ben",
+    otherUid: "pete",
     relationshipId: "edge-1",
     ...over,
   };
@@ -463,10 +463,14 @@ describe("ingestContacts — edges between two cards", () => {
       {
         action: "create",
         contact: contact({
-          uid: "ben",
-          name: { firstName: "Ben", middleName: null, lastName: "Doe" },
+          uid: "pete",
+          name: { firstName: "Pete", middleName: null, lastName: "Wainwright" },
           related: [
-            refRelated({ name: "Jane Doe", role: "mother", otherUid: "jane" }),
+            refRelated({
+              name: "Jane Wainwright",
+              role: "mother",
+              otherUid: "jane",
+            }),
           ],
         }),
       },
@@ -485,7 +489,7 @@ describe("ingestContacts — edges between two cards", () => {
   });
 
   it("resolves an edge that points forwards, at a card not yet created", async () => {
-    // Jane's card is built first and names Ben, who does not exist yet. Holding
+    // Jane's card is built first and names Pete, who does not exist yet. Holding
     // the edge until every card is built is what makes card order irrelevant.
     const { ports, links } = makePorts();
     await ingestContacts(ports, [
@@ -493,7 +497,7 @@ describe("ingestContacts — edges between two cards", () => {
         action: "create",
         contact: contact({ uid: "jane", related: [refRelated()] }),
       },
-      { action: "create", contact: contact({ uid: "ben" }) },
+      { action: "create", contact: contact({ uid: "pete" }) },
     ]);
     expect(links).toHaveLength(1);
     expect(links[0]).toMatchObject({
@@ -515,14 +519,14 @@ describe("ingestContacts — edges between two cards", () => {
           ],
         }),
       },
-      { action: "create", contact: contact({ uid: "ben" }) },
+      { action: "create", contact: contact({ uid: "pete" }) },
     ]);
     expect(links.map((l) => l.role)).toEqual(["child", "coworker"]);
   });
 
   /**
    * The other end was in the file but the user skipped it. The *fact* is still
-   * true — this person has a child called Ben Doe — so it lands the way a merely
+   * true — this person has a child called Pete Wainwright — so it lands the way a merely
    * named relation does, with the name the parser recovered from the other card.
    * Dropping it would lose a relationship the file plainly states.
    */
@@ -533,14 +537,14 @@ describe("ingestContacts — edges between two cards", () => {
         action: "create",
         contact: contact({ uid: "jane", related: [refRelated()] }),
       },
-      { action: "skip", contact: contact({ uid: "ben" }) },
+      { action: "skip", contact: contact({ uid: "pete" }) },
     ]);
     expect(links).toEqual([]);
     expect(relateds).toEqual([
       {
         ownerType: "person",
         personId: "person-1",
-        name: "Ben Doe",
+        name: "Pete Wainwright",
         role: "child",
       },
     ]);
@@ -549,7 +553,7 @@ describe("ingestContacts — edges between two cards", () => {
   it("does not point an edge at a card whose own write rolled back", async () => {
     // `byUid` is only written after a contact's transaction commits, so a failed
     // card is not something an edge can be attached to.
-    const { ports, links, relateds } = makePorts("Ben");
+    const { ports, links, relateds } = makePorts("Pete");
     const result = await ingestContacts(ports, [
       {
         action: "create",
@@ -558,8 +562,8 @@ describe("ingestContacts — edges between two cards", () => {
       {
         action: "create",
         contact: contact({
-          uid: "ben",
-          name: { firstName: "Ben", middleName: null, lastName: "Doe" },
+          uid: "pete",
+          name: { firstName: "Pete", middleName: null, lastName: "Wainwright" },
         }),
       },
     ]);
@@ -574,13 +578,17 @@ describe("ingestContacts — edges between two cards", () => {
       {
         action: "create",
         contact: contact({
-          uid: "rex",
+          uid: "jimmy",
           kind: "pet",
-          name: { firstName: "Rex", middleName: null, lastName: "" },
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
           related: [
-            refRelated({ name: "Jane Doe", role: "owner", otherUid: "jane" }),
+            refRelated({
+              name: "Jane Wainwright",
+              role: "owner",
+              otherUid: "jane",
+            }),
             {
-              name: "Sam Vet",
+              name: "Ernie Vet",
               role: "other",
               roleNote: "vet",
               otherUid: null,
@@ -594,7 +602,7 @@ describe("ingestContacts — edges between two cards", () => {
 
     // The bug this guards: `addRelated` used to hardcode `"person"`, so a pet
     // with a named relation failed the whole contact on `holderAllows`.
-    expect(relateds[0]).toMatchObject({ ownerType: "pet", name: "Sam Vet" });
+    expect(relateds[0]).toMatchObject({ ownerType: "pet", name: "Ernie Vet" });
     expect(links[0]).toMatchObject({ ownerType: "pet", otherType: "person" });
   });
 
@@ -608,7 +616,7 @@ describe("ingestContacts — edges between two cards", () => {
         action: "create",
         contact: contact({ uid: "jane", related: [refRelated()] }),
       },
-      { action: "create", contact: contact({ uid: "ben" }) },
+      { action: "create", contact: contact({ uid: "pete" }) },
     ]);
     // Both people landed; only the relationship between them did not.
     expect(result.created).toBe(2);
@@ -655,10 +663,14 @@ describe("ingestContacts — milestones a relationship bears", () => {
       {
         action: "create",
         contact: contact({
-          uid: "ben",
-          name: { firstName: "Ben", middleName: null, lastName: "Doe" },
+          uid: "pete",
+          name: { firstName: "Pete", middleName: null, lastName: "Wainwright" },
           related: [
-            refRelated({ name: "Jane Doe", role: "spouse", otherUid: "jane" }),
+            refRelated({
+              name: "Jane Wainwright",
+              role: "spouse",
+              otherUid: "jane",
+            }),
           ],
           dates: [wedding()],
         }),
@@ -684,7 +696,7 @@ describe("ingestContacts — milestones a relationship bears", () => {
   });
 
   it("waits for the edge, whichever card carried the milestone first", async () => {
-    // Jane's card is built before Ben exists, so the wedding cannot be written
+    // Jane's card is built before Pete exists, so the wedding cannot be written
     // inside her transaction — the marriage does not exist yet.
     const { ports, dates } = makePorts();
     const order: string[] = [];
@@ -712,8 +724,8 @@ describe("ingestContacts — milestones a relationship bears", () => {
    */
   it("puts the milestone on the person when the other card was skipped", async () => {
     const { ports, dates, links, relateds } = makePorts();
-    const [jane, ben] = couple();
-    await ingestContacts(ports, [jane, { ...ben, action: "skip" }]);
+    const [jane, pete] = couple();
+    await ingestContacts(ports, [jane, { ...pete, action: "skip" }]);
     expect(links).toEqual([]);
     expect(relateds).toHaveLength(1); // the stub spouse
     expect(dates).toEqual([
@@ -766,7 +778,7 @@ describe("ingestContacts — milestones a relationship bears", () => {
         action: "create",
         contact: contact({
           kind: "pet",
-          name: { firstName: "Rex", middleName: null, lastName: "" },
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
           birthday: { year: 2019, month: 4, day: 2 },
           dates: [
             wedding({
@@ -813,11 +825,11 @@ describe("ingestContacts — milestones a relationship bears", () => {
           dates: [wedding()],
         }),
       },
-      { action: "create", contact: contact({ uid: "ben" }) },
+      { action: "create", contact: contact({ uid: "pete" }) },
     ]);
     expect(result.created).toBe(1);
     expect(result.errors.map((e) => e.message)).toEqual(["self boom"]);
-    // Ben landed; nothing at all was written for the edge or the wedding, both
+    // Pete landed; nothing at all was written for the edge or the wedding, both
     // of which named a Jane who does not exist.
     expect(links).toEqual([]);
     expect(relateds).toEqual([]);
@@ -831,7 +843,7 @@ describe("ingestContacts — milestones a relationship bears", () => {
         action: "create",
         contact: contact({
           kind: "pet",
-          name: { firstName: "Rex", middleName: null, lastName: "" },
+          name: { firstName: "Jimmy", middleName: null, lastName: "" },
           dates: [
             wedding({
               kind: "anniversary",
@@ -867,7 +879,7 @@ describe("ingestContacts — contacts read from an address book", () => {
       {
         action: "create",
         contact: contact({
-          name: { firstName: "Sam", middleName: null, lastName: "Lee" },
+          name: { firstName: "Ernie", middleName: null, lastName: "Lee" },
         }),
       },
     ]);

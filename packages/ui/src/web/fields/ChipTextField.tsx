@@ -39,9 +39,9 @@ import styles from "./ChipTextField.module.css";
  * Two grammars, for the two places tags are typed:
  *
  * - **`"prose"`** — a reminder's title/body. `value`/`onChange` carry the
- *   *stored* text, mention tokens and all (`@[Alice Ng](person:<uuid>)`), which
+ *   *stored* text, mention tokens and all (`@[Violet Bick](person:<uuid>)`), which
  *   the write path re-derives mentions and taggings from; the hidden input
- *   carries it to `FormData` while the visible field shows `@Alice Ng`. Only
+ *   carries it to `FormData` while the visible field shows `@Violet Bick`. Only
  *   `#`-prefixed runs are tags, so ordinary words stay ordinary.
  * - **`"tags"`** — a Person/Pet/GiftIdea Tags field. The visible text *is* the
  *   stored value, so the field keeps its own `name` and there is no hidden input.

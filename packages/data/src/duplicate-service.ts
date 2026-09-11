@@ -24,7 +24,7 @@ import type { SqliteDriver } from "./driver.js";
 /** One person in a candidate pair, with enough to display and to act on. */
 export interface DuplicateCandidatePerson {
   id: string;
-  /** Display name, e.g. "Jane Doe". */
+  /** Display name, e.g. "Jane Wainwright". */
   name: string;
 }
 
@@ -102,7 +102,7 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
    *
    * Unpublished people are out of the pool on purpose. They exist only as facts
    * about somebody else and are offered by no picker, so the same name arriving
-   * twice means two different people — a "Jen" on one coworker and a "Jen" on
+   * twice means two different people — a "Ruth" on one coworker and a "Ruth" on
    * another are not a pair to review, and with names now allowed to be a single
    * word they would collide constantly. Detection is instead run at the moment
    * one is promoted, when they first become someone the user can pick and there

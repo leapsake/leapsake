@@ -429,7 +429,7 @@ export async function ingestContacts(
       await ports.transaction(async () => {
         if (other === undefined) {
           // The card this points at was skipped in the review, or failed. The
-          // *fact* is still true — this person has a spouse called Jen Davis —
+          // *fact* is still true — this person has a spouse called Ruth Dakin —
           // so it lands the way a merely-named relation does, using the name the
           // parser recovered from the other card. Dropping it instead would lose
           // a relationship the file plainly states.

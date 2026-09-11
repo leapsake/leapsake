@@ -34,8 +34,8 @@ import { colors, styles } from "../lib/styles";
  * same two grammars:
  *
  * - **`"prose"`** — a reminder's title/body. `value`/`onChangeText` carry the
- *   *stored* text, mention tokens and all (`@[Alice Ng](person:<uuid>)`), while
- *   the field shows `@Alice Ng`. Only `#`-prefixed runs are tags.
+ *   *stored* text, mention tokens and all (`@[Violet Bick](person:<uuid>)`), while
+ *   the field shows `@Violet Bick`. Only `#`-prefixed runs are tags.
  * - **`"tags"`** — a Person/Pet/GiftIdea Tags field, where the text *is* the
  *   stored value and every word is a tag (see `parseTagNames`), so every word
  *   chips.

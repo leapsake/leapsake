@@ -60,7 +60,7 @@ async function titles(term: string): Promise<string[]> {
 
 describe("searchService", () => {
   it("returns nothing for queries below the minimum length", async () => {
-    await people.create({ firstName: "Jo", lastName: "Smith" });
+    await people.create({ firstName: "Jo", lastName: "Martini" });
     expect(await search.query("")).toEqual([]);
     expect(await search.query("j")).toEqual([]);
   });
@@ -89,8 +89,8 @@ describe("searchService", () => {
 
   it("does not match a whole-name term against a person sharing only one part", async () => {
     await people.create({ firstName: "John", lastName: "Appleseed" });
-    await people.create({ firstName: "John", lastName: "Smith" });
-    await people.create({ firstName: "Bob", lastName: "Appleseed" });
+    await people.create({ firstName: "John", lastName: "Martini" });
+    await people.create({ firstName: "Harry", lastName: "Appleseed" });
     expect(await titles("john appleseed")).toEqual(["John Appleseed"]);
   });
 
@@ -173,10 +173,10 @@ describe("searchService", () => {
   });
 
   it("matches pets by name like people", async () => {
-    await pets.create({ name: "Rex" });
-    const hits = await search.query("rex");
+    await pets.create({ name: "Jimmy" });
+    const hits = await search.query("jimmy");
     expect(hits).toHaveLength(1);
-    expect(hits[0]).toMatchObject({ entityType: "pet", title: "Rex" });
+    expect(hits[0]).toMatchObject({ entityType: "pet", title: "Jimmy" });
   });
 
   it("returns one row per entity even when several fields match", async () => {
@@ -189,11 +189,11 @@ describe("searchService", () => {
   it("orders by match quality: exact, then starts-with, then substring", async () => {
     // Substring (term inside a field, not at its start).
     await people.create({ firstName: "Anna", lastName: "Bajoen" });
-    await people.create({ firstName: "Joelle", lastName: "Smith" }); // starts-with
-    await people.create({ firstName: "Joe", lastName: "Smith" }); // exact
+    await people.create({ firstName: "Joelle", lastName: "Martini" }); // starts-with
+    await people.create({ firstName: "Joe", lastName: "Martini" }); // exact
     expect(await titles("joe")).toEqual([
-      "Joe Smith",
-      "Joelle Smith",
+      "Joe Martini",
+      "Joelle Martini",
       "Anna Bajoen",
     ]);
   });
@@ -216,7 +216,7 @@ describe("searchService", () => {
   });
 
   it("matches by phone fragment, ignoring formatting on both sides", async () => {
-    const person = await people.create({ firstName: "Pat", lastName: "Ng" });
+    const person = await people.create({ firstName: "Pat", lastName: "Bick" });
     await contactMethods.phones.create({
       ownerType: "person",
       ownerId: person.id,
@@ -227,7 +227,10 @@ describe("searchService", () => {
     for (const term of ["5551234567", "555-123-4567"]) {
       const hits = await search.query(term);
       expect(hits).toHaveLength(1);
-      expect(hits[0]).toMatchObject({ entityType: "person", title: "Pat Ng" });
+      expect(hits[0]).toMatchObject({
+        entityType: "person",
+        title: "Pat Bick",
+      });
       expect(hits[0]?.reasons).toContainEqual({
         facet: "phone",
         matchedText: "+1 (555) 123-4567",
@@ -343,7 +346,10 @@ describe("searchService", () => {
   });
 
   it("matches by an email/domain fragment, showing the raw address as the reason", async () => {
-    const person = await people.create({ firstName: "Jane", lastName: "Doe" });
+    const person = await people.create({
+      firstName: "Jane",
+      lastName: "Wainwright",
+    });
     await contactMethods.emails.create({
       ownerType: "person",
       ownerId: person.id,
@@ -352,14 +358,20 @@ describe("searchService", () => {
     });
     const hits = await search.query("example");
     expect(hits).toHaveLength(1);
-    expect(hits[0]).toMatchObject({ entityType: "person", title: "Jane Doe" });
+    expect(hits[0]).toMatchObject({
+      entityType: "person",
+      title: "Jane Wainwright",
+    });
     expect(hits[0]?.reasons).toEqual([
       { facet: "email", matchedText: "jane@example.com" },
     ]);
   });
 
   it("answers 'who is @foo?' from a social handle", async () => {
-    const person = await people.create({ firstName: "Jane", lastName: "Doe" });
+    const person = await people.create({
+      firstName: "Jane",
+      lastName: "Wainwright",
+    });
     await contactMethods.socials.create({
       ownerType: "person",
       ownerId: person.id,
@@ -371,7 +383,10 @@ describe("searchService", () => {
     // The stored handle keeps its casing; the query need not.
     const hits = await search.query("sparkle");
     expect(hits).toHaveLength(1);
-    expect(hits[0]).toMatchObject({ entityType: "person", title: "Jane Doe" });
+    expect(hits[0]).toMatchObject({
+      entityType: "person",
+      title: "Jane Wainwright",
+    });
     expect(hits[0]?.reasons).toEqual([
       { facet: "social", matchedText: "Instagram · SparkleJane" },
     ]);
@@ -381,7 +396,7 @@ describe("searchService", () => {
   });
 
   it("names an unknown platform as stored in a handle's reason", async () => {
-    const person = await people.create({ firstName: "Jo", lastName: "Roe" });
+    const person = await people.create({ firstName: "Jo", lastName: "Bailey" });
     await contactMethods.socials.create({
       ownerType: "person",
       ownerId: person.id,
@@ -396,7 +411,10 @@ describe("searchService", () => {
   });
 
   it("groups a name + email match into one row with merged reasons", async () => {
-    const person = await people.create({ firstName: "Jane", lastName: "Doe" });
+    const person = await people.create({
+      firstName: "Jane",
+      lastName: "Wainwright",
+    });
     await contactMethods.emails.create({
       ownerType: "person",
       ownerId: person.id,
@@ -409,7 +427,10 @@ describe("searchService", () => {
   });
 
   it("drops a contact hit whose owner is soft-deleted", async () => {
-    const person = await people.create({ firstName: "Jane", lastName: "Doe" });
+    const person = await people.create({
+      firstName: "Jane",
+      lastName: "Wainwright",
+    });
     await contactMethods.emails.create({
       ownerType: "person",
       ownerId: person.id,
@@ -423,21 +444,24 @@ describe("searchService", () => {
   });
 
   it("sorts a name hit before a contact-only hit", async () => {
-    await people.create({ firstName: "Jane", lastName: "Smith" });
-    const bob = await people.create({ firstName: "Bob", lastName: "Jones" });
+    await people.create({ firstName: "Jane", lastName: "Martini" });
+    const harry = await people.create({
+      firstName: "Harry",
+      lastName: "Gower",
+    });
     await contactMethods.emails.create({
       ownerType: "person",
-      ownerId: bob.id,
+      ownerId: harry.id,
       label: "Home",
       address: "jane@x.com",
     });
-    expect(await titles("jane")).toEqual(["Jane Smith", "Bob Jones"]);
+    expect(await titles("jane")).toEqual(["Jane Martini", "Harry Gower"]);
   });
 
   it("surfaces a matching tag as its own navigable result", async () => {
     const person = await people.create({
-      firstName: "Sam",
-      lastName: "Carter",
+      firstName: "Ernie",
+      lastName: "Bishop",
     });
     await tags.setEntityTags("person", person.id, ["Friend"]);
     const [tag] = await tags.listForEntity("person", person.id);
@@ -457,12 +481,12 @@ describe("searchService", () => {
 
   it("ranks a matching tag above the entities that carry it", async () => {
     const person = await people.create({
-      firstName: "Sam",
-      lastName: "Carter",
+      firstName: "Ernie",
+      lastName: "Bishop",
     });
     await tags.setEntityTags("person", person.id, ["Friend"]);
     // The tag leads; its bearer (whose name doesn't match) follows.
-    expect(await titles("friend")).toEqual(["Friend", "Sam Carter"]);
+    expect(await titles("friend")).toEqual(["Friend", "Ernie Bishop"]);
   });
 
   it("still surfaces the bearer with a tag reason alongside the tag result", async () => {
@@ -482,12 +506,12 @@ describe("searchService", () => {
   });
 
   it("resolves a tag bearer on a pet the same way", async () => {
-    const pet = await pets.create({ name: "Rex" });
+    const pet = await pets.create({ name: "Jimmy" });
     await tags.setEntityTags("pet", pet.id, ["ServiceAnimal"]);
     const hits = await search.query("service");
     expect(hits).toHaveLength(2); // tag result + the pet bearer
     const bearer = hits.find((h) => h.entityType === "pet");
-    expect(bearer).toMatchObject({ entityType: "pet", title: "Rex" });
+    expect(bearer).toMatchObject({ entityType: "pet", title: "Jimmy" });
     expect(bearer?.reasons).toContainEqual({
       facet: "tag",
       matchedText: "ServiceAnimal",
@@ -496,12 +520,12 @@ describe("searchService", () => {
 
   it("matches a tag when the query carries the optional '#' sigil", async () => {
     const person = await people.create({
-      firstName: "Sam",
-      lastName: "Carter",
+      firstName: "Ernie",
+      lastName: "Bishop",
     });
     await tags.setEntityTags("person", person.id, ["Friend"]);
     // The stored name is bare ("Friend"); a typed "#" is stripped before matching.
-    expect(await titles("#frien")).toEqual(["Friend", "Sam Carter"]);
+    expect(await titles("#frien")).toEqual(["Friend", "Ernie Bishop"]);
   });
 
   it("groups a name + tag match into one bearer row, with the tag result separate", async () => {
@@ -554,12 +578,12 @@ describe("searchService", () => {
     }
 
     it("matches the accepted date formats, with the formatted date as the reason", async () => {
-      await personWithBirthday("Ada", "Lovelace", {
+      await personWithBirthday("Mary", "Bailey", {
         year: 1990,
         month: 3,
         day: 4,
       });
-      // Every form that names March 4, 1990 (or a consistent partial) surfaces Ada.
+      // Every form that names March 4, 1990 (or a consistent partial) surfaces Mary.
       for (const term of [
         "march",
         "mar 4",
@@ -572,7 +596,7 @@ describe("searchService", () => {
         expect(hits).toHaveLength(1);
         expect(hits[0]).toMatchObject({
           entityType: "person",
-          title: "Ada Lovelace",
+          title: "Mary Bailey",
         });
         expect(hits[0]?.reasons).toContainEqual({
           facet: "birthday",
@@ -582,7 +606,7 @@ describe("searchService", () => {
     });
 
     it("renders a year-less recurring birthday's reason without a year", async () => {
-      await personWithBirthday("Grace", "Hopper", { month: 12, day: 9 });
+      await personWithBirthday("Henry", "Potter", { month: 12, day: 9 });
       const hits = await search.query("dec 9");
       expect(hits).toHaveLength(1);
       expect(hits[0]?.reasons).toEqual([
@@ -644,7 +668,7 @@ describe("searchService", () => {
     });
 
     it("resolves a pet's birthday to the pet entity", async () => {
-      const pet = await pets.create({ name: "Rex" });
+      const pet = await pets.create({ name: "Jimmy" });
       await milestones.create({
         kind: "birthday",
         bearerType: "pet",
@@ -654,7 +678,7 @@ describe("searchService", () => {
       });
       const hits = await search.query("aug 20");
       expect(hits).toHaveLength(1);
-      expect(hits[0]).toMatchObject({ entityType: "pet", title: "Rex" });
+      expect(hits[0]).toMatchObject({ entityType: "pet", title: "Jimmy" });
       expect(hits[0]?.reasons).toContainEqual({
         facet: "birthday",
         matchedText: "August 20",
@@ -712,19 +736,19 @@ describe("searchService — holidays", () => {
   it("does not surface the people who observe it", async () => {
     // Deliberate: Christmas can have dozens of observers, and listing them all
     // would bury every other result while duplicating the holiday's own screen.
-    const alice = await people.create({
-      firstName: "Alice",
-      lastName: "Chen",
+    const violet = await people.create({
+      firstName: "Violet",
+      lastName: "Bick",
     });
     await createObservancesRepo(driver).setObservance(
       holidayIdFor("christmas"),
       "person",
-      alice.id,
+      violet.id,
       true,
     );
 
     expect(
-      (await search.query("christmas")).some((h) => h.title === "Alice Chen"),
+      (await search.query("christmas")).some((h) => h.title === "Violet Bick"),
     ).toBe(false);
   });
 
@@ -747,17 +771,19 @@ describe("searchService — holidays", () => {
 
 /**
  * Gift ideas surface as their own navigable result, on the tag/holiday
- * precedent — "what was that BB gun link?" is a search for the *thing*
+ * precedent — "what was that Tom Sawyer link?" is a search for the *thing*
  *. Unlike a tag or a holiday, an idea aggregates
  * nothing, so it doesn't float above equally-matching people; unlike a holiday,
  * it *is* reachable through its tags, since gift ideas are taggable.
  */
 describe("searchService — gift ideas", () => {
   it("finds a gift idea by title", async () => {
-    const idea = await giftIdeas.create({ title: "Red Ryder BB Gun" });
-    const hits = await search.query("bb gun");
+    const idea = await giftIdeas.create({
+      title: "The Adventures of Tom Sawyer",
+    });
+    const hits = await search.query("tom sawyer");
     const hit = hits.find((h) => h.entityType === "gift_idea");
-    expect(hit?.title).toBe("Red Ryder BB Gun");
+    expect(hit?.title).toBe("The Adventures of Tom Sawyer");
     expect(hit?.entityId).toBe(idea.id);
   });
 
@@ -796,26 +822,26 @@ describe("searchService — gift ideas", () => {
     // alphabetical place instead of jumping the line the way a tag/holiday does
     // (were it floating, the idea would come first here).
     await giftIdeas.create({ title: "Camera strap" });
-    await people.create({ firstName: "Alice", lastName: "Camera" });
+    await people.create({ firstName: "Bert", lastName: "Camera" });
     const hits = await search.query("camer");
     expect(hits.map((h) => h.entityType)).toEqual(["person", "gift_idea"]);
   });
 
   it("matches the idea's link, with the URL as the reason", async () => {
     await giftIdeas.create({
-      title: "Red Ryder BB Gun",
-      url: "https://www.thelocalbookshop.example/bb-gun",
+      title: "The Adventures of Tom Sawyer",
+      url: "https://www.thelocalbookshop.example/tom-sawyer",
     });
     const hits = await search.query("thelocalbookshop");
     expect(hits).toHaveLength(1);
     expect(hits[0]).toMatchObject({
       entityType: "gift_idea",
-      title: "Red Ryder BB Gun",
+      title: "The Adventures of Tom Sawyer",
     });
     expect(hits[0]?.reasons).toEqual([
       {
         facet: "link",
-        matchedText: "https://www.thelocalbookshop.example/bb-gun",
+        matchedText: "https://www.thelocalbookshop.example/tom-sawyer",
       },
     ]);
   });
@@ -909,39 +935,45 @@ describe("searchService — entities that exist only as a relationship", () => {
   }
 
   it("returns the anchor, not the attached person", async () => {
-    const sam = await people.create({ firstName: "Sam", lastName: "Carter" });
-    await attach(sam.id, "Jen");
+    const ernie = await people.create({
+      firstName: "Ernie",
+      lastName: "Bishop",
+    });
+    await attach(ernie.id, "Ruth");
 
-    const hits = await search.query("jen");
+    const hits = await search.query("ruth");
     expect(hits).toHaveLength(1);
     expect(hits[0]).toMatchObject({
       entityType: "person",
-      entityId: sam.id,
-      title: "Sam Carter",
+      entityId: ernie.id,
+      title: "Ernie Bishop",
     });
     expect(hits[0].reasons).toContainEqual({
       facet: "relationship",
-      matchedText: "Jen",
+      matchedText: "Ruth",
     });
   });
 
   it("ranks the anchor below a person whose own name matched", async () => {
-    const sam = await people.create({ firstName: "Sam", lastName: "Carter" });
-    await people.create({ firstName: "Jen", lastName: "Okafor" });
-    await attach(sam.id, "Jen");
+    const ernie = await people.create({
+      firstName: "Ernie",
+      lastName: "Bishop",
+    });
+    await people.create({ firstName: "Ruth", lastName: "Okafor" });
+    await attach(ernie.id, "Ruth");
 
     // A name match outranks a facet match, as it does for contact hits.
-    expect(await titles("jen")).toEqual(["Jen Okafor", "Sam Carter"]);
+    expect(await titles("ruth")).toEqual(["Ruth Okafor", "Ernie Bishop"]);
   });
 
   it("merges into one row when the anchor matched some other way", async () => {
-    const jenkins = await people.create({
-      firstName: "Ada",
-      lastName: "Jenkins",
+    const ruthven = await people.create({
+      firstName: "Mary",
+      lastName: "Ruthven",
     });
-    await attach(jenkins.id, "Jen");
+    await attach(ruthven.id, "Ruth");
 
-    const hits = await search.query("jen");
+    const hits = await search.query("ruth");
     expect(hits).toHaveLength(1);
     expect(hits[0].reasons.map((r) => r.facet).sort()).toEqual([
       "name",
@@ -950,32 +982,38 @@ describe("searchService — entities that exist only as a relationship", () => {
   });
 
   it("finds an attached pet through its owner", async () => {
-    const sam = await people.create({ firstName: "Sam", lastName: "Carter" });
-    const rex = await pets.create({
-      name: "Rexington",
+    const ernie = await people.create({
+      firstName: "Ernie",
+      lastName: "Bishop",
+    });
+    const jimmy = await pets.create({
+      name: "Jimmy",
       standing: "unpublished",
     });
     await relationships.create({
       aType: "person",
-      aId: sam.id,
+      aId: ernie.id,
       aRole: "owner",
       bType: "pet",
-      bId: rex.id,
+      bId: jimmy.id,
       bRole: "pet",
     });
 
-    const hits = await search.query("rexington");
-    expect(hits.map((h) => h.entityId)).toEqual([sam.id]);
+    const hits = await search.query("jimmy");
+    expect(hits.map((h) => h.entityId)).toEqual([ernie.id]);
   });
 
   it("returns her in her own right once she is published", async () => {
-    const sam = await people.create({ firstName: "Sam", lastName: "Carter" });
-    const jen = await attach(sam.id, "Jen");
+    const ernie = await people.create({
+      firstName: "Ernie",
+      lastName: "Bishop",
+    });
+    const ruth = await attach(ernie.id, "Ruth");
 
-    await people.update(jen.id, { standing: "published" });
+    await people.update(ruth.id, { standing: "published" });
 
-    const hits = await search.query("jen");
+    const hits = await search.query("ruth");
     expect(hits).toHaveLength(1);
-    expect(hits[0]).toMatchObject({ entityId: jen.id, title: "Jen" });
+    expect(hits[0]).toMatchObject({ entityId: ruth.id, title: "Ruth" });
   });
 });

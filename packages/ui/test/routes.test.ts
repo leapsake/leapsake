@@ -16,7 +16,7 @@ const explicit = {
   otherId: "p-2",
   otherRole: "mother",
   otherRoleLabel: "Mother",
-  otherLabel: "Ada Lovelace",
+  otherLabel: "Mary Bailey",
 } as RelationshipNeighbor;
 
 /** An inferred edge — no stored id, so it travels by identity. */

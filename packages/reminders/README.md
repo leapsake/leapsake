@@ -267,7 +267,7 @@ So an occasion with no rules of its own mints exactly one reminder, and that rem
 **question**. Answering it writes ordinary `reminder_rules`, and the engine takes it from there.
 
 The point is *when* it asks. Configuring forty people up front is work nobody will do, and it
-demands a judgement — is Alice a card person? — at the one moment you have no context for it. Asked
+demands a judgement — is Violet a card person? — at the one moment you have no context for it. Asked
 eight weeks out, with the occasion named, it is a five-second decision you are equipped to make.
 
 ### A question costs more than a row, so answering has to be cheap
@@ -369,8 +369,8 @@ reminders, not the prompt. The composition root answered `null` to the label por
 type, meaning "no formatter for this"; the engine reads `null` as "the bearer is gone" and skips the
 milestone. One value, two meanings, and the losing one was silent on both sides.
 
-The fix is that a relationship now has a name: both endpoints (`relationshipPairLabel` — "Bob &
-Carol"), or, when the self-person is one end, **the other end**, since "Wish You & Alice a happy
+The fix is that a relationship now has a name: both endpoints (`relationshipPairLabel` — "Harry &
+Tilly"), or, when the self-person is one end, **the other end**, since "Wish You & Violet a happy
 anniversary" is not a thing to tell anyone. `null` again means only *gone*.
 
 Two consequences worth holding on to:
@@ -421,7 +421,7 @@ resolved per action, with the winning level shown on the row. It was cut before 
 The reasoning is recorded because it is an easy idea to have again.
 
 A per-person default has to hold across **everything that person has**: their birthday and Arbor Day
-alike. Those are not the same occasion and do not carry the same weight, so "for Alice: a gift, a
+alike. Those are not the same occasion and do not carry the same weight, so "for Violet: a gift, a
 card and a call" is a rule that pretends they do. The variation that matters is between *occasions*,
 which is what the occasion level already expresses — and where someone genuinely does want the same
 treatment everywhere, saying so per occasion is a handful of taps rather than a system. A per-*kind*
@@ -547,19 +547,19 @@ tidying.
 what made it vague: it never said what was being asked, so the row had to be opened to find out.
 
 ⚠️ **The bigger fix was the possessive.** The template is written in the third person about a second
-party — "@Alice's first date" — and for a shared occasion that is not vague, it is **wrong**. A first
-date is not Alice's; it is *yours, with Alice*, and the possessive states that she had one with
+party — "@Violet's first date" — and for a shared occasion that is not vague, it is **wrong**. A first
+date is not Violet's; it is *yours, with Violet*, and the possessive states that she had one with
 somebody else. Three shapes, all in `planQuestion` in `@leapsake/schema`:
 
 | | Reads |
 |---|---|
 | The subject is you | "your own wedding anniversary" |
-| The occasion is shared | "your first date **with @Alice**" |
-| Anyone else's | "@Bob's birthday" |
+| The occasion is shared | "your first date **with @Violet**" |
+| Anyone else's | "@Harry's birthday" |
 
 Shared is decided two ways, and both are needed: a **gated** kind's bearer being someone else (the
 gate has already established the partnership is the user's), or any milestone borne by a
-**relationship the user is in** — an `anniversary` on your own marriage is not "Alice's anniversary",
+**relationship the user is in** — an `anniversary` on your own marriage is not "Violet's anniversary",
 whatever its kind.
 
 ⚠️ **`planQuestion` is centralised because the question was written twice and had begun to differ.**

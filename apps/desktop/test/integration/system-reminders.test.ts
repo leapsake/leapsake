@@ -72,8 +72,8 @@ async function systemReminders() {
 
 describe("core.reminders.regenerateSystem (birthday engine)", () => {
   it("generates a dated birthday reminder on the day itself", async () => {
-    const alice = await core.people.create(
-      { firstName: "Alice", middleName: null, lastName: "Ng", gender: null },
+    const violet = await core.people.create(
+      { firstName: "Violet", middleName: null, lastName: "Bick", gender: null },
       [],
     );
     // Today. The default schedule is a day-of wish, and `wish` has no run-up:
@@ -83,7 +83,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     await core.milestones.create({
       kind: "birthday",
       bearerType: "person",
-      bearerId: alice.id,
+      bearerId: violet.id,
       month: soon.month,
       day: soon.day,
     });
@@ -101,12 +101,14 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     // The subject is wrapped in an inline mention token carrying the person id, so
     // the name links to her page; the plain-text label strips back to her name.
     expect(reminder.title).toBe(
-      `🎉 Wish ${mentionToken("Alice Ng", "person", alice.id)} a happy birthday`,
+      `🎉 Wish ${mentionToken("Violet Bick", "person", violet.id)} a happy birthday`,
     );
-    expect(reminderLabel(reminder)).toBe("🎉 Wish @Alice Ng a happy birthday");
+    expect(reminderLabel(reminder)).toBe(
+      "🎉 Wish @Violet Bick a happy birthday",
+    );
     // Core resolves the mention to the person's current label for the renderer.
     expect(reminder.mentions).toEqual([
-      { targetType: "person", targetId: alice.id, label: "Alice Ng" },
+      { targetType: "person", targetId: violet.id, label: "Violet Bick" },
     ]);
     expect(reminder.dueDate).not.toBeNull();
     // Dated today, so the client shows "today".
@@ -157,35 +159,35 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
   });
 
   it("relabels the birthday mention live when the person is renamed", async () => {
-    const alice = await core.people.create(
-      { firstName: "Alice", middleName: null, lastName: "Ng", gender: null },
+    const violet = await core.people.create(
+      { firstName: "Violet", middleName: null, lastName: "Bick", gender: null },
       [],
     );
     const soon = civilDaysFromToday(0);
     await core.milestones.create({
       kind: "birthday",
       bearerType: "person",
-      bearerId: alice.id,
+      bearerId: violet.id,
       month: soon.month,
       day: soon.day,
     });
     await core.reminders.regenerateSystem();
 
     await core.people.update(
-      alice.id,
-      { firstName: "Alicia", middleName: null, lastName: "Ng", gender: null },
+      violet.id,
+      { firstName: "Vi", middleName: null, lastName: "Bick", gender: null },
       [],
     );
 
     // The stored title is frozen (the engine never rewrites it), but the resolved
-    // mention re-reads the current label, so the link renders "Alicia Ng".
+    // mention re-reads the current label, so the link renders "Vi Bick".
     const [reminder] = await systemReminders();
-    expect(reminder.mentions[0].label).toBe("Alicia Ng");
+    expect(reminder.mentions[0].label).toBe("Vi Bick");
   });
 
   it("is idempotent across runs (no duplicates, stable id)", async () => {
     const p = await core.people.create(
-      { firstName: "Bob", middleName: null, lastName: "Lee", gender: null },
+      { firstName: "Harry", middleName: null, lastName: "Lee", gender: null },
       [],
     );
     const soon = civilDaysFromToday(0);
@@ -363,7 +365,7 @@ describe("milestone writes reconcile birthday reminders at once", () => {
     reminderSchedule: ReminderRuleInput[] = WISH_ONLY,
   ) {
     const person = await core.people.create(
-      { firstName: "Faye", middleName: null, lastName: "Ng", gender: null },
+      { firstName: "Faye", middleName: null, lastName: "Bick", gender: null },
       [],
     );
     const occ = civilDaysFromToday(days);
@@ -475,7 +477,7 @@ describe("milestone writes reconcile birthday reminders at once", () => {
 
   it("re-points a merged-in birthday reminder onto the survivor", async () => {
     const survivor = await core.people.create(
-      { firstName: "Sam", middleName: null, lastName: "Sur", gender: null },
+      { firstName: "Ernie", middleName: null, lastName: "Sur", gender: null },
       [],
     );
     const loser = await core.people.create(
@@ -508,11 +510,11 @@ describe("milestone writes reconcile birthday reminders at once", () => {
 
     // Its title + resolved mention now name the survivor, not the dead loser.
     expect(reminder.title).toBe(
-      `🎉 Wish ${mentionToken("Sam Sur", "person", survivor.id)} a happy birthday`,
+      `🎉 Wish ${mentionToken("Ernie Sur", "person", survivor.id)} a happy birthday`,
     );
     const resolved = await core.reminders.get(reminder.id);
     expect(resolved?.mentions).toEqual([
-      { targetType: "person", targetId: survivor.id, label: "Sam Sur" },
+      { targetType: "person", targetId: survivor.id, label: "Ernie Sur" },
     ]);
   });
 });

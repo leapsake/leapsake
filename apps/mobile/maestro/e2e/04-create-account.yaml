@@ -36,7 +36,7 @@ appId: com.leapsake.app
 - runFlow:
     file: ../subflows/create-account.yaml
     env:
-      USERNAME: "ada"
+      USERNAME: "mary"
       PASSWORD: "correct-horse-battery-staple"
 
 # It has taken the screen over rather than appearing beneath the form — which is the
@@ -65,18 +65,18 @@ appId: com.leapsake.app
 - assertNotVisible: "Save your recovery phrase"
 
 # --- and the data survived being encrypted underneath it ----------------------------------
-# The point of the flow. Ada, her milestone and her relationship were all written into a
+# The point of the flow. Mary, her milestone and her relationship were all written into a
 # plaintext store; they must still be there, and still readable, out of an encrypted one.
 - openLink: "leapsake://"
 - tapOn:
     id: "tab-search"
 - tapOn:
     id: "browse-tile-people"
-- assertVisible: ".*Ada Lovelace.*"
-- tapOn: ".*Ada Lovelace.*"
+- assertVisible: ".*Mary Bailey.*"
+- tapOn: ".*Mary Bailey.*"
 - scrollUntilVisible:
     element:
       text: ".*Birthday.*"
     direction: DOWN
 - assertVisible: ".*1815.*"
-- assertVisible: ".*Augustus De Morgan.*"
+- assertVisible: ".*George Bailey.*"

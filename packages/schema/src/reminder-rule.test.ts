@@ -160,8 +160,12 @@ describe("reminderActionSchema / actionDefs", () => {
     expect(def.activeDays).toBe(0);
     expect(def.label.length).toBeGreaterThan(0);
     expect(
-      def.template({ subject: "@Alice", greeting: "hi", occasion: "birthday" }),
-    ).toContain("@Alice");
+      def.template({
+        subject: "@Violet",
+        greeting: "hi",
+        occasion: "birthday",
+      }),
+    ).toContain("@Violet");
   });
 });
 

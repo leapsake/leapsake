@@ -57,7 +57,7 @@ async function systemReminders() {
  *  how to mark it, which is the condition the prompt exists for. */
 async function personWithBirthday(days: number) {
   const person = await core.people.create(
-    { firstName: "Alice", middleName: null, lastName: "Ng", gender: null },
+    { firstName: "Violet", middleName: null, lastName: "Bick", gender: null },
     [],
   );
   const occ = civilDaysFromToday(days);
@@ -81,7 +81,7 @@ describe("the plan prompt, end to end through core", () => {
     const rows = await systemReminders();
     expect(rows).toHaveLength(1);
     expect(reminderLabel(rows[0])).toBe(
-      "🗓 What do you want to do for @Alice Ng's birthday?",
+      "🗓 What do you want to do for @Violet Bick's birthday?",
     );
   });
 
@@ -91,7 +91,7 @@ describe("the plan prompt, end to end through core", () => {
     const [target] = (await core.reminders.targets()).plans;
     expect(target.milestoneId).toBe(milestone.id);
     expect(target.milestoneKind).toBe("birthday");
-    expect(target.subject).toBe("Alice Ng");
+    expect(target.subject).toBe("Violet Bick");
     // ⚠️ The occasion, **not** the prompt's own due date. The row renders its
     // distance from `dueDate` — six weeks earlier — so the screen that asks the
     // question needs this to say when the birthday actually is.
@@ -137,7 +137,7 @@ describe("the plan prompt, end to end through core", () => {
     // week before the birthday, which is thirteen days out. The engine took over.
     expect((await core.reminders.targets()).plans).toEqual([]);
     const rows = await systemReminders();
-    expect(rows.map(reminderLabel)).toEqual(["💌 Send @Alice Ng a card"]);
+    expect(rows.map(reminderLabel)).toEqual(["💌 Send @Violet Bick a card"]);
     expect(daysUntil(todayCivil(), civilFromDueMs(rows[0].dueDate!))).toBe(13);
   });
 
@@ -192,9 +192,9 @@ describe("the plan prompt, end to end through core", () => {
     await personWithBirthday(0);
 
     const labels = (await systemReminders()).map(reminderLabel);
-    expect(labels).toContain("🎉 Wish @Alice Ng a happy birthday");
+    expect(labels).toContain("🎉 Wish @Violet Bick a happy birthday");
     expect(labels).toContain(
-      "🗓 What do you want to do for @Alice Ng's birthday?",
+      "🗓 What do you want to do for @Violet Bick's birthday?",
     );
   });
 });

@@ -37,8 +37,8 @@ afterEach(() => {
 });
 
 /** A published person to hang the unpublished ones off. */
-function coworker(firstName = "Sam") {
-  return core.people.create({ firstName, lastName: "Carter" }, []);
+function coworker(firstName = "Ernie") {
+  return core.people.create({ firstName, lastName: "Bishop" }, []);
 }
 
 /**
@@ -64,54 +64,61 @@ async function attachWife(subjectId: string, name: string): Promise<Person> {
 
 describe("createWithNewOther", () => {
   it("creates the person unpublished, with the relationship, in one go", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
 
-    expect(jen.standing).toBe("unpublished");
-    expect(jen.firstName).toBe("Jen");
-    expect(jen.lastName).toBeNull();
+    expect(ruth.standing).toBe("unpublished");
+    expect(ruth.firstName).toBe("Ruth");
+    expect(ruth.lastName).toBeNull();
 
-    const neighbors = await core.relationships.listForEntity("person", sam.id);
+    const neighbors = await core.relationships.listForEntity(
+      "person",
+      ernie.id,
+    );
     expect(neighbors).toHaveLength(1);
     expect(neighbors[0]).toMatchObject({
-      otherId: jen.id,
+      otherId: ruth.id,
       otherStanding: "unpublished",
     });
   });
 
   it("splits a two-word name and keeps a one-word name whole", async () => {
-    const sam = await coworker();
-    const davis = await attachWife(sam.id, "Jen Davis");
-    expect(davis).toMatchObject({ firstName: "Jen", lastName: "Davis" });
+    const ernie = await coworker();
+    const davis = await attachWife(ernie.id, "Ruth Dakin");
+    expect(davis).toMatchObject({ firstName: "Ruth", lastName: "Dakin" });
 
-    const cher = await attachWife(sam.id, "Cher");
-    expect(cher).toMatchObject({ firstName: "Cher", lastName: null });
+    const cher = await attachWife(ernie.id, "Zuzu");
+    expect(cher).toMatchObject({ firstName: "Zuzu", lastName: null });
   });
 
   it("keeps her out of the catalog and out of the pickers", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
 
-    expect((await core.people.list()).map((p) => p.id)).toEqual([sam.id]);
-    expect((await core.views.entityList()).map((e) => e.id)).toEqual([sam.id]);
-    expect((await core.views.candidates()).map((c) => c.id)).toEqual([sam.id]);
+    expect((await core.people.list()).map((p) => p.id)).toEqual([ernie.id]);
+    expect((await core.views.entityList()).map((e) => e.id)).toEqual([
+      ernie.id,
+    ]);
+    expect((await core.views.candidates()).map((c) => c.id)).toEqual([
+      ernie.id,
+    ]);
 
     // But she is readable by id, which is how her own page renders.
-    expect(await core.people.get(jen.id)).toMatchObject({ firstName: "Jen" });
+    expect(await core.people.get(ruth.id)).toMatchObject({ firstName: "Ruth" });
   });
 
   it("creates an unpublished pet the same way", async () => {
-    const sam = await coworker();
+    const ernie = await coworker();
     const { other } = await core.relationships.createWithNewOther({
       subjectType: "person",
-      subjectId: sam.id,
+      subjectId: ernie.id,
       otherType: "pet",
-      otherName: "Rex the Third",
+      otherName: "Jimmy the Third",
       otherRole: "pet",
     });
 
     // A pet's name is a single field, so it is taken whole.
-    expect(other).toMatchObject({ name: "Rex the Third" });
+    expect(other).toMatchObject({ name: "Jimmy the Third" });
     expect(await core.pets.list()).toEqual([]);
   });
 });
@@ -121,62 +128,62 @@ describe("createWithNewOther", () => {
 // anything at all is what does it.
 describe("promotion", () => {
   it("publishes her when she gets a birthday", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
 
     await core.milestones.create({
       bearerType: "person",
-      bearerId: jen.id,
+      bearerId: ruth.id,
       kind: "birthday",
       year: 1985,
       month: 4,
       day: 2,
     });
 
-    expect((await core.people.get(jen.id))?.standing).toBe("published");
-    expect((await core.people.list()).map((p) => p.id)).toContain(jen.id);
+    expect((await core.people.get(ruth.id))?.standing).toBe("published");
+    expect((await core.people.list()).map((p) => p.id)).toContain(ruth.id);
   });
 
   it("publishes her when she gets a contact method", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
 
     await core.contactMethods.emails.create({
       ownerType: "person",
-      ownerId: jen.id,
+      ownerId: ruth.id,
       label: "home",
-      address: "jen@example.com",
+      address: "ruth@example.com",
     });
 
-    expect((await core.people.get(jen.id))?.standing).toBe("published");
+    expect((await core.people.get(ruth.id))?.standing).toBe("published");
   });
 
   it("publishes her when she gets a gender", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
 
-    await core.people.update(jen.id, { gender: "female" }, []);
+    await core.people.update(ruth.id, { gender: "female" }, []);
 
-    expect((await core.people.get(jen.id))?.standing).toBe("published");
+    expect((await core.people.get(ruth.id))?.standing).toBe("published");
   });
 
   it("publishes her when she gets a tag", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
 
-    await core.people.update(jen.id, {}, ["neighbours"]);
+    await core.people.update(ruth.id, {}, ["neighbours"]);
 
-    expect((await core.people.get(jen.id))?.standing).toBe("published");
+    expect((await core.people.get(ruth.id))?.standing).toBe("published");
   });
 
   it("publishes her when she gets a second relationship", async () => {
-    const sam = await coworker();
+    const ernie = await coworker();
     const mark = await coworker("Mark");
-    const jen = await attachWife(sam.id, "Jen");
+    const ruth = await attachWife(ernie.id, "Ruth");
 
     await core.relationships.createFromSubject({
       subjectType: "person",
-      subjectId: jen.id,
+      subjectId: ruth.id,
       otherType: "person",
       otherId: mark.id,
       otherRole: "friend",
@@ -184,96 +191,96 @@ describe("promotion", () => {
 
     // This is how the "exactly one relationship" rule is kept: by promoting, not
     // by refusing the second edge.
-    expect((await core.people.get(jen.id))?.standing).toBe("published");
+    expect((await core.people.get(ruth.id))?.standing).toBe("published");
   });
 
   it("publishes her when she is given a gift", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
 
     await core.gifts.capture({
       giftIdea: { title: "A kite" },
-      recipients: [{ party: { type: "person", id: jen.id } }],
+      recipients: [{ party: { type: "person", id: ruth.id } }],
     });
 
-    expect((await core.people.get(jen.id))?.standing).toBe("published");
+    expect((await core.people.get(ruth.id))?.standing).toBe("published");
   });
 
   // The exceptions, and the reason the rule reads as "more than a name" rather
   // than "any write at all".
   it("does not publish her when only her name is corrected", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
 
     await core.people.update(
-      jen.id,
-      { firstName: "Jen", lastName: "Davis", middleName: "R" },
+      ruth.id,
+      { firstName: "Ruth", lastName: "Dakin", middleName: "R" },
       [],
     );
 
-    const after = await core.people.get(jen.id);
+    const after = await core.people.get(ruth.id);
     expect(after?.standing).toBe("unpublished");
-    expect(after?.lastName).toBe("Davis");
+    expect(after?.lastName).toBe("Dakin");
     expect(await core.people.list()).toHaveLength(1);
   });
 
   it("does not publish her for a gender merely inferred from her role", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
 
     // "wife" implies female, and reading that stores nothing.
-    expect(await core.kinship.genderFor("person", jen.id)).toEqual({
+    expect(await core.kinship.genderFor("person", ruth.id)).toEqual({
       value: "female",
       origin: "derived",
     });
-    expect((await core.people.get(jen.id))?.standing).toBe("unpublished");
+    expect((await core.people.get(ruth.id))?.standing).toBe("unpublished");
   });
 
   it("leaves an explicit standing in a patch alone", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
 
     // A caller saying what it wants is not second-guessed, or an explicit
     // demotion could never be written.
-    await core.people.update(jen.id, { standing: "unpublished" }, []);
-    expect((await core.people.get(jen.id))?.standing).toBe("unpublished");
+    await core.people.update(ruth.id, { standing: "unpublished" }, []);
+    expect((await core.people.get(ruth.id))?.standing).toBe("unpublished");
   });
 });
 
 describe("cascade", () => {
   it("takes her with the person she belongs to", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
 
-    await core.people.softDelete(sam.id);
+    await core.people.softDelete(ernie.id);
 
-    expect(await core.people.get(jen.id)).toBeUndefined();
+    expect(await core.people.get(ruth.id)).toBeUndefined();
     expect(await core.people.list()).toEqual([]);
   });
 
   it("takes her when the relationship itself is removed", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
-    const [edge] = await core.relationships.listForEntity("person", sam.id);
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
+    const [edge] = await core.relationships.listForEntity("person", ernie.id);
 
     await core.relationships.softDelete(edge.relationshipId);
 
-    expect(await core.people.get(jen.id)).toBeUndefined();
-    // Sam is untouched — only the end that existed *because* of the edge goes.
-    expect(await core.people.get(sam.id)).toBeDefined();
+    expect(await core.people.get(ruth.id)).toBeUndefined();
+    // Ernie is untouched — only the end that existed *because* of the edge goes.
+    expect(await core.people.get(ernie.id)).toBeDefined();
   });
 
   it("leaves a published person standing when the edge goes", async () => {
-    const sam = await coworker();
+    const ernie = await coworker();
     const mark = await coworker("Mark");
     await core.relationships.createFromSubject({
       subjectType: "person",
-      subjectId: sam.id,
+      subjectId: ernie.id,
       otherType: "person",
       otherId: mark.id,
       otherRole: "friend",
     });
-    const [edge] = await core.relationships.listForEntity("person", sam.id);
+    const [edge] = await core.relationships.listForEntity("person", ernie.id);
 
     await core.relationships.softDelete(edge.relationshipId);
 
@@ -283,33 +290,33 @@ describe("cascade", () => {
   // Once she is a person in her own right she stops being anyone's dependent, and
   // deleting the person she came in through no longer touches her.
   it("spares her once she has been published", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
-    await core.people.update(jen.id, { gender: "female" }, []);
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
+    await core.people.update(ruth.id, { gender: "female" }, []);
 
-    await core.people.softDelete(sam.id);
+    await core.people.softDelete(ernie.id);
 
-    expect(await core.people.get(jen.id)).toBeDefined();
-    expect((await core.people.list()).map((p) => p.id)).toEqual([jen.id]);
+    expect(await core.people.get(ruth.id)).toBeDefined();
+    expect((await core.people.list()).map((p) => p.id)).toEqual([ruth.id]);
   });
 
   it("sweeps her facts, not just her row", async () => {
-    const sam = await coworker();
-    const jen = await attachWife(sam.id, "Jen");
+    const ernie = await coworker();
+    const ruth = await attachWife(ernie.id, "Ruth");
     // Reach in past the promotion rule to give her a fact while still
     // unpublished — the state a half-finished write could leave behind.
     await core.milestones.create({
       bearerType: "person",
-      bearerId: jen.id,
+      bearerId: ruth.id,
       kind: "birthday",
       year: 1985,
       month: 4,
       day: 2,
     });
-    await core.people.update(jen.id, { standing: "unpublished" }, []);
+    await core.people.update(ruth.id, { standing: "unpublished" }, []);
 
-    await core.people.softDelete(sam.id);
+    await core.people.softDelete(ernie.id);
 
-    expect(await core.milestones.listForBearer("person", jen.id)).toEqual([]);
+    expect(await core.milestones.listForBearer("person", ruth.id)).toEqual([]);
   });
 });

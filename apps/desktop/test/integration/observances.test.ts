@@ -55,15 +55,15 @@ describe("observer picker", () => {
   it("lists every person and pet as a candidate, not only observers", async () => {
     // The picker is bulk assignment: if it listed only existing observers there
     // would be no way to create the first one.
-    await addPerson("Alice", "Chen");
-    await addPerson("Bob", "Smith");
-    await createPetsRepo(driver).create({ name: "Rex" });
+    await addPerson("Violet", "Bick");
+    await addPerson("Harry", "Martini");
+    await createPetsRepo(driver).create({ name: "Jimmy" });
 
     const candidates = await api().listObservers(CHRISTMAS);
     expect(candidates.map((c) => c.label)).toEqual([
-      "Alice Chen",
-      "Bob Smith",
-      "Rex",
+      "Harry Martini",
+      "Jimmy",
+      "Violet Bick",
     ]);
     for (const candidate of candidates) {
       expect(candidate.explicit).toBeNull();
@@ -72,26 +72,26 @@ describe("observer picker", () => {
   });
 
   it("stores only the divergent answers", async () => {
-    const alice = await addPerson("Alice", "Chen");
-    const bob = await addPerson("Bob", "Smith");
+    const violet = await addPerson("Violet", "Bick");
+    const harry = await addPerson("Harry", "Martini");
 
     await api().setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
-      { bearerType: "person", bearerId: bob.id, observes: false },
+      { bearerType: "person", bearerId: violet.id, observes: true },
+      { bearerType: "person", bearerId: harry.id, observes: false },
     ]);
 
-    // Alice diverges from the implicit "no" and gets a row; Bob agrees with it
+    // Violet diverges from the implicit "no" and gets a row; Harry agrees with it
     // and gets none.
     const rows = await createObservancesRepo(driver).listForHoliday(CHRISTMAS);
     expect(rows).toHaveLength(1);
-    expect(rows[0].bearerId).toBe(alice.id);
+    expect(rows[0].bearerId).toBe(violet.id);
     expect(rows[0].observes).toBe(true);
   });
 
   it("reflects saved answers back into the picker", async () => {
-    const alice = await addPerson("Alice", "Chen");
+    const violet = await addPerson("Violet", "Bick");
     await api().setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
 
     const [candidate] = await api().listObservers(CHRISTMAS);
@@ -100,13 +100,13 @@ describe("observer picker", () => {
   });
 
   it("clears a row when an answer is taken back", async () => {
-    const alice = await addPerson("Alice", "Chen");
+    const violet = await addPerson("Violet", "Bick");
     const holidays = api();
     await holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
     await holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: false },
+      { bearerType: "person", bearerId: violet.id, observes: false },
     ]);
 
     expect(
@@ -117,10 +117,10 @@ describe("observer picker", () => {
   });
 
   it("is idempotent — saving the same answers twice writes nothing new", async () => {
-    const alice = await addPerson("Alice", "Chen");
+    const violet = await addPerson("Violet", "Bick");
     const holidays = api();
     const decisions = [
-      { bearerType: "person" as const, bearerId: alice.id, observes: true },
+      { bearerType: "person" as const, bearerId: violet.id, observes: true },
     ];
 
     await holidays.setObservers(CHRISTMAS, decisions);
@@ -138,58 +138,58 @@ describe("observer picker", () => {
     // address book, so a save must be additive. If it were ever read as "these
     // are all the answers", adding the second observer would silently clear the
     // first.
-    const alice = await addPerson("Alice", "Chen");
-    const bob = await addPerson("Bob", "Smith");
+    const violet = await addPerson("Violet", "Bick");
+    const harry = await addPerson("Harry", "Martini");
     const holidays = api();
 
     await holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
     const [aliceRow] =
       await createObservancesRepo(driver).listForHoliday(CHRISTMAS);
 
     await holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: bob.id, observes: true },
+      { bearerType: "person", bearerId: harry.id, observes: true },
     ]);
 
     const rows = await createObservancesRepo(driver).listForHoliday(CHRISTMAS);
     expect(rows).toHaveLength(2);
-    expect(rows.find((r) => r.bearerId === alice.id)?.id).toBe(aliceRow.id);
+    expect(rows.find((r) => r.bearerId === violet.id)?.id).toBe(aliceRow.id);
     expect(rows.every((r) => r.observes)).toBe(true);
   });
 
   it("removes one observer without disturbing the others", async () => {
-    const alice = await addPerson("Alice", "Chen");
-    const bob = await addPerson("Bob", "Smith");
+    const violet = await addPerson("Violet", "Bick");
+    const harry = await addPerson("Harry", "Martini");
     const holidays = api();
 
     await holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
-      { bearerType: "person", bearerId: bob.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
+      { bearerType: "person", bearerId: harry.id, observes: true },
     ]);
     await holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: bob.id, observes: false },
+      { bearerType: "person", bearerId: harry.id, observes: false },
     ]);
 
     const rows = await createObservancesRepo(driver).listForHoliday(CHRISTMAS);
     expect(rows).toHaveLength(1);
-    expect(rows[0].bearerId).toBe(alice.id);
+    expect(rows[0].bearerId).toBe(violet.id);
   });
 
   it("updates the browse screen's observer count", async () => {
-    const alice = await addPerson("Alice", "Chen");
+    const violet = await addPerson("Violet", "Bick");
     await api().setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
     const row = (await api().list()).find((h) => h.slug === "christmas");
     expect(row?.observerCount).toBe(1);
   });
 
   it("keeps observances through a hide and unhide", async () => {
-    const alice = await addPerson("Alice", "Chen");
+    const violet = await addPerson("Violet", "Bick");
     const holidays = api();
     await holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
 
     await holidays.setHidden(CHRISTMAS, true);
@@ -242,13 +242,13 @@ describe("holidays a bearer observes", () => {
     // The whole catalog, because one read serves both the observed list and the
     // pool of what could be added — deriving both from one snapshot is what
     // stops them disagreeing.
-    const alice = await addPerson("Alice", "Chen");
+    const violet = await addPerson("Violet", "Bick");
     const holidays = api();
     await holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
 
-    const rows = await holidays.listForBearer("person", alice.id);
+    const rows = await holidays.listForBearer("person", violet.id);
     expect(rows.length).toBeGreaterThan(1);
     expect(rows.filter((r) => r.observes).map((r) => r.slug)).toEqual([
       "christmas",
@@ -256,13 +256,13 @@ describe("holidays a bearer observes", () => {
   });
 
   it("does not count an explicit override as an observance", async () => {
-    // "Alice doesn't do Christmas" is an override, not an absence — it must not
+    // "Violet doesn't do Christmas" is an override, not an absence — it must not
     // read back as something she observes.
-    const alice = await addPerson("Alice", "Chen");
+    const violet = await addPerson("Violet", "Bick");
     const observances = createObservancesRepo(driver);
-    await observances.setObservance(CHRISTMAS, "person", alice.id, false);
+    await observances.setObservance(CHRISTMAS, "person", violet.id, false);
 
-    const rows = await api().listForBearer("person", alice.id);
+    const rows = await api().listForBearer("person", violet.id);
     const christmas = rows.find((r) => r.id === CHRISTMAS);
     expect(christmas?.explicit).toBe(false);
     expect(christmas?.observes).toBe(false);
@@ -271,13 +271,13 @@ describe("holidays a bearer observes", () => {
   it("reports the stored answer as explicit", async () => {
     // Guards the field the implicit resolver will start returning `null` for:
     // the UI has to tell "the user said so" from "inherited from an inference".
-    const alice = await addPerson("Alice", "Chen");
+    const violet = await addPerson("Violet", "Bick");
     const holidays = api();
     await holidays.setObservers(EASTER, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
 
-    const rows = await holidays.listForBearer("person", alice.id);
+    const rows = await holidays.listForBearer("person", violet.id);
     expect(rows.find((r) => r.id === EASTER)?.explicit).toBe(true);
     expect(rows.find((r) => r.id === CHRISTMAS)?.explicit).toBeNull();
   });
@@ -286,14 +286,14 @@ describe("holidays a bearer observes", () => {
     // Suggestion-filtering is the UI's job; this read stays honest. Dropping a
     // hidden holiday here would strand an observance the user can see no way to
     // remove.
-    const alice = await addPerson("Alice", "Chen");
+    const violet = await addPerson("Violet", "Bick");
     const holidays = api();
     await holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
     await holidays.setHidden(CHRISTMAS, true);
 
-    const christmas = (await holidays.listForBearer("person", alice.id)).find(
+    const christmas = (await holidays.listForBearer("person", violet.id)).find(
       (r) => r.id === CHRISTMAS,
     );
     expect(christmas?.hidden).toBe(true);
@@ -301,17 +301,17 @@ describe("holidays a bearer observes", () => {
   });
 
   it("agrees with listObservers about who observes what", async () => {
-    const alice = await addPerson("Alice", "Chen");
-    const bob = await addPerson("Bob", "Smith");
+    const violet = await addPerson("Violet", "Bick");
+    const harry = await addPerson("Harry", "Martini");
     const holidays = api();
     await holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
     await holidays.setObservers(EASTER, [
-      { bearerType: "person", bearerId: bob.id, observes: true },
+      { bearerType: "person", bearerId: harry.id, observes: true },
     ]);
 
-    for (const person of [alice, bob]) {
+    for (const person of [violet, harry]) {
       for (const row of await holidays.listForBearer("person", person.id)) {
         const fromHolidaySide = (await holidays.listObservers(row.id)).find(
           (c) => c.bearerType === "person" && c.bearerId === person.id,
@@ -323,13 +323,13 @@ describe("holidays a bearer observes", () => {
   });
 
   it("works for a pet as well as a person", async () => {
-    const rex = await createPetsRepo(driver).create({ name: "Rex" });
+    const jimmy = await createPetsRepo(driver).create({ name: "Jimmy" });
     const holidays = api();
     await holidays.setObservers(CHRISTMAS, [
-      { bearerType: "pet", bearerId: rex.id, observes: true },
+      { bearerType: "pet", bearerId: jimmy.id, observes: true },
     ]);
 
-    const rows = await holidays.listForBearer("pet", rex.id);
+    const rows = await holidays.listForBearer("pet", jimmy.id);
     expect(rows.filter((r) => r.observes).map((r) => r.slug)).toEqual([
       "christmas",
     ]);
@@ -358,29 +358,29 @@ describe("observances through person lifecycle", () => {
 
   it("clears a deleted person's observances", async () => {
     const core = createCore(driver);
-    const alice = await core.people.create(
-      { firstName: "Alice", lastName: "Chen" },
+    const violet = await core.people.create(
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
     await core.holidays.setObservers(CHRISTMAS, [
-      { bearerType: "person", bearerId: alice.id, observes: true },
+      { bearerType: "person", bearerId: violet.id, observes: true },
     ]);
 
-    await core.people.softDelete(alice.id);
+    await core.people.softDelete(violet.id);
 
     expect(
-      await createObservancesRepo(driver).listForBearer("person", alice.id),
+      await createObservancesRepo(driver).listForBearer("person", violet.id),
     ).toEqual([]);
   });
 
   it("carries observances onto the survivor of a merge", async () => {
     const core = createCore(driver);
     const survivor = await core.people.create(
-      { firstName: "Alice", lastName: "Chen" },
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
     const loser = await core.people.create(
-      { firstName: "Alice", lastName: "Chen" },
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
 
@@ -404,11 +404,11 @@ describe("observances through person lifecycle", () => {
     // field by field, and an observance is no different.
     const core = createCore(driver);
     const survivor = await core.people.create(
-      { firstName: "Alice", lastName: "Chen" },
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
     const loser = await core.people.create(
-      { firstName: "Alice", lastName: "Chen" },
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
 

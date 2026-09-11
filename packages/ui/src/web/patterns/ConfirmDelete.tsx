@@ -26,7 +26,7 @@ export function ConfirmDelete({
   children,
 }: {
   trail: Crumb[];
-  /** The question, e.g. “Delete Ada Lovelace?”. */
+  /** The question, e.g. “Delete Mary Bailey?”. */
   heading: ReactNode;
   /** The destructive button's text — “Delete” or “Remove”. */
   confirmLabel: string;

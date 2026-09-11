@@ -34,7 +34,7 @@ function daysOut(days: number): CivilDate {
   return civilFromDueMs(dueDateMs(TODAY) + days * DAY_MS);
 }
 
-const ALICE = mentionToken("Alice", "person", "p1");
+const VIOLET = mentionToken("Violet", "person", "p1");
 
 /** As {@link makeHarness} in `engine.test.ts`, narrowed to what copy needs. */
 function makeHarness() {
@@ -43,7 +43,7 @@ function makeHarness() {
   let today = TODAY;
   let selfPersonId: string | null = null;
   let candidates: HolidayOccurrenceCandidate[] = [];
-  const labels = new Map<string, string>([["p1", "Alice"]]);
+  const labels = new Map<string, string>([["p1", "Violet"]]);
   const schedules = new Map<string, ReminderRuleInput[]>();
 
   const deps: ReminderEngineDeps = {
@@ -147,7 +147,7 @@ describe("belated copy", () => {
     await regenerateSystemReminders(h.deps);
 
     const [row] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
-    expect(row.title).toBe(`🎉 Wish ${ALICE} a happy belated birthday`);
+    expect(row.title).toBe(`🎉 Wish ${VIOLET} a happy belated birthday`);
   });
 
   it("stores the plain wording, whatever the read says", async () => {
@@ -157,7 +157,9 @@ describe("belated copy", () => {
     wishOnly(h, daysOut(-1));
     await regenerateSystemReminders(h.deps);
 
-    expect(h.activeSystem()[0].title).toBe(`🎉 Wish ${ALICE} a happy birthday`);
+    expect(h.activeSystem()[0].title).toBe(
+      `🎉 Wish ${VIOLET} a happy birthday`,
+    );
   });
 
   it("does not rewrite the row when the occasion passes", async () => {
@@ -183,7 +185,7 @@ describe("belated copy", () => {
     await regenerateSystemReminders(h.deps);
 
     const [row] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
-    expect(row.title).toBe(`🎉 Wish ${ALICE} a happy birthday`);
+    expect(row.title).toBe(`🎉 Wish ${VIOLET} a happy birthday`);
   });
 
   it("reaches the notification planner's read too", async () => {
@@ -195,7 +197,7 @@ describe("belated copy", () => {
 
     const rows = await listNotifiableReminders(h.deps);
     expect(rows.find((r) => r.id === h.activeSystem()[0].id)?.title).toBe(
-      `🎉 Wish ${ALICE} a happy belated birthday`,
+      `🎉 Wish ${VIOLET} a happy belated birthday`,
     );
   });
 
@@ -207,7 +209,7 @@ describe("belated copy", () => {
     await regenerateSystemReminders(h.deps);
 
     const [row] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
-    expect(row.title).toBe(`🎁 Get ${ALICE} a gift`);
+    expect(row.title).toBe(`🎁 Get ${VIOLET} a gift`);
   });
 
   it("keeps the plain greeting for an occasion that has no belated form", async () => {
@@ -228,7 +230,7 @@ describe("belated copy", () => {
     await regenerateSystemReminders(h.deps);
 
     const [row] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
-    expect(row.title).toBe(`🎉 Wish ${ALICE} a Merry Christmas`);
+    expect(row.title).toBe(`🎉 Wish ${VIOLET} a Merry Christmas`);
   });
 
   it("keeps the self-directed birthday in the right tense", async () => {
@@ -259,7 +261,7 @@ describe("getReminderInWindow", () => {
     const id = h.activeSystem()[0].id;
 
     const row = await getReminderInWindow(h.deps, id);
-    expect(row?.title).toBe(`🎉 Wish ${ALICE} a happy belated birthday`);
+    expect(row?.title).toBe(`🎉 Wish ${VIOLET} a happy belated birthday`);
     expect(row?.occurrenceDate).toBe(dueDateMs(daysOut(-1)));
     expect(row?.materialized).toBe(true);
   });

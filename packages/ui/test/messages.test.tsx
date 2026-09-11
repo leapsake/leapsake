@@ -61,8 +61,8 @@ describe("the English catalog", () => {
   });
 
   it("owns whole sentences rather than fragments to be glued together", () => {
-    expect(en.milestones.withPartner("Wedding", "Grace")).toBe(
-      "Wedding · with Grace",
+    expect(en.milestones.withPartner("Wedding", "Henry")).toBe(
+      "Wedding · with Henry",
     );
     expect(en.contactMethods.phoneWithoutSms("555-0100")).toBe(
       "555-0100 (no texts)",

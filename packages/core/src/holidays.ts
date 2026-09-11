@@ -152,7 +152,7 @@ export interface HolidaysApiDeps {
  *    statement that the bearer does *not* observe, so it must generate nothing.
  * 2. **Hidden holidays are dropped**, and this is why hiding has to happen here
  *    rather than only on browse surfaces: otherwise "I hid Mother's Day" still
- *    produces "Call @Alice for Mother's Day", which is worse than an ordinary
+ *    produces "Call @Violet for Mother's Day", which is worse than an ordinary
  *    bug for precisely the holiday people hide for painful reasons (§2.6).
  * 3. **Unresolvable holidays yield no occurrences** and simply contribute
  *    nothing — the row survives, per-holiday, without failing the reconcile.

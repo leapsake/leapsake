@@ -64,8 +64,8 @@ describe("custody boot decision", () => {
     // The app genuinely works in this state — the whole point of Unauthenticated is that a
     // user can use Leapsake without ever being asked to set anything up.
     await createPeopleRepo(driver).create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     expect((await createPeopleRepo(driver).list()).length).toBe(1);
     await driver.close?.();
@@ -88,8 +88,8 @@ describe("custody boot decision", () => {
     });
     await runMigrations(driver);
     await createPeopleRepo(driver).create({
-      firstName: "Grace",
-      lastName: "Hopper",
+      firstName: "Henry",
+      lastName: "Potter",
     });
     await driver.close?.();
 
@@ -144,7 +144,7 @@ describe("custody boot decision", () => {
     const { roster } = await resolveBoot(userData);
     await roster.add({
       id: "acct-1",
-      username: "ada",
+      username: "mary",
       createdAt: "2026-07-27T00:00:00.000Z",
     });
     const { activeStore, dbPath } = await resolveBoot(userData);
@@ -174,7 +174,7 @@ describe("custody boot decision", () => {
     const { roster } = await resolveBoot(userData);
     await roster.add({
       id: "acct-1",
-      username: "ada",
+      username: "mary",
       createdAt: "2026-07-27T00:00:00.000Z",
     });
 

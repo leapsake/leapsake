@@ -61,8 +61,8 @@ async function seedOpenStore(key?: Uint8Array): Promise<void> {
   });
   await runMigrations(driver);
   await createPeopleRepo(driver).create({
-    firstName: "Ada",
-    lastName: "Lovelace",
+    firstName: "Mary",
+    lastName: "Bailey",
   });
   await driver.close?.();
 }
@@ -88,7 +88,7 @@ describe("convertStoreToEncrypted", () => {
     expect(storeFileState(toPath)).toBe("encrypted");
     const driver = encryptedSqliteDriver(openEncryptedDatabase(toPath, key));
     const people = await createPeopleRepo(driver).list();
-    expect(people.map((p) => p.firstName)).toEqual(["Ada"]);
+    expect(people.map((p) => p.firstName)).toEqual(["Mary"]);
     await driver.close?.();
   });
 
@@ -226,7 +226,7 @@ describe("rekeyStore", () => {
     rekeyStore({ fromPath, fromKey, toPath, toKey });
 
     expect(storeFileState(toPath)).toBe("encrypted");
-    expect(await readPeople(toPath, toKey)).toEqual(["Ada"]);
+    expect(await readPeople(toPath, toKey)).toEqual(["Mary"]);
   });
 
   // The one assertion that separates a re-key from a byte copy. Without it every
@@ -290,7 +290,7 @@ describe("rekeyStore", () => {
     rekeyStore({ fromPath, fromKey, toPath, toKey });
 
     expect(storeFileState(fromPath)).toBe("encrypted");
-    expect(await readPeople(fromPath, fromKey)).toEqual(["Ada"]);
+    expect(await readPeople(fromPath, fromKey)).toEqual(["Mary"]);
   });
 
   it("refuses a plaintext source", async () => {
@@ -336,7 +336,7 @@ describe("rekeyStore", () => {
     ).toThrow();
 
     expect(storeFileState(fromPath)).toBe("encrypted");
-    expect(await readPeople(fromPath, fromKey)).toEqual(["Ada"]);
+    expect(await readPeople(fromPath, fromKey)).toEqual(["Mary"]);
   });
 
   // The case the merge actually hits. The at-rest key is minted per *device*, not
@@ -349,7 +349,7 @@ describe("rekeyStore", () => {
     rekeyStore({ fromPath, fromKey, toPath, toKey: fromKey });
 
     expect(storeFileState(toPath)).toBe("encrypted");
-    expect(await readPeople(toPath, fromKey)).toEqual(["Ada"]);
+    expect(await readPeople(toPath, fromKey)).toEqual(["Mary"]);
   });
 
   /**

@@ -55,7 +55,7 @@ import {
  */
 
 const LOCAL_PASSWORD = "the password this computer has now";
-const SYNCED_USERNAME = "Grace"; // mixed case: the account stores it normalized
+const SYNCED_USERNAME = "Henry"; // mixed case: the account stores it normalized
 const SYNCED_PASSWORD = "correct horse battery staple";
 const RELAY_URL = "https://relay.example";
 
@@ -172,7 +172,7 @@ describe("merging a local-only account into a synced one", () => {
     const reopened = await bootTheDevice();
     await runMigrations(reopened); // a no-op if user_version came across
     const people = await createPeopleRepo(reopened).list();
-    expect(people.map((p) => p.firstName)).toEqual(["Ada"]);
+    expect(people.map((p) => p.firstName)).toEqual(["Mary"]);
     await reopened.close?.();
   });
 
@@ -187,7 +187,7 @@ describe("merging a local-only account into a synced one", () => {
     }>("SELECT id, username, relay_url FROM account LIMIT 1");
     expect(row?.id).toBe(account.bootstrap.accountId);
     expect(row?.id).not.toBe(localId);
-    expect(row?.username).toBe("grace");
+    expect(row?.username).toBe("henry");
     // Relay-bound is the second of `reconcileOnJoin`'s two preconditions.
     expect(row?.relay_url).toBe(RELAY_URL);
     await reopened.close?.();
@@ -217,7 +217,7 @@ describe("merging a local-only account into a synced one", () => {
     expect(asked[1]).toBeTruthy();
 
     const people = await createPeopleRepo(unlocked).list();
-    expect(people.map((p) => p.firstName)).toEqual(["Ada"]);
+    expect(people.map((p) => p.firstName)).toEqual(["Mary"]);
     await unlocked.close?.();
   });
 
@@ -273,7 +273,7 @@ describe("merging a local-only account into a synced one", () => {
       secret: LOCAL_PASSWORD,
     }));
     const people = await createPeopleRepo(reopened).list();
-    expect(people.map((p) => p.firstName)).toEqual(["Ada"]);
+    expect(people.map((p) => p.firstName)).toEqual(["Mary"]);
     await reopened.close?.();
   });
 
@@ -325,7 +325,7 @@ describe("merging a local-only account into a synced one", () => {
     expect(storeFileState(syncedPath())).toBe("encrypted");
     const reopened = await bootTheDevice();
     const people = await createPeopleRepo(reopened).list();
-    expect(people.map((p) => p.firstName)).toEqual(["Ada"]);
+    expect(people.map((p) => p.firstName)).toEqual(["Mary"]);
     await reopened.close?.();
   });
 
@@ -335,7 +335,7 @@ describe("merging a local-only account into a synced one", () => {
   it("refuses a destination a roster entry already claims", async () => {
     await device.roster().add({
       id: account.bootstrap.accountId,
-      username: "grace",
+      username: "henry",
       createdAt: new Date().toISOString(),
     });
     const driver = await openLive();

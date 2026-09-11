@@ -74,8 +74,8 @@ export function Typeahead<T>({
    * Extra options built from what has been typed, listed **after** the matches —
    * how a picker offers to create the thing you were looking for.
    *
-   * Offered alongside matches rather than only when there are none: typing "Jen"
-   * when a "Jenny" exists is still allowed to mean a new Jen. They are ordinary
+   * Offered alongside matches rather than only when there are none: typing "Ruth"
+   * when a "Ruthie" exists is still allowed to mean a new Ruth. They are ordinary
    * options, so they pick, reset the query and close the field exactly as a real
    * match does, and the caller tells the two apart by what it built.
    */

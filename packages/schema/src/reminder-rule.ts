@@ -171,7 +171,7 @@ export interface ReminderCopyContext {
    * Deliberately separate from {@link ReminderCopyContext.greeting} rather than
    * derived from it: a greeting carries an article and a sentiment ("**a happy**
    * birthday") that read as nonsense in a question ("How do you want to mark
-   * Alice's a happy birthday?"). Two fields, because the two jobs genuinely
+   * Violet's a happy birthday?"). Two fields, because the two jobs genuinely
    * differ; and required, not optional, for the reason this whole interface is
    * an object — a missing one here renders plausible copy that typechecks.
    */
@@ -208,8 +208,8 @@ export interface PlanQuestionContext {
  * else about the same occasion — the drift `renderTitle` and `SCHEDULABLE_ACTIONS`
  * were each centralised to prevent.
  *
- * ⚠️ **The shared form is a correctness fix, not a nicety.** "@Alice's first
- * date" says Alice had one, with somebody. It is *yours, with Alice*, and the
+ * ⚠️ **The shared form is a correctness fix, not a nicety.** "@Violet's first
+ * date" says Violet had one, with somebody. It is *yours, with Violet*, and the
  * possessive states the opposite of the fact the app is holding.
  */
 export function planQuestion({
@@ -277,8 +277,8 @@ export interface ReminderActionDef {
    * The reminder copy this action produces, e.g.
    * `` ({subject}) => `Get ${subject} a gift` ``. Most actions ignore the
    * occasion entirely — a gift is a gift — but {@link ReminderCopyContext.greeting}
-   * is what lets `wish` serve both "Wish @Alice a happy birthday" and "Wish
-   * @Alice a Merry Christmas" from one template. `other` has no fixed template —
+   * is what lets `wish` serve both "Wish @Violet a happy birthday" and "Wish
+   * @Violet a Merry Christmas" from one template. `other` has no fixed template —
    * its copy is the rule's free-text {@link ReminderRule.label} (see
    * {@link reminderRuleLabel}) — so it falls back to its plain label.
    */
@@ -315,7 +315,7 @@ export const actionDefs = {
     // The one action whose copy turns on the occasion. With a birthday's
     // greeting this renders exactly the string the birthday-only engine used to
     // hard-code, which is what keeps existing reminders from drifting on
-    // upgrade; with a holiday's it reads "Wish @Alice a Merry Christmas".
+    // upgrade; with a holiday's it reads "Wish @Violet a Merry Christmas".
     template: ({ subject, greeting }) => `Wish ${subject} ${greeting}`,
   },
   "get:gift": {
@@ -425,7 +425,7 @@ export const actionDefs = {
     // ⚠️ This is the **third-party** form, and it is not the only one. An
     // occasion that is the user's own reads "your own {occasion}", and one they
     // *share* reads "your {occasion} with {subject}" — a first date is not
-    // Alice's, it is yours with Alice, and the possessive here says otherwise.
+    // Violet's, it is yours with Violet, and the possessive here says otherwise.
     // Both live in `copyOverrideOf` in `@leapsake/reminders`, beside the
     // self-directed wish, because they need to know who the bearer is and a
     // template only sees the words.
@@ -508,7 +508,7 @@ export function actionDefOf(action: ReminderAction): ReminderActionDef {
  * 2026-09-05)*: **a channel is an affordance, not an errand.** How you reach
  * someone is a button on the acknowledgment — one row, *wish them a happy
  * birthday*, with their contact methods on it — rather than a row of its own you
- * schedule in advance. Scheduling "call Alice" and "text Alice" as separate
+ * schedule in advance. Scheduling "call Violet" and "text Violet" as separate
  * errands asks the user, weeks ahead, a question they can only answer in the
  * moment, and answers it with two rows to tick where one would do.
  *
@@ -589,7 +589,7 @@ export const MAX_ACTIVE_DAYS: number = Math.max(
  * Note the second entry is **`observance`**, not `holiday`, though earlier
  * comments here and on migration 21 anticipated the latter. The rule bears on
  * the observance — the (person, holiday) pair — because that is what makes a
- * per-person schedule expressible: "gift Alice 30 days before Christmas" but
+ * per-person schedule expressible: "gift Violet 30 days before Christmas" but
  * "just call Grandma day-of". Hanging it off the holiday would need a third
  * column naming the person, plus a parallel copy of the schedule machinery
  * (`@leapsake/holidays` README, the three layers).

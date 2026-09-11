@@ -8,7 +8,7 @@ afterEach(cleanup);
 
 const trail = [
   { label: "People & Pets", href: "/people" },
-  { label: "Ada Lovelace", href: "/people/1" },
+  { label: "Mary Bailey", href: "/people/1" },
 ];
 
 function renderScreen(
@@ -17,13 +17,13 @@ function renderScreen(
   return renderWithUi(
     <ConfirmDelete
       trail={trail}
-      heading="Delete Ada Lovelace?"
+      heading="Delete Mary Bailey?"
       confirmLabel="Delete"
       cancelTo="/people/1"
       submitting={false}
       {...props}
     >
-      Are you sure you want to delete Ada Lovelace?
+      Are you sure you want to delete Mary Bailey?
     </ConfirmDelete>,
   );
 }
@@ -32,11 +32,9 @@ describe("ConfirmDelete", () => {
   it("asks the question, explains it, and offers both ways out", () => {
     renderScreen();
 
-    expect(screen.getByRole("heading").textContent).toBe(
-      "Delete Ada Lovelace?",
-    );
+    expect(screen.getByRole("heading").textContent).toBe("Delete Mary Bailey?");
     expect(
-      screen.getByText("Are you sure you want to delete Ada Lovelace?"),
+      screen.getByText("Are you sure you want to delete Mary Bailey?"),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy();
     expect(

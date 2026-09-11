@@ -99,9 +99,9 @@ describe("onboarding reminders (end to end through core)", () => {
     // so the nudge is gone without an explicit regenerateSystem here.
     await core.people.create(
       {
-        firstName: "Ada",
+        firstName: "Mary",
         middleName: null,
-        lastName: "Lovelace",
+        lastName: "Bailey",
         gender: null,
       },
       [],
@@ -136,7 +136,7 @@ describe("onboarding reminders (end to end through core)", () => {
       keyStore,
       driver,
       password: "correct horse battery staple",
-      username: "ada",
+      username: "mary",
       relayUrl: "https://relay.example",
       platform: "desktop",
     });
@@ -165,7 +165,7 @@ describe("onboarding reminders (end to end through core)", () => {
       keyStore,
       driver,
       password: "correct horse battery staple",
-      username: "ada",
+      username: "mary",
       platform: "desktop",
     });
 
@@ -189,9 +189,9 @@ describe("onboarding reminders (end to end through core)", () => {
       // creating one reconciles in the same call, so no explicit regenerate here.
       await core.people.create(
         {
-          firstName: "Ada",
+          firstName: "Mary",
           middleName: null,
-          lastName: "Lovelace",
+          lastName: "Bailey",
           gender: null,
         },
         [],
@@ -212,7 +212,7 @@ describe("onboarding reminders (end to end through core)", () => {
         keyStore,
         driver,
         password: "correct horse battery staple",
-        username: "ada",
+        username: "mary",
         platform: "desktop",
       });
 
@@ -226,7 +226,7 @@ describe("onboarding reminders (end to end through core)", () => {
       // The extra repetition, through the real store and the real write method:
       // this is the one step that must never be wrongly silenced.
       await core.people.create(
-        { firstName: "Ada", middleName: null, lastName: "L", gender: null },
+        { firstName: "Mary", middleName: null, lastName: "L", gender: null },
         [],
       );
       const id = idFor("create-account");
@@ -334,8 +334,8 @@ describe("onboarding reminders (end to end through core)", () => {
     // A person with an upcoming birthday: their birthday reminder joins the same
     // desired set as the onboarding nudges. Creating the person retires the
     // import nudge, so we expect the sync nudge + the birthday reminder.
-    const alice = await core.people.create(
-      { firstName: "Alice", middleName: null, lastName: "Ng", gender: null },
+    const violet = await core.people.create(
+      { firstName: "Violet", middleName: null, lastName: "Bick", gender: null },
       [],
     );
     const soon = civilDaysFromToday(0);
@@ -344,7 +344,7 @@ describe("onboarding reminders (end to end through core)", () => {
     await core.milestones.create({
       kind: "birthday",
       bearerType: "person",
-      bearerId: alice.id,
+      bearerId: violet.id,
       month: soon.month,
       day: soon.day,
       reminderSchedule: [
@@ -358,13 +358,13 @@ describe("onboarding reminders (end to end through core)", () => {
       addPerson: rows.filter((r) => r.id === idFor("import")),
       birthday: rows.filter((r) => onboardingRouteOf(r.id) === null),
     };
-    // The import nudge is retired (Alice exists); the sync nudge remains; the
+    // The import nudge is retired (Violet exists); the sync nudge remains; the
     // birthday reminder is present and dated — all three coexist, none pruned.
     expect(byKind.addPerson).toHaveLength(0);
     expect(byKind.sync).toHaveLength(1);
     expect(byKind.birthday).toHaveLength(1);
     expect(reminderLabel(byKind.birthday[0])).toBe(
-      "🎉 Wish @Alice Ng a happy birthday",
+      "🎉 Wish @Violet Bick a happy birthday",
     );
     expect(
       daysUntil(todayCivil(), soon) >= 0 && byKind.birthday[0].dueDate !== null,

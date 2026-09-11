@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 function person(firstName: string, over: Partial<CreatePersonInput> = {}) {
-  return people.create({ firstName, lastName: "Smith", ...over });
+  return people.create({ firstName, lastName: "Martini", ...over });
 }
 
 /** Store "B is A's <role>": A's own end is the neutral inverse, B's end is `role`. */
@@ -63,32 +63,32 @@ function relate(
 
 describe("kinshipService — the worked example", () => {
   it("derives uncle, derived gender, and a gendered son label", async () => {
-    const josh = await person("Josh", { gender: "male" });
-    const john = await person("John");
-    const george = await person("George");
-    await relate(josh.id, john.id, "father"); // John is Josh's father
-    await relate(john.id, george.id, "brother"); // George is John's brother
+    const george = await person("George", { gender: "male" });
+    const peter = await person("Peter");
+    const william = await person("William");
+    await relate(george.id, peter.id, "father"); // Peter is George's father
+    await relate(peter.id, william.id, "brother"); // William is Peter's brother
 
-    // Josh's page: John explicit Father, George derived Uncle via John.
-    const joshNeighbors = await kinship.neighborsFor("person", josh.id);
-    const johnEdge = joshNeighbors.find((n) => n.otherId === john.id);
+    // George's page: Peter explicit Father, William derived Uncle via Peter.
+    const joshNeighbors = await kinship.neighborsFor("person", george.id);
+    const johnEdge = joshNeighbors.find((n) => n.otherId === peter.id);
     expect(johnEdge?.origin).toBe("explicit");
     expect(johnEdge?.otherRoleLabel).toBe("Father");
 
-    const georgeEdge = joshNeighbors.find((n) => n.otherId === george.id);
+    const georgeEdge = joshNeighbors.find((n) => n.otherId === william.id);
     expect(georgeEdge?.origin).toBe("derived");
     expect(georgeEdge?.otherRoleLabel).toBe("Uncle");
-    expect(georgeEdge?.derivedVia?.id).toBe(john.id);
+    expect(georgeEdge?.derivedVia?.id).toBe(peter.id);
 
-    // John is implicitly male (from his explicit "father" role).
-    expect(await kinship.genderFor("person", john.id)).toEqual({
+    // Peter is implicitly male (from his explicit "father" role).
+    expect(await kinship.genderFor("person", peter.id)).toEqual({
       value: "male",
       origin: "derived",
     });
 
-    // John's page: Josh shows as Son (neutral "child" gendered by Josh's male).
-    const johnNeighbors = await kinship.neighborsFor("person", john.id);
-    const joshEdge = johnNeighbors.find((n) => n.otherId === josh.id);
+    // Peter's page: George shows as Son (neutral "child" gendered by George's male).
+    const johnNeighbors = await kinship.neighborsFor("person", peter.id);
+    const joshEdge = johnNeighbors.find((n) => n.otherId === george.id);
     expect(joshEdge?.origin).toBe("explicit");
     expect(joshEdge?.otherRoleLabel).toBe("Son");
   });
@@ -96,43 +96,43 @@ describe("kinshipService — the worked example", () => {
 
 describe("kinshipService — overrides, dismissals, conflicts", () => {
   it("an explicit edge for a pair hides the derived one", async () => {
-    const josh = await person("Josh", { gender: "male" });
-    const john = await person("John");
-    const george = await person("George");
-    await relate(josh.id, john.id, "father");
-    await relate(john.id, george.id, "brother");
+    const george = await person("George", { gender: "male" });
+    const peter = await person("Peter");
+    const william = await person("William");
+    await relate(george.id, peter.id, "father");
+    await relate(peter.id, william.id, "brother");
 
-    // Add George explicitly as Josh's uncle.
+    // Add William explicitly as George's uncle.
     await relationships.create({
       aType: "person",
-      aId: josh.id,
+      aId: george.id,
       aRole: "nibling",
       bType: "person",
-      bId: george.id,
+      bId: william.id,
       bRole: "uncle",
     });
 
-    const joshNeighbors = await kinship.neighborsFor("person", josh.id);
-    const georgeEdges = joshNeighbors.filter((n) => n.otherId === george.id);
+    const joshNeighbors = await kinship.neighborsFor("person", george.id);
+    const georgeEdges = joshNeighbors.filter((n) => n.otherId === william.id);
     expect(georgeEdges).toHaveLength(1);
     expect(georgeEdges[0]?.origin).toBe("explicit");
   });
 
   it("a dismissal hides a derived edge", async () => {
-    const josh = await person("Josh", { gender: "male" });
-    const john = await person("John");
-    const george = await person("George");
-    await relate(josh.id, john.id, "father");
-    await relate(john.id, george.id, "brother");
+    const george = await person("George", { gender: "male" });
+    const peter = await person("Peter");
+    const william = await person("William");
+    await relate(george.id, peter.id, "father");
+    await relate(peter.id, william.id, "brother");
 
     await dismissals.create(
-      { type: "person", id: josh.id },
       { type: "person", id: george.id },
+      { type: "person", id: william.id },
       "pibling",
     );
 
-    const joshNeighbors = await kinship.neighborsFor("person", josh.id);
-    expect(joshNeighbors.some((n) => n.otherId === george.id)).toBe(false);
+    const joshNeighbors = await kinship.neighborsFor("person", george.id);
+    expect(joshNeighbors.some((n) => n.otherId === william.id)).toBe(false);
   });
 
   it("conflicting implied genders resolve to null", async () => {
@@ -177,19 +177,19 @@ describe("kinshipService — robustness", () => {
   });
 
   it("deleting the source relationship removes its derived consequences", async () => {
-    const josh = await person("Josh", { gender: "male" });
-    const john = await person("John");
-    const george = await person("George");
-    const source = await relate(josh.id, john.id, "father");
-    await relate(john.id, george.id, "brother");
+    const george = await person("George", { gender: "male" });
+    const peter = await person("Peter");
+    const william = await person("William");
+    const source = await relate(george.id, peter.id, "father");
+    await relate(peter.id, william.id, "brother");
 
     await relationships.softDelete(source.id);
 
-    // George-as-uncle is gone, and John's derived male evaporates.
-    const joshNeighbors = await kinship.neighborsFor("person", josh.id);
-    expect(joshNeighbors.some((n) => n.otherId === george.id)).toBe(false);
-    expect(joshNeighbors.some((n) => n.otherId === john.id)).toBe(false);
-    expect((await kinship.genderFor("person", john.id)).value).toBeNull();
+    // William-as-uncle is gone, and Peter's derived male evaporates.
+    const joshNeighbors = await kinship.neighborsFor("person", george.id);
+    expect(joshNeighbors.some((n) => n.otherId === william.id)).toBe(false);
+    expect(joshNeighbors.some((n) => n.otherId === peter.id)).toBe(false);
+    expect((await kinship.genderFor("person", peter.id)).value).toBeNull();
   });
 });
 
@@ -216,60 +216,62 @@ function marry(subjectId: string, wifeId: string) {
 // now, whereas an unpublished stepmother is one the table has yet to permit.
 describe("kinshipService — unpublished entities", () => {
   it("shows an unpublished spouse on her own person's page", async () => {
-    const sam = await person("Sam", { gender: "male" });
-    const jen = await people.create({
-      firstName: "Jen",
+    const ernie = await person("Ernie", { gender: "male" });
+    const ruth = await people.create({
+      firstName: "Ruth",
       standing: "unpublished",
     });
-    await marry(sam.id, jen.id);
+    await marry(ernie.id, ruth.id);
 
-    const neighbors = await kinship.neighborsFor("person", sam.id);
+    const neighbors = await kinship.neighborsFor("person", ernie.id);
     expect(neighbors).toHaveLength(1);
     expect(neighbors[0]).toMatchObject({
-      otherId: jen.id,
-      otherLabel: "Jen",
+      otherId: ruth.id,
+      otherLabel: "Ruth",
       otherStanding: "unpublished",
       origin: "explicit",
     });
   });
 
   it("does not infer her onto anybody else", async () => {
-    const sam = await person("Sam", { gender: "male" });
-    const ben = await person("Ben", { gender: "male" });
-    const jen = await people.create({
-      firstName: "Jen",
+    const ernie = await person("Ernie", { gender: "male" });
+    const pete = await person("Pete", { gender: "male" });
+    const ruth = await people.create({
+      firstName: "Ruth",
       standing: "unpublished",
     });
-    await relate(ben.id, sam.id, "father"); // Sam is Ben's father
-    await relate(sam.id, jen.id, "sister"); // Jen is Sam's sister
+    await relate(pete.id, ernie.id, "father"); // Ernie is Pete's father
+    await relate(ernie.id, ruth.id, "sister"); // Ruth is Ernie's sister
 
-    // Ben's page knows his father, and nothing about his father's sister.
-    const bens = await kinship.neighborsFor("person", ben.id);
-    expect(bens.map((n) => n.otherId)).toEqual([sam.id]);
+    // Pete's page knows his father, and nothing about his father's sister.
+    const bens = await kinship.neighborsFor("person", pete.id);
+    expect(bens.map((n) => n.otherId)).toEqual([ernie.id]);
 
-    // Jen's own reading is the one edge back to Sam.
-    const jens = await kinship.neighborsFor("person", jen.id);
-    expect(jens.map((n) => n.otherId)).toEqual([sam.id]);
+    // Ruth's own reading is the one edge back to Ernie.
+    const jens = await kinship.neighborsFor("person", ruth.id);
+    expect(jens.map((n) => n.otherId)).toEqual([ernie.id]);
   });
 
-  // The same graph with Jen published: the aunt withheld above now appears. This
+  // The same graph with Ruth published: the aunt withheld above now appears. This
   // is the control — without it, the test above would pass just as well if the
   // fixture were incapable of producing a derived edge at all.
   it("infers her onto the nephew once she is published", async () => {
-    const sam = await person("Sam", { gender: "male" });
-    const ben = await person("Ben", { gender: "male" });
-    const jen = await people.create({
-      firstName: "Jen",
+    const ernie = await person("Ernie", { gender: "male" });
+    const pete = await person("Pete", { gender: "male" });
+    const ruth = await people.create({
+      firstName: "Ruth",
       standing: "unpublished",
     });
-    await relate(ben.id, sam.id, "father");
-    await relate(sam.id, jen.id, "sister");
+    await relate(pete.id, ernie.id, "father");
+    await relate(ernie.id, ruth.id, "sister");
 
-    await people.update(jen.id, { standing: "published" });
+    await people.update(ruth.id, { standing: "published" });
 
-    const bens = await kinship.neighborsFor("person", ben.id);
-    expect(bens.map((n) => n.otherId).sort()).toEqual([sam.id, jen.id].sort());
-    expect(bens.find((n) => n.otherId === jen.id)).toMatchObject({
+    const bens = await kinship.neighborsFor("person", pete.id);
+    expect(bens.map((n) => n.otherId).sort()).toEqual(
+      [ernie.id, ruth.id].sort(),
+    );
+    expect(bens.find((n) => n.otherId === ruth.id)).toMatchObject({
       origin: "derived",
       otherStanding: "published",
     });
@@ -278,21 +280,21 @@ describe("kinshipService — unpublished entities", () => {
   // Her role still says something about the person she is attached to: that is
   // his own edge, and reading it puts her on nobody else's page.
   it("still lets her role imply her own person's gender", async () => {
-    const sam = await person("Sam");
-    const jen = await people.create({
-      firstName: "Jen",
+    const ernie = await person("Ernie");
+    const ruth = await people.create({
+      firstName: "Ruth",
       standing: "unpublished",
     });
     await relationships.create({
       aType: "person",
-      aId: sam.id,
+      aId: ernie.id,
       aRole: "husband",
       bType: "person",
-      bId: jen.id,
+      bId: ruth.id,
       bRole: "wife",
     });
 
-    expect(await kinship.genderFor("person", sam.id)).toEqual({
+    expect(await kinship.genderFor("person", ernie.id)).toEqual({
       value: "male",
       origin: "derived",
     });
@@ -301,15 +303,15 @@ describe("kinshipService — unpublished entities", () => {
   // A person with only one part of a name is exactly what this feature creates,
   // and a relationship row is where that name gets read.
   it("labels a one-name person without a leading space", async () => {
-    const sam = await person("Sam");
+    const ernie = await person("Ernie");
     const davis = await people.create({
       firstName: null,
-      lastName: "Davis",
+      lastName: "Dakin",
       standing: "unpublished",
     });
-    await marry(sam.id, davis.id);
+    await marry(ernie.id, davis.id);
 
-    const neighbors = await kinship.neighborsFor("person", sam.id);
-    expect(neighbors[0].otherLabel).toBe("Davis");
+    const neighbors = await kinship.neighborsFor("person", ernie.id);
+    expect(neighbors[0].otherLabel).toBe("Dakin");
   });
 });

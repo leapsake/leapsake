@@ -110,7 +110,7 @@ export interface MilestoneKindDef {
    */
   defaultReminderSchedule: DefaultReminderRule[];
   /**
-   * The occasion phrase the `wish` action's copy interpolates — "Wish @Alice **a
+   * The occasion phrase the `wish` action's copy interpolates — "Wish @Violet **a
    * happy birthday**" — carrying its own article. The holiday catalog supplies
    * the same field per entry, which is what lets one template serve both
    * sources instead of baking "birthday" into the action (see
@@ -118,7 +118,7 @@ export interface MilestoneKindDef {
    */
   greeting: string;
   /**
-   * The same phrase for an occasion that has already **passed** — "Wish @Alice
+   * The same phrase for an occasion that has already **passed** — "Wish @Violet
    * **a happy belated birthday**" — read by the copy layer once a row reaches
    * the belated state (`@leapsake/reminders`, `ReminderWindowFacts`).
    *
@@ -162,7 +162,7 @@ export interface MilestoneKindDef {
   /**
    * Whether an *unconfigured* occasion of this kind asks the user how they want
    * to mark it, and — when it does — the bare noun that question names it by
-   * ("How do you want to mark @Alice's **birthday**?").
+   * ("How do you want to mark @Violet's **birthday**?").
    *
    * Presence **is** the switch: a kind with no `prompt` never mints one. That is
    * the whole declaration, because everything else the prompt needs is already

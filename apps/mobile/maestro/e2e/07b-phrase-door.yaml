@@ -78,10 +78,10 @@ appId: com.leapsake.app
 - runFlow:
     file: ../subflows/add-person.yaml
     env:
-      FIRST: "Ada"
-      LAST: "Lovelace"
+      FIRST: "Mary"
+      LAST: "Bailey"
 - runFlow: ../subflows/save-record.yaml
-- assertVisible: "Ada Lovelace"
+- assertVisible: "Mary Bailey"
 
 # --- its own account, for its own phrase ---------------------------------------------------
 # The same credentials `04` uses. They are not inherited — this store is a different store,
@@ -90,7 +90,7 @@ appId: com.leapsake.app
 - runFlow:
     file: ../subflows/create-account.yaml
     env:
-      USERNAME: "ada"
+      USERNAME: "mary"
       PASSWORD: "correct-horse-battery-staple"
 
 # --- the capture ---------------------------------------------------------------------------
@@ -237,13 +237,13 @@ appId: com.leapsake.app
     timeout: 480000
 
 # --- the data came back with it ----------------------------------------------------------------
-# The point of the door. Ada was written into a plaintext store, converted into an encrypted
+# The point of the door. Mary was written into a plaintext store, converted into an encrypted
 # one, and is now read out of a store whose key was reconstructed from 24 words.
 - tapOn:
     id: "tab-search"
 - tapOn:
     id: "browse-tile-people"
-- assertVisible: ".*Ada Lovelace.*"
+- assertVisible: ".*Mary Bailey.*"
 
 # =========================================================================================
 # Act 3 — the right phrase still works AFTER a password unlock
@@ -329,4 +329,4 @@ appId: com.leapsake.app
     id: "tab-search"
 - tapOn:
     id: "browse-tile-people"
-- assertVisible: ".*Ada Lovelace.*"
+- assertVisible: ".*Mary Bailey.*"

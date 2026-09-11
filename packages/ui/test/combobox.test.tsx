@@ -6,7 +6,7 @@ import { Combobox, ComboboxOptionDetail } from "../src/web/index.js";
 afterEach(cleanup);
 
 function renderCombobox({
-  results = ["Ada", "Grace"],
+  results = ["Mary", "Henry"],
   activeIndex = 0,
   onSelect = vi.fn(),
   announcement,
@@ -72,15 +72,15 @@ describe("Combobox", () => {
     const onSelect = vi.fn();
     renderCombobox({ onSelect });
 
-    fireEvent.mouseDown(screen.getByText("Grace"));
-    expect(onSelect).toHaveBeenCalledWith("Grace");
+    fireEvent.mouseDown(screen.getByText("Henry"));
+    expect(onSelect).toHaveBeenCalledWith("Henry");
   });
 
   it("announces politely when given something to say", () => {
-    const { container } = renderCombobox({ announcement: "Ada added" });
+    const { container } = renderCombobox({ announcement: "Mary added" });
 
     const live = container.querySelector("[aria-live=polite]");
-    expect(live?.textContent).toBe("Ada added");
+    expect(live?.textContent).toBe("Mary added");
   });
 
   it("renders no live region when there is nothing to announce", () => {
@@ -91,7 +91,7 @@ describe("Combobox", () => {
   it("renders option detail inside the option", () => {
     render(
       <Combobox
-        results={["Ada"]}
+        results={["Mary"]}
         activeIndex={0}
         listboxId="lb"
         optionId={(i) => `lb-opt-${i}`}
@@ -107,6 +107,6 @@ describe("Combobox", () => {
       />,
     );
 
-    expect(screen.getByRole("option").textContent).toBe("Adamatched on tag");
+    expect(screen.getByRole("option").textContent).toBe("Marymatched on tag");
   });
 });

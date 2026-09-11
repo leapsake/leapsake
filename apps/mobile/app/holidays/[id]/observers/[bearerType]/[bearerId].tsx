@@ -10,7 +10,7 @@ import { useFocusedData } from "../../../../../lib/useFocusedData";
 import { styles } from "../../../../../lib/styles";
 
 // One person's reminder schedule for one holiday, ported from desktop's
-// HolidayObservanceSchedule — "what should Leapsake remind me about for Alice at
+// HolidayObservanceSchedule — "what should Leapsake remind me about for Violet at
 // Christmas?"
 //
 // This is the screen that makes the feature do anything. Observances ship with
@@ -20,7 +20,7 @@ import { styles } from "../../../../../lib/styles";
 //
 // It is per-*observance* rather than per-holiday because the rule's bearer is
 // the observance (`@leapsake/holidays` README, the three layers): that is exactly what lets "gift
-// Alice 30 days before Christmas" and "just call Grandma day-of" coexist under
+// Violet 30 days before Christmas" and "just call Grandma day-of" coexist under
 // one holiday.
 export default function ObservanceScheduleScreen() {
   const core = useCore();

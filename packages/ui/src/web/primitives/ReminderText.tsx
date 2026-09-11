@@ -14,7 +14,7 @@ import { useUi } from "../adapter.js";
  * {@link Tag}s supply tag ids (keyed by normalized name); its {@link
  * ResolvedMention}s supply each target's **current** label (keyed by
  * `type:id`) — a rename shows through. Both keep their sigil, so a mention reads
- * as `@Alice Ng` here exactly as it did in the composer that wrote it.
+ * as `@Violet Bick` here exactly as it did in the composer that wrote it.
  *
  * A mention whose target is gone (`label`
  * null) or unresolved falls back to the token's snapshot name as plain text; a

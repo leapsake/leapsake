@@ -364,7 +364,7 @@ in `scripts/lib/mobile-harness.mjs`, which owns device detection, provisioning, 
 dev-client install, Metro, and the per-platform bundle-load prepare.
 
 **These flows are an ordered arc, not a set.** `01` resets the app and asserts a first run,
-`02` fills it with Ada Lovelace and Augustus De Morgan, `03` writes a milestone onto Ada.
+`02` fills it with Mary Bailey and George Bailey, `03` writes a milestone onto Mary.
 They share app state on purpose (the catalog takes 1→4 as one arc), so the runner stops a
 platform at the first red flow rather than reporting three failures that are really one.
 **A consequence worth knowing before you debug one:** a flow run _standalone_ after a failed
@@ -453,9 +453,9 @@ shell pm clear` on Android, and on iOS a delete of `Documents/SQLite` (stores, d
 ### Three selector traps this tier added to the list below
 
 - **A list row's accessibility text carries a trailing space.** The hierarchy reads
-  `"Ada Lovelace "`, and Maestro matches in full, so `assertVisible: "Ada Lovelace"` fails
+  `"Mary Bailey "`, and Maestro matches in full, so `assertVisible: "Mary Bailey"` fails
   against a row that is plainly on screen while the same string passes on the detail page,
-  where it is the screen title. Wrap anything selected out of a list: `.*Ada Lovelace.*`.
+  where it is the screen title. Wrap anything selected out of a list: `.*Mary Bailey.*`.
 - **A filter box makes its own text a decoy.** Type "Friend" into a picker's filter and the
   _input_ now matches `tapOn: "Friend"` as well as the option row does — Maestro takes the
   input, iOS raises its Paste/Select callout, and the modal stays open. The failure then

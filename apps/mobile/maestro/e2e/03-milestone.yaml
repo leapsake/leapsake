@@ -9,7 +9,7 @@
 # database file. Proving *that* is Flow 7b's job at `rc`, where the app is restarted
 # through the boot gate.
 #
-# Inherits Flow 2's Ada.
+# Inherits Flow 2's Mary.
 #
 # **The note is the assertion, not the date.** Kind and Month are `SelectField`s whose
 # options iOS does not expose to the accessibility tree, so a driver cannot pick them;
@@ -18,8 +18,8 @@
 # `subflows/stage-birthday.yaml` documents.
 appId: com.leapsake.app
 ---
-# --- reach Ada ----------------------------------------------------------------------
-# Flow 2 ends on Ada's page, which is pushed over the tab navigator and so has no tab bar
+# --- reach Mary ----------------------------------------------------------------------
+# Flow 2 ends on Mary's page, which is pushed over the tab navigator and so has no tab bar
 # of its own. Back to the navigator before reaching for a tab.
 - openLink: "leapsake://"
 - tapOn:
@@ -28,7 +28,7 @@ appId: com.leapsake.app
 # matches in full — see the note in `02-person-and-relationship.yaml`.
 - tapOn:
     id: "browse-tile-people"
-- tapOn: ".*Ada Lovelace.*"
+- tapOn: ".*Mary Bailey.*"
 
 # --- add the milestone ---------------------------------------------------------------
 # This "Add milestone" is the one in the person page's Milestones section, which opens a
@@ -84,7 +84,7 @@ appId: com.leapsake.app
     id: "tab-search"
 - tapOn:
     id: "browse-tile-people"
-- tapOn: ".*Ada Lovelace.*"
+- tapOn: ".*Mary Bailey.*"
 - scrollUntilVisible:
     element:
       text: ".*Birthday.*"

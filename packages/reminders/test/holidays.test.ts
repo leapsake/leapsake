@@ -92,17 +92,17 @@ function makeHarness() {
   };
 }
 
-const ALICE = "11111111-1111-4111-8111-111111111111";
+const VIOLET = "11111111-1111-4111-8111-111111111111";
 
 function candidate(
   over: Partial<HolidayOccurrenceCandidate> = {},
 ): HolidayOccurrenceCandidate {
   return {
-    observanceId: "obs-christmas-alice",
+    observanceId: "obs-christmas-violet",
     greeting: "a Merry Christmas",
     occasion: "Christmas",
     bearerType: "person",
-    bearerId: ALICE,
+    bearerId: VIOLET,
     occurrences: [{ year: 2026, month: 12, day: 25 }],
     ...over,
   };
@@ -113,7 +113,7 @@ describe("holiday reminders", () => {
 
   beforeEach(() => {
     h = makeHarness();
-    h.labels.set(ALICE, "Alice Chen");
+    h.labels.set(VIOLET, "Violet Bick");
   });
 
   it("generates the occasion's own copy, not birthday copy", async () => {
@@ -121,7 +121,7 @@ describe("holiday reminders", () => {
     // hard-coded to "a happy birthday" and would have said so at Christmas.
     // Reconciled on the day, since a wish is a day-of action.
     h.setCandidates([candidate()]);
-    h.setSchedule("obs-christmas-alice", [
+    h.setSchedule("obs-christmas-violet", [
       { action: "wish", label: null, offsetDays: 0, enabled: true },
     ]);
     await regenerateSystemReminders({
@@ -130,7 +130,7 @@ describe("holiday reminders", () => {
     });
 
     expect(h.titles()).toEqual([
-      "🎉 Wish @[Alice Chen](person:11111111-1111-4111-8111-111111111111) a Merry Christmas",
+      "🎉 Wish @[Violet Bick](person:11111111-1111-4111-8111-111111111111) a Merry Christmas",
     ]);
   });
 
@@ -139,7 +139,7 @@ describe("holiday reminders", () => {
     // sent should linger exactly as a missed birthday does, or the two families
     // would disagree about what "missed" means.
     h.setCandidates([candidate()]);
-    h.setSchedule("obs-christmas-alice", [
+    h.setSchedule("obs-christmas-violet", [
       { action: "wish", label: null, offsetDays: 0, enabled: true },
     ]);
     const boxingDay = { year: 2026, month: 12, day: 26 };
@@ -173,7 +173,7 @@ describe("holiday reminders", () => {
     expect(ids).toContain(
       deterministicUuid(
         SYSTEM_REMINDER_NAMESPACE,
-        "observance:obs-christmas-alice:2026-12-25:get:gift",
+        "observance:obs-christmas-violet:2026-12-25:get:gift",
       ),
     );
   });
@@ -186,7 +186,7 @@ describe("holiday reminders", () => {
     expect(row.id).not.toBe(
       deterministicUuid(
         SYSTEM_REMINDER_NAMESPACE,
-        "milestone:obs-christmas-alice:2026:get:gift",
+        "milestone:obs-christmas-violet:2026:get:gift",
       ),
     );
   });
@@ -231,17 +231,17 @@ describe("holiday reminders", () => {
   });
 
   it("honours a per-observance schedule, so leads differ per person", async () => {
-    // §1's motivating case: the rule bears on the observance, so Alice can get a
+    // §1's motivating case: the rule bears on the observance, so Violet can get a
     // gift reminder while Grandma only gets a call.
     h.setCandidates([candidate()]);
-    h.setSchedule("obs-christmas-alice", [
+    h.setSchedule("obs-christmas-violet", [
       { action: "get:gift", label: null, offsetDays: 30, enabled: true },
       { action: "wish", label: null, offsetDays: 0, enabled: false },
     ]);
     await regenerateSystemReminders(h.deps);
 
     expect(h.titles()).toEqual([
-      "🎁 Get @[Alice Chen](person:11111111-1111-4111-8111-111111111111) a gift",
+      "🎁 Get @[Violet Bick](person:11111111-1111-4111-8111-111111111111) a gift",
     ]);
     // Due 30 days before the occurrence.
     expect(h.activeSystem()[0].dueDate).toBe(
@@ -258,14 +258,17 @@ describe("holiday reminders", () => {
     }
 
     h.setCandidates([candidate()]);
-    h.setSchedule("obs-christmas-alice", resolveObservanceReminderSchedule([]));
+    h.setSchedule(
+      "obs-christmas-violet",
+      resolveObservanceReminderSchedule([]),
+    );
     await regenerateSystemReminders(h.deps);
     expect(h.activeSystem()).toEqual([]);
   });
 
   it("skips a disabled rule", async () => {
     h.setCandidates([candidate()]);
-    h.setSchedule("obs-christmas-alice", [
+    h.setSchedule("obs-christmas-violet", [
       { action: "wish", label: null, offsetDays: 0, enabled: false },
     ]);
     await regenerateSystemReminders(h.deps);
@@ -281,7 +284,7 @@ describe("holiday reminders", () => {
   });
 
   it("skips a candidate whose bearer is gone", async () => {
-    h.labels.delete(ALICE);
+    h.labels.delete(VIOLET);
     h.setCandidates([candidate()]);
     await regenerateSystemReminders(h.deps);
     expect(h.activeSystem()).toEqual([]);

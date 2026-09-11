@@ -73,7 +73,7 @@ const ACCOUNT_ID = crypto.randomUUID();
 const AUTH_VERIFIER = generateKey();
 const KDF_SALT = generateSalt();
 const MK = new Uint8Array(32).fill(7);
-const USERNAME = "ada";
+const USERNAME = "mary";
 // Opaque wrap(MK, KEK) ciphertext from the relay's point of view; the pre-join
 // sync cases never unwrap it, so any bytes do.
 const WRAPPED_MK = new Uint8Array(48).fill(9);
@@ -205,21 +205,21 @@ describe("blind HTTPS relay (server + adapter)", () => {
   });
 
   it("converges a created person over the wire (A pushes, B pulls)", async () => {
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     await engineFor(A).sync(); // push
     await engineFor(B).sync(); // pull
 
-    expect(await B.people.get(ada.id)).toEqual(ada); // identical, over the wire
+    expect(await B.people.get(mary.id)).toEqual(mary); // identical, over the wire
   });
 
   it("skips an undecryptable record and still converges the batch (M3)", async () => {
     // A valid record on the log…
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     await engineFor(A).sync();
 
@@ -237,7 +237,7 @@ describe("blind HTTPS relay (server + adapter)", () => {
           {
             id: crypto.randomUUID(),
             table: "people",
-            updatedAt: ada.updatedAt + 1,
+            updatedAt: mary.updatedAt + 1,
             deletedAt: null,
             ciphertext: Buffer.from(new Uint8Array(48).fill(3)).toString(
               "base64",
@@ -254,7 +254,7 @@ describe("blind HTTPS relay (server + adapter)", () => {
     const engineB = engineFor(B);
     const first = await engineB.pull(0);
     expect(first.applied).toBe(1);
-    expect(await B.people.get(ada.id)).toEqual(ada);
+    expect(await B.people.get(mary.id)).toEqual(mary);
 
     // The returned cursor advanced past the poison, so a second pull from it is
     // clean (nothing re-pulled, no re-throw) — the permanent-poisoning loop the
@@ -293,9 +293,9 @@ describe("blind HTTPS relay (server + adapter)", () => {
   });
 
   it("stores only ciphertext + sync metadata (the relay is blind)", async () => {
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     await engineFor(A).sync();
 
@@ -313,9 +313,9 @@ describe("blind HTTPS relay (server + adapter)", () => {
 
     expect(rows).toHaveLength(1);
     const [row] = rows;
-    expect(row.id).toBe(ada.id);
+    expect(row.id).toBe(mary.id);
     expect(row.table_name).toBe("people");
-    expect(row.updated_at).toBe(ada.updatedAt);
+    expect(row.updated_at).toBe(mary.updatedAt);
     // The name appears nowhere the relay can read — not the cleartext metadata,
     // and not (decoded as text) the sealed ciphertext.
     const metadata = JSON.stringify({
@@ -324,9 +324,9 @@ describe("blind HTTPS relay (server + adapter)", () => {
       updatedAt: row.updated_at,
       deletedAt: row.deleted_at,
     });
-    expect(metadata).not.toContain("Lovelace");
+    expect(metadata).not.toContain("Bailey");
     expect(Buffer.from(row.ciphertext).toString("utf8")).not.toContain(
-      "Lovelace",
+      "Bailey",
     );
   });
 
@@ -427,26 +427,26 @@ describe("blind HTTPS relay (server + adapter)", () => {
   });
 
   it("persists the pull cursor so a fresh engine resumes, not from zero", async () => {
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     await engineFor(A).sync();
     await engineFor(B).sync();
-    expect(await B.people.get(ada.id)).toEqual(ada);
+    expect(await B.people.get(mary.id)).toEqual(mary);
 
     const cursor = await createSyncStateRepo(B.driver).getPullCursor();
     expect(cursor).toBeGreaterThan(0); // durably recorded
 
     // A new row, and a *fresh* engine on B (new state repo from the same DB).
-    const grace = await A.people.create({
-      firstName: "Grace",
-      lastName: "Hopper",
+    const henry = await A.people.create({
+      firstName: "Henry",
+      lastName: "Potter",
     });
     await engineFor(A).sync();
     await engineFor(B).sync();
 
-    expect(await B.people.get(grace.id)).toEqual(grace);
+    expect(await B.people.get(henry.id)).toEqual(henry);
     expect(await createSyncStateRepo(B.driver).getPullCursor()).toBeGreaterThan(
       cursor,
     );
@@ -486,7 +486,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     const { bootstrap } = await enableSync({
       keyStore: device.keyStore,
       driver: device.driver,
-      username: "Ada", // mixed case → normalized to "ada"
+      username: "Mary", // mixed case → normalized to "mary"
       password: PASSWORD,
       relayUrl: baseUrl,
       platform: "desktop",
@@ -511,14 +511,14 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     const d1 = blankDevice();
     const { masterKey: mk1 } = await enableAndRegister(d1);
     const d1Repos = reposFor(d1.driver);
-    const ada = await d1Repos.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await d1Repos.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     const milestone = await d1Repos.milestones.create({
       kind: "birthday",
       bearerType: "person",
-      bearerId: ada.id,
+      bearerId: mary.id,
       month: 6,
       day: 18,
       note: "secret picnic",
@@ -544,7 +544,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       driver: d2.driver,
       transport: createHttpSyncTransport({ baseUrl }), // credential-less bootstrap
       relayUrl: baseUrl,
-      username: "ada",
+      username: "mary",
       password: PASSWORD,
       platform: "mobile",
     });
@@ -565,7 +565,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       syncState: createSyncStateRepo(d2.driver),
     }).sync();
 
-    expect(await d2Repos.people.get(ada.id)).toEqual(ada);
+    expect(await d2Repos.people.get(mary.id)).toEqual(mary);
     expect((await d2Repos.milestones.get(milestone.id))?.note).toBe(
       "secret picnic",
     );
@@ -608,7 +608,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     const { recoveryKey, bootstrap } = await enableSync({
       keyStore: d1.keyStore,
       driver: d1.driver,
-      username: "ada",
+      username: "mary",
       password: PASSWORD,
       relayUrl: baseUrl,
       platform: "desktop",
@@ -626,9 +626,9 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       recoveryVerifier: bootstrap.recoveryVerifier,
     });
     const phrase = encodeRecoveryPhrase(recoveryKey);
-    const ada = await reposFor(d1.driver).people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await reposFor(d1.driver).people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     await runAccountSync({
       keyStore: d1.keyStore,
@@ -646,7 +646,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       keyStore: d2.keyStore,
       driver: d2.driver,
       relayUrl: baseUrl,
-      username: "ada",
+      username: "mary",
       recoveryPhrase: phrase,
       newPassword: NEW_PASSWORD,
       platform: "mobile",
@@ -660,7 +660,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       driver: d2.driver,
       masterKey: session.masterKey,
     });
-    expect(await reposFor(d2.driver).people.get(ada.id)).toEqual(ada);
+    expect(await reposFor(d2.driver).people.get(mary.id)).toEqual(mary);
 
     // The newly-set password now unlocks MK locally (the reset took on the relay
     // and the local password door was laid down).
@@ -689,7 +689,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
         keyStore: d2.keyStore,
         driver: d2.driver,
         relayUrl: baseUrl,
-        username: "ada",
+        username: "mary",
         recoveryPhrase: wrongPhrase,
         newPassword: "a brand new battery horse staple",
       }),
@@ -700,7 +700,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
   });
 
   it("re-authenticates a device after the password is reset on another device", async () => {
-    // --- Device 1: enable (capture the phrase) + register, create Ada, push. ---
+    // --- Device 1: enable (capture the phrase) + register, create Mary, push. ---
     const d1 = blankDevice();
     await runMigrations(d1.driver);
     const mk = await ensureDeviceMasterKey({
@@ -710,7 +710,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     const { recoveryKey, bootstrap } = await enableSync({
       keyStore: d1.keyStore,
       driver: d1.driver,
-      username: "ada",
+      username: "mary",
       password: PASSWORD,
       relayUrl: baseUrl,
       platform: "desktop",
@@ -728,9 +728,9 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       recoveryVerifier: bootstrap.recoveryVerifier,
     });
     const phrase = encodeRecoveryPhrase(recoveryKey);
-    const ada = await reposFor(d1.driver).people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await reposFor(d1.driver).people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     await runAccountSync({
       keyStore: d1.keyStore,
@@ -738,7 +738,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       masterKey: mk.masterKey,
     });
 
-    // --- Device 2: join by username+password, sync, read Ada. It now holds the
+    // --- Device 2: join by username+password, sync, read Mary. It now holds the
     //     original-password credential. ---
     const d2 = blankDevice();
     await runMigrations(d2.driver);
@@ -748,7 +748,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       driver: d2.driver,
       transport: createHttpSyncTransport({ baseUrl }),
       relayUrl: baseUrl,
-      username: "ada",
+      username: "mary",
       password: PASSWORD,
       platform: "mobile",
     });
@@ -757,7 +757,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       driver: d2.driver,
       masterKey: d2session.masterKey,
     });
-    expect(await reposFor(d2.driver).people.get(ada.id)).toEqual(ada);
+    expect(await reposFor(d2.driver).people.get(mary.id)).toEqual(mary);
 
     // --- Device 3: recover from the phrase, which resets the account password —
     //     the event that strands device 2's credential. ---
@@ -770,7 +770,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       keyStore: d3.keyStore,
       driver: d3.driver,
       relayUrl: baseUrl,
-      username: "ada",
+      username: "mary",
       recoveryPhrase: phrase,
       newPassword: NEW_PASSWORD,
       platform: "desktop",
@@ -811,9 +811,9 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       driver: d2.driver,
       password: NEW_PASSWORD,
     });
-    const grace = await reposFor(d3.driver).people.create({
-      firstName: "Grace",
-      lastName: "Hopper",
+    const henry = await reposFor(d3.driver).people.create({
+      firstName: "Henry",
+      lastName: "Potter",
     });
     await runAccountSync({
       keyStore: d3.keyStore,
@@ -825,7 +825,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       driver: d2.driver,
       masterKey: d2session.masterKey,
     });
-    expect(await reposFor(d2.driver).people.get(grace.id)).toEqual(grace);
+    expect(await reposFor(d2.driver).people.get(henry.id)).toEqual(henry);
 
     d1.db.close();
     d2.db.close();
@@ -833,13 +833,13 @@ describe("multi-device login over the relay (enable → join → converge)", () 
   });
 
   it("reconcile-on-join surfaces local↔account duplicates without auto-merging, and keeps local data", async () => {
-    // --- Device 1: enable + register, create "Jane Doe", push. ---
+    // --- Device 1: enable + register, create "Jane Wainwright", push. ---
     const d1 = blankDevice();
     const { masterKey: mk1 } = await enableAndRegister(d1);
     const d1People = createPeopleRepo(d1.driver);
     const accountJane = await d1People.create({
       firstName: "Jane",
-      lastName: "Doe",
+      lastName: "Wainwright",
     });
     await runAccountSync({
       keyStore: d1.keyStore,
@@ -847,8 +847,8 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       masterKey: mk1,
     });
 
-    // --- Device 2: fresh, but already holds its own local "Jane Doe" (a
-    // distinct-id duplicate of the account's) and an unrelated "Bob Jones"
+    // --- Device 2: fresh, but already holds its own local "Jane Wainwright" (a
+    // distinct-id duplicate of the account's) and an unrelated "Harry Gower"
     // before it ever joins. ---
     const d2 = blankDevice();
     await runMigrations(d2.driver);
@@ -856,9 +856,12 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     const d2People = createPeopleRepo(d2.driver);
     const localJane = await d2People.create({
       firstName: "Jane",
-      lastName: "Doe",
+      lastName: "Wainwright",
     });
-    const bob = await d2People.create({ firstName: "Bob", lastName: "Jones" });
+    const harry = await d2People.create({
+      firstName: "Harry",
+      lastName: "Gower",
+    });
     expect(localJane.id).not.toBe(accountJane.id);
 
     // --- Join, then reconcile. ---
@@ -867,7 +870,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       driver: d2.driver,
       transport: createHttpSyncTransport({ baseUrl }),
       relayUrl: baseUrl,
-      username: "ada",
+      username: "mary",
       password: PASSWORD,
       platform: "mobile",
     });
@@ -878,14 +881,14 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       core: d2Core,
     });
 
-    // The join surfaced exactly the Jane↔Jane pair; Bob is unique and ignored.
+    // The join surfaced exactly the Jane↔Jane pair; Harry is unique and ignored.
     expect(duplicateCount).toBe(1);
 
-    // No auto-merge: both Janes and Bob are still active on B...
+    // No auto-merge: both Janes and Harry are still active on B...
     const activeIds = (await d2People.list()).map((p) => p.id);
     expect(activeIds).toContain(localJane.id);
     expect(activeIds).toContain(accountJane.id);
-    expect(activeIds).toContain(bob.id);
+    expect(activeIds).toContain(harry.id);
 
     // ...and the pair is offered through the normal duplicate-review surface.
     const candidates = await d2Core.duplicates.findCandidates();
@@ -897,7 +900,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     ).toBe(true);
 
     // Local data is preserved, not abandoned: B's normal sync pushes it up and
-    // device 1 converges on Bob + the second Jane.
+    // device 1 converges on Harry + the second Jane.
     await runAccountSync({
       keyStore: d2.keyStore,
       driver: d2.driver,
@@ -909,7 +912,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       masterKey: mk1,
     });
     const onD1 = (await d1People.list()).map((p) => p.id);
-    expect(onD1).toContain(bob.id);
+    expect(onD1).toContain(harry.id);
     expect(onD1).toContain(localJane.id);
     expect(onD1).toContain(accountJane.id);
 
@@ -937,7 +940,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       const { recoveryKey, bootstrap } = await enableSync({
         keyStore: device.keyStore,
         driver: device.driver,
-        username: "ada",
+        username: "mary",
         password: PASSWORD,
         relayUrl: baseUrl,
         platform: "desktop",
@@ -1006,7 +1009,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
           keyStore: d2.keyStore,
           driver: d2.driver,
           relayUrl: baseUrl,
-          username: "ada",
+          username: "mary",
           recoveryPhrase: oldPhrase,
           newPassword: "a brand new battery horse staple",
         }),
@@ -1022,7 +1025,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
         keyStore: d3.keyStore,
         driver: d3.driver,
         relayUrl: baseUrl,
-        username: "ada",
+        username: "mary",
         recoveryPhrase,
         newPassword: "a brand new battery horse staple",
       });
@@ -1127,7 +1130,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
           keyStore: d2.keyStore,
           driver: d2.driver,
           relayUrl: baseUrl,
-          username: "ada",
+          username: "mary",
           recoveryPhrase: oldPhrase,
           newPassword: PASSWORD,
         }),
@@ -1141,7 +1144,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
         keyStore: d3.keyStore,
         driver: d3.driver,
         relayUrl: baseUrl,
-        username: "ada",
+        username: "mary",
         recoveryPhrase: rotated.recoveryPhrase,
         newPassword: PASSWORD,
       });
@@ -1165,7 +1168,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
         keyStore: d2.keyStore,
         driver: d2.driver,
         relayUrl: baseUrl,
-        username: "ada",
+        username: "mary",
         password: PASSWORD,
         platform: "mobile",
       });
@@ -1264,7 +1267,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
         driver: d2.driver,
         transport: createHttpSyncTransport({ baseUrl }),
         relayUrl: baseUrl,
-        username: "ada",
+        username: "mary",
         password: "wrong password",
       }),
     ).rejects.toThrow(/401/);
@@ -1316,7 +1319,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
    * sight** — its own master key, its own doors, a username the user picked
    * locally, and nothing published anywhere.
    */
-  async function localOnlyDevice(username = "ada") {
+  async function localOnlyDevice(username = "mary") {
     const device = blankDevice();
     await runMigrations(device.driver);
     const { masterKey } = await ensureDeviceMasterKey({
@@ -1358,17 +1361,17 @@ describe("binding a relay to a local-only account (bind → join → converge)",
   // that already existed and read what it holds.
   it("publishes a local-only account so a second device logs in and reads its data", async () => {
     const d1 = await localOnlyDevice();
-    const ada = await reposFor(d1.driver).people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await reposFor(d1.driver).people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
 
-    const { accountId } = await bind(d1, "ada");
+    const { accountId } = await bind(d1, "mary");
 
     // Bound, and the relay knows it under the handle the user picked locally.
     expect((await getSyncStatus({ driver: d1.driver })).relayUrl).toBe(baseUrl);
     expect(
-      await createHttpSyncTransport({ baseUrl }).lookup("ada"),
+      await createHttpSyncTransport({ baseUrl }).lookup("mary"),
     ).toMatchObject({ accountId });
 
     // Data it created *before* binding pushes like any other.
@@ -1386,7 +1389,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
       driver: d2.driver,
       transport: createHttpSyncTransport({ baseUrl }),
       relayUrl: baseUrl,
-      username: "ada",
+      username: "mary",
       password: PASSWORD, // the password the account has always had
       platform: "mobile",
     });
@@ -1398,7 +1401,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
       driver: d2.driver,
       masterKey: session.masterKey,
     });
-    expect(await reposFor(d2.driver).people.get(ada.id)).toEqual(ada);
+    expect(await reposFor(d2.driver).people.get(mary.id)).toEqual(mary);
 
     d1.db.close();
     d2.db.close();
@@ -1414,11 +1417,11 @@ describe("binding a relay to a local-only account (bind → join → converge)",
    */
   it("publishes a recovery door the relay's own recovery route accepts", async () => {
     const d1 = await localOnlyDevice();
-    const ada = await reposFor(d1.driver).people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await reposFor(d1.driver).people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
-    await bind(d1, "ada");
+    await bind(d1, "mary");
     await runAccountSync({
       keyStore: d1.keyStore,
       driver: d1.driver,
@@ -1435,7 +1438,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
       keyStore: d2.keyStore,
       driver: d2.driver,
       relayUrl: baseUrl,
-      username: "ada",
+      username: "mary",
       recoveryPhrase: phrase,
       newPassword: "a brand new battery horse staple",
       platform: "mobile",
@@ -1447,7 +1450,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
       driver: d2.driver,
       masterKey: session.masterKey,
     });
-    expect(await reposFor(d2.driver).people.get(ada.id)).toEqual(ada);
+    expect(await reposFor(d2.driver).people.get(mary.id)).toEqual(mary);
 
     d1.db.close();
     d2.db.close();
@@ -1460,11 +1463,11 @@ describe("binding a relay to a local-only account (bind → join → converge)",
    * rather than an error.
    */
   it("leaves the account local-only on a real 409, which the clients read as a taken username", async () => {
-    const stranger = await strangerHolding("ada");
-    const d1 = await localOnlyDevice("ada");
+    const stranger = await strangerHolding("mary");
+    const d1 = await localOnlyDevice("mary");
     const before = await getSyncStatus({ driver: d1.driver });
 
-    const failure = await bind(d1, "ada").catch((cause: unknown) => cause);
+    const failure = await bind(d1, "mary").catch((cause: unknown) => cause);
 
     // The bridge to both clients' merge-or-rename fork. `isUsernameTakenError` is
     // a substring match on "409", and the message it has to match is the real
@@ -1476,13 +1479,13 @@ describe("binding a relay to a local-only account (bind → join → converge)",
     // accepted it, and every later sync would 401 with no way back.
     const after = await getSyncStatus({ driver: d1.driver });
     expect(after.accountId).toBe(before.accountId);
-    expect(after.username).toBe("ada");
+    expect(after.username).toBe("mary");
     expect(after.relayUrl).toBeUndefined();
 
     // And the stranger's account is exactly as it was — a refused bind must not
     // disturb the account it collided with.
     expect(
-      await createHttpSyncTransport({ baseUrl }).lookup("ada"),
+      await createHttpSyncTransport({ baseUrl }).lookup("mary"),
     ).toMatchObject({
       accountId: (await getSyncStatus({ driver: stranger.driver })).accountId,
     });
@@ -1494,20 +1497,20 @@ describe("binding a relay to a local-only account (bind → join → converge)",
   // The rename half of the fork. There is no rename primitive because the handle
   // was never published — the second attempt is simply a first attempt.
   it("binds under another username after a real collision, and that account works", async () => {
-    const stranger = await strangerHolding("ada");
-    const d1 = await localOnlyDevice("ada");
-    await expect(bind(d1, "ada")).rejects.toThrow(/409/);
+    const stranger = await strangerHolding("mary");
+    const d1 = await localOnlyDevice("mary");
+    await expect(bind(d1, "mary")).rejects.toThrow(/409/);
 
-    const { accountId } = await bind(d1, "ada-lovelace");
+    const { accountId } = await bind(d1, "mary-bailey");
     expect((await getSyncStatus({ driver: d1.driver })).username).toBe(
-      "ada-lovelace",
+      "mary-bailey",
     );
 
     // Not merely "no error": the renamed account is separately reachable, and the
     // stranger still holds the handle that caused all this.
     const lookup = createHttpSyncTransport({ baseUrl });
-    expect(await lookup.lookup("ada-lovelace")).toMatchObject({ accountId });
-    expect((await lookup.lookup("ada")).accountId).not.toBe(accountId);
+    expect(await lookup.lookup("mary-bailey")).toMatchObject({ accountId });
+    expect((await lookup.lookup("mary")).accountId).not.toBe(accountId);
 
     stranger.db.close();
     d1.db.close();
@@ -1527,7 +1530,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
       bindRelayToAccount({
         keyStore: d1.keyStore,
         driver: d1.driver,
-        username: "ada",
+        username: "mary",
         relayUrl: baseUrl,
         registerWithRelay: async (bootstrap) => {
           await registerAccountWithRelay({ relayUrl: baseUrl, bootstrap });
@@ -1542,7 +1545,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
 
     // The retry re-registers the same id → "exists" → 200, so it falls through to
     // the local write instead of colliding with itself.
-    await bind(d1, "ada");
+    await bind(d1, "mary");
     expect((await getSyncStatus({ driver: d1.driver })).relayUrl).toBe(baseUrl);
 
     // Converged for real: the first registration is the one that survived, and the
@@ -1555,7 +1558,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
       driver: d2.driver,
       transport: createHttpSyncTransport({ baseUrl }),
       relayUrl: baseUrl,
-      username: "ada",
+      username: "mary",
       password: PASSWORD,
       platform: "mobile",
     });
@@ -1715,7 +1718,7 @@ describe("relay rate limiting (bootstrap endpoint)", () => {
       accountId,
       authVerifier: verifier,
     }).register({
-      username: "ada",
+      username: "mary",
       kdfSalt: generateSalt(),
       wrappedMasterKey: wrappedMk,
       wrappedRecoveryKey: new Uint8Array(48).fill(3),
@@ -1896,7 +1899,7 @@ describe("in-process TLS (Option B)", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         accountId,
-        username: "tls-ada",
+        username: "tls-mary",
         authVerifier: verifierB64,
         kdfSalt: Buffer.from(generateSalt()).toString("base64"),
         wrappedMasterKey: Buffer.from(WRAPPED_MK).toString("base64"),

@@ -255,7 +255,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         "SELECT id, title, url FROM gift_ideas WHERE deleted_at IS NULL",
       ),
       // Entities that exist only as a fact about somebody else, joined to the
-      // somebody. Searching "Jen" has to find your coworker — she is on his page
+      // somebody. Searching "Ruth" has to find your coworker — she is on his page
       // and nowhere else, so his row is the only place a result could lead. The
       // `CASE`s orient each edge: the anchor is whichever end isn't the entity.
       driver.all<AttachedRow>(
@@ -357,7 +357,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       // name ("br" → "Joseph Abraham Lampe") shows why it's there, while an
       // ordinary first/last hit stays "Joseph Lampe".
       // Joined, not interpolated: any part of a name may be absent, and a title
-      // of " Davis" would be both wrong on screen and wrong to fold against.
+      // of " Dakin" would be both wrong on screen and wrong to fold against.
       const middle = p.middle_name ?? "";
       const plain = joinNameParts(p.first_name, p.last_name);
       // The owner-resolution title (for contact-only hits) is always the plain
@@ -393,7 +393,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       addNameHit("pet", pet.id, pet.name, [pet.name]);
     }
     // Gift-idea-as-result: an idea has its own screen, so a title match surfaces
-    // as its own navigable row ("what was that BB gun link?"). Registered in
+    // as its own navigable row ("what was that Tom Sawyer link?"). Registered in
     // titleByEntity *here*, before the tag pass below, so a gift idea also
     // resolves as the owner of a matching tag — the one facet gift ideas share
     // with people and pets.
@@ -447,7 +447,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
 
     // Someone who exists only as a fact about somebody else matches as a facet of
     // that somebody, exactly the way a phone number or a tag does: searching
-    // "Jen" turns up your coworker's row, explained by the relationship, because
+    // "Ruth" turns up your coworker's row, explained by the relationship, because
     // his page is the only place she can be read. Runs after the entity passes
     // above, which is what has filled `titleByEntity` with the anchors.
     for (const row of attached) {
@@ -532,7 +532,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     }
     // Social handles: forward substring of the normalized handle, the same rule
     // email follows and for the same reason — typing "jane" should light up
-    // "@janedoe" and merge with her name hit. Answers "who is @foo?", which is
+    // "@janewainwright" and merge with her name hit. Answers "who is @foo?", which is
     // otherwise a question the app cannot be asked. The reason line carries the
     // platform so two people who share a handle on different networks are
     // told apart.

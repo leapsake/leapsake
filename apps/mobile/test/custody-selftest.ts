@@ -403,7 +403,7 @@ export function runCustodySelfTest(t: TestApi): void {
       `);
       await source.runAsync(
         "INSERT INTO person (id, name) VALUES (1, ?)",
-        "Ada",
+        "Mary",
       );
       await source.closeAsync();
 
@@ -415,7 +415,7 @@ export function runCustodySelfTest(t: TestApi): void {
         const row = await target.getFirstAsync<{ name: string }>(
           "SELECT name FROM person WHERE id = 1",
         );
-        expect(row?.name).toBe("Ada");
+        expect(row?.name).toBe("Mary");
         const index = await target.getFirstAsync<{ name: string }>(
           "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'person_by_name'",
         );
@@ -433,7 +433,7 @@ export function runCustodySelfTest(t: TestApi): void {
         const original = await stillThere.getFirstAsync<{ name: string }>(
           "SELECT name FROM person WHERE id = 1",
         );
-        expect(original?.name).toBe("Ada");
+        expect(original?.name).toBe("Mary");
         await stillThere.closeAsync();
       } finally {
         // Tolerant on purpose: a `finally` that throws replaces the real failure
@@ -468,7 +468,7 @@ export function runCustodySelfTest(t: TestApi): void {
       );
       await source.runAsync(
         "INSERT INTO person (id, name) VALUES (1, ?)",
-        "Grace",
+        "Henry",
       );
       await source.closeAsync();
 
@@ -496,7 +496,7 @@ export function runCustodySelfTest(t: TestApi): void {
         const row = await target.getFirstAsync<{ name: string }>(
           "SELECT name FROM person WHERE id = 1",
         );
-        expect(row?.name).toBe("Grace");
+        expect(row?.name).toBe("Henry");
         await target.closeAsync();
 
         // Re-opening the destroyed name gives a *new, empty* database rather than
@@ -529,7 +529,7 @@ export function runCustodySelfTest(t: TestApi): void {
       );
       await source.runAsync(
         "INSERT INTO person (id, name) VALUES (1, ?)",
-        "Grace",
+        "Henry",
       );
       await source.closeAsync();
 
@@ -597,7 +597,7 @@ export function runCustodySelfTest(t: TestApi): void {
       );
       await source.runAsync(
         "INSERT INTO person (id, name) VALUES (1, ?)",
-        "Ada",
+        "Mary",
       );
       await source.closeAsync();
 
@@ -673,7 +673,7 @@ export function runCustodySelfTest(t: TestApi): void {
       `);
       await source.runAsync(
         "INSERT INTO person (id, name) VALUES (1, ?)",
-        "Ada",
+        "Mary",
       );
       await source.closeAsync();
 
@@ -692,7 +692,7 @@ export function runCustodySelfTest(t: TestApi): void {
         const row = await target.getFirstAsync<{ name: string }>(
           "SELECT name FROM person WHERE id = 1",
         );
-        expect(row?.name).toBe("Ada");
+        expect(row?.name).toBe("Mary");
         const index = await target.getFirstAsync<{ name: string }>(
           "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'person_by_name'",
         );
@@ -711,7 +711,7 @@ export function runCustodySelfTest(t: TestApi): void {
         const survivor = await original.getFirstAsync<{ name: string }>(
           "SELECT name FROM person WHERE id = 1",
         );
-        expect(survivor?.name).toBe("Ada");
+        expect(survivor?.name).toBe("Mary");
         await original.closeAsync();
       } finally {
         await discard(from);
@@ -802,7 +802,7 @@ export function runCustodySelfTest(t: TestApi): void {
       );
       await source.runAsync(
         "INSERT INTO person (id, name) VALUES (1, ?)",
-        "Ada",
+        "Mary",
       );
       await source.closeAsync();
 
@@ -895,7 +895,7 @@ export function runCustodySelfTest(t: TestApi): void {
       });
       await createPeopleRepo(driver).create({
         firstName: opts.firstName,
-        lastName: "Lovelace",
+        lastName: "Bailey",
       });
       await driver.close?.();
     }
@@ -935,7 +935,7 @@ export function runCustodySelfTest(t: TestApi): void {
       ]);
 
       try {
-        await seedLocalAccount({ accountId: localId, key, firstName: "Ada" });
+        await seedLocalAccount({ accountId: localId, key, firstName: "Mary" });
         const live = await reopen(localId, key);
 
         const { accountId } = await mergeAccountOnThisDevice({
@@ -967,7 +967,7 @@ export function runCustodySelfTest(t: TestApi): void {
         const merged = await reopen(syncedId, key);
         const people = await createPeopleRepo(merged).list();
         expect(people.length).toBe(1);
-        expect(people[0]?.firstName).toBe("Ada");
+        expect(people[0]?.firstName).toBe("Mary");
         const status = await getSyncStatus({ driver: merged });
         expect(status.accountId).toBe(syncedId);
         expect(status.relayUrl).toBe("http://relay.invalid");
@@ -1020,7 +1020,7 @@ export function runCustodySelfTest(t: TestApi): void {
       ]);
 
       try {
-        await seedLocalAccount({ accountId: localId, key, firstName: "Grace" });
+        await seedLocalAccount({ accountId: localId, key, firstName: "Henry" });
         const live = await reopen(localId, key);
 
         // The *message*, not merely "it rejected": this flow has a wall of guards
@@ -1052,7 +1052,7 @@ export function runCustodySelfTest(t: TestApi): void {
         const original = await reopen(localId, key);
         const people = await createPeopleRepo(original).list();
         expect(people.length).toBe(1);
-        expect(people[0]?.firstName).toBe("Grace");
+        expect(people[0]?.firstName).toBe("Henry");
         const status = await getSyncStatus({ driver: original });
         expect(status.accountId).toBe(localId);
         expect(status.relayUrl).toBeUndefined();
@@ -1097,11 +1097,11 @@ export function runCustodySelfTest(t: TestApi): void {
       `);
       await source.runAsync(
         "INSERT INTO person (id, name) VALUES (1, ?)",
-        "Ada",
+        "Mary",
       );
       await source.runAsync(
         "INSERT INTO person (id, name) VALUES (2, ?)",
-        "Grace",
+        "Henry",
       );
       await source.runAsync(
         "INSERT INTO note (id, person_id, body) VALUES (1, 1, ?)",
@@ -1156,7 +1156,7 @@ export function runCustodySelfTest(t: TestApi): void {
         const people = await target.getAllAsync<{ name: string }>(
           "SELECT name FROM person ORDER BY id",
         );
-        expect(people.map((p) => p.name)).toEqual(["Ada", "Grace"]);
+        expect(people.map((p) => p.name)).toEqual(["Mary", "Henry"]);
         const note = await target.getFirstAsync<{ body: string }>(
           "SELECT body FROM note WHERE id = 1",
         );

@@ -180,7 +180,7 @@ export function createViews(deps: ViewsDeps) {
     return (await deps.resolveLabel(type, id)) ?? "(unknown)";
   }
 
-  // A relationship's two-sided label from its endpoints, e.g. "Jane Doe & John Doe".
+  // A relationship's two-sided label from its endpoints, e.g. "Jane Wainwright & Sam Wainwright".
   async function relationshipLabel(rel: Relationship): Promise<string> {
     const [a, b] = await Promise.all([
       displayLabel(rel.aType, rel.aId),

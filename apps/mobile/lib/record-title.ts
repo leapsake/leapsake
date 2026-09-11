@@ -25,8 +25,8 @@ const PARAM = "title";
  * They are thin — a person's page is titled with their full name, a pet's with
  * its name — and that is the point. Written out at each end instead, the two
  * agree only by coincidence, and the coincidence is invisible: nothing fails when
- * a link starts sending the row's decorated "Rex (pet)" to a page that titles
- * itself "Rex". Named once, they are the same expression, and a change to how a
+ * a link starts sending the row's decorated "Jimmy (pet)" to a page that titles
+ * itself "Jimmy". Named once, they are the same expression, and a change to how a
  * page is titled is carried by every link to it.
  */
 export function personTitle(person: Person): string {

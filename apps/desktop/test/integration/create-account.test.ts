@@ -59,8 +59,8 @@ async function openStoreWithData(): Promise<{
   });
   await runMigrations(driver);
   await createPeopleRepo(driver).create({
-    firstName: "Ada",
-    lastName: "Lovelace",
+    firstName: "Mary",
+    lastName: "Bailey",
   });
   return { driver, path };
 }
@@ -71,7 +71,7 @@ async function createAccount(driver: SqliteDriver) {
     driver,
     roster: rosterFor(userData),
     userDataPath: userData,
-    username: "ada",
+    username: "mary",
     password: "correct-horse-battery",
     closeStore: async () => {
       await driver.close?.();
@@ -121,7 +121,7 @@ describe("account creation", () => {
     const { accountId } = await createAccount(driver);
 
     const accounts = await rosterFor(userData).list();
-    expect(accounts.map((a) => a.username)).toEqual(["ada"]);
+    expect(accounts.map((a) => a.username)).toEqual(["mary"]);
     expect(accounts[0].id).toBe(accountId);
 
     const resolved = resolveActiveStore({ accounts });
@@ -146,7 +146,7 @@ describe("account creation", () => {
     await runMigrations(reopened); // a no-op if user_version came across
 
     const people = await createPeopleRepo(reopened).list();
-    expect(people.map((p) => p.firstName)).toEqual(["Ada"]);
+    expect(people.map((p) => p.firstName)).toEqual(["Mary"]);
 
     // The account rows rode across with everything else.
     const account = await reopened.get<{ id: string }>(

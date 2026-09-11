@@ -12,7 +12,7 @@ import {
   splitHashtags,
 } from "./tag.js";
 
-const ALICE = "6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
+const VIOLET = "6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
 
 describe("parseTagNames", () => {
   it("splits on commas and whitespace alike", () => {
@@ -206,7 +206,7 @@ describe("activeHashtagQuery", () => {
     // What the composer shows for `@[Team #1](person:…)` — the '#' is part of
     // the name, and the span is what says so.
     const { text, spans } = draftFromMarkup(
-      `${mentionToken("Team #1", "person", ALICE)} `,
+      `${mentionToken("Team #1", "person", VIOLET)} `,
     );
     expect(text).toBe("@Team #1 ");
     // Caret parked just after the "#1" inside the name — not a live hashtag.
@@ -217,12 +217,12 @@ describe("activeHashtagQuery", () => {
 
   it("opens on a '#' typed after a placed mention", () => {
     const { spans } = draftFromMarkup(
-      mentionToken("Alice Ng", "person", ALICE),
+      mentionToken("Violet Bick", "person", VIOLET),
     );
-    const text = "@Alice Ng #par";
+    const text = "@Violet Bick #par";
     expect(activeHashtagQuery(text, text.length, spans)).toEqual({
       query: "par",
-      start: 10,
+      start: 13,
     });
   });
 });

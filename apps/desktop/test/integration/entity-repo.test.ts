@@ -41,7 +41,7 @@ describe("createEntityRepo shared CRUD", () => {
     const t = 1_700_000_000_000;
     vi.spyOn(Date, "now").mockReturnValue(t);
 
-    const pet = await pets.create({ name: "Rex" });
+    const pet = await pets.create({ name: "Jimmy" });
     expect(pet.createdAt).toBe(t);
     expect(pet.updatedAt).toBe(t);
 
@@ -116,7 +116,7 @@ describe("createEntityRepo shared CRUD", () => {
  */
 describe("defineSyncable listActive", () => {
   it("answers live rows where listChangedSince(0) also answers tombstones", async () => {
-    const live = await pets.create({ name: "Rex" });
+    const live = await pets.create({ name: "Jimmy" });
     const gone = await pets.create({ name: "Bella" });
     await pets.softDelete(gone.id);
 
@@ -147,20 +147,20 @@ describe("defineSyncable listActive", () => {
 
   it("reaches a table with no entity repo at all", async () => {
     const reminderId = crypto.randomUUID();
-    const alice = crypto.randomUUID();
-    const bob = crypto.randomUUID();
+    const violet = crypto.randomUUID();
+    const harry = crypto.randomUUID();
 
     await mentions.setEntityMentions("reminder", reminderId, [
-      { targetType: "person", targetId: alice },
-      { targetType: "person", targetId: bob },
+      { targetType: "person", targetId: violet },
+      { targetType: "person", targetId: harry },
     ]);
-    // Bob is edited out of the text: the row is tombstoned, not erased.
+    // Harry is edited out of the text: the row is tombstoned, not erased.
     await mentions.setEntityMentions("reminder", reminderId, [
-      { targetType: "person", targetId: alice },
+      { targetType: "person", targetId: violet },
     ]);
 
     expect((await mentions.listActive()).map((m) => m.targetId)).toEqual([
-      alice,
+      violet,
     ]);
     expect(await mentions.listChangedSince(0)).toHaveLength(2);
   });

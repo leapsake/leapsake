@@ -17,9 +17,9 @@ const gender: GenderResult = { value: "female", origin: "explicit" };
 
 const person = {
   id: "p-1",
-  firstName: "Ada",
+  firstName: "Mary",
   middleName: null,
-  lastName: "Lovelace",
+  lastName: "Bailey",
   gender: "female",
   createdAt: 1_700_000_000_000,
   updatedAt: 1_700_000_000_000,
@@ -60,7 +60,7 @@ describe("PersonScreen", () => {
   it("leads with the person's name as the page heading", () => {
     renderPerson();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
-      "Ada Lovelace",
+      "Mary Bailey",
     );
   });
 
@@ -116,7 +116,7 @@ describe("PersonScreen", () => {
 
 const pet = {
   id: "x-1",
-  name: "Ada Cat",
+  name: "Mary Cat",
   gender: null,
   createdAt: 1_700_000_000_000,
   updatedAt: 1_700_000_000_000,
@@ -158,8 +158,8 @@ describe("PetScreen", () => {
 
 describe("RelationshipScreen", () => {
   const partners = [
-    { type: "person" as const, id: "p-1", label: "Ada", roleLabel: "Wife" },
-    { type: "person" as const, id: "p-2", label: "Grace", roleLabel: "Wife" },
+    { type: "person" as const, id: "p-1", label: "Mary", roleLabel: "Wife" },
+    { type: "person" as const, id: "p-2", label: "Violet", roleLabel: "Wife" },
   ];
 
   it("lists both partners, linking each to their own page", () => {
@@ -167,18 +167,18 @@ describe("RelationshipScreen", () => {
       <RelationshipScreen
         trail={trail}
         relationshipId="rel-1"
-        title="Ada & Grace"
+        title="Mary & Henry"
         partners={partners}
         milestones={[]}
       />,
       fakeGiftsPorts(),
     );
 
-    expect(screen.getByRole("link", { name: "Ada" }).getAttribute("href")).toBe(
-      "/people/p-1",
-    );
     expect(
-      screen.getByRole("link", { name: "Grace" }).getAttribute("href"),
+      screen.getByRole("link", { name: "Mary" }).getAttribute("href"),
+    ).toBe("/people/p-1");
+    expect(
+      screen.getByRole("link", { name: "Violet" }).getAttribute("href"),
     ).toBe("/people/p-2");
   });
 
@@ -188,7 +188,7 @@ describe("RelationshipScreen", () => {
       <RelationshipScreen
         trail={trail}
         relationshipId="rel-1"
-        title="Ada & Grace"
+        title="Mary & Henry"
         partners={partners}
         milestones={[]}
       />,
@@ -216,7 +216,7 @@ describe("RelationshipScreen", () => {
       <RelationshipScreen
         trail={trail}
         relationshipId="rel-1"
-        title="Ada & Grace"
+        title="Mary & Henry"
         partners={partners}
         milestones={[milestone]}
       />,

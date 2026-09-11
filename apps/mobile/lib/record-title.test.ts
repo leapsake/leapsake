@@ -41,14 +41,14 @@ const pathIn = (href: string) => href.split("?")[0];
 const person = (over: Partial<Person> = {}): Person =>
   ({
     id: "p1",
-    firstName: "Ada",
+    firstName: "Mary",
     middleName: null,
-    lastName: "Lovelace",
+    lastName: "Bailey",
     ...over,
   }) as Person;
 
 const pet = (over: Partial<Pet> = {}): Pet =>
-  ({ id: "a1", name: "Rex", ...over }) as Pet;
+  ({ id: "a1", name: "Jimmy", ...over }) as Pet;
 
 const tag = (over: Partial<Tag> = {}): Tag =>
   ({ id: "t1", name: "birthdays", normalized: "birthdays", ...over }) as Tag;
@@ -121,11 +121,11 @@ describe("a link built from an already-resolved name", () => {
   it("agrees with the page title, for a search hit", () => {
     expect(
       titleIn(
-        searchHitHref(hit({ entityType: "person", title: "Ada Lovelace" })),
+        searchHitHref(hit({ entityType: "person", title: "Mary Bailey" })),
       ),
     ).toBe(personTitle(person()));
     expect(
-      titleIn(searchHitHref(hit({ entityType: "pet", title: "Rex" }))),
+      titleIn(searchHitHref(hit({ entityType: "pet", title: "Jimmy" }))),
     ).toBe(petTitle(pet()));
     expect(
       titleIn(
@@ -149,7 +149,11 @@ describe("a link built from an already-resolved name", () => {
   it("sends no name to a gift idea, which titles itself", () => {
     expect(
       searchHitHref(
-        hit({ entityType: "gift_idea", entityId: "g1", title: "A BB gun" }),
+        hit({
+          entityType: "gift_idea",
+          entityId: "g1",
+          title: "A copy of Tom Sawyer",
+        }),
       ),
     ).toBe("/gifts/g1/edit");
   });
@@ -182,12 +186,12 @@ describe("the name survives the trip", () => {
   it("carries punctuation a URL would otherwise eat", () => {
     // Each of these ends the query, or a value in it, if it goes in raw.
     for (const name of [
-      "Ben & Jerry",
+      "Pete & Jerry",
       "Who? Knows",
       "Anne-Marie O’Neill",
       "50% Off",
       "C++ Study Group",
-      "Ann/Bob",
+      "Ann/Harry",
     ]) {
       expect(titleIn(petHref({ id: "a1", name }))).toBe(name);
     }
@@ -218,7 +222,7 @@ describe("the name survives the trip", () => {
     expect(titleFromLink({})).toBe("");
     expect(titleFromLink({ id: "p1" })).toBe("");
     // Repeated in the path, so react-navigation hands over an array.
-    expect(titleFromLink({ title: ["Ada", "Grace"] })).toBe("");
+    expect(titleFromLink({ title: ["Mary", "Henry"] })).toBe("");
   });
 });
 
@@ -257,7 +261,7 @@ describe("headerTitle", () => {
         {},
         route("people/[id]/index", paramsFromHref(personHref(person()))),
       ),
-    ).toBe("Ada Lovelace");
+    ).toBe("Mary Bailey");
   });
 
   it("prefers the screen's own title once it has one", () => {
@@ -265,10 +269,10 @@ describe("headerTitle", () => {
     // is what keeps a stale sent name from outliving the load that used it.
     expect(
       headerTitle(
-        { title: "Ada Lovelace" },
-        route("people/[id]/index", { id: "p1", title: "Ada Lovelce" }),
+        { title: "Mary Bailey" },
+        route("people/[id]/index", { id: "p1", title: "Mary Baily" }),
       ),
-    ).toBe("Ada Lovelace");
+    ).toBe("Mary Bailey");
   });
 
   it("copes with a route carrying no parameters at all", () => {

@@ -129,7 +129,7 @@ describe("captureGiftInputSchema", () => {
 
   it("accepts a new idea named URL-first", () => {
     const input = {
-      giftIdea: { title: "BB Gun", url: "https://example.com/bb-gun" },
+      giftIdea: { title: "Tom Sawyer", url: "https://example.com/tom-sawyer" },
       recipients: [{ party: { type: "person" as const, id: alice } }],
     };
     expect(captureGiftInputSchema.parse(input)).toEqual(input);

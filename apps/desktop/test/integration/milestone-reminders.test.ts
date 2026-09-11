@@ -26,7 +26,7 @@ afterEach(() => {
 /** A recurring birthday for a fresh person; returns the milestone. */
 async function birthdayFor(schedule?: ReminderRuleInput[]) {
   const person = await core.people.create(
-    { firstName: "Ada", middleName: null, lastName: "Lovelace", gender: null },
+    { firstName: "Mary", middleName: null, lastName: "Bailey", gender: null },
     [],
   );
   const milestone = await core.milestones.create({

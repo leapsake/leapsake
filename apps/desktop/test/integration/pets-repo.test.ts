@@ -23,9 +23,9 @@ afterEach(() => {
 
 describe("petsRepo", () => {
   it("creates a pet with a uuid, timestamps, and null deletedAt", async () => {
-    const pet = await repo.create({ name: "Rex" });
+    const pet = await repo.create({ name: "Jimmy" });
     expect(pet.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(pet.name).toBe("Rex");
+    expect(pet.name).toBe("Jimmy");
     expect(pet.createdAt).toBeGreaterThan(0);
     expect(pet.updatedAt).toBe(pet.createdAt);
     expect(pet.deletedAt).toBeNull();
@@ -38,7 +38,7 @@ describe("petsRepo", () => {
   });
 
   it("defaults gender to null and persists a provided one", async () => {
-    const ungendered = await repo.create({ name: "Rex" });
+    const ungendered = await repo.create({ name: "Jimmy" });
     expect(ungendered.gender).toBeNull();
 
     const gendered = await repo.create({ name: "Bella", gender: "female" });
@@ -57,7 +57,7 @@ describe("petsRepo", () => {
   });
 
   it("updates a pet and bumps updatedAt", async () => {
-    const created = await repo.create({ name: "Rex" });
+    const created = await repo.create({ name: "Jimmy" });
     // Ensure a later millisecond so updatedAt is observably newer.
     await new Promise((resolve) => setTimeout(resolve, 2));
 
@@ -72,13 +72,13 @@ describe("petsRepo", () => {
       await repo.update(crypto.randomUUID(), { name: "X" }),
     ).toBeUndefined();
 
-    const created = await repo.create({ name: "Rex" });
+    const created = await repo.create({ name: "Jimmy" });
     await repo.softDelete(created.id);
     expect(await repo.update(created.id, { name: "X" })).toBeUndefined();
   });
 
   it("hides a soft-deleted pet from get", async () => {
-    const created = await repo.create({ name: "Rex" });
+    const created = await repo.create({ name: "Jimmy" });
     await repo.softDelete(created.id);
     expect(await repo.get(created.id)).toBeUndefined();
   });

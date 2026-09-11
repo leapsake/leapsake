@@ -42,7 +42,7 @@ export type RelationshipFormValue = {
  * `label` is the person's or pet's name in both cases — never the "Add … as a
  * new person" phrasing. That phrasing belongs to the row that *offers* the
  * option, not to the option, and putting it in `label` made the field read "Add
- * "Jen" as a new person" after it had already been added.
+ * "Ruth" as a new person" after it had already been added.
  */
 export type OtherOption =
   | { kind: "existing"; type: EntityType; id: string; label: string }

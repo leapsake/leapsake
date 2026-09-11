@@ -45,7 +45,7 @@ export function personDraftFrom(person: Person, tagNames: string): PersonDraft {
 }
 
 /**
- * Valid once **any one** part of the name is filled in — "Jen" and "Jen Davis"
+ * Valid once **any one** part of the name is filled in — "Ruth" and "Ruth Dakin"
  * are both whole people (see `hasAnyName`). Asked of the input the form would
  * actually send rather than of the draft, so the button can never enable a save
  * the schema is about to reject.

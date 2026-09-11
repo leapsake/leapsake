@@ -35,16 +35,16 @@ describe("encryptedSqliteDriver", () => {
 
     await driver.exec("CREATE TABLE person(id TEXT PRIMARY KEY, name TEXT)");
     await driver.transaction(async () => {
-      await driver.run("INSERT INTO person VALUES (?, ?)", ["1", "Ada"]);
-      await driver.run("INSERT INTO person VALUES (?, ?)", ["2", "Grace"]);
+      await driver.run("INSERT INTO person VALUES (?, ?)", ["1", "Mary"]);
+      await driver.run("INSERT INTO person VALUES (?, ?)", ["2", "Henry"]);
     });
 
     expect(
       await driver.get("SELECT name FROM person WHERE id = ?", ["1"]),
-    ).toEqual({ name: "Ada" });
+    ).toEqual({ name: "Mary" });
     expect(await driver.all("SELECT name FROM person ORDER BY id")).toEqual([
-      { name: "Ada" },
-      { name: "Grace" },
+      { name: "Mary" },
+      { name: "Henry" },
     ]);
   });
 

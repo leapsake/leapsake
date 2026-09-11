@@ -156,7 +156,7 @@ describe("regenerateSystemReminders", () => {
   let h: ReturnType<typeof makeHarness>;
   beforeEach(() => {
     h = makeHarness();
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
   });
 
   it("creates a dated birthday reminder on the day itself", async () => {
@@ -177,7 +177,7 @@ describe("regenerateSystemReminders", () => {
     // A birthday's default schedule enables just the day-of "wish" action, whose
     // action-phrased copy wraps the subject in an inline mention token.
     expect(reminder.title).toBe(
-      `🎉 Wish ${mentionToken("Alice", "person", "p1")} a happy birthday`,
+      `🎉 Wish ${mentionToken("Violet", "person", "p1")} a happy birthday`,
     );
     expect(reminder.body).toBeNull();
     expect(reminder.completedAt).toBeNull();
@@ -204,7 +204,7 @@ describe("regenerateSystemReminders", () => {
 
   it("renders your own birthday's wish self-directed, with no @You mention", async () => {
     h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
-    h.setSelf("p1"); // Alice is you
+    h.setSelf("p1"); // Violet is you
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
 
     const result = await regenerateSystemReminders(h.deps);
@@ -259,7 +259,7 @@ describe("regenerateSystemReminders", () => {
     await regenerateSystemReminders(h.deps);
     const [reminder] = h.activeSystem();
     expect(reminder.title).toBe(
-      `🎉 Wish ${mentionToken("Alice", "person", "p1")} a happy birthday`,
+      `🎉 Wish ${mentionToken("Violet", "person", "p1")} a happy birthday`,
     );
   });
 
@@ -359,14 +359,14 @@ describe("regenerateSystemReminders", () => {
     await regenerateSystemReminders(h.deps);
     const id = h.activeSystem()[0].id;
 
-    h.labels.set("p1", "Alicia"); // person renamed
+    h.labels.set("p1", "Vi"); // person renamed
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 1, removed: 0 });
 
     const after = h.activeSystem()[0];
     expect(after.id).toBe(id);
     expect(after.title).toBe(
-      `🎉 Wish ${mentionToken("Alicia", "person", "p1")} a happy birthday`,
+      `🎉 Wish ${mentionToken("Vi", "person", "p1")} a happy birthday`,
     );
   });
 
@@ -402,7 +402,7 @@ describe("regenerateSystemReminders", () => {
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
     expect(h.activeSystem()[0].title).toBe(
-      `🕯️ Remember ${mentionToken("Alice", "person", "p1")}`,
+      `🕯️ Remember ${mentionToken("Violet", "person", "p1")}`,
     );
   });
 
@@ -419,10 +419,10 @@ describe("regenerateSystemReminders", () => {
 
     const byTitle = new Map(h.activeSystem().map((r) => [r.title, r]));
     const gift = byTitle.get(
-      `🎁 Get ${mentionToken("Alice", "person", "p1")} a gift`,
+      `🎁 Get ${mentionToken("Violet", "person", "p1")} a gift`,
     );
     const card = byTitle.get(
-      `💌 Send ${mentionToken("Alice", "person", "p1")} a card`,
+      `💌 Send ${mentionToken("Violet", "person", "p1")} a card`,
     );
     expect(gift).toBeDefined();
     expect(card).toBeDefined();
@@ -451,8 +451,8 @@ describe("regenerateSystemReminders", () => {
     const rows = h.activeSystem();
     expect(new Set(rows.map((r) => r.id)).size).toBe(2);
     expect(rows.map((r) => r.title).sort()).toEqual([
-      `🎁 Get ${mentionToken("Alice", "person", "p1")} a gift`,
-      `🛒 Get a card for ${mentionToken("Alice", "person", "p1")}`,
+      `🎁 Get ${mentionToken("Violet", "person", "p1")} a gift`,
+      `🛒 Get a card for ${mentionToken("Violet", "person", "p1")}`,
     ]);
     // Two due dates, each its own rule's lead time before the birthday.
     expect(rows.map((r) => r.dueDate).sort()).toEqual(
@@ -500,7 +500,7 @@ describe("regenerateSystemReminders", () => {
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
     expect(h.activeSystem()[0].title).toBe(
-      `🎁 Get ${mentionToken("Alice", "person", "p1")} a gift`,
+      `🎁 Get ${mentionToken("Violet", "person", "p1")} a gift`,
     );
   });
 
@@ -585,7 +585,7 @@ describe("listSystemReminderTargets", () => {
   let h: ReturnType<typeof makeHarness>;
   beforeEach(() => {
     h = makeHarness();
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
   });
 
   it("names exactly the reminders a reconcile writes", async () => {
@@ -680,7 +680,7 @@ describe("listNotifiableReminders", () => {
   it("sees milestones that regenerate would not yet materialize", async () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", FAR)]);
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
     h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
 
     await regenerateSystemReminders(h.deps);
@@ -696,7 +696,7 @@ describe("listNotifiableReminders", () => {
   it("persists nothing", async () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", FAR)]);
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
 
     await listNotifiableReminders(h.deps);
 
@@ -709,7 +709,7 @@ describe("listNotifiableReminders", () => {
     const h = makeHarness();
     const today = daysOut(0);
     h.setMilestones([birthday("m1", "p1", today)]);
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
     h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     await regenerateSystemReminders(h.deps);
 
@@ -728,7 +728,7 @@ describe("listNotifiableReminders", () => {
   it("skips a dismissed (tombstoned) reminder", async () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
     h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     await regenerateSystemReminders(h.deps);
 
@@ -743,7 +743,7 @@ describe("listNotifiableReminders", () => {
   it("includes user reminders alongside the computed system ones", async () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", FAR)]);
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
     h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.rows.set("u1", {
       id: "u1",
@@ -769,7 +769,7 @@ describe("listNotifiableReminders", () => {
   it("narrows to a shorter horizon when asked for one", async () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", FAR)]);
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
     h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
 
     expect(await listRemindersInWindow(h.deps, 30)).toEqual([]);
@@ -783,7 +783,7 @@ describe("the window facts a row reports", () => {
   it("dates a dated row by its action's own window, not the walk's", async () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
     // A gift is due 12 days out and carries a 30-day run-up; a wish is day-of.
     h.setSchedule("m1", [
       { action: "get:gift", label: null, offsetDays: 12, enabled: true },
@@ -792,8 +792,8 @@ describe("the window facts a row reports", () => {
 
     const rows = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
     const byTitle = new Map(rows.map((r) => [r.title, r]));
-    const gift = byTitle.get("🎁 Get @[Alice](person:p1) a gift");
-    const wish = byTitle.get("🎉 Wish @[Alice](person:p1) a happy birthday");
+    const gift = byTitle.get("🎁 Get @[Violet](person:p1) a gift");
+    const wish = byTitle.get("🎉 Wish @[Violet](person:p1) a happy birthday");
 
     // The occurrence is the same for both; the due dates and activations differ.
     expect(gift?.occurrenceDate).toBe(dueDateMs(daysOut(20)));
@@ -808,7 +808,7 @@ describe("the window facts a row reports", () => {
   it("reports the same activation whatever window it was walked with", async () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
     h.setSchedule("m1", [
       { action: "wish", label: null, offsetDays: 0, enabled: true },
     ]);
@@ -823,7 +823,7 @@ describe("the window facts a row reports", () => {
   it("marks a row that does not exist yet as unmaterialized", async () => {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
     h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
 
     const [preview] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
@@ -869,7 +869,7 @@ describe("materializeReminder", () => {
   function comingWish() {
     const h = makeHarness();
     h.setMilestones([birthday("m1", "p1", daysOut(20))]);
-    h.labels.set("p1", "Alice");
+    h.labels.set("p1", "Violet");
     h.setSchedule("m1", [
       { action: "wish", label: null, offsetDays: 0, enabled: true },
     ]);

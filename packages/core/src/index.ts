@@ -298,7 +298,7 @@ export type GiftForIdea = GiftRecipient & {
 
 /**
  * A `🎁 gift` system reminder paired with the person/pet it's about — what turns
- * "Get @Alice a gift" from a note into a loop: the client links it to Alice's
+ * "Get @Violet a gift" from a note into a loop: the client links it to Violet's
  * gifts, and once it's done, to ticking off what was actually given
  *. Derived from the engine's own desired-set walk,
  * so it lights up on exactly the reminders the engine minted — never a stored
@@ -646,7 +646,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
    * The card's `kind` decides which table to ask, rather than both being tried:
    * ids are UUIDs, so a collision across the two is not the risk — asking the
    * wrong one is. A pet card whose id happens to name a person is a malformed
-   * file, and answering "already stored: Jane Doe" for it would be worse than
+   * file, and answering "already stored: Jane Wainwright" for it would be worse than
    * answering nothing.
    */
   async function storedAs(
@@ -683,8 +683,8 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
   }
 
   /**
-   * What to call a milestone borne by a **relationship** — "Bob & Carol", or just
-   * "Alice" for a relationship the self-person is one end of, since a reminder
+   * What to call a milestone borne by a **relationship** — "Harry & Tilly", or just
+   * "Violet" for a relationship the self-person is one end of, since a reminder
    * about your own anniversary is addressed to you and names your partner.
    *
    * `undefined` only when there is no name left to use: the relationship is gone,
@@ -865,7 +865,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
    * Whether an edit to an entity's own row makes it more than a name.
    *
    * A name is the one thing an unpublished entity is *allowed* to have, so
-   * correcting "Jen" to "Jen Davis" leaves her exactly what she was. Anything
+   * correcting "Ruth" to "Ruth Dakin" leaves her exactly what she was. Anything
    * else on the row — a gender, a pet's species — is a fact of her own, and so is
    * a tag, which arrives beside the patch rather than in it.
    *
@@ -995,7 +995,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
    *
    * The name is taken **verbatim** for a pet and split on the first space for a
    * person, the same rule the vCard reader falls back on for a bare `FN`. Nothing
-   * cleverer: "Jen" and "Jen Davis" are both whole names now, so there is no
+   * cleverer: "Ruth" and "Ruth Dakin" are both whole names now, so there is no
    * missing part to guess at, and a two-word name that isn't first-and-last is
    * one edit away from being right on the person's own page.
    */
@@ -1639,7 +1639,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     //
     // Every one of those is an input to the reminder engine, so each write
     // reconciles afterwards rather than waiting for the next boot/focus. Without
-    // this, saying "Alice celebrates Christmas" would sit inert until the app
+    // this, saying "Violet celebrates Christmas" would sit inert until the app
     // was restarted — the same reason a person/milestone write reconciles above.
     // Each runs in its own transaction (BEGIN/COMMIT doesn't nest) and rides the
     // sync kick as a normal write.
@@ -2062,7 +2062,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         // families (a birthday's gift rule and a holiday observance's), since
         // both mint the same action.
         // ⚠️ A relationship is excluded, and not merely for the types' sake: a
-        // gift is recorded against whoever received it, and "Bob & Carol" is not
+        // gift is recorded against whoever received it, and "Harry & Tilly" is not
         // a recipient the gift history can hold. A relationship-borne `get:gift`
         // still shows as a reminder; it just records nothing when ticked.
         const gifts: GiftReminderTarget[] = targets
@@ -2112,7 +2112,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         );
 
         // The `wish` rows, with the ways their person can actually be reached —
-        // what turns "Wish @Alice a happy birthday" from a note into something
+        // what turns "Wish @Violet a happy birthday" from a note into something
         // you can act on without leaving the screen, and what asks for a way in
         // when there is none.
         //
@@ -2628,7 +2628,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           // `petSchema` is a single `name`, so one slot of the card's name has
           // to be it — the first, which is the mononym shape `toPetContact`
           // writes on the way out. The surname fallback is for the one card our
-          // own writer never produces but a hand-made one might (`N:Rex;;;;`,
+          // own writer never produces but a hand-made one might (`N:Jimmy;;;;`,
           // which `deriveName` reads as a surname-only person): without it that
           // pet is refused mid-batch by `petSchema`'s `min(1)`, which is a
           // confusing way to lose a row. The engine has already refused a card

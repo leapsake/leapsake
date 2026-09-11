@@ -10,7 +10,7 @@ import { z } from "zod";
  * - `unpublished` — an entity that exists *only as a fact about a published
  *   one*: your coworker's wife, recorded as a name on the relationship and
  *   nothing more. It has no place in the catalog and is offered by no picker, so
- *   two coworkers' wives both called "Jen" are simply two different people. It
+ *   two coworkers' wives both called "Ruth" are simply two different people. It
  *   is real, durable, synced data — not a draft — and it becomes `published` the
  *   moment it stops being only a name (see the promotion rule in `@leapsake/core`).
  * - `draft` — **reserved, and nothing implements it.** It is here so that the

@@ -27,7 +27,7 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
  * `apps/server/test/relay.test.ts`.
  */
 
-const USERNAME = "Ada"; // mixed-case on purpose: the account stores it normalized
+const USERNAME = "Mary"; // mixed-case on purpose: the account stores it normalized
 const PASSWORD = "correct horse battery staple";
 const RELAY_URL = "https://relay.example";
 
@@ -109,12 +109,12 @@ describe("joinAccount — multi-device login", () => {
   });
 
   it("normalizes and persists the bootstrap for relay registration", async () => {
-    expect(bootstrap.username).toBe("ada"); // trimmed + lowercased
+    expect(bootstrap.username).toBe("mary"); // trimmed + lowercased
     // The bootstrap's account id is the local account id — the relay namespace
     // the second device will join into.
     const account = await createAccountRepo(device1.driver).getSingleton();
     expect(bootstrap.accountId).toBe(account?.id);
-    expect(account?.username).toBe("ada");
+    expect(account?.username).toBe("mary");
     expect(bootstrap.wrappedMasterKey.length).toBeGreaterThan(0);
   });
 
@@ -136,7 +136,7 @@ describe("joinAccount — multi-device login", () => {
     // The local account row mirrors the relay namespace + login coordinates.
     const account = await createAccountRepo(device2.driver).getSingleton();
     expect(account?.id).toBe(bootstrap.accountId);
-    expect(account?.username).toBe("ada");
+    expect(account?.username).toBe("mary");
     expect(account?.relayUrl).toBe(RELAY_URL);
 
     // Enclave adoption replaced the throwaway first-launch wrap: exactly one

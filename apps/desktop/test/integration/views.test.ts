@@ -24,43 +24,43 @@ afterEach(() => {
 
 describe("views.entityList / views.candidates", () => {
   it("merges people and pets and sorts by display label", async () => {
-    await core.people.create({ firstName: "Zoe", lastName: "Ng" }, []);
+    await core.people.create({ firstName: "Zoe", lastName: "Bick" }, []);
     await core.people.create({ firstName: "Amy", lastName: "Lo" }, []);
-    await core.pets.create({ name: "Rex" }, []);
+    await core.pets.create({ name: "Jimmy" }, []);
 
     const rows = await core.views.entityList();
-    expect(rows.map((r) => r.label)).toEqual(["Amy Lo", "Rex", "Zoe Ng"]);
+    expect(rows.map((r) => r.label)).toEqual(["Amy Lo", "Jimmy", "Zoe Bick"]);
     expect(rows.map((r) => r.type)).toEqual(["person", "pet", "person"]);
   });
 
   it("offers every entity as a candidate but excludes the subject", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
-    const rex = await core.pets.create({ name: "Rex" }, []);
+    const jimmy = await core.pets.create({ name: "Jimmy" }, []);
 
     const all = await core.views.candidates();
     expect(all.map((c) => c.id).toSorted()).toEqual(
-      [jane.id, rex.id].toSorted(),
+      [jane.id, jimmy.id].toSorted(),
     );
 
     const excludingJane = await core.views.candidates({
       type: "person",
       id: jane.id,
     });
-    expect(excludingJane.map((c) => c.id)).toEqual([rex.id]);
+    expect(excludingJane.map((c) => c.id)).toEqual([jimmy.id]);
   });
 });
 
 describe("views.person / views.pet", () => {
   it("bundles a person with tags, gender, neighbors, timeline, and contacts", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe", gender: "female" },
+      { firstName: "Jane", lastName: "Wainwright", gender: "female" },
       ["Friend"],
     );
-    const john = await core.people.create(
-      { firstName: "John", lastName: "Doe" },
+    const sam = await core.people.create(
+      { firstName: "Sam", lastName: "Wainwright" },
       [],
     );
     await core.relationships.create({
@@ -68,7 +68,7 @@ describe("views.person / views.pet", () => {
       aId: jane.id,
       aRole: "parent",
       bType: "person",
-      bId: john.id,
+      bId: sam.id,
       bRole: "child",
     });
     await core.milestones.create({
@@ -91,7 +91,7 @@ describe("views.person / views.pet", () => {
     expect(view?.person.id).toBe(jane.id);
     expect(view?.tags.map((t) => t.name)).toEqual(["Friend"]);
     expect(view?.gender).toEqual({ value: "female", origin: "explicit" });
-    expect(view?.relationships.map((n) => n.otherId)).toEqual([john.id]);
+    expect(view?.relationships.map((n) => n.otherId)).toEqual([sam.id]);
     expect(view?.timeline).toHaveLength(1);
     expect(view?.contactMethods).toHaveLength(1);
   });
@@ -101,9 +101,9 @@ describe("views.person / views.pet", () => {
   });
 
   it("bundles a pet without a contact-methods section", async () => {
-    const rex = await core.pets.create({ name: "Rex" }, ["Household"]);
-    const view = await core.views.pet(rex.id);
-    expect(view?.pet.id).toBe(rex.id);
+    const jimmy = await core.pets.create({ name: "Jimmy" }, ["Household"]);
+    const view = await core.views.pet(jimmy.id);
+    expect(view?.pet.id).toBe(jimmy.id);
     expect(view?.tags.map((t) => t.name)).toEqual(["Household"]);
     expect(view && "contactMethods" in view).toBe(false);
   });
@@ -111,17 +111,17 @@ describe("views.person / views.pet", () => {
 
 describe("views.relationship / views.relationshipPartners", () => {
   it("labels the edge from both ends and resolves each partner's role label", async () => {
-    const john = await core.people.create(
-      { firstName: "John", lastName: "Doe" },
+    const sam = await core.people.create(
+      { firstName: "Sam", lastName: "Wainwright" },
       [],
     );
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
     const rel = await core.relationships.create({
       aType: "person",
-      aId: john.id,
+      aId: sam.id,
       aRole: "husband",
       bType: "person",
       bId: jane.id,
@@ -129,36 +129,36 @@ describe("views.relationship / views.relationshipPartners", () => {
     });
 
     const view = await core.views.relationship(rel.id);
-    expect(view?.title).toBe("John Doe & Jane Doe");
+    expect(view?.title).toBe("Sam Wainwright & Jane Wainwright");
     expect(view?.partners).toEqual([
       {
         type: "person",
-        id: john.id,
-        label: "John Doe",
+        id: sam.id,
+        label: "Sam Wainwright",
         roleLabel: roleDefs.husband.label,
       },
       {
         type: "person",
         id: jane.id,
-        label: "Jane Doe",
+        label: "Jane Wainwright",
         roleLabel: roleDefs.wife.label,
       },
     ]);
 
     const partners = await core.views.relationshipPartners(rel.id);
     expect(partners?.partners.map((p) => p.role)).toEqual(["husband", "wife"]);
-    expect(partners?.title).toBe("John Doe & Jane Doe");
+    expect(partners?.title).toBe("Sam Wainwright & Jane Wainwright");
   });
 });
 
 describe("views.relationshipForSubject / views.derivedRelationship", () => {
   it("finds an explicit neighbor by id, oriented to the subject", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
-    const john = await core.people.create(
-      { firstName: "John", lastName: "Doe" },
+    const sam = await core.people.create(
+      { firstName: "Sam", lastName: "Wainwright" },
       [],
     );
     const rel = await core.relationships.create({
@@ -166,31 +166,31 @@ describe("views.relationshipForSubject / views.derivedRelationship", () => {
       aId: jane.id,
       aRole: "parent",
       bType: "person",
-      bId: john.id,
+      bId: sam.id,
       bRole: "child",
     });
 
     const view = await core.views.relationshipForSubject(
       "person",
-      john.id,
+      sam.id,
       rel.id,
     );
-    expect(view?.subject.label).toBe("John Doe");
+    expect(view?.subject.label).toBe("Sam Wainwright");
     expect(view?.neighbor.otherId).toBe(jane.id);
     expect(view?.neighbor.otherRole).toBe("parent");
   });
 
   it("finds the derived grandparent edge by its other end and base role", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
-    const john = await core.people.create(
-      { firstName: "John", lastName: "Doe" },
+    const sam = await core.people.create(
+      { firstName: "Sam", lastName: "Wainwright" },
       [],
     );
     const tim = await core.people.create(
-      { firstName: "Tim", lastName: "Doe" },
+      { firstName: "Tim", lastName: "Wainwright" },
       [],
     );
     await core.relationships.create({
@@ -198,12 +198,12 @@ describe("views.relationshipForSubject / views.derivedRelationship", () => {
       aId: jane.id,
       aRole: "parent",
       bType: "person",
-      bId: john.id,
+      bId: sam.id,
       bRole: "child",
     });
     await core.relationships.create({
       aType: "person",
-      aId: john.id,
+      aId: sam.id,
       aRole: "parent",
       bType: "person",
       bId: tim.id,
@@ -226,11 +226,11 @@ describe("views.relationshipForSubject / views.derivedRelationship", () => {
 describe("views.milestoneNew / views.milestoneSubject", () => {
   it("includes candidates and neighbors from a Person but not other subjects", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
-    const john = await core.people.create(
-      { firstName: "John", lastName: "Doe" },
+    const sam = await core.people.create(
+      { firstName: "Sam", lastName: "Wainwright" },
       [],
     );
     const rel = await core.relationships.create({
@@ -238,17 +238,17 @@ describe("views.milestoneNew / views.milestoneSubject", () => {
       aId: jane.id,
       aRole: "spouse",
       bType: "person",
-      bId: john.id,
+      bId: sam.id,
       bRole: "spouse",
     });
 
     const fromPerson = await core.views.milestoneNew("person", jane.id);
     expect(fromPerson?.bearer.type).toBe("person");
-    expect(fromPerson?.candidates?.map((c) => c.id)).toEqual([john.id]);
-    expect(fromPerson?.neighbors?.map((n) => n.otherId)).toEqual([john.id]);
+    expect(fromPerson?.candidates?.map((c) => c.id)).toEqual([sam.id]);
+    expect(fromPerson?.neighbors?.map((n) => n.otherId)).toEqual([sam.id]);
 
     const fromRel = await core.views.milestoneNew("relationship", rel.id);
-    expect(fromRel?.bearer.label).toBe("Jane Doe & John Doe");
+    expect(fromRel?.bearer.label).toBe("Jane Wainwright & Sam Wainwright");
     expect(fromRel?.candidates).toBeUndefined();
     expect(fromRel?.neighbors).toBeUndefined();
   });
@@ -257,11 +257,11 @@ describe("views.milestoneNew / views.milestoneSubject", () => {
 describe("relationships.createFromSubject", () => {
   it("writes the subject as the a-end with the neutral inverse of the other role", async () => {
     const tim = await core.people.create(
-      { firstName: "Tim", lastName: "Doe" },
+      { firstName: "Tim", lastName: "Wainwright" },
       [],
     );
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
 
@@ -281,15 +281,15 @@ describe("relationships.createFromSubject", () => {
 
   it("materialises a derived edge so it suppresses the derived duplicate", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
-    const john = await core.people.create(
-      { firstName: "John", lastName: "Doe" },
+    const sam = await core.people.create(
+      { firstName: "Sam", lastName: "Wainwright" },
       [],
     );
     const tim = await core.people.create(
-      { firstName: "Tim", lastName: "Doe" },
+      { firstName: "Tim", lastName: "Wainwright" },
       [],
     );
     await core.relationships.create({
@@ -297,12 +297,12 @@ describe("relationships.createFromSubject", () => {
       aId: jane.id,
       aRole: "parent",
       bType: "person",
-      bId: john.id,
+      bId: sam.id,
       bRole: "child",
     });
     await core.relationships.create({
       aType: "person",
-      aId: john.id,
+      aId: sam.id,
       aRole: "parent",
       bType: "person",
       bId: tim.id,
@@ -330,29 +330,29 @@ describe("relationships.createFromSubject", () => {
 
 describe("relationships.editFromSubject", () => {
   it("re-derives the subject's role while keeping its existing gendering", async () => {
-    const john = await core.people.create(
-      { firstName: "John", lastName: "Doe" },
+    const sam = await core.people.create(
+      { firstName: "Sam", lastName: "Wainwright" },
       [],
     );
     const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Doe" },
+      { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
-    // John is the a-end (husband); Jane the b-end (wife).
+    // Sam is the a-end (husband); Jane the b-end (wife).
     const rel = await core.relationships.create({
       aType: "person",
-      aId: john.id,
+      aId: sam.id,
       aRole: "husband",
       bType: "person",
       bId: jane.id,
       bRole: "wife",
     });
 
-    // Editing from John's page (subject is the a-end) must not flatten his
+    // Editing from Sam's page (subject is the a-end) must not flatten his
     // unedited "husband" back to "spouse".
     await core.relationships.editFromSubject({
       subjectType: "person",
-      subjectId: john.id,
+      subjectId: sam.id,
       relId: rel.id,
       otherRole: "wife",
       otherRoleNote: null,
@@ -375,14 +375,14 @@ describe("relationships.editFromSubject", () => {
   });
 
   it("returns undefined for a missing relationship", async () => {
-    const john = await core.people.create(
-      { firstName: "John", lastName: "Doe" },
+    const sam = await core.people.create(
+      { firstName: "Sam", lastName: "Wainwright" },
       [],
     );
     expect(
       await core.relationships.editFromSubject({
         subjectType: "person",
-        subjectId: john.id,
+        subjectId: sam.id,
         relId: crypto.randomUUID(),
         otherRole: "wife",
         otherRoleNote: null,

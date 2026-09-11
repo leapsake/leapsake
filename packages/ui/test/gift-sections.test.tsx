@@ -26,7 +26,7 @@ const forIdea = (over: Partial<IdeaRecipientRow> = {}): IdeaRecipientRow => ({
   id: "r-1",
   recipientType: "person",
   recipientId: "p-1",
-  recipientLabel: "Ada",
+  recipientLabel: "Mary",
   givenAt: null,
   ...over,
 });
@@ -43,7 +43,7 @@ function renderGifts({
     <GiftsSection
       recipientType="person"
       recipientId="p-1"
-      recipientLabel="Ada"
+      recipientLabel="Mary"
       gifts={gifts}
       ideaPool={[]}
       onChanged={onChanged}
@@ -167,13 +167,13 @@ describe("GiftIdeaRecipientsSection", () => {
     renderIdeaRecipients({
       recipients: [forIdea()],
       candidates: [
-        { type: "person", id: "p-1", label: "Ada" },
-        { type: "person", id: "p-2", label: "Bob" },
+        { type: "person", id: "p-1", label: "Mary" },
+        { type: "person", id: "p-2", label: "Harry" },
       ],
     });
 
     fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "ada" },
+      target: { value: "mary" },
     });
     expect(screen.queryAllByRole("option").map((o) => o.textContent)).toEqual(
       [],
@@ -201,14 +201,14 @@ describe("GiftIdeaRecipientsSection", () => {
 
   it("writes the same link a person page would", async () => {
     const { ports, onChanged } = renderIdeaRecipients({
-      candidates: [{ type: "person", id: "p-2", label: "Bob" }],
+      candidates: [{ type: "person", id: "p-2", label: "Harry" }],
     });
 
     fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "bob" },
+      target: { value: "harry" },
     });
     await act(async () =>
-      fireEvent.mouseDown(screen.getByRole("option", { name: "Bob" })),
+      fireEvent.mouseDown(screen.getByRole("option", { name: "Harry" })),
     );
 
     expect(ports.attachRecipient).toHaveBeenCalledWith({
@@ -222,7 +222,7 @@ describe("GiftIdeaRecipientsSection", () => {
     const { ports } = renderIdeaRecipients({ recipients: [forIdea()] });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("checkbox", { name: "Given to Ada" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Given to Mary" }));
     });
 
     expect(ports.setGiven).toHaveBeenCalledWith("r-1", true);
@@ -231,7 +231,7 @@ describe("GiftIdeaRecipientsSection", () => {
   it("sinks the people who already have it", () => {
     renderIdeaRecipients({
       recipients: [
-        forIdea({ id: "r-1", recipientLabel: "Ada", givenAt: STAMP }),
+        forIdea({ id: "r-1", recipientLabel: "Mary", givenAt: STAMP }),
         forIdea({ id: "r-2", recipientLabel: "Zed" }),
       ],
     });
@@ -240,7 +240,7 @@ describe("GiftIdeaRecipientsSection", () => {
       .getAllByRole("listitem")
       .map((li) => li.textContent ?? "");
     expect(labels[0]).toContain("Zed");
-    expect(labels[1]).toContain("Ada");
+    expect(labels[1]).toContain("Mary");
   });
 
   it("says so when the idea is for nobody", () => {

@@ -35,7 +35,7 @@ export function MilestonePlanPrompt() {
     <main>
       {/* The same helper the reminder row's own title goes through, so the
           question cannot be worded one way on Home and another here — and so
-          "your first date with Alice" does not become "Alice's first date",
+          "your first date with Violet" does not become "Violet's first date",
           which says something else entirely. */}
       <h1>{planQuestion({ ...target, occasion })}</h1>
       {/* ⚠️ The row this came from shows the distance to the prompt&rsquo;s own

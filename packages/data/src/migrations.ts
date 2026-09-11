@@ -612,7 +612,7 @@ export const migrations: Migration[] = [
       // in its *data* still stores and relays the row instead of rejecting it.
       //
       // `observances` is who observes what. It is the reminder rule's bearer,
-      // not the holiday, which is what makes per-person schedules ("gift Alice
+      // not the holiday, which is what makes per-person schedules ("gift Violet
       // 30 days before Christmas" vs "just call Grandma day-of") fall out of
       // the existing polymorphic bearer pair with no schema change (§1). One
       // table with a polarity flag rather than the relationships/dismissals
@@ -741,7 +741,7 @@ export const migrations: Migration[] = [
     version: 25,
     async up(driver) {
       // Gift recipients — one gift idea paired with one person or pet, and
-      // whether it has been given to them ("Ralphie would like a BB gun", and
+      // whether it has been given to them ("George would like a copy of Tom Sawyer", and
       // later, "…and now he has one").
       //
       // This replaces what were two tables: `gift_suggestions` (a candidate) and
@@ -895,7 +895,7 @@ export const migrations: Migration[] = [
       // from the two columns that were enforcing the old pair of requirements.
       //
       // Two features wanted it independently, which is what settled it: a person
-      // known only as somebody's relation ("Jen", with no surname to give), and
+      // known only as somebody's relation ("Ruth", with no surname to give), and
       // contact import, whose vCard reader deliberately parses a mononym or an
       // organisation-only card with an empty `lastName` rather than inventing
       // one — and whose ingest guard then had to refuse every such card.

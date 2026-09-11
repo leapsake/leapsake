@@ -11,7 +11,7 @@ import type { ReminderRule, ReminderRuleInput } from "./reminder-rule.js";
  * Splitting them this way is the load-bearing decision of the whole feature
  * (`@leapsake/holidays` README, the three layers): an observance is milestone-shaped — (bearer,
  * holiday, date-derived-from-catalog) — so it, not the holiday, is what a
- * reminder rule bears on. That is what makes "gift Alice 30 days before
+ * reminder rule bears on. That is what makes "gift Violet 30 days before
  * Christmas" and "just call Grandma day-of" fall out of the existing
  * `(bearerType, bearerId)` machinery with no third column and no parallel copy
  * of `resolveReminderSchedule`.
@@ -39,7 +39,7 @@ export const HOLIDAY_NAMESPACE = "leapsake:holiday";
  * research §2.4's "user rows get random UUIDs". That rule is right for a
  * user-*defined holiday* (genuinely new user data) and wrong here: an observance
  * is a statement *about a key*, and the table carries a partial unique index on
- * that key. Two offline devices both toggling "Alice observes Christmas" would
+ * that key. Two offline devices both toggling "Violet observes Christmas" would
  * otherwise mint two random-id rows for one key, and the second `INSERT` would
  * throw inside `upsertFromRemote` when they met. Deriving the id from the key
  * makes the two writes the *same row*, which whole-row LWW then merges for free
@@ -135,7 +135,7 @@ export const observanceBearerTypeSchema = z.enum(["person", "pet"]);
 export type ObservanceBearerType = z.infer<typeof observanceBearerTypeSchema>;
 
 /**
- * "Grandma observes Hanukkah" — or, with `observes: false`, "Alice doesn't do
+ * "Grandma observes Hanukkah" — or, with `observes: false`, "Violet doesn't do
  * Christmas".
  *
  * Follows the Relationships precedent (`relationship.ts`) that derived edges are
@@ -183,7 +183,7 @@ export type Observance = z.infer<typeof observanceSchema>;
  * Two behaviours the implementation must preserve:
  *
  * - **Hiding suppresses reminders, not just browse surfaces.** Otherwise "I hid
- *   Mother's Day" still produces "Call @Alice for Mother's Day". Cleanest as a
+ *   Mother's Day" still produces "Call @Violet for Mother's Day". Cleanest as a
  *   final filter after observance resolution. Mother's Day is precisely the
  *   holiday people hide for painful reasons, so getting this wrong is worse than
  *   an ordinary bug.

@@ -12,7 +12,7 @@ const hit = (over: Partial<SearchHit> = {}): SearchHit =>
   ({
     entityType: "person",
     entityId: "p-1",
-    title: "Ada Lovelace",
+    title: "Mary Bailey",
     reasons: [],
     ...over,
   }) as SearchHit;
@@ -64,10 +64,10 @@ describe("SearchBar", () => {
       <SearchBar search={async () => [hit()]} onNavigate={onNavigate} />,
     );
 
-    type("ada");
+    type("mary");
     await settle();
     await act(async () => {
-      fireEvent.mouseDown(screen.getByRole("option", { name: /Ada Lovelace/ }));
+      fireEvent.mouseDown(screen.getByRole("option", { name: /Mary Bailey/ }));
     });
 
     expect(onNavigate).toHaveBeenCalledWith("/people/p-1");
@@ -94,7 +94,7 @@ describe("SearchBar", () => {
       <SearchBar search={async () => [hit()]} onNavigate={vi.fn()} />,
     );
 
-    type("ada");
+    type("mary");
     await settle();
     expect(screen.getByRole("listbox")).toBeTruthy();
 
@@ -130,13 +130,13 @@ describe("ReminderText", () => {
       {
         targetType: "person",
         targetId: PERSON_ID,
-        label: "Ada Byron",
+        label: "Mary Hatch",
       },
     ] as ResolvedMention[];
 
     renderWithUi(
       <ReminderText
-        text={`call @[Ada Lovelace](person:${PERSON_ID})`}
+        text={`call @[Mary Bailey](person:${PERSON_ID})`}
         tags={[]}
         mentions={mentions}
       />,
@@ -145,7 +145,7 @@ describe("ReminderText", () => {
     // The sigil is part of the link text: a mention reads as one here just as
     // it did in the composer.
     expect(
-      screen.getByRole("link", { name: "@Ada Byron" }).getAttribute("href"),
+      screen.getByRole("link", { name: "@Mary Hatch" }).getAttribute("href"),
     ).toBe(`/people/${PERSON_ID}`);
   });
 
@@ -156,14 +156,14 @@ describe("ReminderText", () => {
 
     renderWithUi(
       <ReminderText
-        text={`call @[Ada Lovelace](person:${PERSON_ID})`}
+        text={`call @[Mary Bailey](person:${PERSON_ID})`}
         tags={[]}
         mentions={mentions}
       />,
     );
 
     expect(screen.queryByRole("link")).toBeNull();
-    expect(screen.getByText(/Ada Lovelace/)).toBeTruthy();
+    expect(screen.getByText(/Mary Bailey/)).toBeTruthy();
   });
 
   it("leaves an unmatched #tag as plain text", () => {

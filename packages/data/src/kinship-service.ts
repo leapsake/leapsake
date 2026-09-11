@@ -117,7 +117,7 @@ export function createKinshipService(
     const entity = await getEntity(type, id);
     // Through `entityLabel` rather than interpolating the name parts: every part
     // is optional, so a surname-less person built by hand here would come out as
-    // " Davis" — with a leading space, on every relationship row that names them.
+    // " Dakin" — with a leading space, on every relationship row that names them.
     return entity === undefined ? undefined : entityLabel(type, entity);
   }
 
@@ -136,8 +136,8 @@ export function createKinshipService(
    * It also forecloses a worse version. The table deliberately omits
    * `(parent, spouse) → parent`, noting it as a future addition; if that lands,
    * every unpublished spouse becomes a derived parent of their partner's
-   * children. That inference is unsound anyway — Sam's wife need not be the
-   * mother of Sam's son — but this rule means adding it cannot leak an
+   * children. That inference is unsound anyway — Ernie's wife need not be the
+   * mother of Ernie's son — but this rule means adding it cannot leak an
    * unpublished person onto anyone's page regardless.
    */
   async function takesPartInInference(

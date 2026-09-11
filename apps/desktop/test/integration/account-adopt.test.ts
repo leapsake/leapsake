@@ -61,7 +61,7 @@ import {
  * call is what turns that skip into a real door.**
  */
 
-const USERNAME = "Ada"; // mixed-case on purpose: the account stores it normalized
+const USERNAME = "Mary"; // mixed-case on purpose: the account stores it normalized
 const PASSWORD = "correct horse battery staple";
 const NEW_PASSWORD = "a different correct horse";
 const RELAY_URL = "https://relay.example";
@@ -115,8 +115,8 @@ async function openStoreWithData(): Promise<{
   });
   await runMigrations(driver);
   await createPeopleRepo(driver).create({
-    firstName: "Grace",
-    lastName: "Hopper",
+    firstName: "Henry",
+    lastName: "Potter",
   });
   return { driver, path };
 }
@@ -226,7 +226,7 @@ describe.each([
 
     const accounts = await rosterFor(userData).list();
     expect(accounts.map((a) => a.id)).toEqual([bootstrap.accountId]);
-    expect(accounts[0].username).toBe("ada"); // the store's normalized form
+    expect(accounts[0].username).toBe("mary"); // the store's normalized form
 
     expect(resolveActiveStore({ accounts }).custody).toBe("encrypted");
   });
@@ -239,7 +239,7 @@ describe.each([
     await runMigrations(reopened); // a no-op if user_version came across
 
     const people = await createPeopleRepo(reopened).list();
-    expect(people.map((p) => p.firstName)).toEqual(["Grace"]);
+    expect(people.map((p) => p.firstName)).toEqual(["Henry"]);
 
     const accountRow = await reopened.get<{ id: string }>(
       "SELECT id FROM account LIMIT 1",
@@ -303,7 +303,7 @@ describe.each([
 
     expect(asked).toEqual({ password: true, phrase: true });
     const people = await createPeopleRepo(unlocked).list();
-    expect(people.map((p) => p.firstName)).toEqual(["Grace"]);
+    expect(people.map((p) => p.firstName)).toEqual(["Henry"]);
     await unlocked.close?.();
   });
 

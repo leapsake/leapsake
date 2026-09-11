@@ -144,7 +144,7 @@ function person(over: Partial<Person> = {}): Person {
     id: uuid(),
     firstName: "Jane",
     middleName: null,
-    lastName: "Doe",
+    lastName: "Wainwright",
     gender: null,
     standing: "published",
     createdAt: 1_700_000_000_000,
@@ -157,7 +157,7 @@ function person(over: Partial<Person> = {}): Person {
 function pet(over: Partial<Pet> = {}): Pet {
   return {
     id: uuid(),
-    name: "Rex",
+    name: "Jimmy",
     gender: null,
     standing: "published",
     createdAt: 1_700_000_000_000,
@@ -176,7 +176,7 @@ function neighbor(
     relationshipId: uuid(),
     otherType: "person" as EntityType,
     otherId: uuid(),
-    otherLabel: "Jen Davis",
+    otherLabel: "Ruth Dakin",
     otherStanding: "unpublished",
     otherRole: role,
     otherRoleLabel: role,
@@ -261,10 +261,10 @@ describe("buildArchive", () => {
   });
 
   it("round-trips the people through the .vcf", async () => {
-    const jane = person({ firstName: "Jane", lastName: "Doe" });
-    const bob = person({ firstName: "Bob", lastName: "Roberts" });
+    const jane = person({ firstName: "Jane", lastName: "Wainwright" });
+    const harry = person({ firstName: "Harry", lastName: "Welch" });
     const { bytes } = await buildArchive(
-      ports([jane, bob], {
+      ports([jane, harry], {
         [jane.id]: {
           methods: [email(jane.id, "jane@example.com")],
           milestones: [birthday(jane.id, { year: 1985, month: 4, day: 12 })],
@@ -279,13 +279,13 @@ describe("buildArchive", () => {
     expect(cards[0].name).toEqual({
       firstName: "Jane",
       middleName: null,
-      lastName: "Doe",
+      lastName: "Wainwright",
     });
     expect(cards[0].emails).toEqual([
       { label: "Home", address: "jane@example.com" },
     ]);
     expect(cards[0].birthday).toEqual({ year: 1985, month: 4, day: 12 });
-    expect(cards[1].displayName).toBe("Bob Roberts");
+    expect(cards[1].displayName).toBe("Harry Welch");
   });
 
   it("stamps the person id as a UID and the tags as CATEGORIES", async () => {
@@ -400,7 +400,7 @@ describe("buildArchive — the graph", () => {
    * their own. Giving them one would invent an entity the app does not have.
    */
   it("names an unpublished person on their host's card, and nowhere else", async () => {
-    const jane = person({ firstName: "Jane", lastName: "Doe" });
+    const jane = person({ firstName: "Jane", lastName: "Wainwright" });
     const hidden = person({ firstName: "Hidden", standing: "unpublished" });
     const { bytes, counts } = await buildArchive(
       ports([jane, hidden], {
@@ -408,7 +408,7 @@ describe("buildArchive — the graph", () => {
           neighbors: [
             neighbor({
               otherId: hidden.id,
-              otherLabel: "Hidden Doe",
+              otherLabel: "Hidden Wainwright",
               otherStanding: "unpublished",
               otherRole: "spouse",
             }),
@@ -422,7 +422,7 @@ describe("buildArchive — the graph", () => {
     expect(counts.people).toBe(1);
     expect(parseVCards(vcf)).toHaveLength(1);
     expect(vcf).toContain("RELATED;VALUE=text;TYPE=spouse");
-    expect(vcf).toContain("Hidden Doe");
+    expect(vcf).toContain("Hidden Wainwright");
     // Named, not carded: no `UID` and no `FN` of their own.
     expect(vcf).not.toContain(`UID:urn:uuid:${hidden.id}`);
     expect(vcf).not.toContain("FN:Hidden");
@@ -430,27 +430,27 @@ describe("buildArchive — the graph", () => {
 
   it("points a published relationship at the other card by uid", async () => {
     const jane = person({ firstName: "Jane" });
-    const ben = person({ firstName: "Ben" });
+    const pete = person({ firstName: "Pete" });
     const rel = uuid();
     const { bytes } = await buildArchive(
-      ports([jane, ben], {
+      ports([jane, pete], {
         [jane.id]: {
           neighbors: [
             neighbor({
               relationshipId: rel,
-              otherId: ben.id,
-              otherLabel: "Ben Doe",
+              otherId: pete.id,
+              otherLabel: "Pete Wainwright",
               otherStanding: "published",
               otherRole: "child",
             }),
           ],
         },
-        [ben.id]: {
+        [pete.id]: {
           neighbors: [
             neighbor({
               relationshipId: rel,
               otherId: jane.id,
-              otherLabel: "Jane Doe",
+              otherLabel: "Jane Wainwright",
               otherStanding: "published",
               otherRole: "parent",
             }),
@@ -461,7 +461,7 @@ describe("buildArchive — the graph", () => {
     );
     const vcf = unzip(bytes)[VCF_NAME].replace(/\r\n /g, "");
 
-    expect(vcf).toContain(`urn:uuid:${ben.id}`);
+    expect(vcf).toContain(`urn:uuid:${pete.id}`);
     expect(vcf).toContain(`urn:uuid:${jane.id}`);
     // One edge, two cards, one id — which is what tells an importer the two
     // halves are one relationship rather than two.
@@ -494,16 +494,16 @@ describe("buildArchive — the graph", () => {
   });
 
   it("gives a pet its own KIND:x-pet card, with its milestones and tags", async () => {
-    const rex = pet({ name: "Rex", gender: "male" });
+    const jimmy = pet({ name: "Jimmy", gender: "male" });
     const { bytes, counts } = await buildArchive(
       ports(
         [],
         {
-          [rex.id]: {
+          [jimmy.id]: {
             milestones: [
               milestone(
                 "birthday",
-                { type: "pet", id: rex.id },
+                { type: "pet", id: jimmy.id },
                 {
                   year: 2019,
                   month: 5,
@@ -514,7 +514,7 @@ describe("buildArchive — the graph", () => {
             tags: [tag("Pets")],
           },
         },
-        { pets: [rex] },
+        { pets: [jimmy] },
       ),
       OPTS,
     );
@@ -522,7 +522,7 @@ describe("buildArchive — the graph", () => {
 
     expect(counts.pets).toBe(1);
     expect(vcf).toContain("KIND:x-pet");
-    expect(vcf).toContain("FN:Rex");
+    expect(vcf).toContain("FN:Jimmy");
     expect(vcf).toContain("GENDER:M");
     expect(vcf).toContain("BDAY:2019-05-02");
     expect(vcf).toContain("CATEGORIES:Pets");
@@ -581,8 +581,8 @@ describe("buildArchive — the graph", () => {
    * many of its ends the file carries.
    */
   it("writes a relationship's milestone on both cards, reading it once", async () => {
-    const sam = person({ firstName: "Sam" });
-    const jen = person({ firstName: "Jen" });
+    const ernie = person({ firstName: "Ernie" });
+    const ruth = person({ firstName: "Ruth" });
     const rel = uuid();
     const wedding = milestone(
       "wedding",
@@ -590,22 +590,22 @@ describe("buildArchive — the graph", () => {
       { year: 2011, month: 6, day: 18 },
     );
     const fake = ports(
-      [sam, jen],
+      [ernie, ruth],
       {
-        [sam.id]: {
+        [ernie.id]: {
           neighbors: [
             neighbor({
               relationshipId: rel,
-              otherId: jen.id,
+              otherId: ruth.id,
               otherStanding: "published",
             }),
           ],
         },
-        [jen.id]: {
+        [ruth.id]: {
           neighbors: [
             neighbor({
               relationshipId: rel,
-              otherId: sam.id,
+              otherId: ernie.id,
               otherStanding: "published",
             }),
           ],
@@ -627,9 +627,9 @@ describe("buildArchive — the graph", () => {
 
   it("marks the self person, and only them", async () => {
     const jane = person({ firstName: "Jane" });
-    const bob = person({ firstName: "Bob" });
+    const harry = person({ firstName: "Harry" });
     const { bytes } = await buildArchive(
-      ports([jane, bob], {}, { selfId: jane.id }),
+      ports([jane, harry], {}, { selfId: jane.id }),
       OPTS,
     );
     const vcf = unzip(bytes)[VCF_NAME];
@@ -723,8 +723,8 @@ describe("buildArchive — data.json", () => {
     exportDataSchema.parse(JSON.parse(unzip(bytes)[DATA_NAME]));
 
   it("carries each table under its own key", async () => {
-    const alice = uuid();
-    const bob = uuid();
+    const violet = uuid();
+    const harry = uuid();
     const xmas = holiday();
     const call = reminder({ title: "Call Mum" });
     const socks = {
@@ -748,7 +748,7 @@ describe("buildArchive — data.json", () => {
                 bearerType: "reminder",
                 bearerId: call.id,
                 targetType: "person",
-                targetId: alice,
+                targetId: violet,
                 ...stamps,
               },
             ],
@@ -770,7 +770,7 @@ describe("buildArchive — data.json", () => {
                 id: uuid(),
                 giftIdeaId: socks.id,
                 recipientType: "person",
-                recipientId: alice,
+                recipientId: violet,
                 givenAt: null,
                 ...stamps,
               },
@@ -781,22 +781,22 @@ describe("buildArchive — data.json", () => {
                 id: uuid(),
                 holidayId: xmas.id,
                 bearerType: "person",
-                bearerId: alice,
+                bearerId: violet,
                 observes: true,
                 ...stamps,
               },
             ],
             hiddenHolidays: [{ id: uuid(), holidayId: xmas.id, ...stamps }],
             notADuplicate: [
-              { id: uuid(), lowerId: alice, higherId: bob, ...stamps },
+              { id: uuid(), lowerId: violet, higherId: harry, ...stamps },
             ],
             relationshipDismissals: [
               {
                 id: uuid(),
                 subjectType: "person",
-                subjectId: alice,
+                subjectId: violet,
                 otherType: "person",
-                otherId: bob,
+                otherId: harry,
                 role: "cousin",
                 ...stamps,
               },
@@ -820,13 +820,13 @@ describe("buildArchive — data.json", () => {
 
     const data = read(bytes);
     expect(data.reminders?.[0]?.title).toBe("Call Mum");
-    expect(data.mentions?.[0]?.targetId).toBe(alice);
+    expect(data.mentions?.[0]?.targetId).toBe(violet);
     expect(data.reminderRules?.[0]?.action).toBe("get:gift");
     expect(data.giftIdeas?.[0]?.title).toBe("Socks");
     expect(data.giftRecipients?.[0]?.giftIdeaId).toBe(socks.id);
     expect(data.observances?.[0]?.observes).toBe(true);
     expect(data.hiddenHolidays?.[0]?.holidayId).toBe(xmas.id);
-    expect(data.notADuplicate?.[0]?.higherId).toBe(bob);
+    expect(data.notADuplicate?.[0]?.higherId).toBe(harry);
     expect(data.relationshipDismissals?.[0]?.role).toBe("cousin");
     expect(data.notificationSettings?.[0]?.mode).toBe("digest");
 
@@ -937,7 +937,7 @@ describe("buildArchive — data.json", () => {
             notificationSettings: [
               {
                 id: "device-1",
-                label: "Josh's iPhone",
+                label: "George's iPhone",
                 platform: "ios",
                 mode: "each",
                 deliveryMinute: 480,
@@ -953,7 +953,7 @@ describe("buildArchive — data.json", () => {
     const row = read(bytes).notificationSettings?.[0];
     expect(row).toMatchObject({
       id: "device-1",
-      label: "Josh's iPhone",
+      label: "George's iPhone",
       mode: "each",
       deliveryMinute: 480,
     });

@@ -20,8 +20,8 @@ export type GiftParty = z.infer<typeof giftPartySchema>;
 
 /**
  * How a write surface names the idea it is attaching a party to: an **existing**
- * idea by id, or a **new** one to mint in the same transaction ("I gave Ralphie a
- * BB gun" mints the idea and the link in one transaction if 'BB gun' doesn't
+ * idea by id, or a **new** one to mint in the same transaction ("I gave George a
+ * copy of Tom Sawyer" mints the idea and the link in one transaction if 'Tom Sawyer' doesn't
  * exist yet). A share-from-the-web capture may arrive URL-first, so the new-idea
  * arm accepts an optional url too.
  */
@@ -37,7 +37,7 @@ export type GiftIdeaRef = z.infer<typeof giftIdeaRefSchema>;
 
 /**
  * A GiftRecipient — one {@link GiftIdea} paired with one person or pet, and
- * whether it has been given to them. "Ralphie would like a Red Ryder BB Gun",
+ * whether it has been given to them. "George would like The Adventures of Tom Sawyer",
  * and later, "…and now he has one."
  *
  * **This was three tables.** A `gift_suggestions` row was a candidate, a `gifts`

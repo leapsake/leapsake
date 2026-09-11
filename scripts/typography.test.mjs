@@ -17,7 +17,7 @@
 // **Scope is app-authored copy, and only that** *(owner-confirmed 2026-08-26)*. Text the
 // *user* typed is never subject to this rule — we do not rewrite someone's punctuation.
 // That distinction is why the catalog is the unit checked rather than "strings in the
-// repo": a fixture like `"🎂 @Alice Ng's day"` in `packages/schema` is a user's own words
+// repo": a fixture like `"🎂 @Violet Bick's day"` in `packages/schema` is a user's own words
 // standing in for what they would type, and flagging it would be a bug in the guard.
 //
 // Not covered, and known: `@leapsake/schema`'s label tables (`genderLabel`, `kindDefs`,

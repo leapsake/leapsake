@@ -17,7 +17,7 @@ design behind them. Shipped on both clients 2026-07-20; what remains is sequence
 (bearer, holiday, date-derived-from-catalog). Both are "a recurring dated fact about a person
 that reminder rules hang off." So a rule's bearer is the **observance**, never the holiday —
 which preserves the existing `(bearerType, bearerId)` pair and makes per-person schedules fall
-out for free ("gift Alice 30 days before Christmas" but "just call Grandma day-of"). Making the
+out for free ("gift Violet 30 days before Christmas" but "just call Grandma day-of"). Making the
 holiday the bearer would need a third column for _which person_, plus a parallel copy of the
 `resolveReminderSchedule` and deterministic-id machinery.
 
@@ -68,7 +68,7 @@ already use) — a column on the holiday row would be an edit to a catalog row a
 Two behaviors that must not regress:
 
 - **Hide suppresses reminders, not just browse surfaces.** Otherwise "I hid Mother's Day" still
-  produces "Call @Alice for Mother's Day." Mother's Day is precisely the holiday people hide for
+  produces "Call @Violet for Mother's Day." Mother's Day is precisely the holiday people hide for
   painful reasons, so getting this wrong is worse than an ordinary bug.
 - **Hide is non-destructive.** Suppress, never delete observances; unhiding restores everything.
 
@@ -177,5 +177,5 @@ additional bulk affordance ("add everyone tagged #family"), not a return to the 
   labels; holidays multiply the candidate set (people × holidays), so that ordering must hold.
 - **The dismissal ladder is closed, and each rung means something different**: dismissing a
   reminder is "not this year" (one occurrence, because the occurrence is part of the
-  deterministic id); a disabled reminder rule is "never gift Alice at Christmas, but still call";
-  `observes: false` is "Alice doesn't do Christmas".
+  deterministic id); a disabled reminder rule is "never gift Violet at Christmas, but still call";
+  `observes: false` is "Violet doesn't do Christmas".

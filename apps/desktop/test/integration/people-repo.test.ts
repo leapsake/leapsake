@@ -45,12 +45,12 @@ describe("runMigrations", () => {
 describe("peopleRepo", () => {
   it("creates a person with a uuid, timestamps, and null deletedAt", async () => {
     const person = await repo.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     expect(person.id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(person.firstName).toBe("Ada");
-    expect(person.lastName).toBe("Lovelace");
+    expect(person.firstName).toBe("Mary");
+    expect(person.lastName).toBe("Bailey");
     expect(person.createdAt).toBeGreaterThan(0);
     expect(person.updatedAt).toBe(person.createdAt);
     expect(person.deletedAt).toBeNull();
@@ -58,24 +58,24 @@ describe("peopleRepo", () => {
 
   it("defaults middleName to null and persists a provided one", async () => {
     const noMiddle = await repo.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     expect(noMiddle.middleName).toBeNull();
 
     const withMiddle = await repo.create({
-      firstName: "Ada",
-      middleName: "Byron",
-      lastName: "Lovelace",
+      firstName: "Mary",
+      middleName: "Hatch",
+      lastName: "Bailey",
     });
-    expect(withMiddle.middleName).toBe("Byron");
-    expect((await repo.get(withMiddle.id))?.middleName).toBe("Byron");
+    expect(withMiddle.middleName).toBe("Hatch");
+    expect((await repo.get(withMiddle.id))?.middleName).toBe("Hatch");
   });
 
   it("persists and retrieves a created person", async () => {
     const created = await repo.create({
-      firstName: "Grace",
-      lastName: "Hopper",
+      firstName: "Henry",
+      lastName: "Potter",
     });
     const fetched = await repo.get(created.id);
     expect(fetched).toEqual(created);
@@ -83,14 +83,14 @@ describe("peopleRepo", () => {
 
   it("defaults gender to null and persists a provided one", async () => {
     const ungendered = await repo.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     expect(ungendered.gender).toBeNull();
 
     const gendered = await repo.create({
-      firstName: "Grace",
-      lastName: "Hopper",
+      firstName: "Henry",
+      lastName: "Potter",
       gender: "female",
     });
     expect(gendered.gender).toBe("female");
@@ -101,29 +101,29 @@ describe("peopleRepo", () => {
   });
 
   it("lists people excluding soft-deleted ones, ordered by name", async () => {
-    await repo.create({ firstName: "Ada", lastName: "Lovelace" });
+    await repo.create({ firstName: "Mary", lastName: "Bailey" });
     const hopper = await repo.create({
-      firstName: "Grace",
-      lastName: "Hopper",
+      firstName: "Henry",
+      lastName: "Potter",
     });
     await repo.softDelete(hopper.id);
 
     const list = await repo.list();
     expect(list).toHaveLength(1);
-    expect(list[0]?.lastName).toBe("Lovelace");
+    expect(list[0]?.lastName).toBe("Bailey");
   });
 
   it("updates a person and bumps updatedAt", async () => {
     const created = await repo.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     // Ensure a later millisecond so updatedAt is observably newer.
     await new Promise((resolve) => setTimeout(resolve, 2));
 
-    const updated = await repo.update(created.id, { lastName: "Byron" });
-    expect(updated?.lastName).toBe("Byron");
-    expect(updated?.firstName).toBe("Ada");
+    const updated = await repo.update(created.id, { lastName: "Hatch" });
+    expect(updated?.lastName).toBe("Hatch");
+    expect(updated?.firstName).toBe("Mary");
     expect(updated?.updatedAt).toBeGreaterThan(created.updatedAt);
     expect(updated?.createdAt).toBe(created.createdAt);
   });
@@ -134,8 +134,8 @@ describe("peopleRepo", () => {
     ).toBeUndefined();
 
     const created = await repo.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     await repo.softDelete(created.id);
     expect(await repo.update(created.id, { firstName: "X" })).toBeUndefined();
@@ -143,8 +143,8 @@ describe("peopleRepo", () => {
 
   it("hides a soft-deleted person from get", async () => {
     const created = await repo.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     await repo.softDelete(created.id);
     expect(await repo.get(created.id)).toBeUndefined();
@@ -152,18 +152,18 @@ describe("peopleRepo", () => {
 });
 
 // A person needs *some* name, not a first one and a last one. Two features want
-// this — someone known only as a relation ("Jen"), and contact import, whose
+// this — someone known only as a relation ("Ruth"), and contact import, whose
 // parser deliberately yields mononyms and organisation-only cards rather than
 // inventing a surname — and both write through this repo.
 describe("peopleRepo — partial names", () => {
   it("persists a person with only a first name", async () => {
-    const created = await repo.create({ firstName: "Cher" });
+    const created = await repo.create({ firstName: "Zuzu" });
     expect(created.lastName).toBeNull();
     expect(await repo.get(created.id)).toEqual(created);
   });
 
   it("persists a person with only a last name", async () => {
-    const created = await repo.create({ lastName: "Davis" });
+    const created = await repo.create({ lastName: "Dakin" });
     expect(created.firstName).toBeNull();
     expect(await repo.get(created.id)).toEqual(created);
   });
@@ -176,36 +176,36 @@ describe("peopleRepo — partial names", () => {
   // result — the update input itself can't, since a patch legitimately carries
   // no name. This is the check that stops a name being edited away to nothing.
   it("refuses an update that would erase every name", async () => {
-    const created = await repo.create({ firstName: "Cher" });
+    const created = await repo.create({ firstName: "Zuzu" });
     await expect(
       repo.update(created.id, { firstName: null }),
     ).rejects.toThrow();
-    expect((await repo.get(created.id))?.firstName).toBe("Cher");
+    expect((await repo.get(created.id))?.firstName).toBe("Zuzu");
   });
 
   it("allows clearing one name part while another survives", async () => {
     const created = await repo.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     const updated = await repo.update(created.id, { firstName: null });
     expect(updated?.firstName).toBeNull();
-    expect(updated?.lastName).toBe("Lovelace");
+    expect(updated?.lastName).toBe("Bailey");
   });
 
   // Ordering by "last_name, first_name" would file everyone without a surname
   // in a NULL block at the top, ahead of the alphabet. Each person sorts by
   // whichever part of their name they actually have.
   it("sorts a surname-less person among the surnames", async () => {
-    await repo.create({ firstName: "Ada", lastName: "Lovelace" });
-    await repo.create({ firstName: "Cher" });
-    await repo.create({ firstName: "Grace", lastName: "Hopper" });
+    await repo.create({ firstName: "Mary", lastName: "Bailey" });
+    await repo.create({ firstName: "Clarence" });
+    await repo.create({ firstName: "Henry", lastName: "Potter" });
 
     const list = await repo.list();
     expect(list.map((p) => p.lastName ?? p.firstName)).toEqual([
-      "Cher",
-      "Hopper",
-      "Lovelace",
+      "Bailey",
+      "Clarence",
+      "Potter",
     ]);
   });
 });
@@ -215,59 +215,59 @@ describe("peopleRepo — partial names", () => {
 // data, which is what separates them from a draft.
 describe("peopleRepo — standing", () => {
   it("defaults a created person to published", async () => {
-    const created = await repo.create({ firstName: "Ada", lastName: "L" });
+    const created = await repo.create({ firstName: "Mary", lastName: "L" });
     expect(created.standing).toBe("published");
   });
 
   it("leaves an unpublished person out of the catalog list", async () => {
-    await repo.create({ firstName: "Sam", lastName: "Carter" });
-    await repo.create({ firstName: "Jen", standing: "unpublished" });
+    await repo.create({ firstName: "Ernie", lastName: "Bishop" });
+    await repo.create({ firstName: "Ruth", standing: "unpublished" });
 
-    expect((await repo.list()).map((p) => p.firstName)).toEqual(["Sam"]);
+    expect((await repo.list()).map((p) => p.firstName)).toEqual(["Ernie"]);
   });
 
   // The page they appear on has to render them, and it reaches them by id — so
   // `list` narrowing must not narrow `get` with it.
   it("still returns an unpublished person by id", async () => {
-    const jen = await repo.create({
-      firstName: "Jen",
+    const ruth = await repo.create({
+      firstName: "Ruth",
       standing: "unpublished",
     });
-    expect(await repo.get(jen.id)).toEqual(jen);
+    expect(await repo.get(ruth.id)).toEqual(ruth);
   });
 
   it("reaches unpublished rows through an explicit query", async () => {
-    await repo.create({ firstName: "Jen", standing: "unpublished" });
+    await repo.create({ firstName: "Ruth", standing: "unpublished" });
     const found = await repo.listWhere({
       where: "standing = ?",
       params: ["unpublished"],
     });
-    expect(found.map((p) => p.firstName)).toEqual(["Jen"]);
+    expect(found.map((p) => p.firstName)).toEqual(["Ruth"]);
   });
 
   // Sync collects through `listChangedSince`, not `list()`, which is what keeps
   // an unpublished person on every one of the user's devices. Being hidden from
   // the catalog is a reading rule, not a reason to withhold the row.
   it("offers an unpublished person to the sync collector", async () => {
-    const jen = await repo.create({
-      firstName: "Jen",
+    const ruth = await repo.create({
+      firstName: "Ruth",
       standing: "unpublished",
     });
     const changed = await repo.listChangedSince(0);
-    expect(changed.map((p) => p.id)).toContain(jen.id);
+    expect(changed.map((p) => p.id)).toContain(ruth.id);
   });
 
   it("promotes and demotes through a plain update", async () => {
-    const jen = await repo.create({
-      firstName: "Jen",
+    const ruth = await repo.create({
+      firstName: "Ruth",
       standing: "unpublished",
     });
 
-    const promoted = await repo.update(jen.id, { standing: "published" });
+    const promoted = await repo.update(ruth.id, { standing: "published" });
     expect(promoted?.standing).toBe("published");
-    expect((await repo.list()).map((p) => p.firstName)).toEqual(["Jen"]);
+    expect((await repo.list()).map((p) => p.firstName)).toEqual(["Ruth"]);
 
-    await repo.update(jen.id, { standing: "unpublished" });
+    await repo.update(ruth.id, { standing: "unpublished" });
     expect(await repo.list()).toEqual([]);
   });
 
@@ -276,15 +276,15 @@ describe("peopleRepo — standing", () => {
   // built from it would stamp "published" onto every patch, so correcting an
   // unpublished person's spelling would publish them.
   it("does not republish an unpublished person on an unrelated edit", async () => {
-    const jen = await repo.create({
-      firstName: "Jen",
+    const ruth = await repo.create({
+      firstName: "Ruth",
       standing: "unpublished",
     });
 
-    const renamed = await repo.update(jen.id, { lastName: "Davis" });
+    const renamed = await repo.update(ruth.id, { lastName: "Dakin" });
     expect(renamed?.standing).toBe("unpublished");
 
-    const gendered = await repo.update(jen.id, { gender: "female" });
+    const gendered = await repo.update(ruth.id, { gender: "female" });
     expect(gendered?.standing).toBe("unpublished");
     expect(await repo.list()).toEqual([]);
   });

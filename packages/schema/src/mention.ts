@@ -15,7 +15,7 @@ export const MENTION_NAMESPACE = "leapsake:mention";
 
 /**
  * One `@mention` embedded **inline** in freeform text as a self-describing token
- * — `@[Alice Ng](person:<uuid>)`. Unlike a `#tag` (which is derivable from a bare
+ * — `@[Violet Bick](person:<uuid>)`. Unlike a `#tag` (which is derivable from a bare
  * word), a mention points at a *specific* pre-existing entity by id: names have
  * spaces, aren't unique, and must never be auto-created. Carrying the id inline
  * makes the text the single source of truth — the rendered forward-link and the
@@ -176,8 +176,8 @@ export function parseMentions(text: string): Mention[] {
 }
 
 /**
- * Replace each inline mention token with the `@name` a reader sees — `@[Alice
- * Ng](person:…)` → `@Alice Ng` — for the plain-text contexts that show a
+ * Replace each inline mention token with the `@name` a reader sees — `@[Violet
+ * Bick](person:…)` → `@Violet Bick` — for the plain-text contexts that show a
  * reminder's raw title/body as a string rather than through the `ReminderText`
  * renderer (delete confirmations, list labels; see {@link ./reminder.js
  * reminderLabel}). The sigil is kept because that is what the composer and the

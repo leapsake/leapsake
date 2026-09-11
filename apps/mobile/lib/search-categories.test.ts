@@ -21,7 +21,7 @@ const hit = (
 });
 
 const HITS = [
-  hit("person", "Ada"),
+  hit("person", "Mary"),
   hit("pet", "Biscuit"),
   hit("gift_idea", "A telescope"),
   hit("holiday", "Christmas"),
@@ -89,25 +89,25 @@ describe("filterHits", () => {
   });
 
   it("narrows to a single kind of record", () => {
-    expect(titles(filterHits(HITS, facetsFor("person")))).toEqual(["Ada"]);
+    expect(titles(filterHits(HITS, facetsFor("person")))).toEqual(["Mary"]);
     expect(titles(filterHits(HITS, facetsFor("pet")))).toEqual(["Biscuit"]);
   });
 
   it("keeps people and pets when both chips are up", () => {
     expect(titles(filterHits(HITS, facetsFor("person,pet")))).toEqual([
-      "Ada",
+      "Mary",
       "Biscuit",
     ]);
   });
 
   it("returns nothing rather than everything when a facet matches no hit", () => {
-    expect(filterHits([hit("person", "Ada")], facetsFor("holiday"))).toEqual(
+    expect(filterHits([hit("person", "Mary")], facetsFor("holiday"))).toEqual(
       [],
     );
   });
 
   it("does not hand back the caller's array to mutate", () => {
-    const source = [hit("person", "Ada")];
+    const source = [hit("person", "Mary")];
     expect(filterHits(source, [])).not.toBe(source);
   });
 });

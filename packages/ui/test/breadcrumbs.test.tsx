@@ -12,7 +12,7 @@ describe("Breadcrumbs", () => {
       <Breadcrumbs
         trail={[
           { label: "People & Pets", href: "/people" },
-          { label: "Ada Lovelace", href: "/people/1" },
+          { label: "Mary Bailey", href: "/people/1" },
           { label: "Delete" },
         ]}
       />,
@@ -24,7 +24,7 @@ describe("Breadcrumbs", () => {
         .map((a) => [a.textContent, a.getAttribute("href")]),
     ).toEqual([
       ["People & Pets", "/people"],
-      ["Ada Lovelace", "/people/1"],
+      ["Mary Bailey", "/people/1"],
     ]);
   });
 

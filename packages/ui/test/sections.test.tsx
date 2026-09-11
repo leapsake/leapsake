@@ -47,10 +47,10 @@ describe("TagsSection", () => {
 describe("MentionedInSection", () => {
   it("opens a reminder's edit screen, where the mention actually lives", () => {
     const reminders = [
-      { id: "r-1", title: "Call Ada", body: null },
+      { id: "r-1", title: "Call Mary", body: null },
     ] as Reminder[];
     renderWithUi(<MentionedInSection reminders={reminders} />);
-    expect(href("Call Ada")).toBe("/reminders/r-1/edit");
+    expect(href("Call Mary")).toBe("/reminders/r-1/edit");
   });
 
   it("always renders, with a placeholder when empty", () => {
@@ -98,7 +98,7 @@ describe("MilestonesSection", () => {
       milestone: { ...ownBirthday.milestone, kind: "wedding" },
       origin: "relationship",
       relationshipId: "rel-9",
-      otherLabel: "Grace",
+      otherLabel: "Henry",
     } as MilestoneTimelineEntry;
 
     renderWithUi(
@@ -112,7 +112,7 @@ describe("MilestonesSection", () => {
     expect(href("View")).toBe("/relationships/rel-9");
     expect(screen.queryByRole("link", { name: "Edit" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Remove" })).toBeNull();
-    expect(screen.getByRole("cell", { name: /with Grace/ })).toBeTruthy();
+    expect(screen.getByRole("cell", { name: /with Henry/ })).toBeTruthy();
   });
 
   it("offers Set spouse only for an unbound relationship-kind milestone", () => {
@@ -165,7 +165,7 @@ const explicitNeighbor = {
   otherRole: "mother",
   otherRoleLabel: "Mother",
   otherRoleNote: null,
-  otherLabel: "Ada",
+  otherLabel: "Mary",
 } as RelationshipNeighbor;
 
 describe("RelationshipsSection", () => {

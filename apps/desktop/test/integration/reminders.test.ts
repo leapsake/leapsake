@@ -166,7 +166,12 @@ describe("core.reminders", () => {
 
   it("shares a #tag with a person via the same taggings graph", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", middleName: null, lastName: "Doe", gender: null },
+      {
+        firstName: "Jane",
+        middleName: null,
+        lastName: "Wainwright",
+        gender: null,
+      },
       ["family"],
     );
     const r = await core.reminders.create({ title: "call sister #family" });
@@ -179,7 +184,12 @@ describe("core.reminders", () => {
 
   it("surfaces a tagged reminder on the tag's page, and drops it when deleted", async () => {
     const jane = await core.people.create(
-      { firstName: "Jane", middleName: null, lastName: "Doe", gender: null },
+      {
+        firstName: "Jane",
+        middleName: null,
+        lastName: "Wainwright",
+        gender: null,
+      },
       ["family"],
     );
     const r = await core.reminders.create({ title: "call sister #family" });

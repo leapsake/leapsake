@@ -177,17 +177,17 @@ describe("sync engine (all entities, in-memory transport)", () => {
     const engineA = engineFor(A);
     const engineB = engineFor(B);
 
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     const hwmA = await engineA.push(0);
-    expect(hwmA).toBe(ada.updatedAt);
+    expect(hwmA).toBe(mary.updatedAt);
 
     await engineB.pull(0);
 
-    const onB = await B.people.get(ada.id);
-    expect(onB).toEqual(ada); // identical fields and timestamps
+    const onB = await B.people.get(mary.id);
+    expect(onB).toEqual(mary); // identical fields and timestamps
   });
 
   it("persists watermarks so a fresh engine resumes instead of re-pulling from zero", async () => {
@@ -216,13 +216,13 @@ describe("sync engine (all entities, in-memory transport)", () => {
     const stateA = createSyncStateRepo(A.driver);
     const stateB = createSyncStateRepo(B.driver);
 
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
-    await engine(A, stateA).sync(); // pushes Ada, persists A's push HWM
-    await engine(B, stateB).sync(); // pulls Ada, persists B's pull cursor
-    expect(await B.people.get(ada.id)).toEqual(ada);
+    await engine(A, stateA).sync(); // pushes Mary, persists A's push HWM
+    await engine(B, stateB).sync(); // pulls Mary, persists B's pull cursor
+    expect(await B.people.get(mary.id)).toEqual(mary);
 
     const resumedCursor = await stateB.getPullCursor();
     expect(resumedCursor).toBeGreaterThan(0);
@@ -238,13 +238,13 @@ describe("sync engine (all entities, in-memory transport)", () => {
     expect(pulledSince).toEqual([resumedCursor]);
 
     // And a genuinely new row still flows to the resumed engine.
-    const grace = await A.people.create({
-      firstName: "Grace",
-      lastName: "Hopper",
+    const henry = await A.people.create({
+      firstName: "Henry",
+      lastName: "Potter",
     });
     await engine(A, stateA).sync();
     await freshEngineB.sync();
-    expect(await B.people.get(grace.id)).toEqual(grace);
+    expect(await B.people.get(henry.id)).toEqual(henry);
   });
 
   it("sync() reports the pull's applied count (the reactive-invalidation signal)", async () => {
@@ -261,16 +261,16 @@ describe("sync engine (all entities, in-memory transport)", () => {
     const stateA = createSyncStateRepo(A.driver);
     const stateB = createSyncStateRepo(B.driver);
 
-    await A.people.create({ firstName: "Ada", lastName: "Lovelace" });
-    await engine(A, stateA).sync(); // push Ada to the shared transport
+    await A.people.create({ firstName: "Mary", lastName: "Bailey" });
+    await engine(A, stateA).sync(); // push Mary to the shared transport
 
-    // B's first sync pulls Ada — `applied > 0` is what tells a client to
+    // B's first sync pulls Mary — `applied > 0` is what tells a client to
     // revalidate the visible screen.
     const onB = await engine(B, stateB).sync();
     expect(onB.applied).toBeGreaterThan(0);
 
     // A second sync on the *converged author* is a genuine no-op pull (it already
-    // pushed Ada, so its push HWM is past her) — `applied` is 0, so no pointless
+    // pushed Mary, so its push HWM is past her) — `applied` is 0, so no pointless
     // revalidation fires. (A device that pulled a row it never pushed re-pushes it
     // once and pulls the echo back — the accepted imprecision, harmless.)
     const again = await engine(A, stateA).sync();
@@ -279,18 +279,18 @@ describe("sync engine (all entities, in-memory transport)", () => {
 
   it("never exposes domain fields to the transport (only ciphertext + metadata)", async () => {
     const engineA = engineFor(A);
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     await engineA.push(0);
 
     const { records } = await transport.pull(0);
     expect(records).toHaveLength(1);
     const [rec] = records;
-    expect(rec.id).toBe(ada.id);
+    expect(rec.id).toBe(mary.id);
     expect(rec.table).toBe("people");
-    expect(rec.updatedAt).toBe(ada.updatedAt);
+    expect(rec.updatedAt).toBe(mary.updatedAt);
     // The name never appears in the cleartext envelope, only inside ciphertext.
     const cleartext = JSON.stringify({
       id: rec.id,
@@ -298,26 +298,26 @@ describe("sync engine (all entities, in-memory transport)", () => {
       updatedAt: rec.updatedAt,
       deletedAt: rec.deletedAt,
     });
-    expect(cleartext).not.toContain("Lovelace");
+    expect(cleartext).not.toContain("Bailey");
     expect(rec.wrappedKey).toBeUndefined(); // reserved, unused this slice
   });
 
   it("converges on the higher-updatedAt row regardless of pull order (LWW)", async () => {
     const engineA = engineFor(A);
     const engineB = engineFor(B);
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
-    await stamp(A, "people", ada.id, 1000, { createdAt: 1000 });
+    await stamp(A, "people", mary.id, 1000, { createdAt: 1000 });
     await engineA.push(0);
     let { cursor: cursorB } = await engineB.pull(0);
 
     // Concurrent edits: A is newer (3000), B is older (2000).
-    await A.people.update(ada.id, { gender: "female" });
-    await stamp(A, "people", ada.id, 3000, { createdAt: 1000 });
-    await B.people.update(ada.id, { lastName: "Byron" });
-    await stamp(B, "people", ada.id, 2000, { createdAt: 1000 });
+    await A.people.update(mary.id, { gender: "female" });
+    await stamp(A, "people", mary.id, 3000, { createdAt: 1000 });
+    await B.people.update(mary.id, { lastName: "Hatch" });
+    await stamp(B, "people", mary.id, 2000, { createdAt: 1000 });
 
     await engineA.push(1000); // push A's 3000 edit
     await engineB.push(1000); // push B's 2000 edit
@@ -326,53 +326,53 @@ describe("sync engine (all entities, in-memory transport)", () => {
     ({ cursor: cursorB } = await engineB.pull(cursorB));
 
     const expected = {
-      id: ada.id,
-      firstName: "Ada",
+      id: mary.id,
+      firstName: "Mary",
       middleName: null,
-      lastName: "Lovelace", // A's row won wholesale
+      lastName: "Bailey", // A's row won wholesale
       gender: "female",
       standing: "published",
       createdAt: 1000,
       updatedAt: 3000,
       deletedAt: null,
     };
-    expect(await A.people.getIncludingDeleted(ada.id)).toEqual(expected);
-    expect(await B.people.getIncludingDeleted(ada.id)).toEqual(expected);
+    expect(await A.people.getIncludingDeleted(mary.id)).toEqual(expected);
+    expect(await B.people.getIncludingDeleted(mary.id)).toEqual(expected);
   });
 
   it("propagates a tombstone, and a later edit resurrects (LWW deletes)", async () => {
     const engineA = engineFor(A);
     const engineB = engineFor(B);
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
-    await stamp(A, "people", ada.id, 1000, { createdAt: 1000 });
+    await stamp(A, "people", mary.id, 1000, { createdAt: 1000 });
     await engineA.push(0);
     await engineB.pull(0);
 
     // A deletes at 2000; tombstone propagates to B.
-    await A.people.softDelete(ada.id);
-    await stamp(A, "people", ada.id, 2000, {
+    await A.people.softDelete(mary.id);
+    await stamp(A, "people", mary.id, 2000, {
       createdAt: 1000,
       deletedAt: 2000,
     });
     await engineA.push(1000);
     await engineB.pull(0);
 
-    expect(await B.people.get(ada.id)).toBeUndefined(); // hidden from live reads
-    const tombstone = await B.people.getIncludingDeleted(ada.id);
+    expect(await B.people.get(mary.id)).toBeUndefined(); // hidden from live reads
+    const tombstone = await B.people.getIncludingDeleted(mary.id);
     expect(tombstone?.deletedAt).toBe(2000);
 
     // B edits at 3000 — a later write resurrects per LWW.
     await B.driver.run(
       "UPDATE people SET gender = ?, deleted_at = ?, updated_at = ? WHERE id = ?",
-      ["female", null, 3000, ada.id],
+      ["female", null, 3000, mary.id],
     );
     await engineB.push(0);
     await engineA.pull(0);
 
-    const onA = await A.people.get(ada.id);
+    const onA = await A.people.get(mary.id);
     expect(onA?.deletedAt).toBeNull();
     expect(onA?.gender).toBe("female");
     expect(onA?.updatedAt).toBe(3000);
@@ -381,48 +381,48 @@ describe("sync engine (all entities, in-memory transport)", () => {
   it("is idempotent: re-pulling the same cursor changes nothing", async () => {
     const engineA = engineFor(A);
     const engineB = engineFor(B);
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
     await engineA.push(0);
 
     const { cursor: cursor1, applied: applied1 } = await engineB.pull(0);
-    expect(applied1).toBe(1); // Ada delivered — the "changed" signal
-    const before = await B.people.get(ada.id);
+    expect(applied1).toBe(1); // Mary delivered — the "changed" signal
+    const before = await B.people.get(mary.id);
     const { cursor: cursor2, applied: applied2 } = await engineB.pull(cursor1);
-    const after = await B.people.get(ada.id);
+    const after = await B.people.get(mary.id);
 
     expect(cursor2).toBe(cursor1); // nothing new delivered
     expect(applied2).toBe(0); // no-op pull reports nothing applied
     expect(after).toEqual(before);
     await engineB.pull(0);
-    expect(await B.people.get(ada.id)).toEqual(before);
+    expect(await B.people.get(mary.id)).toEqual(before);
   });
 
   it("loses the lower-updatedAt field edit (the accepted lost-update window)", async () => {
     const engineA = engineFor(A);
     const engineB = engineFor(B);
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
-    await stamp(A, "people", ada.id, 1000, { createdAt: 1000 });
+    await stamp(A, "people", mary.id, 1000, { createdAt: 1000 });
     await engineA.push(0);
     const { cursor: cursorB } = await engineB.pull(0);
 
-    await A.people.update(ada.id, { gender: "female" }); // A: gender, ts 3000
-    await stamp(A, "people", ada.id, 3000, { createdAt: 1000 });
-    await B.people.update(ada.id, { middleName: "Augusta" }); // B: middleName, ts 2000
-    await stamp(B, "people", ada.id, 2000, { createdAt: 1000 });
+    await A.people.update(mary.id, { gender: "female" }); // A: gender, ts 3000
+    await stamp(A, "people", mary.id, 3000, { createdAt: 1000 });
+    await B.people.update(mary.id, { middleName: "Augusta" }); // B: middleName, ts 2000
+    await stamp(B, "people", mary.id, 2000, { createdAt: 1000 });
 
     await engineA.push(1000);
     await engineB.push(1000);
     await engineA.pull(0);
     await engineB.pull(cursorB);
 
-    const onA = await A.people.getIncludingDeleted(ada.id);
-    const onB = await B.people.getIncludingDeleted(ada.id);
+    const onA = await A.people.getIncludingDeleted(mary.id);
+    const onB = await B.people.getIncludingDeleted(mary.id);
     expect(onA).toEqual(onB); // still converged
     expect(onA?.gender).toBe("female");
     expect(onA?.middleName).toBeNull(); // the documented loss
@@ -434,27 +434,27 @@ describe("sync engine (all entities, in-memory transport)", () => {
     const engineA = engineFor(A);
     const engineB = engineFor(B);
 
-    const rex = await A.pets.create({ name: "Rex" });
-    await stamp(A, "pets", rex.id, 1000, { createdAt: 1000 });
+    const jimmy = await A.pets.create({ name: "Jimmy" });
+    await stamp(A, "pets", jimmy.id, 1000, { createdAt: 1000 });
     await engineA.push(0);
     await engineB.pull(0);
-    expect((await B.pets.get(rex.id))?.name).toBe("Rex"); // create propagated
+    expect((await B.pets.get(jimmy.id))?.name).toBe("Jimmy"); // create propagated
 
     // Concurrent edits: A newer (3000) than B (2000) — A wins wholesale.
-    await A.pets.update(rex.id, { gender: "male" });
-    await stamp(A, "pets", rex.id, 3000, { createdAt: 1000 });
-    await B.pets.update(rex.id, { name: "Rexington" });
-    await stamp(B, "pets", rex.id, 2000, { createdAt: 1000 });
+    await A.pets.update(jimmy.id, { gender: "male" });
+    await stamp(A, "pets", jimmy.id, 3000, { createdAt: 1000 });
+    await B.pets.update(jimmy.id, { name: "Jimmy the Raven" });
+    await stamp(B, "pets", jimmy.id, 2000, { createdAt: 1000 });
 
     await engineA.push(1000);
     await engineB.push(1000);
     await engineA.pull(0);
     await engineB.pull(0);
 
-    const onA = await A.pets.get(rex.id);
-    const onB = await B.pets.get(rex.id);
+    const onA = await A.pets.get(jimmy.id);
+    const onB = await B.pets.get(jimmy.id);
     expect(onA).toEqual(onB);
-    expect(onA?.name).toBe("Rex"); // A's row won wholesale
+    expect(onA?.name).toBe("Jimmy"); // A's row won wholesale
     expect(onA?.gender).toBe("male");
   });
 
@@ -511,16 +511,16 @@ describe("sync engine (all entities, in-memory transport)", () => {
     const engineA = engineFor(A);
     const engineB = engineFor(B);
 
-    const ada = await A.people.create({
-      firstName: "Ada",
-      lastName: "Lovelace",
+    const mary = await A.people.create({
+      firstName: "Mary",
+      lastName: "Bailey",
     });
-    await A.tags.setEntityTags("person", ada.id, ["Friend"]);
+    await A.tags.setEntityTags("person", mary.id, ["Friend"]);
 
     await engineA.push(0);
     await engineB.pull(0);
 
-    const tagsOnB = await B.tags.listForEntity("person", ada.id);
+    const tagsOnB = await B.tags.listForEntity("person", mary.id);
     expect(tagsOnB.map((t) => t.name)).toEqual(["Friend"]);
   });
 
@@ -528,8 +528,8 @@ describe("sync engine (all entities, in-memory transport)", () => {
     const engineA = engineFor(A);
     const engineB = engineFor(B);
 
-    const parent = await A.people.create({ firstName: "Ada", lastName: "L" });
-    const child = await A.people.create({ firstName: "Byron", lastName: "L" });
+    const parent = await A.people.create({ firstName: "Mary", lastName: "L" });
+    const child = await A.people.create({ firstName: "Hatch", lastName: "L" });
     const rel = await A.relationships.create({
       aType: "person",
       aId: parent.id,
@@ -594,12 +594,12 @@ describe("sync engine (all entities, in-memory transport)", () => {
     const engineA = engineFor(A);
     const engineB = engineFor(B);
 
-    const ada = await A.people.create({ firstName: "Ada", lastName: "L" });
+    const mary = await A.people.create({ firstName: "Mary", lastName: "L" });
     const email = await A.contactMethods.emails.create({
       ownerType: "person",
-      ownerId: ada.id,
+      ownerId: mary.id,
       label: "home",
-      address: "ada@example.com",
+      address: "mary@example.com",
     });
     await engineA.push(0);
     await engineB.pull(0);

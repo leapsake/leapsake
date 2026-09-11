@@ -50,9 +50,9 @@ function makeHarness() {
   let milestones: RemindEligibleMilestone[] = [];
   let ownPartnership: ReminderEngineDeps["isOwnPartnership"];
   const labels = new Map<string, string>([
-    ["r1", "Alice"], // a relationship the self-person is one end of
-    ["r2", "Bob & Carol"], // one they are not
-    ["p1", "Alice"],
+    ["r1", "Violet"], // a relationship the self-person is one end of
+    ["r2", "Harry & Tilly"], // one they are not
+    ["p1", "Violet"],
   ]);
   const selves = new Set<string>(["r1"]);
 
@@ -149,7 +149,7 @@ describe("a milestone borne by a relationship", () => {
 
     expect(result.created).toBeGreaterThan(0);
     expect(h.titles()).toContain(
-      "🗓 What do you want to do for Bob & Carol's anniversary?",
+      "🗓 What do you want to do for Harry & Tilly's anniversary?",
     );
   });
 
@@ -170,10 +170,10 @@ describe("a milestone borne by a relationship", () => {
 
     await regenerateSystemReminders(h.deps);
 
-    // "with Alice", not "your own": the relationship resolves to the *other*
+    // "with Violet", not "your own": the relationship resolves to the *other*
     // end's name, and naming them is the better read of a shared occasion.
     expect(h.titles()).toContain(
-      "🗓 What do you want to do for your wedding anniversary with Alice?",
+      "🗓 What do you want to do for your wedding anniversary with Violet?",
     );
   });
 
@@ -219,10 +219,10 @@ describe("a prompt gated on the occasion being the user's own", () => {
 
     await regenerateSystemReminders(h.deps);
 
-    // ⚠️ Not "Alice's first date" — it is not hers, it is yours with her, and
+    // ⚠️ Not "Violet's first date" — it is not hers, it is yours with her, and
     // the possessive said something else about the user's life.
     expect(h.titles()).toContain(
-      `🗓 What do you want to do for your first date with ${mentionToken("Alice", "person", "p1")}?`,
+      `🗓 What do you want to do for your first date with ${mentionToken("Violet", "person", "p1")}?`,
     );
   });
 
@@ -272,7 +272,7 @@ describe("a prompt gated on the occasion being the user's own", () => {
     await regenerateSystemReminders(h.deps);
 
     expect(h.titles()).toContain(
-      `🗓 What do you want to do for ${mentionToken("Alice", "person", "p1")}'s anniversary?`,
+      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}'s anniversary?`,
     );
   });
 

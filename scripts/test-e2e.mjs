@@ -57,8 +57,8 @@ await runSuite({
   key: "test:e2e",
   title: "test:e2e — crucial-flow catalog (mobile)",
   what: "crucial-flow catalog",
-  // Order is load-bearing: 01 leaves a fresh, accountless app; 02 puts Ada and Augustus in
-  // it; 03 writes a milestone onto Ada; 05 writes a reminder that mentions her. Inserting
+  // Order is load-bearing: 01 leaves a fresh, accountless app; 02 puts Mary and George in
+  // it; 03 writes a milestone onto Mary; 05 writes a reminder that mentions her. Inserting
   // a flow means deciding what state it inherits and what it leaves behind.
   //
   // **04 runs last, out of catalog order, because it is the one that ends the

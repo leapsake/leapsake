@@ -16,8 +16,8 @@ afterEach(cleanup);
 const noSearch = vi.fn(async () => []);
 
 const candidates: RelationshipCandidate[] = [
-  { type: "person", id: "p-2", label: "Ada Lovelace" },
-  { type: "pet", id: "x-1", label: "Mrs Chippy" },
+  { type: "person", id: "p-2", label: "Mary Bailey" },
+  { type: "pet", id: "x-1", label: "Jimmy" },
 ];
 
 /** The hidden values the write path actually reads. */
@@ -51,7 +51,7 @@ describe("RelationshipForm", () => {
     render();
 
     expect(submitButton().matches(":disabled")).toBe(true);
-    type("Name", "Ada Lovelace");
+    type("Name", "Mary Bailey");
     expect(submitButton().matches(":disabled")).toBe(true);
     type("Role", "Mother");
     expect(submitButton().matches(":disabled")).toBe(false);
@@ -60,7 +60,7 @@ describe("RelationshipForm", () => {
   it("resolves the typed labels into the machine values the write path reads", () => {
     const { container } = render();
 
-    type("Name", "Ada Lovelace");
+    type("Name", "Mary Bailey");
     type("Role", "Mother");
 
     expect(hidden(container)).toEqual({
@@ -87,13 +87,13 @@ describe("RelationshipForm", () => {
       [...d.querySelectorAll("option")].map((o) => o.getAttribute("value")),
     );
 
-    expect(lists[0]).toEqual(["Ada Lovelace", "Mrs Chippy"]);
+    expect(lists[0]).toEqual(["Mary Bailey", "Jimmy"]);
     expect(lists[1]).toContain("Mother");
   });
 
   it("asks for a note only when the role is the catch-all", () => {
     render();
-    type("Name", "Ada Lovelace");
+    type("Name", "Mary Bailey");
     expect(screen.queryByLabelText("Note")).toBeNull();
 
     type("Role", "Other");
@@ -136,7 +136,7 @@ describe("RelationshipFields", () => {
       />,
     );
 
-    type("Name", "Ada Lovelace");
+    type("Name", "Mary Bailey");
     expect(container.querySelectorAll("input[type=hidden]")).toHaveLength(0);
 
     type("Role", "Mother");
@@ -215,7 +215,7 @@ describe("PersonForm", () => {
   it("omits relationships on edit, which manages them on the view page", () => {
     renderWithUi(
       <PersonForm
-        title="Edit Ada"
+        title="Edit Mary"
         search={noSearch}
         submitLabel="Save"
         cancelTo="/"

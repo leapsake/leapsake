@@ -7,7 +7,7 @@ import {
 
 const validIdea = {
   id: crypto.randomUUID(),
-  title: "Red Ryder BB Gun",
+  title: "The Adventures of Tom Sawyer",
   url: null,
   notes: null,
   createdAt: Date.now(),
@@ -23,7 +23,7 @@ describe("giftIdeaSchema", () => {
   it("accepts a url and notes", () => {
     const full = {
       ...validIdea,
-      url: "https://example.com/bb-gun",
+      url: "https://example.com/tom-sawyer",
       notes: "the 200-shot model",
     };
     expect(giftIdeaSchema.parse(full)).toEqual(full);
@@ -47,19 +47,19 @@ describe("giftIdeaSchema", () => {
 
 describe("createGiftIdeaInputSchema", () => {
   it("accepts just a title", () => {
-    expect(createGiftIdeaInputSchema.parse({ title: "BB Gun" })).toEqual({
-      title: "BB Gun",
+    expect(createGiftIdeaInputSchema.parse({ title: "Tom Sawyer" })).toEqual({
+      title: "Tom Sawyer",
     });
   });
 
   it("accepts optional url and notes", () => {
     expect(
       createGiftIdeaInputSchema.parse({
-        title: "BB Gun",
+        title: "Tom Sawyer",
         url: "https://example.com",
         notes: "n",
       }),
-    ).toEqual({ title: "BB Gun", url: "https://example.com", notes: "n" });
+    ).toEqual({ title: "Tom Sawyer", url: "https://example.com", notes: "n" });
   });
 
   it("rejects a missing title", () => {
