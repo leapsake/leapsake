@@ -16,6 +16,7 @@ import {
   kindDefs,
   reminderLabel,
 } from "@leapsake/schema";
+import { onboardingRouteOf } from "@leapsake/core";
 import { reminderActionKey, reminderActionsOf } from "@leapsake/view-models";
 import { Checkbox } from "../../../components/Checkbox";
 import { ContactReachButtons } from "../../../components/ContactReachButtons";
@@ -158,6 +159,20 @@ export default function ReminderDetailScreen() {
   // a reminder: its answer form is inline, so the reminder chrome that assumes
   // an errand is withheld — see each use below for what and why.
   const isPrompt = planTarget !== undefined;
+  // A first-run nudge, told from its well-known id. Nothing else on this screen
+  // needs to know — it feeds `isErrand` and nothing more.
+  const isOnboardingNudge = onboardingRouteOf(id) !== null;
+  /**
+   * Whether this reminder is an **errand**: something with a doing in it that a
+   * person finishes. Only an errand can be completed.
+   *
+   * The two exceptions are not exceptions to a rule about screens, they are two
+   * things that are not errands. A `🗓 plan` prompt is a **question**, and
+   * answering it is what retires it — Save below does that. A first-run nudge is
+   * a **condition**, and it retires when the condition is met: adding a person
+   * is what finishes "add your first person", and nothing else can.
+   */
+  const isErrand = !isPrompt && !isOnboardingNudge;
   // Present only on a `wish` about a person. When they *have* methods this feeds
   // the buttons below and no CTA is offered; when they have none the view-model
   // turns it into the collect prompt. Either way the reminder stays completable
@@ -269,12 +284,17 @@ export default function ReminderDetailScreen() {
           that says whether this is done now that the Status field is gone, so the
           heading strikes through as well, exactly as the list's rows do.
 
-          ⚠️ **A prompt gets no checkbox.** There is no errand here to finish;
-          answering the question *is* what retires it, and Save below does that.
-          A tick offered beside a question invites a fifth answer to a form that
-          already has four, and means something the write cannot honour. */}
+          ⚠️ **Only an errand gets a checkbox** (see {@link isErrand}). A tick
+          offered beside a *question* invites a fifth answer to a form that
+          already has four, and means something the write cannot honour. Offered
+          beside a *condition* it means less than that: `setCompleted` will
+          happily stamp a nudge, but the step's condition is still unmet, so the
+          next reconcile keeps wanting the row and it simply sits in Completed
+          for good — no snooze spent, no dismissal recorded, and the thing it
+          asked for still not done. Withholding the control is the fix; the write
+          stays open because the engine's own materialization uses it. */}
       <View style={styles.rowWithLead}>
-        {!isPrompt && (
+        {isErrand && (
           <Checkbox
             accessibilityLabel={
               done ? `Reopen “${label}”` : `Mark “${label}” done`
