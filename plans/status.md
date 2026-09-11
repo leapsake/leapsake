@@ -12,9 +12,9 @@
 *Part 2*) — which is also why nothing may reach Play from the personal account.
 
 **The `rc` bar was code-complete until 2026-09-10, when onboarding was reworked** — Home rows lost
-their completion checkbox; the nudges gained an import step (replacing add-person), a
-notifications step, and staggered put-offs. Static and unit tiers are green, but
-`factory-reset.yaml` moved with the copy: **Flows 1–5 and the `rc` rung must pass again.**
+their completion checkbox; the nudges gained an import step, a notifications step, staggered
+put-offs and an `/about-you` screen. Static and unit tiers are green, but `factory-reset.yaml`
+moved with the copy: **Flows 1–5 and the `rc` rung must pass again.**
 
 **Next, in order — [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with acceptance
 for each step.** ① All step 3 still owes: the catalog as a **`requires:` check** in `ios.mjs`
@@ -22,8 +22,8 @@ rather than a `manual:` sentence. ② **Public repo**, full-history secret scan 
 Store Connect fields nothing in the repo can check** — privacy URL, a *published* App Privacy
 questionnaire, screenshots, age rating; `ascSetup` reads none of them. ④ **Submit**, then **GA**.
 
-**In parallel, starting now:** incorporate and get a D-U-N-S number — up to 30 days, and the
-entity must exist before the transfer that GA unlocks.
+**In parallel, starting now:** incorporate and get a D-U-N-S number — up to 30 days, before the
+transfer that GA unlocks.
 
 **Not gating.** [`export.md`](./export.md) holds increment 6 and three device verifications;
 contact-import fidelity rests at a natural stopping point ([`v0-2.md`](./v0-2.md)); contact
