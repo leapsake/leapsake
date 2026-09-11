@@ -59,6 +59,24 @@ const NOTHING_NEW: ImportResult = { created: 0, skipped: 0, errors: [] };
 /** The run in flight, so a second caller queues behind it rather than racing it. */
 let queue: Promise<unknown> = Promise.resolve();
 
+/** Told about every run that committed anything, whoever started it. */
+const observers = new Set<(result: ImportResult) => void>();
+
+/**
+ * Hear about every run that commits, not only the caller's own — which is what
+ * the import screen needs to say what it imported. Closing the system's
+ * permission sheet brings the app back to the foreground, and granting access
+ * changes the address book, so a background run can reach the new contacts
+ * before the screen's own run does and leave that one nothing new. Returns the
+ * unsubscribe.
+ */
+export function observeDeviceContactSync(
+  observe: (result: ImportResult) => void,
+): () => void {
+  observers.add(observe);
+  return () => observers.delete(observe);
+}
+
 /**
  * Bring in whatever is new, or `null` when this device has not switched the sync
  * on or has no permission to read contacts. Never prompts for permission.
@@ -89,7 +107,7 @@ async function syncOnce(core: CoreApi): Promise<ImportResult | null> {
   const details = await Contact.getAllDetails(CONTACT_FIELDS, {
     sortOrder: ContactsSortOrder.GivenName,
   });
-  return core.import.commit(
+  const result = await core.import.commit(
     details
       .filter(({ id }) => !linked.has(id))
       .map((detail) => ({
@@ -98,4 +116,6 @@ async function syncOnce(core: CoreApi): Promise<ImportResult | null> {
         sourceId: detail.id,
       })),
   );
+  for (const observe of observers) observe(result);
+  return result;
 }

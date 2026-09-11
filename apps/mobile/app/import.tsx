@@ -14,7 +14,10 @@ import {
   requestPermissionsAsync,
 } from "expo-contacts";
 import type { ImportResult } from "@leapsake/core";
-import { syncDeviceContacts } from "../lib/device-contacts-sync";
+import {
+  observeDeviceContactSync,
+  syncDeviceContacts,
+} from "../lib/device-contacts-sync";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -46,8 +49,6 @@ type State =
       promptSelf: boolean;
     };
 
-const NOTHING_NEW: ImportResult = { created: 0, skipped: 0, errors: [] };
-
 export default function ImportScreen() {
   const core = useCore();
   const router = useRouter();
@@ -55,6 +56,15 @@ export default function ImportScreen() {
 
   useEffect(() => {
     let live = true;
+    // Everything that lands while this screen is up is this import's result,
+    // not only its own run's: see `observeDeviceContactSync` for the background
+    // run that tends to get there first.
+    const landed: ImportResult = { created: 0, skipped: 0, errors: [] };
+    const stopObserving = observeDeviceContactSync((run) => {
+      landed.created += run.created;
+      landed.skipped += run.skipped;
+      landed.errors.push(...run.errors);
+    });
     void (async () => {
       try {
         const before = await getPermissionsAsync();
@@ -74,7 +84,11 @@ export default function ImportScreen() {
           await Contact.presentAccessPicker().catch(() => []);
         }
         await core.deviceContacts.setSyncEnabled(true);
-        const result = (await syncDeviceContacts(core)) ?? NOTHING_NEW;
+        // Queued behind any run already going, so once this resolves every run
+        // that could have taken these contacts has reported to `landed`.
+        await syncDeviceContacts(core);
+        stopObserving();
+        const result = { ...landed, errors: [...landed.errors] };
         // Import is a natural prompt point for the self-person, mirroring
         // desktop's ImportReview: offer it only when people actually landed and
         // no self is set yet — there's now a list to pick from.
@@ -93,6 +107,7 @@ export default function ImportScreen() {
     })();
     return () => {
       live = false;
+      stopObserving();
     };
   }, [core]);
 
@@ -181,8 +196,10 @@ export default function ImportScreen() {
           <Text style={styles.danger}>
             Couldn’t import {result.errors.length}:
           </Text>
-          {result.errors.map((err) => (
-            <Text key={err.index} style={styles.muted}>
+          {/* Keyed by position: `err.index` is per run, and this list can
+              hold more than one run's. */}
+          {result.errors.map((err, i) => (
+            <Text key={i} style={styles.muted}>
               • {err.contact.displayName ?? "Unnamed contact"} — {err.message}
             </Text>
           ))}
